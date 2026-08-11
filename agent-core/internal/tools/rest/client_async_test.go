@@ -30,20 +30,31 @@ func TestRESTClient_SendRecordsAsyncRequest(t *testing.T) {
 	defer upstream.Close()
 	def := asyncDefinition(t, upstream.URL, asyncPaymentClient())
 	state := NewAsyncState()
+	command := asyncCommand(t, def, state, InitClientSend, asyncParams("slow"))
+	results := make(chan core.Result, 1)
 
-	result := asyncCommand(t, def, state, InitClientSend, asyncParams("slow")).Execute()
-	require.Equal(t, core.Signal("RESTAccepted"), result.Signal, result.Output)
-	require.Contains(t, result.Output, `"request_id":"slow"`)
-	require.Contains(t, result.Output, `"idempotency_token":"slow"`)
+	go func() { results <- command.Execute() }()
 	select {
 	case <-handlerEntered:
 	case <-time.After(time.Second):
 		t.Fatal("async handler was not entered")
 	}
+	select {
+	case result := <-results:
+		t.Fatalf("send returned before submission response: %s", result.Output)
+	default:
+	}
 	close(releaseHandler)
+	result := <-results
+	require.Equal(t, core.Signal("RESTAccepted"), result.Signal, result.Output)
+	require.Contains(t, result.Output, `"request_id":"slow"`)
+	require.Contains(t, result.Output, `"idempotency_token":"slow"`)
+	require.Contains(t, result.Output, `"status":200`)
+	require.NotEmpty(t, result.Receipt)
 
 	await := asyncCommand(t, def, state, InitClientAwait, map[string]interface{}{"request_id": "slow"}).Execute()
 	require.Equal(t, core.Signal("RESTResponded"), await.Signal, await.Output)
+	require.Empty(t, await.Receipt, "only the send step owns remote compensation")
 	require.Equal(t, int32(1), requestCount.Load(), "await must not perform another HTTP request")
 }
 
@@ -62,15 +73,26 @@ func TestRESTClient_AwaitAsyncRequest(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			upstream := httptest.NewServer(http.HandlerFunc(asyncPaymentHandler))
-			defer upstream.Close()
-			def := asyncDefinition(t, upstream.URL, asyncPaymentClient())
+			def := asyncDefinition(t, "https://api.example", asyncPaymentClient())
 			state := NewAsyncState()
-			send := asyncCommand(t, def, state, InitClientSend, asyncParams(tc.id)).Execute()
-			require.Equal(t, core.Signal("RESTAccepted"), send.Signal, send.Output)
+			done := make(chan core.Result, 1)
+			if tc.signal != core.Signal("RESTAwaitTimedOut") {
+				done <- core.Result{
+					Signal: tc.signal,
+					Output: jsonOutput(map[string]interface{}{"status": http.StatusOK}),
+				}
+			}
+			require.NoError(t, state.Add(&AsyncRequest{
+				RequestID: tc.id, OperationID: "create_payment",
+				RetentionPolicy: asyncRetentionConsume, Done: done,
+			}))
 
 			await := asyncCommand(t, def, state, InitClientAwait, map[string]interface{}{"request_id": tc.id}).Execute()
 			require.Equal(t, tc.signal, await.Signal, await.Output)
+			var output map[string]interface{}
+			require.NoError(t, json.Unmarshal([]byte(await.Output), &output))
+			require.Equal(t, tc.id, output["request_id"])
+			require.Equal(t, "create_payment", output["operation_id"])
 		})
 	}
 
@@ -79,6 +101,77 @@ func TestRESTClient_AwaitAsyncRequest(t *testing.T) {
 	result := asyncCommand(t, def, state, InitClientAwait, map[string]interface{}{"request_id": "missing"}).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "async_state_missing")
+}
+
+func TestRESTClient_SendFailureIsNotRecordedForAwait(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"error":"rejected"}`, http.StatusUnprocessableEntity)
+	}))
+	defer upstream.Close()
+	def := asyncDefinition(t, upstream.URL, asyncPaymentClient())
+	state := NewAsyncState()
+
+	result := asyncCommand(t, def, state, InitClientSend, asyncParams("rejected")).Execute()
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, "submission_rejected")
+	_, err := state.Get("rejected")
+	require.ErrorContains(t, err, "not defined")
+}
+
+func TestRESTClient_SendNetworkFailureSurfacesImmediately(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	baseURL := upstream.URL
+	upstream.Close()
+	def := asyncDefinition(t, baseURL, asyncPaymentClient())
+	state := NewAsyncState()
+
+	result := asyncCommand(t, def, state, InitClientSend, asyncParams("network-failure")).Execute()
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, "network_io")
+	_, err := state.Get("network-failure")
+	require.ErrorContains(t, err, "not defined")
+}
+
+func TestRESTClient_SentNotAwaitedReceiptCompensates(t *testing.T) {
+	t.Parallel()
+
+	var compensated atomic.Bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method == http.MethodDelete {
+			compensated.Store(true)
+			writeJSON(w, http.StatusOK, map[string]interface{}{"id": pathSegments(req.URL.Path)[1]})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{"id": pathSegments(req.URL.Path)[1]})
+	}))
+	defer upstream.Close()
+	def := asyncDefinition(t, upstream.URL, asyncPaymentClient())
+	collection := NewCollection()
+	require.NoError(t, collection.Add(def))
+	resolved, err := collection.ResolveClientOperation(ClientToolConfig{
+		RestRef: "payments", Operation: "create_payment",
+	})
+	require.NoError(t, err)
+	builder := ClientBuilder{
+		ToolName: "rest_client_send", Init: InitClientSend,
+		Operation: resolved, Definitions: collection, AsyncState: NewAsyncState(),
+	}
+
+	send := builder.Build(core.Result{
+		Output: mustToolParams(t, InitClientSend, asyncParams("receipt")),
+	}).Execute()
+	require.Equal(t, core.Signal("RESTAccepted"), send.Signal, send.Output)
+	require.NotEmpty(t, send.Receipt)
+
+	undoResult := builder.BuildReverser().Undo(send)
+	require.Equal(t, core.Signal("RESTCancelled"), undoResult.Signal, undoResult.Output)
+	require.True(t, compensated.Load())
 }
 
 func TestRESTClient_AsyncCorrelationAndIdempotencyHeader(t *testing.T) {
@@ -166,22 +259,6 @@ func TestRESTClient_AwaitOperationReferenceValidation(t *testing.T) {
 	require.ErrorContains(t, err, "probe and delay states")
 }
 
-func asyncPaymentHandler(w http.ResponseWriter, req *http.Request) {
-	id := pathSegments(req.URL.Path)[1]
-	switch id {
-	case "domain":
-		http.Error(w, `{"error":"domain"}`, http.StatusUnprocessableEntity)
-	case "missing":
-		http.NotFound(w, req)
-	case "timeout":
-		time.Sleep(100 * time.Millisecond)
-		writeJSON(w, http.StatusOK, map[string]interface{}{"id": id})
-	default:
-		time.Sleep(20 * time.Millisecond)
-		writeJSON(w, http.StatusOK, map[string]interface{}{"id": id})
-	}
-}
-
 func asyncCommand(t *testing.T, def Definition, state *AsyncState, init string, input map[string]interface{}) core.Command {
 	t.Helper()
 	collection := NewCollection()
@@ -211,7 +288,18 @@ func asyncDefinition(t *testing.T, baseURL string, client Client) Definition {
 }
 
 func asyncPaymentClient() Client {
-	return Client{Operations: map[string]Operation{"create_payment": asyncPaymentOperation()}}
+	return Client{Operations: map[string]Operation{
+		"create_payment": asyncPaymentOperation(),
+		"cancel_payment": {
+			Method: http.MethodDelete, Path: "/payments/{order_id}",
+			Params:      RequestBinding{Path: map[string]interface{}{"order_id": map[string]interface{}{}}},
+			Success:     StatusMapping{Status: []int{http.StatusOK}, Signal: "RESTCancelled"},
+			SideEffects: []SideEffect{{Kind: "external_api", State: "payment_cancelled"}},
+			Reversibility: Reversibility{
+				Classification: "irreversible", Undo: "irreversible", RequiresConfirmation: true,
+			},
+		},
+	}}
 }
 
 func asyncPaymentOperation() Operation {
@@ -225,6 +313,7 @@ func asyncPaymentOperation() Operation {
 		},
 		SideEffects:   []SideEffect{{Kind: "external_api", State: "payment_created"}},
 		Reversibility: Reversibility{Classification: "compensatable", Undo: "cancel_payment"},
+		Compensation:  map[string]interface{}{"operation": "cancel_payment"},
 		Async: &AsyncClientConfig{
 			RequestID: "{{ params.order_id }}", IdempotencyToken: "{{ params.order_id }}",
 			Timeout: "100ms", StateRetention: asyncRetentionConsume,

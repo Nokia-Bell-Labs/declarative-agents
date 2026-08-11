@@ -26,7 +26,9 @@ func TestFormatIssueEmitsTrackerAgnosticParameters(t *testing.T) {
 		Directory: "/tmp/workspace",
 		TaskDeps:  map[string]string{"later": "issue-9", "earlier": "issue-2"},
 	}
-	cmd := (&FormatIssueBuilder{PS: ps}).Build(core.Result{})
+	cmd := (&FormatIssueBuilder{
+		PS: ps, BodyPath: ".planner/body.yaml", DeliverableType: "documentation",
+	}).Build(core.Result{})
 	result := cmd.Execute()
 	require.Equal(t, SigIssueFormatted, result.Signal)
 
@@ -35,11 +37,11 @@ func TestFormatIssueEmitsTrackerAgnosticParameters(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
 	assert.Equal(t, "Implement parser", output.Parameters["title"])
-	assert.Equal(t, plannerIssueBodyPath, output.Parameters["path"])
-	assert.Equal(t, plannerIssueBodyPath, output.Parameters["body_file"])
+	assert.Equal(t, ".planner/body.yaml", output.Parameters["path"])
+	assert.Equal(t, ".planner/body.yaml", output.Parameters["body_file"])
 	assert.Equal(t, "/tmp/workspace", output.Parameters["directory"])
 	assert.Equal(t, "issue-2,issue-9", output.Parameters["deps"])
-	assert.Contains(t, output.Parameters["content"], "deliverable_type: code")
+	assert.Contains(t, output.Parameters["content"], "deliverable_type: documentation")
 	assert.Contains(t, output.Parameters["content"], "parser.go")
 
 	require.Equal(t, core.ToolDone, cmd.Undo(result).Signal)

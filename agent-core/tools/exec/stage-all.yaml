@@ -20,3 +20,33 @@ tools:
     description: Restore the workspace ref and index captured before staging.
     requires:
     - Workspace
+  problem: A Git workflow machine needs a distinct operation that stages the complete working-tree delta before a later commit operation.
+  goals:
+  - Invoke `git add -A` once in the configured repository.
+  - Stage tracked changes, deletions, and untracked files exactly as Git defines `-A`.
+  - Make index changes recoverable through workspace restore.
+  requirements:
+    input:
+    - must run in the configured Git workspace and accept no runtime parameters
+    output:
+    - must return combined `git add -A` output as a string
+    errors:
+    - must emit CommandError when the process cannot start and ToolFailed when the Git precondition or command fails
+  non_goals:
+  - Does not create a commit, choose a subset of paths, or modify working-tree file content.
+  emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: Combined stdout and stderr from `git add -A`.
+    schema: {type: string}
+  errors:
+  - signal: CommandError
+    condition: the git process cannot be started
+    message_shape: 'stage_all: <error>'
+    state_after_failure: the index is unchanged by a process that did not start
+  - signal: ToolFailed
+    condition: the workspace is not a Git repository or `git add -A` exits non-zero
+    message_shape: '<captured git output>'
+    state_after_failure: the index may be partially updated and must be restored from the workspace checkpoint
+  relationships:
+    before: [git_init, machine-selected predecessor]
+    after: [commit, commit_workspace_baseline]

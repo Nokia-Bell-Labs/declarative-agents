@@ -58,6 +58,18 @@ tools:
     config:
       resources: {}
 
+    errors:
+    - signal: DocumentResourceDenied
+      condition: a candidate path is absolute, contains traversal, or resolves outside the configured resource root
+      message_shape: 'resource_denied: <reason>'
+      state_after_failure: no resource content or runtime state is changed
+    - signal: CommandError
+      condition: the configured resource is unknown or filesystem metadata cannot be read or encoded
+      message_shape: 'list_resource: <error>'
+      state_after_failure: no successful document list is published
+    relationships:
+      before: [configured filesystem CLI word]
+      after: [read_resource, machine-selected successor]
   - name: read_resource
     type: builtin
     category: boundary
@@ -112,3 +124,23 @@ tools:
       description: Resource reading is read-only.
     config:
       resources: {}
+    errors:
+    - signal: DocumentMissing
+      condition: the selected resource-relative file does not exist
+      message_shape: resource not found
+      state_after_failure: no document content or runtime state is changed
+    - signal: DocumentResourceDenied
+      condition: the path, extension, size, file kind, or include policy denies the read
+      message_shape: 'resource_denied: <reason>'
+      state_after_failure: no document content is returned
+    - signal: DocumentParseFailed
+      condition: configured parsed-YAML mode cannot decode the document
+      message_shape: 'parse_failed: <yaml error>'
+      state_after_failure: no successful document detail is published
+    - signal: CommandError
+      condition: the resource is unknown or an unclassified filesystem or encoding failure occurs
+      message_shape: 'read_resource: <error>'
+      state_after_failure: no runtime or filesystem state is changed
+    relationships:
+      before: [list_resource, machine-selected predecessor]
+      after: [machine-selected successor]

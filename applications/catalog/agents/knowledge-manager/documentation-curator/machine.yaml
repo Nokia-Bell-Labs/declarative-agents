@@ -56,6 +56,8 @@ transitions:
     signal: ServerLaunched
     next: LaunchingMonitor
     action: launch_monitor_rest
+    label: monitor
+    report_output: $.address
     metric_labels: {phase: monitor_launch}
   - state: LaunchingControl
     signal: CommandError

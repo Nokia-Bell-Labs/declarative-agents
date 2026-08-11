@@ -33,3 +33,34 @@ tools:
         flag: -m
     required:
     - message
+  problem: A machine needs one explicit boundary operation that records the staged Git index as a commit with a caller-supplied message.
+  goals:
+  - Create exactly one commit from the current staged index when Git accepts the request.
+  - Pass the required message through `git commit -m` without composing staging or pushing.
+  - Return Git's combined process output and distinguish launch, precondition, and non-zero-exit failures.
+  requirements:
+    input:
+    - must run inside the configured Git workspace and require a non-empty message parameter
+    output:
+    - must return the combined `git commit` output as a string and emit ToolDone only on exit code zero
+    errors:
+    - must emit CommandError when input resolution or process launch fails, and ToolFailed when the Git precondition or command fails
+  non_goals:
+  - Does not stage files, amend an existing commit, or push a branch.
+  - Does not choose commit-message policy.
+  emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: Combined stdout and stderr from `git commit`.
+    schema: {type: string}
+  errors:
+  - signal: CommandError
+    condition: the message cannot be resolved or the git process cannot be started
+    message_shape: 'commit: <error>'
+    state_after_failure: no commit is created by a process that did not start
+  - signal: ToolFailed
+    condition: the workspace is not a Git repository or `git commit` exits non-zero
+    message_shape: '<captured git output>'
+    state_after_failure: Git may leave its own documented commit or hook state; the staged index remains available for inspection
+  relationships:
+    before: [stage_all]
+    after: [rev_parse, workspace_status]

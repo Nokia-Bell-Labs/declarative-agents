@@ -3,11 +3,200 @@
 package main
 
 import (
+	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestCaptureSourceCreatesImmutableWorkspaceArtifact(t *testing.T) {
+	workspace := t.TempDir()
+	fixtures := t.TempDir()
+	if err := os.WriteFile(filepath.Join(fixtures, "source.md"), []byte("source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var suite fixtureSuite
+	suite.Source.File = "source.md"
+	boundary := boundary{workspace: workspace, fixtures: fixtures, suite: suite}
+	state := manifest{}
+
+	if _, _, err := boundary.captureSource(&state, false); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(workspace, ".tracer", "captured-source.md")
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o444 {
+		t.Fatalf("capture mode = %o, want 444", got)
+	}
+}
+
+func TestParseManifestRevisionInputRequiresDeclaredEventAndTerminal(t *testing.T) {
+	input, err := parseManifestRevisionInput([]string{
+		"boundary", "append-manifest-revision", "locally_finalized", "LocallyFinalized", "4", "0",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if input.Event != "locally_finalized" || input.Terminal != "LocallyFinalized" ||
+		input.Occurrence != 4 || input.ContextAttempt != 0 {
+		t.Fatalf("parsed input = %#v", input)
+	}
+	for _, args := range [][]string{
+		{"boundary", "append-manifest-revision"},
+		{"boundary", "append-manifest-revision", "", "none", "1", "0"},
+		{"boundary", "append-manifest-revision", "event", "Unexpected", "1", "0"},
+		{"boundary", "append-manifest-revision", "event", "none", "zero", "0"},
+		{"boundary", "append-manifest-revision", "event", "none", "1", "-1"},
+	} {
+		if _, err := parseManifestRevisionInput(args); err == nil {
+			t.Fatalf("input %v unexpectedly succeeded", args)
+		}
+	}
+}
+
+func TestManifestContextProjectsContentIdentitiesWithoutInstructionPolicy(t *testing.T) {
+	workspace := t.TempDir()
+	original := []byte("original")
+	candidate := []byte("candidate")
+	if err := os.WriteFile(filepath.Join(workspace, "00-original.md"), original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(workspace, "attempts", "structure"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	candidatePath := filepath.Join("attempts", "structure", "candidate.md")
+	if err := os.WriteFile(filepath.Join(workspace, candidatePath), candidate, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := manifest{
+		SagaID: "saga", Source: sourceIdentity{SHA256: digest(original)},
+		Selected: map[string]string{"original": "original-1", "structure": "structure-1"},
+		Artifacts: []artifact{{
+			ID: "structure-1", Stage: "structure", Attempt: 1,
+			Path: filepath.ToSlash(candidatePath), SHA256: digest(candidate),
+		}},
+	}
+
+	data, err := (&boundary{workspace: workspace}).manifestContext(state, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var context map[string]any
+	if err := json.Unmarshal(data, &context); err != nil {
+		t.Fatal(err)
+	}
+	if context["original_content"] != "original" || context["candidate_content"] != "candidate" {
+		t.Fatalf("manifest context = %#v", context)
+	}
+	if _, exists := context["bounded_structure_intent"]; exists {
+		t.Fatal("boundary context must not own child instruction policy")
+	}
+}
+
+func TestChildRequestInputRequiresDistinctAddress(t *testing.T) {
+	input, err := parseChildRequestInput([]string{
+		"boundary", "persist-child-request", ".tracer/requests/structure-1.json", "1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if input.Path != ".tracer/requests/structure-1.json" {
+		t.Fatalf("path = %q", input.Path)
+	}
+	for _, path := range []string{"child-request.json", "../request.json", "/tmp/request.json"} {
+		if _, err := parseChildRequestInput([]string{
+			"boundary", "persist-child-request", path, "1",
+		}); err == nil {
+			t.Fatalf("unsafe path %q succeeded", path)
+		}
+	}
+}
+
+func TestTruncatedReceiptLogReturnsError(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(workspace, "boundary-receipts.jsonl"), []byte("{truncated\n"), 0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	boundary := boundary{workspace: workspace, session: "session"}
+	if _, err := boundary.nextOccurrence("capture-source"); err == nil {
+		t.Fatal("truncated receipt log unexpectedly produced an occurrence")
+	}
+	if err := boundary.record(receipt{Operation: "capture-source"}); err == nil {
+		t.Fatal("record silently renumbered a truncated receipt log")
+	}
+}
+
+func TestEditorFixtureWithoutRetrievalIDsReturnsError(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	fixtures := t.TempDir()
+	fixturePath := filepath.Join(fixtures, "editor.yaml")
+	if err := os.WriteFile(fixturePath, []byte("content: candidate\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	requestPath := filepath.Join(workspace, ".tracer", "requests")
+	if err := os.MkdirAll(requestPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(requestPath, "structure-1.json"), []byte(`{"parent_artifact_id":"id","parent_content_hash":"hash"}`), 0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	boundary := boundary{
+		workspace: workspace, fixtures: fixtures, session: "session",
+		scenario: scenario{EditorResponses: []string{"editor.yaml"}},
+	}
+
+	_, err := boundary.chatResponse([]byte(`{"model":"tracer-editor"}`), 1)
+
+	if err == nil || !strings.Contains(err.Error(), "retrieval_id") {
+		t.Fatalf("chatResponse error = %v", err)
+	}
+}
+
+func TestServeReadinessFailureReleasesListeners(t *testing.T) {
+	t.Parallel()
+
+	listeners := make([]net.Listener, 0, 2)
+	var addresses []string
+	for range 2 {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		listeners = append(listeners, listener)
+		addresses = append(addresses, listener.Addr().String())
+	}
+	readiness, err := os.CreateTemp(t.TempDir(), "readiness")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := readiness.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := (&boundary{}).serve(listeners, readiness); err == nil {
+		t.Fatal("closed readiness file unexpectedly succeeded")
+	}
+	for _, address := range addresses {
+		listener, err := net.Listen("tcp", address)
+		if err != nil {
+			t.Fatalf("listener %s leaked after readiness failure: %v", address, err)
+		}
+		_ = listener.Close()
+	}
+}
 
 func TestValidateCriticEvaluationBindsArtifactsAndCrossFields(t *testing.T) {
 	workspace := t.TempDir()

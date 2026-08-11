@@ -57,3 +57,9 @@ tools:
           type: string
       required:
       - message
+  config:
+    workspace_dir: workspace
+    doc_dir: doc
+    prompt_file: prompt.yaml
+    allow_shared_prompt: true
+    require_samples: true

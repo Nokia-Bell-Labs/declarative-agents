@@ -25,9 +25,6 @@ configuration:
   point_machine: agents/critic/point.yaml
   session_tools: agents/critic/tools.yaml
   point_tools: agents/critic/tools-point.yaml
-  tool_declarations:
-  - tools/builtin.yaml
-  - agents/critic/builtin.yaml
 invariants:
 - The critic never calls an LLM directly
 - All agent outcomes (success, failure, timeout) proceed to run_oracle_check

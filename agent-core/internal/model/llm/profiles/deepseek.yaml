@@ -1,6 +1,5 @@
 name: deepseek
 match_prefixes: ["deepseek"]
-machine: deepseek-coding-agent
 
 envelope:
   open: "[tool_call]"

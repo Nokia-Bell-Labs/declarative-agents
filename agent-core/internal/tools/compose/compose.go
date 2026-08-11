@@ -85,9 +85,26 @@ func (c *composeCmd) Execute() core.Result {
 	}
 	res := core.Result{Signal: signal, CommandName: c.Name(), Output: rendered}
 	if len(missing) > 0 {
-		res.Err = fmt.Errorf("compose: unresolved selectors: %w", errors.Join(missing...))
+		res.Diagnostics = []string{
+			fmt.Errorf("compose: unresolved selectors: %w", errors.Join(missing...)).Error(),
+		}
 	}
 	return res
+}
+
+func ValidateConfig(toolName string, inputs map[string]string) error {
+	for name, selector := range inputs {
+		if selector == "$." {
+			continue
+		}
+		if _, ok := core.ParseSelector(selector); !ok {
+			return fmt.Errorf(
+				"tool %q config input %q must be a $.path or $from(label).path selector",
+				toolName, name,
+			)
+		}
+	}
+	return nil
 }
 
 // resolve reads one input selector. A $from(label).path selector reads a

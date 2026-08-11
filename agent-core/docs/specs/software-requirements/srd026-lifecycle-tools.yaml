@@ -57,13 +57,14 @@ requirements:
       - R3.2: checkpoint_rollback config SHALL decode into CheckpointRollbackConfig, with the target step distinguishable from missing and zero.
       - R3.3: checkpoint_rollback SHALL operate through the srd035 checkpoint port backed by the srd036 Dolt adapter; it SHALL NOT require a key/blob StateStore or a Workspace.
       - R3.4: checkpoint_rollback SHALL call the Dolt adapter Revert(run_id, step_index) to rewind DB-persisted state to the target step.
-      - R3.5: After Revert, checkpoint_rollback SHALL walk the reverted Execution entries in reverse dispatch order and hand each restored, receipt-bearing Result to its tool's receipt-consuming Undo to reverse external effects.
-      - R3.6: checkpoint_rollback SHALL skip and log entries whose tools are irreversible, and SHALL name them in the output rather than claiming a clean rollback.
+      - R3.5: After Revert, checkpoint_rollback SHALL load the target checkpoint's profile path and program digest, verify the current profile closure matches, rebuild the originating selected ToolDefs and REST definitions through the standard factory catalog, then walk reverted entries in reverse dispatch order and hand each restored, receipt-bearing Result to its tool's receipt-consuming Undo.
+      - R3.6: checkpoint_rollback SHALL read the registered tool's declared reversibility tier, skip and log entries declared irreversible, and name them in the output rather than inferring irreversibility from a missing builder or receipt.
       - R3.7: checkpoint_rollback SHALL emit ToolDone on success and CommandError on missing backend, missing target step, Revert failure, or receipt-walk Undo failure.
-      - R3.8: checkpoint_rollback output SHALL include the run_id, target step index, the number of entries reverted, and any skipped irreversible entries.
+      - R3.8: checkpoint_rollback output SHALL include the run_id, target step index, the number of entries reverted, skipped irreversible entries, and compensatable entries that require later operator or machine action.
       - R3.9: checkpoint_rollback SHALL classify its own undo as compensatable because it rewrites persisted run state and invokes external compensation.
       - R3.10: checkpoint_rollback SHALL carry operator compensation metadata naming run_id, target step index, and operator_decision as required context; the engine never interprets the per-entry tool receipts it replays.
-      - R3.11: Each receipt-walk attempt SHALL be observable on the rollback boundary span as rollback.entry_reversed, rollback.entry_undo_failed, or rollback.entry_skipped with its step and command; the final structured report SHALL retain aggregate reversed, failed, and skipped outcomes.
+      - R3.11: Each receipt-walk attempt SHALL be observable on the rollback boundary span as rollback.entry_reversed, rollback.entry_compensation_required, rollback.entry_undo_failed, or rollback.entry_skipped with its step and command; the final structured report SHALL retain aggregate reversed, pending-compensation, failed, and skipped outcomes.
+      - R3.12: A target checkpoint with no program identity, a changed program digest, or an unavailable originating builder SHALL produce CommandError and name the incompatibility; it SHALL NOT be classified as an irreversible tool or a clean rollback.
 
   R4:
     title: Typed config and runtime inputs
@@ -91,8 +92,8 @@ requirements:
     items:
       - R6.1: Lifecycle adapters SHOULD record command name, selected run, target step index, reverted-entry count, and resulting signal in command output, tracing, or structured diagnostics.
       - R6.2: Error messages SHALL distinguish checkpoint-backend errors, run/step selection errors, Dolt Revert errors, and receipt-walk Undo errors.
-      - R6.3: Partial rollback failures SHALL preserve the error detail needed by an operator to choose retry, resume, or stop, including which reverted entry's Undo failed.
-      - R6.4: Lifecycle adapters SHALL not report a clean rollback when irreversible entries were skipped or a receipt-walk Undo failed.
+      - R6.3: Partial rollback failures SHALL preserve the error detail needed by an operator to choose retry, resume, or stop, including which reverted entry's Undo failed; declared manual compensation SHALL remain an explicit work item rather than an infrastructure failure.
+      - R6.4: Lifecycle adapters SHALL not report a clean rollback when irreversible entries were skipped, compensations remain pending, or a receipt-walk Undo failed.
 
   R7:
     title: Generic lifecycle control vocabulary
@@ -126,8 +127,8 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9]
 
   - id: AC3
-    criterion: checkpoint_rollback requirements define typed config, a checkpoint-port/Dolt dependency, a target step, Dolt Revert plus a reverse receipt walk over restored Results, per-entry observability, skip-and-log of irreversible entries, output, emitted signals, and compensatable undo metadata with receipts left opaque to the engine.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10, R3.11]
+    criterion: checkpoint_rollback requirements define typed config, a checkpoint-port/Dolt dependency, a target step, verified reconstruction of the target declarative program, Dolt Revert plus a reverse receipt walk over restored Results, per-entry observability, skip-and-log of irreversible entries, output, emitted signals, and compensatable undo metadata with receipts left opaque to the engine.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10, R3.11, R3.12]
 
   - id: AC4
     criterion: Runtime inputs stay outside hidden lifecycle subcommand flags, typed config keeps required values explicit, and lifecycle adapters use the resolved checkpoint backend (Dolt by default) unless an override is supplied.

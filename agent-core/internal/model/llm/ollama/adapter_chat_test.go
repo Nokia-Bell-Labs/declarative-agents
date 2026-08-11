@@ -98,11 +98,6 @@ func TestChat_NumCtxPassedToOllama(t *testing.T) {
 	t.Parallel()
 	var captured chatReq
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/tags" {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(tagsResp{Models: []modelEntry{{Name: "llama3:latest"}}})
-			return
-		}
 		_ = json.NewDecoder(r.Body).Decode(&captured)
 		resp := chatResp{
 			Message:         msgDTO{Role: "assistant", Content: "ok"},
@@ -128,11 +123,6 @@ func TestChat_NumCtxZeroOmitted(t *testing.T) {
 	t.Parallel()
 	var rawBody []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/tags" {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(tagsResp{Models: []modelEntry{{Name: "llama3:latest"}}})
-			return
-		}
 		rawBody, _ = io.ReadAll(r.Body)
 		resp := chatResp{
 			Message:         msgDTO{Role: "assistant", Content: "ok"},
@@ -157,11 +147,6 @@ func TestChat_NumCtxZeroOmitted(t *testing.T) {
 func TestChat_HTTPError(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/tags" {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(tagsResp{Models: []modelEntry{{Name: "llama3:latest"}}})
-			return
-		}
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = w.Write([]byte("overloaded"))
 	}))
@@ -178,11 +163,6 @@ func TestChat_HTTPError(t *testing.T) {
 func TestChat_MalformedResponse(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/tags" {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(tagsResp{Models: []modelEntry{{Name: "llama3:latest"}}})
-			return
-		}
 		_, _ = w.Write([]byte("not json"))
 	}))
 	defer srv.Close()

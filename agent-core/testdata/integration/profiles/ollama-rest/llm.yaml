@@ -5,6 +5,9 @@ tools:
     visibility: internal
     description: Invoke the configured Ollama model for the live REST proof.
     emits: [LLMResponded, CommandError]
+    output:
+      description: Raw plain-text model response.
+      schema: {type: string}
     config:
       model: "gemma4:31b-cloud"
       provider: ollama

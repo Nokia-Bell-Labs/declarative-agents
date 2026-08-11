@@ -48,28 +48,6 @@ test_cases:
       - srd005-agentic-loop AC5
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: ValidateParams hook aborts the run on error
-    go_test: TestLoop_ValidateParamsHook
-    inputs:
-      hooks: "ValidateParams checks for nonexistent builder"
-    expected:
-      error: "contains 'nonexistent'"
-    traces:
-      - srd005-agentic-loop AC3
-      - srd005-agentic-loop AC5
-
-  - use_case: rel00.0-uc001-domain-agent-integration
-    name: ValidateBuilders helper checks named builders
-    go_test: TestLoop_ValidateBuildersHelper
-    inputs:
-      registry: "one builder named 'a'"
-    expected:
-      validate_a: pass
-      validate_a_b: fail
-    traces:
-      - srd005-agentic-loop AC6
-
-  - use_case: rel00.0-uc001-domain-agent-integration
     name: OnResult hook is called after each dispatch
     go_test: TestLoop_OnResultHook
     inputs:
@@ -373,7 +351,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Builder has Build(Result) Command, CommandResolver has Resolve
-    go_test: TestLoop_ValidateBuildersHelper
+    go_test: TestBuildTransitionTable
     inputs:
       registry: "registers fakeBuilder, resolves by name"
     expected:
@@ -486,7 +464,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Registry satisfies CommandResolver interface
-    go_test: TestLoop_ValidateBuildersHelper
+    go_test: TestBuildTransitionTable
     inputs:
       registry: "resolves builders by name"
     expected:
@@ -652,7 +630,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Conversation append mode avoids Chat calls
-    go_test: TestConversation_AppendDoesNotCallChat
+    go_test: TestConversationHistoryLifecycle
     inputs:
       message: "manual user message"
     expected:
@@ -662,19 +640,19 @@ test_cases:
       - srd010-conversation AC1
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Conversation send and append preserve order
-    go_test: TestConversation_AppendThenSend
+    name: Conversation snapshot and truncate preserve order
+    go_test: TestConversationHistoryLifecycle
     inputs:
-      operations: "append, send"
+      operations: "append, snapshot, truncate"
     expected:
       history_order_preserved: true
-      assistant_response_appended: true
+      snapshot_restored: true
     traces:
       - srd010-conversation AC2
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Conversation history uses defensive copies
-    go_test: TestConversation_HistoryCopySemantics
+    go_test: TestConversationHistoryReturnsCopies
     inputs:
       mutation: "modify returned history"
     expected:
@@ -683,8 +661,8 @@ test_cases:
       - srd010-conversation AC3
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Conversation assembles system prompt and history
-    go_test: TestConversation_AssembleMessages
+    name: Default assembler combines prompt and history
+    go_test: TestDefaultAssembler_AppendsConversationMessages
     inputs:
       system_prompt: "non-empty"
       history: "user and assistant messages"
@@ -696,7 +674,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Conversation compatibility methods support generator history migration
-    go_test: TestConversation_Messages
+    go_test: TestConversationHistoryLifecycle
     inputs:
       methods: "Append, Messages, Reset"
     expected:
@@ -706,19 +684,19 @@ test_cases:
       - srd010-conversation AC5
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Conversation reset preserves reuse
-    go_test: TestConversation_ResetThenSend
+    name: Conversation reset preserves append reuse
+    go_test: TestConversationHistoryLifecycle
     inputs:
-      operations: "send, reset, send"
+      operations: "append, reset, append"
     expected:
       history_cleared: true
-      second_send_succeeds: true
+      second_append_succeeds: true
     traces:
       - srd010-conversation AC6
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Prompt struct assembles deterministic sections
-    go_test: TestLoadPrompt_StructuredFull
+    name: Prompt struct feeds deterministic system assembly
+    go_test: go test ./internal/model/prompt ./internal/model/llm -run 'Test(Render|DefaultAssembler)'
     inputs:
       prompt: "role, task, constraints, output_format"
     expected:
@@ -728,8 +706,8 @@ test_cases:
       - srd011-prompt-schema AC1
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Prompt YAML loads structured and simple modes
-    go_test: TestLoadPrompt_StructuredDefaults
+    name: ToolDef prompt policy and runtime task remain distinct
+    go_test: go test ./internal/tools/llm ./internal/model/prompt
     inputs:
       yaml_modes: "structured task and simple prompt"
     expected:
@@ -739,8 +717,8 @@ test_cases:
       - srd011-prompt-schema AC2
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Prompt loader reports conflicts and file errors
-    go_test: TestLoadPrompt_BothFieldsError
+    name: Prompt config rejects unknown authority
+    go_test: go test ./internal/tools/llm ./internal/tools/catalog
     inputs:
       yaml: "task and prompt both set"
     expected:
@@ -749,8 +727,8 @@ test_cases:
       - srd011-prompt-schema AC3
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Prompt load result records mode and lengths
-    go_test: TestLoadPromptFromString_Success
+    name: Invoke boundary constructs prompt without file loading
+    go_test: go test ./internal/tools/llm ./internal/model/prompt
     inputs:
       prompt_string: "inline task"
     expected:
@@ -760,8 +738,8 @@ test_cases:
       - srd011-prompt-schema AC4
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Prompt defaults are exported and overridable
-    go_test: TestLoadPrompt_StructuredPartialOverride
+    name: Prompt defaults remain overridable by declared config
+    go_test: go test ./internal/tools/llm ./internal/model/prompt
     inputs:
       yaml: "task plus role override"
     expected:
@@ -771,8 +749,8 @@ test_cases:
       - srd011-prompt-schema AC5
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Prompt loading rejects empty tasks
-    go_test: TestLoadPrompt_EmptyTask
+    name: Invoke boundary rejects missing required prompt input
+    go_test: go test ./internal/tools/llm
     inputs:
       task: ""
     expected:
@@ -814,13 +792,13 @@ test_cases:
       - srd012-system-prompt-template AC3
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Custom system prompt template succeeds or errors
-    go_test: TestRenderWith_CustomTemplate
+    name: System prompt uses the embedded reviewed template
+    go_test: go test ./internal/model/prompt -run TestRender
     inputs:
-      template: "ROLE and TASK fields"
+      template: embedded
     expected:
       rendered: true
-      invalid_template_errors: true
+      runtime_template_compilation_absent: true
     traces:
       - srd012-system-prompt-template AC4
 
@@ -965,40 +943,6 @@ test_cases:
       - srd016-traceparent AC3
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: PropagateArgs builds child process flags
-    go_test: TestPropagateArgs_Build_Full
-    inputs:
-      span_context: valid
-      durations: "5m, 2m"
-    expected:
-      traceparent_formatted: true
-      zero_values_omitted: true
-    traces:
-      - srd018-cli-flag-contract AC2
-
-  - use_case: rel00.0-uc001-domain-agent-integration
-    name: RemainingBudget computes wall-clock remainder
-    go_test: TestRemainingBudget
-    inputs:
-      cases: "unlimited, remaining, exhausted"
-    expected:
-      zero_for_unlimited: true
-      zero_for_exhausted: true
-      remainder_computed: true
-    traces:
-      - srd018-cli-flag-contract AC3
-
-  - use_case: rel00.0-uc001-domain-agent-integration
-    name: Standard CLI flag constants match contract
-    go_test: TestFlagConstants
-    inputs:
-      constants: "standard child-agent flags including otel-otlp-endpoint and otel-service-name"
-    expected:
-      flag_names_match: true
-    traces:
-      - srd018-cli-flag-contract AC1
-
-  - use_case: rel00.0-uc001-domain-agent-integration
     name: Runtime request bootstrap, resume precedence, and process result contract
     go_test: go test ./cmd/agent -run 'Test(SeedRequest|ResumeLoad|CLIResultReporter|RunPreparedPrints|ExitCodeForStatus)'
     inputs:
@@ -1052,17 +996,6 @@ test_cases:
       - srd018-cli-flag-contract AC7
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: FormatFlag emits prefixed flag pair
-    go_test: TestFormatFlag
-    inputs:
-      name: model
-      value: qwen
-    expected:
-      args: ["--model", "qwen"]
-    traces:
-      - srd018-cli-flag-contract AC4
-
-  - use_case: rel00.0-uc001-domain-agent-integration
     name: LLM tools parse responses and manage retry state
     go_test: go test ./internal/tools/llm -run 'Test(InvokeLLM|ParseResponse|ReportParseError|ResetHistory)'
     inputs:
@@ -1103,14 +1036,14 @@ test_cases:
       - srd013-standard-tool-library AC5
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Tool metrics parse test and build output
-    go_test: go test ./internal/tools/exec -run 'TestParse(Test|Build)Metrics'
+    name: Exec metrics report declared live process values
+    go_test: go test ./internal/tools/exec -run '^TestExecCmdRecordsMonitorMetrics$'
     inputs:
-      outputs: "go test and go build output samples"
+      command: "echo hello"
     expected:
-      pass_fail_skip_counts: true
-      build_failed_detected: true
-      file_error_counts: true
+      process_output_bytes_recorded: true
+      process_exit_code_recorded: true
+      command_output_not_used_as_metric_attribute: true
     traces:
       - srd013-standard-tool-library AC7
 

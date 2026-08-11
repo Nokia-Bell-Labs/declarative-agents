@@ -13,9 +13,12 @@ tools:
       mode: structured
       schema: {type: object}
     side_effects:
-      - {kind: external_api, target: configured_source_repository, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
-    undo: {strategy: noop, description: Source capture is read-only.}
+      - {kind: filesystem_read, target: PROSE_TRACER_FIXTURES source fixture, state: read_only}
+      - {kind: filesystem_write, target: .tracer/captured-source.md, state: immutable}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
+    reversibility: {classification: irreversible, undo: preserve_captured_source}
+    undo: {strategy: irreversible, description: Preserve the immutable capture, manifest projection, and boundary receipt.}
 
   - name: write_original
     type: exec
@@ -29,26 +32,198 @@ tools:
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:
-      - {kind: filesystem_write, target: workproducts/00-original.md, state: immutable}
+      - {kind: filesystem_write, target: 00-original.md, state: immutable}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: preserve_original}
     undo: {strategy: noop, description: The immutable original is preserved on compensation.}
 
-  - name: append_manifest_revision
+  - &append_manifest_revision
+    name: append_capture_manifest
     type: exec
     visibility: internal
     category: boundary
-    description: Append one immutable manifest-history revision and project manifest.yaml.
+    description: Append the declared capture_manifested revision and project manifest.json.
     parameters: {type: object, properties: {}, additionalProperties: false}
     emits: [ToolDone, ToolFailed, CommandError]
     binary: prose-editor-tracer-boundary
-    args: [append-manifest-revision]
+    args: [append-manifest-revision, capture_manifested, none, "1", "0"]
     output_cap: 256
-    output: {mode: structured, schema: {type: object}}
+    output:
+      description: Manifest context containing original and optional structure content identities.
+      schema: {type: object}
     side_effects:
-      - {kind: filesystem_write, target: workproducts/manifest-history, state: append_only}
-      - {kind: filesystem_write, target: workproducts/manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: manifest-history, state: append_only}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
+      - {kind: state_mutation, target: manifest artifact selection, state: superseded_and_cleared}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: compensatable, undo: append_corrective_revision}
     undo: {strategy: compensating_action, description: Append a corrective revision; never rewrite history.}
+
+  - <<: *append_manifest_revision
+    name: append_structure_manifest
+    description: Append the declared structure_manifested revision.
+    args: [append-manifest-revision, structure_manifested, none, "2", "1"]
+
+  - <<: *append_manifest_revision
+    name: append_critique_manifest
+    description: Append the declared critique_manifested revision.
+    args: [append-manifest-revision, critique_manifested, none, "3", "0"]
+
+  - <<: *append_manifest_revision
+    name: append_retry_manifest
+    description: Append the declared retry_recorded revision.
+    args: [append-manifest-revision, retry_recorded, none, "4", "0"]
+
+  - <<: *append_manifest_revision
+    name: append_structure_retry_manifest
+    description: Append the declared structure_retry_manifested revision.
+    args: [append-manifest-revision, structure_retry_manifested, none, "5", "2"]
+
+  - <<: *append_manifest_revision
+    name: append_critique_retry_manifest
+    description: Append the declared critique_retry_manifested revision.
+    args: [append-manifest-revision, critique_retry_manifested, none, "6", "0"]
+
+  - <<: *append_manifest_revision
+    name: append_kept_original_manifest
+    description: Append kept_original and project the declared KeptOriginal terminal state.
+    args: [append-manifest-revision, kept_original, KeptOriginal, "7", "0"]
+
+  - <<: *append_manifest_revision
+    name: append_final_manifest
+    description: Append first-pass locally_finalized and project the declared LocallyFinalized terminal state.
+    args: [append-manifest-revision, locally_finalized, LocallyFinalized, "4", "0"]
+
+  - <<: *append_manifest_revision
+    name: append_final_retry_manifest
+    description: Append retry-pass locally_finalized and project the declared LocallyFinalized terminal state.
+    args: [append-manifest-revision, locally_finalized, LocallyFinalized, "7", "0"]
+
+  - &compose_structure_request
+    name: compose_structure_request
+    type: builtin
+    init: compose
+    visibility: internal
+    category: word
+    description: Compose the first structure-child request from declared manifest context.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [StructureRequestComposed, CommandError]
+    config:
+      signal: StructureRequestComposed
+      inputs:
+        parent_content: $.original_content
+        parent_artifact_id: $.original_artifact_id
+        parent_content_hash: $.original_content_hash
+        saga_id: $.saga_id
+      template: '{"attempt":1,"bounded_structure_intent":"Improve structure without changing claims.","parent_artifact_id":{{ json parent_artifact_id }},"parent_content":{{ json parent_content }},"parent_content_hash":{{ json parent_content_hash }},"saga_id":{{ json saga_id }},"stage":"structure"}'
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Composition changes no state.}
+    errors: [{signal: CommandError, condition: A manifest selector cannot resolve, state_after_failure: No request is persisted.}]
+
+  - <<: *compose_structure_request
+    name: compose_structure_retry_request
+    description: Compose the retry structure-child request from declared manifest context and profile-owned intent.
+    config:
+      signal: StructureRequestComposed
+      inputs:
+        parent_content: $.original_content
+        parent_artifact_id: $.original_artifact_id
+        parent_content_hash: $.original_content_hash
+        saga_id: $.saga_id
+      template: '{"attempt":2,"bounded_structure_intent":"Apply critic feedback while preserving immutable claims.","parent_artifact_id":{{ json parent_artifact_id }},"parent_content":{{ json parent_content }},"parent_content_hash":{{ json parent_content_hash }},"saga_id":{{ json saga_id }},"stage":"structure"}'
+
+  - &compose_critic_request
+    name: compose_critic_request
+    type: builtin
+    init: compose
+    visibility: internal
+    category: word
+    description: Compose a critic request from the latest declared structure manifest context.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [CriticRequestComposed, CommandError]
+    config:
+      signal: CriticRequestComposed
+      inputs:
+        attempt: $.attempt
+        candidate_artifact_id: $.candidate_artifact_id
+        candidate_content: $.candidate_content
+        candidate_content_hash: $.candidate_content_hash
+        candidate_stage: $.candidate_stage
+        original_artifact_id: $.original_artifact_id
+        original_content: $.original_content
+        original_content_hash: $.original_content_hash
+        saga_id: $.saga_id
+      template: '{"attempt":{{ attempt }},"candidate_artifact_id":{{ json candidate_artifact_id }},"candidate_content":{{ json candidate_content }},"candidate_content_hash":{{ json candidate_content_hash }},"candidate_stage":{{ json candidate_stage }},"original_artifact_id":{{ json original_artifact_id }},"original_content":{{ json original_content }},"original_content_hash":{{ json original_content_hash }},"saga_id":{{ json saga_id }}}'
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Composition changes no state.}
+    errors: [{signal: CommandError, condition: A manifest selector cannot resolve, state_after_failure: No request is persisted.}]
+
+  - <<: *compose_critic_request
+    name: compose_critic_retry_request
+    description: Compose the retry critic request from the declared retry structure manifest context.
+    config:
+      signal: CriticRequestComposed
+      inputs:
+        attempt: $.attempt
+        candidate_artifact_id: $.candidate_artifact_id
+        candidate_content: $.candidate_content
+        candidate_content_hash: $.candidate_content_hash
+        candidate_stage: $.candidate_stage
+        original_artifact_id: $.original_artifact_id
+        original_content: $.original_content
+        original_content_hash: $.original_content_hash
+        saga_id: $.saga_id
+      template: '{"attempt":{{ attempt }},"candidate_artifact_id":{{ json candidate_artifact_id }},"candidate_content":{{ json candidate_content }},"candidate_content_hash":{{ json candidate_content_hash }},"candidate_stage":{{ json candidate_stage }},"original_artifact_id":{{ json original_artifact_id }},"original_content":{{ json original_content }},"original_content_hash":{{ json original_content_hash }},"saga_id":{{ json saga_id }}}'
+
+  - &persist_child_request
+    name: persist_structure_request
+    type: exec
+    visibility: internal
+    category: boundary
+    description: Persist the first declared structure request at its immutable address.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ToolDone, ToolFailed, CommandError]
+    binary: prose-editor-tracer-boundary
+    args: [persist-child-request, .tracer/requests/structure-1.json, "1"]
+    stdin_source: $from(structure_request).$
+    stdin_max_bytes: 1048576
+    output_cap: 64
+    output: {description: Addressed child request path, schema: {type: string}}
+    side_effects:
+      - {kind: filesystem_write, target: .tracer/requests/structure-1.json, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
+    reversibility: {classification: compensatable, undo: append_corrective_revision}
+    undo: {strategy: compensating_action, description: Preserve the addressed request and append correction metadata.}
+
+  - <<: *persist_child_request
+    name: persist_critic_request
+    description: Persist the first declared critic request at its immutable address.
+    args: [persist-child-request, .tracer/requests/critic-1.json, "2"]
+    stdin_source: $from(critic_request).$
+    side_effects:
+      - {kind: filesystem_write, target: .tracer/requests/critic-1.json, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
+
+  - <<: *persist_child_request
+    name: persist_structure_retry_request
+    description: Persist the retry structure request at its immutable address.
+    args: [persist-child-request, .tracer/requests/structure-2.json, "3"]
+    stdin_source: $from(structure_retry_request).$
+    side_effects:
+      - {kind: filesystem_write, target: .tracer/requests/structure-2.json, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
+
+  - <<: *persist_child_request
+    name: persist_critic_retry_request
+    description: Persist the retry critic request at its immutable address.
+    args: [persist-child-request, .tracer/requests/critic-2.json, "4"]
+    stdin_source: $from(critic_retry_request).$
+    side_effects:
+      - {kind: filesystem_write, target: .tracer/requests/critic-2.json, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
 
   - name: invoke_structure_editor
     type: builtin
@@ -60,11 +235,16 @@ tools:
     emits: [ToolDone, ToolFailed, CommandError]
     config:
       profile: ../specialist-editor/profile.yaml
-      request_from: $from(capture_manifest).output
+      request_from: $from(structure_request_file).$
     side_effects:
       - {kind: child_agent_execution, target: specialist-editor-structure, state: candidate_observed}
-    reversibility: {classification: irreversible, undo: record_observation}
-    undo: {strategy: noop, description: Preserve the parent and retain child execution evidence.}
+    reversibility: {classification: compensatable, undo: child_agent_workspace_restore}
+    undo:
+      strategy: child_agent_workspace_restore
+      description: Restore child workspace artifacts or retain explicit compensation work.
+      payload: boundary_compensation
+      captures: [child_profile, child_run_id, artifact_paths]
+      requires: [child_workspace_ref, child_trace]
 
   - name: write_structure_attempt
     type: exec
@@ -80,7 +260,9 @@ tools:
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:
-      - {kind: filesystem_write, target: workproducts/attempts/structure, state: immutable}
+      - {kind: filesystem_write, target: attempts/structure, state: immutable}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: append_supersession}
     undo: {strategy: compensating_action, description: Supersede by manifest revision without deleting bytes.}
 
@@ -94,11 +276,58 @@ tools:
     emits: [ToolDone, ToolFailed, CommandError]
     config:
       profile: ../voice-critic/profile.yaml
-      request_from: $from(structure_manifest).output
+      request_from: $from(critic_request_file).$
     side_effects:
       - {kind: child_agent_execution, target: voice-critic, state: verdict_observed}
-    reversibility: {classification: irreversible, undo: record_observation}
-    undo: {strategy: noop, description: Retain the independent verdict observation.}
+    reversibility: {classification: compensatable, undo: child_agent_workspace_restore}
+    undo:
+      strategy: child_agent_workspace_restore
+      description: Restore child workspace artifacts or retain explicit compensation work.
+      payload: boundary_compensation
+      captures: [child_profile, child_run_id, artifact_paths]
+      requires: [child_workspace_ref, child_trace]
+
+  - name: invoke_structure_editor_retry
+    type: builtin
+    init: self_invoke
+    visibility: internal
+    category: boundary
+    description: Invoke the structure-stage profile with the addressed retry request.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ToolDone, ToolFailed, CommandError]
+    config:
+      profile: ../specialist-editor/profile.yaml
+      request_from: $from(structure_retry_request_file).$
+    side_effects:
+      - {kind: child_agent_execution, target: specialist-editor-structure, state: candidate_observed}
+    reversibility: {classification: compensatable, undo: child_agent_workspace_restore}
+    undo:
+      strategy: child_agent_workspace_restore
+      description: Restore child workspace artifacts or retain explicit compensation work.
+      payload: boundary_compensation
+      captures: [child_profile, child_run_id, artifact_paths]
+      requires: [child_workspace_ref, child_trace]
+
+  - name: invoke_voice_critic_retry
+    type: builtin
+    init: self_invoke
+    visibility: internal
+    category: boundary
+    description: Invoke the voice critic with the addressed retry request.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ToolDone, ToolFailed, CommandError]
+    config:
+      profile: ../voice-critic/profile.yaml
+      request_from: $from(critic_retry_request_file).$
+    side_effects:
+      - {kind: child_agent_execution, target: voice-critic, state: verdict_observed}
+    reversibility: {classification: compensatable, undo: child_agent_workspace_restore}
+    undo:
+      strategy: child_agent_workspace_restore
+      description: Restore child workspace artifacts or retain explicit compensation work.
+      payload: boundary_compensation
+      captures: [child_profile, child_run_id, artifact_paths]
+      requires: [child_workspace_ref, child_trace]
 
   - name: capture_critic_output
     type: builtin
@@ -228,7 +457,10 @@ tools:
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:
-      - {kind: filesystem_write, target: workproducts/attempts/critique, state: immutable}
+      - {kind: filesystem_write, target: attempts/critique, state: immutable}
+      - {kind: state_mutation, target: manifest.last_critic, state: recorded}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: append_supersession}
     undo: {strategy: compensating_action, description: Supersede by manifest revision without deleting bytes.}
 
@@ -244,8 +476,10 @@ tools:
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:
-      - {kind: filesystem_write, target: workproducts/10-structure.md, state: immutable}
-      - {kind: filesystem_write, target: workproducts/40-critique.yaml, state: immutable}
-      - {kind: filesystem_write, target: workproducts/final.md, state: immutable}
+      - {kind: filesystem_write, target: 10-structure.md, state: immutable}
+      - {kind: filesystem_write, target: 40-critique.json, state: immutable}
+      - {kind: filesystem_write, target: final.md, state: immutable}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: preserve_and_block}
     undo: {strategy: noop, description: Reuse matching files and block on any mismatch.}

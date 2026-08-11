@@ -159,7 +159,8 @@ evidence for the finding rather than updated.
 | `otlp_receiver_stop` | builtin | internal | irreversible | **no** | `tools/builtin/otlp/all.yaml` | Stop a named OTLP receiver, reject new exports, and unblock waiting commands. |
 | `spool_list_traces` | builtin | internal | reversible | **no** | `tools/builtin/otlp/all.yaml` | Read the NDJSON trace spool and return paginated trace summaries, newest first. |
 | `spool_get_trace` | builtin | internal | reversible | **no** | `tools/builtin/otlp/all.yaml` | Read all spans for one trace from the NDJSON spool, returning the fields a waterfall UI needs. |
-| `spool_span_stats` | builtin | internal | reversible | **no** | `tools/builtin/otlp/all.yaml` | Filter spooled spans and return a duration-over-time heatmap and group-by counts. |
+| `spool_span_heatmap` | builtin | internal | reversible | **no** | `tools/builtin/otlp/all.yaml` | Filter spooled spans and return a duration-over-time heatmap. |
+| `spool_span_group_by` | builtin | internal | reversible | **no** | `tools/builtin/otlp/all.yaml` | Filter spooled spans and count them by one requested key. |
 | `spool_span_breakdown` | builtin | internal | reversible | **no** | `tools/builtin/otlp/all.yaml` | Rank the attributes that most distinguish a selected span region from its complement. |
 | `await_metrics` | builtin | internal | irreversible | **no** | `tools/builtin/otlp/all.yaml` | Wait for and consume one complete FIFO metric batch from a named OTLP receiver. |
 | `spool_metrics` | builtin | internal | irreversible | **no** | `tools/builtin/otlp/all.yaml` | Append a selected OTLP metric batch as complete NDJSON metric lines carrying resource, scope... |

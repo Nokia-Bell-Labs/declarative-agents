@@ -72,14 +72,22 @@ func auditSubModules(modules []string, stat statFunc, run auditRunner) error {
 	return auditSubModulesLimited(modules, auditConcurrency(), stat, run)
 }
 
-// auditConcurrency bounds how many module audits run at once. NumCPU lets a big
-// machine fan out fully across the handful of participants while a constrained
-// box (or CI runner) throttles itself, since each audit is itself multi-core.
+// maxConcurrentModuleAudits is intentionally lower than NumCPU. Each module
+// audit runs multi-core Go builds, tests, profile boot smokes, and evidence
+// agents; fanning every module out at once starves process-spawning tests whose
+// own deadlines are meaningful (#1587).
+const maxConcurrentModuleAudits = 2
+
+// auditConcurrency bounds how many module audits run at once.
 func auditConcurrency() int {
-	if n := runtime.NumCPU(); n > 1 {
+	n := runtime.NumCPU()
+	if n < 1 {
+		return 1
+	}
+	if n < maxConcurrentModuleAudits {
 		return n
 	}
-	return 1
+	return maxConcurrentModuleAudits
 }
 
 func auditSubModulesLimited(modules []string, limit int, stat statFunc, run auditRunner) error {

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -37,6 +38,12 @@ type EvalSessionState struct {
 	Reps      int
 	Timeout   time.Duration
 	OllamaURL string
+	// Declared defaults apply only when neither runtime nor suite input selects
+	// a value. They are populated from ToolDef config, not Go literals.
+	DefaultOutputDir string
+	DefaultReps      int
+	DefaultTimeout   time.Duration
+	SampleLayout     SampleLayout
 	// ChildAgentBinary overrides the harness binary the evaluator launches for
 	// each suite profile. Empty means the default "agent" (resolved from PATH).
 	ChildAgentBinary string
@@ -47,6 +54,7 @@ type EvalSessionState struct {
 	PointMachine string
 	Result       SessionResult
 	Stderr       io.Writer
+	Tracer       tracing.Tracer
 
 	// Grid iteration state
 	gridPoints []GridPoint
@@ -61,23 +69,24 @@ type EvalSessionState struct {
 // InitSession prepares the session for iteration. Must be called after Suite is
 // populated, samples are discovered, and the grid has been expanded.
 func (s *EvalSessionState) InitSession(outputDir string, reps int, timeout time.Duration, ollamaURL string, llmTimeout time.Duration) error {
+	if len(s.gridPoints) == 0 {
+		return fmt.Errorf("initialize session requires expand_eval_grid")
+	}
+	if outputDir == "" {
+		return fmt.Errorf("initialize session requires output_dir")
+	}
+	if reps < 1 {
+		return fmt.Errorf("initialize session requires reps of at least 1")
+	}
+	if timeout <= 0 {
+		return fmt.Errorf("initialize session requires a positive timeout")
+	}
 	s.SessionDir = filepath.Join(outputDir, s.Suite.Name, time.Now().Format("20060102-150405"))
 	if err := os.MkdirAll(s.SessionDir, 0o755); err != nil {
 		return fmt.Errorf("create session dir: %w", err)
 	}
-
-	if len(s.gridPoints) == 0 {
-		s.ExpandGrid()
-	}
-
 	s.reps = reps
-	if s.reps < 1 {
-		s.reps = 1
-	}
 	s.timeout = timeout
-	if s.timeout == 0 {
-		s.timeout = 10 * time.Minute
-	}
 	s.ollamaURL = ollamaURL
 	s.llmTimeout = llmTimeout
 

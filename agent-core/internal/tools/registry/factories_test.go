@@ -3,39 +3,127 @@
 package registry
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestStandardFactoryCatalogSelectsEntriesByInit(t *testing.T) {
+func TestStandardFactoryCatalogSelectsEveryRegisteredInit(t *testing.T) {
 	t.Parallel()
-	entries := StandardFactoryCatalog(StandardFactoryDeps{})
-	byName := make(map[string]StandardFactoryCatalogEntry, len(entries))
+
+	deps := testFactoryDeps()
+	entries := StandardFactoryCatalog(deps)
+	require.Len(t, entries, 11)
+
 	for _, entry := range entries {
-		byName[entry.Name] = entry
+		require.ElementsMatch(t, []string{
+			fmt.Sprintf("%s_first", entry.Name),
+			fmt.Sprintf("%s_second", entry.Name),
+		}, entry.Inits)
+
+		for _, initName := range entry.Inits {
+			t.Run(entry.Name+"/"+initName, func(t *testing.T) {
+				br := NewBuiltinRegistry()
+				RegisterStandardBuiltinFactories(br, map[string]bool{initName: true}, deps)
+
+				require.ElementsMatch(t, entry.Inits, br.Names())
+			})
+		}
 	}
 
-	require.True(t, byName["planning"].SelectedBy(map[string]bool{"mark_nodes_executing": true}))
-	require.True(t, byName["evaluation"].SelectedBy(map[string]bool{"run_point": true}))
-	require.True(t, byName["evaluation"].SelectedBy(map[string]bool{"list_evaluation_sessions": true}))
-	require.True(t, byName["spec_validation"].SelectedBy(map[string]bool{"validate_specs": true}))
-	require.True(t, byName["lifecycle"].SelectedBy(map[string]bool{"checkpoint_history": true}))
-	require.False(t, byName["planning"].SelectedBy(map[string]bool{"list_evaluation_sessions": true}))
+	br := NewBuiltinRegistry()
+	RegisterStandardBuiltinFactories(br, map[string]bool{"not_registered": true}, deps)
+	require.Empty(t, br.Names())
 }
 
-func TestRegisterStandardBuiltinFactoriesGatesBySelectedInit(t *testing.T) {
+func TestRegisterStandardBuiltinFactoriesProfilesSelectOnlyMatchingFamily(t *testing.T) {
 	t.Parallel()
-	br := NewBuiltinRegistry()
-	var planningCalled bool
-	var evaluationCalled bool
+
 	deps := StandardFactoryDeps{
-		RegisterPlanning:   func(*BuiltinRegistry) { planningCalled = true },
-		RegisterEvaluation: func(*BuiltinRegistry) { evaluationCalled = true },
+		RegisterPlanning: registrarForInits("load_graph"),
+		RegisterSpecValidation: registrarForInits(
+			"load_corpus",
+			"format_report",
+		),
+		RegisterOTLP: registrarForInits(
+			"spool_spans",
+			"spool_get_metric",
+		),
 	}
 
-	RegisterStandardBuiltinFactories(br, map[string]bool{"mark_nodes_executing": true}, deps)
+	tests := []struct {
+		name     string
+		selected string
+		want     []string
+	}{
+		{
+			name:     "format report only",
+			selected: "format_report",
+			want:     []string{"load_corpus", "format_report"},
+		},
+		{
+			name:     "spool get metric only",
+			selected: "spool_get_metric",
+			want:     []string{"spool_spans", "spool_get_metric"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			br := NewBuiltinRegistry()
+			RegisterStandardBuiltinFactories(br, map[string]bool{tc.selected: true}, deps)
 
-	require.True(t, planningCalled)
-	require.False(t, evaluationCalled)
+			require.ElementsMatch(t, tc.want, br.Names())
+		})
+	}
+}
+
+func TestStandardFactoryCatalogHandlesNilHooks(t *testing.T) {
+	t.Parallel()
+
+	entries := StandardFactoryCatalog(StandardFactoryDeps{})
+	require.Len(t, entries, 11)
+	for _, entry := range entries {
+		require.Empty(t, entry.Inits)
+		require.NotPanics(t, func() {
+			entry.Register(NewBuiltinRegistry())
+		})
+	}
+
+	br := NewBuiltinRegistry()
+	require.NotPanics(t, func() {
+		RegisterStandardBuiltinFactories(br, map[string]bool{"format_report": true}, StandardFactoryDeps{})
+	})
+	require.Empty(t, br.Names())
+}
+
+func testFactoryDeps() StandardFactoryDeps {
+	return StandardFactoryDeps{
+		RegisterFilesystem:     registrarForFamily("filesystem"),
+		RegisterLLM:            registrarForFamily("llm"),
+		RegisterLifecycle:      registrarForFamily("lifecycle"),
+		RegisterControl:        registrarForFamily("control"),
+		RegisterPlanning:       registrarForFamily("planning"),
+		RegisterEvaluation:     registrarForFamily("evaluation"),
+		RegisterSpecValidation: registrarForFamily("spec_validation"),
+		RegisterREST:           registrarForFamily("rest"),
+		RegisterCompose:        registrarForFamily("compose"),
+		RegisterService:        registrarForFamily("service"),
+		RegisterOTLP:           registrarForFamily("otlp"),
+	}
+}
+
+func registrarForFamily(family string) FactoryRegistrar {
+	return registrarForInits(
+		fmt.Sprintf("%s_first", family),
+		fmt.Sprintf("%s_second", family),
+	)
+}
+
+func registrarForInits(inits ...string) FactoryRegistrar {
+	return func(br *BuiltinRegistry) {
+		for _, initName := range inits {
+			br.Register(initName, nil)
+		}
+	}
 }

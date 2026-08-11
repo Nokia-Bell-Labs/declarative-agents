@@ -10,8 +10,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
 )
 
-const defaultMaxWeight = 5
-
 // Task is a weight-bounded group of contiguous requirement nodes from
 // a single SRD.
 type Task struct {
@@ -34,13 +32,9 @@ func NewExtractor() *Extractor {
 }
 
 // ExtractNext selects the next task from the graph. Returns nil when no
-// ready nodes exist. maxWeight is the weight threshold (0 means unlimited,
-// negative uses the default of 5).
+// ready nodes exist. maxWeight is the declared weight threshold; zero means
+// unlimited and negative values are rejected by the pipeline factory.
 func (e *Extractor) ExtractNext(g *graph.Graph, maxWeight int) *Task {
-	if maxWeight < 0 {
-		maxWeight = defaultMaxWeight
-	}
-
 	ready := g.Ready()
 	if len(ready) == 0 {
 		return nil
@@ -123,9 +117,4 @@ func buildTask(nodes []*graph.Node) *Task {
 		SRDID:   first.SRDID,
 		Release: first.Release,
 	}
-}
-
-// HintSRD returns the current traversal hint (last SRD worked on).
-func (e *Extractor) HintSRD() string {
-	return e.hintSRD
 }

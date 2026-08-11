@@ -64,7 +64,7 @@ overview:
     selections without deleting bytes, and replays every downstream stage.
 
     After pass or policy-permitted warn, finalization creates
-    10-structure.md, 20-voice.md, 30-style.md, 40-critique.yaml, and final.md
+    10-structure.md, 20-voice.md, 30-style.md, 40-critique.json, and final.md
     exactly once from the selected immutable lineage. Publication then advances
     one recorded key through create-or-reuse commit, push, and pull-request
     states. A partial publication resumes forward and never creates a
@@ -101,7 +101,7 @@ overview:
     a fixed compose word JSON-encodes each immediately previous child stdout
     under one field so parse_structured can select it by stable label, then the
     bounded response is parsed and routed. project_manifest only repairs or
-    writes manifest.yaml and reports bounded manifest scalars.
+    writes manifest.json and reports bounded manifest scalars.
     It does not emit saga routes. Explicit predicates over its parsed output
     route request mode, stage result, critic verdict and responsible stage,
     retries, recovery, publication progress, and terminal status.

@@ -22,6 +22,7 @@ import (
 )
 
 type runtimeConfig struct {
+	Profile          string
 	Machine          string
 	Tools            []string
 	ToolDeclarations []string
@@ -72,6 +73,7 @@ func loadRuntimeConfig() (runtimeConfig, error) {
 		directory = p.Directory
 	}
 	return runtimeConfig{
+		Profile:          canonicalPath(flagProfile),
 		Machine:          p.Machine,
 		Tools:            append([]string(nil), p.Tools...),
 		ToolDeclarations: append([]string(nil), p.ToolDeclarations...),
@@ -192,8 +194,10 @@ func newMonitorRuntime(
 func monitorRecorderConfig(machine core.MachineSpec, defs []catalog.ToolDef, runID string) (monitor.RecorderConfig, error) {
 	workflowValues := machineMetricLabelValues(machine)
 	cfg := monitor.RecorderConfig{
-		GlobalAttributes: []monitor.AttributePolicy{{Name: "agent.name", AllowedValues: []string{"agent"}}},
-		Envelope:         monitorEnvelopePolicy(machine, defs, runID),
+		GlobalAttributes: []monitor.AttributePolicy{{
+			Name: "agent.name", AllowedValues: []string{machineAgentName(machine)},
+		}},
+		Envelope: monitorEnvelopePolicy(machine, defs, runID),
 	}
 	for name, values := range workflowValues {
 		cfg.GlobalAttributes = append(cfg.GlobalAttributes, monitor.AttributePolicy{Name: name, AllowedValues: values})

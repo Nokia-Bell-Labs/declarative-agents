@@ -32,7 +32,7 @@ func requireRESTClientCompensationUndoReceipt(t *testing.T) {
 	writeRes := write.Execute()
 	require.Equal(t, core.Signal("RESTResourceWritten"), writeRes.Signal)
 	require.NotEmpty(t, writeRes.Receipt)
-	require.Equal(t, core.CommandError, write.Undo(core.Result{}).Signal)
+	require.Equal(t, core.CompensationRequired, write.Undo(core.Result{}).Signal)
 	requireRESTCompensationReceipt(t, writeRes.Receipt)
 }
 
@@ -136,22 +136,24 @@ func requireRESTCompensationReceipt(t *testing.T, receipt string) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "restore", compensation.Strategy)
-	require.Equal(t, "github", compensation.RestRef)
-	require.Equal(t, "issue", compensation.Resource)
-	require.Equal(t, "set", compensation.Operation)
-	require.Equal(t, "acme", compensation.Parameters["owner"])
-	require.Equal(t, "agent-core", compensation.Parameters["repo"])
-	require.Equal(t, "ISS-1", compensation.ResourceID)
-	require.Equal(t, "REQ-1", compensation.RequestID)
-	require.Equal(t, "set", compensation.Compensation["operation"])
-	require.Equal(t, "restored", compensation.Compensation["parameters"].(map[string]interface{})["title"])
+	require.Equal(t, "github", compensation.Data["rest_ref"])
+	require.Equal(t, "issue", compensation.Data["resource"])
+	require.Equal(t, "set", compensation.Data["operation"])
+	parameters := compensation.Data["parameters"].(map[string]interface{})
+	require.Equal(t, "acme", parameters["owner"])
+	require.Equal(t, "agent-core", parameters["repo"])
+	require.Equal(t, "ISS-1", compensation.Data["resource_id"])
+	require.Equal(t, "REQ-1", compensation.Data["request_id"])
+	configured := compensation.Data["compensation"].(map[string]interface{})
+	require.Equal(t, "set", configured["operation"])
+	require.Equal(t, "restored", configured["parameters"].(map[string]interface{})["title"])
 }
 
 func replaceRESTCompensationOperation(t *testing.T, receipt, operation string) string {
 	t.Helper()
 	var payload undo.BoundaryCompensationPayload
 	require.NoError(t, json.Unmarshal([]byte(receipt), &payload))
-	payload.BoundaryCompensation.Compensation["operation"] = operation
+	payload.BoundaryCompensation.Data["compensation"].(map[string]interface{})["operation"] = operation
 	data, err := json.Marshal(payload)
 	require.NoError(t, err)
 	return string(data)

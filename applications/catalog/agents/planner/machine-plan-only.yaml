@@ -10,10 +10,6 @@ configuration:
   machine: agents/planner/machine.yaml
   tools: agents/planner/tools.yaml
   llm_configs: agents/planner/llm/*.yaml
-  tool_declarations:
-  - tools/builtin.yaml
-  - tools/exec.yaml
-  - agents/planner/tracker-exec.yaml
   variants:
   - agents/planner/machine-passthrough.yaml
   - agents/planner/machine-plan-only.yaml
@@ -25,14 +21,15 @@ invariants:
 - The planner terminates when no more tasks are extractable
 lifecycle: |-
   1. Idle → Extracting: extract_task from requirement graph; NoTask routes through remaining_work
-  2. Extracting → Resetting: task extracted, clear LLM history
-  3. Resetting → ProjectingPromptContext → PromptAssembly: project structured context and compose the profile-owned prompt
-  4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
-  5. PlanInvoking → PlanParsing: parse_plan from LLM response; invalid plans
+  2. Extracting → MarkingPlanning: advance selected nodes through the explicit graph lifecycle word
+  3. MarkingPlanning → Resetting: clear LLM history
+  4. Resetting → ProjectingPromptContext → PromptAssembly: project structured context and compose the profile-owned prompt
+  5. PromptAssembly → PlanInvoking: invoke_llm for plan generation
+  6. PlanInvoking → PlanParsing: parse_plan from LLM response; invalid plans
      are reported and reinvoked until the explicit parse budget is exhausted
-  6. PlanParsing → IssueFormatting → IssueBodyWriting: format_issue then write
-  7. IssueBodyWriting → IssueCreating → IssueRecording: selected tracker exec then record_tracker_issue
-  8. IssueRecording → Extracting: continue planning without task execution
+  7. PlanParsing → IssueFormatting → IssueBodyWriting: format_issue then write
+  8. IssueBodyWriting → IssueCreating → IssueRecording: selected tracker exec then record_tracker_issue
+  9. IssueRecording → Extracting: continue planning without task execution
 
   The outer loop (Extracting → ... → IssueRecording → Extracting)
   repeats until the graph is fully resolved.
@@ -40,7 +37,8 @@ pipeline_diagram: |-
   ```mermaid
   flowchart TD
     A[Idle] -->|Seed| B[Extracting]
-    B -->|TaskExtracted| C[Resetting]
+    B -->|TaskExtracted| MP[MarkingPlanning]
+    MP -->|NodesMarkedPlanning| C[Resetting]
     C --> D[PromptAssembly]
     D --> E[PlanInvoking]
     E --> F[PlanParsing]
@@ -65,7 +63,9 @@ states:
 - name: Extracting
   meaning: |
     Selecting the next ready task from the requirement graph.
-    May terminate if all tasks are done, blocked, or batch limit reached.
+    A neutral NoTask result routes through the remaining_work graph query.
+- name: MarkingPlanning
+  meaning: Advancing only the extracted task nodes to Planning.
 - name: Resetting
   meaning: Clearing conversation history before a new task's LLM call.
 - name: InitializingFailureContext
@@ -107,6 +107,8 @@ signals:
   trigger: The requirement graph was loaded and seeded into pipeline state.
 - name: TaskExtracted
   trigger: A task was extracted from the requirement graph.
+- name: NodesMarkedPlanning
+  trigger: The extracted task nodes reached Planning through the dedicated mutation word.
 - name: FailureContextInitialized
   trigger: Empty failure context was recorded for a newly extracted task.
 - name: PlannerContextProjected
@@ -151,9 +153,16 @@ transitions:
   next: Failed
 - state: Extracting
   signal: TaskExtracted
+  next: MarkingPlanning
+  action: mark_nodes_planning
+- state: MarkingPlanning
+  signal: NodesMarkedPlanning
   next: InitializingFailureContext
   action: reset_failure_context
   label: failure_context
+- state: MarkingPlanning
+  signal: CommandError
+  next: Failed
 - state: InitializingFailureContext
   signal: FailureContextInitialized
   next: Resetting

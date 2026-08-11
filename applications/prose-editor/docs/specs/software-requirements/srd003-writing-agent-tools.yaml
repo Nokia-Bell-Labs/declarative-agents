@@ -306,8 +306,8 @@ word_vocabulary:
       domain_errors: [history gap, invalid revision, projection conflict]
       side_effects: [filesystem_write]
       reversibility: {classification: compensatable, undo: reproject_from_history}
-      compensation: Rebuild manifest.yaml from the highest valid contiguous immutable revision.
-      authority: Writes only manifest.yaml from immutable history and reports bounded validated manifest scalars; it cannot emit a route, inspect prose, or accept model-authored bytes or paths.
+      compensation: Rebuild manifest.json from the highest valid contiguous immutable revision.
+      authority: Writes only manifest.json from immutable history and reports bounded validated manifest scalars; it cannot emit a route, inspect prose, or accept model-authored bytes or paths.
 
     - name: materialize_final_chain
       owner: workflow-orchestrator

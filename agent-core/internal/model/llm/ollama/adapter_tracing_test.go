@@ -4,7 +4,6 @@ package ollama
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/stretchr/testify/require"
@@ -12,67 +11,6 @@ import (
 	"net/http/httptest"
 	"testing"
 )
-
-func TestNewAdapter_TracesCheckModelLifecycle(t *testing.T) {
-	t.Parallel()
-	srv := httptest.NewServer(tagsHandler([]string{"llama3:latest", "mistral:7b"}))
-	defer srv.Close()
-
-	tr := tracing.NewRecordingTracer()
-	a, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()), WithTracer(tr))
-	require.NoError(t, err)
-	require.NotNil(t, a)
-
-	start := tr.FindEvent("check_model.start")
-	require.NotNil(t, start)
-	require.Equal(t, "llama3", start.Attrs["llm.model"])
-
-	done := tr.FindEvent("check_model.done")
-	require.NotNil(t, done)
-	require.Equal(t, int64(2), done.Attrs["model_count"])
-	require.Equal(t, true, done.Attrs["match"])
-}
-
-func TestNewAdapter_TracesCheckModelNotFound(t *testing.T) {
-	t.Parallel()
-	srv := httptest.NewServer(tagsHandler([]string{"mistral:7b"}))
-	defer srv.Close()
-
-	tr := tracing.NewRecordingTracer()
-	_, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()), WithTracer(tr))
-	require.Error(t, err)
-
-	done := tr.FindEvent("check_model.done")
-	require.NotNil(t, done)
-	require.Equal(t, false, done.Attrs["match"])
-}
-
-func TestNewAdapter_TracesCheckModelConnectionError(t *testing.T) {
-	t.Parallel()
-	tr := tracing.NewRecordingTracer()
-	_, err := NewAdapter("http://127.0.0.1:1", "llama3", WithHTTPClient(&http.Client{}), WithTracer(tr))
-	require.Error(t, err)
-
-	errEvt := tr.FindEvent("check_model.error")
-	require.NotNil(t, errEvt)
-	require.Contains(t, errEvt.Attrs["error"], "connect")
-}
-
-func TestNewAdapter_TracesCheckModelBadStatus(t *testing.T) {
-	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer srv.Close()
-
-	tr := tracing.NewRecordingTracer()
-	_, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()), WithTracer(tr))
-	require.Error(t, err)
-
-	errEvt := tr.FindEvent("check_model.error")
-	require.NotNil(t, errEvt)
-	require.Equal(t, int64(500), errEvt.Attrs["http.status_code"])
-}
 
 func TestChat_EmitsSemconvInferenceSpan(t *testing.T) {
 	t.Parallel()
@@ -106,11 +44,6 @@ func TestChat_EmitsSemconvInferenceSpan(t *testing.T) {
 func TestChat_SpanRecordsErrorOnHTTPFailure(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/tags" {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(tagsResp{Models: []modelEntry{{Name: "llama3:latest"}}})
-			return
-		}
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = w.Write([]byte("overloaded"))
 	}))
@@ -144,10 +77,7 @@ func TestChat_NilTracerDoesNotPanic(t *testing.T) {
 
 func TestNewAdapter_NilTracerNoops(t *testing.T) {
 	t.Parallel()
-	srv := httptest.NewServer(tagsHandler([]string{"llama3:latest"}))
-	defer srv.Close()
-
-	a, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()))
+	a, err := NewAdapter("http://127.0.0.1:11434", "llama3")
 	require.NoError(t, err)
 	require.NotNil(t, a)
 }

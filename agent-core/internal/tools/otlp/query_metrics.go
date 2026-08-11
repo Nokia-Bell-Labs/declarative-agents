@@ -140,18 +140,20 @@ func (c *getMetricCommand) Execute() core.Result {
 	page, total, offset, pageSize := paginateMetricDetails(matched, c.config)
 
 	output := struct {
-		MetricName     string         `json:"metric_name"`
-		Records        []metricDetail `json:"records"`
-		Total          int            `json:"total"`
-		RecordCount    int            `json:"record_count"`
-		DataPointCount int            `json:"data_point_count"`
-		Offset         int            `json:"offset"`
-		PageSize       int            `json:"page_size"`
-		SkippedLines   int            `json:"skipped_lines"`
+		MetricName      string         `json:"metric_name"`
+		Records         []metricDetail `json:"records"`
+		Total           int            `json:"total"`
+		RecordCount     int            `json:"record_count"`
+		PageRecordCount int            `json:"page_record_count"`
+		DataPointCount  int            `json:"data_point_count"`
+		Offset          int            `json:"offset"`
+		PageSize        int            `json:"page_size"`
+		SkippedLines    int            `json:"skipped_lines"`
 	}{
 		MetricName: c.config.MetricName, Records: page, Total: total,
-		RecordCount: len(page), DataPointCount: sumDetailDataPoints(page),
-		Offset: offset, PageSize: pageSize, SkippedLines: skipped,
+		RecordCount: total, PageRecordCount: len(page),
+		DataPointCount: sumDetailDataPoints(page),
+		Offset:         offset, PageSize: pageSize, SkippedLines: skipped,
 	}
 	encoded, err := json.Marshal(output)
 	if err != nil {

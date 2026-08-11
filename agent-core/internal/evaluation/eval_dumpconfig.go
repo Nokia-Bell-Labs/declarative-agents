@@ -135,9 +135,13 @@ func (b *DumpConfigBuilder) Build(_ core.Result) core.Command {
 		return &failCmd{err: fmt.Errorf("dump_config: EvalState.PC not initialized")}
 	}
 	pc := b.ES.PC
+	if pc.PointDir == "" {
+		return &failCmd{err: fmt.Errorf("dump_config: PointContext.PointDir not initialized")}
+	}
 	return &evaluatorReceiptCmd{
 		inner: &dumpConfigCmd{pc: pc}, point: pc,
 		removePaths: func() []string { return []string{filepath.Join(pc.PointDir, ArtifactExperiment)} },
+		removeRoot:  func() string { return pc.PointDir },
 	}
 }
 

@@ -71,7 +71,38 @@ func (td *ToolDef) UnmarshalYAML(value *yaml.Node) error {
 	if err := td.validateParamSources(); err != nil {
 		return err
 	}
+	if err := td.validateParameterExtensions(); err != nil {
+		return err
+	}
 	return td.validateExecIO()
+}
+
+func (td ToolDef) validateParameterExtensions() error {
+	props, _ := td.Parameters["properties"].(map[string]interface{})
+	for name, value := range props {
+		property, _ := value.(map[string]interface{})
+		if raw, ok := property["default"]; ok {
+			if _, stringValue := raw.(string); !stringValue {
+				return fmt.Errorf("tool %q parameter %q default must be a string", td.Name, name)
+			}
+		}
+		if raw, ok := property["position"]; ok {
+			if _, integer := raw.(int); !integer {
+				return fmt.Errorf("tool %q parameter %q position must be an integer", td.Name, name)
+			}
+		}
+		if td.Type == "builtin" {
+			for _, field := range []string{"source", "flag", "positional", "position"} {
+				if _, present := property[field]; present {
+					return fmt.Errorf(
+						"builtin tool %q parameter %q cannot declare exec field %q",
+						td.Name, name, field,
+					)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func yamlFieldPresent(value *yaml.Node, field string) bool {
@@ -292,6 +323,12 @@ func (td *ToolDef) ToToolSpec() core.ToolSpec {
 		Visibility:  vis,
 		Phases:      toolSpecPhases(td.Phases),
 		PhaseScoped: td.phaseScoped || len(td.Phases) > 0,
+		Rollback: core.RollbackPolicy{
+			Classification: td.Reversibility.Classification,
+			Strategy:       td.Undo.Strategy,
+			Description:    td.Undo.Description,
+			Requires:       append([]string(nil), td.Undo.Requires...),
+		},
 	}
 }
 

@@ -9,6 +9,7 @@ includes:
   - builtin/checkpoint-history.yaml
   - builtin/checkpoint-rollback.yaml
   - builtin/partition.yaml
+  - builtin/planner/all.yaml
   - builtin/select-subset.yaml
   - builtin/render-each.yaml
   - builtin/parse-structured.yaml
@@ -16,165 +17,13 @@ includes:
   # legacy inline copy that drifted from it (missing problem/goals/requirements/
   # errors/non_goals) was removed in favor of this include.
   - builtin/list-files.yaml
+  - builtin/read.yaml
+  - builtin/write.yaml
+  - builtin/edit.yaml
+  - builtin/find.yaml
 
 tools:
   # --- file tools ---
-  - name: read
-    type: builtin
-    category: word
-    init: file_read
-    emits: [ToolDone, ToolFailed]
-    description: "Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths first."
-    output:
-      description: "Line-numbered text content from the requested file range."
-      schema:
-        type: object
-        properties:
-          path:
-            type: string
-          content:
-            type: string
-          start_line:
-            type: integer
-          end_line:
-            type: integer
-        required: [path, content]
-    parameters:
-      type: object
-      properties:
-        path:
-          type: string
-          description: "File path relative to workspace root (must be a file, not a directory)"
-        start_line:
-          type: integer
-          description: "Start line (1-indexed, inclusive)"
-        end_line:
-          type: integer
-          description: "End line (1-indexed, inclusive)"
-      required: [path]
-    side_effects:
-      - kind: filesystem_read
-        target: workspace_file
-        description: "Reads file contents from the configured workspace without mutating state."
-    reversibility:
-      classification: reversible
-      undo: "noop"
-    undo:
-      strategy: noop
-      description: "Read-only command has no effects to reverse."
-
-  - name: write
-    type: builtin
-    category: word
-    init: file_write
-    emits: [ToolDone, ToolFailed]
-    description: "Create or overwrite a file. Provide the complete file content — this replaces the entire file. Parent directories are created automatically."
-    output:
-      description: "Write result describing the file path and bytes written."
-      schema:
-        type: object
-        properties:
-          path:
-            type: string
-          bytes_written:
-            type: integer
-          created_parent_dirs:
-            type: boolean
-        required: [path, bytes_written]
-    parameters:
-      type: object
-      properties:
-        path:
-          type: string
-          description: "File path relative to workspace root"
-        content:
-          type: string
-          description: "Full file content to write"
-      required: [path, content]
-    side_effects:
-      - kind: filesystem_write
-        target: workspace_file
-        description: "Creates or overwrites one workspace file and may create parent directories."
-    reversibility:
-      classification: reversible
-      undo: "workspace_restore"
-    undo:
-      strategy: workspace_restore
-      description: "Encode an opaque receipt into Result.Receipt during Execute (prior path, whether the file existed, its content, and mode); Undo decodes that receipt and restores the file to its prior state, deleting it if it did not exist before."
-      captures: [path, existed, content, mode]
-      requires: [Receipt]
-
-  - name: edit
-    type: builtin
-    category: word
-    init: file_edit
-    emits: [EditDone, ToolFailed]
-    description: "Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match."
-    output:
-      description: "Edit result describing the changed file and replacement count."
-      schema:
-        type: object
-        properties:
-          path:
-            type: string
-          replacements:
-            type: integer
-          ambiguous_matches:
-            type: integer
-        required: [path, replacements]
-    parameters:
-      type: object
-      properties:
-        path:
-          type: string
-          description: "File path relative to workspace root"
-        old_string:
-          type: string
-          description: "Exact text to find"
-        new_string:
-          type: string
-          description: "Replacement text"
-      required: [path, old_string, new_string]
-    side_effects:
-      - kind: filesystem_write
-        target: workspace_file
-        description: "Replaces text in one workspace file."
-    reversibility:
-      classification: reversible
-      undo: "workspace_restore"
-    undo:
-      strategy: workspace_restore
-      description: "Encode an opaque receipt into Result.Receipt during Execute (prior path, whether the file existed, its content, and mode); Undo decodes that receipt and restores the file to its pre-edit content."
-      captures: [path, existed, content, mode]
-      requires: [Receipt]
-
-  - name: find
-    type: builtin
-    category: word
-    init: file_find
-    emits: [ToolDone, ToolFailed]
-    description: "Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob — use \\.go$ to find Go files, not *.go. Returns matching lines with file paths and line numbers."
-    parameters:
-      type: object
-      properties:
-        query:
-          type: string
-          description: "Regex pattern (ripgrep syntax, not glob). Example: \\.go$ for Go files, func main for function search"
-        path:
-          type: string
-          description: "Subdirectory to scope the search (optional)"
-      required: [query]
-    side_effects:
-      - kind: filesystem_read
-        target: workspace_tree
-        description: "Reads matching file paths and lines from the workspace without mutating state."
-    reversibility:
-      classification: reversible
-      undo: "noop"
-    undo:
-      strategy: noop
-      description: "Search is read-only and has no effects to reverse."
-
   # list_files is declared once in builtin/list-files.yaml (see includes above).
 
   # --- LLM tools ---
@@ -189,6 +38,9 @@ tools:
     visibility: internal
     emits: [ToolDone, TaskCompleted, ParseFailed, CommandError]
     description: "Parse raw LLM output into a tool call or task-completed signal."
+    output:
+      description: "Parsed tool-request JSON or a plain completion summary."
+      schema: {type: string}
     category: word
     side_effects:
       - kind: command_state
@@ -206,6 +58,9 @@ tools:
     visibility: internal
     emits: [ToolDone, BudgetExhausted]
     description: "Report a parse error back to the LLM for correction."
+    output:
+      description: "Plain-text feedback requesting a corrected model response."
+      schema: {type: string}
     category: word
     side_effects:
       - kind: command_state
@@ -216,6 +71,11 @@ tools:
     undo:
       strategy: parse_retry_counter_restore
       description: "Restores the parse retry counter snapshot captured before reporting the parse error."
+    config:
+      feedback_template: |-
+        Your previous response was invalid. {{error}}
+
+        Please respond with a single JSON object: {"tool": "<tool_name>", "parameters": {<params>}}
 
   - name: reset_history
     type: builtin
@@ -223,6 +83,9 @@ tools:
     visibility: internal
     emits: [ToolDone, CommandError]
     description: "Clear the conversation history and restart the LLM context."
+    output:
+      description: "The literal plain-text reset prompt."
+      schema: {type: string}
     category: stateful_internal
     side_effects:
       - kind: state_mutation
@@ -242,6 +105,9 @@ tools:
     visibility: internal
     emits: [ToolDone]
     description: "Append a re-read instruction after file edits to prompt the model to verify changes."
+    output:
+      description: "Plain-text edit result followed by the reread instruction."
+      schema: {type: string}
     category: word
     side_effects:
       - kind: none
@@ -252,6 +118,8 @@ tools:
     undo:
       strategy: noop
       description: "The nudge only changes the command output passed to the next transition."
+    config:
+      nudge_text: "The file was modified successfully. IMPORTANT: You MUST call the read tool on the modified file to see its current contents before making any further edits. Do not assume you know what the file looks like — re-read it now."
 
   - name: done
     type: builtin
@@ -297,253 +165,6 @@ tools:
       description: "Resume with an explicit approval/rejection signal or roll back to an earlier checkpoint."
       payload: boundary_compensation
       captures: [reason, checkpoint_required]
-
-  # --- pipeline/planner tools ---
-  - name: extract_task
-    type: builtin
-    init: extract_task
-    description: "Extract the next unblocked task from the dependency graph."
-    visibility: internal
-    emits: [TaskExtracted, NoTask, CommandError]
-    category: stateful_internal
-    side_effects:
-      - kind: state_mutation
-        target: pipeline_state
-        state: current_task_selected
-        description: "Updates the current task cursor and graph task status."
-    reversibility:
-      classification: reversible
-      undo: "pipeline_state_restore"
-    undo:
-      strategy: session_state_restore
-      description: "Restore the pipeline state snapshot captured before extraction."
-
-  - name: select_all_ready
-    type: builtin
-    init: select_all_ready
-    description: "Select all ready requirements as one pass-through task."
-    visibility: internal
-    emits: [ReadySelected, NoTask, CommandError]
-    category: stateful_internal
-    side_effects:
-      - kind: state_mutation
-        target: pipeline_state
-        state: passthrough_task_selected
-        description: "Updates only the current task to represent all ready requirements."
-    reversibility:
-      classification: reversible
-      undo: "pipeline_state_restore"
-    undo:
-      strategy: session_state_restore
-      description: "Restore the pipeline state snapshot captured before selection."
-
-  - name: seed_passthrough_plan
-    type: builtin
-    init: seed_passthrough_plan
-    description: "Seed profile-configured pass-through plan text."
-    visibility: internal
-    emits: [PassThroughPlanSeeded, CommandError]
-    category: stateful_internal
-    config:
-      title: "Execute all ready requirements"
-      summary: "Pass-through execution for the selected ready graph nodes."
-    side_effects:
-      - kind: state_mutation
-        target: pipeline_state
-        state: current_plan_seeded
-        description: "Sets only the current implementation plan."
-    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
-    undo: {strategy: session_state_restore, description: "Restore the prior pipeline state."}
-
-  - name: mark_nodes_planning
-    type: builtin
-    init: mark_nodes_planning
-    description: "Advance only selected task nodes to Planning."
-    visibility: internal
-    emits: [NodesMarkedPlanning, CommandError]
-    category: stateful_internal
-    side_effects:
-      - kind: state_mutation
-        target: requirement_graph
-        state: selected_nodes_planning
-        description: "Advances selected current-task nodes to Planning."
-    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
-    undo: {strategy: session_state_restore, description: "Restore the prior graph lifecycle."}
-
-  - name: project_planner_context
-    type: builtin
-    init: project_planner_context
-    description: "Project prompt-neutral task and SRD context."
-    visibility: internal
-    emits: [PlannerContextProjected, CommandError]
-    category: word
-    side_effects:
-      - kind: none
-        description: "Projects structured context without mutating state."
-    reversibility:
-      classification: reversible
-      undo: "noop"
-    undo:
-      strategy: noop
-      description: "Context projection has no effects to reverse."
-
-  - name: capture_planner_failure
-    type: builtin
-    init: capture_planner_failure
-    description: "Publish preceding validation output for retry prompt composition."
-    visibility: internal
-    emits: [FailureCaptured, CommandError]
-    category: word
-    side_effects: [{kind: none, description: "Wraps prior output."}]
-    reversibility: {classification: reversible, undo: noop}
-    undo: {strategy: noop, description: "History truncation removes captured context."}
-
-  - name: parse_plan
-    type: builtin
-    init: parse_plan
-    description: "Parse the LLM YAML response into an ImplementationPlan."
-    visibility: internal
-    emits: [PlanReady, ParseFailed, CommandError]
-    category: stateful_internal
-    side_effects:
-      - kind: state_mutation
-        target: pipeline_state
-        state: current_plan_parsed
-        description: "Sets the parsed implementation plan on pipeline state."
-    reversibility:
-      classification: reversible
-      undo: "pipeline_state_restore"
-    undo:
-      strategy: session_state_restore
-      description: "Restore the pipeline state snapshot captured before parsing."
-
-  - name: mark_nodes_executing
-    type: builtin
-    init: mark_nodes_executing
-    description: "Advance selected task nodes to Executing."
-    visibility: internal
-    emits: [NodesMarkedExecuting, CommandError]
-    category: stateful_internal
-    side_effects:
-      - {kind: state_mutation, target: requirement_graph, state: selected_nodes_executing}
-    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
-    undo: {strategy: session_state_restore, description: "Restore prior graph lifecycle."}
-
-  - name: format_task_file
-    type: builtin
-    init: format_task_file
-    description: "Project the current plan into write parameters for doc/task.yaml."
-    visibility: internal
-    emits: [TaskFileFormatted, CommandError]
-    category: word
-    side_effects: [{kind: none, description: "Serializes without writing."}]
-    reversibility: {classification: reversible, undo: noop}
-    undo: {strategy: noop, description: "Projection changes no state."}
-
-  - name: mark_task_done
-    type: builtin
-    init: mark_task_done
-    description: "Mark the current planner task's graph nodes done."
-    problem: "Successful validation needs one focused graph completion mutation."
-    goals:
-      - "Mutate graph completion state without deciding retry or remaining-work policy."
-    requirements:
-      input:
-        - "The current task and graph must exist in planner pipeline state."
-      output:
-        - "TaskCompleted is emitted after all current task nodes reach Done."
-      errors:
-        - "CommandError is emitted for missing state or invalid node transitions."
-    non_goals:
-      - "Does not inspect validation results."
-      - "Does not count retries or query remaining work."
-    visibility: internal
-    emits: [TaskCompleted, CommandError]
-    category: stateful_internal
-    side_effects:
-      - kind: state_mutation
-        target: pipeline_state
-        state: current_task_completed
-        description: "Advances only the current task's graph nodes to Done."
-    reversibility:
-      classification: reversible
-      undo: "pipeline_state_restore"
-    undo:
-      strategy: session_state_restore
-      description: "Restore the graph snapshot captured before task completion."
-    output:
-      description: "Human-readable confirmation naming the completed planner task."
-      schema:
-        type: string
-    errors:
-      - signal: CommandError
-        condition: "The current task or graph is missing, or a task node cannot transition to Done."
-        message_shape: "mark_task_done: <error>"
-        state_after_failure: "The machine does not route completion; rollback restores any graph nodes changed before the error."
-    relationships:
-      before: [test]
-      after: [remaining_work]
-
-  - name: mark_task_failed
-    type: builtin
-    init: mark_task_failed
-    description: "Mark the current planner task's graph nodes failed after retry exhaustion."
-    visibility: internal
-    emits: [TaskFailed, CommandError]
-    category: stateful_internal
-    side_effects:
-      - {kind: state_mutation, target: requirement_graph, state: current_task_failed}
-    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
-    undo: {strategy: session_state_restore, description: "Restore graph status before failure marking."}
-    problem: "Retry exhaustion needs an explicit graph failure before remaining-work routing."
-    goals: ["Advance exhausted task nodes to Failed without owning retry policy."]
-    requirements: {input: ["Current task and graph are required."], output: ["TaskFailed follows mutation."], errors: ["Invalid transitions emit CommandError."]}
-    non_goals: ["Does not count retries or classify remaining work."]
-    errors: [{signal: CommandError, condition: "Task or graph state is invalid.", state_after_failure: "Receipt-backed state is recoverable."}]
-    relationships: {before: [check_retry_limit], after: [remaining_work]}
-    output: {description: "Explicit graph failure summary.", schema: {type: string}}
-
-  - name: remaining_work
-    type: builtin
-    init: remaining_work
-    description: "Query whether the planner graph has ready, completed, or blocked work."
-    problem: "Remaining-work routing belongs in the planner machine, not a graph-mutating word."
-    goals:
-      - "Report ready work separately from a fully done or blocked graph."
-    requirements:
-      input:
-        - "A loaded graph must exist in planner pipeline state."
-      output:
-        - "WorkRemaining, AllDone, or Blocked describes the graph."
-      errors:
-        - "CommandError is emitted when no graph is loaded."
-    non_goals:
-      - "Does not extract tasks or mutate graph state."
-      - "Does not decide where the planner routes next."
-    visibility: internal
-    emits: [WorkRemaining, AllDone, Blocked, CommandError]
-    category: word
-    side_effects:
-      - kind: none
-        description: "Reads graph state without mutating it."
-    reversibility:
-      classification: reversible
-      undo: "noop"
-    undo:
-      strategy: noop
-      description: "The graph query has no effects to reverse."
-    output:
-      description: "Human-readable ready, complete, or blocked graph summary."
-      schema:
-        type: string
-    errors:
-      - signal: CommandError
-        condition: "No planner graph is loaded."
-        message_shape: "remaining_work: graph is required"
-        state_after_failure: "Graph and planner state remain unchanged."
-    relationships:
-      before: [mark_task_done, mark_task_failed]
-      after: [extract_task]
 
   # --- evaluator session tools ---
   - name: parse_suite_config
@@ -625,6 +246,11 @@ tools:
       strategy: session_state_restore
       description: "Restore evaluator session state and workspace artifacts from persisted receipts."
       requires: [Receipt]
+    config:
+      output_dir: eval-results
+      reps: 1
+      timeout: 600
+      ollama_url: ""
 
   - name: report_suite_summary
     type: builtin
@@ -938,6 +564,16 @@ tools:
     visibility: internal
     emits: [ToolDone, CommandError]
     description: "Load the specification corpus from the project directory."
+    output:
+      description: "Loaded corpus summary and declared grep, reference, and consistency plans."
+      schema:
+        type: object
+        properties:
+          summary: {type: string}
+          grep_checks: {type: array, items: {type: object}}
+          ref_checks: {type: array, items: {type: object}}
+          consistency_checks: {type: array, items: {type: object}}
+        required: [summary, grep_checks, ref_checks, consistency_checks]
     category: stateful_internal
     side_effects:
       - kind: state_mutation
@@ -957,6 +593,9 @@ tools:
     visibility: internal
     emits: [ValidationPassed, ValidationFailed, CommandError]
     description: "Run consistency checks on the loaded specification corpus."
+    output:
+      description: "Plain-text finding and error count summary."
+      schema: {type: string}
     category: stateful_internal
     side_effects:
       - kind: state_mutation
@@ -974,15 +613,23 @@ tools:
     type: builtin
     init: format_report
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    emits: [ToolDone, ToolFailed]
     description: "Format the validation results as a human-readable report."
+    output:
+      description: "Plain-text human-readable validation report."
+      schema: {type: string}
     category: word
     side_effects:
-      - kind: none
-        description: "Formats validation state into command output without mutating state."
+      - kind: stderr_write
+        target: process_stderr
+        description: "Prints the human-readable validation report to stderr."
     reversibility:
       classification: reversible
       undo: "noop"
     undo:
       strategy: noop
       description: "Report formatting has no effects to reverse."
+    errors:
+      - signal: ToolFailed
+        condition: "The validation finding set contains error-level findings."
+        state_after_failure: "The complete report is printed and returned."

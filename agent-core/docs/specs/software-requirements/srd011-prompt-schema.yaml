@@ -1,22 +1,21 @@
 id: srd011-prompt-schema
-title: Prompt Schema and Loading
+title: Prompt Schema and Assembly
 
 problem: |
   Every agent needs a structured system prompt assembled from multiple
   parts: a persona (role), the caller's task, behavioral constraints,
   and an output format description. The generator implemented this in
-  its internal/prompt package with a Prompt struct, YAML loading with
-  mode detection, compiled defaults, and an Assemble method.
+  its internal/prompt package with a Prompt struct and compiled defaults.
 
   Without a shared prompt package, each new agent reimplements the same
-  schema, loading, and assembly logic. Moving this to agent-core gives
+  schema and assembly logic. Moving this to agent-core gives
   all agents a consistent prompt format with override points for their
   domain-specific defaults.
 
 goals:
   - G1: Prompt struct with typed fields for each section of the system message.
-  - G2: YAML schema supporting both structured and simple prompt files.
-  - G3: LoadPrompt function with mode detection, defaults, and validation.
+  - G2: ToolDef config maps structured prompt fields into Prompt.
+  - G3: Runtime request input supplies the per-run task separately from prompt policy.
   - G4: Assembly contract producing the system-role message text.
   - G5: Replace generator's internal/prompt package with agent-core internal/model/prompt.
 
@@ -31,28 +30,28 @@ requirements:
       - R1.5: OutputFormat describes the expected response structure.
 
   R2:
-    title: YAML schema
+    title: Tool declaration schema
     items:
-      - R2.1: "Structured mode: the YAML file contains task (required), role, constraints, and output_format (all optional)."
-      - R2.2: "Simple mode: the YAML file contains a single prompt field. The value maps to Task."
-      - R2.3: If both task and prompt exist, LoadPrompt returns an error.
-      - R2.4: Unknown top-level fields are ignored for forward compatibility.
+      - R2.1: invoke_llm ToolDef config MAY declare system_prompt and tool_prompt fields.
+      - R2.2: Runtime request input supplies user task content through the machine data path.
+      - R2.3: Prompt policy and runtime task data SHALL remain distinct.
+      - R2.4: Unknown ToolDef config fields SHALL be rejected by strict config decoding.
 
   R3:
-    title: LoadPrompt function
+    title: Prompt construction
     items:
-      - R3.1: LoadPrompt(path) reads a YAML file, detects mode, maps fields, applies defaults, and validates.
-      - R3.2: In simple mode, the prompt value maps to Task. Other fields receive compiled defaults.
-      - R3.3: In structured mode, missing optional fields receive compiled defaults.
-      - R3.4: File errors include the path in the error message.
-      - R3.5: Returns LoadResult (Prompt, Mode, FileSize, TaskLen, Sections) or error. Never a partial struct.
+      - R3.1: invoke_llm factory construction maps declared prompt fields into Prompt.
+      - R3.2: Missing optional policy fields select explicit adapter defaults.
+      - R3.3: Runtime task text is appended through Conversation by invoke_llm.
+      - R3.4: Prompt construction performs no hidden filesystem read.
+      - R3.5: The constructed Prompt is consumed by DefaultAssembler.
 
   R4:
-    title: LoadPromptFromString
+    title: Runtime task input
     items:
-      - R4.1: LoadPromptFromString(task) creates a LoadResult from an inline string using simple-mode defaults.
-      - R4.2: Empty or whitespace-only input returns an error.
-      - R4.3: Mode is set to "string".
+      - R4.1: Runtime task text comes from the machine seed, previous result, or declared command-state selector.
+      - R4.2: Missing required runtime input emits CommandError.
+      - R4.3: Runtime input does not choose prompt policy or templates.
 
   R5:
     title: Compiled defaults
@@ -65,38 +64,38 @@ requirements:
   R6:
     title: Assembly
     items:
-      - R6.1: Assemble() concatenates the four fields in order with blank-line separators.
-      - R6.2: Sections that are empty after trimming are omitted.
-      - R6.3: Assemble is deterministic — calling it twice produces identical output.
-      - R6.4: SectionCount() returns the number of non-empty sections.
+      - R6.1: DefaultAssembler maps Prompt fields into PromptData and calls RenderSystemPrompt.
+      - R6.2: RenderSystemPrompt uses the embedded template and omits empty optional sections.
+      - R6.3: Rendering is deterministic for fixed PromptData and tool manifest.
+      - R6.4: Custom template parsing is not exposed as an unused runtime surface.
 
   R7:
     title: Validation
     items:
-      - R7.1: Task must be non-empty after loading and defaults. Empty or whitespace-only Task returns an error.
-      - R7.2: The caller receives either a valid LoadResult or an error, never a partial struct.
+      - R7.1: Required runtime prompt input SHALL be validated at the invoke_llm boundary.
+      - R7.2: Construction failures return an error rather than a partial command.
 
 non_goals:
   - System prompt template rendering (srd for system prompt template).
   - Tool manifest serialization.
   - Conversation history management.
-  - Prompt templating or variable substitution.
+  - Loading standalone prompt files or inline prompt strings outside MachineSpec and ToolDef data paths.
 
 acceptance_criteria:
   - id: AC1
-    criterion: Prompt struct has four string fields. Assemble concatenates them with blank-line separators, omitting empty sections. Deterministic.
+    criterion: Prompt has four string fields and DefaultAssembler renders them deterministically through the embedded system template.
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R6.1, R6.2, R6.3, R6.4]
 
   - id: AC2
-    criterion: Structured YAML with task loads into a Prompt with defaults for missing fields. Simple YAML with prompt maps to Task.
+    criterion: ToolDef config supplies prompt policy while machine runtime input supplies task data.
     traces: [R2.1, R2.2, R3.1, R3.2, R3.3]
 
   - id: AC3
-    criterion: Both task and prompt returns error. Unknown fields ignored. File errors include path.
+    criterion: Prompt policy and runtime task remain distinct, and unknown ToolDef config fields are rejected.
     traces: [R2.3, R2.4, R3.4]
 
   - id: AC4
-    criterion: LoadPrompt returns LoadResult with Mode, FileSize, TaskLen, Sections. LoadPromptFromString returns Mode "string".
+    criterion: invoke_llm builds Prompt without hidden filesystem reads and DefaultAssembler consumes it.
     traces: [R3.5, R4.1, R4.3]
 
   - id: AC5
@@ -104,7 +103,7 @@ acceptance_criteria:
     traces: [R5.1, R5.2, R5.3, R5.4]
 
   - id: AC6
-    criterion: Empty Task returns error from both LoadPrompt and LoadPromptFromString.
+    criterion: Missing required runtime prompt input emits CommandError without a partial command.
     traces: [R7.1, R7.2, R4.2]
 
 diagrams:
@@ -113,13 +112,13 @@ diagrams:
     flowchart LR
       Problem["Problem: Every agent needs a structured system prompt assemble..."] --> Goals["Goals: Prompt Schema and Loading"]
       Goals --> R1["R1: Prompt struct"]
-      Goals --> R2["R2: YAML schema"]
-      Goals --> R3["R3: LoadPrompt function"]
-      Goals --> R4["R4: LoadPromptFromString"]
+      Goals --> R2["R2: Tool declaration schema"]
+      Goals --> R3["R3: Prompt construction"]
+      Goals --> R4["R4: Runtime task input"]
       Goals --> R5["R5: Compiled defaults"]
       Goals --> R6["R6: Assembly"]
       Goals --> R7["R7: Validation"]
-      AC1["AC1: Prompt struct has four string fields. Assemble concatenat..."]
+      AC1["AC1: Prompt has four string fields and DefaultAssembler rende..."]
       R1 --> AC1
       R6 --> AC1
       AC2["AC2: Structured YAML with task loads into a Prompt with defaul..."]
@@ -128,12 +127,12 @@ diagrams:
       AC3["AC3: Both task and prompt returns error. Unknown fields ignore..."]
       R2 --> AC3
       R3 --> AC3
-      AC4["AC4: LoadPrompt returns LoadResult with Mode, FileSize, TaskLe..."]
+      AC4["AC4: invoke_llm builds Prompt without hidden filesystem reads..."]
       R3 --> AC4
       R4 --> AC4
       AC5["AC5: Compiled defaults provide Role, Constraints, OutputFormat..."]
       R5 --> AC5
-      AC6["AC6: Empty Task returns error from both LoadPrompt and LoadPro..."]
+      AC6["AC6: Missing required runtime prompt input emits CommandError..."]
       R7 --> AC6
       R4 --> AC6
     ```

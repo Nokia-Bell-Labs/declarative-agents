@@ -105,14 +105,8 @@ func (v *commandStateView) lookup(label string) (string, bool, error) {
 
 var _ CommandStateView = (*commandStateView)(nil)
 
-// injectCommandState gives a CommandStateAware command a forward view built from
-// the prior steps' entries. At dispatch time the execution log holds every step
-// before the current one (the current entry is appended after dispatch), so the
-// view is a strictly-forward, receipt-blind read over completed steps.
-func injectCommandState(cmd Command, priorSteps Execution) {
-	injectCommandStateBindings(cmd, priorSteps, nil)
-}
-
+// injectCommandStateBindings gives a CommandStateAware command a strictly
+// forward, receipt-blind view over completed steps and iterator bindings.
 func injectCommandStateBindings(cmd Command, priorSteps Execution, bindings map[string]string) {
 	if aware, ok := cmd.(CommandStateAware); ok {
 		aware.SetCommandState(newCommandStateView(priorSteps, bindings))
@@ -256,24 +250,12 @@ func ResolveFromSelector(view CommandStateView, selector string) (interface{}, e
 	}
 	label := parsed.Label
 	path := strings.Join(parsed.Path, ".")
-	if view == nil {
-		return nil, fmt.Errorf("selector %q: no command-state view is configured", selector)
+	output, err := lookupSelectorOutput(view, selector, label)
+	if err != nil {
+		return nil, err
 	}
-	var output string
-	var found bool
-	if detailed, ok := view.(interface {
-		lookup(string) (string, bool, error)
-	}); ok {
-		var err error
-		output, found, err = detailed.lookup(label)
-		if err != nil {
-			return nil, fmt.Errorf("selector %q: %w", selector, err)
-		}
-	} else {
-		output, found = view.Lookup(label)
-	}
-	if !found {
-		return nil, fmt.Errorf("selector %q: %w", selector, &UnresolvedLabelError{Label: label})
+	if len(parsed.Path) == 1 && parsed.Path[0] == "$" {
+		return output, nil
 	}
 	var decoded map[string]interface{}
 	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
@@ -288,4 +270,27 @@ func ResolveFromSelector(view CommandStateView, selector string) (interface{}, e
 		)
 	}
 	return value, nil
+}
+
+func lookupSelectorOutput(view CommandStateView, selector, label string) (string, error) {
+	if view == nil {
+		return "", fmt.Errorf("selector %q: no command-state view is configured", selector)
+	}
+	var output string
+	var found bool
+	if detailed, ok := view.(interface {
+		lookup(string) (string, bool, error)
+	}); ok {
+		var err error
+		output, found, err = detailed.lookup(label)
+		if err != nil {
+			return "", fmt.Errorf("selector %q: %w", selector, err)
+		}
+	} else {
+		output, found = view.Lookup(label)
+	}
+	if !found {
+		return "", fmt.Errorf("selector %q: %w", selector, &UnresolvedLabelError{Label: label})
+	}
+	return output, nil
 }

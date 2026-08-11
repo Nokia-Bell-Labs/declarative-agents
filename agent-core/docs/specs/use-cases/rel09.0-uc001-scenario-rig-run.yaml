@@ -19,9 +19,9 @@ trigger: |
   carrying a tests/<scenario>/ directory.
 
 flow:
-  - F1: The rig runs list_scenarios over declared roots and receives the scenario entry naming the subject, validators, and fixtures (srd040 R5).
-  - F2: The rig runs start_service for the mock profile with the scenario's fixture file; the mock serves the mock binding routes and its request log (srd039 R2, srd040 R1).
-  - F3: The rig runs start_service for the subject with a dependency URL environment addition pointing at the mock's base URL, resolved through the subject's ${VAR:-default} base_url expansion (srd040 R1, srd028 R2).
+  - F1: The rig runs init_scenario_session over declared roots, then next_scenario receives each entry naming the subject, validators, and fixtures (srd040 R5).
+  - F2: The rig runs start_scenario_mock for the scenario's fixture file; the mock serves the mock binding routes and its request log (srd039 R2, srd040 R1).
+  - F3: The rig runs start_scenario_subject with a dependency URL environment addition pointing at the mock's base URL, resolved through the subject's ${VAR:-default} base_url expansion (srd040 R1, srd028 R2).
   - F4: The rig probes each labeled child URL once per REST dispatch and routes retry delays and timeout visibly in MachineSpec (srd040 R2).
   - F5: MachineSpec iterates one child execution per validator with declared bounded parallelism; each item drives the subject over HTTP and asserts on responses and on the mock's request log (srd040 R4, srd039 R3).
   - F6: The rig joins per-validator terminal states in input order, records them, and derives the scenario verdict, passing only when every validator reached its Passed terminal.

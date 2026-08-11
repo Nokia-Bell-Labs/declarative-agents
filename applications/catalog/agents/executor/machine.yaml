@@ -8,9 +8,6 @@ configuration:
   machine: agents/executor/machine.yaml
   tools: agents/executor/tools.yaml
   llm_configs: agents/executor/llm/*.yaml
-  tool_declarations:
-  - tools/builtin.yaml
-  - tools/exec.yaml
 invariants:
 - Every tool result is fed back to the LLM before the next reasoning step
 - File edits trigger a re-read nudge to prevent stale context

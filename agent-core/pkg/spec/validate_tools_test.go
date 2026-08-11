@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -330,6 +331,7 @@ func TestValidate_ToolUndoConsistency(t *testing.T) {
 	for _, strategy := range []string{
 		"noop",
 		"workspace_restore",
+		"file_snapshot_restore",
 		"session_state_restore",
 		"conversation_truncate",
 		"conversation_restore",
@@ -341,6 +343,7 @@ func TestValidate_ToolUndoConsistency(t *testing.T) {
 	} {
 		decls["reversible-"+strategy] = ToolDeclaration{
 			Name:          "reversible-" + strategy,
+			Type:          "builtin",
 			Reversibility: ToolDeclReversibility{Classification: "reversible"},
 			Undo:          ToolDeclUndo{Strategy: strategy},
 		}
@@ -357,9 +360,15 @@ func TestValidate_ToolUndoConsistency(t *testing.T) {
 	} {
 		decls["compensatable-"+strategy] = ToolDeclaration{
 			Name:          "compensatable-" + strategy,
+			Type:          "builtin",
 			Reversibility: ToolDeclReversibility{Classification: "compensatable"},
 			Undo:          ToolDeclUndo{Strategy: strategy},
 		}
+	}
+	decls["unsupported-exec"] = ToolDeclaration{
+		Name: "unsupported-exec", Type: "exec",
+		Reversibility: ToolDeclReversibility{Classification: "reversible"},
+		Undo:          ToolDeclUndo{Strategy: "conversation_restore"},
 	}
 
 	corpus := &Corpus{ToolDeclarations: decls}
@@ -371,6 +380,7 @@ func TestValidate_ToolUndoConsistency(t *testing.T) {
 	}
 	assert.Equal(t, 1, countFindings(checks, "tool-undo-mismatch"))
 	assert.Contains(t, checks, "tool-undo-payload-no-captures")
+	assert.Equal(t, 1, countFindings(checks, "tool-undo-unsupported-runtime"))
 }
 
 func TestValidate_ToolSideEffectVocab(t *testing.T) {
@@ -392,13 +402,24 @@ func TestValidate_ToolSideEffectVocab(t *testing.T) {
 				Name:        "bad",
 				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "invented_kind"}}},
 			},
+			"bad-target": {
+				Name: "bad-target",
+				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{
+					Kind: "state_mutation", Target: "pipeline_graph",
+				}}},
+			},
 		},
 	}
 
 	findings := checkToolSideEffectVocab(corpus)
-	require.Len(t, findings, 1)
-	assert.Equal(t, "error", findings[0].Level)
-	assert.Contains(t, findings[0].Message, "invented_kind")
+	require.Len(t, findings, 2)
+	var messages []string
+	for _, finding := range findings {
+		assert.Equal(t, "error", finding.Level)
+		messages = append(messages, finding.Message)
+	}
+	assert.Contains(t, strings.Join(messages, "\n"), "invented_kind")
+	assert.Contains(t, strings.Join(messages, "\n"), "pipeline_graph")
 }
 
 func TestValidate_ToolBoundaryCategory(t *testing.T) {

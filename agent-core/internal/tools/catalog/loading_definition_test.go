@@ -82,6 +82,48 @@ func TestParseToolDefs_Errors(t *testing.T) {
 			yaml:  "tools:\n  - name: foo\n    binary: git\n    precondition: git-repo",
 			errIs: "unknown precondition",
 		},
+		{
+			name: "unknown undo strategy",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    undo: {strategy: workpace_restore}",
+			errIs: `unknown undo strategy "workpace_restore"`,
+		},
+		{
+			name: "unsupported exec undo strategy",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    undo: {strategy: conversation_restore}",
+			errIs: `undo strategy "conversation_restore" is not supported for type ""`,
+		},
+		{
+			name: "unknown visibility",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    visibility: internl",
+			errIs: `unknown visibility "internl"`,
+		},
+		{
+			name: "unknown reversibility",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    reversibility: {classification: reversable}",
+			errIs: `unknown reversibility classification "reversable"`,
+		},
+		{
+			name: "numeric default",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    parameters: {type: object, properties: {count: {type: string, default: 10}}}",
+			errIs: `parameter "count" default must be a string`,
+		},
+		{
+			name: "string position",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    parameters: {type: object, properties: {path: {type: string, position: \"1\"}}}",
+			errIs: `parameter "path" position must be an integer`,
+		},
+		{
+			name: "builtin exec extension",
+			yaml: "tools:\n  - name: foo\n    type: builtin\n    init: done\n" +
+				"    parameters: {type: object, properties: {path: {type: string, flag: --path}}}",
+			errIs: `builtin tool "foo" parameter "path" cannot declare exec field "flag"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -105,6 +147,11 @@ func TestToolDef_ToToolSpec(t *testing.T) {
 		SideEffects: ToolSideEffects{
 			LegacyText: "produces binary",
 		},
+		Reversibility: ToolReversibility{Classification: "compensatable"},
+		Undo: ToolUndoContract{
+			Strategy: "compensating_action", Description: "delete binary",
+			Requires: []string{"binary_path"},
+		},
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -123,6 +170,10 @@ func TestToolDef_ToToolSpec(t *testing.T) {
 	assert.Contains(t, spec.Description, "Compile stuff.")
 	assert.Contains(t, spec.Description, "Side effects: produces binary")
 	assert.Equal(t, core.External, spec.Visibility)
+	assert.Equal(t, "compensatable", spec.Rollback.Classification)
+	assert.Equal(t, "compensating_action", spec.Rollback.Strategy)
+	assert.Equal(t, "delete binary", spec.Rollback.Description)
+	assert.Equal(t, []string{"binary_path"}, spec.Rollback.Requires)
 
 	var schema map[string]interface{}
 	require.NoError(t, json.Unmarshal(spec.InputSchema, &schema))

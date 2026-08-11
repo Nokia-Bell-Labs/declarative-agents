@@ -11,18 +11,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
-// RestBuilder constructs declarative REST boundary commands.
-type RestBuilder struct {
-	ToolName string
-	Init     string
-	Signal   core.Signal
-}
-
-// Build creates one REST boundary command.
-func (b RestBuilder) Build(_ core.Result) core.Command {
-	return restCmd{toolName: b.ToolName, init: b.Init, signal: b.Signal}
-}
-
 // ServerBuilder constructs REST server launch, await, and stop commands.
 type ServerBuilder struct {
 	ToolName string
@@ -56,23 +44,6 @@ func (b AwaitEventBuilder) Build(_ core.Result) core.Command {
 // BuildReverser creates a fresh fan-in command for receipt-driven rollback.
 func (b AwaitEventBuilder) BuildReverser() core.Command {
 	return awaitEventCmd{toolName: b.ToolName, options: b.Options, state: b.State}
-}
-
-type restCmd struct {
-	toolName string
-	init     string
-	signal   core.Signal
-}
-
-func (c restCmd) Name() string { return c.toolName }
-
-func (c restCmd) Execute() core.Result {
-	err := fmt.Errorf("%s transport execution is not implemented", c.init)
-	return core.Result{Signal: core.CommandError, CommandName: c.toolName, Output: err.Error(), Err: err}
-}
-
-func (c restCmd) Undo(_ core.Result) core.Result {
-	return core.NoopUndo(c.toolName)
 }
 
 type serverCmd struct {
@@ -155,12 +126,13 @@ func (c serverCmd) stop() core.Result {
 	}
 	receipt := undo.EncodeBoundaryReceipt(undo.BoundaryCompensationPayload{
 		BoundaryCompensation: undo.BoundaryCompensation{
-			Strategy:     "server_shutdown_or_user_action_compensation",
-			Reason:       "server listener stopped and queued events drained",
-			Requires:     []string{"machine_owned_server_relaunch"},
-			ServerAddr:   stringValue(output["address"]),
-			RestRef:      c.server.Name,
-			Compensation: output,
+			Strategy: "server_shutdown_or_user_action_compensation",
+			Reason:   "server listener stopped and queued events drained",
+			Requires: []string{"machine_owned_server_relaunch"},
+			Data: map[string]interface{}{
+				"server_addr": stringValue(output["address"]),
+				"rest_ref":    c.server.Name, "compensation": output,
+			},
 		},
 	})
 	return core.Result{
@@ -238,15 +210,17 @@ func (c serverCmd) undoStop(receipt string) core.Result {
 	if !ok || compensation.Strategy != "server_shutdown_or_user_action_compensation" {
 		return commandError(c.toolName, fmt.Errorf("REST stop receipt has no server relaunch compensation"))
 	}
-	if compensation.RestRef != c.server.Name {
+	restRef := stringValue(compensation.Data["rest_ref"])
+	if restRef != c.server.Name {
 		return commandError(c.toolName, fmt.Errorf(
 			"REST stop receipt server %q does not match configured server %q",
-			compensation.RestRef, c.server.Name,
+			restRef, c.server.Name,
 		))
 	}
+	compensationData, _ := compensation.Data["compensation"].(map[string]interface{})
 	return undo.BoundaryCompensationUndo(c.toolName, fmt.Sprintf(
 		"MachineSpec must relaunch server %q at %q; stop drained %v queued events",
-		compensation.RestRef, compensation.ServerAddr, compensation.Compensation["drained_events"],
+		restRef, stringValue(compensation.Data["server_addr"]), compensationData["drained_events"],
 	))
 }
 

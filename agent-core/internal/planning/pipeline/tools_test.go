@@ -265,21 +265,6 @@ func TestRemainingWorkBuilder_ReportsBlockedGraphWithoutMutation(t *testing.T) {
 	require.Equal(t, graph.Executing, node.Status)
 }
 
-func TestMarshalPipelineTask(t *testing.T) {
-	t.Parallel()
-	task := &extract.Task{
-		ID:      "test-1",
-		SRDID:   "srd001",
-		Weight:  5,
-		NodeIDs: []string{"n1", "n2"},
-	}
-
-	result := marshalPipelineTask(task, "issue-abc")
-	assert.Contains(t, result, `"task_id":"test-1"`)
-	assert.Contains(t, result, `"issue_id":"issue-abc"`)
-	assert.Contains(t, result, `"nodes":2`)
-}
-
 // Verify that the pipeline state struct matches the test helper's expectations.
 func TestMinimalState_GraphHasNodes(t *testing.T) {
 	t.Parallel()
@@ -293,20 +278,25 @@ func TestMinimalState_GraphHasNodes(t *testing.T) {
 }
 
 // TestPlannerNodeLifecycleAdvancesAndDoesNotRepeat proves the GH-507 fix: a ready
-// node is selected once, advances Pending -> Planning -> Executing -> Done across
-// the extract/execute/check phases, leaves Graph.Ready as soon as it is selected,
-// and is never re-selected once complete.
+// node is selected once, advances Pending -> Planning -> Executing -> Done
+// through separate declared words, and is never re-selected once complete.
 func TestPlannerNodeLifecycleAdvancesAndDoesNotRepeat(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
 	require.Len(t, ps.Graph.Ready(), 1, "one node ready at start")
 	nid := ps.Graph.Ready()[0].ID
 
-	// Extract selects the node and marks it Planning, so it leaves Ready.
+	// Extract selects the node without mutating graph lifecycle.
 	extract := (&ExtractTaskBuilder{PS: ps}).Build(core.Result{})
 	res := extract.Execute()
 	require.Equal(t, SigTaskExtracted, res.Signal, res.Output)
 	n, _ := ps.Graph.Node(nid)
+	require.Equal(t, graph.Pending, n.Status)
+	require.Len(t, ps.Graph.Ready(), 1)
+
+	// The focused lifecycle word marks the selected nodes Planning.
+	res = (&MarkNodesPlanningBuilder{PS: ps}).Build(core.Result{}).Execute()
+	require.Equal(t, SigNodesPlanning, res.Signal, res.Output)
 	require.Equal(t, graph.Planning, n.Status)
 	require.Empty(t, ps.Graph.Ready(), "selected node must not stay ready")
 

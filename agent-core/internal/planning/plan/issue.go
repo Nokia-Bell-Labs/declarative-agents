@@ -19,13 +19,16 @@ type issueDescription struct {
 
 // FormatIssueDescription produces issue-format YAML from an implementation
 // plan without choosing or invoking an issue tracker.
-func FormatIssueDescription(p ImplementationPlan) (string, error) {
+func FormatIssueDescription(p ImplementationPlan, deliverableType string) (string, error) {
+	if deliverableType != "code" && deliverableType != "documentation" {
+		return "", fmt.Errorf("format issue description: unsupported deliverable_type %q", deliverableType)
+	}
 	reading := make([]string, len(p.Files))
 	for i, file := range p.Files {
 		reading[i] = file.Path
 	}
 	data, err := yaml.Marshal(issueDescription{
-		DeliverableType:    "code",
+		DeliverableType:    deliverableType,
 		RequiredReading:    reading,
 		Files:              p.Files,
 		Requirements:       p.Requirements,

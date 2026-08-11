@@ -37,6 +37,9 @@ func (c *InMemoryCheckpoint) Save(position Position, execution Execution) error 
 	if conversation := position.Snapshot.Conversation; len(conversation) > 0 && !json.Valid(conversation) {
 		return fmt.Errorf("in-memory checkpoint save: conversation is not valid JSON")
 	}
+	if domain := position.Snapshot.Domain; len(domain) > 0 && !json.Valid(domain) {
+		return fmt.Errorf("in-memory checkpoint save: domain is not valid JSON")
+	}
 	sanitized, err := sanitizeExecutionForSave(execution)
 	if err != nil {
 		return fmt.Errorf("in-memory checkpoint save: %w", err)
@@ -65,6 +68,9 @@ var _ Checkpoint = (*InMemoryCheckpoint)(nil)
 func clonePosition(p Position) Position {
 	if len(p.Snapshot.Conversation) > 0 {
 		p.Snapshot.Conversation = append(json.RawMessage(nil), p.Snapshot.Conversation...)
+	}
+	if len(p.Snapshot.Domain) > 0 {
+		p.Snapshot.Domain = append(json.RawMessage(nil), p.Snapshot.Domain...)
 	}
 	p.Snapshot.Iterator = cloneIteratorSnapshot(p.Snapshot.Iterator)
 	return p

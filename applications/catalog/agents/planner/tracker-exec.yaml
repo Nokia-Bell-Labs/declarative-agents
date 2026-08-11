@@ -72,7 +72,7 @@ tools:
     description: Close or delete the created tracker issue through an explicit profile-owned compensation.
     payload: boundary_compensation
     captures:
-    - issue_id
+    - id
   errors:
   - signal: ToolFailed
     condition: configured tracker exits non-zero

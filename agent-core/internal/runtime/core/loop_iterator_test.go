@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -99,6 +100,27 @@ func TestLoopForEachCollectAllJoinsPartialInInputOrder(t *testing.T) {
 	_, execution, err := cp.Load()
 	require.NoError(t, err)
 	require.Equal(t, Signal("ItemsPartial"), execution[len(execution)-1].Result.Signal)
+}
+
+func TestLoopForEachItemHonorsCommandTimeout(t *testing.T) {
+	t.Parallel()
+	spec, err := ParseMachineSpec([]byte(iteratorMachineYAML))
+	require.NoError(t, err)
+	registry := NewRegistry()
+	registry.Register(ToolSpec{Name: "list"},
+		iteratorListBuilder{items: []string{"alpha"}})
+	registry.Register(ToolSpec{Name: "item"}, activeCommandBuilder{
+		command: &dispatchContextBlockingCmd{
+			started: make(chan struct{}), finished: make(chan struct{}),
+		},
+	})
+	result, err := Loop(LoopParams{
+		MachineSpec: &spec, Registry: registry, Trace: &loopRecorder{},
+		Budget: Budget{MaxIterations: 10}, CommandTimeout: time.Millisecond,
+	}, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, StatusFailed, result.Status)
+	require.ErrorContains(t, result.LastError, "timeout executing context_blocking")
 }
 
 func TestLoopForEachAbortSignalStopsCollectAll(t *testing.T) {

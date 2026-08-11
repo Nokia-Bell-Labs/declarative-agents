@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"gopkg.in/yaml.v3"
 )
 
@@ -19,45 +20,48 @@ var supportedCharterKinds = map[string]bool{
 }
 
 var supportedSpecCorpusCheckIDs = map[string]bool{
-	"bare-touchpoint":                           true,
-	"broken-citation":                           true,
-	"broken-touchpoint":                         true,
-	"depends-on-violation":                      true,
-	"docspec-broken-example-path":               true,
-	"docspec-broken-implementation-path":        true,
-	"docspec-broken-related-document":           true,
-	"docspec-broken-requirement-source":         true,
-	"index-broken-path":                         true,
-	"index-missing-test-suite":                  true,
-	"index-missing-use-case":                    true,
-	"machine-diagnostic-terminal_transition":    true,
-	"machine-diagnostic-unreachable_state":      true,
-	"machine-diagnostic-unreachable_transition": true,
-	"machine-diagnostic-unused_signal":          true,
-	"machine-incomplete-signal-metadata":        true,
-	"machine-incomplete-state-metadata":         true,
-	"machine-metric-label-invalid":              true,
-	"machine-name-mismatch":                     true,
-	"machine-unreceived-signal":                 true,
-	"machine-unresolved-action":                 true,
-	"orphaned-srd":                              true,
-	"orphaned-test-suite":                       true,
-	"release-without-test-suite":                true,
-	"roadmap-missing-use-case":                  true,
-	"test-case-missing-use-case":                true,
-	"test-suite-missing-uc-trace":               true,
-	"tool-boundary-category-missing":            true,
-	"tool-contract-incomplete":                  true,
-	"tool-emits-unknown-signal":                 true,
-	"tool-metric-config-invalid":                true,
-	"tool-selection-undeclared":                 true,
-	"tool-undo-mismatch":                        true,
-	"tool-undo-payload-no-captures":             true,
-	"tool-unknown-side-effect-kind":             true,
-	"uncovered-ac":                              true,
-	"uncovered-req-item":                        true,
-	"untraced-success-criterion":                true,
-	"use-case-missing-test-suite":               true,
+	"bare-touchpoint":                    true,
+	"broken-citation":                    true,
+	"broken-touchpoint":                  true,
+	"docspec-broken-example-path":        true,
+	"docspec-broken-implementation-path": true,
+	"docspec-broken-related-document":    true,
+	"docspec-broken-requirement-source":  true,
+	"index-broken-path":                  true,
+	"index-missing-test-suite":           true,
+	"index-missing-use-case":             true,
+	"machine-incomplete-signal-metadata": true,
+	"machine-incomplete-state-metadata":  true,
+	"machine-metric-label-invalid":       true,
+	"machine-name-mismatch":              true,
+	"machine-unreceived-signal":          true,
+	"machine-unresolved-action":          true,
+	"orphaned-srd":                       true,
+	"orphaned-test-suite":                true,
+	"release-without-test-suite":         true,
+	"roadmap-missing-use-case":           true,
+	"test-case-missing-use-case":         true,
+	"test-suite-missing-uc-trace":        true,
+	"tool-boundary-category-missing":     true,
+	"tool-contract-incomplete":           true,
+	"tool-declaration-invalid":           true,
+	"tool-emits-unknown-signal":          true,
+	"tool-metric-config-invalid":         true,
+	"tool-selection-undeclared":          true,
+	"tool-undo-mismatch":                 true,
+	"tool-undo-payload-no-captures":      true,
+	"tool-unknown-side-effect-kind":      true,
+	"tool-unknown-side-effect-target":    true,
+	"uncovered-ac":                       true,
+	"uncovered-req-item":                 true,
+	"untraced-success-criterion":         true,
+	"use-case-missing-test-suite":        true,
+}
+
+func init() {
+	for _, code := range core.MachineDiagnosticCodes() {
+		supportedSpecCorpusCheckIDs["machine-diagnostic-"+code] = true
+	}
 }
 
 // Charter is a deterministic jurist check suite loaded from YAML.

@@ -11,8 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const plannerTaskFilePath = "doc/task.yaml"
-
 type markNodesExecutingCmd struct {
 	ps *State
 }
@@ -50,7 +48,8 @@ func (b *MarkNodesExecutingBuilder) BuildReverser() core.Command {
 }
 
 type formatTaskFileCmd struct {
-	ps *State
+	ps   *State
+	path string
 }
 
 func (c *formatTaskFileCmd) Name() string { return "format_task_file" }
@@ -63,13 +62,17 @@ func (c *formatTaskFileCmd) Execute() core.Result {
 		err := fmt.Errorf("format_task_file: current plan is required")
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
 	}
+	if c.path == "" {
+		err := fmt.Errorf("format_task_file: configured path is required")
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
+	}
 	content, err := yaml.Marshal(c.ps.CurrentPlan)
 	if err != nil {
 		wrapped := fmt.Errorf("format_task_file: marshal plan: %w", err)
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: wrapped, Output: wrapped.Error()}
 	}
 	output, err := json.Marshal(map[string]any{"parameters": map[string]string{
-		"path": plannerTaskFilePath, "content": string(content),
+		"path": c.path, "content": string(content),
 	}})
 	if err != nil {
 		wrapped := fmt.Errorf("format_task_file: encode write parameters: %w", err)
@@ -80,9 +83,10 @@ func (c *formatTaskFileCmd) Execute() core.Result {
 
 // FormatTaskFileBuilder constructs pure plan-to-write-request projections.
 type FormatTaskFileBuilder struct {
-	PS *State
+	PS   *State
+	Path string
 }
 
 func (b *FormatTaskFileBuilder) Build(_ core.Result) core.Command {
-	return &formatTaskFileCmd{ps: b.PS}
+	return &formatTaskFileCmd{ps: b.PS, path: b.Path}
 }

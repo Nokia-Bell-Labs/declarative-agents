@@ -58,7 +58,32 @@ func ValidateDefinition(def Definition) error {
 	if err := validateClients(def.Clients, def.RetryPolicies); err != nil {
 		return err
 	}
-	return validateServers(def.Servers, def.Limits)
+	if err := validateServers(def.Servers, def.Limits); err != nil {
+		return err
+	}
+	return validateServerAuthRefs(def.Servers, def.Auth)
+}
+
+func validateServerAuthRefs(servers map[string]Server, auth map[string]AuthProfile) error {
+	for name, server := range servers {
+		if ref := server.LifecycleExit.AuthRef; ref != "" {
+			if _, ok := auth[ref]; !ok {
+				return fmt.Errorf("server %q lifecycle_exit references unknown auth profile %q", name, ref)
+			}
+		}
+		for endpointName, endpoint := range server.Endpoints {
+			ref := endpoint.LifecycleControl.RequireAuthRef
+			if ref != "" {
+				if _, ok := auth[ref]; !ok {
+					return fmt.Errorf(
+						"server %q endpoint %q references unknown lifecycle auth profile %q",
+						name, endpointName, ref,
+					)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // validateRetryPolicies rejects an unsupported backoff or an unparseable delay
@@ -229,6 +254,12 @@ func validateClients(clients map[string]Client, retries map[string]RetryPolicy) 
 }
 
 func validateResource(clientName, resourceName string, resource Resource, retry RetryPolicy, clientOps map[string]Operation) error {
+	if resource.IDField != "" || resource.VersionField != "" {
+		return fmt.Errorf(
+			"resource %s.%s id_field and version_field are reserved and not implemented",
+			clientName, resourceName,
+		)
+	}
 	for verb, operation := range resource.Operations {
 		if !isResourceVerb(verb) {
 			return fmt.Errorf("resource %s.%s uses unsupported operation %q", clientName, resourceName, verb)
@@ -567,7 +598,12 @@ func validateQueueConfig(owner string, queue QueueConfig) error {
 
 func validateShutdownConfig(name string, shutdown ShutdownConfig) error {
 	switch shutdown.DrainPolicy {
-	case "", shutdownPolicyDrain, shutdownPolicyDrainThenStop:
+	case "", shutdownPolicyDrainThenStop:
+	case shutdownPolicyDrain:
+		return fmt.Errorf(
+			"server %q shutdown.drain_policy %q is not implemented; use %q",
+			name, shutdown.DrainPolicy, shutdownPolicyDrainThenStop,
+		)
 	default:
 		return fmt.Errorf("server %q has unsupported drain_policy %q", name, shutdown.DrainPolicy)
 	}
@@ -579,9 +615,6 @@ func validateShutdownConfig(name string, shutdown ShutdownConfig) error {
 	}
 	if shutdown.QueueOnShutdown != "" {
 		return fmt.Errorf("server %q shutdown.queue_on_shutdown is not supported", name)
-	}
-	if shutdown.UnblockAwaitSignal != "" && shutdown.UnblockAwaitSignal != "ServerStopped" {
-		return fmt.Errorf("server %q shutdown.unblock_await_signal is not supported", name)
 	}
 	return nil
 }

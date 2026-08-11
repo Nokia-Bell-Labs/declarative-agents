@@ -338,7 +338,8 @@ tools:
         type: object
         properties:
           request_id: {type: string}
-          operation: {type: string}
+          operation_id: {type: string}
+          status: {type: integer}
           correlation: {type: string}
           idempotency_token: {type: string}
     side_effects:
@@ -395,7 +396,7 @@ tools:
         type: object
         properties:
           request_id: {type: string}
-          operation: {type: string}
+          operation_id: {type: string}
           status: {type: integer}
           body: {type: object}
     side_effects:
@@ -502,7 +503,7 @@ tools:
       schema:
         type: object
         properties:
-          server: {type: string}
+          source: {type: string}
           route: {type: string}
           signal: {type: string}
           request_id: {type: string}
@@ -571,10 +572,12 @@ tools:
         state: selected_event_consumed
     reversibility:
       classification: reversible
-      undo: noop
+      undo: queue_event_restore
     undo:
-      strategy: noop
-      description: Await does not mutate remote state; queue restore is not implemented.
+      strategy: queue_event_restore
+      description: Restore the receipt-recorded event to the front of its source server queue.
+      payload: rest_await_event
+      captures: [source, event]
     errors:
       - signal: CommandError
         condition: Missing sources, unknown configured server, queue closed, stopped-source failure, or payload decode failure.

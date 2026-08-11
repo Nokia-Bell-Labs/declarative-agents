@@ -76,7 +76,6 @@ func (rr RunResult) MarshalJSON() ([]byte, error) {
 // LoopHooks provides domain-specific callbacks for the generic loop.
 // All callbacks are optional; nil means use default behavior.
 type LoopHooks struct {
-	ValidateParams       func(reg *Registry) error
 	BudgetExceeded       func(budget Budget, rr RunResult, iterations int) bool
 	TerminalStatus       func(s State) RunStatus
 	OnResult             func(rr RunResult, res Result) RunResult
@@ -97,7 +96,6 @@ type LoopParams struct {
 	// InitialIterator restores an in-progress sequential for_each frame. It is
 	// populated by LoadResume from the typed checkpoint snapshot.
 	InitialIterator *IteratorSnapshot
-	Prompt          string
 	Registry        *Registry
 	Table           TransitionTable
 	IsTerminal      TerminalFunc
@@ -115,8 +113,11 @@ type LoopParams struct {
 	ProviderName string
 	MachineFile  string
 	MachineSpec  *MachineSpec
-	InitFunc     func(reg *Registry) error
-	ToolAction   ActionFunc
+	// Program identifies the immutable declarative profile whose tools the run
+	// registered. It is persisted for cross-process receipt rollback.
+	Program    ProgramRef
+	InitFunc   func(reg *Registry) error
+	ToolAction ActionFunc
 	// Checkpoint is the typed persistence port (srd035). The loop saves the
 	// current Position and Execution through it after each dispatch cycle. A nil
 	// value defaults to NoopCheckpoint, preserving disabled-mode behavior.

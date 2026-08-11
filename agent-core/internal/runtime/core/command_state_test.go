@@ -118,7 +118,7 @@ func TestCommandStateViewRehydratesAcrossInMemoryCheckpoint(t *testing.T) {
 func TestInjectCommandStateOnlyForAwareCommands(t *testing.T) {
 	t.Parallel()
 	aware := &commandStateAwareStub{}
-	injectCommandState(aware, cmdStateExecution())
+	injectCommandStateBindings(aware, cmdStateExecution(), nil)
 	require.NotNil(t, aware.view, "an aware command receives the view")
 
 	out, ok := aware.view.Lookup("query_embedding")
@@ -127,7 +127,7 @@ func TestInjectCommandStateOnlyForAwareCommands(t *testing.T) {
 
 	// A plain command that does not implement CommandStateAware is untouched.
 	plain := &commandStatePlainStub{}
-	require.NotPanics(t, func() { injectCommandState(plain, cmdStateExecution()) })
+	require.NotPanics(t, func() { injectCommandStateBindings(plain, cmdStateExecution(), nil) })
 }
 
 type commandStateAwareStub struct {
@@ -173,4 +173,17 @@ func TestResolveFromSelectorTypedErrors(t *testing.T) {
 		require.Equal(t, "mapped.id", target.Path)
 		require.ErrorContains(t, err, `$from(source).mapped.id`)
 	})
+}
+
+func TestResolveFromSelectorReturnsRawLabeledOutput(t *testing.T) {
+	t.Parallel()
+
+	view := NewCommandStateView(Execution{{
+		CommandName: "compose", Label: "request",
+		Result: commandStateDigest(`{"nested":"value"}`),
+	}})
+	value, err := ResolveFromSelector(view, "$from(request).$")
+
+	require.NoError(t, err)
+	require.Equal(t, `{"nested":"value"}`, value)
 }

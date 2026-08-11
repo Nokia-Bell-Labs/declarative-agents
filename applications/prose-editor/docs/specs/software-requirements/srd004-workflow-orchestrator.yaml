@@ -1156,7 +1156,7 @@ requirements:
       - id: R5.1
         text: |
           Recovery SHALL lock the saga, validate source and policy identity,
-          repair manifest.yaml from contiguous immutable history, verify every
+          repair manifest.json from contiguous immutable history, verify every
           referenced hash, inspect checkpoint history, and append and project a
           recovery decision before resuming an incomplete action.
         evidence: Planned restart traces cover missing projection, torn history, hash conflict, duplicate start, and lock contention.

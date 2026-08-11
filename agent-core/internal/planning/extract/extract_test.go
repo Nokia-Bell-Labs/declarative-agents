@@ -74,15 +74,6 @@ func TestExtractNext_UnlimitedWeight(t *testing.T) {
 	assert.NotEmpty(t, task.NodeIDs)
 }
 
-func TestExtractNext_DefaultWeight(t *testing.T) {
-	g := buildTestGraph(t)
-	ext := NewExtractor()
-
-	task := ext.ExtractNext(g, -1)
-	require.NotNil(t, task)
-	assert.True(t, task.Weight <= 5 || len(task.NodeIDs) == 1)
-}
-
 func TestExtractNext_SingleSRDOnly(t *testing.T) {
 	g := buildTestGraph(t)
 	ext := NewExtractor()
@@ -118,7 +109,6 @@ func TestExtractNext_DFSAffinity(t *testing.T) {
 	task1 := ext.ExtractNext(g, 5)
 	require.NotNil(t, task1)
 	assert.Equal(t, "srd001-auth", task1.SRDID)
-	assert.Equal(t, "srd001-auth", ext.HintSRD())
 
 	markTaskDone(t, g, task1)
 

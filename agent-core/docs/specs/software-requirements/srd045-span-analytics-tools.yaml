@@ -22,7 +22,7 @@ requirements:
   R1:
     title: Span filter
     items:
-      - R1.1: "Both tools SHALL read the active spool file and all rotated files discovered by the srd042 rotation naming convention, reusing the srd044 read path."
+      - R1.1: "All three analytics words SHALL read the active spool file and all rotated files discovered by the srd042 rotation naming convention, reusing the srd044 read path."
       - R1.2: A filter SHALL accept an optional inclusive start time and exclusive end time on span start time, an optional service name, an optional span name, and zero or more attribute key/value equality constraints.
       - R1.3: Filter terms SHALL combine as a conjunction; a span matches when it satisfies every supplied term, and an empty filter matches every span.
       - R1.4: Span duration SHALL be computed as end time minus start time; service name SHALL be read from resource attributes as in srd044.
@@ -30,7 +30,7 @@ requirements:
   R2:
     title: Duration heatmap
     items:
-      - R2.1: "`spool_span_stats` SHALL bucket filtered spans into a grid of time buckets on the X axis and duration buckets on the Y axis, each cell holding a span count."
+      - R2.1: "`spool_span_heatmap` SHALL bucket filtered spans into a grid of time buckets on the X axis and duration buckets on the Y axis, each cell holding a span count."
       - R2.2: The time axis SHALL be divided into a configured number of equal buckets spanning the filter's time range, or the matched spans' min-to-max start time when the range is open.
       - R2.3: The duration axis SHALL use configured bucket boundaries; a span falls in the bucket whose half-open range contains its duration, with an overflow bucket for durations at or above the last boundary.
       - R2.4: Output SHALL include the time bucket boundaries, the duration bucket boundaries, the cell counts, the total matched span count, a capped list of exemplar trace IDs for the matched set (R6), and the count of skipped malformed lines.
@@ -38,7 +38,7 @@ requirements:
   R3:
     title: Group-by counts
     items:
-      - R3.1: "`spool_span_stats` SHALL group filtered spans by a requested key -- an attribute key, the service name, or the span name -- and count spans per distinct value."
+      - R3.1: "`spool_span_group_by` SHALL group filtered spans by a requested key -- an attribute key, the service name, or the span name -- and count spans per distinct value without computing a heatmap."
       - R3.2: Groups SHALL be ordered by count descending, ties broken by value ascending, and the response SHALL carry at most a configured top-N.
       - R3.3: When more than top-N distinct values exist, the response SHALL report the number of dropped groups and the total span count they cover, so truncation is never silent.
 
@@ -53,7 +53,7 @@ requirements:
   R5:
     title: Read-only, deterministic, declared
     items:
-      - R5.1: Both tools SHALL have no side effects beyond filesystem reads, and SHALL tolerate malformed or truncated NDJSON lines by skipping and counting them.
+      - R5.1: All three analytics words SHALL have no side effects beyond filesystem reads, and SHALL tolerate malformed or truncated NDJSON lines by skipping and counting them.
       - R5.2: An empty or absent spool SHALL produce an empty result, not an error.
       - R5.3: Every output SHALL be deterministic for a fixed spool and configuration, with all ordering fully specified so map iteration never leaks into results.
       - R5.4: Spool path, filters, bucket boundaries, group key, top-N, and the exemplar cap SHALL arrive as tool declaration config or request parameters; no behavior SHALL depend on an environment variable.
@@ -63,7 +63,7 @@ requirements:
   R6:
     title: Selection exemplars
     items:
-      - R6.1: "Both `spool_span_stats` and `spool_span_breakdown` SHALL return a list of exemplar trace IDs (`exemplar_trace_ids`) drawn from the matched span set (stats) and the selection (inside) span set (breakdown), so a caller can link a region of interest to representative traces."
+      - R6.1: "`spool_span_heatmap`, `spool_span_group_by`, and `spool_span_breakdown` SHALL return a list of exemplar trace IDs (`exemplar_trace_ids`) drawn from the matched span set (heatmap and group-by) and the selection (inside) span set (breakdown), so a caller can link a region of interest to representative traces."
       - R6.2: The exemplar list SHALL be deduplicated, ordered deterministically by ascending trace ID, and capped at a configured `exemplar_cap` count that selects a committed default when unset; spans carrying no trace ID SHALL be excluded.
 
 non_goals:
@@ -80,11 +80,11 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.3, R1.4]
 
   - id: AC2
-    criterion: spool_span_stats returns a time-by-duration heatmap grid whose cell counts sum to the matched total, with reported time and duration bucket boundaries and skipped-line count.
+    criterion: spool_span_heatmap returns a time-by-duration heatmap grid whose cell counts sum to the matched total, with reported time and duration bucket boundaries and skipped-line count, and performs no group-by work.
     traces: [R2.1, R2.2, R2.3, R2.4]
 
   - id: AC3
-    criterion: spool_span_stats group-by returns per-value counts ordered by count then value, capped at top-N, and reports the dropped group and span totals when values exceed top-N.
+    criterion: spool_span_group_by returns per-value counts ordered by count then value, capped at top-N, reports the dropped group and span totals when values exceed top-N, and performs no heatmap work.
     traces: [R3.1, R3.2, R3.3]
 
   - id: AC4
@@ -92,11 +92,11 @@ acceptance_criteria:
     traces: [R4.1, R4.2, R4.3, R4.4]
 
   - id: AC5
-    criterion: Both tools skip and count malformed lines, treat an absent spool as empty, produce deterministic output for fixed input, take all configuration without environment variables, emit CommandError on a missing or unreadable spool path, and require parity plus provisioning before an alternate analytics engine.
+    criterion: All three analytics words skip and count malformed lines, treat an absent spool as empty, produce deterministic output for fixed input, take all configuration without environment variables, emit CommandError on a missing or unreadable spool path, and require parity plus provisioning before an alternate analytics engine.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6]
 
   - id: AC6
-    criterion: Both tools return a deduplicated, deterministically ordered, exemplar_cap-limited list of exemplar trace IDs for the matched set (stats) and the selection set (breakdown), excluding spans with no trace ID.
+    criterion: All three analytics words return a deduplicated, deterministically ordered, exemplar_cap-limited list of exemplar trace IDs for the matched set (heatmap and group-by) and the selection set (breakdown), excluding spans with no trace ID.
     traces: [R6.1, R6.2]
 
 depends_on:
@@ -114,5 +114,5 @@ related_documents:
 implementation_status:
   implemented:
     - "`internal/tools/otlp/analytics.go` and `analytics_compute.go` own span filtering, heatmap bucketing, group-by counting, exemplars, and attribute divergence over the srd044 read path."
-    - "`tools/builtin/otlp/all.yaml` declares spool_span_stats and spool_span_breakdown with literal defaults and request-parameter schemas."
-    - "`go test ./internal/tools/otlp -run 'TestSpanStats|TestSpanBreakdown'` proves filtering, bucketing, group-by top-N, divergence ranking, determinism, exemplars, malformed-line handling, and error paths."
+    - "`tools/builtin/otlp/all.yaml` declares spool_span_heatmap, spool_span_group_by, and spool_span_breakdown with literal defaults and request-parameter schemas."
+    - "`go test ./internal/tools/otlp -run 'TestSpanStats|TestSpanAnalytics|TestSpanBreakdown'` proves filtering, independent bucketing and group-by work, top-N, divergence ranking, determinism, exemplars, malformed-line handling, and error paths."

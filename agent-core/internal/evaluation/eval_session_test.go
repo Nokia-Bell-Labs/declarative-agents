@@ -16,12 +16,19 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
+func testSampleLayout() SampleLayout {
+	return SampleLayout{
+		WorkspaceDir: "workspace", DocDir: "doc", PromptFile: "prompt.yaml",
+		AllowSharedPrompt: true, RequireSamples: true,
+	}
+}
+
 func TestParseSuiteRejectsMissingProfiles(t *testing.T) {
 	base := suiteFixture(t)
 	_, err := ParseSuite([]byte(`
 name: smoke
 samples_dir: samples
-`), base)
+`), base, testSampleLayout())
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "missing profiles")
@@ -37,7 +44,7 @@ name: smoke
 %s: [qwen3]
 samples_dir: samples
 `, "har"+"nesses", "mod"+"els")
-	_, err := ParseSuite([]byte(data), base)
+	_, err := ParseSuite([]byte(data), base, testSampleLayout())
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "profile entries are required")
@@ -62,9 +69,9 @@ ollama_url: http://suite.example
 	var stderr bytes.Buffer
 	outputDir := filepath.Join(base, "eval-results")
 	es := &EvalSessionState{
-		SuitePath: suitePath,
-		OutputDir: outputDir,
-		Stderr:    &stderr,
+		SuitePath: suitePath, OutputDir: outputDir, Stderr: &stderr,
+		DefaultReps: 1, DefaultTimeout: 10 * time.Minute,
+		SampleLayout: testSampleLayout(),
 	}
 
 	requireSignal(t, (&parseSuiteConfigCmd{es: es}).Execute(), SigSuiteConfigParsed)
@@ -90,6 +97,44 @@ ollama_url: http://suite.example
 	require.Contains(t, stderr.String(), "4 points")
 }
 
+func TestInitEvalSessionRequiresExpandedGrid(t *testing.T) {
+	t.Parallel()
+
+	es := &EvalSessionState{
+		Suite:     SuiteConfig{Name: "missing-grid"},
+		OutputDir: t.TempDir(), Reps: 1, Timeout: time.Minute,
+		Stderr: &bytes.Buffer{},
+	}
+
+	result := (&initEvalSessionCmd{es: es}).Execute()
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "requires expand_eval_grid")
+	require.Empty(t, es.SessionDir)
+}
+
+func TestDiscoverSamplesUsesDeclaredLayout(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	sample := filepath.Join(root, "sample-a")
+	require.NoError(t, os.MkdirAll(filepath.Join(sample, "project"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(sample, "guidance"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "task.txt"), []byte("do work"), 0o600))
+	layout := SampleLayout{
+		WorkspaceDir: "project", DocDir: "guidance", PromptFile: "task.txt",
+		AllowSharedPrompt: true, RequireSamples: true,
+	}
+
+	samples, err := DiscoverSamples(root, layout)
+
+	require.NoError(t, err)
+	require.Len(t, samples, 1)
+	require.Equal(t, filepath.Join(sample, "project"), samples[0].WorkspaceDir)
+	require.Equal(t, filepath.Join(sample, "guidance"), samples[0].DocDir)
+	require.Equal(t, filepath.Join(root, "task.txt"), samples[0].PromptPath)
+}
+
 func TestMaterializeEvalPointsDoesNotMutateSessionPoint(t *testing.T) {
 	base := suiteFixture(t)
 	profileDir := writeProfileFixtures(t, base, "agent")
@@ -101,7 +146,11 @@ profiles:
 samples_dir: samples
 `, profileDir)), 0o644))
 
-	es := &EvalSessionState{SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{}}
+	es := &EvalSessionState{
+		SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{},
+		DefaultReps: 1, DefaultTimeout: time.Minute,
+		SampleLayout: testSampleLayout(),
+	}
 	requireSignal(t, (&parseSuiteConfigCmd{es: es}).Execute(), SigSuiteConfigParsed)
 	requireSignal(t, (&discoverSuiteSamplesCmd{es: es}).Execute(), SigSuiteSamplesDiscovered)
 	requireSignal(t, (&expandEvalGridCmd{es: es}).Execute(), SigEvalGridExpanded)
@@ -127,7 +176,7 @@ profiles:
   - %s/fast-model.yaml
   - %s/slow-model.yaml
 samples_dir: samples
-`, profileDir, profileDir)), base)
+`, profileDir, profileDir)), base, testSampleLayout())
 
 	require.NoError(t, err)
 	require.Equal(t, "profile-test", suite.Name)
@@ -147,7 +196,7 @@ profiles: [a.yaml]
     binary: agent
 samples_dir: samples
 `, "har"+"nesses")
-	_, err := ParseSuite([]byte(data), base)
+	_, err := ParseSuite([]byte(data), base, testSampleLayout())
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "profile entries are required")
@@ -169,7 +218,11 @@ samples_dir: samples
 repetitions: 2
 `, profileDir, profileDir)), 0o644))
 
-	es := &EvalSessionState{SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{}}
+	es := &EvalSessionState{
+		SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{},
+		DefaultTimeout: time.Minute,
+		SampleLayout:   testSampleLayout(),
+	}
 	requireSignal(t, (&parseSuiteConfigCmd{es: es}).Execute(), SigSuiteConfigParsed)
 	requireSignal(t, (&discoverSuiteSamplesCmd{es: es}).Execute(), SigSuiteSamplesDiscovered)
 	secondSample := es.Suite.Samples[0]
@@ -201,7 +254,10 @@ repetitions: 2
 }
 
 func TestDiscoverSuiteSamplesReportsCommandError(t *testing.T) {
-	es := &EvalSessionState{Suite: SuiteConfig{Name: "broken", SamplesDir: filepath.Join(t.TempDir(), "missing")}}
+	es := &EvalSessionState{
+		Suite:        SuiteConfig{Name: "broken", SamplesDir: filepath.Join(t.TempDir(), "missing")},
+		SampleLayout: testSampleLayout(),
+	}
 	res := (&discoverSuiteSamplesCmd{es: es}).Execute()
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Error(t, res.Err)

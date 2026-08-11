@@ -25,6 +25,29 @@ tools:
       strategy: session_state_restore
       description: Restore validation state before claim loading.
 
+    problem: Formal Go test evidence reduction needs test-suite claims loaded without requiring the full specification corpus and charter graph.
+    goals:
+    - Load every formal test suite from the configured validation directory.
+    - Seed validation state with a minimal Corpus containing those suites only after loading succeeds.
+    - Return the exact loaded-suite count and a receipt that restores prior validation state.
+    requirements:
+      input:
+      - must read formal test-suite declarations from SpecState.Directory
+      output:
+      - must emit ToolDone with `loaded <count> formal test suites`
+      errors:
+      - must emit CommandError when test-suite files cannot be read or decoded
+    non_goals:
+    - Does not load SRDs, use cases, machines, tool declarations, charters, or a specification graph.
+    - Does not resolve claims against Go inventory.
+    errors:
+    - signal: CommandError
+      condition: formal test suites cannot be loaded or decoded
+      message_shape: 'load_test_claims failed: <error>'
+      state_after_failure: the prior validation corpus remains unchanged
+    relationships:
+      before: [machine-selected audit start]
+      after: [resolve_test_evidence]
   - name: resolve_test_evidence
     type: builtin
     init: resolve_test_evidence
@@ -55,6 +78,29 @@ tools:
       strategy: session_state_restore
       description: Restore validation state before claim resolution.
 
+    problem: Declared go_test claims need deterministic resolution against module, package, and test inventory outputs before run evidence can be evaluated.
+    goals:
+    - Resolve configured module, package, and test-inventory outputs as strings from command state.
+    - Parse one Go test inventory and append a finding for every unresolved formal claim.
+    - Emit aggregate validation status with a receipt that restores inventory and findings.
+    requirements:
+      input:
+      - must consume module, package-list, and test-inventory strings from the three configured selectors after claims are loaded
+      output:
+      - must emit ValidationPassed or ValidationFailed with aggregate finding and error counts
+      errors:
+      - must emit CommandError when a selector is unresolved or non-string, or inventory parsing fails
+    non_goals:
+    - Does not execute `go list` or `go test`.
+    - Does not reduce pass, fail, or skip events from an actual test run.
+    errors:
+    - signal: CommandError
+      condition: a selector is unresolved or non-string, or the Go inventory is empty or malformed
+      message_shape: 'resolve_test_evidence failed: <error>'
+      state_after_failure: test inventory and findings remain unchanged
+    relationships:
+      before: [load_test_claims, go_module, go_packages, go_test_inventory]
+      after: [reduce_test_evidence_run]
   - name: reduce_test_evidence_run
     type: builtin
     init: reduce_test_evidence_run
@@ -82,3 +128,26 @@ tools:
     undo:
       strategy: session_state_restore
       description: Restore validation state before result reduction.
+    problem: Resolved formal claims need actual go test JSON events reduced into passed, failed, skipped, and did-not-run evidence findings.
+    goals:
+    - Require a previously resolved Go test inventory and consume the configured full-run output.
+    - Append deterministic findings for failed, skipped, and missing claimed tests.
+    - Emit aggregate validation status with a receipt that restores prior findings.
+    requirements:
+      input:
+      - must consume a go test JSON event stream from the configured selector after resolve_test_evidence
+      output:
+      - must emit ValidationPassed or ValidationFailed with aggregate finding and error counts
+      errors:
+      - must emit CommandError when inventory is absent, selection fails, or the run stream cannot be reduced
+    non_goals:
+    - Does not execute tests or resolve claim symbols against package inventory.
+    - Does not treat a skipped or absent claimed test as passing evidence.
+    errors:
+    - signal: CommandError
+      condition: test inventory is unresolved, the run selector fails, or no valid top-level test results can be reduced
+      message_shape: 'reduce_test_evidence_run failed: <error>'
+      state_after_failure: prior findings and test inventory remain unchanged
+    relationships:
+      before: [resolve_test_evidence, go_test_run]
+      after: [format_report]

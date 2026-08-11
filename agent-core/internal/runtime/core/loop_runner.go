@@ -26,6 +26,9 @@ type loopRunner struct {
 	iteration         int
 	start             time.Time
 	taskCompletedSig  Signal
+	reportOutput      string
+	reportLabel       string
+	summaryOutput     bool
 	checkpoint        Checkpoint
 	checkpointEnabled bool
 	execution         Execution
@@ -61,7 +64,7 @@ func newLoopRunner(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx contex
 		run:               p.InitialRun,
 		iteration:         p.InitialRun.Iterations,
 		start:             time.Now(),
-		taskCompletedSig:  taskCompletedSignal(p.Hooks),
+		taskCompletedSig:  taskCompletedSignal(p),
 		checkpoint:        resolveCheckpoint(p.Checkpoint),
 		checkpointEnabled: checkpointPersistenceEnabled(p.Checkpoint),
 		execution:         cloneExecution(p.InitialExecution),
@@ -92,11 +95,14 @@ func initialSignalResult(p LoopParams) (Signal, Result) {
 	return p.InitialSignal, res
 }
 
-func taskCompletedSignal(hooks LoopHooks) Signal {
-	if hooks.TaskCompletedSignal == "" {
-		return "TaskCompleted"
+func taskCompletedSignal(params LoopParams) Signal {
+	if params.Hooks.TaskCompletedSignal != "" {
+		return params.Hooks.TaskCompletedSignal
 	}
-	return hooks.TaskCompletedSignal
+	if params.MachineSpec != nil && params.MachineSpec.SummarySignal != "" {
+		return Signal(params.MachineSpec.SummarySignal)
+	}
+	return TaskCompleted
 }
 
 func (r *loopRunner) recordStart() {
@@ -169,6 +175,12 @@ func (r *loopRunner) applyBudget() {
 func (r *loopRunner) nextTransition() (State, Command, Signal, string, MetricLabels, error) {
 	transitionSignal := r.signal
 	commandStateLabel := transitionCommandStateLabel(r.params.MachineSpec, r.state, transitionSignal)
+	r.reportOutput, r.reportLabel = transitionReportPolicy(
+		r.params.MachineSpec, r.state, transitionSignal,
+	)
+	r.summaryOutput = transitionSummaryPolicy(
+		r.params.MachineSpec, r.state, transitionSignal,
+	)
 	labels := transitionMetricLabels(r.params.MachineSpec, r.state, transitionSignal)
 	nextState, cmd, err := r.sm.Step(r.state, transitionSignal, r.result)
 	if err != nil {
@@ -179,18 +191,6 @@ func (r *loopRunner) nextTransition() (State, Command, Signal, string, MetricLab
 	)
 	r.recordTransition(nextState)
 	return nextState, cmd, transitionSignal, commandStateLabel, labels, nil
-}
-
-func transitionCommandStateLabel(spec *MachineSpec, state State, signal Signal) string {
-	if spec == nil {
-		return ""
-	}
-	for _, transition := range spec.Transitions {
-		if transition.State == string(state) && transition.Signal == string(signal) {
-			return transition.Label
-		}
-	}
-	return ""
 }
 
 func (r *loopRunner) stopForUnhandledTransition(err error) bool {
@@ -259,7 +259,8 @@ func (r *loopRunner) saveTerminalCheckpoint() {
 	}
 	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
 	pos.Snapshot.Iterator = cloneIteratorSnapshot(r.iterator)
-	if err := r.foldConversation(&pos); err != nil {
+	pos.Snapshot.Program = r.params.Program
+	if err := r.foldCheckpointSnapshots(&pos); err != nil {
 		r.recordCheckpointFailure(err)
 		return
 	}
@@ -329,7 +330,8 @@ func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal, co
 	}
 	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
 	pos.Snapshot.Iterator = cloneIteratorSnapshot(r.iterator)
-	if err := r.foldConversation(&pos); err != nil {
+	pos.Snapshot.Program = r.params.Program
+	if err := r.foldCheckpointSnapshots(&pos); err != nil {
 		r.recordCheckpointFailure(err)
 		return
 	}
@@ -342,28 +344,6 @@ func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal, co
 			err,
 		))
 	}
-}
-
-// foldConversation folds the domain-owned conversation into the resumable
-// Position so the typed checkpoint port persists it alongside loop state. Core
-// cannot import the llm package, so the conversation arrives through the
-// SnapshotConversation hook. Failure leaves the prior Position/Execution unit
-// untouched rather than saving a Position with its required conversation
-// silently omitted (srd035-checkpoint-port R1.2, R4, R6.1).
-func (r *loopRunner) foldConversation(pos *Position) error {
-	if r.params.Hooks.SnapshotConversation == nil {
-		return nil
-	}
-	conversation, err := r.params.Hooks.SnapshotConversation()
-	if err != nil {
-		r.trace.Event("checkpoint.conversation_snapshot_failed",
-			attribute.Int("iteration", r.iteration),
-			attribute.String("error", err.Error()),
-		)
-		return fmt.Errorf("%w at iteration %d: %w", ErrConversationSnapshotFailed, r.iteration, err)
-	}
-	pos.Snapshot.Conversation = conversation
-	return nil
 }
 
 func (r *loopRunner) recordCheckpointFailure(err error) {
@@ -385,6 +365,7 @@ func (r *loopRunner) dispatchContext(labels MetricLabels) monitor.DispatchContex
 }
 
 func (r *loopRunner) accumulateResult() {
+	applyResultPolicies(r)
 	accumulateCost(&r.run, r.result)
 	if r.result.Err != nil {
 		r.run.LastError = r.result.Err

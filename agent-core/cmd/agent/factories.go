@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -68,6 +69,9 @@ func registerComposeFactories() toolregistry.FactoryRegistrar {
 			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 				return nil, err
 			}
+			if err := compose.ValidateConfig(def.Name, cfg.Inputs); err != nil {
+				return nil, err
+			}
 			return compose.Builder{
 				ToolName: def.Name,
 				Template: cfg.Template,
@@ -112,11 +116,13 @@ func registerFilesystemFactories() toolregistry.FactoryRegistrar {
 			{"file_edit", func(root string, metrics core.MetricConfig) core.Builder {
 				return &filesystem.EditBuilder{Root: root, Metrics: metrics}
 			}},
-			{"file_find", func(root string, _ core.MetricConfig) core.Builder { return &filesystem.FindBuilder{Root: root} }},
 		}
 		for _, entry := range fileFactories {
 			registerFileFactory(br, entry.init, entry.builder)
 		}
+		br.Register("file_find", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+			return &filesystem.FindBuilder{Root: vars["directory"], OutputLineCap: def.OutputCap}, nil
+		})
 		registerResourceFactories(br)
 	}
 }
@@ -160,7 +166,16 @@ func registerLLMFactories(st *agentState) toolregistry.FactoryRegistrar {
 		br.Register("report_parse_error", reportParseErrorFactory(st))
 		br.Register("reset_history", resetHistoryFactory(st))
 		br.Register("nudge_reread", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &control.NudgeRereadBuilder{Tracer: st.tracer}, nil
+			var cfg struct {
+				Text string `json:"nudge_text"`
+			}
+			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+				return nil, err
+			}
+			if cfg.Text == "" {
+				return nil, fmt.Errorf("tool %q config nudge_text is required", def.Name)
+			}
+			return &control.NudgeRereadBuilder{Tracer: st.tracer, Text: cfg.Text}, nil
 		})
 		br.Register("done", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 			return control.DoneBuilder{}, nil
@@ -356,7 +371,8 @@ func valuePredicateFactory() toolregistry.BuiltinFactory {
 // a run starts stays reachable for teardown.
 func registerServiceFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
-		state := service.NewState()
+		state := service.NewStateWithContext(st.ctx)
+		st.reapServices = func() { state.Reap() }
 		service.RegisterBuiltins(br, service.FactoryDeps{
 			State:    state,
 			Session:  service.NewScenarioSession(state),
@@ -411,12 +427,10 @@ func registerSpecValidationFactories(st *agentState) toolregistry.FactoryRegistr
 func registerPlanningFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		pipeline.RegisterFactories(br, pipeline.FactoryDeps{
-			Directory:        st.directory,
-			ChildAgentBinary: st.childAgentBinary,
-			CoreRoot:         st.coreRoot,
-			Tracer:           st.tracer,
-			Ctx:              st.ctx,
-			ParseRetries:     st.parseRetries,
+			Directory:    st.directory,
+			Tracer:       st.tracer,
+			Ctx:          st.ctx,
+			ParseRetries: st.parseRetries,
 		})
 	}
 }
@@ -427,9 +441,9 @@ func registerEvaluationFactories(st *agentState) toolregistry.FactoryRegistrar {
 			Ctx:              st.ctx,
 			Registry:         st.registry,
 			Stderr:           os.Stderr,
-			SuitePath:        st.request,
 			OutputDir:        st.output,
 			Directory:        st.directory,
+			Tracer:           st.tracer,
 			ChildAgentBinary: st.childAgentBinary,
 			CoreRoot:         st.coreRoot,
 		})
@@ -443,7 +457,7 @@ func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
 			MachineRunner:      profileMachineRequestRunner(st),
 			Monitor:            st.monitor,
 			RunID:              st.runID,
-			CredentialResolver: toolrest.EmptyCredentialResolver{},
+			CredentialResolver: toolrest.EnvironmentCredentials{},
 		})
 	}
 }

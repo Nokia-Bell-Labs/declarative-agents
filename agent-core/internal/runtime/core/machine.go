@@ -21,16 +21,13 @@ type MachineSpec struct {
 	MetricLabels    MetricLabels     `yaml:"metric_labels,omitempty"`
 	PipelineDiagram string           `yaml:"pipeline_diagram,omitempty"`
 	InitialState    string           `yaml:"initial_state"`
+	SummarySignal   string           `yaml:"summary_signal,omitempty"`
+	ResumeSignal    string           `yaml:"resume_signal,omitempty"`
 	States          StateSpecs       `yaml:"states"`
 	TerminalStates  []string         `yaml:"terminal_states"`
 	Signals         SignalSpecs      `yaml:"signals"`
 	Transitions     []TransitionSpec `yaml:"transitions"`
 	BudgetSpec      *BudgetSpec      `yaml:"budget,omitempty"`
-}
-
-// MarshalMachineSpec serializes a MachineSpec to YAML bytes.
-func MarshalMachineSpec(spec MachineSpec) ([]byte, error) {
-	return yaml.Marshal(spec)
 }
 
 // SignalSpec describes a signal and optional semantic metadata.
@@ -101,6 +98,7 @@ type BudgetSpec struct {
 	MaxIterations             int    `yaml:"max_iterations,omitempty"`
 	MaxTokens                 int    `yaml:"max_tokens,omitempty"`
 	MaxDuration               string `yaml:"max_duration,omitempty"`
+	CommandTimeout            string `yaml:"command_timeout,omitempty"`
 	MaxConsecutiveParseErrors int    `yaml:"max_consecutive_parse_errors,omitempty"`
 }
 
@@ -134,6 +132,8 @@ type TransitionSpec struct {
 	Next         string       `yaml:"next"`
 	Action       string       `yaml:"action,omitempty"`
 	Label        string       `yaml:"label,omitempty"`
+	ReportOutput string       `yaml:"report_output,omitempty"`
+	Summary      bool         `yaml:"summary,omitempty"`
 	ForEach      *ForEachSpec `yaml:"for_each,omitempty"`
 	MetricLabels MetricLabels `yaml:"metric_labels,omitempty"`
 	labelSet     bool
@@ -155,24 +155,6 @@ func (t *TransitionSpec) UnmarshalYAML(value *yaml.Node) error {
 		}
 	}
 	return nil
-}
-
-// MachineDiagnosticSeverity classifies non-fatal grammar diagnostics.
-type MachineDiagnosticSeverity string
-
-const (
-	MachineDiagnosticWarning MachineDiagnosticSeverity = "warning"
-)
-
-// MachineDiagnostic describes a static grammar issue that does not make the
-// machine structurally invalid, but may indicate dead or surprising grammar.
-type MachineDiagnostic struct {
-	Severity        MachineDiagnosticSeverity
-	Code            string
-	Message         string
-	State           string
-	Signal          string
-	TransitionIndex int
 }
 
 // LoadMachineSpec reads and parses a machine YAML file.
@@ -272,6 +254,7 @@ func validateSpec(spec MachineSpec) error {
 		signalIndexes[s] = i
 		signalSet[s] = true
 	}
+	errs = append(errs, validateMachinePolicy(spec, signalSet)...)
 
 	transitionIndexes := make(map[TransitionInput]int)
 	for i, tr := range spec.Transitions {
@@ -299,6 +282,9 @@ func validateSpec(spec MachineSpec) error {
 				i, tr.Label,
 			))
 		}
+		if err := validateReportOutput(i, tr); err != "" {
+			errs = append(errs, err)
+		}
 		errs = append(errs, validateForEachSpec(i, tr, stateSet, signalSet)...)
 		if err := ValidateMetricLabels(fmt.Sprintf("transition[%d].metric_labels", i), tr.MetricLabels); err != nil {
 			errs = append(errs, err.Error())
@@ -316,71 +302,6 @@ func validateSpec(spec MachineSpec) error {
 		return fmt.Errorf("machine spec validation: %s", strings.Join(errs, "; "))
 	}
 	return nil
-}
-
-// DiagnoseMachineSpec reports reachability and dead-grammar diagnostics for a
-// structurally valid machine. It is intentionally non-fatal so callers can
-// decide which warnings are policy violations for their workflow.
-func DiagnoseMachineSpec(spec MachineSpec) []MachineDiagnostic {
-	reachable := reachableStates(spec)
-	usedSignals := make(map[string]bool)
-	terminalSet := make(map[string]bool, len(spec.TerminalStates))
-	for _, state := range spec.TerminalStates {
-		terminalSet[state] = true
-	}
-
-	var diagnostics []MachineDiagnostic
-	for _, state := range spec.States.Names() {
-		if state == spec.InitialState {
-			continue
-		}
-		if !reachable[state] {
-			diagnostics = append(diagnostics, MachineDiagnostic{
-				Severity: MachineDiagnosticWarning,
-				Code:     "unreachable_state",
-				Message:  fmt.Sprintf("state %q is not reachable from initial_state %q", state, spec.InitialState),
-				State:    state,
-			})
-		}
-	}
-
-	for i, tr := range spec.Transitions {
-		usedSignals[tr.Signal] = true
-		markForEachSignals(usedSignals, tr.ForEach)
-		if !reachable[tr.State] {
-			diagnostics = append(diagnostics, MachineDiagnostic{
-				Severity:        MachineDiagnosticWarning,
-				Code:            "unreachable_transition",
-				Message:         fmt.Sprintf("transition[%d] from %s/%s is unreachable", i, tr.State, tr.Signal),
-				State:           tr.State,
-				Signal:          tr.Signal,
-				TransitionIndex: i,
-			})
-		}
-		if terminalSet[tr.State] {
-			diagnostics = append(diagnostics, MachineDiagnostic{
-				Severity:        MachineDiagnosticWarning,
-				Code:            "terminal_transition",
-				Message:         fmt.Sprintf("transition[%d] starts from terminal state %q", i, tr.State),
-				State:           tr.State,
-				Signal:          tr.Signal,
-				TransitionIndex: i,
-			})
-		}
-	}
-
-	for _, signal := range spec.Signals.Names() {
-		if !usedSignals[signal] {
-			diagnostics = append(diagnostics, MachineDiagnostic{
-				Severity: MachineDiagnosticWarning,
-				Code:     "unused_signal",
-				Message:  fmt.Sprintf("signal %q is declared but no transition uses it", signal),
-				Signal:   signal,
-			})
-		}
-	}
-
-	return diagnostics
 }
 
 func reachableStates(spec MachineSpec) map[string]bool {

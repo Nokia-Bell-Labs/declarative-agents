@@ -32,9 +32,6 @@ const (
 	AttrToolCallID      = attribute.Key("gen_ai.tool.call.id")
 	AttrToolDescription = attribute.Key("gen_ai.tool.description")
 
-	// Workflow.
-	AttrWorkflowName = attribute.Key("gen_ai.workflow.name")
-
 	// Conversation.
 	AttrConversationID = attribute.Key("gen_ai.conversation.id")
 
@@ -81,7 +78,6 @@ const (
 	OpCreateAgent    = "create_agent"
 	OpInvokeAgent    = "invoke_agent"
 	OpExecuteTool    = "execute_tool"
-	OpInvokeWorkflow = "invoke_workflow"
 	OpEmbeddings     = "embeddings"
 	OpRetrieval      = "retrieval"
 	OpTextCompletion = "text_completion"

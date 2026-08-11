@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	// InitSpoolSpanStats identifies the duration-heatmap and group-by factory.
-	InitSpoolSpanStats = "spool_span_stats"
+	// InitSpoolSpanHeatmap identifies the duration-heatmap factory.
+	InitSpoolSpanHeatmap = "spool_span_heatmap"
+	// InitSpoolSpanGroupBy identifies the attribute-count factory.
+	InitSpoolSpanGroupBy = "spool_span_group_by"
 	// InitSpoolSpanBreakdown identifies the attribute-divergence factory.
 	InitSpoolSpanBreakdown = "spool_span_breakdown"
 
@@ -153,17 +155,22 @@ func (s enrichedSpan) groupValue(key string) (string, bool) {
 	}
 }
 
-// SpanStatsConfig configures a duration heatmap plus optional group-by counts.
-type SpanStatsConfig struct {
+// SpanHeatmapConfig configures one duration heatmap.
+type SpanHeatmapConfig struct {
 	Path            string
 	Filter          spanFilter
 	TimeBuckets     int
 	DurationEdgesMs []int64
-	GroupBy         string
-	TopN            int
-	MaxTopN         int
-	// ExemplarCap bounds the exemplar_trace_ids list returned for the matched
-	// set. Zero selects the committed default (defaultExemplarCap).
+	ExemplarCap     int
+}
+
+// SpanGroupByConfig configures one attribute-count table.
+type SpanGroupByConfig struct {
+	Path        string
+	Filter      spanFilter
+	GroupBy     string
+	TopN        int
+	MaxTopN     int
 	ExemplarCap int
 }
 
@@ -180,29 +187,49 @@ type SpanBreakdownConfig struct {
 	ExemplarCap int
 }
 
-// SpanStatsBuilder constructs duration-heatmap and group-by commands.
-type SpanStatsBuilder struct {
+// SpanHeatmapBuilder constructs duration-heatmap commands.
+type SpanHeatmapBuilder struct {
 	ToolName string
-	Config   SpanStatsConfig
+	Config   SpanHeatmapConfig
 }
 
-// Build creates one stats command, letting a machine_request seed override the
-// filter, time-bucket count, group-by key, and top-N.
-func (b SpanStatsBuilder) Build(previous core.Result) core.Command {
+// Build creates one heatmap command with request-seeded filters and buckets.
+func (b SpanHeatmapBuilder) Build(previous core.Result) core.Command {
 	cfg := b.Config
 	if p := seedParams(previous); p != nil {
 		cfg.Filter = seedFilter(p)
 		if v, ok := seedInt(p, "time_buckets"); ok && v > 0 {
 			cfg.TimeBuckets = v
 		}
-		if v, ok := p["group_by"].(string); ok {
-			cfg.GroupBy = v
-		}
-		if v, ok := seedInt(p, "top_n"); ok && v > 0 {
-			cfg.TopN = v
-		}
 	}
-	return &spanStatsCommand{toolName: b.ToolName, config: cfg}
+	return &spanHeatmapCommand{toolName: b.ToolName, config: cfg}
+}
+
+// SpanGroupByBuilder constructs attribute-count commands.
+type SpanGroupByBuilder struct {
+	ToolName string
+	Config   SpanGroupByConfig
+}
+
+// Build creates one group-by command. A later machine action can recover the
+// original request seed from command state after an intervening heatmap word.
+func (b SpanGroupByBuilder) Build(previous core.Result) core.Command {
+	cfg := applyGroupBySeed(b.Config, seedParams(previous))
+	return &spanGroupByCommand{toolName: b.ToolName, config: cfg}
+}
+
+func applyGroupBySeed(cfg SpanGroupByConfig, params map[string]interface{}) SpanGroupByConfig {
+	if params == nil {
+		return cfg
+	}
+	cfg.Filter = seedFilter(params)
+	if value, ok := params["group_by"].(string); ok {
+		cfg.GroupBy = value
+	}
+	if value, ok := seedInt(params, "top_n"); ok && value > 0 {
+		cfg.TopN = value
+	}
+	return cfg
 }
 
 // SpanBreakdownBuilder constructs attribute-divergence commands.
@@ -289,46 +316,96 @@ type groupCount struct {
 	Count int    `json:"count"`
 }
 
-type spanStatsCommand struct {
+type spanHeatmapCommand struct {
 	toolName string
-	config   SpanStatsConfig
+	config   SpanHeatmapConfig
 }
 
-func (c *spanStatsCommand) Name() string { return c.toolName }
+func (c *spanHeatmapCommand) Name() string { return c.toolName }
 
-func (c *spanStatsCommand) Execute() core.Result {
+func (c *spanHeatmapCommand) Execute() core.Result {
 	spans, skipped, err := readSpoolFiles(c.config.Path)
 	if err != nil {
 		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
 	}
 	matched := filterEnriched(enrichSpans(spans), c.config.Filter)
 	heatmap := buildHeatmap(matched, c.config)
-	groups, groupBy, droppedGroups, droppedSpans := buildGroupBy(matched, c.config)
-
 	output := struct {
 		Heatmap          heatmapPayload `json:"heatmap"`
 		Matched          int            `json:"matched"`
 		ExemplarTraceIDs []string       `json:"exemplar_trace_ids"`
 		SkippedLines     int            `json:"skipped_lines"`
-		GroupBy          string         `json:"group_by"`
-		Groups           []groupCount   `json:"groups"`
-		DroppedGroups    int            `json:"dropped_groups"`
-		DroppedSpanTotal int            `json:"dropped_span_total"`
 	}{
 		Heatmap: heatmap, Matched: len(matched),
 		ExemplarTraceIDs: exemplarTraceIDs(matched, c.config.ExemplarCap),
 		SkippedLines:     skipped,
-		GroupBy:          groupBy, Groups: groups,
+	}
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		return receiverError(c.Name(), err)
+	}
+	return core.Result{Signal: core.Signal("SpanHeatmapReady"), CommandName: c.Name(), Output: string(encoded)}
+}
+
+func (c *spanHeatmapCommand) Undo(_ core.Result) core.Result {
+	return core.NoopUndo(c.Name())
+}
+
+type spanGroupByCommand struct {
+	toolName    string
+	config      SpanGroupByConfig
+	commandView core.CommandStateView
+}
+
+func (c *spanGroupByCommand) Name() string { return c.toolName }
+
+func (c *spanGroupByCommand) SetCommandState(view core.CommandStateView) { c.commandView = view }
+
+var _ core.CommandStateAware = (*spanGroupByCommand)(nil)
+
+func (c *spanGroupByCommand) Execute() core.Result {
+	config := c.seededConfig()
+	if config.GroupBy == "" {
+		return receiverError(c.Name(), fmt.Errorf("%s: group_by is required", c.Name()))
+	}
+	spans, skipped, err := readSpoolFiles(config.Path)
+	if err != nil {
+		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
+	}
+	matched := filterEnriched(enrichSpans(spans), config.Filter)
+	groups, groupBy, droppedGroups, droppedSpans := buildGroupBy(matched, config)
+	output := struct {
+		Matched          int          `json:"matched"`
+		ExemplarTraceIDs []string     `json:"exemplar_trace_ids"`
+		SkippedLines     int          `json:"skipped_lines"`
+		GroupBy          string       `json:"group_by"`
+		Groups           []groupCount `json:"groups"`
+		DroppedGroups    int          `json:"dropped_groups"`
+		DroppedSpanTotal int          `json:"dropped_span_total"`
+	}{
+		Matched: len(matched), ExemplarTraceIDs: exemplarTraceIDs(matched, config.ExemplarCap),
+		SkippedLines: skipped, GroupBy: groupBy, Groups: groups,
 		DroppedGroups: droppedGroups, DroppedSpanTotal: droppedSpans,
 	}
 	encoded, err := json.Marshal(output)
 	if err != nil {
 		return receiverError(c.Name(), err)
 	}
-	return core.Result{Signal: core.Signal("SpanStatsReady"), CommandName: c.Name(), Output: string(encoded)}
+	return core.Result{Signal: core.Signal("SpanGroupByReady"), CommandName: c.Name(), Output: string(encoded)}
 }
 
-func (c *spanStatsCommand) Undo(_ core.Result) core.Result {
+func (c *spanGroupByCommand) seededConfig() SpanGroupByConfig {
+	if c.commandView == nil {
+		return c.config
+	}
+	output, ok := c.commandView.Lookup("seed")
+	if !ok {
+		return c.config
+	}
+	return applyGroupBySeed(c.config, seedParams(core.Result{Output: output}))
+}
+
+func (c *spanGroupByCommand) Undo(_ core.Result) core.Result {
 	return core.NoopUndo(c.Name())
 }
 

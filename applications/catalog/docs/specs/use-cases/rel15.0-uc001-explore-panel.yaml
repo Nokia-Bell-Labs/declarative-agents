@@ -17,7 +17,7 @@ trigger: |
   Explore page at the collector query origin.
 
 flow:
-  - F1: The Explore page requests GET /query/spans/stats with an optional filter; the collector runs spool_span_stats and returns a duration-over-time heatmap with axis boundaries and cell counts.
+  - F1: The Explore page requests GET /query/spans/stats with an optional filter; the collector runs declared spool_span_heatmap and spool_span_group_by actions, composes their results, and returns a duration-over-time heatmap with axis boundaries and cell counts.
   - F2: The page renders the heatmap; the operator drag-selects a rectangular region (a time span and a duration band).
   - F3: The page requests GET /query/spans/breakdown with the selection as the selection filter and the current view as the baseline; the collector runs spool_span_breakdown and returns the ranked attribute divergence.
   - F4: The page shows the ranked attributes (value, inside/outside counts, score) and a list of exemplar spans from the selection.
@@ -27,7 +27,7 @@ flow:
 touchpoints:
   - T1: "srd020-collector R8 -- /query/spans/stats and /query/spans/breakdown routes"
   - T2: "srd020-collector R9 -- the Explore page, drag-select, ranked divergence, and waterfall links"
-  - T3: "srd045-span-analytics-tools -- the spool_span_stats and spool_span_breakdown tools the routes bind"
+  - T3: "srd045-span-analytics-tools -- the spool_span_heatmap, spool_span_group_by, and spool_span_breakdown tools the routes bind"
   - T4: "srd020-collector R6 -- the per-trace waterfall the exemplars link into"
 
 success_criteria:

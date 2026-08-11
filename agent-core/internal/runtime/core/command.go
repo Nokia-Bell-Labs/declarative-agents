@@ -46,6 +46,11 @@ const (
 	AwaitApproval Signal = "AwaitApproval"
 	Approved      Signal = "Approved"
 	Rejected      Signal = "Rejected"
+	// CompensationRequired is an Undo outcome consumed by the lifecycle
+	// receipt walk. It means the tool behaved as declared but requires an
+	// operator or a later machine action to compensate the effect; it is not
+	// an infrastructure failure and is not routed by ordinary machines.
+	CompensationRequired Signal = "CompensationRequired"
 )
 
 // Validation signals used by the STL validate orchestrator.
@@ -140,19 +145,27 @@ type OutputRedaction struct {
 
 // Result carries the output of a Command execution.
 type Result struct {
-	Output      string
-	Redaction   OutputRedaction
-	Signal      Signal
-	State       State
-	Cost        Cost
-	Err         error
-	CommandName string
-	Metrics     *ToolMetrics // nil when tool doesn't report metrics
+	Output         string
+	Redaction      OutputRedaction
+	Signal         Signal
+	State          State
+	Cost           Cost
+	Err            error
+	CommandName    string
+	Metrics        *ToolMetrics // nil when tool doesn't report metrics
+	OperatorReport *OperatorReport
+	Diagnostics    []string
 	// Receipt is an opaque, tool-owned string encoded by the originating tool
 	// and persisted verbatim on the execution Entry. The engine and every
 	// checkpoint adapter treat it as opaque and never parse it
 	// (srd035-checkpoint-port R3).
 	Receipt string
+}
+
+type OperatorReport struct {
+	Label string
+	Field string
+	Value string
 }
 
 // SpanOverride allows Commands to customize the Dispatch span name and

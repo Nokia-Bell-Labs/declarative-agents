@@ -153,7 +153,7 @@ func TestSpoolMetricsRoundTripAndRotation(t *testing.T) {
 	require.NoError(t, err)
 	builder := SpoolMetricsBuilder{
 		ToolName: "spool_metrics",
-		Config:   SpoolConfig{Path: path, BatchSource: "$.batch", MaxBytes: 1, MaxFiles: 2},
+		Config:   SpoolConfig{Path: path, BatchSource: "$.batch", MaxBytes: 1, MaxFiles: 3},
 	}
 	for range 3 {
 		result := builder.Build(core.Result{Output: awaitJSON}).Execute()
@@ -164,7 +164,7 @@ func TestSpoolMetricsRoundTripAndRotation(t *testing.T) {
 	_, err = os.Stat(path + ".1")
 	require.NoError(t, err)
 	_, err = os.Stat(path + ".2")
-	require.ErrorIs(t, err, os.ErrNotExist)
+	require.NoError(t, err)
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)

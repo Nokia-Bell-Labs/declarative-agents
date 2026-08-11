@@ -3,6 +3,8 @@
 package rest
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -16,18 +18,37 @@ func (c clientCmd) sendAsync(request *http.Request) core.Result {
 	if c.asyncState == nil {
 		c.asyncState = NewAsyncState()
 	}
-	if err := c.asyncState.Add(requestState); err != nil {
+	if err := c.asyncState.CheckAdd(requestState); err != nil {
 		return clientOperationError(c.toolName, "async_state", err, c.operation)
 	}
-	go c.completeAsync(request, requestState)
+	completion := c.executeRequest(request)
+	if completion.Signal == core.CommandError {
+		return completion
+	}
+	if completion.Signal != core.Signal(c.operation.Operation.Success.Signal) {
+		err := fmt.Errorf("submission returned non-success signal %q", completion.Signal)
+		return clientOperationError(c.toolName, "submission_rejected", err, c.operation)
+	}
+	receipt := completion.Receipt
+	metrics := completion.Metrics
+	completion.Receipt = ""
+	completion.Metrics = nil
+	requestState.Done <- completion
+	if err := c.asyncState.Add(requestState); err != nil {
+		result := clientOperationError(c.toolName, "async_state", err, c.operation)
+		result.Receipt = receipt
+		return result
+	}
 	return core.Result{
 		Signal:      core.Signal("RESTAccepted"),
 		CommandName: c.toolName,
-		Output:      jsonOutput(asyncAcceptedOutput(requestState)),
+		Output:      jsonOutput(asyncAcceptedOutput(requestState, completion)),
+		Receipt:     receipt,
+		Metrics:     metrics,
 	}
 }
 
-func (c clientCmd) awaitAsync() core.Result {
+func (c clientCmd) awaitAsyncContext(ctx context.Context) core.Result {
 	if c.asyncState == nil {
 		return clientOperationError(c.toolName, "async_state_missing", fmt.Errorf("async state is not configured"), c.operation)
 	}
@@ -35,18 +56,34 @@ func (c clientCmd) awaitAsync() core.Result {
 	if err != nil {
 		return clientOperationError(c.toolName, "async_state_missing", err, c.operation)
 	}
+	timer := time.NewTimer(c.awaitTimeout())
+	defer timer.Stop()
 	select {
 	case result := <-request.Done:
 		c.asyncState.Consume(request)
 		result.CommandName = c.toolName
-		return result
-	case <-time.After(c.awaitTimeout()):
+		return enrichAsyncResult(result, request)
+	case <-ctx.Done():
+		return clientOperationError(c.toolName, "async_wait", ctx.Err(), c.operation)
+	case <-timer.C:
 		return core.Result{
 			Signal:      core.Signal("RESTAwaitTimedOut"),
 			CommandName: c.toolName,
 			Output:      jsonOutput(asyncTimeoutOutput(request)),
 		}
 	}
+}
+
+func enrichAsyncResult(result core.Result, request *AsyncRequest) core.Result {
+	var output map[string]interface{}
+	if err := json.Unmarshal([]byte(result.Output), &output); err != nil {
+		return result
+	}
+	output["request_id"] = request.RequestID
+	output["operation_id"] = request.OperationID
+	output["correlation"] = request.Correlation
+	result.Output = jsonOutput(output)
+	return result
 }
 
 func (c clientCmd) awaitRequest() (*AsyncRequest, error) {
@@ -59,10 +96,6 @@ func (c clientCmd) awaitRequest() (*AsyncRequest, error) {
 		return c.asyncState.GetByCorrelation(correlation)
 	}
 	return nil, fmt.Errorf("request_id or correlation is required")
-}
-
-func (c clientCmd) completeAsync(request *http.Request, state *AsyncRequest) {
-	state.Done <- c.executeRequest(request)
 }
 
 func (c clientCmd) asyncRequest(async *AsyncClientConfig) *AsyncRequest {
@@ -90,8 +123,8 @@ func (c clientCmd) awaitTimeout() time.Duration {
 	return parseDuration(c.operation.Operation.Async.Timeout, defaultAwaitTimeout)
 }
 
-func asyncAcceptedOutput(request *AsyncRequest) map[string]interface{} {
-	return map[string]interface{}{
+func asyncAcceptedOutput(request *AsyncRequest, completion core.Result) map[string]interface{} {
+	output := map[string]interface{}{
 		"request_id":        request.RequestID,
 		"operation_id":      request.OperationID,
 		"rest_ref":          request.RestRef,
@@ -100,6 +133,10 @@ func asyncAcceptedOutput(request *AsyncRequest) map[string]interface{} {
 		"correlation":       request.Correlation,
 		"submitted_payload": request.SubmittedPayload,
 	}
+	if status, ok := decodeRESTResultOutput(completion.Output)["status"]; ok {
+		output["status"] = status
+	}
+	return output
 }
 
 func asyncTimeoutOutput(request *AsyncRequest) map[string]interface{} {

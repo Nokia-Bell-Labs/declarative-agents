@@ -184,10 +184,20 @@ func listResourceEntries(base string, def ResourceDefinition, paths string) ([]r
 		if !resourcePathAllowed(rel, def, "") {
 			continue
 		}
+		absolute := filepath.Join(base, filepath.FromSlash(rel))
+		if _, err := os.Stat(absolute); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, err
+		}
 		if _, err := ValidatePath(base, rel); err != nil {
 			return nil, err
 		}
-		if err := appendResourceEntry(&entries, base, filepath.Join(base, filepath.FromSlash(rel)), def); err != nil {
+		if err := appendResourceEntry(&entries, base, absolute, def); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 			return nil, err
 		}
 	}

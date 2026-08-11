@@ -43,9 +43,6 @@ func prepareLoop(params *LoopParams, ctx context.Context) (*StateMachine, contex
 		recordMachineInitError(params.Trace, err)
 		return nil, nil, nil, fmt.Errorf("loop init: %w", err)
 	}
-	if err := validateLoopParams(params); err != nil {
-		return nil, nil, nil, err
-	}
 	ctx, cancel := loopTimeoutContext(ctx, params.Budget)
 	sm := NewStateMachine(params.Table, params.IsTerminal)
 	params.Registry.Freeze()
@@ -60,19 +57,6 @@ func recordMachineInitError(tr tracing.Tracer, err error) {
 		return
 	}
 	tr.Event("init.machine_failed", attribute.String("error", err.Error()))
-}
-
-func validateLoopParams(params *LoopParams) error {
-	if params.Hooks.ValidateParams == nil {
-		return nil
-	}
-	if err := params.Hooks.ValidateParams(params.Registry); err != nil {
-		params.Trace.Event("init.validate_failed",
-			attribute.String("error", err.Error()),
-		)
-		return err
-	}
-	return nil
 }
 
 func loopTimeoutContext(ctx context.Context, budget Budget) (context.Context, context.CancelFunc) {

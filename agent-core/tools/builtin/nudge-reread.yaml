@@ -42,13 +42,8 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: nudge_reread command result summary.
+    description: Plain-text edit result followed by the reread instruction.
     schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
+      type: string
+  config:
+    nudge_text: "The file was modified successfully. IMPORTANT: You MUST call the read tool on the modified file to see its current contents before making any further edits. Do not assume you know what the file looks like — re-read it now."

@@ -27,3 +27,33 @@ tools:
         positional: true
     required:
     - path
+  problem: A machine needs one explicit filesystem operation to ensure a directory path and its missing parents exist.
+  goals:
+  - Invoke `mkdir -p` once with the required path.
+  - Succeed when the directory already exists and is compatible with `mkdir -p`.
+  - Make newly created directories recoverable through workspace restore.
+  requirements:
+    input:
+    - must require one path positional parameter
+    output:
+    - must return combined `mkdir` output as a string
+    errors:
+    - must emit CommandError when the path or process cannot be resolved and ToolFailed when `mkdir` exits non-zero
+  non_goals:
+  - Does not write file content, remove directories, or choose directory layout.
+  emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: Combined stdout and stderr from `mkdir -p`.
+    schema: {type: string}
+  errors:
+  - signal: CommandError
+    condition: the required path is absent or the mkdir process cannot be started
+    message_shape: 'make_dir: <error>'
+    state_after_failure: no child process mutation occurs when dispatch fails
+  - signal: ToolFailed
+    condition: "`mkdir -p` exits non-zero"
+    message_shape: '<captured mkdir output>'
+    state_after_failure: some missing parent directories may have been created and must be restored from the workspace checkpoint
+  relationships:
+    before: [machine-selected predecessor]
+    after: [write, copy_dir, machine-selected successor]

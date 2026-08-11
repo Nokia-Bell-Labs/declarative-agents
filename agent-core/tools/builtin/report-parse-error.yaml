@@ -43,13 +43,11 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: report_parse_error command result summary.
+    description: Plain-text feedback requesting a corrected model response.
     schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
+      type: string
+  config:
+    feedback_template: |-
+      Your previous response was invalid. {{error}}
+
+      Please respond with a single JSON object: {"tool": "<tool_name>", "parameters": {<params>}}

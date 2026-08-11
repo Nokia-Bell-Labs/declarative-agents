@@ -3,11 +3,13 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -17,8 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
-	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
 // The tests spawn the test binary itself as the child process rather than a
@@ -29,6 +29,7 @@ const (
 	envChildMode = "SERVICE_TEST_CHILD"
 	envChildAddr = "SERVICE_TEST_ADDR"
 	envChildEcho = "SERVICE_TEST_ECHO"
+	envChildPID  = "SERVICE_TEST_GRANDCHILD_PID"
 )
 
 func TestMain(m *testing.M) {
@@ -64,6 +65,14 @@ func TestMain(m *testing.M) {
 	case "hang":
 		// A bare select{} would trip Go's deadlock detector and exit at once;
 		// sleeping actually hangs, which is what the timeout path needs.
+		time.Sleep(time.Hour)
+		os.Exit(0)
+	case "tree":
+		grandchild := exec.Command("sh", "-c", "sleep 3600")
+		if err := grandchild.Start(); err != nil {
+			os.Exit(2)
+		}
+		_ = os.WriteFile(os.Getenv(envChildPID), []byte(strconv.Itoa(grandchild.Process.Pid)), 0o600)
 		time.Sleep(time.Hour)
 		os.Exit(0)
 	}
@@ -106,16 +115,16 @@ func processAlive(pid int) bool {
 }
 
 func TestChildCommandPropagatesCoreRootInArgv(t *testing.T) {
-	cmd := childCommand(StartSpec{
+	spec := childProcessSpec(StartSpec{
 		Binary: "agent", Profile: "agents/mock/profile.yaml",
 		CoreRoot: "/checkout/agent-core",
 	})
 
 	require.Equal(t, []string{
-		"agent",
 		"--profile", "agents/mock/profile.yaml",
 		"--core-root", "/checkout/agent-core",
-	}, cmd.Args)
+	}, spec.Args)
+	require.Equal(t, "agent", spec.Binary)
 }
 
 // TestServiceChild_StartStopNoOrphans covers srd040 AC1: a serve-mode child
@@ -188,6 +197,37 @@ func TestServiceChild_StopIsIdempotentAndStopAllReaps(t *testing.T) {
 	require.Equal(t, false, state.Stop("a", time.Second)["stopped"])
 }
 
+func TestServiceChild_ParentCancellationKillsProcessGroup(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	state := NewStateWithContext(ctx)
+	pidFile := filepath.Join(t.TempDir(), "grandchild.pid")
+	spec := StartSpec{
+		Name: "tree", Binary: os.Args[0], Profile: "unused",
+		Env: []string{envChildMode + "=tree", envChildPID + "=" + pidFile},
+	}
+	started, err := state.Start(spec)
+	require.NoError(t, err)
+	childPID := started["pid"].(int)
+	var grandchildPID int
+	require.Eventually(t, func() bool {
+		data, readErr := os.ReadFile(pidFile)
+		if readErr != nil {
+			return false
+		}
+		grandchildPID, readErr = strconv.Atoi(string(data))
+		return readErr == nil
+	}, 3*time.Second, 20*time.Millisecond)
+
+	cancel()
+
+	require.Eventually(t, func() bool {
+		return !processAlive(childPID) && !processAlive(grandchildPID)
+	}, 3*time.Second, 20*time.Millisecond)
+	state.Stop("tree", time.Second)
+}
+
 // TestServiceChild_StartRejectsBadSpawn covers srd040 R6.3: a spawn failure is
 // an error, not a panic, and a duplicate service name is rejected.
 func TestServiceChild_StartRejectsBadSpawn(t *testing.T) {
@@ -195,7 +235,7 @@ func TestServiceChild_StartRejectsBadSpawn(t *testing.T) {
 
 	_, err := state.Start(StartSpec{Name: "x", Binary: "/nonexistent/binary", Profile: "p"})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "start_service \"x\"")
+	require.Contains(t, err.Error(), "start child \"x\"")
 
 	_, err = state.Start(StartSpec{Name: "", Profile: "p"})
 	require.Error(t, err)
@@ -289,83 +329,21 @@ func TestListScenarios_DeterministicDiscovery(t *testing.T) {
 	require.Equal(t, scenarios, repeat, "discovery is deterministic")
 }
 
-// TestServiceTools_DeclarationsReversibilityAndUndo covers srd040 AC5: only
-// start_service is reversible, its undo stops the service, every other word's
-// undo is a noop, and config validation rejects incomplete declarations.
-func TestServiceTools_DeclarationsReversibilityAndUndo(t *testing.T) {
-	state := NewState()
-
-	addr, err := FreeAddress()
-	require.NoError(t, err)
-	startCmd := Builder{
-		ToolName: "start_mock", Init: InitStartService, State: state,
-		Config: ToolConfig{
-			Service: "mock", Profile: "p", Binary: os.Args[0], Address: addr,
-			Env: []string{envChildMode + "=serve", envChildAddr + "=" + addr},
-		},
-	}.Build(core.Result{})
-
-	result := startCmd.Execute()
-	require.Equal(t, SignalServiceStarted, result.Signal)
-	require.Equal(t, []string{"mock"}, state.Running())
-
-	// start_service is reversible: its undo stops what it started.
-	undo := startCmd.Undo(result)
-	require.Equal(t, SignalServiceStopped, undo.Signal)
-	require.Empty(t, state.Running(), "undo must stop the started service")
-
-	// Every other word is a noop undo, matching its declaration.
-	for _, init := range []string{InitStopService, InitListScenarios} {
-		cmd := Builder{ToolName: init, Init: init, State: state}.Build(core.Result{})
-		require.Equal(t, core.NoopUndo(init).Signal, cmd.Undo(core.Result{}).Signal, init)
-	}
-
-	// Incomplete declarations are rejected at build time.
-	br := toolregistry.NewBuiltinRegistry()
-	RegisterBuiltins(br, FactoryDeps{State: state})
-	for init, want := range map[string]string{
-		InitStartService:  "requires a service name",
-		InitStopService:   "requires a service name",
-		InitListScenarios: "requires at least one root",
-	} {
-		factory, ok := br.Resolve(init)
-		require.True(t, ok, "init %s should be registered", init)
-		cfg := map[string]interface{}{}
-		if init == InitStartService {
-			cfg["profile"] = "p" // present, but service name missing
-		}
-		_, err := factory(catalog.ToolDef{Name: init, Config: cfg}, nil)
-		require.Error(t, err, init)
-		require.Contains(t, err.Error(), want, init)
-	}
-}
-
-// TestServiceCommand_ListScenariosOutput covers the discovery word's result
-// shape, which the rig machine routes on.
-func TestServiceCommand_ListScenariosOutput(t *testing.T) {
+func TestStopServiceSelectorResolutionFailure(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	dir := filepath.Join(root, "subject", "tests", "only")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, machineFileName), []byte("{}"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, profileFileName), []byte("{}"), 0o644))
+	cmd := Builder{
+		ToolName: "stop_child", Init: InitStopService, State: NewState(),
+		Config: ToolConfig{Service: "$from(child).service"},
+	}.Build(core.Result{})
+	aware, ok := cmd.(core.CommandStateAware)
+	require.True(t, ok)
+	aware.SetCommandState(labeledStateView{label: "another_step", output: `{}`})
 
-	result := Builder{
-		ToolName: "list", Init: InitListScenarios, State: NewState(),
-		Config: ToolConfig{Roots: []string{root}},
-	}.Build(core.Result{}).Execute()
-
-	require.Equal(t, SignalScenariosListed, result.Signal)
-	var payload struct {
-		Count     int        `json:"count"`
-		Scenarios []Scenario `json:"scenarios"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
-	require.Equal(t, 1, payload.Count)
-	require.Equal(t, "only", payload.Scenarios[0].Name)
-	require.Equal(t, "subject", payload.Scenarios[0].Subject)
-	require.Len(t, payload.Scenarios[0].Validators, 1)
+	result := cmd.Execute()
+	require.Equal(t, core.CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, `selector "$from(child).service"`)
+	require.ErrorContains(t, result.Err, `no prior step labeled "child"`)
 }
 
 // TestServiceCommand_UnsupportedInit guards the dispatch default.

@@ -87,10 +87,14 @@ func (c *runPointCmd) Execute() core.Result {
 		successState = "Done"
 	}
 
+	tracer := c.es.Tracer
+	if tracer == nil {
+		tracer = tracing.NoopTracer{}
+	}
 	params := core.LoopParams{
 		MachineFile: c.es.PointMachine,
 		AgentName:   agentName,
-		Trace:       tracing.NoopTracer{},
+		Trace:       tracer,
 		Budget: core.Budget{
 			MaxIterations: maxIter,
 		},
@@ -128,9 +132,19 @@ func (c *runPointCmd) Execute() core.Result {
 	_, _ = fmt.Fprintf(c.es.Stderr, "    %s (exit=%d tokens=%d %s)\n",
 		status, pc.ExitCode, pc.Tokens, pc.Duration.Round(time.Second))
 
+	output, err := json.Marshal(map[string]interface{}{
+		"point_id": pc.PointID, "machine": c.config.PointMachine, "status": status,
+		"terminal_state": string(runResult.FinalState),
+		"elapsed_ms":     runResult.Duration.Milliseconds(), "artifact_dir": pc.PointDir,
+	})
+	if err != nil {
+		return core.Result{
+			Signal: core.CommandError, Err: err, Output: err.Error(), CommandName: c.Name(),
+		}
+	}
 	return core.Result{
 		Signal:      SigPointDone,
-		Output:      fmt.Sprintf("%s: %s", pc.PointID, status),
+		Output:      string(output),
 		CommandName: "run_point",
 	}
 }

@@ -47,8 +47,7 @@ var (
 )
 
 const (
-	monitorLaunchCommandName = "launch_monitor_rest"
-	monitorServerName        = "monitor"
+	agentVersion             = "v0.0.0-dev"
 	terminalSummaryMaxBytes  = 1 << 20
 	terminalSummaryTruncated = "... [terminal summary truncated]"
 )
@@ -108,14 +107,14 @@ func init() {
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
 	f.StringVar(&flagRequest, "request", "", "request data file")
-	f.StringVar(&flagOutput, "output", "", "output directory for eval results (default: eval-results)")
+	f.StringVar(&flagOutput, "output", "", "output directory for runtime artifacts")
 	f.StringVar(&flagDoltDSN, "dolt-dsn", "", "MySQL-wire DSN to a dolt sql-server for the persistent checkpoint backend (default: no persistence)")
 	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
-	f.StringVar(&flagResumeSignal, "resume-signal", string(core.Approved), "signal to feed the state machine when resuming")
-	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary the evaluator launches (default: agent, resolved from PATH)")
+	f.StringVar(&flagResumeSignal, "resume-signal", "", "resume signal override (default: machine resume_signal, then Approved)")
+	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary used by child-process words (default: agent, resolved from PATH)")
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
 
-	rootCmd.Version = "v0.0.0-dev"
+	rootCmd.Version = agentVersion
 }
 
 type agentState struct {
@@ -150,6 +149,7 @@ type agentState struct {
 	monitor             toolrest.MonitorState
 	restDefs            toolrest.Collection
 	shutdown            func()
+	reapServices        func()
 }
 
 // checkpointForOps returns the backend the checkpoint history/rollback tools
@@ -236,9 +236,22 @@ func validateConfig() error {
 		return err
 	}
 	resources.shutdownTelemetry()
+	if err := validateDeclaredRequestSources(resources.Config, resources.Definitions); err != nil {
+		return err
+	}
+	reportMachineDiagnostics(resources.Machine)
 	fmt.Fprintf(os.Stderr, "config valid: profile %s (%d REST client(s), %d server(s))\n",
 		flagProfile, len(resources.RestDefinitions.Clients), len(resources.RestDefinitions.Servers))
 	return nil
+}
+
+func reportMachineDiagnostics(machine core.MachineSpec) {
+	for _, diagnostic := range core.DiagnoseMachineSpec(machine) {
+		fmt.Fprintf(
+			os.Stderr, "warning: machine-diagnostic-%s: %s\n",
+			diagnostic.Code, diagnostic.Message,
+		)
+	}
 }
 
 type preparedRun struct {
@@ -261,6 +274,7 @@ type runResources struct {
 	Definitions       []catalog.ToolDef
 	RestDefinitions   toolrest.Collection
 	Machine           core.MachineSpec
+	Program           core.ProgramRef
 	shutdownTelemetry func()
 }
 
@@ -294,6 +308,9 @@ func (r *preparedRun) Close() error {
 	r.closed = true
 	if r.Cancel != nil {
 		r.Cancel()
+	}
+	if r.State != nil && r.State.reapServices != nil {
+		r.State.reapServices()
 	}
 	r.closeErr = r.checkpoints.Close()
 	if r.shutdownTelemetry != nil {
@@ -333,9 +350,14 @@ func loadRunResources() (runResources, error) {
 		shutdownTelemetry()
 		return runResources{}, err
 	}
+	program, err := buildProgramRef(cfg)
+	if err != nil {
+		shutdownTelemetry()
+		return runResources{}, fmt.Errorf("build declarative program reference: %w", err)
+	}
 	return runResources{
 		Config: cfg, Tracer: tracer, Meter: meter, Definitions: defs,
-		RestDefinitions: restDefs, Machine: machineSpec,
+		RestDefinitions: restDefs, Machine: machineSpec, Program: program,
 		shutdownTelemetry: shutdownTelemetry,
 	}, nil
 }
@@ -347,6 +369,9 @@ func loadRunResources() (runResources, error) {
 // specification-audit concern.
 func validateRuntimeToolWiring(machine core.MachineSpec, defs []catalog.ToolDef) error {
 	if err := catalog.ValidateMachineActions(machine, defs); err != nil {
+		return err
+	}
+	if err := catalog.ValidateToolPhases(machine, defs); err != nil {
 		return err
 	}
 	if err := catalog.ValidateParseRetryWiring(machine, defs); err != nil {
@@ -377,6 +402,10 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		return preparedRun{}, closeBuildFailure(err, nil, &checkpoints, resources.shutdownTelemetry)
 	}
 	checkpoints.Add(lifecycleCheckpoint)
+	resources, err = augmentRollbackResources(resources, lifecycleCheckpoint.Checkpoint)
+	if err != nil {
+		return preparedRun{}, closeBuildFailure(err, nil, &checkpoints, resources.shutdownTelemetry)
+	}
 	loopCtx, loopCancel := context.WithCancel(commandContext(cmd))
 	shutdown := newDeferredShutdown(loopCancel)
 	monitorRuntime, err := newMonitorRuntime(
@@ -418,6 +447,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		Machine: resources.Machine, State: st, Registry: reg, Tracer: resources.Tracer,
 		RunID: runID, Checkpoint: checkpoint.Checkpoint, MonitorRecorder: monitorRuntime.Recorder,
 		CommandStateObserver: commandStateSource,
+		Program:              resources.Program,
 	})
 	if err := seedRequest(&params, cfg.Request); err != nil {
 		return preparedRun{}, closeBuildFailure(err, loopCancel, &checkpoints, resources.shutdownTelemetry)
@@ -570,6 +600,7 @@ type loopParamDeps struct {
 	Checkpoint           core.Checkpoint
 	MonitorRecorder      monitor.RuntimeRecorder
 	CommandStateObserver core.CommandStateObserver
+	Program              core.ProgramRef
 }
 
 func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
@@ -581,12 +612,15 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 	return core.LoopParams{
 		MachineFile:          cfg.Machine,
 		MachineSpec:          &deps.Machine,
+		Program:              deps.Program,
 		RunID:                deps.RunID,
-		AgentName:            "agent",
+		AgentName:            machineAgentName(deps.Machine),
+		AgentVersion:         agentVersion,
 		ModelName:            deps.State.model,
 		ProviderName:         deps.State.providerName,
 		Trace:                deps.Tracer,
 		Budget:               runBudget(deps.Machine, deps.State),
+		CommandTimeout:       deps.Machine.BudgetSpec.CommandTimeoutDuration(),
 		ToolAction:           toolAction,
 		Registry:             deps.Registry,
 		Directory:            cfg.Directory,
@@ -594,10 +628,18 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		MonitorRecorder:      deps.MonitorRecorder,
 		CommandStateObserver: deps.CommandStateObserver,
 		Hooks: core.LoopHooks{
-			OnResult:             cliResultReporter,
+			OnResult:             cliResultReporterForMachine(&deps.Machine),
 			SnapshotConversation: deps.State.snapshotConversation,
+			SnapshotDomain:       deps.State.snapshotDomain,
 		},
 	}
+}
+
+func machineAgentName(machine core.MachineSpec) string {
+	if machine.Name != "" {
+		return machine.Name
+	}
+	return "agent"
 }
 
 func runBudget(machine core.MachineSpec, st *agentState) core.Budget {
@@ -616,14 +658,42 @@ func defaultRunBudget() core.Budget {
 }
 
 func cliResultReporter(rr core.RunResult, res core.Result) core.RunResult {
-	rr = monitorLaunchReporter(rr, res)
-	if strings.TrimSpace(res.Output) != "" {
+	return reportRunResult(nil, rr, res)
+}
+
+func cliResultReporterForMachine(machine *core.MachineSpec) func(core.RunResult, core.Result) core.RunResult {
+	return func(rr core.RunResult, res core.Result) core.RunResult {
+		return reportRunResult(machine, rr, res)
+	}
+}
+
+func reportRunResult(machine *core.MachineSpec, rr core.RunResult, res core.Result) core.RunResult {
+	reportOperatorOutput(res)
+	declaredSummary := machineDeclaresSummary(machine)
+	if !declaredSummary && strings.TrimSpace(res.Output) != "" {
 		rr.Summary = boundedTerminalSummary(res.Output)
+	} else if declaredSummary {
+		rr.Summary = boundedTerminalSummary(rr.Summary)
 	}
 	if message := commandFailureMessage(res); message != "" {
 		fmt.Fprintln(os.Stderr, message)
 	}
 	return rr
+}
+
+func machineDeclaresSummary(machine *core.MachineSpec) bool {
+	if machine == nil {
+		return false
+	}
+	if machine.SummarySignal != "" {
+		return true
+	}
+	for _, transition := range machine.Transitions {
+		if transition.Summary {
+			return true
+		}
+	}
+	return false
 }
 
 func boundedTerminalSummary(output string) string {
@@ -652,31 +722,44 @@ func commandFailureMessage(res core.Result) string {
 	return fmt.Sprintf("%s failed: %s", name, detail)
 }
 
-func monitorLaunchReporter(rr core.RunResult, res core.Result) core.RunResult {
-	if res.CommandName != monitorLaunchCommandName || res.Signal != core.Signal("ServerLaunched") {
-		return rr
+func reportOperatorOutput(res core.Result) {
+	if res.OperatorReport == nil {
+		return
 	}
-	if address := monitorLaunchAddress(res.Output); address != "" {
-		fmt.Fprintf(os.Stderr, "monitor address: %s\n", address)
+	field := res.OperatorReport.Field
+	if res.OperatorReport.Label != "" {
+		field = res.OperatorReport.Label + " " + field
 	}
-	return rr
-}
-
-func monitorLaunchAddress(output string) string {
-	var decoded map[string]interface{}
-	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
-		return ""
-	}
-	server, _ := decoded["server"].(string)
-	address, _ := decoded["address"].(string)
-	if server != monitorServerName {
-		return ""
-	}
-	return address
+	fmt.Fprintf(os.Stderr, "%s: %s\n", field, res.OperatorReport.Value)
 }
 
 func (st *agentState) snapshotConversation() (json.RawMessage, error) {
 	return json.Marshal(st.conversation.Snapshot())
+}
+
+type agentDomainSnapshot struct {
+	ConsecutiveParseErrors int `json:"consecutive_parse_errors"`
+}
+
+func (st *agentState) snapshotDomain() (json.RawMessage, error) {
+	return json.Marshal(agentDomainSnapshot{
+		ConsecutiveParseErrors: st.parseRetries.Snapshot(),
+	})
+}
+
+func (st *agentState) restoreDomain(data json.RawMessage) error {
+	if len(data) == 0 {
+		return nil
+	}
+	var snapshot agentDomainSnapshot
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		return fmt.Errorf("decode domain snapshot: %w", err)
+	}
+	if st.parseRetries == nil && snapshot.ConsecutiveParseErrors > 0 {
+		return fmt.Errorf("domain snapshot has parse retries but current machine has no parse retry budget")
+	}
+	st.parseRetries.Restore(snapshot.ConsecutiveParseErrors)
+	return nil
 }
 
 type resumeDeps struct {
@@ -714,6 +797,9 @@ func resumeRun(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 		if err := deps.State.restoreConversation(conversation); err != nil {
 			return core.RunResult{}, fmt.Errorf("resume: restore conversation: %w", err)
 		}
+	}
+	if err := deps.State.restoreDomain(state.Position.Snapshot.Domain); err != nil {
+		return core.RunResult{}, fmt.Errorf("resume: restore domain: %w", err)
 	}
 	result, err := core.Loop(state.Params, deps.Ctx)
 	if err != nil {

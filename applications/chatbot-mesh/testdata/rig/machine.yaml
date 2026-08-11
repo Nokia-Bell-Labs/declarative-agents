@@ -48,6 +48,8 @@ states:
     meaning: Exposing subject-first teardown items from the scenario session.
   - name: TearingDown
     meaning: Stopping each child sequentially through MachineSpec iteration.
+  - name: EmergencyTeardown
+    meaning: Reaping every still-tracked child after ordinary teardown infrastructure failed.
   - name: Reporting
     meaning: Reducing every scenario verdict into the run result.
   - name: Passed
@@ -100,6 +102,8 @@ signals:
     trigger: One scenario child was stopped.
   - name: ScenarioTornDown
     trigger: The child-stop iterator joined after every item.
+  - name: AllServicesStopped
+    trigger: Emergency teardown reaped every child still tracked by the run.
   - name: SessionPassed
     trigger: Every scenario passed.
   - name: SessionFailed
@@ -291,7 +295,8 @@ transitions:
           empty: ScenarioTornDown
   - state: ListingChildren
     signal: CommandError
-    next: Failed
+    next: EmergencyTeardown
+    action: stop_all_services
 
   # A failed scenario does not end the run: every scenario is exercised and the
   # aggregate reports at the end.
@@ -302,9 +307,14 @@ transitions:
     label: current_scenario
   - state: TearingDown
     signal: BudgetExhausted
-    next: Failed
+    next: EmergencyTeardown
+    action: stop_all_services
   - state: TearingDown
     signal: CommandError
+    next: EmergencyTeardown
+    action: stop_all_services
+  - state: EmergencyTeardown
+    signal: AllServicesStopped
     next: Failed
 
   - state: Reporting
@@ -312,7 +322,4 @@ transitions:
     next: Passed
   - state: Reporting
     signal: SessionFailed
-    next: Failed
-  - state: Reporting
-    signal: CommandError
     next: Failed

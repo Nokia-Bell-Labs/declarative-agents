@@ -1,0 +1,12 @@
+tools:
+  - {name: stop_service, type: builtin, init: stop_service, category: boundary, emits: [ServiceStopped, CommandError]}
+  - {name: init_scenario_session, type: builtin, init: init_scenario_session, category: boundary, emits: [SessionSeeded, NoScenarios, CommandError]}
+  - {name: next_scenario, type: builtin, init: next_scenario, category: boundary, emits: [ScenarioReady, AllScenariosDone, CommandError]}
+  - {name: start_scenario_mock, type: builtin, init: start_scenario_mock, category: boundary, emits: [MockStarted, CommandError]}
+  - {name: start_scenario_subject, type: builtin, init: start_scenario_subject, category: boundary, emits: [SubjectStarted, CommandError]}
+  - {name: run_scenario_validator, type: builtin, init: run_scenario_validator, category: boundary, emits: [ValidatorCompleted, ValidatorIncomplete, CommandError]}
+  - {name: record_scenario_validators, type: builtin, init: record_scenario_validators, category: boundary, emits: [ValidatorsRecorded, CommandError]}
+  - {name: collect_scenario_verdict, type: builtin, init: collect_scenario_verdict, category: boundary, emits: [ScenarioPassed, ScenarioFailed]}
+  - {name: list_scenario_children, type: builtin, init: list_scenario_children, category: boundary, emits: [ScenarioChildrenListed, CommandError]}
+  - {name: stop_all_services, type: builtin, init: stop_all_services, category: boundary, emits: [AllServicesStopped]}
+  - {name: report_scenario_session, type: builtin, init: report_scenario_session, category: boundary, emits: [SessionPassed, SessionFailed]}

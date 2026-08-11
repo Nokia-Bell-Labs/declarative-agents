@@ -70,8 +70,10 @@ func TestShippedOrchestratorOwnsChildRouting(t *testing.T) {
 		"init: self_invoke",
 		"profile: ../specialist-editor/profile.yaml",
 		"profile: ../voice-critic/profile.yaml",
-		"request_from: $from(capture_manifest).output",
-		"request_from: $from(structure_manifest).output",
+		"request_from: $from(structure_request_file).$",
+		"request_from: $from(critic_request_file).$",
+		"request_from: $from(structure_retry_request_file).$",
+		"request_from: $from(critic_retry_request_file).$",
 		"binary: prose-editor-tracer-boundary",
 	} {
 		if !strings.Contains(source, required) {

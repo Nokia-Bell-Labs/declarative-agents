@@ -64,11 +64,11 @@ var (
 func (c *selfInvokeCmd) undoPayload() undo.BoundaryCompensationPayload {
 	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
 		Strategy: "child_agent_workspace_restore", Reason: "self-invocation runs a child agent process",
-		Requires: []string{"child_workspace_ref", "child_trace"}, ChildProfile: c.config.Profile,
-		ChildRunID: c.runID,
+		Requires: []string{"child_workspace_ref", "child_trace"},
+		Data:     map[string]interface{}{"child_profile": c.config.Profile, "child_run_id": c.runID},
 	}}
 	if c.tracePath != "" {
-		payload.BoundaryCompensation.ArtifactPaths = []string{c.tracePath}
+		payload.BoundaryCompensation.Data["artifact_paths"] = []string{c.tracePath}
 	}
 	return payload
 }
@@ -165,9 +165,4 @@ func selfInvokeSignal(result *execute.Result) core.Signal {
 		return core.ToolDone
 	}
 	return core.ToolFailed
-}
-
-// SelfInvokeToolSpec returns the ToolSpec for the self_invoke command.
-func SelfInvokeToolSpec() core.ToolSpec {
-	return core.ToolSpec{Name: "self_invoke", Visibility: core.Internal}
 }

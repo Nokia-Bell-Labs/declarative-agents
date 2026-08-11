@@ -3,8 +3,6 @@
 package spec
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -144,81 +142,6 @@ func TestValidateGoTestEvidenceFindings(t *testing.T) {
 	}
 	if !strings.Contains(findings[1].Message, "TestGhost") {
 		t.Errorf("finding message missing the unresolved name: %q", findings[1].Message)
-	}
-}
-
-func TestValidateSpecCorpusPaths(t *testing.T) {
-	root := t.TempDir()
-	srdDir := filepath.Join(root, SRDSubdir)
-	if err := os.MkdirAll(srdDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for _, path := range []string{"internal/tool.go", "internal/tool_test.go"} {
-		full := filepath.Join(root, path)
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(full, []byte("package internal\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	data := []byte(`id: srd-test
-implementation:
-  - internal/tool.go
-  - future/tool.go (planned implementation)
-  - internal/missing.go
-test_trace_plan:
-  - test_suite: test-example
-    covers: [AC1]
-  - existing_go_tests:
-      - internal/tool_test.go
-      - internal/missing_test.go
-`)
-	if err := os.WriteFile(filepath.Join(srdDir, "srd-test.yaml"), data, 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	findings, err := ValidateSpecCorpusPaths(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(findings) != 2 {
-		t.Fatalf("got %d findings, want 2: %+v", len(findings), findings)
-	}
-	for _, want := range []string{"internal/missing.go", "internal/missing_test.go"} {
-		if !strings.Contains(findings[0].Message+findings[1].Message, want) {
-			t.Errorf("findings do not name missing path %q: %+v", want, findings)
-		}
-	}
-	for _, finding := range findings {
-		if finding.Check != specPathEvidenceCheck || finding.Level != "error" {
-			t.Errorf("finding has wrong check or level: %+v", finding)
-		}
-	}
-}
-
-func TestValidateSpecCorpusPathsAcceptsRepositoryEvidence(t *testing.T) {
-	root := filepath.Clean(filepath.Join("..", ".."))
-	findings, err := ValidateSpecCorpusPaths(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(findings) != 0 {
-		t.Fatalf("repository SRD path evidence does not resolve: %+v", findings)
-	}
-}
-
-func TestRuntimeImplementationCorpusDetection(t *testing.T) {
-	externalRoot := t.TempDir()
-	if hasRuntimeImplementationCorpus(externalRoot) {
-		t.Fatal("external profile repository must not be treated as a runtime implementation corpus")
-	}
-	coreRoot := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(coreRoot, "internal", "runtime", "core"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if !hasRuntimeImplementationCorpus(coreRoot) {
-		t.Fatal("agent-core source layout should enable implementation path evidence")
 	}
 }
 

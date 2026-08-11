@@ -73,6 +73,11 @@ func samplePosition() Position {
 			TokensOut:    5,
 			TotalCost:    0.01,
 			Conversation: json.RawMessage(`[{"role":"user","content":"hi"}]`),
+			Domain:       json.RawMessage(`{"consecutive_parse_errors":2}`),
+			Program: ProgramRef{
+				Profile: "/profiles/origin/profile.yaml",
+				Digest:  "0123456789abcdef",
+			},
 		},
 	}
 }

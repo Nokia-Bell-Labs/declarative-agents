@@ -280,29 +280,6 @@ func TestLoop_ActiveDispatchCancellation(t *testing.T) {
 	}
 }
 
-func TestLoop_ValidateParamsHook(t *testing.T) {
-	t.Parallel()
-	tr := &loopRecorder{}
-	params := simpleLoopParams(tr)
-	params.Hooks.ValidateParams = ValidateBuilders("nonexistent")
-
-	_, err := Loop(params, context.Background())
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "nonexistent")
-}
-
-func TestLoop_ValidateBuildersHelper(t *testing.T) {
-	t.Parallel()
-	reg := NewRegistry()
-	reg.Register(ToolSpec{Name: "a"}, &fakeBuilder{name: "a"})
-
-	validate := ValidateBuilders("a")
-	require.NoError(t, validate(reg))
-
-	validate2 := ValidateBuilders("a", "b")
-	require.Error(t, validate2(reg))
-}
-
 func TestLoop_OnResultHook(t *testing.T) {
 	t.Parallel()
 	tr := &loopRecorder{}
@@ -360,7 +337,6 @@ func TestLoop_AccumulatesTokens(t *testing.T) {
 
 	params := LoopParams{
 		InitialState: "S",
-		Prompt:       "test",
 		Registry:     reg,
 		Table:        table,
 		IsTerminal:   func(s State) bool { return s == "F" },
@@ -475,7 +451,6 @@ func TestLoop_TokenBudgetExhausted(t *testing.T) {
 
 	params := LoopParams{
 		InitialState: "S",
-		Prompt:       "test",
 		Registry:     reg,
 		Table:        table,
 		IsTerminal:   func(s State) bool { return s == "F" || s == "OB" },

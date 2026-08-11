@@ -40,6 +40,17 @@ func suspendedCheckpoint() *InMemoryCheckpoint {
 	return cp
 }
 
+func resumeFromCheckpoint(params LoopParams, ctx context.Context) (RunResult, error) {
+	state, err := LoadResume(params)
+	if err != nil {
+		return RunResult{}, err
+	}
+	if state.Finalized {
+		return state.Params.InitialRun, nil
+	}
+	return Loop(state.Params, ctx)
+}
+
 // TestResumeReentersLoopFromTypedPort covers rel02.0-uc001: a run suspended at an
 // approval gate is resumed purely through the typed Checkpoint port and runs to
 // completion, carrying the persisted counters forward (srd035 R6.2).
@@ -48,7 +59,7 @@ func TestResumeReentersLoopFromTypedPort(t *testing.T) {
 	params := resumeLoopParams()
 	params.Checkpoint = suspendedCheckpoint()
 
-	rr, err := Resume(params, context.Background())
+	rr, err := resumeFromCheckpoint(params, context.Background())
 	require.NoError(t, err)
 	require.Equal(t, StatusSucceeded, rr.Status)
 	require.Equal(t, State("Finished"), rr.FinalState)
@@ -75,6 +86,67 @@ func TestLoadResumeExposesTypedSnapshotForDomainRestore(t *testing.T) {
 	require.JSONEq(t, `[{"role":"user","content":"before"}]`, string(state.Position.Snapshot.Conversation))
 }
 
+func TestLoadResumeSeedsLastRedactedResult(t *testing.T) {
+	t.Parallel()
+	cp := &InMemoryCheckpoint{}
+	digest := ResultDigest{
+		Signal: ToolDone, Output: `{"public":"kept"}`,
+		Cost:             Cost{TokensIn: 3},
+		RedactionVersion: OutputRedactionVersion1,
+		RedactedPaths:    []OutputRedactionPath{{"secret"}},
+		RedactionStatus:  OutputRedactionApplied,
+	}
+	require.NoError(t, cp.Save(
+		Position{CurrentState: "AwaitingApproval"},
+		Execution{{
+			CommandName: "fetch", ToState: "AwaitingApproval", Result: digest,
+		}},
+	))
+	params := resumeLoopParams()
+	params.Checkpoint = cp
+	state, err := LoadResume(params)
+	require.NoError(t, err)
+	require.Equal(t, `{"public":"kept"}`, state.Params.InitialResult.Output)
+	require.Equal(t, ToolDone, state.Params.InitialResult.Signal)
+	require.Equal(t, "fetch", state.Params.InitialResult.CommandName)
+	require.Equal(t, 3, state.Params.InitialResult.Cost.TokensIn)
+	require.Equal(t, OutputRedactionVersion1, state.Params.InitialResult.Redaction.Version)
+	require.Equal(t, []OutputRedactionPath{{"secret"}},
+		state.Params.InitialResult.Redaction.Paths)
+	require.NotContains(t, state.Params.InitialResult.Output, "secret")
+}
+
+func TestResumeNextBuilderReceivesPersistedOutput(t *testing.T) {
+	t.Parallel()
+	cp := &InMemoryCheckpoint{}
+	require.NoError(t, cp.Save(
+		Position{CurrentState: "AwaitingApproval"},
+		Execution{{
+			CommandName: "prepare",
+			Result:      checkpointDigest(ToolDone, "distinctive persisted output", Cost{}),
+		}},
+	))
+	var received string
+	builder := previousOutputBuilder{received: &received}
+	params := resumeLoopParams()
+	params.Checkpoint = cp
+	params.Table[TransitionInput{
+		State: "AwaitingApproval", Signal: Approved,
+	}] = TransitionValue{
+		NextState: "Finishing", Action: builder.Build,
+	}
+	_, err := resumeFromCheckpoint(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "distinctive persisted output", received)
+}
+
+type previousOutputBuilder struct{ received *string }
+
+func (b previousOutputBuilder) Build(result Result) Command {
+	*b.received = result.Output
+	return &fakeCmd{name: "finish", signal: TaskCompleted}
+}
+
 // TestResumeHonorsExplicitResumeSignal verifies the resume signal override
 // (params.InitialSignal) is preserved instead of defaulting to Approved.
 func TestResumeHonorsExplicitResumeSignal(t *testing.T) {
@@ -95,7 +167,7 @@ func TestResumeReportsMissingCheckpoint(t *testing.T) {
 	params := resumeLoopParams()
 	params.Checkpoint = &InMemoryCheckpoint{}
 
-	_, err := Resume(params, context.Background())
+	_, err := resumeFromCheckpoint(params, context.Background())
 	require.ErrorIs(t, err, ErrNoCheckpoint)
 }
 
@@ -119,7 +191,7 @@ func TestResumeFreshDoltAdapterFinalizesWithoutMachineStep(t *testing.T) {
 
 	params := resumeLoopParams()
 	params.Checkpoint = NewDoltCheckpoint(db, "run-resume", terminal)
-	result, err := Resume(params, context.Background())
+	result, err := resumeFromCheckpoint(params, context.Background())
 
 	require.NoError(t, err)
 	require.Equal(t, StatusSucceeded, result.Status)

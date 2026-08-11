@@ -144,6 +144,10 @@ required_contract_sections:
     receipt-consuming: it decodes the receipt the tool encoded during Execute
     (prior content, resource ids, or a workspace commit hash) from the restored
     Result and reverses the effect. The engine never interprets the receipt.
+    Builtin strategy names describe the typed Undo implementation registered by
+    that word. Exec declarations use the closed generic-exec set: noop,
+    workspace_restore, compensating_action, or irreversible. Startup rejects an
+    exec strategy the shared interpreter cannot honor.
 
   errors: |
     Each expected failure mode should list signal, condition, message_shape,
@@ -361,7 +365,7 @@ example_tools:
       undo: none
       receipt: empty
     undo:
-      strategy: none
+      strategy: irreversible
       description: "The artifact may be deprecated later, but publication cannot be undone safely; no receipt can reverse it."
     why_good:
       - "The irreversible effect is explicit before the tool is selected."

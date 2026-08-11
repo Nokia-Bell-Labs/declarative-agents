@@ -24,7 +24,7 @@ release_03_0_support:
     - REST client compensation mementos and rollback-time execution for mutating operations with configured compensation.
     - machine_request terminal response schema validation before success responses.
     - lifecycle_control endpoints: ValidateDefinition validates the action (exit, pause, rollback_request, resume, inject_signal) and the rollback selector, and the endpoint enqueues the lifecycle request event for MachineSpec routing rather than running a lifecycle operation directly (TestRESTServer_LifecycleControlEnqueuesSignals).
-    - canonical lifecycle-exit injection: agent-core synthesizes a POST /api/lifecycle/exit lifecycle_control endpoint (action exit, signal ExitRequested) for every served agent at launch, so a profile need not declare it. Injection is skipped when the server opts out (lifecycle_exit.disabled), already declares the canonical path, or already uses the reserved route name, and never mutates the resolved endpoint map (TestRESTServer_InjectsCanonicalLifecycleExit, TestRESTServer_LifecycleExitInjectionIdempotent, TestRESTServer_LifecycleExitOptOut). Hand-declared emit_signal control routes remain a supported alternative and are being retired from the shipped profiles in favor of the injected endpoint.
+    - canonical lifecycle-exit injection: agent-core synthesizes a POST /api/lifecycle/exit lifecycle_control endpoint (action exit, signal ExitRequested) for every served agent at launch, so a profile need not declare it. Injection is skipped when the server opts out (lifecycle_exit.disabled), already declares the canonical path, or already uses the reserved route name, and never mutates the resolved endpoint map. A declared auth_ref is enforced before enqueue; auth:none is loopback-only even when listener policy permits a public bind (TestRESTServer_InjectsCanonicalLifecycleExit, TestInjectedLifecycleExitEnforcesDeclaredBearerAuth). Hand-declared emit_signal control routes remain supported.
   partial:
     - rest_await_event read_policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
   reserved:
@@ -120,11 +120,11 @@ schema:
       - field: id_field
         type: string
         required: false
-        description: Output field that carries the resource identifier.
+        description: Reserved field rejected at load until resource-level response defaults are implemented.
       - field: version_field
         type: string
         required: false
-        description: Output field that carries resource version or ETag data.
+        description: Reserved field rejected at load until resource-level response defaults are implemented.
 
   operation:
     fields:
@@ -460,9 +460,9 @@ schema:
         type: string
         required: false
         description: >-
-          Optional auth profile reference carried onto the injected endpoint's
-          require_auth_ref. Empty keeps parity with today's auth:none control
-          servers.
+          Optional auth profile reference enforced before the injected endpoint
+          validates or enqueues a request. Empty is an explicit loopback-only
+          mode; non-loopback lifecycle control requires a declared auth profile.
 
   endpoint:
     fields:
@@ -591,7 +591,7 @@ schema:
       - field: action
         type: string
         required: true
-        description: One of exit, pause, rollback_request, resume, or inject_signal.
+        description: One of exit, pause, rollback_request, resume, or inject_signal. When signal is omitted, the first four select ExitRequested, PauseRequested, RollbackRequested, or ResumeRequested respectively; inject_signal selects only from allowed_signals.
       - field: signal
         type: string
         required: false
@@ -607,7 +607,7 @@ schema:
       - field: require_auth_ref
         type: string
         required: false
-        description: Auth profile required before accepting the control request.
+        description: Auth profile enforced before validation or enqueue. Omit only for loopback-only lifecycle control.
 
   machine_request_config:
     note: REST definitions load with strict field checking; any field not listed here is rejected at load rather than silently ignored (GH-486). Fields that were previously documented but never implemented (tools, tool_declarations, initial_state, error_responses, retain_trace, trace) are reserved for a future release and are not accepted today.
@@ -819,7 +819,7 @@ schema:
       - field: drain_policy
         type: string
         required: false
-        description: One of drain or drain_then_stop. Target-format values reject_new, drop_queued, and fail_queued are rejected until runtime behavior is implemented.
+        description: Optional drain_then_stop value naming the implemented close-then-drain behavior. The inert drain spelling and target-format reject_new, drop_queued, and fail_queued values are rejected.
       - field: drain_timeout
         type: duration string
         required: false
@@ -835,7 +835,7 @@ schema:
       - field: unblock_await_signal
         type: string
         required: false
-        description: Optional ServerStopped value documenting current await unblock behavior. Custom stop signals are rejected until signal-specific unblock behavior is implemented.
+        description: Signal emitted to a waiting word when the server stops. Defaults to ServerStopped; custom values are included in ToolDef emits validation.
 
   request_binding:
     fields:
@@ -973,7 +973,7 @@ schema:
       - field: name
         type: string
         required: false
-        description: Queue or inbox source name.
+        description: Queue or inbox name included in each accepted InboundEvent as queue.
       - field: capacity
         type: int
         required: false
@@ -989,7 +989,7 @@ schema:
       - field: payload_shape
         type: json_schema
         required: false
-        description: Shape of queued event payloads.
+        description: JSON schema validated against the complete event payload before redaction and enqueue.
 
   json_schema:
     description: |

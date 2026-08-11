@@ -14,10 +14,10 @@ import (
 
 const SigIssueFormatted core.Signal = "IssueFormatted"
 
-const plannerIssueBodyPath = ".git/agent-planner/issue-body.yaml"
-
 type formatIssueCmd struct {
-	ps *State
+	ps              *State
+	bodyPath        string
+	deliverableType string
 }
 
 func (c *formatIssueCmd) Name() string { return "format_issue" }
@@ -26,7 +26,10 @@ func (c *formatIssueCmd) Execute() core.Result {
 	if c.ps.CurrentPlan == nil {
 		return pipelineCommandError(c.Name(), "no current plan to format")
 	}
-	body, err := plan.FormatIssueDescription(*c.ps.CurrentPlan)
+	if c.bodyPath == "" {
+		return pipelineCommandError(c.Name(), "configured body_path is required")
+	}
+	body, err := plan.FormatIssueDescription(*c.ps.CurrentPlan, c.deliverableType)
 	if err != nil {
 		return pipelineCommandError(c.Name(), err.Error())
 	}
@@ -38,8 +41,8 @@ func (c *formatIssueCmd) Execute() core.Result {
 	output, err := json.Marshal(map[string]any{
 		"parameters": map[string]string{
 			"title":     c.ps.CurrentPlan.Title,
-			"path":      plannerIssueBodyPath,
-			"body_file": plannerIssueBodyPath,
+			"path":      c.bodyPath,
+			"body_file": c.bodyPath,
 			"content":   body,
 			"directory": c.ps.Directory,
 			"deps":      strings.Join(deps, ","),
@@ -58,11 +61,13 @@ func (c *formatIssueCmd) Undo(_ core.Result) core.Result {
 // FormatIssueBuilder constructs the state adapter that prepares parameters for
 // the planner's write and tracker exec words.
 type FormatIssueBuilder struct {
-	PS *State
+	PS              *State
+	BodyPath        string
+	DeliverableType string
 }
 
 func (b *FormatIssueBuilder) Build(_ core.Result) core.Command {
-	return &formatIssueCmd{ps: b.PS}
+	return &formatIssueCmd{ps: b.PS, bodyPath: b.BodyPath, deliverableType: b.DeliverableType}
 }
 
 type trackerIssueResult struct {

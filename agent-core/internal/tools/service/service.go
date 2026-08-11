@@ -7,15 +7,17 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
-	"os/exec"
 	"sort"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/subprocess"
 )
 
 const (
@@ -26,7 +28,7 @@ const (
 // child is one running serve-mode agent process.
 type child struct {
 	name    string
-	cmd     *exec.Cmd
+	process *subprocess.Handle
 	baseURL string
 	done    chan struct{}
 	once    sync.Once
@@ -38,11 +40,20 @@ type child struct {
 type State struct {
 	mu       sync.Mutex
 	children map[string]*child
+	ctx      context.Context
 }
 
 // NewState returns an empty service state.
 func NewState() *State {
-	return &State{children: map[string]*child{}}
+	return NewStateWithContext(context.Background())
+}
+
+// NewStateWithContext binds every child to the owning agent lifecycle.
+func NewStateWithContext(ctx context.Context) *State {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return &State{children: map[string]*child{}, ctx: ctx}
 }
 
 // StartSpec describes one serve-mode child.
@@ -82,27 +93,27 @@ func (s *State) Start(spec StartSpec) (map[string]interface{}, error) {
 
 	address, err := resolveAddress(spec.Address)
 	if err != nil {
-		return nil, fmt.Errorf("start_service %q: %w", spec.Name, err)
+		return nil, fmt.Errorf("start child %q: %w", spec.Name, err)
 	}
 
 	s.mu.Lock()
 	if _, exists := s.children[spec.Name]; exists {
 		s.mu.Unlock()
-		return nil, fmt.Errorf("start_service %q: a service with that name is already running", spec.Name)
+		return nil, fmt.Errorf("start child %q: a service with that name is already running", spec.Name)
 	}
 	s.mu.Unlock()
 
-	cmd := childCommand(spec)
-	if err := cmd.Start(); err != nil {
+	process, err := subprocess.Start(s.ctx, childProcessSpec(spec))
+	if err != nil {
 		// A spawn failure is a tool error, never a panic (srd040 R6.3).
-		return nil, fmt.Errorf("start_service %q: %w", spec.Name, err)
+		return nil, fmt.Errorf("start child %q: %w", spec.Name, err)
 	}
 
-	entry := s.track(spec.Name, cmd, address)
+	entry := s.track(spec.Name, process, address)
 
 	return map[string]interface{}{
 		"service":    spec.Name,
-		"pid":        cmd.Process.Pid,
+		"pid":        process.PID(),
 		"address":    address,
 		"base_url":   entry.baseURL,
 		"started_at": time.Now().UTC().Format(time.RFC3339Nano),
@@ -141,6 +152,12 @@ func (s *State) StopAll(grace time.Duration) []map[string]interface{} {
 	return out
 }
 
+// Reap stops every child with the package's declared graceful-stop bound. It is
+// the process-shutdown safety net and the implementation of stop_all_services.
+func (s *State) Reap() []map[string]interface{} {
+	return s.StopAll(defaultStopGrace)
+}
+
 // Running reports the names of the services currently held.
 func (s *State) Running() []string {
 	s.mu.Lock()
@@ -158,18 +175,17 @@ func (c *child) stop(grace time.Duration) map[string]interface{} {
 		grace = defaultStopGrace
 	}
 	out := map[string]interface{}{"service": c.name, "stopped": true}
-	if c.cmd.Process == nil {
+	if c.process == nil {
 		return out
 	}
-	pid := c.cmd.Process.Pid
 
 	// Signal the group, not just the leader, so a child's own children go too.
-	c.once.Do(func() { _ = syscall.Kill(-pid, syscall.SIGTERM) })
+	c.once.Do(func() { _ = c.process.SignalGroup(syscall.SIGTERM) })
 	select {
 	case <-c.done:
 		out["signal"] = "SIGTERM"
 	case <-time.After(grace):
-		_ = syscall.Kill(-pid, syscall.SIGKILL)
+		_ = c.process.SignalGroup(syscall.SIGKILL)
 		<-c.done
 		out["signal"] = "SIGKILL"
 		out["graceful"] = false
@@ -179,25 +195,25 @@ func (c *child) stop(grace time.Duration) map[string]interface{} {
 
 func validateStartSpec(spec StartSpec) error {
 	if spec.Name == "" {
-		return fmt.Errorf("start_service requires a service name")
+		return fmt.Errorf("start child requires a service name")
 	}
 	if spec.Profile == "" {
-		return fmt.Errorf("start_service %q requires a profile", spec.Name)
+		return fmt.Errorf("start child %q requires a profile", spec.Name)
 	}
 	return nil
 }
 
 // track registers a started child and reaps it in the background, so Stop can
 // wait on a closed channel rather than racing the process exit.
-func (s *State) track(name string, cmd *exec.Cmd, address string) *child {
+func (s *State) track(name string, process *subprocess.Handle, address string) *child {
 	entry := &child{
 		name:    name,
-		cmd:     cmd,
+		process: process,
 		baseURL: "http://" + address,
 		done:    make(chan struct{}),
 	}
 	go func() {
-		_ = cmd.Wait()
+		_ = process.Wait()
 		close(entry.done)
 	}()
 
@@ -216,29 +232,18 @@ func resolveAddress(declared string) (string, error) {
 	return FreeAddress()
 }
 
-// childCommand builds the serve-mode child process. The child gets its own
-// process group, so stopping the service stops whatever it spawned rather
-// than leaving a subtree behind.
-func childCommand(spec StartSpec) *exec.Cmd {
+// childProcessSpec uses the canonical agent argument builder while leaving
+// process-group and cancellation setup to the shared subprocess transport.
+func childProcessSpec(spec StartSpec) subprocess.StartSpec {
 	binary := spec.Binary
 	if binary == "" {
 		binary = "agent"
 	}
-	args := []string{"--profile", spec.Profile}
-	if spec.CoreRoot != "" {
-		args = append(args, "--core-root", spec.CoreRoot)
+	cfg := execute.Config{
+		Binary: binary, Profile: spec.Profile, CoreRoot: spec.CoreRoot,
+		Directory: spec.Directory, Request: spec.Request, Env: spec.Env,
 	}
-	if spec.Directory != "" {
-		args = append(args, "--directory", spec.Directory)
-	}
-	if spec.Request != "" {
-		args = append(args, "--request", spec.Request)
-	}
-
-	cmd := exec.Command(binary, args...)
-	cmd.Env = append(os.Environ(), spec.Env...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	return cmd
+	return subprocess.StartSpec{Binary: binary, Args: cfg.BuildArgs(), Env: cfg.Env}
 }
 
 func hasZeroPort(address string) bool {

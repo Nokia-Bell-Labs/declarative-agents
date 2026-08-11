@@ -46,7 +46,7 @@ func filterEnriched(spans []enrichedSpan, f spanFilter) []enrichedSpan {
 	return out
 }
 
-func buildHeatmap(spans []enrichedSpan, cfg SpanStatsConfig) heatmapPayload {
+func buildHeatmap(spans []enrichedSpan, cfg SpanHeatmapConfig) heatmapPayload {
 	timeBuckets := cfg.TimeBuckets
 	if timeBuckets <= 0 {
 		timeBuckets = defaultTimeBuckets
@@ -134,7 +134,7 @@ func durationBucketIndex(durMs int64, edges []int64) int {
 	return len(edges) - 1
 }
 
-func buildGroupBy(spans []enrichedSpan, cfg SpanStatsConfig) (groups []groupCount, groupBy string, droppedGroups, droppedSpans int) {
+func buildGroupBy(spans []enrichedSpan, cfg SpanGroupByConfig) (groups []groupCount, groupBy string, droppedGroups, droppedSpans int) {
 	groupBy = cfg.GroupBy
 	if groupBy == "" {
 		return nil, "", 0, 0

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -75,6 +76,25 @@ func TestSessionWordsReplaceLoadSuite(t *testing.T) {
 	for _, word := range sessionWords {
 		require.Contains(t, names, word)
 	}
+}
+
+func TestInitEvalSessionDefaultsComeFromDeclaration(t *testing.T) {
+	t.Parallel()
+
+	defs := loadToolDefs(t, coreBuiltinPath(t, "critic-session"))
+	selected := selectToolDefs(t, defs, []string{"init_eval_session"})
+	require.Len(t, selected, 1)
+	var config catalog.LoadSuiteConfig
+	require.NoError(t, catalog.DecodeToolConfig(selected[0], &config))
+	require.Equal(t, "eval-results", config.OutputDir)
+	require.Equal(t, 1, config.Reps)
+	require.Equal(t, 600, config.Timeout)
+
+	es := &EvalSessionState{}
+	require.NoError(t, applyLoadSuiteConfig(es, selected[0]))
+	require.Equal(t, "eval-results", es.DefaultOutputDir)
+	require.Equal(t, 1, es.DefaultReps)
+	require.Equal(t, 10*time.Minute, es.DefaultTimeout)
 }
 
 // TestSessionPipelineEmitsValidate proves the reusable contract on synthetic

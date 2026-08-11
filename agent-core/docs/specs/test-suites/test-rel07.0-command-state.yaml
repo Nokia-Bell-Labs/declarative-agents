@@ -17,6 +17,20 @@ preconditions:
 
 test_cases:
   - use_case: rel07.0-uc001-command-state-threading
+    name: Explicit raw selector returns redacted labeled output
+    go_test: go test ./internal/runtime/core -run TestResolveFromSelectorReturnsRawLabeledOutput
+    status: implemented
+    description: |
+      A consumer explicitly selecting $from(label).$ receives the complete
+      versioned, redaction-applied output string while receipts remain absent.
+    expected:
+      raw_output_preserved: true
+      receipt_exposed: false
+    traces:
+      - srd038-command-state-store AC2
+      - srd038-command-state-store AC3
+
+  - use_case: rel07.0-uc001-command-state-threading
     name: Adjacent label selection threads the previous word's output
     go_test: go test ./internal/tools/rest -run TestRESTClient_CommandStateThreadsNonAdjacentStep
     status: implemented

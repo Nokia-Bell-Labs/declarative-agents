@@ -6,22 +6,51 @@ tools:
   - --porcelain
   description: 'Report git workspace state: changed files with status codes (M/A/D/??).'
   precondition: git_repo
+  type: exec
+  category: boundary
+  problem: A machine needs a read-only Git inspection word to run `git status --porcelain` to expose the current index and working-tree status.
+  goals:
+  - Run `git status --porcelain` to expose the current index and working-tree status.
+  - Emit ToolDone on exit code zero and return Git's combined output unchanged.
+  - Leave repository files, index, and refs unchanged.
+  requirements:
+    input:
+    - must run in the configured workspace after verifying the Git repository precondition
+    output:
+    - must return the command's combined stdout and stderr as a string
+    errors:
+    - must emit CommandError when the process cannot start and ToolFailed when the precondition or Git command fails
+  non_goals:
+  - Does not mutate the working tree, index, refs, or commit graph.
+  - Does not interpret the Git output or choose a subsequent workflow action.
+  emits: [ToolDone, ToolFailed, CommandError]
   output:
-    description: Porcelain git status entries for changed workspace files.
-    schema:
-      type: object
-      properties:
-        clean:
-          type: boolean
-        files:
-          type: array
-          items:
-            type: object
-            properties:
-              path:
-                type: string
-              status:
-                type: string
-      required:
-      - clean
-      - files
+    description: Raw porcelain status lines; empty output means the workspace is clean.
+    schema: {type: string}
+  side_effects:
+  - kind: child_process
+    target: git
+    state: read_only
+    description: Executes one read-only Git subprocess.
+  - kind: filesystem_read
+    target: git_repository
+    state: read_only
+    description: Reads repository metadata and workspace state required by Git.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Read-only Git inspection has no repository effects to reverse.
+  errors:
+  - signal: CommandError
+    condition: the git process cannot be started
+    message_shape: 'workspace_status: <error>'
+    state_after_failure: repository state is unchanged
+  - signal: ToolFailed
+    condition: the workspace is not a Git repository or the Git command exits non-zero
+    message_shape: '<captured git output>'
+    state_after_failure: repository state is unchanged
+  relationships:
+    before: [machine-selected predecessor]
+    after: [stage_all, commit, machine-selected successor]

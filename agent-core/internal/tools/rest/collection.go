@@ -36,17 +36,6 @@ type ClientOperationResolver interface {
 	ResolveClientOperation(ClientToolConfig) (ClientOperationDefinition, error)
 }
 
-// ServerResolver resolves trusted REST server definitions.
-type ServerResolver interface {
-	ResolveServer(name string) (ServerDefinition, error)
-}
-
-// DefinitionResolver composes client and server definition lookups.
-type DefinitionResolver interface {
-	ClientOperationResolver
-	ServerResolver
-}
-
 // ClientOperationDefinition is a resolved client operation and trusted policy.
 type ClientOperationDefinition struct {
 	RestRef          string
@@ -65,6 +54,8 @@ type ServerDefinition struct {
 	Name                 string
 	Server               Server
 	Limits               LimitProfile
+	Auth                 map[string]AuthProfile
+	Credentials          CredentialResolver
 	MachineRequestRunner MachineRequestRunner
 	Monitor              MonitorState
 	RunID                string
@@ -166,15 +157,6 @@ func (c Collection) Add(def Definition) error {
 	return nil
 }
 
-// ClientOperation resolves a configured client operation.
-func (c Collection) ClientOperation(cfg ClientToolConfig) (Operation, error) {
-	resolved, err := c.ResolveClientOperation(cfg)
-	if err != nil {
-		return Operation{}, err
-	}
-	return resolved.Operation, nil
-}
-
 // ResolveClientOperation returns a client operation with trusted policy config.
 func (c Collection) ResolveClientOperation(cfg ClientToolConfig) (ClientOperationDefinition, error) {
 	client, ok := c.Clients[cfg.RestRef]
@@ -211,22 +193,15 @@ func (c Collection) resolveOperation(client Client, cfg ClientToolConfig) (Opera
 	return operation, nil
 }
 
-// Server resolves a configured server definition.
-func (c Collection) Server(name string) (Server, error) {
-	resolved, err := c.ResolveServer(name)
-	if err != nil {
-		return Server{}, err
-	}
-	return resolved.Server, nil
-}
-
 // ResolveServer returns a server with the limit profile it references.
 func (c Collection) ResolveServer(name string) (ServerDefinition, error) {
 	server, ok := c.Servers[name]
 	if !ok {
 		return ServerDefinition{}, fmt.Errorf("REST server %q is not defined", name)
 	}
-	return ServerDefinition{Name: name, Server: server, Limits: c.Limits[server.LimitsRef]}, nil
+	return ServerDefinition{
+		Name: name, Server: server, Limits: c.Limits[server.LimitsRef], Auth: c.Auth,
+	}, nil
 }
 
 func operationByName(operations map[string]Operation, name, owner string) (Operation, error) {

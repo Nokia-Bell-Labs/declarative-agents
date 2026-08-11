@@ -51,26 +51,23 @@ test_cases:
       - srd017-llm-extensions AC3
 
   - use_case: rel01.0-uc001-generator-coding
-    name: Ollama adapter validates model availability
-    go_test: TestNewAdapter_ModelFound
+    name: Ollama adapter construction performs no readiness I/O
+    go_test: TestNewAdapter_OptionsConfigureClientWithoutNetworkIO
     inputs:
-      ollama_tags: "model list with requested model and tag variants"
+      provider_url: "unserved loopback endpoint"
     expected:
-      model_found: true
-      case_insensitive_match: true
-      missing_model_error_mentions_pull: true
+      construction_succeeds: true
+      startup_network_requests: 0
     traces:
       - srd009-ollama-adapter AC2
 
   - use_case: rel01.0-uc001-generator-coding
-    name: Ollama adapter emits tracing around check, list, and chat
+    name: Ollama adapter emits tracing around chat
     go_test: TestChat_EmitsSemconvInferenceSpan
     inputs:
       tracer: "recording tracer"
       chat_request: "non-streaming /api/chat"
     expected:
-      check_model_events: true
-      list_models_events: true
       inference_span_attrs: true
       nil_tracer_safe: true
     traces:
@@ -123,6 +120,33 @@ test_cases:
       - srd019-eval-harness AC1
 
   - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator session defaults are declared and grid expansion is mandatory
+    go_test: go test ./internal/evaluation -run 'Test(InitEvalSessionRequiresExpandedGrid|InitEvalSessionDefaultsComeFromDeclaration)'
+    inputs:
+      init_eval_session_config: {output_dir: eval-results, reps: 1, timeout: 600}
+      grid_points: 0
+    expected:
+      defaults_loaded_from_tooldef: true
+      missing_grid_signal: CommandError
+      session_directory_created_on_failure: false
+    traces:
+      - srd019-eval-harness AC0
+      - srd019-eval-harness AC1
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator receipts remove only owned artifacts
+    go_test: go test ./internal/evaluation -run 'Test(EvaluatorReceiptRejectsArtifactOutsideOwnedRoot|CollectMetricsRejectsMissingPointDirectory)'
+    inputs:
+      point_dir: ""
+      tampered_remove_path: outside owned root
+    expected:
+      empty_point_dir_rejected: true
+      outside_artifact_retained: true
+      undo_signal: CommandError
+    traces:
+      - srd019-eval-harness AC2
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator profile suite iterates generator profiles
     go_test: TestMaterializeEvalPointsPreservesProfileOrder
     inputs:
@@ -137,6 +161,31 @@ test_cases:
     traces:
       - srd019-eval-harness AC1
       - srd019-eval-harness AC2
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator sample layout is declaration-driven
+    go_test: TestDiscoverSamplesUsesDeclaredLayout
+    inputs:
+      workspace_dir: project
+      doc_dir: guidance
+      prompt_file: task.txt
+    expected:
+      custom_layout_discovered: true
+      shared_prompt_resolved: true
+    traces:
+      - srd019-eval-harness AC0
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Convergence accepts any structured metric tool name
+    go_test: TestExtractToolSnapshots_WithMetrics
+    inputs:
+      tool_name: run_checks
+      metrics: {total: 4, passed: 3, failed: 1}
+    expected:
+      snapshot_preserved: true
+      go_output_regex_required: false
+    traces:
+      - srd019-eval-harness AC3
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator integration writes result directory
@@ -179,6 +228,7 @@ test_cases:
       failure_metadata_preserved: true
       point_stage_and_cause_reported: true
       failed_point_rejects_gate: true
+      nested_dispatch_span_present: true
     traces:
       - srd019-eval-harness AC2
       - srd019-eval-harness AC3
@@ -360,14 +410,14 @@ test_cases:
       - srd023-cli-exec-tools AC3
 
   - use_case: rel01.0-uc001-generator-coding
-    name: Ollama adapter options configure client and skip check
-    go_test: TestNewAdapter_OptionsConfigureClientAndSkipModelCheck
+    name: Ollama adapter options configure client without hidden checks
+    go_test: TestNewAdapter_OptionsConfigureClientWithoutNetworkIO
     inputs:
       http_client_timeout: 37s
-      model_check: skipped
+      model_check: absent
     expected:
       custom_client_used: true
-      startup_model_check_skipped: true
+      startup_network_requests: 0
     traces:
       - srd009-ollama-adapter AC5
 

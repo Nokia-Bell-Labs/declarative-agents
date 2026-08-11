@@ -8,11 +8,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 // retryDelay must read the declared backoff and max_delay, not just
@@ -93,6 +96,107 @@ func TestDoWithRetryReplaysBodyAndReturnsSecondResponse(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 	assert.Equal(t, 2, attempts)
 	assert.Equal(t, []string{"payload", "payload"}, bodies)
+}
+
+func TestRESTClientDispatchCancellationStopsBackoff(t *testing.T) {
+	t.Parallel()
+
+	var requests atomic.Int32
+	firstRequest := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if requests.Add(1) == 1 {
+			close(firstRequest)
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer upstream.Close()
+	def := clientDefinition(t, upstream.URL, issueClient())
+	def.RetryPolicies = map[string]RetryPolicy{"slow": {
+		Attempts: 2, Backoff: "fixed", InitialDelay: "1h",
+		RetryStatus: []int{http.StatusServiceUnavailable},
+	}}
+	client := def.Clients["github"]
+	client.RetryRef = "slow"
+	def.Clients["github"] = client
+	require.NoError(t, ValidateDefinition(def))
+	command := clientCommand(t, def, InitClientGet, "get", params("1"))
+	ctx, cancel := context.WithCancel(context.Background())
+	results := make(chan core.Result, 1)
+	go func() { results <- core.SafeExecuteContext(ctx, command, 0) }()
+	<-firstRequest
+	start := time.Now()
+	cancel()
+	result := <-results
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "cancelled executing")
+	require.Less(t, time.Since(start), time.Second)
+	require.Equal(t, int32(1), requests.Load())
+}
+
+func TestRESTClientDispatchCancellationAbortsInFlightRequest(t *testing.T) {
+	t.Parallel()
+
+	handlerStarted := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		close(handlerStarted)
+		<-releaseHandler
+	}))
+	defer upstream.Close()
+	def := clientDefinition(t, upstream.URL, issueClient())
+	command := clientCommand(t, def, InitClientGet, "get", params("1"))
+	ctx, cancel := context.WithCancel(context.Background())
+	results := make(chan core.Result, 1)
+	go func() { results <- core.SafeExecuteContext(ctx, command, 0) }()
+	<-handlerStarted
+	cancel()
+	result := <-results
+	close(releaseHandler)
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "cancelled executing")
+}
+
+func TestRESTClientCancelledMutationReportsIndeterminate(t *testing.T) {
+	t.Parallel()
+
+	handlerStarted := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		close(handlerStarted)
+		<-releaseHandler
+	}))
+	defer upstream.Close()
+	def := clientDefinition(t, upstream.URL, issueClient())
+	command := clientCommand(t, def, InitClientSet, "set", params("1", "changed"))
+	contextual, ok := command.(core.ContextCommand)
+	require.True(t, ok)
+	ctx, cancel := context.WithCancel(context.Background())
+	results := make(chan core.Result, 1)
+	go func() { results <- contextual.ExecuteContext(ctx) }()
+	<-handlerStarted
+	cancel()
+
+	result := <-results
+	close(releaseHandler)
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, `"outcome":"indeterminate"`)
+}
+
+func TestRESTClientExecuteRetainsBackgroundContextCompatibility(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"id": "1"})
+	}))
+	defer upstream.Close()
+	def := clientDefinition(t, upstream.URL, issueClient())
+
+	result := clientCommand(t, def, InitClientGet, "get", params("1")).Execute()
+
+	require.Equal(t, core.Signal("RESTResourceRead"), result.Signal, result.Output)
 }
 
 // Unsupported backoff and unparseable delays are rejected at load (GH-1379).

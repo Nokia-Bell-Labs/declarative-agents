@@ -108,6 +108,7 @@ rest:
     payments_webhooks:
       address: 127.0.0.1:0
       limits_ref: local_demo
+      lifecycle_exit: {disabled: true}
       queue:
         name: payments
         capacity: 8
@@ -115,7 +116,7 @@ rest:
         timeout: 2s
       shutdown:
         timeout: 2s
-        drain_policy: drain
+        drain_policy: drain_then_stop
         stop_listeners: true
         unblock_await_signal: ServerStopped
       endpoints:

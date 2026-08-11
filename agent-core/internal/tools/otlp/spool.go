@@ -204,14 +204,8 @@ func rotateBeforeAppend(config SpoolConfig, incoming int64) error {
 		return nil
 	}
 	maxFiles := config.MaxFiles
-	if maxFiles <= 0 {
-		maxFiles = 1
-	}
-	if maxFiles == 1 {
-		if err := os.Remove(config.Path); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("rotate spool %s: %w", config.Path, err)
-		}
-		return nil
+	if maxFiles < 2 {
+		return fmt.Errorf("rotate spool %s: max_files must be at least 2 when max_bytes is set", config.Path)
 	}
 	for index := maxFiles - 1; index >= 1; index-- {
 		source := rotatedPath(config.Path, index-1)

@@ -56,30 +56,28 @@ func RegisterStandardBuiltinFactories(br *BuiltinRegistry, selected map[string]b
 // StandardFactoryCatalog returns the standard selected-init factory families.
 func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEntry {
 	return []StandardFactoryCatalogEntry{
-		hookFactory("filesystem", []string{"file_read", "file_write", "file_edit", "file_find", "list_resource", "read_resource"}, deps.RegisterFilesystem),
-		hookFactory("llm", []string{"invoke_llm", "parse_response", "parse_structured", "report_parse_error", "reset_history", "nudge_reread", "done"}, deps.RegisterLLM),
-		hookFactory("lifecycle", []string{"delay", "suspend", "checkpoint_history", "checkpoint_rollback", "exit_agent"}, deps.RegisterLifecycle),
-		hookFactory("control", []string{"self_invoke", "value_predicate", "partition", "select_subset"}, deps.RegisterControl),
-		hookFactory("planning", []string{"load_graph", "extract_task", "select_all_ready", "seed_passthrough_plan", "mark_nodes_planning", "project_planner_context", "capture_planner_failure", "parse_plan", "format_issue", "record_tracker_issue", "mark_nodes_executing", "format_task_file", "mark_task_done", "mark_task_failed", "remaining_work"}, deps.RegisterPlanning),
-		hookFactory("evaluation", []string{"parse_suite_config", "discover_suite_samples", "expand_eval_grid", "init_eval_session", "report_suite_summary", "materialize_eval_points", "run_point", "report_session", "run_agent", "record_oracle_result", "collect_trace_tokens", "check_agent_version", "summarize_point_results", "collect_metrics", "record_agent_commit", "dump_config", "list_evaluation_sessions", "analyze_evaluation_session", "list_evaluation_points", "read_evaluation_trace"}, deps.RegisterEvaluation),
-		hookFactory("spec_validation", []string{"load_corpus", "validate_specs", "format_report"}, deps.RegisterSpecValidation),
-		hookFactory("rest", []string{"rest_client_get", "rest_client_set", "rest_client_create", "rest_client_delete", "rest_client_invoke", "rest_client_send", "rest_client_await", "rest_server_launch", "rest_server_await", "rest_server_stop", "rest_await_event"}, deps.RegisterREST),
-		hookFactory("compose", []string{"compose", "render_each"}, deps.RegisterCompose),
-		hookFactory("otlp", []string{
-			"otlp_receiver_launch", "await_spans", "load_otlp_batch", "spool_spans", "relay_spans", "otlp_receiver_stop",
-			"spool_list_traces", "spool_get_trace",
-		}, deps.RegisterOTLP),
-		// The rig's service words. The init names are literal here because the
-		// service package imports this one, so the list cannot be read from it.
-		hookFactory("service", []string{
-			"start_service", "stop_service", "list_scenarios",
-			"init_scenario_session", "next_scenario", "start_scenario_mock",
-			"start_scenario_subject", "run_scenario_validator", "record_scenario_validators",
-			"collect_scenario_verdict", "list_scenario_children", "report_scenario_session",
-		}, deps.RegisterService),
+		hookFactory("filesystem", deps.RegisterFilesystem),
+		hookFactory("llm", deps.RegisterLLM),
+		hookFactory("lifecycle", deps.RegisterLifecycle),
+		hookFactory("control", deps.RegisterControl),
+		hookFactory("planning", deps.RegisterPlanning),
+		hookFactory("evaluation", deps.RegisterEvaluation),
+		hookFactory("spec_validation", deps.RegisterSpecValidation),
+		hookFactory("rest", deps.RegisterREST),
+		hookFactory("compose", deps.RegisterCompose),
+		hookFactory("otlp", deps.RegisterOTLP),
+		hookFactory("service", deps.RegisterService),
 	}
 }
 
-func hookFactory(name string, inits []string, hook FactoryRegistrar) StandardFactoryCatalogEntry {
-	return StandardFactoryCatalogEntry{Name: name, Inits: inits, register: hook}
+func hookFactory(name string, hook FactoryRegistrar) StandardFactoryCatalogEntry {
+	entry := StandardFactoryCatalogEntry{Name: name, register: hook}
+	if hook == nil {
+		return entry
+	}
+
+	probe := NewBuiltinRegistry()
+	hook(probe)
+	entry.Inits = probe.Names()
+	return entry
 }

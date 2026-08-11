@@ -59,7 +59,7 @@ invocation: |
                          Evaluator suites, lifecycle history requests, rollback
                          requests, and similar per-run data flow through this
                          channel. An unreadable file is a startup error.
-    --output             Output directory for artifacts such as eval results.
+    --output             Output directory for runtime artifacts.
     --directory          Workspace root for file tools, exec tools, child
                          agents, and workspace restore.
     --dolt-dsn          MySQL-wire DSN to a running dolt sql-server for the
@@ -96,7 +96,7 @@ invocation: |
 
   Request files carry lifecycle data. Targets for history and rollback are
   lifecycle tool input. A request file can name
-  checkpoint: <id|latest>, to_iteration: <n>, and restore_workspace: true.
+  checkpoint: <id|latest> and to_iteration: <n>.
   Active lifecycle profile and ToolDef config decide how that request maps to
   checkpoint_history or checkpoint_rollback config.
 
@@ -120,7 +120,10 @@ integration_telemetry: |
   inherits those values. service.name identifies the agent role; scaled roles
   append their instance identity. Child process launchers propagate the
   endpoint and choose the child's service name rather than inheriting the
-  parent's role name.
+  parent's role name. gen_ai.agent.name and the bounded agent.name metric
+  attribute both come from the one loaded MachineSpec.name, falling back to
+  "agent" only for a legacy unnamed in-memory spec. agent.version comes from
+  the binary's version stamp.
 
   The file remains the hermetic assertion source. A live backend adds retained
   diagnostic evidence and does not make a unit test depend on network
@@ -270,6 +273,9 @@ suite_input_contract: |
 
   CLI flags such as --request and --output serve as universal runtime data
   channels. Profile-selected tools decide how to interpret the request file.
+  A suite parser declares input: $request.suite, which resolves to the universal
+  request file path before typed tool config decode; the composition root does
+  not assign request paths to evaluator state by role.
   Model and provider selection comes from the selected boundary tool
   declaration, not from the agent binary.
 

@@ -20,3 +20,33 @@ tools:
     description: Restore the workspace ref captured before git init.
     requires:
     - Workspace
+  problem: A workspace preparation machine needs an explicit operation that creates Git metadata before later staging and commit words run.
+  goals:
+  - Invoke `git init` once in the configured workspace.
+  - Emit ToolDone only when Git initializes or reinitializes the repository successfully.
+  - Make created or changed Git metadata recoverable through workspace restore.
+  requirements:
+    input:
+    - must run in the configured workspace and accept no runtime parameters
+    output:
+    - must return combined `git init` output as a string
+    errors:
+    - must emit CommandError when the process cannot start and ToolFailed when Git exits non-zero
+  non_goals:
+  - Does not add files, create a commit, configure identity, or create a remote.
+  emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: Combined stdout and stderr from `git init`.
+    schema: {type: string}
+  errors:
+  - signal: CommandError
+    condition: the git process cannot be started
+    message_shape: 'git_init: <error>'
+    state_after_failure: no Git metadata is created by a process that did not start
+  - signal: ToolFailed
+    condition: "`git init` exits non-zero"
+    message_shape: '<captured git output>'
+    state_after_failure: "`.git` may be partially created or updated and must be restored from the workspace checkpoint"
+  relationships:
+    before: [copy_dir]
+    after: [stage_all]

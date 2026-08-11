@@ -11,17 +11,21 @@ import (
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
-// SpanStatsToolConfig is the declared spool_span_stats configuration. Filters
-// and the group-by key arrive per-request via the machine seed; config carries
-// the spool path, bucket shape, and caps.
-type SpanStatsToolConfig struct {
+// SpanHeatmapToolConfig carries trusted heatmap shape and spool authority.
+type SpanHeatmapToolConfig struct {
 	Path            string  `json:"path"`
 	TimeBuckets     int     `json:"time_buckets"`
 	DurationEdgesMs []int64 `json:"duration_edges_ms"`
-	GroupBy         string  `json:"group_by"`
-	TopN            int     `json:"top_n"`
-	MaxTopN         int     `json:"max_top_n"`
 	ExemplarCap     int     `json:"exemplar_cap"`
+}
+
+// SpanGroupByToolConfig carries trusted grouping caps and spool authority.
+type SpanGroupByToolConfig struct {
+	Path        string `json:"path"`
+	GroupBy     string `json:"group_by"`
+	TopN        int    `json:"top_n"`
+	MaxTopN     int    `json:"max_top_n"`
+	ExemplarCap int    `json:"exemplar_cap"`
 }
 
 // SpanBreakdownToolConfig is the declared spool_span_breakdown configuration.
@@ -43,9 +47,9 @@ func resolveSpoolPath(path string, vars map[string]string) string {
 	return path
 }
 
-func spanStatsFactory() toolregistry.BuiltinFactory {
+func spanHeatmapFactory() toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw SpanStatsToolConfig
+		var raw SpanHeatmapToolConfig
 		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
 			return nil, err
 		}
@@ -57,11 +61,30 @@ func spanStatsFactory() toolregistry.BuiltinFactory {
 				return nil, fmt.Errorf("tool %q config duration_edges_ms must be strictly increasing", def.Name)
 			}
 		}
-		return SpanStatsBuilder{
+		return SpanHeatmapBuilder{
 			ToolName: def.Name,
-			Config: SpanStatsConfig{
+			Config: SpanHeatmapConfig{
 				Path: resolveSpoolPath(raw.Path, vars), Filter: spanFilter{Attrs: map[string]string{}},
 				TimeBuckets: raw.TimeBuckets, DurationEdgesMs: raw.DurationEdgesMs,
+				ExemplarCap: raw.ExemplarCap,
+			},
+		}, nil
+	}
+}
+
+func spanGroupByFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var raw SpanGroupByToolConfig
+		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+			return nil, err
+		}
+		if raw.Path == "" {
+			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		}
+		return SpanGroupByBuilder{
+			ToolName: def.Name,
+			Config: SpanGroupByConfig{
+				Path: resolveSpoolPath(raw.Path, vars), Filter: spanFilter{Attrs: map[string]string{}},
 				GroupBy: raw.GroupBy, TopN: raw.TopN, MaxTopN: raw.MaxTopN,
 				ExemplarCap: raw.ExemplarCap,
 			},

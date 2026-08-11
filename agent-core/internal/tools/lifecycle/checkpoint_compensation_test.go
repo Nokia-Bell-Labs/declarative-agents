@@ -146,6 +146,7 @@ func TestCheckpointRollbackUndoRequestsCompensation(t *testing.T) {
 
 	res := cmd.Undo(core.Result{})
 
-	require.Equal(t, core.CommandError, res.Signal)
+	require.Equal(t, core.CompensationRequired, res.Signal)
+	require.NoError(t, res.Err)
 	require.Contains(t, res.Output, "resume from the original checkpoint or choose another rollback checkpoint")
 }

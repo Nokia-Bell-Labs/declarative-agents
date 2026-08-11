@@ -73,7 +73,7 @@ requirements:
       - R4.2: Each object SHALL use the field names and value shapes emitted by the existing stdouttrace exporter, including `Name`, `SpanContext`, `Parent`, `StartTime`, `EndTime`, `Attributes`, `Events`, `Links`, `Status`, `Resource`, and `InstrumentationScope`.
       - R4.3: Resource attributes SHALL remain under `Resource` and SHALL preserve `service.name`, integration run identity, and every other received attribute.
       - R4.4: Appends SHALL serialize concurrent writers, write complete lines, and sync before reporting success.
-      - R4.5: Config MAY set `max_bytes` and `max_files`; when the next complete batch would exceed `max_bytes`, rotation SHALL rename older files before writing the new batch and SHALL retain at most `max_files`.
+      - R4.5: Config MAY set `max_bytes` and `max_files`; a positive `max_bytes` SHALL require `max_files` of at least two. When the next complete batch would exceed `max_bytes`, rotation SHALL rename older files before writing the new batch and SHALL retain at most `max_files`.
       - R4.6: A failed append or rotation SHALL emit `CommandError`, SHALL leave the received batch addressable through command state, and SHALL NOT trigger relay implicitly.
       - R4.7: Successful output SHALL include path, batch id, span count, bytes written, and the selected batch so a following declared word can relay it.
       - R4.8: Spool side effects SHALL be `filesystem`; undo SHALL be noop because append evidence is an audit record.

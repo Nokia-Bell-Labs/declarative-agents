@@ -14,12 +14,12 @@ import (
 func noopTracer() tracing.Tracer { return tracing.NoopTracer{} }
 
 func TestNudgeReread_UndoIsNoopBecauseCommandDoesNotMutateHistory(t *testing.T) {
-	builder := &NudgeRereadBuilder{Tracer: noopTracer()}
+	builder := &NudgeRereadBuilder{Tracer: noopTracer(), Text: "read it again"}
 	cmd := builder.Build(core.Result{Output: "edited file"})
 
 	res := cmd.Execute()
 	require.Equal(t, core.ToolDone, res.Signal)
-	require.Contains(t, res.Output, RereadNudge)
+	require.Contains(t, res.Output, "read it again")
 
 	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)

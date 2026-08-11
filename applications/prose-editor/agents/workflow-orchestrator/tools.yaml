@@ -1,10 +1,28 @@
 tools:
   - capture_source
   - write_original
-  - append_manifest_revision
+  - append_capture_manifest
+  - append_structure_manifest
+  - append_critique_manifest
+  - append_retry_manifest
+  - append_structure_retry_manifest
+  - append_critique_retry_manifest
+  - append_kept_original_manifest
+  - append_final_manifest
+  - append_final_retry_manifest
+  - compose_structure_request
+  - compose_structure_retry_request
+  - compose_critic_request
+  - compose_critic_retry_request
+  - persist_structure_request
+  - persist_critic_request
+  - persist_structure_retry_request
+  - persist_critic_retry_request
   - invoke_structure_editor
+  - invoke_structure_editor_retry
   - write_structure_attempt
   - invoke_voice_critic
+  - invoke_voice_critic_retry
   - capture_critic_output
   - parse_critic_response
   - critic_verdict_is_pass

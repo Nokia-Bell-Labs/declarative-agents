@@ -67,7 +67,7 @@ primary_entities:
     owns: [source_document_reference]
   - name: AsyncRequest
     kind: outbound_pending_state
-    responsibility: Records a non-blocking outbound request created by rest_client_send and consumed by rest_client_await.
+    responsibility: Records an accepted outbound submission created by rest_client_send and consumed by rest_client_await.
     owns: [request_id, correlation_token, idempotency_token, pending_response_state]
   - name: InboundEvent
     kind: inbound_signal_message
@@ -126,7 +126,7 @@ tool_words:
     preferred_when: The endpoint represents approve, reject, trigger, exchange, calculate, search, or another action that is not simple resource state access.
   client_async:
     words: [rest_client_send, rest_client_await]
-    meaning: Send starts outbound work and records AsyncRequest state. Await receives the completed response and emits the configured result signal.
+    meaning: Send completes one HTTP submission transaction and records accepted AsyncRequest state. Await receives the stored completion and emits the configured result signal.
   server:
     words: [rest_server_launch, rest_server_await, rest_server_stop]
     meaning: Launch activates configured routes. Await receives validated InboundEvent messages. Stop shuts down shared server state.
@@ -280,14 +280,14 @@ diagrams:
       participant M as MachineSpec
       participant S as rest_client_send
       participant A as AsyncRequest
-      participant H as net/http worker
+      participant H as net/http
       participant W as rest_client_await
       M->>S: dispatch send
-      S->>H: start configured outbound work
-      S->>A: store request state
+      S->>H: submit configured outbound work
+      H-->>S: accepted status and response
+      S->>A: store accepted request state
       S-->>M: RESTAccepted
       M->>W: dispatch await later
-      H-->>A: store response or failure
       W->>A: read request state
       W-->>M: RESTResponded, RESTDomainFailed, RESTMissing, RESTAwaitTimedOut, or CommandError
     ```

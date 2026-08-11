@@ -21,7 +21,7 @@ func TestFormatIssueDescriptionMapsPlanContract(t *testing.T) {
 		Requirements:       []PlanRequirement{{ID: "R1", Text: "Parse input"}},
 		AcceptanceCriteria: []PlanCriterion{{ID: "AC1", Text: "Tests pass"}},
 	}
-	formatted, err := FormatIssueDescription(input)
+	formatted, err := FormatIssueDescription(input, "code")
 	require.NoError(t, err)
 
 	var output issueDescription
@@ -35,14 +35,24 @@ func TestFormatIssueDescriptionMapsPlanContract(t *testing.T) {
 
 func TestFormatIssueDescriptionOmitsEmptyDecisions(t *testing.T) {
 	t.Parallel()
-	formatted, err := FormatIssueDescription(ImplementationPlan{})
+	formatted, err := FormatIssueDescription(ImplementationPlan{}, "code")
 	require.NoError(t, err)
 	assert.NotContains(t, formatted, "design_decisions")
 
 	withDecision, err := FormatIssueDescription(ImplementationPlan{
 		DesignDecisions: []PlanDecision{{ID: "D1", Text: "Use YAML"}},
-	})
+	}, "code")
 	require.NoError(t, err)
 	assert.Contains(t, withDecision, "design_decisions")
 	assert.Contains(t, withDecision, "Use YAML")
+}
+
+func TestFormatIssueDescriptionUsesDeclaredDeliverableType(t *testing.T) {
+	t.Parallel()
+
+	formatted, err := FormatIssueDescription(ImplementationPlan{}, "documentation")
+	require.NoError(t, err)
+	require.Contains(t, formatted, "deliverable_type: documentation")
+	_, err = FormatIssueDescription(ImplementationPlan{}, "deployment")
+	require.ErrorContains(t, err, "unsupported deliverable_type")
 }

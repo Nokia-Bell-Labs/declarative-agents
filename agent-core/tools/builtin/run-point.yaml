@@ -12,6 +12,13 @@ tools:
   - kind: nested_machine_execution
     target: evaluator_point_machine
     description: Runs a nested point machine that may mutate point state and workspace artifacts.
+  - kind: state_mutation
+    target: eval_session_state
+    state: point_result_recorded
+    description: Records exactly one completed or failed point outcome.
+  - kind: stderr_write
+    target: evaluator_progress
+    description: Reports point start, failure, and terminal progress.
   reversibility:
     classification: compensatable
     undo: nested_machine_compensation
@@ -23,3 +30,38 @@ tools:
     - evaluator_session_snapshot
     - nested_machine_history
     - point_workspace
+  problem: The evaluator session machine needs one boundary word that runs a single materialized point through the separately declared point machine and records its aggregate result.
+  goals:
+  - Bind one iterator point into PointContext and run the configured nested point machine with the declared registry and iteration budget.
+  - Map the configured success terminal state to success and every other terminal state to a failed point result.
+  - Record exactly one completed point and return its PASS, FAIL, or TIMEOUT status when the nested loop terminates normally.
+  requirements:
+    input:
+    - must consume one materialized point from command-state label `point` and require configured point machine, tool selection, and declarations
+    output:
+    - "must emit PointDone with `<point_id>: <status>` after recording the point"
+    errors:
+    - must emit CommandError when point binding, point state, nested registry setup, or nested loop execution fails
+  non_goals:
+  - Does not materialize the evaluation grid or choose which point to run.
+  - Does not hide point preparation and metric collection; those remain transitions in the nested point machine.
+  output:
+    description: Structured nested point-machine result.
+    schema:
+      type: object
+      properties:
+        point_id: {type: string}
+        machine: {type: string}
+        status: {type: string}
+        terminal_state: {type: string}
+        elapsed_ms: {type: integer}
+        artifact_dir: {type: string}
+      required: [point_id, machine, status, terminal_state, elapsed_ms, artifact_dir]
+  errors:
+  - signal: CommandError
+    condition: the iterator point cannot be bound, no current point exists, or the nested point loop returns an error
+    message_shape: 'run_point: <error>'
+    state_after_failure: nested execution history and any point workspace effects are retained in the compensation receipt when available
+  relationships:
+    before: [materialize_eval_points]
+    after: [machine join, report_suite_summary]

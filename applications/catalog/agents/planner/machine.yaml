@@ -9,10 +9,6 @@ configuration:
   machine: agents/planner/machine.yaml
   tools: agents/planner/tools.yaml
   llm_configs: agents/planner/llm/*.yaml
-  tool_declarations:
-  - tools/builtin.yaml
-  - tools/exec.yaml
-  - agents/planner/tracker-exec.yaml
   variants:
   - agents/planner/machine-passthrough.yaml
   - agents/planner/machine-plan-only.yaml
@@ -24,19 +20,20 @@ invariants:
 - The planner terminates when no more tasks are extractable
 lifecycle: |-
   1. Idle → Extracting: extract_task from requirement graph; NoTask routes through remaining_work
-  2. Extracting → InitializingRetry → Resetting: seed visible retry count, clear LLM history
-  3. Resetting → ProjectingPromptContext → PromptAssembly: project structured context and compose the profile-owned prompt
-  4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
-  5. PlanInvoking → PlanParsing: parse_plan from LLM response; invalid plans
+  2. Extracting → MarkingPlanning: advance selected nodes through the explicit graph lifecycle word
+  3. MarkingPlanning → InitializingRetry → Resetting: seed visible retry count, clear LLM history
+  4. Resetting → ProjectingPromptContext → PromptAssembly: project structured context and compose the profile-owned prompt
+  5. PromptAssembly → PlanInvoking: invoke_llm for plan generation
+  6. PlanInvoking → PlanParsing: parse_plan from LLM response; invalid plans
      are reported and reinvoked until the explicit parse budget is exhausted
-  6. PlanParsing → IssueFormatting → IssueBodyWriting: format_issue then write
-  7. IssueBodyWriting → IssueCreating → IssueRecording: selected tracker exec then record_tracker_issue
-  8. IssueRecording → MarkingExecuting → FormattingTask → MaterializingTask: graph advance and task-file write
-  9. MaterializingTask → InvokingExecutor: shared self_invoke boundary
-  10. InvokingExecutor → Vetting → Building → Testing: validation pipeline
-  10. Validation failure → IncrementingRetry → CheckingRetryLimit
-  11. RetryAvailable → Resetting; RetriesExhausted → Exhausted → remaining-work routing
-  12. Testing success → MarkingTaskDone → QueryingRemainingWork
+  7. PlanParsing → IssueFormatting → IssueBodyWriting: format_issue then write
+  8. IssueBodyWriting → IssueCreating → IssueRecording: selected tracker exec then record_tracker_issue
+  9. IssueRecording → MarkingExecuting → FormattingTask → MaterializingTask: graph advance and task-file write
+  10. MaterializingTask → InvokingExecutor: shared self_invoke boundary
+  11. InvokingExecutor → Vetting → Building → Testing: validation pipeline
+  12. Validation failure → IncrementingRetry → CheckingRetryLimit
+  13. RetryAvailable → Resetting; RetriesExhausted → Exhausted → remaining-work routing
+  14. Testing success → MarkingTaskDone → QueryingRemainingWork
 
   The outer loop (Extracting → ... → QueryingRemainingWork → Extracting)
   repeats until the graph is fully resolved.
@@ -44,7 +41,8 @@ pipeline_diagram: |-
   ```mermaid
   flowchart TD
     A[Idle] -->|Seed| B[Extracting]
-    B -->|TaskExtracted| Z[InitializingRetry]
+    B -->|TaskExtracted| MP[MarkingPlanning]
+    MP -->|NodesMarkedPlanning| Z[InitializingRetry]
     Z --> C[Resetting]
     C --> D[PromptAssembly]
     D --> E[PlanInvoking]
@@ -77,6 +75,8 @@ states:
   meaning: |
     Selecting the next ready task from the requirement graph.
     A neutral NoTask result routes through the remaining_work graph query.
+- name: MarkingPlanning
+  meaning: Advancing only the extracted task nodes to Planning.
 - name: InitializingRetry
   meaning: Seeding retry count zero in labelled command state for the extracted task.
 - name: InitializingFailureContext
@@ -146,6 +146,8 @@ signals:
   trigger: The requirement graph was loaded and seeded into pipeline state.
 - name: TaskExtracted
   trigger: A task was extracted from the requirement graph.
+- name: NodesMarkedPlanning
+  trigger: The extracted task nodes reached Planning through the dedicated mutation word.
 - name: NoTask
   trigger: Extraction found no ready task; remaining_work must classify the graph.
 - name: RetryCountInitialized
@@ -208,9 +210,16 @@ transitions:
   next: Failed
 - state: Extracting
   signal: TaskExtracted
+  next: MarkingPlanning
+  action: mark_nodes_planning
+- state: MarkingPlanning
+  signal: NodesMarkedPlanning
   next: InitializingFailureContext
   action: reset_failure_context
   label: failure_context
+- state: MarkingPlanning
+  signal: CommandError
+  next: Failed
 - state: InitializingFailureContext
   signal: FailureContextInitialized
   next: InitializingRetry

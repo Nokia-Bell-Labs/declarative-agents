@@ -88,7 +88,7 @@ func stopScenarioChildren(t *testing.T, state *State, session *ScenarioSessionSt
 		})
 		result := cmd.Execute()
 		require.Equal(t, SignalServiceStopped, result.Signal)
-		require.NotEmpty(t, result.Receipt)
+		require.Empty(t, result.Receipt)
 	}
 }
 
@@ -408,6 +408,8 @@ func TestScenarioSteps_SessionWordSignals(t *testing.T) {
 	done := Builder{ToolName: "next", Init: InitNextScenario, State: state, Session: session2}.
 		Build(core.Result{}).Execute()
 	require.Equal(t, SignalAllScenariosDone, done.Signal)
+	require.JSONEq(t, `{"exhausted":true}`, done.Output,
+		"cursor exhaustion must not duplicate the session report")
 
 	report := Builder{ToolName: "report", Init: InitReportSession, State: state, Session: session2}.
 		Build(core.Result{}).Execute()

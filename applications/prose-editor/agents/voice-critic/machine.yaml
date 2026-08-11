@@ -68,8 +68,8 @@ transitions:
   - {state: CheckingCandidateHash, signal: CriticCandidateHashMatched, next: RoutingVerdict, action: critic_verdict_is_pass, label: critic_verdict_route}
   - {state: CheckingCandidateHash, signal: CriticCandidateHashMismatched, next: Failed}
   - {state: CheckingCandidateHash, signal: CommandError, next: Failed}
-  - {state: RoutingVerdict, signal: CriticPassed, next: ComposingPassResponse, action: compose_critic_pass_response, label: critic_response}
-  - {state: RoutingVerdict, signal: CriticRejected, next: ComposingRejectResponse, action: compose_critic_reject_response, label: critic_response}
+  - {state: RoutingVerdict, signal: CriticPassed, next: ComposingPassResponse, action: compose_critic_pass_response, label: critic_response, summary: true}
+  - {state: RoutingVerdict, signal: CriticRejected, next: ComposingRejectResponse, action: compose_critic_reject_response, label: critic_response, summary: true}
   - {state: RoutingVerdict, signal: CommandError, next: Failed}
   - {state: ComposingPassResponse, signal: CriticResponsePassed, next: Passed}
   - {state: ComposingPassResponse, signal: CommandError, next: Failed}

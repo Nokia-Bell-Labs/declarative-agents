@@ -10,21 +10,9 @@ tools:
   - ToolFailed
   description: Run go test -count=1 on the workspace. Returns test output including pass/fail results.
   output:
-    description: Go test result summary and raw command output.
+    description: Raw go test command output.
     schema:
-      type: object
-      properties:
-        package:
-          type: string
-        passed:
-          type: boolean
-        output:
-          type: string
-        exit_code:
-          type: integer
-      required:
-      - passed
-      - output
+      type: string
   output_cap: 200
   parameters:
     type: object
@@ -45,7 +33,7 @@ tools:
     - must run in the configured workspace root
     - may accept an optional package/path parameter when declared in parameters
     output:
-    - must include exit status and captured stdout/stderr or combined output
+    - must return captured stdout/stderr as a string
     - must emit ToolDone for success and ToolFailed for command failure
     side_effects:
     - must execute one child process using the configured binary and args

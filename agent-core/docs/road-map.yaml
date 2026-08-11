@@ -498,14 +498,14 @@ releases:
     name: Span analytics tools
     description: |
       Release 13.0 adds aggregate reads over the srd042 NDJSON trace spool for a
-      Honeycomb-style Explore panel. Two builtin words, spool_span_stats and
-      spool_span_breakdown, filter spans (time, service, name, attribute
-      equality), bucket them into a duration-over-time heatmap, count them
-      grouped by an attribute with a reported dropped remainder, and rank the
-      attributes that most distinguish a selected region from its complement.
-      Both are read-only, tolerate malformed lines, treat an absent spool as
-      empty, take all configuration without environment variables, and produce
-      deterministic output.
+      Honeycomb-style Explore panel. Three builtin words, spool_span_heatmap,
+      spool_span_group_by, and spool_span_breakdown, filter spans (time,
+      service, name, attribute equality), independently bucket them into a
+      duration-over-time heatmap or count them by an attribute with a reported
+      dropped remainder, and rank the attributes that most distinguish a
+      selected region from its complement. All are read-only, tolerate
+      malformed lines, treat an absent spool as empty, take all configuration
+      without environment variables, and produce deterministic output.
     status: implemented
     planned_work:
       - id: gh-1240
@@ -522,7 +522,7 @@ releases:
         summary: Filtering, heatmap bucketing, group-by top-N, divergence ranking, determinism, and error paths.
         status: implemented
     proof:
-      - go test ./internal/tools/otlp -run 'TestSpanStats|TestSpanBreakdown'
+      - go test ./internal/tools/otlp -run 'TestSpanStats|TestSpanAnalytics|TestSpanBreakdown'
       - mage audit
 
   - version: "99.0"

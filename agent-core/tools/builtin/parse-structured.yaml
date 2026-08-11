@@ -24,8 +24,11 @@ tools:
     properties: {}
   output:
     description: Normalized JSON when parsing and schema validation succeed, otherwise a failure explanation.
-    schema: {}
-  side_effects: []
+    schema:
+      $comment: The runtime value is any JSON value accepted by the configured schema.
+  side_effects:
+  - kind: none
+    description: Parses and validates selected command output without mutating runtime or external state.
   reversibility:
     classification: reversible
     undo: noop

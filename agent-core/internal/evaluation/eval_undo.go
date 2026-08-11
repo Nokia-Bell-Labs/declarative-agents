@@ -75,6 +75,7 @@ type evaluatorReceipt struct {
 	Session          *evalSessionSnapshot  `json:"session,omitempty"`
 	Point            *pointContextSnapshot `json:"point,omitempty"`
 	RemovePaths      []string              `json:"remove_paths,omitempty"`
+	RemoveRoot       string                `json:"remove_root,omitempty"`
 	Boundary         string                `json:"boundary,omitempty"`
 	BoundaryMetadata any                   `json:"boundary_metadata,omitempty"`
 }
@@ -84,6 +85,7 @@ type evaluatorReceiptCmd struct {
 	session          *EvalSessionState
 	point            *PointContext
 	removePaths      func() []string
+	removeRoot       func() string
 	boundary         string
 	boundaryMetadata func() any
 }
@@ -109,6 +111,9 @@ func (c *evaluatorReceiptCmd) Execute() core.Result {
 	result := c.inner.Execute()
 	if c.removePaths != nil {
 		receipt.RemovePaths = c.removePaths()
+	}
+	if c.removeRoot != nil {
+		receipt.RemoveRoot = c.removeRoot()
 	}
 	if c.boundaryMetadata != nil {
 		receipt.BoundaryMetadata = c.boundaryMetadata()
@@ -141,11 +146,10 @@ func (c *evaluatorReceiptCmd) Undo(prior core.Result) core.Result {
 		c.point.Stderr = stderr
 	}
 	for _, path := range receipt.RemovePaths {
-		clean := filepath.Clean(strings.TrimSpace(path))
-		if clean == "." || clean == string(filepath.Separator) {
-			if strings.TrimSpace(path) == "" {
-				continue
-			}
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		if !ownedArtifactPath(receipt.RemoveRoot, path) {
 			return evaluatorReceiptError(c.Name(), fmt.Errorf("refuse unsafe owned artifact path %q", path))
 		}
 		if err := os.RemoveAll(path); err != nil {
@@ -156,6 +160,17 @@ func (c *evaluatorReceiptCmd) Undo(prior core.Result) core.Result {
 		return evaluatorReceiptError(c.Name(), fmt.Errorf("boundary compensation required: %s", receipt.Boundary))
 	}
 	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: "undo: restored evaluator state and owned artifacts"}
+}
+
+func ownedArtifactPath(root, path string) bool {
+	cleanRoot := filepath.Clean(strings.TrimSpace(root))
+	cleanPath := filepath.Clean(strings.TrimSpace(path))
+	if !filepath.IsAbs(cleanRoot) || !filepath.IsAbs(cleanPath) {
+		return false
+	}
+	relative, err := filepath.Rel(cleanRoot, cleanPath)
+	return err == nil && relative != "." && relative != ".." &&
+		!strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 func evaluatorReceiptError(commandName string, err error) core.Result {

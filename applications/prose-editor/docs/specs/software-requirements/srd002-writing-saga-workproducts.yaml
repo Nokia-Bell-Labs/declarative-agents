@@ -41,13 +41,13 @@ workspace_contract:
     in bounded requests and return bytes or verdict data; they never receive
     workspace paths.
   paths:
-    manifest: manifest.yaml
+    manifest: manifest.json
     manifest_history: manifest-history/<zero-padded-revision>.yaml
     original: 00-original.md
     structure: 10-structure.md
     voice: 20-voice.md
     style: 30-style.md
-    critique: 40-critique.yaml
+    critique: 40-critique.json
     final: final.md
     attempt_artifact: attempts/<stage>/<zero-padded-attempt>-<sha256>.<md-or-yaml>
   mutability:
@@ -58,16 +58,16 @@ workspace_contract:
       - 10-structure.md after finalization
       - 20-voice.md after finalization
       - 30-style.md after finalization
-      - 40-critique.yaml after finalization
+      - 40-critique.json after finalization
       - final.md after finalization
     mutable_projection:
-      - manifest.yaml
+      - manifest.json
   write_protocol: |
     Each file write uses a same-directory temporary file, verifies the expected
     SHA-256 digest, fsyncs the file, renames atomically, and fsyncs the parent
     directory. A manifest transition first creates the next immutable
-    manifest-history revision and then atomically replaces manifest.yaml with
-    the same bytes. Recovery repairs manifest.yaml from the highest valid
+    manifest-history revision and then atomically replaces manifest.json with
+    the same bytes. Recovery repairs manifest.json from the highest valid
     contiguous history revision when the projection is absent or torn.
 
 manifest_schema:
@@ -255,7 +255,7 @@ stage_contracts:
       - 10-structure.md
       - 20-voice.md
       - 30-style.md
-      - 40-critique.yaml
+      - 40-critique.json
       - final.md
     acceptance: |
       Create each fixed path exactly once from the selected immutable attempt
@@ -309,7 +309,7 @@ requirements:
     items:
       - id: R2.1
         text: |
-          manifest.yaml SHALL conform to manifest_schema and SHALL identify
+          manifest.json SHALL conform to manifest_schema and SHALL identify
           exact bytes through artifact IDs and content hashes rather than
           mutable filenames alone.
         evidence: Planned schema tests reject missing fields, unknown states, invalid hashes, and escaping paths.
@@ -333,7 +333,7 @@ requirements:
         evidence: Planned crash tests stop after every transition and recover the last durable revision.
       - id: R2.5
         text: |
-          Manifest history SHALL be append-only. manifest.yaml SHALL be a
+          Manifest history SHALL be append-only. manifest.json SHALL be a
           repairable current projection and SHALL NOT be the only copy of an
           accepted state transition.
         evidence: Planned torn-projection tests recover from the highest valid contiguous history revision.
@@ -464,7 +464,7 @@ requirements:
       - id: R7.1
         text: |
           On restart the orchestrator SHALL lock the saga, validate source and
-          policy identity, repair manifest.yaml from immutable history when
+          policy identity, repair manifest.json from immutable history when
           needed, verify every referenced file hash, and only then load and
           compare the agent-core checkpoint.
         evidence: Planned restart tests cover absent projection, torn revision, hash mismatch, and lock contention.

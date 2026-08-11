@@ -45,13 +45,6 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: reset_history command result summary.
+    description: The literal plain-text reset prompt.
     schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
+      type: string

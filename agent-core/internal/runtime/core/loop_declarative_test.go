@@ -47,7 +47,6 @@ transitions:
 	tr := &loopRecorder{}
 
 	params := LoopParams{
-		Prompt:      "test",
 		MachineFile: machineFile,
 		Trace:       tr,
 		Budget:      Budget{MaxIterations: 100},
@@ -94,7 +93,6 @@ transitions:
 	require.NoError(t, os.WriteFile(machineFile, []byte(machineYAML), 0o644))
 
 	params := LoopParams{
-		Prompt:      "test",
 		MachineFile: machineFile,
 		Trace:       &loopRecorder{},
 		Budget:      Budget{MaxIterations: 10},
@@ -133,7 +131,6 @@ transitions:
 	}
 
 	params := LoopParams{
-		Prompt:      "test",
 		MachineFile: machineFile,
 		Trace:       &loopRecorder{},
 		Budget:      Budget{MaxIterations: 10},
@@ -158,7 +155,6 @@ func TestLoop_DeclarativeInit_UsesPreloadedMachineSpec(t *testing.T) {
 		},
 	}
 	params := LoopParams{
-		Prompt:      "test",
 		MachineFile: "/definitely/not/read/machine.yaml",
 		MachineSpec: &spec,
 		Trace:       &loopRecorder{},
@@ -260,7 +256,6 @@ transitions:
 	}
 
 	params := LoopParams{
-		Prompt:      "test",
 		MachineFile: machineFile,
 		Trace:       &loopRecorder{},
 		Budget:      Budget{MaxIterations: 10},

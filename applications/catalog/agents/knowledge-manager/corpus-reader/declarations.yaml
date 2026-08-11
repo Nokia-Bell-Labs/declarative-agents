@@ -299,14 +299,9 @@ tools:
       - Does not call Chroma or Ollama embedding endpoints directly.
       - Does not author or alter the retrieved chunks.
     output:
-      description: Raw model response.
+      description: Raw model response text.
       schema:
-        type: object
-        properties:
-          response: {type: string}
-          provider: {type: string}
-          model: {type: string}
-        required: [response, provider, model]
+        type: string
     side_effects:
       - kind: external_api_call
         target: ollama.chat

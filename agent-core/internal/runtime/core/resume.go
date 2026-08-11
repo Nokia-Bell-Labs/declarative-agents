@@ -3,7 +3,6 @@
 package core
 
 import (
-	"context"
 	"errors"
 	"fmt"
 )
@@ -57,11 +56,11 @@ func LoadResume(params LoopParams) (ResumeState, error) {
 	}
 	sig := params.InitialSignal
 	if sig == "" {
-		sig = Approved
+		sig = resumeSignal(params.MachineSpec)
 	}
 	params.InitialState = pos.CurrentState
 	params.InitialSignal = sig
-	params.InitialResult = Result{Signal: sig, Output: "Resume from checkpoint"}
+	params.InitialResult = resumeInitialResult(exec, sig)
 	params.InitialRun = RunResult{
 		Iterations: pos.Snapshot.Iteration,
 		TokensIn:   pos.Snapshot.TokensIn,
@@ -77,6 +76,32 @@ func LoadResume(params LoopParams) (ResumeState, error) {
 	return ResumeState{
 		Params: params, Position: pos, Execution: exec, Finalized: finalized,
 	}, nil
+}
+
+func resumeInitialResult(execution Execution, resumeSignal Signal) Result {
+	if len(execution) == 0 {
+		return Result{Signal: resumeSignal, Output: "Resume from checkpoint"}
+	}
+	entry := execution[len(execution)-1]
+	result := Result{
+		Output: entry.Result.Output, Signal: entry.Result.Signal,
+		Cost: entry.Result.Cost, CommandName: entry.CommandName,
+		Redaction: OutputRedaction{
+			Version: entry.Result.RedactionVersion,
+			Paths:   append([]OutputRedactionPath(nil), entry.Result.RedactedPaths...),
+		},
+	}
+	if entry.Result.Error != "" {
+		result.Err = errors.New(entry.Result.Error)
+	}
+	return result
+}
+
+func resumeSignal(machine *MachineSpec) Signal {
+	if machine != nil && machine.ResumeSignal != "" {
+		return Signal(machine.ResumeSignal)
+	}
+	return Approved
 }
 
 // validateResumeCompatibility rejects a checkpoint the current machine cannot
@@ -122,20 +147,4 @@ func resumeStateDefined(params LoopParams, state State) bool {
 		}
 	}
 	return false
-}
-
-// Resume loads the persisted snapshot through params.Checkpoint and re-enters the
-// loop at the restored position (srd035-checkpoint-port R6.2). It is the
-// convenience entrypoint for callers that hold no domain-owned state; callers
-// that must restore conversation or other domain state use LoadResume, restore
-// from ResumeState.Position, then call Loop.
-func Resume(params LoopParams, ctx context.Context) (RunResult, error) {
-	state, err := LoadResume(params)
-	if err != nil {
-		return RunResult{}, err
-	}
-	if state.Finalized {
-		return state.Params.InitialRun, nil
-	}
-	return Loop(state.Params, ctx)
 }

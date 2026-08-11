@@ -26,11 +26,6 @@ func TestToolSpanName(t *testing.T) {
 	assert.Equal(t, "execute_tool", ToolSpanName(""))
 }
 
-func TestWorkflowSpanName(t *testing.T) {
-	assert.Equal(t, "invoke_workflow planner", WorkflowSpanName("planner"))
-	assert.Equal(t, "invoke_workflow", WorkflowSpanName(""))
-}
-
 func TestInferenceAttrs(t *testing.T) {
 	attrs := InferenceAttrs("ollama", "qwen2.5-coder:14b", "localhost:11434")
 
@@ -69,14 +64,6 @@ func TestToolAttrs(t *testing.T) {
 	assert.Equal(t, "execute_tool", m["gen_ai.operation.name"])
 	assert.Equal(t, "read", m["gen_ai.tool.name"])
 	assert.Equal(t, "function", m["gen_ai.tool.type"])
-}
-
-func TestWorkflowAttrs(t *testing.T) {
-	attrs := WorkflowAttrs("planner")
-
-	m := attrMap(attrs)
-	assert.Equal(t, "invoke_workflow", m["gen_ai.operation.name"])
-	assert.Equal(t, "planner", m["gen_ai.workflow.name"])
 }
 
 func TestUsageAttrs(t *testing.T) {

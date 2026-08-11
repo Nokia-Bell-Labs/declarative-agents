@@ -38,6 +38,11 @@ type DiagnosticRecorder interface {
 	RecordDiagnostic(ctx context.Context, diagnostic Diagnostic) error
 }
 
+// ErrorRecorder accepts bounded operator-visible dispatch errors.
+type ErrorRecorder interface {
+	RecordError(ctx context.Context, recent RecentError) error
+}
+
 // NoopRecorder preserves disabled-mode behavior when monitoring is absent.
 type NoopRecorder struct{}
 
@@ -52,6 +57,9 @@ func (NoopRecorder) RecordRun(context.Context, RunSnapshot) error { return nil }
 
 // RecordDiagnostic accepts a diagnostic without recording it.
 func (NoopRecorder) RecordDiagnostic(context.Context, Diagnostic) error { return nil }
+
+// RecordError accepts a recent error without recording it.
+func (NoopRecorder) RecordError(context.Context, RecentError) error { return nil }
 
 // Recorder records monitor samples in memory and optionally emits OTel metrics.
 type Recorder struct {
@@ -195,6 +203,15 @@ func (r *Recorder) RecordDiagnostic(_ context.Context, diagnostic Diagnostic) er
 		return nil
 	}
 	r.store.RecordDiagnostic(diagnostic)
+	return nil
+}
+
+// RecordError records one dispatch error in the bounded monitor store.
+func (r *Recorder) RecordError(_ context.Context, recent RecentError) error {
+	if r == nil || r.store == nil {
+		return nil
+	}
+	r.store.RecordError(recent)
 	return nil
 }
 

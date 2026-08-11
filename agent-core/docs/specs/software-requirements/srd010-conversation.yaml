@@ -2,25 +2,15 @@ id: srd010-conversation
 title: Conversation Management
 
 problem: |
-  Agent-core provides a Conversation type that manages multi-turn chat
-  sessions with an LLM backend. It was originally designed for a managed
-  pattern only: each Send call appends a user message, calls Chat with
-  the full history, and appends the assistant's response.
-
-  The generator uses a separate ConversationHistory type with an
-  append-only pattern: messages are added manually (Append), and Chat
-  is invoked externally by the invoke_llm command. This manual mode is
-  needed when prompt assembly, tool manifests, or retry logic must be
-  interleaved between message appends and Chat calls.
-
-  Having two conversation types creates duplication and makes it hard
-  for new agents to choose. A single Conversation type supporting both
-  managed and manual modes eliminates the split.
+  invoke_llm owns inference, prompt assembly, tool manifests, and retry
+  behavior. Conversation owns only the run-scoped append-only message history
+  that dispatch and rollback share. Keeping a second, unused managed Chat path
+  inside Conversation creates a concurrency contract production never uses.
 
 goals:
-  - G1: Single Conversation type supporting managed (Send) and manual (Append + external Chat) modes.
+  - G1: Single Conversation type supporting append-only history for invoke_llm.
   - G2: Thread-safe append-only message history with copy-on-read semantics.
-  - G3: System prompt management (get, set, assemble).
+  - G3: Snapshot, restore, truncate, and reset operations for rollback.
   - G4: Replace generator's ConversationHistory with agent-core Conversation.
 
 requirements:
@@ -35,46 +25,45 @@ requirements:
   R2:
     title: Conversation struct
     items:
-      - R2.1: Conversation wraps a Client, system prompt, ChatOptions, and a mutex-protected message slice.
+      - R2.1: Conversation wraps a mutex-protected message slice and performs no inference.
       - R2.2: NewConversation(client, systemPrompt, opts) creates an empty Conversation.
       - R2.3: All methods are safe for concurrent use via sync.RWMutex.
 
   R3:
-    title: Managed mode (Send)
+    title: Rollback lifecycle
     items:
-      - R3.1: Send(ctx, userMessage) appends a User message, calls Chat with the full assembled history, and appends the Assistant response.
-      - R3.2: On Chat failure, the User message remains appended but no Assistant message is added, preserving retry ability.
-      - R3.3: Send returns the ChatResponse from the backend.
+      - R3.1: Snapshot returns a defensive copy of completed history.
+      - R3.2: Restore replaces history from a snapshot.
+      - R3.3: TruncateTo removes messages after a validated length and rejects an invalid length.
 
   R4:
     title: Manual mode (Append)
     items:
       - R4.1: Append(msg) adds a message to history without triggering a Chat call.
       - R4.2: Append supports any role (User, Assistant, System) for maximum flexibility.
-      - R4.3: Messages added via Append are included in subsequent Send or AssembleMessages calls.
-      - R4.4: Append and Send can be mixed within the same Conversation.
+      - R4.3: Messages added via Append are included in subsequent Messages, Snapshot, and invoke_llm assembly.
+      - R4.4: Inference remains in invoke_llm rather than Conversation.
 
   R5:
     title: History access
     items:
-      - R5.1: History() returns a copy of all messages in insertion order (oldest first), excluding the system prompt.
+      - R5.1: History() returns a copy of all messages in insertion order (oldest first).
       - R5.2: Messages() is an alias for History(), easing migration from generator's ConversationHistory.
-      - R5.3: Len() returns the message count excluding the system prompt.
-      - R5.4: AssembleMessages() returns the full Chat input — system prompt (if non-empty) followed by all messages. Returns a copy.
+      - R5.3: Len() returns the message count.
 
   R6:
-    title: System prompt
+    title: Prompt and inference boundary
     items:
-      - R6.1: SystemPrompt() returns the current system prompt.
-      - R6.2: SetSystemPrompt(prompt) replaces the system prompt. Takes effect on the next Send or AssembleMessages call.
-      - R6.3: An empty system prompt is omitted from assembled messages.
+      - R6.1: Conversation SHALL NOT call Client.Chat.
+      - R6.2: DefaultAssembler SHALL combine structured prompt data with Conversation.Messages.
+      - R6.3: invoke_llm SHALL own user and assistant appends around its Chat call.
 
   R7:
     title: Reset
     items:
-      - R7.1: Reset() clears the message history. The system prompt and client binding are preserved.
+      - R7.1: Reset() clears the message history.
       - R7.2: After Reset, Len() returns 0 and History() returns an empty slice.
-      - R7.3: Append and Send work normally after Reset.
+      - R7.3: Append works normally after Reset.
 
   R8:
     title: No-compaction boundary
@@ -90,27 +79,27 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Append(msg) adds a message without calling Chat. Appended messages appear in History and AssembleMessages.
+    criterion: Append(msg) adds a message without calling Chat. Appended messages appear in History, Messages, and Snapshot.
     traces: [R1.1, R1.2, R1.3, R1.4, R4.1, R4.2, R4.3]
 
   - id: AC2
-    criterion: Send and Append can be mixed. History preserves insertion order across both methods.
-    traces: [R2.1, R2.2, R2.3, R3.1, R3.2, R3.3, R4.4]
+    criterion: Snapshot, Restore, and TruncateTo provide deterministic rollback over append-only history.
+    traces: [R2.1, R2.2, R2.3, R3.1, R3.2, R3.3]
 
   - id: AC3
     criterion: History and Messages return defensive copies. Mutations do not affect internal state.
     traces: [R5.1, R5.2, R5.3, R8.1, R8.2]
 
   - id: AC4
-    criterion: AssembleMessages returns system prompt + history. Empty system prompt is omitted.
-    traces: [R5.4, R6.1, R6.2, R6.3]
+    criterion: DefaultAssembler combines structured prompt data with Conversation history while inference remains in invoke_llm.
+    traces: [R4.4, R5.2, R6.1, R6.2, R6.3]
 
   - id: AC5
     criterion: Generator can replace ConversationHistory with Conversation using Append + History without behavior change.
     traces: [R4.1, R5.2, R7.1]
 
   - id: AC6
-    criterion: Reset clears history. Append and Send work after Reset. System prompt is preserved.
+    criterion: Reset clears history and Append works after Reset.
     traces: [R7.1, R7.2, R7.3]
 
 depends_on: []
@@ -122,29 +111,28 @@ diagrams:
       Problem["Problem: Agent-core provides a Conversation type that manages..."] --> Goals["Goals: Conversation Management"]
       Goals --> R1["R1: Message types"]
       Goals --> R2["R2: Conversation struct"]
-      Goals --> R3["R3: Managed mode (Send)"]
+      Goals --> R3["R3: Rollback lifecycle"]
       Goals --> R4["R4: Manual mode (Append)"]
       Goals --> R5["R5: History access"]
-      Goals --> R6["R6: System prompt"]
+      Goals --> R6["R6: Prompt and inference boundary"]
       Goals --> R7["R7: Reset"]
       Goals --> R8["R8: No-compaction boundary"]
       AC1["AC1: Append(msg) adds a message without calling Chat. Appended..."]
       R1 --> AC1
       R4 --> AC1
-      AC2["AC2: Send and Append can be mixed. History preserves insertion..."]
+      AC2["AC2: Snapshot, Restore, and TruncateTo provide deterministic..."]
       R2 --> AC2
       R3 --> AC2
-      R4 --> AC2
       AC3["AC3: History and Messages return defensive copies. Mutations d..."]
       R5 --> AC3
       R8 --> AC3
-      AC4["AC4: AssembleMessages returns system prompt + history. Empty s..."]
+      AC4["AC4: DefaultAssembler combines structured prompt data with hi..."]
       R5 --> AC4
       R6 --> AC4
       AC5["AC5: Generator can replace ConversationHistory with Conversati..."]
       R4 --> AC5
       R5 --> AC5
       R7 --> AC5
-      AC6["AC6: Reset clears history. Append and Send work after Reset. S..."]
+      AC6["AC6: Reset clears history and Append works after Reset."]
       R7 --> AC6
     ```

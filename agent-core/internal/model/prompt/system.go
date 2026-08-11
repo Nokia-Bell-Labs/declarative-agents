@@ -44,18 +44,3 @@ func RenderSystemPrompt(data PromptData) string {
 	}
 	return strings.TrimRight(buf.String(), "\n")
 }
-
-// RenderSystemPromptWith executes a custom template string instead of
-// the embedded default. This allows agents to provide their own
-// template layout while reusing PromptData.
-func RenderSystemPromptWith(tmplText string, data PromptData) (string, error) {
-	t, err := template.New("custom").Parse(tmplText)
-	if err != nil {
-		return "", err
-	}
-	var buf bytes.Buffer
-	if err := t.Execute(&buf, data); err != nil {
-		return "", err
-	}
-	return strings.TrimRight(buf.String(), "\n"), nil
-}

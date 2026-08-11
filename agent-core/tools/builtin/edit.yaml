@@ -8,19 +8,9 @@ tools:
   - ToolFailed
   description: Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match.
   output:
-    description: Edit result describing the changed file and replacement count.
+    description: Plain-text edit confirmation.
     schema:
-      type: object
-      properties:
-        path:
-          type: string
-        replacements:
-          type: integer
-        ambiguous_matches:
-          type: integer
-      required:
-      - path
-      - replacements
+      type: string
   metrics:
     instruments:
     - name: filesystem.bytes_changed
@@ -57,12 +47,12 @@ tools:
     description: Replaces text in one workspace file.
   reversibility:
     classification: reversible
-    undo: workspace_restore
+    undo: file_snapshot_restore
   undo:
-    strategy: workspace_restore
-    description: Restore the workspace to the ref captured before or after the edit.
+    strategy: file_snapshot_restore
+    description: Restore the prior file bytes and mode captured in the edit receipt.
     requires:
-    - Workspace
+    - Receipt
   problem: The machine needs a declared word for editing one workspace file without embedding that workflow step in Go control flow.
   goals:
   - Perform the edit action as one machine-selected word.

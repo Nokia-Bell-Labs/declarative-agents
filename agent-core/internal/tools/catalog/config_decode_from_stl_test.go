@@ -59,7 +59,7 @@ func TestDecodeToolConfigTypeMismatch(t *testing.T) {
 	assert.Contains(t, err.Error(), `tool "bad_tool" config`)
 }
 
-func TestDecodeToolConfigExtraFieldsIgnored(t *testing.T) {
+func TestDecodeToolConfigRejectsUnknownField(t *testing.T) {
 	def := ToolDef{
 		Name: "test",
 		Config: map[string]interface{}{
@@ -68,8 +68,10 @@ func TestDecodeToolConfigExtraFieldsIgnored(t *testing.T) {
 		},
 	}
 	var cfg ChildAgentConfig
-	require.NoError(t, DecodeToolConfig(def, &cfg))
-	assert.Equal(t, "agents/gen/profile.yaml", cfg.Profile)
+	err := DecodeToolConfig(def, &cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `tool "test" config`)
+	assert.Contains(t, err.Error(), `unknown field "extra_junk"`)
 }
 
 func TestDecodeToolConfigLoadSuite(t *testing.T) {

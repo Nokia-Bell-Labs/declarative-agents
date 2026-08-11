@@ -10,19 +10,7 @@ tools:
   output:
     description: Line-numbered text content from the requested file range.
     schema:
-      type: object
-      properties:
-        path:
-          type: string
-        content:
-          type: string
-        start_line:
-          type: integer
-        end_line:
-          type: integer
-      required:
-      - path
-      - content
+      type: string
   metrics:
     instruments:
     - name: filesystem.bytes_read
@@ -49,6 +37,9 @@ tools:
       end_line:
         type: integer
         description: End line (1-indexed, inclusive)
+      raw:
+        type: boolean
+        description: Return exact file bytes without line-number prefixes.
     required:
     - path
   side_effects:
@@ -88,10 +79,10 @@ tools:
   # search; read would pay it per read. Verdict: do not externalize.
   - Does not fork a CLI per read; the fork+exec cost is not tolerable at loop frequency (GH-1392).
   errors:
-  - signal: CommandError
-    condition: required input, configuration, or runtime state is invalid
-    message_shape: 'read: <error>'
-    state_after_failure: no additional workflow step is executed by this tool
+  - signal: ToolFailed
+    condition: the path is invalid, unreadable, a directory, binary, or the requested range is invalid
+    message_shape: '<read failure>'
+    state_after_failure: no filesystem state changes
   relationships:
     before:
     - machine-selected predecessor

@@ -64,3 +64,28 @@ func TestRunIDIsSharedByCheckpointAndLoopWithoutChangingAgentName(t *testing.T) 
 	require.Equal(t, runID, params.RunID)
 	require.Equal(t, "agent", params.AgentName)
 }
+
+func TestMachineNameDrivesSpanAndMetricIdentity(t *testing.T) {
+	t.Parallel()
+	machine := core.MachineSpec{Name: "planner"}
+	params := loopParams(runtimeConfig{}, loopParamDeps{
+		Machine: machine, State: &agentState{}, Registry: core.NewRegistry(),
+		Tracer: tracing.NoopTracer{},
+	})
+	require.Equal(t, "planner", params.AgentName)
+	require.Equal(t, agentVersion, params.AgentVersion)
+
+	monitorConfig, err := monitorRecorderConfig(machine, nil, "run-planner")
+	require.NoError(t, err)
+	require.NotEmpty(t, monitorConfig.GlobalAttributes)
+	require.Equal(t, "agent.name", monitorConfig.GlobalAttributes[0].Name)
+	require.Equal(t, []string{"planner"}, monitorConfig.GlobalAttributes[0].AllowedValues)
+	require.Equal(t, params.AgentName,
+		monitorConfig.GlobalAttributes[0].AllowedValues[0],
+		"span and metric identity must share one source")
+}
+
+func TestMachineAgentNameFallsBackForLegacySpec(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "agent", machineAgentName(core.MachineSpec{}))
+}

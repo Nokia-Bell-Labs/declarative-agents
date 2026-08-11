@@ -74,7 +74,7 @@ tools:
       properties: {}
     emits: [ScenarioReady, AllScenariosDone, CommandError]
     output:
-      description: The scenario now current, or the run report when exhausted.
+      description: The scenario now current, or an exhausted marker when the cursor is done.
       schema:
         type: object
         properties:
@@ -82,6 +82,7 @@ tools:
           scenario: {type: string}
           validators: {type: array}
           fixtures: {type: array}
+          exhausted: {type: boolean}
     side_effects:
       - kind: state_mutation
         target: scenario_session
@@ -182,6 +183,9 @@ tools:
           profile: {type: string}
           base_url: {type: string}
           env: {type: array}
+          health_base_url: {type: string}
+          health_path: {type: string}
+          started_at: {type: string}
     side_effects:
       - kind: child_agent_execution
         target: subject_agent
@@ -197,8 +201,8 @@ tools:
       description: Decode the subject receipt and stop only that child.
     errors:
       - signal: CommandError
-        condition: The subject profile is missing, or the process fails to spawn.
-        state_after_failure: The scenario's mocks stay tracked for teardown.
+        condition: The subject profile or health target is invalid, or the process fails to spawn.
+        state_after_failure: The scenario's mocks stay tracked for teardown; no subject process or session record exists.
     config: {}
 
   - name: probe_subject_health
@@ -445,7 +449,10 @@ tools:
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
-    errors: []
+    errors:
+      - signal: ScenarioFailed
+        condition: One or more recorded validator outcomes failed.
+        state_after_failure: The failed verdict is retained for aggregate reporting.
     config: {}
 
   - name: fail_scenario_start
@@ -487,7 +494,10 @@ tools:
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
-    errors: []
+    errors:
+      - signal: ScenarioFailed
+        condition: Subject or mock startup failed before validators ran.
+        state_after_failure: The configured failure cause is retained for aggregate reporting.
     relationships:
       overlaps:
         - tool: collect_scenario_verdict
@@ -534,7 +544,10 @@ tools:
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
-    errors: []
+    errors:
+      - signal: ScenarioFailed
+        condition: The subject did not become healthy within its declared bound.
+        state_after_failure: The configured failure cause is retained for aggregate reporting.
     relationships:
       overlaps:
         - tool: collect_scenario_verdict
@@ -581,7 +594,10 @@ tools:
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
-    errors: []
+    errors:
+      - signal: ScenarioFailed
+        condition: The scenario validators could not be run.
+        state_after_failure: The configured failure cause is retained for aggregate reporting.
     relationships:
       overlaps:
         - tool: collect_scenario_verdict
@@ -682,6 +698,39 @@ tools:
       service: $from(child).service
       grace: 5s
 
+  - name: stop_all_services
+    type: builtin
+    init: stop_all_services
+    visibility: internal
+    category: boundary
+    description: Stop every child still owned by this rig run as one bounded recovery walk.
+    problem: A teardown infrastructure failure can make per-child names unreachable while live children still require cleanup.
+    goals:
+      - Reap every child process group still tracked by the shared service state.
+      - Make emergency teardown a visible MachineSpec action.
+    requirements:
+      input: [No parameters; the service state owns the bounded child set.]
+      output: [Output reports the number and result of stopped children.]
+      errors: [None; stopping an absent or already-stopped child is idempotent.]
+    non_goals:
+      - Does not replace ordinary one-child teardown on successful scenario paths.
+      - Does not restart stopped children.
+    parameters: {type: object, properties: {}}
+    emits: [AllServicesStopped]
+    output:
+      description: Emergency teardown summary.
+      schema:
+        type: object
+        properties:
+          stopped: {type: integer}
+          children: {type: array}
+        required: [stopped, children]
+    side_effects:
+      - {kind: child_process, target: all_tracked_scenario_children, state: stopped}
+    reversibility: {classification: irreversible, undo: irreversible}
+    undo: {strategy: irreversible, description: Recovery stops leaked children and does not restart them.}
+    errors: []
+
   - name: report_rig_session
     type: builtin
     init: report_scenario_session
@@ -724,5 +773,8 @@ tools:
     undo:
       strategy: noop
       description: Reporting reads the collected verdicts and changes nothing.
-    errors: []
+    errors:
+      - signal: SessionFailed
+        condition: At least one scenario verdict failed, or no scenario was proven.
+        state_after_failure: The complete aggregate report is returned.
     config: {}

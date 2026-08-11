@@ -348,17 +348,6 @@ func (g *Graph) Node(id string) (*Node, bool) {
 // NodeCount returns the total number of nodes.
 func (g *Graph) NodeCount() int { return len(g.nodes) }
 
-// TopologicalSort returns node IDs in a valid topological order.
-func (g *Graph) TopologicalSort() ([]string, error) {
-	order, err := dag.StableTopologicalSort(g.dag, func(s1, s2 string) bool {
-		return s1 < s2
-	})
-	if err != nil {
-		return nil, fmt.Errorf("topological sort: %w", err)
-	}
-	return order, nil
-}
-
 // Ready returns all nodes whose predecessors are all Done and whose
 // own status is Pending.
 func (g *Graph) Ready() []*Node {
@@ -392,86 +381,4 @@ func (g *Graph) Ready() []*Node {
 
 	sort.Slice(ready, func(i, j int) bool { return ready[i].ID < ready[j].ID })
 	return ready
-}
-
-// Blocked returns all nodes that have at least one predecessor in
-// status Failed.
-func (g *Graph) Blocked() []*Node {
-	predMap, err := g.dag.PredecessorMap()
-	if err != nil {
-		return nil
-	}
-
-	var blocked []*Node
-	for id, preds := range predMap {
-		node := g.nodes[id]
-		if node.Status == Done || node.Status == Failed {
-			continue
-		}
-		for predID := range preds {
-			if g.nodes[predID].Status == Failed {
-				blocked = append(blocked, node)
-				break
-			}
-		}
-	}
-
-	sort.Slice(blocked, func(i, j int) bool { return blocked[i].ID < blocked[j].ID })
-	return blocked
-}
-
-// Predecessors returns the direct predecessors of a node.
-func (g *Graph) Predecessors(nodeID string) ([]*Node, error) {
-	predMap, err := g.dag.PredecessorMap()
-	if err != nil {
-		return nil, err
-	}
-	preds, ok := predMap[nodeID]
-	if !ok {
-		return nil, fmt.Errorf("node %s not found", nodeID)
-	}
-
-	var result []*Node
-	for predID := range preds {
-		result = append(result, g.nodes[predID])
-	}
-	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
-	return result, nil
-}
-
-// DFSFrom returns nodes reachable from startID in DFS order,
-// filtered to only Ready nodes (Pending with all predecessors Done).
-func (g *Graph) DFSFrom(startID string) []*Node {
-	readySet := make(map[string]bool)
-	for _, n := range g.Ready() {
-		readySet[n.ID] = true
-	}
-
-	var result []*Node
-	_ = dag.DFS(g.dag, startID, func(id string) bool {
-		if readySet[id] {
-			result = append(result, g.nodes[id])
-		}
-		return false
-	})
-	return result
-}
-
-// Edges returns all edges as (source, target) pairs, sorted.
-func (g *Graph) Edges() [][2]string {
-	edges, err := g.dag.Edges()
-	if err != nil {
-		return nil
-	}
-	var result [][2]string
-	for _, e := range edges {
-		result = append(result, [2]string{e.Source, e.Target})
-	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i][0] != result[j][0] {
-			return result[i][0] < result[j][0]
-		}
-		return result[i][1] < result[j][1]
-	})
-	return result
 }

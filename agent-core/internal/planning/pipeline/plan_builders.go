@@ -9,7 +9,6 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/extract"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 )
@@ -147,23 +146,4 @@ func (b *ParsePlanBuilder) Build(res core.Result) core.Command {
 
 func (b *ParsePlanBuilder) BuildReverser() core.Command {
 	return &parsePlanCmd{ps: b.PS, retry: b.Retry}
-}
-
-// marshalPipelineTask serializes pipeline task info for tracing.
-func marshalPipelineTask(task *extract.Task, issueID string) string {
-	j := struct {
-		TaskID  string `json:"task_id"`
-		SRDID   string `json:"srd_id"`
-		Weight  int    `json:"weight"`
-		Nodes   int    `json:"nodes"`
-		IssueID string `json:"issue_id,omitempty"`
-	}{
-		TaskID:  task.ID,
-		SRDID:   task.SRDID,
-		Weight:  task.Weight,
-		Nodes:   len(task.NodeIDs),
-		IssueID: issueID,
-	}
-	data, _ := json.Marshal(j)
-	return string(data)
 }

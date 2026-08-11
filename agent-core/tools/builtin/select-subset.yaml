@@ -38,7 +38,9 @@ tools:
         matched_count: {type: integer}
         unmatched_count: {type: integer}
       required: [matched, unmatched, selected, matched_count, unmatched_count]
-  side_effects: []
+  side_effects:
+  - kind: none
+    description: Reads command state and produces a Result without mutating runtime or external state.
   reversibility:
     classification: reversible
     undo: noop

@@ -2,7 +2,11 @@
 
 package spec
 
-import "gopkg.in/yaml.v3"
+import (
+	"fmt"
+
+	"gopkg.in/yaml.v3"
+)
 
 // DocSpec represents a parsed semantic-model or config-format YAML spec.
 // It captures only the fields needed for cross-reference validation.
@@ -23,18 +27,27 @@ type DocSpecSources struct {
 }
 
 func (s *DocSpecSources) UnmarshalYAML(value *yaml.Node) error {
-	type plain DocSpecSources
-	var structured plain
-	if err := value.Decode(&structured); err == nil && (len(structured.Canonical) > 0 || len(structured.HistoricalBackground) > 0) {
+	switch value.Kind {
+	case yaml.MappingNode:
+		type plain DocSpecSources
+		var structured plain
+		if err := value.Decode(&structured); err != nil {
+			return err
+		}
 		*s = DocSpecSources(structured)
 		return nil
-	}
-	var flat []string
-	if err := value.Decode(&flat); err == nil {
+	case yaml.SequenceNode:
+		var flat []string
+		if err := value.Decode(&flat); err != nil {
+			return err
+		}
 		s.Canonical = flat
 		return nil
+	case 0:
+		return nil
+	default:
+		return fmt.Errorf("requirements_source must be a mapping or list")
 	}
-	return nil
 }
 
 // AllPaths returns all canonical and historical source paths.
@@ -48,17 +61,29 @@ type DocSpecImpl struct {
 }
 
 func (d *DocSpecImpl) UnmarshalYAML(value *yaml.Node) error {
-	var list []string
-	if err := value.Decode(&list); err == nil {
+	switch value.Kind {
+	case yaml.SequenceNode:
+		var list []string
+		if err := value.Decode(&list); err != nil {
+			return err
+		}
 		d.Paths = list
 		return nil
-	}
-	var single string
-	if err := value.Decode(&single); err == nil && single != "" {
+	case yaml.ScalarNode:
+		var single string
+		if err := value.Decode(&single); err != nil {
+			return err
+		}
+		if single == "" {
+			return fmt.Errorf("implementation path must not be empty")
+		}
 		d.Paths = []string{single}
 		return nil
+	case 0:
+		return nil
+	default:
+		return fmt.Errorf("implementation must be a string or list")
 	}
-	return nil
 }
 
 // DocSpecExample is one example entry with a file path.

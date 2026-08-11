@@ -16,6 +16,15 @@ type Sample struct {
 	WorkspaceDir string
 }
 
+// SampleLayout declares how a suite's sample directories are interpreted.
+type SampleLayout struct {
+	WorkspaceDir      string
+	DocDir            string
+	PromptFile        string
+	AllowSharedPrompt bool
+	RequireSamples    bool
+}
+
 // Harness names the child agent binary used for a resolved suite profile.
 type Harness struct {
 	Name    string

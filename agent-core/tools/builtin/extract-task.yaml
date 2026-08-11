@@ -13,7 +13,7 @@ tools:
   - kind: state_mutation
     target: pipeline_state
     state: current_task_selected
-    description: Updates the current task cursor and graph task status.
+    description: Updates only the current task cursor.
   reversibility:
     classification: reversible
     undo: pipeline_state_restore
@@ -21,7 +21,7 @@ tools:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded pipeline state captured before extraction.
     payload: pipeline_state_snapshot
-    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
+    captures: [current_task, current_plan, issue_id, task_deps]
   problem: The machine needs a declared word for extracting the next ready planning task without embedding that workflow step in Go control flow.
   goals:
   - Perform the extract_task action as one machine-selected word.
@@ -29,14 +29,14 @@ tools:
   - Keep sequencing outside the tool implementation and in machine.yaml.
   requirements:
     input:
-    - must consume parameters from tool input, prior Result, or configured command/domain state
+    - max_weight comes from trusted config; zero means unlimited
     output:
     - must emit one declared signal and return machine-readable output when available
     errors:
     - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
   non_goals:
   - Does not choose the next workflow step; machine.yaml owns sequencing.
-  - Does not hide unrelated tool execution behind this word.
+  - Does not advance graph nodes; mark_nodes_planning owns that mutation.
   errors:
   - signal: CommandError
     condition: required input, configuration, or runtime state is invalid
@@ -48,13 +48,8 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: extract_task command result summary.
+    description: Plain-text extracted task summary.
     schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
+      type: string
+  config:
+    max_weight: 0

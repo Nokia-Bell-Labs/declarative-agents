@@ -4,7 +4,6 @@ package rest
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -34,6 +33,7 @@ func NewServerState() *ServerState {
 // InboundEvent is one validated HTTP request visible to MachineSpec.
 type InboundEvent struct {
 	Source    string                 `json:"source"`
+	Queue     string                 `json:"queue,omitempty"`
 	Route     string                 `json:"route"`
 	Method    string                 `json:"method"`
 	Signal    string                 `json:"signal"`
@@ -399,7 +399,9 @@ func (r *serverRuntime) awaitNext(
 		r.storePending(event)
 		return awaitResult{}
 	case <-r.stopped:
-		return stoppedResult(r.name, stopped)
+		return stoppedResult(
+			r.name, stopped, shutdownUnblockSignal(r.def.Server.Shutdown),
+		)
 	case <-ctx.Done():
 		return awaitResult{done: true}
 	}
@@ -445,7 +447,9 @@ func matchesList(allowed []string, got string) bool {
 	return false
 }
 
-func stoppedResult(name string, behavior StoppedSourceBehavior) awaitResult {
+func stoppedResult(
+	name string, behavior StoppedSourceBehavior, configuredSignal string,
+) awaitResult {
 	switch behavior {
 	case StoppedSourceIgnore:
 		return awaitResult{done: true}
@@ -455,7 +459,9 @@ func stoppedResult(name string, behavior StoppedSourceBehavior) awaitResult {
 			err: fmt.Errorf("REST server %q stopped while awaiting events", name),
 		}
 	default:
-		return awaitResult{event: InboundEvent{Source: name}, signal: "ServerStopped"}
+		return awaitResult{
+			event: InboundEvent{Source: name}, signal: configuredSignal,
+		}
 	}
 }
 
@@ -474,14 +480,6 @@ func awaitAnyTimeout(options AwaitAnyOptions) time.Duration {
 		return options.Timeout
 	}
 	return defaultAwaitTimeout
-}
-
-func jsonOutput(value map[string]interface{}) string {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Sprintf(`{"error":%q}`, err.Error())
-	}
-	return string(data)
 }
 
 func (r *serverRuntime) awaitTimeout() time.Duration {

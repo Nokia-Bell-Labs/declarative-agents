@@ -40,8 +40,10 @@ tools:
     classification: compensatable
     undo: otlp_receiver_stop
   undo:
-    strategy: compensating_action
-    description: Stop the listener owned by this launch.
+    strategy: receiver_stop
+    description: Decode the launch receipt and stop the named listener when it is still running.
+    captures: [receiver, address]
+    requires: [receipt]
   errors:
   - signal: CommandError
     condition: config is invalid, the receiver is live, or the address cannot bind
@@ -178,6 +180,7 @@ tools:
   requirements:
     input:
     - Path, batch selector, and rotation bounds come from trusted config.
+    - A positive max_bytes requires max_files of at least two.
     output:
     - Output reports path, span count, bytes written, and repeats the selected batch for declared relay.
     side_effects:
@@ -232,27 +235,26 @@ tools:
   problem: Persistent backends need accepted batches, but relay and retry order must remain visible in MachineSpec.
   goals:
   - Preserve protobuf resource and span identity at the upstream.
-  - Separate upstream rejection from successful acceptance.
+  - Treat any upstream partial rejection as CommandError rather than a successful relay.
   - Reject a statically equivalent receiver and relay endpoint.
   requirements:
     input:
     - Endpoint, receiver address, batch selector, and timeout come from trusted config.
     output:
-    - Output reports endpoint, span count, and accepted span count.
+    - Output reports endpoint and span count after complete upstream acceptance.
     errors:
     - Selection, connection, timeout, RPC, and partial-success rejection emit CommandError.
   non_goals:
   - Does not retry, sample, mutate, or retract spans.
   parameters: {type: object, properties: {}}
   output:
-    description: Upstream endpoint and accepted span count.
+    description: Upstream endpoint and completely accepted span count.
     schema:
       type: object
       properties:
         endpoint: {type: string}
         span_count: {type: integer}
-        accepted_span_count: {type: integer}
-      required: [endpoint, span_count, accepted_span_count]
+      required: [endpoint, span_count]
   side_effects:
   - kind: external_api
     target: configured OTLP/gRPC endpoint
@@ -292,7 +294,7 @@ tools:
     input:
     - Receiver, shutdown timeout, and drain policy come from trusted config.
     output:
-    - Output reports status, queue counts, drop counts, and drain policy.
+    - Output reports trace and metric queue counts, drop counts, and drain policy.
     side_effects:
     - Closes the listener and mutates receiver lifecycle state.
     errors:
@@ -309,8 +311,13 @@ tools:
         address: {type: string}
         status: {type: string}
         queued_batches: {type: integer}
+        dropped_on_stop: {type: integer}
         dropped_batches: {type: integer}
         dropped_spans: {type: integer}
+        queued_metrics: {type: integer}
+        dropped_metrics_on_stop: {type: integer}
+        dropped_metric_batches: {type: integer}
+        dropped_data_points: {type: integer}
         drain_policy: {type: string}
       required: [receiver, address, status, queued_batches, drain_policy]
   side_effects:
@@ -473,22 +480,21 @@ tools:
     path: traces/collector.ndjson
     trace_id: ""
 
-- name: spool_span_stats
+- name: spool_span_heatmap
   type: builtin
-  init: spool_span_stats
+  init: spool_span_heatmap
   category: boundary
   visibility: internal
-  emits: [SpanStatsReady, CommandError]
-  description: Filter spooled spans and return a duration-over-time heatmap and group-by counts.
-  problem: An Explore panel needs an aggregate latency view over the spool -- where the time is spent and how a slice breaks down by an attribute -- without a separate analytics backend.
+  emits: [SpanHeatmapReady, CommandError]
+  description: Filter spooled spans and return a duration-over-time heatmap.
+  problem: An Explore panel needs to see where latency occurs over time without coupling that view to another aggregation.
   goals:
   - Filter spans by time, service, name, and attribute equality, then bucket them into a duration-over-time heatmap.
-  - Count filtered spans grouped by an attribute, reporting the dropped remainder rather than truncating silently.
   requirements:
     input:
-    - Spool path, time-bucket count, duration bucket edges, group-by key, and caps come from trusted config; the filter, group-by, and top-N arrive per request.
+    - Spool path, time-bucket count, duration bucket edges, and exemplar cap come from trusted config; the filter and time-bucket override arrive per request.
     output:
-    - Output includes the heatmap grid with axis boundaries, the matched span count, a capped list of exemplar trace IDs for the matched set, group-by counts, the dropped group and span totals, and skipped line count.
+    - Output includes the heatmap grid with axis boundaries, matched span count, exemplar trace IDs, and skipped line count.
     side_effects:
     - Read-only file access.
     errors:
@@ -507,10 +513,8 @@ tools:
       max_duration_ms: {type: integer}
       attributes: {type: object}
       time_buckets: {type: integer}
-      group_by: {type: string}
-      top_n: {type: integer}
   output:
-    description: A duration-over-time heatmap and optional group-by counts over the filtered spans.
+    description: A duration-over-time heatmap over the filtered spans.
     schema:
       type: object
       properties:
@@ -524,16 +528,6 @@ tools:
         matched: {type: integer}
         exemplar_trace_ids: {type: array, items: {type: string}}
         skipped_lines: {type: integer}
-        group_by: {type: string}
-        groups:
-          type: array
-          items:
-            type: object
-            properties:
-              value: {type: string}
-              count: {type: integer}
-        dropped_groups: {type: integer}
-        dropped_span_total: {type: integer}
       required: [heatmap, matched, exemplar_trace_ids, skipped_lines]
   side_effects:
   - kind: filesystem_read
@@ -556,6 +550,81 @@ tools:
     path: traces/collector.ndjson
     time_buckets: 24
     duration_edges_ms: [0, 1, 10, 50, 100, 500, 1000, 5000]
+    exemplar_cap: 20
+
+- name: spool_span_group_by
+  type: builtin
+  init: spool_span_group_by
+  category: boundary
+  visibility: internal
+  emits: [SpanGroupByReady, CommandError]
+  description: Filter spooled spans and count them by one requested key.
+  problem: An Explore panel needs a bounded categorical breakdown without forcing an unrelated heatmap calculation.
+  goals:
+  - Count filtered spans grouped by an attribute, reporting the dropped remainder rather than truncating silently.
+  requirements:
+    input:
+    - Spool path and caps come from trusted config; the filter, group-by key, and top-N arrive per request.
+    output:
+    - Output includes the matched span count, exemplar trace IDs, group-by counts, dropped group and span totals, and skipped line count.
+    side_effects:
+    - Read-only file access.
+    errors:
+    - A missing group-by key or unreadable spool path emits CommandError.
+  non_goals:
+  - Does not compute a duration heatmap.
+  - Does not mutate, rotate, or delete spool files.
+  parameters:
+    type: object
+    properties:
+      start_ms: {type: integer}
+      end_ms: {type: integer}
+      service: {type: string}
+      span_name: {type: string}
+      min_duration_ms: {type: integer}
+      max_duration_ms: {type: integer}
+      attributes: {type: object}
+      group_by: {type: string}
+      top_n: {type: integer}
+  output:
+    description: Bounded group-by counts over filtered spans.
+    schema:
+      type: object
+      properties:
+        matched: {type: integer}
+        exemplar_trace_ids: {type: array, items: {type: string}}
+        skipped_lines: {type: integer}
+        group_by: {type: string}
+        groups:
+          type: array
+          items:
+            type: object
+            properties:
+              value: {type: string}
+              count: {type: integer}
+            required: [value, count]
+        dropped_groups: {type: integer}
+        dropped_span_total: {type: integer}
+      required: [matched, exemplar_trace_ids, skipped_lines, group_by, groups, dropped_groups, dropped_span_total]
+  side_effects:
+  - kind: filesystem_read
+    target: configured spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: group_by is missing or the configured spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  relationships:
+    after: [spool_spans]
+  config:
+    path: traces/collector.ndjson
     group_by: ""
     top_n: 20
     max_top_n: 100
@@ -707,6 +776,7 @@ tools:
   requirements:
     input:
     - Path, batch selector, and rotation bounds come from trusted config.
+    - A positive max_bytes requires max_files of at least two.
     output:
     - Output reports path, metric count, data-point count, bytes written, and repeats the selected batch.
     side_effects:
@@ -824,16 +894,16 @@ tools:
   category: boundary
   visibility: internal
   emits: [MetricRetrieved, CommandError]
-  description: Read all spooled records for one metric name from the NDJSON metric spool.
-  problem: A metric detail view needs per-record data points and resource identity from the spool without a separate query backend.
+  description: Read one bounded page of spooled records for one metric name from the NDJSON metric spool.
+  problem: A metric detail view needs bounded per-record data points and resource identity without hiding truncation.
   goals:
-  - Return all records for one metric name with service and data-point detail.
+  - Return one declared page with total and page record counts.
   - Read across the active spool and rotated files without mutation.
   requirements:
     input:
     - Path and metric name come from trusted config.
     output:
-    - Output includes metric name, records (name, type, unit, data-point count, service, metric), record count, data-point count, and skipped line count.
+    - Output includes metric name, records with resource identity, total, record count, page record count, pagination fields, data-point count, and skipped line count.
     side_effects:
     - Read-only file access.
     errors:
@@ -857,11 +927,18 @@ tools:
               unit: {type: string}
               data_point_count: {type: integer}
               service: {type: string}
+              resource:
+                type: array
+                items: {type: object}
               metric: {type: object}
         record_count: {type: integer}
+        page_record_count: {type: integer}
+        total: {type: integer}
         data_point_count: {type: integer}
+        offset: {type: integer}
+        page_size: {type: integer}
         skipped_lines: {type: integer}
-      required: [metric_name, records, record_count, data_point_count, skipped_lines]
+      required: [metric_name, records, record_count, page_record_count, total, data_point_count, offset, page_size, skipped_lines]
   side_effects:
   - kind: filesystem_read
     target: configured metric spool path and rotated files
@@ -882,3 +959,6 @@ tools:
   config:
     path: metrics/collector.ndjson
     metric_name: ""
+    page_size: 20
+    max_page_size: 100
+    offset: 0

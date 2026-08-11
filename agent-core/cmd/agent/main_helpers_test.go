@@ -141,7 +141,7 @@ func restoreAgentFlags(s agentFlagSnapshot) {
 }
 
 func clearAgentFlags() {
-	restoreAgentFlags(agentFlagSnapshot{resumeSignal: string(core.Approved)})
+	restoreAgentFlags(agentFlagSnapshot{})
 }
 
 func repoRootFromTest(t *testing.T) string {

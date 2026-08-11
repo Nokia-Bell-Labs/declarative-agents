@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
@@ -25,6 +26,7 @@ type EvalFactoryDeps struct {
 	ChildAgentBinary string
 	CoreRoot         string
 	Directory        string
+	Tracer           tracing.Tracer
 }
 
 type evalFactoryState struct {
@@ -106,6 +108,7 @@ func (s *evalFactoryState) init() *EvalSessionState {
 		OllamaURL:        s.deps.OllamaURL,
 		ChildAgentBinary: s.deps.ChildAgentBinary,
 		CoreRoot:         s.deps.CoreRoot,
+		Tracer:           s.deps.Tracer,
 	}
 	return s.session
 }

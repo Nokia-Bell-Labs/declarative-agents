@@ -30,9 +30,6 @@ func (c *extractTaskCmd) Execute() (result core.Result) {
 		return core.Result{CommandName: c.Name(), Signal: SigNoTask, Output: "no task ready for extraction"}
 	}
 	c.ps.CurrentTask = task
-	if err := c.ps.advanceTaskNodesTo(graph.Planning); err != nil {
-		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
-	}
 	c.ps.Tracer.Event("pipeline.task_extracted",
 		attribute.String("task.id", task.ID),
 		attribute.String("task.srd_id", task.SRDID),

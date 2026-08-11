@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -95,21 +96,26 @@ func SelectTools(declarations []ToolDef, selection []string) ([]ToolDef, error) 
 
 // LoadToolDefs reads one declaration file and resolves includes.
 func LoadToolDefs(path string) ([]ToolDef, error) {
-	return loadToolDefsRecursive(path, nil)
+	return loadToolDefsRecursive(path, nil, nil)
 }
 
-func loadToolDefsRecursive(path string, seen map[string]bool) ([]ToolDef, error) {
+func loadToolDefsRecursive(path string, stack map[string]bool, chain []string) ([]ToolDef, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("resolve path %s: %w", path, err)
 	}
-	if seen == nil {
-		seen = make(map[string]bool)
+	if stack == nil {
+		stack = make(map[string]bool)
 	}
-	if seen[abs] {
-		return nil, fmt.Errorf("circular include detected: %s", abs)
+	if stack[abs] {
+		return nil, fmt.Errorf(
+			"circular include detected: %s",
+			strings.Join(append(chain, abs), " -> "),
+		)
 	}
-	seen[abs] = true
+	stack[abs] = true
+	defer delete(stack, abs)
+	chain = append(chain, abs)
 
 	data, err := os.ReadFile(abs)
 	if err != nil {
@@ -124,7 +130,7 @@ func loadToolDefsRecursive(path string, seen map[string]bool) ([]ToolDef, error)
 		return nil, fmt.Errorf("parse tool defs %s: %w", abs, err)
 	}
 
-	base, err := loadIncludedToolDefs(file.Includes, abs, seen)
+	base, err := loadIncludedToolDefs(file.Includes, abs, stack, chain)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +143,9 @@ func loadToolDefsRecursive(path string, seen map[string]bool) ([]ToolDef, error)
 // loadIncludedToolDefs resolves a file's includes against its own directory and
 // merges them in declaration order. from names the including file, so a failure
 // deep in an include chain reports which file pulled it in.
-func loadIncludedToolDefs(includes []string, from string, seen map[string]bool) ([]ToolDef, error) {
+func loadIncludedToolDefs(
+	includes []string, from string, stack map[string]bool, chain []string,
+) ([]ToolDef, error) {
 	var base []ToolDef
 	dir := filepath.Dir(from)
 	for _, inc := range includes {
@@ -145,7 +153,7 @@ func loadIncludedToolDefs(includes []string, from string, seen map[string]bool) 
 		if !filepath.IsAbs(incPath) {
 			incPath = filepath.Join(dir, incPath)
 		}
-		incDefs, err := loadToolDefsRecursive(incPath, seen)
+		incDefs, err := loadToolDefsRecursive(incPath, stack, chain)
 		if err != nil {
 			return nil, fmt.Errorf("include %s from %s: %w", inc, from, err)
 		}
@@ -180,12 +188,53 @@ func validateToolDefs(defs []ToolDef) error {
 		default:
 			return fmt.Errorf("tool %q: unknown type %q", td.Name, td.Type)
 		}
+		if err := validateToolVocabulary(td); err != nil {
+			return err
+		}
 		if !validPreconditions[td.Precondition] {
 			return fmt.Errorf("tool %q: unknown precondition %q", td.Name, td.Precondition)
+		}
+		if err := validateUndoStrategy(td); err != nil {
+			return err
 		}
 		if err := core.ValidateMetricConfig(td.Name, td.Metrics); err != nil {
 			return fmt.Errorf("tool %q: %w", td.Name, err)
 		}
+	}
+	return nil
+}
+
+func validateToolVocabulary(def ToolDef) error {
+	switch def.Visibility {
+	case "", "internal", "external":
+	default:
+		return fmt.Errorf("tool %q: unknown visibility %q", def.Name, def.Visibility)
+	}
+	switch def.Reversibility.Classification {
+	case "", "reversible", "compensatable", "irreversible":
+	default:
+		return fmt.Errorf(
+			"tool %q: unknown reversibility classification %q",
+			def.Name, def.Reversibility.Classification,
+		)
+	}
+	return nil
+}
+
+func validateUndoStrategy(def ToolDef) error {
+	strategy := def.Undo.Strategy
+	if strategy == "" {
+		return nil
+	}
+	if !core.KnownUndoStrategy(strategy) {
+		return fmt.Errorf("tool %q: unknown undo strategy %q", def.Name, strategy)
+	}
+	if !core.UndoStrategySupported(def.Type, strategy) {
+		return fmt.Errorf(
+			"tool %q: undo strategy %q is not supported for type %q; supported: %s",
+			def.Name, strategy, def.Type,
+			strings.Join(core.SupportedUndoStrategies(def.Type), ", "),
+		)
 	}
 	return nil
 }

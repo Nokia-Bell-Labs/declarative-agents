@@ -85,18 +85,22 @@ func sortedStringKeys(m map[string][]any) []string {
 	return keys
 }
 
-// DiscoverSamples finds evaluation samples in the given directory.
-// Each sample is a subdirectory containing a prompt.yaml and a workspace/ dir.
-func DiscoverSamples(dir string) ([]Sample, error) {
+// DiscoverSamples finds evaluation samples using the declared layout.
+func DiscoverSamples(dir string, layout SampleLayout) ([]Sample, error) {
+	if layout.WorkspaceDir == "" || layout.PromptFile == "" {
+		return nil, fmt.Errorf("discover samples requires workspace_dir and prompt_file")
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("discover samples in %s: %w", dir, err)
 	}
 
-	// Check for a shared prompt.yaml at the samples root level.
-	sharedPrompt := filepath.Join(dir, "prompt.yaml")
-	if _, err := os.Stat(sharedPrompt); err != nil {
-		sharedPrompt = ""
+	sharedPrompt := ""
+	if layout.AllowSharedPrompt {
+		sharedPrompt = filepath.Join(dir, layout.PromptFile)
+		if _, err := os.Stat(sharedPrompt); err != nil {
+			sharedPrompt = ""
+		}
 	}
 
 	var samples []Sample
@@ -105,13 +109,13 @@ func DiscoverSamples(dir string) ([]Sample, error) {
 			continue
 		}
 		sampleDir := filepath.Join(dir, e.Name())
-		workspaceDir := filepath.Join(sampleDir, "workspace")
+		workspaceDir := filepath.Join(sampleDir, layout.WorkspaceDir)
 
 		if _, err := os.Stat(workspaceDir); err != nil {
 			continue
 		}
 
-		promptPath := filepath.Join(sampleDir, "prompt.yaml")
+		promptPath := filepath.Join(sampleDir, layout.PromptFile)
 		if _, err := os.Stat(promptPath); err != nil {
 			if sharedPrompt != "" {
 				promptPath = sharedPrompt
@@ -126,38 +130,30 @@ func DiscoverSamples(dir string) ([]Sample, error) {
 			WorkspaceDir: workspaceDir,
 		}
 
-		docDir := filepath.Join(sampleDir, "doc")
-		if _, err := os.Stat(docDir); err == nil {
-			sample.DocDir = docDir
+		if layout.DocDir != "" {
+			docDir := filepath.Join(sampleDir, layout.DocDir)
+			if _, err := os.Stat(docDir); err == nil {
+				sample.DocDir = docDir
+			}
 		}
 
 		samples = append(samples, sample)
 	}
 
-	if len(samples) == 0 {
+	if len(samples) == 0 && layout.RequireSamples {
 		return nil, fmt.Errorf("no valid samples found in %s", dir)
 	}
 
 	return samples, nil
 }
 
-// LoadSuite reads a suite YAML file and resolves its samples.
-func LoadSuite(path string) (SuiteConfig, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return SuiteConfig{}, fmt.Errorf("read suite: %w", err)
-	}
-
-	return ParseSuite(data, filepath.Dir(path))
-}
-
 // ParseSuite parses suite YAML and resolves samples relative to baseDir.
-func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
+func ParseSuite(data []byte, baseDir string, layout SampleLayout) (SuiteConfig, error) {
 	suite, err := ParseSuiteConfig(data, baseDir)
 	if err != nil {
 		return SuiteConfig{}, err
 	}
-	samples, err := DiscoverSamples(suite.SamplesDir)
+	samples, err := DiscoverSamples(suite.SamplesDir, layout)
 	if err != nil {
 		return SuiteConfig{}, fmt.Errorf("suite %q: %w", suite.Name, err)
 	}

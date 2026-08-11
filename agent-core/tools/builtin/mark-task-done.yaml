@@ -8,7 +8,7 @@ tools:
   category: stateful_internal
   side_effects:
   - kind: state_mutation
-    target: pipeline_graph
+    target: requirement_graph
     state: current_task_completed
     description: Advances the current task's nodes to Done without choosing a route.
   reversibility:

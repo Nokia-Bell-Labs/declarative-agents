@@ -94,7 +94,9 @@ schema:
       validation at runtime. Omitted for builtin tools that take no
       parameters (e.g. parse_response, done). Exec tools may include
       parameter extensions (see parameter_extensions) that are stripped
-      before sending to the LLM.
+      before sending to the LLM. Builtins may not declare exec-only source,
+      flag, positional, or position extensions. Defaults are strings and
+      position values are integers; startup rejects other types.
 
   - field: visibility
     type: string
@@ -104,6 +106,16 @@ schema:
       "external" (default) — visible to the LLM and available for
       tool calls. "internal" — hidden from the LLM; can only be
       invoked by machine transitions (e.g. invoke_llm, parse_response).
+      Startup rejects every other value so a typo cannot expose an internal
+      word through the permissive default.
+
+  - field: phases
+    type: "[]string"
+    required: false
+    description: |
+      Optional additional restriction on dynamic-tool availability. Every
+      authored phase must name a state in the loaded MachineSpec; startup
+      rejects an unknown state rather than registering an invisible word.
 
   - field: emits
     type: "[]string"
@@ -179,7 +191,8 @@ schema:
       Contract field classifying whether effects can be undone.
       classification is one of reversible, compensatable, or irreversible.
       undo describes the undo/compensation mechanism. requires_confirmation
-      marks tools that require explicit approval before use.
+      marks tools that require explicit approval before use. Startup rejects an
+      unknown classification so it cannot disable receipt validation.
 
   - field: undo
     type: object
@@ -194,8 +207,11 @@ schema:
         type: string
         description: |
           The undo strategy name. Known values: noop,
-          conversation_truncate, workspace_restore,
-          compensating_action, child_command_undo.
+          conversation_truncate, file_snapshot_restore, workspace_restore,
+          compensating_action, child_command_undo, and irreversible. Builtin
+          strategy names describe typed Undo implementations. Exec words are
+          restricted to noop, workspace_restore, compensating_action, or
+          irreversible because one shared interpreter executes their Undo.
       - field: description
         type: string
         description: |
@@ -211,9 +227,10 @@ schema:
       - field: captures
         type: "[]string"
         description: |
-          Names of the runtime values captured in the UndoMemento
-          payload. These document the information persisted for
-          later compensation or inspection. Examples include
+          Names of runtime parameter or structured-output values captured in
+          the UndoMemento payload. Generic exec words project these names into
+          receipt.captures; they are executable contract data, not comments.
+          Examples include
           issue_id, child_run_id, workspace_paths, server_addr, and
           suite_path.
       - field: requires
@@ -257,7 +274,9 @@ builtin_fields:
     description: |
       Tool-specific configuration passed to the factory function.
       Decoded into typed Go structs via DecodeToolConfig at registration
-      time. Type mismatches produce errors mentioning the tool name.
+      time. Type mismatches and unknown top-level keys produce errors mentioning
+      the tool name; older runtimes reject config authored for a newer word
+      rather than silently ignoring behavior they do not implement.
       Structure varies per tool. Boundary tools that spawn child agents use
       profile-only child_agent_config for self_invoke and profile aliases such as invoke_executor.
       LLMToolConfig configures invoke_llm. LoadSuiteConfig configures

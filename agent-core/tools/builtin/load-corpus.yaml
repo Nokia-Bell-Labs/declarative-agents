@@ -48,13 +48,23 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: load_corpus command result summary.
+    description: Loaded corpus summary and the declared search plans consumed by the specification-critic machine.
     schema:
       type: object
       properties:
-        message:
+        summary:
           type: string
-        signal:
-          type: string
+        grep_checks:
+          type: array
+          items: {type: object}
+        ref_checks:
+          type: array
+          items: {type: object}
+        consistency_checks:
+          type: array
+          items: {type: object}
       required:
-      - message
+      - summary
+      - grep_checks
+      - ref_checks
+      - consistency_checks

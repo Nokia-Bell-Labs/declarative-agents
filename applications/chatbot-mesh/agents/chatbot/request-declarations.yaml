@@ -391,14 +391,9 @@ tools:
       - Does not answer the user; it only picks the chat-LLM word.
       - Does not call embedding or RAG endpoints.
     output:
-      description: Raw tier-selector response carrying one chat-LLM tool call.
+      description: Raw tier-selector response text carrying one chat-LLM tool call.
       schema:
-        type: object
-        properties:
-          response: {type: string}
-          provider: {type: string}
-          model: {type: string}
-        required: [response, provider, model]
+        type: string
     side_effects:
       - kind: external_api_call
         target: ollama.chat
@@ -488,9 +483,8 @@ tools:
       - Does not call any provider.
       - Does not answer the user.
     output:
-      description: The parsed chat-LLM tool call.
-      schema:
-        type: object
+      description: Plain-text parsed chat-LLM tool call or completion summary.
+      schema: {type: string}
     side_effects: []
     reversibility:
       classification: reversible
@@ -529,14 +523,9 @@ tools:
       - Does not call embedding or RAG endpoints directly.
       - Does not author or alter the retrieved chunks.
     output:
-      description: Raw model response.
+      description: Raw model response text.
       schema:
-        type: object
-        properties:
-          response: {type: string}
-          provider: {type: string}
-          model: {type: string}
-        required: [response, provider, model]
+        type: string
     side_effects:
       - kind: external_api_call
         target: ollama.chat
@@ -610,14 +599,9 @@ tools:
       - Does not call embedding or RAG endpoints directly.
       - Does not author or alter the retrieved chunks.
     output:
-      description: Raw model response.
+      description: Raw model response text.
       schema:
-        type: object
-        properties:
-          response: {type: string}
-          provider: {type: string}
-          model: {type: string}
-        required: [response, provider, model]
+        type: string
     side_effects:
       - kind: external_api_call
         target: ollama.chat

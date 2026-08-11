@@ -1,9 +1,7 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
 // Package ollama implements the llm.Client interface for the Ollama
-// inference server. It communicates via the Ollama HTTP API: POST
-// /api/chat for completions and GET /api/tags for the optional startup
-// model-availability check.
+// inference server through POST /api/chat.
 package ollama
 
 import (
@@ -16,8 +14,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry/genai"
@@ -50,29 +46,18 @@ type chatResp struct {
 	PromptEvalCount int    `json:"prompt_eval_count"`
 }
 
-// tagsResp is the minimal GET /api/tags response used by checkModel.
-type tagsResp struct {
-	Models []modelEntry `json:"models"`
-}
-
-type modelEntry struct {
-	Name string `json:"name"`
-}
-
 // Adapter wraps the Ollama HTTP API and implements llm.Client.
 type Adapter struct {
-	baseURL        string
-	model          string
-	client         *http.Client
-	tracer         tracing.Tracer
-	skipModelCheck bool
+	baseURL string
+	model   string
+	client  *http.Client
+	tracer  tracing.Tracer
 }
 
 var _ llm.Client = (*Adapter)(nil)
 
-// NewAdapter creates an Adapter and verifies that the requested model
-// is available via GET /api/tags. Returns an error if the model is not
-// found or the connection fails.
+// NewAdapter creates an Adapter. Availability checks are explicit profile
+// words rather than hidden constructor I/O.
 func NewAdapter(baseURL, model string, opts ...Option) (*Adapter, error) {
 	a := &Adapter{
 		baseURL: strings.TrimRight(baseURL, "/"),
@@ -83,11 +68,6 @@ func NewAdapter(baseURL, model string, opts ...Option) (*Adapter, error) {
 		opt(a)
 	}
 
-	if !a.skipModelCheck {
-		if err := a.checkModel(); err != nil {
-			return nil, err
-		}
-	}
 	return a, nil
 }
 
@@ -152,11 +132,8 @@ func (a *Adapter) Chat(ctx context.Context, messages []llm.Message, opts llm.Cha
 		return llm.ChatResponse{}, fmt.Errorf("parse chat response: %w", err)
 	}
 
-	tr.SetAttributes(
-		genai.AttrUsageInputTokens.Int(cr.PromptEvalCount),
-		genai.AttrUsageOutputTokens.Int(cr.EvalCount),
-		genai.AttrResponseModel.String(opts.Model),
-	)
+	usageAttrs := genai.UsageAttrs(cr.PromptEvalCount, cr.EvalCount)
+	tr.SetAttributes(append(usageAttrs, genai.AttrResponseModel.String(opts.Model))...)
 
 	return llm.ChatResponse{
 		Content:   cr.Message.Content,
@@ -187,73 +164,4 @@ func (a *Adapter) chatSpan(ctx context.Context, model string) (tracing.Tracer, f
 	}
 
 	return a.tracer.Push(genai.InferenceSpanName(model), attrs...)
-}
-
-// checkModel verifies that a.model is available via GET /api/tags.
-func (a *Adapter) checkModel() error {
-	a.traceEvent("check_model.start",
-		attribute.String("ollama.base_url", a.baseURL),
-		attribute.String("llm.model", a.model),
-	)
-
-	resp, err := a.client.Get(a.baseURL + "/api/tags")
-	if err != nil {
-		a.traceEvent("check_model.error", attribute.String("error", err.Error()))
-		return fmt.Errorf("failed to connect to Ollama at %s: %w", a.baseURL, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		a.traceEvent("check_model.error", attribute.Int("http.status_code", resp.StatusCode))
-		return fmt.Errorf("ollama /api/tags returned status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read /api/tags response: %w", err)
-	}
-
-	var tags tagsResp
-	if err := json.Unmarshal(body, &tags); err != nil {
-		return fmt.Errorf("parse /api/tags response: %w", err)
-	}
-
-	matched := matchModel(a.model, tags.Models)
-	a.traceEvent("check_model.done",
-		attribute.Int("model_count", len(tags.Models)),
-		attribute.Bool("match", matched),
-	)
-
-	if matched {
-		return nil
-	}
-	return fmt.Errorf("model %q is not available locally; run \"ollama pull %s\" and retry", a.model, a.model)
-}
-
-func (a *Adapter) traceEvent(name string, attrs ...attribute.KeyValue) {
-	if a.tracer != nil {
-		a.tracer.Event(name, attrs...)
-	}
-}
-
-// matchModel checks whether name matches any entry. Case-insensitive.
-// If name omits a tag (no ":"), it matches entries with any tag.
-func matchModel(name string, models []modelEntry) bool {
-	lower := strings.ToLower(name)
-	hasTag := strings.Contains(lower, ":")
-
-	for _, m := range models {
-		entry := strings.ToLower(m.Name)
-		if hasTag {
-			if entry == lower {
-				return true
-			}
-		} else {
-			bare := strings.SplitN(entry, ":", 2)[0]
-			if bare == lower {
-				return true
-			}
-		}
-	}
-	return false
 }

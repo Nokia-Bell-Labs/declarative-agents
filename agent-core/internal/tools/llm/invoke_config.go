@@ -11,9 +11,8 @@ import (
 // DecodeInvokeLLMConfig decodes and validates invoke_llm config.
 func DecodeInvokeLLMConfig(def catalog.ToolDef) (catalog.LLMToolConfig, error) {
 	cfg := catalog.LLMToolConfig{
-		Provider:      "ollama",
-		ProviderURL:   "http://localhost:11434",
-		ManifestState: "Composing",
+		Provider:    "ollama",
+		ProviderURL: "http://localhost:11434",
 	}
 	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 		return catalog.LLMToolConfig{}, err

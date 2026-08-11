@@ -55,7 +55,7 @@ flow:
     text: |
       The orchestrator records the captured source repository, path, full
       commit, exact bytes, digest, and artifact identity in append-only manifest
-      history, projects manifest.yaml, and never overwrites the original.
+      history, projects manifest.json, and never overwrites the original.
   - id: F4
     text: |
       The orchestrator appends and projects one structure intent, reads and
@@ -98,7 +98,7 @@ flow:
   - id: F10
     text: |
       On acceptance, the orchestrator materializes 00-original.md,
-      10-structure.md, 40-critique.yaml, and final.md at their fixed paths,
+      10-structure.md, 40-critique.json, and final.md at their fixed paths,
       appends and projects the finalized lineage, and enters the
       locally_finalized terminal state. No branch, commit, push, or pull
       request is performed.

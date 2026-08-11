@@ -25,13 +25,14 @@ requirements:
       - R0.3: parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary SHALL parse and validate suite input data before the evaluator session can iterate points.
       - R0.4: run_agent SHALL consume each resolved suite profile as subprocess input data for the current evaluation point and SHALL invoke the child agent with --profile when ProfilePath is set.
       - R0.5: dump_config SHALL snapshot the resolved suite profile, model, harness label, and point configuration into experiment.yaml for reproducibility.
+      - R0.6: init_eval_session SHALL reject an unexpanded grid and SHALL take output_dir, repetitions, and per-point timeout defaults from its ToolDef config; explicit runtime and suite values override those declared defaults.
 
   R1:
     title: Suite configuration
     items:
       - R1.1: SuiteConfig defines name, profiles, grid parameters, samples directory, timeout, and repetitions. Profile paths are the required suite dimension.
       - R1.2: SuiteProfile resolves each profile path relative to the suite file, loads the AgentProfile, derives a display name and model from the profile-selected invoke_llm declaration, and uses the agent binary as the harness process.
-      - R1.3: DiscoverSamples scans a directory for subdirectories containing workspace/ and prompt.yaml files.
+      - R1.3: discover_suite_samples SHALL take workspace_dir, doc_dir, prompt_file, shared-prompt fallback, and empty-suite policy from ToolDef config so a different sample layout requires no Go change.
       - R1.4: LoadSuite reads a YAML suite file and resolves samples relative to the suite's base directory.
       - R1.5: expandGrid generates the Cartesian product of all grid parameter values.
       - R1.6: Suite parsing SHALL reject suites without profiles and SHALL reject obsolete suite fields that bypass profile-selected runtime configuration.
@@ -40,7 +41,7 @@ requirements:
   R2:
     title: Evaluation session execution
     items:
-      - R2.1: The session state machine (agents/critic/machine.yaml) initializes the suite, materializes points in (profile, gridPoint, sample, repetition) order, and declares sequential fail-fast for_each dispatch through run_point before report_session.
+      - R2.1: The session state machine (agents/critic/machine.yaml) initializes the suite, materializes points in (profile, gridPoint, sample, repetition) order, and declares sequential fail-fast for_each dispatch through run_point before report_session; run_point SHALL pass the parent tracer into the nested loop.
       - R2.2: PointContext holds per-point mutable state (directories, trace path, tokens, results, timing).
       - R2.3: EvalState is the shared state container whose PC field is updated before each point's loop run.
       - R2.4: SessionResult and PointResult capture aggregate and per-point outcomes.
@@ -62,8 +63,8 @@ requirements:
       - R3.5: collect_trace_tokens parses trace files for token counts and treats a missing trace as a successful zero-token result.
       - R3.6: check_agent_version compares configured harness version with traced agent version and emits a warning signal on mismatch.
       - R3.7: summarize_point_results emits ResultsCollected after oracle, trace, and version fields are populated.
-      - R3.8: collect_metrics writes meta.json with exit code, duration, test results, token counts, and convergence data.
-      - R3.9: Every point CommandError or infrastructure ToolFailed edge before metrics SHALL route through record_point_failure and collect_metrics before Failed; run_point SHALL perform no direct artifact write and SHALL emit CommandError for nested-loop engine failures.
+      - R3.8: collect_metrics writes meta.json with exit code, duration, test results, token counts, and convergence data; it SHALL reject an empty point directory, build the path with filepath.Join, and limit receipt-driven removal to the declared owned root.
+      - R3.9: Every point CommandError or infrastructure ToolFailed edge before metrics SHALL route through record_point_failure and collect_metrics before Failed; run_point SHALL perform no direct artifact write, SHALL declare its session-state mutation and stderr progress effects, and SHALL emit CommandError for nested-loop engine failures.
 
   R4:
     title: Result analysis
@@ -71,7 +72,7 @@ requirements:
       - R4.1: LoadMultiple reads meta.json and trace.ndjson from session directories into EvalRunResult groups.
       - R4.2: ComputeModelStats aggregates per-model success rate, clean rate, recovery rate, stuck rate, mean iterations, tokens, and duration.
       - R4.3: ComputeDetailed produces per-sample-per-model breakdowns.
-      - R4.4: Classify reads a run's per-tool metric snapshots (edit-build-test outcomes) and assigns each tool progression one of six classes (Clean, Converged, Improving, Flat, Regressing, NoData) plus a single overall class per run; ComputeModelStats derives the aggregate recovery rate (converged over runs with failures) and stuck rate (flat-or-regressing over runs with failures) from these classes.
+      - R4.4: Classify reads provider-neutral structured tool.metrics snapshots for any declared tool name and assigns each tool progression one of six classes (Clean, Converged, Improving, Flat, Regressing, NoData) plus a single overall class per run; no Go-specific output regex or fixed tool-name allowlist participates.
       - R4.5: Result loading SHALL report missing, unreadable, malformed, duplicate, or partial point artifacts explicitly while retaining any independently valid partial groups.
       - R4.6: The release evaluator gate SHALL report each failed point's failure stage and cause and SHALL fail when any attempted benchmark point fails.
 
@@ -95,7 +96,7 @@ acceptance_criteria:
 
   - id: AC0
     criterion: Suite YAML is documented and validated as evaluator tool input data, with session setup/run_agent/dump_config boundaries clear.
-    traces: [R0.1, R0.2, R0.3, R0.4, R0.5, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
+    traces: [R0.1, R0.2, R0.3, R0.4, R0.5, R0.6, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
     criterion: Each evaluation point creates an isolated workspace with git baseline, experiment.yaml config snapshot, trace.ndjson, and meta.json.

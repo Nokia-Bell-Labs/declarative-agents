@@ -3,6 +3,7 @@
 package catalog
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -20,7 +21,9 @@ func DecodeToolConfig(def ToolDef, target interface{}) error {
 	if err != nil {
 		return fmt.Errorf("tool %q config marshal: %w", def.Name, err)
 	}
-	if err := json.Unmarshal(data, target); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
 		return fmt.Errorf("tool %q config: %w", def.Name, err)
 	}
 	return nil
@@ -96,13 +99,12 @@ type ParseStructuredConfig struct {
 // ReportParseErrorConfig selects the response contract requested after an LLM
 // response fails parsing.
 type ReportParseErrorConfig struct {
-	ResponseContract string `json:"response_contract"`
+	FeedbackTemplate string `json:"feedback_template"`
 }
 
 // CheckpointHistoryConfig holds config for checkpoint_history.
 type CheckpointHistoryConfig struct {
 	Checkpoint string `json:"checkpoint"`
-	Input      string `json:"input"`
 }
 
 // SelectedCheckpoint returns the configured checkpoint ID or latest.
@@ -115,11 +117,8 @@ func (c CheckpointHistoryConfig) SelectedCheckpoint() string {
 
 // CheckpointRollbackConfig holds config for checkpoint_rollback.
 type CheckpointRollbackConfig struct {
-	Checkpoint       string `json:"checkpoint"`
-	ToIteration      *int   `json:"to_iteration"`
-	Input            string `json:"input"`
-	Directory        string `json:"directory"`
-	RestoreWorkspace bool   `json:"restore_workspace"`
+	Checkpoint  string `json:"checkpoint"`
+	ToIteration *int   `json:"to_iteration"`
 }
 
 // SelectedCheckpoint returns the configured checkpoint ID or latest.
@@ -156,10 +155,13 @@ type LLMToolConfig struct {
 	// dispatches, which the manifest of the state it runs in would otherwise offer
 	// the chat-LLM vocabulary (including itself).
 	AnswerOnly bool `json:"answer_only"`
-	NumCtx     int  `json:"num_ctx"`
-	LLMTimeout int  `json:"llm_timeout"`
-	MaxTime    int  `json:"max_time"`
-	MaxTokens  int  `json:"max_tokens"`
+	// ContextLimit is a hard preflight ceiling over the assembled prompt's
+	// estimated tokens. Zero disables the local precheck.
+	ContextLimit int `json:"context_limit"`
+	NumCtx       int `json:"num_ctx"`
+	LLMTimeout   int `json:"llm_timeout"`
+	MaxTime      int `json:"max_time"`
+	MaxTokens    int `json:"max_tokens"`
 	// Temperature and Seed are optional decoding parameters. Pointers so an
 	// omitted field is distinguishable from an explicit zero: nil selects the
 	// deterministic defaults (temperature 0, seed 42) applied at build time.
@@ -169,11 +171,16 @@ type LLMToolConfig struct {
 
 // LoadSuiteConfig holds config for evaluator session setup tools.
 type LoadSuiteConfig struct {
-	Input     string `json:"input"`
-	OutputDir string `json:"output_dir"`
-	Reps      int    `json:"reps"`
-	Timeout   int    `json:"timeout"`
-	OllamaURL string `json:"ollama_url"`
+	Input             string `json:"input"`
+	OutputDir         string `json:"output_dir"`
+	Reps              int    `json:"reps"`
+	Timeout           int    `json:"timeout"`
+	OllamaURL         string `json:"ollama_url"`
+	WorkspaceDir      string `json:"workspace_dir"`
+	DocDir            string `json:"doc_dir"`
+	PromptFile        string `json:"prompt_file"`
+	AllowSharedPrompt bool   `json:"allow_shared_prompt"`
+	RequireSamples    bool   `json:"require_samples"`
 }
 
 // RunPointConfig holds config for the run_point tool.

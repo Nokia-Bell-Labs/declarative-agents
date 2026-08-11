@@ -17,14 +17,12 @@ func reportParseErrorFactory(st *agentState) toolregistry.BuiltinFactory {
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		contract, err := toollm.ParseErrorResponseContractValue(cfg.ResponseContract)
-		if err != nil {
-			return nil, fmt.Errorf("tool %q config: %w", def.Name, err)
+		if cfg.FeedbackTemplate == "" {
+			return nil, fmt.Errorf("tool %q config feedback_template is required", def.Name)
 		}
 		return &toollm.ReportParseErrorBuilder{
-			Tracer:           st.tracer,
-			Retry:            st.parseRetries,
-			ResponseContract: contract,
+			Tracer: st.tracer, Retry: st.parseRetries,
+			FeedbackTemplate: cfg.FeedbackTemplate,
 		}, nil
 	}
 }

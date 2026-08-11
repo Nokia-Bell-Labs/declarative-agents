@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 func checkToolSelectionDeclared(corpus *Corpus) []Finding {
 	var findings []Finding
-	for _, agentName := range sortedToolSelectionKeys(corpus.ToolSelections) {
+	for _, agentName := range sortedKeys(corpus.ToolSelections) {
 		selected := corpus.ToolSelections[agentName]
 		for _, toolName := range selected {
 			if _, ok := corpus.ToolDeclarations[toolName]; !ok {
@@ -23,6 +25,64 @@ func checkToolSelectionDeclared(corpus *Corpus) []Finding {
 		}
 	}
 	return findings
+}
+
+func checkToolDeclarationVocabulary(corpus *Corpus) []Finding {
+	var findings []Finding
+	for name, declaration := range corpus.ToolDeclarations {
+		if message := invalidToolDeclaration(declaration); message != "" {
+			findings = append(findings, Finding{
+				Check: "tool-declaration-invalid", Level: "error",
+				Message: fmt.Sprintf("tool %q: %s", name, message),
+			})
+		}
+		for _, declaredError := range declaration.Errors {
+			if declaredError.Signal == "" {
+				findings = append(findings, Finding{
+					Check: "tool-declaration-invalid", Level: "error",
+					Message: fmt.Sprintf("tool %q has an error contract with no signal", name),
+				})
+			}
+		}
+		for _, overlap := range declaration.Relationships.Overlaps {
+			if overlap.Tool == "" {
+				findings = append(findings, Finding{
+					Check: "tool-declaration-invalid", Level: "error",
+					Message: fmt.Sprintf("tool %q has an overlap with no tool name", name),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+func invalidToolDeclaration(declaration ToolDeclaration) string {
+	switch declaration.Type {
+	case "", "exec":
+		if declaration.Init != "" {
+			return fmt.Sprintf("exec declaration has builtin init %q", declaration.Init)
+		}
+	case "builtin":
+		if declaration.Init == "" {
+			return "builtin declaration has no init"
+		}
+	default:
+		return fmt.Sprintf("unknown type %q", declaration.Type)
+	}
+	switch declaration.Visibility {
+	case "", "internal", "external":
+	default:
+		return fmt.Sprintf("unknown visibility %q", declaration.Visibility)
+	}
+	switch declaration.Reversibility.Classification {
+	case "", "reversible", "compensatable", "irreversible":
+	default:
+		return fmt.Sprintf(
+			"unknown reversibility classification %q",
+			declaration.Reversibility.Classification,
+		)
+	}
+	return ""
 }
 
 // checkSelectedToolContractCompleteness audits selected tool declarations in the
@@ -62,7 +122,7 @@ func checkSelectedToolContractCompleteness(corpus *Corpus) []Finding {
 
 func selectedToolConsumers(corpus *Corpus) map[string][]string {
 	consumers := make(map[string][]string)
-	for _, selectionName := range sortedToolSelectionKeys(corpus.ToolSelections) {
+	for _, selectionName := range sortedKeys(corpus.ToolSelections) {
 		seenInSelection := make(map[string]bool)
 		for _, toolName := range corpus.ToolSelections[selectionName] {
 			if toolName == "" || seenInSelection[toolName] {
@@ -89,7 +149,7 @@ func missingToolContractFields(td ToolDeclaration) []string {
 		{"non_goals", len(td.NonGoals) > 0},
 		{"emits", len(td.Emits) > 0},
 		{"output.schema", len(td.Output.Schema) > 0},
-		{"side_effects", len(td.SideEffects.Items) > 0},
+		{"side_effects", td.SideEffects.LegacyText != "" || len(td.SideEffects.Items) > 0},
 		{"reversibility.classification", td.Reversibility.Classification != ""},
 		{"undo.strategy", td.Undo.Strategy != ""},
 		{"errors", len(td.Errors) > 0},
@@ -102,15 +162,6 @@ func missingToolContractFields(td ToolDeclaration) []string {
 		}
 	}
 	return missing
-}
-
-func sortedToolSelectionKeys(selections map[string][]string) []string {
-	keys := make([]string, 0, len(selections))
-	for key := range selections {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func sortedKeys(values map[string][]string) []string {
@@ -188,11 +239,20 @@ func checkToolUndoConsistency(corpus *Corpus) []Finding {
 		rev := td.Reversibility.Classification
 		strat := td.Undo.Strategy
 		if rev != "" && strat != "" {
-			if !undoStrategyAllowed(rev, strat) {
+			if !core.UndoStrategyAllowed(rev, strat) {
 				findings = append(findings, Finding{
 					Check:   "tool-undo-mismatch",
 					Level:   "warning",
 					Message: fmt.Sprintf("tool %q reversibility is %q but undo strategy is %q", name, rev, strat),
+				})
+			}
+			if !core.UndoStrategySupported(td.Type, strat) {
+				findings = append(findings, Finding{
+					Check: "tool-undo-unsupported-runtime", Level: "error",
+					Message: fmt.Sprintf(
+						"tool %q type %q cannot execute undo strategy %q",
+						name, td.Type, strat,
+					),
 				})
 			}
 		}
@@ -205,55 +265,6 @@ func checkToolUndoConsistency(corpus *Corpus) []Finding {
 		}
 	}
 	return findings
-}
-
-func undoStrategyAllowed(reversibility, strategy string) bool {
-	allowed, ok := undoStrategiesByReversibility[reversibility]
-	if !ok {
-		return true
-	}
-	return allowed[strategy]
-}
-
-var undoStrategiesByReversibility = map[string]map[string]bool{
-	"irreversible": {
-		"irreversible": true,
-	},
-	"reversible": {
-		"noop":              true,
-		"reversible":        true,
-		"snapshot_restore":  true,
-		"workspace_restore": true,
-		"file_snapshot_restore_and_workspace_restore":          true,
-		"session_state_restore":                                true,
-		"conversation_truncate":                                true,
-		"conversation_restore":                                 true,
-		"parse_retry_counter_restore":                          true,
-		"parse_retry_counter_restore_when_tracker_enabled":     true,
-		"pipeline_state_restore":                               true,
-		"evaluator_session_restore":                            true,
-		"point_context_restore":                                true,
-		"owned_artifact_removal":                               true,
-		"owned_artifact_removal_and_evaluator_session_restore": true,
-		"owned_artifact_removal_and_point_context_restore":     true,
-		"queue_event_restore":                                  true,
-		"validation_state_restore":                             true,
-	},
-	"compensatable": {
-		"compensatable":                                          true,
-		"boundary_compensation":                                  true,
-		"compensating_action":                                    true,
-		"child_command_undo":                                     true,
-		"workspace_restore":                                      true,
-		"pipeline_state_restore_only":                            true,
-		"child_agent_workspace_restore":                          true,
-		"child_eval_artifact_compensation":                       true,
-		"close_or_delete_created_issue":                          true,
-		"nested_machine_rollback":                                true,
-		"point_workspace_restore_and_child_process_compensation": true,
-		"resume_or_checkpoint_rollback":                          true,
-		"server_shutdown_or_user_action_compensation":            true,
-	},
 }
 
 // checkToolSideEffectVocab verifies that side_effects kind values use
@@ -270,9 +281,22 @@ func checkToolSideEffectVocab(corpus *Corpus) []Finding {
 					Message: fmt.Sprintf("tool %q side_effects kind %q not in known vocabulary", name, se.Kind),
 				})
 			}
+			if replacement := deprecatedSideEffectTargets[se.Target]; replacement != "" {
+				findings = append(findings, Finding{
+					Check: "tool-unknown-side-effect-target", Level: "error",
+					Message: fmt.Sprintf(
+						"tool %q side_effects target %q is invalid; use %q",
+						name, se.Target, replacement,
+					),
+				})
+			}
 		}
 	}
 	return findings
+}
+
+var deprecatedSideEffectTargets = map[string]string{
+	"pipeline_graph": "requirement_graph",
 }
 
 // checkToolBoundaryCategory verifies that tools with boundary-class

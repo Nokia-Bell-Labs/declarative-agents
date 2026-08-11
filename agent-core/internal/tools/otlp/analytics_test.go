@@ -61,12 +61,18 @@ func at(base time.Time, offsetMs, durMs int) (time.Time, time.Time) {
 	return start, start.Add(time.Duration(durMs) * time.Millisecond)
 }
 
-type statsOutput struct {
+type heatmapOutput struct {
 	Heatmap struct {
 		TimeBucketBoundaries     []int64 `json:"time_bucket_boundaries"`
 		DurationBucketBoundaries []int64 `json:"duration_bucket_boundaries"`
 		Cells                    [][]int `json:"cells"`
 	} `json:"heatmap"`
+	Matched          int      `json:"matched"`
+	ExemplarTraceIDs []string `json:"exemplar_trace_ids"`
+	SkippedLines     int      `json:"skipped_lines"`
+}
+
+type groupByOutput struct {
 	Matched          int          `json:"matched"`
 	ExemplarTraceIDs []string     `json:"exemplar_trace_ids"`
 	SkippedLines     int          `json:"skipped_lines"`
@@ -76,14 +82,26 @@ type statsOutput struct {
 	DroppedSpanTotal int          `json:"dropped_span_total"`
 }
 
-func runStats(t *testing.T, path string, seed core.Result) statsOutput {
+func runHeatmap(t *testing.T, path string, seed core.Result) heatmapOutput {
 	t.Helper()
-	result := SpanStatsBuilder{
-		ToolName: "spool_span_stats",
-		Config:   SpanStatsConfig{Path: path, TimeBuckets: 4, MaxTopN: 100},
+	result := SpanHeatmapBuilder{
+		ToolName: "spool_span_heatmap",
+		Config:   SpanHeatmapConfig{Path: path, TimeBuckets: 4},
 	}.Build(seed).Execute()
-	require.Equal(t, core.Signal("SpanStatsReady"), result.Signal, result.Output)
-	var out statsOutput
+	require.Equal(t, core.Signal("SpanHeatmapReady"), result.Signal, result.Output)
+	var out heatmapOutput
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &out))
+	return out
+}
+
+func runGroupBy(t *testing.T, path string, seed core.Result) groupByOutput {
+	t.Helper()
+	result := SpanGroupByBuilder{
+		ToolName: "spool_span_group_by",
+		Config:   SpanGroupByConfig{Path: path, MaxTopN: 100},
+	}.Build(seed).Execute()
+	require.Equal(t, core.Signal("SpanGroupByReady"), result.Signal, result.Output)
+	var out groupByOutput
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &out))
 	return out
 }
@@ -102,13 +120,13 @@ func TestSpanStatsFilterConjunction(t *testing.T) {
 		{traceID: "t3", spanID: "d", service: "svc-a", name: "other", start: s3, end: e3, attrs: map[string]string{"phase": "parse"}},
 	})
 
-	full := runStats(t, path, seedResult(t, map[string]any{
+	full := runHeatmap(t, path, seedResult(t, map[string]any{
 		"service": "svc-a", "span_name": "handle", "attributes": map[string]any{"phase": "parse"},
 	}))
 	require.Equal(t, 1, full.Matched)
 
 	// Dropping the attribute term admits the emit span too.
-	looser := runStats(t, path, seedResult(t, map[string]any{"service": "svc-a", "span_name": "handle"}))
+	looser := runHeatmap(t, path, seedResult(t, map[string]any{"service": "svc-a", "span_name": "handle"}))
 	require.Equal(t, 2, looser.Matched)
 }
 
@@ -123,7 +141,7 @@ func TestSpanStatsEmptyFilterMatchesAll(t *testing.T) {
 		{traceID: "t1", spanID: "b", service: "svc-b", name: "y", start: s1, end: e1},
 		{traceID: "t2", spanID: "c", service: "svc-c", name: "z", start: s2, end: e2},
 	})
-	out := runStats(t, path, core.Result{})
+	out := runHeatmap(t, path, core.Result{})
 	require.Equal(t, 3, out.Matched)
 }
 
@@ -139,14 +157,14 @@ func TestSpanStatsHeatmapGrid(t *testing.T) {
 	}
 	writeAnalyticsSpans(t, path, spans)
 
-	result := SpanStatsBuilder{
-		ToolName: "spool_span_stats",
-		Config: SpanStatsConfig{
-			Path: path, TimeBuckets: 4, DurationEdgesMs: []int64{0, 10, 100, 1000}, MaxTopN: 100,
+	result := SpanHeatmapBuilder{
+		ToolName: "spool_span_heatmap",
+		Config: SpanHeatmapConfig{
+			Path: path, TimeBuckets: 4, DurationEdgesMs: []int64{0, 10, 100, 1000},
 		},
 	}.Build(core.Result{}).Execute()
-	require.Equal(t, core.Signal("SpanStatsReady"), result.Signal, result.Output)
-	var out statsOutput
+	require.Equal(t, core.Signal("SpanHeatmapReady"), result.Signal, result.Output)
+	var out heatmapOutput
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &out))
 
 	require.Equal(t, 4, out.Matched)
@@ -185,13 +203,42 @@ func TestSpanStatsGroupByTopN(t *testing.T) {
 	}
 	writeAnalyticsSpans(t, path, spans)
 
-	out := runStats(t, path, seedResult(t, map[string]any{"group_by": "tool.name", "top_n": 3}))
+	out := runGroupBy(t, path, seedResult(t, map[string]any{"group_by": "tool.name", "top_n": 3}))
 	require.Equal(t, "tool.name", out.GroupBy)
 	require.Len(t, out.Groups, 3)
 	require.Equal(t, "a", out.Groups[0].Value)
 	require.Equal(t, 5, out.Groups[0].Count)
 	require.Equal(t, 2, out.DroppedGroups)
 	require.Equal(t, 3, out.DroppedSpanTotal) // d(2) + e(1)
+}
+
+func TestSpanAnalyticsWordsRemainIndependentAcrossMachineSteps(t *testing.T) {
+	t.Parallel()
+
+	base := time.Unix(1_700_000_000, 0).UTC()
+	path := filepath.Join(t.TempDir(), "collector.ndjson")
+	s0, e0 := at(base, 0, 5)
+	writeAnalyticsSpans(t, path, []analyticsSpan{{
+		traceID: "t1", spanID: "a", service: "svc", name: "op",
+		start: s0, end: e0, attrs: map[string]string{"tool.name": "read"},
+	}})
+	seed := seedResult(t, map[string]any{"group_by": "tool.name"})
+	heatmap := SpanHeatmapBuilder{
+		ToolName: "spool_span_heatmap", Config: SpanHeatmapConfig{Path: path},
+	}.Build(seed).Execute()
+	require.Equal(t, core.Signal("SpanHeatmapReady"), heatmap.Signal)
+	require.NotContains(t, heatmap.Output, `"groups"`)
+
+	groupCommand := SpanGroupByBuilder{
+		ToolName: "spool_span_group_by", Config: SpanGroupByConfig{Path: path},
+	}.Build(heatmap)
+	groupCommand.(core.CommandStateAware).SetCommandState(core.NewCommandStateView(core.Execution{{
+		CommandName: "seed", Label: "seed", Result: core.DigestResult(seed),
+	}}))
+	grouped := groupCommand.Execute()
+	require.Equal(t, core.Signal("SpanGroupByReady"), grouped.Signal, grouped.Output)
+	require.NotContains(t, grouped.Output, `"heatmap"`)
+	require.Contains(t, grouped.Output, `"group_by":"tool.name"`)
 }
 
 type breakdownOutput struct {
@@ -284,7 +331,7 @@ func TestSpanStatsExemplarsDedupedAndSorted(t *testing.T) {
 	}
 	writeAnalyticsSpans(t, path, spans)
 
-	out := runStats(t, path, core.Result{})
+	out := runHeatmap(t, path, core.Result{})
 	require.Equal(t, 4, out.Matched)
 	require.Equal(t, []string{"ta", "tb", "tc"}, out.ExemplarTraceIDs)
 }
@@ -299,12 +346,12 @@ func TestSpanStatsExemplarCapLimitsList(t *testing.T) {
 	}
 	writeAnalyticsSpans(t, path, spans)
 
-	result := SpanStatsBuilder{
-		ToolName: "spool_span_stats",
-		Config:   SpanStatsConfig{Path: path, TimeBuckets: 4, MaxTopN: 100, ExemplarCap: 2},
+	result := SpanHeatmapBuilder{
+		ToolName: "spool_span_heatmap",
+		Config:   SpanHeatmapConfig{Path: path, TimeBuckets: 4, ExemplarCap: 2},
 	}.Build(core.Result{}).Execute()
-	require.Equal(t, core.Signal("SpanStatsReady"), result.Signal, result.Output)
-	var out statsOutput
+	require.Equal(t, core.Signal("SpanHeatmapReady"), result.Signal, result.Output)
+	var out heatmapOutput
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &out))
 	require.Equal(t, []string{"t1", "t2"}, out.ExemplarTraceIDs)
 }
@@ -344,21 +391,27 @@ func TestSpanStatsMalformedAndDeterministic(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(path, append([]byte("not json\n{bad\n"), existing...), 0o600))
 
-	first := SpanStatsBuilder{ToolName: "spool_span_stats", Config: SpanStatsConfig{Path: path, TimeBuckets: 4, MaxTopN: 100}}.Build(core.Result{}).Execute()
-	second := SpanStatsBuilder{ToolName: "spool_span_stats", Config: SpanStatsConfig{Path: path, TimeBuckets: 4, MaxTopN: 100}}.Build(core.Result{}).Execute()
+	first := SpanHeatmapBuilder{ToolName: "spool_span_heatmap", Config: SpanHeatmapConfig{Path: path, TimeBuckets: 4}}.Build(core.Result{}).Execute()
+	second := SpanHeatmapBuilder{ToolName: "spool_span_heatmap", Config: SpanHeatmapConfig{Path: path, TimeBuckets: 4}}.Build(core.Result{}).Execute()
 	require.Equal(t, first.Output, second.Output, "output must be deterministic for a fixed spool")
 
-	var out statsOutput
+	var out heatmapOutput
 	require.NoError(t, json.Unmarshal([]byte(first.Output), &out))
 	require.Equal(t, 2, out.Matched)
 	require.Equal(t, 2, out.SkippedLines)
 
 	// An absent spool is empty, not an error.
-	empty := runStats(t, filepath.Join(t.TempDir(), "absent.ndjson"), core.Result{})
+	empty := runHeatmap(t, filepath.Join(t.TempDir(), "absent.ndjson"), core.Result{})
 	require.Equal(t, 0, empty.Matched)
 }
 
 func TestSpanStatsEmptyPathError(t *testing.T) {
-	result := SpanStatsBuilder{ToolName: "spool_span_stats", Config: SpanStatsConfig{Path: ""}}.Build(core.Result{}).Execute()
-	require.Equal(t, core.Signal("CommandError"), result.Signal, result.Output)
+	heatmap := SpanHeatmapBuilder{
+		ToolName: "spool_span_heatmap", Config: SpanHeatmapConfig{Path: ""},
+	}.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("CommandError"), heatmap.Signal, heatmap.Output)
+	groupBy := SpanGroupByBuilder{
+		ToolName: "spool_span_group_by", Config: SpanGroupByConfig{Path: "", GroupBy: "service.name"},
+	}.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("CommandError"), groupBy.Signal, groupBy.Output)
 }

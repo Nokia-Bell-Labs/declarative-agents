@@ -125,6 +125,10 @@ func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	req, authorized := r.authorizeEndpoint(w, req, endpoint)
+	if !authorized {
+		return
+	}
 	// monitor_proxy forwards arbitrary monitor query strings to a declared upstream
 	// and reads the request directly, so it bypasses declared-query/body validation.
 	if endpoint.Binding == bindingMonitorProxy {
@@ -141,6 +145,20 @@ func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	r.handleEndpoint(w, req, name, endpoint, payload)
+}
+
+func (r *serverRuntime) authorizeEndpoint(
+	w http.ResponseWriter, req *http.Request, endpoint Endpoint,
+) (*http.Request, bool) {
+	if endpoint.Binding != bindingLifecycleControl {
+		return req, true
+	}
+	ref := endpoint.LifecycleControl.RequireAuthRef
+	if err := authorizeLifecycleRequest(req, r.def, ref); err != nil {
+		writeLifecycleAuthError(w, err)
+		return req, false
+	}
+	return withoutLifecycleCredential(req, r.def, ref), true
 }
 
 type routeMatch struct {
@@ -515,9 +533,27 @@ func (r *serverRuntime) enqueueLifecycleControl(
 	r.enqueueSignal(w, req, name, signal, payload, endpoint.Response.Redact)
 }
 
+func writeLifecycleAuthError(w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	if authErr, ok := err.(lifecycleAuthError); ok {
+		status = authErr.status
+	}
+	http.Error(w, err.Error(), status)
+}
+
 func lifecycleSignal(endpoint Endpoint) string {
 	if endpoint.LifecycleControl.Signal != "" {
 		return endpoint.LifecycleControl.Signal
+	}
+	switch endpoint.LifecycleControl.Action {
+	case "exit":
+		return "ExitRequested"
+	case "pause":
+		return "PauseRequested"
+	case "rollback_request":
+		return "RollbackRequested"
+	case "resume":
+		return "ResumeRequested"
 	}
 	return endpoint.Signal
 }
@@ -542,13 +578,28 @@ func (r *serverRuntime) enqueueSignal(
 		http.Error(w, "endpoint signal is not configured", http.StatusInternalServerError)
 		return
 	}
+	queue := r.def.Server.Endpoints[route].Queue
+	if len(queue.PayloadShape) > 0 {
+		if err := validateBodySchema(queue.PayloadShape, payload); err != nil {
+			writeRequestError(w, err)
+			return
+		}
+	}
 	redactServerPayload(payload, redact)
 	event := inboundEvent(r.name, route, req.Method, signal, payload, req.Header.Get("X-Request-ID"))
-	if !r.offerEvent(event, r.def.Server.Endpoints[route].Queue) {
+	event.Queue = queueName(queue, r.def.Server.Queue)
+	if !r.offerEvent(event, queue) {
 		http.Error(w, "REST server queue is full", http.StatusTooManyRequests)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]interface{}{"accepted": true, "signal": signal})
+}
+
+func queueName(endpoint, server QueueConfig) string {
+	if endpoint.Name != "" {
+		return endpoint.Name
+	}
+	return server.Name
 }
 
 func (r *serverRuntime) offerEvent(event InboundEvent, queue QueueConfig) bool {

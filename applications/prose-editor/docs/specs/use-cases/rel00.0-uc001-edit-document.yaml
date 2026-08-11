@@ -56,7 +56,7 @@ flow:
     text: |
       The orchestrator records the captured source repository, path, full
       commit, exact bytes, digest, and artifact identity in append-only manifest
-      history, projects manifest.yaml, and never overwrites the original.
+      history, projects manifest.json, and never overwrites the original.
   - id: F4
     text: |
       The orchestrator appends and projects one structure intent, reads and
@@ -135,7 +135,7 @@ flow:
   - id: F17
     text: |
       After critic acceptance, finalization creates or reuses 10-structure.md,
-      20-voice.md, 30-style.md, 40-critique.yaml, and final.md exactly once from
+      20-voice.md, 30-style.md, 40-critique.json, and final.md exactly once from
       the selected immutable attempts. final.md is byte-identical to
       30-style.md; any mismatching existing fixed file blocks progress.
   - id: F18
@@ -149,7 +149,7 @@ flow:
   - id: F19
     text: |
       On duplicate delivery or restart, the orchestrator locks and validates the
-      saga, repairs manifest.yaml from contiguous immutable history, verifies
+      saga, repairs manifest.json from contiguous immutable history, verifies
       every referenced hash, compares checkpoint metadata, and resumes the next
       incomplete action with recorded identities. Matching effects are reused;
       conflicts and unverifiable partial publication become

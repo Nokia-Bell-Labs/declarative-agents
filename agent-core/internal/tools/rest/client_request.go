@@ -4,6 +4,7 @@ package rest
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -38,6 +40,7 @@ func (e credentialResolutionError) Error() string {
 // declared params used to render it, so the caller can carry selected inputs
 // forward into the Result output (srd028 R12.3).
 func buildClientRequest(
+	ctx context.Context,
 	def ClientOperationDefinition,
 	input map[string]interface{},
 	resolver CredentialResolver,
@@ -56,7 +59,7 @@ func buildClientRequest(
 	if err != nil {
 		return nil, nil, err
 	}
-	req, err := http.NewRequest(def.Operation.Method, endpoint, body)
+	req, err := http.NewRequestWithContext(ctx, def.Operation.Method, endpoint, body)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -386,6 +389,14 @@ func (c StaticCredentials) ResolveCredential(ref string) (string, error) {
 
 func (EmptyCredentialResolver) ResolveCredential(ref string) (string, error) {
 	return "", credentialResolutionError{ref: ref}
+}
+
+func (EnvironmentCredentials) ResolveCredential(ref string) (string, error) {
+	value, ok := os.LookupEnv(ref)
+	if !ok || value == "" {
+		return "", credentialResolutionError{ref: ref}
+	}
+	return value, nil
 }
 
 func isCredentialResolutionError(err error) bool {

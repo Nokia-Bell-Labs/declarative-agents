@@ -371,7 +371,7 @@ func TestValidateConfigValidProfileExitsZero(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, stderr, "config valid")
 	// Validate mode must not enter the run loop or bind servers.
-	require.NotContains(t, stderr, "terminal state")
+	require.NotContains(t, stderr, "\nterminal state:")
 }
 
 func TestValidateConfigInvalidRestExitsNonZero(t *testing.T) {
