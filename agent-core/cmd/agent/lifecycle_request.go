@@ -32,7 +32,8 @@ import (
 type lifecycleRequest struct {
 	// Checkpoint names the target run branch to inspect or roll back.
 	Checkpoint string `yaml:"checkpoint"`
-	// ToIteration is the rollback target step; nil means unset.
+	// ToIteration names an execution iteration; rollback resolves its last
+	// persisted step as the DB rewind boundary. Nil means unset.
 	ToIteration *int `yaml:"to_iteration"`
 }
 

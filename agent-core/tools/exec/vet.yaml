@@ -20,7 +20,7 @@ tools:
     - must run in the configured workspace root
     - may accept an optional package/path parameter when declared in parameters
     output:
-    - must include exit status and captured stdout/stderr or combined output
+    - must return captured stdout/stderr as a string
     - must emit ToolDone for success and ToolFailed for command failure
     side_effects:
     - must execute one child process using the configured binary and args
@@ -32,23 +32,9 @@ tools:
   - Does not decide whether validation is complete.
   - Does not run other validation tools.
   output:
-    description: go vet ./... process result and captured output.
+    description: Raw go vet command output.
     schema:
-      type: object
-      properties:
-        exit_code:
-          type: integer
-        stdout:
-          type: string
-        stderr:
-          type: string
-        output:
-          type: string
-        elapsed_ms:
-          type: integer
-      required:
-      - exit_code
-      - output
+      type: string
   side_effects:
   - kind: child_process
     target: go_toolchain

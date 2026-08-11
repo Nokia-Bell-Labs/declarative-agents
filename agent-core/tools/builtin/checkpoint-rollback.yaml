@@ -12,20 +12,20 @@ tools:
   emits:
   - ToolDone
   - CommandError
-  description: Roll back a run to a target step by reverting the Dolt branch and replaying receipts.
+  description: Roll back a run to the last persisted step of a target iteration by reverting the Dolt branch and replaying receipts.
   category: boundary
   problem: |
     Operators need rollback as a machine action with explicit inputs, not as
     a special root command path.
   goals:
-  - Resolve one run and target step index.
-  - Revert DB-persisted state to the target step with the Dolt adapter Revert.
+  - Resolve one run and target iteration to its last persisted step.
+  - Revert DB-persisted state to that step with the Dolt adapter Revert.
   - Reverse external effects by replaying each reverted entry's receipt into its tool's receipt-consuming Undo.
   requirements:
     input:
     - must receive the resolved checkpoint backend (the Dolt adapter by default).
     - must receive a run id or use latest.
-    - must receive a target step index.
+    - must receive a target iteration and resolve its last execution step.
     output:
     - must print the run id, target step, reverted-entry count, skipped irreversible entries, and pending compensation work.
     side_effects:
@@ -48,18 +48,6 @@ tools:
   # entry remains observable as rollback.entry_reversed, _undo_failed, or
   # _skipped on the boundary span and in the structured final report.
   - Does not expose receipt-walk implementation entries as separate parent-machine actions.
-  parameters:
-    type: object
-    properties:
-      run:
-        type: string
-        description: Run id, or latest.
-        default: latest
-      to_step:
-        type: integer
-        description: Target execution step index.
-    required:
-    - to_step
   output:
     description: Rollback result summary.
     schema:

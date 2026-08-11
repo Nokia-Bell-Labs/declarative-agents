@@ -9,6 +9,7 @@ tools:
     args: [build, "./..."]
     emits: [ToolDone, ToolFailed]
     description: "Compile all Go packages with go build ./... Returns compiler errors on failure."
+    output: {description: "Raw go build output.", schema: {type: string}}
 
   - name: vet
     type: exec
@@ -16,6 +17,7 @@ tools:
     args: [vet, "./..."]
     emits: [ToolDone, ToolFailed]
     description: "Run go vet ./... on the workspace. Reports suspicious constructs."
+    output: {description: "Raw go vet output.", schema: {type: string}}
 
   - name: lint
     type: exec
@@ -23,6 +25,7 @@ tools:
     args: [run, "./..."]
     emits: [ToolDone, ToolFailed]
     description: "Run golangci-lint run ./... on the Go workspace."
+    output: {description: "Raw golangci-lint output.", schema: {type: string}}
 
   - name: test
     type: exec
@@ -31,19 +34,9 @@ tools:
     emits: [ToolDone, ToolFailed]
     description: "Run go test -count=1 on the workspace. Returns test output including pass/fail results."
     output:
-      description: "Go test result summary and raw command output."
+      description: "Raw go test output."
       schema:
-        type: object
-        properties:
-          package:
-            type: string
-          passed:
-            type: boolean
-          output:
-            type: string
-          exit_code:
-            type: integer
-        required: [passed, output]
+        type: string
     output_cap: 200
     parameters:
       type: object

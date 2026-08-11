@@ -96,7 +96,7 @@ invocation: |
 
   Request files carry lifecycle data. Targets for history and rollback are
   lifecycle tool input. A request file can name
-  checkpoint: <id|latest>, to_iteration: <n>, and restore_workspace: true.
+  checkpoint: <id|latest> and to_iteration: <n>.
   Active lifecycle profile and ToolDef config decide how that request maps to
   checkpoint_history or checkpoint_rollback config.
 

@@ -35,13 +35,6 @@ tools:
   non_goals:
   - Does not roll back persisted state.
   - Does not resume execution.
-  parameters:
-    type: object
-    properties:
-      run:
-        type: string
-        description: Run id, or latest.
-        default: latest
   output:
     description: Human-readable execution history digest.
     schema:

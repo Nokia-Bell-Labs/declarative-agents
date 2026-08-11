@@ -22,6 +22,7 @@ var plainTextToolInits = map[string]bool{
 type outputContractBundle struct {
 	Tools []struct {
 		Name   string `yaml:"name"`
+		Type   string `yaml:"type"`
 		Init   string `yaml:"init"`
 		Output struct {
 			Schema map[string]any `yaml:"schema"`
@@ -50,7 +51,8 @@ func TestShippedToolOutputKindsMatchRuntimeFamilies(t *testing.T) {
 		}
 		bundle := readOutputContractBundle(t, path)
 		for _, tool := range bundle.Tools {
-			if plainTextToolInits[tool.Init] {
+			if plainTextToolInits[tool.Init] ||
+				(tool.Type == "exec" && plainTextExecWords[tool.Name]) {
 				if got := tool.Output.Schema["type"]; got != "string" {
 					t.Errorf("%s tool %s init %s output type = %v, want string",
 						path, tool.Name, tool.Init, got)
@@ -74,6 +76,10 @@ func TestShippedToolOutputKindsMatchRuntimeFamilies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+var plainTextExecWords = map[string]bool{
+	"build": true, "vet": true, "lint": true, "test": true,
 }
 
 func requireReceiverStopOutput(t *testing.T, path, name string, schema map[string]any) {

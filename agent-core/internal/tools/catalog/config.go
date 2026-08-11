@@ -105,7 +105,6 @@ type ReportParseErrorConfig struct {
 // CheckpointHistoryConfig holds config for checkpoint_history.
 type CheckpointHistoryConfig struct {
 	Checkpoint string `json:"checkpoint"`
-	Input      string `json:"input"`
 }
 
 // SelectedCheckpoint returns the configured checkpoint ID or latest.
@@ -118,11 +117,8 @@ func (c CheckpointHistoryConfig) SelectedCheckpoint() string {
 
 // CheckpointRollbackConfig holds config for checkpoint_rollback.
 type CheckpointRollbackConfig struct {
-	Checkpoint       string `json:"checkpoint"`
-	ToIteration      *int   `json:"to_iteration"`
-	Input            string `json:"input"`
-	Directory        string `json:"directory"`
-	RestoreWorkspace bool   `json:"restore_workspace"`
+	Checkpoint  string `json:"checkpoint"`
+	ToIteration *int   `json:"to_iteration"`
 }
 
 // SelectedCheckpoint returns the configured checkpoint ID or latest.

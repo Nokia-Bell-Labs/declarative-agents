@@ -1103,14 +1103,14 @@ test_cases:
       - srd013-standard-tool-library AC5
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Tool metrics parse test and build output
-    go_test: go test ./internal/tools/exec -run 'TestParse(Test|Build)Metrics'
+    name: Exec metrics report declared live process values
+    go_test: go test ./internal/tools/exec -run '^TestExecCmdRecordsMonitorMetrics$'
     inputs:
-      outputs: "go test and go build output samples"
+      command: "echo hello"
     expected:
-      pass_fail_skip_counts: true
-      build_failed_detected: true
-      file_error_counts: true
+      process_output_bytes_recorded: true
+      process_exit_code_recorded: true
+      command_output_not_used_as_metric_attribute: true
     traces:
       - srd013-standard-tool-library AC7
 

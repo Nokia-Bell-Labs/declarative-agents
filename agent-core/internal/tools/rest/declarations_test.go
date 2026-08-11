@@ -33,16 +33,19 @@ func TestRESTConfig_LoadsToolDefinitions(t *testing.T) {
 func TestRESTFactoriesRegisterOnlyWhenSelected(t *testing.T) {
 	t.Parallel()
 
-	var restCalled bool
 	deps := toolregistry.StandardFactoryDeps{
-		RegisterREST: func(*toolregistry.BuiltinRegistry) { restCalled = true },
+		RegisterREST: func(registry *toolregistry.BuiltinRegistry) {
+			registry.Register(InitClientGet, nil)
+		},
 	}
 
-	toolregistry.RegisterStandardBuiltinFactories(toolregistry.NewBuiltinRegistry(), map[string]bool{"file_read": true}, deps)
-	require.False(t, restCalled)
+	unselected := toolregistry.NewBuiltinRegistry()
+	toolregistry.RegisterStandardBuiltinFactories(unselected, map[string]bool{"file_read": true}, deps)
+	require.Empty(t, unselected.Names())
 
-	toolregistry.RegisterStandardBuiltinFactories(toolregistry.NewBuiltinRegistry(), map[string]bool{InitClientGet: true}, deps)
-	require.True(t, restCalled)
+	selected := toolregistry.NewBuiltinRegistry()
+	toolregistry.RegisterStandardBuiltinFactories(selected, map[string]bool{InitClientGet: true}, deps)
+	require.Equal(t, []string{InitClientGet}, selected.Names())
 }
 
 func TestRESTFactoriesResolveConfiguredDefinitions(t *testing.T) {
