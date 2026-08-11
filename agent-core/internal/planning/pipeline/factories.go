@@ -28,6 +28,10 @@ type passThroughPlanConfig struct {
 	Summary string `json:"summary"`
 }
 
+type extractTaskConfig struct {
+	MaxWeight int `json:"max_weight"`
+}
+
 // RegisterFactories registers all pipeline builtin tool factories
 // (extract_task, select_all_ready, seed_passthrough_plan, mark_nodes_planning,
 // project_planner_context, capture_planner_failure, parse_plan, issue state
@@ -56,7 +60,16 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		return &LoadGraphBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("extract_task", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &ExtractTaskBuilder{PS: initPS(def)}, nil
+		var cfg extractTaskConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		if cfg.MaxWeight < 0 {
+			return nil, fmt.Errorf("pipeline extract_task: max_weight must not be negative")
+		}
+		state := initPS(def)
+		state.MaxWeight = cfg.MaxWeight
+		return &ExtractTaskBuilder{PS: state}, nil
 	})
 	br.Register("select_all_ready", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &SelectAllReadyBuilder{PS: initPS(def)}, nil

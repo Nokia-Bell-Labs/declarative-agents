@@ -29,7 +29,7 @@ tools:
   - Keep sequencing outside the tool implementation and in machine.yaml.
   requirements:
     input:
-    - must consume parameters from tool input, prior Result, or configured command/domain state
+    - max_weight comes from trusted config; zero means unlimited
     output:
     - must emit one declared signal and return machine-readable output when available
     errors:
@@ -51,3 +51,5 @@ tools:
     description: Plain-text extracted task summary.
     schema:
       type: string
+  config:
+    max_weight: 0
