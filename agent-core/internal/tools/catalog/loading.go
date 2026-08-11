@@ -96,21 +96,26 @@ func SelectTools(declarations []ToolDef, selection []string) ([]ToolDef, error) 
 
 // LoadToolDefs reads one declaration file and resolves includes.
 func LoadToolDefs(path string) ([]ToolDef, error) {
-	return loadToolDefsRecursive(path, nil)
+	return loadToolDefsRecursive(path, nil, nil)
 }
 
-func loadToolDefsRecursive(path string, seen map[string]bool) ([]ToolDef, error) {
+func loadToolDefsRecursive(path string, stack map[string]bool, chain []string) ([]ToolDef, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("resolve path %s: %w", path, err)
 	}
-	if seen == nil {
-		seen = make(map[string]bool)
+	if stack == nil {
+		stack = make(map[string]bool)
 	}
-	if seen[abs] {
-		return nil, fmt.Errorf("circular include detected: %s", abs)
+	if stack[abs] {
+		return nil, fmt.Errorf(
+			"circular include detected: %s",
+			strings.Join(append(chain, abs), " -> "),
+		)
 	}
-	seen[abs] = true
+	stack[abs] = true
+	defer delete(stack, abs)
+	chain = append(chain, abs)
 
 	data, err := os.ReadFile(abs)
 	if err != nil {
@@ -125,7 +130,7 @@ func loadToolDefsRecursive(path string, seen map[string]bool) ([]ToolDef, error)
 		return nil, fmt.Errorf("parse tool defs %s: %w", abs, err)
 	}
 
-	base, err := loadIncludedToolDefs(file.Includes, abs, seen)
+	base, err := loadIncludedToolDefs(file.Includes, abs, stack, chain)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +143,9 @@ func loadToolDefsRecursive(path string, seen map[string]bool) ([]ToolDef, error)
 // loadIncludedToolDefs resolves a file's includes against its own directory and
 // merges them in declaration order. from names the including file, so a failure
 // deep in an include chain reports which file pulled it in.
-func loadIncludedToolDefs(includes []string, from string, seen map[string]bool) ([]ToolDef, error) {
+func loadIncludedToolDefs(
+	includes []string, from string, stack map[string]bool, chain []string,
+) ([]ToolDef, error) {
 	var base []ToolDef
 	dir := filepath.Dir(from)
 	for _, inc := range includes {
@@ -146,7 +153,7 @@ func loadIncludedToolDefs(includes []string, from string, seen map[string]bool) 
 		if !filepath.IsAbs(incPath) {
 			incPath = filepath.Join(dir, incPath)
 		}
-		incDefs, err := loadToolDefsRecursive(incPath, seen)
+		incDefs, err := loadToolDefsRecursive(incPath, stack, chain)
 		if err != nil {
 			return nil, fmt.Errorf("include %s from %s: %w", inc, from, err)
 		}
