@@ -70,16 +70,3 @@ func mergeMetricLabels(dst MetricLabels, src MetricLabels) {
 		dst[name] = value
 	}
 }
-
-// ValidateBuilders is a convenience for creating ValidateParams hooks that
-// check a list of required builder names.
-func ValidateBuilders(names ...string) func(*Registry) error {
-	return func(reg *Registry) error {
-		for _, n := range names {
-			if _, ok := reg.Resolve(n); !ok {
-				return fmt.Errorf("initialization failed: missing builder %q", n)
-			}
-		}
-		return nil
-	}
-}

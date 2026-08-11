@@ -16,22 +16,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 )
 
-// Dispatch wraps Command.Execute with tracing, timeout, panic
-// recovery, duration measurement, and CommandName assignment.
-func Dispatch(cmd Command, tr tracing.Tracer, timeout time.Duration) Result {
-	return dispatchWithMonitor(cmd, tr, timeout, nil, monitor.DispatchContext{})
-}
-
-func dispatchWithMonitor(
-	cmd Command,
-	tr tracing.Tracer,
-	timeout time.Duration,
-	rec monitor.RuntimeRecorder,
-	dispatchCtx monitor.DispatchContext,
-) Result {
-	return dispatchWithMonitorContext(context.Background(), cmd, tr, timeout, rec, dispatchCtx)
-}
-
 func dispatchWithMonitorContext(
 	ctx context.Context,
 	cmd Command,
@@ -71,13 +55,6 @@ func dispatchWithMonitorContext(
 	stampSpan(child, cmd.Name(), res)
 	recordDispatchMetrics(child.Context(), rec, dispatchCtx, res)
 	return res
-}
-
-// SafeExecute runs a command with panic recovery and optional timeout. Legacy
-// commands that outlive a timeout detach, but their single buffered result send
-// can always complete without racing or blocking on the returned timeout value.
-func SafeExecute(cmd Command, timeout time.Duration) Result {
-	return SafeExecuteContext(context.Background(), cmd, timeout)
 }
 
 // SafeExecuteContext runs a command with caller cancellation. ContextCommand

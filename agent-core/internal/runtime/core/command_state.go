@@ -105,14 +105,8 @@ func (v *commandStateView) lookup(label string) (string, bool, error) {
 
 var _ CommandStateView = (*commandStateView)(nil)
 
-// injectCommandState gives a CommandStateAware command a forward view built from
-// the prior steps' entries. At dispatch time the execution log holds every step
-// before the current one (the current entry is appended after dispatch), so the
-// view is a strictly-forward, receipt-blind read over completed steps.
-func injectCommandState(cmd Command, priorSteps Execution) {
-	injectCommandStateBindings(cmd, priorSteps, nil)
-}
-
+// injectCommandStateBindings gives a CommandStateAware command a strictly
+// forward, receipt-blind view over completed steps and iterator bindings.
 func injectCommandStateBindings(cmd Command, priorSteps Execution, bindings map[string]string) {
 	if aware, ok := cmd.(CommandStateAware); ok {
 		aware.SetCommandState(newCommandStateView(priorSteps, bindings))

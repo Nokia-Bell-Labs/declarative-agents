@@ -23,7 +23,7 @@ func TestDispatch_StampsSpanAttributesAndCommandName(t *testing.T) {
 		res:  Result{Signal: ToolDone, Cost: Cost{Duration: time.Millisecond, TokensIn: 3, TokensOut: 5}},
 	}
 
-	res := Dispatch(cmd, tr, 0)
+	res := dispatchWithMonitorContext(context.Background(), cmd, tr, 0, nil, monitor.DispatchContext{})
 
 	require.Equal(t, ToolDone, res.Signal)
 	require.Equal(t, "dispatch_ok", res.CommandName)
@@ -40,7 +40,7 @@ func TestDispatch_RecordsCommandErrorsOnSpan(t *testing.T) {
 	tr := &dispatchTestTracer{}
 	cmd := dispatchResultCmd{name: "dispatch_err", res: Result{Signal: ToolDone, Err: fmt.Errorf("boom")}}
 
-	res := Dispatch(cmd, tr, 0)
+	res := dispatchWithMonitorContext(context.Background(), cmd, tr, 0, nil, monitor.DispatchContext{})
 
 	require.Equal(t, CommandError, res.Signal)
 	require.Equal(t, "dispatch_err", res.CommandName)
@@ -52,7 +52,7 @@ func TestDispatch_RecordsCommandErrorsOnSpan(t *testing.T) {
 func TestSafeExecute_RecoversPanicAndForcesCommandError(t *testing.T) {
 	t.Parallel()
 
-	res := SafeExecute(dispatchPanicCmd{name: "panic_cmd"}, 0)
+	res := SafeExecuteContext(context.Background(), dispatchPanicCmd{name: "panic_cmd"}, 0)
 
 	require.Equal(t, CommandError, res.Signal)
 	require.Error(t, res.Err)
@@ -64,13 +64,21 @@ func TestSafeExecute_RecoversPanicAndForcesCommandError(t *testing.T) {
 func TestSafeExecute_TimeoutAndIndefiniteWait(t *testing.T) {
 	t.Parallel()
 
-	timeout := SafeExecute(dispatchSleepCmd{name: "slow_cmd", sleep: 30 * time.Millisecond}, time.Millisecond)
+	timeout := SafeExecuteContext(
+		context.Background(),
+		dispatchSleepCmd{name: "slow_cmd", sleep: 30 * time.Millisecond},
+		time.Millisecond,
+	)
 	require.Equal(t, CommandError, timeout.Signal)
 	require.ErrorContains(t, timeout.Err, "timeout executing slow_cmd")
 	require.Equal(t, "timeout: slow_cmd", timeout.Output)
 	require.Greater(t, timeout.Cost.Duration, time.Duration(0))
 
-	wait := SafeExecute(dispatchSleepCmd{name: "wait_cmd", sleep: time.Millisecond}, 0)
+	wait := SafeExecuteContext(
+		context.Background(),
+		dispatchSleepCmd{name: "wait_cmd", sleep: time.Millisecond},
+		0,
+	)
 	require.Equal(t, ToolDone, wait.Signal)
 	require.NoError(t, wait.Err)
 	require.Equal(t, "slept", wait.Output)
@@ -80,7 +88,11 @@ func TestSafeExecute_TimeoutAndIndefiniteWait(t *testing.T) {
 func TestSafeExecute_CompletionTimeoutRaceHasSingleResultOwner(t *testing.T) {
 	t.Parallel()
 	for range 500 {
-		result := SafeExecute(dispatchResultCmd{name: "racy", res: Result{Signal: ToolDone}}, time.Nanosecond)
+		result := SafeExecuteContext(
+			context.Background(),
+			dispatchResultCmd{name: "racy", res: Result{Signal: ToolDone}},
+			time.Nanosecond,
+		)
 		if result.Signal == CommandError {
 			require.ErrorContains(t, result.Err, "timeout executing racy")
 			continue
@@ -97,7 +109,7 @@ func TestSafeExecute_LegacyWorkerCanFinishAfterTimeout(t *testing.T) {
 	finished := make(chan struct{})
 	cmd := &dispatchBlockingCmd{started: started, release: release, finished: finished}
 
-	result := SafeExecute(cmd, time.Millisecond)
+	result := SafeExecuteContext(context.Background(), cmd, time.Millisecond)
 	require.Equal(t, CommandError, result.Signal)
 	require.ErrorContains(t, result.Err, "timeout executing blocking")
 	<-started
@@ -115,7 +127,7 @@ func TestSafeExecute_ContextWorkerIsCanceledAndJoinedOnTimeout(t *testing.T) {
 	finished := make(chan struct{})
 	cmd := &dispatchContextBlockingCmd{started: started, finished: finished}
 
-	result := SafeExecute(cmd, time.Millisecond)
+	result := SafeExecuteContext(context.Background(), cmd, time.Millisecond)
 
 	require.Equal(t, CommandError, result.Signal)
 	require.ErrorContains(t, result.Err, "timeout executing context_blocking")
@@ -123,7 +135,7 @@ func TestSafeExecute_ContextWorkerIsCanceledAndJoinedOnTimeout(t *testing.T) {
 	select {
 	case <-finished:
 	default:
-		t.Fatal("context-aware worker was not joined before SafeExecute returned")
+		t.Fatal("context-aware worker was not joined before SafeExecuteContext returned")
 	}
 }
 
@@ -156,7 +168,7 @@ type dispatchContextBlockingCmd struct {
 
 func (c *dispatchContextBlockingCmd) Name() string { return "context_blocking" }
 func (c *dispatchContextBlockingCmd) Execute() Result {
-	panic("SafeExecute must select ExecuteContext")
+	panic("SafeExecuteContext must select ExecuteContext")
 }
 func (c *dispatchContextBlockingCmd) ExecuteContext(ctx context.Context) Result {
 	close(c.started)
@@ -185,7 +197,8 @@ func TestDispatchWithMonitor_EmitsDispatchMetrics(t *testing.T) {
 		MetricLabels: map[string]string{"phase": "dispatch"},
 	}
 
-	res := dispatchWithMonitor(
+	res := dispatchWithMonitorContext(
+		context.Background(),
 		dispatchResultCmd{name: "metric_cmd", res: Result{Signal: ToolDone}},
 		&dispatchTestTracer{},
 		0,
@@ -218,7 +231,14 @@ func TestDispatchWithMonitor_EnvelopesToolMetricSamples(t *testing.T) {
 		MetricLabels: map[string]string{"workflow": "rel00"},
 	}
 
-	res := dispatchWithMonitor(&dispatchMetricCmd{name: "tool_metric"}, &dispatchTestTracer{}, 0, rec, ctx)
+	res := dispatchWithMonitorContext(
+		context.Background(),
+		&dispatchMetricCmd{name: "tool_metric"},
+		&dispatchTestTracer{},
+		0,
+		rec,
+		ctx,
+	)
 
 	require.Equal(t, ToolDone, res.Signal)
 	requireDispatchSample(t, rec.samples, "tool.bytes", monitor.MetricSample{
@@ -258,7 +278,8 @@ func TestDispatch_MetricExportFailurePreservesCommandResult(t *testing.T) {
 		CommandName: "build", Signal: ToolDone, Output: `{"built":true}`,
 		Cost: Cost{Duration: 17 * time.Millisecond, TokensIn: 2, TokensOut: 3, Dollars: 0.04},
 	}
-	got := dispatchWithMonitor(
+	got := dispatchWithMonitorContext(
+		context.Background(),
 		dispatchResultCmd{name: "build", res: want},
 		&dispatchTestTracer{},
 		0,

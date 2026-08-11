@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
@@ -101,17 +102,37 @@ func TestExecStdinPersistsRedactedInputWithoutTelemetryOrReceiptLeak(t *testing.
 
 	cmd := stdinCommand("consume", "cat", nil, "$from(produce).output")
 	cmd.def.Undo = catalog.ToolUndoContract{Strategy: "compensating_action", Description: "undo consumer"}
-	cmd.SetCommandState(core.NewCommandStateView(restored))
-	rec := &execMetricRecorder{}
-	cmd.SetMonitorRecorder(rec)
+	rec := &execRuntimeRecorder{}
+	observer := &execExecutionObserver{}
 	tracer := tracing.NewRecordingTracer()
 
-	res := core.Dispatch(cmd, tracer, time.Second)
+	run, err := core.Loop(core.LoopParams{
+		InitialState:     "Start",
+		InitialExecution: restored,
+		Registry:         core.NewRegistry(),
+		Table: core.TransitionTable{
+			{State: "Start", Signal: core.Seed}: {
+				NextState: "Running",
+				Action:    func(core.Result) core.Command { return cmd },
+			},
+			{State: "Running", Signal: core.ToolDone}: {NextState: "Done"},
+		},
+		IsTerminal:           func(state core.State) bool { return state == "Done" },
+		Trace:                tracer,
+		Budget:               core.Budget{MaxIterations: 10},
+		CommandTimeout:       time.Second,
+		MonitorRecorder:      rec,
+		CommandStateObserver: observer,
+	}, context.Background())
 
-	require.Equal(t, core.ToolDone, res.Signal, res.Output)
-	require.Equal(t, "safe input", res.Output)
-	require.NotContains(t, res.Receipt, secret)
-	require.NotContains(t, res.Receipt, "safe input")
+	require.NoError(t, err)
+	require.Equal(t, core.StatusSucceeded, run.Status)
+	require.Len(t, observer.execution, 2)
+	executed := observer.execution[1]
+	require.Equal(t, core.ToolDone, executed.Result.Signal)
+	require.Equal(t, "safe input", executed.Result.Output)
+	require.NotContains(t, executed.Receipt, secret)
+	require.NotContains(t, executed.Receipt, "safe input")
 	telemetry, marshalErr := json.Marshal(struct {
 		Spans   any
 		Metrics any
@@ -154,4 +175,29 @@ func viewForResult(label string, result core.Result, receipt string) core.Comman
 		Result:      core.DigestResult(result),
 		Receipt:     receipt,
 	}})
+}
+
+type execRuntimeRecorder struct {
+	samples []monitor.MetricSample
+}
+
+func (r *execRuntimeRecorder) RecordMetric(_ context.Context, sample monitor.MetricSample) error {
+	r.samples = append(r.samples, sample)
+	return nil
+}
+
+func (*execRuntimeRecorder) RecordEvent(context.Context, monitor.RunEvent) error {
+	return nil
+}
+
+func (*execRuntimeRecorder) RecordRun(context.Context, monitor.RunSnapshot) error {
+	return nil
+}
+
+type execExecutionObserver struct {
+	execution core.Execution
+}
+
+func (o *execExecutionObserver) ObserveCommandState(execution core.Execution) {
+	o.execution = append(core.Execution(nil), execution...)
 }

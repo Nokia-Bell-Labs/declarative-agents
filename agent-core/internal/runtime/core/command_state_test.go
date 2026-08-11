@@ -118,7 +118,7 @@ func TestCommandStateViewRehydratesAcrossInMemoryCheckpoint(t *testing.T) {
 func TestInjectCommandStateOnlyForAwareCommands(t *testing.T) {
 	t.Parallel()
 	aware := &commandStateAwareStub{}
-	injectCommandState(aware, cmdStateExecution())
+	injectCommandStateBindings(aware, cmdStateExecution(), nil)
 	require.NotNil(t, aware.view, "an aware command receives the view")
 
 	out, ok := aware.view.Lookup("query_embedding")
@@ -127,7 +127,7 @@ func TestInjectCommandStateOnlyForAwareCommands(t *testing.T) {
 
 	// A plain command that does not implement CommandStateAware is untouched.
 	plain := &commandStatePlainStub{}
-	require.NotPanics(t, func() { injectCommandState(plain, cmdStateExecution()) })
+	require.NotPanics(t, func() { injectCommandStateBindings(plain, cmdStateExecution(), nil) })
 }
 
 type commandStateAwareStub struct {

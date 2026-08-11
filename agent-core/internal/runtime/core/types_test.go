@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 )
 
@@ -47,7 +48,14 @@ func TestSpanOverrideCustomizesDispatchSpan(t *testing.T) {
 	t.Parallel()
 	tr := &spanRecorder{}
 
-	res := Dispatch(spanOverrideCmd{}, tr, 0)
+	res := dispatchWithMonitorContext(
+		context.Background(),
+		spanOverrideCmd{},
+		tr,
+		0,
+		nil,
+		monitor.DispatchContext{},
+	)
 
 	require.Equal(t, ToolDone, res.Signal)
 	require.Equal(t, "override_cmd", res.CommandName)

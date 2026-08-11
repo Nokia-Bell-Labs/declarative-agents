@@ -3,7 +3,6 @@
 package core
 
 import (
-	"context"
 	"errors"
 	"fmt"
 )
@@ -148,20 +147,4 @@ func resumeStateDefined(params LoopParams, state State) bool {
 		}
 	}
 	return false
-}
-
-// Resume loads the persisted snapshot through params.Checkpoint and re-enters the
-// loop at the restored position (srd035-checkpoint-port R6.2). It is the
-// convenience entrypoint for callers that hold no domain-owned state; callers
-// that must restore conversation or other domain state use LoadResume, restore
-// from ResumeState.Position, then call Loop.
-func Resume(params LoopParams, ctx context.Context) (RunResult, error) {
-	state, err := LoadResume(params)
-	if err != nil {
-		return RunResult{}, err
-	}
-	if state.Finalized {
-		return state.Params.InitialRun, nil
-	}
-	return Loop(state.Params, ctx)
 }

@@ -40,6 +40,17 @@ func suspendedCheckpoint() *InMemoryCheckpoint {
 	return cp
 }
 
+func resumeFromCheckpoint(params LoopParams, ctx context.Context) (RunResult, error) {
+	state, err := LoadResume(params)
+	if err != nil {
+		return RunResult{}, err
+	}
+	if state.Finalized {
+		return state.Params.InitialRun, nil
+	}
+	return Loop(state.Params, ctx)
+}
+
 // TestResumeReentersLoopFromTypedPort covers rel02.0-uc001: a run suspended at an
 // approval gate is resumed purely through the typed Checkpoint port and runs to
 // completion, carrying the persisted counters forward (srd035 R6.2).
@@ -48,7 +59,7 @@ func TestResumeReentersLoopFromTypedPort(t *testing.T) {
 	params := resumeLoopParams()
 	params.Checkpoint = suspendedCheckpoint()
 
-	rr, err := Resume(params, context.Background())
+	rr, err := resumeFromCheckpoint(params, context.Background())
 	require.NoError(t, err)
 	require.Equal(t, StatusSucceeded, rr.Status)
 	require.Equal(t, State("Finished"), rr.FinalState)
@@ -124,7 +135,7 @@ func TestResumeNextBuilderReceivesPersistedOutput(t *testing.T) {
 	}] = TransitionValue{
 		NextState: "Finishing", Action: builder.Build,
 	}
-	_, err := Resume(params, context.Background())
+	_, err := resumeFromCheckpoint(params, context.Background())
 	require.NoError(t, err)
 	require.Equal(t, "distinctive persisted output", received)
 }
@@ -156,7 +167,7 @@ func TestResumeReportsMissingCheckpoint(t *testing.T) {
 	params := resumeLoopParams()
 	params.Checkpoint = &InMemoryCheckpoint{}
 
-	_, err := Resume(params, context.Background())
+	_, err := resumeFromCheckpoint(params, context.Background())
 	require.ErrorIs(t, err, ErrNoCheckpoint)
 }
 
@@ -180,7 +191,7 @@ func TestResumeFreshDoltAdapterFinalizesWithoutMachineStep(t *testing.T) {
 
 	params := resumeLoopParams()
 	params.Checkpoint = NewDoltCheckpoint(db, "run-resume", terminal)
-	result, err := Resume(params, context.Background())
+	result, err := resumeFromCheckpoint(params, context.Background())
 
 	require.NoError(t, err)
 	require.Equal(t, StatusSucceeded, result.Status)

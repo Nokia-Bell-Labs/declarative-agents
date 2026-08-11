@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	yamlv3 "gopkg.in/yaml.v3"
 )
 
 func TestParseMachineSpec_Valid(t *testing.T) {
@@ -84,7 +84,7 @@ func TestMachineSpecTransitionTableRoundTripPreservesSemantics(t *testing.T) {
 	t.Parallel()
 	spec, err := ParseMachineSpec([]byte(validYAML))
 	require.NoError(t, err)
-	encoded, err := yaml.Marshal(spec)
+	encoded, err := yamlv3.Marshal(spec)
 	require.NoError(t, err)
 	roundTrip, err := ParseMachineSpec(encoded)
 	require.NoError(t, err)
@@ -185,7 +185,7 @@ transitions:
 		t.Fatal("Done should be terminal")
 	}
 
-	data, err := MarshalMachineSpec(spec)
+	data, err := yamlv3.Marshal(spec)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}

@@ -76,7 +76,6 @@ func (rr RunResult) MarshalJSON() ([]byte, error) {
 // LoopHooks provides domain-specific callbacks for the generic loop.
 // All callbacks are optional; nil means use default behavior.
 type LoopHooks struct {
-	ValidateParams       func(reg *Registry) error
 	BudgetExceeded       func(budget Budget, rr RunResult, iterations int) bool
 	TerminalStatus       func(s State) RunStatus
 	OnResult             func(rr RunResult, res Result) RunResult
@@ -97,7 +96,6 @@ type LoopParams struct {
 	// InitialIterator restores an in-progress sequential for_each frame. It is
 	// populated by LoadResume from the typed checkpoint snapshot.
 	InitialIterator *IteratorSnapshot
-	Prompt          string
 	Registry        *Registry
 	Table           TransitionTable
 	IsTerminal      TerminalFunc

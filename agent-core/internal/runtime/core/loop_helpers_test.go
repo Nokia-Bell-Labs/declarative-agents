@@ -103,7 +103,6 @@ func simpleLoopParams(tr tracing.Tracer) LoopParams {
 
 	return LoopParams{
 		InitialState: "Start",
-		Prompt:       "test",
 		Registry:     reg,
 		Table:        table,
 		IsTerminal:   terminal,

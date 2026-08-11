@@ -3,6 +3,7 @@
 package compose
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -55,7 +56,7 @@ func TestComposeMissingSelectorRendersEmptyAndReports(t *testing.T) {
 		core.Entry{CommandName: "embed", Result: core.ResultDigest{Output: `{"carried":{"input":"hi"}}`}},
 	))
 
-	res := core.SafeExecute(cmd, 0)
+	res := core.SafeExecuteContext(context.Background(), cmd, 0)
 	require.Equal(t, core.Signal("Composed"), res.Signal, "default signal renders even with a degraded input")
 	require.NoError(t, res.Err)
 	require.Contains(t, res.Output, "Q: hi|C: ", "the missing chunk renders empty")

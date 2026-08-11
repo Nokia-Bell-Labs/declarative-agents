@@ -134,7 +134,7 @@ func TestRESTAwaitCommandSupportsDispatchCancellation(t *testing.T) {
 	_, ok := command.(core.ContextCommand)
 	require.True(t, ok)
 
-	result := core.SafeExecute(command, time.Millisecond)
+	result := core.SafeExecuteContext(context.Background(), command, time.Millisecond)
 
 	require.Equal(t, core.CommandError, result.Signal)
 	require.ErrorContains(t, result.Err, "timeout executing")

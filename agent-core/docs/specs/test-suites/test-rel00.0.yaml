@@ -48,28 +48,6 @@ test_cases:
       - srd005-agentic-loop AC5
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: ValidateParams hook aborts the run on error
-    go_test: TestLoop_ValidateParamsHook
-    inputs:
-      hooks: "ValidateParams checks for nonexistent builder"
-    expected:
-      error: "contains 'nonexistent'"
-    traces:
-      - srd005-agentic-loop AC3
-      - srd005-agentic-loop AC5
-
-  - use_case: rel00.0-uc001-domain-agent-integration
-    name: ValidateBuilders helper checks named builders
-    go_test: TestLoop_ValidateBuildersHelper
-    inputs:
-      registry: "one builder named 'a'"
-    expected:
-      validate_a: pass
-      validate_a_b: fail
-    traces:
-      - srd005-agentic-loop AC6
-
-  - use_case: rel00.0-uc001-domain-agent-integration
     name: OnResult hook is called after each dispatch
     go_test: TestLoop_OnResultHook
     inputs:
@@ -373,7 +351,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Builder has Build(Result) Command, CommandResolver has Resolve
-    go_test: TestLoop_ValidateBuildersHelper
+    go_test: TestBuildTransitionTable
     inputs:
       registry: "registers fakeBuilder, resolves by name"
     expected:
@@ -486,7 +464,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Registry satisfies CommandResolver interface
-    go_test: TestLoop_ValidateBuildersHelper
+    go_test: TestBuildTransitionTable
     inputs:
       registry: "resolves builders by name"
     expected:
@@ -965,40 +943,6 @@ test_cases:
       - srd016-traceparent AC3
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: PropagateArgs builds child process flags
-    go_test: TestPropagateArgs_Build_Full
-    inputs:
-      span_context: valid
-      durations: "5m, 2m"
-    expected:
-      traceparent_formatted: true
-      zero_values_omitted: true
-    traces:
-      - srd018-cli-flag-contract AC2
-
-  - use_case: rel00.0-uc001-domain-agent-integration
-    name: RemainingBudget computes wall-clock remainder
-    go_test: TestRemainingBudget
-    inputs:
-      cases: "unlimited, remaining, exhausted"
-    expected:
-      zero_for_unlimited: true
-      zero_for_exhausted: true
-      remainder_computed: true
-    traces:
-      - srd018-cli-flag-contract AC3
-
-  - use_case: rel00.0-uc001-domain-agent-integration
-    name: Standard CLI flag constants match contract
-    go_test: TestFlagConstants
-    inputs:
-      constants: "standard child-agent flags including otel-otlp-endpoint and otel-service-name"
-    expected:
-      flag_names_match: true
-    traces:
-      - srd018-cli-flag-contract AC1
-
-  - use_case: rel00.0-uc001-domain-agent-integration
     name: Runtime request bootstrap, resume precedence, and process result contract
     go_test: go test ./cmd/agent -run 'Test(SeedRequest|ResumeLoad|CLIResultReporter|RunPreparedPrints|ExitCodeForStatus)'
     inputs:
@@ -1050,17 +994,6 @@ test_cases:
       - srd008-telemetry AC10
       - srd018-cli-flag-contract AC2
       - srd018-cli-flag-contract AC7
-
-  - use_case: rel00.0-uc001-domain-agent-integration
-    name: FormatFlag emits prefixed flag pair
-    go_test: TestFormatFlag
-    inputs:
-      name: model
-      value: qwen
-    expected:
-      args: ["--model", "qwen"]
-    traces:
-      - srd018-cli-flag-contract AC4
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: LLM tools parse responses and manage retry state
