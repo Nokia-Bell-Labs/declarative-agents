@@ -16,6 +16,8 @@ type machineRow struct {
 	totalCost                      float64
 	conversation                   *string
 	iterator                       *string
+	programProfile                 *string
+	programDigest                  *string
 }
 
 type transitionRow struct{ fromState, signal, toState string }
@@ -102,6 +104,7 @@ type fakeDB struct {
 	executionStepsExists   bool
 	executionStepsHasLabel bool
 	machinesHasIterator    bool
+	machineProgramColumns  map[string]bool
 	toolOutputsExists      bool
 	redactionColumns       map[string]bool
 	toolOutputArgs         [][]any
@@ -109,11 +112,12 @@ type fakeDB struct {
 
 func newFakeDB() *fakeDB {
 	return &fakeDB{
-		store:            newFakeStore(),
-		branches:         map[string]bool{"main": true},
-		merged:           map[string]bool{},
-		current:          "main",
-		redactionColumns: map[string]bool{},
+		store:                 newFakeStore(),
+		branches:              map[string]bool{"main": true},
+		merged:                map[string]bool{},
+		current:               "main",
+		redactionColumns:      map[string]bool{},
+		machineProgramColumns: map[string]bool{},
 	}
 }
 
@@ -141,6 +145,9 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 			f.mainMachinesExists = true
 		}
 		f.machinesHasIterator = strings.Contains(query, "iterator LONGTEXT")
+		for _, column := range []string{"program_profile", "program_digest"} {
+			f.machineProgramColumns[column] = strings.Contains(query, column)
+		}
 		return nil
 	case strings.Contains(query, "CREATE TABLE IF NOT EXISTS execution_steps"):
 		if !f.executionStepsExists {
@@ -170,6 +177,13 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		return nil
 	case strings.Contains(query, "ALTER TABLE machines ADD COLUMN iterator"):
 		f.machinesHasIterator = true
+		return nil
+	case strings.Contains(query, "ALTER TABLE machines ADD COLUMN"):
+		for _, column := range []string{"program_profile", "program_digest"} {
+			if strings.Contains(query, "ADD COLUMN "+column+" ") {
+				f.machineProgramColumns[column] = true
+			}
+		}
 		return nil
 	case strings.Contains(query, "DOLT_CHECKOUT('main')"):
 		f.current = "main"
@@ -224,14 +238,16 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		return nil
 	case strings.Contains(query, "REPLACE INTO machines"):
 		f.store.machines[args[0].(string)] = machineRow{
-			currentState: args[1].(string),
-			lastSignal:   args[2].(string),
-			iteration:    args[3].(int),
-			tokensIn:     args[4].(int),
-			tokensOut:    args[5].(int),
-			totalCost:    args[6].(float64),
-			conversation: strPtr(args[7]),
-			iterator:     strPtr(args[8]),
+			currentState:   args[1].(string),
+			lastSignal:     args[2].(string),
+			iteration:      args[3].(int),
+			tokensIn:       args[4].(int),
+			tokensOut:      args[5].(int),
+			totalCost:      args[6].(float64),
+			conversation:   strPtr(args[7]),
+			iterator:       strPtr(args[8]),
+			programProfile: strPtr(args[9]),
+			programDigest:  strPtr(args[10]),
 		}
 		return nil
 	case strings.Contains(query, "REPLACE INTO transitions"):
@@ -318,8 +334,15 @@ func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 		return &fakeScanner{kind: "count", count: count}
 	case strings.Contains(query, "information_schema.columns"):
 		count := 0
-		if strings.Contains(query, "table_name = 'machines'") && f.machinesHasIterator {
+		if strings.Contains(query, "table_name = 'machines'") &&
+			strings.Contains(query, "column_name = 'iterator'") && f.machinesHasIterator {
 			count = 1
+		}
+		for column, exists := range f.machineProgramColumns {
+			if strings.Contains(query, "table_name = 'machines'") &&
+				strings.Contains(query, "column_name = '"+column+"'") && exists {
+				count = 1
+			}
 		}
 		if strings.Contains(query, "table_name = 'execution_steps'") && f.executionStepsHasLabel {
 			count = 1

@@ -452,7 +452,9 @@ func createSchema(db Database) error {
 			tokens_out INT NOT NULL,
 			total_cost DOUBLE NOT NULL,
 			conversation LONGTEXT,
-			iterator LONGTEXT
+			iterator LONGTEXT,
+			program_profile LONGTEXT,
+			program_digest VARCHAR(64)
 		)`,
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS transitions (
 			run_id VARCHAR(255) NOT NULL,
@@ -507,6 +509,9 @@ func createSchema(db Database) error {
 		return err
 	}
 	if err := ensureMachineIteratorColumn(db); err != nil {
+		return err
+	}
+	if err := ensureMachineProgramColumns(db); err != nil {
 		return err
 	}
 	return nil
@@ -586,6 +591,38 @@ func ensureMachineIteratorColumn(db Database) error {
 	return nil
 }
 
+func ensureMachineProgramColumns(db Database) error {
+	columns := []struct {
+		name, definition string
+	}{
+		{name: "program_profile", definition: "LONGTEXT"},
+		{name: "program_digest", definition: "VARCHAR(64)"},
+	}
+	for _, column := range columns {
+		if err := ensureSchemaColumn(db, "machines", column.name, column.definition); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureSchemaColumn(db Database, table, name, definition string) error {
+	var count int
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_schema = DATABASE() AND table_name = '%s' AND column_name = '%s'`,
+		table, name)
+	if err := db.QueryRow(query).Scan(&count); err != nil {
+		return fmt.Errorf("%w: schema: inspect %s.%s: %v", ErrDolt, table, name, err)
+	}
+	if count > 0 {
+		return nil
+	}
+	if err := db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, name, definition)); err != nil {
+		return fmt.Errorf("%w: schema: add %s.%s: %v", ErrDolt, table, name, err)
+	}
+	return nil
+}
+
 // writeMachine upserts the resumable Position row keyed by run_id.
 func writeMachine(tx Transaction, runID string, p Position) error {
 	iterator, err := iteratorSnapshotArgument(p.Snapshot.Iterator)
@@ -594,11 +631,13 @@ func writeMachine(tx Transaction, runID string, p Position) error {
 	}
 	if err := tx.Exec(
 		`REPLACE INTO machines
-			(run_id, current_state, last_signal, iteration, tokens_in, tokens_out, total_cost, conversation, iterator)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			(run_id, current_state, last_signal, iteration, tokens_in, tokens_out, total_cost,
+			 conversation, iterator, program_profile, program_digest)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		runID, string(p.CurrentState), string(p.LastSignal),
 		p.Snapshot.Iteration, p.Snapshot.TokensIn, p.Snapshot.TokensOut, p.Snapshot.TotalCost,
 		nullString(string(p.Snapshot.Conversation)), iterator,
+		nullString(p.Snapshot.Program.Profile), nullString(p.Snapshot.Program.Digest),
 	); err != nil {
 		return fmt.Errorf("%w: save: machine: %v", ErrDolt, err)
 	}
@@ -678,43 +717,67 @@ func redactedPathsArgument(paths []OutputRedactionPath) (interface{}, error) {
 
 // loadMachine reads the Position row, returning sql.ErrNoRows when absent.
 func loadMachine(db Database, runID string) (Position, error) {
-	var (
-		state, signal string
-		iteration     int
-		tokensIn      int
-		tokensOut     int
-		totalCost     float64
-		conversation  sql.NullString
-		iterator      sql.NullString
-	)
-	err := db.QueryRow(
-		`SELECT current_state, last_signal, iteration, tokens_in, tokens_out, total_cost, conversation, iterator
-			FROM machines WHERE run_id = ?`, runID,
-	).Scan(&state, &signal, &iteration, &tokensIn, &tokensOut, &totalCost, &conversation, &iterator)
+	row, err := scanMachineRow(db, runID)
 	if err != nil {
 		return Position{}, err
 	}
 	pos := Position{
-		CurrentState: State(state),
-		LastSignal:   Signal(signal),
+		CurrentState: State(row.state),
+		LastSignal:   Signal(row.signal),
 		Snapshot: AgentSnapshot{
-			State:     State(state),
-			Signal:    Signal(signal),
-			Iteration: iteration,
-			TokensIn:  tokensIn,
-			TokensOut: tokensOut,
-			TotalCost: totalCost,
+			State: State(row.state), Signal: Signal(row.signal),
+			Iteration: row.iteration, TokensIn: row.tokensIn,
+			TokensOut: row.tokensOut, TotalCost: row.totalCost,
 		},
 	}
+	if err := restoreMachineOptionals(
+		&pos, row.conversation, row.iterator, row.programProfile, row.programDigest,
+	); err != nil {
+		return Position{}, err
+	}
+	return pos, nil
+}
+
+type persistedMachineRow struct {
+	state, signal                  string
+	iteration, tokensIn, tokensOut int
+	totalCost                      float64
+	conversation, iterator         sql.NullString
+	programProfile, programDigest  sql.NullString
+}
+
+func scanMachineRow(db Database, runID string) (persistedMachineRow, error) {
+	var row persistedMachineRow
+	err := db.QueryRow(
+		`SELECT current_state, last_signal, iteration, tokens_in, tokens_out, total_cost,
+			conversation, iterator, program_profile, program_digest
+			FROM machines WHERE run_id = ?`, runID,
+	).Scan(
+		&row.state, &row.signal, &row.iteration, &row.tokensIn, &row.tokensOut, &row.totalCost,
+		&row.conversation, &row.iterator, &row.programProfile, &row.programDigest,
+	)
+	return row, err
+}
+
+func restoreMachineOptionals(
+	pos *Position,
+	conversation, iterator, programProfile, programDigest sql.NullString,
+) error {
 	if conversation.Valid && conversation.String != "" {
 		pos.Snapshot.Conversation = []byte(conversation.String)
 	}
 	if iterator.Valid && iterator.String != "" {
 		if err := json.Unmarshal([]byte(iterator.String), &pos.Snapshot.Iterator); err != nil {
-			return Position{}, fmt.Errorf("%w: load: iterator snapshot: %v", ErrDolt, err)
+			return fmt.Errorf("%w: load: iterator snapshot: %v", ErrDolt, err)
 		}
 	}
-	return pos, nil
+	if programProfile.Valid {
+		pos.Snapshot.Program.Profile = programProfile.String
+	}
+	if programDigest.Valid {
+		pos.Snapshot.Program.Digest = programDigest.String
+	}
+	return nil
 }
 
 // loadExecution reconstructs the ordered Execution, restoring each entry's output

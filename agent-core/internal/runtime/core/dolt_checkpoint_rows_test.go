@@ -50,6 +50,8 @@ func (s *fakeScanner) Scan(dest ...any) error {
 		*dest[5].(*float64) = s.machine.totalCost
 		*dest[6].(*sql.NullString) = nsFromPtr(s.machine.conversation)
 		*dest[7].(*sql.NullString) = nsFromPtr(s.machine.iterator)
+		*dest[8].(*sql.NullString) = nsFromPtr(s.machine.programProfile)
+		*dest[9].(*sql.NullString) = nsFromPtr(s.machine.programDigest)
 	case "log":
 		*dest[0].(*string) = s.hash
 	}
