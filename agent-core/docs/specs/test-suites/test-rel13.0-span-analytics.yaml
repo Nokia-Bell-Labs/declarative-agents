@@ -6,7 +6,7 @@ traces:
   - rel13.0-uc001-span-analytics
 
 preconditions:
-  - srd045-span-analytics-tools defines spool_span_stats and spool_span_breakdown behavior.
+  - srd045-span-analytics-tools defines spool_span_heatmap, spool_span_group_by, and spool_span_breakdown behavior.
   - srd044-spool-query-tools provides the spool read path and span shape the analytics reuse.
   - Tests create spool files in temporary directories and do not require a running OTLP receiver.
 
@@ -23,7 +23,7 @@ test_cases:
       services: 2
       filter: {service: svc-a, span_name: handle, attribute: {phase: parse}}
     expected:
-      signal: SpanStatsReady
+      signal: SpanHeatmapReady
       matched: exact conjunction
     traces:
       - rel13.0-uc001-span-analytics S1
@@ -39,7 +39,7 @@ test_cases:
     inputs:
       filter: {}
     expected:
-      signal: SpanStatsReady
+      signal: SpanHeatmapReady
       matched: all valid spans
     traces:
       - srd045-span-analytics-tools AC1
@@ -57,7 +57,7 @@ test_cases:
       time_buckets: 4
       duration_boundaries_ms: [0, 10, 100, 1000]
     expected:
-      signal: SpanStatsReady
+      signal: SpanHeatmapReady
       cell_sum_equals_matched: true
     traces:
       - rel13.0-uc001-span-analytics S1
@@ -77,11 +77,27 @@ test_cases:
       group_by: tool.name
       top_n: 3
     expected:
-      signal: SpanStatsReady
+      signal: SpanGroupByReady
       returned_groups: 3
       dropped_groups: 2
     traces:
       - rel13.0-uc001-span-analytics S2
+      - srd045-span-analytics-tools AC3
+
+  - use_case: rel13.0-uc001-span-analytics
+    name: Heatmap and group-by are independently dispatchable
+    go_test: go test ./internal/tools/otlp -run TestSpanAnalyticsWordsRemainIndependentAcrossMachineSteps
+    status: implemented
+    description: |
+      The heatmap output contains no group table. A later group-by action reads
+      the original request seed from command state, returns no heatmap, and
+      preserves the requested grouping key.
+    expected:
+      heatmap_has_groups: false
+      group_by_has_heatmap: false
+      group_by_seed_recovered: true
+    traces:
+      - srd045-span-analytics-tools AC2
       - srd045-span-analytics-tools AC3
 
   - use_case: rel13.0-uc001-span-analytics
@@ -130,7 +146,7 @@ test_cases:
     inputs:
       malformed_lines: 2
     expected:
-      signal: SpanStatsReady
+      signal: SpanHeatmapReady
       skipped_lines: 2
       deterministic: true
     traces:
@@ -141,8 +157,8 @@ test_cases:
     go_test: go test ./internal/tools/otlp -run TestSpanStatsEmptyPathError
     status: implemented
     description: |
-      A spool_span_stats with an empty path config emits CommandError before any
-      aggregation runs.
+      Both spool_span_heatmap and spool_span_group_by with an empty path config
+      emit CommandError before aggregation runs.
     inputs:
       path: ""
     expected:
@@ -155,10 +171,10 @@ test_cases:
     go_test: go test ./internal/tools/otlp -run Exemplar
     status: implemented
     description: |
-      spool_span_stats and spool_span_breakdown return exemplar_trace_ids drawn
-      from the matched and selection sets; the list is deduplicated, ordered by
-      ascending trace ID, capped at exemplar_cap, and excludes spans with no
-      trace ID.
+      spool_span_heatmap, spool_span_group_by, and spool_span_breakdown return
+      exemplar_trace_ids drawn from matched and selection sets; the list is
+      deduplicated, ordered by ascending trace ID, capped at exemplar_cap, and
+      excludes spans with no trace ID.
     inputs:
       exemplar_cap: 2
     expected:

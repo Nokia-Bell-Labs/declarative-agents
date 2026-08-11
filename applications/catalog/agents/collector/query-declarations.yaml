@@ -169,27 +169,62 @@ tools:
       max_page_size: 100
       offset: 0
 
-  - name: query_span_stats
+  - name: query_span_heatmap
     type: builtin
-    init: spool_span_stats
+    init: spool_span_heatmap
     category: boundary
     visibility: internal
-    emits: [SpanStatsReady, CommandError]
-    description: Filter spooled spans and return a duration heatmap and group-by counts.
-    problem: An Explore panel needs an aggregate latency view over the trace spool without a separate analytics backend.
-    goals: [Bucket filtered spans into a duration-over-time heatmap, Count filtered spans grouped by an attribute with a reported dropped remainder]
+    emits: [SpanHeatmapReady, CommandError]
+    description: Filter spooled spans and return a duration heatmap.
+    problem: An Explore panel needs an aggregate latency view over the trace spool without coupling it to categorical aggregation.
+    goals: [Bucket filtered spans into a duration-over-time heatmap]
     requirements:
-      input: [Path, bucket shape, and caps come from trusted config; the filter, group_by, and top_n come from the request seed]
-      output: [Output includes heatmap, matched, exemplar_trace_ids, groups, dropped_groups, dropped_span_total, skipped_lines]
+      input: [Path and bucket shape come from trusted config; the filter and time_buckets come from the request seed]
+      output: [Output includes heatmap, matched, exemplar_trace_ids, and skipped_lines]
       errors: [An unreadable spool emits CommandError]
     non_goals: [Does not mutate spans, Does not depend on an environment variable it introduces]
     parameters: {type: object, properties: {}}
     output:
-      description: A duration heatmap and optional group-by counts over filtered spans.
+      description: A duration heatmap over filtered spans.
       schema:
         type: object
         properties:
           heatmap: {type: object}
+          matched: {type: integer}
+          exemplar_trace_ids: {type: array}
+          skipped_lines: {type: integer}
+    side_effects:
+      - {kind: filesystem_read, target: collector trace spool, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Reading a spool changes nothing.}
+    errors:
+      - {signal: CommandError, condition: spool path cannot be read, state_after_failure: no output is returned}
+    config:
+      path: ${COLLECTOR_SPOOL_PATH:-traces/collector.ndjson}
+      time_buckets: 24
+      duration_edges_ms: [0, 1, 10, 50, 100, 500, 1000, 5000]
+      exemplar_cap: 20
+
+  - name: query_span_group_by
+    type: builtin
+    init: spool_span_group_by
+    category: boundary
+    visibility: internal
+    emits: [SpanGroupByReady, CommandError]
+    description: Filter spooled spans and count them by one requested key.
+    problem: An Explore panel needs a bounded categorical breakdown independent of its heatmap.
+    goals: [Count filtered spans grouped by an attribute with a reported dropped remainder]
+    requirements:
+      input: [Path and caps come from trusted config; the filter, group_by, and top_n come from the request seed]
+      output: [Output includes matched, exemplar_trace_ids, groups, dropped_groups, dropped_span_total, and skipped_lines]
+      errors: [A missing group_by or unreadable spool emits CommandError]
+    non_goals: [Does not compute a heatmap, Does not mutate spans]
+    parameters: {type: object, properties: {}}
+    output:
+      description: Bounded group-by counts over filtered spans.
+      schema:
+        type: object
+        properties:
           matched: {type: integer}
           exemplar_trace_ids: {type: array}
           skipped_lines: {type: integer}
@@ -202,15 +237,102 @@ tools:
     reversibility: {classification: reversible, undo: noop}
     undo: {strategy: noop, description: Reading a spool changes nothing.}
     errors:
-      - {signal: CommandError, condition: spool path cannot be read, state_after_failure: no output is returned}
+      - {signal: CommandError, condition: group_by is missing or spool path cannot be read, state_after_failure: no output is returned}
     config:
       path: ${COLLECTOR_SPOOL_PATH:-traces/collector.ndjson}
-      time_buckets: 24
-      duration_edges_ms: [0, 1, 10, 50, 100, 500, 1000, 5000]
       group_by: ""
       top_n: 20
       max_top_n: 100
       exemplar_cap: 20
+
+  - name: span_group_by_requested
+    type: builtin
+    init: value_predicate
+    category: word
+    visibility: internal
+    emits: [SpanGroupByRequested, SpanHeatmapOnly, CommandError]
+    description: Branch on whether the stats request selected a group-by key.
+    problem: The query machine must declare whether it dispatches one analysis or both.
+    goals: [Keep optional group-by execution as a visible machine branch.]
+    requirements:
+      input: [Read group_by from the labeled request seed.]
+      output: [Emit distinct signals for requested and omitted grouping.]
+      errors: [A broken selector emits CommandError.]
+    non_goals: [Does not compute or mutate analytics.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Group-by selection predicate, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Comparison changes nothing.}
+    errors: [{signal: CommandError, condition: selector cannot resolve, state_after_failure: No analytics are dispatched.}]
+    config:
+      left: $from(seed).parameters.group_by
+      op: non_empty
+      operand_type: string
+      satisfied: SpanGroupByRequested
+      unsatisfied: SpanHeatmapOnly
+
+  - name: compose_span_stats
+    type: builtin
+    init: compose
+    category: response
+    visibility: internal
+    emits: [SpanStatsReady]
+    description: Compose independent heatmap and group-by results into the stable HTTP response.
+    problem: The existing Explore endpoint returns both declared analyses in one response.
+    goals: [Preserve the response schema while keeping each analysis independently dispatchable.]
+    requirements:
+      input: [Heatmap and group-by steps are available by authored labels.]
+      output: [Output contains both analysis payloads without recomputation.]
+      errors: [Missing selectors are reported as diagnostics.]
+    non_goals: [Does not read the spool or compute analytics.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Combined Explore statistics response, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Composition changes nothing.}
+    errors: [{signal: CommandError, condition: Composition fails, state_after_failure: No state changes.}]
+    config:
+      signal: SpanStatsReady
+      inputs:
+        heatmap: $from(span_heatmap).heatmap
+        matched: $from(span_heatmap).matched
+        exemplar_trace_ids: $from(span_heatmap).exemplar_trace_ids
+        skipped_lines: $from(span_heatmap).skipped_lines
+        group_by: $from(span_group_by).group_by
+        groups: $from(span_group_by).groups
+        dropped_groups: $from(span_group_by).dropped_groups
+        dropped_span_total: $from(span_group_by).dropped_span_total
+      template: '{"heatmap":{{ json heatmap }},"matched":{{ matched }},"exemplar_trace_ids":{{ json exemplar_trace_ids }},"skipped_lines":{{ skipped_lines }},"group_by":{{ json group_by }},"groups":{{ json groups }},"dropped_groups":{{ dropped_groups }},"dropped_span_total":{{ dropped_span_total }}}'
+
+  - name: compose_span_heatmap
+    type: builtin
+    init: compose
+    category: response
+    visibility: internal
+    emits: [SpanStatsReady]
+    description: Compose a heatmap-only analysis into the stable HTTP response.
+    problem: Requests without group_by must not dispatch categorical aggregation.
+    goals: [Preserve the response schema with an explicit empty group result.]
+    requirements:
+      input: [The heatmap step is available by its authored label.]
+      output: [Group fields are explicit empty values.]
+      errors: [Missing selectors are reported as diagnostics.]
+    non_goals: [Does not read the spool or compute group counts.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Heatmap-only Explore statistics response, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Composition changes nothing.}
+    errors: [{signal: CommandError, condition: Composition fails, state_after_failure: No state changes.}]
+    config:
+      signal: SpanStatsReady
+      inputs:
+        heatmap: $from(span_heatmap).heatmap
+        matched: $from(span_heatmap).matched
+        exemplar_trace_ids: $from(span_heatmap).exemplar_trace_ids
+        skipped_lines: $from(span_heatmap).skipped_lines
+      template: '{"heatmap":{{ json heatmap }},"matched":{{ matched }},"exemplar_trace_ids":{{ json exemplar_trace_ids }},"skipped_lines":{{ skipped_lines }},"group_by":"","groups":[],"dropped_groups":0,"dropped_span_total":0}'
 
   - name: query_span_breakdown
     type: builtin

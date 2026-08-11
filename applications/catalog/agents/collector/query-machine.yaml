@@ -5,14 +5,17 @@ purpose: |
   metric list and get paths return paginated metric summaries and one metric's
   records. No path mutates machine state.
 initial_state: AwaitingRequest
-budget: {max_iterations: 4}
+budget: {max_iterations: 8}
 states:
   - {name: AwaitingRequest, meaning: Seeded by a trusted machine_request route.}
   - {name: ListingTraces, meaning: Paginated trace summary read from spool.}
   - {name: GettingTrace, meaning: Single-trace span detail read from spool.}
   - {name: ListingMetrics, meaning: Paginated metric summary read from spool.}
   - {name: GettingMetric, meaning: Single-metric record detail read from spool.}
-  - {name: ComputingSpanStats, meaning: Duration heatmap and group-by counts over filtered spans.}
+  - {name: ComputingSpanHeatmap, meaning: Duration heatmap over filtered spans.}
+  - {name: CheckingSpanGroupBy, meaning: Decide whether this request selected categorical aggregation.}
+  - {name: ComputingSpanGroupBy, meaning: Group-by counts over the same request filter.}
+  - {name: ComposingSpanStats, meaning: Compose the two declared analyses into the stable response.}
   - {name: ComputingBreakdown, meaning: Attribute divergence between a selection and its complement.}
   - {name: TracesReady, meaning: Terminal paginated trace response.}
   - {name: TraceReady, meaning: Terminal single-trace response.}
@@ -33,6 +36,10 @@ signals:
   - TraceRetrieved
   - MetricsListed
   - MetricRetrieved
+  - SpanHeatmapReady
+  - SpanGroupByRequested
+  - SpanHeatmapOnly
+  - SpanGroupByReady
   - SpanStatsReady
   - SpanBreakdownReady
   - CommandError
@@ -41,7 +48,7 @@ transitions:
   - {state: AwaitingRequest, signal: GetTraceRequested, next: GettingTrace, action: query_get_trace}
   - {state: AwaitingRequest, signal: ListMetricsRequested, next: ListingMetrics, action: query_list_metrics}
   - {state: AwaitingRequest, signal: GetMetricRequested, next: GettingMetric, action: query_get_metric}
-  - {state: AwaitingRequest, signal: SpanStatsRequested, next: ComputingSpanStats, action: query_span_stats}
+  - {state: AwaitingRequest, signal: SpanStatsRequested, next: ComputingSpanHeatmap, action: query_span_heatmap, label: span_heatmap}
   - {state: AwaitingRequest, signal: SpanBreakdownRequested, next: ComputingBreakdown, action: query_span_breakdown}
   - {state: ListingTraces, signal: TracesListed, next: TracesReady}
   - {state: ListingTraces, signal: CommandError, next: Failed}
@@ -51,7 +58,14 @@ transitions:
   - {state: ListingMetrics, signal: CommandError, next: Failed}
   - {state: GettingMetric, signal: MetricRetrieved, next: MetricReady}
   - {state: GettingMetric, signal: CommandError, next: Failed}
-  - {state: ComputingSpanStats, signal: SpanStatsReady, next: SpanStatsResponse}
-  - {state: ComputingSpanStats, signal: CommandError, next: Failed}
+  - {state: ComputingSpanHeatmap, signal: SpanHeatmapReady, next: CheckingSpanGroupBy, action: span_group_by_requested}
+  - {state: ComputingSpanHeatmap, signal: CommandError, next: Failed}
+  - {state: CheckingSpanGroupBy, signal: SpanGroupByRequested, next: ComputingSpanGroupBy, action: query_span_group_by, label: span_group_by}
+  - {state: CheckingSpanGroupBy, signal: SpanHeatmapOnly, next: ComposingSpanStats, action: compose_span_heatmap}
+  - {state: CheckingSpanGroupBy, signal: CommandError, next: Failed}
+  - {state: ComputingSpanGroupBy, signal: SpanGroupByReady, next: ComposingSpanStats, action: compose_span_stats}
+  - {state: ComputingSpanGroupBy, signal: CommandError, next: Failed}
+  - {state: ComposingSpanStats, signal: SpanStatsReady, next: SpanStatsResponse}
+  - {state: ComposingSpanStats, signal: CommandError, next: Failed}
   - {state: ComputingBreakdown, signal: SpanBreakdownReady, next: SpanBreakdownResponse}
   - {state: ComputingBreakdown, signal: CommandError, next: Failed}

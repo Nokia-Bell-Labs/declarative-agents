@@ -16,15 +16,15 @@ trigger: |
   statistics or an attribute breakdown over a filtered region of the spool.
 
 flow:
-  - F1: The consumer invokes spool_span_stats with a filter (time range, service, span name, attribute equality) and a heatmap request; the tool reads the active and rotated spool files and returns the time-by-duration grid with axis boundaries, matched total, and skipped-line count.
-  - F2: The consumer invokes spool_span_stats with a group_by key; the tool returns per-value counts ordered by count then value, capped at top-N, with the dropped group and span totals.
+  - F1: The consumer invokes spool_span_heatmap with a filter (time range, service, span name, attribute equality) and a heatmap request; the tool reads the active and rotated spool files and returns the time-by-duration grid with axis boundaries, matched total, and skipped-line count.
+  - F2: The consumer independently invokes spool_span_group_by with a group_by key; the tool returns per-value counts ordered by count then value, capped at top-N, with the dropped group and span totals.
   - F3: The consumer invokes spool_span_breakdown with a baseline filter and a selection filter; the tool partitions baseline spans into inside and outside the selection and ranks attribute values by divergence, capped at top-N with a dropped count.
   - F4: A malformed line in the spool is skipped and counted; an absent spool yields an empty result rather than an error.
   - F5: A missing or unreadable spool path emits CommandError before any aggregation runs.
 
 touchpoints:
   - T1: "srd045-span-analytics-tools R1 -- conjunctive span filter over the srd044 read path"
-  - T2: "srd045-span-analytics-tools R2, R3 -- duration heatmap and group-by counts in spool_span_stats"
+  - T2: "srd045-span-analytics-tools R2, R3 -- independently dispatchable duration heatmap and group-by counts"
   - T3: "srd045-span-analytics-tools R4 -- attribute divergence in spool_span_breakdown"
   - T4: "srd044-spool-query-tools -- spool discovery, NDJSON parsing, span shape reused"
 

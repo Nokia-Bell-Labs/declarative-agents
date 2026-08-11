@@ -69,7 +69,7 @@ requirements:
   R8:
     title: Explore query surface
     items:
-      - R8.1: The collector_query server SHALL serve GET /query/spans/stats, bound through a query-machine action to the agent-core spool_span_stats tool, returning a duration-over-time heatmap, group-by counts, and a capped list of exemplar trace IDs for the matched span set.
+      - R8.1: The collector_query server SHALL serve GET /query/spans/stats through declared query-machine actions for agent-core spool_span_heatmap and spool_span_group_by followed by a compose word, returning a duration-over-time heatmap, group-by counts, and a capped list of exemplar trace IDs for the matched span set.
       - R8.2: The collector_query server SHALL serve GET /query/spans/breakdown, bound to spool_span_breakdown, returning the ranked attribute divergence between a selected span region and its complement, and a capped list of exemplar trace IDs for the selection.
       - R8.3: Both routes SHALL accept the filter, bucket, group-by, selection, and top-N inputs as request query parameters passed to the tool config; page and result caps SHALL come from tool config, not be trusted from the request. No route behavior SHALL depend on an environment variable.
       - R8.4: The stats and breakdown JSON response contracts SHALL be pinned by conformance tests so UI and tool drift fail there first, following the R5 query-contract precedent.
@@ -125,7 +125,7 @@ depends_on:
   - srd_id: srd044-spool-query-tools
     symbols_used: [spool_list_traces, spool_get_trace]
   - srd_id: srd045-span-analytics-tools
-    symbols_used: [spool_span_stats, spool_span_breakdown]
+    symbols_used: [spool_span_heatmap, spool_span_group_by, spool_span_breakdown]
 
 related_documents:
   - srd007-collector-agent
