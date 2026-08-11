@@ -159,6 +159,7 @@ func (b *InitEvalSessionBuilder) Build(_ core.Result) core.Command {
 	return &evaluatorReceiptCmd{
 		inner: &initEvalSessionCmd{es: b.ES}, session: b.ES,
 		removePaths: func() []string { return []string{b.ES.SessionDir} },
+		removeRoot:  func() string { return filepath.Dir(b.ES.SessionDir) },
 	}
 }
 

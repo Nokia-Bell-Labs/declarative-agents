@@ -6,8 +6,6 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -25,7 +23,6 @@ var embeddedProfiles embed.FS
 type ProfileSpec struct {
 	ProfileName   string         `yaml:"name"`
 	MatchPrefixes []string       `yaml:"match_prefixes"`
-	MachineName   string         `yaml:"machine,omitempty"`
 	Envelope      *EnvelopeSpec  `yaml:"envelope"`
 	StrictFormat  bool           `yaml:"strict_format"`
 	Pipeline      []PipelineStep `yaml:"extraction_pipeline"`
@@ -110,37 +107,8 @@ func addProfileEntry(reg *ProfileRegistry, filename string, data []byte) error {
 	return nil
 }
 
-// LoadProfiles reads all .yaml files from a directory and returns a registry.
-func LoadProfiles(dir string) (*ProfileRegistry, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("read profiles dir %s: %w", dir, err)
-	}
-
-	reg := &ProfileRegistry{}
-	for _, e := range entries {
-		if e.IsDir() || (!strings.HasSuffix(e.Name(), ".yaml") && !strings.HasSuffix(e.Name(), ".yml")) {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil {
-			return nil, fmt.Errorf("read profile %s: %w", e.Name(), err)
-		}
-		if err := addProfileEntry(reg, e.Name(), data); err != nil {
-			return nil, err
-		}
-	}
-
-	if reg.defaultSpec.ProfileName == "" {
-		return nil, fmt.Errorf("profiles dir %s: no default profile found (need a file with name: default or empty match_prefixes)", dir)
-	}
-
-	return reg, nil
-}
-
-// LoadProfilesFromBytes creates a registry from raw YAML byte slices
-// (typically from go:embed). Each slice is one profile file.
-func LoadProfilesFromBytes(files map[string][]byte) (*ProfileRegistry, error) {
+// loadProfilesFromBytes is the test seam for validating raw parser profiles.
+func loadProfilesFromBytes(files map[string][]byte) (*ProfileRegistry, error) {
 	reg := &ProfileRegistry{}
 	names := make([]string, 0, len(files))
 	for name := range files {
@@ -224,9 +192,7 @@ func (r *ProfileRegistry) ResolveProfileName(name string) (ResponseParser, bool)
 	return nil, false
 }
 
-// ResolveProfileSpec returns the ProfileSpec for the given model.
-// Use this when you need the spec itself (e.g. for Machine()).
-func (r *ProfileRegistry) ResolveProfileSpec(model string) ProfileSpec {
+func (r *ProfileRegistry) resolveProfileSpec(model string) ProfileSpec {
 	lower := strings.ToLower(model)
 	for _, spec := range r.profiles {
 		for _, prefix := range spec.MatchPrefixes {
@@ -238,8 +204,7 @@ func (r *ProfileRegistry) ResolveProfileSpec(model string) ProfileSpec {
 	return r.defaultSpec
 }
 
-// ProfileNames returns the names of all loaded profiles.
-func (r *ProfileRegistry) ProfileNames() []string {
+func (r *ProfileRegistry) profileNames() []string {
 	names := make([]string, 0, len(r.profiles)+1)
 	names = append(names, r.defaultSpec.ProfileName)
 	for _, p := range r.profiles {
@@ -278,9 +243,7 @@ func newYAMLProfile(spec ProfileSpec) *yamlProfile {
 	return p
 }
 
-func (p *yamlProfile) Name() string    { return p.spec.ProfileName }
-func (p *yamlProfile) Machine() string { return p.spec.MachineName }
-
+func (p *yamlProfile) Name() string { return p.spec.ProfileName }
 func (p *yamlProfile) EnvelopeConfig() (*prompt.Envelope, bool) {
 	if p.spec.Envelope == nil {
 		return nil, p.spec.StrictFormat

@@ -181,6 +181,24 @@ func recordDispatchMetrics(ctx context.Context, rec monitor.RuntimeRecorder, dc 
 	count.Value = 1
 	_ = rec.RecordMetric(ctx, count)
 	_ = rec.RecordMetric(ctx, dispatchOutcomeSample(count, res))
+	recordDispatchError(ctx, rec, res)
+}
+
+func recordDispatchError(ctx context.Context, rec monitor.RuntimeRecorder, res Result) {
+	if dispatchStatus(res) != "failure" {
+		return
+	}
+	errors, ok := rec.(monitor.ErrorRecorder)
+	if !ok {
+		return
+	}
+	message := res.Output
+	if res.Err != nil {
+		message = res.Err.Error()
+	}
+	_ = errors.RecordError(ctx, monitor.RecentError{
+		Stage: "dispatch", Message: message, CommandName: res.CommandName,
+	})
 }
 
 func dispatchSample(dc monitor.DispatchContext, res Result) monitor.MetricSample {

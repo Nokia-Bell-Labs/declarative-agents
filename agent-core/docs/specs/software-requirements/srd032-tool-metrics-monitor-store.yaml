@@ -34,7 +34,7 @@ requirements:
     items:
       - R1.1: The monitor package SHALL provide an in-memory store scoped to one agent process.
       - R1.2: The store SHALL cache current machine state, current run status, and recent RunEvent data.
-      - R1.3: The store SHALL cache per-tool usage aggregates, accepted metric samples, known metric schemas, monitor diagnostics, and bounded recent errors.
+      - R1.3: The store SHALL cache per-tool usage aggregates, accepted metric samples, known metric schemas, monitor diagnostics, and bounded recent errors recorded from failed dispatch results.
       - R1.4: The store SHALL bound retained events, samples, diagnostics, and errors by configured limits.
       - R1.5: The store SHALL expose read snapshots without executing tools, re-reading prompts, scraping workspace files, or calling external collectors.
       - R1.6: The store SHALL be an observability cache, not durable history, not checkpoint state, and not a rollback source.

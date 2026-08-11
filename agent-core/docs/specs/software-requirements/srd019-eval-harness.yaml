@@ -63,7 +63,7 @@ requirements:
       - R3.5: collect_trace_tokens parses trace files for token counts and treats a missing trace as a successful zero-token result.
       - R3.6: check_agent_version compares configured harness version with traced agent version and emits a warning signal on mismatch.
       - R3.7: summarize_point_results emits ResultsCollected after oracle, trace, and version fields are populated.
-      - R3.8: collect_metrics writes meta.json with exit code, duration, test results, token counts, and convergence data.
+      - R3.8: collect_metrics writes meta.json with exit code, duration, test results, token counts, and convergence data; it SHALL reject an empty point directory, build the path with filepath.Join, and limit receipt-driven removal to the declared owned root.
       - R3.9: Every point CommandError or infrastructure ToolFailed edge before metrics SHALL route through record_point_failure and collect_metrics before Failed; run_point SHALL perform no direct artifact write and SHALL emit CommandError for nested-loop engine failures.
 
   R4:

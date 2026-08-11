@@ -150,16 +150,14 @@ type MetricAggregate struct {
 
 // Snapshot is a bounded point-in-time monitor view.
 type Snapshot struct {
-	Run               RunSnapshot
-	Tools             map[string]ToolAggregate
-	Metrics           map[string]MetricAggregate
-	Schemas           map[string]MetricSchema
-	RecentEvents      []RunEvent
-	RecentSamples     []MetricSample
-	Diagnostics       []Diagnostic
-	RecentErrors      []RecentError
-	ReadsExecuteTools bool
-	ReadsWorkspace    bool
+	Run           RunSnapshot
+	Tools         map[string]ToolAggregate
+	Metrics       map[string]MetricAggregate
+	Schemas       map[string]MetricSchema
+	RecentEvents  []RunEvent
+	RecentSamples []MetricSample
+	Diagnostics   []Diagnostic
+	RecentErrors  []RecentError
 }
 
 // DispatchContext carries runtime-owned identity for standard metrics.

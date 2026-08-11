@@ -147,24 +147,6 @@ func TestRender_NoTrailingNewlines(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// RenderSystemPromptWith (custom template)
-// ---------------------------------------------------------------------------
-
-func TestRenderWith_CustomTemplate(t *testing.T) {
-	t.Parallel()
-	tmpl := `ROLE: {{.Role}} | TASK: {{.Task}}`
-	out, err := RenderSystemPromptWith(tmpl, PromptData{Role: "r", Task: "t"})
-	require.NoError(t, err)
-	require.Equal(t, "ROLE: r | TASK: t", out)
-}
-
-func TestRenderWith_InvalidTemplate(t *testing.T) {
-	t.Parallel()
-	_, err := RenderSystemPromptWith("{{.Bad", PromptData{})
-	require.Error(t, err)
-}
-
-// ---------------------------------------------------------------------------
 // SerializeManifest
 // ---------------------------------------------------------------------------
 

@@ -96,7 +96,7 @@ test_cases:
 
   - use_case: rel04.0-uc001-configurable-tool-metrics
     name: Monitor store returns bounded snapshots
-    go_test: TestMonitorStore_BoundedSnapshot
+    go_test: go test ./internal/observability/monitor ./internal/runtime/core -run 'Test(MonitorStore_BoundedSnapshot|Dispatch_RecordsBoundedMonitorErrors)'
     status: implemented
     description: |
       Seed the store with current machine state and recent runtime data. Add
@@ -112,6 +112,7 @@ test_cases:
       sample_count: 8
     expected:
       snapshot_bounded: true
+      failed_dispatch_recorded: true
       reads_execute_tools: false
       reads_workspace_files: false
     traces:

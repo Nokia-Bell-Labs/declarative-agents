@@ -10,16 +10,14 @@ problem: |
   minimal Chat stub.
 
   A single, well-tested adapter in agent-core eliminates the duplication
-  and gives callers model validation and tracing without widening the
-  llm.Client port beyond Chat. NewAdapter validates by default for direct
-  callers. The invoke_llm word deliberately skips registration-time network
-  I/O: profiles that require preflight readiness declare a REST transition,
-  while other profiles route backend failure from the first Chat dispatch
-  as CommandError (GH-1375).
+  and gives callers tracing without widening the llm.Client port beyond Chat.
+  Adapter construction performs no network I/O: profiles that require
+  preflight readiness declare a REST transition, while other profiles route
+  backend failure from the first Chat dispatch as CommandError (GH-1375).
 
 goals:
   - G1: Provide a production-ready Ollama adapter in internal/model/llm/ollama satisfying llm.Client.
-  - G2: Validate model availability at construction time (fail-fast).
+  - G2: Keep model availability checks in profile-declared workflow words.
   - G3: Support optional tracing via the internal/observability/tracing.Tracer interface.
   - G4: Replace generator's internal/llm/adapter.go and planner's cmd/planner/ollama.go.
 
@@ -28,10 +26,9 @@ requirements:
     title: Adapter struct
     items:
       - R1.1: Adapter holds the Ollama base URL, model name, an http.Client, and an optional tracing.Tracer.
-      - R1.2: NewAdapter accepts the base URL, model name, and variadic Option functions. It verifies the model is available and returns an error if not.
+      - R1.2: NewAdapter accepts the base URL, model name, and variadic Option functions without performing network I/O.
       - R1.3: The default http.Client has a 5-minute timeout. WithHTTPClient overrides it.
       - R1.4: Adapter.Model() returns the model name the adapter was created for.
-      - R1.5: WithSkipModelCheck disables the startup model-availability check. invoke_llm uses it so registration remains configuration-only; profiles MAY declare a REST preflight, and otherwise Chat connection failures SHALL surface as the tool's routable CommandError (GH-1375).
 
   R2:
     title: Chat (POST /api/chat)
@@ -42,18 +39,18 @@ requirements:
       - R2.4: Missing token counts default to zero.
 
   R4:
-    title: Model availability check
+    title: Declarative model availability
     items:
-      - R4.1: NewAdapter calls GET /api/tags and verifies the model name is present. Matching is case-insensitive.
-      - R4.2: If the model name omits a tag (no ":"), it matches entries with any tag.
-      - R4.3: If the model is not found, NewAdapter returns an error naming the model and suggesting "ollama pull".
-      - R4.4: If /api/tags fails (connection refused, bad status), NewAdapter returns a connection error. The adapter does not auto-pull models.
+      - R4.1: NewAdapter SHALL NOT call GET /api/tags or perform any other hidden readiness probe.
+      - R4.2: A profile that requires model readiness SHALL declare the probe as a REST word and route its signals in MachineSpec.
+      - R4.3: Without a declared preflight, an unavailable backend SHALL surface from Chat as invoke_llm CommandError.
+      - R4.4: The adapter SHALL NOT auto-pull models.
 
   R5:
     title: Tracing
     items:
-      - R5.1: WithTracer injects a tracing.Tracer. When set, the adapter emits span events for the check_model lifecycle and creates a semconv inference span (via chatSpan) for each Chat() call with genai attributes (model, provider, server address, port, token counts, response model).
-      - R5.2: Events include start, done, and error variants with relevant attributes (base URL, model, count, HTTP status).
+      - R5.1: WithTracer injects a tracing.Tracer. When set, the adapter creates a semconv inference span (via chatSpan) for each Chat() call with genai attributes (model, provider, server address, port, token counts, response model).
+      - R5.2: Chat spans record HTTP and parsing errors with relevant attributes.
       - R5.3: A nil tracer is safe — all tracing is no-op by default.
 
   R6:
@@ -77,11 +74,11 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.4, R2.1, R2.2, R2.3, R2.4]
 
   - id: AC2
-    criterion: NewAdapter verifies model availability via /api/tags. Case-insensitive matching with optional tag. Missing model returns a descriptive error with pull suggestion.
+    criterion: NewAdapter performs no model-availability network request; profiles may declare REST readiness and otherwise Chat reports backend failure.
     traces: [R4.1, R4.2, R4.3, R4.4]
 
   - id: AC3
-    criterion: WithTracer enables span events for check_model and Chat inference spans. Nil tracer is safe.
+    criterion: WithTracer enables Chat inference spans and error recording. Nil tracer is safe.
     traces: [R5.1, R5.2, R5.3]
 
   - id: AC4
@@ -89,8 +86,8 @@ acceptance_criteria:
     traces: [R6.1, R6.2, R6.3]
 
   - id: AC5
-    criterion: WithHTTPClient overrides the default 5-minute-timeout client. WithSkipModelCheck skips startup model validation; invoke_llm registration performs no backend request and an unreachable backend emits CommandError when dispatched.
-    traces: [R1.3, R1.5]
+    criterion: WithHTTPClient overrides the default 5-minute-timeout client; invoke_llm registration performs no backend request and an unreachable backend emits CommandError when dispatched.
+    traces: [R1.2, R1.3, R4.1, R4.3]
 
   - id: AC6
     criterion: Generator imports internal/model/llm/ollama and deletes internal/llm/adapter.go. Planner imports internal/model/llm/ollama and deletes cmd/planner/ollama.go.
@@ -107,15 +104,15 @@ diagrams:
       Problem["Problem: Every agent built on agent-core needs to talk to an L..."] --> Goals["Goals: Ollama LLM Adapter"]
       Goals --> R1["R1: Adapter struct"]
       Goals --> R2["R2: Chat (POST /api/chat)"]
-      Goals --> R4["R4: Model availability check"]
+      Goals --> R4["R4: Declarative model availability"]
       Goals --> R5["R5: Tracing"]
       Goals --> R6["R6: Error handling"]
       AC1["AC1: NewAdapter returns a working llm.Client. Chat round-trips..."]
       R1 --> AC1
       R2 --> AC1
-      AC2["AC2: NewAdapter verifies model availability via /api/tags. Cas..."]
+      AC2["AC2: NewAdapter performs no hidden model-availability request..."]
       R4 --> AC2
-      AC3["AC3: WithTracer enables span events for check_model and Chat..."]
+      AC3["AC3: WithTracer enables Chat inference spans and error record..."]
       R5 --> AC3
       AC4["AC4: Connection failures, bad HTTP status, and malformed JSON..."]
       R6 --> AC4

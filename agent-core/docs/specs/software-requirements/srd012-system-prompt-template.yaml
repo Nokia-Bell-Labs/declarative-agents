@@ -52,10 +52,10 @@ requirements:
       - R4.6: Output has no trailing newlines.
 
   R5:
-    title: Custom template support
+    title: Fixed template boundary
     items:
-      - R5.1: RenderSystemPromptWith(tmplText, data) renders a custom template with the same PromptData.
-      - R5.2: Invalid template text returns an error.
+      - R5.1: Runtime callers SHALL use the embedded reviewed system template rather than supplying arbitrary template text.
+      - R5.2: Agent-specific prompt policy SHALL come from PromptData fields and ToolDef config, not runtime template compilation.
 
   R6:
     title: SerializeManifest
@@ -88,7 +88,7 @@ acceptance_criteria:
     traces: [R4.5, R4.6]
 
   - id: AC4
-    criterion: RenderSystemPromptWith renders custom templates with PromptData. Invalid template returns error.
+    criterion: System prompt rendering uses the embedded reviewed template and accepts agent-specific policy only through PromptData.
     traces: [R5.1, R5.2]
 
   - id: AC5
@@ -125,7 +125,7 @@ diagrams:
       R4 --> AC2
       AC3["AC3: Template error falls back to Role + Task. No trailing new..."]
       R4 --> AC3
-      AC4["AC4: RenderSystemPromptWith renders custom templates with Prom..."]
+      AC4["AC4: System prompt rendering uses the embedded reviewed templ..."]
       R5 --> AC4
       AC5["AC5: SerializeManifest produces"]
       R6 --> AC5

@@ -49,6 +49,29 @@ func TestDispatch_RecordsCommandErrorsOnSpan(t *testing.T) {
 	require.NotEmpty(t, tr.child.attrs["error.type"].AsString())
 }
 
+func TestDispatch_RecordsBoundedMonitorErrors(t *testing.T) {
+	t.Parallel()
+
+	store := monitor.NewStore(monitor.Limits{Errors: 2})
+	recorder := monitor.NewRecorder(store, nil)
+	for i := 1; i <= 3; i++ {
+		command := dispatchResultCmd{
+			name: "failing_tool",
+			res:  Result{Signal: CommandError, Err: fmt.Errorf("boom-%d", i)},
+		}
+		dispatchWithMonitorContext(
+			context.Background(), command, tracing.NoopTracer{}, 0, recorder,
+			monitor.DispatchContext{RunID: "run", AgentName: "agent", State: "Running"},
+		)
+	}
+
+	errors := store.Snapshot().RecentErrors
+	require.Len(t, errors, 2)
+	require.Equal(t, "boom-2", errors[0].Message)
+	require.Equal(t, "failing_tool", errors[0].CommandName)
+	require.Equal(t, "boom-3", errors[1].Message)
+}
+
 func TestSafeExecute_RecoversPanicAndForcesCommandError(t *testing.T) {
 	t.Parallel()
 

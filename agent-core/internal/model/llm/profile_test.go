@@ -10,6 +10,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func LoadProfilesFromBytes(files map[string][]byte) (*ProfileRegistry, error) {
+	return loadProfilesFromBytes(files)
+}
+
+func (r *ProfileRegistry) ResolveProfileSpec(model string) ProfileSpec {
+	return r.resolveProfileSpec(model)
+}
+
+func (r *ProfileRegistry) ProfileNames() []string {
+	return r.profileNames()
+}
+
 func TestDefaultProfile_ExtractToolCall(t *testing.T) {
 	p := DefaultProfile()
 	raw := `[tool_call]{"tool":"read","parameters":{"path":"f.go"}}[/tool_call]`
@@ -147,16 +159,6 @@ extraction_pipeline:
 	assert.Contains(t, err.Error(), "no default profile")
 }
 
-func TestProfileSpec_Machine(t *testing.T) {
-	spec := ProfileSpec{
-		ProfileName: "deepseek",
-		MachineName: "deepseek-machine",
-	}
-	p := newYAMLProfile(spec)
-	assert.Equal(t, "deepseek", p.Name())
-	assert.Equal(t, "deepseek-machine", p.Machine())
-}
-
 func TestDefaultProfileRegistry(t *testing.T) {
 	reg, err := DefaultProfileRegistry()
 	require.NoError(t, err)
@@ -179,10 +181,9 @@ func TestDefaultProfileRegistry(t *testing.T) {
 	_, qStrict := qp.EnvelopeConfig()
 	assert.True(t, qStrict)
 
-	// Deepseek prefix match with machine name.
+	// Deepseek prefix match.
 	ds := reg.ResolveProfileSpec("deepseek-coder:latest")
 	assert.Equal(t, "deepseek", ds.ProfileName)
-	assert.Equal(t, "deepseek-coding-agent", ds.MachineName)
 
 	// Gemma uses <tool_call> envelope.
 	gp := reg.ResolveProfile("gemma3:latest")
@@ -214,7 +215,6 @@ extraction_pipeline:
 name: deepseek
 match_prefixes:
   - deepseek
-machine: deepseek-machine
 extraction_pipeline:
   - extract_braces
 `),
@@ -224,10 +224,24 @@ extraction_pipeline:
 
 	spec := reg.ResolveProfileSpec("deepseek-coder:latest")
 	assert.Equal(t, "deepseek", spec.ProfileName)
-	assert.Equal(t, "deepseek-machine", spec.MachineName)
 
 	spec = reg.ResolveProfileSpec("llama3:latest")
 	assert.Equal(t, "default", spec.ProfileName)
+}
+
+func TestResponseProfileRejectsMachineSelection(t *testing.T) {
+	files := map[string][]byte{
+		"default.yaml": []byte(`
+name: default
+machine: hidden-program
+extraction_pipeline: [extract_braces]
+`),
+	}
+
+	_, err := LoadProfilesFromBytes(files)
+
+	require.ErrorContains(t, err, "machine is not supported")
+	require.ErrorContains(t, err, "MachineSpec owns program selection")
 }
 
 func TestLoadProfilesFromBytes_ValidatesEveryPipelineOperation(t *testing.T) {

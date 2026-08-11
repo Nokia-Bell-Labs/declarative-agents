@@ -40,10 +40,12 @@ func (p *ProfileSpec) UnmarshalYAML(value *yaml.Node) error {
 	*p = ProfileSpec{
 		ProfileName:   raw.ProfileName,
 		MatchPrefixes: raw.MatchPrefixes,
-		MachineName:   raw.MachineName,
 		Envelope:      raw.Envelope,
 		StrictFormat:  raw.StrictFormat,
 		Pipeline:      steps,
+	}
+	if raw.MachineName != "" {
+		return fmt.Errorf("response profile %q: machine is not supported; MachineSpec owns program selection", raw.ProfileName)
 	}
 	return nil
 }

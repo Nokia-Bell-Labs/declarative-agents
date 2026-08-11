@@ -141,16 +141,6 @@ func DiscoverSamples(dir string) ([]Sample, error) {
 	return samples, nil
 }
 
-// LoadSuite reads a suite YAML file and resolves its samples.
-func LoadSuite(path string) (SuiteConfig, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return SuiteConfig{}, fmt.Errorf("read suite: %w", err)
-	}
-
-	return ParseSuite(data, filepath.Dir(path))
-}
-
 // ParseSuite parses suite YAML and resolves samples relative to baseDir.
 func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 	suite, err := ParseSuiteConfig(data, baseDir)

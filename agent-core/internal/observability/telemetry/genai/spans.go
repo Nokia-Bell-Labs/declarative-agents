@@ -30,14 +30,6 @@ func ToolSpanName(name string) string {
 	return OpExecuteTool + " " + name
 }
 
-// WorkflowSpanName returns "invoke_workflow {name}".
-func WorkflowSpanName(name string) string {
-	if name == "" {
-		return OpInvokeWorkflow
-	}
-	return OpInvokeWorkflow + " " + name
-}
-
 // --- Attribute builders ---
 
 // InferenceAttrs returns the required and recommended attributes for an
@@ -86,18 +78,6 @@ func ToolAttrs(name, toolType string) []attribute.KeyValue {
 	}
 	if toolType != "" {
 		attrs = append(attrs, AttrToolType.String(toolType))
-	}
-	return attrs
-}
-
-// WorkflowAttrs returns the required and conditional attributes for an
-// invoke_workflow span at creation time.
-func WorkflowAttrs(name string) []attribute.KeyValue {
-	attrs := []attribute.KeyValue{
-		AttrOperationName.String(OpInvokeWorkflow),
-	}
-	if name != "" {
-		attrs = append(attrs, AttrWorkflowName.String(name))
 	}
 	return attrs
 }

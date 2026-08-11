@@ -10,28 +10,8 @@ import (
 	"testing"
 )
 
-func tagsHandler(models []string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/tags" {
-			http.NotFound(w, r)
-			return
-		}
-		entries := make([]modelEntry, len(models))
-		for i, m := range models {
-			entries[i] = modelEntry{Name: m}
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(tagsResp{Models: entries})
-	}
-}
-
 func chatAPIHandler(content string, promptEval, eval int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/tags" {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(tagsResp{Models: []modelEntry{{Name: "llama3:latest"}}})
-			return
-		}
 		if r.URL.Path != "/api/chat" || r.Method != http.MethodPost {
 			http.NotFound(w, r)
 			return

@@ -5,6 +5,7 @@ package evaluation
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
@@ -27,6 +28,7 @@ func (b *CreatePointDirBuilder) Build(_ core.Result) core.Command {
 		return &evaluatorReceiptCmd{
 			inner: &createPointDirCmd{pc: pc}, point: pc,
 			removePaths: func() []string { return []string{pc.PointDir} },
+			removeRoot:  func() string { return filepath.Dir(pc.PointDir) },
 		}
 	})
 }
@@ -178,9 +180,13 @@ func (b *CollectMetricsBuilder) Build(_ core.Result) core.Command {
 		return &failCmd{err: fmt.Errorf("collect_metrics: EvalState.PC not initialized")}
 	}
 	pc := b.ES.PC
+	if pc.PointDir == "" {
+		return &failCmd{err: fmt.Errorf("collect_metrics: PointContext.PointDir not initialized")}
+	}
 	return &evaluatorReceiptCmd{
 		inner: &collectMetricsCmd{pc: pc}, point: pc,
-		removePaths: func() []string { return []string{pc.PointDir + "/meta.json"} },
+		removePaths: func() []string { return []string{filepath.Join(pc.PointDir, ArtifactMeta)} },
+		removeRoot:  func() string { return pc.PointDir },
 	}
 }
 

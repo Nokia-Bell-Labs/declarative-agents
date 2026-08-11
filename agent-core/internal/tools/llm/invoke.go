@@ -371,14 +371,11 @@ func newLLMClient(cfg catalog.LLMToolConfig, tracer tracing.Tracer) (modelllm.Cl
 	if cfg.ProviderURL == "" {
 		return nil, "", fmt.Errorf("invoke_llm config provider %q requires provider_url", cfg.Provider)
 	}
-	// WithSkipModelCheck keeps network I/O out of tool registration (GH-1375).
-	// Profiles that need preflight readiness declare a REST transition (for
-	// example knowledge-manager's ollama_ready); other profiles route an
-	// unreachable backend through invoke_llm's CommandError at dispatch.
+	// Profiles that need preflight readiness declare a REST transition; adapter
+	// construction performs no hidden network probe.
 	client, err := ollama.NewAdapter(cfg.ProviderURL, cfg.Model,
 		ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
 		ollama.WithTracer(tracer),
-		ollama.WithSkipModelCheck(),
 	)
 	return client, serverAddr(cfg.ProviderURL), err
 }

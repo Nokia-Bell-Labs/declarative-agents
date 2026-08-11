@@ -33,8 +33,6 @@ func TestMonitorStore_BoundedSnapshot(t *testing.T) {
 	require.Equal(t, 6, snapshot.RecentEvents[0].Iteration)
 	require.Len(t, snapshot.RecentSamples, 4)
 	require.Len(t, snapshot.RecentErrors, 2)
-	require.False(t, snapshot.ReadsExecuteTools)
-	require.False(t, snapshot.ReadsWorkspace)
 }
 
 func TestToolMetricsRecorder_OwnershipBoundaries(t *testing.T) {
