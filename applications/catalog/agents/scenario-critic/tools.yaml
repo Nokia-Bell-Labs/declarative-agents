@@ -19,4 +19,5 @@ tools:
   - fail_scenario_validators
   - list_scenario_children
   - stop_scenario_child
+  - stop_all_services
   - report_rig_session

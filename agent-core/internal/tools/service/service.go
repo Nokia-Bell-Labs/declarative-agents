@@ -141,6 +141,12 @@ func (s *State) StopAll(grace time.Duration) []map[string]interface{} {
 	return out
 }
 
+// Reap stops every child with the package's declared graceful-stop bound. It is
+// the process-shutdown safety net and the implementation of stop_all_services.
+func (s *State) Reap() []map[string]interface{} {
+	return s.StopAll(defaultStopGrace)
+}
+
 // Running reports the names of the services currently held.
 func (s *State) Running() []string {
 	s.mu.Lock()

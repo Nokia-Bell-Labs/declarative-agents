@@ -150,6 +150,7 @@ type agentState struct {
 	monitor             toolrest.MonitorState
 	restDefs            toolrest.Collection
 	shutdown            func()
+	reapServices        func()
 }
 
 // checkpointForOps returns the backend the checkpoint history/rollback tools
@@ -295,6 +296,9 @@ func (r *preparedRun) Close() error {
 	r.closed = true
 	if r.Cancel != nil {
 		r.Cancel()
+	}
+	if r.State != nil && r.State.reapServices != nil {
+		r.State.reapServices()
 	}
 	r.closeErr = r.checkpoints.Close()
 	if r.shutdownTelemetry != nil {

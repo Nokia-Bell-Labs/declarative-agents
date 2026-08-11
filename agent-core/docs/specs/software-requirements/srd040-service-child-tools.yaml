@@ -28,7 +28,7 @@ requirements:
       - R1.1: start_service SHALL spawn one agent process for a declared profile path as a background child serving until stopped.
       - R1.2: start_service SHALL inject declared environment additions into the child, so dependency URLs can be pointed at mock addresses.
       - R1.3: start_service SHALL allocate or accept a listen address, and its output SHALL include a child handle and the base URL.
-      - R1.4: Children SHALL be process-group managed; when the parent exits, running children SHALL be reaped rather than orphaned.
+      - R1.4: Children SHALL be process-group managed; orderly parent shutdown SHALL reap every tracked child rather than orphan it. SIGKILL cannot run process cleanup and is outside this guarantee.
       - R1.5: start_service SHALL declare itself reversible with stop_service as its undo.
 
   R2:
@@ -36,7 +36,7 @@ requirements:
     items:
       - R2.1: start_service SHALL expose the trusted runtime base URL and start timestamp needed by later profile-owned readiness words.
       - R2.2: One REST readiness dispatch SHALL perform at most one HTTP request; MachineSpec SHALL own the visible probe, delay, retry, and timeout branches.
-      - R2.3: The readiness machine SHALL emit distinct Healthy, HealthTimeout, and CommandError signals and route timeout or budget exhaustion through teardown.
+      - R2.3: The readiness machine SHALL emit distinct Healthy, HealthTimeout, and CommandError signals and route timeout, budget exhaustion, and teardown infrastructure errors through a declared cleanup action.
       - R2.4: Service-child tools SHALL NOT implement HTTP transport or polling and SHALL NOT import net/http.
 
   R3:
@@ -45,6 +45,7 @@ requirements:
       - R3.1: stop_service SHALL stop a child by handle with a graceful signal, a bounded wait, then a kill.
       - R3.2: stop_service SHALL be idempotent; stopping an already-stopped handle SHALL succeed.
       - R3.3: stop_service undo SHALL be noop and the word SHALL be declared accordingly.
+      - R3.4: stop_all_services SHALL be an atomic, idempotent recovery word over the bounded child set owned by the shared service state; it SHALL NOT replace ordinary per-child teardown.
 
   R4:
     title: Validator child execution
@@ -78,8 +79,8 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: A machine starts a serve-mode child with injected environment, probes its labeled runtime URL through the REST client, stops it, and no process from the child's group survives the parent.
-    traces: [R1.1, R1.2, R1.3, R1.4, R2.1, R3.1, R3.2]
+    criterion: A machine starts a serve-mode child with injected environment, probes its labeled runtime URL through the REST client, stops it, and no process from the child's group survives an ordinary teardown, an emergency cleanup edge, or orderly parent shutdown.
+    traces: [R1.1, R1.2, R1.3, R1.4, R2.1, R3.1, R3.2, R3.4]
   - id: AC2
     criterion: A never-healthy child follows machine-visible ProbingHealth and WaitingToRetry states, performs one request per REST dispatch, and returns HealthTimeout within the declared deadline.
     traces: [R2.2, R2.3, R2.4]

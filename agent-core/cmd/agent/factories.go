@@ -357,6 +357,7 @@ func valuePredicateFactory() toolregistry.BuiltinFactory {
 func registerServiceFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		state := service.NewState()
+		st.reapServices = func() { state.Reap() }
 		service.RegisterBuiltins(br, service.FactoryDeps{
 			State:    state,
 			Session:  service.NewScenarioSession(state),

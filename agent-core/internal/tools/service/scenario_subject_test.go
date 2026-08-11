@@ -62,3 +62,26 @@ func TestUndoStartedChildValidatesAndConsumesReceipt(t *testing.T) {
 	require.Equal(t, SignalServiceStopped, undone.Signal)
 	require.Empty(t, state.Running())
 }
+
+func TestStopAllServicesWordIsIdempotent(t *testing.T) {
+	state := NewState()
+	for _, name := range []string{"first", "second"} {
+		_, err := state.Start(StartSpec{
+			Name: name, Binary: os.Args[0], Profile: "profile",
+			Env: []string{envChildMode + "=hang"},
+		})
+		require.NoError(t, err)
+	}
+	cmd := Builder{
+		ToolName: "stop_all_services", Init: InitStopAllServices, State: state,
+	}.Build(core.Result{})
+
+	first := cmd.Execute()
+	require.Equal(t, SignalAllServicesStopped, first.Signal)
+	require.Empty(t, state.Running())
+	require.Contains(t, first.Output, `"stopped":2`)
+
+	second := cmd.Execute()
+	require.Equal(t, SignalAllServicesStopped, second.Signal)
+	require.Contains(t, second.Output, `"stopped":0`)
+}

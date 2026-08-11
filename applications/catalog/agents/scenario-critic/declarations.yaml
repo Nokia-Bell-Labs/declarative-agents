@@ -727,6 +727,41 @@ tools:
       after: [list_scenario_children]
       before: [next_scenario]
 
+  - name: stop_all_services
+    type: builtin
+    init: stop_all_services
+    visibility: internal
+    category: boundary
+    description: Stop every child still owned by this rig run as one bounded recovery walk.
+    problem: A teardown infrastructure failure can make per-child names unreachable while live children still require cleanup.
+    goals:
+      - Reap every child process group still tracked by the shared service state.
+      - Make emergency teardown a visible MachineSpec action.
+    requirements:
+      input: [No parameters; the service state owns the bounded child set.]
+      output: [Output reports the number and result of stopped children.]
+      errors: [None; stopping an absent or already-stopped child is idempotent.]
+    non_goals:
+      - Does not replace ordinary one-child teardown on successful scenario paths.
+      - Does not restart stopped children.
+    parameters: {type: object, properties: {}}
+    emits: [AllServicesStopped]
+    output:
+      description: Emergency teardown summary.
+      schema:
+        type: object
+        properties:
+          stopped: {type: integer}
+          children: {type: array}
+        required: [stopped, children]
+    side_effects:
+      - {kind: child_process, target: all_tracked_scenario_children, state: stopped}
+    reversibility: {classification: irreversible, undo: irreversible}
+    undo: {strategy: irreversible, description: Recovery stops leaked children and does not restart them.}
+    errors: []
+    relationships:
+      after: [list_scenario_children, stop_scenario_child]
+
   - name: report_rig_session
     type: builtin
     init: report_scenario_session

@@ -75,7 +75,8 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 			"start_service", "stop_service", "list_scenarios",
 			"init_scenario_session", "next_scenario", "start_scenario_mock",
 			"start_scenario_subject", "run_scenario_validator", "record_scenario_validators",
-			"collect_scenario_verdict", "list_scenario_children", "report_scenario_session",
+			"collect_scenario_verdict", "list_scenario_children", "stop_all_services",
+			"report_scenario_session",
 		}, deps.RegisterService),
 	}
 }

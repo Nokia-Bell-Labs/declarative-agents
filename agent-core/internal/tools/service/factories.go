@@ -30,6 +30,7 @@ const (
 	InitRecordValidators     = "record_scenario_validators"
 	InitCollectVerdict       = "collect_scenario_verdict"
 	InitListScenarioChildren = "list_scenario_children"
+	InitStopAllServices      = "stop_all_services"
 	InitReportSession        = "report_scenario_session"
 )
 
@@ -38,7 +39,7 @@ var StandardInits = []string{
 	InitStartService, InitStopService, InitListScenarios,
 	InitInitScenarioSession, InitNextScenario, InitStartScenarioMock, InitStartSubject,
 	InitRunScenarioValidator, InitRecordValidators, InitCollectVerdict, InitListScenarioChildren,
-	InitReportSession,
+	InitStopAllServices, InitReportSession,
 }
 
 // Result signals distinguish each child operation and thin session mutation.
@@ -58,6 +59,7 @@ const (
 	SignalMocksStarted           core.Signal = "MocksStarted"
 	SignalSubjectStarted         core.Signal = "SubjectStarted"
 	SignalScenarioChildrenListed core.Signal = "ScenarioChildrenListed"
+	SignalAllServicesStopped     core.Signal = "AllServicesStopped"
 	SignalScenarioPassed         core.Signal = "ScenarioPassed"
 	SignalScenarioFailed         core.Signal = "ScenarioFailed"
 	SignalScenarioTornDown       core.Signal = "ScenarioTornDown"
@@ -244,10 +246,20 @@ func (c *command) ExecuteContext(ctx context.Context) core.Result {
 		return c.collectVerdict()
 	case InitListScenarioChildren:
 		return c.listScenarioChildren()
+	case InitStopAllServices:
+		return c.stopAllServices()
 	case InitReportSession:
 		return c.reportSession()
 	default:
 		return commandError(c.toolName, fmt.Errorf("unsupported service init %q", c.init))
+	}
+}
+
+func (c *command) stopAllServices() core.Result {
+	stopped := c.state.Reap()
+	return core.Result{
+		Signal: SignalAllServicesStopped, CommandName: c.toolName,
+		Output: jsonOutput(map[string]any{"stopped": len(stopped), "children": stopped}),
 	}
 }
 
