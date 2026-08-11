@@ -287,7 +287,7 @@ func prepareSmokeCluster(environment smokeEnvironment, cluster string, resolved 
 	cancel()
 	// The curator and collector both run agent-core (GH-1368); build and load one
 	// image for both rather than a separate per-app runtime.
-	if err := kindrig.BuildAgentCoreImage(resolved.Core, smokeCollectorImage); err != nil {
+	if _, err := kindrig.EnsureAgentCoreImage(resolved.Core, smokeCollectorImage); err != nil {
 		return fmt.Errorf("build agent-core image: %w", err)
 	}
 	kindLoad := func(ctx context.Context, args ...string) ([]byte, error) {

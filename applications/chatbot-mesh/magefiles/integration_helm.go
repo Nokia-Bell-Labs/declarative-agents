@@ -627,52 +627,16 @@ func loadSmokeDependencyImageWithCommands(
 	return nil
 }
 
-// buildSmokeRuntimeImage builds the linux agent binary from the local agent-core
-// checkout and bakes it into a minimal runtime image tagged for kind, so the
-// smoke test runs the code under test rather than a published image. The image
-// mirrors the production runtime contract (agent on PATH, core tools under
-// AGENT_CORE_HOME) but invokes agent directly; the chart passes the same args the
-// production agent-entrypoint would forward.
+// buildSmokeRuntimeImage verifies and reuses the commit-addressed canonical
+// Agent Core image. kindrig rebuilds only when revision, recipe, or platform
+// identity differs, so all aggregate targets consume one tested artifact.
 func buildSmokeRuntimeImage(coreRoot, image string) error {
-	ctxDir, err := os.MkdirTemp("", "chatbot-mesh-image-*")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.RemoveAll(ctxDir) }()
-
-	build := exec.Command("go", "build", "-tags", "production", "-trimpath",
-		"-ldflags=-s -w", "-o", filepath.Join(ctxDir, "agent"), "./cmd/agent")
-	build.Dir = coreRoot
-	build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux")
-	build.Stdout, build.Stderr = os.Stderr, os.Stderr
-	if err := build.Run(); err != nil {
-		return fmt.Errorf("build linux agent: %w", err)
-	}
-	if err := copyDirContents(filepath.Join(coreRoot, "tools"), filepath.Join(ctxDir, "tools")); err != nil {
-		return err
-	}
-	// Sibling of kindrig's agentCoreDockerfile; keep the tool contract in sync
-	// (jq and ripgrep match the production agent-core transform tools, GH-1368).
-	dockerfile := "FROM alpine:3.22\n" +
-		"RUN apk add --no-cache ca-certificates bash jq ripgrep\n" +
-		"COPY agent /usr/local/bin/agent\n" +
-		"COPY tools /opt/agent-core/tools\n" +
-		"ENV AGENT_CORE_HOME=/opt/agent-core HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin\n" +
-		"ENTRYPOINT [\"agent\"]\n"
-	if err := os.WriteFile(filepath.Join(ctxDir, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
-		return fmt.Errorf("write smoke Dockerfile: %w", err)
-	}
-	docker := exec.Command("docker", smokeRuntimeBuildArgs(image)...)
-	docker.Dir = ctxDir
-	docker.Stdout, docker.Stderr = os.Stderr, os.Stderr
-	if err := docker.Run(); err != nil {
-		return fmt.Errorf("docker build %s: %w", image, err)
-	}
-	return nil
+	_, err := kindrig.EnsureAgentCoreImage(coreRoot, image)
+	return err
 }
 
 func smokeRuntimeBuildArgs(image string) []string {
-	return []string{"build", "-t", image, "."}
+	return kindrig.AgentCoreImageBuildArgs(image)
 }
 
 // stageSmokeChart copies the classified chart source to a temp directory and
