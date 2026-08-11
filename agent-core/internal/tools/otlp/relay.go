@@ -113,7 +113,6 @@ func (c *relayCommand) rejectionError(response *coltracepb.ExportTraceServiceRes
 func (c *relayCommand) relayResult(request *coltracepb.ExportTraceServiceRequest) core.Result {
 	output, err := json.Marshal(map[string]any{
 		"endpoint": c.config.Endpoint, "span_count": requestSpanCount(request),
-		"accepted_span_count": requestSpanCount(request),
 	})
 	if err != nil {
 		return receiverError(c.Name(), err)

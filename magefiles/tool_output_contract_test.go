@@ -62,11 +62,45 @@ func TestShippedToolOutputKindsMatchRuntimeFamilies(t *testing.T) {
 			if tool.Init == "spool_get_metric" {
 				requireMetricPageOutput(t, path, tool.Name, tool.Output.Schema, tool.Config)
 			}
+			if tool.Init == "otlp_receiver_stop" {
+				requireReceiverStopOutput(t, path, tool.Name, tool.Output.Schema)
+			}
+			if tool.Init == "relay_spans" {
+				requireRelayOutput(t, path, tool.Name, tool.Output.Schema)
+			}
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func requireReceiverStopOutput(t *testing.T, path, name string, schema map[string]any) {
+	t.Helper()
+	properties, _ := schema["properties"].(map[string]any)
+	for _, field := range []string{
+		"receiver", "address", "status", "queued_batches", "dropped_on_stop",
+		"dropped_batches", "dropped_spans", "queued_metrics",
+		"dropped_metrics_on_stop", "dropped_metric_batches", "dropped_data_points",
+		"drain_policy",
+	} {
+		if _, ok := properties[field]; !ok {
+			t.Errorf("%s tool %s output omits %s", path, name, field)
+		}
+	}
+}
+
+func requireRelayOutput(t *testing.T, path, name string, schema map[string]any) {
+	t.Helper()
+	properties, _ := schema["properties"].(map[string]any)
+	for _, field := range []string{"endpoint", "span_count"} {
+		if _, ok := properties[field]; !ok {
+			t.Errorf("%s tool %s output omits %s", path, name, field)
+		}
+	}
+	if _, present := properties["accepted_span_count"]; present {
+		t.Errorf("%s tool %s declares dead accepted_span_count", path, name)
 	}
 }
 

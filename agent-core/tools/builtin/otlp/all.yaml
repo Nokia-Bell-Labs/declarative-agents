@@ -234,27 +234,26 @@ tools:
   problem: Persistent backends need accepted batches, but relay and retry order must remain visible in MachineSpec.
   goals:
   - Preserve protobuf resource and span identity at the upstream.
-  - Separate upstream rejection from successful acceptance.
+  - Treat any upstream partial rejection as CommandError rather than a successful relay.
   - Reject a statically equivalent receiver and relay endpoint.
   requirements:
     input:
     - Endpoint, receiver address, batch selector, and timeout come from trusted config.
     output:
-    - Output reports endpoint, span count, and accepted span count.
+    - Output reports endpoint and span count after complete upstream acceptance.
     errors:
     - Selection, connection, timeout, RPC, and partial-success rejection emit CommandError.
   non_goals:
   - Does not retry, sample, mutate, or retract spans.
   parameters: {type: object, properties: {}}
   output:
-    description: Upstream endpoint and accepted span count.
+    description: Upstream endpoint and completely accepted span count.
     schema:
       type: object
       properties:
         endpoint: {type: string}
         span_count: {type: integer}
-        accepted_span_count: {type: integer}
-      required: [endpoint, span_count, accepted_span_count]
+      required: [endpoint, span_count]
   side_effects:
   - kind: external_api
     target: configured OTLP/gRPC endpoint
@@ -294,7 +293,7 @@ tools:
     input:
     - Receiver, shutdown timeout, and drain policy come from trusted config.
     output:
-    - Output reports status, queue counts, drop counts, and drain policy.
+    - Output reports trace and metric queue counts, drop counts, and drain policy.
     side_effects:
     - Closes the listener and mutates receiver lifecycle state.
     errors:
@@ -311,8 +310,13 @@ tools:
         address: {type: string}
         status: {type: string}
         queued_batches: {type: integer}
+        dropped_on_stop: {type: integer}
         dropped_batches: {type: integer}
         dropped_spans: {type: integer}
+        queued_metrics: {type: integer}
+        dropped_metrics_on_stop: {type: integer}
+        dropped_metric_batches: {type: integer}
+        dropped_data_points: {type: integer}
         drain_policy: {type: string}
       required: [receiver, address, status, queued_batches, drain_policy]
   side_effects:

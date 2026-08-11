@@ -290,14 +290,19 @@ tools:
     emits: [SpansRelayed, CommandError]
     description: Relay the labeled spooled batch unchanged to a configured OTLP endpoint.
     problem: Persistent trace query needs accepted batches upstream after local evidence.
-    goals: [Preserve protobuf identity, Surface partial rejection]
+    goals: [Preserve protobuf identity, Fail on any partial rejection]
     requirements:
       input: [Select the labeled spool batch and trusted endpoint]
-      output: [Report accepted count]
+      output: [Report endpoint and completely accepted span count]
       errors: [Connection timeout RPC and rejection emit CommandError]
     non_goals: [Does not retry or retract spans]
     parameters: {type: object, properties: {}}
-    output: {description: Relay acceptance result, schema: {type: object}}
+    output:
+      description: Completely accepted relay endpoint and span count.
+      schema:
+        type: object
+        properties: {endpoint: {type: string}, span_count: {type: integer}}
+        required: [endpoint, span_count]
     side_effects:
       - {kind: external_api, target: OTLP collector endpoint, state: spans_may_be_retained}
     reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}

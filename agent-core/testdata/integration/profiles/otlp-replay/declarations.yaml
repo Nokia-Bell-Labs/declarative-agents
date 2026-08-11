@@ -20,7 +20,12 @@ tools:
     visibility: internal
     emits: [SpansRelayed, CommandError]
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: Relay acceptance metadata, schema: {type: object}}
+    output:
+      description: Completely accepted relay endpoint and span count.
+      schema:
+        type: object
+        properties: {endpoint: {type: string}, span_count: {type: integer}}
+        required: [endpoint, span_count]
     side_effects: [{kind: external_api, target: configured OTLP endpoint, state: batch accepted}]
     reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
     undo: {strategy: irreversible, description: OTLP has no retraction operation.}
