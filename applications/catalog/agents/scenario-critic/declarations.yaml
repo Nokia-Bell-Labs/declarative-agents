@@ -206,8 +206,8 @@ tools:
       description: Decode the subject receipt and stop only that child.
     errors:
       - signal: CommandError
-        condition: The subject profile is missing, or the process fails to spawn.
-        state_after_failure: The scenario's mocks stay tracked for teardown.
+        condition: The subject profile or health target is invalid, or the process fails to spawn.
+        state_after_failure: The scenario's mocks stay tracked for teardown; no subject process or session record exists.
     config: {}
     relationships:
       after: [start_scenario_mock]

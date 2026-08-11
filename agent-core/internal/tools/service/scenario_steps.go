@@ -144,10 +144,15 @@ func (c command) startOneMock(scenario Scenario, manifest ScenarioManifest, fixt
 	if err != nil {
 		return runningMock{}, err
 	}
+	baseURL, ok := out["base_url"].(string)
+	if !ok || baseURL == "" {
+		c.session.Services.Stop(name, defaultStopGrace)
+		return runningMock{}, fmt.Errorf("started mock returned no base_url")
+	}
 	return runningMock{
 		Fixture: fixture, Service: name,
 		EnvVar:  fixtureEnvVar(fixture, manifest.FixtureEnv),
-		BaseURL: out["base_url"].(string),
+		BaseURL: baseURL,
 	}, nil
 }
 
@@ -169,6 +174,10 @@ func (c command) startSubject() core.Result {
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
+	healthRoute, err := parseSubjectHealthRoute(manifest.SubjectHealthPath)
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
 	name := subjectServiceName(scenario)
 	env := append([]string{
 		addressEnvName(c.cfg.AddressEnv, defaultSubjectAddressEnv) + "=" + address,
@@ -182,22 +191,22 @@ func (c command) startSubject() core.Result {
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
-	return c.recordStartedSubject(name, profile, env, manifest, out)
+	return c.recordStartedSubject(name, profile, env, healthRoute, out)
 }
 
 func (c command) recordStartedSubject(
 	name, profile string,
 	env []string,
-	manifest ScenarioManifest,
+	healthRoute subjectHealthRoute,
 	out map[string]interface{},
 ) core.Result {
-	baseURL := out["base_url"].(string)
-	c.session.RecordSubject(name, baseURL)
-	healthBaseURL, healthPath, err := subjectHealthTarget(baseURL, manifest.SubjectHealthPath)
-	if err != nil {
-		_ = c.session.Services.Stop(name, defaultStopGrace)
-		return commandError(c.toolName, err)
+	baseURL, ok := out["base_url"].(string)
+	if !ok || baseURL == "" {
+		c.session.Services.Stop(name, defaultStopGrace)
+		return commandError(c.toolName, fmt.Errorf("started subject returned no base_url"))
 	}
+	healthBaseURL, healthPath := healthRoute.resolve(baseURL)
+	c.session.RecordSubject(name, baseURL)
 
 	return core.Result{
 		Signal: SignalSubjectStarted, CommandName: c.toolName,
@@ -208,6 +217,18 @@ func (c command) recordStartedSubject(
 		}),
 		Receipt: jsonOutput(map[string]interface{}{"service": name}),
 	}
+}
+
+type subjectHealthRoute struct {
+	baseURL string
+	path    string
+}
+
+func (r subjectHealthRoute) resolve(subjectBaseURL string) (string, string) {
+	if r.baseURL != "" {
+		return r.baseURL, r.path
+	}
+	return subjectBaseURL, r.path
 }
 
 // subjectAddress resolves where the subject binds: the manifest's pinned
@@ -223,23 +244,35 @@ func subjectAddress(manifest ScenarioManifest) (string, error) {
 // scenario-authored path so the REST operation can select both from the
 // labeled subject-start result without accepting a caller-supplied URL.
 func subjectHealthTarget(baseURL, declared string) (string, string, error) {
+	route, err := parseSubjectHealthRoute(declared)
+	if err != nil {
+		return "", "", err
+	}
+	targetBaseURL, targetPath := route.resolve(baseURL)
+	return targetBaseURL, targetPath, nil
+}
+
+func parseSubjectHealthRoute(declared string) (subjectHealthRoute, error) {
 	if declared == "" {
 		declared = defaultSubjectHealthPath
 	}
 	target, err := url.Parse(declared)
 	if err != nil {
-		return "", "", fmt.Errorf("subject health path %q: %w", declared, err)
+		return subjectHealthRoute{}, fmt.Errorf("subject health path %q: %w", declared, err)
 	}
 	if target.IsAbs() {
 		if target.Scheme != "http" && target.Scheme != "https" {
-			return "", "", fmt.Errorf("subject health URL scheme %q is not allowed", target.Scheme)
+			return subjectHealthRoute{}, fmt.Errorf("subject health URL scheme %q is not allowed", target.Scheme)
 		}
 		if target.Host == "" || target.User != nil {
-			return "", "", fmt.Errorf("subject health URL must have a host and no user information")
+			return subjectHealthRoute{}, fmt.Errorf("subject health URL must have a host and no user information")
 		}
-		return target.Scheme + "://" + target.Host, strings.TrimPrefix(target.EscapedPath(), "/"), nil
+		return subjectHealthRoute{
+			baseURL: target.Scheme + "://" + target.Host,
+			path:    strings.TrimPrefix(target.EscapedPath(), "/"),
+		}, nil
 	}
-	return baseURL, strings.TrimPrefix(declared, "/"), nil
+	return subjectHealthRoute{path: strings.TrimPrefix(declared, "/")}, nil
 }
 
 // runScenarioValidator runs the one validator bound by MachineSpec for_each.
