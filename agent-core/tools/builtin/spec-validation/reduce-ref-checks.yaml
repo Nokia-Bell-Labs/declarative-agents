@@ -20,3 +20,21 @@ tools:
         state_after_failure: The prior validation snapshot remains recoverable.
     config:
       results_from: $from(ref_results).items
+    problem: Specification validation needs joined external reference-scan outcomes converted into deterministic findings without hiding the scans themselves inside the reducer.
+    goals:
+    - Resolve the configured joined-results selector and decode every declared outcome.
+    - Append deterministic findings in input order, then sort the aggregate finding set.
+    - Emit ValidationPassed or ValidationFailed from the aggregate error count and preserve a receipt for undo.
+    requirements:
+      input:
+      - must consume joined external reference-scan outcomes from the configured command-state selector
+      output:
+      - must return the aggregate finding and error counts after reduction
+      errors:
+      - must emit CommandError when selection, JSON decoding, or deterministic reduction fails
+    non_goals:
+    - Does not execute filesystem scans or external reference checks.
+    - Does not format or print the final audit report.
+    relationships:
+      before: [joined external scan results]
+      after: [format_report]

@@ -18,6 +18,8 @@ tools:
     - must read initialized suite dimensions and runtime defaults
     output:
     - must emit EvalPointsMaterialized with a points array
+    errors:
+    - must emit CommandError when evaluation state is unavailable or output encoding fails
     side_effects:
     - must not mutate evaluator session state
   non_goals:
@@ -44,3 +46,11 @@ tools:
             type: object
       required:
       - points
+  errors:
+  - signal: CommandError
+    condition: evaluation session state is unavailable or the points result cannot be encoded
+    message_shape: 'materialize_eval_points: <error>'
+    state_after_failure: evaluation session state remains unchanged and no points result is published
+  relationships:
+    before: [report_suite_summary, init_eval_session]
+    after: [run_point]

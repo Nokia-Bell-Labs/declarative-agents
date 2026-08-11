@@ -21,3 +21,29 @@ tools:
     description: Restore evaluator session state from the persisted pre-command receipt.
     payload: evaluator_session_snapshot
     captures: [suite, session_dir, result, point_context, iterator_state]
+  problem: Evaluator setup needs suite metadata validated and stored before sample discovery, grid expansion, and session initialization can run.
+  goals:
+  - Read exactly the configured suite YAML file and validate it with ParseSuiteConfig.
+  - Resolve suite-relative paths and apply the configured child-agent binary override to every profile.
+  - Store the parsed Suite only after the complete file has been read and validated.
+  requirements:
+    input:
+    - must require a configured suite path and read that file relative to its containing directory
+    output:
+    - must emit SuiteConfigParsed with a message naming the parsed suite
+    errors:
+    - must emit CommandError for a missing path, read failure, or invalid suite configuration
+  non_goals:
+  - Does not discover sample directories, expand the evaluation grid, or create session artifacts.
+  - Does not run profiles or evaluation points.
+  output:
+    description: Human-readable confirmation naming the parsed suite.
+    schema: {type: string}
+  errors:
+  - signal: CommandError
+    condition: no suite path is configured, the file cannot be read, or ParseSuiteConfig rejects its content
+    message_shape: 'parse_suite_config: <error>'
+    state_after_failure: EvalSessionState.Suite is not replaced by an invalid or unreadable configuration
+  relationships:
+    before: [machine-selected suite input]
+    after: [discover_suite_samples]

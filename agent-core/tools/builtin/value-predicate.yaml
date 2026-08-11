@@ -48,7 +48,9 @@ tools:
       - op
       - operand_type
       - held
-  side_effects: []
+  side_effects:
+  - kind: none
+    description: Reads command state and produces a Result without mutating runtime or external state.
   reversibility:
     classification: reversible
     undo: noop

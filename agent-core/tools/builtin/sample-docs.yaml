@@ -51,3 +51,11 @@ tools:
               type: string
       required:
       - present
+  errors:
+  - signal: CommandError
+    condition: point context is absent or its point directory has not been initialized, or copy parameters cannot be encoded
+    message_shape: 'sample_docs: <error>'
+    state_after_failure: point context and filesystem remain unchanged
+  relationships:
+    before: [create_point_dir]
+    after: [copy_dir, git_init]

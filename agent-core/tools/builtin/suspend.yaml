@@ -30,3 +30,29 @@ tools:
     captures:
     - reason
     - checkpoint_required
+  problem: A machine needs an explicit human approval boundary that stops automatic dispatch and optionally requires durable checkpoint support before yielding control.
+  goals:
+  - Emit AwaitApproval with the configured reason, or the default `awaiting approval` reason.
+  - Refuse suspension when require_checkpoint is true and no persistent checkpoint backend is configured.
+  - Preserve label, reason, checkpoint requirement, and compensation intent for lifecycle tracing and rollback.
+  requirements:
+    input:
+    - must take label, reason, and require_checkpoint only from trusted tool configuration
+    output:
+    - must emit AwaitApproval with the resolved reason when the gate is valid
+    errors:
+    - must emit CommandError before suspension when a required persistent checkpoint backend is unavailable
+  non_goals:
+  - Does not approve or reject the run on the operator's behalf.
+  - Does not itself persist a checkpoint; the loop owns persistence through the Checkpoint port.
+  output:
+    description: The configured or default reason presented at the approval boundary.
+    schema: {type: string}
+  errors:
+  - signal: CommandError
+    condition: require_checkpoint is true but the Checkpoint port is nil or the no-op backend
+    message_shape: suspend requires a persistent checkpoint backend for checkpoint persistence
+    state_after_failure: the run is not suspended and no approval handoff occurs
+  relationships:
+    before: [machine-selected operation requiring approval]
+    after: [resume approval signal, checkpoint_rollback]

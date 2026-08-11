@@ -18,6 +18,8 @@ tools:
     - must consume the immediately preceding failed command result
     output:
     - must emit PointFailureRecorded
+    errors:
+    - must emit CommandError when point context is unavailable
     side_effects:
     - must update PointContext.FailureStage and PointContext.FailureCause
     undo:
@@ -47,3 +49,6 @@ tools:
     description: Recorded failure stage and cause.
     schema:
       type: string
+  relationships:
+    before: [failed point command]
+    after: [collect_metrics]

@@ -34,3 +34,34 @@ tools:
     required:
     - source
     - destination
+  problem: A machine needs to copy one declared directory tree into a destination without embedding that filesystem operation in a larger workflow word.
+  goals:
+  - Invoke `cp -a` once with the required source and destination paths.
+  - Preserve the source tree's archive-mode metadata and return the process output.
+  - Make the destination mutation recoverable through the captured workspace checkpoint.
+  requirements:
+    input:
+    - must require source and destination paths and pass them as ordered positional arguments
+    output:
+    - must return combined `cp` output as a string and emit ToolDone only on exit code zero
+    errors:
+    - must emit CommandError when parameters or process launch fail, and ToolFailed when `cp` exits non-zero
+  non_goals:
+  - Does not select which tree to copy or create a workflow around the copy.
+  - Does not delete source files or synchronize later changes.
+  emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: Combined stdout and stderr from `cp -a`.
+    schema: {type: string}
+  errors:
+  - signal: CommandError
+    condition: a required path is absent or the cp process cannot be started
+    message_shape: 'copy_dir: <error>'
+    state_after_failure: no child process mutation occurs when dispatch fails
+  - signal: ToolFailed
+    condition: "`cp -a` exits non-zero"
+    message_shape: '<captured cp output>'
+    state_after_failure: the destination may contain a partial copy and must be restored from the workspace checkpoint
+  relationships:
+    before: [create_point_dir, sample_docs]
+    after: [git_init, machine-selected successor]

@@ -195,7 +195,6 @@ func TestContractBaselineRatchet(t *testing.T) {
 	require.NoError(t, err)
 
 	gaps := IncompleteToolContracts(corpus)
-	require.NotEmpty(t, gaps, "this test needs at least one incomplete word to move")
 
 	t.Run("a newly declared incomplete word is an error", func(t *testing.T) {
 		scoped := cloneCorpusForBaselineTest(corpus)
@@ -205,6 +204,15 @@ func TestContractBaselineRatchet(t *testing.T) {
 	})
 
 	t.Run("a word that became complete is an error until the baseline shrinks", func(t *testing.T) {
+		if len(gaps) == 0 {
+			finding, produced := compareContractToBaseline(
+				"completed_word", completeToolDeclaration("completed_word"),
+				[]string{"non_goals"}, true,
+			)
+			require.True(t, produced)
+			require.Equal(t, "tool-contract-baseline-stale", finding.Check)
+			return
+		}
 		scoped := cloneCorpusForBaselineTest(corpus)
 		completed := gaps[0].Tool
 		scoped.ToolDeclarations[completed] = completeToolDeclaration(completed)
@@ -213,6 +221,16 @@ func TestContractBaselineRatchet(t *testing.T) {
 	})
 
 	t.Run("a word whose missing fields changed is an error", func(t *testing.T) {
+		if len(gaps) == 0 {
+			partial := completeToolDeclaration("changed_word")
+			partial.NonGoals = nil
+			finding, produced := compareContractToBaseline(
+				"changed_word", partial, []string{"goals"}, true,
+			)
+			require.True(t, produced)
+			require.Equal(t, "tool-contract-baseline-drift", finding.Check)
+			return
+		}
 		scoped := cloneCorpusForBaselineTest(corpus)
 		changed := gaps[0].Tool
 		partial := completeToolDeclaration(changed)
