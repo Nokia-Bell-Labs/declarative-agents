@@ -120,11 +120,11 @@ schema:
       - field: id_field
         type: string
         required: false
-        description: Output field that carries the resource identifier.
+        description: Reserved field rejected at load until resource-level response defaults are implemented.
       - field: version_field
         type: string
         required: false
-        description: Output field that carries resource version or ETag data.
+        description: Reserved field rejected at load until resource-level response defaults are implemented.
 
   operation:
     fields:
@@ -591,7 +591,7 @@ schema:
       - field: action
         type: string
         required: true
-        description: One of exit, pause, rollback_request, resume, or inject_signal.
+        description: One of exit, pause, rollback_request, resume, or inject_signal. When signal is omitted, the first four select ExitRequested, PauseRequested, RollbackRequested, or ResumeRequested respectively; inject_signal selects only from allowed_signals.
       - field: signal
         type: string
         required: false
@@ -819,7 +819,7 @@ schema:
       - field: drain_policy
         type: string
         required: false
-        description: One of drain or drain_then_stop. Target-format values reject_new, drop_queued, and fail_queued are rejected until runtime behavior is implemented.
+        description: Optional drain_then_stop value naming the implemented close-then-drain behavior. The inert drain spelling and target-format reject_new, drop_queued, and fail_queued values are rejected.
       - field: drain_timeout
         type: duration string
         required: false
@@ -835,7 +835,7 @@ schema:
       - field: unblock_await_signal
         type: string
         required: false
-        description: Optional ServerStopped value documenting current await unblock behavior. Custom stop signals are rejected until signal-specific unblock behavior is implemented.
+        description: Signal emitted to a waiting word when the server stops. Defaults to ServerStopped; custom values are included in ToolDef emits validation.
 
   request_binding:
     fields:
@@ -973,7 +973,7 @@ schema:
       - field: name
         type: string
         required: false
-        description: Queue or inbox source name.
+        description: Queue or inbox name included in each accepted InboundEvent as queue.
       - field: capacity
         type: int
         required: false
@@ -989,7 +989,7 @@ schema:
       - field: payload_shape
         type: json_schema
         required: false
-        description: Shape of queued event payloads.
+        description: JSON schema validated against the complete event payload before redaction and enqueue.
 
   json_schema:
     description: |

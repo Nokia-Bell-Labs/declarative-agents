@@ -22,7 +22,7 @@ rest:
         timeout: 100ms
       shutdown:
         timeout: 2s
-        drain_policy: drain
+        drain_policy: drain_then_stop
         stop_listeners: true
         unblock_await_signal: ServerStopped
       endpoints:

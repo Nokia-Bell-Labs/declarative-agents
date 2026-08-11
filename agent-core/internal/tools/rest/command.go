@@ -11,18 +11,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
-// RestBuilder constructs declarative REST boundary commands.
-type RestBuilder struct {
-	ToolName string
-	Init     string
-	Signal   core.Signal
-}
-
-// Build creates one REST boundary command.
-func (b RestBuilder) Build(_ core.Result) core.Command {
-	return restCmd{toolName: b.ToolName, init: b.Init, signal: b.Signal}
-}
-
 // ServerBuilder constructs REST server launch, await, and stop commands.
 type ServerBuilder struct {
 	ToolName string
@@ -56,23 +44,6 @@ func (b AwaitEventBuilder) Build(_ core.Result) core.Command {
 // BuildReverser creates a fresh fan-in command for receipt-driven rollback.
 func (b AwaitEventBuilder) BuildReverser() core.Command {
 	return awaitEventCmd{toolName: b.ToolName, options: b.Options, state: b.State}
-}
-
-type restCmd struct {
-	toolName string
-	init     string
-	signal   core.Signal
-}
-
-func (c restCmd) Name() string { return c.toolName }
-
-func (c restCmd) Execute() core.Result {
-	err := fmt.Errorf("%s transport execution is not implemented", c.init)
-	return core.Result{Signal: core.CommandError, CommandName: c.toolName, Output: err.Error(), Err: err}
-}
-
-func (c restCmd) Undo(_ core.Result) core.Result {
-	return core.NoopUndo(c.toolName)
 }
 
 type serverCmd struct {

@@ -180,6 +180,17 @@ func unsupportedAuth(def Definition) Definition {
 	return def
 }
 
+func TestValidateDefinitionRejectsReservedResourceMetadataFields(t *testing.T) {
+	t.Parallel()
+	def := baseDefinition()
+	resource := def.Clients["github"].Resources["issue"]
+	resource.IDField = "id"
+	client := def.Clients["github"]
+	client.Resources["issue"] = resource
+	def.Clients["github"] = client
+	require.ErrorContains(t, ValidateDefinition(def), "id_field and version_field are reserved")
+}
+
 func unsupportedRedirect(def Definition) Definition {
 	limit := def.Limits["public_api"]
 	limit.Redirect.Mode = "anywhere"

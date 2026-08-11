@@ -545,6 +545,16 @@ func lifecycleSignal(endpoint Endpoint) string {
 	if endpoint.LifecycleControl.Signal != "" {
 		return endpoint.LifecycleControl.Signal
 	}
+	switch endpoint.LifecycleControl.Action {
+	case "exit":
+		return "ExitRequested"
+	case "pause":
+		return "PauseRequested"
+	case "rollback_request":
+		return "RollbackRequested"
+	case "resume":
+		return "ResumeRequested"
+	}
 	return endpoint.Signal
 }
 
@@ -568,13 +578,28 @@ func (r *serverRuntime) enqueueSignal(
 		http.Error(w, "endpoint signal is not configured", http.StatusInternalServerError)
 		return
 	}
+	queue := r.def.Server.Endpoints[route].Queue
+	if len(queue.PayloadShape) > 0 {
+		if err := validateBodySchema(queue.PayloadShape, payload); err != nil {
+			writeRequestError(w, err)
+			return
+		}
+	}
 	redactServerPayload(payload, redact)
 	event := inboundEvent(r.name, route, req.Method, signal, payload, req.Header.Get("X-Request-ID"))
-	if !r.offerEvent(event, r.def.Server.Endpoints[route].Queue) {
+	event.Queue = queueName(queue, r.def.Server.Queue)
+	if !r.offerEvent(event, queue) {
 		http.Error(w, "REST server queue is full", http.StatusTooManyRequests)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]interface{}{"accepted": true, "signal": signal})
+}
+
+func queueName(endpoint, server QueueConfig) string {
+	if endpoint.Name != "" {
+		return endpoint.Name
+	}
+	return server.Name
 }
 
 func (r *serverRuntime) offerEvent(event InboundEvent, queue QueueConfig) bool {

@@ -69,6 +69,89 @@ func TestRESTFactoriesResolveConfiguredDefinitions(t *testing.T) {
 	require.NotNil(t, builder)
 }
 
+func TestRESTDeclarationsMatchRuntimeOutputAndUndoKeys(t *testing.T) {
+	t.Parallel()
+	defs, err := catalog.LoadToolDefs(restDeclarationsPath(t))
+	require.NoError(t, err)
+	byName := make(map[string]catalog.ToolDef, len(defs))
+	for _, def := range defs {
+		byName[def.Name] = def
+	}
+	requireOutputProperties(t, byName["rest_client_send"], "request_id", "operation_id", "correlation")
+	requireOutputProperties(t, byName["rest_client_await"], "request_id", "operation_id")
+	requireOutputProperties(t, byName["rest_server_await"], "source", "route", "signal")
+	awaitAny := byName["rest_await_event"]
+	require.Equal(t, "queue_event_restore", awaitAny.Undo.Strategy)
+	require.Equal(t, []string{"source", "event"}, awaitAny.Undo.Captures)
+}
+
+func TestRESTDeclaredOutputPropertiesExistAtRuntime(t *testing.T) {
+	t.Parallel()
+	defs, err := catalog.LoadToolDefs(restDeclarationsPath(t))
+	require.NoError(t, err)
+	for _, def := range defs {
+		properties, _ := def.Output.Schema["properties"].(map[string]interface{})
+		actual := restRuntimeOutputProperties[def.Init]
+		require.NotNil(t, actual, def.Init)
+		for property := range properties {
+			require.True(t, actual[property],
+				"tool %s declares output property %s that init %s never emits",
+				def.Name, property, def.Init)
+		}
+	}
+}
+
+var responseOutputProperties = map[string]bool{
+	"rest_ref": true, "resource": true, "operation": true, "status": true,
+	"headers": true, "body": true, "mapped": true, "resource_id": true,
+	"request_id": true, "retry_count": true, "domain_error_code": true,
+	"selected_authority": true,
+}
+
+var restRuntimeOutputProperties = map[string]map[string]bool{
+	InitClientGet: responseOutputProperties, InitClientSet: responseOutputProperties,
+	InitClientCreate: responseOutputProperties, InitClientDelete: responseOutputProperties,
+	InitClientInvoke: responseOutputProperties,
+	InitClientSend: {
+		"request_id": true, "operation_id": true, "rest_ref": true, "resource": true,
+		"idempotency_token": true, "correlation": true, "submitted_payload": true,
+	},
+	InitClientAwait: {
+		"request_id": true, "operation_id": true, "correlation": true,
+		"rest_ref": true, "resource": true, "operation": true, "status": true,
+		"headers": true, "body": true, "mapped": true, "resource_id": true,
+		"retry_count": true, "domain_error_code": true, "selected_authority": true,
+		"signal": true,
+	},
+	InitServerLaunch: {
+		"server": true, "address": true, "route_count": true,
+		"bindings": true, "owned": true, "active_streams": true,
+	},
+	InitServerAwait: inboundEventOutputProperties(),
+	InitAwaitEvent:  inboundEventOutputProperties(),
+	InitServerStop: {
+		"server": true, "address": true, "drained_events": true,
+		"dropped_events": true, "status": true, "drain_policy": true,
+		"queue_outcome": true, "active_streams": true,
+	},
+}
+
+func inboundEventOutputProperties() map[string]bool {
+	return map[string]bool{
+		"source": true, "queue": true, "route": true, "method": true,
+		"signal": true, "payload": true, "request_id": true,
+	}
+}
+
+func requireOutputProperties(t *testing.T, def catalog.ToolDef, names ...string) {
+	t.Helper()
+	properties, ok := def.Output.Schema["properties"].(map[string]interface{})
+	require.True(t, ok, def.Name)
+	for _, name := range names {
+		require.Contains(t, properties, name, def.Name)
+	}
+}
+
 func TestDocsRuntimeRESTDefinitionsLoad(t *testing.T) {
 	t.Parallel()
 

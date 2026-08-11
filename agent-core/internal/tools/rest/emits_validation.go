@@ -25,7 +25,9 @@ func validateClientEmits(def catalog.ToolDef, init string, operation ClientOpera
 }
 
 func validateServerAwaitEmits(def catalog.ToolDef, server ServerDefinition) error {
-	actual := append([]string{"AwaitTimedOut", "ServerStopped", "CommandError"},
+	actual := append([]string{
+		"AwaitTimedOut", shutdownUnblockSignal(server.Server.Shutdown), "CommandError",
+	},
 		serverEndpointSignals(server.Server)...)
 	return requireDeclaredSignals(def, actual, "REST server "+server.Name)
 }
@@ -33,15 +35,19 @@ func validateServerAwaitEmits(def catalog.ToolDef, server ServerDefinition) erro
 func validateAwaitAnyEmits(
 	def catalog.ToolDef, options AwaitAnyOptions, definitions Collection,
 ) error {
-	actual := []string{"AwaitTimedOut", "ServerStopped", "CommandError"}
+	actual := []string{"AwaitTimedOut", "CommandError"}
 	for _, source := range options.Sources {
-		if len(source.Signals) > 0 {
-			actual = append(actual, source.Signals...)
-			continue
-		}
 		server, err := definitions.ResolveServer(source.Server)
 		if err != nil {
 			return err
+		}
+		if stoppedBehavior(source.StoppedBehavior, options.StoppedBehavior) ==
+			StoppedSourceEmitServerStopped {
+			actual = append(actual, shutdownUnblockSignal(server.Server.Shutdown))
+		}
+		if len(source.Signals) > 0 {
+			actual = append(actual, source.Signals...)
+			continue
 		}
 		actual = append(actual, awaitSourceSignals(server.Server, source.Routes)...)
 	}
@@ -84,7 +90,7 @@ func serverEndpointSignals(server Server) []string {
 }
 
 func endpointSignals(endpoint Endpoint) []string {
-	signals := []string{endpoint.Signal, endpoint.LifecycleControl.Signal}
+	signals := []string{lifecycleSignal(endpoint)}
 	signals = append(signals, endpoint.AllowedSignals...)
 	for _, signal := range endpoint.SignalMapping {
 		signals = append(signals, signal)

@@ -190,7 +190,7 @@ func lifecycleControlServer() Server {
 	return Server{
 		Address:  "127.0.0.1:0",
 		Queue:    QueueConfig{Name: "lifecycle", Capacity: 8, Timeout: "20ms", Overflow: queueOverflowReject},
-		Shutdown: ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain"},
+		Shutdown: ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain_then_stop"},
 		Endpoints: map[string]Endpoint{
 			"exit": {
 				Method: "POST", Path: "/lifecycle/exit", Binding: bindingLifecycleControl,
@@ -211,7 +211,7 @@ func bareLifecycleServer(name string) Server {
 	return Server{
 		Address:  "127.0.0.1:0",
 		Queue:    QueueConfig{Name: name, Capacity: 8, Timeout: "20ms", Overflow: queueOverflowReject},
-		Shutdown: ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain"},
+		Shutdown: ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain_then_stop"},
 		Endpoints: map[string]Endpoint{
 			"health": {Method: "GET", Path: "/health", Binding: bindingHealth},
 		},

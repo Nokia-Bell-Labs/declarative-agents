@@ -71,6 +71,10 @@ func TestRESTClient_AwaitAsyncRequest(t *testing.T) {
 
 			await := asyncCommand(t, def, state, InitClientAwait, map[string]interface{}{"request_id": tc.id}).Execute()
 			require.Equal(t, tc.signal, await.Signal, await.Output)
+			var output map[string]interface{}
+			require.NoError(t, json.Unmarshal([]byte(await.Output), &output))
+			require.Equal(t, tc.id, output["request_id"])
+			require.Equal(t, "create_payment", output["operation_id"])
 		})
 	}
 

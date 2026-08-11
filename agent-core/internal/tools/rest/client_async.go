@@ -3,6 +3,7 @@
 package rest
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -39,7 +40,7 @@ func (c clientCmd) awaitAsync() core.Result {
 	case result := <-request.Done:
 		c.asyncState.Consume(request)
 		result.CommandName = c.toolName
-		return result
+		return enrichAsyncResult(result, request)
 	case <-time.After(c.awaitTimeout()):
 		return core.Result{
 			Signal:      core.Signal("RESTAwaitTimedOut"),
@@ -47,6 +48,18 @@ func (c clientCmd) awaitAsync() core.Result {
 			Output:      jsonOutput(asyncTimeoutOutput(request)),
 		}
 	}
+}
+
+func enrichAsyncResult(result core.Result, request *AsyncRequest) core.Result {
+	var output map[string]interface{}
+	if err := json.Unmarshal([]byte(result.Output), &output); err != nil {
+		return result
+	}
+	output["request_id"] = request.RequestID
+	output["operation_id"] = request.OperationID
+	output["correlation"] = request.Correlation
+	result.Output = jsonOutput(output)
+	return result
 }
 
 func (c clientCmd) awaitRequest() (*AsyncRequest, error) {

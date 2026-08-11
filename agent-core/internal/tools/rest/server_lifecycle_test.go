@@ -76,6 +76,7 @@ func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 	t.Run("unblocks await", func(t *testing.T) {
 		server := namedControlServer("blocking")
 		server.Queue.Timeout = "1s"
+		server.Shutdown.UnblockAwaitSignal = "StoppedCustom"
 		state, _ := launchRESTServer(t, server, LimitProfile{})
 		runtime, err := state.runtime("blocking")
 		require.NoError(t, err)
@@ -89,7 +90,7 @@ func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 		})
 		requireAwaitBlocked(t, results)
 		require.Equal(t, "stopped", stopRESTServer(t, state, "blocking")["status"])
-		require.Equal(t, core.Signal("ServerStopped"), requireRESTResult(t, results).Signal)
+		require.Equal(t, core.Signal("StoppedCustom"), requireRESTResult(t, results).Signal)
 	})
 }
 
@@ -149,10 +150,10 @@ func TestRESTServer_QueueOverflowPolicies(t *testing.T) {
 func TestRESTServer_ShutdownConfigValidation(t *testing.T) {
 	t.Parallel()
 
-	for _, policy := range []string{"", "drain", "drain_then_stop"} {
+	for _, policy := range []string{"", "drain_then_stop"} {
 		server := shutdownValidationServer("valid_shutdown")
 		server.Shutdown.DrainPolicy = policy
-		server.Shutdown.UnblockAwaitSignal = "ServerStopped"
+		server.Shutdown.UnblockAwaitSignal = "StoppedCustom"
 		err := ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"valid_shutdown": server}})
 		require.NoError(t, err)
 	}
@@ -162,10 +163,10 @@ func TestRESTServer_ShutdownConfigValidation(t *testing.T) {
 		mutate   func(*ShutdownConfig)
 		contains string
 	}{
+		{name: "inert drain policy", mutate: func(cfg *ShutdownConfig) { cfg.DrainPolicy = "drain" }, contains: "not implemented"},
 		{name: "drain timeout", mutate: func(cfg *ShutdownConfig) { cfg.DrainTimeout = "1s" }, contains: "drain_timeout"},
 		{name: "stop listeners false", mutate: func(cfg *ShutdownConfig) { cfg.StopListeners = boolPointer(false) }, contains: "stop_listeners"},
 		{name: "queue on shutdown", mutate: func(cfg *ShutdownConfig) { cfg.QueueOnShutdown = "drop" }, contains: "queue_on_shutdown"},
-		{name: "unblock await signal", mutate: func(cfg *ShutdownConfig) { cfg.UnblockAwaitSignal = "StoppedCustom" }, contains: "unblock_await_signal"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -234,6 +235,49 @@ func TestRESTServer_LifecycleExitOptOut(t *testing.T) {
 
 	postStatus(t, baseURL+"/api/lifecycle/exit", `{"reason":"operator"}`, http.StatusNotFound)
 	require.Equal(t, "ok", getJSON(t, baseURL+"/health")["status"])
+}
+
+func TestRESTServerQueueNameAndPayloadShapeAreEnforced(t *testing.T) {
+	t.Parallel()
+	t.Run("payload shape rejects event before enqueue", func(t *testing.T) {
+		server := namedControlServer("shaped")
+		server.LifecycleExit.Disabled = true
+		endpoint := server.Endpoints["approve"]
+		endpoint.Queue.PayloadShape = map[string]interface{}{
+			"type": "object", "required": []interface{}{"operator"},
+		}
+		server.Endpoints["approve"] = endpoint
+		state, baseURL := launchRESTServer(t, server, LimitProfile{})
+		defer stopRESTServer(t, state, "shaped")
+		postStatus(t, baseURL+"/approve/1", `{}`, http.StatusBadRequest)
+	})
+
+	t.Run("queue name reaches event output", func(t *testing.T) {
+		server := namedControlServer("named_queue")
+		server.LifecycleExit.Disabled = true
+		endpoint := server.Endpoints["approve"]
+		endpoint.Queue.Name = "approvals"
+		server.Endpoints["approve"] = endpoint
+		state, baseURL := launchRESTServer(t, server, LimitProfile{})
+		defer stopRESTServer(t, state, "named_queue")
+		postStatus(t, baseURL+"/approve/1", `{}`, http.StatusAccepted)
+		event, signal, err := state.Await("named_queue")
+		require.NoError(t, err)
+		require.Equal(t, "Approved", signal)
+		require.Equal(t, "approvals", event.Queue)
+	})
+}
+
+func TestLifecycleControlActionSelectsDefaultSignal(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"exit": "ExitRequested", "pause": "PauseRequested",
+		"rollback_request": "RollbackRequested", "resume": "ResumeRequested",
+	}
+	for action, expected := range cases {
+		endpoint := Endpoint{LifecycleControl: LifecycleControl{Action: action}}
+		require.Equal(t, expected, lifecycleSignal(endpoint), action)
+	}
 }
 
 func TestRESTServer_StreamEventsUnblocksOnStop(t *testing.T) {

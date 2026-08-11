@@ -87,6 +87,7 @@ requirements:
       - R6.4: REST server responses SHALL use configured success status, response schema, headers, and body mapping.
       - R6.5: Request and response bodies SHALL obey configured size limits from srd027-rest-tool-runtime.
       - R6.6: Server handlers SHALL not choose arbitrary MachineSpec actions; they may only enqueue configured signals or return configured state/metadata.
+      - R6.7: Queue name SHALL be present in accepted event output and payload_shape SHALL validate the complete event payload before redaction and enqueue.
 
   R7:
     title: Lifecycle and shared server state
@@ -96,7 +97,7 @@ requirements:
       - R7.3: Shared server state SHALL track listeners, registered routes, active streams, event queues, queue limits, and ownership metadata.
       - R7.4: Event queues SHALL support configured capacity, overflow behavior, and per-route backpressure responses.
       - R7.5: Graceful shutdown SHALL close listeners and streams without leaking goroutines or sockets.
-      - R7.6: A stopped server SHALL unblock rest_server_await with ServerStopped or CommandError according to configuration.
+      - R7.6: A stopped server SHALL unblock rest_server_await with the configured shutdown signal, defaulting to ServerStopped, or CommandError according to stopped-source policy.
 
   R8:
     title: OpenAPI server binding
@@ -201,7 +202,7 @@ acceptance_criteria:
 
   - id: AC6
     criterion: Inbound HTTP requests become grammar-visible signals or state/metadata reads only through configured validation and response mapping.
-    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6]
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7]
 
   - id: AC7
     criterion: Server lifecycle requirements cover shared server state, address binding, route conflicts, event queues, backpressure, graceful shutdown, and await unblocking.

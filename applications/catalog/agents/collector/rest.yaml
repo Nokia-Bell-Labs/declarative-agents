@@ -51,7 +51,7 @@ rest:
       queue: {name: collector_monitor, capacity: 8, overflow: reject, timeout: 100ms}
       shutdown:
         timeout: 2s
-        drain_policy: drain
+        drain_policy: drain_then_stop
         stop_listeners: true
         unblock_await_signal: ServerStopped
       endpoints:
@@ -64,7 +64,7 @@ rest:
     collector_query:
       address: ${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}
       limits_ref: query
-      shutdown: {timeout: 2s, drain_policy: drain}
+      shutdown: {timeout: 2s, drain_policy: drain_then_stop}
       endpoints:
         list_traces:
           method: GET
