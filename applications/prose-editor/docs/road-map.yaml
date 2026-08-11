@@ -143,12 +143,12 @@ releases:
         status: implemented
         test_case_count: 12
     planned_workproducts:
-      - {path: workproducts/<saga-id>/manifest.yaml, owner: workflow-orchestrator, status: implemented}
+      - {path: workproducts/<saga-id>/manifest.json, owner: workflow-orchestrator, status: implemented}
       - {path: workproducts/<saga-id>/manifest-history/<revision>.yaml, owner: workflow-orchestrator, status: implemented}
       - {path: workproducts/<saga-id>/00-original.md, owner: workflow-orchestrator, status: implemented}
       - {path: workproducts/<saga-id>/attempts/structure/<attempt>-<sha256>.md, owner: workflow-orchestrator, status: implemented}
       - {path: workproducts/<saga-id>/10-structure.md, owner: workflow-orchestrator, status: implemented}
-      - {path: workproducts/<saga-id>/40-critique.yaml, owner: workflow-orchestrator, status: implemented}
+      - {path: workproducts/<saga-id>/40-critique.json, owner: workflow-orchestrator, status: implemented}
       - {path: workproducts/<saga-id>/final.md, owner: workflow-orchestrator, status: implemented}
     dependencies:
       - id: applications-shared-module-contract

@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +22,7 @@ func TestCaptureSourceCreatesImmutableWorkspaceArtifact(t *testing.T) {
 	boundary := boundary{workspace: workspace, fixtures: fixtures, suite: suite}
 	state := manifest{}
 
-	if _, _, err := boundary.captureSource(&state, "capture", false); err != nil {
+	if _, _, err := boundary.captureSource(&state, false); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(workspace, ".tracer", "captured-source.md")
@@ -113,6 +114,87 @@ func TestChildRequestInputRequiresDistinctAddress(t *testing.T) {
 		}); err == nil {
 			t.Fatalf("unsafe path %q succeeded", path)
 		}
+	}
+}
+
+func TestTruncatedReceiptLogReturnsError(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(workspace, "boundary-receipts.jsonl"), []byte("{truncated\n"), 0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	boundary := boundary{workspace: workspace, session: "session"}
+	if _, err := boundary.nextOccurrence("capture-source"); err == nil {
+		t.Fatal("truncated receipt log unexpectedly produced an occurrence")
+	}
+	if err := boundary.record(receipt{Operation: "capture-source"}); err == nil {
+		t.Fatal("record silently renumbered a truncated receipt log")
+	}
+}
+
+func TestEditorFixtureWithoutRetrievalIDsReturnsError(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	fixtures := t.TempDir()
+	fixturePath := filepath.Join(fixtures, "editor.yaml")
+	if err := os.WriteFile(fixturePath, []byte("content: candidate\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	requestPath := filepath.Join(workspace, ".tracer", "requests")
+	if err := os.MkdirAll(requestPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(requestPath, "structure-1.json"), []byte(`{"parent_artifact_id":"id","parent_content_hash":"hash"}`), 0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	boundary := boundary{
+		workspace: workspace, fixtures: fixtures, session: "session",
+		scenario: scenario{EditorResponses: []string{"editor.yaml"}},
+	}
+
+	_, err := boundary.chatResponse([]byte(`{"model":"tracer-editor"}`), 1)
+
+	if err == nil || !strings.Contains(err.Error(), "retrieval_id") {
+		t.Fatalf("chatResponse error = %v", err)
+	}
+}
+
+func TestServeReadinessFailureReleasesListeners(t *testing.T) {
+	t.Parallel()
+
+	listeners := make([]net.Listener, 0, 2)
+	var addresses []string
+	for range 2 {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		listeners = append(listeners, listener)
+		addresses = append(addresses, listener.Addr().String())
+	}
+	readiness, err := os.CreateTemp(t.TempDir(), "readiness")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := readiness.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := (&boundary{}).serve(listeners, readiness); err == nil {
+		t.Fatal("closed readiness file unexpectedly succeeded")
+	}
+	for _, address := range addresses {
+		listener, err := net.Listen("tcp", address)
+		if err != nil {
+			t.Fatalf("listener %s leaked after readiness failure: %v", address, err)
+		}
+		_ = listener.Close()
 	}
 }
 

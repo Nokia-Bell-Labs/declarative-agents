@@ -255,56 +255,56 @@ func (b *boundary) run(operation string) error {
 		occurrence = childRequest.Occurrence
 		key = operation + ":" + childRequest.Path
 	} else {
-		occurrence = b.nextSessionOccurrence(operation)
+		occurrence, err = b.nextOccurrence(operation)
+		if err != nil {
+			return err
+		}
 		key = operation + ":" + strconv.Itoa(occurrence)
 	}
 	if b.faults(operation, occurrence) {
-		_ = b.record(receipt{
+		injected := fmt.Errorf("injected %s boundary failure at occurrence %d", operation, occurrence)
+		recordErr := b.record(receipt{
 			Session: b.session, Operation: operation, Occurrence: occurrence, Status: "injected_failure",
 		})
-		return fmt.Errorf("injected %s boundary failure at occurrence %d", operation, occurrence)
+		return errors.Join(injected, recordErr)
 	}
 	replay := state.Applied[key]
 	var output string
 	var inputHash, outputHash string
 	switch operation {
 	case "capture-source":
-		output, outputHash, err = b.captureSource(&state, key, replay)
+		output, outputHash, err = b.captureSource(&state, replay)
 	case "write-original":
-		output, outputHash, err = b.writeOriginal(&state, key, replay)
+		output, outputHash, err = b.writeOriginal(&state, replay)
 	case "append-manifest-revision":
-		output, err = b.appendManifest(&state, manifestRevision, key, replay)
+		output, err = b.appendManifest(&state, manifestRevision, replay)
 	case "write-structure-attempt":
 		var input []byte
-		if len(os.Args) == 3 {
-			input = []byte(os.Args[2])
-		} else {
-			input, err = io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
-		}
+		input, err = io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
 		inputHash = digest(input)
 		if err == nil {
-			output, outputHash, err = b.writeStructure(&state, occurrence, key, input, replay)
+			output, outputHash, err = b.writeStructure(&state, occurrence, input, replay)
 		}
 	case "write-critique-attempt":
 		var input []byte
 		input, err = io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
 		inputHash = digest(input)
 		if err == nil {
-			output, outputHash, err = b.writeCritique(&state, occurrence, key, input, replay)
+			output, outputHash, err = b.writeCritique(&state, occurrence, input, replay)
 		}
 	case "persist-child-request":
 		output, outputHash, err = b.persistChildRequest(childRequest)
 	case "materialize-final-chain":
-		output, outputHash, err = b.materializeFinal(&state, key, replay)
+		output, outputHash, err = b.materializeFinal(&state, replay)
 	default:
 		err = fmt.Errorf("unknown operation %q", operation)
 	}
 	if err != nil {
-		_ = b.record(receipt{
+		recordErr := b.record(receipt{
 			Session: b.session, Operation: operation, Occurrence: occurrence, Status: "error",
 			Replay: replay, InputHash: inputHash,
 		})
-		return err
+		return errors.Join(err, recordErr)
 	}
 	if !replay {
 		state.Applied[key] = true
@@ -357,7 +357,7 @@ func (b *boundary) persistChildRequest(input childRequestInput) (string, string,
 	return path, digest(data), nil
 }
 
-func (b *boundary) captureSource(state *manifest, key string, replay bool) (string, string, error) {
+func (b *boundary) captureSource(state *manifest, replay bool) (string, string, error) {
 	data, err := os.ReadFile(filepath.Join(b.fixtures, filepath.FromSlash(b.suite.Source.File)))
 	if err != nil {
 		return "", "", err
@@ -377,7 +377,7 @@ func (b *boundary) captureSource(state *manifest, key string, replay bool) (stri
 	return `{"captured":true}`, sum, nil
 }
 
-func (b *boundary) writeOriginal(state *manifest, key string, replay bool) (string, string, error) {
+func (b *boundary) writeOriginal(state *manifest, replay bool) (string, string, error) {
 	data, err := os.ReadFile(filepath.Join(b.workspace, ".tracer", "captured-source.md"))
 	if err != nil {
 		return "", "", err
@@ -437,7 +437,6 @@ func parseManifestRevisionInput(args []string) (manifestRevisionInput, error) {
 func (b *boundary) appendManifest(
 	state *manifest,
 	revision manifestRevisionInput,
-	key string,
 	replay bool,
 ) (string, error) {
 	if !replay {
@@ -500,7 +499,7 @@ func (b *boundary) manifestContext(state manifest, structureAttempt int) ([]byte
 	return json.Marshal(context)
 }
 
-func (b *boundary) writeStructure(state *manifest, occurrence int, key string, input []byte, replay bool) (string, string, error) {
+func (b *boundary) writeStructure(state *manifest, occurrence int, input []byte, replay bool) (string, string, error) {
 	attempt := occurrence
 	if attempt > len(b.scenario.EditorResponses) {
 		return "", "", errors.New("structure attempt exceeds fixture roster")
@@ -539,7 +538,7 @@ func (b *boundary) writeStructure(state *manifest, occurrence int, key string, i
 	return `{"written":true}`, sum, nil
 }
 
-func (b *boundary) writeCritique(state *manifest, occurrence int, key string, input []byte, replay bool) (string, string, error) {
+func (b *boundary) writeCritique(state *manifest, occurrence int, input []byte, replay bool) (string, string, error) {
 	attempt := occurrence
 	if attempt > len(b.scenario.CriticResponses) {
 		return "", "", errors.New("critic attempt exceeds fixture roster")
@@ -566,7 +565,7 @@ func (b *boundary) writeCritique(state *manifest, occurrence int, key string, in
 		return "", "", errors.New("critic child verdict differs from deterministic model fixture")
 	}
 	sum := digest(input)
-	relative := filepath.ToSlash(filepath.Join("attempts", "critique", fmt.Sprintf("%04d-%s.yaml", attempt, sum)))
+	relative := filepath.ToSlash(filepath.Join("attempts", "critique", fmt.Sprintf("%04d-%s.json", attempt, sum)))
 	if err := writeImmutable(filepath.Join(b.workspace, filepath.FromSlash(relative)), input); err != nil {
 		return "", "", err
 	}
@@ -579,7 +578,10 @@ func (b *boundary) writeCritique(state *manifest, occurrence int, key string, in
 			Producer: "voice-critic",
 		})
 		state.Selected["critique"] = id
-		state.LastCritic = criticEvaluationMap(evaluation)
+		state.LastCritic, err = criticEvaluationMap(evaluation)
+		if err != nil {
+			return "", "", err
+		}
 		state.Events = append(state.Events, fmt.Sprintf("critique_attempt_%d_written", attempt))
 	} else {
 		want := artifact{
@@ -594,7 +596,7 @@ func (b *boundary) writeCritique(state *manifest, occurrence int, key string, in
 	return `{"written":true}`, sum, nil
 }
 
-func (b *boundary) materializeFinal(state *manifest, key string, replay bool) (string, string, error) {
+func (b *boundary) materializeFinal(state *manifest, replay bool) (string, string, error) {
 	structure, ok := selectedArtifact(*state, "structure")
 	if !ok {
 		return "", "", errors.New("finalization requires selected structure")
@@ -631,7 +633,7 @@ func (b *boundary) materializeFinal(state *manifest, key string, replay bool) (s
 		return "", "", errors.New("finalization requires a passed critic verdict")
 	}
 	for path, data := range map[string][]byte{
-		"10-structure.md": structureBytes, "40-critique.yaml": critiqueBytes, "final.md": structureBytes,
+		"10-structure.md": structureBytes, "40-critique.json": critiqueBytes, "final.md": structureBytes,
 	} {
 		if err := writeImmutable(filepath.Join(b.workspace, path), data); err != nil {
 			return "", "", err
@@ -691,10 +693,12 @@ func closeListeners(listeners []net.Listener) {
 }
 
 func (b *boundary) serve(listeners []net.Listener, readiness *os.File) error {
-	defer readiness.Close()
 	if len(listeners) != 2 {
 		closeListeners(listeners)
-		return fmt.Errorf("serve requires 2 listeners, got %d", len(listeners))
+		return errors.Join(
+			fmt.Errorf("serve requires 2 listeners, got %d", len(listeners)),
+			readiness.Close(),
+		)
 	}
 	handler := http.HandlerFunc(b.handleHTTP)
 	servers := make([]*http.Server, 0, 2)
@@ -705,10 +709,15 @@ func (b *boundary) serve(listeners []net.Listener, readiness *os.File) error {
 		go func() { errs <- server.Serve(listener) }()
 	}
 	if _, err := readiness.Write([]byte{1}); err != nil {
+		closeHTTPServers(servers)
 		closeListeners(listeners)
-		return fmt.Errorf("signal boundary readiness: %w", err)
+		return errors.Join(fmt.Errorf("signal boundary readiness: %w", err), readiness.Close())
 	}
-	_ = readiness.Close()
+	if err := readiness.Close(); err != nil {
+		closeHTTPServers(servers)
+		closeListeners(listeners)
+		return fmt.Errorf("close boundary readiness: %w", err)
+	}
 	fmt.Println("tracer boundary ready")
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -716,13 +725,18 @@ func (b *boundary) serve(listeners []net.Listener, readiness *os.File) error {
 	case <-signals:
 	case err := <-errs:
 		if !errors.Is(err, http.ErrServerClosed) {
+			closeHTTPServers(servers)
 			return err
 		}
 	}
+	closeHTTPServers(servers)
+	return nil
+}
+
+func closeHTTPServers(servers []*http.Server) {
 	for _, server := range servers {
 		_ = server.Close()
 	}
-	return nil
 }
 
 func (b *boundary) handleHTTP(w http.ResponseWriter, r *http.Request) {
@@ -732,13 +746,17 @@ func (b *boundary) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	operation := "http:" + r.URL.Path
-	occurrence := b.httpOccurrence(operation)
+	occurrence, err := b.nextOccurrence(operation)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if b.faults(operation, occurrence) {
-		_ = b.record(receipt{
+		recordErr := b.record(receipt{
 			Session: b.session, Operation: operation, Occurrence: occurrence, Status: "injected_failure",
 			InputHash: digest(body),
 		})
-		http.Error(w, "injected boundary failure", http.StatusInternalServerError)
+		http.Error(w, errors.Join(errors.New("injected boundary failure"), recordErr).Error(), http.StatusInternalServerError)
 		return
 	}
 	var response any
@@ -788,12 +806,15 @@ func (b *boundary) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(data)
-	_ = b.record(receipt{
+	if err := b.record(receipt{
 		Session: b.session, Operation: operation, Occurrence: occurrence, Status: "ok",
 		InputHash: digest(body), OutputHash: digest(data),
-	})
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(data)
 }
 
 func (b *boundary) chatResponse(body []byte, occurrence int) (any, error) {
@@ -806,7 +827,10 @@ func (b *boundary) chatResponse(body []byte, occurrence int) (any, error) {
 	var content []byte
 	switch request.Model {
 	case "tracer-editor":
-		editorOccurrence := b.httpModelOccurrence("tracer-editor")
+		editorOccurrence, err := b.httpModelOccurrence("tracer-editor")
+		if err != nil {
+			return nil, err
+		}
 		if editorOccurrence > len(b.scenario.EditorResponses) {
 			return nil, errors.New("editor model fixture exhausted")
 		}
@@ -826,6 +850,9 @@ func (b *boundary) chatResponse(body []byte, occurrence int) (any, error) {
 		if err := json.Unmarshal(requestData, &childRequest); err != nil {
 			return nil, err
 		}
+		if len(fixture.RetrievalIDs) == 0 {
+			return nil, errors.New("editor fixture requires at least one retrieval_id")
+		}
 		content, err = json.Marshal(map[string]any{
 			"outcome": "candidate", "content": fixture.Content,
 			"parent_artifact_id":  childRequest["parent_artifact_id"],
@@ -839,7 +866,10 @@ func (b *boundary) chatResponse(body []byte, occurrence int) (any, error) {
 			return nil, err
 		}
 	case "tracer-critic":
-		criticOccurrence := b.httpModelOccurrence("tracer-critic")
+		criticOccurrence, err := b.httpModelOccurrence("tracer-critic")
+		if err != nil {
+			return nil, err
+		}
 		if criticOccurrence > len(b.scenario.CriticResponses) {
 			return nil, errors.New("critic model fixture exhausted")
 		}
@@ -894,7 +924,7 @@ func (b *boundary) childRequestPath(stage string, occurrence int) string {
 }
 
 func (b *boundary) loadManifest() (manifest, error) {
-	path := filepath.Join(b.workspace, "manifest.yaml")
+	path := filepath.Join(b.workspace, "manifest.json")
 	var state manifest
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -919,7 +949,7 @@ func (b *boundary) saveManifest(state manifest) error {
 	if err != nil {
 		return err
 	}
-	return writeProjection(filepath.Join(b.workspace, "manifest.yaml"), append(data, '\n'))
+	return writeProjection(filepath.Join(b.workspace, "manifest.json"), append(data, '\n'))
 }
 
 func (b *boundary) saveManifestHistory(state manifest) error {
@@ -931,45 +961,37 @@ func (b *boundary) saveManifestHistory(state manifest) error {
 		return err
 	}
 	return writeImmutable(
-		filepath.Join(b.workspace, "manifest-history", fmt.Sprintf("%04d.yaml", state.Revision)),
+		filepath.Join(b.workspace, "manifest-history", fmt.Sprintf("%04d.json", state.Revision)),
 		append(data, '\n'),
 	)
 }
 
-func (b *boundary) nextSessionOccurrence(operation string) int {
-	receipts, _ := b.receipts()
+func (b *boundary) nextOccurrence(operation string) (int, error) {
+	receipts, err := b.receipts()
+	if err != nil {
+		return 0, err
+	}
 	count := 1
 	for _, existing := range receipts {
 		if existing.Session == b.session && existing.Operation == operation {
 			count++
 		}
 	}
-	return count
+	return count, nil
 }
 
-func (b *boundary) httpOccurrence(operation string) int {
-	receipts, _ := b.receipts()
-	count := 1
-	for _, existing := range receipts {
-		if existing.Session == b.session && existing.Operation == operation {
-			count++
-		}
+func (b *boundary) httpModelOccurrence(model string) (int, error) {
+	operation := "model:" + model
+	count, err := b.nextOccurrence(operation)
+	if err != nil {
+		return 0, err
 	}
-	return count
-}
-
-func (b *boundary) httpModelOccurrence(model string) int {
-	receipts, _ := b.receipts()
-	count := 1
-	for _, existing := range receipts {
-		if existing.Session == b.session && existing.Operation == "model:"+model {
-			count++
-		}
+	if err := b.record(receipt{
+		Session: b.session, Operation: operation, Occurrence: count, Status: "selected",
+	}); err != nil {
+		return 0, err
 	}
-	_ = b.record(receipt{
-		Session: b.session, Operation: "model:" + model, Occurrence: count, Status: "selected",
-	})
-	return count
+	return count, nil
 }
 
 // faults reports whether this run injects a fault at this operation occurrence.
@@ -982,7 +1004,10 @@ func (b *boundary) faults(operation string, occurrence int) bool {
 }
 
 func (b *boundary) record(value receipt) error {
-	receipts, _ := b.receipts()
+	receipts, err := b.receipts()
+	if err != nil {
+		return err
+	}
 	value.Sequence = len(receipts) + 1
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -1126,11 +1151,16 @@ func (b *boundary) validateCriticEvaluation(
 	return nil
 }
 
-func criticEvaluationMap(evaluation criticEvaluation) map[string]any {
-	data, _ := json.Marshal(evaluation)
+func criticEvaluationMap(evaluation criticEvaluation) (map[string]any, error) {
+	data, err := json.Marshal(evaluation)
+	if err != nil {
+		return nil, err
+	}
 	var decoded map[string]any
-	_ = json.Unmarshal(data, &decoded)
-	return decoded
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return nil, err
+	}
+	return decoded, nil
 }
 
 func selectedArtifact(state manifest, stage string) (artifact, bool) {

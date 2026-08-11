@@ -237,16 +237,16 @@ func TestTracerBoundaryWordsDeclareEveryTouchedArtifact(t *testing.T) {
 }
 
 var appendManifestTargets = []string{
-	"manifest-history", "manifest.yaml", "manifest artifact selection", "boundary-receipts.jsonl",
+	"manifest-history", "manifest.json", "manifest artifact selection", "boundary-receipts.jsonl",
 }
 
 var tracerBoundaryTargets = map[string][]string{
 	"capture_source": {
 		"PROSE_TRACER_FIXTURES source fixture", ".tracer/captured-source.md",
-		"manifest.yaml", "boundary-receipts.jsonl",
+		"manifest.json", "boundary-receipts.jsonl",
 	},
 	"write_original": {
-		"00-original.md", "manifest.yaml", "boundary-receipts.jsonl",
+		"00-original.md", "manifest.json", "boundary-receipts.jsonl",
 	},
 	"append_capture_manifest":         appendManifestTargets,
 	"append_structure_manifest":       appendManifestTargets,
@@ -270,15 +270,15 @@ var tracerBoundaryTargets = map[string][]string{
 		".tracer/requests/critic-2.json", "boundary-receipts.jsonl",
 	},
 	"write_structure_attempt": {
-		"attempts/structure", "manifest.yaml", "boundary-receipts.jsonl",
+		"attempts/structure", "manifest.json", "boundary-receipts.jsonl",
 	},
 	"write_critique_attempt": {
-		"attempts/critique", "manifest.last_critic", "manifest.yaml",
+		"attempts/critique", "manifest.last_critic", "manifest.json",
 		"boundary-receipts.jsonl",
 	},
 	"materialize_final_chain": {
-		"10-structure.md", "40-critique.yaml", "final.md",
-		"manifest.yaml", "boundary-receipts.jsonl",
+		"10-structure.md", "40-critique.json", "final.md",
+		"manifest.json", "boundary-receipts.jsonl",
 	},
 }
 

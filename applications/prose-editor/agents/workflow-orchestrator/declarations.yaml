@@ -15,7 +15,7 @@ tools:
     side_effects:
       - {kind: filesystem_read, target: PROSE_TRACER_FIXTURES source fixture, state: read_only}
       - {kind: filesystem_write, target: .tracer/captured-source.md, state: immutable}
-      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
       - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: preserve_captured_source}
     undo: {strategy: irreversible, description: Preserve the immutable capture, manifest projection, and boundary receipt.}
@@ -33,7 +33,7 @@ tools:
     output: {mode: structured, schema: {type: object}}
     side_effects:
       - {kind: filesystem_write, target: 00-original.md, state: immutable}
-      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
       - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: preserve_original}
     undo: {strategy: noop, description: The immutable original is preserved on compensation.}
@@ -43,7 +43,7 @@ tools:
     type: exec
     visibility: internal
     category: boundary
-    description: Append the declared capture_manifested revision and project manifest.yaml.
+    description: Append the declared capture_manifested revision and project manifest.json.
     parameters: {type: object, properties: {}, additionalProperties: false}
     emits: [ToolDone, ToolFailed, CommandError]
     binary: prose-editor-tracer-boundary
@@ -54,7 +54,7 @@ tools:
       schema: {type: object}
     side_effects:
       - {kind: filesystem_write, target: manifest-history, state: append_only}
-      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
       - {kind: state_mutation, target: manifest artifact selection, state: superseded_and_cleared}
       - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: compensatable, undo: append_corrective_revision}
@@ -261,7 +261,7 @@ tools:
     output: {mode: structured, schema: {type: object}}
     side_effects:
       - {kind: filesystem_write, target: attempts/structure, state: immutable}
-      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
       - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: append_supersession}
     undo: {strategy: compensating_action, description: Supersede by manifest revision without deleting bytes.}
@@ -459,7 +459,7 @@ tools:
     side_effects:
       - {kind: filesystem_write, target: attempts/critique, state: immutable}
       - {kind: state_mutation, target: manifest.last_critic, state: recorded}
-      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
       - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: append_supersession}
     undo: {strategy: compensating_action, description: Supersede by manifest revision without deleting bytes.}
@@ -477,9 +477,9 @@ tools:
     output: {mode: structured, schema: {type: object}}
     side_effects:
       - {kind: filesystem_write, target: 10-structure.md, state: immutable}
-      - {kind: filesystem_write, target: 40-critique.yaml, state: immutable}
+      - {kind: filesystem_write, target: 40-critique.json, state: immutable}
       - {kind: filesystem_write, target: final.md, state: immutable}
-      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: manifest.json, state: projected}
       - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: preserve_and_block}
     undo: {strategy: noop, description: Reuse matching files and block on any mismatch.}

@@ -311,7 +311,7 @@ func runInvalidCriticEvidence(runtime tracerRuntime, scenario interpreterScenari
 	}
 
 	var manifest recordedManifest
-	if err := readJSON(filepath.Join(workspace, "manifest.yaml"), &manifest); err != nil {
+	if err := readJSON(filepath.Join(workspace, "manifest.json"), &manifest); err != nil {
 		return err
 	}
 	for _, artifact := range manifest.Artifacts {
@@ -322,7 +322,7 @@ func runInvalidCriticEvidence(runtime tracerRuntime, scenario interpreterScenari
 	if manifest.Selected["critique"] != "" || manifest.Selected["final"] != "" {
 		return errors.New("invalid critic output entered accepted lineage")
 	}
-	for _, path := range []string{"40-critique.yaml", "final.md"} {
+	for _, path := range []string{"40-critique.json", "final.md"} {
 		if _, err := os.Stat(filepath.Join(workspace, path)); !os.IsNotExist(err) {
 			return fmt.Errorf("invalid critic output materialized %s", path)
 		}
@@ -589,7 +589,7 @@ func validateInterpreterWorkspace(
 		}
 	}
 	var manifest recordedManifest
-	if err := readJSON(filepath.Join(workspace, "manifest.yaml"), &manifest); err != nil {
+	if err := readJSON(filepath.Join(workspace, "manifest.json"), &manifest); err != nil {
 		return err
 	}
 	for _, response := range scenario.CriticResponses {
@@ -638,7 +638,7 @@ func validateInterpreterWorkspace(
 		return fmt.Errorf("superseded structure attempts = %d, want 1", superseded)
 	}
 	if scenario.ExpectedTerminal == "locally_finalized" {
-		for _, path := range []string{"10-structure.md", "40-critique.yaml", "final.md"} {
+		for _, path := range []string{"10-structure.md", "40-critique.json", "final.md"} {
 			if _, err := os.Stat(filepath.Join(workspace, path)); err != nil {
 				return err
 			}
@@ -711,7 +711,7 @@ func validateSessionReceipts(receipts []recordedReceipt, session string, scenari
 }
 
 func manifestSemantics(workspace string) (any, error) {
-	data, err := os.ReadFile(filepath.Join(workspace, "manifest.yaml"))
+	data, err := os.ReadFile(filepath.Join(workspace, "manifest.json"))
 	if err != nil {
 		return nil, err
 	}
@@ -724,7 +724,7 @@ func manifestSemantics(workspace string) (any, error) {
 
 func immutableArtifactDigest(workspace string) (map[string]string, error) {
 	var manifest recordedManifest
-	if err := readJSON(filepath.Join(workspace, "manifest.yaml"), &manifest); err != nil {
+	if err := readJSON(filepath.Join(workspace, "manifest.json"), &manifest); err != nil {
 		return nil, err
 	}
 	result := map[string]string{}
