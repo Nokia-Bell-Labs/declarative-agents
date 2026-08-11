@@ -16,7 +16,6 @@ type ValidatorSpec struct {
 	Profile      string   `yaml:"profile"`
 	CoreRoot     string   `yaml:"-"`
 	Directory    string   `yaml:"directory,omitempty"`
-	Request      string   `yaml:"request,omitempty"`
 	OTLPEndpoint string   `yaml:"otlp_endpoint,omitempty"`
 	Env          []string `yaml:"env,omitempty"`
 }
@@ -50,7 +49,6 @@ func runOneValidator(ctx context.Context, binary string, spec ValidatorSpec, tim
 		Profile:         spec.Profile,
 		CoreRoot:        spec.CoreRoot,
 		Directory:       spec.Directory,
-		Request:         spec.Request,
 		OTelServiceName: name,
 		OTLPEndpoint:    spec.OTLPEndpoint,
 		Timeout:         timeout,

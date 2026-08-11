@@ -7,7 +7,7 @@ traces:
 
 preconditions:
   - srd039-mock-endpoint-binding defines the mock binding, fixture format, request log, and validation.
-  - srd040-service-child-tools defines start_service, stop_service, one-validator child execution, and list_scenarios; MachineSpec owns readiness, validator iteration, joins, and teardown iteration.
+  - srd040-service-child-tools defines scenario-specific child starts, stop_service, one-validator child execution, and scenario-session discovery; MachineSpec owns readiness, validator iteration, joins, and teardown iteration.
   - GH-666 delivered the mock binding and GH-667 delivered the service-child tools; their component cases carry executable go_test evidence.
   - The full end-to-end scenario tracer remains planned and keeps this release partial.
 
@@ -85,9 +85,10 @@ test_cases:
     go_test: go test ./internal/tools/service -run TestServiceChild_StartStopNoOrphans
     status: implemented
     description: |
-      start_service spawns a serve-mode child with injected environment and
-      labels its runtime address and start time, stop_service stops it, and no
-      process from the child's group survives; a repeated cycle passes.
+      The scenario child lifecycle spawns a serve-mode child with injected
+      environment and labels its runtime address and start time, stop_service
+      stops it, and no process from the child's group survives; a repeated
+      cycle passes.
     inputs:
       child: serve-mode agent profile with env addition
       cycles: 2
@@ -136,13 +137,13 @@ test_cases:
       - srd018-cli-flag-contract AC6
 
   - use_case: rel09.0-uc001-scenario-rig-run
-    name: list_scenarios is deterministic over a fixture tree
-    go_test: go test ./internal/tools/service -run TestListScenarios_DeterministicDiscovery
+    name: Scenario session discovery is deterministic over a fixture tree
+    go_test: go test ./internal/tools/service -run 'TestListScenarios_DeterministicDiscovery|TestScenarioSession_IteratesEachScenarioOnce'
     status: implemented
     description: |
-      list_scenarios over a fixture tree with two subjects and three scenarios
-      returns the expected entries, sorted, with subject directory, scenario
-      name, validator profiles, and fixture files; repeated runs are identical.
+      init_scenario_session discovers a fixture tree with two subjects and
+      three scenarios; next_scenario visits the expected entries once in sorted
+      order with subject, scenario, validator profiles, and fixture files.
     inputs:
       tree: two subjects, three tests/<scenario>/ directories
     expected:
@@ -155,16 +156,15 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Service tool declarations state reversibility and undo honestly
-    go_test: go test ./internal/tools/service -run TestServiceTools_DeclarationsReversibilityAndUndo
+    go_test: go test ./internal/tools/service -run 'TestServiceDeclarationsMatchStandardInits|TestUndoStartedChildValidatesAndConsumesReceipt|TestServiceChild_StartRejectsBadSpawn'
     status: implemented
     description: |
-      Each service word's declaration states its reversibility and undo
-      strategy consistently: start_service is reversible with stop_service as
-      its undo, stop_service is noop, and no word declares itself irreversible
-      with a noop undo. A spawn failure surfaces as a tool error signal rather
-      than a panic, and no word invokes a model.
+      Every registered service init has a ToolDef, scenario-specific start
+      words compensate from their per-child receipt, and stop_service is noop
+      on undo. A spawn failure surfaces as a tool error signal rather than a
+      panic, and no word invokes a model.
     inputs:
-      words: [start_service, stop_service, run_scenario_validator, list_scenarios]
+      words: [init_scenario_session, start_scenario_mock, start_scenario_subject, stop_service, run_scenario_validator]
       spawn_failure_case: nonexistent profile path
     expected:
       reversibility_consistent: true

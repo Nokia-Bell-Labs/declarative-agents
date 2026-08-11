@@ -82,20 +82,20 @@ func (s *State) Start(spec StartSpec) (map[string]interface{}, error) {
 
 	address, err := resolveAddress(spec.Address)
 	if err != nil {
-		return nil, fmt.Errorf("start_service %q: %w", spec.Name, err)
+		return nil, fmt.Errorf("start child %q: %w", spec.Name, err)
 	}
 
 	s.mu.Lock()
 	if _, exists := s.children[spec.Name]; exists {
 		s.mu.Unlock()
-		return nil, fmt.Errorf("start_service %q: a service with that name is already running", spec.Name)
+		return nil, fmt.Errorf("start child %q: a service with that name is already running", spec.Name)
 	}
 	s.mu.Unlock()
 
 	cmd := childCommand(spec)
 	if err := cmd.Start(); err != nil {
 		// A spawn failure is a tool error, never a panic (srd040 R6.3).
-		return nil, fmt.Errorf("start_service %q: %w", spec.Name, err)
+		return nil, fmt.Errorf("start child %q: %w", spec.Name, err)
 	}
 
 	entry := s.track(spec.Name, cmd, address)
@@ -185,10 +185,10 @@ func (c *child) stop(grace time.Duration) map[string]interface{} {
 
 func validateStartSpec(spec StartSpec) error {
 	if spec.Name == "" {
-		return fmt.Errorf("start_service requires a service name")
+		return fmt.Errorf("start child requires a service name")
 	}
 	if spec.Profile == "" {
-		return fmt.Errorf("start_service %q requires a profile", spec.Name)
+		return fmt.Errorf("start child %q requires a profile", spec.Name)
 	}
 	return nil
 }

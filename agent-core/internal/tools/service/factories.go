@@ -15,9 +15,7 @@ import (
 )
 
 const (
-	InitStartService  = "start_service"
-	InitStopService   = "stop_service"
-	InitListScenarios = "list_scenarios"
+	InitStopService = "stop_service"
 
 	// The assembler's session words. Each per-scenario step reads the current
 	// scenario from the session, so the pipeline stays visible as machine
@@ -36,7 +34,7 @@ const (
 
 // StandardInits lists every service builtin init name.
 var StandardInits = []string{
-	InitStartService, InitStopService, InitListScenarios,
+	InitStopService,
 	InitInitScenarioSession, InitNextScenario, InitStartScenarioMock, InitStartSubject,
 	InitRunScenarioValidator, InitRecordValidators, InitCollectVerdict, InitListScenarioChildren,
 	InitStopAllServices, InitReportSession,
@@ -44,12 +42,10 @@ var StandardInits = []string{
 
 // Result signals distinguish each child operation and thin session mutation.
 const (
-	SignalServiceStarted      core.Signal = "ServiceStarted"
 	SignalServiceStopped      core.Signal = "ServiceStopped"
 	SignalValidatorCompleted  core.Signal = "ValidatorCompleted"
 	SignalValidatorIncomplete core.Signal = "ValidatorIncomplete"
 	SignalValidatorsRecorded  core.Signal = "ValidatorsRecorded"
-	SignalScenariosListed     core.Signal = "ScenariosListed"
 
 	SignalSessionSeeded          core.Signal = "SessionSeeded"
 	SignalNoScenarios            core.Signal = "NoScenarios"
@@ -72,8 +68,6 @@ type ToolConfig struct {
 	Binary    string   `yaml:"binary,omitempty"`
 	Profile   string   `yaml:"profile,omitempty"`
 	Directory string   `yaml:"directory,omitempty"`
-	Request   string   `yaml:"request,omitempty"`
-	Address   string   `yaml:"address,omitempty"`
 	Env       []string `yaml:"env,omitempty"`
 
 	Timeout      string `yaml:"timeout,omitempty"`
@@ -138,13 +132,6 @@ func factoryFor(init string, deps FactoryDeps) toolregistry.BuiltinFactory {
 
 func validateToolConfig(name, init string, cfg ToolConfig) error {
 	switch init {
-	case InitStartService:
-		if cfg.Profile == "" {
-			return fmt.Errorf("tool %q (%s) requires a profile", name, init)
-		}
-		if cfg.Service == "" {
-			return fmt.Errorf("tool %q (%s) requires a service name", name, init)
-		}
 	case InitStopService:
 		if cfg.Service == "" {
 			return fmt.Errorf("tool %q (%s) requires a service name or selector", name, init)
@@ -154,7 +141,7 @@ func validateToolConfig(name, init string, cfg ToolConfig) error {
 				return fmt.Errorf("tool %q (%s) service must be a $from(label).path selector", name, init)
 			}
 		}
-	case InitListScenarios, InitInitScenarioSession:
+	case InitInitScenarioSession:
 		if len(cfg.Roots) == 0 {
 			return fmt.Errorf("tool %q (%s) requires at least one root", name, init)
 		}
@@ -222,12 +209,8 @@ func (c *command) Execute() core.Result { return c.ExecuteContext(context.Backgr
 
 func (c *command) ExecuteContext(ctx context.Context) core.Result {
 	switch c.init {
-	case InitStartService:
-		return c.start()
 	case InitStopService:
 		return c.stop()
-	case InitListScenarios:
-		return c.listScenarios()
 	case InitInitScenarioSession:
 		return c.initSession()
 	case InitNextScenario:
@@ -261,17 +244,12 @@ func (c *command) stopAllServices() core.Result {
 	}
 }
 
-// Undo reverses start_service by stopping the service it started; every other
-// word is read-only or already terminal, so its undo is a noop (srd040 R1.5,
-// R3.3). The declarations must match this, or the corpus audit reports a
+// Undo reverses scenario-specific child starts from their receipts; every
+// other word is read-only or already terminal, so its undo is a noop (srd040
+// R1.5, R3.3). The declarations must match this, or the corpus audit reports a
 // tool-undo mismatch.
 func (c *command) Undo(prior core.Result) core.Result {
 	switch c.init {
-	case InitStartService:
-		output := c.state.Stop(c.cfg.Service, parseDuration(c.cfg.Grace, defaultStopGrace))
-		return core.Result{
-			Signal: SignalServiceStopped, CommandName: c.toolName, Output: jsonOutput(output),
-		}
 	case InitStartScenarioMock:
 		return c.undoStartedChild(prior)
 	case InitStartSubject:
@@ -292,23 +270,6 @@ func (c *command) undoStartedChild(prior core.Result) core.Result {
 	return core.Result{
 		Signal: SignalServiceStopped, CommandName: c.toolName, Output: jsonOutput(output),
 	}
-}
-
-func (c command) start() core.Result {
-	output, err := c.state.Start(StartSpec{
-		Name:      c.cfg.Service,
-		Binary:    c.cfg.Binary,
-		Profile:   c.cfg.Profile,
-		CoreRoot:  c.coreRoot,
-		Directory: c.cfg.Directory,
-		Request:   c.cfg.Request,
-		Address:   c.cfg.Address,
-		Env:       c.cfg.Env,
-	})
-	if err != nil {
-		return commandError(c.toolName, err)
-	}
-	return core.Result{Signal: SignalServiceStarted, CommandName: c.toolName, Output: jsonOutput(output)}
 }
 
 func (c command) stop() core.Result {
@@ -336,17 +297,6 @@ func (c command) serviceName() (string, error) {
 		return "", fmt.Errorf("%s: service selector did not resolve to a string", c.toolName)
 	}
 	return service, nil
-}
-
-func (c command) listScenarios() core.Result {
-	scenarios, err := ListScenarios(c.cfg.Roots)
-	if err != nil {
-		return commandError(c.toolName, err)
-	}
-	return core.Result{
-		Signal: SignalScenariosListed, CommandName: c.toolName,
-		Output: jsonOutput(map[string]interface{}{"count": len(scenarios), "scenarios": scenarios}),
-	}
 }
 
 func commandError(name string, err error) core.Result {
