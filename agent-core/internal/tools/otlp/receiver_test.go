@@ -177,6 +177,24 @@ func TestReceiverBuildersShareLifecycleState(t *testing.T) {
 	require.Equal(t, core.Signal("ReceiverStopped"), result.Signal)
 }
 
+func TestReceiverLaunchReceiptCarriesBoundIdentity(t *testing.T) {
+	state := NewState()
+	builder := ReceiverBuilder{
+		ToolName: "launch_receiver", Init: InitReceiverLaunch,
+		Config: testReceiverConfig("receipt"), State: state,
+	}
+	result := builder.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("ReceiverLaunched"), result.Signal)
+	require.NotEmpty(t, result.Receipt)
+	var receipt receiverReceipt
+	require.NoError(t, json.Unmarshal([]byte(result.Receipt), &receipt))
+	require.Equal(t, "receipt", receipt.Name)
+	require.NotEmpty(t, receipt.Address)
+
+	undone := builder.BuildReverser().Undo(result)
+	require.Equal(t, core.Signal("ReceiverStopped"), undone.Signal, undone.Output)
+}
+
 func testReceiverConfig(name string) ReceiverConfig {
 	return ReceiverConfig{
 		Name: name, Address: "127.0.0.1:0", QueueCapacity: 2,

@@ -3,9 +3,8 @@
 package lifecycle
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
-	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -210,10 +209,6 @@ func TestRollbackViaReceiptsStopsOTLPReceiver(t *testing.T) {
 	launch := builder.Build(core.Result{}).Execute()
 	require.Equal(t, core.Signal("ReceiverLaunched"), launch.Signal, launch.Output)
 	require.NotEmpty(t, launch.Receipt)
-	var output struct {
-		Address string `json:"address"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(launch.Output), &output))
 
 	reg := core.NewRegistry()
 	reg.Register(def.ToToolSpec(), builder)
@@ -227,9 +222,8 @@ func TestRollbackViaReceiptsStopsOTLPReceiver(t *testing.T) {
 	})
 	require.NoError(t, err, report.Detail)
 	require.Equal(t, 1, report.Reverted)
-	listener, err := net.Listen("tcp", output.Address)
-	require.NoError(t, err, "rollback must release the receiver address")
-	require.NoError(t, listener.Close())
+	_, err = state.Next(context.Background(), "rollback")
+	require.ErrorIs(t, err, toolotlp.ErrReceiverStopped)
 }
 
 // TestRollbackViaReceiptsSurfacesEveryCompensation proves GH-1377's fallback:
