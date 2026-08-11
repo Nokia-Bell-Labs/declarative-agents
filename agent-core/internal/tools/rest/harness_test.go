@@ -140,6 +140,11 @@ func awaitEventCommand(t *testing.T, collection Collection, state *ServerState, 
 	t.Helper()
 	def := requireRESTToolDef(t, InitAwaitEvent)
 	def.Config = map[string]interface{}{"sources": awaitEventSources(names)}
+	for _, name := range names {
+		server, err := collection.ResolveServer(name)
+		require.NoError(t, err)
+		def.Emits = append(def.Emits, serverEndpointSignals(server.Server)...)
+	}
 	return requireRESTCommand(t, def, collection, state)
 }
 

@@ -108,6 +108,7 @@ rest:
     payments_webhooks:
       address: 127.0.0.1:0
       limits_ref: local_demo
+      lifecycle_exit: {disabled: true}
       queue:
         name: payments
         capacity: 8

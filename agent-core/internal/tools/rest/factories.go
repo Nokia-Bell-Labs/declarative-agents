@@ -391,6 +391,9 @@ func newClientBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.
 	if init == InitClientSend && operation.Operation.Async == nil {
 		return nil, fmt.Errorf("tool %q requires async REST operation", def.Name)
 	}
+	if err := validateClientEmits(def, init, operation); err != nil {
+		return nil, err
+	}
 	return ClientBuilder{
 		ToolName: def.Name, Init: init, Operation: operation, Definitions: deps.Definitions,
 		AsyncState: deps.AsyncState, Credentials: deps.CredentialResolver, Metrics: def.Metrics,
@@ -413,6 +416,11 @@ func newServerBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.
 	server.Monitor = deps.Monitor
 	server.RunID = deps.RunID
 	server.Credentials = deps.CredentialResolver
+	if init == InitServerAwait {
+		if err := validateServerAwaitEmits(def, server); err != nil {
+			return nil, err
+		}
+	}
 	return ServerBuilder{ToolName: def.Name, Init: init, Server: server, State: deps.ServerState}, nil
 }
 
@@ -423,6 +431,9 @@ func newAwaitEventBuilder(def catalog.ToolDef, deps FactoryDeps) (core.Builder, 
 	}
 	options, err := awaitAnyOptions(def.Name, cfg, deps.Definitions)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateAwaitAnyEmits(def, options, deps.Definitions); err != nil {
 		return nil, err
 	}
 	return AwaitEventBuilder{ToolName: def.Name, Options: options, State: deps.ServerState}, nil

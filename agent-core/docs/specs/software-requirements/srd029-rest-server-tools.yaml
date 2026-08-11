@@ -137,6 +137,7 @@ requirements:
       - R11.5: Signal injection endpoints SHALL accept only configured allowlisted signals and SHALL include operator or caller metadata in the queued event payload.
       - R11.6: Rollback request endpoints SHALL validate the configured target selector schema before enqueueing a rollback signal or request event.
       - R11.7: Lifecycle control endpoints with require_auth_ref SHALL authenticate against the referenced trusted auth profile before validation or enqueue; endpoints without auth SHALL accept loopback callers only, even when the listener policy permits a public bind.
+      - R11.8: Registration SHALL reject rest_server_await or rest_await_event when any signal admitted by its configured server, route, signal filter, or stopped-source behavior is absent from that ToolDef's emits contract.
 
 non_goals:
   - Defining outbound REST client tools; see srd028-rest-client-tools.
@@ -216,7 +217,7 @@ acceptance_criteria:
 
   - id: AC10
     criterion: Server event queues expose named sources for rest_await_event, stopped-source behavior is configurable, and lifecycle control endpoints authenticate before enqueueing signals instead of running hidden lifecycle actions.
-    traces: [R11.1, R11.2, R11.3, R11.4, R11.5, R11.6, R11.7]
+    traces: [R11.1, R11.2, R11.3, R11.4, R11.5, R11.6, R11.7, R11.8]
 
 depends_on:
   - srd_id: srd001-core-types

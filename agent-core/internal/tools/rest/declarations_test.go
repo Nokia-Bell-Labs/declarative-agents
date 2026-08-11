@@ -58,7 +58,7 @@ func TestRESTFactoriesResolveConfiguredDefinitions(t *testing.T) {
 	factory, ok := br.Resolve(InitClientGet)
 	require.True(t, ok)
 	builder, err := factory(catalog.ToolDef{
-		Name: "get_issue",
+		Name: "get_issue", Emits: []string{"RESTResourceRead", "CommandError"},
 		Config: map[string]interface{}{
 			"rest_ref":  "github",
 			"resource":  "issue",

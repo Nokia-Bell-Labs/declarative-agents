@@ -88,6 +88,7 @@ requirements:
       - R6.5: RESTResponded SHALL signal that a configured non-resource or awaited operation returned a successful response.
       - R6.6: RESTDomainFailed SHALL signal a service-level failure that is part of the operation contract.
       - R6.7: CommandError SHALL signal infrastructure failure, config failure, schema failure, auth failure, network I/O failure, timeout, redaction failure, or response mapping failure.
+      - R6.8: Registration SHALL reject a bound operation whose configured success, failure, accepted, or await-timeout signal is absent from the ToolDef emits contract; CommandError remains the runtime infrastructure signal.
 
   R7:
     title: Response shaping and output
@@ -247,8 +248,8 @@ acceptance_criteria:
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R10.6, R10.7]
 
   - id: AC6
-    criterion: Result signal requirements distinguish resource reads, writes, missing resources, accepted async sends, successful REST responses, REST domain failures, and CommandError infrastructure failures.
-    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R11.3, R11.4]
+    criterion: Result signal requirements distinguish resource reads, writes, missing resources, accepted async sends, successful REST responses, REST domain failures, and CommandError infrastructure failures, and registration proves the bound operation is a subset of ToolDef emits.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R6.8, R11.3, R11.4]
 
   - id: AC7
     criterion: Response shaping maps status, headers, body, resource metadata, request IDs, domain error codes, retry metadata, and redacted fields into structured output.

@@ -112,6 +112,7 @@ func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
 	defer stopRESTServer(t, state, "control")
 
 	def := requireRESTToolDef(t, InitAwaitEvent)
+	def.Emits = append(def.Emits, "Approved")
 	def.Config = map[string]interface{}{"sources": []interface{}{
 		map[string]interface{}{"server": "control", "routes": []interface{}{"approve"}},
 	}}
