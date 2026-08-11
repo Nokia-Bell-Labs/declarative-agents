@@ -288,6 +288,17 @@ Filed by this audit. Completed by the consolidation slice.
 | GH-1534 | compound-tool | `internal/tools/service` | Partial rollback boundary inside one word |
 | GH-1535 | visibility | `internal/tools/service` | Published outputs the retry loop depends on are undeclared |
 | GH-1536 | declared tool reuse | `internal/tools/service` | Registered inits with no declaration; a duplicate domain operation |
+| GH-1539 | compound-tool, visibility | `internal/tools/lifecycle`, `exec` | The rollback contract's declared tiers are unreachable; compensation-required is indistinguishable from failure |
+| GH-1540 | visibility, declared tool reuse | `internal/tools/catalog`, `exec`, `filesystem` | `undo.strategy` describes rollback it does not select |
+| GH-1541 | visibility | `internal/tools/catalog` | Load gate: exposure, rollback tier, and phase availability unenforced |
+| GH-1542 | visibility | `internal/tools/catalog` | Config keys a word does not understand are silently discarded |
+| GH-1543 | visibility | `llm`, `validation`, `filesystem`, `control` | Output schemas and emitted-signal sets that describe a different word |
+| GH-1544 | compound-tool | `internal/tools/control` | A rollback boundary the declaration denies exists |
+| GH-1545 | visibility | `internal/tools/llm` | A declared guarantee with no reachable implementation |
+| GH-1546 | declared tool reuse, expressiveness | `llm`, `control`, `exec`, `undo`, `filesystem` | Ownership boundary: profile policy compiled into the runtime |
+| GH-1547 | declared tool reuse | `agent-core/tools` | Four words with two declarations each, resolved by load order |
+| GH-1548 | declared tool reuse | `registry`, `exec`, `catalog` | Hand-maintained duplicates that have drifted from the code they mirror |
+| GH-1549 | visibility | `internal/tools/compose` | A declared signal the dispatch path cannot deliver |
 
 ## Rejected candidates
 
@@ -310,6 +321,21 @@ later recurrence should not refile these without new evidence.
 | Replace `runOneValidator`'s child-agent spawn with a CLI | REST/service | Q2 behavioral equivalence | One process run plus result mapping through the shared `execute.RunAgent` path. The typed `ValidatorOutcome`, timeout enforcement, and OTLP endpoint propagation have no equivalent. |
 | Split the twelve-way `init` switch in either package's `ExecuteContext` | REST/service | Q1 contract scope | `init` is bound per-ToolDef at factory time and is not agent-selectable. Standard builtin-registry shape. |
 | Split `collect_scenario_verdict`, reused by four ToolDefs | REST/service | Q1 contract scope | The config selects reason text, not a distinct domain operation. All four record exactly one verdict, and each is separately declared with an `overlaps` note. |
+| Move `compose` composition into MachineSpec | Tool packages | Q1 contract scope | It renders one template into one output and emits one signal. The alternative is the `carry_forward` chain srd038 replaced. |
+| Convert `render_each` into a machine `for_each` | Tool packages | Q1 contract scope | It renders one string from one resolved array and dispatches nothing. `for_each` exists to dispatch a word per item, a different operation. |
+| Split `read`'s `raw` flag or `read_resource`'s four modes | Tool packages | Q1 contract scope | Both select output format for one document read, not a distinct domain operation. The undeclared `raw` parameter is filed as a declaration gap in GH-1543. |
+| Externalize `list_files`'s bash program | Tool packages | Q2 behavioral equivalence | Recorded exception at `list-files.yaml:143-148` from GH-1376, and re-litigating traversal externalization is what GH-1410 reversed. |
+| Externalize `read` to `sed`/`nl`/`file` | Tool packages | Q8 net value | GH-1392 measured it: 0.13 ms/op in-process against a 2.1 ms/op single-fork floor, roughly 15x, paid on the highest-frequency word in a coding loop. Recorded exception at `read.yaml:79-89`. |
+| Split `edit`'s `count != 1` branch | Tool packages | Q1 contract scope | Internal precondition validation on one atomic replacement; both outcomes are `ToolFailed` with different text. |
+| Decompose `delay` into machine states | Tool packages | Q1 contract scope | One bounded, cancellation-aware wait with two declared outcomes. The machine already owns the retry loop -- srd040 R2.2 assigns the probe/delay/retry/timeout branches to MachineSpec, and the declaration says so. This is the pattern working. |
+| Treat `self_invoke` as hidden child-tool dispatch | Tool packages | Q1 contract scope | One child agent process through the shared `execute.RunAgent` path, mapped to one signal. It dispatches no tools; the child's own machine does. Its declaration is wrong (GH-1544); its contract is not. |
+| Split `invoke_llm`'s prompt assembly, history, or seed resolution | Tool packages | Q1 contract scope | `design-patterns/06-inference-boundary.md:35,39,56,114` places all of it behind one dispatch by design. One POST `/api/chat` per dispatch, no probe, no retry. |
+| Split `value_predicate`, `partition`, or `select_subset` | Tool packages | Q1 contract scope | One comparison or membership test per dispatch. Multiple output arrays and multiple outcome signals are one result and its routing, not separable operations. |
+| Split `validate_specs` into graph build and charter execution | Tool packages | Q1 contract scope | Two pure functions over an already-loaded corpus, with no independent outcome, no separate signal, and no branch between them. |
+| Treat `load_corpus` lowering three charter kinds as compound | Tool packages | Q1 contract scope | The design assigns it: `jurist-charter-format.yaml:35-37,43-44`. Its undeclared *output* is a real defect (GH-1543); its contract scope is the specified one. |
+| Lower the remaining `reduce_*` YAML evaluation to `yq`/`jq` | Tool packages | Q6 compatibility spike | Documented exception at `jurist-charter-format.yaml:43-50`, and GH-1101 permitted a Go reducer where line provenance cannot survive the CLI contract. Provenance needs `yaml.Node` positions, which value extraction discards. |
+| Treat per-role factory family names as an Article D4 violation | Tool packages | Q7 exception accuracy | D4 governs documentation and Go binaries, not internal wiring struct fields. The families are init-name groups in one binary and every word stays profile-selected. The real defect in that file is list drift (GH-1548). |
+| Externalize catalog's YAML loader | Tool packages | Q2 behavioral equivalence | Not attempted; same class as GH-1384. |
 | Externalize the prose-editor tracer boundary | Baseline | Q5 declarative visibility, inverted | Already bound declaratively as six atomic exec ToolDefs with declared side effects, reversibility, and undo. |
 | Treat the tool-contract completeness gap as a decomposition finding | Baseline | Q1 contract scope | A validation-coverage defect, not hidden workflow. Filed as GH-1525 and carried as repository work in this epic. |
 
@@ -328,6 +354,29 @@ proposal.
 | GH-1387 | Decode conformance traces with the upstream `SpanStub` type | Added an OTel SDK dependency and 200+ lines while still mirroring the wire format and silently skipping drifted spans. |
 | GH-1388 | Drive the serving-profile conformance harness through rest and service words | Replaces an independent observer with the system under test's own words, making conformance circular. |
 | GH-1389 | Probe Ollama through the CLI | The CLI does not consume the profile's resolved `provider_url`, so the probe would not test the configured endpoint. |
+
+## Enforcement of the ToolDef contract
+
+Produced by the tool-package slice and recorded here because later slices and
+later recurrences need it. Of ToolDef's 29 exported fields:
+
+| Class | Count | Meaning |
+|---|---|---|
+| Enforced at startup | 12 | Several for presence only, not value |
+| Validated only in a checker with no production caller | 9 | See GH-1525 |
+| Read at runtime but never validated | 12 | A typo silently changes behavior |
+| Never read by any code path | 8 leaf fields | Declared and inert |
+
+What is actually guaranteed before a word can be dispatched: it has a name; its
+type is one of three; a builtin has an `init` resolving to a registered factory;
+an exec word has a binary; every `$from` selector parses; the precondition is a
+known gate; the metric config is well-formed; every named machine action is
+selected; a parse-retry budget is completely routed; every declared emitted
+signal has a routable successor; and a word declared reversible-with-mutation
+has some non-`noop` undo string.
+
+Everything else in the six-section contract is documentation. That is the
+through-line of GH-1541 through GH-1543.
 
 ## Slice sections
 
@@ -379,3 +428,40 @@ and `await_operation` is rejected at load with a migration message), GH-886 HELD
 machine states), GH-1379 PARTIAL (backoff landed, cancellation is inert --
 filed as GH-1529), GH-1385 and GH-1386 correctly not implemented, GH-1388 not
 applicable to these packages.
+
+### Remaining tool packages -- GH-1520
+
+Complete. Audited ten packages in full, about 8,500 production lines:
+`catalog` (2,114), `filesystem` (1,276), `llm` (1,125), `validation` (960),
+`control` (951), `lifecycle` (802), `exec` (608), `compose` (308),
+`registry` (302), `undo` (78).
+
+Almost every word in these packages is atomic, and several of the constructs
+that look like violations are the pattern working correctly -- `delay` is a
+bounded wait whose retry loop lives in the machine, `self_invoke` is a Boundary
+Tool whose child runs its own machine, and `invoke_llm` is one inference
+transaction with no probe and no retry. Sixteen candidates were rejected on
+that basis.
+
+The eleven findings are almost all about enforcement rather than
+decomposition, and GH-1539 is the most serious result of the whole audit: the
+rollback walk never reads a declared reversibility tier, so the three-tier
+model the Tool Contract pattern is built on is unreachable, and 18 shipped exec
+words -- including the core `commit` word -- are guaranteed to turn any
+rollback that crosses them into a reported failure. The corpus linter mandates
+the exact `undo.strategy` token the exec runtime rejects.
+
+Tests: all ten packages pass (`undo` has no test files, itself noted).
+
+Prior findings verified against current code: GH-1381 HELD (the `.git` stat is
+gone, preconditions are load-validated), GH-1100 HELD (the documentation
+taxonomy is profile-supplied and a second profile proves it), GH-1097 HELD and
+held the way GH-1410 requires -- traversal moved to a *declared* find word, not
+an undeclared `exec.Command` -- GH-1392 HELD with the measurement recorded in
+the declaration, GH-1375 HELD, GH-891 HELD, GH-1098 HELD, GH-1103 HELD,
+GH-1101 HELD under a documented exception, GH-895 HELD, GH-892 HELD,
+GH-1377 PARTIAL (the observability half landed; the decomposition was
+consciously declined and recorded as an exception, and the tracing improvement
+did not fix the misclassification GH-1539 describes), GH-1376 REGRESSED in
+scope (it collapsed the `list_files` duplicate and left `read`, `write`,
+`edit`, and `find` duplicated -- filed as GH-1547).
