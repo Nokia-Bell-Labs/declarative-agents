@@ -23,7 +23,6 @@ var supportedSpecCorpusCheckIDs = map[string]bool{
 	"bare-touchpoint":                    true,
 	"broken-citation":                    true,
 	"broken-touchpoint":                  true,
-	"depends-on-violation":               true,
 	"docspec-broken-example-path":        true,
 	"docspec-broken-implementation-path": true,
 	"docspec-broken-related-document":    true,

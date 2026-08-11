@@ -22,21 +22,25 @@ func checkOrphanedSRDs(g *Graph) []Finding {
 	return findings
 }
 
-// checkBrokenTouchpoints verifies that use case touches/cites edges point
-// to nodes that actually exist. Since BuildGraph only creates edges to
-// existing nodes, we check by comparing the touchpoint SRD references
-// in the corpus against the SRD nodes in the graph.
-
-func checkBrokenTouchpoints(g *Graph) []Finding {
+// checkBrokenTouchpoints compares authored touchpoint SRD references with the
+// parsed corpus. BuildGraph deliberately omits edges to missing nodes, so graph
+// traversal cannot detect this authoring error.
+func checkBrokenTouchpoints(corpus *Corpus) []Finding {
 	var findings []Finding
-	for _, uc := range g.NodesByKind(KindUseCase) {
-		touches := g.OutgoingByRel(uc.ID, RelTouches)
-		for _, targetID := range touches {
-			if _, ok := g.Node(targetID); !ok {
+	for _, ucID := range corpus.UCOrder {
+		for _, touchpoint := range corpus.UseCases[ucID].Touchpoints {
+			srdID, _ := parseTouchpoint(touchpoint)
+			if srdID == "" {
+				continue
+			}
+			if _, ok := corpus.SRDs[srdID]; !ok {
 				findings = append(findings, Finding{
-					Check:   "broken-touchpoint",
-					Level:   "error",
-					Message: fmt.Sprintf("use case %s touchpoint references non-existent SRD %s", uc.ID, targetID),
+					Check: "broken-touchpoint",
+					Level: "error",
+					Message: fmt.Sprintf(
+						"use case %s touchpoint references non-existent SRD %s",
+						ucID, srdID,
+					),
 				})
 			}
 		}
@@ -176,26 +180,6 @@ func checkUntracedSuccessCriteria(g *Graph, corpus *Corpus) []Finding {
 					Check:   "untraced-success-criterion",
 					Level:   "warning",
 					Message: fmt.Sprintf("use case %s success criterion %s has no AC trace", ucID, sc.ID),
-				})
-			}
-		}
-	}
-	return findings
-}
-
-// checkDependsOnViolations verifies that inter-SRD depends_on references
-// point to SRDs that exist.
-
-func checkDependsOnViolations(g *Graph) []Finding {
-	var findings []Finding
-	for _, srd := range g.NodesByKind(KindSRD) {
-		deps := g.OutgoingByRel(srd.ID, RelDependsOn)
-		for _, depID := range deps {
-			if _, ok := g.Node(depID); !ok {
-				findings = append(findings, Finding{
-					Check:   "depends-on-violation",
-					Level:   "error",
-					Message: fmt.Sprintf("SRD %s depends_on %s which does not exist", srd.ID, depID),
 				})
 			}
 		}

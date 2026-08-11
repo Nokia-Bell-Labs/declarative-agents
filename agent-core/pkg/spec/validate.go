@@ -5,14 +5,13 @@ package spec
 func Validate(g *Graph, corpus *Corpus) []Finding {
 	var all []Finding
 	all = append(all, checkOrphanedSRDs(g)...)
-	all = append(all, checkBrokenTouchpoints(g)...)
+	all = append(all, checkBrokenTouchpoints(corpus)...)
 	all = append(all, checkBrokenCitations(g, corpus)...)
 	all = append(all, checkBareTouchpoints(g, corpus)...)
 	all = append(all, checkOrphanedTestSuites(g)...)
 	all = append(all, checkUncoveredReqItems(g)...)
 	all = append(all, checkUncoveredACs(g)...)
 	all = append(all, checkUntracedSuccessCriteria(g, corpus)...)
-	all = append(all, checkDependsOnViolations(g)...)
 	all = append(all, checkReleasesWithoutTestSuites(g, corpus)...)
 	all = append(all, checkMachineActionResolution(corpus)...)
 	all = append(all, checkMachineSignalCoverage(corpus)...)
