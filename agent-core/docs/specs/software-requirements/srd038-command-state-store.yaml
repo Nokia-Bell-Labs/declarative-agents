@@ -45,6 +45,7 @@ requirements:
       - R1.6: Persisted execution metadata SHALL store the optional authored label separately from command_name. An existing row with no label SHALL retain command-name addressing after schema upgrade only when its output has recognized redaction metadata.
       - R1.7: A machine_request runner MAY place its initial Result in InitialExecution as one synthetic forward entry before the first dispatch, so later words can select the trusted request seed without a second state store. The synthetic producer SHALL apply the same typed ResultDigest redaction boundary as loop dispatch before the entry becomes live.
       - R1.8: Load SHALL retain an Entry whose output has no recognized redaction version for lifecycle accounting, but CommandStateView SHALL exclude its output and return a typed unavailable error on lookup by label or command name.
+      - R1.9: A consumer that explicitly declares graceful degradation MAY render an unresolved selector as an empty value and return the configured success signal, but SHALL surface the typed resolution failure as a non-fatal Result diagnostic rather than Err; dispatch SHALL preserve that signal.
   R2:
     title: Label addressing
     items:
@@ -99,7 +100,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: The store is a read-only forward view keyed by (run_id, step_index), populated from in-memory Entries during a run and rehydrated from persisted outputs and execution metadata after restart. Authored labels persist separately from command names, legacy entries remain loadable but their unversioned output is selector-inaccessible, unresolved and unavailable reads produce typed errors, and machine_request may expose its initial Result through the same execution view.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9]
   - id: AC2
     criterion: Authors optionally label a transition and select an earlier step by command name or label through a canonical $from(<label>).<dotted-path> grammar. One newest-to-oldest rule resolves duplicate labels and label/command-name collisions. Unlabeled, legacy, and programmatic steps retain command-name addressing; labeled $tool steps retain both addresses; absolute indices and metric_labels are excluded from the authoring surface. Machine requests reserve one seed address, and each declared input subsystem adopts selectors explicitly with infrastructure-fault semantics.
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R2.12]

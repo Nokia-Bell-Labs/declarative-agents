@@ -68,6 +68,9 @@ func registerComposeFactories() toolregistry.FactoryRegistrar {
 			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 				return nil, err
 			}
+			if err := compose.ValidateConfig(def.Name, cfg.Inputs); err != nil {
+				return nil, err
+			}
 			return compose.Builder{
 				ToolName: def.Name,
 				Template: cfg.Template,

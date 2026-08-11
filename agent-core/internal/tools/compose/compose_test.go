@@ -4,7 +4,6 @@ package compose
 
 import (
 	"encoding/json"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,14 +55,13 @@ func TestComposeMissingSelectorRendersEmptyAndReports(t *testing.T) {
 		core.Entry{CommandName: "embed", Result: core.ResultDigest{Output: `{"carried":{"input":"hi"}}`}},
 	))
 
-	res := cmd.Execute()
+	res := core.SafeExecute(cmd, 0)
 	require.Equal(t, core.Signal("Composed"), res.Signal, "default signal renders even with a degraded input")
-	require.Error(t, res.Err, "the unresolved selector is reported")
+	require.NoError(t, res.Err)
 	require.Contains(t, res.Output, "Q: hi|C: ", "the missing chunk renders empty")
-	require.Contains(t, res.Err.Error(), "chunks")
-	var unresolved *core.UnresolvedLabelError
-	require.True(t, errors.As(res.Err, &unresolved), "compose wrapping preserves the typed cause")
-	require.Equal(t, "rag", unresolved.Label)
+	require.Len(t, res.Diagnostics, 1)
+	require.Contains(t, res.Diagnostics[0], "chunks")
+	require.Contains(t, res.Diagnostics[0], "rag")
 }
 
 func TestComposeMostRecentWins(t *testing.T) {
@@ -87,7 +85,8 @@ func TestComposeNoViewRendersEmptyAndReports(t *testing.T) {
 	}.Build(core.Result{})
 	// No SetCommandState: the view is nil.
 	res := cmd.Execute()
-	require.Error(t, res.Err)
+	require.NoError(t, res.Err)
+	require.NotEmpty(t, res.Diagnostics)
 	require.Equal(t, "[]", res.Output)
 }
 
@@ -189,7 +188,8 @@ func TestComposeJSONSubstitutionUnresolved(t *testing.T) {
 	))
 
 	res := cmd.Execute()
-	require.Error(t, res.Err, "the unresolved selector is still reported")
+	require.NoError(t, res.Err)
+	require.NotEmpty(t, res.Diagnostics, "the unresolved selector is still reported")
 
 	var decoded struct {
 		Outcome string   `json:"outcome"`
@@ -278,6 +278,7 @@ func TestComposePreviousResultPathMissing(t *testing.T) {
 	cmd.(core.CommandStateAware).SetCommandState(viewFrom())
 
 	res := cmd.Execute()
-	require.Error(t, res.Err)
+	require.NoError(t, res.Err)
+	require.NotEmpty(t, res.Diagnostics)
 	require.Equal(t, "[]", res.Output)
 }

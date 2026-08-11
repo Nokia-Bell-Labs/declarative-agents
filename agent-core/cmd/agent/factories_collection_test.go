@@ -32,6 +32,13 @@ func TestCollectionFactoriesRejectMalformedConfigAtRegistration(t *testing.T) {
 			}},
 		},
 		{
+			name: "compose",
+			def: catalog.ToolDef{Name: "compose", Type: "builtin", Init: "compose", Config: map[string]interface{}{
+				"template": "{{ value }}", "inputs": map[string]string{"value": "bad-selector"},
+				"signal": "Composed",
+			}},
+		},
+		{
 			name: "render_each",
 			def: catalog.ToolDef{Name: "render_each", Type: "builtin", Init: "render_each", Config: map[string]interface{}{
 				"items": "$from(v).items", "item_template": "{{ bad path }}", "signal": "Rendered",
@@ -74,6 +81,10 @@ func TestCollectionFactoriesRegisterValidConfig(t *testing.T) {
 		}},
 		{Name: "render_each", Type: "builtin", Init: "render_each", Config: map[string]interface{}{
 			"items": "$from(v).items", "item_template": "{{ name }}", "signal": "Rendered",
+		}},
+		{Name: "compose", Type: "builtin", Init: "compose", Config: map[string]interface{}{
+			"template": "{{ value }}", "inputs": map[string]string{"value": "$from(v).value"},
+			"signal": "Composed",
 		}},
 		{Name: "parse_structured", Type: "builtin", Init: "parse_structured", Config: map[string]interface{}{
 			"source": "$from(response).value",
