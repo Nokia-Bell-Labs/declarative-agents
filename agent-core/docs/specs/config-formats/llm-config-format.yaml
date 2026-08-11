@@ -121,6 +121,16 @@ schema:
             for the entire agent run (not per-call). When elapsed,
             the context is cancelled and the loop terminates.
 
+        - field: context_limit
+          type: int
+          required: false
+          default: 0
+          description: |
+            Hard local preflight ceiling over the assembled prompt's estimated
+            tokens. A positive limit emits CommandError before provider Chat
+            when the estimate exceeds it. Zero disables the estimate check;
+            num_ctx remains the provider's actual context-window request.
+
         - field: num_ctx
           type: int
           required: false

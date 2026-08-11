@@ -39,6 +39,15 @@ func (c *capturingClient) Chat(_ context.Context, _ []modelllm.Message, opts mod
 	return modelllm.ChatResponse{Content: `{"tool":"done","parameters":{"summary":"ok"}}`}, nil
 }
 
+type countingClient struct{ calls int }
+
+func (c *countingClient) Chat(
+	context.Context, []modelllm.Message, modelllm.ChatOptions,
+) (modelllm.ChatResponse, error) {
+	c.calls++
+	return modelllm.ChatResponse{}, nil
+}
+
 func floatPtr(f float64) *float64 { return &f }
 func intPtr(i int) *int           { return &i }
 
@@ -150,6 +159,30 @@ func TestNewInvokeLLMBuilderDoesNotProbeAtRegistration(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, builder)
+}
+
+func TestInvokeLLMFactoryWiresContextLimitBeforeProviderCall(t *testing.T) {
+	t.Parallel()
+	def := catalog.ToolDef{Name: "invoke_llm", Config: map[string]interface{}{
+		"provider": "ollama", "provider_url": "http://127.0.0.1:1",
+		"model": "qwen2.5:7b", "manifest_state": "Composing", "context_limit": 1,
+	}}
+	builder, err := NewInvokeLLMBuilder(def, InvokeLLMFactoryDeps{
+		History:  modelllm.NewConversation(nil, "", modelllm.ChatOptions{}),
+		Registry: core.NewRegistry(), Tracer: tracing.NoopTracer{},
+		Ctx: context.Background(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, builder.ContextLimit)
+	client := &countingClient{}
+	builder.Client = client
+
+	result := builder.Build(core.Result{
+		State: "Composing", Output: "this prompt exceeds one estimated token",
+	}).Execute()
+	require.Equal(t, core.CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "context window exhaustion")
+	require.Zero(t, client.calls)
 }
 
 func TestInvokeLLMUnreachableBackendIsRoutableAtDispatch(t *testing.T) {

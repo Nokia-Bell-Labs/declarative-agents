@@ -159,10 +159,13 @@ type LLMToolConfig struct {
 	// dispatches, which the manifest of the state it runs in would otherwise offer
 	// the chat-LLM vocabulary (including itself).
 	AnswerOnly bool `json:"answer_only"`
-	NumCtx     int  `json:"num_ctx"`
-	LLMTimeout int  `json:"llm_timeout"`
-	MaxTime    int  `json:"max_time"`
-	MaxTokens  int  `json:"max_tokens"`
+	// ContextLimit is a hard preflight ceiling over the assembled prompt's
+	// estimated tokens. Zero disables the local precheck.
+	ContextLimit int `json:"context_limit"`
+	NumCtx       int `json:"num_ctx"`
+	LLMTimeout   int `json:"llm_timeout"`
+	MaxTime      int `json:"max_time"`
+	MaxTokens    int `json:"max_tokens"`
 	// Temperature and Seed are optional decoding parameters. Pointers so an
 	// omitted field is distinguishable from an explicit zero: nil selects the
 	// deterministic defaults (temperature 0, seed 42) applied at build time.
