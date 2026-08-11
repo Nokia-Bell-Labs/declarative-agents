@@ -181,6 +181,9 @@ func validateToolDefs(defs []ToolDef) error {
 		default:
 			return fmt.Errorf("tool %q: unknown type %q", td.Name, td.Type)
 		}
+		if err := validateToolVocabulary(td); err != nil {
+			return err
+		}
 		if !validPreconditions[td.Precondition] {
 			return fmt.Errorf("tool %q: unknown precondition %q", td.Name, td.Precondition)
 		}
@@ -190,6 +193,23 @@ func validateToolDefs(defs []ToolDef) error {
 		if err := core.ValidateMetricConfig(td.Name, td.Metrics); err != nil {
 			return fmt.Errorf("tool %q: %w", td.Name, err)
 		}
+	}
+	return nil
+}
+
+func validateToolVocabulary(def ToolDef) error {
+	switch def.Visibility {
+	case "", "internal", "external":
+	default:
+		return fmt.Errorf("tool %q: unknown visibility %q", def.Name, def.Visibility)
+	}
+	switch def.Reversibility.Classification {
+	case "", "reversible", "compensatable", "irreversible":
+	default:
+		return fmt.Errorf(
+			"tool %q: unknown reversibility classification %q",
+			def.Name, def.Reversibility.Classification,
+		)
 	}
 	return nil
 }

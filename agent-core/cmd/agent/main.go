@@ -359,6 +359,9 @@ func validateRuntimeToolWiring(machine core.MachineSpec, defs []catalog.ToolDef)
 	if err := catalog.ValidateMachineActions(machine, defs); err != nil {
 		return err
 	}
+	if err := catalog.ValidateToolPhases(machine, defs); err != nil {
+		return err
+	}
 	if err := catalog.ValidateParseRetryWiring(machine, defs); err != nil {
 		return err
 	}

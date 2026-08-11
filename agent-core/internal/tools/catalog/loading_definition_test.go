@@ -94,6 +94,36 @@ func TestParseToolDefs_Errors(t *testing.T) {
 				"    undo: {strategy: conversation_restore}",
 			errIs: `undo strategy "conversation_restore" is not supported for type ""`,
 		},
+		{
+			name: "unknown visibility",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    visibility: internl",
+			errIs: `unknown visibility "internl"`,
+		},
+		{
+			name: "unknown reversibility",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    reversibility: {classification: reversable}",
+			errIs: `unknown reversibility classification "reversable"`,
+		},
+		{
+			name: "numeric default",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    parameters: {type: object, properties: {count: {type: string, default: 10}}}",
+			errIs: `parameter "count" default must be a string`,
+		},
+		{
+			name: "string position",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    parameters: {type: object, properties: {path: {type: string, position: \"1\"}}}",
+			errIs: `parameter "path" position must be an integer`,
+		},
+		{
+			name: "builtin exec extension",
+			yaml: "tools:\n  - name: foo\n    type: builtin\n    init: done\n" +
+				"    parameters: {type: object, properties: {path: {type: string, flag: --path}}}",
+			errIs: `builtin tool "foo" parameter "path" cannot declare exec field "flag"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -150,6 +150,9 @@ func (r *ProfileMachineRequestRunner) requestRegistry(
 	if err := catalog.ValidateToolEmits(machine, defs); err != nil {
 		return nil, fmt.Errorf("machine_config_invalid: %w", err)
 	}
+	if err := catalog.ValidateToolPhases(machine, defs); err != nil {
+		return nil, fmt.Errorf("machine_config_invalid: %w", err)
+	}
 	return r.registerRequestTools(profilePath, profile, machine, defs)
 }
 
