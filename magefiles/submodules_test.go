@@ -235,8 +235,8 @@ func TestAuditSubModulesLimited(t *testing.T) {
 // TestAuditConcurrency guards the default bound against a zero or negative
 // NumCPU sentinel: the dispatcher must always run at least one module.
 func TestAuditConcurrency(t *testing.T) {
-	if got := auditConcurrency(); got < 1 {
-		t.Fatalf("auditConcurrency() = %d, want >= 1", got)
+	if got := auditConcurrency(); got < 1 || got > maxConcurrentModuleAudits {
+		t.Fatalf("auditConcurrency() = %d, want 1..%d", got, maxConcurrentModuleAudits)
 	}
 }
 

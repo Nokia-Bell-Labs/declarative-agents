@@ -35,7 +35,11 @@ tools:
   - name: go_test_inventory
     type: exec
     binary: go
-    args: [test, -json, -list, ^Test, ./...]
+    # Formal evidence runs every package with uncached test binaries. Keep
+    # package execution serial: the repository root may audit other modules at
+    # the same time, and overlapping process-spawning packages can exhaust the
+    # meaningful five-second child deadlines (#1587).
+    args: [test, -p=1, -json, -list, ^Test, ./...]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
     output: *structured
@@ -43,7 +47,7 @@ tools:
   - name: go_test_run
     type: exec
     binary: go
-    args: [test, -json, -count=1, ./...]
+    args: [test, -p=1, -json, -count=1, ./...]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
     output: *structured
