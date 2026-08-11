@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -42,6 +43,7 @@ type EvalSessionState struct {
 	DefaultOutputDir string
 	DefaultReps      int
 	DefaultTimeout   time.Duration
+	SampleLayout     SampleLayout
 	// ChildAgentBinary overrides the harness binary the evaluator launches for
 	// each suite profile. Empty means the default "agent" (resolved from PATH).
 	ChildAgentBinary string
@@ -52,6 +54,7 @@ type EvalSessionState struct {
 	PointMachine string
 	Result       SessionResult
 	Stderr       io.Writer
+	Tracer       tracing.Tracer
 
 	// Grid iteration state
 	gridPoints []GridPoint

@@ -146,6 +146,9 @@ tools:
   - kind: nested_machine_execution
     target: core.Loop
     description: Runs the configured point machine with its selected tools.
+  - kind: stderr_write
+    target: critic_progress
+    description: Reports point start, failure, and terminal progress.
   reversibility:
     classification: compensatable
     undo: nested_machine_compensation

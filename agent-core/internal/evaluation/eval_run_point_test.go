@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
@@ -113,6 +114,7 @@ transitions:
 	reg := core.NewRegistry()
 	reg.Register(core.ToolSpec{Name: "fail_before_metrics"}, evalTestFailureBuilder{})
 	var stderr bytes.Buffer
+	recorder := tracing.NewRecordingTracer()
 	pc := &PointContext{
 		SessionDir: sessionDir,
 		PointID:    "sample--executor--model--rep0",
@@ -127,6 +129,7 @@ transitions:
 		EvalState:    EvalState{PC: pc, Ctx: context.Background()},
 		PointMachine: machine,
 		Stderr:       &stderr,
+		Tracer:       recorder,
 	}
 	reg.Register(core.ToolSpec{Name: "record_point_failure"}, &RecordPointFailureBuilder{ES: &es.EvalState})
 	reg.Register(core.ToolSpec{Name: "collect_metrics"}, &CollectMetricsBuilder{ES: &es.EvalState})
@@ -148,6 +151,16 @@ transitions:
 	require.False(t, meta.TestsPassed)
 	require.Equal(t, 1, es.Result.TotalPoints)
 	require.Equal(t, 1, es.Result.Failed)
+	require.True(t, recordedSpanNamed(recorder.Spans, "execute_tool fail_before_metrics"))
+}
+
+func recordedSpanNamed(spans []tracing.RecordedSpan, name string) bool {
+	for _, span := range spans {
+		if span.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func TestRunPointReturnsNestedLoopErrorsWithoutWritingMetadata(t *testing.T) {

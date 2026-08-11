@@ -443,6 +443,7 @@ func registerEvaluationFactories(st *agentState) toolregistry.FactoryRegistrar {
 			Stderr:           os.Stderr,
 			OutputDir:        st.output,
 			Directory:        st.directory,
+			Tracer:           st.tracer,
 			ChildAgentBinary: st.childAgentBinary,
 			CoreRoot:         st.coreRoot,
 		})

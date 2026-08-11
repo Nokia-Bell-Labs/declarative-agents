@@ -171,11 +171,16 @@ type LLMToolConfig struct {
 
 // LoadSuiteConfig holds config for evaluator session setup tools.
 type LoadSuiteConfig struct {
-	Input     string `json:"input"`
-	OutputDir string `json:"output_dir"`
-	Reps      int    `json:"reps"`
-	Timeout   int    `json:"timeout"`
-	OllamaURL string `json:"ollama_url"`
+	Input             string `json:"input"`
+	OutputDir         string `json:"output_dir"`
+	Reps              int    `json:"reps"`
+	Timeout           int    `json:"timeout"`
+	OllamaURL         string `json:"ollama_url"`
+	WorkspaceDir      string `json:"workspace_dir"`
+	DocDir            string `json:"doc_dir"`
+	PromptFile        string `json:"prompt_file"`
+	AllowSharedPrompt bool   `json:"allow_shared_prompt"`
+	RequireSamples    bool   `json:"require_samples"`
 }
 
 // RunPointConfig holds config for the run_point tool.

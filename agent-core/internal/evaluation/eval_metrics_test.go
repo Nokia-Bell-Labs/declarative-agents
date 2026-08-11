@@ -34,22 +34,22 @@ func makeSpan(name string, attrs map[string]interface{}) *Span {
 
 func TestExtractToolSnapshots_WithMetrics(t *testing.T) {
 	spans := []*Span{
-		makeSpan("execute_tool test", map[string]interface{}{
-			"command.name":        "test",
+		makeSpan("execute_tool run_checks", map[string]interface{}{
+			"command.name":        "run_checks",
 			"command.signal":      "ToolFailed",
 			"tool.metrics.total":  4,
 			"tool.metrics.passed": 1,
 			"tool.metrics.failed": 3,
 		}),
-		makeSpan("execute_tool test", map[string]interface{}{
-			"command.name":        "test",
+		makeSpan("execute_tool run_checks", map[string]interface{}{
+			"command.name":        "run_checks",
 			"command.signal":      "ToolFailed",
 			"tool.metrics.total":  4,
 			"tool.metrics.passed": 3,
 			"tool.metrics.failed": 1,
 		}),
-		makeSpan("execute_tool test", map[string]interface{}{
-			"command.name":        "test",
+		makeSpan("execute_tool run_checks", map[string]interface{}{
+			"command.name":        "run_checks",
 			"command.signal":      "ToolDone",
 			"tool.metrics.total":  4,
 			"tool.metrics.passed": 4,
@@ -64,7 +64,7 @@ func TestExtractToolSnapshots_WithMetrics(t *testing.T) {
 	snaps := ExtractToolSnapshots(spans)
 	require.Len(t, snaps, 3)
 
-	assert.Equal(t, "test", snaps[0].Tool)
+	assert.Equal(t, "run_checks", snaps[0].Tool)
 	assert.Equal(t, 4, snaps[0].Total)
 	assert.Equal(t, 1, snaps[0].Passed)
 	assert.Equal(t, 3, snaps[0].Failed)

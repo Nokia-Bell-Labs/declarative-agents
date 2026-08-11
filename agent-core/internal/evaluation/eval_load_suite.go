@@ -102,7 +102,7 @@ func (c *discoverSuiteSamplesCmd) Undo(prior core.Result) core.Result {
 }
 
 func (c *discoverSuiteSamplesCmd) Execute() core.Result {
-	samples, err := DiscoverSamples(c.es.Suite.SamplesDir)
+	samples, err := DiscoverSamples(c.es.Suite.SamplesDir, c.es.SampleLayout)
 	if err != nil {
 		return core.Result{
 			Signal:      core.CommandError,
@@ -276,6 +276,16 @@ func applyLoadSuiteConfig(es *EvalSessionState, def catalog.ToolDef) error {
 	}
 	if es.OllamaURL == "" && cfg.OllamaURL != "" {
 		es.OllamaURL = cfg.OllamaURL
+	}
+	if cfg.WorkspaceDir != "" || cfg.DocDir != "" || cfg.PromptFile != "" ||
+		cfg.AllowSharedPrompt || cfg.RequireSamples {
+		if cfg.WorkspaceDir == "" || cfg.PromptFile == "" {
+			return fmt.Errorf("tool %q config requires workspace_dir and prompt_file", def.Name)
+		}
+		es.SampleLayout = SampleLayout{
+			WorkspaceDir: cfg.WorkspaceDir, DocDir: cfg.DocDir, PromptFile: cfg.PromptFile,
+			AllowSharedPrompt: cfg.AllowSharedPrompt, RequireSamples: cfg.RequireSamples,
+		}
 	}
 	return nil
 }

@@ -163,6 +163,31 @@ test_cases:
       - srd019-eval-harness AC2
 
   - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator sample layout is declaration-driven
+    go_test: TestDiscoverSamplesUsesDeclaredLayout
+    inputs:
+      workspace_dir: project
+      doc_dir: guidance
+      prompt_file: task.txt
+    expected:
+      custom_layout_discovered: true
+      shared_prompt_resolved: true
+    traces:
+      - srd019-eval-harness AC0
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Convergence accepts any structured metric tool name
+    go_test: TestExtractToolSnapshots_WithMetrics
+    inputs:
+      tool_name: run_checks
+      metrics: {total: 4, passed: 3, failed: 1}
+    expected:
+      snapshot_preserved: true
+      go_output_regex_required: false
+    traces:
+      - srd019-eval-harness AC3
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator integration writes result directory
     go_test: applications/coding-agent mage integration:criticGate
     inputs:
@@ -203,6 +228,7 @@ test_cases:
       failure_metadata_preserved: true
       point_stage_and_cause_reported: true
       failed_point_rejects_gate: true
+      nested_dispatch_span_present: true
     traces:
       - srd019-eval-harness AC2
       - srd019-eval-harness AC3

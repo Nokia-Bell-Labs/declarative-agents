@@ -12,6 +12,13 @@ tools:
   - kind: nested_machine_execution
     target: evaluator_point_machine
     description: Runs a nested point machine that may mutate point state and workspace artifacts.
+  - kind: state_mutation
+    target: eval_session_state
+    state: point_result_recorded
+    description: Records exactly one completed or failed point outcome.
+  - kind: stderr_write
+    target: evaluator_progress
+    description: Reports point start, failure, and terminal progress.
   reversibility:
     classification: compensatable
     undo: nested_machine_compensation
@@ -39,8 +46,17 @@ tools:
   - Does not materialize the evaluation grid or choose which point to run.
   - Does not hide point preparation and metric collection; those remain transitions in the nested point machine.
   output:
-    description: Point identifier and terminal PASS, FAIL, or TIMEOUT status.
-    schema: {type: string}
+    description: Structured nested point-machine result.
+    schema:
+      type: object
+      properties:
+        point_id: {type: string}
+        machine: {type: string}
+        status: {type: string}
+        terminal_state: {type: string}
+        elapsed_ms: {type: integer}
+        artifact_dir: {type: string}
+      required: [point_id, machine, status, terminal_state, elapsed_ms, artifact_dir]
   errors:
   - signal: CommandError
     condition: the iterator point cannot be bound, no current point exists, or the nested point loop returns an error
