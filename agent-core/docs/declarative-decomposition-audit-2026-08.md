@@ -309,6 +309,13 @@ Filed by this audit. Completed by the consolidation slice.
 | GH-1557 | declared tool reuse | `internal/support/cli`, `runtime/core` | A dead package emitting flags that do not exist |
 | GH-1558 | expressiveness | `machine-format.yaml` | Six interpreter decisions the format cannot declare |
 | GH-1559 | visibility | `cmd/agent` | `--request` means different things by word, decided in Go |
+| GH-1560 | compound-tool, orchestration | `internal/planning/pipeline` | A graph lifecycle transition invisible in two of three machines |
+| GH-1561 | visibility | `internal/planning` | A declared batching capability nothing can set |
+| GH-1562 | declared tool reuse, visibility | `agent-core/tools` | Twelve words with two contracts, one contradicting the undo the Go performs |
+| GH-1563 | visibility | `pkg/spec` | Two advertised checks that cannot fire |
+| GH-1564 | declared tool reuse | `pkg/spec`, `internal/planning` | An unwired validator; undeclared filesystem writes reachable from no word |
+| GH-1565 | declared tool reuse | `internal/planning` | Output paths and a domain classification owned by Go |
+| GH-1566 | visibility | `pkg/spec` | A validator that reports "missing" when it means "unparsed" |
 
 ## Rejected candidates
 
@@ -356,6 +363,17 @@ later recurrence should not refile these without new evidence.
 | Treat the `/opt/agent-core` prefix as policy | Runtime | Q1 contract scope | A deployment path constant, not workflow policy. |
 | Treat `exec/procgroup.go` as a surviving duplicate | Runtime | Q1 contract scope | It is now a 27-line delegating alias, which is what GH-1393 asked for. A thin named seam is not a duplicate. The real residual is GH-1556. |
 | Treat `os.ReadFile` of the machine and request file as externalizable | Runtime | Q1 contract scope | Interpreter preflight, the same carve-out GH-884 made for `--validate-config`. |
+| Decompose `LoadCorpus`'s seven discovery passes | Spec/planning | Q1 contract scope | No independently meaningful intermediate: a corpus missing its use cases is not a state any machine routes on. Three declared words already own the load boundary (`load_corpus`, `load_test_suites`, `load_graph`). |
+| Decompose `BuildGraph`'s six node and eleven edge passes | Spec/planning | Q1 contract scope | Pure in-memory construction of one artifact behind `validate_specs`. There is no partial graph a machine wants. |
+| Decompose `Validate`'s 36 sequential checkers | Spec/planning | Q1 contract scope | Not a sequence of effects -- 36 independent pure functions over one graph, already individually selectable *from YAML* via charter `checks:`. The declarative selection the gate asks for exists. |
+| Decompose `ExecuteCharters`' dispatch by check kind | Spec/planning | Q1 contract scope | The opposite of hidden workflow: three of four kinds deliberately return nil so the machine executes them as visible `rg`/scan states, with the reason written down at `charter_execute.go:39-48`. |
+| Decompose finding sort/filter/format | Spec/planning | Q1 contract scope | Pure presentation over an in-memory slice, behind `format_report`. |
+| Restructure the `Build*Plans`/`Reduce*` pairs | Spec/planning | Q1 contract scope | Already the target shape: lower policy to a plan, let the machine run the external search, reduce the captured output. `BuildGrepSearchPlans` explicitly does not read target files; `ReduceGrepSearch` explicitly never opens them. |
+| Externalize Go-test evidence resolution (886 lines) | Spec/planning | Q1 contract scope | The profile already owns `go list` and `go test` as declared exec words; this is schema-aware reduction of their output. |
+| Externalize `parse.go`'s YAML node walking or the `yaml_path` selector engine | Spec/planning | Q1 contract scope | Parsers. The charter queries are already declarative; making the interpreter declarative is not the goal. |
+| Externalize `pkg/spec` discovery I/O to `find` | Spec/planning | Q2 behavioral equivalence | Same class as GH-1384. |
+| Split `load_graph` because it loads a corpus and builds a graph | Spec/planning | Q1 contract scope | No machine can route on a loaded-but-ungraphed corpus, there is no sibling `build_graph` word, and the word exists to stop the machine dereferencing a nil graph. |
+| Refile the stale `extract-all.yaml` / `execute-task.yaml` / `assemble-prompt.yaml` filenames | Spec/planning | No defect | The filenames are stale after GH-1088/1089/1091 but the contents were rewritten to declare the current words. No orphaned declaration exists. |
 | Externalize the prose-editor tracer boundary | Baseline | Q5 declarative visibility, inverted | Already bound declaratively as six atomic exec ToolDefs with declared side effects, reversibility, and undo. |
 | Treat the tool-contract completeness gap as a decomposition finding | Baseline | Q1 contract scope | A validation-coverage defect, not hidden workflow. Filed as GH-1525 and carried as repository work in this epic. |
 
@@ -550,3 +568,36 @@ when a terminal state omits `run_status` and adoption is 3 machines of about
 30 -- filed as GH-1551), GH-1393 PARTIAL (both cited sites consolidated; a
 third process-group spawn exists in `internal/tools/service` -- filed as
 GH-1556).
+
+### Specification and planning -- GH-1522
+
+Complete. Audited `pkg/spec` (5,835 lines, 27 files) and `internal/planning`
+with its four subpackages (2,316 lines).
+
+The central judgment for this slice was library API versus agent-visible
+workflow, and the answer is unambiguous: every major `pkg/spec` stage is
+already the body of a machine-dispatched word in `internal/tools/validation`.
+The jurist machine sequences the stages and `pkg/spec` is the library those
+words call. Eleven multi-step stages were rejected on that basis with their
+consumers named, including the 36-checker `Validate`, which is already
+individually selectable from charter YAML.
+
+The planner is in similarly good shape: thirteen of its fifteen words are
+atomic, and six of the seven prior findings held cleanly.
+
+Seven findings filed (GH-1560 through GH-1566). Two are decomposition proper
+-- `extract_task`'s hidden graph mutation and the unreachable weight budget --
+and the rest are declaration integrity: conflicting duplicate declarations
+whose undo strategy contradicts the Go, two advertised checks that cannot fire,
+an unwired validator, Go-constant output paths, and a set of decode paths that
+report "field missing" when they mean "could not parse".
+
+Tests: `pkg/spec` and all four planning packages pass.
+
+Prior findings verified: GH-885 HELD, GH-1086 HELD, GH-1088 HELD for
+`extract_all` (though the same shape survives one word over, filed as
+GH-1560), GH-1089 HELD, GH-1090 HELD, GH-1091 HELD, GH-1087 PARTIAL (the
+removal held completely -- `BatchLimitReached`, `Paused`, and `batch_limit`
+appear nowhere -- but its third criterion, that retained batch policy be
+configured in YAML, is unmet: the policy stayed in Go and was left
+unconfigurable, filed as GH-1561).
