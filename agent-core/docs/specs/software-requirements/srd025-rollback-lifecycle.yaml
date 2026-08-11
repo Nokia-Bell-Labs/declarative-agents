@@ -36,7 +36,7 @@ requirements:
     items:
       - R1.1: Agent state, command/domain state, and conversation SHALL be persisted through the srd035 checkpoint port (Save(Position, Execution)), not a key/blob StateStore.
       - R1.2: The default persistent backend SHALL be the srd036 Dolt adapter; NoopCheckpoint SHALL be the default when persistence is disabled.
-      - R1.3: Position SHALL carry the resumable machine position and the folded conversation snapshot; Execution SHALL carry the ordered entries with their opaque receipts.
+      - R1.3: Position SHALL carry the resumable machine position, folded conversation snapshot, and verified identity of the declarative program that registered the run's tools; Execution SHALL carry the ordered entries with their opaque receipts.
       - R1.4: The runtime SHALL NOT model workspace or filesystem state as a separate persisted state layer; external effects are reversed through receipts rather than Workspace refs.
 
   R2:
@@ -60,7 +60,7 @@ requirements:
     title: Two-part rollback
     items:
       - R4.1: Rollback of DB-persisted state SHALL be the git-style Revert(run_id, step_index) provided by the srd036 Dolt adapter.
-      - R4.2: Rollback of external effects SHALL be a reverse receipt walk that, after Revert, hands each reverted entry's restored Result to its tool's receipt-consuming Undo in reverse dispatch order.
+      - R4.2: Rollback of external effects SHALL be a reverse receipt walk that, after Revert, verifies and rebuilds the target run's declarative tool program and hands each reverted entry's restored Result to its originating tool's receipt-consuming Undo in reverse dispatch order.
       - R4.3: The reverse receipt walk SHALL live in the lifecycle tool (checkpoint_rollback), not in the engine.
       - R4.4: Irreversible entries SHALL be skipped by their declared reversibility tier and logged; compensatable entries whose Undo requires later operator or machine action SHALL be reported as pending compensation rather than as Undo failures.
       - R4.5: Rollback SHALL return the machine position from which execution can resume.
@@ -81,7 +81,7 @@ requirements:
       - R6.1: Resume SHALL Load Position and Execution through the srd035 port, backed by the Dolt adapter by default.
       - R6.2: Resume SHALL restore agent state and conversation from the typed snapshot and re-enter the same machine.
       - R6.3: Resume SHALL be a single path with no restore-hook fan-out.
-      - R6.4: Resume SHALL validate the current machine and tool declarations before re-entering the loop.
+      - R6.4: Resume SHALL validate the current machine and tool declarations before re-entering the loop; a separate rollback process SHALL verify the target run's persisted program digest before rebuilding Undo.
       - R6.5: Resume errors SHALL distinguish missing checkpoint, incompatible checkpoint, and load failure.
 
   R7:

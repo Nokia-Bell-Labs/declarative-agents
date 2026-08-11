@@ -115,8 +115,11 @@ type LoopParams struct {
 	ProviderName string
 	MachineFile  string
 	MachineSpec  *MachineSpec
-	InitFunc     func(reg *Registry) error
-	ToolAction   ActionFunc
+	// Program identifies the immutable declarative profile whose tools the run
+	// registered. It is persisted for cross-process receipt rollback.
+	Program    ProgramRef
+	InitFunc   func(reg *Registry) error
+	ToolAction ActionFunc
 	// Checkpoint is the typed persistence port (srd035). The loop saves the
 	// current Position and Execution through it after each dispatch cycle. A nil
 	// value defaults to NoopCheckpoint, preserving disabled-mode behavior.

@@ -259,6 +259,7 @@ func (r *loopRunner) saveTerminalCheckpoint() {
 	}
 	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
 	pos.Snapshot.Iterator = cloneIteratorSnapshot(r.iterator)
+	pos.Snapshot.Program = r.params.Program
 	if err := r.foldConversation(&pos); err != nil {
 		r.recordCheckpointFailure(err)
 		return
@@ -329,6 +330,7 @@ func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal, co
 	}
 	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
 	pos.Snapshot.Iterator = cloneIteratorSnapshot(r.iterator)
+	pos.Snapshot.Program = r.params.Program
 	if err := r.foldConversation(&pos); err != nil {
 		r.recordCheckpointFailure(err)
 		return

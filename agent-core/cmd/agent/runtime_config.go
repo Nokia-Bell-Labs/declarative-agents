@@ -22,6 +22,7 @@ import (
 )
 
 type runtimeConfig struct {
+	Profile          string
 	Machine          string
 	Tools            []string
 	ToolDeclarations []string
@@ -72,6 +73,7 @@ func loadRuntimeConfig() (runtimeConfig, error) {
 		directory = p.Directory
 	}
 	return runtimeConfig{
+		Profile:          canonicalPath(flagProfile),
 		Machine:          p.Machine,
 		Tools:            append([]string(nil), p.Tools...),
 		ToolDeclarations: append([]string(nil), p.ToolDeclarations...),

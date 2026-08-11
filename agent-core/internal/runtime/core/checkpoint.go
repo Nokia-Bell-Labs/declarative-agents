@@ -111,6 +111,19 @@ type AgentSnapshot struct {
 	TotalCost    float64           `json:"total_cost"`
 	Conversation json.RawMessage   `json:"conversation,omitempty"`
 	Iterator     *IteratorSnapshot `json:"iterator,omitempty"`
+	Program      ProgramRef        `json:"program,omitempty"`
+}
+
+// ProgramRef identifies the immutable declarative program that produced a
+// checkpoint. A fresh lifecycle rollback process verifies the digest before
+// rebuilding the originating tools; receipts remain opaque.
+type ProgramRef struct {
+	Profile string `json:"profile"`
+	Digest  string `json:"digest"`
+}
+
+func (p ProgramRef) IsZero() bool {
+	return p.Profile == "" && p.Digest == ""
 }
 
 // IteratorSnapshot persists enough engine-owned state to continue a sequential

@@ -45,10 +45,11 @@ requirements:
     title: Position and Execution values and wire format
     items:
       - R2.1: Position SHALL identify the resumable machine position through CurrentState and LastSignal.
-      - R2.2: Position SHALL embed an AgentSnapshot carrying the loop-owned counters iteration, tokens_in, tokens_out, and total_cost, plus an optional in-progress sequential iterator snapshot.
+      - R2.2: Position SHALL embed an AgentSnapshot carrying the loop-owned counters iteration, tokens_in, tokens_out, and total_cost, an optional in-progress sequential iterator snapshot, and the profile path plus digest of the declarative program that registered the run's tools.
       - R2.3: Execution SHALL be an ordered slice of Entry values that preserves dispatch order for forward inspection and reverse traversal.
       - R2.4: Each Entry SHALL record iteration, timestamp, command_name, from_state, to_state, the transition signal, and a result digest of signal, output, error, and cost.
       - R2.5: The wire format SHALL be JSON. Position SHALL serialize as an object with current_state, last_signal, and a nested snapshot object; Execution SHALL serialize as a JSON array, or null when empty.
+      - R2.6: A fresh rollback process SHALL verify the persisted declarative-program digest before rebuilding receipt-consuming Undo; legacy checkpoints without program identity SHALL fail explicitly rather than skip external effects.
 
   R3:
     title: Opaque receipt on Entry
@@ -108,8 +109,8 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
 
   - id: AC2
-    criterion: Position is CurrentState plus LastSignal with an embedded AgentSnapshot, Execution is an ordered slice of Entry, and both have a specified JSON wire format.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+    criterion: Position is CurrentState plus LastSignal with an embedded AgentSnapshot and verified declarative-program identity, Execution is an ordered slice of Entry, and both have a specified JSON wire format.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
 
   - id: AC3
     criterion: Each Entry carries an opaque Receipt that adapters persist and restore verbatim, serialized as a JSON string or null, and the engine never interprets it.

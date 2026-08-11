@@ -921,7 +921,11 @@ overview:
       mutate runtime state and external boundaries. Runtime state flows through
       the typed Checkpoint port. Save records the resumable Position and ordered
       Execution log after each dispatch cycle. Load restores that pair for
-      resume. Each Execution entry carries an opaque, tool-owned receipt.
+      resume. Position also carries the originating profile path and a digest of
+      its declaration closure. A fresh rollback profile verifies that identity,
+      rebuilds the originating ToolDefs through the standard factory catalog,
+      and then replays Undo. Each Execution entry carries an opaque, tool-owned
+      receipt.
 
       DoltCheckpoint is the persistent backend when configured. It stores the
       typed checkpoint model in versioned SQL, commits once per step, branches

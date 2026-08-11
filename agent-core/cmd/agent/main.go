@@ -261,6 +261,7 @@ type runResources struct {
 	Definitions       []catalog.ToolDef
 	RestDefinitions   toolrest.Collection
 	Machine           core.MachineSpec
+	Program           core.ProgramRef
 	shutdownTelemetry func()
 }
 
@@ -333,9 +334,14 @@ func loadRunResources() (runResources, error) {
 		shutdownTelemetry()
 		return runResources{}, err
 	}
+	program, err := buildProgramRef(cfg)
+	if err != nil {
+		shutdownTelemetry()
+		return runResources{}, fmt.Errorf("build declarative program reference: %w", err)
+	}
 	return runResources{
 		Config: cfg, Tracer: tracer, Meter: meter, Definitions: defs,
-		RestDefinitions: restDefs, Machine: machineSpec,
+		RestDefinitions: restDefs, Machine: machineSpec, Program: program,
 		shutdownTelemetry: shutdownTelemetry,
 	}, nil
 }
@@ -377,6 +383,10 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		return preparedRun{}, closeBuildFailure(err, nil, &checkpoints, resources.shutdownTelemetry)
 	}
 	checkpoints.Add(lifecycleCheckpoint)
+	resources, err = augmentRollbackResources(resources, lifecycleCheckpoint.Checkpoint)
+	if err != nil {
+		return preparedRun{}, closeBuildFailure(err, nil, &checkpoints, resources.shutdownTelemetry)
+	}
 	loopCtx, loopCancel := context.WithCancel(commandContext(cmd))
 	shutdown := newDeferredShutdown(loopCancel)
 	monitorRuntime, err := newMonitorRuntime(
@@ -418,6 +428,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		Machine: resources.Machine, State: st, Registry: reg, Tracer: resources.Tracer,
 		RunID: runID, Checkpoint: checkpoint.Checkpoint, MonitorRecorder: monitorRuntime.Recorder,
 		CommandStateObserver: commandStateSource,
+		Program:              resources.Program,
 	})
 	if err := seedRequest(&params, cfg.Request); err != nil {
 		return preparedRun{}, closeBuildFailure(err, loopCancel, &checkpoints, resources.shutdownTelemetry)
@@ -570,6 +581,7 @@ type loopParamDeps struct {
 	Checkpoint           core.Checkpoint
 	MonitorRecorder      monitor.RuntimeRecorder
 	CommandStateObserver core.CommandStateObserver
+	Program              core.ProgramRef
 }
 
 func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
@@ -581,6 +593,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 	return core.LoopParams{
 		MachineFile:          cfg.Machine,
 		MachineSpec:          &deps.Machine,
+		Program:              deps.Program,
 		RunID:                deps.RunID,
 		AgentName:            "agent",
 		ModelName:            deps.State.model,

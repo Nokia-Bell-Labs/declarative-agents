@@ -19,6 +19,7 @@ func TestLoop_SavesSnapshotAfterDispatchWithConfiguredAdapter(t *testing.T) {
 	cp := &InMemoryCheckpoint{}
 	params := simpleLoopParams(&loopRecorder{})
 	params.Checkpoint = cp
+	params.Program = ProgramRef{Profile: "/profiles/origin/profile.yaml", Digest: "sha256"}
 
 	rr, err := Loop(params, context.Background())
 	require.NoError(t, err)
@@ -38,6 +39,7 @@ func TestLoop_SavesSnapshotAfterDispatchWithConfiguredAdapter(t *testing.T) {
 	require.Equal(t, State("Finished"), pos.CurrentState, "the actionless terminal transition is persisted")
 	require.Equal(t, State("Finished"), pos.Snapshot.State)
 	require.Equal(t, Signal("TaskCompleted"), pos.LastSignal)
+	require.Equal(t, params.Program, pos.Snapshot.Program)
 }
 
 // TestLoop_DoltFinalizesActionlessTerminalTransition proves the production Loop
