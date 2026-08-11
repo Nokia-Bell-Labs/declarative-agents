@@ -267,7 +267,7 @@ func TestExecCmdReceiptEncodesWorkspaceRestore(t *testing.T) {
 		}}},
 		Undo: catalog.ToolUndoContract{Strategy: "workspace_restore"},
 	}}
-	receipt := cmd.encodeReceipt()
+	receipt := cmd.encodeReceipt("")
 	assert.Contains(t, receipt, `"strategy":"workspace_restore"`)
 	assert.Contains(t, receipt, `"out"`)
 }
@@ -281,14 +281,14 @@ func TestExecCmdReceiptEncodesBoundaryCompensation(t *testing.T) {
 			}}},
 			Undo: catalog.ToolUndoContract{
 				Strategy: "compensating_action", Description: "reopen closed issue",
-				Payload: "boundary_compensation", Requires: []string{"issue_id"},
+				Payload: "boundary_compensation", Captures: []string{"issue_id"},
+				Requires: []string{"issue_id"},
 			},
 		},
-		params: map[string]string{"id": "agent-core-123"},
 	}
-	receipt := cmd.encodeReceipt()
+	receipt := cmd.encodeReceipt(`{"issue_id":"agent-core-123"}`)
 	assert.Contains(t, receipt, `"strategy":"compensating_action"`)
-	assert.Contains(t, receipt, `"issue_id":"agent-core-123"`)
+	assert.Contains(t, receipt, `"captures":{"issue_id":"agent-core-123"}`)
 	assert.Contains(t, receipt, `".data"`)
 	assert.Contains(t, receipt, `"issue_id"`)
 	assert.Contains(t, receipt, `"reopen closed issue"`)
@@ -297,7 +297,7 @@ func TestExecCmdReceiptEncodesBoundaryCompensation(t *testing.T) {
 // TestExecCmdReceiptEmptyForNoop verifies read-only / no-op tools carry no receipt.
 func TestExecCmdReceiptEmptyForNoop(t *testing.T) {
 	cmd := &ExecCmd{def: catalog.ToolDef{Name: "list", Undo: catalog.ToolUndoContract{Strategy: "noop"}}}
-	assert.Empty(t, cmd.encodeReceipt())
+	assert.Empty(t, cmd.encodeReceipt(""))
 }
 
 func TestExecCmdReceiptEmptyForDeclaredIrreversible(t *testing.T) {
@@ -306,7 +306,7 @@ func TestExecCmdReceiptEmptyForDeclaredIrreversible(t *testing.T) {
 		Reversibility: catalog.ToolReversibility{Classification: "irreversible"},
 		Undo:          catalog.ToolUndoContract{Strategy: "irreversible"},
 	}}
-	assert.Empty(t, cmd.encodeReceipt())
+	assert.Empty(t, cmd.encodeReceipt(""))
 }
 
 // TestExecCmdUndoConsumesReceiptStrategy verifies a fresh command instance (no
@@ -316,7 +316,7 @@ func TestExecCmdUndoConsumesReceiptStrategy(t *testing.T) {
 		Name: "issue_close",
 		Undo: catalog.ToolUndoContract{Strategy: "compensating_action", Description: "reopen closed issue"},
 	}}
-	receipt := origin.encodeReceipt()
+	receipt := origin.encodeReceipt("")
 
 	fresh := &ExecCmd{def: catalog.ToolDef{Name: "issue_close"}}
 	res := fresh.Undo(core.Result{Receipt: receipt})

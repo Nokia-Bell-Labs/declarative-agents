@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -183,9 +184,30 @@ func validateToolDefs(defs []ToolDef) error {
 		if !validPreconditions[td.Precondition] {
 			return fmt.Errorf("tool %q: unknown precondition %q", td.Name, td.Precondition)
 		}
+		if err := validateUndoStrategy(td); err != nil {
+			return err
+		}
 		if err := core.ValidateMetricConfig(td.Name, td.Metrics); err != nil {
 			return fmt.Errorf("tool %q: %w", td.Name, err)
 		}
+	}
+	return nil
+}
+
+func validateUndoStrategy(def ToolDef) error {
+	strategy := def.Undo.Strategy
+	if strategy == "" {
+		return nil
+	}
+	if !core.KnownUndoStrategy(strategy) {
+		return fmt.Errorf("tool %q: unknown undo strategy %q", def.Name, strategy)
+	}
+	if !core.UndoStrategySupported(def.Type, strategy) {
+		return fmt.Errorf(
+			"tool %q: undo strategy %q is not supported for type %q; supported: %s",
+			def.Name, strategy, def.Type,
+			strings.Join(core.SupportedUndoStrategies(def.Type), ", "),
+		)
 	}
 	return nil
 }

@@ -194,8 +194,11 @@ schema:
         type: string
         description: |
           The undo strategy name. Known values: noop,
-          conversation_truncate, workspace_restore,
-          compensating_action, child_command_undo.
+          conversation_truncate, file_snapshot_restore, workspace_restore,
+          compensating_action, child_command_undo, and irreversible. Builtin
+          strategy names describe typed Undo implementations. Exec words are
+          restricted to noop, workspace_restore, compensating_action, or
+          irreversible because one shared interpreter executes their Undo.
       - field: description
         type: string
         description: |
@@ -211,9 +214,10 @@ schema:
       - field: captures
         type: "[]string"
         description: |
-          Names of the runtime values captured in the UndoMemento
-          payload. These document the information persisted for
-          later compensation or inspection. Examples include
+          Names of runtime parameter or structured-output values captured in
+          the UndoMemento payload. Generic exec words project these names into
+          receipt.captures; they are executable contract data, not comments.
+          Examples include
           issue_id, child_run_id, workspace_paths, server_addr, and
           suite_path.
       - field: requires

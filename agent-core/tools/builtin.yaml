@@ -97,9 +97,9 @@ tools:
         description: "Creates or overwrites one workspace file and may create parent directories."
     reversibility:
       classification: reversible
-      undo: "workspace_restore"
+      undo: "file_snapshot_restore"
     undo:
-      strategy: workspace_restore
+      strategy: file_snapshot_restore
       description: "Encode an opaque receipt into Result.Receipt during Execute (prior path, whether the file existed, its content, and mode); Undo decodes that receipt and restores the file to its prior state, deleting it if it did not exist before."
       captures: [path, existed, content, mode]
       requires: [Receipt]
@@ -141,9 +141,9 @@ tools:
         description: "Replaces text in one workspace file."
     reversibility:
       classification: reversible
-      undo: "workspace_restore"
+      undo: "file_snapshot_restore"
     undo:
-      strategy: workspace_restore
+      strategy: file_snapshot_restore
       description: "Encode an opaque receipt into Result.Receipt during Execute (prior path, whether the file existed, its content, and mode); Undo decodes that receipt and restores the file to its pre-edit content."
       captures: [path, existed, content, mode]
       requires: [Receipt]

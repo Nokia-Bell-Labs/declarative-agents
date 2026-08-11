@@ -16,16 +16,16 @@ import (
 // receipt walk) needs to reverse the effect after a process restart
 // (srd035-checkpoint-port R3; #44 R2). Only the exec tool decodes it.
 type execReceipt struct {
-	Strategy       string   `json:"strategy"`
-	Description    string   `json:"description,omitempty"`
-	WorkspacePaths []string `json:"workspace_paths,omitempty"`
-	Requires       []string `json:"requires,omitempty"`
-	IssueID        string   `json:"issue_id,omitempty"`
+	Strategy       string         `json:"strategy"`
+	Description    string         `json:"description,omitempty"`
+	WorkspacePaths []string       `json:"workspace_paths,omitempty"`
+	Requires       []string       `json:"requires,omitempty"`
+	Captures       map[string]any `json:"captures,omitempty"`
 }
 
 // encodeReceipt serializes the declared undo contract into an opaque receipt.
 // Read-only / no-op tools carry no receipt (#44 R2).
-func (c *ExecCmd) encodeReceipt() string {
+func (c *ExecCmd) encodeReceipt(output string) string {
 	if c.def.Reversibility.Classification == "irreversible" {
 		return ""
 	}
@@ -38,12 +38,37 @@ func (c *ExecCmd) encodeReceipt() string {
 		Description:    c.def.Undo.Description,
 		WorkspacePaths: workspacePaths(c.def),
 		Requires:       append([]string(nil), c.def.Undo.Requires...),
-		IssueID:        c.params["id"],
+		Captures:       c.captureUndoValues(output),
 	})
 	if err != nil {
 		return ""
 	}
 	return string(b)
+}
+
+// captureUndoValues projects only declaration-named values into the opaque exec
+// receipt. Parameters win over same-named output fields; no tracker-specific or
+// other domain field is hard-coded into the generic exec transport.
+func (c *ExecCmd) captureUndoValues(output string) map[string]any {
+	if len(c.def.Undo.Captures) == 0 {
+		return nil
+	}
+	var decoded map[string]any
+	_ = json.Unmarshal([]byte(output), &decoded)
+	captures := make(map[string]any)
+	for _, name := range c.def.Undo.Captures {
+		if value, ok := c.params[name]; ok {
+			captures[name] = value
+			continue
+		}
+		if value, ok := decoded[name]; ok {
+			captures[name] = value
+		}
+	}
+	if len(captures) == 0 {
+		return nil
+	}
+	return captures
 }
 
 func decodeExecReceipt(receipt string) (execReceipt, bool, error) {

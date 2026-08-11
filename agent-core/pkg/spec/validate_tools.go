@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 func checkToolSelectionDeclared(corpus *Corpus) []Finding {
@@ -188,11 +190,20 @@ func checkToolUndoConsistency(corpus *Corpus) []Finding {
 		rev := td.Reversibility.Classification
 		strat := td.Undo.Strategy
 		if rev != "" && strat != "" {
-			if !undoStrategyAllowed(rev, strat) {
+			if !core.UndoStrategyAllowed(rev, strat) {
 				findings = append(findings, Finding{
 					Check:   "tool-undo-mismatch",
 					Level:   "warning",
 					Message: fmt.Sprintf("tool %q reversibility is %q but undo strategy is %q", name, rev, strat),
+				})
+			}
+			if !core.UndoStrategySupported(td.Type, strat) {
+				findings = append(findings, Finding{
+					Check: "tool-undo-unsupported-runtime", Level: "error",
+					Message: fmt.Sprintf(
+						"tool %q type %q cannot execute undo strategy %q",
+						name, td.Type, strat,
+					),
 				})
 			}
 		}
@@ -205,55 +216,6 @@ func checkToolUndoConsistency(corpus *Corpus) []Finding {
 		}
 	}
 	return findings
-}
-
-func undoStrategyAllowed(reversibility, strategy string) bool {
-	allowed, ok := undoStrategiesByReversibility[reversibility]
-	if !ok {
-		return true
-	}
-	return allowed[strategy]
-}
-
-var undoStrategiesByReversibility = map[string]map[string]bool{
-	"irreversible": {
-		"irreversible": true,
-	},
-	"reversible": {
-		"noop":              true,
-		"reversible":        true,
-		"snapshot_restore":  true,
-		"workspace_restore": true,
-		"file_snapshot_restore_and_workspace_restore":          true,
-		"session_state_restore":                                true,
-		"conversation_truncate":                                true,
-		"conversation_restore":                                 true,
-		"parse_retry_counter_restore":                          true,
-		"parse_retry_counter_restore_when_tracker_enabled":     true,
-		"pipeline_state_restore":                               true,
-		"evaluator_session_restore":                            true,
-		"point_context_restore":                                true,
-		"owned_artifact_removal":                               true,
-		"owned_artifact_removal_and_evaluator_session_restore": true,
-		"owned_artifact_removal_and_point_context_restore":     true,
-		"queue_event_restore":                                  true,
-		"validation_state_restore":                             true,
-	},
-	"compensatable": {
-		"compensatable":                                          true,
-		"boundary_compensation":                                  true,
-		"compensating_action":                                    true,
-		"child_command_undo":                                     true,
-		"workspace_restore":                                      true,
-		"pipeline_state_restore_only":                            true,
-		"child_agent_workspace_restore":                          true,
-		"child_eval_artifact_compensation":                       true,
-		"close_or_delete_created_issue":                          true,
-		"nested_machine_rollback":                                true,
-		"point_workspace_restore_and_child_process_compensation": true,
-		"resume_or_checkpoint_rollback":                          true,
-		"server_shutdown_or_user_action_compensation":            true,
-	},
 }
 
 // checkToolSideEffectVocab verifies that side_effects kind values use

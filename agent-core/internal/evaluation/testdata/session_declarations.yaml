@@ -47,8 +47,8 @@ tools:
         description: "Writes the summary artifact."
     reversibility:
       classification: reversible
-      undo: delete
+      undo: workspace_restore
       requires_confirmation: false
     undo:
-      strategy: delete
-      description: "Remove the written summary artifact."
+      strategy: workspace_restore
+      description: "Restore the point workspace through its checkpoint."

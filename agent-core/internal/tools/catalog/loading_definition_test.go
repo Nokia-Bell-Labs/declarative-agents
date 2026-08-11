@@ -82,6 +82,18 @@ func TestParseToolDefs_Errors(t *testing.T) {
 			yaml:  "tools:\n  - name: foo\n    binary: git\n    precondition: git-repo",
 			errIs: "unknown precondition",
 		},
+		{
+			name: "unknown undo strategy",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    undo: {strategy: workpace_restore}",
+			errIs: `unknown undo strategy "workpace_restore"`,
+		},
+		{
+			name: "unsupported exec undo strategy",
+			yaml: "tools:\n  - name: foo\n    binary: git\n" +
+				"    undo: {strategy: conversation_restore}",
+			errIs: `undo strategy "conversation_restore" is not supported for type ""`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

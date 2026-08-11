@@ -160,7 +160,7 @@ func (c *ExecCmd) ExecuteContext(ctx context.Context) core.Result {
 	}
 	res = shapeExecOutput(c.def, res, run.ExitCode)
 	if res.Signal != core.CommandError {
-		res.Receipt = c.encodeReceipt()
+		res.Receipt = c.encodeReceipt(res.Output)
 	}
 	return res
 }
