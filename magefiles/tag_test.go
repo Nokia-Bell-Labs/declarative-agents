@@ -3,7 +3,10 @@
 package main
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +16,82 @@ import (
 	"testing"
 	"time"
 )
+
+const releaseLockHelperEnv = "DA_TEST_RELEASE_LOCK_HELPER"
+
+func TestReleaseLockRejectsConcurrentProcessAndCleansUp(t *testing.T) {
+	if path := os.Getenv(releaseLockHelperEnv); path != "" {
+		unlock, err := acquireReleaseLock(path, os.Getpid(), time.Unix(0, 0))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		defer unlock()
+		fmt.Println("locked")
+		_, _ = io.Copy(io.Discard, os.Stdin)
+		return
+	}
+
+	path := filepath.Join(t.TempDir(), releaseLockName)
+	cmd := exec.Command(os.Args[0], "-test.run=^TestReleaseLockRejectsConcurrentProcessAndCleansUp$")
+	cmd.Env = append(os.Environ(), releaseLockHelperEnv+"="+path)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	scanner := bufio.NewScanner(stdout)
+	if !scanner.Scan() || scanner.Text() != "locked" {
+		t.Fatalf("release-lock helper did not become ready: %q (%v)", scanner.Text(), scanner.Err())
+	}
+
+	if _, err := acquireReleaseLock(path, os.Getpid(), time.Now()); err == nil {
+		t.Fatal("second process acquired an active release lock")
+	} else if !strings.Contains(err.Error(), "another release is already active") ||
+		!strings.Contains(err.Error(), "pid=") {
+		t.Fatalf("concurrent release error = %v, want owner diagnostics", err)
+	}
+	if err := stdin.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Wait(); err != nil {
+		t.Fatal(err)
+	}
+
+	unlock, err := acquireReleaseLock(path, os.Getpid(), time.Now())
+	if err != nil {
+		t.Fatalf("reacquire after process exit: %v", err)
+	}
+	unlock()
+}
+
+func TestAcquireRepositoryReleaseLockUsesGitPrivatePath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), releaseLockName)
+	unlock, err := acquireRepositoryReleaseLock(func(args ...string) (string, error) {
+		want := []string{"rev-parse", "--git-path", releaseLockName}
+		if !reflect.DeepEqual(args, want) {
+			t.Fatalf("git args = %v, want %v", args, want)
+		}
+		return path, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(path, "owner")); err != nil {
+		t.Fatalf("release lock owner: %v", err)
+	}
+	unlock()
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("release lock remains after unlock: %v", err)
+	}
+}
 
 func TestCreateReleaseTagCreatesNextDailyTag(t *testing.T) {
 	var calls [][]string
@@ -437,6 +516,42 @@ func TestExecuteReleaseStageRunsIndependentLanesConcurrently(t *testing.T) {
 	a1, a2 := slicesIndex(calls, "a1"), slicesIndex(calls, "a2")
 	if a1 < 0 || a2 < 0 || a1 >= a2 {
 		t.Fatalf("shared lane order = %v, want a1 before a2", calls)
+	}
+}
+
+func TestReleaseGatesRootFailureBlocksEveryLaterRealGate(t *testing.T) {
+	gateErr := errors.New("audit failed")
+	started := make(chan string, len(releaseGates("/release")))
+	releaseAudit := make(chan struct{})
+	done := make(chan error, 1)
+
+	go func() {
+		done <- executeReleaseGates(releaseGates("/release"), func(gate releaseGate) error {
+			started <- gate.name
+			if gate.name == "root audit" {
+				<-releaseAudit
+				return gateErr
+			}
+			return nil
+		})
+	}()
+
+	if first := <-started; first != "root audit" {
+		t.Fatalf("first real release gate = %q, want root audit", first)
+	}
+	select {
+	case gate := <-started:
+		t.Fatalf("later gate %q started while root audit was blocked", gate)
+	default:
+	}
+	close(releaseAudit)
+	if err := <-done; !errors.Is(err, gateErr) {
+		t.Fatalf("release error = %v, want %v", err, gateErr)
+	}
+	select {
+	case gate := <-started:
+		t.Fatalf("later gate %q started after root audit failed", gate)
+	default:
 	}
 }
 
