@@ -120,7 +120,10 @@ integration_telemetry: |
   inherits those values. service.name identifies the agent role; scaled roles
   append their instance identity. Child process launchers propagate the
   endpoint and choose the child's service name rather than inheriting the
-  parent's role name.
+  parent's role name. gen_ai.agent.name and the bounded agent.name metric
+  attribute both come from the one loaded MachineSpec.name, falling back to
+  "agent" only for a legacy unnamed in-memory spec. agent.version comes from
+  the binary's version stamp.
 
   The file remains the hermetic assertion source. A live backend adds retained
   diagnostic evidence and does not make a unit test depend on network

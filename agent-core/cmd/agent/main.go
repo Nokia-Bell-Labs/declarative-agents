@@ -47,6 +47,7 @@ var (
 )
 
 const (
+	agentVersion             = "v0.0.0-dev"
 	monitorLaunchCommandName = "launch_monitor_rest"
 	monitorServerName        = "monitor"
 	terminalSummaryMaxBytes  = 1 << 20
@@ -115,7 +116,7 @@ func init() {
 	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary the evaluator launches (default: agent, resolved from PATH)")
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
 
-	rootCmd.Version = "v0.0.0-dev"
+	rootCmd.Version = agentVersion
 }
 
 type agentState struct {
@@ -602,7 +603,8 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		MachineSpec:          &deps.Machine,
 		Program:              deps.Program,
 		RunID:                deps.RunID,
-		AgentName:            "agent",
+		AgentName:            machineAgentName(deps.Machine),
+		AgentVersion:         agentVersion,
 		ModelName:            deps.State.model,
 		ProviderName:         deps.State.providerName,
 		Trace:                deps.Tracer,
@@ -619,6 +621,13 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 			SnapshotConversation: deps.State.snapshotConversation,
 		},
 	}
+}
+
+func machineAgentName(machine core.MachineSpec) string {
+	if machine.Name != "" {
+		return machine.Name
+	}
+	return "agent"
 }
 
 func runBudget(machine core.MachineSpec, st *agentState) core.Budget {
