@@ -41,8 +41,11 @@ type BoundaryCompensation struct {
 
 // BoundaryCompensationUndo reports that a boundary compensation is required.
 func BoundaryCompensationUndo(commandName, description string) core.Result {
-	err := fmt.Errorf("undo %s requires boundary compensation: %s", commandName, description)
-	return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+	return core.Result{
+		Signal:      core.CompensationRequired,
+		CommandName: commandName,
+		Output:      fmt.Sprintf("undo %s requires boundary compensation: %s", commandName, description),
+	}
 }
 
 // EncodeBoundaryReceipt serializes a boundary compensation payload into an opaque,

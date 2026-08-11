@@ -24,6 +24,25 @@ type ToolSpec struct {
 	Visibility  Visibility
 	Phases      []State
 	PhaseScoped bool
+	Rollback    RollbackPolicy
+}
+
+// RollbackPolicy is the runtime projection of a tool's declared reversibility
+// and undo contract. The lifecycle receipt walk reads this metadata to
+// distinguish reversible, compensatable, and irreversible entries without
+// interpreting the tool-owned receipt.
+type RollbackPolicy struct {
+	Classification string
+	Strategy       string
+	Description    string
+	Requires       []string
+}
+
+// ToolSpecResolver exposes runtime metadata without granting registry
+// mutation. Lifecycle rollback uses it alongside CommandResolver: the spec
+// classifies the entry, while the builder performs receipt-consuming Undo.
+type ToolSpecResolver interface {
+	SpecByName(name string) (ToolSpec, bool)
 }
 
 type registryEntry struct {
@@ -212,3 +231,4 @@ func PhaseMatch(phases []State, state State) bool {
 }
 
 var _ CommandResolver = (*Registry)(nil)
+var _ ToolSpecResolver = (*Registry)(nil)

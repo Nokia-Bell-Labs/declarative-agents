@@ -292,6 +292,12 @@ func (td *ToolDef) ToToolSpec() core.ToolSpec {
 		Visibility:  vis,
 		Phases:      toolSpecPhases(td.Phases),
 		PhaseScoped: td.phaseScoped || len(td.Phases) > 0,
+		Rollback: core.RollbackPolicy{
+			Classification: td.Reversibility.Classification,
+			Strategy:       td.Undo.Strategy,
+			Description:    td.Undo.Description,
+			Requires:       append([]string(nil), td.Undo.Requires...),
+		},
 	}
 }
 

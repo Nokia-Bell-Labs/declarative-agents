@@ -27,7 +27,7 @@ tools:
     - must receive a run id or use latest.
     - must receive a target step index.
     output:
-    - must print the run id, target step, reverted-entry count, and any skipped irreversible entries.
+    - must print the run id, target step, reverted-entry count, skipped irreversible entries, and pending compensation work.
     side_effects:
     - must revert DB-persisted state on the run branch to the target step (DB-only).
     - reverses external effects only through each tool's receipt-consuming Undo; effects with no sufficient receipt are not reverted.
@@ -75,10 +75,33 @@ tools:
           type: array
           items:
             type: string
+        pending_compensation:
+          type: array
+          description: Compensatable entries that require an operator or later machine action.
+          items:
+            type: object
+            properties:
+              step:
+                type: integer
+              command:
+                type: string
+              description:
+                type: string
+              requires:
+                type: array
+                items:
+                  type: string
+            required:
+            - step
+            - command
+            - description
+            - requires
       required:
       - run
       - target_step
       - reverted_entries
+      - skipped_irreversible
+      - pending_compensation
   side_effects:
   - kind: state_mutation
     target: checkpoint_backend

@@ -26,6 +26,9 @@ type execReceipt struct {
 // encodeReceipt serializes the declared undo contract into an opaque receipt.
 // Read-only / no-op tools carry no receipt (#44 R2).
 func (c *ExecCmd) encodeReceipt() string {
+	if c.def.Reversibility.Classification == "irreversible" {
+		return ""
+	}
 	strategy := c.def.Undo.Strategy
 	if strategy == "" || strategy == "noop" {
 		return ""
@@ -68,6 +71,9 @@ func workspacePaths(def catalog.ToolDef) []string {
 }
 
 func compensationUndo(commandName, description string) core.Result {
-	err := fmt.Errorf("undo %s requires compensating action: %s", commandName, description)
-	return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+	return core.Result{
+		Signal:      core.CompensationRequired,
+		CommandName: commandName,
+		Output:      fmt.Sprintf("undo %s requires compensating action: %s", commandName, description),
+	}
 }

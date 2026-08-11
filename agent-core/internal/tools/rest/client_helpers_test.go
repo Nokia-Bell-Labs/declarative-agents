@@ -32,7 +32,7 @@ func requireRESTClientCompensationUndoReceipt(t *testing.T) {
 	writeRes := write.Execute()
 	require.Equal(t, core.Signal("RESTResourceWritten"), writeRes.Signal)
 	require.NotEmpty(t, writeRes.Receipt)
-	require.Equal(t, core.CommandError, write.Undo(core.Result{}).Signal)
+	require.Equal(t, core.CompensationRequired, write.Undo(core.Result{}).Signal)
 	requireRESTCompensationReceipt(t, writeRes.Receipt)
 }
 

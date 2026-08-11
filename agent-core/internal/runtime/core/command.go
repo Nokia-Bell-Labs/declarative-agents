@@ -46,6 +46,11 @@ const (
 	AwaitApproval Signal = "AwaitApproval"
 	Approved      Signal = "Approved"
 	Rejected      Signal = "Rejected"
+	// CompensationRequired is an Undo outcome consumed by the lifecycle
+	// receipt walk. It means the tool behaved as declared but requires an
+	// operator or a later machine action to compensate the effect; it is not
+	// an infrastructure failure and is not routed by ordinary machines.
+	CompensationRequired Signal = "CompensationRequired"
 )
 
 // Validation signals used by the STL validate orchestrator.

@@ -254,8 +254,8 @@ func TestExecCmdUndoCompensatingActionReportsGap(t *testing.T) {
 		Undo: catalog.ToolUndoContract{Strategy: "compensating_action", Description: "close created issue"},
 	}}
 	res := cmd.Undo(core.Result{})
-	require.Equal(t, core.CommandError, res.Signal)
-	require.Error(t, res.Err)
+	require.Equal(t, core.CompensationRequired, res.Signal)
+	require.NoError(t, res.Err)
 	assert.Contains(t, res.Output, "requires compensating action")
 }
 
@@ -300,6 +300,15 @@ func TestExecCmdReceiptEmptyForNoop(t *testing.T) {
 	assert.Empty(t, cmd.encodeReceipt())
 }
 
+func TestExecCmdReceiptEmptyForDeclaredIrreversible(t *testing.T) {
+	cmd := &ExecCmd{def: catalog.ToolDef{
+		Name:          "publish",
+		Reversibility: catalog.ToolReversibility{Classification: "irreversible"},
+		Undo:          catalog.ToolUndoContract{Strategy: "irreversible"},
+	}}
+	assert.Empty(t, cmd.encodeReceipt())
+}
+
 // TestExecCmdUndoConsumesReceiptStrategy verifies a fresh command instance (no
 // def strategy) reverses using the strategy carried on the prior Result receipt.
 func TestExecCmdUndoConsumesReceiptStrategy(t *testing.T) {
@@ -311,7 +320,7 @@ func TestExecCmdUndoConsumesReceiptStrategy(t *testing.T) {
 
 	fresh := &ExecCmd{def: catalog.ToolDef{Name: "issue_close"}}
 	res := fresh.Undo(core.Result{Receipt: receipt})
-	require.Equal(t, core.CommandError, res.Signal)
+	require.Equal(t, core.CompensationRequired, res.Signal)
 	assert.Contains(t, res.Output, "requires compensating action")
 	assert.Contains(t, res.Output, "reopen closed issue")
 }

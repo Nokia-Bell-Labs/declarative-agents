@@ -117,9 +117,10 @@ func TestRESTServer_StopPersistsRelaunchCompensation(t *testing.T) {
 	require.Equal(t, []string{"machine_owned_server_relaunch"}, compensation.Requires)
 
 	undoResult := builder.BuildReverser().Undo(core.Result{Receipt: result.Receipt})
-	require.Equal(t, core.CommandError, undoResult.Signal)
-	require.ErrorContains(t, undoResult.Err, `MachineSpec must relaunch server "control"`)
-	require.ErrorContains(t, undoResult.Err, "drained 2 queued events")
+	require.Equal(t, core.CompensationRequired, undoResult.Signal)
+	require.NoError(t, undoResult.Err)
+	require.Contains(t, undoResult.Output, `MachineSpec must relaunch server "control"`)
+	require.Contains(t, undoResult.Output, "drained 2 queued events")
 }
 
 func TestRESTAwaitCommandSupportsDispatchCancellation(t *testing.T) {

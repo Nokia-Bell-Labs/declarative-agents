@@ -32,6 +32,16 @@ type UndoFailure struct {
 	Detail      string
 }
 
+// PendingCompensation records an entry whose declared Undo requires an
+// operator or a later machine action. It is a successful classification of a
+// compensatable effect, not a receipt-walk failure.
+type PendingCompensation struct {
+	Step        int      `json:"step"`
+	CommandName string   `json:"command"`
+	Description string   `json:"description"`
+	Requires    []string `json:"requires"`
+}
+
 // PartialRollbackError reports that the DB Revert succeeded but one or more
 // receipt-walk Undo calls failed, so external effects are only partly reversed.
 // It carries the reverted count and each failed entry so callers do not mistake
@@ -53,23 +63,25 @@ func (e *PartialRollbackError) Error() string {
 }
 
 // entryOutcome is the result of attempting to reverse one persisted step: at
-// most one of failure/skipped is set; otherwise the entry was reversed.
+// most one of failure, skipped, or compensation is set; otherwise it reversed.
 type entryOutcome struct {
-	line    string
-	skipped bool
-	failure *UndoFailure
+	line         string
+	skipped      bool
+	failure      *UndoFailure
+	compensation *PendingCompensation
 }
 
 // rollbackReport is the structured result of a receipt walk, projected into the
 // checkpoint_rollback tool's declared output schema (srd026 R3.8): run identity,
-// target step, reverted count, and the names of skipped irreversible entries.
-// Detail carries the per-entry human-readable report for tracing and operators.
+// target step, reverted count, skipped irreversible entries, and pending
+// compensations. Detail carries the per-entry report for tracing and operators.
 type rollbackReport struct {
-	RunID      string
-	TargetStep int
-	Reverted   int
-	Skipped    []string
-	Detail     string
+	RunID               string
+	TargetStep          int
+	Reverted            int
+	Skipped             []string
+	PendingCompensation []PendingCompensation
+	Detail              string
 }
 
 // rollbackViaReceipts reverts the run's persisted DB state to the target step,
@@ -80,8 +92,8 @@ type rollbackReport struct {
 //
 // A failed Undo does not stop the walk (remaining entries are still attempted)
 // but yields a *PartialRollbackError so the caller reports CommandError rather
-// than a clean rollback (srd026 R3.7, R6.4). The returned summary always carries
-// the per-entry report and a reversed/skipped/failed tally (srd026 R3.8).
+// than a clean rollback (srd026 R3.7, R6.4). Declared manual compensation is a
+// separate successful outcome, not an Undo failure.
 func rollbackViaReceipts(opts rollbackViaReceiptsOptions) (rollbackReport, error) {
 	targetStep, err := resolveTargetStep(opts.Execution, opts.TargetIteration)
 	if err != nil {
@@ -90,42 +102,58 @@ func rollbackViaReceipts(opts rollbackViaReceiptsOptions) (rollbackReport, error
 	if err := opts.Reverter.Revert(opts.RunID, targetStep); err != nil {
 		return rollbackReport{}, fmt.Errorf("revert run %q to step %d: %w", opts.RunID, targetStep, err)
 	}
+	report, failures := walkRollbackEntries(opts, targetStep)
+	if len(failures) == 0 {
+		return report, nil
+	}
+	return report, &PartialRollbackError{
+		RunID: opts.RunID, TargetStep: targetStep,
+		Reverted: report.Reverted, Failures: failures,
+	}
+}
+
+func walkRollbackEntries(opts rollbackViaReceiptsOptions, targetStep int) (rollbackReport, []UndoFailure) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "rolled back run %s to iteration %d (step %d)\n", opts.RunID, opts.TargetIteration, targetStep)
-	report := rollbackReport{RunID: opts.RunID, TargetStep: targetStep, Skipped: []string{}}
+	report := rollbackReport{
+		RunID: opts.RunID, TargetStep: targetStep,
+		Skipped: []string{}, PendingCompensation: []PendingCompensation{},
+	}
 	var failures []UndoFailure
 	for step := len(opts.Execution) - 1; step > targetStep; step-- {
 		entry := opts.Execution[step]
 		outcome := undoEntry(opts.Registry, opts.Tracer, step, entry)
 		b.WriteString(outcome.line)
-		switch {
-		case outcome.failure != nil:
-			failures = append(failures, *outcome.failure)
-		case outcome.skipped:
-			report.Skipped = append(report.Skipped, entry.CommandName)
-		default:
-			report.Reverted++
-		}
+		applyEntryOutcome(&report, &failures, entry, outcome)
 	}
-	fmt.Fprintf(&b, "reversed %d, skipped %d, failed %d\n", report.Reverted, len(report.Skipped), len(failures))
+	fmt.Fprintf(&b, "reversed %d, pending compensation %d, skipped %d, failed %d\n",
+		report.Reverted, len(report.PendingCompensation), len(report.Skipped), len(failures))
 	report.Detail = b.String()
-	if len(failures) > 0 {
-		return report, &PartialRollbackError{
-			RunID:      opts.RunID,
-			TargetStep: targetStep,
-			Reverted:   report.Reverted,
-			Failures:   failures,
-		}
+	return report, failures
+}
+
+func applyEntryOutcome(
+	report *rollbackReport,
+	failures *[]UndoFailure,
+	entry core.Entry,
+	outcome entryOutcome,
+) {
+	switch {
+	case outcome.failure != nil:
+		*failures = append(*failures, *outcome.failure)
+	case outcome.compensation != nil:
+		report.PendingCompensation = append(report.PendingCompensation, *outcome.compensation)
+	case outcome.skipped:
+		report.Skipped = append(report.Skipped, entry.CommandName)
+	default:
+		report.Reverted++
 	}
-	return report, nil
 }
 
 // rollbackOutput projects a rollback report into the checkpoint_rollback tool's
 // declared JSON output schema {run, target_step, reverted_entries,
-// skipped_irreversible} (srd026 R3.8). On a partial failure it adds the failed
-// entries and the error message so an operator retains the detail required to
-// choose retry, resume, or stop (srd026 R6.3). detail carries the per-entry
-// human-readable report.
+// skipped_irreversible, pending_compensation} (srd026 R3.8). On partial failure
+// it adds failed entries and an error so an operator can choose recovery.
 func rollbackOutput(report rollbackReport, partial *PartialRollbackError) string {
 	skipped := report.Skipped
 	if skipped == nil {
@@ -136,6 +164,7 @@ func rollbackOutput(report rollbackReport, partial *PartialRollbackError) string
 		"target_step":          report.TargetStep,
 		"reverted_entries":     report.Reverted,
 		"skipped_irreversible": skipped,
+		"pending_compensation": report.PendingCompensation,
 		"detail":               report.Detail,
 	}
 	if partial != nil {
@@ -167,12 +196,16 @@ func resolveTargetStep(execution core.Execution, targetIteration int) (int, erro
 
 // undoEntry reverses one persisted step's external effect. It rebuilds a fresh,
 // undo-only command through core.Reverser and drives it from the entry's opaque
-// receipt. Entries whose tool is unregistered, does not implement core.Reverser,
-// or carries no receipt are skipped and logged as irreversible. An entry whose
-// Undo runs but returns CommandError is a failure, not a skip (srd026 R3.7).
+// receipt. A registered declaration identifies irreversible tools; unavailable
+// builders and receipts retain compatibility skips pending GH-1584.
+// CompensationRequired becomes operator work, while CommandError is a failure.
 func undoEntry(registry core.CommandResolver, tracer tracing.Tracer, step int, entry core.Entry) entryOutcome {
 	if registry == nil {
 		return skipOutcome(tracer, step, entry, "no registry")
+	}
+	policy, declared := rollbackPolicy(registry, entry.CommandName)
+	if declared && policy.Classification == "irreversible" {
+		return skipOutcome(tracer, step, entry, "irreversible by declaration")
 	}
 	builder, ok := registry.Resolve(entry.CommandName)
 	if !ok {
@@ -190,6 +223,9 @@ func undoEntry(registry core.CommandResolver, tracer tracing.Tracer, step int, e
 		Output:      entry.Result.Output,
 		CommandName: entry.CommandName,
 	})
+	if res.Signal == core.CompensationRequired {
+		return compensationOutcome(tracer, step, entry, policy, res)
+	}
 	if res.Signal == core.CommandError || res.Err != nil {
 		return undoFailureOutcome(tracer, step, entry, res)
 	}
@@ -199,6 +235,42 @@ func undoEntry(registry core.CommandResolver, tracer tracing.Tracer, step int, e
 	traceRollbackEntry(tracer, "rollback.entry_reversed", step, entry.CommandName,
 		attribute.String("detail", res.Output))
 	return entryOutcome{line: fmt.Sprintf("  step=%d %s: %s\n", step, entry.CommandName, res.Output)}
+}
+
+func rollbackPolicy(registry core.CommandResolver, commandName string) (core.RollbackPolicy, bool) {
+	resolver, ok := registry.(core.ToolSpecResolver)
+	if !ok {
+		return core.RollbackPolicy{}, false
+	}
+	spec, ok := resolver.SpecByName(commandName)
+	if !ok {
+		return core.RollbackPolicy{}, false
+	}
+	return spec.Rollback, true
+}
+
+func compensationOutcome(
+	tracer tracing.Tracer,
+	step int,
+	entry core.Entry,
+	policy core.RollbackPolicy,
+	res core.Result,
+) entryOutcome {
+	description := policy.Description
+	if description == "" {
+		description = res.Output
+	}
+	pending := &PendingCompensation{
+		Step: step, CommandName: entry.CommandName,
+		Description: description, Requires: append([]string{}, policy.Requires...),
+	}
+	traceRollbackEntry(tracer, "rollback.entry_compensation_required", step, entry.CommandName,
+		attribute.String("detail", description))
+	return entryOutcome{
+		line: fmt.Sprintf("  step=%d %s: compensation required: %s\n",
+			step, entry.CommandName, description),
+		compensation: pending,
+	}
 }
 
 // undoFailureOutcome records a receipt-walk Undo that returned CommandError.

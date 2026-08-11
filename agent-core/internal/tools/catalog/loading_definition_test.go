@@ -105,6 +105,11 @@ func TestToolDef_ToToolSpec(t *testing.T) {
 		SideEffects: ToolSideEffects{
 			LegacyText: "produces binary",
 		},
+		Reversibility: ToolReversibility{Classification: "compensatable"},
+		Undo: ToolUndoContract{
+			Strategy: "compensating_action", Description: "delete binary",
+			Requires: []string{"binary_path"},
+		},
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -123,6 +128,10 @@ func TestToolDef_ToToolSpec(t *testing.T) {
 	assert.Contains(t, spec.Description, "Compile stuff.")
 	assert.Contains(t, spec.Description, "Side effects: produces binary")
 	assert.Equal(t, core.External, spec.Visibility)
+	assert.Equal(t, "compensatable", spec.Rollback.Classification)
+	assert.Equal(t, "compensating_action", spec.Rollback.Strategy)
+	assert.Equal(t, "delete binary", spec.Rollback.Description)
+	assert.Equal(t, []string{"binary_path"}, spec.Rollback.Requires)
 
 	var schema map[string]interface{}
 	require.NoError(t, json.Unmarshal(spec.InputSchema, &schema))

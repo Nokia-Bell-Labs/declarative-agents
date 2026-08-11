@@ -137,14 +137,16 @@ func TestCheckpointRollbackStructuredOutputMatchesSchema(t *testing.T) {
 	require.Equal(t, core.ToolDone, res.Signal, res.Output)
 
 	var out struct {
-		Run                 string   `json:"run"`
-		TargetStep          int      `json:"target_step"`
-		RevertedEntries     int      `json:"reverted_entries"`
-		SkippedIrreversible []string `json:"skipped_irreversible"`
+		Run                 string                `json:"run"`
+		TargetStep          int                   `json:"target_step"`
+		RevertedEntries     int                   `json:"reverted_entries"`
+		SkippedIrreversible []string              `json:"skipped_irreversible"`
+		PendingCompensation []PendingCompensation `json:"pending_compensation"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(res.Output), &out))
 	require.Equal(t, "run-x", out.Run)
 	require.Equal(t, 0, out.TargetStep)
 	require.Equal(t, 1, out.RevertedEntries)
 	require.NotNil(t, out.SkippedIrreversible)
+	require.NotNil(t, out.PendingCompensation)
 }
