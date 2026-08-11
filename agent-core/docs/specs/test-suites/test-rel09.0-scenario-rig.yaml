@@ -82,19 +82,21 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Serve-mode child lifecycle leaves no orphans
-    go_test: go test ./internal/tools/service -run TestServiceChild_StartStopNoOrphans
+    go_test: go test ./internal/tools/service -run 'TestServiceChild_(StartStopNoOrphans|ParentCancellationKillsProcessGroup)'
     status: implemented
     description: |
       The scenario child lifecycle spawns a serve-mode child with injected
       environment and labels its runtime address and start time, stop_service
       stops it, and no process from the child's group survives; a repeated
-      cycle passes.
+      cycle passes. Cancelling the owning agent context also kills and reaps a
+      child and its grandchild through the shared subprocess transport.
     inputs:
       child: serve-mode agent profile with env addition
       cycles: 2
     expected:
       runtime_target_reported: true
       child_group_gone_after_stop: true
+      child_group_gone_after_parent_cancel: true
       second_cycle_passes: true
     traces:
       - rel09.0-uc001-scenario-rig-run S3

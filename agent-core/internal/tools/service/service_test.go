@@ -3,11 +3,13 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -27,6 +29,7 @@ const (
 	envChildMode = "SERVICE_TEST_CHILD"
 	envChildAddr = "SERVICE_TEST_ADDR"
 	envChildEcho = "SERVICE_TEST_ECHO"
+	envChildPID  = "SERVICE_TEST_GRANDCHILD_PID"
 )
 
 func TestMain(m *testing.M) {
@@ -62,6 +65,14 @@ func TestMain(m *testing.M) {
 	case "hang":
 		// A bare select{} would trip Go's deadlock detector and exit at once;
 		// sleeping actually hangs, which is what the timeout path needs.
+		time.Sleep(time.Hour)
+		os.Exit(0)
+	case "tree":
+		grandchild := exec.Command("sh", "-c", "sleep 3600")
+		if err := grandchild.Start(); err != nil {
+			os.Exit(2)
+		}
+		_ = os.WriteFile(os.Getenv(envChildPID), []byte(strconv.Itoa(grandchild.Process.Pid)), 0o600)
 		time.Sleep(time.Hour)
 		os.Exit(0)
 	}
@@ -104,16 +115,16 @@ func processAlive(pid int) bool {
 }
 
 func TestChildCommandPropagatesCoreRootInArgv(t *testing.T) {
-	cmd := childCommand(StartSpec{
+	spec := childProcessSpec(StartSpec{
 		Binary: "agent", Profile: "agents/mock/profile.yaml",
 		CoreRoot: "/checkout/agent-core",
 	})
 
 	require.Equal(t, []string{
-		"agent",
 		"--profile", "agents/mock/profile.yaml",
 		"--core-root", "/checkout/agent-core",
-	}, cmd.Args)
+	}, spec.Args)
+	require.Equal(t, "agent", spec.Binary)
 }
 
 // TestServiceChild_StartStopNoOrphans covers srd040 AC1: a serve-mode child
@@ -184,6 +195,37 @@ func TestServiceChild_StopIsIdempotentAndStopAllReaps(t *testing.T) {
 
 	// Stopping again is a no-op rather than an error.
 	require.Equal(t, false, state.Stop("a", time.Second)["stopped"])
+}
+
+func TestServiceChild_ParentCancellationKillsProcessGroup(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	state := NewStateWithContext(ctx)
+	pidFile := filepath.Join(t.TempDir(), "grandchild.pid")
+	spec := StartSpec{
+		Name: "tree", Binary: os.Args[0], Profile: "unused",
+		Env: []string{envChildMode + "=tree", envChildPID + "=" + pidFile},
+	}
+	started, err := state.Start(spec)
+	require.NoError(t, err)
+	childPID := started["pid"].(int)
+	var grandchildPID int
+	require.Eventually(t, func() bool {
+		data, readErr := os.ReadFile(pidFile)
+		if readErr != nil {
+			return false
+		}
+		grandchildPID, readErr = strconv.Atoi(string(data))
+		return readErr == nil
+	}, 3*time.Second, 20*time.Millisecond)
+
+	cancel()
+
+	require.Eventually(t, func() bool {
+		return !processAlive(childPID) && !processAlive(grandchildPID)
+	}, 3*time.Second, 20*time.Millisecond)
+	state.Stop("tree", time.Second)
 }
 
 // TestServiceChild_StartRejectsBadSpawn covers srd040 R6.3: a spawn failure is

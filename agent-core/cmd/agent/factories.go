@@ -359,7 +359,7 @@ func valuePredicateFactory() toolregistry.BuiltinFactory {
 // a run starts stays reachable for teardown.
 func registerServiceFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
-		state := service.NewState()
+		state := service.NewStateWithContext(st.ctx)
 		st.reapServices = func() { state.Reap() }
 		service.RegisterBuiltins(br, service.FactoryDeps{
 			State:    state,

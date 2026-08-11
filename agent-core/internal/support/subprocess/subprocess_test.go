@@ -4,6 +4,12 @@ package subprocess
 
 import (
 	"context"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -129,6 +135,45 @@ func TestRunCLIOutputUsesStderrForFailure(t *testing.T) {
 	output, err = RunCLIOutput(context.Background(), "", "sh", "-c", `printf success`)
 	require.NoError(t, err)
 	assert.Equal(t, "success", output)
+}
+
+func TestStartCancellationKillsAndReapsProcess(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	handle, err := Start(ctx, StartSpec{Binary: "sh", Args: []string{"-c", "sleep 3600"}})
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() { done <- handle.Wait() }()
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("detached subprocess was not reaped after cancellation")
+	}
+	assert.Error(t, syscall.Kill(handle.PID(), 0))
+}
+
+func TestProductionProcGroupSetupIsOwnedBySubprocess(t *testing.T) {
+	t.Parallel()
+
+	_, file, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	internalRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	var owners []string
+	require.NoError(t, filepath.WalkDir(internalRoot, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr == nil && strings.Contains(string(data), "SysProcAttr") {
+			owners = append(owners, path)
+		}
+		return readErr
+	}))
+	require.Equal(t, []string{filepath.Join(filepath.Dir(file), "subprocess.go")}, owners)
 }
 
 func TestEnvVarFormatting(t *testing.T) {

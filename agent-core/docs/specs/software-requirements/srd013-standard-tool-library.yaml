@@ -69,6 +69,7 @@ requirements:
       - R4.3: RunInProcGroup executes a command with process group management, capturing stdout, stderr, exit code, and elapsed time.
       - R4.4: CapOutput truncates output to a maximum line count, appending an omission summary. DefaultOutputLineCap (200) is the default limit.
       - R4.5: ExtractStringParam extracts a named string parameter from a serialised JSON tool request for use by tool builders.
+      - R4.6: The shared subprocess package SHALL provide a start-and-return handle for long-lived children with the same process-group cancellation and bounded wait behavior as run-to-completion children.
 
   R7:
     title: Metrics helpers
@@ -183,7 +184,7 @@ acceptance_criteria:
 
   - id: AC4
     criterion: SubprocessResult maps output to ToolDone/ToolFailed. ProcGroupCmd enables process group cancellation. CapOutput and ExtractStringParam support tool builders.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6]
 
   - id: AC7
     criterion: ParseTestMetrics and ParseBuildMetrics extract structured ToolMetrics from go test and go build output.

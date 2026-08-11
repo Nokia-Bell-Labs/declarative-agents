@@ -28,7 +28,7 @@ requirements:
       - R1.1: start_scenario_mock SHALL spawn the declared mock profile for one current-scenario fixture, and start_scenario_subject SHALL spawn the current scenario's subject profile, as background children serving until stopped.
       - R1.2: start_scenario_mock and start_scenario_subject SHALL inject declared and scenario-derived environment additions into each child, so fixture data and dependency URLs reach the intended scenario processes.
       - R1.3: Each scenario child start SHALL allocate or accept a listen address, and its output SHALL include the child identity and trusted runtime base URL.
-      - R1.4: Children SHALL be process-group managed; orderly parent shutdown SHALL reap every tracked child rather than orphan it. SIGKILL cannot run process cleanup and is outside this guarantee.
+      - R1.4: Children SHALL use the shared subprocess start transport for process-group management; cancellation of the owning agent context SHALL kill each child's whole process group, and orderly parent shutdown SHALL reap every tracked child rather than orphan it. SIGKILL cannot run process cleanup and is outside this guarantee.
       - R1.5: start_scenario_mock and start_scenario_subject SHALL declare compensating undo that stops only the child named by that dispatch's receipt.
 
   R2:

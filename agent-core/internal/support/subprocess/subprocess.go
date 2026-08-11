@@ -55,6 +55,31 @@ type Spec struct {
 	PropagateOTel bool // append --otel-parent-span from ctx
 }
 
+// StartSpec describes a long-lived subprocess whose lifetime is owned by ctx.
+type StartSpec struct {
+	Binary        string
+	Args          []string
+	Dir           string
+	Env           []string
+	PropagateOTel bool
+}
+
+// Handle owns a started subprocess without exposing process-group setup.
+type Handle struct {
+	cmd *exec.Cmd
+}
+
+// PID returns the child process ID.
+func (h *Handle) PID() int { return h.cmd.Process.Pid }
+
+// Wait reaps the child process.
+func (h *Handle) Wait() error { return h.cmd.Wait() }
+
+// SignalGroup signals the child and every process it spawned.
+func (h *Handle) SignalGroup(signal syscall.Signal) error {
+	return syscall.Kill(-h.cmd.Process.Pid, signal)
+}
+
 // RunCLIOutput runs a CLI and returns stdout, using stderr as the error text
 // when the command fails.
 func RunCLIOutput(ctx context.Context, dir string, name string, args ...string) (string, error) {
@@ -82,16 +107,7 @@ func RunCLIOutput(ctx context.Context, dir string, name string, args ...string) 
 // route through it rather than reimplementing capture, timeout, and proc-group
 // handling (GH-447, GH-1393).
 func Run(ctx context.Context, spec Spec) *Result {
-	args := spec.Args
-	if spec.PropagateOTel {
-		sc := trace.SpanFromContext(ctx).SpanContext()
-		if sc.IsValid() {
-			tp := telemetry.FormatTraceparent(sc)
-			if tp != "" {
-				args = append(args, "--otel-parent-span", tp)
-			}
-		}
-	}
+	args := propagatedArgs(ctx, spec.Args, spec.PropagateOTel)
 
 	childCtx, cancel := spec.withTimeout(ctx)
 	defer cancel()
@@ -137,6 +153,34 @@ func Run(ctx context.Context, spec Spec) *Result {
 	}
 
 	return result
+}
+
+// Start launches a long-lived process and returns immediately. The caller must
+// call Wait, while cancellation of ctx kills the entire process group.
+func Start(ctx context.Context, spec StartSpec) (*Handle, error) {
+	args := propagatedArgs(ctx, spec.Args, spec.PropagateOTel)
+	cmd := exec.CommandContext(ctx, spec.Binary, args...)
+	cmd.Dir = spec.Dir
+	SetProcGroup(cmd)
+	if len(spec.Env) > 0 {
+		cmd.Env = append(os.Environ(), spec.Env...)
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	return &Handle{cmd: cmd}, nil
+}
+
+func propagatedArgs(ctx context.Context, args []string, enabled bool) []string {
+	out := append([]string(nil), args...)
+	if !enabled {
+		return out
+	}
+	sc := trace.SpanFromContext(ctx).SpanContext()
+	if tp := telemetry.FormatTraceparent(sc); sc.IsValid() && tp != "" {
+		out = append(out, "--otel-parent-span", tp)
+	}
+	return out
 }
 
 // withTimeout derives the child context. A spec may opt out of the 10-minute
