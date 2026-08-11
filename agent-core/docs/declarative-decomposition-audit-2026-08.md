@@ -299,6 +299,16 @@ Filed by this audit. Completed by the consolidation slice.
 | GH-1547 | declared tool reuse | `agent-core/tools` | Four words with two declarations each, resolved by load order |
 | GH-1548 | declared tool reuse | `registry`, `exec`, `catalog` | Hand-maintained duplicates that have drifted from the code they mirror |
 | GH-1549 | visibility | `internal/tools/compose` | A declared signal the dispatch path cannot deliver |
+| GH-1550 | orchestration | `internal/runtime/core` | Resume restores control state but not the data channel or the declared parse budget |
+| GH-1551 | orchestration | `internal/runtime/core` | A terminal state's success is decided by its spelling |
+| GH-1552 | orchestration | `runtime/core`, `cmd/agent` | Which output is the run's answer is decided twice in Go |
+| GH-1553 | orchestration | `cmd/agent` | An output-reporting decision keyed on a tool name |
+| GH-1554 | orchestration, visibility | `cmd/agent` | Declared agent identity is never read |
+| GH-1555 | orchestration, expressiveness | `cmd/agent` | The dispatch boundary bounds effect but not time |
+| GH-1556 | declared tool reuse | `internal/tools/service`, `support` | Process-group semantics opted out of silently |
+| GH-1557 | declared tool reuse | `internal/support/cli`, `runtime/core` | A dead package emitting flags that do not exist |
+| GH-1558 | expressiveness | `machine-format.yaml` | Six interpreter decisions the format cannot declare |
+| GH-1559 | visibility | `cmd/agent` | `--request` means different things by word, decided in Go |
 
 ## Rejected candidates
 
@@ -336,6 +346,16 @@ later recurrence should not refile these without new evidence.
 | Lower the remaining `reduce_*` YAML evaluation to `yq`/`jq` | Tool packages | Q6 compatibility spike | Documented exception at `jurist-charter-format.yaml:43-50`, and GH-1101 permitted a Go reducer where line provenance cannot survive the CLI contract. Provenance needs `yaml.Node` positions, which value extraction discards. |
 | Treat per-role factory family names as an Article D4 violation | Tool packages | Q7 exception accuracy | D4 governs documentation and Go binaries, not internal wiring struct fields. The families are init-name groups in one binary and every word stays profile-selected. The real defect in that file is list drift (GH-1548). |
 | Externalize catalog's YAML loader | Tool packages | Q2 behavioral equivalence | Not attempted; same class as GH-1384. |
+| "The dispatch loop is imperative Go" | Runtime | Q1 contract scope | The interpreter is supposed to be imperative. Only decisions a declaration should have made are findings. |
+| Decompose the `for_each` join count-to-signal rules | Runtime | Q1 contract scope | The signal names are declared and validated; the aggregation rule is documented `for_each` semantics, not per-workflow policy. |
+| Decompose the parallel worker pool, channels, and WaitGroup | Runtime | Q1 contract scope | `max_concurrency` is declared and validated. This is the bounded-parallelism implementation GH-1095 asked for. |
+| Externalize the `DiagnoseMachineSpec` reachability walk | Runtime | Q1 contract scope | Static validation is a named benefit of the Machine Interpreter pattern. |
+| Externalize the output-redaction path walk | Runtime | Q1 contract scope | Paths come from the tool's `Result.Redaction`; core only applies them. |
+| Move Dolt SQL out of the checkpoint adapter | Runtime | Q1 contract scope | Adapter implementation behind the `Checkpoint` port, containing no state or signal literals. The terminal predicate is injected from the spec. |
+| Treat `sql.Register("dolt", ...)` as a leak | Runtime | Q1 contract scope | Nineteen lines of textbook composition-root wiring. |
+| Treat the `/opt/agent-core` prefix as policy | Runtime | Q1 contract scope | A deployment path constant, not workflow policy. |
+| Treat `exec/procgroup.go` as a surviving duplicate | Runtime | Q1 contract scope | It is now a 27-line delegating alias, which is what GH-1393 asked for. A thin named seam is not a duplicate. The real residual is GH-1556. |
+| Treat `os.ReadFile` of the machine and request file as externalizable | Runtime | Q1 contract scope | Interpreter preflight, the same carve-out GH-884 made for `--validate-config`. |
 | Externalize the prose-editor tracer boundary | Baseline | Q5 declarative visibility, inverted | Already bound declaratively as six atomic exec ToolDefs with declared side effects, reversibility, and undo. |
 | Treat the tool-contract completeness gap as a decomposition finding | Baseline | Q1 contract scope | A validation-coverage defect, not hidden workflow. Filed as GH-1525 and carried as repository work in this epic. |
 
@@ -377,6 +397,33 @@ has some non-`noop` undo string.
 
 Everything else in the six-section contract is documentation. That is the
 through-line of GH-1541 through GH-1543.
+
+## The loop decision table
+
+Produced by the runtime slice. Every decision the dispatch loop and the
+composition root make that is not read from the loaded MachineSpec, classified
+as interpreter mechanism (legitimate) or workflow policy (a finding).
+
+34 decisions total: 26 mechanism, 8 policy. The loop itself is in good shape.
+The policy concentrates in two places -- the terminal-status and
+summary-signal defaults, and `cmd/agent`'s `OnResult` hook.
+
+The eight policy decisions, with the finding each became:
+
+| Decision | Evidence | Finding |
+|---|---|---|
+| Terminal run status inferred from state spelling | `loop.go:160-169` | GH-1551 |
+| `TaskCompleted` decides which output is the run summary | `loop_runner.go:95-100`, `:392-394` | GH-1552 |
+| `OnResult` overwrites the summary from any non-empty output | `main.go:620-622` | GH-1552 |
+| Suspend keyed on the signal `AwaitApproval` | `loop_runner.go:426` | GH-1558 |
+| Resume defaults the re-entry signal to `Approved` | `resume.go:58-61`, `main.go:114` | GH-1558 |
+| `AgentName` hardcoded; `MachineSpec.Name` never read | `main.go:585`, `runtime_config.go:195` | GH-1554 |
+| `OnResult` special-cases one tool name and signal | `main.go:50-51`, `:655-676` | GH-1553 |
+| Default budget `MaxIterations: 100` in Go | `main.go:614-616` | GH-1558 |
+
+One further decision, `state.go:62` returning a magic `State("Failed")` for an
+unhandled pair, is policy-shaped but inert: the caller discards the value
+(`loop_runner.go:196-206` uses `r.state`). Recorded rather than filed.
 
 ## Slice sections
 
@@ -465,3 +512,41 @@ consciously declined and recorded as an exception, and the tracing improvement
 did not fix the misclassification GH-1539 describes), GH-1376 REGRESSED in
 scope (it collapsed the `list_files` duplicate and left `read`, `write`,
 `edit`, and `find` duplicated -- filed as GH-1547).
+
+### Runtime core and composition root -- GH-1521
+
+Complete. Audited `internal/runtime/core` (5,102 lines, 25 files),
+`cmd/agent` (1,875 lines, 7 files), and `internal/support` with its five
+subpackages (about 510 lines).
+
+The interpreter is sound. The loop decision table above is the evidence: 26 of
+34 non-spec-driven decisions are legitimate interpreter mechanism, and the
+things that look most like violations -- the parallel worker pool, the
+`for_each` join arithmetic, the reachability walk, the Dolt SQL -- are all
+mechanism whose parameters come from the declaration. Ten candidates were
+rejected on that basis.
+
+There is no role-keyed branching anywhere in `cmd/agent` or the loop, which is
+the strongest single result of this slice: GH-884's removal of the
+test-evidence modes held completely, and nothing has grown back.
+
+Ten findings filed (GH-1550 through GH-1559). The pattern across them is that
+the interpreter is faithful to the *machine* and careless with the *run*: the
+machine's states, signals, transitions, and iteration are all read from the
+spec, while the run's identity, its summary, its terminal classification, its
+per-command bound, and its resumed data state are decided by Go literals. Six
+of those decisions have no field in the machine format at all, filed together
+as GH-1558.
+
+Tests: `internal/runtime/core`, `cmd/agent`, and all `internal/support`
+subpackages pass. `internal/support/envexpand` has no test file, noted in
+GH-1557.
+
+Prior findings verified: GH-884 HELD, GH-894 HELD (no `AfterDispatch` hook
+remains; the retry counter is bound to explicit words and validated at
+startup), GH-883 HELD in full against all ten of its required capabilities,
+GH-1099 PARTIAL (the declared path landed and is preferred, but nothing warns
+when a terminal state omits `run_status` and adoption is 3 machines of about
+30 -- filed as GH-1551), GH-1393 PARTIAL (both cited sites consolidated; a
+third process-group spawn exists in `internal/tools/service` -- filed as
+GH-1556).
