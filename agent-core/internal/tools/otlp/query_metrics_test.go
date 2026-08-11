@@ -4,6 +4,7 @@ package otlp
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -156,19 +157,45 @@ func TestSpoolGetMetricPagination(t *testing.T) {
 		},
 	}.Build(core.Result{}).Execute()
 	var output struct {
-		Records     []metricDetail `json:"records"`
-		Total       int            `json:"total"`
-		RecordCount int            `json:"record_count"`
-		Offset      int            `json:"offset"`
-		PageSize    int            `json:"page_size"`
+		Records         []metricDetail `json:"records"`
+		Total           int            `json:"total"`
+		RecordCount     int            `json:"record_count"`
+		PageRecordCount int            `json:"page_record_count"`
+		Offset          int            `json:"offset"`
+		PageSize        int            `json:"page_size"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
 	require.Equal(t, 4, output.Total)
-	require.Equal(t, 2, output.RecordCount)
+	require.Equal(t, 4, output.RecordCount)
+	require.Equal(t, 2, output.PageRecordCount)
 	require.Equal(t, 1, output.Offset)
 	require.Equal(t, 2, output.PageSize)
 	require.Equal(t, "b", output.Records[0].Service)
 	require.Equal(t, "c", output.Records[1].Service)
+}
+
+func TestSpoolGetMetricDefaultPageReportsTruncation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metrics.ndjson")
+	for index := range defaultPageSize + 5 {
+		spoolMetricBatch(t, path, metricRequest(fmt.Sprintf("svc-%02d", index), "hits", 1))
+	}
+	result := GetMetricBuilder{
+		ToolName: "spool_get_metric",
+		Config:   QueryGetMetricConfig{Path: path, MetricName: "hits"},
+	}.Build(core.Result{}).Execute()
+	var output struct {
+		Records         []metricDetail `json:"records"`
+		RecordCount     int            `json:"record_count"`
+		PageRecordCount int            `json:"page_record_count"`
+		Total           int            `json:"total"`
+		PageSize        int            `json:"page_size"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
+	require.Len(t, output.Records, defaultPageSize)
+	require.Equal(t, defaultPageSize+5, output.RecordCount)
+	require.Equal(t, output.RecordCount, output.Total)
+	require.Equal(t, defaultPageSize, output.PageRecordCount)
+	require.Equal(t, defaultPageSize, output.PageSize)
 }
 
 func TestSpoolGetMetricSeedCapsAndFinalPage(t *testing.T) {

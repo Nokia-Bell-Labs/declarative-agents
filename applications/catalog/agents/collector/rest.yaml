@@ -145,7 +145,7 @@ rest:
                 MetricReady:
                   status: 200
                   content_type: application/json
-                  body: {metric_name: $.metric_name, records: $.records, total: $.total, record_count: $.record_count, data_point_count: $.data_point_count, offset: $.offset, page_size: $.page_size}
+                  body: {metric_name: $.metric_name, records: $.records, total: $.total, record_count: $.record_count, page_record_count: $.page_record_count, data_point_count: $.data_point_count, offset: $.offset, page_size: $.page_size}
                 Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}
         span_stats:
           method: GET

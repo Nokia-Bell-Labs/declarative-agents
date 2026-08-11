@@ -26,6 +26,7 @@ type outputContractBundle struct {
 		Output struct {
 			Schema map[string]any `yaml:"schema"`
 		} `yaml:"output"`
+		Config map[string]any `yaml:"config"`
 	} `yaml:"tools"`
 }
 
@@ -58,11 +59,34 @@ func TestShippedToolOutputKindsMatchRuntimeFamilies(t *testing.T) {
 			if tool.Init == "load_corpus" {
 				requireLoadCorpusOutput(t, path, tool.Name, tool.Output.Schema)
 			}
+			if tool.Init == "spool_get_metric" {
+				requireMetricPageOutput(t, path, tool.Name, tool.Output.Schema, tool.Config)
+			}
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func requireMetricPageOutput(
+	t *testing.T, path, name string, schema, config map[string]any,
+) {
+	t.Helper()
+	properties, _ := schema["properties"].(map[string]any)
+	for _, field := range []string{
+		"metric_name", "records", "record_count", "page_record_count", "total",
+		"data_point_count", "offset", "page_size", "skipped_lines",
+	} {
+		if _, ok := properties[field]; !ok {
+			t.Errorf("%s tool %s output omits %s", path, name, field)
+		}
+	}
+	for _, field := range []string{"path", "metric_name", "page_size", "max_page_size", "offset"} {
+		if _, ok := config[field]; !ok {
+			t.Errorf("%s tool %s config omits %s", path, name, field)
+		}
 	}
 }
 

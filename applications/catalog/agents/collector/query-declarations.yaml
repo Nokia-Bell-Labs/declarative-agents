@@ -118,12 +118,12 @@ tools:
     goals: [Return paginated records for one metric name, Cap page size in config, Read across active and rotated spool files]
     requirements:
       input: [Path and page defaults come from trusted config; metric_name, page_size, and offset may come from the request seed]
-      output: [Output includes metric_name, records, total, record_count, data_point_count, offset, page_size, skipped_lines; each record includes unchanged decoded resource attributes such as service.name and test.run.id]
+      output: [Output includes metric_name, records, total, record_count, page_record_count, data_point_count, offset, page_size, skipped_lines; each record includes unchanged decoded resource attributes such as service.name and test.run.id]
       errors: [An unreadable spool or missing metric_name emits CommandError]
     non_goals: [Does not aggregate across metric names or mutate records]
     parameters: {type: object, properties: {}}
     output:
-      description: All records for one metric name.
+      description: One bounded page plus total counts for one metric name.
       schema:
         type: object
         properties:
@@ -150,6 +150,7 @@ tools:
                 metric: {type: object}
               required: [name, type, unit, data_point_count, service, resource, metric]
           record_count: {type: integer}
+          page_record_count: {type: integer}
           total: {type: integer}
           data_point_count: {type: integer}
           offset: {type: integer}

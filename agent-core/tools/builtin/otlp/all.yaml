@@ -826,16 +826,16 @@ tools:
   category: boundary
   visibility: internal
   emits: [MetricRetrieved, CommandError]
-  description: Read all spooled records for one metric name from the NDJSON metric spool.
-  problem: A metric detail view needs per-record data points and resource identity from the spool without a separate query backend.
+  description: Read one bounded page of spooled records for one metric name from the NDJSON metric spool.
+  problem: A metric detail view needs bounded per-record data points and resource identity without hiding truncation.
   goals:
-  - Return all records for one metric name with service and data-point detail.
+  - Return one declared page with total and page record counts.
   - Read across the active spool and rotated files without mutation.
   requirements:
     input:
     - Path and metric name come from trusted config.
     output:
-    - Output includes metric name, records (name, type, unit, data-point count, service, metric), record count, data-point count, and skipped line count.
+    - Output includes metric name, records with resource identity, total, record count, page record count, pagination fields, data-point count, and skipped line count.
     side_effects:
     - Read-only file access.
     errors:
@@ -859,11 +859,18 @@ tools:
               unit: {type: string}
               data_point_count: {type: integer}
               service: {type: string}
+              resource:
+                type: array
+                items: {type: object}
               metric: {type: object}
         record_count: {type: integer}
+        page_record_count: {type: integer}
+        total: {type: integer}
         data_point_count: {type: integer}
+        offset: {type: integer}
+        page_size: {type: integer}
         skipped_lines: {type: integer}
-      required: [metric_name, records, record_count, data_point_count, skipped_lines]
+      required: [metric_name, records, record_count, page_record_count, total, data_point_count, offset, page_size, skipped_lines]
   side_effects:
   - kind: filesystem_read
     target: configured metric spool path and rotated files
@@ -884,3 +891,6 @@ tools:
   config:
     path: metrics/collector.ndjson
     metric_name: ""
+    page_size: 20
+    max_page_size: 100
+    offset: 0
