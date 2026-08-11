@@ -45,7 +45,7 @@ func TestRecordScenarioValidators_PreservesJoinOrder(t *testing.T) {
 	require.False(t, verdict.Passed)
 }
 
-func TestRunScenarioValidator_EmitsItemReceipt(t *testing.T) {
+func TestRunScenarioValidatorDoesNotEmitIrreversibleReceipt(t *testing.T) {
 	t.Parallel()
 	root := scenarioTree(t, map[string]map[string][]string{"alpha": {"only": nil}})
 	session := NewScenarioSession(NewState())
@@ -72,7 +72,7 @@ func TestRunScenarioValidator_EmitsItemReceipt(t *testing.T) {
 	})
 	result := cmd.Execute()
 	require.Equal(t, SignalValidatorCompleted, result.Signal)
-	require.Contains(t, result.Receipt, `"validator":"chatbot-turn-critic"`)
+	require.Empty(t, result.Receipt)
 	require.Contains(t, result.Output, `"name":"chatbot-turn-critic"`)
 	require.Contains(t, result.Output, `"passed":true`)
 }

@@ -77,7 +77,7 @@ tools:
       properties: {}
     emits: [ScenarioReady, AllScenariosDone, CommandError]
     output:
-      description: The scenario now current, or the run report when exhausted.
+      description: The scenario now current, or an exhausted marker when the cursor is done.
       schema:
         type: object
         properties:
@@ -85,6 +85,7 @@ tools:
           scenario: {type: string}
           validators: {type: array}
           fixtures: {type: array}
+          exhausted: {type: boolean}
     side_effects:
       - kind: state_mutation
         target: scenario_session
@@ -191,6 +192,9 @@ tools:
           profile: {type: string}
           base_url: {type: string}
           env: {type: array}
+          health_base_url: {type: string}
+          health_path: {type: string}
+          started_at: {type: string}
     side_effects:
       - kind: child_agent_execution
         target: subject_agent
@@ -470,9 +474,9 @@ tools:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
     errors:
-      - signal: CommandError
-        condition: The collected validator results cannot be reduced to a verdict.
-        state_after_failure: No verdict is recorded for the scenario; the run ends in Failed.
+      - signal: ScenarioFailed
+        condition: One or more recorded validator outcomes failed.
+        state_after_failure: The failed verdict is retained for aggregate reporting.
     config: {}
     relationships:
       after: [record_scenario_validators]
@@ -518,9 +522,9 @@ tools:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
     errors:
-      - signal: CommandError
-        condition: The failure verdict cannot be recorded.
-        state_after_failure: The scenario's cause is lost; the run ends in Failed.
+      - signal: ScenarioFailed
+        condition: Subject or mock startup failed before validators ran.
+        state_after_failure: The configured failure cause is retained for aggregate reporting.
     relationships:
       overlaps:
         - tool: collect_scenario_verdict
@@ -568,9 +572,9 @@ tools:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
     errors:
-      - signal: CommandError
-        condition: The unhealthy verdict cannot be recorded.
-        state_after_failure: The scenario's cause is lost; the run ends in Failed.
+      - signal: ScenarioFailed
+        condition: The subject did not become healthy within its declared bound.
+        state_after_failure: The configured failure cause is retained for aggregate reporting.
     relationships:
       overlaps:
         - tool: collect_scenario_verdict
@@ -618,9 +622,9 @@ tools:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
     errors:
-      - signal: CommandError
-        condition: The validator-failure verdict cannot be recorded.
-        state_after_failure: The scenario's cause is lost; the run ends in Failed.
+      - signal: ScenarioFailed
+        condition: The scenario validators could not be run.
+        state_after_failure: The configured failure cause is retained for aggregate reporting.
     relationships:
       overlaps:
         - tool: collect_scenario_verdict
@@ -805,9 +809,9 @@ tools:
       strategy: noop
       description: Reporting reads the collected verdicts and changes nothing.
     errors:
-      - signal: CommandError
-        condition: The collected verdicts cannot be reduced to a run result.
-        state_after_failure: No run result is reported; the run ends in Failed.
+      - signal: SessionFailed
+        condition: At least one scenario verdict failed, or no scenario was proven.
+        state_after_failure: The complete aggregate report is returned.
     config: {}
     relationships:
       after: [next_scenario]

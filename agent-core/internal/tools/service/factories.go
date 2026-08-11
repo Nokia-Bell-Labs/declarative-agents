@@ -56,13 +56,11 @@ const (
 	SignalScenarioReady          core.Signal = "ScenarioReady"
 	SignalAllScenariosDone       core.Signal = "AllScenariosDone"
 	SignalMockStarted            core.Signal = "MockStarted"
-	SignalMocksStarted           core.Signal = "MocksStarted"
 	SignalSubjectStarted         core.Signal = "SubjectStarted"
 	SignalScenarioChildrenListed core.Signal = "ScenarioChildrenListed"
 	SignalAllServicesStopped     core.Signal = "AllServicesStopped"
 	SignalScenarioPassed         core.Signal = "ScenarioPassed"
 	SignalScenarioFailed         core.Signal = "ScenarioFailed"
-	SignalScenarioTornDown       core.Signal = "ScenarioTornDown"
 	SignalSessionPassed          core.Signal = "SessionPassed"
 	SignalSessionFailed          core.Signal = "SessionFailed"
 )
@@ -319,10 +317,9 @@ func (c command) stop() core.Result {
 		return commandError(c.toolName, err)
 	}
 	output := c.state.Stop(service, parseDuration(c.cfg.Grace, defaultStopGrace))
-	encoded := jsonOutput(output)
 	return core.Result{
 		Signal: SignalServiceStopped, CommandName: c.toolName,
-		Output: encoded, Receipt: encoded,
+		Output: jsonOutput(output),
 	}
 }
 

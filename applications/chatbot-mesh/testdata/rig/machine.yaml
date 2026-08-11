@@ -323,6 +323,3 @@ transitions:
   - state: Reporting
     signal: SessionFailed
     next: Failed
-  - state: Reporting
-    signal: CommandError
-    next: Failed

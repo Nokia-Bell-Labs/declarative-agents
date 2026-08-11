@@ -60,7 +60,7 @@ func (c command) nextScenario() core.Result {
 	if !ok {
 		return core.Result{
 			Signal: SignalAllScenariosDone, CommandName: c.toolName,
-			Output: jsonOutput(c.session.Report()),
+			Output: jsonOutput(map[string]interface{}{"exhausted": true}),
 		}
 	}
 	return core.Result{
@@ -296,8 +296,7 @@ func (c command) runScenarioValidator(ctx context.Context) core.Result {
 	}
 	return core.Result{
 		Signal: signal, CommandName: c.toolName,
-		Output:  jsonOutput(outcome),
-		Receipt: jsonOutput(map[string]interface{}{"validator": name}),
+		Output: jsonOutput(outcome),
 	}
 }
 
