@@ -316,6 +316,14 @@ Filed by this audit. Completed by the consolidation slice.
 | GH-1564 | declared tool reuse | `pkg/spec`, `internal/planning` | An unwired validator; undeclared filesystem writes reachable from no word |
 | GH-1565 | declared tool reuse | `internal/planning` | Output paths and a domain classification owned by Go |
 | GH-1566 | visibility | `pkg/spec` | A validator that reports "missing" when it means "unparsed" |
+| GH-1567 | compound-tool | `internal/tools/otlp` | A promised compensation the walk cannot reach; the listener stays bound |
+| GH-1568 | visibility | `internal/tools/otlp` | Silent truncation behind a declaration promising completeness |
+| GH-1569 | compound-tool | `internal/tools/otlp` | A declared non-goal ("does not delete") the code violates |
+| GH-1570 | orchestration, visibility | `internal/evaluation` | A declared machine state performed inside another word |
+| GH-1571 | visibility | `internal/tools/otlp` | An undeclared output contract and a field that cannot vary |
+| GH-1572 | compound-tool | `internal/tools/otlp` | Two independent analytical results behind one signal |
+| GH-1573 | declared tool reuse | `internal/evaluation` | Sample layout, convergence policy, and undeclared effects owned by Go |
+| GH-1574 | declared tool reuse | `evaluation`, `otlp`, `observability`, `model` | Dead surface, incl. the probe GH-1375 made unreachable |
 
 ## Rejected candidates
 
@@ -374,6 +382,20 @@ later recurrence should not refile these without new evidence.
 | Externalize `pkg/spec` discovery I/O to `find` | Spec/planning | Q2 behavioral equivalence | Same class as GH-1384. |
 | Split `load_graph` because it loads a corpus and builds a graph | Spec/planning | Q1 contract scope | No machine can route on a loaded-but-ungraphed corpus, there is no sibling `build_graph` word, and the word exists to stop the machine dereferencing a nil graph. |
 | Refile the stale `extract-all.yaml` / `execute-task.yaml` / `assemble-prompt.yaml` filenames | Spec/planning | No defect | The filenames are stale after GH-1088/1089/1091 but the contents were rewritten to declare the current words. No orphaned declaration exists. |
+| Externalize the spool query and analytics engine to duckdb | Telemetry | Q2, Q3, Q4, Q6 -- all four | GH-1382's proposal. Not attempted, and not attemptable: duckdb is in no runtime image the audit could name, and the deterministic exemplar ordering, the divergence tie-break, the half-open duration-bucket rule with an overflow bucket, the `skipped_lines` malformed-line accounting, and the rotated-file discovery order are behavioral contracts that 34 existing tests assert directly. No equivalence matrix exists for any of them. |
+| Delete `load_otlp_batch` as "cat" | Telemetry | Q1 contract scope | Not a byte copy: the protobuf-JSON decode *is* the trust-boundary check that makes a batch safe to hand to `relay_spans` (srd042 R3.10), and its separate `BatchLoaded` signal is what lets a machine distinguish a read/decode failure from an export failure. |
+| Externalize spool writing and rotation to `stdouttrace` or an otelcol file exporter | Telemetry | Q6 compatibility spike | GH-1382 and GH-1387 combined. The spool word converts an *inbound protobuf* request into the stdout shape; `stdouttrace` serializes an *outbound SDK* span. No supported path exists between them without reconstructing SDK span objects, and the sort-stable attribute ordering and homogeneous-array typing are test-asserted. No provisioning answer for otelcol. |
+| Collapse the evaluator's trace reader onto `tracetest.SpanStub` | Telemetry | Q6 compatibility spike | GH-1387 verbatim, already reversed. `eval_trace.go` is a deliberately partial, tolerant reader of *child agent* trace files whose producer version is not pinned to the evaluator's. Decoding into a versioned upstream struct would make an SDK bump a silent zero-span parse -- the exact failure GH-1387 was reversed for. |
+| Probe Ollama through its CLI, or restore a preflight probe | Telemetry | Q2 behavioral equivalence | GH-1389, reversed: the CLI does not consume the profile's resolved `provider_url`. GH-1375 moved the probe to a declared REST word that does. The correct residual is deleting the unreachable `checkModel` (GH-1574), not re-adding a probe. |
+| Externalize spool file discovery to `find` or `ls` | Telemetry | Q2 behavioral equivalence | Portable `os.Stat` inside one atomic read word. Same shape as GH-1384. |
+| Split `await_spans` because it waits, decodes, and computes metadata | Telemetry | Q1 contract scope | One queue read producing one result. The metadata is projection of the batch it just took, and each field is declared. Three outcome signals is routing, not compounding. |
+| Split `otlp_receiver_launch` because it binds a listener and registers two services | Telemetry | Q1 contract scope | One listener serving two OTLP signals on one port, as the declaration says. One bind, one rollback boundary. |
+| Split `spool_spans` into encode and append | Telemetry | Q1 contract scope | Encoding is the append's payload. No state between them and no signal a machine could route on. |
+| Decompose the receiver's overflow policy or the graceful-then-force stop walk | Telemetry | Q1 contract scope | GH-1382 recorded the overflow half as an exception because back-pressure is coupled to the machine's consumption rate. The stop is one bounded termination walk, the same shape already rejected for `child.stop`. |
+| Treat the `provider != "ollama"` rejection as a closed set leaked into Go | Telemetry | Q7 exception accuracy | The documented adapter contract: `06-inference-boundary.md:112` says a new provider requires a new adapter behind the existing interface. A rejected unknown provider is the boundary working. |
+| Treat the four standard dispatch metrics as policy in Go | Telemetry | Q1 contract scope | Runtime-owned dispatch instrumentation, explicitly modeled as such, and tool-supplied bindings extend it through `RecorderConfig.Bindings`. The mechanism for profile-supplied metrics exists and is used. |
+| Treat `internal/observability` as carrying an application-specific concern | Telemetry | Q7 exception accuracy | Same rigor as the REST monitor question, same answer. `telemetry` is OTel setup and W3C traceparent, `tracing` is a four-method port plus a noop, `genai` is a semconv constant table, `monitor` is a schema-validated store whose vocabulary comes from `RecorderConfig`. The two application-flavored `Snapshot` booleans are dead code (GH-1574), not a D4 violation. |
+| Treat the OTLP and monitor timeout/limit defaults as policy leaks | Telemetry | Q1 contract scope | Each is a fallback for a value the declaration exposes and the shipped declarations set. A declared knob with a Go default is the pattern working -- which is why GH-1570's ten-minute point timeout *is* filed: it is not exposed in the config block at all. |
 | Externalize the prose-editor tracer boundary | Baseline | Q5 declarative visibility, inverted | Already bound declaratively as six atomic exec ToolDefs with declared side effects, reversibility, and undo. |
 | Treat the tool-contract completeness gap as a decomposition finding | Baseline | Q1 contract scope | A validation-coverage defect, not hidden workflow. Filed as GH-1525 and carried as repository work in this epic. |
 
@@ -601,3 +623,39 @@ removal held completely -- `BatchLimitReached`, `Paused`, and `batch_limit`
 appear nowhere -- but its third criterion, that retained batch policy be
 configured in YAML, is unmet: the policy stayed in Go and was left
 unconfigurable, filed as GH-1561).
+
+### Evaluation, OTLP, observability, and model -- GH-1523
+
+Complete. Audited `internal/evaluation` (3,948 lines), `internal/tools/otlp`
+(3,697), `internal/observability` with four subpackages (2,111), and
+`internal/model` with three (1,682) -- 61 non-test files in full.
+
+This slice needed the most care, because three of the four findings GH-1410
+judged defective came from these packages. Fifteen candidates were rejected,
+and the rejected register above records each proposal of that shape with the
+gate question it failed. The duckdb externalization, the `stdouttrace` spool
+replacement, the `SpanStub` trace decode, and the Ollama CLI probe were all
+considered and none could complete the equivalence, provisioning,
+compatibility-spike, and test-path sections the gate requires.
+
+Two positive results worth recording. The eleven evaluator point words are the
+cleanest word family in the audit: `create_point_dir` and `sample_docs` emit
+copy *parameters* rather than copying, `record_point_failure` explicitly leaves
+`meta.json` to `collect_metrics`, and every state mutation is declared with a
+matching receipt strategy. And `internal/observability` is genuinely generic --
+the same Article D4 question asked of the REST monitor views got the same
+answer here.
+
+Eight findings filed (GH-1567 through GH-1574). The two with real consequence
+today are GH-1568, where `spool_get_metric` silently truncates at twenty
+records while declaring it returns all of them, and GH-1569, where an omitted
+`max_files` turns the first spool overflow into a full delete of a word whose
+declared non-goal is "does not delete accepted backend spans".
+
+Tests: all packages pass.
+
+Prior findings verified: GH-1092 HELD, GH-1093 HELD, GH-1094 HELD, GH-1095
+HELD, GH-1375 HELD, GH-1096 HELD with one qualification -- the machine
+sequencing `load_otlp_batch` and `relay_spans` ships as an integration-test
+profile rather than an application profile, which satisfies srd008 R7.1/R7.2
+as written but is worth recording.
