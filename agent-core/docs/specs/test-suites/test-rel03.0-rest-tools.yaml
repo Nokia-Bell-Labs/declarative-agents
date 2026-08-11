@@ -441,6 +441,26 @@ test_cases:
       - srd028-rest-client-tools AC8
       - srd028-rest-client-tools AC9
 
+  - use_case: rel03.0-uc002-rest-client-async
+    name: REST dispatch cancellation reaches request and retry transport
+    go_test: go test ./internal/tools/rest -run 'TestRESTClient(DispatchCancellation|CancelledMutation|ExecuteRetains)'
+    status: done
+    description: |
+      Cancel dispatch during an in-flight HTTP request and a declared retry
+      wait. Both stop promptly, while the legacy Execute entry point retains a
+      background context and an uncertain non-idempotent mutation reports an
+      indeterminate remote outcome.
+    expected:
+      in_flight_request_aborted: true
+      retry_wait_aborted: true
+      context_worker_joined: true
+      non_idempotent_outcome: indeterminate
+      legacy_execute_compatible: true
+    traces:
+      - srd027-rest-tool-runtime AC6
+      - srd028-rest-client-tools AC8
+      - srd028-rest-client-tools AC9
+
   - use_case: rel03.0-uc003-rest-server-signals
     name: Server launch registers routes without blocking
     go_test: TestRESTServer_LaunchRegistersRoutes

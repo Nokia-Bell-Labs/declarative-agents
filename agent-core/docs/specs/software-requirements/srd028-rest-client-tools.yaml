@@ -109,6 +109,7 @@ requirements:
       - R8.4: Retries SHALL not be enabled for non-idempotent operations unless config declares an idempotency token or safe retry policy.
       - R8.5: Tool output and traces SHOULD include retry count and idempotency metadata when available.
       - R8.6: A retry policy's declared backoff and max_delay SHALL be honored between attempts—none waits zero, fixed uses initial_delay, and exponential doubles initial_delay with overflow-safe saturation at max_delay—and the delay SHALL be cancellation-aware so a cancelled dispatch stops waiting. An unsupported backoff, negative attempt count, or invalid/negative delay SHALL be rejected at load.
+      - R8.7: The dispatch context SHALL govern both the in-flight HTTP request and retry waits. Cancellation of a non-idempotent request without an idempotency token SHALL report an indeterminate remote outcome.
 
   R9:
     title: Metrics, tracing, and redaction
@@ -137,6 +138,7 @@ requirements:
       - R11.2: Error output SHALL include operation ID, resource name when known, failure stage, status code when present, redacted diagnostic text, and resulting signal.
       - R11.3: Domain failure status codes SHALL map to RESTDomainFailed or RESTMissing when declared by the operation.
       - R11.4: Infrastructure failures SHALL map to CommandError and SHALL not be confused with service-domain failures.
+      - R11.5: Cancellation after a non-idempotent request may have reached the remote service SHALL report outcome indeterminate rather than claiming the mutation failed.
 
   R12:
     title: Previous-Result parameter threading
@@ -257,11 +259,11 @@ acceptance_criteria:
 
   - id: AC8
     criterion: Idempotency, retry, metrics, tracing, and redaction requirements are explicit for external API calls.
-    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6, R9.1, R9.2, R9.3, R9.4, R10.8]
+    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6, R8.7, R9.1, R9.2, R9.3, R9.4, R10.8]
 
   - id: AC9
     criterion: Error and recovery requirements distinguish domain failures from infrastructure failures and report operation identity, failure stage, status, diagnostics, and resulting signal.
-    traces: [R11.1, R11.2, R11.3, R11.4]
+    traces: [R11.1, R11.2, R11.3, R11.4, R11.5]
 
   - id: AC10
     criterion: Each planned client tool word lists inputs, outputs, signals, side effects, errors, and undo strategy expectations.

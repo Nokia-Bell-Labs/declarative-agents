@@ -102,6 +102,8 @@ type restCompensationCmd struct {
 
 func (c *clientCmd) Name() string { return c.toolName }
 
+var _ core.ContextCommand = (*clientCmd)(nil)
+
 func (c restCompensationCmd) Name() string { return c.toolName }
 
 func (c restCompensationCmd) Execute() core.Result {
@@ -117,13 +119,23 @@ func (c restCompensationCmd) Undo(prior core.Result) core.Result {
 }
 
 func (c *clientCmd) Execute() core.Result {
+	return c.executeContext(context.Background())
+}
+
+func (c *clientCmd) ExecuteContext(ctx context.Context) core.Result {
+	return c.executeContext(ctx)
+}
+
+func (c *clientCmd) executeContext(ctx context.Context) core.Result {
 	if c.buildErr != nil {
 		return clientOperationError(c.toolName, "schema_validation", c.buildErr, c.operation)
 	}
 	if c.init == InitClientAwait {
-		return c.awaitAsync()
+		return c.awaitAsyncContext(ctx)
 	}
-	request, effective, err := buildClientRequest(c.operation, c.params, c.credentials, c.commandState, c.traceCtx)
+	request, effective, err := buildClientRequest(
+		ctx, c.operation, c.params, c.credentials, c.commandState, c.traceCtx,
+	)
 	if err != nil {
 		return clientOperationError(c.toolName, requestBuildFailureStage(err), err, c.operation)
 	}
@@ -358,7 +370,15 @@ func (c *clientCmd) executeRequest(request *http.Request) core.Result {
 	response, attempts, err := c.doWithRetry(request)
 	duration := time.Since(start)
 	if err != nil {
-		return clientOperationError(c.toolName, "network_io", redactError(err, c.operation, c.credentials), c.operation)
+		result := clientOperationError(
+			c.toolName, "network_io", redactError(err, c.operation, c.credentials), c.operation,
+		)
+		if cancellationIsIndeterminate(request, err) {
+			output := decodeRESTResultOutput(result.Output)
+			output["outcome"] = "indeterminate"
+			result.Output = jsonOutput(output)
+		}
+		return result
 	}
 	defer func() { _ = response.Body.Close() }()
 	result, err := mapClientResponse(c.toolName, c.operation, response, attempts, duration, c.params)
@@ -371,6 +391,21 @@ func (c *clientCmd) executeRequest(request *http.Request) core.Result {
 	}
 	c.recordRESTMetrics(request, result)
 	return result
+}
+
+func cancellationIsIndeterminate(request *http.Request, err error) bool {
+	if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if request.Header.Get("Idempotency-Key") != "" {
+		return false
+	}
+	switch request.Method {
+	case http.MethodGet, http.MethodHead, http.MethodPut, http.MethodDelete, http.MethodOptions, http.MethodTrace:
+		return false
+	default:
+		return true
+	}
 }
 
 func (c clientCmd) doWithRetry(request *http.Request) (*http.Response, int, error) {

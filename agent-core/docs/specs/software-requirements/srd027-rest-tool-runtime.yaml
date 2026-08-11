@@ -82,7 +82,7 @@ requirements:
     items:
       - R6.1: REST runtime SHALL validate runtime parameters against configured schemas before rendering requests or accepting inbound payloads.
       - R6.2: REST runtime SHALL support authentication strategy abstraction with credentials referenced by trusted configuration.
-      - R6.3: REST runtime SHALL enforce configured timeout, retry, redirect, request-size, response-size, and body-read policies.
+      - R6.3: REST runtime SHALL enforce configured timeout, retry, redirect, request-size, response-size, and body-read policies, and caller cancellation SHALL stop in-flight requests and retry waits.
       - R6.4: Redirect behavior SHALL be disabled by default or constrained by configured scheme, host, port, or network policy.
       - R6.5: REST runtime SHOULD support configured network allowlists for schemes, hosts, CIDRs, and ports.
       - R6.6: REST runtime SHALL reject unknown operations, unknown routes, schema-invalid parameters, and disallowed destinations with structured errors.

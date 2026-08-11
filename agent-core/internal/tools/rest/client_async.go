@@ -3,6 +3,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -47,7 +48,7 @@ func (c clientCmd) sendAsync(request *http.Request) core.Result {
 	}
 }
 
-func (c clientCmd) awaitAsync() core.Result {
+func (c clientCmd) awaitAsyncContext(ctx context.Context) core.Result {
 	if c.asyncState == nil {
 		return clientOperationError(c.toolName, "async_state_missing", fmt.Errorf("async state is not configured"), c.operation)
 	}
@@ -55,12 +56,16 @@ func (c clientCmd) awaitAsync() core.Result {
 	if err != nil {
 		return clientOperationError(c.toolName, "async_state_missing", err, c.operation)
 	}
+	timer := time.NewTimer(c.awaitTimeout())
+	defer timer.Stop()
 	select {
 	case result := <-request.Done:
 		c.asyncState.Consume(request)
 		result.CommandName = c.toolName
 		return enrichAsyncResult(result, request)
-	case <-time.After(c.awaitTimeout()):
+	case <-ctx.Done():
+		return clientOperationError(c.toolName, "async_wait", ctx.Err(), c.operation)
+	case <-timer.C:
 		return core.Result{
 			Signal:      core.Signal("RESTAwaitTimedOut"),
 			CommandName: c.toolName,
