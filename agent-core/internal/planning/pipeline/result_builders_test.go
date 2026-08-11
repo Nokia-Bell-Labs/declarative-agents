@@ -15,6 +15,8 @@ func TestMarkTaskFailedMutatesBeforeRemainingWorkAndUndoes(t *testing.T) {
 	ps := minimalState(t)
 	selected := (&ExtractTaskBuilder{PS: ps}).Build(core.Result{}).Execute()
 	require.Equal(t, SigTaskExtracted, selected.Signal)
+	planning := (&MarkNodesPlanningBuilder{PS: ps}).Build(core.Result{}).Execute()
+	require.Equal(t, SigNodesPlanning, planning.Signal)
 	executing := (&MarkNodesExecutingBuilder{PS: ps}).Build(core.Result{}).Execute()
 	require.Equal(t, SigNodesExecuting, executing.Signal)
 

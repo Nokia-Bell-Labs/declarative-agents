@@ -110,7 +110,8 @@ func TestPlannerVariantsComposeProfileOwnedPrompts(t *testing.T) {
 		t.Run(file, func(t *testing.T) {
 			var machine plannerMachine
 			readPlannerYAML(t, file, &machine)
-			requirePlannerTransition(t, machine, "Extracting", "TaskExtracted", "InitializingFailureContext", "reset_failure_context", "failure_context")
+			requirePlannerTransition(t, machine, "Extracting", "TaskExtracted", "MarkingPlanning", "mark_nodes_planning", "")
+			requirePlannerTransition(t, machine, "MarkingPlanning", "NodesMarkedPlanning", "InitializingFailureContext", "reset_failure_context", "failure_context")
 			requirePlannerTransition(t, machine, "Resetting", "ToolDone", "ProjectingPromptContext", "project_planner_context", "planner_context")
 			requirePlannerTransition(t, machine, "ProjectingPromptContext", "PlannerContextProjected", "PromptAssembly", "compose_planner_prompt", "")
 			requirePlannerTransition(t, machine, "PromptAssembly", "PromptReady", "PlanInvoking", "invoke_llm", "")

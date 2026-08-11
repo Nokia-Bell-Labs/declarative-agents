@@ -143,7 +143,8 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 			unmarshalShipped(t, filepath.Join("agents", "planner", machinePath), &machine)
 
 			if machinePath == "machine.yaml" {
-				requireLabeledTransition(t, machine.Transitions, "Extracting", "TaskExtracted", "InitializingFailureContext", "reset_failure_context", "failure_context")
+				requireTransition(t, machine.Transitions, "Extracting", "TaskExtracted", "MarkingPlanning", "mark_nodes_planning")
+				requireLabeledTransition(t, machine.Transitions, "MarkingPlanning", "NodesMarkedPlanning", "InitializingFailureContext", "reset_failure_context", "failure_context")
 				requireLabeledTransition(t, machine.Transitions, "InitializingFailureContext", "FailureContextInitialized", "InitializingRetry", "reset_retry_count", "retry_count")
 			} else {
 				requireTransition(t, machine.Transitions, "Loading", "GraphLoaded", "SelectingReady", "select_all_ready")
