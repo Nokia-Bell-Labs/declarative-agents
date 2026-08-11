@@ -274,7 +274,9 @@ builtin_fields:
     description: |
       Tool-specific configuration passed to the factory function.
       Decoded into typed Go structs via DecodeToolConfig at registration
-      time. Type mismatches produce errors mentioning the tool name.
+      time. Type mismatches and unknown top-level keys produce errors mentioning
+      the tool name; older runtimes reject config authored for a newer word
+      rather than silently ignoring behavior they do not implement.
       Structure varies per tool. Boundary tools that spawn child agents use
       profile-only child_agent_config for self_invoke and profile aliases such as invoke_executor.
       LLMToolConfig configures invoke_llm. LoadSuiteConfig configures

@@ -3,6 +3,7 @@
 package catalog
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -20,7 +21,9 @@ func DecodeToolConfig(def ToolDef, target interface{}) error {
 	if err != nil {
 		return fmt.Errorf("tool %q config marshal: %w", def.Name, err)
 	}
-	if err := json.Unmarshal(data, target); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
 		return fmt.Errorf("tool %q config: %w", def.Name, err)
 	}
 	return nil
