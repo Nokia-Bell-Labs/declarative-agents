@@ -80,7 +80,7 @@ transitions:
   - {state: ParsingCandidate, signal: StructureCandidateParsed, next: CheckingCandidate, action: structure_candidate_is_valid, label: structure_candidate_check}
   - {state: ParsingCandidate, signal: StructureCandidateInvalid, next: Failed}
   - {state: ParsingCandidate, signal: CommandError, next: Failed}
-  - {state: CheckingCandidate, signal: StructureCandidateValid, next: ComposingResponse, action: compose_structure_response, label: structure_response}
+  - {state: CheckingCandidate, signal: StructureCandidateValid, next: ComposingResponse, action: compose_structure_response, label: structure_response, summary: true}
   - {state: CheckingCandidate, signal: StructureCandidateRejected, next: Failed}
   - {state: CheckingCandidate, signal: CommandError, next: Failed}
   - {state: ComposingResponse, signal: StructureResponseReady, next: Succeeded}

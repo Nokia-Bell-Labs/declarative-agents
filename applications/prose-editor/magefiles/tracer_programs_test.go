@@ -30,11 +30,12 @@ type tracerMachine struct {
 	TerminalStates []string `yaml:"terminal_states"`
 	Signals        []any    `yaml:"signals"`
 	Transitions    []struct {
-		State  string `yaml:"state"`
-		Signal string `yaml:"signal"`
-		Next   string `yaml:"next"`
-		Action string `yaml:"action"`
-		Label  string `yaml:"label"`
+		State   string `yaml:"state"`
+		Signal  string `yaml:"signal"`
+		Next    string `yaml:"next"`
+		Action  string `yaml:"action"`
+		Label   string `yaml:"label"`
+		Summary bool   `yaml:"summary"`
 	} `yaml:"transitions"`
 }
 
@@ -60,6 +61,26 @@ type declarationFile struct {
 			State  string `yaml:"state"`
 		} `yaml:"side_effects"`
 	} `yaml:"tools"`
+}
+
+func TestChildResponseTransitionsDeclareRunSummary(t *testing.T) {
+	root := realApplicationRoot(t)
+	cases := map[string]map[string]bool{
+		"specialist-editor": {"compose_structure_response": true},
+		"voice-critic": {
+			"compose_critic_pass_response":   true,
+			"compose_critic_reject_response": true,
+		},
+	}
+	for agent, expected := range cases {
+		var machine tracerMachine
+		readTestYAML(t, filepath.Join(root, "agents", agent, "machine.yaml"), &machine)
+		for _, transition := range machine.Transitions {
+			if expected[transition.Action] && !transition.Summary {
+				t.Errorf("%s action %s does not declare summary", agent, transition.Action)
+			}
+		}
+	}
 }
 
 func TestSelfInvokeWordsDeclareCompensationContract(t *testing.T) {

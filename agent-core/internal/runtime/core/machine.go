@@ -138,6 +138,7 @@ type TransitionSpec struct {
 	Action       string       `yaml:"action,omitempty"`
 	Label        string       `yaml:"label,omitempty"`
 	ReportOutput string       `yaml:"report_output,omitempty"`
+	Summary      bool         `yaml:"summary,omitempty"`
 	ForEach      *ForEachSpec `yaml:"for_each,omitempty"`
 	MetricLabels MetricLabels `yaml:"metric_labels,omitempty"`
 	labelSet     bool

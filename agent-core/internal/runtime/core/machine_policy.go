@@ -37,6 +37,9 @@ func validateMachinePolicy(spec MachineSpec, signals map[string]bool) []string {
 }
 
 func validateReportOutput(index int, transition TransitionSpec) string {
+	if transition.Summary && transition.Action == "" {
+		return fmt.Sprintf("transition[%d].summary requires an action", index)
+	}
 	if transition.ReportOutput == "" {
 		return ""
 	}

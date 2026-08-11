@@ -257,6 +257,15 @@ schema:
           the canonical $.path grammar (for example $.address). Requires an
           action. The CLI may report the selected scalar without hard-coding a
           command name.
+      - field: summary
+        type: bool
+        required: false
+        description: |
+          When true, this action's complete Result.Output becomes the run
+          summary and is not overwritten by later dispatches. Use this for
+          machines with more than one summary-producing signal. A machine-level
+          summary_signal remains the concise option when one signal owns every
+          summary.
       - field: metric_labels
         type: object
         status: planned

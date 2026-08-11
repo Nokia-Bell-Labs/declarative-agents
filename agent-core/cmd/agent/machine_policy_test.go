@@ -86,6 +86,19 @@ func TestOperatorReportOmissionPrintsNothing(t *testing.T) {
 	require.Empty(t, output)
 }
 
+func TestDeclaredSummaryIsNotOverwrittenByLaterOutput(t *testing.T) {
+	t.Parallel()
+	machine := &core.MachineSpec{Transitions: []core.TransitionSpec{{
+		State: "A", Signal: "Ready", Next: "B", Action: "answer", Summary: true,
+	}}}
+	reporter := cliResultReporterForMachine(machine)
+	result := reporter(
+		core.RunResult{Summary: "declared answer"},
+		core.Result{CommandName: "cleanup", Output: "later cleanup output"},
+	)
+	require.Equal(t, "declared answer", result.Summary)
+}
+
 type timeoutBuilder struct{}
 
 func (timeoutBuilder) Build(core.Result) core.Command { return timeoutCommand{} }

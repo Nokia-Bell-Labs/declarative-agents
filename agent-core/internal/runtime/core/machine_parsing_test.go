@@ -232,13 +232,14 @@ states: [Idle, Finished]
 terminal_states: [Finished]
 signals: [Seed, Done, ResumeRequested]
 transitions:
-  - {state: Idle, signal: Seed, next: Finished, action: finish, report_output: $.address}
+  - {state: Idle, signal: Seed, next: Finished, action: finish, report_output: $.address, summary: true}
 `))
 	require.NoError(t, err)
 	require.Equal(t, "Done", spec.SummarySignal)
 	require.Equal(t, "ResumeRequested", spec.ResumeSignal)
 	require.Equal(t, 2*time.Second, spec.BudgetSpec.CommandTimeoutDuration())
 	require.Equal(t, "$.address", spec.Transitions[0].ReportOutput)
+	require.True(t, spec.Transitions[0].Summary)
 }
 
 func TestParseMachineSpecRejectsInvalidRuntimePolicy(t *testing.T) {
@@ -259,6 +260,7 @@ transitions:
 		{"budget: {command_timeout: never}", "", `budget.command_timeout`},
 		{"", ", action: finish, report_output: $from(other).address", `must be a $.path selector`},
 		{"", ", report_output: $.address", `report_output requires an action`},
+		{"", ", summary: true", `summary requires an action`},
 	}
 	for _, tc := range cases {
 		_, err := ParseMachineSpec([]byte(fmt.Sprintf(base, tc.policy, tc.transition)))

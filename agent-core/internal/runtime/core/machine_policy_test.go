@@ -56,34 +56,41 @@ func TestTransitionReportOutputDecoratesAnyCommandResult(t *testing.T) {
 	spec := MachineSpec{
 		Name: "report", InitialState: "Idle",
 		States: StateSpecs{
-			{Name: "Idle"}, {Name: "Reporting"},
+			{Name: "Idle"}, {Name: "Reporting"}, {Name: "Later"},
 			{Name: "Done", RunStatus: StatusSucceeded},
 		},
 		TerminalStates: []string{"Done"},
-		Signals:        SignalSpecsFromNames("Seed", "Published"),
+		Signals:        SignalSpecsFromNames("Seed", "Published", "LaterDone"),
 		Transitions: []TransitionSpec{
 			{
 				State: "Idle", Signal: "Seed", Next: "Reporting",
 				Action: "publish_endpoint", Label: "custom",
-				ReportOutput: "$.endpoint",
+				ReportOutput: "$.endpoint", Summary: true,
 			},
-			{State: "Reporting", Signal: "Published", Next: "Done"},
+			{State: "Reporting", Signal: "Published", Next: "Later", Action: "later"},
+			{State: "Later", Signal: "LaterDone", Next: "Done"},
 		},
 	}
 	registry := NewRegistry()
 	registry.Register(ToolSpec{Name: "publish_endpoint"}, reportBuilder{})
+	registry.Register(ToolSpec{Name: "later"}, staticOutputBuilder{
+		name: "later", signal: "LaterDone", output: `{"later":true}`,
+	})
 	var reported *OperatorReport
 	params := LoopParams{
 		MachineSpec: &spec, Registry: registry, Trace: &loopRecorder{},
 		Budget: Budget{MaxIterations: 3},
 		Hooks: LoopHooks{OnResult: func(rr RunResult, result Result) RunResult {
-			reported = result.OperatorReport
+			if result.OperatorReport != nil {
+				reported = result.OperatorReport
+			}
 			return rr
 		}},
 	}
 	result, err := Loop(params, context.Background())
 	require.NoError(t, err)
 	require.Equal(t, StatusSucceeded, result.Status)
+	require.JSONEq(t, `{"endpoint":"127.0.0.1:9000"}`, result.Summary)
 	require.Equal(t, &OperatorReport{
 		Label: "custom", Field: "endpoint", Value: "127.0.0.1:9000",
 	}, reported)
@@ -103,3 +110,25 @@ func (reportCommand) Execute() Result {
 	}
 }
 func (reportCommand) Undo(Result) Result { return NoopUndo("publish_endpoint") }
+
+type staticOutputBuilder struct {
+	name   string
+	signal Signal
+	output string
+}
+
+func (builder staticOutputBuilder) Build(Result) Command {
+	return staticOutputCommand(builder)
+}
+
+type staticOutputCommand staticOutputBuilder
+
+func (command staticOutputCommand) Name() string { return command.name }
+func (command staticOutputCommand) Execute() Result {
+	return Result{
+		CommandName: command.name, Signal: command.signal, Output: command.output,
+	}
+}
+func (command staticOutputCommand) Undo(Result) Result {
+	return NoopUndo(command.name)
+}

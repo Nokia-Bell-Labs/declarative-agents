@@ -34,7 +34,23 @@ func transitionReportPolicy(
 	return "", ""
 }
 
-func applyOperatorReport(runner *loopRunner) {
+func transitionSummaryPolicy(spec *MachineSpec, state State, signal Signal) bool {
+	if spec == nil {
+		return false
+	}
+	for _, transition := range spec.Transitions {
+		if transition.State == string(state) && transition.Signal == string(signal) {
+			return transition.Summary
+		}
+	}
+	return false
+}
+
+func applyResultPolicies(runner *loopRunner) {
+	if runner.summaryOutput {
+		runner.run.Summary = runner.result.Output
+		runner.summaryOutput = false
+	}
 	if runner.reportOutput == "" {
 		return
 	}

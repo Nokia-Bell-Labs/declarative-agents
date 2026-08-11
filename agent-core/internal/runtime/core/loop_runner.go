@@ -28,6 +28,7 @@ type loopRunner struct {
 	taskCompletedSig  Signal
 	reportOutput      string
 	reportLabel       string
+	summaryOutput     bool
 	checkpoint        Checkpoint
 	checkpointEnabled bool
 	execution         Execution
@@ -175,6 +176,9 @@ func (r *loopRunner) nextTransition() (State, Command, Signal, string, MetricLab
 	transitionSignal := r.signal
 	commandStateLabel := transitionCommandStateLabel(r.params.MachineSpec, r.state, transitionSignal)
 	r.reportOutput, r.reportLabel = transitionReportPolicy(
+		r.params.MachineSpec, r.state, transitionSignal,
+	)
+	r.summaryOutput = transitionSummaryPolicy(
 		r.params.MachineSpec, r.state, transitionSignal,
 	)
 	labels := transitionMetricLabels(r.params.MachineSpec, r.state, transitionSignal)
@@ -383,7 +387,7 @@ func (r *loopRunner) dispatchContext(labels MetricLabels) monitor.DispatchContex
 }
 
 func (r *loopRunner) accumulateResult() {
-	applyOperatorReport(r)
+	applyResultPolicies(r)
 	accumulateCost(&r.run, r.result)
 	if r.result.Err != nil {
 		r.run.LastError = r.result.Err

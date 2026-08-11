@@ -615,7 +615,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		MonitorRecorder:      deps.MonitorRecorder,
 		CommandStateObserver: deps.CommandStateObserver,
 		Hooks: core.LoopHooks{
-			OnResult:             cliResultReporter,
+			OnResult:             cliResultReporterForMachine(&deps.Machine),
 			SnapshotConversation: deps.State.snapshotConversation,
 		},
 	}
@@ -644,14 +644,42 @@ func defaultRunBudget() core.Budget {
 }
 
 func cliResultReporter(rr core.RunResult, res core.Result) core.RunResult {
+	return reportRunResult(nil, rr, res)
+}
+
+func cliResultReporterForMachine(machine *core.MachineSpec) func(core.RunResult, core.Result) core.RunResult {
+	return func(rr core.RunResult, res core.Result) core.RunResult {
+		return reportRunResult(machine, rr, res)
+	}
+}
+
+func reportRunResult(machine *core.MachineSpec, rr core.RunResult, res core.Result) core.RunResult {
 	reportOperatorOutput(res)
-	if strings.TrimSpace(res.Output) != "" {
+	declaredSummary := machineDeclaresSummary(machine)
+	if !declaredSummary && strings.TrimSpace(res.Output) != "" {
 		rr.Summary = boundedTerminalSummary(res.Output)
+	} else if declaredSummary {
+		rr.Summary = boundedTerminalSummary(rr.Summary)
 	}
 	if message := commandFailureMessage(res); message != "" {
 		fmt.Fprintln(os.Stderr, message)
 	}
 	return rr
+}
+
+func machineDeclaresSummary(machine *core.MachineSpec) bool {
+	if machine == nil {
+		return false
+	}
+	if machine.SummarySignal != "" {
+		return true
+	}
+	for _, transition := range machine.Transitions {
+		if transition.Summary {
+			return true
+		}
+	}
+	return false
 }
 
 func boundedTerminalSummary(output string) string {
