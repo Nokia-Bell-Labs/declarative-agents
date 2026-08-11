@@ -17,7 +17,7 @@ const (
 	DiagnosticImplicitResumeSignal   = "implicit_resume_signal"
 	DiagnosticImplicitCommandTimeout = "implicit_command_timeout"
 	DiagnosticImplicitMaxIterations  = "implicit_max_iterations"
-	DiagnosticMissingTerminalStatus  = "missing_terminal_run_status"
+	DiagnosticMissingTerminalStatus  = "undeclared_terminal_status"
 )
 
 func MachineDiagnosticCodes() []string {

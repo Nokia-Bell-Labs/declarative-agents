@@ -99,6 +99,29 @@ func TestDeclaredSummaryIsNotOverwrittenByLaterOutput(t *testing.T) {
 	require.Equal(t, "declared answer", result.Summary)
 }
 
+func TestValidateConfigDiagnosticsNameUndeclaredTerminalStatus(t *testing.T) {
+	machine := core.MachineSpec{
+		InitialState: "Idle",
+		States: core.StateSpecs{
+			{Name: "Idle"}, {Name: "InsufficientGrounding"},
+		},
+		TerminalStates: []string{"InsufficientGrounding"},
+		Signals:        core.SignalSpecsFromNames("Seed"),
+		Transitions: []core.TransitionSpec{{
+			State: "Idle", Signal: "Seed", Next: "InsufficientGrounding",
+		}},
+		BudgetSpec:    &core.BudgetSpec{MaxIterations: 3, CommandTimeout: "1s"},
+		SummarySignal: "Seed", ResumeSignal: "Seed",
+	}
+	output, err := captureStderr(t, func() error {
+		reportMachineDiagnostics(machine)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Contains(t, output, "machine-diagnostic-undeclared_terminal_status")
+	require.Contains(t, output, "InsufficientGrounding")
+}
+
 type timeoutBuilder struct{}
 
 func (timeoutBuilder) Build(core.Result) core.Command { return timeoutCommand{} }

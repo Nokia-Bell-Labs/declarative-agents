@@ -83,6 +83,40 @@ func TestChildResponseTransitionsDeclareRunSummary(t *testing.T) {
 	}
 }
 
+func TestSpecialistGroundingOutcomeIsSuccessfulDomainTerminal(t *testing.T) {
+	root := realApplicationRoot(t)
+	data, err := os.ReadFile(filepath.Join(root, "agents/specialist-editor/machine.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var machine struct {
+		States []yaml.Node `yaml:"states"`
+	}
+	if err := yaml.Unmarshal(data, &machine); err != nil {
+		t.Fatal(err)
+	}
+	statuses := make(map[string]string)
+	for _, node := range machine.States {
+		var state struct {
+			Name      string `yaml:"name"`
+			RunStatus string `yaml:"run_status"`
+		}
+		if node.Kind == yaml.MappingNode {
+			if err := node.Decode(&state); err != nil {
+				t.Fatal(err)
+			}
+			statuses[state.Name] = state.RunStatus
+		}
+	}
+	if statuses["InsufficientGrounding"] != "succeeded" {
+		t.Errorf("InsufficientGrounding run_status = %q, want succeeded",
+			statuses["InsufficientGrounding"])
+	}
+	if statuses["Failed"] != "failed" {
+		t.Errorf("Failed run_status = %q, want failed", statuses["Failed"])
+	}
+}
+
 func TestSelfInvokeWordsDeclareCompensationContract(t *testing.T) {
 	root := realApplicationRoot(t)
 	var declarations declarationFile

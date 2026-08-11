@@ -236,9 +236,19 @@ func validateConfig() error {
 		return err
 	}
 	resources.shutdownTelemetry()
+	reportMachineDiagnostics(resources.Machine)
 	fmt.Fprintf(os.Stderr, "config valid: profile %s (%d REST client(s), %d server(s))\n",
 		flagProfile, len(resources.RestDefinitions.Clients), len(resources.RestDefinitions.Servers))
 	return nil
+}
+
+func reportMachineDiagnostics(machine core.MachineSpec) {
+	for _, diagnostic := range core.DiagnoseMachineSpec(machine) {
+		fmt.Fprintf(
+			os.Stderr, "warning: machine-diagnostic-%s: %s\n",
+			diagnostic.Code, diagnostic.Message,
+		)
+	}
 }
 
 type preparedRun struct {

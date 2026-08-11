@@ -28,9 +28,9 @@ states:
   - ParsingCandidate
   - CheckingCandidate
   - ComposingResponse
-  - Succeeded
-  - InsufficientGrounding
-  - Failed
+  - {name: Succeeded, run_status: succeeded}
+  - {name: InsufficientGrounding, run_status: succeeded}
+  - {name: Failed, run_status: failed}
 terminal_states: [Succeeded, InsufficientGrounding, Failed]
 signals:
   - Seed
