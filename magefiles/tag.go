@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	tagPrefix     = "v0."
-	baseBranch    = "main"
-	catalogModule = "applications/catalog"
+	tagPrefix       = "v0."
+	baseBranch      = "main"
+	catalogModule   = "applications/catalog"
+	releaseLockName = "declarative-agents-release.lock"
 )
 
 type releaseGate struct {
@@ -41,7 +42,52 @@ const releaseStageConcurrency = 2
 
 // Tag creates the single repository-wide release tag.
 func Tag() error {
+	unlock, err := acquireRepositoryReleaseLock(gitOutput)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	return createReleaseTag(time.Now(), gitOutput, gitRemoteTags, gitCreateTagSet, runReleaseGates)
+}
+
+func acquireRepositoryReleaseLock(output gitOutputFunc) (func(), error) {
+	path, err := output("rev-parse", "--git-path", releaseLockName)
+	if err != nil {
+		return nil, fmt.Errorf("resolve release lock path: %w", err)
+	}
+	path, err = filepath.Abs(strings.TrimSpace(path))
+	if err != nil {
+		return nil, fmt.Errorf("resolve absolute release lock path: %w", err)
+	}
+	return acquireReleaseLock(path, os.Getpid(), time.Now())
+}
+
+func acquireReleaseLock(path string, pid int, started time.Time) (func(), error) {
+	if err := os.Mkdir(path, 0o700); err != nil {
+		if os.IsExist(err) {
+			owner, readErr := os.ReadFile(filepath.Join(path, "owner"))
+			if readErr != nil {
+				owner = []byte("owner metadata unavailable")
+			}
+			return nil, fmt.Errorf(
+				"another release is already active (%s; lock %s); "+
+					"remove the lock only after confirming no mage tag process is running",
+				strings.TrimSpace(string(owner)), path)
+		}
+		return nil, fmt.Errorf("acquire release lock %s: %w", path, err)
+	}
+
+	owner := fmt.Sprintf("pid=%d started=%s",
+		pid, started.UTC().Format(time.RFC3339Nano))
+	if err := os.WriteFile(filepath.Join(path, "owner"), []byte(owner+"\n"), 0o600); err != nil {
+		_ = os.RemoveAll(path)
+		return nil, fmt.Errorf("write release lock owner: %w", err)
+	}
+	return func() {
+		if err := os.RemoveAll(path); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: remove release lock %s: %v\n", path, err)
+		}
+	}, nil
 }
 
 func createReleaseTag(

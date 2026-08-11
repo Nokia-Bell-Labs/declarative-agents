@@ -82,6 +82,11 @@ Application workflows such as planner-executor-critic run from
 
 `mage tag` requires a clean `main` worktree, records the exact HEAD commit, runs
 all gates above itself, and verifies HEAD is unchanged before creating the tag.
+It also acquires a Git-private repository lock before checking or running any
+gate, so a second invocation fails with the active process metadata instead of
+competing for test, model, Docker, and kind resources. The lock is removed on a
+normal return; after a force-killed process, remove a stale lock only after
+confirming no `mage tag` process remains.
 Revision selection queries the configured remote before choosing N, so a
 checkout missing fetched tags still picks the next available revision. It
 creates the single repository tag `v0.YYYYMMDD.N`. Module-scoped tags
