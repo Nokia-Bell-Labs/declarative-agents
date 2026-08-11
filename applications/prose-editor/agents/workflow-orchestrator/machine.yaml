@@ -39,7 +39,8 @@ states:
   - WritingCritiqueRetry
   - ManifestingCritiqueRetry
   - RoutingCriticRetry
-  - MaterializingFinal
+  - MaterializingFinalFirst
+  - MaterializingFinalRetry
   - ManifestingFinal
   - ManifestingKeptOriginal
   - {name: LocallyFinalized, run_status: succeeded}
@@ -59,30 +60,31 @@ signals:
 transitions:
   - {state: AwaitingRequest, signal: Seed, next: CapturingSource, action: capture_source, label: source_capture}
   - {state: CapturingSource, signal: ToolDone, next: WritingOriginal, action: write_original, label: original_write}
-  - {state: WritingOriginal, signal: ToolDone, next: ManifestingCapture, action: append_manifest_revision, label: capture_manifest}
+  - {state: WritingOriginal, signal: ToolDone, next: ManifestingCapture, action: append_capture_manifest, label: capture_manifest}
   - {state: ManifestingCapture, signal: ToolDone, next: InvokingStructure, action: invoke_structure_editor, label: structure_child}
   - {state: InvokingStructure, signal: ToolDone, next: WritingStructure, action: write_structure_attempt, label: structure_attempt}
-  - {state: WritingStructure, signal: ToolDone, next: ManifestingStructure, action: append_manifest_revision, label: structure_manifest}
+  - {state: WritingStructure, signal: ToolDone, next: ManifestingStructure, action: append_structure_manifest, label: structure_manifest}
   - {state: ManifestingStructure, signal: ToolDone, next: InvokingCritic, action: invoke_voice_critic, label: critic_child}
   - {state: InvokingCritic, signal: ToolDone, next: CapturingCritic, action: capture_critic_output, label: critic_transport}
   - {state: CapturingCritic, signal: CriticOutputCaptured, next: ParsingCritic, action: parse_critic_response, label: critic_response}
   - {state: ParsingCritic, signal: CriticResponseParsed, next: WritingCritique, action: write_critique_attempt, label: critique_attempt}
-  - {state: WritingCritique, signal: ToolDone, next: ManifestingCritique, action: append_manifest_revision, label: critique_manifest}
+  - {state: WritingCritique, signal: ToolDone, next: ManifestingCritique, action: append_critique_manifest, label: critique_manifest}
   - {state: ManifestingCritique, signal: ToolDone, next: RoutingCritic, action: critic_verdict_is_pass, label: critic_route}
-  - {state: RoutingCritic, signal: CriticAccepted, next: MaterializingFinal, action: materialize_final_chain, label: final_chain}
-  - {state: RoutingCritic, signal: CriticRejected, next: ManifestingRetry, action: append_manifest_revision, label: retry_manifest}
+  - {state: RoutingCritic, signal: CriticAccepted, next: MaterializingFinalFirst, action: materialize_final_chain, label: final_chain}
+  - {state: RoutingCritic, signal: CriticRejected, next: ManifestingRetry, action: append_retry_manifest, label: retry_manifest}
   - {state: ManifestingRetry, signal: ToolDone, next: InvokingStructureRetry, action: invoke_structure_editor, label: structure_child}
   - {state: InvokingStructureRetry, signal: ToolDone, next: WritingStructureRetry, action: write_structure_attempt, label: structure_attempt}
-  - {state: WritingStructureRetry, signal: ToolDone, next: ManifestingStructureRetry, action: append_manifest_revision, label: structure_manifest}
+  - {state: WritingStructureRetry, signal: ToolDone, next: ManifestingStructureRetry, action: append_structure_retry_manifest, label: structure_manifest}
   - {state: ManifestingStructureRetry, signal: ToolDone, next: InvokingCriticRetry, action: invoke_voice_critic, label: critic_child}
   - {state: InvokingCriticRetry, signal: ToolDone, next: CapturingCriticRetry, action: capture_critic_output, label: critic_transport}
   - {state: CapturingCriticRetry, signal: CriticOutputCaptured, next: ParsingCriticRetry, action: parse_critic_response, label: critic_response}
   - {state: ParsingCriticRetry, signal: CriticResponseParsed, next: WritingCritiqueRetry, action: write_critique_attempt, label: critique_attempt_retry}
-  - {state: WritingCritiqueRetry, signal: ToolDone, next: ManifestingCritiqueRetry, action: append_manifest_revision, label: critique_manifest_retry}
+  - {state: WritingCritiqueRetry, signal: ToolDone, next: ManifestingCritiqueRetry, action: append_critique_retry_manifest, label: critique_manifest_retry}
   - {state: ManifestingCritiqueRetry, signal: ToolDone, next: RoutingCriticRetry, action: critic_verdict_is_pass, label: critic_route_retry}
-  - {state: RoutingCriticRetry, signal: CriticAccepted, next: MaterializingFinal, action: materialize_final_chain, label: final_chain}
-  - {state: RoutingCriticRetry, signal: CriticRejected, next: ManifestingKeptOriginal, action: append_manifest_revision, label: kept_original_manifest}
-  - {state: MaterializingFinal, signal: ToolDone, next: ManifestingFinal, action: append_manifest_revision, label: final_manifest}
+  - {state: RoutingCriticRetry, signal: CriticAccepted, next: MaterializingFinalRetry, action: materialize_final_chain, label: final_chain}
+  - {state: RoutingCriticRetry, signal: CriticRejected, next: ManifestingKeptOriginal, action: append_kept_original_manifest, label: kept_original_manifest}
+  - {state: MaterializingFinalFirst, signal: ToolDone, next: ManifestingFinal, action: append_final_manifest, label: final_manifest}
+  - {state: MaterializingFinalRetry, signal: ToolDone, next: ManifestingFinal, action: append_final_retry_manifest, label: final_manifest}
   - {state: ManifestingFinal, signal: ToolDone, next: LocallyFinalized}
   - {state: ManifestingKeptOriginal, signal: ToolDone, next: KeptOriginal}
   - {state: CapturingCritic, signal: CriticResponseInvalid, next: Failed}
@@ -105,7 +107,8 @@ transitions:
   - {state: InvokingCriticRetry, signal: ToolFailed, next: Failed}
   - {state: WritingCritiqueRetry, signal: ToolFailed, next: Failed}
   - {state: ManifestingCritiqueRetry, signal: ToolFailed, next: Failed}
-  - {state: MaterializingFinal, signal: ToolFailed, next: Failed}
+  - {state: MaterializingFinalFirst, signal: ToolFailed, next: Failed}
+  - {state: MaterializingFinalRetry, signal: ToolFailed, next: Failed}
   - {state: ManifestingFinal, signal: ToolFailed, next: Failed}
   - {state: ManifestingKeptOriginal, signal: ToolFailed, next: Failed}
   - {state: CapturingSource, signal: CommandError, next: Failed}
@@ -130,6 +133,7 @@ transitions:
   - {state: WritingCritiqueRetry, signal: CommandError, next: Failed}
   - {state: ManifestingCritiqueRetry, signal: CommandError, next: Failed}
   - {state: RoutingCriticRetry, signal: CommandError, next: Failed}
-  - {state: MaterializingFinal, signal: CommandError, next: Failed}
+  - {state: MaterializingFinalFirst, signal: CommandError, next: Failed}
+  - {state: MaterializingFinalRetry, signal: CommandError, next: Failed}
   - {state: ManifestingFinal, signal: CommandError, next: Failed}
   - {state: ManifestingKeptOriginal, signal: CommandError, next: Failed}

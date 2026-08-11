@@ -45,9 +45,10 @@ type toolSelection struct {
 
 type declarationFile struct {
 	Tools []struct {
-		Name          string `yaml:"name"`
-		Type          string `yaml:"type"`
-		Init          string `yaml:"init"`
+		Name          string   `yaml:"name"`
+		Type          string   `yaml:"type"`
+		Init          string   `yaml:"init"`
+		Args          []string `yaml:"args"`
 		Reversibility struct {
 			Classification string `yaml:"classification"`
 		} `yaml:"reversibility"`
@@ -61,6 +62,36 @@ type declarationFile struct {
 			State  string `yaml:"state"`
 		} `yaml:"side_effects"`
 	} `yaml:"tools"`
+}
+
+func TestManifestRevisionWordsDeclareEventAndTerminal(t *testing.T) {
+	root := realApplicationRoot(t)
+	var declarations declarationFile
+	readTestYAML(t, filepath.Join(
+		root, "agents/workflow-orchestrator/declarations.yaml",
+	), &declarations)
+	expected := map[string][]string{
+		"append_capture_manifest":         {"append-manifest-revision", "capture_manifested", "none", "1"},
+		"append_structure_manifest":       {"append-manifest-revision", "structure_manifested", "none", "2"},
+		"append_critique_manifest":        {"append-manifest-revision", "critique_manifested", "none", "3"},
+		"append_retry_manifest":           {"append-manifest-revision", "retry_recorded", "none", "4"},
+		"append_structure_retry_manifest": {"append-manifest-revision", "structure_retry_manifested", "none", "5"},
+		"append_critique_retry_manifest":  {"append-manifest-revision", "critique_retry_manifested", "none", "6"},
+		"append_kept_original_manifest":   {"append-manifest-revision", "kept_original", "KeptOriginal", "7"},
+		"append_final_manifest":           {"append-manifest-revision", "locally_finalized", "LocallyFinalized", "4"},
+		"append_final_retry_manifest":     {"append-manifest-revision", "locally_finalized", "LocallyFinalized", "7"},
+	}
+	for _, tool := range declarations.Tools {
+		if want, ok := expected[tool.Name]; ok {
+			if !reflect.DeepEqual(tool.Args, want) {
+				t.Errorf("%s args = %v, want %v", tool.Name, tool.Args, want)
+			}
+			delete(expected, tool.Name)
+		}
+	}
+	if len(expected) != 0 {
+		t.Fatalf("missing manifest revision declarations: %v", expected)
+	}
 }
 
 func TestChildResponseTransitionsDeclareRunSummary(t *testing.T) {
@@ -166,6 +197,11 @@ func TestTracerBoundaryWordsDeclareEveryTouchedArtifact(t *testing.T) {
 	}
 }
 
+var appendManifestTargets = []string{
+	"manifest-history", "manifest.yaml", ".tracer/child-request.json",
+	"manifest artifact selection", "boundary-receipts.jsonl",
+}
+
 var tracerBoundaryTargets = map[string][]string{
 	"capture_source": {
 		"PROSE_TRACER_FIXTURES source fixture", ".tracer/captured-source.md",
@@ -174,10 +210,15 @@ var tracerBoundaryTargets = map[string][]string{
 	"write_original": {
 		"00-original.md", "manifest.yaml", "boundary-receipts.jsonl",
 	},
-	"append_manifest_revision": {
-		"manifest-history", "manifest.yaml", ".tracer/child-request.json",
-		"manifest artifact selection", "boundary-receipts.jsonl",
-	},
+	"append_capture_manifest":         appendManifestTargets,
+	"append_structure_manifest":       appendManifestTargets,
+	"append_critique_manifest":        appendManifestTargets,
+	"append_retry_manifest":           appendManifestTargets,
+	"append_structure_retry_manifest": appendManifestTargets,
+	"append_critique_retry_manifest":  appendManifestTargets,
+	"append_kept_original_manifest":   appendManifestTargets,
+	"append_final_manifest":           appendManifestTargets,
+	"append_final_retry_manifest":     appendManifestTargets,
 	"write_structure_attempt": {
 		"attempts/structure", "manifest.yaml", "boundary-receipts.jsonl",
 	},
@@ -292,8 +333,8 @@ func TestOrchestratorGraphHasOneBoundedStructureReplay(t *testing.T) {
 
 	assertTransition(t, machine, "RoutingCritic", "CriticRejected", "ManifestingRetry")
 	assertTransition(t, machine, "RoutingCriticRetry", "CriticRejected", "ManifestingKeptOriginal")
-	assertTransition(t, machine, "RoutingCritic", "CriticAccepted", "MaterializingFinal")
-	assertTransition(t, machine, "RoutingCriticRetry", "CriticAccepted", "MaterializingFinal")
+	assertTransition(t, machine, "RoutingCritic", "CriticAccepted", "MaterializingFinalFirst")
+	assertTransition(t, machine, "RoutingCriticRetry", "CriticAccepted", "MaterializingFinalRetry")
 
 	retryInvocations := 0
 	criticInvocations := 0
@@ -305,7 +346,7 @@ func TestOrchestratorGraphHasOneBoundedStructureReplay(t *testing.T) {
 		if transition.Action == "invoke_voice_critic" {
 			criticInvocations++
 		}
-		if transition.Next == "MaterializingFinal" && transition.Signal != "CriticAccepted" {
+		if strings.HasPrefix(transition.Next, "MaterializingFinal") && transition.Signal != "CriticAccepted" {
 			t.Errorf("finalization has non-acceptance incoming edge: %#v", transition)
 		}
 		for _, forbidden := range []string{

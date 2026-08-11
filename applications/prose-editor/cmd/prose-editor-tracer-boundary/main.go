@@ -236,8 +236,20 @@ func (b *boundary) run(operation string) error {
 	if err != nil {
 		return err
 	}
-	occurrence := b.nextSessionOccurrence(operation)
-	key := operation + ":" + strconv.Itoa(occurrence)
+	occurrence := 0
+	key := operation
+	var manifestRevision manifestRevisionInput
+	if operation == "append-manifest-revision" {
+		manifestRevision, err = parseManifestRevisionInput(os.Args)
+		if err != nil {
+			return err
+		}
+		occurrence = manifestRevision.Occurrence
+		key = operation + ":" + manifestRevision.Event
+	} else {
+		occurrence = b.nextSessionOccurrence(operation)
+		key = operation + ":" + strconv.Itoa(occurrence)
+	}
 	if b.faults(operation, occurrence) {
 		_ = b.record(receipt{
 			Session: b.session, Operation: operation, Occurrence: occurrence, Status: "injected_failure",
@@ -253,7 +265,7 @@ func (b *boundary) run(operation string) error {
 	case "write-original":
 		output, outputHash, err = b.writeOriginal(&state, key, replay)
 	case "append-manifest-revision":
-		output, err = b.appendManifest(&state, occurrence, key, replay)
+		output, err = b.appendManifest(&state, manifestRevision, key, replay)
 	case "write-structure-attempt":
 		var input []byte
 		if len(os.Args) == 3 {
@@ -341,12 +353,45 @@ func (b *boundary) writeOriginal(state *manifest, key string, replay bool) (stri
 	return `{"written":true}`, sum, nil
 }
 
-func (b *boundary) appendManifest(state *manifest, occurrence int, key string, replay bool) (string, error) {
+type manifestRevisionInput struct {
+	Event      string
+	Terminal   string
+	Occurrence int
+}
+
+func parseManifestRevisionInput(args []string) (manifestRevisionInput, error) {
+	if len(args) != 5 {
+		return manifestRevisionInput{}, fmt.Errorf(
+			"append-manifest-revision requires event, terminal state, and occurrence arguments",
+		)
+	}
+	occurrence, err := strconv.Atoi(args[4])
+	if err != nil || occurrence < 1 {
+		return manifestRevisionInput{}, fmt.Errorf("append-manifest-revision occurrence must be positive")
+	}
+	terminal := args[3]
+	if terminal == "none" {
+		terminal = ""
+	}
+	if terminal != "" && terminal != "LocallyFinalized" && terminal != "KeptOriginal" {
+		return manifestRevisionInput{}, fmt.Errorf("unsupported manifest terminal state %q", terminal)
+	}
+	if strings.TrimSpace(args[2]) == "" {
+		return manifestRevisionInput{}, fmt.Errorf("append-manifest-revision event is required")
+	}
+	return manifestRevisionInput{Event: args[2], Terminal: terminal, Occurrence: occurrence}, nil
+}
+
+func (b *boundary) appendManifest(
+	state *manifest,
+	revision manifestRevisionInput,
+	key string,
+	replay bool,
+) (string, error) {
 	if !replay {
 		state.Revision++
-		event := appendEvent(*state, occurrence)
-		state.Events = append(state.Events, event)
-		if event == "retry_recorded" {
+		state.Events = append(state.Events, revision.Event)
+		if revision.Event == "retry_recorded" {
 			if id := state.Selected["structure"]; id != "" {
 				for index := range state.Artifacts {
 					if state.Artifacts[index].ID == id {
@@ -355,18 +400,17 @@ func (b *boundary) appendManifest(state *manifest, occurrence int, key string, r
 				}
 			}
 		}
-		if event == "locally_finalized" {
-			state.Terminal = "LocallyFinalized"
+		if revision.Terminal != "" {
+			state.Terminal = revision.Terminal
 		}
-		if event == "kept_original" {
-			state.Terminal = "KeptOriginal"
+		if revision.Terminal == "KeptOriginal" {
 			state.Selected["structure"] = ""
 			state.Selected["critique"] = ""
 			state.Selected["final"] = ""
 		}
 	}
 	requestPath := filepath.Join(b.workspace, ".tracer", "child-request.json")
-	if request, ok, err := b.requestForAppend(state, occurrence, replay); err != nil {
+	if request, ok, err := b.requestForAppend(state, revision.Occurrence, replay); err != nil {
 		return "", err
 	} else if ok {
 		if err := writeProjection(requestPath, request); err != nil {
@@ -379,36 +423,6 @@ func (b *boundary) appendManifest(state *manifest, occurrence int, key string, r
 		}
 	}
 	return requestPath, nil
-}
-
-func appendEvent(state manifest, occurrence int) string {
-	if occurrence == 1 {
-		return "capture_manifested"
-	}
-	if occurrence == 2 {
-		return "structure_manifested"
-	}
-	if occurrence == 3 {
-		return "critique_manifested"
-	}
-	switch occurrence {
-	case 4:
-		if state.Selected["final"] != "" {
-			return "locally_finalized"
-		}
-		return "retry_recorded"
-	case 5:
-		return "structure_retry_manifested"
-	case 6:
-		return "critique_retry_manifested"
-	case 7:
-		if state.Selected["final"] != "" {
-			return "locally_finalized"
-		}
-		return "kept_original"
-	default:
-		return "unexpected_manifest"
-	}
 }
 
 func (b *boundary) requestForAppend(state *manifest, occurrence int, replay bool) ([]byte, bool, error) {

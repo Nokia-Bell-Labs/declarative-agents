@@ -33,6 +33,28 @@ func TestCaptureSourceCreatesImmutableWorkspaceArtifact(t *testing.T) {
 	}
 }
 
+func TestParseManifestRevisionInputRequiresDeclaredEventAndTerminal(t *testing.T) {
+	input, err := parseManifestRevisionInput([]string{
+		"boundary", "append-manifest-revision", "locally_finalized", "LocallyFinalized", "4",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if input.Event != "locally_finalized" || input.Terminal != "LocallyFinalized" || input.Occurrence != 4 {
+		t.Fatalf("parsed input = %#v", input)
+	}
+	for _, args := range [][]string{
+		{"boundary", "append-manifest-revision"},
+		{"boundary", "append-manifest-revision", "", "none", "1"},
+		{"boundary", "append-manifest-revision", "event", "Unexpected", "1"},
+		{"boundary", "append-manifest-revision", "event", "none", "zero"},
+	} {
+		if _, err := parseManifestRevisionInput(args); err == nil {
+			t.Fatalf("input %v unexpectedly succeeded", args)
+		}
+	}
+}
+
 func TestValidateCriticEvaluationBindsArtifactsAndCrossFields(t *testing.T) {
 	workspace := t.TempDir()
 	originalBytes := []byte("immutable original\n")

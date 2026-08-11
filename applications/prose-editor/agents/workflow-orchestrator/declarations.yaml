@@ -38,15 +38,16 @@ tools:
     reversibility: {classification: irreversible, undo: preserve_original}
     undo: {strategy: noop, description: The immutable original is preserved on compensation.}
 
-  - name: append_manifest_revision
+  - &append_manifest_revision
+    name: append_capture_manifest
     type: exec
     visibility: internal
     category: boundary
-    description: Append one immutable manifest-history revision and project manifest.yaml.
+    description: Append the declared capture_manifested revision and project manifest.yaml.
     parameters: {type: object, properties: {}, additionalProperties: false}
     emits: [ToolDone, ToolFailed, CommandError]
     binary: prose-editor-tracer-boundary
-    args: [append-manifest-revision]
+    args: [append-manifest-revision, capture_manifested, none, "1"]
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:
@@ -57,6 +58,46 @@ tools:
       - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: compensatable, undo: append_corrective_revision}
     undo: {strategy: compensating_action, description: Append a corrective revision; never rewrite history.}
+
+  - <<: *append_manifest_revision
+    name: append_structure_manifest
+    description: Append the declared structure_manifested revision.
+    args: [append-manifest-revision, structure_manifested, none, "2"]
+
+  - <<: *append_manifest_revision
+    name: append_critique_manifest
+    description: Append the declared critique_manifested revision.
+    args: [append-manifest-revision, critique_manifested, none, "3"]
+
+  - <<: *append_manifest_revision
+    name: append_retry_manifest
+    description: Append the declared retry_recorded revision.
+    args: [append-manifest-revision, retry_recorded, none, "4"]
+
+  - <<: *append_manifest_revision
+    name: append_structure_retry_manifest
+    description: Append the declared structure_retry_manifested revision.
+    args: [append-manifest-revision, structure_retry_manifested, none, "5"]
+
+  - <<: *append_manifest_revision
+    name: append_critique_retry_manifest
+    description: Append the declared critique_retry_manifested revision.
+    args: [append-manifest-revision, critique_retry_manifested, none, "6"]
+
+  - <<: *append_manifest_revision
+    name: append_kept_original_manifest
+    description: Append kept_original and project the declared KeptOriginal terminal state.
+    args: [append-manifest-revision, kept_original, KeptOriginal, "7"]
+
+  - <<: *append_manifest_revision
+    name: append_final_manifest
+    description: Append first-pass locally_finalized and project the declared LocallyFinalized terminal state.
+    args: [append-manifest-revision, locally_finalized, LocallyFinalized, "4"]
+
+  - <<: *append_manifest_revision
+    name: append_final_retry_manifest
+    description: Append retry-pass locally_finalized and project the declared LocallyFinalized terminal state.
+    args: [append-manifest-revision, locally_finalized, LocallyFinalized, "7"]
 
   - name: invoke_structure_editor
     type: builtin

@@ -1,7 +1,15 @@
 tools:
   - capture_source
   - write_original
-  - append_manifest_revision
+  - append_capture_manifest
+  - append_structure_manifest
+  - append_critique_manifest
+  - append_retry_manifest
+  - append_structure_retry_manifest
+  - append_critique_retry_manifest
+  - append_kept_original_manifest
+  - append_final_manifest
+  - append_final_retry_manifest
   - invoke_structure_editor
   - write_structure_attempt
   - invoke_voice_critic
