@@ -3,9 +3,12 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
 var lintModuleDirs = []string{
@@ -49,9 +52,51 @@ func lintSubModules(modules []string, run lintRunner) error {
 }
 
 func runGolangciLint(dir string) error {
-	cmd := exec.Command("golangci-lint", "run", "./...")
-	cmd.Dir = dir
+	cmd, err := golangciLintCommand(dir)
+	if err != nil {
+		return err
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func golangciLintCommand(dir string) (*exec.Cmd, error) {
+	root, err := findRepositoryRoot()
+	if err != nil {
+		return nil, err
+	}
+	root, err = filepath.Abs(root)
+	if err != nil {
+		return nil, fmt.Errorf("resolve repository root for lint cache: %w", err)
+	}
+	cacheRoot, err := os.UserCacheDir()
+	if err != nil {
+		return nil, fmt.Errorf("resolve user cache for golangci-lint: %w", err)
+	}
+	cacheDir := golangciLintCacheDir(cacheRoot, root)
+	cmd := exec.Command("golangci-lint", "run", "./...")
+	cmd.Dir = filepath.Join(root, filepath.FromSlash(dir))
+	cmd.Env = lintCommandEnvironment(os.Environ(), cacheDir)
+	return cmd, nil
+}
+
+func golangciLintCacheDir(cacheRoot, repositoryRoot string) string {
+	canonical := filepath.Clean(repositoryRoot)
+	digest := sha256.Sum256([]byte(canonical))
+	namespace := fmt.Sprintf("%x", digest[:12])
+	return filepath.Join(
+		cacheRoot, "declarative-agents", "golangci-lint", namespace)
+}
+
+func lintCommandEnvironment(inherited []string, cacheDir string) []string {
+	const key = "GOLANGCI_LINT_CACHE"
+	environment := make([]string, 0, len(inherited)+1)
+	for _, entry := range inherited {
+		if name, _, _ := strings.Cut(entry, "="); name == key {
+			continue
+		}
+		environment = append(environment, entry)
+	}
+	return append(environment, key+"="+cacheDir)
 }

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -104,6 +105,75 @@ func TestLintDispatchesEveryModule(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, lintModuleDirs) {
 		t.Fatalf("linted modules = %#v, want %#v", got, lintModuleDirs)
+	}
+}
+
+func TestGolangciLintCacheIsStableAndCheckoutScoped(t *testing.T) {
+	cacheRoot := t.TempDir()
+	mainRoot := filepath.Join(t.TempDir(), "declarative-agents")
+	worktreeRoot := filepath.Join(t.TempDir(), "gh-1514-isolate-lint-cache")
+	mainFirst := golangciLintCacheDir(cacheRoot, mainRoot)
+	mainSecond := golangciLintCacheDir(cacheRoot, mainRoot)
+	worktree := golangciLintCacheDir(cacheRoot, worktreeRoot)
+	if mainFirst != mainSecond {
+		t.Fatalf("same checkout cache changed: %q != %q", mainFirst, mainSecond)
+	}
+	if mainFirst == worktree {
+		t.Fatalf("different checkouts share cache %q", mainFirst)
+	}
+	prefix := filepath.Join(cacheRoot, "declarative-agents", "golangci-lint")
+	for _, path := range []string{mainFirst, worktree} {
+		if !strings.HasPrefix(path, prefix+string(filepath.Separator)) {
+			t.Errorf("cache %q is outside namespace %q", path, prefix)
+		}
+	}
+}
+
+func TestLintCommandEnvironmentReplacesAmbientCache(t *testing.T) {
+	got := lintCommandEnvironment([]string{
+		"PATH=/usr/bin",
+		"GOLANGCI_LINT_CACHE=/shared/stale-cache",
+	}, "/isolated/current-checkout")
+	joined := strings.Join(got, "\n")
+	if strings.Contains(joined, "/shared/stale-cache") {
+		t.Fatalf("environment retained ambient cache: %v", got)
+	}
+	if strings.Count(joined,
+		"GOLANGCI_LINT_CACHE=/isolated/current-checkout") != 1 {
+		t.Fatalf("environment does not carry one isolated cache: %v", got)
+	}
+}
+
+func TestGolangciLintCommandUsesCheckoutCache(t *testing.T) {
+	t.Setenv("GOLANGCI_LINT_CACHE", "/shared/stale-cache")
+	cmd, err := golangciLintCommand("magefiles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := findRepositoryRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err = filepath.Abs(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.Dir != filepath.Join(root, "magefiles") {
+		t.Fatalf("command dir = %q, want checkout magefiles", cmd.Dir)
+	}
+	if !reflect.DeepEqual(cmd.Args[1:], []string{"run", "./..."}) {
+		t.Fatalf("command args = %v", cmd.Args)
+	}
+	cacheRoot, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "GOLANGCI_LINT_CACHE=" + golangciLintCacheDir(cacheRoot, root)
+	if !slices.Contains(cmd.Env, want) {
+		t.Fatalf("command environment lacks %q: %v", want, cmd.Env)
+	}
+	if got := os.Getenv("GOLANGCI_LINT_CACHE"); got != "/shared/stale-cache" {
+		t.Fatalf("parent cache changed to %q", got)
 	}
 }
 
