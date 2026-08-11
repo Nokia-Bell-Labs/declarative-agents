@@ -14,6 +14,7 @@ import (
 )
 
 const aggregateKindCluster = "da-chatbot-mesh-aggregate"
+const aggregateNamespaceCleanupTimeout = "180s"
 
 type integrationKindSession struct {
 	mu       sync.Mutex
@@ -63,6 +64,13 @@ func activeIntegrationKindSession() *integrationKindSession {
 	return integrationKindSessionState.active
 }
 
+func aggregateClusterName(standalone string) string {
+	if activeIntegrationKindSession() != nil {
+		return aggregateKindCluster
+	}
+	return standalone
+}
+
 // adoptAggregateKindCluster transfers an aggregate-created cluster to the
 // active session. A direct integration target sees no session and retains its
 // existing target-owned release behavior.
@@ -85,7 +93,93 @@ func adoptAggregateKindCluster(
 		}
 		return true
 	}
-	return session.cluster.Name == cluster.Name
+	if session.cluster.Name != cluster.Name {
+		return false
+	}
+	session.kindRun = run
+	if evidence.Directory != "" {
+		session.evidence = evidence
+	}
+	return true
+}
+
+func retainAggregateKindCluster(
+	cluster kindrig.Cluster,
+	run kindrig.Runner,
+	evidence kindrig.FailureEvidence,
+) bool {
+	return adoptAggregateKindCluster(cluster, run, evidence)
+}
+
+func releaseAggregateKindCluster(
+	cluster kindrig.Cluster,
+	run kindrig.Runner,
+	evidence kindrig.FailureEvidence,
+	cause error,
+) bool {
+	session := activeIntegrationKindSession()
+	if session == nil {
+		return false
+	}
+	if !adoptAggregateKindCluster(cluster, run, evidence) {
+		return false
+	}
+	if cause != nil {
+		session.poison(cause)
+	}
+	return true
+}
+
+func prepareAggregateNamespace(
+	run kindrig.CommandRunner,
+	scenario, release string,
+) (string, func() error, error) {
+	if activeIntegrationKindSession() == nil {
+		return "default", func() error { return nil }, nil
+	}
+	namespace := "da-" + scenario
+	if output, err := run("kubectl", "create", "namespace", namespace); err != nil {
+		return "", nil, fmt.Errorf("create aggregate namespace %s: %w: %s",
+			namespace, err, output)
+	}
+	if output, err := run(
+		"kubectl", "config", "set-context", "--current", "--namespace", namespace,
+	); err != nil {
+		_, _ = run("kubectl", "delete", "namespace", namespace,
+			"--ignore-not-found=true", "--wait=true", "--timeout=60s")
+		return "", nil, fmt.Errorf("select aggregate namespace %s: %w: %s",
+			namespace, err, output)
+	}
+	cleanup := func() error {
+		var cleanupErrors []error
+		if output, err := run(
+			"helm", "uninstall", release, "--namespace", namespace, "--ignore-not-found",
+		); err != nil {
+			cleanupErrors = append(cleanupErrors,
+				fmt.Errorf("uninstall %s/%s: %w: %s", namespace, release, err, output))
+		}
+		if output, err := run(
+			"kubectl", "delete", "namespace", namespace,
+			"--ignore-not-found=true", "--wait=false",
+		); err != nil {
+			cleanupErrors = append(cleanupErrors,
+				fmt.Errorf("delete aggregate namespace %s: %w: %s", namespace, err, output))
+		}
+		if output, err := run(
+			"kubectl", "wait", "--for=delete", "namespace/"+namespace,
+			"--timeout="+aggregateNamespaceCleanupTimeout,
+		); err != nil {
+			cleanupErrors = append(cleanupErrors,
+				fmt.Errorf("wait for aggregate namespace %s deletion: %w: %s",
+					namespace, err, output))
+		}
+		if _, err := run("kubectl", "get", "namespace", namespace); err == nil {
+			cleanupErrors = append(cleanupErrors,
+				fmt.Errorf("aggregate namespace %s remains after cleanup", namespace))
+		}
+		return errors.Join(cleanupErrors...)
+	}
+	return namespace, cleanup, nil
 }
 
 func (session *integrationKindSession) runTarget(name string, run func() error) error {

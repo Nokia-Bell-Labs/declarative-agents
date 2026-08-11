@@ -301,7 +301,8 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	defer cleanupKindConfig()
-	cluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmKindCluster, kindConfig, helmClusterWait)
+	clusterName := aggregateClusterName(helmKindCluster)
+	cluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, clusterName, kindConfig, helmClusterWait)
 	if err != nil {
 		return err
 	}
@@ -312,22 +313,39 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	defer cleanupCommands()
+	namespace, cleanupNamespace, err := prepareAggregateNamespace(
+		commands.Run, "helm-smoke", helmRelease)
+	if err != nil {
+		cluster.Release(kindrig.DefaultRun)
+		return err
+	}
+	cleanupNamespaceFn := cleanupNamespace
+	defer func() { result = errors.Join(result, cleanupNamespaceFn()) }()
 	released := false
+	evidence := kindrig.FailureEvidence{
+		Directory: filepath.Join(
+			profilesRoot, "build", "kind-evidence",
+			cluster.Name+"-"+images.Revision+"-"+
+				time.Now().UTC().Format("20060102T150405.000000000Z")),
+		Namespaces: []string{namespace},
+		Run:        commands.Run,
+	}
 	defer func() {
 		if !released {
-			cluster.ReleaseAfter(commands.KindRun, result != nil, kindrig.FailureEvidence{
-				Directory: filepath.Join(
-					profilesRoot, "build", "kind-evidence",
-					helmKindCluster+"-"+images.Revision+"-"+
-						time.Now().UTC().Format("20060102T150405.000000000Z")),
-				Namespaces: []string{"default"},
-				Run:        commands.Run,
-			})
+			if releaseAggregateKindCluster(
+				cluster, commands.KindRun, evidence, result,
+			) {
+				if result != nil {
+					cleanupNamespaceFn = func() error { return nil }
+				}
+			} else {
+				cluster.ReleaseAfter(commands.KindRun, result != nil, evidence)
+			}
 		}
 	}()
 
 	cleanupMetrics, err := kindrig.InstallMetricsServer(
-		commands.Run, helmKindCluster)
+		commands.Run, cluster.Name)
 	if err != nil {
 		return err
 	}
@@ -341,12 +359,12 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	if err := loadKindImageWithCommands(
-		commands, helmKindCluster, images.Runtime); err != nil {
+		commands, cluster.Name, images.Runtime); err != nil {
 		return err
 	}
 	for _, image := range dependencyImages {
 		if err := loadSmokeDependencyImageWithCommands(
-			commands, helmKindCluster, image); err != nil {
+			commands, cluster.Name, image); err != nil {
 			return err
 		}
 	}
@@ -424,7 +442,9 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	cleanupMetrics = nil
-	cluster.ReleaseAfter(commands.KindRun, false, kindrig.FailureEvidence{})
+	if !releaseAggregateKindCluster(cluster, commands.KindRun, evidence, nil) {
+		cluster.ReleaseAfter(commands.KindRun, false, kindrig.FailureEvidence{})
+	}
 	released = true
 	if err := verifySharedMetricsEvidence(
 		collectorQueryBase(), telemetry, helmSpanTimeout); err != nil {
@@ -1136,7 +1156,9 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 
-	swapCluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmSwapCluster, helmKindConfig(chartDir), helmClusterWait)
+	clusterName := aggregateClusterName(helmSwapCluster)
+	swapCluster, err := kindrig.EnsureCluster(
+		kindrig.DefaultRun, clusterName, helmKindConfig(chartDir), helmClusterWait)
 	if err != nil {
 		return err
 	}
@@ -1146,8 +1168,23 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 		swapCluster.Release(kindrig.DefaultRun)
 		return err
 	}
+	defer cleanupCommands()
+	namespace, cleanupNamespace, err := prepareAggregateNamespace(
+		commands.Run, "helm-swap", helmSwapRelease)
+	if err != nil {
+		swapCluster.Release(kindrig.DefaultRun)
+		return err
+	}
+	cleanupNamespaceFn := cleanupNamespace
+	defer func() { result = errors.Join(result, cleanupNamespaceFn()) }()
 	evidenceDir := helmScenarioEvidenceDirectory(
-		profilesRoot, helmSwapCluster, images.Revision)
+		profilesRoot, swapCluster.Name, images.Revision)
+	evidence := kindrig.FailureEvidence{
+		Directory:  evidenceDir,
+		Namespaces: []string{namespace},
+		Run: boundedHelmEvidenceRunnerWith(
+			helmDiagnosticRunner(commands.RunContext), helmEvidenceCommandTimeout),
+	}
 	defer func() {
 		failed := result != nil
 		if failed {
@@ -1157,23 +1194,25 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 				helmFailureDiagnosticsTimeout)
 			result = fmt.Errorf("%w\n%s", result, diagnostics)
 		}
-		swapCluster.ReleaseAfter(commands.KindRun, failed, kindrig.FailureEvidence{
-			Directory:  evidenceDir,
-			Namespaces: []string{"default"},
-			Run: boundedHelmEvidenceRunnerWith(
-				helmDiagnosticRunner(commands.RunContext), helmEvidenceCommandTimeout),
-		})
-		cleanupCommands()
+		if releaseAggregateKindCluster(
+			swapCluster, commands.KindRun, evidence, result,
+		) {
+			if failed {
+				cleanupNamespaceFn = func() error { return nil }
+			}
+			return
+		}
+		swapCluster.ReleaseAfter(commands.KindRun, failed, evidence)
 	}()
 	if err := provisionExternalUIAssets(commands.Run, assets); err != nil {
 		return err
 	}
 	if err := loadKindImageWithCommands(
-		commands, helmSwapCluster, images.Runtime); err != nil {
+		commands, swapCluster.Name, images.Runtime); err != nil {
 		return err
 	}
 	if err := loadIntegrationDependencyImages(
-		commands, helmSwapCluster, dependencyImages); err != nil {
+		commands, swapCluster.Name, dependencyImages); err != nil {
 		return err
 	}
 

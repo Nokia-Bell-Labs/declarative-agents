@@ -143,3 +143,95 @@ func TestDirectIntegrationTargetHasNoSharedSession(t *testing.T) {
 		t.Fatal("direct target transferred ownership without an aggregate")
 	}
 }
+
+func TestPrepareAggregateNamespaceCreatesSelectsAndCleansOnlyOwnedNamespace(t *testing.T) {
+	session := newIntegrationKindSession(t.TempDir())
+	deactivate, err := activateIntegrationKindSession(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer deactivate()
+	var calls []string
+	run := func(name string, args ...string) ([]byte, error) {
+		call := name + " " + strings.Join(args, " ")
+		calls = append(calls, call)
+		if call == "kubectl get namespace da-helm-smoke" {
+			return nil, errors.New("not found")
+		}
+		return nil, nil
+	}
+	namespace, cleanup, err := prepareAggregateNamespace(run, "helm-smoke", "smoke")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if namespace != "da-helm-smoke" {
+		t.Fatalf("namespace = %q, want da-helm-smoke", namespace)
+	}
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"kubectl create namespace da-helm-smoke",
+		"kubectl config set-context --current --namespace da-helm-smoke",
+		"helm uninstall smoke --namespace da-helm-smoke --ignore-not-found",
+		"kubectl delete namespace da-helm-smoke --ignore-not-found=true --wait=false",
+		"kubectl wait --for=delete namespace/da-helm-smoke --timeout=180s",
+		"kubectl get namespace da-helm-smoke",
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("namespace calls = %v, want %v", calls, want)
+	}
+}
+
+func TestPrepareAggregateNamespaceContinuesCleanupAfterUninstallFailure(t *testing.T) {
+	session := newIntegrationKindSession(t.TempDir())
+	deactivate, err := activateIntegrationKindSession(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer deactivate()
+	var calls []string
+	run := func(name string, args ...string) ([]byte, error) {
+		call := name + " " + strings.Join(args, " ")
+		calls = append(calls, call)
+		switch {
+		case strings.HasPrefix(call, "helm uninstall"):
+			return []byte("release busy"), errors.New("uninstall failed")
+		case strings.HasPrefix(call, "kubectl get namespace"):
+			return nil, errors.New("not found")
+		default:
+			return nil, nil
+		}
+	}
+	_, cleanup, err := prepareAggregateNamespace(run, "helm-swap", "swap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = cleanup()
+	if err == nil || !strings.Contains(err.Error(), "release busy") {
+		t.Fatalf("cleanup error = %v, want uninstall diagnostics", err)
+	}
+	if !strings.Contains(strings.Join(calls, "\n"), "kubectl delete namespace da-helm-swap") {
+		t.Fatalf("namespace delete did not run after uninstall failure: %v", calls)
+	}
+}
+
+func TestPrepareAggregateNamespaceIsNoopForDirectTarget(t *testing.T) {
+	called := false
+	namespace, cleanup, err := prepareAggregateNamespace(
+		func(string, ...string) ([]byte, error) {
+			called = true
+			return nil, nil
+		},
+		"helm-smoke", "smoke",
+	)
+	if err != nil || namespace != "default" {
+		t.Fatalf("direct namespace = %q err=%v, want default/nil", namespace, err)
+	}
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	if called {
+		t.Fatal("direct target invoked aggregate namespace commands")
+	}
+}
