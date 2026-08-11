@@ -40,6 +40,7 @@ var undoStrategiesByReversibility = map[string]map[string]bool{
 		"nested_machine_rollback":                                true,
 		"point_workspace_restore_and_child_process_compensation": true,
 		"resume_or_checkpoint_rollback":                          true,
+		"receiver_stop":                                          true,
 		"server_shutdown_or_user_action_compensation":            true,
 	},
 }

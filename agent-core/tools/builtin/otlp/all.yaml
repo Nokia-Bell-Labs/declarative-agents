@@ -40,8 +40,10 @@ tools:
     classification: compensatable
     undo: otlp_receiver_stop
   undo:
-    strategy: compensating_action
-    description: Stop the listener owned by this launch.
+    strategy: receiver_stop
+    description: Decode the launch receipt and stop the named listener when it is still running.
+    captures: [receiver, address]
+    requires: [receipt]
   errors:
   - signal: CommandError
     condition: config is invalid, the receiver is live, or the address cannot bind

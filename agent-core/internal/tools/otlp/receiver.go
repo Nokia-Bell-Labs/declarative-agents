@@ -123,6 +123,16 @@ func (s *State) Stop(name string) (map[string]any, error) {
 	return runtime.stop()
 }
 
+func (s *State) stopIfRunning(name string) (map[string]any, error) {
+	s.mu.Lock()
+	runtime, ok := s.receivers[name]
+	s.mu.Unlock()
+	if !ok || runtime.isStopped() {
+		return map[string]any{"receiver": name, "status": "already_stopped"}, nil
+	}
+	return runtime.stop()
+}
+
 // Next waits for one complete FIFO batch, receiver stop, or cancellation.
 func (s *State) Next(ctx context.Context, name string) (Batch, error) {
 	runtime, err := s.runtime(name)
@@ -323,6 +333,17 @@ func (b ReceiverBuilder) Build(_ core.Result) core.Command {
 	return receiverCommand{toolName: b.ToolName, init: b.Init, config: b.Config, state: b.State}
 }
 
+func (b ReceiverBuilder) BuildReverser() core.Command {
+	return receiverCommand{toolName: b.ToolName, init: b.Init, config: b.Config, state: b.State}
+}
+
+var _ core.Reverser = ReceiverBuilder{}
+
+type receiverReceipt struct {
+	Name    string `json:"name"`
+	Address string `json:"address"`
+}
+
 type receiverCommand struct {
 	toolName string
 	init     string
@@ -355,19 +376,46 @@ func (c receiverCommand) Execute() core.Result {
 	if err != nil {
 		return receiverError(c.toolName, err)
 	}
-	return core.Result{Signal: signal, CommandName: c.toolName, Output: string(data)}
+	result := core.Result{Signal: signal, CommandName: c.toolName, Output: string(data)}
+	if c.init == InitReceiverLaunch {
+		result.Receipt = encodeReceiverReceipt(output)
+	}
+	return result
 }
 
-func (c receiverCommand) Undo(_ core.Result) core.Result {
+func (c receiverCommand) Undo(prior core.Result) core.Result {
 	if c.init != InitReceiverLaunch {
 		return core.NoopUndo(c.toolName)
 	}
-	output, err := c.state.Stop(c.config.Name)
+	receipt, err := decodeReceiverReceipt(prior.Receipt)
+	if err != nil {
+		return receiverError(c.toolName, err)
+	}
+	output, err := c.state.stopIfRunning(receipt.Name)
 	if err != nil {
 		return receiverError(c.toolName, err)
 	}
 	data, _ := json.Marshal(output)
 	return core.Result{Signal: core.Signal("ReceiverStopped"), CommandName: c.toolName, Output: string(data)}
+}
+
+func encodeReceiverReceipt(output map[string]any) string {
+	receipt := receiverReceipt{
+		Name: fmt.Sprint(output["receiver"]), Address: fmt.Sprint(output["address"]),
+	}
+	data, _ := json.Marshal(receipt)
+	return string(data)
+}
+
+func decodeReceiverReceipt(value string) (receiverReceipt, error) {
+	var receipt receiverReceipt
+	if err := json.Unmarshal([]byte(value), &receipt); err != nil {
+		return receipt, fmt.Errorf("decode OTLP receiver receipt: %w", err)
+	}
+	if receipt.Name == "" {
+		return receipt, fmt.Errorf("decode OTLP receiver receipt: receiver name is required")
+	}
+	return receipt, nil
 }
 
 func receiverError(name string, err error) core.Result {

@@ -3,7 +3,9 @@
 package lifecycle
 
 import (
+	"encoding/json"
 	"errors"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,6 +14,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolexec "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/exec"
+	toolotlp "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/otlp"
 )
 
 // reverserStub is a core.Reverser whose receipt-driven Undo succeeds or fails on
@@ -189,6 +192,44 @@ func rollbackExecDef(name, classification, strategy, description string, require
 			Strategy: strategy, Description: description, Requires: requires,
 		},
 	}
+}
+
+func TestRollbackViaReceiptsStopsOTLPReceiver(t *testing.T) {
+	t.Parallel()
+	state := toolotlp.NewState()
+	def := catalog.ToolDef{
+		Name: "otlp_receiver_launch", Type: "builtin",
+		Reversibility: catalog.ToolReversibility{Classification: "compensatable"},
+		Undo:          catalog.ToolUndoContract{Strategy: "receiver_stop"},
+	}
+	builder := toolotlp.ReceiverBuilder{
+		ToolName: def.Name, Init: toolotlp.InitReceiverLaunch,
+		Config: toolotlp.ReceiverConfig{Name: "rollback", Address: "127.0.0.1:0"},
+		State:  state,
+	}
+	launch := builder.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("ReceiverLaunched"), launch.Signal, launch.Output)
+	require.NotEmpty(t, launch.Receipt)
+	var output struct {
+		Address string `json:"address"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(launch.Output), &output))
+
+	reg := core.NewRegistry()
+	reg.Register(def.ToToolSpec(), builder)
+	report, err := rollbackViaReceipts(rollbackViaReceiptsOptions{
+		Reverter: &recordingReverter{}, Registry: reg, RunID: "run-otlp",
+		Execution: core.Execution{
+			{Iteration: 1, CommandName: "read"},
+			{Iteration: 2, CommandName: def.Name, Receipt: launch.Receipt},
+		},
+		TargetIteration: 1,
+	})
+	require.NoError(t, err, report.Detail)
+	require.Equal(t, 1, report.Reverted)
+	listener, err := net.Listen("tcp", output.Address)
+	require.NoError(t, err, "rollback must release the receiver address")
+	require.NoError(t, listener.Close())
 }
 
 // TestRollbackViaReceiptsSurfacesEveryCompensation proves GH-1377's fallback:
