@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -76,7 +75,7 @@ func TestRunAgentReceiptRestoresPointAndSurfacesChildCompensation(t *testing.T) 
 	pc := &PointContext{
 		PointDir: pointDir, TracePath: filepath.Join(pointDir, "trace.ndjson"),
 		ResultPath: resultPath, ProfilePath: "agents/executor/profile.yaml",
-		Harness: Harness{Binary: script}, Timeout: 5 * time.Second,
+		Harness: Harness{Binary: script}, Timeout: schedulerSafeSubprocessTimeout,
 	}
 	builder := &RunAgentBuilder{ES: &EvalState{PC: pc, Ctx: context.Background()}}
 

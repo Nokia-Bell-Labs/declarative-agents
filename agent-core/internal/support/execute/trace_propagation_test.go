@@ -19,7 +19,12 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/subprocess"
 )
 
-const traceChildModeEnv = "AGENT_TRACE_PROPAGATION_CHILD"
+const (
+	traceChildModeEnv = "AGENT_TRACE_PROPAGATION_CHILD"
+	// schedulerSafeSubprocessTimeout still detects a stuck trace child while
+	// allowing process startup under a parallel full-module evidence run.
+	schedulerSafeSubprocessTimeout = 30 * time.Second
+)
 
 func TestRunAgentPropagatesOTelParentThroughChildProcess(t *testing.T) {
 	if os.Getenv(traceChildModeEnv) == "1" {
@@ -39,7 +44,7 @@ func TestRunAgentPropagatesOTelParentThroughChildProcess(t *testing.T) {
 	script := writeTraceChildLauncher(t)
 
 	result := RunAgent(ctx, Config{
-		Binary: script, OTelLogFile: artifact, Timeout: 5 * time.Second,
+		Binary: script, OTelLogFile: artifact, Timeout: schedulerSafeSubprocessTimeout,
 	})
 
 	require.True(t, result.Success(), "stdout=%s stderr=%s err=%v", result.Stdout, result.Stderr, result.Err)
@@ -59,7 +64,7 @@ func TestRunAgentOTelParentBoundaries(t *testing.T) {
 	t.Run("missing parent emits root", func(t *testing.T) {
 		artifact := filepath.Join(t.TempDir(), "root-trace.json")
 		result := RunAgent(context.Background(), Config{
-			Binary: script, OTelLogFile: artifact, Timeout: 5 * time.Second,
+			Binary: script, OTelLogFile: artifact, Timeout: schedulerSafeSubprocessTimeout,
 		})
 		require.True(t, result.Success(), result.Stderr)
 		span := readExportedChildSpan(t, artifact)
@@ -74,7 +79,7 @@ func TestRunAgentOTelParentBoundaries(t *testing.T) {
 				"--otel-log-file", filepath.Join(t.TempDir(), "invalid.json"),
 				"--otel-parent-span", "malformed",
 			},
-			Timeout: 5 * time.Second,
+			Timeout: schedulerSafeSubprocessTimeout,
 		})
 		require.False(t, result.Success())
 		require.Contains(t, result.Stderr, "invalid traceparent")
@@ -83,7 +88,7 @@ func TestRunAgentOTelParentBoundaries(t *testing.T) {
 
 	t.Run("child failure preserves diagnostics", func(t *testing.T) {
 		result := subprocess.Run(context.Background(), subprocess.Spec{
-			Binary: script, Args: []string{"--fail-child"}, Timeout: 5 * time.Second,
+			Binary: script, Args: []string{"--fail-child"}, Timeout: schedulerSafeSubprocessTimeout,
 		})
 		require.False(t, result.Success())
 		require.Equal(t, 42, result.ExitCode)
