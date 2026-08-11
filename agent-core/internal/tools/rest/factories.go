@@ -409,6 +409,7 @@ func newServerBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.
 	server.MachineRequestRunner = deps.MachineRunner
 	server.Monitor = deps.Monitor
 	server.RunID = deps.RunID
+	server.Credentials = deps.CredentialResolver
 	return ServerBuilder{ToolName: def.Name, Init: init, Server: server, State: deps.ServerState}, nil
 }
 

@@ -125,6 +125,10 @@ func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	req, authorized := r.authorizeEndpoint(w, req, endpoint)
+	if !authorized {
+		return
+	}
 	// monitor_proxy forwards arbitrary monitor query strings to a declared upstream
 	// and reads the request directly, so it bypasses declared-query/body validation.
 	if endpoint.Binding == bindingMonitorProxy {
@@ -141,6 +145,20 @@ func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	r.handleEndpoint(w, req, name, endpoint, payload)
+}
+
+func (r *serverRuntime) authorizeEndpoint(
+	w http.ResponseWriter, req *http.Request, endpoint Endpoint,
+) (*http.Request, bool) {
+	if endpoint.Binding != bindingLifecycleControl {
+		return req, true
+	}
+	ref := endpoint.LifecycleControl.RequireAuthRef
+	if err := authorizeLifecycleRequest(req, r.def, ref); err != nil {
+		writeLifecycleAuthError(w, err)
+		return req, false
+	}
+	return withoutLifecycleCredential(req, r.def, ref), true
 }
 
 type routeMatch struct {
@@ -513,6 +531,14 @@ func (r *serverRuntime) enqueueLifecycleControl(
 		return
 	}
 	r.enqueueSignal(w, req, name, signal, payload, endpoint.Response.Redact)
+}
+
+func writeLifecycleAuthError(w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	if authErr, ok := err.(lifecycleAuthError); ok {
+		status = authErr.status
+	}
+	http.Error(w, err.Error(), status)
 }
 
 func lifecycleSignal(endpoint Endpoint) string {

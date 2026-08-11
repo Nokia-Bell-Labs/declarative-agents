@@ -444,7 +444,7 @@ func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
 			MachineRunner:      profileMachineRequestRunner(st),
 			Monitor:            st.monitor,
 			RunID:              st.runID,
-			CredentialResolver: toolrest.EmptyCredentialResolver{},
+			CredentialResolver: toolrest.EnvironmentCredentials{},
 		})
 	}
 }

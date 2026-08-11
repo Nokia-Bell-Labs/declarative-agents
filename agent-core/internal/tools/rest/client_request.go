@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -386,6 +387,14 @@ func (c StaticCredentials) ResolveCredential(ref string) (string, error) {
 
 func (EmptyCredentialResolver) ResolveCredential(ref string) (string, error) {
 	return "", credentialResolutionError{ref: ref}
+}
+
+func (EnvironmentCredentials) ResolveCredential(ref string) (string, error) {
+	value, ok := os.LookupEnv(ref)
+	if !ok || value == "" {
+		return "", credentialResolutionError{ref: ref}
+	}
+	return value, nil
 }
 
 func isCredentialResolutionError(err error) bool {

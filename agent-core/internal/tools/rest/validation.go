@@ -58,7 +58,32 @@ func ValidateDefinition(def Definition) error {
 	if err := validateClients(def.Clients, def.RetryPolicies); err != nil {
 		return err
 	}
-	return validateServers(def.Servers, def.Limits)
+	if err := validateServers(def.Servers, def.Limits); err != nil {
+		return err
+	}
+	return validateServerAuthRefs(def.Servers, def.Auth)
+}
+
+func validateServerAuthRefs(servers map[string]Server, auth map[string]AuthProfile) error {
+	for name, server := range servers {
+		if ref := server.LifecycleExit.AuthRef; ref != "" {
+			if _, ok := auth[ref]; !ok {
+				return fmt.Errorf("server %q lifecycle_exit references unknown auth profile %q", name, ref)
+			}
+		}
+		for endpointName, endpoint := range server.Endpoints {
+			ref := endpoint.LifecycleControl.RequireAuthRef
+			if ref != "" {
+				if _, ok := auth[ref]; !ok {
+					return fmt.Errorf(
+						"server %q endpoint %q references unknown lifecycle auth profile %q",
+						name, endpointName, ref,
+					)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // validateRetryPolicies rejects an unsupported backoff or an unparseable delay

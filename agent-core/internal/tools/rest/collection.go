@@ -65,6 +65,8 @@ type ServerDefinition struct {
 	Name                 string
 	Server               Server
 	Limits               LimitProfile
+	Auth                 map[string]AuthProfile
+	Credentials          CredentialResolver
 	MachineRequestRunner MachineRequestRunner
 	Monitor              MonitorState
 	RunID                string
@@ -226,7 +228,9 @@ func (c Collection) ResolveServer(name string) (ServerDefinition, error) {
 	if !ok {
 		return ServerDefinition{}, fmt.Errorf("REST server %q is not defined", name)
 	}
-	return ServerDefinition{Name: name, Server: server, Limits: c.Limits[server.LimitsRef]}, nil
+	return ServerDefinition{
+		Name: name, Server: server, Limits: c.Limits[server.LimitsRef], Auth: c.Auth,
+	}, nil
 }
 
 func operationByName(operations map[string]Operation, name, owner string) (Operation, error) {

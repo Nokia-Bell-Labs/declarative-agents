@@ -103,6 +103,10 @@ type StaticCredentials map[string]string
 // EmptyCredentialResolver resolves no credential references.
 type EmptyCredentialResolver struct{}
 
+// EnvironmentCredentials resolves trusted references from the process
+// environment. Definitions carry reference names, never inline secret values.
+type EnvironmentCredentials struct{}
+
 // LimitProfile defines timeout, size, redirect, and network limits.
 type LimitProfile struct {
 	Timeout          string         `yaml:"timeout,omitempty"`
