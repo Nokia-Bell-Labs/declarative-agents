@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -198,6 +199,27 @@ func TestRunNonConformanceUsesNormalGoTestAndExcludesConformance(t *testing.T) {
 	}
 	if calls[1].name != "go" || !reflect.DeepEqual(calls[1].args, wantArgs) {
 		t.Fatalf("test command = %s %#v, want go %#v", calls[1].name, calls[1].args, wantArgs)
+	}
+}
+
+func TestCatalogTestModeDoesNotRepeatReleaseConformance(t *testing.T) {
+	recorder := &recordingCatalogRunner{stdout: "example.test/catalogroot\n"}
+	runner := newTestCatalogRunner(t, recorder)
+
+	if err := runner.runMode(catalogTestMode{nonConformance: true}); err != nil {
+		t.Fatalf("catalog test mode returned error: %v", err)
+	}
+	calls := recorder.recordedCalls()
+	if len(calls) != 2 {
+		t.Fatalf("catalog test commands = %d, want go list and go test only", len(calls))
+	}
+	for _, call := range calls {
+		if call.name != "go" {
+			t.Fatalf("catalog test unexpectedly executed conformance binary %q", call.name)
+		}
+		if slices.Contains(call.args, "-c") {
+			t.Fatalf("catalog test unexpectedly compiled conformance: %#v", call.args)
+		}
 	}
 }
 

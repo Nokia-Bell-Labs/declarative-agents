@@ -244,7 +244,7 @@ func TestRebuildAndDiffUIStopsOnHighBuildAudit(t *testing.T) {
 	run := func(_ string, _ string, args ...string) error {
 		command := strings.Join(args, " ")
 		switch command {
-		case "ci":
+		case "ci --no-audit --prefer-offline":
 			return nil
 		case "audit --audit-level=high":
 			return auditErr
@@ -280,7 +280,13 @@ func TestRebuildAndDiffUIRunsDeclaredTestsBeforeBuild(t *testing.T) {
 	if err := rebuildAndDiffUIWithRunner(app, run); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"ci", "audit --audit-level=high", "audit --omit=dev --audit-level=high", "test", "run build"}
+	want := []string{
+		"ci --no-audit --prefer-offline",
+		"audit --audit-level=high",
+		"audit --omit=dev --audit-level=high",
+		"test",
+		"run build",
+	}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("runner calls = %v, want %v", calls, want)
 	}

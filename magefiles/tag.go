@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -25,12 +26,18 @@ type releaseGate struct {
 	dir  string
 	args []string
 	env  []string
+	// Gates in one stage may overlap. Gates sharing a lane remain serial
+	// because they use the same fixed ports or local infrastructure.
+	stage int
+	lane  string
 }
 
 type releaseGateRunner func(string) error
 type releaseCommandRunner func(releaseGate) error
 
 type remoteTagsFunc func(date string) (string, error)
+
+const releaseStageConcurrency = 2
 
 // Tag creates the single repository-wide release tag.
 func Tag() error {
@@ -113,43 +120,144 @@ func runReleaseGates(commit string) error {
 func releaseGates(root string) []releaseGate {
 	catalogRoot := filepath.Join(root, catalogModule)
 	gates := []releaseGate{
-		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
+		{name: "root audit", dir: root, args: []string{"mage", "audit"}, stage: 0, lane: "root"},
 		// Lint gates a release from GH-1479 on. It could not before: the policy
 		// had never run, and its first run reported findings, which GH-1481
 		// cleared. It sits early because it is the cheapest gate here, and a
 		// policy violation should not wait behind the integration aggregates.
-		{name: "root lint", dir: root, args: []string{"mage", "lint"}},
+		{name: "root lint", dir: root, args: []string{"mage", "lint"}, stage: 1, lane: "root"},
 		// DA_RELEASE_GATE makes the UI reproducibility gate treat a missing npm
 		// as fatal rather than a developer skip (GH-1349), so a release cannot
 		// pass without rebuilding shipped UIs and auditing their dependencies.
 		{name: "root test", dir: root, args: []string{"mage", "test"},
-			env: []string{uiDistReleaseEnv + "=1"}},
+			env: []string{uiDistReleaseEnv + "=1"}, stage: 2, lane: "root"},
 		{name: "agent-core integration", dir: filepath.Join(root, "agent-core"),
-			args: []string{"mage", "integration:all"}},
+			args: []string{"mage", "integration:all"}, stage: 3, lane: "agent-core"},
 		{name: "catalog integration", dir: catalogRoot,
-			args: []string{"mage", "integration:all"}},
+			args: []string{"mage", "integration:all"}, stage: 3, lane: "catalog"},
 		{name: "catalog conformance", dir: catalogRoot,
-			args: []string{"mage", "conformance"}},
+			args: []string{"mage", "conformance"}, stage: 3, lane: "catalog"},
 	}
 	// Every released application module must enter the release gate through its
 	// own integration:all aggregate; otherwise an application is tagged without
 	// its application-owned integration evidence ever running (GH-1343).
 	for _, mod := range applicationModules {
+		lane := mod
+		// Chatbot Mesh and Agent Architecture use the same collector ports
+		// (18191-18193). Keep them in one lane while Coding Agent (182xx) and
+		// Prose Editor's dynamically allocated listeners run independently.
+		if mod == "applications/agent-architecture" {
+			lane = "applications/chatbot-mesh"
+		}
 		gates = append(gates, releaseGate{
-			name: mod + " integration",
-			dir:  filepath.Join(root, filepath.FromSlash(mod)),
-			args: []string{"mage", "integration:all"},
+			name:  mod + " integration",
+			dir:   filepath.Join(root, filepath.FromSlash(mod)),
+			args:  []string{"mage", "integration:all"},
+			stage: 4,
+			lane:  lane,
 		})
 	}
 	return gates
 }
 
 func executeReleaseGates(gates []releaseGate, run releaseCommandRunner) error {
+	for first := 0; first < len(gates); {
+		last := first + 1
+		for last < len(gates) && gates[last].stage == gates[first].stage {
+			last++
+		}
+		if err := executeReleaseStage(gates[first:last], releaseStageConcurrency, run); err != nil {
+			return err
+		}
+		first = last
+	}
+	return nil
+}
+
+type releaseLane struct {
+	index int
+	gates []releaseGate
+}
+
+type releaseLaneResult struct {
+	index int
+	err   error
+}
+
+func executeReleaseStage(
+	gates []releaseGate,
+	limit int,
+	run releaseCommandRunner,
+) error {
+	if limit < 1 {
+		limit = 1
+	}
+	lanes := releaseLanes(gates)
+	if len(lanes) == 0 {
+		return nil
+	}
+
+	results := make(chan releaseLaneResult, len(lanes))
+	next, active := 0, 0
+	launch := func(lane releaseLane) {
+		active++
+		go func() {
+			results <- releaseLaneResult{index: lane.index, err: executeReleaseLane(lane.gates, run)}
+		}()
+	}
+	for next < len(lanes) && active < limit {
+		launch(lanes[next])
+		next++
+	}
+
+	var failures []releaseLaneResult
+	for active > 0 {
+		result := <-results
+		active--
+		if result.err != nil {
+			failures = append(failures, result)
+		}
+		if len(failures) == 0 && next < len(lanes) {
+			launch(lanes[next])
+			next++
+		}
+	}
+	if len(failures) == 0 {
+		return nil
+	}
+	sort.Slice(failures, func(i, j int) bool { return failures[i].index < failures[j].index })
+	return failures[0].err
+}
+
+func releaseLanes(gates []releaseGate) []releaseLane {
+	indexByName := make(map[string]int)
+	var lanes []releaseLane
 	for _, gate := range gates {
+		laneName := gate.lane
+		if laneName == "" {
+			laneName = "serial"
+		}
+		index, ok := indexByName[laneName]
+		if !ok {
+			index = len(lanes)
+			indexByName[laneName] = index
+			lanes = append(lanes, releaseLane{index: index})
+		}
+		lanes[index].gates = append(lanes[index].gates, gate)
+	}
+	return lanes
+}
+
+func executeReleaseLane(gates []releaseGate, run releaseCommandRunner) error {
+	for _, gate := range gates {
+		started := time.Now()
 		fmt.Printf("=== release gate: %s ===\n", gate.name)
 		if err := run(gate); err != nil {
-			return fmt.Errorf("%s failed: %w", gate.name, err)
+			elapsed := time.Since(started).Round(time.Millisecond)
+			return fmt.Errorf("%s failed after %s: %w", gate.name, elapsed, err)
 		}
+		fmt.Printf("=== release gate complete: %s (%s) ===\n",
+			gate.name, time.Since(started).Round(time.Millisecond))
 	}
 	return nil
 }

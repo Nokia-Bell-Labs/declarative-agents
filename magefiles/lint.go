@@ -23,6 +23,8 @@ var lintModuleDirs = []string{
 	"design-patterns/magefiles",
 }
 
+const lintConcurrency = 2
+
 type lintRunner func(string) error
 
 // Lint runs the pinned golangci-lint v2 policy in every non-fixture Go module,
@@ -38,17 +40,21 @@ func Lint() error {
 	if err := checkGolangciLint(); err != nil {
 		return err
 	}
-	return lintSubModules(lintModuleDirs, runGolangciLint)
+	return lintSubModulesLimited(lintModuleDirs, lintConcurrency, runGolangciLint)
 }
 
 func lintSubModules(modules []string, run lintRunner) error {
-	for _, module := range modules {
+	return lintSubModulesLimited(modules, 1, run)
+}
+
+func lintSubModulesLimited(modules []string, limit int, run lintRunner) error {
+	return runBounded(modules, limit, func(module string) error {
 		fmt.Printf("=== %s lint ===\n", module)
 		if err := run(module); err != nil {
 			return fmt.Errorf("lint in %s: %w", module, err)
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 func runGolangciLint(dir string) error {
@@ -74,8 +80,8 @@ func golangciLintCommand(dir string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve user cache for golangci-lint: %w", err)
 	}
-	cacheDir := golangciLintCacheDir(cacheRoot, root)
-	cmd := exec.Command("golangci-lint", "run", "./...")
+	cacheDir := golangciLintModuleCacheDir(cacheRoot, root, dir)
+	cmd := exec.Command("golangci-lint", "run", "--allow-parallel-runners", "./...")
 	cmd.Dir = filepath.Join(root, filepath.FromSlash(dir))
 	cmd.Env = lintCommandEnvironment(os.Environ(), cacheDir)
 	return cmd, nil
@@ -87,6 +93,13 @@ func golangciLintCacheDir(cacheRoot, repositoryRoot string) string {
 	namespace := fmt.Sprintf("%x", digest[:12])
 	return filepath.Join(
 		cacheRoot, "declarative-agents", "golangci-lint", namespace)
+}
+
+func golangciLintModuleCacheDir(cacheRoot, repositoryRoot, module string) string {
+	return filepath.Join(
+		golangciLintCacheDir(cacheRoot, repositoryRoot),
+		filepath.FromSlash(module),
+	)
 }
 
 func lintCommandEnvironment(inherited []string, cacheDir string) []string {

@@ -19,6 +19,8 @@ var Aliases = map[string]interface{}{
 type unitTestRunner func(string) error
 type moduleTestDetector func(string) (bool, error)
 
+const testConcurrency = 3
+
 // testTarget pairs a module directory with the command that runs its tests.
 type testTarget struct {
 	module string
@@ -52,8 +54,8 @@ func testTargets() []testTarget {
 	for _, m := range applicationModules {
 		run := runGoUnitTests
 		if m == "applications/catalog" {
-			// Catalog conformance uses its Mage runner so the test binary can be
-			// compiled to a stable path before execution (GH-1437).
+			// Catalog uses its Mage runner to exclude the conformance package;
+			// the release executes that suite once in its dedicated gate.
 			run = runMageTest
 		}
 		targets = append(targets, testTarget{module: m, run: run})
@@ -68,10 +70,13 @@ func testTargets() []testTarget {
 // testTargets registry: platform sub-modules and the catalog through their Mage
 // test target, other applications and standalone nested modules through go test.
 func Test() error {
-	for _, target := range testTargets() {
+	if err := runBounded(testTargets(), testConcurrency, func(target testTarget) error {
 		if err := testSubModules([]string{target.module}, moduleHasGoTests, target.run); err != nil {
 			return err
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	// Shipped UI reproducibility gate: fail if a tracked dist no longer matches a
 	// clean source build (GH-518). Skips cleanly where node/npm is absent.
