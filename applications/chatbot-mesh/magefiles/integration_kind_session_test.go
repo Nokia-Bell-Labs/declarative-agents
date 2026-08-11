@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
@@ -177,6 +178,9 @@ func TestPrepareAggregateNamespaceCreatesSelectsAndCleansOnlyOwnedNamespace(t *t
 		"kubectl delete namespace da-helm-smoke --ignore-not-found=true --wait=false",
 		"kubectl wait --for=delete namespace/da-helm-smoke --timeout=180s",
 		"kubectl get namespace da-helm-smoke",
+		"kubectl -n kube-system wait --for=condition=Ready pod -l k8s-app=kube-proxy --timeout=120s",
+		"kubectl -n kube-system rollout status deployment/coredns --timeout=120s",
+		"kubectl get --raw=/readyz",
 	}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("namespace calls = %v, want %v", calls, want)
@@ -233,5 +237,71 @@ func TestPrepareAggregateNamespaceIsNoopForDirectTarget(t *testing.T) {
 	}
 	if called {
 		t.Fatal("direct target invoked aggregate namespace commands")
+	}
+}
+
+func TestAggregateDataPlaneFailureNamesReadinessBoundary(t *testing.T) {
+	session := newIntegrationKindSession(t.TempDir())
+	deactivate, err := activateIntegrationKindSession(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer deactivate()
+	err = verifyAggregateDataPlane(func(name string, args ...string) ([]byte, error) {
+		command := name + " " + strings.Join(args, " ")
+		if strings.Contains(command, "deployment/coredns") {
+			return []byte("zero ready replicas"), errors.New("rollout timed out")
+		}
+		return nil, nil
+	})
+	if err == nil ||
+		!strings.Contains(err.Error(), "shared kind data-plane readiness") ||
+		!strings.Contains(err.Error(), "deployment/coredns") ||
+		!strings.Contains(err.Error(), "zero ready replicas") {
+		t.Fatalf("readiness error = %v", err)
+	}
+}
+
+func TestCollectorOTLPReadinessWaitsForAcceptingEndpoint(t *testing.T) {
+	stopped := false
+	attempts := 0
+	err := assertCollectorOTLPReadyWith(
+		24317,
+		func(port int) (func(), error) {
+			if port != 24317 {
+				t.Fatalf("forward port = %d, want 24317", port)
+			}
+			return func() { stopped = true }, nil
+		},
+		func(address string, _ time.Duration) error {
+			if address != "127.0.0.1:24317" {
+				t.Fatalf("probe address = %q", address)
+			}
+			attempts++
+			if attempts < 3 {
+				return errors.New("connection refused")
+			}
+			return nil
+		},
+		time.Second,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 3 || !stopped {
+		t.Fatalf("attempts=%d stopped=%v, want 3/true", attempts, stopped)
+	}
+}
+
+func TestCollectorOTLPReadinessReportsForwardFailure(t *testing.T) {
+	want := errors.New("forward failed")
+	err := assertCollectorOTLPReadyWith(
+		24317,
+		func(int) (func(), error) { return nil, want },
+		func(string, time.Duration) error { return nil },
+		time.Second,
+	)
+	if !errors.Is(err, want) || !strings.Contains(err.Error(), "readiness forward") {
+		t.Fatalf("error = %v, want wrapped forward failure", err)
 	}
 }

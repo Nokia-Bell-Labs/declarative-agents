@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -409,6 +410,9 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	// collector that cannot start is reported as itself (GH-736).
 	if err := assertCollectorAvailable(
 		commands.Run, helmRelease, helmReadyTimeout); err != nil {
+		return err
+	}
+	if err := assertCollectorOTLPReady(commands, helmRelease, helmReadyTimeout); err != nil {
 		return err
 	}
 	if err := assertSmokeChatServed(helmChatURL); err != nil {
@@ -864,6 +868,73 @@ func assertCollectorAvailable(
 		err, strings.TrimSpace(string(out)), collectorDiagnostics(run, release))
 }
 
+func assertCollectorOTLPReady(
+	commands kindrig.Commands,
+	release string,
+	timeout time.Duration,
+) error {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return fmt.Errorf("reserve collector OTLP probe port: %w", err)
+	}
+	localPort := listener.Addr().(*net.TCPAddr).Port
+	_ = listener.Close()
+	resource := "svc/" + release + "-chatbot-mesh-collector"
+	return assertCollectorOTLPReadyWith(
+		localPort,
+		func(port int) (func(), error) {
+			cmd := commands.Command(
+				"kubectl", "port-forward", resource, fmt.Sprintf("%d:4317", port))
+			cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+			if err := cmd.Start(); err != nil {
+				return nil, fmt.Errorf("kubectl port-forward %s: %w", resource, err)
+			}
+			return func() {
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
+				_ = cmd.Wait()
+			}, nil
+		},
+		probeCollectorTCP,
+		timeout,
+	)
+}
+
+func assertCollectorOTLPReadyWith(
+	localPort int,
+	startForward func(int) (func(), error),
+	probe func(string, time.Duration) error,
+	timeout time.Duration,
+) error {
+	stop, err := startForward(localPort)
+	if err != nil {
+		return fmt.Errorf("start collector OTLP readiness forward: %w", err)
+	}
+	defer stop()
+	address := net.JoinHostPort("127.0.0.1", strconv.Itoa(localPort))
+	deadline := time.Now().Add(timeout)
+	var last error
+	for time.Now().Before(deadline) {
+		if err := probe(address, 500*time.Millisecond); err == nil {
+			return nil
+		} else {
+			last = err
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("collector OTLP endpoint %s not ready within %s: %w",
+		address, timeout, last)
+}
+
+func probeCollectorTCP(address string, timeout time.Duration) error {
+	connection, err := net.DialTimeout("tcp", address, timeout)
+	if err != nil {
+		return err
+	}
+	return connection.Close()
+}
+
 // collectorDiagnostics returns the collector's pod line and last log lines, so
 // a span failure names the hop that dropped them instead of leaving the reader
 // to guess between "the agents never exported" and "the collector never ran"
@@ -1241,6 +1312,9 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 	}
 	if err := assertExternalUIAssetsMountedWithRunner(
 		commands.Run, helmSwapRelease, assets, helmReadyTimeout); err != nil {
+		return err
+	}
+	if err := assertCollectorOTLPReady(commands, helmSwapRelease, helmReadyTimeout); err != nil {
 		return err
 	}
 

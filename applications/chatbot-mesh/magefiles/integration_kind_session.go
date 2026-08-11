@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -177,9 +178,32 @@ func prepareAggregateNamespace(
 			cleanupErrors = append(cleanupErrors,
 				fmt.Errorf("aggregate namespace %s remains after cleanup", namespace))
 		}
+		if err := verifyAggregateDataPlane(run); err != nil {
+			cleanupErrors = append(cleanupErrors, err)
+		}
 		return errors.Join(cleanupErrors...)
 	}
 	return namespace, cleanup, nil
+}
+
+func verifyAggregateDataPlane(run kindrig.CommandRunner) error {
+	if activeIntegrationKindSession() == nil {
+		return nil
+	}
+	checks := [][]string{
+		{"kubectl", "-n", "kube-system", "wait", "--for=condition=Ready",
+			"pod", "-l", "k8s-app=kube-proxy", "--timeout=120s"},
+		{"kubectl", "-n", "kube-system", "rollout", "status",
+			"deployment/coredns", "--timeout=120s"},
+		{"kubectl", "get", "--raw=/readyz"},
+	}
+	for _, command := range checks {
+		if output, err := run(command[0], command[1:]...); err != nil {
+			return fmt.Errorf("shared kind data-plane readiness %s: %w: %s",
+				strings.Join(command, " "), err, output)
+		}
+	}
+	return nil
 }
 
 func (session *integrationKindSession) runTarget(name string, run func() error) error {

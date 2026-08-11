@@ -31,6 +31,28 @@ func integrationTargets(i Integration) []integrationTarget {
 	}
 }
 
+// SharedSmokeSwap runs the two namespace-isolated scenarios used to measure
+// and verify shared-session data-plane readiness without the unrelated local,
+// policy, LLM-tier, and applier targets.
+func (i Integration) SharedSmokeSwap() error {
+	session := newIntegrationKindSession(integrationKindSessionRoot())
+	deactivate, err := activateIntegrationKindSession(session)
+	if err != nil {
+		return err
+	}
+	defer deactivate()
+	defer session.close()
+	for _, target := range []integrationTarget{
+		{name: "helmSmoke", fn: i.HelmSmoke, sharedKind: true},
+		{name: "helmSwap", fn: i.HelmSwap, sharedKind: true},
+	} {
+		if err := session.runTarget(target.name, target.fn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // All runs every integration target this application owns and prints a
 // pass/fail/skip summary, returning an error when any target fails. Each target
 // self-skips (returns nil after printing SKIP) when an optional live
