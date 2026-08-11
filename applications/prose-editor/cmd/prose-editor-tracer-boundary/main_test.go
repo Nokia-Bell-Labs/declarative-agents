@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,22 +36,82 @@ func TestCaptureSourceCreatesImmutableWorkspaceArtifact(t *testing.T) {
 
 func TestParseManifestRevisionInputRequiresDeclaredEventAndTerminal(t *testing.T) {
 	input, err := parseManifestRevisionInput([]string{
-		"boundary", "append-manifest-revision", "locally_finalized", "LocallyFinalized", "4",
+		"boundary", "append-manifest-revision", "locally_finalized", "LocallyFinalized", "4", "0",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if input.Event != "locally_finalized" || input.Terminal != "LocallyFinalized" || input.Occurrence != 4 {
+	if input.Event != "locally_finalized" || input.Terminal != "LocallyFinalized" ||
+		input.Occurrence != 4 || input.ContextAttempt != 0 {
 		t.Fatalf("parsed input = %#v", input)
 	}
 	for _, args := range [][]string{
 		{"boundary", "append-manifest-revision"},
-		{"boundary", "append-manifest-revision", "", "none", "1"},
-		{"boundary", "append-manifest-revision", "event", "Unexpected", "1"},
-		{"boundary", "append-manifest-revision", "event", "none", "zero"},
+		{"boundary", "append-manifest-revision", "", "none", "1", "0"},
+		{"boundary", "append-manifest-revision", "event", "Unexpected", "1", "0"},
+		{"boundary", "append-manifest-revision", "event", "none", "zero", "0"},
+		{"boundary", "append-manifest-revision", "event", "none", "1", "-1"},
 	} {
 		if _, err := parseManifestRevisionInput(args); err == nil {
 			t.Fatalf("input %v unexpectedly succeeded", args)
+		}
+	}
+}
+
+func TestManifestContextProjectsContentIdentitiesWithoutInstructionPolicy(t *testing.T) {
+	workspace := t.TempDir()
+	original := []byte("original")
+	candidate := []byte("candidate")
+	if err := os.WriteFile(filepath.Join(workspace, "00-original.md"), original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(workspace, "attempts", "structure"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	candidatePath := filepath.Join("attempts", "structure", "candidate.md")
+	if err := os.WriteFile(filepath.Join(workspace, candidatePath), candidate, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := manifest{
+		SagaID: "saga", Source: sourceIdentity{SHA256: digest(original)},
+		Selected: map[string]string{"original": "original-1", "structure": "structure-1"},
+		Artifacts: []artifact{{
+			ID: "structure-1", Stage: "structure", Attempt: 1,
+			Path: filepath.ToSlash(candidatePath), SHA256: digest(candidate),
+		}},
+	}
+
+	data, err := (&boundary{workspace: workspace}).manifestContext(state, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var context map[string]any
+	if err := json.Unmarshal(data, &context); err != nil {
+		t.Fatal(err)
+	}
+	if context["original_content"] != "original" || context["candidate_content"] != "candidate" {
+		t.Fatalf("manifest context = %#v", context)
+	}
+	if _, exists := context["bounded_structure_intent"]; exists {
+		t.Fatal("boundary context must not own child instruction policy")
+	}
+}
+
+func TestChildRequestInputRequiresDistinctAddress(t *testing.T) {
+	input, err := parseChildRequestInput([]string{
+		"boundary", "persist-child-request", ".tracer/requests/structure-1.json", "1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if input.Path != ".tracer/requests/structure-1.json" {
+		t.Fatalf("path = %q", input.Path)
+	}
+	for _, path := range []string{"child-request.json", "../request.json", "/tmp/request.json"} {
+		if _, err := parseChildRequestInput([]string{
+			"boundary", "persist-child-request", path, "1",
+		}); err == nil {
+			t.Fatalf("unsafe path %q succeeded", path)
 		}
 	}
 }

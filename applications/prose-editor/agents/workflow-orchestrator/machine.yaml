@@ -6,6 +6,7 @@ purpose: |-
   selects workproduct mutation words.
 invariants:
   - Structure and critic children receive content identities, never workspace paths.
+  - Child request instructions are composed by declared words and persisted at distinct declared addresses.
   - Critique evidence is written and manifested before its verdict is routed.
   - A first rejection may replay structure once; a second rejection cannot cycle.
   - Finalization is reachable only from an accepted critic verdict.
@@ -20,9 +21,13 @@ states:
   - CapturingSource
   - WritingOriginal
   - ManifestingCapture
+  - ComposingStructureRequest
+  - PersistingStructureRequest
   - InvokingStructure
   - WritingStructure
   - ManifestingStructure
+  - ComposingCriticRequest
+  - PersistingCriticRequest
   - InvokingCritic
   - CapturingCritic
   - ParsingCritic
@@ -30,9 +35,13 @@ states:
   - ManifestingCritique
   - RoutingCritic
   - ManifestingRetry
+  - ComposingStructureRetryRequest
+  - PersistingStructureRetryRequest
   - InvokingStructureRetry
   - WritingStructureRetry
   - ManifestingStructureRetry
+  - ComposingCriticRetryRequest
+  - PersistingCriticRetryRequest
   - InvokingCriticRetry
   - CapturingCriticRetry
   - ParsingCriticRetry
@@ -57,14 +66,20 @@ signals:
   - CriticResponseInvalid
   - CriticAccepted
   - CriticRejected
+  - StructureRequestComposed
+  - CriticRequestComposed
 transitions:
   - {state: AwaitingRequest, signal: Seed, next: CapturingSource, action: capture_source, label: source_capture}
   - {state: CapturingSource, signal: ToolDone, next: WritingOriginal, action: write_original, label: original_write}
   - {state: WritingOriginal, signal: ToolDone, next: ManifestingCapture, action: append_capture_manifest, label: capture_manifest}
-  - {state: ManifestingCapture, signal: ToolDone, next: InvokingStructure, action: invoke_structure_editor, label: structure_child}
+  - {state: ManifestingCapture, signal: ToolDone, next: ComposingStructureRequest, action: compose_structure_request, label: structure_request}
+  - {state: ComposingStructureRequest, signal: StructureRequestComposed, next: PersistingStructureRequest, action: persist_structure_request, label: structure_request_file}
+  - {state: PersistingStructureRequest, signal: ToolDone, next: InvokingStructure, action: invoke_structure_editor, label: structure_child}
   - {state: InvokingStructure, signal: ToolDone, next: WritingStructure, action: write_structure_attempt, label: structure_attempt}
   - {state: WritingStructure, signal: ToolDone, next: ManifestingStructure, action: append_structure_manifest, label: structure_manifest}
-  - {state: ManifestingStructure, signal: ToolDone, next: InvokingCritic, action: invoke_voice_critic, label: critic_child}
+  - {state: ManifestingStructure, signal: ToolDone, next: ComposingCriticRequest, action: compose_critic_request, label: critic_request}
+  - {state: ComposingCriticRequest, signal: CriticRequestComposed, next: PersistingCriticRequest, action: persist_critic_request, label: critic_request_file}
+  - {state: PersistingCriticRequest, signal: ToolDone, next: InvokingCritic, action: invoke_voice_critic, label: critic_child}
   - {state: InvokingCritic, signal: ToolDone, next: CapturingCritic, action: capture_critic_output, label: critic_transport}
   - {state: CapturingCritic, signal: CriticOutputCaptured, next: ParsingCritic, action: parse_critic_response, label: critic_response}
   - {state: ParsingCritic, signal: CriticResponseParsed, next: WritingCritique, action: write_critique_attempt, label: critique_attempt}
@@ -72,10 +87,14 @@ transitions:
   - {state: ManifestingCritique, signal: ToolDone, next: RoutingCritic, action: critic_verdict_is_pass, label: critic_route}
   - {state: RoutingCritic, signal: CriticAccepted, next: MaterializingFinalFirst, action: materialize_final_chain, label: final_chain}
   - {state: RoutingCritic, signal: CriticRejected, next: ManifestingRetry, action: append_retry_manifest, label: retry_manifest}
-  - {state: ManifestingRetry, signal: ToolDone, next: InvokingStructureRetry, action: invoke_structure_editor, label: structure_child}
+  - {state: ManifestingRetry, signal: ToolDone, next: ComposingStructureRetryRequest, action: compose_structure_retry_request, label: structure_retry_request}
+  - {state: ComposingStructureRetryRequest, signal: StructureRequestComposed, next: PersistingStructureRetryRequest, action: persist_structure_retry_request, label: structure_retry_request_file}
+  - {state: PersistingStructureRetryRequest, signal: ToolDone, next: InvokingStructureRetry, action: invoke_structure_editor_retry, label: structure_child}
   - {state: InvokingStructureRetry, signal: ToolDone, next: WritingStructureRetry, action: write_structure_attempt, label: structure_attempt}
   - {state: WritingStructureRetry, signal: ToolDone, next: ManifestingStructureRetry, action: append_structure_retry_manifest, label: structure_manifest}
-  - {state: ManifestingStructureRetry, signal: ToolDone, next: InvokingCriticRetry, action: invoke_voice_critic, label: critic_child}
+  - {state: ManifestingStructureRetry, signal: ToolDone, next: ComposingCriticRetryRequest, action: compose_critic_retry_request, label: critic_retry_request}
+  - {state: ComposingCriticRetryRequest, signal: CriticRequestComposed, next: PersistingCriticRetryRequest, action: persist_critic_retry_request, label: critic_retry_request_file}
+  - {state: PersistingCriticRetryRequest, signal: ToolDone, next: InvokingCriticRetry, action: invoke_voice_critic_retry, label: critic_child}
   - {state: InvokingCriticRetry, signal: ToolDone, next: CapturingCriticRetry, action: capture_critic_output, label: critic_transport}
   - {state: CapturingCriticRetry, signal: CriticOutputCaptured, next: ParsingCriticRetry, action: parse_critic_response, label: critic_response}
   - {state: ParsingCriticRetry, signal: CriticResponseParsed, next: WritingCritiqueRetry, action: write_critique_attempt, label: critique_attempt_retry}
@@ -94,16 +113,20 @@ transitions:
   - {state: CapturingSource, signal: ToolFailed, next: Failed}
   - {state: WritingOriginal, signal: ToolFailed, next: Failed}
   - {state: ManifestingCapture, signal: ToolFailed, next: Failed}
+  - {state: PersistingStructureRequest, signal: ToolFailed, next: Failed}
   - {state: InvokingStructure, signal: ToolFailed, next: Failed}
   - {state: WritingStructure, signal: ToolFailed, next: Failed}
   - {state: ManifestingStructure, signal: ToolFailed, next: Failed}
+  - {state: PersistingCriticRequest, signal: ToolFailed, next: Failed}
   - {state: InvokingCritic, signal: ToolFailed, next: Failed}
   - {state: WritingCritique, signal: ToolFailed, next: Failed}
   - {state: ManifestingCritique, signal: ToolFailed, next: Failed}
   - {state: ManifestingRetry, signal: ToolFailed, next: Failed}
+  - {state: PersistingStructureRetryRequest, signal: ToolFailed, next: Failed}
   - {state: InvokingStructureRetry, signal: ToolFailed, next: Failed}
   - {state: WritingStructureRetry, signal: ToolFailed, next: Failed}
   - {state: ManifestingStructureRetry, signal: ToolFailed, next: Failed}
+  - {state: PersistingCriticRetryRequest, signal: ToolFailed, next: Failed}
   - {state: InvokingCriticRetry, signal: ToolFailed, next: Failed}
   - {state: WritingCritiqueRetry, signal: ToolFailed, next: Failed}
   - {state: ManifestingCritiqueRetry, signal: ToolFailed, next: Failed}
@@ -114,9 +137,13 @@ transitions:
   - {state: CapturingSource, signal: CommandError, next: Failed}
   - {state: WritingOriginal, signal: CommandError, next: Failed}
   - {state: ManifestingCapture, signal: CommandError, next: Failed}
+  - {state: ComposingStructureRequest, signal: CommandError, next: Failed}
+  - {state: PersistingStructureRequest, signal: CommandError, next: Failed}
   - {state: InvokingStructure, signal: CommandError, next: Failed}
   - {state: WritingStructure, signal: CommandError, next: Failed}
   - {state: ManifestingStructure, signal: CommandError, next: Failed}
+  - {state: ComposingCriticRequest, signal: CommandError, next: Failed}
+  - {state: PersistingCriticRequest, signal: CommandError, next: Failed}
   - {state: InvokingCritic, signal: CommandError, next: Failed}
   - {state: CapturingCritic, signal: CommandError, next: Failed}
   - {state: ParsingCritic, signal: CommandError, next: Failed}
@@ -124,9 +151,13 @@ transitions:
   - {state: ManifestingCritique, signal: CommandError, next: Failed}
   - {state: RoutingCritic, signal: CommandError, next: Failed}
   - {state: ManifestingRetry, signal: CommandError, next: Failed}
+  - {state: ComposingStructureRetryRequest, signal: CommandError, next: Failed}
+  - {state: PersistingStructureRetryRequest, signal: CommandError, next: Failed}
   - {state: InvokingStructureRetry, signal: CommandError, next: Failed}
   - {state: WritingStructureRetry, signal: CommandError, next: Failed}
   - {state: ManifestingStructureRetry, signal: CommandError, next: Failed}
+  - {state: ComposingCriticRetryRequest, signal: CommandError, next: Failed}
+  - {state: PersistingCriticRetryRequest, signal: CommandError, next: Failed}
   - {state: InvokingCriticRetry, signal: CommandError, next: Failed}
   - {state: CapturingCriticRetry, signal: CommandError, next: Failed}
   - {state: ParsingCriticRetry, signal: CommandError, next: Failed}

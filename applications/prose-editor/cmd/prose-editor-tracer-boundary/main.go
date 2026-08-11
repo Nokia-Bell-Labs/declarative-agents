@@ -239,6 +239,7 @@ func (b *boundary) run(operation string) error {
 	occurrence := 0
 	key := operation
 	var manifestRevision manifestRevisionInput
+	var childRequest childRequestInput
 	if operation == "append-manifest-revision" {
 		manifestRevision, err = parseManifestRevisionInput(os.Args)
 		if err != nil {
@@ -246,6 +247,13 @@ func (b *boundary) run(operation string) error {
 		}
 		occurrence = manifestRevision.Occurrence
 		key = operation + ":" + manifestRevision.Event
+	} else if operation == "persist-child-request" {
+		childRequest, err = parseChildRequestInput(os.Args)
+		if err != nil {
+			return err
+		}
+		occurrence = childRequest.Occurrence
+		key = operation + ":" + childRequest.Path
 	} else {
 		occurrence = b.nextSessionOccurrence(operation)
 		key = operation + ":" + strconv.Itoa(occurrence)
@@ -284,6 +292,8 @@ func (b *boundary) run(operation string) error {
 		if err == nil {
 			output, outputHash, err = b.writeCritique(&state, occurrence, key, input, replay)
 		}
+	case "persist-child-request":
+		output, outputHash, err = b.persistChildRequest(childRequest)
 	case "materialize-final-chain":
 		output, outputHash, err = b.materializeFinal(&state, key, replay)
 	default:
@@ -310,6 +320,41 @@ func (b *boundary) run(operation string) error {
 	}
 	fmt.Print(output)
 	return nil
+}
+
+type childRequestInput struct {
+	Path       string
+	Occurrence int
+}
+
+func parseChildRequestInput(args []string) (childRequestInput, error) {
+	if len(args) != 4 {
+		return childRequestInput{}, fmt.Errorf("persist-child-request requires path and occurrence arguments")
+	}
+	clean := filepath.ToSlash(filepath.Clean(args[2]))
+	if !strings.HasPrefix(clean, ".tracer/requests/") || filepath.IsAbs(args[2]) {
+		return childRequestInput{}, fmt.Errorf("persist-child-request path must be under .tracer/requests")
+	}
+	occurrence, err := strconv.Atoi(args[3])
+	if err != nil || occurrence < 1 {
+		return childRequestInput{}, fmt.Errorf("persist-child-request occurrence must be positive")
+	}
+	return childRequestInput{Path: clean, Occurrence: occurrence}, nil
+}
+
+func (b *boundary) persistChildRequest(input childRequestInput) (string, string, error) {
+	data, err := io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
+	if err != nil {
+		return "", "", err
+	}
+	if !json.Valid(data) {
+		return "", "", fmt.Errorf("persist-child-request input must be valid JSON")
+	}
+	path := filepath.Join(b.workspace, filepath.FromSlash(input.Path))
+	if err := writeProjection(path, data); err != nil {
+		return "", "", err
+	}
+	return path, digest(data), nil
 }
 
 func (b *boundary) captureSource(state *manifest, key string, replay bool) (string, string, error) {
@@ -354,15 +399,16 @@ func (b *boundary) writeOriginal(state *manifest, key string, replay bool) (stri
 }
 
 type manifestRevisionInput struct {
-	Event      string
-	Terminal   string
-	Occurrence int
+	Event          string
+	Terminal       string
+	Occurrence     int
+	ContextAttempt int
 }
 
 func parseManifestRevisionInput(args []string) (manifestRevisionInput, error) {
-	if len(args) != 5 {
+	if len(args) != 6 {
 		return manifestRevisionInput{}, fmt.Errorf(
-			"append-manifest-revision requires event, terminal state, and occurrence arguments",
+			"append-manifest-revision requires event, terminal state, occurrence, and context attempt arguments",
 		)
 	}
 	occurrence, err := strconv.Atoi(args[4])
@@ -379,7 +425,13 @@ func parseManifestRevisionInput(args []string) (manifestRevisionInput, error) {
 	if strings.TrimSpace(args[2]) == "" {
 		return manifestRevisionInput{}, fmt.Errorf("append-manifest-revision event is required")
 	}
-	return manifestRevisionInput{Event: args[2], Terminal: terminal, Occurrence: occurrence}, nil
+	contextAttempt, err := strconv.Atoi(args[5])
+	if err != nil || contextAttempt < 0 {
+		return manifestRevisionInput{}, fmt.Errorf("append-manifest-revision context attempt must be non-negative")
+	}
+	return manifestRevisionInput{
+		Event: args[2], Terminal: terminal, Occurrence: occurrence, ContextAttempt: contextAttempt,
+	}, nil
 }
 
 func (b *boundary) appendManifest(
@@ -409,81 +461,43 @@ func (b *boundary) appendManifest(
 			state.Selected["final"] = ""
 		}
 	}
-	requestPath := filepath.Join(b.workspace, ".tracer", "child-request.json")
-	if request, ok, err := b.requestForAppend(state, revision.Occurrence, replay); err != nil {
-		return "", err
-	} else if ok {
-		if err := writeProjection(requestPath, request); err != nil {
-			return "", err
-		}
-	}
 	if !replay {
 		if err := b.saveManifestHistory(*state); err != nil {
 			return "", err
 		}
 	}
-	return requestPath, nil
+	context, err := b.manifestContext(*state, revision.ContextAttempt)
+	if err != nil {
+		return "", err
+	}
+	return string(context), nil
 }
 
-func (b *boundary) requestForAppend(state *manifest, occurrence int, replay bool) ([]byte, bool, error) {
-	switch {
-	case occurrence == 1:
-		data, err := os.ReadFile(filepath.Join(b.workspace, "00-original.md"))
-		if err != nil {
-			return nil, false, err
-		}
-		encoded, err := json.Marshal(map[string]any{
-			"parent_content": string(data), "parent_artifact_id": state.Selected["original"],
-			"parent_content_hash": state.Source.SHA256, "saga_id": state.SagaID,
-			"stage": "structure", "attempt": 1,
-			"bounded_structure_intent": "Improve structure without changing claims.",
-		})
-		return encoded, true, err
-	case occurrence == 2 || occurrence == 5:
-		original, err := os.ReadFile(filepath.Join(b.workspace, "00-original.md"))
-		if err != nil {
-			return nil, false, err
-		}
-		var structure artifact
-		var ok bool
-		if replay {
-			attempt := 1
-			if occurrence == 5 {
-				attempt = 2
-			}
-			structure, ok = artifactByStageAttempt(*state, "structure", attempt)
-		} else {
-			structure, ok = selectedArtifact(*state, "structure")
-		}
+func (b *boundary) manifestContext(state manifest, structureAttempt int) ([]byte, error) {
+	original, err := os.ReadFile(filepath.Join(b.workspace, "00-original.md"))
+	if err != nil {
+		return nil, err
+	}
+	context := map[string]any{
+		"original_content": string(original), "original_artifact_id": state.Selected["original"],
+		"original_content_hash": state.Source.SHA256, "saga_id": state.SagaID,
+	}
+	if structureAttempt > 0 {
+		structure, ok := artifactByStageAttempt(state, "structure", structureAttempt)
 		if !ok {
-			return nil, false, fmt.Errorf("critic request requires structure attempt for append occurrence %d", occurrence)
+			return nil, fmt.Errorf("manifest context requires structure attempt %d", structureAttempt)
 		}
 		candidate, err := os.ReadFile(filepath.Join(b.workspace, filepath.FromSlash(structure.Path)))
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
-		data, err := json.Marshal(map[string]any{
-			"original_content": string(original), "original_artifact_id": state.Selected["original"],
-			"original_content_hash": state.Source.SHA256, "candidate_content": string(candidate),
-			"candidate_artifact_id": structure.ID, "candidate_content_hash": structure.SHA256,
-			"candidate_stage": "structure", "saga_id": state.SagaID, "attempt": structure.Attempt,
-		})
-		return data, true, err
-	case occurrence == 4:
-		data, err := os.ReadFile(filepath.Join(b.workspace, "00-original.md"))
-		if err != nil {
-			return nil, false, err
-		}
-		encoded, err := json.Marshal(map[string]any{
-			"parent_content": string(data), "parent_artifact_id": state.Selected["original"],
-			"parent_content_hash": state.Source.SHA256, "saga_id": state.SagaID,
-			"stage": "structure", "attempt": 2,
-			"bounded_structure_intent": "Apply critic feedback while preserving immutable claims.",
-		})
-		return encoded, true, err
-	default:
-		return nil, false, nil
+		context["candidate_content"] = string(candidate)
+		context["candidate_artifact_id"] = structure.ID
+		context["candidate_content_hash"] = structure.SHA256
+		context["candidate_stage"] = "structure"
+		context["attempt"] = structure.Attempt
 	}
+	return json.Marshal(context)
 }
 
 func (b *boundary) writeStructure(state *manifest, occurrence int, key string, input []byte, replay bool) (string, string, error) {
@@ -804,7 +818,7 @@ func (b *boundary) chatResponse(body []byte, occurrence int) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		requestData, err := os.ReadFile(filepath.Join(b.workspace, ".tracer", "child-request.json"))
+		requestData, err := os.ReadFile(b.childRequestPath("structure", editorOccurrence))
 		if err != nil {
 			return nil, err
 		}
@@ -833,7 +847,7 @@ func (b *boundary) chatResponse(body []byte, occurrence int) (any, error) {
 		if err := readYAML(filepath.Join(b.fixtures, b.scenario.CriticResponses[criticOccurrence-1]), &fixture); err != nil {
 			return nil, err
 		}
-		requestData, err := os.ReadFile(filepath.Join(b.workspace, ".tracer", "child-request.json"))
+		requestData, err := os.ReadFile(b.childRequestPath("critic", criticOccurrence))
 		if err != nil {
 			return nil, err
 		}
@@ -871,6 +885,12 @@ func (b *boundary) chatResponse(body []byte, occurrence int) (any, error) {
 		"message":    map[string]any{"role": "assistant", "content": string(content)},
 		"eval_count": 1, "prompt_eval_count": 1,
 	}, nil
+}
+
+func (b *boundary) childRequestPath(stage string, occurrence int) string {
+	return filepath.Join(
+		b.workspace, ".tracer", "requests", fmt.Sprintf("%s-%d.json", stage, occurrence),
+	)
 }
 
 func (b *boundary) loadManifest() (manifest, error) {

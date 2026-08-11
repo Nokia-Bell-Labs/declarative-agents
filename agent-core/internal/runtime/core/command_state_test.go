@@ -174,3 +174,16 @@ func TestResolveFromSelectorTypedErrors(t *testing.T) {
 		require.ErrorContains(t, err, `$from(source).mapped.id`)
 	})
 }
+
+func TestResolveFromSelectorReturnsRawLabeledOutput(t *testing.T) {
+	t.Parallel()
+
+	view := NewCommandStateView(Execution{{
+		CommandName: "compose", Label: "request",
+		Result: commandStateDigest(`{"nested":"value"}`),
+	}})
+	value, err := ResolveFromSelector(view, "$from(request).$")
+
+	require.NoError(t, err)
+	require.Equal(t, `{"nested":"value"}`, value)
+}

@@ -250,24 +250,12 @@ func ResolveFromSelector(view CommandStateView, selector string) (interface{}, e
 	}
 	label := parsed.Label
 	path := strings.Join(parsed.Path, ".")
-	if view == nil {
-		return nil, fmt.Errorf("selector %q: no command-state view is configured", selector)
+	output, err := lookupSelectorOutput(view, selector, label)
+	if err != nil {
+		return nil, err
 	}
-	var output string
-	var found bool
-	if detailed, ok := view.(interface {
-		lookup(string) (string, bool, error)
-	}); ok {
-		var err error
-		output, found, err = detailed.lookup(label)
-		if err != nil {
-			return nil, fmt.Errorf("selector %q: %w", selector, err)
-		}
-	} else {
-		output, found = view.Lookup(label)
-	}
-	if !found {
-		return nil, fmt.Errorf("selector %q: %w", selector, &UnresolvedLabelError{Label: label})
+	if len(parsed.Path) == 1 && parsed.Path[0] == "$" {
+		return output, nil
 	}
 	var decoded map[string]interface{}
 	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
@@ -282,4 +270,27 @@ func ResolveFromSelector(view CommandStateView, selector string) (interface{}, e
 		)
 	}
 	return value, nil
+}
+
+func lookupSelectorOutput(view CommandStateView, selector, label string) (string, error) {
+	if view == nil {
+		return "", fmt.Errorf("selector %q: no command-state view is configured", selector)
+	}
+	var output string
+	var found bool
+	if detailed, ok := view.(interface {
+		lookup(string) (string, bool, error)
+	}); ok {
+		var err error
+		output, found, err = detailed.lookup(label)
+		if err != nil {
+			return "", fmt.Errorf("selector %q: %w", selector, err)
+		}
+	} else {
+		output, found = view.Lookup(label)
+	}
+	if !found {
+		return "", fmt.Errorf("selector %q: %w", selector, &UnresolvedLabelError{Label: label})
+	}
+	return output, nil
 }

@@ -45,10 +45,11 @@ type toolSelection struct {
 
 type declarationFile struct {
 	Tools []struct {
-		Name          string   `yaml:"name"`
-		Type          string   `yaml:"type"`
-		Init          string   `yaml:"init"`
-		Args          []string `yaml:"args"`
+		Name          string         `yaml:"name"`
+		Type          string         `yaml:"type"`
+		Init          string         `yaml:"init"`
+		Args          []string       `yaml:"args"`
+		Config        map[string]any `yaml:"config"`
 		Reversibility struct {
 			Classification string `yaml:"classification"`
 		} `yaml:"reversibility"`
@@ -64,6 +65,44 @@ type declarationFile struct {
 	} `yaml:"tools"`
 }
 
+func TestChildRequestPolicyAndPathsAreDeclared(t *testing.T) {
+	root := realApplicationRoot(t)
+	var declarations declarationFile
+	readTestYAML(t, filepath.Join(
+		root, "agents/workflow-orchestrator/declarations.yaml",
+	), &declarations)
+	byName := make(map[string]struct {
+		args   []string
+		config map[string]any
+	}, len(declarations.Tools))
+	for _, tool := range declarations.Tools {
+		byName[tool.Name] = struct {
+			args   []string
+			config map[string]any
+		}{args: tool.Args, config: tool.Config}
+	}
+	first := byName["compose_structure_request"].config["template"]
+	retry := byName["compose_structure_retry_request"].config["template"]
+	if !strings.Contains(first.(string), "Improve structure without changing claims.") {
+		t.Fatalf("first structure intent is not declared: %v", first)
+	}
+	if !strings.Contains(retry.(string), "Apply critic feedback while preserving immutable claims.") {
+		t.Fatalf("retry structure intent is not declared: %v", retry)
+	}
+	paths := map[string]string{
+		"persist_structure_request":       ".tracer/requests/structure-1.json",
+		"persist_critic_request":          ".tracer/requests/critic-1.json",
+		"persist_structure_retry_request": ".tracer/requests/structure-2.json",
+		"persist_critic_retry_request":    ".tracer/requests/critic-2.json",
+	}
+	for name, path := range paths {
+		args := byName[name].args
+		if len(args) < 2 || args[1] != path {
+			t.Errorf("%s path args = %v, want %s", name, args, path)
+		}
+	}
+}
+
 func TestManifestRevisionWordsDeclareEventAndTerminal(t *testing.T) {
 	root := realApplicationRoot(t)
 	var declarations declarationFile
@@ -71,15 +110,15 @@ func TestManifestRevisionWordsDeclareEventAndTerminal(t *testing.T) {
 		root, "agents/workflow-orchestrator/declarations.yaml",
 	), &declarations)
 	expected := map[string][]string{
-		"append_capture_manifest":         {"append-manifest-revision", "capture_manifested", "none", "1"},
-		"append_structure_manifest":       {"append-manifest-revision", "structure_manifested", "none", "2"},
-		"append_critique_manifest":        {"append-manifest-revision", "critique_manifested", "none", "3"},
-		"append_retry_manifest":           {"append-manifest-revision", "retry_recorded", "none", "4"},
-		"append_structure_retry_manifest": {"append-manifest-revision", "structure_retry_manifested", "none", "5"},
-		"append_critique_retry_manifest":  {"append-manifest-revision", "critique_retry_manifested", "none", "6"},
-		"append_kept_original_manifest":   {"append-manifest-revision", "kept_original", "KeptOriginal", "7"},
-		"append_final_manifest":           {"append-manifest-revision", "locally_finalized", "LocallyFinalized", "4"},
-		"append_final_retry_manifest":     {"append-manifest-revision", "locally_finalized", "LocallyFinalized", "7"},
+		"append_capture_manifest":         {"append-manifest-revision", "capture_manifested", "none", "1", "0"},
+		"append_structure_manifest":       {"append-manifest-revision", "structure_manifested", "none", "2", "1"},
+		"append_critique_manifest":        {"append-manifest-revision", "critique_manifested", "none", "3", "0"},
+		"append_retry_manifest":           {"append-manifest-revision", "retry_recorded", "none", "4", "0"},
+		"append_structure_retry_manifest": {"append-manifest-revision", "structure_retry_manifested", "none", "5", "2"},
+		"append_critique_retry_manifest":  {"append-manifest-revision", "critique_retry_manifested", "none", "6", "0"},
+		"append_kept_original_manifest":   {"append-manifest-revision", "kept_original", "KeptOriginal", "7", "0"},
+		"append_final_manifest":           {"append-manifest-revision", "locally_finalized", "LocallyFinalized", "4", "0"},
+		"append_final_retry_manifest":     {"append-manifest-revision", "locally_finalized", "LocallyFinalized", "7", "0"},
 	}
 	for _, tool := range declarations.Tools {
 		if want, ok := expected[tool.Name]; ok {
@@ -198,8 +237,7 @@ func TestTracerBoundaryWordsDeclareEveryTouchedArtifact(t *testing.T) {
 }
 
 var appendManifestTargets = []string{
-	"manifest-history", "manifest.yaml", ".tracer/child-request.json",
-	"manifest artifact selection", "boundary-receipts.jsonl",
+	"manifest-history", "manifest.yaml", "manifest artifact selection", "boundary-receipts.jsonl",
 }
 
 var tracerBoundaryTargets = map[string][]string{
@@ -219,6 +257,18 @@ var tracerBoundaryTargets = map[string][]string{
 	"append_kept_original_manifest":   appendManifestTargets,
 	"append_final_manifest":           appendManifestTargets,
 	"append_final_retry_manifest":     appendManifestTargets,
+	"persist_structure_request": {
+		".tracer/requests/structure-1.json", "boundary-receipts.jsonl",
+	},
+	"persist_critic_request": {
+		".tracer/requests/critic-1.json", "boundary-receipts.jsonl",
+	},
+	"persist_structure_retry_request": {
+		".tracer/requests/structure-2.json", "boundary-receipts.jsonl",
+	},
+	"persist_critic_retry_request": {
+		".tracer/requests/critic-2.json", "boundary-receipts.jsonl",
+	},
 	"write_structure_attempt": {
 		"attempts/structure", "manifest.yaml", "boundary-receipts.jsonl",
 	},
@@ -339,11 +389,10 @@ func TestOrchestratorGraphHasOneBoundedStructureReplay(t *testing.T) {
 	retryInvocations := 0
 	criticInvocations := 0
 	for _, transition := range machine.Transitions {
-		if transition.Action == "invoke_structure_editor" &&
-			strings.Contains(strings.ToLower(transition.Next), "retry") {
+		if transition.Action == "invoke_structure_editor_retry" {
 			retryInvocations++
 		}
-		if transition.Action == "invoke_voice_critic" {
+		if transition.Action == "invoke_voice_critic" || transition.Action == "invoke_voice_critic_retry" {
 			criticInvocations++
 		}
 		if strings.HasPrefix(transition.Next, "MaterializingFinal") && transition.Signal != "CriticAccepted" {

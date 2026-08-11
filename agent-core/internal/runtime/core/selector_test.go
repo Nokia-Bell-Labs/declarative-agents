@@ -23,6 +23,7 @@ func TestParseSelectorGrammar(t *testing.T) {
 		{name: "current field", value: "$.a", path: []string{"a"}, valid: true},
 		{name: "current nested", value: "$.a.b", path: []string{"a", "b"}, valid: true},
 		{name: "prior field", value: "$from(step).a", label: "step", path: []string{"a"}, valid: true},
+		{name: "prior raw output", value: "$from(step).$", label: "step", path: []string{"$"}, valid: true},
 		{name: "hyphenated label", value: "$from(embed-query).mapped.embedding", label: "embed-query", path: []string{"mapped", "embedding"}, valid: true},
 		{name: "unicode component", value: "$.δοκιμή", path: []string{"δοκιμή"}, valid: true},
 		{name: "empty current path", value: "$."},
