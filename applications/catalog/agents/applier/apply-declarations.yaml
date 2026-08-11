@@ -13,13 +13,8 @@ tools:
       required: [path, content]
     emits: [ToolDone, ToolFailed]
     output:
-      description: Values-file write result.
-      schema:
-        type: object
-        properties:
-          path: {type: string}
-          bytes_written: {type: integer}
-        required: [path, bytes_written]
+      description: Plain-text values-file write confirmation.
+      schema: {type: string}
     side_effects:
       - {kind: filesystem_write, target: workspace_file, description: Creates or replaces the values file read by the local rollout commands.}
     reversibility: {classification: reversible, undo: workspace_restore}

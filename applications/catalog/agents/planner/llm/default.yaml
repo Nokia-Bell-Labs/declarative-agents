@@ -39,23 +39,9 @@ tools:
       - "Does not create issues or execute planned work."
       - "Does not guarantee deterministic text across provider calls."
     output:
-      description: "Raw model response and provider metadata."
+      description: "Raw model response text."
       schema:
-        type: object
-        properties:
-          response:
-            type: string
-          provider:
-            type: string
-          model:
-            type: string
-          prompt_tokens:
-            type: integer
-          completion_tokens:
-            type: integer
-          elapsed_ms:
-            type: integer
-        required: [response, provider, model]
+        type: string
     side_effects:
       - kind: external_api_call
         target: llm_provider

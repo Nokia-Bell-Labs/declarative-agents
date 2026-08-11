@@ -5,6 +5,9 @@ tools:
     visibility: internal
     emits: [LLMResponded, CommandError]
     description: "Invoke the LLM with the current conversation history."
+    output:
+      description: "Raw plain-text model response."
+      schema: {type: string}
     config:
       model: "laguna-xs.2:latest"
       provider: ollama

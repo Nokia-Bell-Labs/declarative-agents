@@ -46,13 +46,6 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: validate_specs command result summary.
+    description: Plain-text finding and error count summary.
     schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
+      type: string

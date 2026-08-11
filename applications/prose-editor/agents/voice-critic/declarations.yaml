@@ -69,6 +69,9 @@ tools:
     description: Evaluate all six tracer finding categories without editing the candidate.
     parameters: {type: object, properties: {}, additionalProperties: false}
     emits: [LLMResponded, CommandError]
+    output:
+      description: Raw plain-text model response containing the requested JSON.
+      schema: {type: string}
     config:
       model: "${PROSE_CRITIC_MODEL:-qwen2.5:3b}"
       provider: ollama

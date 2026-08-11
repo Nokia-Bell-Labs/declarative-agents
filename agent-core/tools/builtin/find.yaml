@@ -54,13 +54,6 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: find command result summary.
+    description: Plain-text ripgrep matches with paths and line numbers.
     schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
+      type: string

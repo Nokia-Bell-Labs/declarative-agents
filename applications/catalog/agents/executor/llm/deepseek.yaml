@@ -8,6 +8,9 @@ tools:
     visibility: internal
     emits: [LLMResponded, CommandError]
     description: "Invoke the LLM with the current conversation history."
+    output:
+      description: "Raw plain-text model response."
+      schema: {type: string}
     config:
       model: "deepseek-coder-v2:16b"
       provider: ollama

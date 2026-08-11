@@ -1,0 +1,90 @@
+// Copyright (c) 2026 Nokia. All rights reserved.
+
+package main
+
+import (
+	"io/fs"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"gopkg.in/yaml.v3"
+)
+
+var plainTextToolInits = map[string]bool{
+	"invoke_llm": true, "parse_response": true, "report_parse_error": true,
+	"reset_history": true, "nudge_reread": true,
+	"file_read": true, "file_write": true, "file_edit": true, "file_find": true,
+	"validate_specs": true, "reduce_grep_checks": true, "format_report": true,
+}
+
+type outputContractBundle struct {
+	Tools []struct {
+		Name   string `yaml:"name"`
+		Init   string `yaml:"init"`
+		Output struct {
+			Schema map[string]any `yaml:"schema"`
+		} `yaml:"output"`
+	} `yaml:"tools"`
+}
+
+// TestShippedToolOutputKindsMatchRuntimeFamilies is the repository-wide
+// regression gate for word families whose Go implementation returns plain text
+// and for load_corpus's machine-selected plan arrays (#1543).
+func TestShippedToolOutputKindsMatchRuntimeFamilies(t *testing.T) {
+	root := filepath.Clean("..")
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			switch entry.Name() {
+			case ".git", "node_modules", "generated-files":
+				return filepath.SkipDir
+			}
+		}
+		if entry.IsDir() || (filepath.Ext(path) != ".yaml" && filepath.Ext(path) != ".yml") {
+			return nil
+		}
+		bundle := readOutputContractBundle(t, path)
+		for _, tool := range bundle.Tools {
+			if plainTextToolInits[tool.Init] {
+				if got := tool.Output.Schema["type"]; got != "string" {
+					t.Errorf("%s tool %s init %s output type = %v, want string",
+						path, tool.Name, tool.Init, got)
+				}
+			}
+			if tool.Init == "load_corpus" {
+				requireLoadCorpusOutput(t, path, tool.Name, tool.Output.Schema)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readOutputContractBundle(t *testing.T, path string) outputContractBundle {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bundle outputContractBundle
+	_ = yaml.Unmarshal(data, &bundle)
+	return bundle
+}
+
+func requireLoadCorpusOutput(t *testing.T, path, name string, schema map[string]any) {
+	t.Helper()
+	if schema["type"] != "object" {
+		t.Errorf("%s tool %s output type = %v, want object", path, name, schema["type"])
+	}
+	properties, _ := schema["properties"].(map[string]any)
+	for _, field := range []string{"summary", "grep_checks", "ref_checks", "consistency_checks"} {
+		if _, ok := properties[field]; !ok {
+			t.Errorf("%s tool %s output omits %s", path, name, field)
+		}
+	}
+}

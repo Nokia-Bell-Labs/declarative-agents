@@ -8,19 +8,9 @@ tools:
   - ToolFailed
   description: Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match.
   output:
-    description: Edit result describing the changed file and replacement count.
+    description: Plain-text edit confirmation.
     schema:
-      type: object
-      properties:
-        path:
-          type: string
-        replacements:
-          type: integer
-        ambiguous_matches:
-          type: integer
-      required:
-      - path
-      - replacements
+      type: string
   metrics:
     instruments:
     - name: filesystem.bytes_changed

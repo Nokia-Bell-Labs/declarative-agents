@@ -43,13 +43,6 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: report_parse_error command result summary.
+    description: Plain-text feedback requesting a corrected model response.
     schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
+      type: string

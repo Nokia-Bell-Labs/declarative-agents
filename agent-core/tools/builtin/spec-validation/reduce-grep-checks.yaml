@@ -23,13 +23,9 @@ tools:
       - Does not read or scan target files.
       - Does not execute search subprocesses.
     output:
-      description: Aggregate jurist finding count and error count.
+      description: Plain-text aggregate jurist finding and error count.
       schema:
-        type: object
-        properties:
-          message: {type: string}
-          signal: {type: string}
-        required: [message]
+        type: string
     side_effects:
       - kind: state_mutation
         target: validation_state

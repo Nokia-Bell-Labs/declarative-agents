@@ -23,6 +23,9 @@ tools:
         - "must emit BudgetExhausted when the declared parse retry limit is reached"
     non_goals:
       - "Does not parse the corrected response or choose the next workflow state."
+    output:
+      description: "Plain-text feedback requesting corrected ImplementationPlan YAML."
+      schema: {type: string}
     side_effects:
       - kind: command_state
         description: "Increments the parse retry counter and emits BudgetExhausted at the configured limit."

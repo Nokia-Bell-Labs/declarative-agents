@@ -72,6 +72,22 @@ func TestListResourceUsesGenericCategoriesWithoutProfileRules(t *testing.T) {
 	require.Equal(t, "domain", entries[1].Category)
 }
 
+func TestListResourceSkipsCandidateThatVanishedAfterDiscovery(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeResourceFixture(t, root, "docs/present.yaml", "title: Present\n")
+
+	res := resourceBuilder(root).Build(core.Result{
+		Output: "present.yaml\nvanished.yaml",
+	}).Execute()
+
+	require.Equal(t, SignalDocumentListReady, res.Signal, res.Output)
+	var entries []resourceEntry
+	require.NoError(t, json.Unmarshal([]byte(res.Output), &entries))
+	require.Len(t, entries, 1)
+	require.Equal(t, "present.yaml", entries[0].Path)
+}
+
 func TestListResourceDeniesDiscoveredPathOutsideResource(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

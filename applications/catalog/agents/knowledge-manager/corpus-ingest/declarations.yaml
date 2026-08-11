@@ -585,14 +585,9 @@ tools:
       - Does not call Chroma or the Ollama embedding endpoint.
       - Does not author or alter an embedding vector.
     output:
-      description: Raw model response.
+      description: Raw model response text.
       schema:
-        type: object
-        properties:
-          response: {type: string}
-          provider: {type: string}
-          model: {type: string}
-        required: [response, provider, model]
+        type: string
     side_effects:
       - kind: external_api_call
         target: ollama.chat

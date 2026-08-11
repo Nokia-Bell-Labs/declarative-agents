@@ -28,17 +28,7 @@ tools:
     output:
       description: "Line-numbered text content from the requested file range."
       schema:
-        type: object
-        properties:
-          path:
-            type: string
-          content:
-            type: string
-          start_line:
-            type: integer
-          end_line:
-            type: integer
-        required: [path, content]
+        type: string
     parameters:
       type: object
       properties:
@@ -51,6 +41,9 @@ tools:
         end_line:
           type: integer
           description: "End line (1-indexed, inclusive)"
+        raw:
+          type: boolean
+          description: "Return exact file bytes without line-number prefixes."
       required: [path]
     side_effects:
       - kind: filesystem_read
@@ -70,17 +63,9 @@ tools:
     emits: [ToolDone, ToolFailed]
     description: "Create or overwrite a file. Provide the complete file content — this replaces the entire file. Parent directories are created automatically."
     output:
-      description: "Write result describing the file path and bytes written."
+      description: "Plain-text write confirmation."
       schema:
-        type: object
-        properties:
-          path:
-            type: string
-          bytes_written:
-            type: integer
-          created_parent_dirs:
-            type: boolean
-        required: [path, bytes_written]
+        type: string
     parameters:
       type: object
       properties:
@@ -111,17 +96,9 @@ tools:
     emits: [EditDone, ToolFailed]
     description: "Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match."
     output:
-      description: "Edit result describing the changed file and replacement count."
+      description: "Plain-text edit confirmation."
       schema:
-        type: object
-        properties:
-          path:
-            type: string
-          replacements:
-            type: integer
-          ambiguous_matches:
-            type: integer
-        required: [path, replacements]
+        type: string
     parameters:
       type: object
       properties:
@@ -154,6 +131,9 @@ tools:
     init: file_find
     emits: [ToolDone, ToolFailed]
     description: "Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob — use \\.go$ to find Go files, not *.go. Returns matching lines with file paths and line numbers."
+    output:
+      description: "Plain-text ripgrep matches with paths and line numbers."
+      schema: {type: string}
     parameters:
       type: object
       properties:
@@ -189,6 +169,9 @@ tools:
     visibility: internal
     emits: [ToolDone, TaskCompleted, ParseFailed, CommandError]
     description: "Parse raw LLM output into a tool call or task-completed signal."
+    output:
+      description: "Parsed tool-request JSON or a plain completion summary."
+      schema: {type: string}
     category: word
     side_effects:
       - kind: command_state
@@ -206,6 +189,9 @@ tools:
     visibility: internal
     emits: [ToolDone, BudgetExhausted]
     description: "Report a parse error back to the LLM for correction."
+    output:
+      description: "Plain-text feedback requesting a corrected model response."
+      schema: {type: string}
     category: word
     side_effects:
       - kind: command_state
@@ -223,6 +209,9 @@ tools:
     visibility: internal
     emits: [ToolDone, CommandError]
     description: "Clear the conversation history and restart the LLM context."
+    output:
+      description: "The literal plain-text reset prompt."
+      schema: {type: string}
     category: stateful_internal
     side_effects:
       - kind: state_mutation
@@ -242,6 +231,9 @@ tools:
     visibility: internal
     emits: [ToolDone]
     description: "Append a re-read instruction after file edits to prompt the model to verify changes."
+    output:
+      description: "Plain-text edit result followed by the reread instruction."
+      schema: {type: string}
     category: word
     side_effects:
       - kind: none
@@ -938,6 +930,16 @@ tools:
     visibility: internal
     emits: [ToolDone, CommandError]
     description: "Load the specification corpus from the project directory."
+    output:
+      description: "Loaded corpus summary and declared grep, reference, and consistency plans."
+      schema:
+        type: object
+        properties:
+          summary: {type: string}
+          grep_checks: {type: array, items: {type: object}}
+          ref_checks: {type: array, items: {type: object}}
+          consistency_checks: {type: array, items: {type: object}}
+        required: [summary, grep_checks, ref_checks, consistency_checks]
     category: stateful_internal
     side_effects:
       - kind: state_mutation
@@ -957,6 +959,9 @@ tools:
     visibility: internal
     emits: [ValidationPassed, ValidationFailed, CommandError]
     description: "Run consistency checks on the loaded specification corpus."
+    output:
+      description: "Plain-text finding and error count summary."
+      schema: {type: string}
     category: stateful_internal
     side_effects:
       - kind: state_mutation
@@ -974,15 +979,23 @@ tools:
     type: builtin
     init: format_report
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    emits: [ToolDone, ToolFailed]
     description: "Format the validation results as a human-readable report."
+    output:
+      description: "Plain-text human-readable validation report."
+      schema: {type: string}
     category: word
     side_effects:
-      - kind: none
-        description: "Formats validation state into command output without mutating state."
+      - kind: stderr_write
+        target: process_stderr
+        description: "Prints the human-readable validation report to stderr."
     reversibility:
       classification: reversible
       undo: "noop"
     undo:
       strategy: noop
       description: "Report formatting has no effects to reverse."
+    errors:
+      - signal: ToolFailed
+        condition: "The validation finding set contains error-level findings."
+        state_after_failure: "The complete report is printed and returned."

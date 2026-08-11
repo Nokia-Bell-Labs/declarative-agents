@@ -42,13 +42,6 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: nudge_reread command result summary.
+    description: Plain-text edit result followed by the reread instruction.
     schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
+      type: string

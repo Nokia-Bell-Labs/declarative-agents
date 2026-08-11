@@ -8,19 +8,9 @@ tools:
   - ToolFailed
   description: "Create or overwrite a file. Provide the complete file content \u2014 this replaces the entire file. Parent directories are created automatically."
   output:
-    description: Write result describing the file path and bytes written.
+    description: Plain-text write confirmation.
     schema:
-      type: object
-      properties:
-        path:
-          type: string
-        bytes_written:
-          type: integer
-        created_parent_dirs:
-          type: boolean
-      required:
-      - path
-      - bytes_written
+      type: string
   metrics:
     instruments:
     - name: filesystem.bytes_written

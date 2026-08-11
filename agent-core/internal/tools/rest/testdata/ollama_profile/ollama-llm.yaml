@@ -26,13 +26,8 @@ tools:
       - Does not call Ollama /api/tags directly.
       - Does not expose mutating Ollama REST tools.
     output:
-      description: Raw Qwen response.
-      schema:
-        type: object
-        properties:
-          response: {type: string}
-          provider: {type: string}
-          model: {type: string}
+      description: Raw plain-text Qwen response.
+      schema: {type: string}
     side_effects:
       - kind: external_api_call
         target: ollama.chat

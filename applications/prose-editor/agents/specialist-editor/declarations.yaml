@@ -102,6 +102,9 @@ tools:
     description: Return a structure-only candidate and provenance; never persist or accept it.
     parameters: {type: object, properties: {}, additionalProperties: false}
     emits: [LLMResponded, CommandError]
+    output:
+      description: Raw plain-text model response containing the requested JSON.
+      schema: {type: string}
     config:
       model: "${PROSE_EDITOR_MODEL:-qwen2.5:3b}"
       provider: ollama
