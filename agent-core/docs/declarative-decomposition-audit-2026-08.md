@@ -91,10 +91,11 @@ binding the gate asks for already exists.
 102 unique words are declared under `agent-core/tools/`. They are the vocabulary
 a finding must consider before proposing a new tool.
 
-Note the "In audited corpus" column. Only 68 of the 102 reach the specification
-corpus that `ValidateToolContracts` checks; the other 34 are declared in
-subdirectories that the corpus loader does not traverse. See "Corpus coverage
-gap" below.
+Note the "In audited corpus" column, which records the state this audit found:
+only 68 of the 102 reached the specification corpus, and the other 34 were
+declared in subdirectories the loader did not traverse. GH-1525 fixed that
+during this epic, so all 102 now reach the corpus. The column is kept as the
+evidence for the finding rather than updated.
 
 | Word | Type | Vis | Reversibility | In audited corpus | Source | Capability |
 |---|---|---|---|---|---|---|
@@ -230,8 +231,14 @@ Reconciling the count exposed a wider problem. `ValidateToolContracts` and
 `checkSelectedToolContractCompleteness` iterates machine-derived tool
 selections, which are empty for a corpus with no machines. So the completeness
 check that `design-patterns/04-tool-contract.md:112` names as the enforcement
-point runs on nothing this repository ships. Measured against
-`missingToolContractFields`, 66 of the 102 declared words are incomplete.
+point runs on nothing this repository ships.
+
+The baseline slice measured 66 of 102 words incomplete by taking the first
+declaration of each name across the raw files. Implementing the fix corrected
+that number: the corpus applies last-wins merge precedence, so where a word is
+declared twice the complete declaration wins. Measured through the loader, **27
+of 102** are incomplete. The remedy (GH-1525) is unchanged; the number recorded
+in the ratchet is the corrected one.
 
 This is a validation-coverage defect rather than a decomposition finding: no
 agent-visible workflow is hidden, so it fails gate question 1 as an audit
@@ -305,8 +312,8 @@ four that GH-1410 reversed.
 
 **The dominant failure mode is enforcement, not decomposition.** The
 declaration is meant to be the program, and across the library it frequently
-is not: 66 of 102 declared words are incomplete against the pattern's own
-six-section standard with no check reporting it (GH-1525); 12 of 29 ToolDef
+is not: 27 of 102 declared words are incomplete against the pattern's own
+six-section standard, and until GH-1525 no check reported it; 12 of 29 ToolDef
 fields are read at runtime and never validated, three of them fail-open
 (GH-1541); output schemas describe words other than the ones declaring them
 (GH-1543); and the rollback engine reads no declared reversibility tier at all

@@ -3,6 +3,7 @@
 package spec
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -79,6 +80,29 @@ func yamlFilesInDir(dir string) []string {
 	}
 	sort.Strings(matches)
 	return matches
+}
+
+// yamlFilesUnderDir returns every .yaml file at or below dir, sorted, so a
+// declaration in a subdirectory is discovered rather than silently skipped.
+func yamlFilesUnderDir(dir string) []string {
+	var files []string
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			// A missing or unreadable directory yields no files. Declaration
+			// paths a profile named explicitly are reported separately.
+			return nil //nolint:nilerr // absent optional directory is not an error
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".yaml" {
+			return nil
+		}
+		files = append(files, path)
+		return nil
+	})
+	if err != nil {
+		return nil
+	}
+	sort.Strings(files)
+	return files
 }
 
 func resolveProfileAssetsRoot(rootDir string) string {

@@ -40,7 +40,6 @@ func:internal/tools/rest/server_routes.go:proxyMonitor
 func:internal/tools/rest/validation.go:validateEndpoint
 func:pkg/spec/corpus.go:LoadCorpus
 func:pkg/spec/corpus.go:discoverAndParseMachines
-func:pkg/spec/corpus.go:discoverAndParseToolDeclarations
 func:pkg/spec/corpus.go:validate
 func:pkg/spec/graph_build.go:BuildGraph
 func:pkg/spec/validate_tools.go:checkToolEmitsSignalSet

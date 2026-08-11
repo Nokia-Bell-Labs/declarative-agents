@@ -172,7 +172,7 @@ tools:
     init: file_read
 `), 0o644))
 
-	decls, err := discoverAndParseToolDeclarations(root)
+	decls, _, err := discoverAndParseToolDeclarations(root)
 
 	require.NoError(t, err)
 	require.Contains(t, decls, "invoke_llm")
@@ -192,7 +192,7 @@ tool_declarations:
   - `+restDecls+`
 `), 0o644))
 
-	decls, err := discoverAndParseToolDeclarations(root)
+	decls, _, err := discoverAndParseToolDeclarations(root)
 
 	require.NoError(t, err)
 	require.Contains(t, decls, "rest_server_launch")
@@ -233,7 +233,7 @@ tools:
     problem: shared compatibility declaration
 `), 0o644))
 
-	decls, err := discoverAndParseToolDeclarations(root)
+	decls, _, err := discoverAndParseToolDeclarations(root)
 
 	require.NoError(t, err)
 	require.Contains(t, decls, "launch_bench_http")
