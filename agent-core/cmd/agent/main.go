@@ -627,6 +627,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		Hooks: core.LoopHooks{
 			OnResult:             cliResultReporterForMachine(&deps.Machine),
 			SnapshotConversation: deps.State.snapshotConversation,
+			SnapshotDomain:       deps.State.snapshotDomain,
 		},
 	}
 }
@@ -733,6 +734,31 @@ func (st *agentState) snapshotConversation() (json.RawMessage, error) {
 	return json.Marshal(st.conversation.Snapshot())
 }
 
+type agentDomainSnapshot struct {
+	ConsecutiveParseErrors int `json:"consecutive_parse_errors"`
+}
+
+func (st *agentState) snapshotDomain() (json.RawMessage, error) {
+	return json.Marshal(agentDomainSnapshot{
+		ConsecutiveParseErrors: st.parseRetries.Snapshot(),
+	})
+}
+
+func (st *agentState) restoreDomain(data json.RawMessage) error {
+	if len(data) == 0 {
+		return nil
+	}
+	var snapshot agentDomainSnapshot
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		return fmt.Errorf("decode domain snapshot: %w", err)
+	}
+	if st.parseRetries == nil && snapshot.ConsecutiveParseErrors > 0 {
+		return fmt.Errorf("domain snapshot has parse retries but current machine has no parse retry budget")
+	}
+	st.parseRetries.Restore(snapshot.ConsecutiveParseErrors)
+	return nil
+}
+
 type resumeDeps struct {
 	Params core.LoopParams
 	State  *agentState
@@ -768,6 +794,9 @@ func resumeRun(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 		if err := deps.State.restoreConversation(conversation); err != nil {
 			return core.RunResult{}, fmt.Errorf("resume: restore conversation: %w", err)
 		}
+	}
+	if err := deps.State.restoreDomain(state.Position.Snapshot.Domain); err != nil {
+		return core.RunResult{}, fmt.Errorf("resume: restore domain: %w", err)
 	}
 	result, err := core.Loop(state.Params, deps.Ctx)
 	if err != nil {

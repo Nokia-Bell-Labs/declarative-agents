@@ -452,6 +452,7 @@ func createSchema(db Database) error {
 			tokens_out INT NOT NULL,
 			total_cost DOUBLE NOT NULL,
 			conversation LONGTEXT,
+			domain LONGTEXT,
 			iterator LONGTEXT,
 			program_profile LONGTEXT,
 			program_digest VARCHAR(64)
@@ -595,6 +596,7 @@ func ensureMachineProgramColumns(db Database) error {
 	columns := []struct {
 		name, definition string
 	}{
+		{name: "domain", definition: "LONGTEXT"},
 		{name: "program_profile", definition: "LONGTEXT"},
 		{name: "program_digest", definition: "VARCHAR(64)"},
 	}
@@ -632,11 +634,12 @@ func writeMachine(tx Transaction, runID string, p Position) error {
 	if err := tx.Exec(
 		`REPLACE INTO machines
 			(run_id, current_state, last_signal, iteration, tokens_in, tokens_out, total_cost,
-			 conversation, iterator, program_profile, program_digest)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 conversation, domain, iterator, program_profile, program_digest)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		runID, string(p.CurrentState), string(p.LastSignal),
 		p.Snapshot.Iteration, p.Snapshot.TokensIn, p.Snapshot.TokensOut, p.Snapshot.TotalCost,
-		nullString(string(p.Snapshot.Conversation)), iterator,
+		nullString(string(p.Snapshot.Conversation)),
+		nullString(string(p.Snapshot.Domain)), iterator,
 		nullString(p.Snapshot.Program.Profile), nullString(p.Snapshot.Program.Digest),
 	); err != nil {
 		return fmt.Errorf("%w: save: machine: %v", ErrDolt, err)
@@ -731,7 +734,8 @@ func loadMachine(db Database, runID string) (Position, error) {
 		},
 	}
 	if err := restoreMachineOptionals(
-		&pos, row.conversation, row.iterator, row.programProfile, row.programDigest,
+		&pos, row.conversation, row.domain, row.iterator,
+		row.programProfile, row.programDigest,
 	); err != nil {
 		return Position{}, err
 	}
@@ -742,7 +746,7 @@ type persistedMachineRow struct {
 	state, signal                  string
 	iteration, tokensIn, tokensOut int
 	totalCost                      float64
-	conversation, iterator         sql.NullString
+	conversation, domain, iterator sql.NullString
 	programProfile, programDigest  sql.NullString
 }
 
@@ -750,21 +754,25 @@ func scanMachineRow(db Database, runID string) (persistedMachineRow, error) {
 	var row persistedMachineRow
 	err := db.QueryRow(
 		`SELECT current_state, last_signal, iteration, tokens_in, tokens_out, total_cost,
-			conversation, iterator, program_profile, program_digest
+			conversation, domain, iterator, program_profile, program_digest
 			FROM machines WHERE run_id = ?`, runID,
 	).Scan(
 		&row.state, &row.signal, &row.iteration, &row.tokensIn, &row.tokensOut, &row.totalCost,
-		&row.conversation, &row.iterator, &row.programProfile, &row.programDigest,
+		&row.conversation, &row.domain, &row.iterator,
+		&row.programProfile, &row.programDigest,
 	)
 	return row, err
 }
 
 func restoreMachineOptionals(
 	pos *Position,
-	conversation, iterator, programProfile, programDigest sql.NullString,
+	conversation, domain, iterator, programProfile, programDigest sql.NullString,
 ) error {
 	if conversation.Valid && conversation.String != "" {
 		pos.Snapshot.Conversation = []byte(conversation.String)
+	}
+	if domain.Valid && domain.String != "" {
+		pos.Snapshot.Domain = []byte(domain.String)
 	}
 	if iterator.Valid && iterator.String != "" {
 		if err := json.Unmarshal([]byte(iterator.String), &pos.Snapshot.Iterator); err != nil {

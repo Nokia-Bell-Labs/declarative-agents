@@ -61,7 +61,7 @@ func LoadResume(params LoopParams) (ResumeState, error) {
 	}
 	params.InitialState = pos.CurrentState
 	params.InitialSignal = sig
-	params.InitialResult = Result{Signal: sig, Output: "Resume from checkpoint"}
+	params.InitialResult = resumeInitialResult(exec, sig)
 	params.InitialRun = RunResult{
 		Iterations: pos.Snapshot.Iteration,
 		TokensIn:   pos.Snapshot.TokensIn,
@@ -77,6 +77,25 @@ func LoadResume(params LoopParams) (ResumeState, error) {
 	return ResumeState{
 		Params: params, Position: pos, Execution: exec, Finalized: finalized,
 	}, nil
+}
+
+func resumeInitialResult(execution Execution, resumeSignal Signal) Result {
+	if len(execution) == 0 {
+		return Result{Signal: resumeSignal, Output: "Resume from checkpoint"}
+	}
+	entry := execution[len(execution)-1]
+	result := Result{
+		Output: entry.Result.Output, Signal: entry.Result.Signal,
+		Cost: entry.Result.Cost, CommandName: entry.CommandName,
+		Redaction: OutputRedaction{
+			Version: entry.Result.RedactionVersion,
+			Paths:   append([]OutputRedactionPath(nil), entry.Result.RedactedPaths...),
+		},
+	}
+	if entry.Result.Error != "" {
+		result.Err = errors.New(entry.Result.Error)
+	}
+	return result
 }
 
 func resumeSignal(machine *MachineSpec) Signal {

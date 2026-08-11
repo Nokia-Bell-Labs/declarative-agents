@@ -11,6 +11,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 )
 
 func TestLoopParamsUsesMachineCommandTimeout(t *testing.T) {
@@ -120,6 +121,24 @@ func TestValidateConfigDiagnosticsNameUndeclaredTerminalStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, output, "machine-diagnostic-undeclared_terminal_status")
 	require.Contains(t, output, "InsufficientGrounding")
+}
+
+func TestParseRetryDomainSnapshotPreservesRemainingBudget(t *testing.T) {
+	t.Parallel()
+	origin := &agentState{parseRetries: &toollm.ParseErrorRetryTracker{
+		MaxConsecutive: 5,
+	}}
+	for range 3 {
+		require.Equal(t, core.ToolDone, origin.parseRetries.ReportParseError())
+	}
+	snapshot, err := origin.snapshotDomain()
+	require.NoError(t, err)
+	resumed := &agentState{parseRetries: &toollm.ParseErrorRetryTracker{
+		MaxConsecutive: 5,
+	}}
+	require.NoError(t, resumed.restoreDomain(snapshot))
+	require.Equal(t, core.ToolDone, resumed.parseRetries.ReportParseError())
+	require.Equal(t, core.BudgetExhausted, resumed.parseRetries.ReportParseError())
 }
 
 type timeoutBuilder struct{}

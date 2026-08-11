@@ -20,6 +20,9 @@ func TestLoop_SavesSnapshotAfterDispatchWithConfiguredAdapter(t *testing.T) {
 	params := simpleLoopParams(&loopRecorder{})
 	params.Checkpoint = cp
 	params.Program = ProgramRef{Profile: "/profiles/origin/profile.yaml", Digest: "sha256"}
+	params.Hooks.SnapshotDomain = func() (json.RawMessage, error) {
+		return json.RawMessage(`{"consecutive_parse_errors":3}`), nil
+	}
 
 	rr, err := Loop(params, context.Background())
 	require.NoError(t, err)
@@ -40,6 +43,7 @@ func TestLoop_SavesSnapshotAfterDispatchWithConfiguredAdapter(t *testing.T) {
 	require.Equal(t, State("Finished"), pos.Snapshot.State)
 	require.Equal(t, Signal("TaskCompleted"), pos.LastSignal)
 	require.Equal(t, params.Program, pos.Snapshot.Program)
+	require.JSONEq(t, `{"consecutive_parse_errors":3}`, string(pos.Snapshot.Domain))
 }
 
 // TestLoop_DoltFinalizesActionlessTerminalTransition proves the production Loop

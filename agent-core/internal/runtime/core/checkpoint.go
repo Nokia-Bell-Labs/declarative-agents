@@ -20,6 +20,7 @@ var (
 	// ErrConversationSnapshotFailed classifies failure to construct the folded
 	// conversation required by a stateful checkpoint Position.
 	ErrConversationSnapshotFailed = errors.New("conversation snapshot failed")
+	ErrDomainSnapshotFailed       = errors.New("domain snapshot failed")
 )
 
 // Checkpoint is the typed persistence port (srd035-checkpoint-port). It exposes
@@ -110,6 +111,7 @@ type AgentSnapshot struct {
 	TokensOut    int               `json:"tokens_out"`
 	TotalCost    float64           `json:"total_cost"`
 	Conversation json.RawMessage   `json:"conversation,omitempty"`
+	Domain       json.RawMessage   `json:"domain,omitempty"`
 	Iterator     *IteratorSnapshot `json:"iterator,omitempty"`
 	Program      ProgramRef        `json:"program,omitempty"`
 }

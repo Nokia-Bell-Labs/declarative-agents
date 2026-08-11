@@ -15,6 +15,7 @@ type machineRow struct {
 	iteration, tokensIn, tokensOut int
 	totalCost                      float64
 	conversation                   *string
+	domain                         *string
 	iterator                       *string
 	programProfile                 *string
 	programDigest                  *string
@@ -145,7 +146,7 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 			f.mainMachinesExists = true
 		}
 		f.machinesHasIterator = strings.Contains(query, "iterator LONGTEXT")
-		for _, column := range []string{"program_profile", "program_digest"} {
+		for _, column := range []string{"domain", "program_profile", "program_digest"} {
 			f.machineProgramColumns[column] = strings.Contains(query, column)
 		}
 		return nil
@@ -179,7 +180,7 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		f.machinesHasIterator = true
 		return nil
 	case strings.Contains(query, "ALTER TABLE machines ADD COLUMN"):
-		for _, column := range []string{"program_profile", "program_digest"} {
+		for _, column := range []string{"domain", "program_profile", "program_digest"} {
 			if strings.Contains(query, "ADD COLUMN "+column+" ") {
 				f.machineProgramColumns[column] = true
 			}
@@ -245,9 +246,10 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 			tokensOut:      args[5].(int),
 			totalCost:      args[6].(float64),
 			conversation:   strPtr(args[7]),
-			iterator:       strPtr(args[8]),
-			programProfile: strPtr(args[9]),
-			programDigest:  strPtr(args[10]),
+			domain:         strPtr(args[8]),
+			iterator:       strPtr(args[9]),
+			programProfile: strPtr(args[10]),
+			programDigest:  strPtr(args[11]),
 		}
 		return nil
 	case strings.Contains(query, "REPLACE INTO transitions"):

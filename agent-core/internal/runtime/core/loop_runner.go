@@ -260,7 +260,7 @@ func (r *loopRunner) saveTerminalCheckpoint() {
 	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
 	pos.Snapshot.Iterator = cloneIteratorSnapshot(r.iterator)
 	pos.Snapshot.Program = r.params.Program
-	if err := r.foldConversation(&pos); err != nil {
+	if err := r.foldCheckpointSnapshots(&pos); err != nil {
 		r.recordCheckpointFailure(err)
 		return
 	}
@@ -331,7 +331,7 @@ func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal, co
 	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
 	pos.Snapshot.Iterator = cloneIteratorSnapshot(r.iterator)
 	pos.Snapshot.Program = r.params.Program
-	if err := r.foldConversation(&pos); err != nil {
+	if err := r.foldCheckpointSnapshots(&pos); err != nil {
 		r.recordCheckpointFailure(err)
 		return
 	}
@@ -344,28 +344,6 @@ func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal, co
 			err,
 		))
 	}
-}
-
-// foldConversation folds the domain-owned conversation into the resumable
-// Position so the typed checkpoint port persists it alongside loop state. Core
-// cannot import the llm package, so the conversation arrives through the
-// SnapshotConversation hook. Failure leaves the prior Position/Execution unit
-// untouched rather than saving a Position with its required conversation
-// silently omitted (srd035-checkpoint-port R1.2, R4, R6.1).
-func (r *loopRunner) foldConversation(pos *Position) error {
-	if r.params.Hooks.SnapshotConversation == nil {
-		return nil
-	}
-	conversation, err := r.params.Hooks.SnapshotConversation()
-	if err != nil {
-		r.trace.Event("checkpoint.conversation_snapshot_failed",
-			attribute.Int("iteration", r.iteration),
-			attribute.String("error", err.Error()),
-		)
-		return fmt.Errorf("%w at iteration %d: %w", ErrConversationSnapshotFailed, r.iteration, err)
-	}
-	pos.Snapshot.Conversation = conversation
-	return nil
 }
 
 func (r *loopRunner) recordCheckpointFailure(err error) {
