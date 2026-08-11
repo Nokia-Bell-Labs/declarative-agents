@@ -70,16 +70,34 @@ test_cases:
       equal the source request. Rotation occurs before a batch and leaves no
       partial JSON line.
     inputs:
-      max_files: 2
+      max_files: 3
       max_bytes: one complete batch plus one byte
       batches: 3
     expected:
       parse_errors: 0
-      retained_files_max: 2
+      retained_files_max: 3
       identity: unchanged
       partial_lines: 0
     traces:
       - rel11.0-uc001-otlp-receiver-await S2
+      - srd042-otlp-receiver-tools AC2
+
+  - use_case: rel11.0-uc001-otlp-receiver-await
+    name: Bounded spools reject a missing retained generation
+    go_test: go test ./internal/tools/otlp -run 'Test(SpoolFactoriesRejectByteCap|RotateRejectsSingleGeneration)'
+    status: implemented
+    description: |
+      Both trace and metric factories reject a positive byte cap when
+      max_files is omitted or one. The runtime guard leaves existing evidence
+      unchanged even when a builder bypasses factory validation.
+    inputs:
+      max_bytes: positive
+      max_files: [0, 1]
+    expected:
+      load_rejected: true
+      accepted_evidence_retained: true
+      error_names_max_bytes_and_max_files: true
+    traces:
       - srd042-otlp-receiver-tools AC2
 
   - use_case: rel11.0-uc001-otlp-receiver-await
@@ -181,7 +199,7 @@ test_cases:
       Rotation occurs before a complete batch and leaves no partial line. The
       metric spool is a separate file from the trace spool.
     inputs:
-      max_files: 2
+      max_files: 3
       max_bytes: one complete batch plus one byte
       batches: 3
     expected:

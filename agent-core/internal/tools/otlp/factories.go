@@ -231,11 +231,8 @@ func spoolFactory() toolregistry.BuiltinFactory {
 		if _, ok := core.ParseSelector(source); !ok {
 			return nil, fmt.Errorf("tool %q config has invalid batch_source %q", def.Name, source)
 		}
-		if raw.MaxBytes < 0 {
-			return nil, fmt.Errorf("tool %q config max_bytes must not be negative", def.Name)
-		}
-		if raw.MaxFiles < 0 {
-			return nil, fmt.Errorf("tool %q config max_files must not be negative", def.Name)
+		if err := validateSpoolBounds(def.Name, raw); err != nil {
+			return nil, err
 		}
 		path := raw.Path
 		if !filepath.IsAbs(path) && vars["directory"] != "" {
@@ -290,11 +287,8 @@ func spoolMetricsFactory() toolregistry.BuiltinFactory {
 		if _, ok := core.ParseSelector(source); !ok {
 			return nil, fmt.Errorf("tool %q config has invalid batch_source %q", def.Name, source)
 		}
-		if raw.MaxBytes < 0 {
-			return nil, fmt.Errorf("tool %q config max_bytes must not be negative", def.Name)
-		}
-		if raw.MaxFiles < 0 {
-			return nil, fmt.Errorf("tool %q config max_files must not be negative", def.Name)
+		if err := validateSpoolBounds(def.Name, raw); err != nil {
+			return nil, err
 		}
 		path := raw.Path
 		if !filepath.IsAbs(path) && vars["directory"] != "" {
@@ -307,6 +301,19 @@ func spoolMetricsFactory() toolregistry.BuiltinFactory {
 			},
 		}, nil
 	}
+}
+
+func validateSpoolBounds(toolName string, config SpoolToolConfig) error {
+	if config.MaxBytes < 0 {
+		return fmt.Errorf("tool %q config max_bytes must not be negative", toolName)
+	}
+	if config.MaxFiles < 0 {
+		return fmt.Errorf("tool %q config max_files must not be negative", toolName)
+	}
+	if config.MaxBytes > 0 && config.MaxFiles < 2 {
+		return fmt.Errorf("tool %q config max_files must be at least 2 when max_bytes is set", toolName)
+	}
+	return nil
 }
 
 func queryListFactory() toolregistry.BuiltinFactory {

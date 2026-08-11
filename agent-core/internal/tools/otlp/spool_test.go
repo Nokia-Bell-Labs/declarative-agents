@@ -73,7 +73,7 @@ func TestSpoolStdoutTraceAndRotation(t *testing.T) {
 	builder := SpoolBuilder{
 		ToolName: "spool_spans",
 		Config: SpoolConfig{
-			Path: path, BatchSource: "$.batch", MaxBytes: 1, MaxFiles: 2,
+			Path: path, BatchSource: "$.batch", MaxBytes: 1, MaxFiles: 3,
 		},
 	}
 
@@ -86,9 +86,9 @@ func TestSpoolStdoutTraceAndRotation(t *testing.T) {
 	_, err = os.Stat(path + ".1")
 	require.NoError(t, err)
 	_, err = os.Stat(path + ".2")
-	require.ErrorIs(t, err, os.ErrNotExist)
+	require.NoError(t, err)
 
-	for _, current := range []string{path, path + ".1"} {
+	for _, current := range []string{path, path + ".1", path + ".2"} {
 		spans, readErr := evaluation.ReadTraceFile(current)
 		require.NoError(t, readErr)
 		require.Len(t, spans, 1)

@@ -180,6 +180,7 @@ tools:
   requirements:
     input:
     - Path, batch selector, and rotation bounds come from trusted config.
+    - A positive max_bytes requires max_files of at least two.
     output:
     - Output reports path, span count, bytes written, and repeats the selected batch for declared relay.
     side_effects:
@@ -713,6 +714,7 @@ tools:
   requirements:
     input:
     - Path, batch selector, and rotation bounds come from trusted config.
+    - A positive max_bytes requires max_files of at least two.
     output:
     - Output reports path, metric count, data-point count, bytes written, and repeats the selected batch.
     side_effects:
