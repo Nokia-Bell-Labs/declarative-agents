@@ -30,6 +30,15 @@ type extractTaskConfig struct {
 	MaxWeight int `json:"max_weight"`
 }
 
+type formatTaskFileConfig struct {
+	Path string `json:"path"`
+}
+
+type formatIssueConfig struct {
+	BodyPath        string `json:"body_path"`
+	DeliverableType string `json:"deliverable_type"`
+}
+
 // RegisterFactories registers all pipeline builtin tool factories
 // (extract_task, select_all_ready, seed_passthrough_plan, mark_nodes_planning,
 // project_planner_context, capture_planner_failure, parse_plan, issue state
@@ -95,7 +104,19 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		return &ParsePlanBuilder{PS: initPS(def), Retry: deps.ParseRetries}, nil
 	})
 	br.Register("format_issue", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &FormatIssueBuilder{PS: initPS(def)}, nil
+		var cfg formatIssueConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		if cfg.BodyPath == "" {
+			return nil, fmt.Errorf("pipeline format_issue: body_path is required")
+		}
+		if cfg.DeliverableType != "code" && cfg.DeliverableType != "documentation" {
+			return nil, fmt.Errorf("pipeline format_issue: deliverable_type must be code or documentation")
+		}
+		return &FormatIssueBuilder{
+			PS: initPS(def), BodyPath: cfg.BodyPath, DeliverableType: cfg.DeliverableType,
+		}, nil
 	})
 	br.Register("record_tracker_issue", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &RecordTrackerIssueBuilder{PS: initPS(def)}, nil
@@ -104,7 +125,14 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		return &MarkNodesExecutingBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("format_task_file", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &FormatTaskFileBuilder{PS: initPS(def)}, nil
+		var cfg formatTaskFileConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		if cfg.Path == "" {
+			return nil, fmt.Errorf("pipeline format_task_file: path is required")
+		}
+		return &FormatTaskFileBuilder{PS: initPS(def), Path: cfg.Path}, nil
 	})
 	br.Register("mark_task_done", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &MarkTaskDoneBuilder{PS: initPS(def)}, nil

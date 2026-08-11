@@ -31,7 +31,7 @@ func TestMarkNodesExecutingIsIndependentAndReversible(t *testing.T) {
 
 func TestFormatTaskFileProducesWriteParametersWithoutWriting(t *testing.T) {
 	ps := &State{CurrentPlan: &plan.ImplementationPlan{Title: "Implement parser", Summary: "Add parser behavior."}}
-	result := (&FormatTaskFileBuilder{PS: ps}).Build(core.Result{}).Execute()
+	result := (&FormatTaskFileBuilder{PS: ps, Path: "plan/next.yaml"}).Build(core.Result{}).Execute()
 	require.Equal(t, SigTaskFileFormatted, result.Signal)
 
 	var output struct {
@@ -41,7 +41,7 @@ func TestFormatTaskFileProducesWriteParametersWithoutWriting(t *testing.T) {
 		} `json:"parameters"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
-	require.Equal(t, plannerTaskFilePath, output.Parameters.Path)
+	require.Equal(t, "plan/next.yaml", output.Parameters.Path)
 	require.Contains(t, output.Parameters.Content, "title: Implement parser")
 	require.Contains(t, output.Parameters.Content, "summary: Add parser behavior.")
 }

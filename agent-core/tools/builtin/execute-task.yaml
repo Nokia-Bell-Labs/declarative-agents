@@ -32,7 +32,7 @@ tools:
 - name: format_task_file
   type: builtin
   init: format_task_file
-  description: Project the current plan into one declared write request for doc/task.yaml.
+  description: Project the current plan into one profile-configured write request.
   visibility: internal
   emits: [TaskFileFormatted, CommandError]
   category: word
@@ -41,8 +41,9 @@ tools:
   undo: {strategy: noop, description: Projection changes no state.}
   problem: The generic write word needs declared path and YAML content without hidden filesystem work.
   goals: [Produce path and content parameters consumed by write.]
-  requirements: {input: [A current implementation plan is required.], output: [TaskFileFormatted carries write parameters.], errors: [Serialization failures emit CommandError.]}
+  requirements: {input: [A current implementation plan and configured path are required.], output: [TaskFileFormatted carries write parameters.], errors: [Serialization failures emit CommandError.]}
   non_goals: [Does not write the task file or invoke a child agent.]
   errors: [{signal: CommandError, condition: Current plan is absent or cannot serialize, state_after_failure: No state or file changes.}]
   relationships: {before: [mark_nodes_executing], after: [write]}
-  output: {description: Write parameters for doc/task.yaml, schema: {type: object}}
+  output: {description: Write parameters for the configured task path, schema: {type: object}}
+  config: {path: doc/task.yaml}
