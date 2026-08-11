@@ -16,6 +16,11 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
 )
 
+// schedulerSafeSubprocessTimeout bounds genuine child deadlocks without
+// assuming a process receives CPU within five seconds while the formal
+// evidence gate runs every Agent Core package concurrently.
+const schedulerSafeSubprocessTimeout = 30 * time.Second
+
 // resultWriteParams decodes the write parameters run_agent emits for the
 // following write word.
 func resultWriteParams(t *testing.T, output string) (path, content string) {
@@ -40,7 +45,7 @@ func TestRunAgentCmdUsesSharedExecuteConfigArgs(t *testing.T) {
 		PointID: "point-1", PointDir: pointDir, TracePath: tracePath,
 		ResultPath: resultPath, Harness: Harness{Binary: "echo"},
 		ProfilePath: "agents/executor/profile.yaml", CoreRoot: "/checkout/agent-core",
-		Timeout: 5 * time.Second,
+		Timeout: schedulerSafeSubprocessTimeout,
 	}
 
 	result := (&runAgentCmd{pc: pc, ctx: context.Background()}).Execute()
@@ -67,7 +72,7 @@ func TestRunAgentCmdEmitsNonzeroExitOutputParameters(t *testing.T) {
 	pc := &PointContext{
 		PointDir: pointDir, TracePath: filepath.Join(pointDir, "trace.ndjson"),
 		ResultPath: resultPath, Harness: Harness{Binary: script},
-		ProfilePath: "agents/executor/profile.yaml", Timeout: 5 * time.Second,
+		ProfilePath: "agents/executor/profile.yaml", Timeout: schedulerSafeSubprocessTimeout,
 	}
 
 	result := (&runAgentCmd{pc: pc, ctx: context.Background()}).Execute()
@@ -91,7 +96,7 @@ func TestRunAgentCmdEmptyOutputWritesEmptyArtifact(t *testing.T) {
 	pc := &PointContext{
 		PointDir: pointDir, TracePath: filepath.Join(pointDir, "trace.ndjson"),
 		ResultPath: filepath.Join(pointDir, ArtifactResult), Harness: Harness{Binary: script},
-		ProfilePath: "agents/executor/profile.yaml", Timeout: 5 * time.Second,
+		ProfilePath: "agents/executor/profile.yaml", Timeout: schedulerSafeSubprocessTimeout,
 	}
 
 	runResult := (&runAgentCmd{pc: pc, ctx: context.Background()}).Execute()

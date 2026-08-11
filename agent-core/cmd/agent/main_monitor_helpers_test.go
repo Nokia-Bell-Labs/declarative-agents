@@ -27,6 +27,11 @@ import (
 	"time"
 )
 
+// schedulerSafeMonitorProcessTimeout bounds a genuinely stuck monitor process
+// without requiring `go run` startup, route scheduling, or shutdown to finish
+// inside five seconds during a parallel full-module evidence run.
+const schedulerSafeMonitorProcessTimeout = 30 * time.Second
+
 func requireMainWiresMonitorRecorder(t *testing.T) {
 	t.Helper()
 	source, err := os.ReadFile(filepath.Join(repoRootFromTest(t), "cmd", "agent", "main.go"))
@@ -257,7 +262,7 @@ func waitForProofMonitorRoute(t *testing.T, url string) {
 		}
 		defer func() { _ = resp.Body.Close() }()
 		return resp.StatusCode == http.StatusOK
-	}, 2*time.Second, 10*time.Millisecond)
+	}, schedulerSafeMonitorProcessTimeout, 10*time.Millisecond)
 }
 
 func postProofMonitorExit(t *testing.T, url string) {
@@ -273,7 +278,7 @@ func receiveLoopResult(t *testing.T, resultCh <-chan loopResult) loopResult {
 	select {
 	case outcome := <-resultCh:
 		return outcome
-	case <-time.After(2 * time.Second):
+	case <-time.After(schedulerSafeMonitorProcessTimeout):
 		require.FailNow(t, "monitor loop did not exit after control request")
 	}
 	return loopResult{}
@@ -307,7 +312,7 @@ func waitForMonitorBaseURL(t *testing.T, stderr *lockedBuffer) string {
 	require.Eventually(t, func() bool {
 		baseURL = monitorBaseURLFromOutput(stderr.String())
 		return baseURL != ""
-	}, 5*time.Second, 10*time.Millisecond)
+	}, schedulerSafeMonitorProcessTimeout, 10*time.Millisecond)
 	return baseURL
 }
 
@@ -342,7 +347,7 @@ func requireProcessSucceeded(t *testing.T, resultCh <-chan error, stdout, stderr
 	select {
 	case err := <-resultCh:
 		require.NoError(t, err, "stdout=%s stderr=%s", stdout.String(), stderr.String())
-	case <-time.After(5 * time.Second):
+	case <-time.After(schedulerSafeMonitorProcessTimeout):
 		require.FailNow(t, "monitor process did not exit after control request")
 	}
 	require.Contains(t, stderr.String(), "terminal state: succeeded")
