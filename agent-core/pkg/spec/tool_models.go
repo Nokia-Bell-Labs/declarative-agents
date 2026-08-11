@@ -100,8 +100,12 @@ func (s *ToolDeclSideEffects) UnmarshalYAML(value *yaml.Node) error {
 }
 
 // ToolDeclFile is the top-level YAML structure for a tool declaration file.
+// ToolDeclFile mirrors the runtime declaration-file shape. Includes must be
+// resolved the same way internal/tools/catalog resolves them, or the corpus and
+// the runtime disagree about which words are declared (GH-1525).
 type ToolDeclFile struct {
-	Tools []ToolDeclaration `yaml:"tools"`
+	Includes []string          `yaml:"includes,omitempty"`
+	Tools    []ToolDeclaration `yaml:"tools"`
 }
 
 // KnownSideEffectKinds is the canonical vocabulary for side_effects kind values.

@@ -1,0 +1,93 @@
+# Tool-contract completeness baseline (GH-1525).
+#
+# Declared words whose six-section contract is incomplete, measured by the
+# same rule mage audit gates on. This list is a ratchet: it may shrink and
+# must never grow. Completing a contract means deleting its entry.
+#
+# A word absent from this list must have a complete contract. Declaring a
+# new incomplete word fails mage audit rather than extending this file.
+#
+# Regenerate after completing contracts; do not hand-edit to silence a gate.
+
+incomplete:
+  - tool: commit
+    source: tools/exec/commit.yaml
+    missing: [emits, errors, goals, non_goals, output.schema, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: copy_dir
+    source: tools/exec/copy-dir.yaml
+    missing: [emits, errors, goals, non_goals, output.schema, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: diff_stat
+    source: tools/exec/diff-stat.yaml
+    missing: [category, emits, errors, goals, non_goals, output.schema, problem, relationships, requirements.errors, requirements.input, requirements.output, reversibility.classification, side_effects, undo.strategy]
+  - tool: git_init
+    source: tools/exec/git-init.yaml
+    missing: [emits, errors, goals, non_goals, output.schema, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: list_resource
+    source: tools/builtin/filesystem/all.yaml
+    missing: [errors, relationships]
+  - tool: load_test_claims
+    source: tools/builtin/spec-validation/test-evidence.yaml
+    missing: [errors, goals, non_goals, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: log_oneline
+    source: tools/exec/log-oneline.yaml
+    missing: [category, emits, errors, goals, non_goals, output.schema, problem, relationships, requirements.errors, requirements.input, requirements.output, reversibility.classification, side_effects, undo.strategy]
+  - tool: make_dir
+    source: tools/exec/make-dir.yaml
+    missing: [emits, errors, goals, non_goals, output.schema, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: materialize_eval_points
+    source: tools/builtin/materialize-eval-points.yaml
+    missing: [errors, relationships, requirements.errors]
+  - tool: parse_structured
+    source: tools/builtin/parse-structured.yaml
+    missing: [output.schema, side_effects]
+  - tool: parse_suite_config
+    source: tools/builtin/parse-suite-config.yaml
+    missing: [errors, goals, non_goals, output.schema, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: partition
+    source: tools/builtin/partition.yaml
+    missing: [side_effects]
+  - tool: read_resource
+    source: tools/builtin/filesystem/all.yaml
+    missing: [errors, relationships]
+  - tool: record_point_failure
+    source: tools/builtin/record-point-failure.yaml
+    missing: [relationships, requirements.errors]
+  - tool: reduce_consistency_checks
+    source: tools/builtin/spec-validation/reduce-consistency-checks.yaml
+    missing: [goals, non_goals, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: reduce_ref_checks
+    source: tools/builtin/spec-validation/reduce-ref-checks.yaml
+    missing: [goals, non_goals, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: reduce_test_evidence_run
+    source: tools/builtin/spec-validation/test-evidence.yaml
+    missing: [errors, goals, non_goals, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: render_each
+    source: tools/builtin/render-each.yaml
+    missing: [side_effects]
+  - tool: resolve_test_evidence
+    source: tools/builtin/spec-validation/test-evidence.yaml
+    missing: [errors, goals, non_goals, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: rev_parse
+    source: tools/exec/rev-parse.yaml
+    missing: [category, emits, errors, goals, non_goals, output.schema, problem, relationships, requirements.errors, requirements.input, requirements.output, reversibility.classification, side_effects, undo.strategy]
+  - tool: run_point
+    source: tools/builtin/run-point.yaml
+    missing: [errors, goals, non_goals, output.schema, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: sample_docs
+    source: tools/builtin/sample-docs.yaml
+    missing: [errors, relationships]
+  - tool: select_subset
+    source: tools/builtin/select-subset.yaml
+    missing: [side_effects]
+  - tool: stage_all
+    source: tools/exec/stage-all.yaml
+    missing: [emits, errors, goals, non_goals, output.schema, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: suspend
+    source: tools/builtin/suspend.yaml
+    missing: [errors, goals, non_goals, output.schema, problem, relationships, requirements.errors, requirements.input, requirements.output]
+  - tool: value_predicate
+    source: tools/builtin/value-predicate.yaml
+    missing: [side_effects]
+  - tool: workspace_status
+    source: tools/exec/workspace-status.yaml
+    missing: [category, emits, errors, goals, non_goals, problem, relationships, requirements.errors, requirements.input, requirements.output, reversibility.classification, side_effects, undo.strategy]

@@ -21,6 +21,8 @@ func Validate(g *Graph, corpus *Corpus) []Finding {
 	all = append(all, checkMachineNameConsistency(corpus)...)
 	all = append(all, checkToolSelectionDeclared(corpus)...)
 	all = append(all, checkSelectedToolContractCompleteness(corpus)...)
+	all = append(all, checkDeclaredToolContractCompleteness(corpus)...)
+	all = append(all, checkUnresolvedDeclarationFiles(corpus)...)
 	all = append(all, checkToolEmitsSignalSet(corpus)...)
 	all = append(all, checkToolUndoConsistency(corpus)...)
 	all = append(all, checkToolSideEffectVocab(corpus)...)

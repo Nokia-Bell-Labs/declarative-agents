@@ -47,6 +47,12 @@ type Corpus struct {
 	ToolDeclarations map[string]ToolDeclaration
 	DocSpecs         map[string]DocSpec
 
+	// UnresolvedDeclFiles lists declaration paths a profile named that could not
+	// be read. These are reported as warnings rather than skipped silently, so a
+	// profile pointing at an absolute container path on a host checkout says so
+	// instead of quietly declaring nothing (GH-1525 R3).
+	UnresolvedDeclFiles []string
+
 	SRDOrder     []string
 	UCOrder      []string
 	MachineOrder []string
@@ -122,7 +128,7 @@ func LoadCorpus(rootDir string, opts ...CorpusOption) (*Corpus, error) {
 		return nil, err
 	}
 
-	toolDecls, err := discoverAndParseToolDeclarations(rootDir)
+	toolDecls, unresolvedDecls, err := discoverAndParseToolDeclarations(rootDir)
 	if err != nil {
 		return nil, err
 	}
@@ -133,19 +139,20 @@ func LoadCorpus(rootDir string, opts ...CorpusOption) (*Corpus, error) {
 	}
 
 	c := &Corpus{
-		RootDir:          rootDir,
-		SRDs:             srds,
-		UseCases:         ucs,
-		TestSuites:       tss,
-		Roadmap:          rm,
-		SpecIndex:        si,
-		Machines:         machines,
-		ToolSelections:   toolSel,
-		ToolDeclarations: toolDecls,
-		DocSpecs:         docSpecs,
-		SRDOrder:         srdOrder,
-		UCOrder:          ucOrder,
-		MachineOrder:     machineOrder,
+		RootDir:             rootDir,
+		SRDs:                srds,
+		UseCases:            ucs,
+		TestSuites:          tss,
+		Roadmap:             rm,
+		SpecIndex:           si,
+		Machines:            machines,
+		ToolSelections:      toolSel,
+		ToolDeclarations:    toolDecls,
+		UnresolvedDeclFiles: unresolvedDecls,
+		DocSpecs:            docSpecs,
+		SRDOrder:            srdOrder,
+		UCOrder:             ucOrder,
+		MachineOrder:        machineOrder,
 	}
 
 	if err := c.validate(); err != nil {
@@ -353,63 +360,6 @@ func discoverAndParseDocSpecs(rootDir string) (map[string]DocSpec, error) {
 		}
 	}
 	return specs, nil
-}
-
-func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaration, error) {
-	decls := make(map[string]ToolDeclaration)
-
-	declFiles := []string{
-		filepath.Join(rootDir, "tools", "builtin.yaml"),
-		filepath.Join(rootDir, "tools", "exec.yaml"),
-	}
-	declFiles = append(declFiles, yamlFilesInDir(filepath.Join(rootDir, "tools", "builtin"))...)
-	declFiles = append(declFiles, yamlFilesInDir(filepath.Join(rootDir, "tools", "exec"))...)
-
-	profilesPath := resolveProfileAssetsRoot(rootDir)
-	for _, pd := range collectProfileDirs(profilesPath) {
-		override := filepath.Join(pd.Dir, "builtin.yaml")
-		if _, err := os.Stat(override); err == nil {
-			declFiles = append(declFiles, override)
-		}
-		declFiles = append(declFiles, yamlFilesInDir(filepath.Join(pd.Dir, "llm"))...)
-		declFiles = append(declFiles, declarationFilesFromProfile(filepath.Join(pd.Dir, "profile.yaml"))...)
-	}
-
-	for _, path := range declFiles {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, fmt.Errorf("read tool declarations %s: %w", path, err)
-		}
-		var file ToolDeclFile
-		if err := yaml.Unmarshal(data, &file); err != nil {
-			return nil, fmt.Errorf("parse tool declarations %s: %w", path, err)
-		}
-		relPath, _ := filepath.Rel(rootDir, path)
-		if relPath == "" {
-			relPath = path
-		}
-		for _, td := range file.Tools {
-			td.SourceFile = relPath
-			if existing, ok := decls[td.Name]; ok && keepExistingToolDeclaration(existing, td) {
-				continue
-			}
-			decls[td.Name] = td
-		}
-	}
-
-	return decls, nil
-}
-
-func keepExistingToolDeclaration(existing, candidate ToolDeclaration) bool {
-	return isAgentLocalToolDeclaration(existing.SourceFile) && !isAgentLocalToolDeclaration(candidate.SourceFile)
-}
-
-func isAgentLocalToolDeclaration(sourceFile string) bool {
-	path := filepath.ToSlash(sourceFile)
-	return strings.HasPrefix(path, "agents/") || strings.Contains(path, "/agents/")
 }
 
 func resolveRootPath(rootDir, base, p string) string {
