@@ -30,6 +30,9 @@ import (
 // lifecycleRequest is the checkpoint-operation request payload read from the
 // --request file for the history and rollback families.
 type lifecycleRequest struct {
+	// Suite is the universal request file path itself. Evaluator words consume
+	// it only when their ToolDef declares $request.suite.
+	Suite string `yaml:"-"`
 	// Checkpoint names the target run branch to inspect or roll back.
 	Checkpoint string `yaml:"checkpoint"`
 	// ToIteration names an execution iteration; rollback resolves its last
@@ -44,6 +47,7 @@ func loadLifecycleRequest(path string) (lifecycleRequest, error) {
 	if path == "" {
 		return req, nil
 	}
+	req.Suite = path
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return req, fmt.Errorf("read lifecycle request %q: %w", path, err)
@@ -72,6 +76,7 @@ func requestSourceField(v interface{}) (string, bool) {
 // whether the field is present; absent fields let a tool keep its config default.
 func (r lifecycleRequest) requestSources() map[string]func() (interface{}, bool) {
 	return map[string]func() (interface{}, bool){
+		"suite":      func() (interface{}, bool) { return r.Suite, r.Suite != "" },
 		"checkpoint": func() (interface{}, bool) { return r.Checkpoint, r.Checkpoint != "" },
 		"to_iteration": func() (interface{}, bool) {
 			if r.ToIteration == nil {
@@ -127,6 +132,18 @@ func resolveRequestSources(defs []catalog.ToolDef, req lifecycleRequest) ([]reso
 		}
 	}
 	return resolved, nil
+}
+
+func validateDeclaredRequestSources(cfg runtimeConfig, defs []catalog.ToolDef) error {
+	if !defsDeclareRequestSources(defs) {
+		return nil
+	}
+	request, err := loadLifecycleRequest(cfg.Request)
+	if err != nil {
+		return err
+	}
+	_, err = resolveRequestSources(defs, request)
+	return err
 }
 
 func resolvesCheckpointTarget(resolved []resolvedRequestSource) bool {

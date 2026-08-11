@@ -86,3 +86,14 @@ func TestUnrelatedRequestSourceDoesNotSelectCheckpointBackend(t *testing.T) {
 	require.Equal(t, "run-7", defs[0].Config["query"])
 	require.False(t, resolvesCheckpointTarget(resolved))
 }
+
+func TestSuiteRequestSourceResolvesUniversalRequestPath(t *testing.T) {
+	t.Parallel()
+
+	defs := []catalog.ToolDef{{
+		Name: "parse_suite_config", Config: map[string]interface{}{"input": "$request.suite"},
+	}}
+	_, err := resolveRequestSources(defs, lifecycleRequest{Suite: "/tmp/suite.yaml"})
+	require.NoError(t, err)
+	require.Equal(t, "/tmp/suite.yaml", defs[0].Config["input"])
+}

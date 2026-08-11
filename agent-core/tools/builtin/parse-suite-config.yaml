@@ -47,3 +47,5 @@ tools:
   relationships:
     before: [machine-selected suite input]
     after: [discover_suite_samples]
+  config:
+    input: $request.suite

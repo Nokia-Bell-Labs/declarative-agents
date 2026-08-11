@@ -441,7 +441,6 @@ func registerEvaluationFactories(st *agentState) toolregistry.FactoryRegistrar {
 			Ctx:              st.ctx,
 			Registry:         st.registry,
 			Stderr:           os.Stderr,
-			SuitePath:        st.request,
 			OutputDir:        st.output,
 			Directory:        st.directory,
 			ChildAgentBinary: st.childAgentBinary,

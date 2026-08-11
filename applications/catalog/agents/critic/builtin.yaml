@@ -8,6 +8,7 @@ tools:
   - CommandError
   description: Read and validate critic suite YAML metadata without discovering samples or creating session artifacts.
   config:
+    input: $request.suite
     output_dir: eval-results
     reps: 1
   category: stateful_internal

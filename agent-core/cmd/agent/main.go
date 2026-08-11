@@ -107,11 +107,11 @@ func init() {
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
 	f.StringVar(&flagRequest, "request", "", "request data file")
-	f.StringVar(&flagOutput, "output", "", "output directory for eval results (default: eval-results)")
+	f.StringVar(&flagOutput, "output", "", "output directory for runtime artifacts")
 	f.StringVar(&flagDoltDSN, "dolt-dsn", "", "MySQL-wire DSN to a dolt sql-server for the persistent checkpoint backend (default: no persistence)")
 	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
 	f.StringVar(&flagResumeSignal, "resume-signal", "", "resume signal override (default: machine resume_signal, then Approved)")
-	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary the evaluator launches (default: agent, resolved from PATH)")
+	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary used by child-process words (default: agent, resolved from PATH)")
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
 
 	rootCmd.Version = agentVersion
@@ -236,6 +236,9 @@ func validateConfig() error {
 		return err
 	}
 	resources.shutdownTelemetry()
+	if err := validateDeclaredRequestSources(resources.Config, resources.Definitions); err != nil {
+		return err
+	}
 	reportMachineDiagnostics(resources.Machine)
 	fmt.Fprintf(os.Stderr, "config valid: profile %s (%d REST client(s), %d server(s))\n",
 		flagProfile, len(resources.RestDefinitions.Clients), len(resources.RestDefinitions.Servers))
