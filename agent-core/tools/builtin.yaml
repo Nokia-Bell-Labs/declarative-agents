@@ -239,6 +239,11 @@ tools:
       strategy: session_state_restore
       description: "Restore evaluator session state and workspace artifacts from persisted receipts."
       requires: [Receipt]
+    config:
+      output_dir: eval-results
+      reps: 1
+      timeout: 600
+      ollama_url: ""
 
   - name: report_suite_summary
     type: builtin

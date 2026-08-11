@@ -60,3 +60,8 @@ tools:
           type: string
       required:
       - message
+  config:
+    output_dir: eval-results
+    reps: 1
+    timeout: 600
+    ollama_url: ""

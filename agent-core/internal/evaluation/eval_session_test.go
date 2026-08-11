@@ -62,9 +62,8 @@ ollama_url: http://suite.example
 	var stderr bytes.Buffer
 	outputDir := filepath.Join(base, "eval-results")
 	es := &EvalSessionState{
-		SuitePath: suitePath,
-		OutputDir: outputDir,
-		Stderr:    &stderr,
+		SuitePath: suitePath, OutputDir: outputDir, Stderr: &stderr,
+		DefaultReps: 1, DefaultTimeout: 10 * time.Minute,
 	}
 
 	requireSignal(t, (&parseSuiteConfigCmd{es: es}).Execute(), SigSuiteConfigParsed)
@@ -90,6 +89,22 @@ ollama_url: http://suite.example
 	require.Contains(t, stderr.String(), "4 points")
 }
 
+func TestInitEvalSessionRequiresExpandedGrid(t *testing.T) {
+	t.Parallel()
+
+	es := &EvalSessionState{
+		Suite:     SuiteConfig{Name: "missing-grid"},
+		OutputDir: t.TempDir(), Reps: 1, Timeout: time.Minute,
+		Stderr: &bytes.Buffer{},
+	}
+
+	result := (&initEvalSessionCmd{es: es}).Execute()
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "requires expand_eval_grid")
+	require.Empty(t, es.SessionDir)
+}
+
 func TestMaterializeEvalPointsDoesNotMutateSessionPoint(t *testing.T) {
 	base := suiteFixture(t)
 	profileDir := writeProfileFixtures(t, base, "agent")
@@ -101,7 +116,10 @@ profiles:
 samples_dir: samples
 `, profileDir)), 0o644))
 
-	es := &EvalSessionState{SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{}}
+	es := &EvalSessionState{
+		SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{},
+		DefaultReps: 1, DefaultTimeout: time.Minute,
+	}
 	requireSignal(t, (&parseSuiteConfigCmd{es: es}).Execute(), SigSuiteConfigParsed)
 	requireSignal(t, (&discoverSuiteSamplesCmd{es: es}).Execute(), SigSuiteSamplesDiscovered)
 	requireSignal(t, (&expandEvalGridCmd{es: es}).Execute(), SigEvalGridExpanded)
@@ -169,7 +187,10 @@ samples_dir: samples
 repetitions: 2
 `, profileDir, profileDir)), 0o644))
 
-	es := &EvalSessionState{SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{}}
+	es := &EvalSessionState{
+		SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{},
+		DefaultTimeout: time.Minute,
+	}
 	requireSignal(t, (&parseSuiteConfigCmd{es: es}).Execute(), SigSuiteConfigParsed)
 	requireSignal(t, (&discoverSuiteSamplesCmd{es: es}).Execute(), SigSuiteSamplesDiscovered)
 	secondSample := es.Suite.Samples[0]

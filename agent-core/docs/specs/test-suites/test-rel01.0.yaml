@@ -123,6 +123,20 @@ test_cases:
       - srd019-eval-harness AC1
 
   - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator session defaults are declared and grid expansion is mandatory
+    go_test: go test ./internal/evaluation -run 'Test(InitEvalSessionRequiresExpandedGrid|InitEvalSessionDefaultsComeFromDeclaration)'
+    inputs:
+      init_eval_session_config: {output_dir: eval-results, reps: 1, timeout: 600}
+      grid_points: 0
+    expected:
+      defaults_loaded_from_tooldef: true
+      missing_grid_signal: CommandError
+      session_directory_created_on_failure: false
+    traces:
+      - srd019-eval-harness AC0
+      - srd019-eval-harness AC1
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator profile suite iterates generator profiles
     go_test: TestMaterializeEvalPointsPreservesProfileOrder
     inputs:

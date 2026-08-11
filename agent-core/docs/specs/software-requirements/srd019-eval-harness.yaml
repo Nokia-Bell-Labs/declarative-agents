@@ -25,6 +25,7 @@ requirements:
       - R0.3: parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary SHALL parse and validate suite input data before the evaluator session can iterate points.
       - R0.4: run_agent SHALL consume each resolved suite profile as subprocess input data for the current evaluation point and SHALL invoke the child agent with --profile when ProfilePath is set.
       - R0.5: dump_config SHALL snapshot the resolved suite profile, model, harness label, and point configuration into experiment.yaml for reproducibility.
+      - R0.6: init_eval_session SHALL reject an unexpanded grid and SHALL take output_dir, repetitions, and per-point timeout defaults from its ToolDef config; explicit runtime and suite values override those declared defaults.
 
   R1:
     title: Suite configuration
@@ -95,7 +96,7 @@ acceptance_criteria:
 
   - id: AC0
     criterion: Suite YAML is documented and validated as evaluator tool input data, with session setup/run_agent/dump_config boundaries clear.
-    traces: [R0.1, R0.2, R0.3, R0.4, R0.5, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
+    traces: [R0.1, R0.2, R0.3, R0.4, R0.5, R0.6, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
     criterion: Each evaluation point creates an isolated workspace with git baseline, experiment.yaml config snapshot, trace.ndjson, and meta.json.

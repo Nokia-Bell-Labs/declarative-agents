@@ -176,14 +176,24 @@ func (c *initEvalSessionCmd) Undo(prior core.Result) core.Result {
 }
 
 func (c *initEvalSessionCmd) Execute() core.Result {
+	outputDir := c.es.OutputDir
+	if outputDir == "" {
+		outputDir = c.es.DefaultOutputDir
+	}
 	reps := c.es.Reps
 	if reps == 0 && c.es.Suite.Reps > 0 {
 		reps = c.es.Suite.Reps
+	}
+	if reps == 0 {
+		reps = c.es.DefaultReps
 	}
 
 	timeout := c.es.Timeout
 	if timeout == 0 && c.es.Suite.Timeout > 0 {
 		timeout = c.es.Suite.Timeout
+	}
+	if timeout == 0 {
+		timeout = c.es.DefaultTimeout
 	}
 
 	ollamaURL := c.es.OllamaURL
@@ -191,7 +201,7 @@ func (c *initEvalSessionCmd) Execute() core.Result {
 		ollamaURL = c.es.Suite.OllamaURL
 	}
 
-	if err := c.es.InitSession(c.es.OutputDir, reps, timeout, ollamaURL, 0); err != nil {
+	if err := c.es.InitSession(outputDir, reps, timeout, ollamaURL, 0); err != nil {
 		return core.Result{
 			Signal:      core.CommandError,
 			Err:         err,
@@ -254,17 +264,14 @@ func applyLoadSuiteConfig(es *EvalSessionState, def catalog.ToolDef) error {
 	if es.SuitePath == "" && cfg.Input != "" {
 		es.SuitePath = cfg.Input
 	}
-	if es.OutputDir == "" && cfg.OutputDir != "" {
-		es.OutputDir = cfg.OutputDir
+	if es.OutputDir == "" && es.DefaultOutputDir == "" && cfg.OutputDir != "" {
+		es.DefaultOutputDir = cfg.OutputDir
 	}
-	if es.OutputDir == "" {
-		es.OutputDir = "eval-results"
+	if es.Reps == 0 && es.DefaultReps == 0 && cfg.Reps > 0 {
+		es.DefaultReps = cfg.Reps
 	}
-	if es.Reps == 0 && cfg.Reps > 0 {
-		es.Reps = cfg.Reps
-	}
-	if es.Timeout == 0 && cfg.Timeout > 0 {
-		es.Timeout = time.Duration(cfg.Timeout) * time.Second
+	if es.Timeout == 0 && es.DefaultTimeout == 0 && cfg.Timeout > 0 {
+		es.DefaultTimeout = time.Duration(cfg.Timeout) * time.Second
 	}
 	if es.OllamaURL == "" && cfg.OllamaURL != "" {
 		es.OllamaURL = cfg.OllamaURL
