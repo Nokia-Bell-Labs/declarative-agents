@@ -16,6 +16,7 @@ var plainTextToolInits = map[string]bool{
 	"reset_history": true, "nudge_reread": true,
 	"file_read": true, "file_write": true, "file_edit": true, "file_find": true,
 	"validate_specs": true, "reduce_grep_checks": true, "format_report": true,
+	"load_graph": true, "extract_task": true,
 }
 
 type outputContractBundle struct {

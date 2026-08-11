@@ -281,9 +281,22 @@ func checkToolSideEffectVocab(corpus *Corpus) []Finding {
 					Message: fmt.Sprintf("tool %q side_effects kind %q not in known vocabulary", name, se.Kind),
 				})
 			}
+			if replacement := deprecatedSideEffectTargets[se.Target]; replacement != "" {
+				findings = append(findings, Finding{
+					Check: "tool-unknown-side-effect-target", Level: "error",
+					Message: fmt.Sprintf(
+						"tool %q side_effects target %q is invalid; use %q",
+						name, se.Target, replacement,
+					),
+				})
+			}
 		}
 	}
 	return findings
+}
+
+var deprecatedSideEffectTargets = map[string]string{
+	"pipeline_graph": "requirement_graph",
 }
 
 // checkToolBoundaryCategory verifies that tools with boundary-class

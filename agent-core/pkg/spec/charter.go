@@ -51,6 +51,7 @@ var supportedSpecCorpusCheckIDs = map[string]bool{
 	"tool-undo-mismatch":                 true,
 	"tool-undo-payload-no-captures":      true,
 	"tool-unknown-side-effect-kind":      true,
+	"tool-unknown-side-effect-target":    true,
 	"uncovered-ac":                       true,
 	"uncovered-req-item":                 true,
 	"untraced-success-criterion":         true,

@@ -9,10 +9,6 @@ configuration:
   machine: agents/planner/machine.yaml
   tools: agents/planner/tools.yaml
   llm_configs: agents/planner/llm/*.yaml
-  tool_declarations:
-  - tools/builtin.yaml
-  - tools/exec.yaml
-  - agents/planner/tracker-exec.yaml
   variants:
   - agents/planner/machine-passthrough.yaml
   - agents/planner/machine-plan-only.yaml

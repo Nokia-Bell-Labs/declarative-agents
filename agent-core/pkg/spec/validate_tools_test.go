@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -401,13 +402,24 @@ func TestValidate_ToolSideEffectVocab(t *testing.T) {
 				Name:        "bad",
 				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "invented_kind"}}},
 			},
+			"bad-target": {
+				Name: "bad-target",
+				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{
+					Kind: "state_mutation", Target: "pipeline_graph",
+				}}},
+			},
 		},
 	}
 
 	findings := checkToolSideEffectVocab(corpus)
-	require.Len(t, findings, 1)
-	assert.Equal(t, "error", findings[0].Level)
-	assert.Contains(t, findings[0].Message, "invented_kind")
+	require.Len(t, findings, 2)
+	var messages []string
+	for _, finding := range findings {
+		assert.Equal(t, "error", finding.Level)
+		messages = append(messages, finding.Message)
+	}
+	assert.Contains(t, strings.Join(messages, "\n"), "invented_kind")
+	assert.Contains(t, strings.Join(messages, "\n"), "pipeline_graph")
 }
 
 func TestValidate_ToolBoundaryCategory(t *testing.T) {

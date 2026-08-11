@@ -48,13 +48,6 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: extract_task command result summary.
+    description: Plain-text extracted task summary.
     schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
+      type: string

@@ -73,7 +73,9 @@ type ToolDeclSideEffects struct {
 
 // ToolDeclSideEffect captures one structured side-effect entry.
 type ToolDeclSideEffect struct {
-	Kind string `yaml:"kind"`
+	Kind   string `yaml:"kind"`
+	Target string `yaml:"target,omitempty"`
+	State  string `yaml:"state,omitempty"`
 }
 
 // ToolDeclError captures a declared failure mode.

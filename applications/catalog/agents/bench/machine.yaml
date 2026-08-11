@@ -5,9 +5,6 @@ purpose: |-
 configuration:
   machine: agents/bench/machine.yaml
   tools: agents/bench/tools.yaml
-  tool_declarations:
-  - agents/bench/builtin.yaml
-  - tools/builtin.yaml
 invariants:
 - The bench never calls an LLM directly
 - REST routes and UI assets are owned by the bench profile

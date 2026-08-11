@@ -48,13 +48,6 @@ tools:
     after:
     - machine-selected predecessor
   output:
-    description: load_graph command result summary.
+    description: Plain-text graph load summary.
     schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
+      type: string
