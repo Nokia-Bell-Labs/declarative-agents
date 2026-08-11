@@ -280,6 +280,7 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 
 	machines := make(map[string]core.MachineSpec)
 	toolSel := make(map[string][]string)
+	selectionPaths := make(map[string]bool)
 	var order []string
 
 	for _, pd := range collectProfileDirs(profilesPath) {
@@ -295,9 +296,9 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 		order = append(order, pd.Name)
 
 		toolsPath := filepath.Join(pd.Dir, "tools.yaml")
-		if data, err := os.ReadFile(toolsPath); err == nil {
-			if tools := parseToolSelection(data); len(tools) > 0 {
-				toolSel[pd.Name] = tools
+		if err := addToolSelection(toolSel, selectionPaths, pd.Name, toolsPath); err != nil {
+			if !os.IsNotExist(err) {
+				return nil, nil, nil, err
 			}
 		}
 		for key, value := range ms.Configuration {
@@ -308,10 +309,11 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 			if !ok || path == "" {
 				continue
 			}
-			if data, err := os.ReadFile(resolveRootPath(rootDir, filepath.Dir(machPath), path)); err == nil {
-				if tools := parseToolSelection(data); len(tools) > 0 {
-					toolSel[pd.Name+":"+key] = tools
-				}
+			resolved := resolveRootPath(rootDir, filepath.Dir(machPath), path)
+			if err := addToolSelection(
+				toolSel, selectionPaths, pd.Name+":"+key, resolved,
+			); err != nil {
+				return nil, nil, nil, err
 			}
 		}
 	}
@@ -320,12 +322,39 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 	return machines, toolSel, order, nil
 }
 
-func parseToolSelection(data []byte) []string {
-	var sel ToolSelection
-	if err := yaml.Unmarshal(data, &sel); err != nil {
+func addToolSelection(
+	selections map[string][]string,
+	seen map[string]bool,
+	key, path string,
+) error {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("resolve tool selection %s: %w", path, err)
+	}
+	if seen[absolute] {
 		return nil
 	}
-	return sel.Tools
+	data, err := os.ReadFile(absolute)
+	if err != nil {
+		return err
+	}
+	tools, err := parseToolSelection(data)
+	if err != nil {
+		return fmt.Errorf("parse tool selection %s: %w", path, err)
+	}
+	seen[absolute] = true
+	if len(tools) > 0 {
+		selections[key] = tools
+	}
+	return nil
+}
+
+func parseToolSelection(data []byte) ([]string, error) {
+	var sel ToolSelection
+	if err := yaml.Unmarshal(data, &sel); err != nil {
+		return nil, err
+	}
+	return sel.Tools, nil
 }
 
 func discoverAndParseDocSpecs(rootDir string) (map[string]DocSpec, error) {

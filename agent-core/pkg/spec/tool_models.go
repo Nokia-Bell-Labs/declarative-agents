@@ -3,6 +3,8 @@
 package spec
 
 import (
+	"fmt"
+
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"gopkg.in/yaml.v3"
 )
@@ -65,7 +67,8 @@ type ToolDeclUndo struct {
 
 // ToolDeclSideEffects handles both structured and legacy side_effects.
 type ToolDeclSideEffects struct {
-	Items []ToolDeclSideEffect
+	LegacyText string
+	Items      []ToolDeclSideEffect
 }
 
 // ToolDeclSideEffect captures one structured side-effect entry.
@@ -91,12 +94,21 @@ type ToolDeclRelationshipRef struct {
 }
 
 func (s *ToolDeclSideEffects) UnmarshalYAML(value *yaml.Node) error {
-	var items []ToolDeclSideEffect
-	if err := value.Decode(&items); err == nil {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		return value.Decode(&s.LegacyText)
+	case yaml.SequenceNode:
+		var items []ToolDeclSideEffect
+		if err := value.Decode(&items); err != nil {
+			return err
+		}
 		s.Items = items
 		return nil
+	case 0:
+		return nil
+	default:
+		return fmt.Errorf("side_effects must be a string or list")
 	}
-	return nil
 }
 
 // ToolDeclFile is the top-level YAML structure for a tool declaration file.

@@ -164,6 +164,22 @@ const (
 	MachineDiagnosticWarning MachineDiagnosticSeverity = "warning"
 )
 
+const (
+	DiagnosticUnreachableState      = "unreachable_state"
+	DiagnosticUnreachableTransition = "unreachable_transition"
+	DiagnosticTerminalTransition    = "terminal_transition"
+	DiagnosticUnusedSignal          = "unused_signal"
+)
+
+func MachineDiagnosticCodes() []string {
+	return []string{
+		DiagnosticUnreachableState,
+		DiagnosticUnreachableTransition,
+		DiagnosticTerminalTransition,
+		DiagnosticUnusedSignal,
+	}
+}
+
 // MachineDiagnostic describes a static grammar issue that does not make the
 // machine structurally invalid, but may indicate dead or surprising grammar.
 type MachineDiagnostic struct {
@@ -337,7 +353,7 @@ func DiagnoseMachineSpec(spec MachineSpec) []MachineDiagnostic {
 		if !reachable[state] {
 			diagnostics = append(diagnostics, MachineDiagnostic{
 				Severity: MachineDiagnosticWarning,
-				Code:     "unreachable_state",
+				Code:     DiagnosticUnreachableState,
 				Message:  fmt.Sprintf("state %q is not reachable from initial_state %q", state, spec.InitialState),
 				State:    state,
 			})
@@ -350,7 +366,7 @@ func DiagnoseMachineSpec(spec MachineSpec) []MachineDiagnostic {
 		if !reachable[tr.State] {
 			diagnostics = append(diagnostics, MachineDiagnostic{
 				Severity:        MachineDiagnosticWarning,
-				Code:            "unreachable_transition",
+				Code:            DiagnosticUnreachableTransition,
 				Message:         fmt.Sprintf("transition[%d] from %s/%s is unreachable", i, tr.State, tr.Signal),
 				State:           tr.State,
 				Signal:          tr.Signal,
@@ -360,7 +376,7 @@ func DiagnoseMachineSpec(spec MachineSpec) []MachineDiagnostic {
 		if terminalSet[tr.State] {
 			diagnostics = append(diagnostics, MachineDiagnostic{
 				Severity:        MachineDiagnosticWarning,
-				Code:            "terminal_transition",
+				Code:            DiagnosticTerminalTransition,
 				Message:         fmt.Sprintf("transition[%d] starts from terminal state %q", i, tr.State),
 				State:           tr.State,
 				Signal:          tr.Signal,
@@ -373,7 +389,7 @@ func DiagnoseMachineSpec(spec MachineSpec) []MachineDiagnostic {
 		if !usedSignals[signal] {
 			diagnostics = append(diagnostics, MachineDiagnostic{
 				Severity: MachineDiagnosticWarning,
-				Code:     "unused_signal",
+				Code:     DiagnosticUnusedSignal,
 				Message:  fmt.Sprintf("signal %q is declared but no transition uses it", signal),
 				Signal:   signal,
 			})

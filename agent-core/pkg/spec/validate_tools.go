@@ -12,7 +12,7 @@ import (
 
 func checkToolSelectionDeclared(corpus *Corpus) []Finding {
 	var findings []Finding
-	for _, agentName := range sortedToolSelectionKeys(corpus.ToolSelections) {
+	for _, agentName := range sortedKeys(corpus.ToolSelections) {
 		selected := corpus.ToolSelections[agentName]
 		for _, toolName := range selected {
 			if _, ok := corpus.ToolDeclarations[toolName]; !ok {
@@ -25,6 +25,64 @@ func checkToolSelectionDeclared(corpus *Corpus) []Finding {
 		}
 	}
 	return findings
+}
+
+func checkToolDeclarationVocabulary(corpus *Corpus) []Finding {
+	var findings []Finding
+	for name, declaration := range corpus.ToolDeclarations {
+		if message := invalidToolDeclaration(declaration); message != "" {
+			findings = append(findings, Finding{
+				Check: "tool-declaration-invalid", Level: "error",
+				Message: fmt.Sprintf("tool %q: %s", name, message),
+			})
+		}
+		for _, declaredError := range declaration.Errors {
+			if declaredError.Signal == "" {
+				findings = append(findings, Finding{
+					Check: "tool-declaration-invalid", Level: "error",
+					Message: fmt.Sprintf("tool %q has an error contract with no signal", name),
+				})
+			}
+		}
+		for _, overlap := range declaration.Relationships.Overlaps {
+			if overlap.Tool == "" {
+				findings = append(findings, Finding{
+					Check: "tool-declaration-invalid", Level: "error",
+					Message: fmt.Sprintf("tool %q has an overlap with no tool name", name),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+func invalidToolDeclaration(declaration ToolDeclaration) string {
+	switch declaration.Type {
+	case "", "exec":
+		if declaration.Init != "" {
+			return fmt.Sprintf("exec declaration has builtin init %q", declaration.Init)
+		}
+	case "builtin":
+		if declaration.Init == "" {
+			return "builtin declaration has no init"
+		}
+	default:
+		return fmt.Sprintf("unknown type %q", declaration.Type)
+	}
+	switch declaration.Visibility {
+	case "", "internal", "external":
+	default:
+		return fmt.Sprintf("unknown visibility %q", declaration.Visibility)
+	}
+	switch declaration.Reversibility.Classification {
+	case "", "reversible", "compensatable", "irreversible":
+	default:
+		return fmt.Sprintf(
+			"unknown reversibility classification %q",
+			declaration.Reversibility.Classification,
+		)
+	}
+	return ""
 }
 
 // checkSelectedToolContractCompleteness audits selected tool declarations in the
@@ -64,7 +122,7 @@ func checkSelectedToolContractCompleteness(corpus *Corpus) []Finding {
 
 func selectedToolConsumers(corpus *Corpus) map[string][]string {
 	consumers := make(map[string][]string)
-	for _, selectionName := range sortedToolSelectionKeys(corpus.ToolSelections) {
+	for _, selectionName := range sortedKeys(corpus.ToolSelections) {
 		seenInSelection := make(map[string]bool)
 		for _, toolName := range corpus.ToolSelections[selectionName] {
 			if toolName == "" || seenInSelection[toolName] {
@@ -91,7 +149,7 @@ func missingToolContractFields(td ToolDeclaration) []string {
 		{"non_goals", len(td.NonGoals) > 0},
 		{"emits", len(td.Emits) > 0},
 		{"output.schema", len(td.Output.Schema) > 0},
-		{"side_effects", len(td.SideEffects.Items) > 0},
+		{"side_effects", td.SideEffects.LegacyText != "" || len(td.SideEffects.Items) > 0},
 		{"reversibility.classification", td.Reversibility.Classification != ""},
 		{"undo.strategy", td.Undo.Strategy != ""},
 		{"errors", len(td.Errors) > 0},
@@ -104,15 +162,6 @@ func missingToolContractFields(td ToolDeclaration) []string {
 		}
 	}
 	return missing
-}
-
-func sortedToolSelectionKeys(selections map[string][]string) []string {
-	keys := make([]string, 0, len(selections))
-	for key := range selections {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func sortedKeys(values map[string][]string) []string {

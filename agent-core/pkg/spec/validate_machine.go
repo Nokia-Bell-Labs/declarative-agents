@@ -167,18 +167,21 @@ func checkMachineDiagnostics(corpus *Corpus) []Finding {
 	for _, agentName := range corpus.MachineOrder {
 		ms := corpus.Machines[agentName]
 		for _, diag := range core.DiagnoseMachineSpec(ms) {
-			level := "warning"
-			if diag.Severity == core.MachineDiagnosticWarning {
-				level = "warning"
-			}
 			findings = append(findings, Finding{
 				Check:   "machine-diagnostic-" + diag.Code,
-				Level:   level,
+				Level:   machineDiagnosticLevel(diag.Severity),
 				Message: fmt.Sprintf("machine %s: %s", agentName, diag.Message),
 			})
 		}
 	}
 	return findings
+}
+
+func machineDiagnosticLevel(severity core.MachineDiagnosticSeverity) string {
+	if severity == core.MachineDiagnosticWarning {
+		return "warning"
+	}
+	return "error"
 }
 
 // Errors returns only error-level findings.
