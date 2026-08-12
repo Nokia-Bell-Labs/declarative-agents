@@ -112,8 +112,10 @@ need the persistent OTLP ingress: the canonical collector agent run as a
 background host process, accepting both trace and metric exports on one gRPC
 listener and retaining them in its spool (srd008-telemetry R9, srd042 R8/R9).
 There is no docker-compose stack and no Prometheus backend; kind remains the
-only Docker consumer. The spool outlives any one integration run — `down`
-keeps it and only `reset` deletes it.
+only Docker consumer. Standalone targets leave the host collector running for
+reuse. The aggregate stops its collector after every concurrent lane finishes,
+so removing its source worktree cannot orphan a process; the spool still
+outlives the run. `down` also keeps that evidence, and only `reset` deletes it.
 
 ```bash
 mage observability:up      # build the agent and start the ingress, or reuse a healthy one
