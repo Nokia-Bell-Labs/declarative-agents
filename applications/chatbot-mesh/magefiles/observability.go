@@ -36,6 +36,11 @@ const (
 	collectorProfileRel     = "agents/collector/profile.yaml"
 	observabilityStartWait  = 20 * time.Second
 	observabilityStopWait   = 15 * time.Second
+
+	collectorReconciliationLockDir  = "declarative-agents"
+	collectorReconciliationLockFile = "collector-reconciliation.lock"
+	collectorReconciliationWait     = 30 * time.Second
+	collectorReconciliationPoll     = 50 * time.Millisecond
 )
 
 var errCollectorNotFound = errors.New("collector process not found")
@@ -57,6 +62,10 @@ var (
 	collectorSignalProcess       = syscall.Kill
 	untrackedCollectorStopWait   = observabilityStopWait
 	currentCollectorSource       = expectedCollectorSource
+	runCollectorReconciliation   = withCollectorReconciliationLock
+	collectorReconciliationPath  = gitCommonCollectorLockPath
+	collectorReconciliationSleep = time.Sleep
+	readCollectorProcessState    = collectorProcessState
 )
 
 var observabilityOutput io.Writer = os.Stdout
@@ -68,6 +77,10 @@ type Observability mg.Namespace
 
 // Up starts the collector-agent ingress or reuses an already healthy one.
 func (Observability) Up() error {
+	return runCollectorReconciliation("up", observabilityUp)
+}
+
+func observabilityUp() error {
 	fingerprint, err := currentCollectorFingerprint()
 	if err != nil {
 		return err
@@ -115,20 +128,22 @@ func (Observability) Up() error {
 
 // Down stops the collector ingress and keeps the spooled evidence.
 func (Observability) Down() error {
-	return stopCollectorProcess()
+	return runCollectorReconciliation("down", stopCollectorProcess)
 }
 
 // Reset stops the collector ingress and deletes the retained spool.
 func (Observability) Reset() error {
-	if err := stopCollectorProcess(); err != nil {
-		return err
-	}
-	spool := filepath.Join(observabilityStateDir, observabilitySpoolDir)
-	if err := os.RemoveAll(spool); err != nil {
-		return fmt.Errorf("remove collector spool %s: %w", spool, err)
-	}
-	fmt.Printf("+ removed collector spool %s\n", spool)
-	return nil
+	return runCollectorReconciliation("reset", func() error {
+		if err := stopCollectorProcess(); err != nil {
+			return err
+		}
+		spool := filepath.Join(observabilityStateDir, observabilitySpoolDir)
+		if err := os.RemoveAll(spool); err != nil {
+			return fmt.Errorf("remove collector spool %s: %w", spool, err)
+		}
+		fmt.Printf("+ removed collector spool %s\n", spool)
+		return nil
+	})
 }
 
 // Status reports whether the collector ingress is running and healthy.
@@ -176,6 +191,122 @@ type namedPort struct {
 	value string
 }
 
+type collectorLifecycleLock struct {
+	path string
+	file *os.File
+}
+
+func withCollectorReconciliationLock(
+	action string,
+	run func() error,
+) (result error) {
+	path, err := collectorReconciliationPath()
+	if err != nil {
+		return fmt.Errorf("resolve collector reconciliation lock for %s: %w", action, err)
+	}
+	lock, err := acquireCollectorLifecycleLock(path, action, collectorReconciliationWait)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		result = errors.Join(result, lock.release())
+	}()
+	return run()
+}
+
+func acquireCollectorLifecycleLock(
+	path, action string,
+	timeout time.Duration,
+) (*collectorLifecycleLock, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, fmt.Errorf("create collector reconciliation lock directory: %w", err)
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("open collector reconciliation lock %s: %w", path, err)
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			if truncateErr := file.Truncate(0); truncateErr != nil {
+				_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+				_ = file.Close()
+				return nil, fmt.Errorf("truncate collector reconciliation lock: %w", truncateErr)
+			}
+			if _, seekErr := file.Seek(0, io.SeekStart); seekErr != nil {
+				_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+				_ = file.Close()
+				return nil, fmt.Errorf("seek collector reconciliation lock: %w", seekErr)
+			}
+			cwd, _ := os.Getwd()
+			if _, writeErr := fmt.Fprintf(file,
+				"pid=%d action=%s cwd=%s acquired=%s\n",
+				os.Getpid(), action, cwd, time.Now().UTC().Format(time.RFC3339Nano)); writeErr != nil {
+				_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+				_ = file.Close()
+				return nil, fmt.Errorf("write collector reconciliation lock metadata: %w", writeErr)
+			}
+			return &collectorLifecycleLock{path: path, file: file}, nil
+		}
+		if err != syscall.EWOULDBLOCK && err != syscall.EAGAIN {
+			_ = file.Close()
+			return nil, fmt.Errorf("acquire collector reconciliation lock %s: %w", path, err)
+		}
+		if !time.Now().Before(deadline) {
+			_, _ = file.Seek(0, io.SeekStart)
+			holder, _ := io.ReadAll(file)
+			_ = file.Close()
+			return nil, fmt.Errorf(
+				"collector reconciliation %s timed out after %s waiting for %s (holder: %s)",
+				action, timeout, path, strings.TrimSpace(string(holder)))
+		}
+		collectorReconciliationSleep(collectorReconciliationPoll)
+	}
+}
+
+func (lock *collectorLifecycleLock) release() error {
+	if lock == nil || lock.file == nil {
+		return nil
+	}
+	unlockErr := syscall.Flock(int(lock.file.Fd()), syscall.LOCK_UN)
+	closeErr := lock.file.Close()
+	if unlockErr != nil {
+		unlockErr = fmt.Errorf("release collector reconciliation lock %s: %w",
+			lock.path, unlockErr)
+	}
+	if closeErr != nil {
+		closeErr = fmt.Errorf("close collector reconciliation lock %s: %w",
+			lock.path, closeErr)
+	}
+	return errors.Join(unlockErr, closeErr)
+}
+
+func gitCommonCollectorLockPath() (string, error) {
+	root, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	commonDir, err := collectorCommandOutput("git", "rev-parse", "--git-common-dir")
+	if err != nil {
+		return "", fmt.Errorf("resolve Git common directory: %w: %s",
+			err, strings.TrimSpace(commonDir))
+	}
+	commonDir = strings.TrimSpace(commonDir)
+	if commonDir == "" {
+		return "", errors.New("Git common directory is empty")
+	}
+	if !filepath.IsAbs(commonDir) {
+		commonDir = filepath.Join(root, commonDir)
+	}
+	commonDir, err = filepath.Abs(commonDir)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Clean(commonDir),
+		collectorReconciliationLockDir, collectorReconciliationLockFile), nil
+}
+
 func observabilityPorts() []namedPort {
 	return observabilityPortsFrom(demoObservability())
 }
@@ -184,6 +315,7 @@ func observabilityPortsFrom(settings observabilitySettings) []namedPort {
 	return []namedPort{
 		{"OTLP gRPC", settings.OTELGRPCPort},
 		{"Collector control", settings.ControlPort},
+		{"Collector monitor", settings.MonitorPort},
 		{"Collector query", settings.QueryPort},
 	}
 }
@@ -231,7 +363,12 @@ func startCollector() error {
 		return fmt.Errorf("start collector ingress: %w", err)
 	}
 	pid := cmd.Process.Pid
-	_ = cmd.Process.Release()
+	go func() {
+		// Reap the detached child when it exits while this Mage process is still
+		// alive. If Mage exits first, the collector remains in its own process
+		// group and the operating system adopts it.
+		_ = cmd.Wait()
+	}()
 	if err := os.WriteFile(filepath.Join(stateDir, observabilityPidFile),
 		[]byte(strconv.Itoa(pid)), 0o644); err != nil {
 		return fmt.Errorf("record collector pid: %w", err)
@@ -530,7 +667,16 @@ func processAlive(pid int) bool {
 	if pid <= 0 {
 		return false
 	}
+	if state, err := readCollectorProcessState(pid); err == nil &&
+		strings.HasPrefix(strings.TrimSpace(state), "Z") {
+		return false
+	}
 	return syscall.Kill(pid, 0) == nil
+}
+
+func collectorProcessState(pid int) (string, error) {
+	return collectorCommandOutput(
+		"ps", "-p", strconv.Itoa(pid), "-o", "stat=")
 }
 
 func portAvailable(name, port string) error {
