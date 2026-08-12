@@ -15,13 +15,13 @@ trigger: Run mage run from the application root.
 preconditions:
   - The demo.yaml catalog_root resolves to a catalog checkout containing the collector and documentation-curator profiles.
   - The demo.yaml core_root resolves to a buildable agent-core checkout.
-  - Local collector ports (4317, 18191, 18192, 18193) and curator ports (18081, 18082, 18084) are available.
+  - Four ephemeral loopback ports can be reserved for the local collector; curator ports (18081, 18082, 18084) are available.
 
 flow:
   - id: F1
     text: mage run builds the agent-core binary and checks whether tracing is enabled (default true, disabled by tracing:false in demo.yaml).
   - id: F2
-    text: When tracing is enabled, the run target starts the collector agent in spool mode with the canonical collector profile, binding the OTLP receiver to 127.0.0.1:4317 and the query surface to port 18193.
+    text: When tracing is enabled, the run target reserves distinct ephemeral loopback receiver, control, monitor, and query ports, starts the collector agent in spool mode with the canonical collector profile, and prints the selected query URL.
   - id: F3
     text: The run target waits for the collector control endpoint to become healthy before proceeding.
   - id: F4
@@ -33,7 +33,7 @@ flow:
 
 success_criteria:
   - id: S1
-    criterion: The collector agent starts before the curator and binds its receiver, control, and query ports.
+    criterion: The collector agent starts before the curator and binds four reserved loopback endpoints that do not overlap another application collector.
     traces:
       - architecture-agent-architecture design_decisions 7
       - test-rel01.0-demo-trace-collection collector_command

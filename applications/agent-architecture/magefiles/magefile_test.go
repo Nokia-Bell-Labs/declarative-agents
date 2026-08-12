@@ -486,10 +486,11 @@ func TestPostExitRequestReportsRejectedRequest(t *testing.T) {
 }
 
 func TestCollectorLifecycleURLsFollowControlRoutes(t *testing.T) {
-	if got := collectorHealthURL(); got != collectorControlAddress+"/api/lifecycle/health" {
+	controlAddress := "http://127.0.0.1:29001"
+	if got := collectorHealthURL(controlAddress); got != controlAddress+"/api/lifecycle/health" {
 		t.Fatalf("health URL = %s", got)
 	}
-	if got := collectorExitURL(); got != collectorControlAddress+"/api/lifecycle/exit" {
+	if got := collectorExitURL(controlAddress); got != controlAddress+"/api/lifecycle/exit" {
 		t.Fatalf("exit URL = %s", got)
 	}
 }
@@ -502,7 +503,16 @@ func TestCollectorCommandConstruction(t *testing.T) {
 	}
 	binary := filepath.Join(string(filepath.Separator), "tmp", "agent")
 	spool := filepath.Join(string(filepath.Separator), "tmp", "spool", "collector.ndjson")
-	cmd := collectorCommand(resolved, binary, spool)
+	endpoints := collectorEndpoints{
+		ReceiverAddress: "127.0.0.1:29000",
+		ControlAddress:  "http://127.0.0.1:29001",
+		MonitorAddress:  "http://127.0.0.1:29002",
+		QueryAddress:    "http://127.0.0.1:29003",
+		ControlPort:     "29001",
+		MonitorPort:     "29002",
+		QueryPort:       "29003",
+	}
+	cmd := collectorCommand(resolved, binary, spool, endpoints)
 	wantArgs := []string{
 		binary,
 		"--profile", filepath.Join(resolved.Catalog, filepath.FromSlash(collectorProfile)),
@@ -525,10 +535,10 @@ func TestCollectorCommandConstruction(t *testing.T) {
 	wantEnv := map[string]string{
 		"COLLECTOR_MODE":             "spool",
 		"COLLECTOR_BIND_HOST":        "127.0.0.1",
-		"COLLECTOR_RECEIVER_ADDRESS": collectorReceiverAddress,
-		"COLLECTOR_CONTROL_PORT":     "18191",
-		"COLLECTOR_MONITOR_PORT":     "18192",
-		"COLLECTOR_QUERY_PORT":       "18193",
+		"COLLECTOR_RECEIVER_ADDRESS": endpoints.ReceiverAddress,
+		"COLLECTOR_CONTROL_PORT":     endpoints.ControlPort,
+		"COLLECTOR_MONITOR_PORT":     endpoints.MonitorPort,
+		"COLLECTOR_QUERY_PORT":       endpoints.QueryPort,
 		"COLLECTOR_SPOOL_PATH":       spool,
 	}
 	for key, want := range wantEnv {
@@ -545,12 +555,13 @@ func TestTracedCuratorCommand(t *testing.T) {
 		Core:        filepath.Join(string(filepath.Separator), "work", "agent-core"),
 	}
 	binary := filepath.Join(string(filepath.Separator), "tmp", "agent")
+	endpoints := collectorEndpoints{ReceiverAddress: "127.0.0.1:29000"}
 	plan := runCommandPlan(resolved, binary)
 	plan.Run.Args = append(plan.Run.Args,
-		"--otel-otlp-endpoint", collectorReceiverAddress,
+		"--otel-otlp-endpoint", endpoints.ReceiverAddress,
 		"--otel-service-name", "knowledge-manager-curator")
 	wantSuffix := []string{
-		"--otel-otlp-endpoint", collectorReceiverAddress,
+		"--otel-otlp-endpoint", endpoints.ReceiverAddress,
 		"--otel-service-name", "knowledge-manager-curator",
 	}
 	got := plan.Run.Args[len(plan.Run.Args)-4:]

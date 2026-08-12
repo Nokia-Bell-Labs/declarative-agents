@@ -20,16 +20,13 @@ import (
 )
 
 const (
-	applicationModule        = "github.com/Nokia-Bell-Labs/declarative-agents/applications/agent-architecture"
-	demoConfigFile           = "demo.yaml"
-	defaultCatalogRoot       = "../catalog"
-	defaultCoreRoot          = "../../agent-core"
-	canonicalProfile         = "agents/knowledge-manager/documentation-curator/profile.yaml"
-	collectorProfile         = "agents/collector/profile.yaml"
-	collectorControlAddress  = "http://127.0.0.1:18191"
-	collectorQueryAddress    = "http://127.0.0.1:18193"
-	collectorReceiverAddress = "127.0.0.1:4317"
-	collectorHealthTimeout   = 15 * time.Second
+	applicationModule      = "github.com/Nokia-Bell-Labs/declarative-agents/applications/agent-architecture"
+	demoConfigFile         = "demo.yaml"
+	defaultCatalogRoot     = "../catalog"
+	defaultCoreRoot        = "../../agent-core"
+	canonicalProfile       = "agents/knowledge-manager/documentation-curator/profile.yaml"
+	collectorProfile       = "agents/collector/profile.yaml"
+	collectorHealthTimeout = 15 * time.Second
 )
 
 // demoConfig carries the optional, declarative overrides the agent-architecture
@@ -192,13 +189,15 @@ func Run() error {
 	tracing := resolved.Tracing
 	var collectorCleanup func()
 	if tracing {
-		collectorCleanup, err = startCollectorAgent(resolved, binary)
+		var endpoints collectorEndpoints
+		endpoints, collectorCleanup, err = startCollectorAgent(resolved, binary)
 		if err != nil {
 			return err
 		}
 		plan.Run.Args = append(plan.Run.Args,
-			"--otel-otlp-endpoint", collectorReceiverAddress,
+			"--otel-otlp-endpoint", endpoints.ReceiverAddress,
 			"--otel-service-name", "knowledge-manager-curator")
+		fmt.Printf("collector query: %s/query/traces\n", endpoints.QueryAddress)
 	}
 
 	plan.Run.Stdin, plan.Run.Stdout, plan.Run.Stderr = os.Stdin, os.Stdout, os.Stderr
@@ -410,7 +409,11 @@ func tracingEnabled(config demoConfig) bool {
 	return config.Tracing == nil || *config.Tracing
 }
 
-func collectorCommand(resolved roots, binary, spoolDir string) *exec.Cmd {
+func collectorCommand(
+	resolved roots,
+	binary, spoolDir string,
+	endpoints collectorEndpoints,
+) *exec.Cmd {
 	cmd := exec.Command(
 		binary,
 		"--profile", filepath.Join(resolved.Catalog, filepath.FromSlash(collectorProfile)),
@@ -421,47 +424,59 @@ func collectorCommand(resolved roots, binary, spoolDir string) *exec.Cmd {
 	cmd.Env = append(os.Environ(),
 		"COLLECTOR_MODE=spool",
 		"COLLECTOR_BIND_HOST=127.0.0.1",
-		"COLLECTOR_RECEIVER_ADDRESS="+collectorReceiverAddress,
-		"COLLECTOR_CONTROL_PORT=18191",
-		"COLLECTOR_MONITOR_PORT=18192",
-		"COLLECTOR_QUERY_PORT=18193",
+		"COLLECTOR_RECEIVER_ADDRESS="+endpoints.ReceiverAddress,
+		"COLLECTOR_CONTROL_PORT="+endpoints.ControlPort,
+		"COLLECTOR_MONITOR_PORT="+endpoints.MonitorPort,
+		"COLLECTOR_QUERY_PORT="+endpoints.QueryPort,
 		"COLLECTOR_SPOOL_PATH="+spoolDir,
 	)
 	return cmd
 }
 
-func startCollectorAgent(resolved roots, binary string) (func(), error) {
+func startCollectorAgent(
+	resolved roots,
+	binary string,
+) (collectorEndpoints, func(), error) {
 	spoolDir, err := os.MkdirTemp("", "collector-spool-*")
 	if err != nil {
-		return nil, fmt.Errorf("create collector spool directory: %w", err)
+		return collectorEndpoints{}, nil,
+			fmt.Errorf("create collector spool directory: %w", err)
 	}
+	reservation, err := reserveCollectorEndpoints()
+	if err != nil {
+		_ = os.RemoveAll(spoolDir)
+		return collectorEndpoints{}, nil, err
+	}
+	endpoints := reservation.endpoints
 	// COLLECTOR_SPOOL_PATH names the spool file, not its directory; the
 	// collector reads a directory path as NDJSON and fails (GH-1168).
-	cmd := collectorCommand(resolved, binary, filepath.Join(spoolDir, "collector.ndjson"))
+	cmd := collectorCommand(
+		resolved, binary, filepath.Join(spoolDir, "collector.ndjson"), endpoints)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	reservation.release()
 	if err := cmd.Start(); err != nil {
 		_ = os.RemoveAll(spoolDir)
-		return nil, fmt.Errorf("start collector agent: %w", err)
+		return collectorEndpoints{}, nil, fmt.Errorf("start collector agent: %w", err)
 	}
-	if err := waitCollectorHealth(); err != nil {
+	if err := waitCollectorHealth(endpoints.ControlAddress); err != nil {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 		_ = os.RemoveAll(spoolDir)
-		return nil, err
+		return collectorEndpoints{}, nil, err
 	}
 	cleanup := func() {
-		postCollectorExit()
+		postCollectorExit(endpoints.ControlAddress)
 		_ = cmd.Wait()
 		_ = os.RemoveAll(spoolDir)
 	}
-	return cleanup, nil
+	return endpoints, cleanup, nil
 }
 
-func waitCollectorHealth() error {
+func waitCollectorHealth(controlAddress string) error {
 	deadline := time.Now().Add(collectorHealthTimeout)
 	client := &http.Client{Timeout: 2 * time.Second}
 	for time.Now().Before(deadline) {
-		resp, err := client.Get(collectorHealthURL())
+		resp, err := client.Get(collectorHealthURL(controlAddress))
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -475,16 +490,16 @@ func waitCollectorHealth() error {
 
 // collectorHealthURL and collectorExitURL follow the collector control
 // server's lifecycle routes (agents/collector/rest.yaml).
-func collectorHealthURL() string {
-	return collectorControlAddress + "/api/lifecycle/health"
+func collectorHealthURL(controlAddress string) string {
+	return controlAddress + "/api/lifecycle/health"
 }
 
-func collectorExitURL() string {
-	return collectorControlAddress + "/api/lifecycle/exit"
+func collectorExitURL(controlAddress string) string {
+	return controlAddress + "/api/lifecycle/exit"
 }
 
-func postCollectorExit() {
-	if err := postExitRequest(collectorExitURL()); err != nil {
+func postCollectorExit(controlAddress string) {
+	if err := postExitRequest(collectorExitURL(controlAddress)); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: collector exit request failed, collector may keep its ports: %v\n", err)
 	}
 }

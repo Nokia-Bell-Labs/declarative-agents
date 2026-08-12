@@ -416,12 +416,45 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 		{name: "applications/coding-agent integration", dir: "/release/applications/coding-agent",
 			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/coding-agent"},
 		{name: "applications/agent-architecture integration", dir: "/release/applications/agent-architecture",
-			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/chatbot-mesh"},
+			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/agent-architecture"},
 		{name: "applications/prose-editor integration", dir: "/release/applications/prose-editor",
 			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/prose-editor"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("release gates = %#v, want %#v", got, want)
+	}
+}
+
+func TestChatbotAndArchitectureReleaseGatesCanOverlap(t *testing.T) {
+	var selected []releaseGate
+	for _, gate := range releaseGates("/release") {
+		if gate.name == "applications/chatbot-mesh integration" ||
+			gate.name == "applications/agent-architecture integration" {
+			selected = append(selected, gate)
+		}
+	}
+	if len(selected) != 2 || selected[0].lane == selected[1].lane {
+		t.Fatalf("application release lanes are not independent: %#v", selected)
+	}
+	started := make(chan string, 2)
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- executeReleaseStage(selected, 2, func(gate releaseGate) error {
+			started <- gate.name
+			<-release
+			return nil
+		})
+	}()
+	first, second := <-started, <-started
+	got := map[string]bool{first: true, second: true}
+	if !got["applications/chatbot-mesh integration"] ||
+		!got["applications/agent-architecture integration"] {
+		t.Fatalf("concurrent gates = %q, %q", first, second)
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
 

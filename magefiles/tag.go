@@ -188,19 +188,12 @@ func releaseGates(root string) []releaseGate {
 	// own integration:all aggregate; otherwise an application is tagged without
 	// its application-owned integration evidence ever running (GH-1343).
 	for _, mod := range applicationModules {
-		lane := mod
-		// Chatbot Mesh and Agent Architecture use the same collector ports
-		// (18191-18193). Keep them in one lane while Coding Agent (182xx) and
-		// Prose Editor's dynamically allocated listeners run independently.
-		if mod == "applications/agent-architecture" {
-			lane = "applications/chatbot-mesh"
-		}
 		gates = append(gates, releaseGate{
 			name:  mod + " integration",
 			dir:   filepath.Join(root, filepath.FromSlash(mod)),
 			args:  []string{"mage", "integration:all"},
 			stage: 4,
-			lane:  lane,
+			lane:  mod,
 		})
 	}
 	return gates
@@ -222,6 +215,7 @@ func executeReleaseGates(gates []releaseGate, run releaseCommandRunner) error {
 
 type releaseLane struct {
 	index int
+	name  string
 	gates []releaseGate
 }
 
@@ -248,7 +242,7 @@ func executeReleaseStage(
 	launch := func(lane releaseLane) {
 		active++
 		go func() {
-			results <- releaseLaneResult{index: lane.index, err: executeReleaseLane(lane.gates, run)}
+			results <- releaseLaneResult{index: lane.index, err: executeReleaseLane(lane, run)}
 		}()
 	}
 	for next < len(lanes) && active < limit {
@@ -287,15 +281,17 @@ func releaseLanes(gates []releaseGate) []releaseLane {
 		if !ok {
 			index = len(lanes)
 			indexByName[laneName] = index
-			lanes = append(lanes, releaseLane{index: index})
+			lanes = append(lanes, releaseLane{index: index, name: laneName})
 		}
 		lanes[index].gates = append(lanes[index].gates, gate)
 	}
 	return lanes
 }
 
-func executeReleaseLane(gates []releaseGate, run releaseCommandRunner) error {
-	for _, gate := range gates {
+func executeReleaseLane(lane releaseLane, run releaseCommandRunner) error {
+	started := time.Now()
+	fmt.Printf("=== release lane: %s ===\n", lane.name)
+	for _, gate := range lane.gates {
 		started := time.Now()
 		fmt.Printf("=== release gate: %s ===\n", gate.name)
 		if err := run(gate); err != nil {
@@ -305,6 +301,8 @@ func executeReleaseLane(gates []releaseGate, run releaseCommandRunner) error {
 		fmt.Printf("=== release gate complete: %s (%s) ===\n",
 			gate.name, time.Since(started).Round(time.Millisecond))
 	}
+	fmt.Printf("=== release lane complete: %s (%s) ===\n",
+		lane.name, time.Since(started).Round(time.Millisecond))
 	return nil
 }
 
