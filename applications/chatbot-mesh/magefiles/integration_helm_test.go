@@ -136,7 +136,7 @@ func TestHelmFailureEvidenceIsBoundedAndNamesRootCauses(t *testing.T) {
 			case strings.Contains(command, "get events"):
 				return []byte("FailedScheduling: insufficient memory\nFailedMount: PVC is Pending\nErrImagePull: x509 certificate signed by unknown authority"), nil
 			case strings.Contains(command, `-o json`):
-				return []byte(`{"items":[{"metadata":{"name":"smoke-chatbot-0"},"status":{"phase":"Pending","initContainerStatuses":[{"name":"wait-for-llm-models","restartCount":2,"state":{"waiting":{"reason":"PodInitializing","message":"models are not ready"}}}],"containerStatuses":[{"name":"chatbot","restartCount":3,"state":{"waiting":{"reason":"ImagePullBackOff","message":"pull failed"}}}]}}]}`), nil
+				return []byte(`{"items":[{"metadata":{"name":"smoke-chatbot-0"},"status":{"phase":"Pending","initContainerStatuses":[{"name":"wait-for-llm-models","restartCount":2,"state":{"waiting":{"reason":"PodInitializing","message":"models are not ready"}}}],"containerStatuses":[{"name":"chatbot","restartCount":3,"state":{"waiting":{"reason":"ImagePullBackOff","message":"pull failed"}},"lastState":{"terminated":{"exitCode":1,"reason":"Error","message":"invalid config"}}}]}}]}`), nil
 			case strings.Contains(command, "describe pods"):
 				return []byte("Readiness probe failed: connection refused"), nil
 			case strings.Contains(command, "logs"):
@@ -159,15 +159,22 @@ func TestHelmFailureEvidenceIsBoundedAndNamesRootCauses(t *testing.T) {
 			"initContainerStatuses",
 			"pod/smoke-chatbot-0 init/wait-for-llm-models unready: state=waiting reason=PodInitializing",
 			"pod/smoke-chatbot-0 container/chatbot unready: state=waiting reason=ImagePullBackOff",
+			"last_terminated_reason=Error exit_code=1",
 		} {
 			if !strings.Contains(report, want) {
 				t.Errorf("failure evidence missing %q:\n%s", want, report)
 			}
 		}
-		for _, command := range commands {
-			if strings.Contains(command, "kubectl logs") &&
-				!strings.Contains(command, "--max-log-requests=50") {
-				t.Errorf("log diagnostic is not bounded for all release pods: %s", command)
+		joinedCommands := strings.Join(commands, "\n")
+		for _, want := range []string{
+			"kubectl logs pod/smoke-chatbot-0 -c wait-for-llm-models --tail=120",
+			"kubectl logs pod/smoke-chatbot-0 -c wait-for-llm-models --tail=120 --previous",
+			"kubectl logs pod/smoke-chatbot-0 -c chatbot --tail=120",
+			"kubectl logs pod/smoke-chatbot-0 -c chatbot --tail=120 --previous",
+		} {
+			if !strings.Contains(joinedCommands, want) {
+				t.Errorf("per-container log diagnostics missing %q:\n%s",
+					want, joinedCommands)
 			}
 		}
 		data, err := os.ReadFile(filepath.Join(dir, "bounded-diagnostics.txt"))
@@ -833,6 +840,11 @@ func TestChatbotRolloutDrainsActiveRequests(t *testing.T) {
 	} {
 		if !strings.Contains(render, want) {
 			t.Errorf("rendered chatbot rollout contract missing %q", want)
+		}
+	}
+	for _, line := range strings.Split(render, "\n") {
+		if strings.TrimSpace(line) == "drain_policy: drain" {
+			t.Fatal("rendered chatbot REST config uses unsupported drain policy")
 		}
 	}
 }

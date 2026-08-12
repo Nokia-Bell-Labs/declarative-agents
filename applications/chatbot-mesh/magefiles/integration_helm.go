@@ -2289,14 +2289,6 @@ func helmFailureDiagnosticCommands(release string) []helmDiagnosticCommand {
 		{label: "pod scheduling and probes", name: "kubectl", args: []string{
 			"describe", "pods", "-l", selector,
 		}},
-		{label: "current container and init logs", name: "kubectl", args: []string{
-			"logs", "-l", selector, "--all-containers=true", "--prefix=true",
-			"--max-log-requests=50", "--tail=120",
-		}},
-		{label: "previous container and init logs", name: "kubectl", args: []string{
-			"logs", "-l", selector, "--all-containers=true", "--prefix=true",
-			"--max-log-requests=50", "--previous", "--tail=120",
-		}},
 	}
 }
 
@@ -2320,6 +2312,7 @@ type helmPodContainerStatus struct {
 	Ready        bool                  `json:"ready"`
 	RestartCount int                   `json:"restartCount"`
 	State        helmPodContainerState `json:"state"`
+	LastState    helmPodContainerState `json:"lastState"`
 }
 
 func summarizeHelmUnreadyPods(data []byte) string {
@@ -2378,6 +2371,9 @@ func helmContainerUnreadyCause(
 		state = "waiting"
 		reason = status.State.Waiting.Reason
 		message = status.State.Waiting.Message
+		if previous := helmTerminatedState(status.LastState); previous != "" {
+			reason += " last_" + previous
+		}
 	case status.State.Terminated != nil:
 		if kind == "init" && status.State.Terminated.ExitCode == 0 {
 			return ""
@@ -2392,6 +2388,89 @@ func helmContainerUnreadyCause(
 	return fmt.Sprintf(
 		"pod/%s %s/%s unready: state=%s reason=%s message=%s restarts=%d",
 		pod, kind, status.Name, state, reason, message, status.RestartCount)
+}
+
+func helmTerminatedState(state helmPodContainerState) string {
+	if state.Terminated == nil {
+		return ""
+	}
+	return fmt.Sprintf("terminated_reason=%s exit_code=%d",
+		state.Terminated.Reason, state.Terminated.ExitCode)
+}
+
+type helmPodContainerRef struct {
+	Pod          string
+	Kind         string
+	Container    string
+	RestartCount int
+}
+
+func helmPodContainerRefs(data []byte) []helmPodContainerRef {
+	var pods struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Status struct {
+				InitContainerStatuses []helmPodContainerStatus `json:"initContainerStatuses"`
+				ContainerStatuses     []helmPodContainerStatus `json:"containerStatuses"`
+			} `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(data, &pods); err != nil {
+		return nil
+	}
+	var refs []helmPodContainerRef
+	for _, pod := range pods.Items {
+		for _, status := range pod.Status.InitContainerStatuses {
+			refs = append(refs, helmPodContainerRef{
+				Pod: pod.Metadata.Name, Kind: "init",
+				Container: status.Name, RestartCount: status.RestartCount,
+			})
+		}
+		for _, status := range pod.Status.ContainerStatuses {
+			refs = append(refs, helmPodContainerRef{
+				Pod: pod.Metadata.Name, Kind: "container",
+				Container: status.Name, RestartCount: status.RestartCount,
+			})
+		}
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		left := refs[i].Pod + "/" + refs[i].Kind + "/" + refs[i].Container
+		right := refs[j].Pod + "/" + refs[j].Kind + "/" + refs[j].Container
+		return left < right
+	})
+	return refs
+}
+
+func collectHelmContainerLogs(
+	ctx context.Context,
+	podStatus []byte,
+	run helmDiagnosticRunner,
+) string {
+	var report strings.Builder
+	for _, ref := range helmPodContainerRefs(podStatus) {
+		args := []string{
+			"logs", "pod/" + ref.Pod, "-c", ref.Container, "--tail=120",
+		}
+		out, err := run(ctx, "kubectl", args...)
+		fmt.Fprintf(&report, "\n\n== current log pod/%s %s/%s ==\n%s",
+			ref.Pod, ref.Kind, ref.Container, strings.TrimSpace(string(out)))
+		if err != nil {
+			fmt.Fprintf(&report, "\n[diagnostic failed: %v]", err)
+		}
+		if ref.RestartCount == 0 {
+			continue
+		}
+		previousArgs := append(append([]string(nil), args...), "--previous")
+		out, err = run(ctx, "kubectl", previousArgs...)
+		fmt.Fprintf(&report, "\n\n== previous log pod/%s %s/%s ==\n%s",
+			ref.Pod, ref.Kind, ref.Container, strings.TrimSpace(string(out)))
+		if err != nil {
+			fmt.Fprintf(&report, "\n[diagnostic failed: %v]", err)
+		}
+	}
+	return report.String()
 }
 
 func collectHelmFailureDiagnostics(
@@ -2421,6 +2500,7 @@ func collectHelmFailureDiagnostics(
 	if summary := summarizeHelmUnreadyPods(podStatus); summary != "" {
 		fmt.Fprintf(&report, "\n\n== unready root causes ==\n%s", summary)
 	}
+	report.WriteString(collectHelmContainerLogs(ctx, podStatus, run))
 	return report.String()
 }
 
