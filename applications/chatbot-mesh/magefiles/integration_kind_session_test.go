@@ -175,6 +175,8 @@ func TestPrepareAggregateNamespaceCreatesSelectsAndCleansOnlyOwnedNamespace(t *t
 		"kubectl create namespace da-helm-smoke",
 		"kubectl config set-context --current --namespace da-helm-smoke",
 		"helm uninstall smoke --namespace da-helm-smoke --ignore-not-found",
+		"kubectl delete pod --all --namespace da-helm-smoke --ignore-not-found=true --wait=true --timeout=60s",
+		"kubectl delete persistentvolumeclaim --all --namespace da-helm-smoke --ignore-not-found=true --wait=true --timeout=60s",
 		"kubectl delete namespace da-helm-smoke --ignore-not-found=true --wait=false",
 		"kubectl wait --for=delete namespace/da-helm-smoke --timeout=180s",
 		"kubectl get namespace da-helm-smoke",
@@ -237,6 +239,108 @@ func TestPrepareAggregateNamespaceIsNoopForDirectTarget(t *testing.T) {
 	}
 	if called {
 		t.Fatal("direct target invoked aggregate namespace commands")
+	}
+}
+
+func TestApplierLiveUsesOwnedAggregateClusterAndIsolatedNamespace(t *testing.T) {
+	session := newIntegrationKindSession(t.TempDir())
+	deactivate, err := activateIntegrationKindSession(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer deactivate()
+	var calls []string
+	run := func(name string, args ...string) ([]byte, error) {
+		call := name + " " + strings.Join(args, " ")
+		calls = append(calls, call)
+		if call == "kubectl get namespace da-applier-live" {
+			return nil, errors.New("not found")
+		}
+		return nil, nil
+	}
+	if cluster := aggregateClusterName(applierLiveCluster); cluster != aggregateKindCluster {
+		t.Fatalf("applierLive cluster = %q, want aggregate %q", cluster, aggregateKindCluster)
+	}
+	if !adoptAggregateKindCluster(
+		kindrig.Cluster{Name: aggregateKindCluster, Created: true},
+		func(args ...string) ([]byte, error) { return run("kind", args...) },
+		kindrig.FailureEvidence{Directory: t.TempDir()},
+	) {
+		t.Fatal("applierLive aggregate cluster was not adopted")
+	}
+	if !aggregateKindClusterOwned(aggregateKindCluster) {
+		t.Fatal("session did not retain aggregate ownership for applierLive diagnostics")
+	}
+	namespace, cleanup, err := prepareAggregateNamespace(
+		run, "applier-live", applierLiveRelease)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if namespace != "da-applier-live" {
+		t.Fatalf("namespace = %q, want da-applier-live", namespace)
+	}
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(calls, "\n")
+	for _, want := range []string{
+		"kubectl create namespace da-applier-live",
+		"helm uninstall live --namespace da-applier-live --ignore-not-found",
+		"kubectl delete namespace da-applier-live --ignore-not-found=true --wait=false",
+		"kubectl wait --for=delete namespace/da-applier-live --timeout=180s",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("applierLive lifecycle missing %q:\n%s", want, joined)
+		}
+	}
+}
+
+func TestPreparedHostImageReuseRequiresTheRecordedDigest(t *testing.T) {
+	session := newIntegrationKindSession(t.TempDir())
+	deactivate, err := activateIntegrationKindSession(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer deactivate()
+	imageID := "sha256:" + strings.Repeat("a", 64)
+	inspectCalls := 0
+	run := func(name string, args ...string) ([]byte, error) {
+		if name != "docker" ||
+			strings.Join(args, " ") != "image inspect --format={{.Id}} busybox:1.36" {
+			t.Fatalf("unexpected image inspection: %s %s", name, strings.Join(args, " "))
+		}
+		inspectCalls++
+		return []byte(imageID + "\n"), nil
+	}
+	if reused, err := reusePreparedHostImage(run, "busybox:1.36"); err != nil || reused {
+		t.Fatalf("unrecorded image reused=%v err=%v, want false/nil", reused, err)
+	}
+	if inspectCalls != 0 {
+		t.Fatalf("unrecorded image was inspected %d times, want zero", inspectCalls)
+	}
+	if err := recordPreparedHostImage(run, "busybox:1.36"); err != nil {
+		t.Fatal(err)
+	}
+	if reused, err := reusePreparedHostImage(run, "busybox:1.36"); err != nil || !reused {
+		t.Fatalf("recorded image reused=%v err=%v, want true/nil", reused, err)
+	}
+	imageID = "sha256:" + strings.Repeat("b", 64)
+	if reused, err := reusePreparedHostImage(run, "busybox:1.36"); err != nil || reused {
+		t.Fatalf("retagged image reused=%v err=%v, want false/nil", reused, err)
+	}
+}
+
+func TestNormalizedDockerImageReferenceMatchesContainerdNames(t *testing.T) {
+	tests := map[string]string{
+		"busybox:1.36":                            "docker.io/library/busybox:1.36",
+		"otel/opentelemetry-collector:0.127.0":    "docker.io/otel/opentelemetry-collector:0.127.0",
+		"ghcr.io/example/runtime:latest":          "ghcr.io/example/runtime:latest",
+		"localhost:5000/example/runtime@sha256:a": "localhost:5000/example/runtime@sha256:a",
+	}
+	for input, want := range tests {
+		if got := normalizedDockerImageReference(input); got != want {
+			t.Errorf("normalizedDockerImageReference(%q) = %q, want %q", input, got, want)
+		}
 	}
 }
 

@@ -290,11 +290,9 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	if err != nil {
 		return err
 	}
-	for _, image := range dependencyImages {
-		fmt.Printf("helmSmoke: preloading dependency image %s\n", image)
-		if out, pullErr := exec.Command("docker", "pull", "--platform", "linux/"+runtime.GOARCH, image).CombinedOutput(); pullErr != nil {
-			return fmt.Errorf("pull smoke dependency %s: %w: %s", image, pullErr, strings.TrimSpace(string(out)))
-		}
+	if err := pullIntegrationDependencyImages(
+		"helmSmoke", dependencyImages, runHelmSmokeCommand); err != nil {
+		return err
 	}
 
 	kindConfig, cleanupKindConfig, err := stageTelemetryKindConfig(helmKindConfig(chartDir), telemetry)
@@ -524,11 +522,21 @@ func pullIntegrationDependencyImages(
 		if image == helmLLMOllamaImage {
 			source = helmLLMOllamaSourceImage
 		}
+		reused, err := reusePreparedHostImage(run, source)
+		if err != nil {
+			return err
+		}
+		if reused {
+			continue
+		}
 		fmt.Printf("%s: preloading dependency image %s\n", scenario, source)
 		out, err := run("docker", "pull", "--platform", "linux/"+runtime.GOARCH, source)
 		if err != nil {
 			return fmt.Errorf("pull %s dependency %s: %w: %s",
 				scenario, source, err, strings.TrimSpace(string(out)))
+		}
+		if err := recordPreparedHostImage(run, source); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -626,6 +634,14 @@ func loadSmokeDependencyImageWithCommands(
 	commands kindrig.Commands,
 	cluster, image string,
 ) error {
+	present, err := kindNodeHasImage(commands, cluster, image)
+	if err != nil {
+		return err
+	}
+	if present {
+		fmt.Printf("shared kind: reusing prepared node image %s\n", image)
+		return nil
+	}
 	save := commands.Command("docker", "save", image)
 	stream, err := save.StdoutPipe()
 	if err != nil {
@@ -649,6 +665,39 @@ func loadSmokeDependencyImageWithCommands(
 		return fmt.Errorf("load smoke dependency %s: %w: %s", image, err, strings.TrimSpace(output.String()))
 	}
 	return nil
+}
+
+func kindNodeHasImage(
+	commands kindrig.Commands,
+	cluster, image string,
+) (bool, error) {
+	node := cluster + "-control-plane"
+	output, err := commands.Run(
+		"docker", "exec", node, "ctr", "--namespace=k8s.io", "images", "ls", "-q")
+	if err != nil {
+		return false, fmt.Errorf("list prepared images on %s: %w: %s",
+			node, err, strings.TrimSpace(string(output)))
+	}
+	normalized := normalizedDockerImageReference(image)
+	for _, reference := range strings.Fields(string(output)) {
+		if reference == image || reference == normalized {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func normalizedDockerImageReference(image string) string {
+	name := strings.SplitN(image, "@", 2)[0]
+	slash := strings.IndexByte(name, '/')
+	if slash < 0 {
+		return "docker.io/library/" + image
+	}
+	first := name[:slash]
+	if strings.ContainsAny(first, ".:") || first == "localhost" {
+		return image
+	}
+	return "docker.io/" + image
 }
 
 // buildSmokeRuntimeImage verifies and reuses the commit-addressed canonical

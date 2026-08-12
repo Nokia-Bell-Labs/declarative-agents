@@ -35,6 +35,35 @@ func integrationTargets(i Integration) []integrationTarget {
 // and verify shared-session data-plane readiness without the unrelated local,
 // policy, LLM-tier, and applier targets.
 func (i Integration) SharedSmokeSwap() error {
+	return runSharedKindTargets([]integrationTarget{
+		{name: "helmSmoke", fn: i.HelmSmoke, sharedKind: true},
+		{name: "helmSwap", fn: i.HelmSwap, sharedKind: true},
+	})
+}
+
+// SharedSmokeApplier prepares the default-CNI session through the smoke
+// scenario, then measures applierLive on the same clean cluster. It is the
+// focused repeatable gate for the warm applier target's release budget.
+func (i Integration) SharedSmokeApplier() error {
+	return runSharedKindTargets([]integrationTarget{
+		{name: "helmSmoke", fn: i.HelmSmoke, sharedKind: true},
+		{name: "applierLive", fn: i.ApplierLive, sharedKind: true},
+	})
+}
+
+// SharedApplierBenchmark prepares one smoke-proven session and runs the warm
+// applier proof three times, matching the performance acceptance measurement
+// without repeating unrelated application targets or cluster setup.
+func (i Integration) SharedApplierBenchmark() error {
+	return runSharedKindTargets([]integrationTarget{
+		{name: "helmSmoke", fn: i.HelmSmoke, sharedKind: true},
+		{name: "applierLive-1", fn: i.ApplierLive, sharedKind: true},
+		{name: "applierLive-2", fn: i.ApplierLive, sharedKind: true},
+		{name: "applierLive-3", fn: i.ApplierLive, sharedKind: true},
+	})
+}
+
+func runSharedKindTargets(targets []integrationTarget) error {
 	session := newIntegrationKindSession(integrationKindSessionRoot())
 	deactivate, err := activateIntegrationKindSession(session)
 	if err != nil {
@@ -42,10 +71,7 @@ func (i Integration) SharedSmokeSwap() error {
 	}
 	defer deactivate()
 	defer session.close()
-	for _, target := range []integrationTarget{
-		{name: "helmSmoke", fn: i.HelmSmoke, sharedKind: true},
-		{name: "helmSwap", fn: i.HelmSwap, sharedKind: true},
-	} {
+	for _, target := range targets {
 		if err := session.runTarget(target.name, target.fn); err != nil {
 			return err
 		}

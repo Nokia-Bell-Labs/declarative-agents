@@ -18,13 +18,14 @@ const aggregateKindCluster = "da-chatbot-mesh-aggregate"
 const aggregateNamespaceCleanupTimeout = "180s"
 
 type integrationKindSession struct {
-	mu       sync.Mutex
-	root     string
-	cluster  kindrig.Cluster
-	kindRun  kindrig.Runner
-	evidence kindrig.FailureEvidence
-	poisoned error
-	closed   bool
+	mu         sync.Mutex
+	root       string
+	cluster    kindrig.Cluster
+	kindRun    kindrig.Runner
+	evidence   kindrig.FailureEvidence
+	hostImages map[string]string
+	poisoned   error
+	closed     bool
 }
 
 var integrationKindSessionState struct {
@@ -40,6 +41,7 @@ func newIntegrationKindSession(root string) *integrationKindSession {
 			Directory:  filepath.Join(root, "build", "kind-evidence", aggregateKindCluster),
 			Namespaces: []string{"default"},
 		},
+		hostImages: make(map[string]string),
 	}
 }
 
@@ -70,6 +72,69 @@ func aggregateClusterName(standalone string) string {
 		return aggregateKindCluster
 	}
 	return standalone
+}
+
+func aggregateKindClusterOwned(name string) bool {
+	session := activeIntegrationKindSession()
+	if session == nil {
+		return false
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	return session.cluster.Name == name && session.cluster.Created
+}
+
+func reusePreparedHostImage(
+	run helmLLMCommandRunner,
+	image string,
+) (bool, error) {
+	session := activeIntegrationKindSession()
+	if session == nil {
+		return false, nil
+	}
+	session.mu.Lock()
+	expected := session.hostImages[image]
+	session.mu.Unlock()
+	if expected == "" {
+		return false, nil
+	}
+	current, err := inspectHostImageID(run, image)
+	if err != nil || current != expected {
+		return false, nil
+	}
+	fmt.Printf("shared kind: reusing prepared host image %s digest=%s\n", image, current)
+	return true, nil
+}
+
+func recordPreparedHostImage(
+	run helmLLMCommandRunner,
+	image string,
+) error {
+	session := activeIntegrationKindSession()
+	if session == nil {
+		return nil
+	}
+	imageID, err := inspectHostImageID(run, image)
+	if err != nil {
+		return err
+	}
+	session.mu.Lock()
+	session.hostImages[image] = imageID
+	session.mu.Unlock()
+	return nil
+}
+
+func inspectHostImageID(run helmLLMCommandRunner, image string) (string, error) {
+	output, err := run("docker", "image", "inspect", "--format={{.Id}}", image)
+	if err != nil {
+		return "", fmt.Errorf("inspect prepared host image %s: %w: %s",
+			image, err, strings.TrimSpace(string(output)))
+	}
+	imageID := strings.TrimSpace(string(output))
+	if !strings.HasPrefix(imageID, "sha256:") {
+		return "", fmt.Errorf("prepared host image %s has unverified ID %q", image, imageID)
+	}
+	return imageID, nil
 }
 
 // adoptAggregateKindCluster transfers an aggregate-created cluster to the
@@ -158,6 +223,20 @@ func prepareAggregateNamespace(
 		); err != nil {
 			cleanupErrors = append(cleanupErrors,
 				fmt.Errorf("uninstall %s/%s: %w: %s", namespace, release, err, output))
+		}
+		if output, err := run(
+			"kubectl", "delete", "pod", "--all", "--namespace", namespace,
+			"--ignore-not-found=true", "--wait=true", "--timeout=60s",
+		); err != nil {
+			cleanupErrors = append(cleanupErrors,
+				fmt.Errorf("drain aggregate namespace %s pods: %w: %s", namespace, err, output))
+		}
+		if output, err := run(
+			"kubectl", "delete", "persistentvolumeclaim", "--all", "--namespace", namespace,
+			"--ignore-not-found=true", "--wait=true", "--timeout=60s",
+		); err != nil {
+			cleanupErrors = append(cleanupErrors,
+				fmt.Errorf("delete aggregate namespace %s PVCs: %w: %s", namespace, err, output))
 		}
 		if output, err := run(
 			"kubectl", "delete", "namespace", namespace,

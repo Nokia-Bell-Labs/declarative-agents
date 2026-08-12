@@ -4,13 +4,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"time"
 
@@ -100,7 +100,7 @@ spec:
         - deployment/{{ $fullname }}-chatbot
         - --type=strategic
         - -p
-        - '{"spec":{"progressDeadlineSeconds":20,"template":{"spec":{"containers":[{"name":"chatbot","image":"invalid.local/applier-live-rollback:missing"}]}}}}'
+        - '{"spec":{"progressDeadlineSeconds":5,"template":{"spec":{"containers":[{"name":"chatbot","image":"invalid.local/applier-live-rollback:missing"}]}}}}'
 {{- end }}
 {{- end }}
 `
@@ -181,11 +181,16 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 
 	// The shared applier image is FROM the agent-core runtime built above (GH-1368):
 	// agent-core plus helm and kubectl, no baked chart.
-	fmt.Printf("applierLive: building applier image %s on %s\n", images.Applier, images.Runtime)
-	if err := buildApplierImage(coreRoot, images.Runtime, images.Applier); err != nil {
+	fmt.Printf("applierLive: ensuring verified applier image %s on %s\n", images.Applier, images.Runtime)
+	if err := runApplierLivePhase("image-ensure", func() error {
+		_, ensureErr := kindrig.EnsureApplierImage(coreRoot, images.Runtime, images.Applier)
+		return ensureErr
+	}); err != nil {
 		return err
 	}
-	if err := assertApplierImageCarriesItsTools(images.Applier); err != nil {
+	if err := runApplierLivePhase("image-probe", func() error {
+		return assertApplierImageCarriesItsTools(images.Applier)
+	}); err != nil {
 		return err
 	}
 
@@ -203,16 +208,21 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 	if err != nil {
 		return err
 	}
-	for _, image := range dependencyImages {
-		fmt.Printf("applierLive: preloading dependency image %s\n", image)
-		if out, pullErr := exec.Command("docker", "pull", "--platform", "linux/"+runtime.GOARCH, image).CombinedOutput(); pullErr != nil {
-			return fmt.Errorf("pull applier dependency %s: %w: %s", image, pullErr, strings.TrimSpace(string(out)))
-		}
+	if err := runApplierLivePhase("dependency-pull", func() error {
+		return pullIntegrationDependencyImages(
+			"applierLive", dependencyImages, runHelmSmokeCommand)
+	}); err != nil {
+		return err
 	}
 
-	cluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, applierLiveCluster,
-		helmKindConfig(applicationChartDir(profilesRoot)), helmClusterWait)
-	if err != nil {
+	clusterName := aggregateClusterName(applierLiveCluster)
+	var cluster kindrig.Cluster
+	if err := runApplierLivePhase("cluster-ensure", func() error {
+		var ensureErr error
+		cluster, ensureErr = kindrig.EnsureCluster(kindrig.DefaultRun, clusterName,
+			helmKindConfig(applicationChartDir(profilesRoot)), helmClusterWait)
+		return ensureErr
+	}); err != nil {
 		return err
 	}
 	commands, cleanupCommands, err := kindrig.ClusterCommands(
@@ -221,42 +231,74 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 		cluster.Release(kindrig.DefaultRun)
 		return err
 	}
+	defer cleanupCommands()
+	var namespace string
+	var cleanupNamespace func() error
+	if err := runApplierLivePhase("namespace-prepare", func() error {
+		var prepareErr error
+		namespace, cleanupNamespace, prepareErr = prepareAggregateNamespace(
+			commands.Run, "applier-live", applierLiveRelease)
+		return prepareErr
+	}); err != nil {
+		cluster.Release(kindrig.DefaultRun)
+		return err
+	}
+	cleanupNamespaceFn := func() error {
+		return runApplierLivePhase("namespace-cleanup", cleanupNamespace)
+	}
+	defer func() { result = errors.Join(result, cleanupNamespaceFn()) }()
 	contextRun := applierLiveCommandRunner(commands.RunContext)
 	evidenceDir := helmScenarioEvidenceDirectory(
-		profilesRoot, applierLiveCluster, images.Revision)
+		profilesRoot, cluster.Name, images.Revision)
+	evidence := kindrig.FailureEvidence{
+		Directory:  evidenceDir,
+		Namespaces: []string{namespace},
+		Run: boundedHelmEvidenceRunnerWith(
+			helmDiagnosticRunner(commands.RunContext), helmEvidenceCommandTimeout),
+	}
+	ownedForDiagnostics := cluster.Created || aggregateKindClusterOwned(cluster.Name)
 	defer func() {
 		failed := result != nil
-		if failed && cluster.Created {
+		if failed && ownedForDiagnostics {
 			diagnostics := captureApplierLiveDiagnostics(
 				evidenceDir, contextRun, applierLiveDiagnosticsTimeout)
 			result = fmt.Errorf("%w\n%s", result, diagnostics)
 		}
-		cluster.ReleaseAfter(commands.KindRun, failed, kindrig.FailureEvidence{
-			Directory:  evidenceDir,
-			Namespaces: []string{"default"},
-			Run: boundedHelmEvidenceRunnerWith(
-				helmDiagnosticRunner(commands.RunContext), helmEvidenceCommandTimeout),
-		})
-		cleanupCommands()
+		if releaseAggregateKindCluster(
+			cluster, commands.KindRun, evidence, result,
+		) {
+			if failed {
+				cleanupNamespaceFn = func() error { return nil }
+			}
+			return
+		}
+		cluster.ReleaseAfter(commands.KindRun, failed, evidence)
 	}()
 
-	if err := loadKindImageWithCommands(
-		commands, applierLiveCluster, images.Applier); err != nil {
-		return err
-	}
-	if err := loadKindImageWithCommands(
-		commands, applierLiveCluster, images.Runtime); err != nil {
-		return err
-	}
-	for _, image := range dependencyImages {
-		if err := loadSmokeDependencyImageWithCommands(
-			commands, applierLiveCluster, image); err != nil {
-			return err
+	if err := runApplierLivePhase("image-loads", func() error {
+		if loadErr := loadKindImageWithCommands(
+			commands, cluster.Name, images.Applier); loadErr != nil {
+			return loadErr
 		}
+		if loadErr := loadKindImageWithCommands(
+			commands, cluster.Name, images.Runtime); loadErr != nil {
+			return loadErr
+		}
+		for _, image := range dependencyImages {
+			if loadErr := loadSmokeDependencyImageWithCommands(
+				commands, cluster.Name, image); loadErr != nil {
+				return loadErr
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
-	if err := helmInstallApplierLive(
-		commands.Run, staged, chartArchive, images.Runtime, images.Applier, assets); err != nil {
+	if err := runApplierLivePhase("helm-install", func() error {
+		return helmInstallApplierLive(
+			commands.Run, staged, chartArchive, images.Runtime, images.Applier, assets)
+	}); err != nil {
 		return err
 	}
 	// Check the object the API server actually accepted before readiness can
@@ -265,10 +307,12 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 		commands.Run, applierLiveRelease, chartArchive, assets); err != nil {
 		return err
 	}
-	if err := waitApplierLiveInitialReadiness(
-		contextRun, func() error {
-			return waitApplierDeploymentReady(commands.Run)
-		}); err != nil {
+	if err := runApplierLivePhase("initial-readiness", func() error {
+		return waitApplierLiveInitialReadiness(
+			contextRun, func() error {
+				return waitApplierDeploymentReady(commands.Run)
+			})
+	}); err != nil {
 		return err
 	}
 	if err := assertExternalUIAssetsMountedWithRunner(
@@ -279,7 +323,9 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 		commands.Run, applierLiveRelease, chartArchive, assets); err != nil {
 		return err
 	}
-	if err := assertApplierServesItsSurface(commands, profilesRoot); err != nil {
+	if err := runApplierLivePhase("apply-proof", func() error {
+		return assertApplierServesItsSurface(commands, profilesRoot)
+	}); err != nil {
 		return err
 	}
 	if err := assertHelmReleaseSecretsWithRunner(
@@ -291,6 +337,17 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 		"revision, compensates a post-upgrade verification failure with a real Helm rollback, and rejects a "+
 		"non-conforming patch against the real chart schema without touching it\n", images.Revision)
 	return nil
+}
+
+func runApplierLivePhase(name string, run func() error) error {
+	started := time.Now()
+	err := run()
+	outcome := "passed"
+	if err != nil {
+		outcome = "failed"
+	}
+	kindrig.LogPhase("applierLive", name, outcome, started, "")
+	return err
 }
 
 // applierLiveDependencyImages is the full external image set for the applier
@@ -420,32 +477,6 @@ func waitApplierDeploymentReady(run helmLLMCommandRunner) error {
 		"--timeout", applierReadyWait.String()); err != nil {
 		return fmt.Errorf("the applier Deployment never became ready: %w: %s",
 			err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
-
-// buildApplierImage builds the shared applier image from the locally built
-// agent-core runtime rather than published artifacts, so the live tier runs the
-// code under test the way the smoke does (GH-1368). The image is agent-core plus
-// helm and kubectl and bakes no chart; the chart reaches the running pod through
-// the mounted out-of-release chart ConfigMap, so the build context carries nothing
-// per-app. It builds from the shared agent-core/applier.Dockerfile with the
-// agent-core tree as the context.
-//
-// TARGETARCH is passed explicitly. The Dockerfile defaults it to amd64, and a
-// plain `docker build` on an arm64 host does not set it -- the result is an
-// arm64 image carrying amd64 helm and kubectl, which crash the first time an
-// exec word runs one. The kind nodes are the host's architecture, so the image
-// has to be too.
-func buildApplierImage(coreRoot, runtimeImage, image string) error {
-	cmd := exec.Command("docker", "build",
-		"-f", filepath.Join(coreRoot, "applier.Dockerfile"),
-		"--build-arg", "RUNTIME_IMAGE="+runtimeImage,
-		"--build-arg", "TARGETARCH="+runtime.GOARCH,
-		"-t", image, coreRoot)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker build %s: %w", image, err)
 	}
 	return nil
 }

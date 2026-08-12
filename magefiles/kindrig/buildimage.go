@@ -97,6 +97,13 @@ type agentCoreImageIdentity struct {
 	platform string
 }
 
+type dockerImageMetadata struct {
+	ID           string
+	OS           string
+	Architecture string
+	Labels       map[string]string
+}
+
 // BuildAgentCoreImage builds the linux agent binary from the local agent-core
 // checkout and bakes it into a minimal runtime image, so local flows run the
 // code under test rather than a published image.
@@ -207,9 +214,26 @@ func (b imageBuilder) inspect(
 	image string,
 	identity agentCoreImageIdentity,
 ) (AgentCoreImageResult, bool) {
+	item, ok := b.inspectDockerImage(image)
+	if !ok {
+		return AgentCoreImageResult{}, false
+	}
+	labels := item.Labels
+	matches := strings.HasPrefix(item.ID, "sha256:") &&
+		item.OS+"/"+item.Architecture == identity.platform &&
+		labels["org.opencontainers.image.revision"] == identity.revision &&
+		labels["io.declarative-agents.agent-core.recipe"] == identity.recipe &&
+		labels["io.declarative-agents.agent-core.platform"] == identity.platform
+	return AgentCoreImageResult{
+		Reference: image, Revision: identity.revision, Recipe: identity.recipe,
+		Platform: identity.platform, ImageID: item.ID,
+	}, matches
+}
+
+func (b imageBuilder) inspectDockerImage(image string) (dockerImageMetadata, bool) {
 	output, err := b.output("", nil, "docker", "image", "inspect", image)
 	if err != nil {
-		return AgentCoreImageResult{}, false
+		return dockerImageMetadata{}, false
 	}
 	var inspected []struct {
 		ID           string
@@ -220,19 +244,15 @@ func (b imageBuilder) inspect(
 		}
 	}
 	if json.Unmarshal(output, &inspected) != nil || len(inspected) != 1 {
-		return AgentCoreImageResult{}, false
+		return dockerImageMetadata{}, false
 	}
 	item := inspected[0]
-	labels := item.Config.Labels
-	matches := strings.HasPrefix(item.ID, "sha256:") &&
-		item.Os+"/"+item.Architecture == identity.platform &&
-		labels["org.opencontainers.image.revision"] == identity.revision &&
-		labels["io.declarative-agents.agent-core.recipe"] == identity.recipe &&
-		labels["io.declarative-agents.agent-core.platform"] == identity.platform
-	return AgentCoreImageResult{
-		Reference: image, Revision: identity.revision, Recipe: identity.recipe,
-		Platform: identity.platform, ImageID: item.ID,
-	}, matches
+	return dockerImageMetadata{
+		ID:           item.ID,
+		OS:           item.Os,
+		Architecture: item.Architecture,
+		Labels:       item.Config.Labels,
+	}, true
 }
 
 func (b imageBuilder) acquireLock(
