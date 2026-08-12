@@ -320,24 +320,32 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	cleanupNamespaceFn := cleanupNamespace
 	defer func() { result = errors.Join(result, cleanupNamespaceFn()) }()
 	released := false
+	evidenceDir := helmScenarioEvidenceDirectory(
+		profilesRoot, cluster.Name, images.Revision)
 	evidence := kindrig.FailureEvidence{
-		Directory: filepath.Join(
-			profilesRoot, "build", "kind-evidence",
-			cluster.Name+"-"+images.Revision+"-"+
-				time.Now().UTC().Format("20060102T150405.000000000Z")),
+		Directory:  evidenceDir,
 		Namespaces: []string{namespace},
-		Run:        commands.Run,
+		Run: boundedHelmEvidenceRunnerWith(
+			helmDiagnosticRunner(commands.RunContext), helmEvidenceCommandTimeout),
 	}
 	defer func() {
+		failed := result != nil
+		if failed {
+			diagnostics := captureHelmFailureDiagnostics(
+				evidenceDir, helmRelease,
+				helmDiagnosticRunner(commands.RunContext),
+				helmFailureDiagnosticsTimeout)
+			result = fmt.Errorf("%w\n%s", result, diagnostics)
+		}
 		if !released {
 			if releaseAggregateKindCluster(
 				cluster, commands.KindRun, evidence, result,
 			) {
-				if result != nil {
+				if failed {
 					cleanupNamespaceFn = func() error { return nil }
 				}
 			} else {
-				cluster.ReleaseAfter(commands.KindRun, result != nil, evidence)
+				cluster.ReleaseAfter(commands.KindRun, failed, evidence)
 			}
 		}
 	}()
@@ -2282,12 +2290,108 @@ func helmFailureDiagnosticCommands(release string) []helmDiagnosticCommand {
 			"describe", "pods", "-l", selector,
 		}},
 		{label: "current container and init logs", name: "kubectl", args: []string{
-			"logs", "-l", selector, "--all-containers=true", "--prefix=true", "--tail=120",
+			"logs", "-l", selector, "--all-containers=true", "--prefix=true",
+			"--max-log-requests=50", "--tail=120",
 		}},
 		{label: "previous container and init logs", name: "kubectl", args: []string{
-			"logs", "-l", selector, "--all-containers=true", "--prefix=true", "--previous", "--tail=120",
+			"logs", "-l", selector, "--all-containers=true", "--prefix=true",
+			"--max-log-requests=50", "--previous", "--tail=120",
 		}},
 	}
+}
+
+type helmPodContainerState struct {
+	Waiting *struct {
+		Reason  string `json:"reason"`
+		Message string `json:"message"`
+	} `json:"waiting"`
+	Running *struct {
+		StartedAt string `json:"startedAt"`
+	} `json:"running"`
+	Terminated *struct {
+		ExitCode int    `json:"exitCode"`
+		Reason   string `json:"reason"`
+		Message  string `json:"message"`
+	} `json:"terminated"`
+}
+
+type helmPodContainerStatus struct {
+	Name         string                `json:"name"`
+	Ready        bool                  `json:"ready"`
+	RestartCount int                   `json:"restartCount"`
+	State        helmPodContainerState `json:"state"`
+}
+
+func summarizeHelmUnreadyPods(data []byte) string {
+	var pods struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Status struct {
+				Phase                 string                   `json:"phase"`
+				Reason                string                   `json:"reason"`
+				Message               string                   `json:"message"`
+				InitContainerStatuses []helmPodContainerStatus `json:"initContainerStatuses"`
+				ContainerStatuses     []helmPodContainerStatus `json:"containerStatuses"`
+			} `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(data, &pods); err != nil {
+		return ""
+	}
+	var causes []string
+	for _, pod := range pods.Items {
+		if pod.Status.Reason != "" || pod.Status.Message != "" {
+			causes = append(causes, fmt.Sprintf(
+				"pod/%s phase=%s reason=%s message=%s",
+				pod.Metadata.Name, pod.Status.Phase,
+				pod.Status.Reason, pod.Status.Message))
+		}
+		for _, status := range pod.Status.InitContainerStatuses {
+			if cause := helmContainerUnreadyCause(
+				pod.Metadata.Name, "init", status); cause != "" {
+				causes = append(causes, cause)
+			}
+		}
+		for _, status := range pod.Status.ContainerStatuses {
+			if cause := helmContainerUnreadyCause(
+				pod.Metadata.Name, "container", status); cause != "" {
+				causes = append(causes, cause)
+			}
+		}
+	}
+	sort.Strings(causes)
+	return strings.Join(causes, "\n")
+}
+
+func helmContainerUnreadyCause(
+	pod, kind string,
+	status helmPodContainerStatus,
+) string {
+	if status.Ready {
+		return ""
+	}
+	state, reason, message := "unknown", "", ""
+	switch {
+	case status.State.Waiting != nil:
+		state = "waiting"
+		reason = status.State.Waiting.Reason
+		message = status.State.Waiting.Message
+	case status.State.Terminated != nil:
+		if kind == "init" && status.State.Terminated.ExitCode == 0 {
+			return ""
+		}
+		state = "terminated"
+		reason = fmt.Sprintf("%s exit_code=%d",
+			status.State.Terminated.Reason, status.State.Terminated.ExitCode)
+		message = status.State.Terminated.Message
+	case status.State.Running != nil:
+		state = "running"
+	}
+	return fmt.Sprintf(
+		"pod/%s %s/%s unready: state=%s reason=%s message=%s restarts=%d",
+		pod, kind, status.Name, state, reason, message, status.RestartCount)
 }
 
 func collectHelmFailureDiagnostics(
@@ -2299,9 +2403,13 @@ func collectHelmFailureDiagnostics(
 	defer cancel()
 
 	var report strings.Builder
+	var podStatus []byte
 	fmt.Fprintf(&report, "%s bounded diagnostics:", release)
 	for _, diagnostic := range helmFailureDiagnosticCommands(release) {
 		out, err := run(ctx, diagnostic.name, diagnostic.args...)
+		if diagnostic.label == "container and init status" {
+			podStatus = append([]byte(nil), out...)
+		}
 		fmt.Fprintf(&report, "\n\n== %s ==\n%s",
 			diagnostic.label, strings.TrimSpace(string(out)))
 		if err != nil {
@@ -2309,6 +2417,9 @@ func collectHelmFailureDiagnostics(
 		} else if ctx.Err() != nil {
 			fmt.Fprintf(&report, "\n[diagnostic failed: %v]", ctx.Err())
 		}
+	}
+	if summary := summarizeHelmUnreadyPods(podStatus); summary != "" {
+		fmt.Fprintf(&report, "\n\n== unready root causes ==\n%s", summary)
 	}
 	return report.String()
 }

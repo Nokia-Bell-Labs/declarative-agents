@@ -128,13 +128,15 @@ func TestHermeticDependencyPullUsesExactOllamaDigest(t *testing.T) {
 
 func TestHelmFailureEvidenceIsBoundedAndNamesRootCauses(t *testing.T) {
 	t.Run("diagnostic causes", func(t *testing.T) {
+		var commands []string
 		run := func(_ context.Context, name string, args ...string) ([]byte, error) {
 			command := name + " " + strings.Join(args, " ")
+			commands = append(commands, command)
 			switch {
 			case strings.Contains(command, "get events"):
 				return []byte("FailedScheduling: insufficient memory\nFailedMount: PVC is Pending\nErrImagePull: x509 certificate signed by unknown authority"), nil
 			case strings.Contains(command, `-o json`):
-				return []byte(`{"status":{"initContainerStatuses":[{"name":"wait-for-llm-models","state":{"waiting":{"reason":"PodInitializing"}}}],"containerStatuses":[{"name":"ollama","state":{"waiting":{"reason":"ImagePullBackOff"}}}]}}`), nil
+				return []byte(`{"items":[{"metadata":{"name":"smoke-chatbot-0"},"status":{"phase":"Pending","initContainerStatuses":[{"name":"wait-for-llm-models","restartCount":2,"state":{"waiting":{"reason":"PodInitializing","message":"models are not ready"}}}],"containerStatuses":[{"name":"chatbot","restartCount":3,"state":{"waiting":{"reason":"ImagePullBackOff","message":"pull failed"}}}]}}]}`), nil
 			case strings.Contains(command, "describe pods"):
 				return []byte("Readiness probe failed: connection refused"), nil
 			case strings.Contains(command, "logs"):
@@ -155,9 +157,17 @@ func TestHelmFailureEvidenceIsBoundedAndNamesRootCauses(t *testing.T) {
 			"Readiness probe failed",
 			"model pull failed",
 			"initContainerStatuses",
+			"pod/smoke-chatbot-0 init/wait-for-llm-models unready: state=waiting reason=PodInitializing",
+			"pod/smoke-chatbot-0 container/chatbot unready: state=waiting reason=ImagePullBackOff",
 		} {
 			if !strings.Contains(report, want) {
 				t.Errorf("failure evidence missing %q:\n%s", want, report)
+			}
+		}
+		for _, command := range commands {
+			if strings.Contains(command, "kubectl logs") &&
+				!strings.Contains(command, "--max-log-requests=50") {
+				t.Errorf("log diagnostic is not bounded for all release pods: %s", command)
 			}
 		}
 		data, err := os.ReadFile(filepath.Join(dir, "bounded-diagnostics.txt"))

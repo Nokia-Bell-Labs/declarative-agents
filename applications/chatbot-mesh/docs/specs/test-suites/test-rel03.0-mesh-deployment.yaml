@@ -21,7 +21,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Mesh Helm deployment smoke tracer on kind
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run '^TestSplitImageRef$|^TestKindDependencyImagesCoverEveryExternalPodImage$|^TestAssertSmokeChatServedAcceptsAnswer$|^TestAssertSmokeChatServedRejectsEmptyAnswer$|^TestHelmSmokeSkipReasonMissingBinary$|^TestHelmInstallSmokePassesRunIdentityToGateway$|^TestHelmSmokeInstallReturnsCapturedOutput$'
+    go_test: go test ./magefiles -run '^TestSplitImageRef$|^TestKindDependencyImagesCoverEveryExternalPodImage$|^TestAssertSmokeChatServedAcceptsAnswer$|^TestAssertSmokeChatServedRejectsEmptyAnswer$|^TestHelmSmokeSkipReasonMissingBinary$|^TestHelmInstallSmokePassesRunIdentityToGateway$|^TestHelmSmokeInstallReturnsCapturedOutput$|^TestHelmFailureEvidenceIsBoundedAndNamesRootCauses$'
     status: implemented
     description: |
       Integration.HelmSmoke deploys the chatbot-mesh chart on a disposable kind
@@ -47,6 +47,12 @@ test_cases:
       Every external pod image in the smoke topology is pulled by the host and
       imported into kind before install, so a node never needs registry TLS for a
       required dependency.
+
+      On failure the smoke captures bounded pod/init status, events, scheduling
+      and probe details, and current and previous logs before namespace or owned
+      cluster cleanup. It summarizes the exact unready pod, init container or
+      application container state, reason, message, and restart count while the
+      workload still exists.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values: applications/chatbot-mesh/helm/ci/kind-values.yaml
@@ -67,6 +73,8 @@ test_cases:
       integration_metric_ingress: persistent_host_collector
       run_correlated_metric_evidence_retained: true
       owned_cluster_removed: true
+      bounded_failure_evidence_before_cleanup: true
+      exact_unready_container_cause_reported: true
     traces:
       - rel03.0-uc001-mesh-deployment S1
       - srd003-chatbot-deployment AC1
