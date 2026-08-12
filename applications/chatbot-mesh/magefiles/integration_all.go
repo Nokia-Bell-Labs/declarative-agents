@@ -80,14 +80,17 @@ func (i Integration) SharedLLMBenchmark() error {
 	})
 }
 
-func runSharedKindTargets(targets []integrationTarget) error {
+func runSharedKindTargets(targets []integrationTarget) (resultErr error) {
 	session := newIntegrationKindSession(integrationKindSessionRoot())
 	deactivate, err := activateIntegrationKindSession(session)
 	if err != nil {
 		return err
 	}
 	defer deactivate()
-	defer session.close()
+	defer func() {
+		retainAggregateObservability()
+		resultErr = errors.Join(resultErr, session.closeWithError())
+	}()
 	for _, target := range targets {
 		if err := session.runTarget(target.name, target.fn); err != nil {
 			return err
@@ -128,7 +131,8 @@ func (i Integration) All() error {
 		runSharedIntegrationLane(session, targets, results)
 	}()
 	lanes.Wait()
-	session.close()
+	retainAggregateObservability()
+	cleanupErr := session.closeWithError()
 
 	resultByName := make(map[string]integrationResult, len(targets))
 	for range targets {
@@ -146,11 +150,30 @@ func (i Integration) All() error {
 		}
 		fmt.Printf("  PASS  %s\n", target.name)
 	}
-	fmt.Printf("%s\n", strings.Repeat("─", 40))
-	if failed > 0 {
-		return fmt.Errorf("%d integration target(s) failed", failed)
+	if cleanupErr != nil {
+		fmt.Printf("  FAIL  final teardown  %v\n", cleanupErr)
 	}
-	return nil
+	fmt.Printf("%s\n", strings.Repeat("─", 40))
+	var aggregateErrors []error
+	if failed > 0 {
+		aggregateErrors = append(aggregateErrors,
+			fmt.Errorf("%d integration target(s) failed", failed))
+	}
+	if cleanupErr != nil {
+		aggregateErrors = append(aggregateErrors,
+			fmt.Errorf("aggregate final teardown failed: %w", cleanupErr))
+	}
+	return errors.Join(aggregateErrors...)
+}
+
+// retainAggregateObservability makes the completed aggregate session
+// responsible for stopping its host collector. Registration happens only
+// after all concurrent lanes finish, so failure cleanup cannot stop telemetry
+// while another lane still needs it. The spool remains outside this lifecycle.
+func retainAggregateObservability() {
+	registerAggregateFinalizer("shared-observability", func() error {
+		return (Observability{}).Down()
+	})
 }
 
 type integrationResult struct {

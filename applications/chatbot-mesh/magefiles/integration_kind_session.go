@@ -402,11 +402,15 @@ func (session *integrationKindSession) poison(cause error) {
 }
 
 func (session *integrationKindSession) close() {
+	_ = session.closeWithError()
+}
+
+func (session *integrationKindSession) closeWithError() error {
 	started := time.Now()
 	session.mu.Lock()
 	if session.closed {
 		session.mu.Unlock()
-		return
+		return nil
 	}
 	session.closed = true
 	cluster, run := session.cluster, session.kindRun
@@ -414,13 +418,15 @@ func (session *integrationKindSession) close() {
 	session.cluster = kindrig.Cluster{}
 	session.mu.Unlock()
 
-	if err := runAggregateFinalizers(finalizers); err != nil {
-		fmt.Printf("shared kind: final teardown error: %v\n", err)
+	finalizerErr := runAggregateFinalizers(finalizers)
+	if finalizerErr != nil {
+		fmt.Printf("shared kind: final teardown error: %v\n", finalizerErr)
 	}
 	if cluster.Name != "" {
 		cluster.Release(run)
 	}
 	kindrig.LogPhase(aggregateKindCluster, "final-teardown", "complete", started, "")
+	return finalizerErr
 }
 
 func integrationKindSessionRoot() string {
