@@ -510,13 +510,14 @@ func TestCollectorQueryGetMetric(t *testing.T) {
 		t.Fatalf("GET /query/metrics/dispatch_count status = %d, body = %s", resp.StatusCode, body)
 	}
 	var getResult struct {
-		MetricName     string            `json:"metric_name"`
-		Records        []json.RawMessage `json:"records"`
-		Total          int               `json:"total"`
-		RecordCount    int               `json:"record_count"`
-		DataPointCount int               `json:"data_point_count"`
-		Offset         int               `json:"offset"`
-		PageSize       int               `json:"page_size"`
+		MetricName      string            `json:"metric_name"`
+		Records         []json.RawMessage `json:"records"`
+		Total           int               `json:"total"`
+		RecordCount     int               `json:"record_count"`
+		PageRecordCount int               `json:"page_record_count"`
+		DataPointCount  int               `json:"data_point_count"`
+		Offset          int               `json:"offset"`
+		PageSize        int               `json:"page_size"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&getResult); err != nil {
 		t.Fatalf("decode metric get response: %v", err)
@@ -527,8 +528,14 @@ func TestCollectorQueryGetMetric(t *testing.T) {
 	if getResult.Total != 2 {
 		t.Errorf("total = %d, want 2", getResult.Total)
 	}
-	if getResult.RecordCount != 1 {
-		t.Errorf("record_count = %d, want 1", getResult.RecordCount)
+	if getResult.RecordCount != 2 {
+		t.Errorf("record_count = %d, want 2 total matching records", getResult.RecordCount)
+	}
+	if getResult.PageRecordCount != 1 {
+		t.Errorf("page_record_count = %d, want 1 returned page record", getResult.PageRecordCount)
+	}
+	if len(getResult.Records) != 1 {
+		t.Errorf("records returned = %d, want 1", len(getResult.Records))
 	}
 	if getResult.Offset != 1 || getResult.PageSize != 1 {
 		t.Errorf("page = offset %d size %d, want offset 1 size 1",
