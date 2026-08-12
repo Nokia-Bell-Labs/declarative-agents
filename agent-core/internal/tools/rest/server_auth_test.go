@@ -73,12 +73,32 @@ func TestLifecycleAuthRefMustResolveAtLoad(t *testing.T) {
 }
 
 func TestEnvironmentCredentialsResolveReferenceNames(t *testing.T) {
-	t.Setenv("DECLARATIVE_AGENT_CONTROL_TOKEN", "secret")
-	value, err := (EnvironmentCredentials{}).ResolveCredential(
-		"DECLARATIVE_AGENT_CONTROL_TOKEN",
-	)
-	require.NoError(t, err)
-	require.Equal(t, "secret", value)
+	resolver := EnvironmentCredentials{}
+
+	t.Run("present", func(t *testing.T) {
+		t.Setenv("DECLARATIVE_AGENT_CONTROL_TOKEN", "synthetic-secret")
+		value, err := resolver.ResolveCredential("DECLARATIVE_AGENT_CONTROL_TOKEN")
+		require.NoError(t, err)
+		require.Equal(t, "synthetic-secret", value)
+	})
+
+	t.Run("missing", func(t *testing.T) {
+		t.Setenv("DECLARATIVE_AGENT_OTHER_TOKEN", "must-not-leak")
+		_, err := resolver.ResolveCredential("DECLARATIVE_AGENT_MISSING_TOKEN_1609")
+		var resolutionErr credentialResolutionError
+		require.ErrorAs(t, err, &resolutionErr)
+		require.Equal(t, "DECLARATIVE_AGENT_MISSING_TOKEN_1609", resolutionErr.ref)
+		require.NotContains(t, err.Error(), "must-not-leak")
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		t.Setenv("DECLARATIVE_AGENT_EMPTY_TOKEN", "")
+		_, err := resolver.ResolveCredential("DECLARATIVE_AGENT_EMPTY_TOKEN")
+		var resolutionErr credentialResolutionError
+		require.ErrorAs(t, err, &resolutionErr)
+		require.Equal(t, "DECLARATIVE_AGENT_EMPTY_TOKEN", resolutionErr.ref)
+		require.NotContains(t, err.Error(), "synthetic-secret")
+	})
 }
 
 func postLifecycleRequest(t *testing.T, baseURL, authorization string, want int) {

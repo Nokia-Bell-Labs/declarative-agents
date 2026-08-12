@@ -6,13 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -27,14 +25,6 @@ const (
 	bodySourceNone           = "none"
 	bodySourceCommandState   = "command_state"
 )
-
-type credentialResolutionError struct {
-	ref string
-}
-
-func (e credentialResolutionError) Error() string {
-	return fmt.Sprintf("credential ref %q is not resolved", e.ref)
-}
 
 // buildClientRequest renders one outbound request and returns the effective
 // declared params used to render it, so the caller can carry selected inputs
@@ -370,38 +360,6 @@ func bearerValue(scheme, token string) string {
 		scheme = "Bearer"
 	}
 	return scheme + " " + token
-}
-
-func resolveCredential(resolver CredentialResolver, ref string) (string, error) {
-	if ref == "" || resolver == nil {
-		return "", credentialResolutionError{ref: ref}
-	}
-	return resolver.ResolveCredential(ref)
-}
-
-func (c StaticCredentials) ResolveCredential(ref string) (string, error) {
-	value, ok := c[ref]
-	if !ok {
-		return "", credentialResolutionError{ref: ref}
-	}
-	return value, nil
-}
-
-func (EmptyCredentialResolver) ResolveCredential(ref string) (string, error) {
-	return "", credentialResolutionError{ref: ref}
-}
-
-func (EnvironmentCredentials) ResolveCredential(ref string) (string, error) {
-	value, ok := os.LookupEnv(ref)
-	if !ok || value == "" {
-		return "", credentialResolutionError{ref: ref}
-	}
-	return value, nil
-}
-
-func isCredentialResolutionError(err error) bool {
-	var target credentialResolutionError
-	return errors.As(err, &target)
 }
 
 func validateNetwork(endpoint *url.URL, policy NetworkPolicy) error {
