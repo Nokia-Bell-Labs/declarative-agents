@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	applierApplyURL         = "http://127.0.0.1:18230/api/v1/apply"
-	applierRolloutURL       = "http://127.0.0.1:18230/api/v1/rollout"
-	applierControlHealthURL = "http://127.0.0.1:18231/api/lifecycle/health"
-	applierControlExitURL   = "http://127.0.0.1:18231/api/lifecycle/exit"
+	applierApplyURL         = "http://127.0.0.1:18330/api/v1/apply"
+	applierRolloutURL       = "http://127.0.0.1:18330/api/v1/rollout"
+	applierControlHealthURL = "http://127.0.0.1:18331/api/lifecycle/health"
+	applierControlExitURL   = "http://127.0.0.1:18331/api/lifecycle/exit"
 	applierReadyTimeout     = 30 * time.Second
 	applierRequestTimeout   = 130 * time.Second
 )

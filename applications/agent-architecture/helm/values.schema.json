@@ -122,9 +122,9 @@
           "additionalProperties": false,
           "required": ["apply", "control", "monitor"],
           "properties": {
-            "apply": {"const": 18230},
-            "control": {"const": 18231},
-            "monitor": {"const": 18232}
+            "apply": {"const": 18330},
+            "control": {"const": 18331},
+            "monitor": {"const": 18332}
           }
         },
         "workDir": {"const": "/work"},

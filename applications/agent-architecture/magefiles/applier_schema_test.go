@@ -87,7 +87,7 @@ func TestChartSchemaConstrainsCuratorReplicas(t *testing.T) {
 		t.Error("values.schema.json no longer bounds the curator to one replica; " +
 			"a patch scaling the single-window demo curator would validate")
 	}
-	if !strings.Contains(schema, `"const": 18230`) {
+	if !strings.Contains(schema, `"const": 18330`) {
 		t.Error("values.schema.json no longer pins the applier apply port; " +
 			"a drifted port would diverge from the applier rest.yaml listener and the tracer URLs")
 	}

@@ -88,7 +88,7 @@ applier:
   # apply/request server, control server, monitor server. Chosen apart from the
   # curator ports (18081/18082/18084) and the collector ports (4317/18191-18193)
   # so no listener collides.
-  ports: {apply: 18230, control: 18231, monitor: 18232}
+  ports: {apply: 18330, control: 18331, monitor: 18332}
   # The workspace the applier writes its values overrides file into; APPLIER_WORK_DIR
   # and the helm read path bind to it so the write and read never diverge.
   workDir: /work

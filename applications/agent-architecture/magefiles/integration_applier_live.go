@@ -145,7 +145,7 @@ func runApplierLive(resolved roots) (result error) {
 	}
 
 	forward, err := forwardService(environment, smokeRelease+"-agent-architecture-applier",
-		"18230:18230", "18231:18231")
+		"18330:18330", "18331:18331")
 	if err != nil {
 		return smokeFailure(environment.run, "applier port-forward", err)
 	}
