@@ -125,7 +125,7 @@ spec:
             - |
               set -eu
               {{- if .Values.ollama.preload.integrationCacheHostPath }}
-              if [ -f /cache/ready ]; then
+              if [ -f /cache/seeded ] || [ -f /cache/ready ]; then
                 echo "restoring identity-matched integration model cache"
                 cp -a /cache/models/. /models/
               fi

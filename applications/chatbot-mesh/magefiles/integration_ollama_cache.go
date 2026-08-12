@@ -88,23 +88,31 @@ func ollamaCacheIdentity(imageID string, models []string) (string, error) {
 	if !strings.HasPrefix(imageID, "sha256:") {
 		return "", fmt.Errorf("Ollama cache image ID %q is not a verified digest", imageID)
 	}
+	canonical, err := canonicalOllamaModels(models)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256([]byte(strings.Join(append(
+		[]string{"ollama-cache/v1", imageID}, canonical...), "\x00")))
+	return fmt.Sprintf("%x", sum), nil
+}
+
+func canonicalOllamaModels(models []string) ([]string, error) {
 	unique := make(map[string]struct{}, len(models))
 	for _, model := range models {
 		model = strings.TrimSpace(model)
 		if model == "" {
-			return "", fmt.Errorf("Ollama cache model set contains an empty model")
+			return nil, fmt.Errorf("Ollama model set contains an empty model")
 		}
 		unique[model] = struct{}{}
 	}
 	if len(unique) == 0 {
-		return "", fmt.Errorf("Ollama cache model set is empty")
+		return nil, fmt.Errorf("Ollama model set is empty")
 	}
 	canonical := make([]string, 0, len(unique))
 	for model := range unique {
 		canonical = append(canonical, model)
 	}
 	sort.Strings(canonical)
-	sum := sha256.Sum256([]byte(strings.Join(append(
-		[]string{"ollama-cache/v1", imageID}, canonical...), "\x00")))
-	return fmt.Sprintf("%x", sum), nil
+	return canonical, nil
 }

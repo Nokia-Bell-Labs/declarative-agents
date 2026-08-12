@@ -1918,6 +1918,22 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 	}); err != nil {
 		return err
 	}
+	var seed ollamaSeedImage
+	if cache.HostPath != "" {
+		if err := runHelmLLMPhase("model-seed", func() error {
+			var seedErr error
+			seed, seedErr = ensureOllamaSeedImage(
+				helmLLMOllamaImage, ollamaImageID, helmLLMModels)
+			return seedErr
+		}); err != nil {
+			return err
+		}
+		if err := runHelmLLMPhase("model-seed-transfer", func() error {
+			return seedAggregateOllamaCache(seed, llmCluster.Name, cache)
+		}); err != nil {
+			return err
+		}
+	}
 	if err := provisionExternalUIAssets(commands.Run, assets); err != nil {
 		return err
 	}

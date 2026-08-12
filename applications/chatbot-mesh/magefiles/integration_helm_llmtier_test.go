@@ -168,6 +168,7 @@ func TestOllamaIntegrationCacheRestoresIntoFreshScenarioStorage(t *testing.T) {
 	for _, want := range []string{
 		`path: "` + cachePath + `"`,
 		`path: "` + cachePath + `/active"`,
+		"[ -f /cache/seeded ] || [ -f /cache/ready ]",
 		"restoring identity-matched integration model cache",
 		"cp -a /cache/models/. /models/",
 		"cp -a /models/. /cache/models/",
