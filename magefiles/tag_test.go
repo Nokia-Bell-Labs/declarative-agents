@@ -150,6 +150,68 @@ func TestCreateReleaseTagCreatesNextDailyTag(t *testing.T) {
 	}
 }
 
+func TestVerifyReleaseCommitRunsGatesWithoutTagTransaction(t *testing.T) {
+	var calls [][]string
+	gateCalls := 0
+	commit, err := verifyReleaseCommit(
+		func(args ...string) (string, error) {
+			calls = append(calls, append([]string(nil), args...))
+			switch strings.Join(args, " ") {
+			case "rev-parse HEAD":
+				return "abc123", nil
+			case "status --porcelain":
+				return "", nil
+			default:
+				return "", errors.New("unexpected git command")
+			}
+		},
+		func(commit string) error {
+			gateCalls++
+			if commit != "abc123" {
+				t.Fatalf("gates received commit %q", commit)
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if commit != "abc123" || gateCalls != 1 {
+		t.Fatalf("dry run commit=%q gateCalls=%d", commit, gateCalls)
+	}
+	want := [][]string{
+		{"rev-parse", "HEAD"},
+		{"status", "--porcelain"},
+		{"rev-parse", "HEAD"},
+		{"status", "--porcelain"},
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("dry-run git calls = %#v, want %#v", calls, want)
+	}
+}
+
+func TestVerifyReleaseCommitRejectsDirtyWorktreeBeforeGates(t *testing.T) {
+	gates := 0
+	_, err := verifyReleaseCommit(
+		func(args ...string) (string, error) {
+			if strings.Join(args, " ") == "rev-parse HEAD" {
+				return "abc123", nil
+			}
+			return " M generated.txt", nil
+		},
+		func(string) error {
+			gates++
+			return nil
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "clean worktree") {
+		t.Fatalf("dirty dry run error = %v", err)
+	}
+	if gates != 0 {
+		t.Fatalf("dirty dry run executed %d gate sets", gates)
+	}
+}
+
 func TestCreateReleaseTagInGitRepository(t *testing.T) {
 	root := initGitRepo(t)
 	previous, err := os.Getwd()
@@ -416,12 +478,92 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 		{name: "applications/coding-agent integration", dir: "/release/applications/coding-agent",
 			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/coding-agent"},
 		{name: "applications/agent-architecture integration", dir: "/release/applications/agent-architecture",
-			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/chatbot-mesh"},
+			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/agent-architecture"},
 		{name: "applications/prose-editor integration", dir: "/release/applications/prose-editor",
 			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/prose-editor"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("release gates = %#v, want %#v", got, want)
+	}
+}
+
+func TestChatbotAndArchitectureReleaseGatesCanOverlap(t *testing.T) {
+	var selected []releaseGate
+	for _, gate := range releaseGates("/release") {
+		if gate.name == "applications/chatbot-mesh integration" ||
+			gate.name == "applications/agent-architecture integration" {
+			selected = append(selected, gate)
+		}
+	}
+	if len(selected) != 2 || selected[0].lane == selected[1].lane {
+		t.Fatalf("application release lanes are not independent: %#v", selected)
+	}
+	started := make(chan string, 2)
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- executeReleaseStage(selected, 2, func(gate releaseGate) error {
+			started <- gate.name
+			<-release
+			return nil
+		})
+	}()
+	first, second := <-started, <-started
+	got := map[string]bool{first: true, second: true}
+	if !got["applications/chatbot-mesh integration"] ||
+		!got["applications/agent-architecture integration"] {
+		t.Fatalf("concurrent gates = %q, %q", first, second)
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestApplicationReleaseStageStartsThreeLanesBeforeFourth(t *testing.T) {
+	var applications []releaseGate
+	for _, gate := range releaseGates("/release") {
+		if gate.stage == 4 {
+			applications = append(applications, gate)
+		}
+	}
+	if len(applications) != 4 {
+		t.Fatalf("application gates = %d, want 4", len(applications))
+	}
+	started := make(chan string, len(applications))
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- executeReleaseStage(
+			applications, releaseStageConcurrency,
+			func(gate releaseGate) error {
+				started <- gate.name
+				<-release
+				return nil
+			})
+	}()
+	first := map[string]bool{
+		<-started: true,
+		<-started: true,
+		<-started: true,
+	}
+	for _, want := range []string{
+		"applications/chatbot-mesh integration",
+		"applications/coding-agent integration",
+		"applications/agent-architecture integration",
+	} {
+		if !first[want] {
+			t.Fatalf("first three lanes = %v, missing %q", first, want)
+		}
+	}
+	select {
+	case fourth := <-started:
+		t.Fatalf("fourth lane %q started before capacity was released", fourth)
+	default:
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
 

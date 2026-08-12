@@ -3,13 +3,16 @@
 package kindrig
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestAgentCoreImageBuildArgsTagCurrentContext(t *testing.T) {
@@ -44,6 +47,12 @@ func fakeImageBuilder(failCmd string) (*[]imageRunCall, *[]writtenFile, imageBui
 			}
 			return nil
 		},
+		output: func(_ string, _ []string, name string, _ ...string) ([]byte, error) {
+			if name == "git" {
+				return []byte(strings.Repeat("a", 40) + "\n"), nil
+			}
+			return nil, errors.New("not found")
+		},
 		writeFile: func(name string, data []byte, _ os.FileMode) error {
 			// Capture the contents here: the context dir is removed when build
 			// returns, so the file cannot be read afterward.
@@ -54,6 +63,8 @@ func fakeImageBuilder(failCmd string) (*[]imageRunCall, *[]writtenFile, imageBui
 			runs = append(runs, imageRunCall{name: "copyTree", args: []string{src, dst}})
 			return nil
 		},
+		lockRoot: filepath.Join(os.TempDir(), "unused-image-test-locks"),
+		sleep:    time.Sleep,
 	}
 	return &runs, &written, b
 }
@@ -77,8 +88,9 @@ func TestBuildAgentCoreImageInvocationContract(t *testing.T) {
 		!strings.HasSuffix(buildArgs, "./cmd/agent") {
 		t.Fatalf("go build args = %q, missing production/trimpath/target", buildArgs)
 	}
-	if !containsEnv(build.env, "CGO_ENABLED=0") || !containsEnv(build.env, "GOOS=linux") {
-		t.Fatalf("go build env = %v, want CGO_ENABLED=0 and GOOS=linux", build.env)
+	if !containsEnv(build.env, "CGO_ENABLED=0") || !containsEnv(build.env, "GOOS=linux") ||
+		!containsEnv(build.env, "GOARCH="+runtime.GOARCH) {
+		t.Fatalf("go build env = %v, want pinned linux/%s", build.env, runtime.GOARCH)
 	}
 
 	cp := (*runs)[1]
@@ -90,9 +102,17 @@ func TestBuildAgentCoreImageInvocationContract(t *testing.T) {
 	}
 
 	docker := (*runs)[2]
-	if docker.name != "docker" ||
-		strings.Join(docker.args, " ") != "build -t declarative-agents/agent-core:local ." {
-		t.Fatalf("docker call = %+v, want docker build in the context", docker)
+	dockerArgs := strings.Join(docker.args, " ")
+	for _, want := range []string{
+		"build --platform linux/" + runtime.GOARCH,
+		"org.opencontainers.image.revision=" + strings.Repeat("a", 40),
+		"io.declarative-agents.agent-core.recipe=sha256:",
+		"io.declarative-agents.agent-core.platform=linux/" + runtime.GOARCH,
+		"-t declarative-agents/agent-core:local .",
+	} {
+		if docker.name != "docker" || !strings.Contains(dockerArgs, want) {
+			t.Fatalf("docker args = %q, missing %q", dockerArgs, want)
+		}
 	}
 
 	if len(*written) != 1 || filepath.Base((*written)[0].name) != "Dockerfile" {
@@ -134,6 +154,7 @@ func TestBuildAgentCoreImagePropagatesCopyTreeError(t *testing.T) {
 	copyErr := errors.New("tools tree missing")
 	b := imageBuilder{
 		run:       func(string, []string, string, ...string) error { return nil },
+		output:    fakeRevisionOutput,
 		writeFile: os.WriteFile,
 		copyTree:  func(string, string) error { return copyErr },
 	}
@@ -146,6 +167,7 @@ func TestBuildAgentCoreImagePropagatesDockerfileWriteError(t *testing.T) {
 	writeErr := errors.New("read-only context")
 	b := imageBuilder{
 		run:       func(string, []string, string, ...string) error { return nil },
+		output:    fakeRevisionOutput,
 		writeFile: func(string, []byte, os.FileMode) error { return writeErr },
 		copyTree:  func(string, string) error { return nil },
 	}
@@ -154,6 +176,219 @@ func TestBuildAgentCoreImagePropagatesDockerfileWriteError(t *testing.T) {
 		!errors.Is(err, writeErr) {
 		t.Fatalf("err = %v, want wrapped Dockerfile write error", err)
 	}
+}
+
+func fakeRevisionOutput(_ string, _ []string, name string, _ ...string) ([]byte, error) {
+	if name == "git" {
+		return []byte(strings.Repeat("b", 40)), nil
+	}
+	return nil, errors.New("not found")
+}
+
+func TestEnsureAgentCoreImageReusesMatchingIdentity(t *testing.T) {
+	var identity agentCoreImageIdentity
+	builds := 0
+	b := imageBuilder{
+		run: func(string, []string, string, ...string) error {
+			builds++
+			return nil
+		},
+		output: func(_ string, _ []string, name string, _ ...string) ([]byte, error) {
+			if name == "git" {
+				return []byte(strings.Repeat("c", 40)), nil
+			}
+			return imageInspectPayload(identity, "sha256:matching"), nil
+		},
+		writeFile: os.WriteFile, copyTree: func(string, string) error { return nil },
+		lockRoot: t.TempDir(), sleep: time.Sleep,
+	}
+	identity, _ = b.identity("/core")
+	result, err := b.ensure("/core", "agent-core:test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Reused || result.ImageID != "sha256:matching" || builds != 0 {
+		t.Fatalf("result=%+v builds=%d, want matching reuse", result, builds)
+	}
+}
+
+func TestEnsureAgentCoreImageRebuildsStaleAndVerifiesResult(t *testing.T) {
+	var identity agentCoreImageIdentity
+	built := false
+	b := imageBuilder{
+		run: func(_ string, _ []string, name string, _ ...string) error {
+			if name == "docker" {
+				built = true
+			}
+			return nil
+		},
+		output: func(_ string, _ []string, name string, _ ...string) ([]byte, error) {
+			if name == "git" {
+				return []byte(strings.Repeat("d", 40)), nil
+			}
+			if built {
+				return imageInspectPayload(identity, "sha256:rebuilt"), nil
+			}
+			stale := identity
+			stale.revision = strings.Repeat("e", 40)
+			return imageInspectPayload(stale, "sha256:stale"), nil
+		},
+		writeFile: os.WriteFile, copyTree: func(string, string) error { return nil },
+		lockRoot: t.TempDir(), sleep: time.Sleep,
+	}
+	identity, _ = b.identity("/core")
+	result, err := b.ensure("/core", "agent-core:test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Reused || result.ImageID != "sha256:rebuilt" || !built {
+		t.Fatalf("result=%+v built=%v, want verified rebuild", result, built)
+	}
+}
+
+func TestAgentCoreImageInspectionRejectsEveryIdentityMismatch(t *testing.T) {
+	base := agentCoreImageIdentity{
+		revision: strings.Repeat("a", 40),
+		recipe:   "sha256:recipe",
+		platform: "linux/" + runtime.GOARCH,
+	}
+	tests := []struct {
+		name     string
+		identity agentCoreImageIdentity
+		id       string
+		os       string
+		arch     string
+	}{
+		{name: "matching", identity: base, id: "sha256:ok", os: "linux", arch: runtime.GOARCH},
+		{name: "revision", identity: agentCoreImageIdentity{
+			revision: strings.Repeat("b", 40), recipe: base.recipe, platform: base.platform,
+		}, id: "sha256:bad", os: "linux", arch: runtime.GOARCH},
+		{name: "recipe", identity: agentCoreImageIdentity{
+			revision: base.revision, recipe: "sha256:other", platform: base.platform,
+		}, id: "sha256:bad", os: "linux", arch: runtime.GOARCH},
+		{name: "os", identity: base, id: "sha256:bad", os: "windows", arch: runtime.GOARCH},
+		{name: "architecture", identity: base, id: "sha256:bad", os: "linux", arch: "wrong"},
+		{name: "image id", identity: base, id: "mutable", os: "linux", arch: runtime.GOARCH},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			payload := imageInspectPayloadFields(test.identity, test.id, test.os, test.arch)
+			b := imageBuilder{output: func(string, []string, string, ...string) ([]byte, error) {
+				return payload, nil
+			}}
+			_, matches := b.inspect("agent-core:test", base)
+			if matches != (test.name == "matching") {
+				t.Fatalf("matches=%v, want %v", matches, test.name == "matching")
+			}
+		})
+	}
+}
+
+func TestConcurrentEnsureAgentCoreImageBuildsOnce(t *testing.T) {
+	var mu sync.Mutex
+	var identity agentCoreImageIdentity
+	built, builds := false, 0
+	buildStarted := make(chan struct{})
+	releaseBuild := make(chan struct{})
+	b := imageBuilder{
+		run: func(_ string, _ []string, name string, _ ...string) error {
+			if name != "docker" {
+				return nil
+			}
+			mu.Lock()
+			builds++
+			if builds == 1 {
+				close(buildStarted)
+			}
+			mu.Unlock()
+			<-releaseBuild
+			mu.Lock()
+			built = true
+			mu.Unlock()
+			return nil
+		},
+		output: func(_ string, _ []string, name string, _ ...string) ([]byte, error) {
+			if name == "git" {
+				return []byte(strings.Repeat("f", 40)), nil
+			}
+			mu.Lock()
+			ready := built
+			mu.Unlock()
+			if !ready {
+				return nil, errors.New("not found")
+			}
+			return imageInspectPayload(identity, "sha256:shared"), nil
+		},
+		writeFile: os.WriteFile, copyTree: func(string, string) error { return nil },
+		lockRoot: t.TempDir(), sleep: func(time.Duration) { time.Sleep(time.Millisecond) },
+	}
+	identity, _ = b.identity("/core")
+	const callers = 5
+	results := make(chan AgentCoreImageResult, callers)
+	errs := make(chan error, callers)
+	for range callers {
+		go func() {
+			result, err := b.ensure("/core", "agent-core:test")
+			results <- result
+			errs <- err
+		}()
+	}
+	<-buildStarted
+	close(releaseBuild)
+	for range callers {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+		if result := <-results; result.ImageID != "sha256:shared" {
+			t.Fatalf("result=%+v, want shared image", result)
+		}
+	}
+	if builds != 1 {
+		t.Fatalf("docker builds=%d, want 1", builds)
+	}
+}
+
+func TestEnsureAgentCoreImageRejectsUnverifiedBuild(t *testing.T) {
+	var identity agentCoreImageIdentity
+	b := imageBuilder{
+		run: func(string, []string, string, ...string) error { return nil },
+		output: func(_ string, _ []string, name string, _ ...string) ([]byte, error) {
+			if name == "git" {
+				return []byte(strings.Repeat("1", 40)), nil
+			}
+			stale := identity
+			stale.recipe = "sha256:wrong"
+			return imageInspectPayload(stale, "sha256:wrong"), nil
+		},
+		writeFile: os.WriteFile, copyTree: func(string, string) error { return nil },
+		lockRoot: t.TempDir(), sleep: time.Sleep,
+	}
+	identity, _ = b.identity("/core")
+	if _, err := b.ensure("/core", "agent-core:test"); err == nil ||
+		!strings.Contains(err.Error(), "does not carry") {
+		t.Fatalf("error=%v, want post-build identity rejection", err)
+	}
+}
+
+func imageInspectPayload(identity agentCoreImageIdentity, id string) []byte {
+	return imageInspectPayloadFields(
+		identity, id, "linux", strings.TrimPrefix(identity.platform, "linux/"))
+}
+
+func imageInspectPayloadFields(
+	identity agentCoreImageIdentity,
+	id, osName, architecture string,
+) []byte {
+	payload := []map[string]any{{
+		"Id": id, "Os": osName, "Architecture": architecture,
+		"Config": map[string]any{"Labels": map[string]string{
+			"org.opencontainers.image.revision":         identity.revision,
+			"io.declarative-agents.agent-core.recipe":   identity.recipe,
+			"io.declarative-agents.agent-core.platform": identity.platform,
+		}},
+	}}
+	data, _ := json.Marshal(payload)
+	return data
 }
 
 func TestCopyTreeContentsCopiesRegularFilesOnly(t *testing.T) {

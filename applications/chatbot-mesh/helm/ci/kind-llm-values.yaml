@@ -56,7 +56,7 @@ ollama:
   persistence:
     size: 2Gi
   resources:
-    requests: {cpu: 200m, memory: 512Mi}
-    limits: {cpu: "2", memory: 4Gi}
+    requests: {cpu: 500m, memory: 512Mi}
+    limits: {cpu: "4", memory: 4Gi}
   gpu:
     count: 0

@@ -14,7 +14,7 @@ rest:
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
-        ports: [18230]
+        ports: [18330]
         allow_public_listener: true
     local_applier_control:
       timeout: 30s
@@ -26,7 +26,7 @@ rest:
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
-        ports: [18231]
+        ports: [18331]
         allow_public_listener: true
     local_applier_monitor:
       timeout: 5s
@@ -38,7 +38,7 @@ rest:
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
-        ports: [18232]
+        ports: [18332]
         allow_public_listener: true
 
   servers:
@@ -46,7 +46,7 @@ rest:
       # The apply endpoint accepts a decided values-overrides document and SHALL
       # NOT accept an endpoint or credential for a running agent; no runtime input
       # supplies transport authority (srd002-applier R1.1, R4.2).
-      address: ${APPLIER_BIND_HOST:-127.0.0.1}:18230
+      address: ${APPLIER_BIND_HOST:-127.0.0.1}:18330
       limits_ref: local_applier_apply
       endpoints:
         apply:
@@ -160,7 +160,7 @@ rest:
                     error: rollout_read_failed
 
     applier_control:
-      address: ${APPLIER_BIND_HOST:-127.0.0.1}:18231
+      address: ${APPLIER_BIND_HOST:-127.0.0.1}:18331
       limits_ref: local_applier_control
       queue:
         name: applier_control
@@ -176,7 +176,7 @@ rest:
           binding: health
 
     monitor:
-      address: ${APPLIER_BIND_HOST:-127.0.0.1}:18232
+      address: ${APPLIER_BIND_HOST:-127.0.0.1}:18332
       limits_ref: local_applier_monitor
       lifecycle_exit: {disabled: true}
       queue:

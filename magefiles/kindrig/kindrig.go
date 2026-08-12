@@ -276,17 +276,20 @@ func EnsureClusterWithOptions(
 }
 
 func createCluster(run Runner, name, configPath string, wait time.Duration) (Cluster, error) {
+	started := time.Now()
 	args := []string{"create", "cluster", "--name", name, "--config", configPath}
 	if wait > 0 {
 		args = append(args, "--wait", wait.String())
 	}
 	if output, err := run(args...); err != nil {
+		LogPhase(name, "cluster-create", "failed", started, "")
 		detail := strings.TrimSpace(string(output))
 		if detail != "" {
 			return Cluster{}, fmt.Errorf("kind create cluster %s: %w: %s", name, err, detail)
 		}
 		return Cluster{}, fmt.Errorf("kind create cluster %s: %w", name, err)
 	}
+	LogPhase(name, "cluster-create", "created", started, "")
 	return Cluster{Name: name, Created: true}, nil
 }
 
@@ -362,9 +365,13 @@ func (c Cluster) Release(run Runner) {
 		}
 		return
 	}
+	started := time.Now()
 	if _, err := run("delete", "cluster", "--name", c.Name); err != nil {
+		LogPhase(c.Name, "teardown", "failed", started, "")
 		fmt.Printf("kind: delete cluster %s failed: %v\n", c.Name, err)
+		return
 	}
+	LogPhase(c.Name, "teardown", "deleted", started, "")
 }
 
 // ReleaseAfter releases an owned cluster, first persisting failure evidence
@@ -498,10 +505,13 @@ func Exists(run Runner, name string) bool {
 // LoadImage loads a locally built image into the named cluster's nodes through
 // an injectable, context-aware kind runner.
 func LoadImage(ctx context.Context, run ContextRunner, cluster, image string) error {
+	started := time.Now()
 	output, err := run(ctx, "load", "docker-image", image, "--name", cluster)
 	if err == nil {
+		LogPhase(cluster, "image-load", "loaded", started, "image="+image)
 		return nil
 	}
+	LogPhase(cluster, "image-load", "failed", started, "image="+image)
 	if contextErr := ctx.Err(); contextErr != nil {
 		err = contextErr
 	}
@@ -510,6 +520,15 @@ func LoadImage(ctx context.Context, run ContextRunner, cluster, image string) er
 			image, cluster, err, detail)
 	}
 	return fmt.Errorf("kind load docker-image %s into %s: %w", image, cluster, err)
+}
+
+// LogPhase emits one parseable monotonic phase record for release timing.
+func LogPhase(target, name, outcome string, started time.Time, detail string) {
+	if detail != "" {
+		detail = " " + detail
+	}
+	fmt.Printf("phase target=%s name=%s elapsed=%s outcome=%s%s\n",
+		target, name, time.Since(started).Round(time.Millisecond), outcome, detail)
 }
 
 // ExportLogs exports the cluster's node and pod logs into destDir so a failed

@@ -1,9 +1,9 @@
-# The applier apply port differs from the profile contract (18230). The exec words
+# The applier apply port differs from the profile contract (18330). The exec words
 # and the rest.yaml listener are fixed to the declared ports, so the schema pins them
 # with a const; a drifted port must be rejected.
 applier:
   enabled: true
   ports:
     apply: 18240
-    control: 18231
-    monitor: 18232
+    control: 18331
+    monitor: 18332

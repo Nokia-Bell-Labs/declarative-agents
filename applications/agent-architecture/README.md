@@ -101,25 +101,18 @@ without mutating anything.
 
 ## Run the demo
 
-Run every command from `applications/agent-architecture`, except the one-time
-port preflight in step 1, which runs from the repository root. Steps 2, 3,
-and 5 each take their own terminal.
+Run every command from `applications/agent-architecture`. Steps 1, 2, and 4
+each take their own terminal. The trace collector reserves ephemeral loopback
+ports, so it can run beside the chatbot-mesh collector.
 
-1. Free the demo ports. The chatbot-mesh persistent collector ingress binds
-   the ports the demo's trace collector needs (`127.0.0.1:4317` and
-   `:18193`); if it is running, `mage run` fails
-   with `bind OTLP receiver "ingress": address already in use`. Stop it from
-   `applications/chatbot-mesh` with `mage observability:down`, or skip tracing
-   by setting `tracing: false` in `demo.yaml` before `mage run`.
-
-2. Serve the deck:
+1. Serve the deck:
 
        mage presentation
 
    Open http://127.0.0.1:3999/agent-architecture.slide and follow it; the
    remaining steps mirror the slides.
 
-3. In a second terminal, start the composition, meaning the trace collector
+2. In a second terminal, start the composition, meaning the trace collector
    and the curator together:
 
        mage run
@@ -130,15 +123,15 @@ and 5 each take their own terminal.
    A first run compiles agent-core and takes a minute; later runs are
    faster.
 
-4. Browse the running surfaces:
+3. Browse the running surfaces:
 
    - documentation at http://localhost:18081;
    - lifecycle control at http://127.0.0.1:18082, with health at
      `/api/lifecycle/health`;
    - monitoring at http://localhost:18084/ui/; and
-   - collected traces at http://127.0.0.1:18193/query/traces.
+   - collected traces at the query URL printed by `mage run`.
 
-5. In a third terminal, stop the curator through its own API by running the
+4. In a third terminal, stop the curator through its own API by running the
    catalog-owned lifecycle-exit client. Build the `agent` binary from
    `../../agent-core` as in Start the Knowledge Manager, then:
 
@@ -188,19 +181,16 @@ By default `mage run` starts the canonical collector agent in spool mode
 before the curator and exports the curator's OTLP traces to it. After the
 curator exits, the collector is stopped via its control exit route.
 
-While the demo is running, browse collected traces at:
-
-    http://127.0.0.1:18193/query/traces
+While the demo is running, browse collected traces at the query URL printed by
+`mage run`.
 
 To disable trace collection, set `tracing: false` in `demo.yaml`, then:
 
     mage run
 
-The collector binds the OTLP receiver on `127.0.0.1:4317`, control on port
-18191, monitor on port 18192, and the query surface on port 18193. The
-chatbot-mesh persistent collector ingress (`mage observability:up` in
-`applications/chatbot-mesh`) binds 4317 and 18193 too; stop it with
-`mage observability:down` from that directory before a traced demo run.
+The collector reserves distinct ephemeral loopback ports for its OTLP receiver,
+control, monitor, and query surfaces. The reservation avoids fixed-port
+coordination with other applications while keeping every surface local.
 
 ## The lifecycle-exit client
 

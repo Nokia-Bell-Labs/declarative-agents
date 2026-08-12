@@ -285,12 +285,14 @@ design_decisions:
   - id: 7
     title: Collect traces with the canonical collector agent
     decision: |
-      The demo starts the canonical collector agent (mode spool, receiver on
-      127.0.0.1:4317, query on port 18193) before the curator and passes
-      --otel-otlp-endpoint and --otel-service-name to the curator run. After
-      the curator exits, the run target posts to the collector control exit
-      route and waits for the process to terminate. Tracing is on by default
-      and disabled by setting tracing:false in demo.yaml.
+      The demo reserves four distinct ephemeral loopback ports for the canonical
+      collector agent's OTLP receiver, control, monitor, and query surfaces before
+      starting it in spool mode. It passes the reserved receiver through
+      --otel-otlp-endpoint, prints the query URL for the presenter, and retains
+      the reservation until immediately before process start. After the curator
+      exits, the run target posts to the reserved collector control exit route
+      and waits for the process to terminate. Tracing is on by default and
+      disabled by setting tracing:false in demo.yaml.
     benefits:
       - A guided run produces browsable traces without external infrastructure.
       - The collector reuses the same agent binary and canonical profile.

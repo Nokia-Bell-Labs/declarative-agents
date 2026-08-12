@@ -15,6 +15,23 @@ import (
 // can be checked cheaply is that its assertions actually reject the things they name,
 // and that its fakes classify the argv the shipped declarations construct.
 
+func TestApplierHostPortsAreApplicationOwned(t *testing.T) {
+	for name, endpoint := range map[string]string{
+		"apply":   applierApplyURL,
+		"rollout": applierRolloutURL,
+		"control": applierControlHealthURL,
+		"exit":    applierControlExitURL,
+	} {
+		if strings.Contains(endpoint, ":18230") ||
+			strings.Contains(endpoint, ":18231") {
+			t.Errorf("%s endpoint overlaps Coding Agent ownership: %s", name, endpoint)
+		}
+		if !strings.Contains(endpoint, ":1833") {
+			t.Errorf("%s endpoint is outside Agent Architecture range: %s", name, endpoint)
+		}
+	}
+}
+
 // TestAssertApplierCallsRejectsMissingAndForbidden proves the call assertions fail in
 // both directions: a leg that did not invoke what it must, and a leg that invoked
 // what it must not.
