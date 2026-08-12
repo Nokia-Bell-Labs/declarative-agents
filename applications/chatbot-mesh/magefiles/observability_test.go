@@ -372,6 +372,31 @@ func TestStopCollectorDoesNotTouchUnrelatedListener(t *testing.T) {
 	}
 }
 
+func TestTerminateCollectorFallsBackToVerifiedPIDWhenGroupSignalIsDenied(t *testing.T) {
+	restoreObservabilityHooks(t)
+	process := collectorFixtureProcess(4242, "/removed/worktree")
+	collectorCommandOutput = func(name string, args ...string) (string, error) {
+		return process.Command, nil
+	}
+	alive := true
+	collectorProcessAlive = func(int) bool { return alive }
+	var signalled []int
+	collectorSignalProcess = func(pid int, signal syscall.Signal) error {
+		signalled = append(signalled, pid)
+		if pid < 0 {
+			return syscall.EPERM
+		}
+		alive = false
+		return nil
+	}
+	if err := terminateCollectorProcessGroup(process.PID); err != nil {
+		t.Fatal(err)
+	}
+	if len(signalled) != 2 || signalled[0] != -process.PID || signalled[1] != process.PID {
+		t.Fatalf("signals = %v, want group then verified pid", signalled)
+	}
+}
+
 func TestObservabilityStatusReportsOwnerCommandAndRemovedSource(t *testing.T) {
 	restoreObservabilityHooks(t)
 	process := collectorFixtureProcess(4242, "/removed/worktree")
@@ -564,6 +589,7 @@ func restoreObservabilityHooks(t *testing.T) {
 	alive := collectorProcessAlive
 	terminate := terminateCollectorProcess
 	output := collectorCommandOutput
+	signal := collectorSignalProcess
 	stopWait := untrackedCollectorStopWait
 	source := currentCollectorSource
 	writer := observabilityOutput
@@ -592,6 +618,7 @@ func restoreObservabilityHooks(t *testing.T) {
 		collectorProcessAlive = alive
 		terminateCollectorProcess = terminate
 		collectorCommandOutput = output
+		collectorSignalProcess = signal
 		untrackedCollectorStopWait = stopWait
 		currentCollectorSource = source
 		observabilityOutput = writer

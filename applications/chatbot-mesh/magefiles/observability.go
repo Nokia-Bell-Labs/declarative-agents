@@ -54,6 +54,7 @@ var (
 	collectorProcessAlive        = processAlive
 	terminateCollectorProcess    = terminateCollectorProcessGroup
 	collectorCommandOutput       = commandOutput
+	collectorSignalProcess       = syscall.Kill
 	untrackedCollectorStopWait   = observabilityStopWait
 	currentCollectorSource       = expectedCollectorSource
 )
@@ -441,22 +442,52 @@ func listenerPIDs(port string) ([]int, error) {
 }
 
 func terminateCollectorProcessGroup(pid int) error {
-	if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
+	if err := signalVerifiedCollector(pid, syscall.SIGTERM); err != nil {
 		return fmt.Errorf("terminate collector process group %d: %w", pid, err)
 	}
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		if !processAlive(pid) {
+		if !collectorProcessAlive(pid) {
 			return nil
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+	if err := signalVerifiedCollector(pid, syscall.SIGKILL); err != nil {
 		return fmt.Errorf("kill collector process group %d: %w", pid, err)
 	}
-	time.Sleep(50 * time.Millisecond)
-	if processAlive(pid) {
+	deadline = time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if !collectorProcessAlive(pid) {
+			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if collectorProcessAlive(pid) {
 		return fmt.Errorf("collector process group %d remained alive after SIGKILL", pid)
+	}
+	return nil
+}
+
+func signalVerifiedCollector(pid int, signal syscall.Signal) error {
+	err := collectorSignalProcess(-pid, signal)
+	if err == nil {
+		return nil
+	}
+	if !collectorProcessAlive(pid) {
+		return nil
+	}
+	if err != syscall.EPERM && err != syscall.ESRCH {
+		return err
+	}
+	if _, verifyErr := inspectCollectorProcess(pid); verifyErr != nil {
+		if !collectorProcessAlive(pid) {
+			return nil
+		}
+		return fmt.Errorf("refuse direct signal after process-group error %v: %w", err, verifyErr)
+	}
+	if directErr := collectorSignalProcess(pid, signal); directErr != nil &&
+		directErr != syscall.ESRCH {
+		return directErr
 	}
 	return nil
 }
