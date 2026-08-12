@@ -26,10 +26,6 @@ const (
 	applierLiveRelease         = "live"
 
 	applierReadyWait = 3 * time.Minute
-
-	applierLiveControlURL = "http://127.0.0.1:18091/api/lifecycle/health"
-	applierLiveRolloutURL = "http://127.0.0.1:18090/provisioning/api/rollout"
-	applierLiveApplyURL   = "http://127.0.0.1:18090/provisioning/api/apply"
 )
 
 // applierLiveRollbackHook is test-only chart instrumentation. A post-upgrade
@@ -625,19 +621,29 @@ func assertApplierServesItsSurface(
 	commands kindrig.Commands,
 	profilesRoot string,
 ) error {
-	stop, err := kubectlPortForwardWithCommands(
-		commands, "svc/"+applierLiveRelease+"-chatbot-mesh-applier", 18090, 18091)
+	localPorts, err := reserveLoopbackPorts(2)
+	if err != nil {
+		return err
+	}
+	applyURL := loopbackURL(localPorts[0], "/provisioning/api/apply")
+	rolloutURL := loopbackURL(localPorts[0], "/provisioning/api/rollout")
+	controlURL := loopbackURL(localPorts[1], "/api/lifecycle/health")
+	stop, err := kubectlPortForwardPairs(
+		commands, "svc/"+applierLiveRelease+"-chatbot-mesh-applier",
+		portForwardPair{local: localPorts[0], remote: 18090},
+		portForwardPair{local: localPorts[1], remote: 18091})
 	if err != nil {
 		return err
 	}
 	defer stop()
 
-	if err := waitHTTPStatus(applierLiveControlURL, http.StatusOK, applierReadyWait); err != nil {
+	if err := waitHTTPStatus(controlURL, http.StatusOK, applierReadyWait); err != nil {
 		return fmt.Errorf("the applier control health never answered: %w", err)
 	}
 	fmt.Println("applierLive: the applier answers its control health")
 
-	body, status, err := requestInference(http.MethodGet, applierLiveRolloutURL, "", "applier live rollout read")
+	body, status, err := requestInference(
+		http.MethodGet, rolloutURL, "", "applier live rollout read")
 	if err != nil {
 		return fmt.Errorf("rollout read failed: %w", err)
 	}
@@ -650,25 +656,29 @@ func assertApplierServesItsSurface(
 	contextRun := applierLiveCommandRunner(commands.RunContext)
 	if err := runApplierLiveApplyStep(contextRun, "upgrade",
 		func() error {
-			return assertLiveApplyChangesTheRelease(commands.Run, profilesRoot)
+			return assertLiveApplyChangesTheRelease(
+				commands.Run, profilesRoot, applyURL)
 		}); err != nil {
 		return err
 	}
 	if err := runApplierLiveApplyStep(contextRun, "rollback",
 		func() error {
-			return assertLiveRollbackRestoresTheRelease(commands.Run, profilesRoot)
+			return assertLiveRollbackRestoresTheRelease(
+				commands.Run, profilesRoot, applyURL)
 		}); err != nil {
 		return err
 	}
 	if err := runApplierLiveApplyStep(contextRun, "schema rejection",
 		func() error {
-			return assertLiveSchemaRejection(commands.Run, profilesRoot)
+			return assertLiveSchemaRejection(
+				commands.Run, profilesRoot, applyURL)
 		}); err != nil {
 		return err
 	}
 
 	// After a real apply, the rollout read must still answer off the cluster.
-	body, status, err = requestInference(http.MethodGet, applierLiveRolloutURL, "", "applier live rollout recheck")
+	body, status, err = requestInference(
+		http.MethodGet, rolloutURL, "", "applier live rollout recheck")
 	if err != nil {
 		return fmt.Errorf("rollout read after apply failed: %w", err)
 	}
@@ -723,6 +733,7 @@ func assertLiveRolloutBody(body []byte, status int) error {
 func assertLiveApplyChangesTheRelease(
 	run helmLLMCommandRunner,
 	profilesRoot string,
+	applyURL string,
 ) error {
 	before, err := helmReleaseRevision(run, applierLiveRelease)
 	if err != nil {
@@ -734,7 +745,8 @@ func assertLiveApplyChangesTheRelease(
 	if err != nil {
 		return err
 	}
-	body, status, err := requestInference(http.MethodPost, applierLiveApplyURL, patch, "applier live apply")
+	body, status, err := requestInference(
+		http.MethodPost, applyURL, patch, "applier live apply")
 	if err != nil {
 		return fmt.Errorf("apply request failed: %w", err)
 	}
@@ -769,6 +781,7 @@ func assertLiveApplyChangesTheRelease(
 func assertLiveRollbackRestoresTheRelease(
 	run helmLLMCommandRunner,
 	profilesRoot string,
+	applyURL string,
 ) error {
 	beforeRevision, err := helmReleaseRevision(run, applierLiveRelease)
 	if err != nil {
@@ -784,7 +797,8 @@ func assertLiveRollbackRestoresTheRelease(
 	}
 
 	client := &http.Client{Timeout: applierReadyWait}
-	body, status, err := requestHTTPWithClient(client, http.MethodPost, applierLiveApplyURL, patch)
+	body, status, err := requestHTTPWithClient(
+		client, http.MethodPost, applyURL, patch)
 	if err != nil {
 		return fmt.Errorf("rollback-triggering apply request failed: %w", err)
 	}
@@ -832,6 +846,7 @@ func assertLiveRollbackRestoresTheRelease(
 func assertLiveSchemaRejection(
 	run helmLLMCommandRunner,
 	profilesRoot string,
+	applyURL string,
 ) error {
 	before, err := helmReleaseRevision(run, applierLiveRelease)
 	if err != nil {
@@ -841,7 +856,8 @@ func assertLiveSchemaRejection(
 	if err != nil {
 		return err
 	}
-	body, status, err := requestInference(http.MethodPost, applierLiveApplyURL, patch, "applier live reject")
+	body, status, err := requestInference(
+		http.MethodPost, applyURL, patch, "applier live reject")
 	if err != nil {
 		return fmt.Errorf("apply request failed: %w", err)
 	}

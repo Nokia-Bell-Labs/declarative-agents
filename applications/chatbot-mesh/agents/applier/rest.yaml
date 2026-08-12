@@ -179,7 +179,9 @@ rest:
           binding: machine_request
           machine_request:
             profile: rollout-profile.yaml
-            timeout: 10s
+            # Shared release scenarios can make the two real kubectl reads exceed
+            # ten seconds even though the cluster remains healthy.
+            timeout: 30s
             request:
               body: {}
             response:

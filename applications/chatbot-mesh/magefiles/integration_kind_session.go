@@ -26,6 +26,7 @@ type integrationKindSession struct {
 	evidence   kindrig.FailureEvidence
 	hostImages map[string]string
 	finalizers map[string]func() error
+	batching   bool
 	poisoned   error
 	closed     bool
 }
@@ -231,9 +232,42 @@ func releaseAggregateKindCluster(
 		return false
 	}
 	if cause != nil {
-		session.poison(cause)
+		if !session.deferBatchPoison() {
+			session.poison(cause)
+		}
 	}
 	return true
+}
+
+func (session *integrationKindSession) beginConcurrentBatch() error {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.closed {
+		return errors.New("shared kind session is closed")
+	}
+	if session.poisoned != nil {
+		return fmt.Errorf("shared kind session is poisoned: %w", session.poisoned)
+	}
+	if session.batching {
+		return errors.New("shared kind session already has a concurrent batch")
+	}
+	session.batching = true
+	return nil
+}
+
+func (session *integrationKindSession) deferBatchPoison() bool {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	return session.batching
+}
+
+func (session *integrationKindSession) endConcurrentBatch(cause error) {
+	session.mu.Lock()
+	session.batching = false
+	session.mu.Unlock()
+	if cause != nil {
+		session.poison(cause)
+	}
 }
 
 func prepareAggregateNamespace(

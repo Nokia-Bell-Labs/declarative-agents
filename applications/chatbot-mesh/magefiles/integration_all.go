@@ -3,8 +3,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
 type integrationTarget struct {
@@ -106,31 +111,166 @@ func (i Integration) All() error {
 		return err
 	}
 	defer deactivate()
-
-	var results []string
-	failed := 0
-	for _, t := range integrationTargets(i) {
-		fmt.Printf("\n=== %s ===\n", t.name)
-		run := t.fn
-		if t.sharedKind {
-			run = func() error { return session.runTarget(t.name, t.fn) }
-		}
-		if err := run(); err != nil {
-			failed++
-			results = append(results, fmt.Sprintf("  FAIL  %s  %v", t.name, err))
-			continue
-		}
-		results = append(results, fmt.Sprintf("  PASS  %s", t.name))
-	}
+	targets := integrationTargets(i)
+	results := make(chan integrationResult, len(targets))
+	var lanes sync.WaitGroup
+	lanes.Add(3)
+	go func() {
+		defer lanes.Done()
+		runSerialIntegrationLane("local", localIntegrationTargets(targets), results)
+	}()
+	go func() {
+		defer lanes.Done()
+		runSerialIntegrationLane("policy", namedIntegrationTargets(targets, "policyProof"), results)
+	}()
+	go func() {
+		defer lanes.Done()
+		runSharedIntegrationLane(session, targets, results)
+	}()
+	lanes.Wait()
 	session.close()
 
+	resultByName := make(map[string]integrationResult, len(targets))
+	for range targets {
+		result := <-results
+		resultByName[result.name] = result
+	}
+	failed := 0
 	fmt.Printf("\n%s\n", strings.Repeat("─", 40))
-	for _, r := range results {
-		fmt.Println(r)
+	for _, target := range targets {
+		result := resultByName[target.name]
+		if result.err != nil {
+			failed++
+			fmt.Printf("  FAIL  %s  %v\n", target.name, result.err)
+			continue
+		}
+		fmt.Printf("  PASS  %s\n", target.name)
 	}
 	fmt.Printf("%s\n", strings.Repeat("─", 40))
 	if failed > 0 {
 		return fmt.Errorf("%d integration target(s) failed", failed)
 	}
 	return nil
+}
+
+type integrationResult struct {
+	name string
+	err  error
+}
+
+func localIntegrationTargets(targets []integrationTarget) []integrationTarget {
+	var local []integrationTarget
+	for _, target := range targets {
+		if !target.sharedKind && target.name != "policyProof" {
+			local = append(local, target)
+		}
+	}
+	return local
+}
+
+func namedIntegrationTargets(
+	targets []integrationTarget,
+	names ...string,
+) []integrationTarget {
+	wanted := make(map[string]bool, len(names))
+	for _, name := range names {
+		wanted[name] = true
+	}
+	var selected []integrationTarget
+	for _, target := range targets {
+		if wanted[target.name] {
+			selected = append(selected, target)
+		}
+	}
+	return selected
+}
+
+func runSerialIntegrationLane(
+	name string,
+	targets []integrationTarget,
+	results chan<- integrationResult,
+) {
+	started := time.Now()
+	outcome := "passed"
+	for _, target := range targets {
+		result := runIntegrationTarget(target)
+		results <- result
+		if result.err != nil {
+			outcome = "failed"
+		}
+	}
+	kindrig.LogPhase("chatbot-integration", "lane", outcome, started, "lane="+name)
+}
+
+func runSharedIntegrationLane(
+	session *integrationKindSession,
+	targets []integrationTarget,
+	results chan<- integrationResult,
+) {
+	started := time.Now()
+	outcome := "passed"
+	smoke := namedIntegrationTargets(targets, "helmSmoke")[0]
+	fmt.Printf("\n=== %s ===\n", smoke.name)
+	smokeErr := session.runTarget(smoke.name, smoke.fn)
+	results <- integrationResult{name: smoke.name, err: smokeErr}
+	terminal := namedIntegrationTargets(
+		targets, "helmSwap", "helmLLMTier", "applierLive")
+	if smokeErr != nil {
+		outcome = "failed"
+		for _, target := range terminal {
+			results <- integrationResult{
+				name: target.name,
+				err:  fmt.Errorf("blocked by helmSmoke: %w", smokeErr),
+			}
+		}
+		kindrig.LogPhase(
+			"chatbot-integration", "lane", outcome, started, "lane=shared-kind")
+		return
+	}
+	if err := session.beginConcurrentBatch(); err != nil {
+		outcome = "failed"
+		for _, target := range terminal {
+			results <- integrationResult{name: target.name, err: err}
+		}
+		kindrig.LogPhase(
+			"chatbot-integration", "lane", outcome, started, "lane=shared-kind")
+		return
+	}
+	batchResults := make(chan integrationResult, len(terminal))
+	var batch sync.WaitGroup
+	for _, target := range terminal {
+		target := target
+		batch.Add(1)
+		go func() {
+			defer batch.Done()
+			batchResults <- runIntegrationTarget(target)
+		}()
+	}
+	batch.Wait()
+	close(batchResults)
+	var batchErrors []error
+	for result := range batchResults {
+		results <- result
+		if result.err != nil {
+			outcome = "failed"
+			batchErrors = append(batchErrors,
+				fmt.Errorf("%s: %w", result.name, result.err))
+		}
+	}
+	session.endConcurrentBatch(errors.Join(batchErrors...))
+	kindrig.LogPhase(
+		"chatbot-integration", "lane", outcome, started, "lane=shared-kind")
+}
+
+func runIntegrationTarget(target integrationTarget) integrationResult {
+	fmt.Printf("\n=== %s ===\n", target.name)
+	started := time.Now()
+	err := target.fn()
+	outcome := "passed"
+	if err != nil {
+		outcome = "failed"
+	}
+	kindrig.LogPhase(
+		"chatbot-integration", "target", outcome, started, "scenario="+target.name)
+	return integrationResult{name: target.name, err: err}
 }

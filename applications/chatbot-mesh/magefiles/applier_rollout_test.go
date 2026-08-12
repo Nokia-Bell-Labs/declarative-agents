@@ -30,6 +30,7 @@ type rolloutEndpoint struct {
 		Machine       string `yaml:"machine"`
 		Profile       string `yaml:"profile"`
 		InitialSignal string `yaml:"initial_signal"`
+		Timeout       string `yaml:"timeout"`
 		Response      struct {
 			TerminalStates  map[string]rolloutResponseMapping `yaml:"terminal_states"`
 			TerminalSignals map[string]rolloutResponseMapping `yaml:"terminal_signals"`
@@ -97,6 +98,14 @@ func applierRolloutEndpoint(t *testing.T) rolloutEndpoint {
 		t.Fatal("applier declares no rollout endpoint; the creator has nothing to read")
 	}
 	return endpoint
+}
+
+func TestApplierRolloutEndpointAllowsConcurrentClusterReads(t *testing.T) {
+	endpoint := applierRolloutEndpoint(t)
+	if endpoint.MachineRequest.Timeout != "30s" {
+		t.Fatalf("rollout machine timeout = %q, want 30s concurrency budget",
+			endpoint.MachineRequest.Timeout)
+	}
 }
 
 func applierRolloutMachine(t *testing.T) rolloutMachine {
@@ -263,13 +272,13 @@ func TestApplierRolloutCountsWordContract(t *testing.T) {
 	if word.Binary != "kubectl" {
 		t.Errorf("binary = %q, want kubectl", word.Binary)
 	}
-	// The placeholder coordinates the chart rewrites per release; the applier
+	// The token coordinates the chart rewrites per release; the applier
 	// render test proves the rewrite reaches them.
 	if !containsString(word.Args, "deployment/chatbot-mesh-chatbot") {
-		t.Errorf("args %v do not name the chatbot Deployment placeholder the chart rewrites", word.Args)
+		t.Errorf("args %v do not name the chatbot Deployment token the chart rewrites", word.Args)
 	}
 	if !containsString(word.Args, "--namespace") || !containsString(word.Args, "default") {
-		t.Errorf("args %v do not name the namespace placeholder the chart rewrites", word.Args)
+		t.Errorf("args %v do not name the namespace token the chart rewrites", word.Args)
 	}
 
 	for _, signal := range []string{"ToolDone", "ToolFailed"} {

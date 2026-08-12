@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	observerHelmMonitorURL = "http://127.0.0.1:18202"
 	observerComponentLabel = "app.kubernetes.io/component"
 	observerInstanceLabel  = "app.kubernetes.io/instance"
 	observerMonitorLabel   = "monitorPort"

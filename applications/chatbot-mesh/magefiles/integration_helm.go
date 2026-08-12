@@ -31,8 +31,6 @@ const (
 	helmKindCluster     = "da-chatbot-mesh-smoke"
 	helmImageRepository = "declarative-agents/agent-core"
 
-	helmChatURL          = "http://127.0.0.1:18080/api/v1/chat"
-	helmHealthURL        = "http://127.0.0.1:18081/api/lifecycle/health"
 	helmInstallTimeout   = 5 * time.Minute
 	helmImageLoadTimeout = 3 * time.Minute
 	helmClusterWait      = 120 * time.Second
@@ -381,8 +379,16 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 
-	stopObserver, err := kubectlPortForwardWithCommands(commands,
-		"svc/"+helmRelease+"-chatbot-mesh-observer", 18202)
+	localPorts, err := reserveLoopbackPorts(3)
+	if err != nil {
+		return err
+	}
+	chatURL := loopbackURL(localPorts[0], "/api/v1/chat")
+	healthURL := loopbackURL(localPorts[1], "/api/lifecycle/health")
+	observerURL := loopbackURL(localPorts[2], "")
+	stopObserver, err := kubectlPortForwardPairs(commands,
+		"svc/"+helmRelease+"-chatbot-mesh-observer",
+		portForwardPair{local: localPorts[2], remote: 18202})
 	if err != nil {
 		return err
 	}
@@ -392,8 +398,10 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		}
 	}()
 
-	stop, err := kubectlPortForwardWithCommands(
-		commands, "svc/"+helmRelease+"-chatbot-mesh-chatbot", 18080, 18081)
+	stop, err := kubectlPortForwardPairs(
+		commands, "svc/"+helmRelease+"-chatbot-mesh-chatbot",
+		portForwardPair{local: localPorts[0], remote: 18080},
+		portForwardPair{local: localPorts[1], remote: 18081})
 	if err != nil {
 		return err
 	}
@@ -402,7 +410,7 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 			stop()
 		}
 	}()
-	if err := waitHTTPStatus(helmHealthURL, http.StatusOK, helmReadyTimeout); err != nil {
+	if err := waitHTTPStatus(healthURL, http.StatusOK, helmReadyTimeout); err != nil {
 		return fmt.Errorf("chatbot control health not ready: %w", err)
 	}
 	// Checked before the turn that is supposed to produce its spans, so a
@@ -414,7 +422,7 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	if err := assertCollectorOTLPReady(commands, helmRelease, helmReadyTimeout); err != nil {
 		return err
 	}
-	if err := assertSmokeChatServed(helmChatURL); err != nil {
+	if err := assertSmokeChatServed(chatURL); err != nil {
 		return err
 	}
 	if err := assertCollectorSpoolIdentity(commands.Run, helmRelease, telemetry.RunID,
@@ -430,11 +438,11 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	if err := assertObserverHelmFleet(
-		commands.Run, observerHelmMonitorURL, helmRelease, helmReadyTimeout); err != nil {
+		commands.Run, observerURL, helmRelease, helmReadyTimeout); err != nil {
 		return err
 	}
 	if err := assertObserverFleetPodMetrics(
-		observerHelmMonitorURL, helmReadyTimeout); err != nil {
+		observerURL, helmReadyTimeout); err != nil {
 		return err
 	}
 	stop()
@@ -921,21 +929,11 @@ func kubectlPortForwardWithCommands(
 	target string,
 	ports ...int,
 ) (func(), error) {
-	args := []string{"port-forward", target}
+	pairs := make([]portForwardPair, 0, len(ports))
 	for _, p := range ports {
-		args = append(args, fmt.Sprintf("%d:%d", p, p))
+		pairs = append(pairs, portForwardPair{local: p, remote: p})
 	}
-	cmd := commands.Command("kubectl", args...)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("kubectl port-forward %s: %w", target, err)
-	}
-	return func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		_ = cmd.Wait()
-	}, nil
+	return kubectlPortForwardPairs(commands, target, pairs...)
 }
 
 // assertSmokeChatServed posts one chat turn and asserts the mesh answered (200
@@ -1560,8 +1558,19 @@ func assertSwapReplaceMiddleRag(
 	if err != nil {
 		return err
 	}
-	stopForward, err := kubectlPortForwardWithCommands(
-		commands, "svc/"+helmSwapRelease+"-chatbot-mesh-chatbot", 18080, 18081)
+	localPorts, err := reserveLoopbackPorts(3)
+	if err != nil {
+		return err
+	}
+	chatURL := loopbackURL(localPorts[0], "/api/v1/chat")
+	healthURL := loopbackURL(localPorts[1], "/api/lifecycle/health")
+	observerURL := loopbackURL(localPorts[2], "")
+	chatPairs := []portForwardPair{
+		{local: localPorts[0], remote: 18080},
+		{local: localPorts[1], remote: 18081},
+	}
+	stopForward, err := kubectlPortForwardPairs(
+		commands, "svc/"+helmSwapRelease+"-chatbot-mesh-chatbot", chatPairs...)
 	if err != nil {
 		return err
 	}
@@ -1570,27 +1579,28 @@ func assertSwapReplaceMiddleRag(
 			stopForward()
 		}
 	}()
-	if err := waitHTTPStatus(helmHealthURL, http.StatusOK, helmReadyTimeout); err != nil {
+	if err := waitHTTPStatus(healthURL, http.StatusOK, helmReadyTimeout); err != nil {
 		return fmt.Errorf("chatbot did not become reachable before warm swap: %w", err)
 	}
-	stopObserver, err := kubectlPortForwardWithCommands(
-		commands, "svc/"+helmSwapRelease+"-chatbot-mesh-observer", 18202)
+	stopObserver, err := kubectlPortForwardPairs(
+		commands, "svc/"+helmSwapRelease+"-chatbot-mesh-observer",
+		portForwardPair{local: localPorts[2], remote: 18202})
 	if err != nil {
 		return err
 	}
 	defer stopObserver()
 	baseline, err := observerTurnBaselineSnapshot(
-		observerHelmMonitorURL, helmReadyTimeout)
+		observerURL, helmReadyTimeout)
 	if err != nil {
 		return fmt.Errorf("observer live-turn baseline: %w", err)
 	}
 	turnResult := make(chan error, 1)
-	go func() { turnResult <- assertSmokeChatServed(helmChatURL) }()
+	go func() { turnResult <- assertSmokeChatServed(chatURL) }()
 	if err := llmMock.waitForAnswer(helmReadyTimeout); err != nil {
 		return err
 	}
 	if err := waitObserverLiveTurn(
-		observerHelmMonitorURL, collectorQueryBase(), baseline, helmReadyTimeout); err != nil {
+		observerURL, collectorQueryBase(), baseline, helmReadyTimeout); err != nil {
 		return fmt.Errorf("observer live-turn evidence: %w", err)
 	}
 
@@ -1624,16 +1634,16 @@ func assertSwapReplaceMiddleRag(
 	stopForward()
 	stopForward = nil
 
-	stopReplacementForward, err := kubectlPortForwardWithCommands(
-		commands, "svc/"+helmSwapRelease+"-chatbot-mesh-chatbot", 18080, 18081)
+	stopReplacementForward, err := kubectlPortForwardPairs(
+		commands, "svc/"+helmSwapRelease+"-chatbot-mesh-chatbot", chatPairs...)
 	if err != nil {
 		return err
 	}
 	defer stopReplacementForward()
-	if err := waitHTTPStatus(helmHealthURL, http.StatusOK, helmReadyTimeout); err != nil {
+	if err := waitHTTPStatus(healthURL, http.StatusOK, helmReadyTimeout); err != nil {
 		return fmt.Errorf("replacement chatbot did not become reachable: %w", err)
 	}
-	if err := assertSmokeChatServed(helmChatURL); err != nil {
+	if err := assertSmokeChatServed(chatURL); err != nil {
 		return fmt.Errorf("replacement chatbot did not serve a turn: %w", err)
 	}
 	if err := kubectlResourceExists(
@@ -1716,10 +1726,6 @@ func kubectlConfigMapKey(
 const (
 	helmLLMRelease = "llm"
 	helmLLMCluster = "da-chatbot-mesh-llm"
-
-	helmLLMChatURL   = "http://127.0.0.1:18080/api/v1/chat"
-	helmLLMHealthURL = "http://127.0.0.1:18081/api/lifecycle/health"
-	helmLLMTagsURL   = "http://127.0.0.1:11434/api/tags"
 
 	// Model pulls run on CPU inside kind. Installation deliberately does not use
 	// --wait: the integration observes the agent readiness transition around the
@@ -1958,6 +1964,13 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 		commands.Run, helmLLMRelease, chartArchive, assets, 1); err != nil {
 		return err
 	}
+	localPorts, err := reserveLoopbackPorts(3)
+	if err != nil {
+		return err
+	}
+	chatURL := loopbackURL(localPorts[0], "/api/v1/chat")
+	healthURL := loopbackURL(localPorts[1], "/api/lifecycle/health")
+	tagsURL := loopbackURL(localPorts[2], "/api/tags")
 
 	// Ollama must serve before the suspended preload Job can be resumed; agent
 	// readiness remains blocked until the transition proof below completes.
@@ -1966,14 +1979,15 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 		if preloadErr != nil {
 			return preloadErr
 		}
-		stopTags, forwardErr := kubectlPortForwardWithCommands(
-			commands, "svc/"+helmLLMRelease+"-chatbot-mesh-ollama", 11434)
+		stopTags, forwardErr := kubectlPortForwardPairs(
+			commands, "svc/"+helmLLMRelease+"-chatbot-mesh-ollama",
+			portForwardPair{local: localPorts[2], remote: 11434})
 		if forwardErr != nil {
 			return forwardErr
 		}
 		defer stopTags()
 		if modelsErr := assertLLMModelsLoaded(
-			helmLLMTagsURL, helmLLMModels, helmLLMModelPreloadTimeout); modelsErr != nil {
+			tagsURL, helmLLMModels, helmLLMModelPreloadTimeout); modelsErr != nil {
 			return modelsErr
 		}
 		return finishLLMPreloadTransition(commands.Run, workloads)
@@ -1988,17 +2002,19 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 	}
 
 	if err := runHelmLLMPhase("chat-proof", func() error {
-		stop, forwardErr := kubectlPortForwardWithCommands(
-			commands, "svc/"+helmLLMRelease+"-chatbot-mesh-chatbot", 18080, 18081)
+		stop, forwardErr := kubectlPortForwardPairs(
+			commands, "svc/"+helmLLMRelease+"-chatbot-mesh-chatbot",
+			portForwardPair{local: localPorts[0], remote: 18080},
+			portForwardPair{local: localPorts[1], remote: 18081})
 		if forwardErr != nil {
 			return forwardErr
 		}
 		defer stop()
 		if healthErr := waitHTTPStatus(
-			helmLLMHealthURL, http.StatusOK, helmReadyTimeout); healthErr != nil {
+			healthURL, http.StatusOK, helmReadyTimeout); healthErr != nil {
 			return fmt.Errorf("chatbot control health not ready: %w", healthErr)
 		}
-		if chatErr := assertLLMChatServed(helmLLMChatURL); chatErr != nil {
+		if chatErr := assertLLMChatServed(chatURL); chatErr != nil {
 			return fmt.Errorf(
 				"chatbot did not serve a turn against the in-cluster LLM: %w", chatErr)
 		}
