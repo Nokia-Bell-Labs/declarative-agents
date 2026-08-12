@@ -50,6 +50,24 @@ func Tag() error {
 	return createReleaseTag(time.Now(), gitOutput, gitRemoteTags, gitCreateTagSet, runReleaseGates)
 }
 
+// TagDryRun executes the exact release gates against one clean, pinned commit
+// without creating a tag.
+func TagDryRun() error {
+	unlock, err := acquireRepositoryReleaseLock(gitOutput)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	started := time.Now()
+	commit, err := verifyReleaseCommit(gitOutput, runReleaseGates)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("release dry run complete: commit=%s elapsed=%s\n",
+		commit, time.Since(started).Round(time.Millisecond))
+	return nil
+}
+
 func acquireRepositoryReleaseLock(output gitOutputFunc) (func(), error) {
 	path, err := output("rev-parse", "--git-path", releaseLockName)
 	if err != nil {
@@ -104,34 +122,9 @@ func createReleaseTag(
 	if err := validateReleaseBranch(branch); err != nil {
 		return err
 	}
-	commit, err := output("rev-parse", "HEAD")
+	commit, err := verifyReleaseCommit(output, runGates)
 	if err != nil {
-		return fmt.Errorf("resolving release commit: %w", err)
-	}
-	status, err := output("status", "--porcelain")
-	if err != nil {
-		return fmt.Errorf("checking release worktree: %w", err)
-	}
-	if strings.TrimSpace(status) != "" {
-		return errors.New("tag requires a clean worktree")
-	}
-	if err := runGates(commit); err != nil {
-		return fmt.Errorf("release gates for commit %s: %w", commit, err)
-	}
-	afterGates, err := output("rev-parse", "HEAD")
-	if err != nil {
-		return fmt.Errorf("verifying release commit after gates: %w", err)
-	}
-	if strings.TrimSpace(afterGates) != strings.TrimSpace(commit) {
-		return fmt.Errorf("release commit changed while gates ran: started %s, now %s",
-			commit, afterGates)
-	}
-	status, err = output("status", "--porcelain")
-	if err != nil {
-		return fmt.Errorf("verifying release worktree after gates: %w", err)
-	}
-	if strings.TrimSpace(status) != "" {
-		return errors.New("release worktree changed while gates ran")
+		return err
 	}
 
 	date := now.Format("20060102")
@@ -152,6 +145,42 @@ func createReleaseTag(
 	}
 	fmt.Printf("done — created %s\n", tag)
 	return nil
+}
+
+func verifyReleaseCommit(
+	output gitOutputFunc,
+	runGates releaseGateRunner,
+) (string, error) {
+	commit, err := output("rev-parse", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("resolving release commit: %w", err)
+	}
+	status, err := output("status", "--porcelain")
+	if err != nil {
+		return "", fmt.Errorf("checking release worktree: %w", err)
+	}
+	if strings.TrimSpace(status) != "" {
+		return "", errors.New("release gates require a clean worktree")
+	}
+	if err := runGates(commit); err != nil {
+		return "", fmt.Errorf("release gates for commit %s: %w", commit, err)
+	}
+	afterGates, err := output("rev-parse", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("verifying release commit after gates: %w", err)
+	}
+	if strings.TrimSpace(afterGates) != strings.TrimSpace(commit) {
+		return "", fmt.Errorf("release commit changed while gates ran: started %s, now %s",
+			commit, afterGates)
+	}
+	status, err = output("status", "--porcelain")
+	if err != nil {
+		return "", fmt.Errorf("verifying release worktree after gates: %w", err)
+	}
+	if strings.TrimSpace(status) != "" {
+		return "", errors.New("release worktree changed while gates ran")
+	}
+	return strings.TrimSpace(commit), nil
 }
 
 func runReleaseGates(commit string) error {

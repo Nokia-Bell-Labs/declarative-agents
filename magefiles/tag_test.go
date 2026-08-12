@@ -150,6 +150,68 @@ func TestCreateReleaseTagCreatesNextDailyTag(t *testing.T) {
 	}
 }
 
+func TestVerifyReleaseCommitRunsGatesWithoutTagTransaction(t *testing.T) {
+	var calls [][]string
+	gateCalls := 0
+	commit, err := verifyReleaseCommit(
+		func(args ...string) (string, error) {
+			calls = append(calls, append([]string(nil), args...))
+			switch strings.Join(args, " ") {
+			case "rev-parse HEAD":
+				return "abc123", nil
+			case "status --porcelain":
+				return "", nil
+			default:
+				return "", errors.New("unexpected git command")
+			}
+		},
+		func(commit string) error {
+			gateCalls++
+			if commit != "abc123" {
+				t.Fatalf("gates received commit %q", commit)
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if commit != "abc123" || gateCalls != 1 {
+		t.Fatalf("dry run commit=%q gateCalls=%d", commit, gateCalls)
+	}
+	want := [][]string{
+		{"rev-parse", "HEAD"},
+		{"status", "--porcelain"},
+		{"rev-parse", "HEAD"},
+		{"status", "--porcelain"},
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("dry-run git calls = %#v, want %#v", calls, want)
+	}
+}
+
+func TestVerifyReleaseCommitRejectsDirtyWorktreeBeforeGates(t *testing.T) {
+	gates := 0
+	_, err := verifyReleaseCommit(
+		func(args ...string) (string, error) {
+			if strings.Join(args, " ") == "rev-parse HEAD" {
+				return "abc123", nil
+			}
+			return " M generated.txt", nil
+		},
+		func(string) error {
+			gates++
+			return nil
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "clean worktree") {
+		t.Fatalf("dirty dry run error = %v", err)
+	}
+	if gates != 0 {
+		t.Fatalf("dirty dry run executed %d gate sets", gates)
+	}
+}
+
 func TestCreateReleaseTagInGitRepository(t *testing.T) {
 	root := initGitRepo(t)
 	previous, err := os.Getwd()
