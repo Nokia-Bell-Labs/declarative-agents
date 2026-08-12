@@ -38,7 +38,7 @@ type releaseCommandRunner func(releaseGate) error
 
 type remoteTagsFunc func(date string) (string, error)
 
-const releaseStageConcurrency = 2
+const releaseStageConcurrency = 3
 
 // Tag creates the single repository-wide release tag.
 func Tag() error {

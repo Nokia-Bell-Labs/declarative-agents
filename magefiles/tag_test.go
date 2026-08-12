@@ -520,6 +520,53 @@ func TestChatbotAndArchitectureReleaseGatesCanOverlap(t *testing.T) {
 	}
 }
 
+func TestApplicationReleaseStageStartsThreeLanesBeforeFourth(t *testing.T) {
+	var applications []releaseGate
+	for _, gate := range releaseGates("/release") {
+		if gate.stage == 4 {
+			applications = append(applications, gate)
+		}
+	}
+	if len(applications) != 4 {
+		t.Fatalf("application gates = %d, want 4", len(applications))
+	}
+	started := make(chan string, len(applications))
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- executeReleaseStage(
+			applications, releaseStageConcurrency,
+			func(gate releaseGate) error {
+				started <- gate.name
+				<-release
+				return nil
+			})
+	}()
+	first := map[string]bool{
+		<-started: true,
+		<-started: true,
+		<-started: true,
+	}
+	for _, want := range []string{
+		"applications/chatbot-mesh integration",
+		"applications/coding-agent integration",
+		"applications/agent-architecture integration",
+	} {
+		if !first[want] {
+			t.Fatalf("first three lanes = %v, missing %q", first, want)
+		}
+	}
+	select {
+	case fourth := <-started:
+		t.Fatalf("fourth lane %q started before capacity was released", fourth)
+	default:
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestRootTestReleaseGateSignalsReleaseMode guards that the root test gate
 // carries the release-mode env so UIDist treats a missing npm as fatal rather
 // than a skip (GH-1349); without it a release could pass without rebuilding
