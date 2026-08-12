@@ -3,9 +3,10 @@
 {{/*
 The in-cluster LLM tier (srd015 R6): a chart-owned Ollama StatefulSet with a PVC
 for model storage, its Service, a readiness-probe script, and a model-preload Job.
-A StatefulSet with a volumeClaimTemplate is used (not Deployment+PVC) because the
-single-instance topology owns one durable model volume; the per-model topology
-would give each instance its own volume the same way. GPU scheduling is values.
+A StatefulSet with a volumeClaimTemplate is used (not Deployment+PVC) in normal
+deployments because the single-instance topology owns one durable model volume.
+The aggregate integration cache instead supplies fresh owned node storage for
+each scenario. GPU scheduling is values.
 */}}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -53,6 +54,13 @@ spec:
             periodSeconds: 10
           volumeMounts:
             - {name: models, mountPath: /root/.ollama}
+      {{- if .Values.ollama.preload.integrationCacheHostPath }}
+      volumes:
+        - name: models
+          hostPath:
+            path: {{ printf "%s/active" .Values.ollama.preload.integrationCacheHostPath | quote }}
+            type: Directory
+      {{- else }}
   volumeClaimTemplates:
     - metadata:
         name: models
@@ -64,6 +72,7 @@ spec:
         resources:
           requests:
             storage: {{ .Values.ollama.persistence.size }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -106,10 +115,21 @@ spec:
           imagePullPolicy: {{ .Values.ollama.image.pullPolicy }}
           env:
             - {name: OLLAMA_HOST, value: "http://{{ $fullname }}-ollama:{{ .Values.llm.port }}"}
+          {{- if .Values.ollama.preload.integrationCacheHostPath }}
+          volumeMounts:
+            - {name: active-models, mountPath: /models}
+            - {name: integration-model-cache, mountPath: /cache}
+          {{- end }}
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -eu
+              {{- if .Values.ollama.preload.integrationCacheHostPath }}
+              if [ -f /cache/ready ]; then
+                echo "restoring identity-matched integration model cache"
+                cp -a /cache/models/. /models/
+              fi
+              {{- end }}
               # The ollama image ships neither wget nor curl, so reachability is
               # probed with the ollama CLI itself (it honors OLLAMA_HOST), not an
               # HTTP client that is absent from the image.
@@ -119,5 +139,23 @@ spec:
               for m in {{ include "chatbot-mesh.ollamaModels" . }}; do
                 echo "pulling $m"; ollama pull "$m"
               done
+              {{- if .Values.ollama.preload.integrationCacheHostPath }}
+              rm -rf /cache/models
+              mkdir -p /cache/models
+              cp -a /models/. /cache/models/
+              touch /cache/ready
+              sync
+              {{- end }}
               echo "preload complete"
+      {{- if .Values.ollama.preload.integrationCacheHostPath }}
+      volumes:
+        - name: active-models
+          hostPath:
+            path: {{ printf "%s/active" .Values.ollama.preload.integrationCacheHostPath | quote }}
+            type: Directory
+        - name: integration-model-cache
+          hostPath:
+            path: {{ .Values.ollama.preload.integrationCacheHostPath | quote }}
+            type: Directory
+      {{- end }}
 {{- end }}

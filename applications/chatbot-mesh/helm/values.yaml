@@ -92,6 +92,10 @@ ollama:
     # Test-only transition observation may install this Job suspended, assert
     # agents are unready, then resume it. Production defaults to immediate pull.
     suspend: false
+    # Integration-only aggregate cache. Empty in production. The release rig
+    # supplies an identity-keyed path on an owned kind node so the suspended Job
+    # restores models into fresh scenario storage before validating each model.
+    integrationCacheHostPath: ""
   persistence:
     size: 10Gi
     storageClass: ""

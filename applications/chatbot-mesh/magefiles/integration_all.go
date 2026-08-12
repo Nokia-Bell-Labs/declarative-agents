@@ -63,6 +63,18 @@ func (i Integration) SharedApplierBenchmark() error {
 	})
 }
 
+// SharedLLMBenchmark prepares one smoke-proven session, populates the
+// identity-keyed model cache once, then records three warm LLM-tier runs.
+func (i Integration) SharedLLMBenchmark() error {
+	return runSharedKindTargets([]integrationTarget{
+		{name: "helmSmoke", fn: i.HelmSmoke, sharedKind: true},
+		{name: "helmLLMTier-bootstrap", fn: i.HelmLLMTier, sharedKind: true},
+		{name: "helmLLMTier-warm-1", fn: i.HelmLLMTier, sharedKind: true},
+		{name: "helmLLMTier-warm-2", fn: i.HelmLLMTier, sharedKind: true},
+		{name: "helmLLMTier-warm-3", fn: i.HelmLLMTier, sharedKind: true},
+	})
+}
+
 func runSharedKindTargets(targets []integrationTarget) error {
 	session := newIntegrationKindSession(integrationKindSessionRoot())
 	deactivate, err := activateIntegrationKindSession(session)

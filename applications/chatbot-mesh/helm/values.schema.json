@@ -173,8 +173,14 @@
         "preload": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["suspend"],
-          "properties": {"suspend": {"type": "boolean"}}
+          "required": ["suspend", "integrationCacheHostPath"],
+          "properties": {
+            "suspend": {"type": "boolean"},
+            "integrationCacheHostPath": {
+              "type": "string",
+              "pattern": "^(|/var/lib/declarative-agents/ollama-cache/[a-f0-9]{64})$"
+            }
+          }
         },
         "persistence": {
           "type": "object",

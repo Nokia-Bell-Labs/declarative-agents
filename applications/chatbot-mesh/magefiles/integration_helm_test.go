@@ -92,6 +92,38 @@ func TestHermeticDependencyPullUsesExactOllamaDigest(t *testing.T) {
 				forbidden, dockerfile)
 		}
 	}
+	platform := "linux/" + runtime.GOARCH
+	recipe := "sha256:trusted-recipe"
+	buildArgs := strings.Join(
+		trustedOllamaBuildArgs(helmLLMOllamaImage, recipe, platform), " ")
+	for _, want := range []string{
+		"--platform " + platform,
+		"--provenance=false",
+		trustedOllamaRecipeLabel + "=" + recipe,
+		trustedOllamaPlatformLabel + "=" + platform,
+	} {
+		if !strings.Contains(buildArgs, want) {
+			t.Errorf("trusted Ollama build args missing %q: %s", want, buildArgs)
+		}
+	}
+	payload, _ := json.Marshal([]map[string]any{{
+		"Id": "sha256:trusted", "Os": "linux", "Architecture": runtime.GOARCH,
+		"Config": map[string]any{"Labels": map[string]string{
+			trustedOllamaRecipeLabel:   recipe,
+			trustedOllamaPlatformLabel: platform,
+		}},
+	}})
+	if imageID, matches := trustedOllamaInspectPayload(
+		payload, recipe, platform,
+	); !matches || imageID != "sha256:trusted" {
+		t.Fatalf("matching trusted Ollama inspect rejected: id=%q matches=%v",
+			imageID, matches)
+	}
+	if _, matches := trustedOllamaInspectPayload(
+		payload, "sha256:stale", platform,
+	); matches {
+		t.Fatal("stale trusted Ollama recipe was reused")
+	}
 }
 
 func TestHelmFailureEvidenceIsBoundedAndNamesRootCauses(t *testing.T) {
@@ -736,6 +768,28 @@ func TestAssertSmokeChatServedAcceptsAnswer(t *testing.T) {
 
 	if err := assertSmokeChatServed(srv.URL); err != nil {
 		t.Fatalf("assertSmokeChatServed rejected a served answer: %v", err)
+	}
+}
+
+func TestAssertLLMChatServedRequestsABoundedAnswer(t *testing.T) {
+	var message string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Message string `json:"message"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Errorf("decode chat request: %v", err)
+		}
+		message = request.Message
+		_, _ = w.Write([]byte(`{"answer":"Northwind array: fifty-five megawatts."}`))
+	}))
+	defer srv.Close()
+
+	if err := assertLLMChatServed(srv.URL); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(message, "five words") {
+		t.Fatalf("LLM benchmark prompt is not output-bounded: %q", message)
 	}
 }
 

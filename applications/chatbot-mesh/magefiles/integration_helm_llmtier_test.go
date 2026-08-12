@@ -150,6 +150,47 @@ func TestKindLLMDependenciesIncludeExactOllamaImage(t *testing.T) {
 	}
 }
 
+func TestOllamaIntegrationCacheRestoresIntoFreshScenarioStorage(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chart := findChartDir(t)
+	cachePath := aggregateOllamaCacheRoot + "/" + strings.Repeat("a", 64)
+	out, err := exec.Command(
+		"helm", "template", "t", chart,
+		"--set", "ollama.preload.suspend=true",
+		"--set-string", "ollama.preload.integrationCacheHostPath="+cachePath,
+	).CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template integration cache: %v\n%s", err, out)
+	}
+	render := string(out)
+	for _, want := range []string{
+		`path: "` + cachePath + `"`,
+		`path: "` + cachePath + `/active"`,
+		"restoring identity-matched integration model cache",
+		"cp -a /cache/models/. /models/",
+		"cp -a /models/. /cache/models/",
+		"touch /cache/ready",
+		"suspend: true",
+	} {
+		if !strings.Contains(render, want) {
+			t.Errorf("integration cache render missing %q", want)
+		}
+	}
+	restore := strings.Index(render, "cp -a /cache/models/. /models/")
+	pull := strings.Index(render, `ollama pull "$m"`)
+	if restore < 0 || pull < 0 || restore > pull {
+		t.Fatalf("cache restore does not precede model validation:\n%s", render)
+	}
+	if count := strings.Count(render, `path: "`+cachePath+`/active"`); count != 2 {
+		t.Fatalf("integration active model path rendered %d times, want Ollama and preload mounts", count)
+	}
+	if strings.Contains(render, "claimName: models-t-chatbot-mesh-ollama-0") {
+		t.Fatal("integration cache render still binds scenario PVC storage")
+	}
+}
+
 // expectedGatedWorkloads names the agent workloads that must wait on the LLM
 // preload under the chart defaults: the chatbot and one rag-server per declared
 // ragUnit, each named <release>-chatbot-mesh-<unit> as rag-units.yaml renders it.
@@ -407,8 +448,9 @@ func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
 	chart, chartArchive, assets := stageThinIntegrationChart(t, helmLLMRelease)
 	var command []string
 	image := "declarative-agents/agent-core:0123456789ab"
+	cacheHostPath := aggregateOllamaCacheRoot + "/" + strings.Repeat("a", 64)
 	err := helmInstallLLMWithRunner(
-		chart, chartArchive, image, assets,
+		chart, chartArchive, image, assets, cacheHostPath,
 		func(name string, args ...string) ([]byte, error) {
 			command = append([]string{name}, args...)
 			return nil, nil
@@ -416,7 +458,7 @@ func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	valueArgs := helmLLMValueArgs(chart, image, assets)
+	valueArgs := helmLLMValueArgs(chart, image, assets, cacheHostPath)
 	want := append([]string{"helm", "install", helmLLMRelease, chart}, valueArgs...)
 	want = append(want, "--timeout", helmLLMInstallTimeout.String())
 	if strings.Join(command, "\x00") != strings.Join(want, "\x00") {
@@ -431,6 +473,10 @@ func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
 	}
 	if !strings.Contains(joined, "--set-string image.tag=0123456789ab") {
 		t.Fatalf("helm install omits commit-addressed image: %s", joined)
+	}
+	if !strings.Contains(joined,
+		"--set-string ollama.preload.integrationCacheHostPath="+cacheHostPath) {
+		t.Fatalf("helm install omits aggregate model cache: %s", joined)
 	}
 	assertExternalAssetArgs(t, joined, assets)
 	measured, err := measureHelmReleaseBudget(
@@ -451,12 +497,36 @@ func TestHelmLLMTierInstallReturnsCapturedOutput(t *testing.T) {
 		chartArchive,
 		"declarative-agents/agent-core:llm-output",
 		assets,
+		"",
 		func(string, ...string) ([]byte, error) {
 			return []byte("controlled LLM Helm output"), errors.New("controlled failure")
 		},
 	)
 	if err == nil || !strings.Contains(err.Error(), "controlled LLM Helm output") {
 		t.Fatalf("LLM install error = %v, want captured Helm output", err)
+	}
+}
+
+func TestClearLLMScenarioModelsEmptiesOnlyTheScenarioStorage(t *testing.T) {
+	var call string
+	err := clearLLMScenarioModels(func(name string, args ...string) ([]byte, error) {
+		call = name + " " + strings.Join(args, " ")
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"kubectl exec statefulset/llm-chatbot-mesh-ollama",
+		"-c ollama -- sh -c",
+		"rm -rf /root/.ollama/models/*",
+	} {
+		if !strings.Contains(call, want) {
+			t.Errorf("scenario model cleanup missing %q: %s", want, call)
+		}
+	}
+	if strings.Contains(call, aggregateOllamaCacheRoot) {
+		t.Fatalf("scenario cleanup mutates aggregate cache: %s", call)
 	}
 }
 

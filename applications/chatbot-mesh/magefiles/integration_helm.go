@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -542,36 +543,99 @@ func pullIntegrationDependencyImages(
 	return nil
 }
 
-func buildTrustedOllamaImage(image string) error {
+const (
+	trustedOllamaRecipeLabel   = "io.declarative-agents.ollama.recipe"
+	trustedOllamaPlatformLabel = "io.declarative-agents.ollama.platform"
+)
+
+func buildTrustedOllamaImage(image string) (string, error) {
 	caBundle, err := hostTrustedCABundle()
 	if err != nil {
-		return err
+		return "", err
+	}
+	platform := "linux/" + runtime.GOARCH
+	sum := sha256.Sum256([]byte(strings.Join([]string{
+		"trusted-ollama-image/v1",
+		trustedOllamaDockerfile(),
+		string(caBundle),
+		platform,
+	}, "\x00")))
+	recipe := fmt.Sprintf("sha256:%x", sum)
+	if imageID, matches := inspectTrustedOllamaImage(image, recipe, platform); matches {
+		fmt.Printf("helmLLMTier: reusing trusted Ollama runtime %s digest=%s\n",
+			image, imageID)
+		return imageID, nil
 	}
 	dir, err := os.MkdirTemp("", "chatbot-mesh-ollama-trust-*")
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 	if err := os.WriteFile(
 		filepath.Join(dir, "host-ca.pem"), caBundle, 0o644); err != nil {
-		return fmt.Errorf("write trusted Ollama CA bundle: %w", err)
+		return "", fmt.Errorf("write trusted Ollama CA bundle: %w", err)
 	}
 	if err := os.WriteFile(
 		filepath.Join(dir, "Dockerfile"),
 		[]byte(trustedOllamaDockerfile()), 0o644); err != nil {
-		return fmt.Errorf("write trusted Ollama Dockerfile: %w", err)
+		return "", fmt.Errorf("write trusted Ollama Dockerfile: %w", err)
 	}
-	args := []string{
-		"build", "--platform", "linux/" + runtime.GOARCH,
-		"-t", image, ".",
-	}
+	args := trustedOllamaBuildArgs(image, recipe, platform)
 	cmd := exec.Command("docker", args...)
 	cmd.Dir = dir
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("build trusted Ollama image %s: %w", image, err)
+		return "", fmt.Errorf("build trusted Ollama image %s: %w", image, err)
 	}
-	return nil
+	imageID, matches := inspectTrustedOllamaImage(image, recipe, platform)
+	if !matches {
+		return "", fmt.Errorf(
+			"built trusted Ollama image %s does not carry its verified recipe and platform identity",
+			image)
+	}
+	return imageID, nil
+}
+
+func trustedOllamaBuildArgs(image, recipe, platform string) []string {
+	return []string{
+		"build", "--platform", platform, "--provenance=false",
+		"--label", trustedOllamaRecipeLabel + "=" + recipe,
+		"--label", trustedOllamaPlatformLabel + "=" + platform,
+		"-t", image, ".",
+	}
+}
+
+func inspectTrustedOllamaImage(
+	image, recipe, platform string,
+) (string, bool) {
+	output, err := exec.Command("docker", "image", "inspect", image).Output()
+	if err != nil {
+		return "", false
+	}
+	return trustedOllamaInspectPayload(output, recipe, platform)
+}
+
+func trustedOllamaInspectPayload(
+	output []byte,
+	recipe, platform string,
+) (string, bool) {
+	var inspected []struct {
+		ID           string
+		Os           string
+		Architecture string
+		Config       struct {
+			Labels map[string]string
+		}
+	}
+	if json.Unmarshal(output, &inspected) != nil || len(inspected) != 1 {
+		return "", false
+	}
+	item := inspected[0]
+	matches := strings.HasPrefix(item.ID, "sha256:") &&
+		item.Os+"/"+item.Architecture == platform &&
+		item.Config.Labels[trustedOllamaRecipeLabel] == recipe &&
+		item.Config.Labels[trustedOllamaPlatformLabel] == platform
+	return item.ID, matches
 }
 
 func trustedOllamaDockerfile() string {
@@ -878,8 +942,22 @@ func kubectlPortForwardWithCommands(
 // with a non-empty answer). The deploy smoke bar is that the served
 // machine_request endpoint routes a turn through the chatbot in cluster.
 func assertSmokeChatServed(url string) error {
-	body := `{"message":"Summarize the most relevant record you can retrieve."}`
-	data, status, err := requestInference(http.MethodPost, url, body, "in-cluster chat turn")
+	return assertChatServedWithMessage(
+		url, "Summarize the most relevant record you can retrieve.")
+}
+
+func assertLLMChatServed(url string) error {
+	return assertChatServedWithMessage(
+		url, "Name one fact from the retrieved record in five words.")
+}
+
+func assertChatServedWithMessage(url, message string) error {
+	body, err := json.Marshal(map[string]string{"message": message})
+	if err != nil {
+		return err
+	}
+	data, status, err := requestInference(
+		http.MethodPost, url, string(body), "in-cluster chat turn")
 	if err != nil {
 		return fmt.Errorf("chat request: %w", err)
 	}
@@ -1752,18 +1830,31 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 	if err != nil {
 		return err
 	}
-	if err := pullIntegrationDependencyImages(
-		"helmLLMTier", dependencyImages, runHelmLLMCommand); err != nil {
+	if err := runHelmLLMPhase("dependency-pull", func() error {
+		return pullIntegrationDependencyImages(
+			"helmLLMTier", dependencyImages, runHelmLLMCommand)
+	}); err != nil {
 		return err
 	}
 	fmt.Printf("helmLLMTier: building trusted Ollama runtime %s from %s\n",
 		helmLLMOllamaImage, helmLLMOllamaSourceImage)
-	if err := buildTrustedOllamaImage(helmLLMOllamaImage); err != nil {
+	var ollamaImageID string
+	if err := runHelmLLMPhase("trusted-image", func() error {
+		var imageErr error
+		ollamaImageID, imageErr = buildTrustedOllamaImage(helmLLMOllamaImage)
+		return imageErr
+	}); err != nil {
 		return err
 	}
 
-	llmCluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmLLMCluster, helmKindConfig(chartDir), helmClusterWait)
-	if err != nil {
+	clusterName := aggregateClusterName(helmLLMCluster)
+	var llmCluster kindrig.Cluster
+	if err := runHelmLLMPhase("cluster-ensure", func() error {
+		var clusterErr error
+		llmCluster, clusterErr = kindrig.EnsureCluster(
+			kindrig.DefaultRun, clusterName, helmKindConfig(chartDir), helmClusterWait)
+		return clusterErr
+	}); err != nil {
 		return err
 	}
 	commands, cleanupCommands, err := kindrig.ClusterCommands(
@@ -1772,38 +1863,79 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 		llmCluster.Release(kindrig.DefaultRun)
 		return err
 	}
+	defer cleanupCommands()
+	namespace, cleanupNamespace, err := prepareAggregateNamespace(
+		commands.Run, "helm-llm-tier", helmLLMRelease)
+	if err != nil {
+		llmCluster.Release(kindrig.DefaultRun)
+		return err
+	}
+	var cache aggregateOllamaCache
+	cleanupNamespaceFn := func() error {
+		return runHelmLLMPhase("namespace-cleanup", func() error {
+			var clearErr error
+			if cache.HostPath != "" {
+				clearErr = clearLLMScenarioModels(commands.Run)
+			}
+			return errors.Join(clearErr, cleanupNamespace())
+		})
+	}
+	defer func() { result = errors.Join(result, cleanupNamespaceFn()) }()
 	evidenceDir := helmScenarioEvidenceDirectory(
-		profilesRoot, helmLLMCluster, images.Revision)
+		profilesRoot, llmCluster.Name, images.Revision)
+	evidence := kindrig.FailureEvidence{
+		Directory:  evidenceDir,
+		Namespaces: []string{namespace},
+		Run: boundedHelmEvidenceRunnerWith(
+			helmDiagnosticRunner(commands.RunContext), helmEvidenceCommandTimeout),
+	}
+	ownedForDiagnostics := llmCluster.Created ||
+		aggregateKindClusterOwned(llmCluster.Name)
 	defer func() {
 		failed := result != nil
-		if failed {
+		if failed && ownedForDiagnostics {
 			diagnostics := captureHelmFailureDiagnostics(
 				evidenceDir, helmLLMRelease,
 				helmDiagnosticRunner(commands.RunContext),
 				helmFailureDiagnosticsTimeout)
 			result = fmt.Errorf("%w\n%s", result, diagnostics)
 		}
-		llmCluster.ReleaseAfter(commands.KindRun, failed, kindrig.FailureEvidence{
-			Directory:  evidenceDir,
-			Namespaces: []string{"default"},
-			Run: boundedHelmEvidenceRunnerWith(
-				helmDiagnosticRunner(commands.RunContext), helmEvidenceCommandTimeout),
-		})
-		cleanupCommands()
+		if releaseAggregateKindCluster(
+			llmCluster, commands.KindRun, evidence, result,
+		) {
+			if failed {
+				cleanupNamespaceFn = func() error { return nil }
+			}
+			return
+		}
+		llmCluster.ReleaseAfter(commands.KindRun, failed, evidence)
 	}()
+	if err := runHelmLLMPhase("model-cache", func() error {
+		var cacheErr error
+		cache, cacheErr = prepareAggregateOllamaCache(
+			runHelmLLMCommand, llmCluster, ollamaImageID, helmLLMModels)
+		return cacheErr
+	}); err != nil {
+		return err
+	}
 	if err := provisionExternalUIAssets(commands.Run, assets); err != nil {
 		return err
 	}
-	if err := loadKindImageWithCommands(
-		commands, helmLLMCluster, images.Runtime); err != nil {
+	if err := runHelmLLMPhase("image-loads", func() error {
+		if loadErr := loadKindImageWithCommands(
+			commands, llmCluster.Name, images.Runtime); loadErr != nil {
+			return loadErr
+		}
+		return loadIntegrationDependencyImages(
+			commands, llmCluster.Name, dependencyImages)
+	}); err != nil {
 		return err
 	}
-	if err := loadIntegrationDependencyImages(
-		commands, helmLLMCluster, dependencyImages); err != nil {
-		return err
-	}
-	if err := helmInstallLLMWithRunner(
-		stagedChart, chartArchive, images.Runtime, assets, commands.Run); err != nil {
+	if err := runHelmLLMPhase("helm-install", func() error {
+		return helmInstallLLMWithRunner(
+			stagedChart, chartArchive, images.Runtime, assets,
+			cache.HostPath, commands.Run)
+	}); err != nil {
 		return err
 	}
 	if err := assertHelmIntegrationRelease(
@@ -1813,61 +1945,95 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 
 	// Ollama must serve before the suspended preload Job can be resumed; agent
 	// readiness remains blocked until the transition proof below completes.
-	workloads, err := beginObservedLLMPreload(commands.Run)
-	if err != nil {
+	if err := runHelmLLMPhase("preload-transition", func() error {
+		workloads, preloadErr := beginObservedLLMPreload(commands.Run)
+		if preloadErr != nil {
+			return preloadErr
+		}
+		stopTags, forwardErr := kubectlPortForwardWithCommands(
+			commands, "svc/"+helmLLMRelease+"-chatbot-mesh-ollama", 11434)
+		if forwardErr != nil {
+			return forwardErr
+		}
+		defer stopTags()
+		if modelsErr := assertLLMModelsLoaded(
+			helmLLMTagsURL, helmLLMModels, helmLLMModelPreloadTimeout); modelsErr != nil {
+			return modelsErr
+		}
+		return finishLLMPreloadTransition(commands.Run, workloads)
+	}); err != nil {
+		return err
+	}
+	if err := runHelmLLMPhase("ui-assets", func() error {
+		return assertExternalUIAssetsMountedWithRunner(
+			commands.Run, helmLLMRelease, assets, helmLLMWorkloadReadyTimeout)
+	}); err != nil {
 		return err
 	}
 
-	stopTags, err := kubectlPortForwardWithCommands(
-		commands, "svc/"+helmLLMRelease+"-chatbot-mesh-ollama", 11434)
-	if err != nil {
+	if err := runHelmLLMPhase("chat-proof", func() error {
+		stop, forwardErr := kubectlPortForwardWithCommands(
+			commands, "svc/"+helmLLMRelease+"-chatbot-mesh-chatbot", 18080, 18081)
+		if forwardErr != nil {
+			return forwardErr
+		}
+		defer stop()
+		if healthErr := waitHTTPStatus(
+			helmLLMHealthURL, http.StatusOK, helmReadyTimeout); healthErr != nil {
+			return fmt.Errorf("chatbot control health not ready: %w", healthErr)
+		}
+		if chatErr := assertLLMChatServed(helmLLMChatURL); chatErr != nil {
+			return fmt.Errorf(
+				"chatbot did not serve a turn against the in-cluster LLM: %w", chatErr)
+		}
+		return nil
+	}); err != nil {
 		return err
-	}
-	if err := assertLLMModelsLoaded(
-		helmLLMTagsURL, helmLLMModels, helmLLMModelPreloadTimeout); err != nil {
-		stopTags()
-		return err
-	}
-	stopTags()
-	if err := finishLLMPreloadTransition(commands.Run, workloads); err != nil {
-		return err
-	}
-	if err := assertExternalUIAssetsMountedWithRunner(
-		commands.Run, helmLLMRelease, assets, helmLLMWorkloadReadyTimeout); err != nil {
-		return err
-	}
-
-	stop, err := kubectlPortForwardWithCommands(
-		commands, "svc/"+helmLLMRelease+"-chatbot-mesh-chatbot", 18080, 18081)
-	if err != nil {
-		return err
-	}
-	defer stop()
-	if err := waitHTTPStatus(helmLLMHealthURL, http.StatusOK, helmReadyTimeout); err != nil {
-		return fmt.Errorf("chatbot control health not ready: %w", err)
-	}
-	if err := assertSmokeChatServed(helmLLMChatURL); err != nil {
-		return fmt.Errorf("chatbot did not serve a turn against the in-cluster LLM: %w", err)
 	}
 
 	fmt.Printf("integration:helmLLMTier PASS - revision %s the chart stood up the in-cluster Ollama tier, the preload Job pulled the configured models, /api/tags reported them, and the chatbot served a turn against the in-cluster endpoint\n", images.Revision)
 	return nil
 }
 
+func runHelmLLMPhase(name string, run func() error) error {
+	started := time.Now()
+	err := run()
+	outcome := "passed"
+	if err != nil {
+		outcome = "failed"
+	}
+	kindrig.LogPhase("helmLLMTier", name, outcome, started, "")
+	return err
+}
+
+func clearLLMScenarioModels(run helmLLMCommandRunner) error {
+	statefulSet := "statefulset/" + helmLLMRelease + "-chatbot-mesh-ollama"
+	output, err := run(
+		"kubectl", "exec", statefulSet, "-c", "ollama", "--",
+		"sh", "-c", "rm -rf /root/.ollama/models/* && sync")
+	if err != nil {
+		return fmt.Errorf("clear scenario Ollama storage before deletion: %w: %s",
+			err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 func helmInstallLLM(
 	chartPath, chartArchive, image string,
 	assets []externalUIAsset,
+	cacheHostPath string,
 ) error {
 	return helmInstallLLMWithRunner(
-		chartPath, chartArchive, image, assets, runHelmLLMCommand)
+		chartPath, chartArchive, image, assets, cacheHostPath, runHelmLLMCommand)
 }
 
 func helmInstallLLMWithRunner(
 	chartPath, chartArchive, image string,
 	assets []externalUIAsset,
+	cacheHostPath string,
 	run helmLLMCommandRunner,
 ) error {
-	valueArgs := helmLLMValueArgs(chartPath, image, assets)
+	valueArgs := helmLLMValueArgs(chartPath, image, assets, cacheHostPath)
 	measured, err := measureHelmReleaseBudget(
 		helmLLMRelease, chartPath, chartArchive, valueArgs)
 	if err != nil {
@@ -1890,6 +2056,7 @@ func helmInstallLLMWithRunner(
 func helmLLMValueArgs(
 	chartPath, image string,
 	assets []externalUIAsset,
+	cacheHostPath string,
 ) []string {
 	repo, tag := splitImageRef(image)
 	args := []string{
@@ -1898,6 +2065,10 @@ func helmLLMValueArgs(
 		"--set-string", "image.tag=" + tag,
 		"--set", "image.pullPolicy=Never",
 		"--set", "ollama.preload.suspend=true",
+	}
+	if cacheHostPath != "" {
+		args = append(args,
+			"--set-string", "ollama.preload.integrationCacheHostPath="+cacheHostPath)
 	}
 	return append(args, externalUIAssetValueArgs(assets)...)
 }

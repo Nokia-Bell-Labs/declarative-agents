@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ type integrationKindSession struct {
 	kindRun    kindrig.Runner
 	evidence   kindrig.FailureEvidence
 	hostImages map[string]string
+	finalizers map[string]func() error
 	poisoned   error
 	closed     bool
 }
@@ -42,6 +44,7 @@ func newIntegrationKindSession(root string) *integrationKindSession {
 			Namespaces: []string{"default"},
 		},
 		hostImages: make(map[string]string),
+		finalizers: make(map[string]func() error),
 	}
 }
 
@@ -135,6 +138,43 @@ func inspectHostImageID(run helmLLMCommandRunner, image string) (string, error) 
 		return "", fmt.Errorf("prepared host image %s has unverified ID %q", image, imageID)
 	}
 	return imageID, nil
+}
+
+func registerAggregateFinalizer(name string, finalize func() error) bool {
+	session := activeIntegrationKindSession()
+	if session == nil {
+		return false
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if _, exists := session.finalizers[name]; !exists {
+		session.finalizers[name] = finalize
+	}
+	return true
+}
+
+func (session *integrationKindSession) takeFinalizers() []func() error {
+	names := make([]string, 0, len(session.finalizers))
+	for name := range session.finalizers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	finalizers := make([]func() error, 0, len(names))
+	for _, name := range names {
+		finalizers = append(finalizers, session.finalizers[name])
+	}
+	session.finalizers = make(map[string]func() error)
+	return finalizers
+}
+
+func runAggregateFinalizers(finalizers []func() error) error {
+	var errs []error
+	for _, finalize := range finalizers {
+		if err := finalize(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // adoptAggregateKindCluster transfers an aggregate-created cluster to the
@@ -315,9 +355,13 @@ func (session *integrationKindSession) poison(cause error) {
 		session.poisoned = cause
 	}
 	cluster, run, evidence := session.cluster, session.kindRun, session.evidence
+	finalizers := session.takeFinalizers()
 	session.cluster = kindrig.Cluster{}
 	session.mu.Unlock()
 
+	if err := runAggregateFinalizers(finalizers); err != nil {
+		fmt.Printf("shared kind: failure finalizer error: %v\n", err)
+	}
 	if cluster.Name != "" && cluster.Created {
 		cluster.ReleaseAfter(run, true, evidence)
 	}
@@ -332,9 +376,13 @@ func (session *integrationKindSession) close() {
 	}
 	session.closed = true
 	cluster, run := session.cluster, session.kindRun
+	finalizers := session.takeFinalizers()
 	session.cluster = kindrig.Cluster{}
 	session.mu.Unlock()
 
+	if err := runAggregateFinalizers(finalizers); err != nil {
+		fmt.Printf("shared kind: final teardown error: %v\n", err)
+	}
 	if cluster.Name != "" {
 		cluster.Release(run)
 	}
