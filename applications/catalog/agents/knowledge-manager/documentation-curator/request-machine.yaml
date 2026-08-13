@@ -5,7 +5,7 @@ purpose: |-
   transforms, predicates guard review state, and file_write persists reviews.
 initial_state: AwaitingRequest
 budget:
-  command_timeout: 10m
+  command_timeout: 1m
   max_iterations: 16
 states:
   - {name: AwaitingRequest, meaning: Seeded by a trusted machine_request route.}

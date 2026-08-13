@@ -16,7 +16,7 @@ lifecycle: |-
   3. ReadingHistory -> Failed (ToolFailed or CommandError): history failed.
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 1m
   max_iterations: 3
 states:
 - name: Idle

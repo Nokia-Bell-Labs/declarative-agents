@@ -20,7 +20,7 @@ invariants:
   - The Chroma and Ollama servers are external preconditions, surfaced through chroma_ready and ollama_ready, not started by the agent.
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 3m
   max_iterations: 16
 states:
   - name: Idle

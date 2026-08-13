@@ -30,7 +30,7 @@ pipeline_diagram: |-
   ```
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 25h
   max_iterations: 10000
 metric_labels:
   workflow: bench

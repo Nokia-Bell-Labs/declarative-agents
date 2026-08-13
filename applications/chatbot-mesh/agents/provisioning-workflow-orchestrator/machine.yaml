@@ -16,7 +16,7 @@ invariants:
   - The provisioning-workflow-orchestrator holds no deployment-API credentials; its intent endpoint is served on a separate service and port, reached apart from the chat path (the authentication boundary is deployment-realized).
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 11m
   max_iterations: 10000
 states:
   - {name: Idle, meaning: Initial state before the provisioning-workflow-orchestrator servers start.}

@@ -17,7 +17,7 @@ metric_labels:
   profile: scenario-critic
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 6m
   # One dispatch and join per fixture, validator, and child stop keeps every
   # collection traversal under the global iteration budget.
   max_iterations: 5000

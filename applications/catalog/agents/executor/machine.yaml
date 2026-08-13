@@ -61,7 +61,7 @@ pipeline_diagram: |-
   ```
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 16m
   max_iterations: 100
   max_consecutive_parse_errors: 5
 states:

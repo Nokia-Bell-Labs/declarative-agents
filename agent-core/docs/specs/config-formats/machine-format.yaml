@@ -136,6 +136,19 @@ schema:
         description: |
           Positive per-dispatch timeout applied to every command in this
           machine. Runtime profiles fail validation when it is omitted.
+
+          The value must exceed the longest legitimate duration of every action
+          reachable in the machine, plus scheduling margin. Authorities include
+          ToolDef timeout config, REST limits and machine_request timeout,
+          model or child-process limits, and blocking await duration. A copied
+          repository-wide value is not calibration evidence when workloads
+          differ. Environment-overridable operation timeouts must have a finite
+          maximum no greater than this bound.
+
+          Examples:
+          - a request machine whose longest REST operation is 30s may use 1m;
+          - a host with a 10m blocking control await may use 11m;
+          - an evaluator with a 24h await or child operation may use 25h.
       - field: max_consecutive_parse_errors
         type: int
         description: |

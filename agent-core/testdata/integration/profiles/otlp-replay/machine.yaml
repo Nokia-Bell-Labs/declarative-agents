@@ -1,7 +1,7 @@
 name: otlp-replay
 purpose: Load one trusted OTLP protobuf-JSON batch and relay it through declared words.
 initial_state: ReadingBatch
-budget: {max_iterations: 2, command_timeout: 10m}
+budget: {max_iterations: 2, command_timeout: 1m}
 states:
   - {name: ReadingBatch, meaning: Decode the configured offline batch.}
   - {name: Relaying, meaning: Select the decoded batch for the shared relay boundary.}

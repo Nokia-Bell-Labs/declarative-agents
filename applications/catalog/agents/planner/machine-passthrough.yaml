@@ -51,7 +51,7 @@ pipeline_diagram: |-
 initial_state: Idle
 budget:
   max_iterations: 100
-  command_timeout: 10m
+  command_timeout: 16m
 states:
 - name: Idle
   meaning: Initial state before planning begins.

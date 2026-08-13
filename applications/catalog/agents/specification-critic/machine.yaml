@@ -28,7 +28,7 @@ lifecycle: |-
   Search iteration is deterministic and sequential, with no LLM calls.
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 15m
   max_iterations: 100
 states:
 - name: Idle
