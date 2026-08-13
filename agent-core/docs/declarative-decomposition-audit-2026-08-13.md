@@ -266,7 +266,7 @@ sub-issue completes.
 | REST and service | GH-1631 | `internal/tools/rest`, `internal/tools/service` | complete |
 | Remaining tools | GH-1632 | ten focused tool packages | complete |
 | Runtime and root | GH-1634 | runtime, cmd, support | complete |
-| Spec and planning | GH-1633 | `pkg/spec`, `internal/planning` | pending |
+| Spec and planning | GH-1633 | `pkg/spec`, `internal/planning` | complete |
 | Telemetry and model | GH-1635 | evaluation, OTLP, observability, model | pending |
 | Applications | GH-1636 | catalog Go and consolidation | pending |
 
@@ -553,4 +553,29 @@ Prior findings:
 No new finding passed the gate. Do not refile: `suspend_signal` for `AwaitApproval` (same GH-1558 residual), the 10-minute subprocess transport default (Q1), `selectsRollbackTool` keyed on `checkpoint_rollback` (composition-root wiring), or the carried interpreter-mechanism list.
 
 Tests: `go test ./internal/runtime/core/... ./cmd/agent/... ./internal/support/...` passed (core 0.52s, cmd/agent 3.31s). `internal/support` has no test file; its subpackages pass.
+
+### Specification and planning -- GH-1633
+
+Complete. Audited `pkg/spec` (6,215 lines, 30 files) and `internal/planning`
+(1,936 lines, 17 files).
+
+Every major `pkg/spec` stage is the body of a machine-dispatched word in
+`internal/tools/validation`. Charter `checks:` already selects checkers. No
+compound stage remains in these packages.
+
+Prior findings:
+
+| Issue | Status | Evidence |
+|---|---|---|
+| GH-1560 | HELD | `extract_task` selects only (`extract_builders.go:25-43`). `mark_nodes_planning` is the only Planning mutation (`:156-170`). All three planner machines dispatch it after `TaskExtracted`. |
+| GH-1561 | HELD | Factory decodes `max_weight` (`factories.go:29-31,69-79`). Zero is unlimited. `defaultMaxWeight` is gone. |
+| GH-1562 | HELD | Planner words live only under `tools/builtin/planner/all.yaml`. Undo is `pipeline_state_restore`. `pipeline_graph` is rejected. Guard: `planner_declarations_test.go`. |
+| GH-1563 | HELD | `checkBrokenTouchpoints` walks authored corpus touchpoints. `depends-on-violation` is not selectable. |
+| GH-1564 | HELD | `spec_path_evidence.go`, `extract/output.go`, `graph/persist.go` are gone. No `os.WriteFile` in planning production. |
+| GH-1565 | HELD | `format_task_file` and `format_issue` decode `path` / `body_path` / `deliverable_type` from YAML. |
+| GH-1566 | HELD | YAML unmarshalers return decode errors. Type / Init / Visibility validated. Diagnostic severity defaults to error. |
+
+No new finding passed the gate. Tempting splits remain rejected: Validate's 36 checkers (already charter-selectable), split `load_graph`, discovery I/O to `find` (Q2 / GH-1384), stale YAML filenames (no defect). Residual, not filed: `reversibility.undo` is still unread (`tool_models.go:56-59`) and belongs with GH-1541.
+
+Tests: `go test ./pkg/spec ./internal/planning/...` passed (`pkg/spec` 6.46s; extract 0.54s, graph 0.66s, pipeline 0.82s, plan 0.96s).
 
