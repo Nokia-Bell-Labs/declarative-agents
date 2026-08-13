@@ -14,7 +14,7 @@ invariants:
   - The final answer must use model names from the REST result.
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 3m
   max_iterations: 8
   max_consecutive_parse_errors: 2
 states:

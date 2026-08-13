@@ -2,7 +2,7 @@ name: ollama-rest-model-listing
 purpose: List live local Ollama models through the configured REST tool.
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 3m
   max_iterations: 8
   max_consecutive_parse_errors: 2
 states:

@@ -2,7 +2,7 @@ name: core-test-evidence-audit
 purpose: Audit Agent Core formal test claims through declared subprocesses.
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 15m
   max_iterations: 100
 states:
   - {name: Idle, meaning: Initial state.}
