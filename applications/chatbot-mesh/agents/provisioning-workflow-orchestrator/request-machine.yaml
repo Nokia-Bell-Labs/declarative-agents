@@ -23,7 +23,7 @@ purpose: |-
   no carried intent and every panel apply failed in request rendering.
 initial_state: AwaitingRequest
 budget:
-  command_timeout: 10m
+  command_timeout: 3m
   max_iterations: 8
 states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted intent endpoint with the provisioning intent body.}

@@ -8,7 +8,7 @@ purpose: |-
   here; the caller supplies the vector and composes any answer.
 initial_state: AwaitingRequest
 budget:
-  command_timeout: 10m
+  command_timeout: 1m
   max_iterations: 6
 states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted query endpoint with the request body.}
