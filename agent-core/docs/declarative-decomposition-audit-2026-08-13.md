@@ -265,7 +265,7 @@ sub-issue completes.
 | Baseline | GH-1630 | executables, declarations, format | complete |
 | REST and service | GH-1631 | `internal/tools/rest`, `internal/tools/service` | complete |
 | Remaining tools | GH-1632 | ten focused tool packages | complete |
-| Runtime and root | GH-1634 | runtime, cmd, support | pending |
+| Runtime and root | GH-1634 | runtime, cmd, support | complete |
 | Spec and planning | GH-1633 | `pkg/spec`, `internal/planning` | pending |
 | Telemetry and model | GH-1635 | evaluation, OTLP, observability, model | pending |
 | Applications | GH-1636 | catalog Go and consolidation | pending |
@@ -407,6 +407,46 @@ Authoring-only fields (never read by the production runtime): `Category`,
 `Output.Schema` is presence-checked in catalog contract helpers that startup
 does not invoke.
 
+## The loop decision table
+
+Produced by the runtime slice (GH-1634). Every decision the dispatch loop and
+the composition root make that is not read from the loaded MachineSpec,
+classified as interpreter mechanism (legitimate) or workflow policy (a
+finding). GH-1558's fields now exist; the remaining policy is the documented
+fallback when those fields are omitted, not new hidden orchestration.
+
+The two 2026-08-10 composition-root policy rows (hardcoded `AgentName`,
+tool-name `OnResult`) are gone. Residuals concentrate in fallbacks.
+
+### Policy (residuals of GH-1551 / GH-1552 / GH-1555 / GH-1558)
+
+| Decision | Evidence | Finding |
+|---|---|---|
+| Terminal run status inferred from state spelling when `run_status` is omitted | `loop.go:144-153` | GH-1551 PARTIAL |
+| Summary signal defaults to `TaskCompleted` | `loop_runner.go:98-106` | GH-1552 / GH-1558 PARTIAL |
+| CLI overwrites the summary from any non-empty output when the machine declares neither `summary_signal` nor `summary: true` | `main.go:670-677` | GH-1552 PARTIAL |
+| Suspend keyed on the signal `AwaitApproval` | `loop_runner.go:406-407` | GH-1558 PARTIAL |
+| Resume defaults the re-entry signal to `Approved` | `resume.go:57-60,100-105`; `main.go:113` | GH-1558 PARTIAL |
+| Default budget `MaxIterations: 100` in Go | `main.go:656-658` | GH-1558 PARTIAL |
+| Omitted `command_timeout` means no per-dispatch timer | `machine_policy.go:10-16`; `dispatch.go:78-84` | GH-1555 PARTIAL |
+
+`state.go` still returns a magic `State("Failed")` for an unhandled pair; the
+caller discards it and uses `r.state` (`loop_runner.go:196-205`). Inert; not
+filed. Diagnostics fire for implicit summary, resume, timeout, max iterations,
+and missing `run_status` (`machine_policy.go:59-87`). That is warned
+compatibility, not removal of the Go decision.
+
+### Mechanism (legitimate interpreter)
+
+Empty start signal → `Seed` / `"Begin."`; cancelled context →
+`StatusCancelled`; budget trip → `BudgetExhausted`; `Err` / timeout / cancel /
+panic → `CommandError`; `for_each` join count-to-signal (names from the spec);
+the parallel worker pool; `DiagnoseMachineSpec` reachability; output-redaction
+path walk; Dolt SQL behind the Checkpoint port; `sql.Register("dolt")`;
+`/opt/agent-core`; `os.ReadFile` of machine and request files; process-group
+kill on cancel; `--request` as Seed bytes; `$request.<field>` grammar. None of
+these are refiled.
+
 ## Slice sections
 
 Each audit slice appends its section below.
@@ -483,4 +523,34 @@ One finding filed: GH-1637 (`invoke_executor` object schema vs `self_invoke` std
 The ToolDef enforcement table above is refreshed: startup wiring is tighter than 2026-08-10; six-section completeness still belongs to `validate_specs` / authoring, not ordinary startup.
 
 Tests: catalog, filesystem, llm, validation, control, lifecycle, exec, compose, and registry packages passed. `undo` has no test files.
+
+### Runtime core and composition root -- GH-1634
+
+Complete. Audited `internal/runtime/core` (5,532 lines, 30 files), `cmd/agent`
+(2,248 lines, 8 files), and `internal/support` (443 lines, 5 files).
+
+The interpreter is sound. The loop decision table above is the evidence: the
+loop itself is mechanism, and the remaining policy is documented fallback when
+a GH-1558 field is omitted. There is still no role-keyed branching in
+`cmd/agent` (GH-884 HELD). Tests forbid `--validate-test-evidence` /
+`--run-test-evidence`.
+
+Prior findings:
+
+| Issue | Status | Evidence |
+|---|---|---|
+| GH-1550 | HELD | Resume seeds from the last execution digest (`resume.go:81-97`). Conversation and domain snapshots fold on save (`checkpoint_snapshot.go:12-22`) and restore (`main.go:744-803`). |
+| GH-1551 | PARTIAL | Declared `run_status` is preferred (`loop.go:132-141`). Spelling fallback is live (`loop.go:144-153`). Diagnostic `undeclared_terminal_status` exists (`machine_policy.go:78-85`). |
+| GH-1552 | PARTIAL | Engine reads `summary_signal` then `TaskCompleted` (`loop_runner.go:98-106`) and `summary: true` (`result_reporting.go:37-53`). CLI overwrite is skipped only when the machine declares a summary (`main.go:670-677`). |
+| GH-1553 | HELD | Operator output comes from transition `report_output` (`result_reporting.go:23-35`; `main.go:725-734`). No production `CommandName ==` branch in `cmd/agent`. |
+| GH-1554 | HELD | `machineAgentName` reads `machine.Name` (`main.go:638-643`). Empty name still falls back to `"agent"`. |
+| GH-1555 | PARTIAL | `budget.command_timeout` is parsed and passed into dispatch (`machine_policy.go:10-16`; `dispatch.go:63-67,86-97`). Omitted → duration 0 → no timer. Diagnostic `implicit_command_timeout`. |
+| GH-1556 | HELD | Service children go through `subprocess.Start` (`service.go:106,235-246`). `SetProcGroup` always sets `Setpgid`, `Cancel` SIGKILL, and `WaitDelay`. `exec/procgroup.go` remains a 27-line alias (not refiled). |
+| GH-1557 | HELD | `internal/support/cli` is gone. `envexpand` has tests. `SnapshotDomain` is wired. |
+| GH-1558 | PARTIAL | Five fields exist. Go still applies the compatibility fallbacks in the loop table when they are omitted. |
+| GH-1559 | HELD | `--request` is Seed bytes (`main.go:462-476`). Words declare `$request.<field>`. Flag help is role-neutral. |
+
+No new finding passed the gate. Do not refile: `suspend_signal` for `AwaitApproval` (same GH-1558 residual), the 10-minute subprocess transport default (Q1), `selectsRollbackTool` keyed on `checkpoint_rollback` (composition-root wiring), or the carried interpreter-mechanism list.
+
+Tests: `go test ./internal/runtime/core/... ./cmd/agent/... ./internal/support/...` passed (core 0.52s, cmd/agent 3.31s). `internal/support` has no test file; its subpackages pass.
 
