@@ -54,6 +54,13 @@ type plannerDeclaration struct {
 			Properties map[string]any `yaml:"properties"`
 		} `yaml:"schema"`
 	} `yaml:"output"`
+	Reversibility struct {
+		Classification string `yaml:"classification"`
+		Undo           string `yaml:"undo"`
+	} `yaml:"reversibility"`
+	Undo struct {
+		Strategy string `yaml:"strategy"`
+	} `yaml:"undo"`
 	Parameters struct {
 		Properties map[string]plannerParameter `yaml:"properties"`
 	} `yaml:"parameters"`
@@ -314,6 +321,27 @@ func TestPlannerInvokeExecutorDeclaresSelfInvokeStringOutput(t *testing.T) {
 		}
 		if len(declaration.Output.Schema.Properties) != 0 {
 			t.Fatalf("invoke_executor declares object properties for string self_invoke output: %#v", declaration.Output.Schema.Properties)
+		}
+		return
+	}
+	t.Fatal("planner declarations omit invoke_executor")
+}
+
+func TestPlannerInvokeExecutorDeclaresSelfInvokeCompensation(t *testing.T) {
+	var declarations plannerDeclarations
+	readPlannerYAML(t, "builtin.yaml", &declarations)
+	for _, declaration := range declarations.Tools {
+		if declaration.Name != "invoke_executor" {
+			continue
+		}
+		if declaration.Reversibility.Classification != "compensatable" {
+			t.Fatalf("invoke_executor reversibility = %q, want compensatable", declaration.Reversibility.Classification)
+		}
+		if declaration.Reversibility.Undo != "child_agent_workspace_restore" {
+			t.Fatalf("invoke_executor reversibility undo = %q, want child_agent_workspace_restore", declaration.Reversibility.Undo)
+		}
+		if declaration.Undo.Strategy != "compensating_action" {
+			t.Fatalf("invoke_executor undo strategy = %q, want compensating_action", declaration.Undo.Strategy)
 		}
 		return
 	}

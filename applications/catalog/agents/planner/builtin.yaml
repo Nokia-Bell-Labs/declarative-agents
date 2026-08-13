@@ -134,12 +134,11 @@ tools:
         description: "The child agent may write files through its own selected tools."
     reversibility:
       classification: compensatable
-      undo: workspace_restore
+      undo: child_agent_workspace_restore
       requires_confirmation: false
     undo:
-      strategy: workspace_restore
-      description: "Restore the workspace checkpoint captured before executing the child agent and restore planner state from history."
-      requires: [workspace_checkpoint, planner_state_checkpoint]
+      strategy: compensating_action
+      description: "Surface child-agent workspace restoration as required boundary compensation."
     errors:
       - signal: CommandError
         condition: "config is missing, task state is invalid, or child process cannot be started"
