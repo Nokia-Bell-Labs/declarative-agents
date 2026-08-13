@@ -1,6 +1,8 @@
 name: core-test-evidence-audit
 purpose: Audit Agent Core formal test claims through declared subprocesses.
 initial_state: Idle
+budget:
+  max_iterations: 100
 states:
   - {name: Idle, meaning: Initial state.}
   - {name: LoadingClaims, meaning: Loading formal claims.}

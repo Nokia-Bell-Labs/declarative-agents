@@ -9,8 +9,9 @@ func resumeLoopParams() LoopParams {
 	reg.Register(ToolSpec{Name: "finish", Visibility: Internal}, &fakeBuilder{name: "finish", signal: TaskCompleted})
 	builder, _ := reg.Resolve("finish")
 	return LoopParams{
-		InitialState: "Start",
-		Registry:     reg,
+		InitialState:  "Start",
+		InitialSignal: Approved,
+		Registry:      reg,
 		Table: TransitionTable{
 			{State: "AwaitingApproval", Signal: Approved}: {
 				NextState: "Finishing",

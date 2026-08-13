@@ -64,6 +64,7 @@ func TestLoopForEachResumeContinuesAfterLastPersistedItem(t *testing.T) {
 	require.Equal(t, StatusCancelled, first.Status)
 	require.Equal(t, []string{"alpha"}, order.values())
 
+	params.InitialSignal = Approved
 	resumed, err := LoadResume(params)
 	require.NoError(t, err)
 	require.NotNil(t, resumed.Params.InitialIterator)

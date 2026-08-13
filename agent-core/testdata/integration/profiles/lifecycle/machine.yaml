@@ -1,6 +1,7 @@
 name: core-lifecycle-approval
 purpose: Prove suspend and resume through Agent Core lifecycle ports.
 initial_state: Idle
+resume_signal: Approved
 budget:
   max_iterations: 5
 states:

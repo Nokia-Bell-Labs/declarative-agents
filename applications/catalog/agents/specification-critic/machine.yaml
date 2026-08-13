@@ -27,6 +27,8 @@ lifecycle: |-
 
   Search iteration is deterministic and sequential, with no LLM calls.
 initial_state: Idle
+budget:
+  max_iterations: 100
 states:
 - name: Idle
   meaning: Initial state before validation begins.

@@ -82,6 +82,7 @@ func TestResumeCompatibilityUsesMachineSpecBeforeTableBuilt(t *testing.T) {
 	t.Parallel()
 	spec := MachineSpec{
 		InitialState: "Idle",
+		ResumeSignal: string(Approved),
 		States:       StateSpecsFromNames("Idle", "AwaitingApproval", "Done"),
 	}
 	suspended := func(state State) *InMemoryCheckpoint {

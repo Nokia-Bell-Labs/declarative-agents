@@ -16,6 +16,7 @@ lifecycle: |-
   3. ApplyingApproval -> Succeeded (TaskCompleted): approved path completed.
   4. AwaitingApproval -> Rejected (Rejected): approval was denied.
 initial_state: Idle
+resume_signal: Approved
 budget:
   max_iterations: 5
 states:

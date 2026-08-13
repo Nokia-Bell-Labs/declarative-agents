@@ -3,6 +3,8 @@ purpose: |-
   Load formal test claims, inventory and run Go tests through declared
   subprocesses, reduce the results deterministically, and report findings.
 initial_state: Idle
+budget:
+  max_iterations: 100
 states:
   - {name: Idle, meaning: Initial state.}
   - {name: LoadingClaims, meaning: Loading formal test-suite claims.}
