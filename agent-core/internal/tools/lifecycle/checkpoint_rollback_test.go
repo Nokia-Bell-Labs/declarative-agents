@@ -35,7 +35,7 @@ func TestCheckpointRollbackRequiresTargetIteration(t *testing.T) {
 	require.Contains(t, res.Output, "requires to_iteration")
 }
 
-func TestCheckpointRollbackRevertsDBStateToTargetStep(t *testing.T) {
+func TestCheckpointRollbackReportsMissingUndoAfterDBRevert(t *testing.T) {
 	t.Parallel()
 	target := 1
 	rev := &fakeReverter{}
@@ -51,11 +51,12 @@ func TestCheckpointRollbackRevertsDBStateToTargetStep(t *testing.T) {
 	}).Build(core.Result{})
 	res := cmd.Execute()
 
-	require.Equal(t, core.ToolDone, res.Signal)
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Error(t, res.Err)
 	require.Equal(t, []int{0}, rev.reverted)
 	require.Equal(t, "run-1", rev.runID)
 	require.Contains(t, res.Output, "rolled back run run-1 to iteration 1 (step 0)")
-	require.Contains(t, res.Output, "step=1 write: skipped (no registry)")
+	require.Contains(t, res.Output, "step=1 write: undo failed: rollback cannot reverse write: no registry")
 
 	_, reloaded, err := rev.Load()
 	require.NoError(t, err)
