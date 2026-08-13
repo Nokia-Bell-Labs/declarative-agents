@@ -25,11 +25,8 @@ func TestBuiltinBundleIncludesCanonicalPlannerContracts(t *testing.T) {
 	require.NoError(t, err)
 	var raw ToolDefsFile
 	require.NoError(t, yaml.Unmarshal(data, &raw))
-	require.Contains(t, raw.Includes, "builtin/planner/all.yaml")
-	for _, def := range raw.Tools {
-		require.False(t, plannerWordNames[def.Name],
-			"planner words belong in the canonical planner include")
-	}
+	require.Equal(t, []string{"builtin/all.yaml"}, raw.Includes)
+	require.Empty(t, raw.Tools)
 
 	defs, err := LoadToolDeclarations([]string{path})
 	require.NoError(t, err)

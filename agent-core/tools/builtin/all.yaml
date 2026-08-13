@@ -9,7 +9,6 @@ includes:
   - planner/all.yaml
   - critic-session/all.yaml
   - critic-point/all.yaml
-  - bench/all.yaml
   - spec-validation/all.yaml
   - otlp/all.yaml
 
