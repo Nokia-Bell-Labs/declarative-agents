@@ -3,12 +3,17 @@
 package conformance
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -36,9 +41,7 @@ func TestBenchConformance(t *testing.T) {
 	runDir := t.TempDir()
 	child := filepath.Join(runDir, "critic-child")
 	capture := filepath.Join(runDir, "child-args.txt")
-	if err := os.WriteFile(child, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$BENCH_CHILD_ARGS\"\n"), 0o755); err != nil {
-		t.Fatalf("write critic child: %v", err)
-	}
+	writeBenchChildRecorder(t, child)
 
 	server := Serve(t, ServeConfig{
 		Profile: profilePath, Directory: ProfilesRoot(),
@@ -55,7 +58,7 @@ func TestBenchConformance(t *testing.T) {
 	if status := server.Post("http://"+addr+"/api/v1/actions", `{"type":"launch_eval","config":{"suite":"suites/basic.yaml","output_dir":"eval-results"}}`); status != http.StatusAccepted {
 		t.Fatalf("launch action POST status = %d, want %d", status, http.StatusAccepted)
 	}
-	requireBenchChildArgs(t, capture)
+	requireBenchChildArgs(t, capture, child)
 	if status := server.Post("http://"+addr+"/api/v1/actions", `{"type":"shutdown"}`); status != http.StatusAccepted {
 		t.Fatalf("shutdown action POST status = %d, want %d", status, http.StatusAccepted)
 	}
@@ -136,27 +139,218 @@ func requireBenchProfiles(t *testing.T, endpoint string) {
 	}
 }
 
-func requireBenchChildArgs(t *testing.T, path string) {
+const benchChildRecorderScript = `#!/bin/sh
+set -eu
+capture=${BENCH_CHILD_ARGS:?}
+tmp="${capture}.$$"
+cleanup() {
+	rm -f "$tmp"
+}
+trap cleanup EXIT HUP INT TERM
+{
+	printf 'pid=%s\000' "$$"
+	printf 'executable=%s\000' "$0"
+	for arg do
+		printf 'arg=%s\000' "$arg"
+	done
+} > "$tmp"
+mv -f "$tmp" "$capture"
+trap - EXIT
+`
+
+type benchChildRecord struct {
+	PID        int
+	Executable string
+	Args       []string
+}
+
+func writeBenchChildRecorder(t *testing.T, path string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(benchChildRecorderScript), 0o755); err != nil {
+		t.Fatalf("write critic child recorder: %v", err)
+	}
+}
+
+func parseBenchChildRecord(data []byte) (benchChildRecord, error) {
+	var record benchChildRecord
+	for _, field := range bytes.Split(data, []byte{0}) {
+		if len(field) == 0 {
+			continue
+		}
+		key, value, ok := bytes.Cut(field, []byte("="))
+		if !ok {
+			return record, fmt.Errorf("field %q has no separator", field)
+		}
+		switch string(key) {
+		case "pid":
+			pid, err := strconv.Atoi(string(value))
+			if err != nil || pid <= 0 {
+				return record, fmt.Errorf("invalid pid %q", value)
+			}
+			record.PID = pid
+		case "executable":
+			record.Executable = string(value)
+		case "arg":
+			record.Args = append(record.Args, string(value))
+		default:
+			return record, fmt.Errorf("unknown field %q", key)
+		}
+	}
+	if record.PID == 0 || record.Executable == "" {
+		return record, fmt.Errorf("incomplete identity: pid=%d executable=%q",
+			record.PID, record.Executable)
+	}
+	return record, nil
+}
+
+func validateBenchChildRecord(record benchChildRecord, expectedExecutable string) error {
+	if record.Executable != expectedExecutable {
+		return fmt.Errorf("pid=%d executable=%q argv=%q: want executable %q",
+			record.PID, record.Executable, record.Args, expectedExecutable)
+	}
+	for _, expected := range []struct {
+		flag, value string
+	}{
+		{"--profile", "agents/critic/profile.yaml"},
+		{"--request", "suites/basic.yaml"},
+		{"--output", "eval-results"},
+	} {
+		found := false
+		for index := 0; index+1 < len(record.Args); index++ {
+			if record.Args[index] == expected.flag &&
+				record.Args[index+1] == expected.value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf(
+				"pid=%d executable=%q argv=%q: missing adjacent %q %q",
+				record.PID, record.Executable, record.Args,
+				expected.flag, expected.value)
+		}
+	}
+	return nil
+}
+
+func requireBenchChildArgs(t *testing.T, path, expectedExecutable string) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		data, err := os.ReadFile(path)
 		if err == nil {
-			text := string(data)
-			for _, want := range []string{
-				"--profile\nagents/critic/profile.yaml",
-				"--request\nsuites/basic.yaml",
-				"--output\neval-results",
-			} {
-				if !strings.Contains(text, want) {
-					t.Fatalf("critic child args missing %q:\n%s", want, text)
-				}
+			record, parseErr := parseBenchChildRecord(data)
+			if parseErr != nil {
+				t.Fatalf("critic child evidence %s is malformed: %v", path, parseErr)
+			}
+			if validateErr := validateBenchChildRecord(
+				record, expectedExecutable); validateErr != nil {
+				t.Fatalf("critic child evidence %s is invalid: %v", path, validateErr)
 			}
 			return
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
 	t.Fatalf("critic child did not record args at %s", path)
+}
+
+func TestBenchChildRecorderPublishesCompleteConcurrentRecords(t *testing.T) {
+	runDir := t.TempDir()
+	child := filepath.Join(runDir, "critic-child")
+	capture := filepath.Join(runDir, "child-args.bin")
+	writeBenchChildRecorder(t, child)
+
+	stopReader := make(chan struct{})
+	readerDone := make(chan struct{})
+	recordErr := make(chan error, 1)
+	var reportOnce sync.Once
+	go func() {
+		defer close(readerDone)
+		for {
+			select {
+			case <-stopReader:
+				return
+			default:
+			}
+			data, err := os.ReadFile(capture)
+			if os.IsNotExist(err) {
+				continue
+			}
+			if err == nil {
+				record, parseErr := parseBenchChildRecord(data)
+				if parseErr == nil {
+					parseErr = validateBenchChildRecord(record, child)
+				}
+				if parseErr != nil {
+					reportOnce.Do(func() { recordErr <- parseErr })
+				}
+			}
+		}
+	}()
+
+	var writers sync.WaitGroup
+	for range 20 {
+		writers.Add(1)
+		go func() {
+			defer writers.Done()
+			command := exec.Command(child,
+				"--profile", "agents/critic/profile.yaml",
+				"--core-root", "/core",
+				"--request", "suites/basic.yaml",
+				"--output", "eval-results")
+			command.Env = append(os.Environ(), "BENCH_CHILD_ARGS="+capture)
+			if output, err := command.CombinedOutput(); err != nil {
+				reportOnce.Do(func() {
+					recordErr <- fmt.Errorf("run recorder: %w: %s", err, output)
+				})
+			}
+		}()
+	}
+	writers.Wait()
+	close(stopReader)
+	<-readerDone
+	select {
+	case err := <-recordErr:
+		t.Fatal(err)
+	default:
+	}
+	requireBenchChildArgs(t, capture, child)
+}
+
+func TestBenchChildRecordReportsOmittedRequestWithIdentityAndArgv(t *testing.T) {
+	runDir := t.TempDir()
+	child := filepath.Join(runDir, "critic-child")
+	capture := filepath.Join(runDir, "child-args.bin")
+	writeBenchChildRecorder(t, child)
+	command := exec.Command(child,
+		"--profile", "agents/critic/profile.yaml",
+		"--core-root", "/core",
+		"--output", "eval-results")
+	command.Env = append(os.Environ(), "BENCH_CHILD_ARGS="+capture)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("run recorder: %v: %s", err, output)
+	}
+	data, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := parseBenchChildRecord(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = validateBenchChildRecord(record, child)
+	if err == nil {
+		t.Fatal("record without --request passed validation")
+	}
+	for _, want := range []string{
+		"pid=", child, "--profile", "agents/critic/profile.yaml",
+		"--core-root", "/core", "--output", "eval-results",
+		`missing adjacent "--request" "suites/basic.yaml"`,
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("diagnostic %q does not contain %q", err, want)
+		}
+	}
 }
 
 func requireBenchResponse(t *testing.T, url string, status int, contains string) {
