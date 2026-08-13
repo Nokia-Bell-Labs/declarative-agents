@@ -1283,7 +1283,7 @@ test_cases:
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Machine_request conformance loads configured request machine
-    go_test: go test ./internal/tools/rest -run TestRESTServerMachineRequestConformanceLoadsConfiguredMachineFile
+    go_test: go test ./internal/tools/rest -run 'TestRESTServerMachineRequestConformanceLoadsConfiguredMachineFile|TestProfileMachineRequestRunnerUsesDeclaredMachinePolicy|TestProfileMachineRequestRunnerEnforcesDeclaredCommandTimeout|TestProfileMachineRequestRunnerRejectsInvalidConfig'
     status: done
     description: |
       Run the opt-in conformance tests for machine_request endpoints. The tests
@@ -1303,6 +1303,9 @@ test_cases:
       terminal_signal_mapped: DocumentDetailReady
       fixture_declaration_roots_used: true
       request_machine_actions_select_tools: true
+      declared_iteration_budget_preserved: true
+      declared_command_timeout_preserved_and_enforced: true
+      omitted_request_machine_policy_rejected: true
       generic_trace_envelope_go_test: TestRESTServerMachineRequestTraceEnvelope
       generic_trace_contains_server_route_machine: true
     traces:
@@ -1311,6 +1314,7 @@ test_cases:
       - srd030-machine-request-rest-binding AC1
       - srd030-machine-request-rest-binding AC3
       - srd030-machine-request-rest-binding AC5
+      - srd030-machine-request-rest-binding AC6
       - srd030-machine-request-rest-binding AC7
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux

@@ -40,6 +40,7 @@ requirements:
       - R2.5: The binding SHALL reject configuration that references missing machines, missing tools, unresolved response words, or undeclared terminal signals.
       - R2.6: Profile-backed request runners SHALL load ToolDefs only from trusted profile declaration roots, SHALL select literal action names used by the configured request MachineSpec, and for a dynamic $tool action SHALL add only external words named by the trusted profile tools selection.
       - R2.7: A request MachineSpec action that is missing from the trusted selected vocabulary SHALL fail configuration validation before any HTTP request starts a machine run.
+      - R2.8: A profile-backed request runner SHALL validate the loaded MachineSpec's required runtime policy and SHALL copy its declared iteration budget and command timeout without compatibility defaults. An explicitly programmatic runner MAY supply its own MachineSpec, budget, and command timeout.
 
   R3:
     title: Request input mapping
@@ -77,6 +78,7 @@ requirements:
       - R5.3: Request-scoped timeout SHALL bound the whole machine run and SHALL cancel the run context when it expires.
       - R5.4: A timed-out run SHALL return the configured timeout status and redacted diagnostic output.
       - R5.5: Error responses SHALL NOT expose secrets, raw prompts, internal paths, credentials, or unredacted request bodies.
+      - R5.6: machine_request.timeout SHALL bound the whole HTTP request run, while the loaded MachineSpec budget.command_timeout SHALL independently bound each nested command dispatch.
 
   R6:
     title: Trace and lifecycle behavior
@@ -105,7 +107,7 @@ acceptance_criteria:
 
   - id: AC3
     criterion: Configuration owns profile, machine, selected tools, initial state, terminal state, and response signal authority; runtime callers cannot choose those values, and request-machine actions must resolve through trusted profile ToolDefs.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8]
 
   - id: AC4
     criterion: Request input mapping validates HTTP fields, builds structured machine input, carries request metadata, rejects invalid input before machine execution, exposes the input under a parameters key so a filesystem or REST-client word can be the initial action, and withholds transport authority from the request machine. The initial execution records one reserved seed entry so a later command-state-aware word can select a non-sensitive $from(seed).parameters.<field> without duplication after resume, while trusted sensitive field names become typed paths that core removes before live or persisted selection.
@@ -123,7 +125,7 @@ acceptance_criteria:
 
   - id: AC6
     criterion: Error and timeout mapping cover validation, config, run, timeout, cancellation, response, and redaction behavior.
-    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6]
 
   - id: AC7
     criterion: Generic trace and lifecycle requirements record request-scoped machine execution, identify the server route and request machine, and keep request metadata separate from command/domain and workspace state.
@@ -151,6 +153,7 @@ implementation_status:
     - agents/knowledge-manager/documentation-curator/rest.yaml routes document index, detail, config, source, search, validation, suggestion, approval, rejection, and reopen requests through documentation_curator machine_request endpoints.
     - agents/knowledge-manager/documentation-curator/request-machine.yaml defines the short-lived request machine used by the generic REST server path.
     - ProfileMachineRequestRunner loads request ToolDefs from trusted profile declaration roots, selects literal request MachineSpec action names, and limits dynamic-dispatch vocabulary to the trusted profile tools selection.
+    - ProfileMachineRequestRunner validates and preserves the loaded request MachineSpec iteration and command-timeout policy; it applies no nested runtime defaults.
     - internal/tools/rest emits server, route, request machine, terminal signal, iteration, and run status trace fields in the generic machine_request response envelope.
     - The profile host machine owns documentation_curator lifecycle through generic rest_server_launch and rest_server_stop words; no same-origin proxy or documentation-specific factory is linked into cmd/agent.
     - The documentation browser resolves profile-owned request_machine_route values, and request-machine.yaml sequences atomic resource, exec, compose, predicate, jurist, and file-write words.

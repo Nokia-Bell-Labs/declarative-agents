@@ -229,6 +229,34 @@ func TestRESTServerMachineRequestConformanceLoadsConfiguredMachineFile(t *testin
 	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
 }
 
+func TestProfileMachineRequestRunnerUsesDeclaredMachinePolicy(t *testing.T) {
+	t.Parallel()
+	cfg := conformanceMachineRequestConfig()
+	runner := conformanceProfileRunner(writeConformanceProfile(t))
+
+	prepared, err := runner.prepareConfig(cfg)
+
+	require.NoError(t, err)
+	require.Equal(t, 3, prepared.Budget.MaxIterations)
+	require.Equal(t, "50ms", prepared.CommandTimeout)
+}
+
+func TestProfileMachineRequestRunnerEnforcesDeclaredCommandTimeout(t *testing.T) {
+	t.Parallel()
+	cfg := conformanceMachineRequestConfig()
+	runner := conformanceProfileRunner(writeBlockingProfile(t))
+	start := time.Now()
+
+	result, err := runner.RunMachineRequest(context.Background(), MachineRequestRun{Config: cfg})
+
+	require.NoError(t, err)
+	require.Less(t, time.Since(start), time.Second)
+	require.Equal(t, core.StatusFailed, result.Run.Status)
+	require.Equal(t, string(core.CommandError), result.TerminalSignal)
+	require.Contains(t, result.Output["output"], "timeout")
+	require.ErrorContains(t, result.Run.LastError, "timeout executing respond after 50ms")
+}
+
 func TestRESTDocumentResourcesConfigConformance(t *testing.T) {
 	t.Parallel()
 
@@ -260,6 +288,8 @@ func TestProfileMachineRequestRunnerRejectsInvalidConfig(t *testing.T) {
 		{name: "missing profile", cfg: MachineRequest{}, dir: tempProfileDir, want: "profile is required"},
 		{name: "missing machine", cfg: MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutMachine, want: "machine is required"},
 		{name: "missing selected tool", cfg: MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutRespondTool, want: "respond"},
+		{name: "missing max iterations", cfg: MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutMaxIterations, want: "budget.max_iterations"},
+		{name: "missing command timeout", cfg: MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutCommandTimeout, want: "budget.command_timeout"},
 		{name: "unresolved response signal", cfg: unresolvedResponseConfig(), dir: writeConformanceProfile, want: "terminal signal"},
 	}
 	for _, tc := range tests {

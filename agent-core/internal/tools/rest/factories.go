@@ -97,6 +97,9 @@ func (r *ProfileMachineRequestRunner) prepareConfig(cfg MachineRequest) (Machine
 	if err != nil {
 		return MachineRequest{}, fmt.Errorf("machine_config_invalid: load request machine: %w", err)
 	}
+	if err := core.ValidateRequiredMachinePolicy(machine); err != nil {
+		return MachineRequest{}, fmt.Errorf("machine_config_invalid: request machine policy: %w", err)
+	}
 	if err := validateMachineResponses(machine, cfg.Response); err != nil {
 		return MachineRequest{}, err
 	}
@@ -113,7 +116,8 @@ func (r *ProfileMachineRequestRunner) prepareConfig(cfg MachineRequest) (Machine
 	cfg.ToolAction = toolregistry.BuildDynamicToolAction(toolregistry.DynamicToolActionDeps{
 		Registry: reg,
 	})
-	cfg.Budget = machine.BudgetSpec.ToBudget(core.Budget{MaxIterations: 10})
+	cfg.Budget = machine.BudgetSpec.ToBudget(core.Budget{})
+	cfg.CommandTimeout = machine.BudgetSpec.CommandTimeout
 	return cfg, nil
 }
 
