@@ -57,6 +57,40 @@ func TestCatalogShortMachineTimeoutEnvelopes(t *testing.T) {
 	}
 }
 
+func TestCatalogLongMachineTimeoutEnvelopes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		path      string
+		want      time.Duration
+		authority time.Duration
+	}{
+		{name: "bench evaluator", path: "../agents/bench/machine.yaml", want: 25 * time.Hour, authority: 24 * time.Hour},
+		{name: "bench request", path: "../agents/bench/request-machine.yaml", want: time.Minute, authority: 30 * time.Second},
+		{name: "critic session model", path: "../agents/critic/machine.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
+		{name: "critic workspace model", path: "../agents/critic/machine-workspace.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
+		{name: "critic point model", path: "../agents/critic/point.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
+		{name: "planner session model", path: "../agents/planner/machine.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
+		{name: "planner plan-only model", path: "../agents/planner/machine-plan-only.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
+		{name: "planner passthrough child", path: "../agents/planner/machine-passthrough.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
+		{name: "executor model", path: "../agents/executor/machine.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
+		{name: "deepseek executor model", path: "../agents/executor/deepseek-coding-agent.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
+		{name: "scenario validator", path: "../agents/scenario-critic/machine.yaml", want: 6 * time.Minute, authority: 5 * time.Minute},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got := readCatalogMachineCommandTimeout(t, test.path)
+			if got != test.want {
+				t.Errorf("%s command_timeout = %s, want %s", test.path, got, test.want)
+			}
+			if got <= test.authority {
+				t.Errorf("%s command_timeout = %s, must exceed governing operation %s", test.path, got, test.authority)
+			}
+		})
+	}
+}
+
 func readCatalogMachineCommandTimeout(t *testing.T, path string) time.Duration {
 	t.Helper()
 	data, err := os.ReadFile(path)
