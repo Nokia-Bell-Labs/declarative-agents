@@ -263,7 +263,7 @@ sub-issue completes.
 | Slice | Issue | Scope | Status |
 |---|---|---|---|
 | Baseline | GH-1630 | executables, declarations, format | complete |
-| REST and service | GH-1631 | `internal/tools/rest`, `internal/tools/service` | pending |
+| REST and service | GH-1631 | `internal/tools/rest`, `internal/tools/service` | complete |
 | Remaining tools | GH-1632 | ten focused tool packages | pending |
 | Runtime and root | GH-1634 | runtime, cmd, support | pending |
 | Spec and planning | GH-1633 | `pkg/spec`, `internal/planning` | pending |
@@ -396,4 +396,32 @@ report-output fields. Workflow metric labels parse and validate in Go while
 the format spec still marks them planned; that status lag is recorded in the
 expressiveness table for the runtime slice rather than filed here, because no
 agent-visible operation is hidden.
+
+### REST and service -- GH-1631
+
+Complete. Re-read every production file in `internal/tools/rest` (8,777 lines)
+and `internal/tools/service` (1,625 lines). Eleven REST inits and eleven
+service inits; each is one agent-visible contract. Sequencing that used to
+hide in Go -- send/await, health retry, mock and validator iteration, per-child
+teardown -- is owned by MachineSpec. The scenario-critic machine is the
+exemplar: `for_each` starts mocks, a REST word probes subject health, and
+emergency edges call `stop_all_services`.
+
+All nine prior findings HELD:
+
+| Issue | Status | Evidence |
+|---|---|---|
+| GH-1528 | HELD | `sendAsync` calls `executeRequest` on the dispatch goroutine and returns `RESTAccepted` with a receipt (`client_async.go:15-48`). No `go completeAsync`. |
+| GH-1529 | HELD | `clientCmd` implements `ExecuteContext`; requests use `http.NewRequestWithContext`; retry sleeps on `request.Context()` (`client_command.go:105-146`, `client_request.go:52`). |
+| GH-1530 | HELD | `validateClientEmits` / `validateServerAwaitEmits` / `validateAwaitAnyEmits` run at factory build (`emits_validation.go:13-25`, `factories.go:394-436`). |
+| GH-1531 | HELD | Await undo is `queue_event_restore`; declared output keys match runtime (`tools/builtin/rest/all.yaml`; `TestRESTDeclaredOutputPropertiesExistAtRuntime`). |
+| GH-1532 | HELD | Lifecycle-control requests go through `authorizeLifecycleRequest`; empty auth ref is loopback-only (`server_routes.go:150-161`, `server_auth.go:20-39`). |
+| GH-1533 | HELD | `stop_all_services` exists; `preparedRun.Close` calls `state.Reap()` (`factories.go:31,36-41`, `cmd/agent/main.go:312-313`). |
+| GH-1534 | HELD | Subject health route is parsed before `Start`; `RecordSubject` runs only after a successful start (`scenario_steps.go:173-209`). |
+| GH-1535 | HELD | Health fields and `exhausted` are declared; verdict words no longer emit impossible `CommandError`. |
+| GH-1536 | HELD | `start_service` / `list_scenarios` inits are gone. `TestServiceDeclarationsMatchStandardInits` pins eleven inits to eleven ToolDefs. |
+
+No new finding passed the gate. Tempting splits that remain rejected: `doWithRetry` (same-request transport retry, srd028 R5.8), `awaitMatching` / `waitAnySource` (one wait), `handleMachineRequest` nested machine (the declarative answer), SIGTERM/wait/KILL in `child.stop` (one termination walk), curl/mock-CLI substitutions (Q2), and driving conformance through rest/service words (GH-1388). Two residuals recorded rather than filed: `CompensateFromReceipt` ignores its context (undo plumbing, not a hidden workflow), and `lifecycle_control.action` still accepts tokens the runtime does not branch on (Q1).
+
+Tests: `go test ./internal/tools/rest/... ./internal/tools/service/...` passed (0.87s and 1.48s).
 
