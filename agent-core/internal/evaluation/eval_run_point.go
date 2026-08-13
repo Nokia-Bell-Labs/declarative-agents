@@ -239,7 +239,11 @@ func pointToolFactories(es *EvalState) (*toolregistry.BuiltinRegistry, toolregis
 	// run_agent emits path/content parameters and the point machine dispatches
 	// the generic write word rooted at the current point workspace.
 	builtins.Register("file_write", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
-		return &filesystem.WriteBuilder{RootFunc: pointRoot, Metrics: def.Metrics}, nil
+		return &filesystem.WriteBuilder{
+			RootFunc:     pointRoot,
+			UndoStrategy: def.Undo.Strategy,
+			Metrics:      def.Metrics,
+		}, nil
 	})
 	execFactory := func(def catalog.ToolDef, _ string) core.Builder {
 		return &toolexec.ExecBuilder{Def: def, RootFunc: pointRoot}

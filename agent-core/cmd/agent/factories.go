@@ -105,16 +105,16 @@ func registerFilesystemFactories() toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		fileFactories := []struct {
 			init    string
-			builder func(string, core.MetricConfig) core.Builder
+			builder func(string, core.MetricConfig, string) core.Builder
 		}{
-			{"file_read", func(root string, metrics core.MetricConfig) core.Builder {
+			{"file_read", func(root string, metrics core.MetricConfig, _ string) core.Builder {
 				return &filesystem.ReadBuilder{Root: root, Metrics: metrics}
 			}},
-			{"file_write", func(root string, metrics core.MetricConfig) core.Builder {
-				return &filesystem.WriteBuilder{Root: root, Metrics: metrics}
+			{"file_write", func(root string, metrics core.MetricConfig, strategy string) core.Builder {
+				return &filesystem.WriteBuilder{Root: root, UndoStrategy: strategy, Metrics: metrics}
 			}},
-			{"file_edit", func(root string, metrics core.MetricConfig) core.Builder {
-				return &filesystem.EditBuilder{Root: root, Metrics: metrics}
+			{"file_edit", func(root string, metrics core.MetricConfig, strategy string) core.Builder {
+				return &filesystem.EditBuilder{Root: root, UndoStrategy: strategy, Metrics: metrics}
 			}},
 		}
 		for _, entry := range fileFactories {
@@ -127,9 +127,9 @@ func registerFilesystemFactories() toolregistry.FactoryRegistrar {
 	}
 }
 
-func registerFileFactory(br *toolregistry.BuiltinRegistry, init string, builder func(string, core.MetricConfig) core.Builder) {
+func registerFileFactory(br *toolregistry.BuiltinRegistry, init string, builder func(string, core.MetricConfig, string) core.Builder) {
 	br.Register(init, func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return builder(vars["directory"], def.Metrics), nil
+		return builder(vars["directory"], def.Metrics, def.Undo.Strategy), nil
 	})
 }
 
