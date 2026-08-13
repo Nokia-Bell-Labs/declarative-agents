@@ -102,7 +102,7 @@ func taskCompletedSignal(params LoopParams) Signal {
 	if params.MachineSpec != nil && params.MachineSpec.SummarySignal != "" {
 		return Signal(params.MachineSpec.SummarySignal)
 	}
-	return TaskCompleted
+	return ""
 }
 
 func (r *loopRunner) recordStart() {

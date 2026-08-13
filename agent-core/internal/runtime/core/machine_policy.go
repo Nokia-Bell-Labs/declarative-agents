@@ -92,7 +92,6 @@ func machinePolicyDiagnostics(spec MachineSpec) []MachineDiagnostic {
 		code    string
 		missing bool
 	}{
-		{DiagnosticImplicitSummarySignal, spec.SummarySignal == ""},
 		{DiagnosticImplicitCommandTimeout, spec.BudgetSpec == nil || spec.BudgetSpec.CommandTimeout == ""},
 	}
 	for _, policy := range policies {

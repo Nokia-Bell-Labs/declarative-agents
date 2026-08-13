@@ -674,9 +674,7 @@ func cliResultReporterForMachine(machine *core.MachineSpec) func(core.RunResult,
 func reportRunResult(machine *core.MachineSpec, rr core.RunResult, res core.Result) core.RunResult {
 	reportOperatorOutput(res)
 	declaredSummary := machineDeclaresSummary(machine)
-	if !declaredSummary && strings.TrimSpace(res.Output) != "" {
-		rr.Summary = boundedTerminalSummary(res.Output)
-	} else if declaredSummary {
+	if declaredSummary {
 		rr.Summary = boundedTerminalSummary(rr.Summary)
 	}
 	if message := commandFailureMessage(res); message != "" {

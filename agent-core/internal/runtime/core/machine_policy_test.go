@@ -20,7 +20,7 @@ func TestMachinePolicySignalsOverrideLegacyDefaults(t *testing.T) {
 
 	params.Hooks.TaskCompletedSignal = "HookSummary"
 	require.Equal(t, Signal("HookSummary"), taskCompletedSignal(params))
-	require.Equal(t, TaskCompleted, taskCompletedSignal(LoopParams{}))
+	require.Empty(t, taskCompletedSignal(LoopParams{}))
 	require.Empty(t, resumeSignal(nil))
 }
 
@@ -64,12 +64,10 @@ func TestMachinePolicyDiagnosticsNameRemainingImplicitDefaults(t *testing.T) {
 	for _, diagnostic := range diagnostics {
 		codes[diagnostic.Code] = true
 	}
-	for _, code := range []string{
-		DiagnosticImplicitSummarySignal, DiagnosticImplicitCommandTimeout,
-		DiagnosticMissingTerminalStatus,
-	} {
+	for _, code := range []string{DiagnosticImplicitCommandTimeout, DiagnosticMissingTerminalStatus} {
 		require.True(t, codes[code], code)
 	}
+	require.False(t, codes[DiagnosticImplicitSummarySignal])
 	require.False(t, codes[DiagnosticImplicitResumeSignal])
 	require.False(t, codes[DiagnosticImplicitMaxIterations])
 }

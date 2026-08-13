@@ -80,19 +80,20 @@ func TestResumeLoadOverridesRequestSeed(t *testing.T) {
 	require.Equal(t, core.StatusSucceeded, result.Status)
 }
 
-func TestCLIResultReporterRetainsLatestMachineOutput(t *testing.T) {
+func TestCLIResultReporterDoesNotInventUndeclaredSummary(t *testing.T) {
 	got := cliResultReporter(core.RunResult{}, core.Result{
 		Signal: core.Signal("ResponseReady"), Output: `{"verdict":"pass"}`,
 	})
 
-	require.JSONEq(t, `{"verdict":"pass"}`, got.Summary)
+	require.Empty(t, got.Summary)
 }
 
-func TestCLIResultReporterBoundsLatestMachineOutput(t *testing.T) {
-	got := cliResultReporter(core.RunResult{}, core.Result{
-		Signal: core.Signal("ResponseReady"),
-		Output: strings.Repeat("x", terminalSummaryMaxBytes+100),
-	})
+func TestCLIResultReporterBoundsDeclaredMachineSummary(t *testing.T) {
+	machine := &core.MachineSpec{SummarySignal: "ResponseReady"}
+	got := cliResultReporterForMachine(machine)(
+		core.RunResult{Summary: strings.Repeat("x", terminalSummaryMaxBytes+100)},
+		core.Result{Signal: core.Signal("ResponseReady")},
+	)
 
 	require.Len(t, got.Summary, terminalSummaryMaxBytes)
 	require.True(t, strings.HasSuffix(got.Summary, terminalSummaryTruncated))
@@ -106,6 +107,7 @@ func TestRunPreparedPrintsSummaryFinalStateAndMappedExit(t *testing.T) {
 	}
 	params := terminalLoopParams()
 	params.Hooks.OnResult = cliResultReporter
+	params.Hooks.TaskCompletedSignal = core.ToolDone
 	params.Hooks.TerminalStatus = func(core.State) core.RunStatus { return core.StatusSucceeded }
 	params.Table = core.TransitionTable{
 		{State: "Start", Signal: core.Seed}: {

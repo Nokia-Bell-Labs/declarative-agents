@@ -92,8 +92,8 @@ schema:
     required: false
     description: |
       Signal whose Result.Output becomes RunResult.summary. Must name a declared
-      signal. Defaults to TaskCompleted for compatibility; diagnostics report
-      when the default is used.
+      signal. When omitted, no signal implicitly supplies the run summary;
+      a transition may instead declare summary: true.
 
   - field: resume_signal
     type: string
