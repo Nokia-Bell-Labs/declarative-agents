@@ -268,7 +268,7 @@ sub-issue completes.
 | Runtime and root | GH-1634 | runtime, cmd, support | complete |
 | Spec and planning | GH-1633 | `pkg/spec`, `internal/planning` | complete |
 | Telemetry and model | GH-1635 | evaluation, OTLP, observability, model | complete |
-| Applications | GH-1636 | catalog Go and consolidation | pending |
+| Applications | GH-1636 | catalog Go and consolidation | complete |
 
 ## Accepted findings
 
@@ -610,4 +610,62 @@ re-declaration is absent (Q1, declared-knob fallback class).
 
 Tests: evaluation 1.93s, otlp 1.08s, observability subpackages, and model
 subpackages passed.
+
+### Application Go and consolidation -- GH-1636
+
+Complete. Audited the nine non-test production Go files under
+`applications/catalog` excluding `magefiles/` and testdata. Composition-only
+modules `applications/chatbot-mesh`, `applications/coding-agent`, and
+`applications/agent-architecture` still ship no production Go.
+
+**The catalog module still ships no product-runtime Go.** Its files are
+harness, build recipe, and root resolution:
+
+| File | Classification | Evidence |
+|---|---|---|
+| `cmd/catalog-test-evidence/{main,runner}.go` | Build/test support | Only non-test invoker is a Mage target; Q1 reject (baseline). |
+| `conformance/harness.go` | Test harness | Every entry point takes `*testing.T`. |
+| `conformance/serve.go` | Independent observer | Process/HTTP watchdog; states GH-1388 itself at `:29-32`. |
+| `conformance/{dolt,otel,ollama}.go` | Test-support fixtures | Harness helpers, not agent-selectable words. |
+| `catalogroot/root.go` | Build/test support | Magefile callers only. |
+| `agentbuild/build.go` | Build/test support | One `go build` shared by magefile and harness. |
+
+GH-1388 remains rejected (Q1). GH-1575 through GH-1578 are **VACATED** by
+GH-1624: the prose-editor tree is gone, so those findings have no residual
+code to refile or re-open.
+
+Consolidation of this run's filing: GH-1637 still passes the gate. The
+declared `invoke_executor` output object is an agent-visible contract
+`self_invoke` does not keep (`selfinvoke.go:98-101` vs
+`planner/builtin.yaml:125-142`). Declaration-only or JSON-wrap both preserve
+spawn, signals, and receipts. It stays open; this epic does not fix it.
+
+Tests: catalog-test-evidence 0.43s, catalogroot 0.63s, agentbuild 0.75s,
+conformance 64.3s.
+
+### Run summary
+
+Coverage against `mage stats`: 46,400 production Go lines in `agent-core`
+(+825 vs GH-1395) and 1,741 in `applications/catalog` (unchanged).
+Prose-editor is gone (−1,197). Total 48,141 (−372). All production packages
+named in the seven slices were read.
+
+Prior-finding tally (the 50 GH-1395 filings):
+
+| Disposition | Count | Issues |
+|---|---|---|
+| HELD | 41 | GH-1525; GH-1528–1536; GH-1539; GH-1541–1549; GH-1550, 1553, 1554, 1556, 1557, 1559; GH-1560–1566; GH-1567–1574 |
+| PARTIAL | 5 | GH-1540; GH-1551, 1552, 1555, 1558 |
+| REGRESSED | 0 | — |
+| VACATED | 4 | GH-1575–1578 (prose-editor removed by GH-1624) |
+
+This run filed **1** finding (GH-1637, visibility) and rejected no new
+candidate that was not already in the carried register. Residuals recorded
+rather than filed: filesystem `undo.strategy` unread (GH-1540), GH-1558
+omitted-field fallbacks, `CompensateFromReceipt` ignoring context, and
+`lifecycle_control.action` unused tokens.
+
+The rejected-candidate table and the GH-1410 defective-findings table were
+copied forward in full. Later recurrences must not refile those rows without
+new evidence.
 
