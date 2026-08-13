@@ -123,6 +123,9 @@ func TestExecStdinPersistsRedactedInputWithoutTelemetryOrReceiptLeak(t *testing.
 		CommandTimeout:       time.Second,
 		MonitorRecorder:      rec,
 		CommandStateObserver: observer,
+		Hooks: core.LoopHooks{
+			TerminalStatus: func(core.State) core.RunStatus { return core.StatusSucceeded },
+		},
 	}, context.Background())
 
 	require.NoError(t, err)
