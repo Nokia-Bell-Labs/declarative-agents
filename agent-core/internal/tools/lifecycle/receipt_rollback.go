@@ -200,9 +200,9 @@ func resolveTargetStep(execution core.Execution, targetIteration int) (int, erro
 // missing rollback plumbing is a partial-rollback failure.
 // CompensationRequired becomes operator work, while CommandError is a failure.
 func undoEntry(registry core.CommandResolver, tracer tracing.Tracer, step int, entry core.Entry) entryOutcome {
-	command, policy, failure := prepareUndoEntry(registry, tracer, step, entry)
-	if failure != nil {
-		return *failure
+	command, policy, outcome := prepareUndoEntry(registry, tracer, step, entry)
+	if outcome != nil {
+		return *outcome
 	}
 	res := command.Undo(core.Result{
 		Receipt:     entry.Receipt,
@@ -238,6 +238,10 @@ func prepareUndoEntry(
 		outcome := skipOutcome(tracer, step, entry, "irreversible by declaration")
 		return nil, policy, &outcome
 	}
+	if declared && policy.Strategy == "noop" {
+		outcome := noopOutcome(tracer, step, entry)
+		return nil, policy, &outcome
+	}
 	builder, ok := registry.Resolve(entry.CommandName)
 	if !ok {
 		outcome := missingUndoOutcome(tracer, step, entry, "no builder registered")
@@ -258,6 +262,15 @@ func prepareUndoEntry(
 		return nil, policy, &outcome
 	}
 	return command, policy, nil
+}
+
+func noopOutcome(tracer tracing.Tracer, step int, entry core.Entry) entryOutcome {
+	const detail = "undo: no-op"
+	traceRollbackEntry(tracer, "rollback.entry_reversed", step, entry.CommandName,
+		attribute.String("detail", detail))
+	return entryOutcome{
+		line: fmt.Sprintf("  step=%d %s: %s\n", step, entry.CommandName, detail),
+	}
 }
 
 func missingUndoOutcome(
