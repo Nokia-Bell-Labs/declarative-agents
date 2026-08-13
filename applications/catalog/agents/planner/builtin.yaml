@@ -123,23 +123,8 @@ tools:
       - "Does not implement the executor workflow; the configured child machine does that."
       - "Does not guarantee rollback without an external workspace checkpoint."
     output:
-      description: "Child executor execution status."
-      schema:
-        type: object
-        properties:
-          task_id:
-            type: string
-          exit_code:
-            type: integer
-          stdout:
-            type: string
-          stderr:
-            type: string
-          elapsed_ms:
-            type: integer
-          traceparent:
-            type: string
-        required: [exit_code]
+      description: "Child executor standard output."
+      schema: {type: string}
     side_effects:
       - kind: child_agent_execution
         target: agent_cli

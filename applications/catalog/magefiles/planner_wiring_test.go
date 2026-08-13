@@ -43,11 +43,17 @@ type plannerDeclarations struct {
 }
 
 type plannerDeclaration struct {
-	Name       string         `yaml:"name"`
-	Type       string         `yaml:"type"`
-	Binary     string         `yaml:"binary"`
-	Init       string         `yaml:"init"`
-	Config     map[string]any `yaml:"config"`
+	Name   string         `yaml:"name"`
+	Type   string         `yaml:"type"`
+	Binary string         `yaml:"binary"`
+	Init   string         `yaml:"init"`
+	Config map[string]any `yaml:"config"`
+	Output struct {
+		Schema struct {
+			Type       string         `yaml:"type"`
+			Properties map[string]any `yaml:"properties"`
+		} `yaml:"schema"`
+	} `yaml:"output"`
 	Parameters struct {
 		Properties map[string]plannerParameter `yaml:"properties"`
 	} `yaml:"parameters"`
@@ -291,6 +297,27 @@ func TestPlannerExecutionSeparatesGraphWriteAndChildBoundary(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPlannerInvokeExecutorDeclaresSelfInvokeStringOutput(t *testing.T) {
+	var declarations plannerDeclarations
+	readPlannerYAML(t, "builtin.yaml", &declarations)
+	for _, declaration := range declarations.Tools {
+		if declaration.Name != "invoke_executor" {
+			continue
+		}
+		if declaration.Init != "self_invoke" {
+			t.Fatalf("invoke_executor init = %q, want self_invoke", declaration.Init)
+		}
+		if declaration.Output.Schema.Type != "string" {
+			t.Fatalf("invoke_executor output type = %q, want string", declaration.Output.Schema.Type)
+		}
+		if len(declaration.Output.Schema.Properties) != 0 {
+			t.Fatalf("invoke_executor declares object properties for string self_invoke output: %#v", declaration.Output.Schema.Properties)
+		}
+		return
+	}
+	t.Fatal("planner declarations omit invoke_executor")
 }
 
 func TestPlannerTrackerCommandIsProfileConfiguredExec(t *testing.T) {
