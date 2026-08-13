@@ -74,34 +74,21 @@ func (c *runPointCmd) Execute() core.Result {
 			CommandName: "run_point",
 		}
 	}
-	agentName := c.config.AgentName
-	if agentName == "" {
-		agentName = "critic-point"
-	}
-	maxIter := c.config.MaxIterations
-	if maxIter <= 0 {
-		maxIter = 20
-	}
-	successState := c.config.SuccessState
-	if successState == "" {
-		successState = "Done"
-	}
-
 	tracer := c.es.Tracer
 	if tracer == nil {
 		tracer = tracing.NoopTracer{}
 	}
 	params := core.LoopParams{
 		MachineFile: c.es.PointMachine,
-		AgentName:   agentName,
+		AgentName:   c.config.AgentName,
 		Trace:       tracer,
 		Budget: core.Budget{
-			MaxIterations: maxIter,
+			MaxIterations: c.config.MaxIterations,
 		},
 		Registry: c.pointRegistry,
 		Hooks: core.LoopHooks{
 			TerminalStatus: func(s core.State) core.RunStatus {
-				if s == core.State(successState) {
+				if s == core.State(c.config.SuccessState) {
 					return core.StatusSucceeded
 				}
 				return core.StatusFailed

@@ -36,7 +36,7 @@ tools:
   - Record exactly one completed point and return its PASS, FAIL, or TIMEOUT status when the nested loop terminates normally.
   requirements:
     input:
-    - must consume one materialized point from command-state label `point` and require configured point machine, tool selection, and declarations
+    - must consume one materialized point from command-state label `point` and require configured point machine, tool selection, declarations, agent name, positive iteration bound, and success state
     output:
     - "must emit PointDone with `<point_id>: <status>` after recording the point"
     errors:

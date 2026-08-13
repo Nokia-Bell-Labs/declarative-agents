@@ -32,9 +32,16 @@ func TestValidateRunPointConfigRequiresFields(t *testing.T) {
 		PointMachine: "point.yaml",
 		PointTools:   "tools-point.yaml",
 	}), "requires point_tool_declarations")
-	require.NoError(t, ValidateRunPointConfig("run_point", RunPointConfig{
+	cfg := RunPointConfig{
 		PointMachine:          "point.yaml",
 		PointTools:            "tools-point.yaml",
 		PointToolDeclarations: []string{"point-builtins.yaml", "exec.yaml"},
-	}))
+	}
+	require.ErrorContains(t, ValidateRunPointConfig("run_point", cfg), "requires agent_name")
+	cfg.AgentName = "critic-point"
+	require.ErrorContains(t, ValidateRunPointConfig("run_point", cfg), "requires positive max_iterations")
+	cfg.MaxIterations = 20
+	require.ErrorContains(t, ValidateRunPointConfig("run_point", cfg), "requires success_state")
+	cfg.SuccessState = "Done"
+	require.NoError(t, ValidateRunPointConfig("run_point", cfg))
 }
