@@ -97,7 +97,8 @@ tools:
   - Keep point-machine configuration declarative in YAML rather than hardcoded in Go.
   requirements:
     input:
-    - must require point_machine, point_tools, point_tool_declarations, agent_name, max_iterations, and success_state in config
+    - must require point_machine, point_tools, and point_tool_declarations in config
+    - must require agent_name, positive max_iterations, and success_state in config
     - must bind the current point input supplied by the session for_each iterator
     output:
     - must emit PointDone after the nested point machine reaches its configured success state
