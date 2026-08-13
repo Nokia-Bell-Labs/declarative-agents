@@ -264,7 +264,7 @@ sub-issue completes.
 |---|---|---|---|
 | Baseline | GH-1630 | executables, declarations, format | complete |
 | REST and service | GH-1631 | `internal/tools/rest`, `internal/tools/service` | complete |
-| Remaining tools | GH-1632 | ten focused tool packages | pending |
+| Remaining tools | GH-1632 | ten focused tool packages | complete |
 | Runtime and root | GH-1634 | runtime, cmd, support | pending |
 | Spec and planning | GH-1633 | `pkg/spec`, `internal/planning` | pending |
 | Telemetry and model | GH-1635 | evaluation, OTLP, observability, model | pending |
@@ -272,10 +272,11 @@ sub-issue completes.
 
 ## Accepted findings
 
-Filed by this audit. Empty until later slices land.
+Filed by this audit.
 
 | Issue | Axis | Target | Hidden contract boundary |
 |---|---|---|---|
+| GH-1637 | visibility | `internal/tools/control`, planner `invoke_executor` | Declared object schema (`exit_code`, `stdout`, …) that `self_invoke` never emits; output is raw child stdout |
 
 ## Rejected candidates
 
@@ -376,6 +377,36 @@ proposal.
 | GH-1388 | Drive the serving-profile conformance harness through rest and service words | Replaces an independent observer with the system under test's own words, making conformance circular. |
 | GH-1389 | Probe Ollama through the CLI | The CLI does not consume the profile's resolved `provider_url`, so the probe would not test the configured endpoint. |
 
+## Enforcement of the ToolDef contract
+
+Produced by the remaining-tools slice (GH-1632). `ToolDef` still has 29
+exported fields (`catalog/tooldef.go:25-53`). The 2026-08-10 counts (12 / 9 /
+12 / 8, overlapping) are stale: GH-1525 taught the corpus loader to traverse
+includes, and `spec.Validate` now runs selected-tool completeness
+(`validate.go:41`, `checkSelectedToolContractCompleteness`). Ordinary
+`cmd/agent` startup still does not call `ValidateToolContracts`
+(`main.go:365-369`); full six-section completeness remains authoring and
+specification-audit work, as the Tool Contract pattern says.
+
+What is guaranteed before a word can be dispatched: it has a name; its type is
+one of three; a builtin has an `init` resolving to a registered factory; an
+exec word has a binary; every `$from` selector parses; the precondition is a
+known gate; the metric config is well-formed; every named machine action is
+selected; a parse-retry budget is completely routed; every declared emitted
+signal has a routable successor; visibility, reversibility classification, and
+undo strategy are known tokens; phases are machine states; and a word declared
+reversible-with-mutation has some non-`noop` undo string.
+
+`ValidateToolEmits` still compares declaration to the machine, not
+implementation to declaration. That is why GH-1637 could land after GH-1543
+closed.
+
+Authoring-only fields (never read by the production runtime): `Category`,
+`Contract`, `Problem`, `Goals`, `Requirements`, `NonGoals`, `Errors`,
+`Relationships`, `Undo.Payload`, `Reversibility.RequiresConfirmation`.
+`Output.Schema` is presence-checked in catalog contract helpers that startup
+does not invoke.
+
 ## Slice sections
 
 Each audit slice appends its section below.
@@ -424,4 +455,32 @@ All nine prior findings HELD:
 No new finding passed the gate. Tempting splits that remain rejected: `doWithRetry` (same-request transport retry, srd028 R5.8), `awaitMatching` / `waitAnySource` (one wait), `handleMachineRequest` nested machine (the declarative answer), SIGTERM/wait/KILL in `child.stop` (one termination walk), curl/mock-CLI substitutions (Q2), and driving conformance through rest/service words (GH-1388). Two residuals recorded rather than filed: `CompensateFromReceipt` ignores its context (undo plumbing, not a hidden workflow), and `lifecycle_control.action` still accepts tokens the runtime does not branch on (Q1).
 
 Tests: `go test ./internal/tools/rest/... ./internal/tools/service/...` passed (0.87s and 1.48s).
+
+### Remaining tool packages -- GH-1632
+
+Complete. Audited ten packages in full: catalog (2,241), filesystem (1,286), llm (1,084), validation (960), control (942), lifecycle (874), exec (588), compose (325), registry (300), undo (64).
+
+Every exported word is atomic. Constructs that look like violations remain the pattern working: `delay` is a bounded wait whose retry loop lives in the machine; `self_invoke` is one child process; `invoke_llm` is one inference transaction; `checkpoint_rollback` is the declared atomic recovery walk.
+
+Prior findings:
+
+| Issue | Status | Evidence |
+|---|---|---|
+| GH-1539 | HELD | Walk reads `ToolSpec.Rollback` and skips declared irreversible (`receipt_rollback.go:206-208`). `CompensationRequired` is pending work, not failure (`:226-227`). Exec `commit` uses `compensating_action`. Guard: `TestRollbackViaReceiptsHonorsExecReversibilityTiers`. |
+| GH-1540 | PARTIAL | Exec Undo switches on `undo.strategy` (`exec/builder.go:100-124`). Filesystem `write`/`edit` still restore from receipt without reading the strategy token (`filesystem/write.go`). Residual of the same class; not refiled. |
+| GH-1541 | HELD | Visibility, reversibility classification, undo strategy, and phases fail at load/wiring (`catalog/loading.go:207-238`, `phase_validation.go:15-33`). |
+| GH-1542 | HELD | `DecodeToolConfig` uses `DisallowUnknownFields` (`catalog/config.go:24-28`). |
+| GH-1543 | HELD | Listed agent-core words now match. Residual catalog alias filed as GH-1637. |
+| GH-1544 | HELD | Remaining `self_invoke` words are compensatable; Undo returns `CompensationRequired`. |
+| GH-1545 | HELD | `context_limit` is decoded and assigned (`llm/invoke.go:315`). `manifest_state` is required. |
+| GH-1546 | HELD | Plan-schema enum, Composing default, hardcoded nudge, and IssueID receipt field are gone. |
+| GH-1547 | HELD | `read`/`write`/`edit`/`find` have one source. Compatibility bundles `tools/exec.yaml` vs `tools/exec/all.yaml` remain documented alternative load paths (srd023); not refiled (Q7). |
+| GH-1548 | HELD | Factory catalog is probe-derived; orphaned parse-metrics helpers are gone. |
+| GH-1549 | HELD | Unresolved compose selectors go to `Diagnostics`, not `Err` (`compose/compose.go:86-91`). |
+
+One finding filed: GH-1637 (`invoke_executor` object schema vs `self_invoke` stdout string). Tempting splits remain rejected (compose→machine, render_each→for_each, list_files bash, read-to-sed, delay-as-machine, yq/jq). Remaining aggregator/leaf pairs (`tools/exec.yaml` vs leaf files; inline copies in `tools/builtin.yaml`) are documented alternative load paths (srd023) and are not refiled (Q7). GH-1584 (rollback profile rebuild) is closed and is not refiled; missing-`Reverser` skips in `undoEntry` are that issue's residual.
+
+The ToolDef enforcement table above is refreshed: startup wiring is tighter than 2026-08-10; six-section completeness still belongs to `validate_specs` / authoring, not ordinary startup.
+
+Tests: catalog, filesystem, llm, validation, control, lifecycle, exec, compose, and registry packages passed. `undo` has no test files.
 
