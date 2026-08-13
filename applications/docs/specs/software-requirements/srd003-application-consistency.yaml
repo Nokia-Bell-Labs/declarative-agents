@@ -301,9 +301,8 @@ requirements:
           call itself audit_only until that transition is executable.
         evidence: |
           Root tests compare the manifest and README with applicationModules and
-          auditOnlyApplicationModules. Prose Editor's implemented tracer is
-          classified as runnable, not audit-only, and its optional capabilities
-          remain independently not_applicable.
+          auditOnlyApplicationModules and verify every classified path exists
+          with the evidence required by its declared status.
 
   R7:
     title: Ownership boundary closure
@@ -338,7 +337,7 @@ requirements:
           load application profiles through the existing runtime validators.
 
 non_goals:
-  - Require identical optional capabilities across the four applications.
+  - Require identical optional capabilities across the three applications.
   - Require a managed service, package, chart, kind demo, UI, request variant,
     local actor, or generated directory when the corresponding capability is absent.
   - Change agent-core profile, machine, ToolDef, REST, lifecycle, or telemetry semantics.

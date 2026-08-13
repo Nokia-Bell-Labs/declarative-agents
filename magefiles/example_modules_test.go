@@ -58,14 +58,14 @@ func TestAgentArchitectureIsCompositionApplicationModule(t *testing.T) {
 	}
 }
 
-func TestProseEditorIsRunnableButNotBuildManaged(t *testing.T) {
-	const module = "applications/prose-editor"
+func TestCodingAgentIsRunnableButNotBuildManaged(t *testing.T) {
+	const module = "applications/coding-agent"
 	if len(auditOnlyApplicationModules) != 0 {
-		t.Fatalf("auditOnlyApplicationModules = %#v, want empty after tracer promotion",
+		t.Fatalf("auditOnlyApplicationModules = %#v, want empty",
 			auditOnlyApplicationModules)
 	}
 	if !contains(applicationModules, module) || contains(subModules, module) {
-		t.Fatalf("Prose Editor registry membership is wrong: applications=%#v submodules=%#v",
+		t.Fatalf("Coding Agent registry membership is wrong: applications=%#v submodules=%#v",
 			applicationModules, subModules)
 	}
 	foundTest := false
@@ -75,7 +75,7 @@ func TestProseEditorIsRunnableButNotBuildManaged(t *testing.T) {
 		}
 	}
 	if !foundTest {
-		t.Fatal("runnable Prose Editor is missing from root test targets")
+		t.Fatal("runnable Coding Agent is missing from root test targets")
 	}
 	foundGate := false
 	for _, gate := range releaseGates("..") {
@@ -84,7 +84,7 @@ func TestProseEditorIsRunnableButNotBuildManaged(t *testing.T) {
 		}
 	}
 	if !foundGate {
-		t.Fatal("runnable Prose Editor is missing its release integration gate")
+		t.Fatal("runnable Coding Agent is missing its release integration gate")
 	}
 }
 
@@ -116,7 +116,6 @@ func TestOrchestrationUsesStableApplicationPaths(t *testing.T) {
 		"applications/chatbot-mesh",
 		"applications/coding-agent",
 		"applications/agent-architecture",
-		"applications/prose-editor",
 	}
 	if !reflect.DeepEqual(applicationModules, wantApplications) {
 		t.Fatalf("applicationModules = %#v, want %#v", applicationModules, wantApplications)

@@ -8,8 +8,8 @@ summary: |
   agents/application.yaml, preserves actor and runtime ownership, derives
   applicable package and UI evidence, and verifies capability-aware
   conformance. The same flow covers Chatbot Mesh, Coding Agent, Agent
-  Architecture, and Prose Editor without treating absent optional directories
-  or planned behavior as implemented.
+  Architecture without treating absent optional directories or planned
+  behavior as implemented.
 
 actor: A maintainer normalizing or reviewing a showcase application.
 
@@ -52,15 +52,6 @@ candidate_matrix:
       Derive curator, collector, applier, deployment, UI, and catalog-doc
       package assets from the manifest and classify the local applier as a
       composition wrapper over the canonical implementation.
-  - application: prose-editor
-    current_module_state: runnable
-    current_ownership: agent-owning
-    relevant_surfaces: [runnable_module]
-    normalization_focus: |
-      Verify the implemented deterministic tracer as three application-owned
-      agents plus one local structure-RAG composition wrapper over the canonical
-      corpus-reader, without claiming package, Helm, kind, service, or UI capabilities.
-
 flow:
   - id: F1
     text: |
@@ -248,18 +239,15 @@ success_criteria:
       - srd003-application-consistency AC7
   - id: S7
     criterion: |
-      All four applications have truthful normalization findings. Prose Editor
-      is runnable with three contributed agents and one canonical wrapper while
-      its optional service, package, Helm, kind, and UI capabilities remain
-      not_applicable.
+      All three applications have truthful normalization findings. Chatbot Mesh
+      reports only its local agents, while Coding Agent and Agent Architecture
+      remain composition-only consumers of canonical implementations.
     traces:
       - srd003-application-consistency R1.2
       - srd003-application-consistency R2.2
-      - srd003-application-consistency R6.4
 
 out_of_scope:
   - Rename or move application assets in this documentation release.
-  - Implement Prose Editor profiles, services, packaging, Helm, kind, or UI.
   - Require an optional directory or capability because another application has it.
   - Change canonical catalog behavior or agent-core runtime formats.
   - Mark Release 14.0 normalization complete before named executable evidence exists.

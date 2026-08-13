@@ -24,7 +24,6 @@ var release14Applications = []string{
 	"chatbot-mesh",
 	"coding-agent",
 	"agent-architecture",
-	"prose-editor",
 }
 
 var release14Capabilities = []string{
@@ -41,7 +40,6 @@ func TestApplicationConsistencyManifests(t *testing.T) {
 		"chatbot-mesh":       "agent-owning",
 		"coding-agent":       "composition-only",
 		"agent-architecture": "composition-only",
-		"prose-editor":       "agent-owning",
 	}
 	for _, application := range release14Applications {
 		t.Run(application, func(t *testing.T) {
@@ -367,13 +365,11 @@ func TestRelease14ApplicationMatrix(t *testing.T) {
 		"chatbot-mesh":       {"agent-owning", "implemented", 7, 2, 5, 2},
 		"coding-agent":       {"composition-only", "implemented", 4, 5, 0, 4},
 		"agent-architecture": {"composition-only", "implemented", 1, 3, 0, 1},
-		"prose-editor":       {"agent-owning", "implemented", 4, 1, 3, 1},
 	}
 	wrapperRoots := map[string]map[string]bool{
 		"chatbot-mesh":       {"applier": true, "corpus-ingest": true},
 		"coding-agent":       {"coding-planner-server": true, "coding-executor-server": true, "coding-critic-server": true, "applier": true},
 		"agent-architecture": {"applier": true},
-		"prose-editor":       {"structure-rag": true},
 	}
 	for _, application := range release14Applications {
 		manifest := loadRelease14Manifest(t, application)
@@ -400,16 +396,6 @@ func TestRelease14ApplicationMatrix(t *testing.T) {
 				local, catalog, agents, wrappers, expected)
 		}
 	}
-	prose := loadRelease14Manifest(t, "prose-editor")
-	if prose.Capabilities["runnable_module"].Status != "implemented" ||
-		prose.Capabilities["managed_service"].Status != "not_applicable" ||
-		prose.Capabilities["packaged"].Status != "not_applicable" ||
-		prose.Capabilities["helm_managed"].Status != "not_applicable" ||
-		prose.Capabilities["kind_demo"].Status != "not_applicable" ||
-		prose.Capabilities["ui"].Status != "not_applicable" {
-		t.Errorf("Prose Editor runtime capability boundary is stale: %#v", prose.Capabilities)
-	}
-
 	var suite struct {
 		Status    string `yaml:"status"`
 		TestCases []struct {

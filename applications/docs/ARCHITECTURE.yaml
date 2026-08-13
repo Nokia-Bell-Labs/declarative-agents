@@ -409,12 +409,6 @@ project_structure:
         composition-only and contributes zero agents. Baseline, package, Helm,
         kind, and catalog UI evidence is implemented; managed-service evidence
         remains partial.
-    - path: applications/prose-editor/
-      role: |
-        Agent-owning runnable deterministic tracer with three local agents and
-        one structure-RAG composition wrapper over canonical corpus-reader.
-        Optional service, package, Helm, kind, and UI capabilities are
-        not_applicable.
   orchestration:
     - path: magefiles/build.go
       role: Module classification and audit/stats participant lists.
@@ -443,7 +437,7 @@ implementation_status:
     provenance flow, promotion and shared-token rules, README/status vocabulary,
     and explicit catalog/application/agent-core boundaries. The shared
     documentation, reciprocal traces, application migrations, ownership/status
-    reconciliation, and runnable Prose Editor classification are executable.
+    reconciliation, and current three-application classification are executable.
   progress:
     - implemented: Multi-agent rationale, bidirectional operating flows, human
         governance boundary, six-step construction sequence, and pinned
@@ -474,11 +468,10 @@ implementation_status:
         acceptance-criterion coverage.
     - implemented: Release 14.0 shared YAML parsing, reciprocal indexing,
         manifest validation, actor naming, package assets, canonical promotion,
-        token imports, README/status checks, four-app matrix, and root Mage gates.
+        token imports, README/status checks, three-app matrix, and root Mage gates.
     - implemented: Chatbot Mesh reports five local implementations and two
         wrappers; Coding Agent and Agent Architecture are composition-only with
-        four and one wrappers respectively; Prose Editor reports three local
-        implementations and one wrapper.
+        four and one wrappers respectively.
 
 related_documents:
   - doc: docs/pattern-language.yaml
@@ -503,7 +496,7 @@ related_documents:
   - doc: docs/specs/software-requirements/srd003-application-consistency.yaml
     purpose: Release 14.0 normalized manifest, ownership, naming, package, UI, README, status, and boundary contract.
   - doc: docs/specs/use-cases/rel14.0-uc001-application-consistency.yaml
-    purpose: Completed cross-application normalization flow and runnable Prose Editor classification.
+    purpose: Completed cross-application normalization flow for the current runnable applications.
   - doc: docs/specs/test-suites/test-rel14.0-application-consistency.yaml
     purpose: Structural and capability-gated executable conformance evidence.
   - doc: ../chatbot-mesh/docs/ARCHITECTURE.yaml

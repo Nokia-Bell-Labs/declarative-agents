@@ -43,7 +43,7 @@ success_criteria:
 
 out_of_scope:
   - Shipping the catalog observer profile, tools, and UX.
-  - Prose-editor adoption (follows its own observability SRD work).
+  - Prose Editor adoption; it is downstream-owned and not an in-repository consumer.
   - Trace intake or metrics scraping (collector, srd020).
 
 test_suite_trace: test-rel99.0-observer

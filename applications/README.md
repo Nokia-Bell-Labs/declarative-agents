@@ -196,12 +196,12 @@ local audit target, and root audit-only registration exist.
   contributes zero agents. `runnable_module`, package, Helm, kind, and catalog
   UI evidence are implemented. `managed_service` remains partial because live
   lifecycle observations are dependency-gated.
-- `prose-editor/`: agent-owning runnable application. Its deterministic tracer
-  contributes workflow-orchestrator, specialist-editor, and voice-critic and
-  reports structure-RAG as one composition wrapper over the canonical
-  corpus-reader. Managed service, package, Helm, kind, and UI capabilities are
-  `not_applicable`.
 - `catalog/`: reusable catalog module, not a runnable application.
+
+Prose Editor moved downstream to
+[`petar-djukic/declarative-agents`](https://github.com/petar-djukic/declarative-agents),
+which adopted the module at upstream commit `9cb87d97` (GH-1578). It is no
+longer built, tested, counted, or released by this repository.
 
 Root Mage orchestration is the source of truth for participating modules.
 `magefiles/build.go` separates reusable submodules from runnable applications;

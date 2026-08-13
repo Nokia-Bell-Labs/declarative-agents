@@ -6,11 +6,11 @@ test_case_count: 8
 
 overview: |
   All eight cases are executable. TC1 and TC8 parse and audit the shared
-  Release 14.0 specification. TC2 through TC7 validate the four application
+  Release 14.0 specification. TC2 through TC7 validate the three application
   manifests, actor grammar, manifest-derived package assets, canonical
   promotion and UI-token consumption, README/status/root agreement, ownership
-  accounting, and the runnable Prose Editor matrix. Optional capability cases
-  run only for applications that declare the matching capability.
+  accounting, and the current application matrix. Optional capability cases run
+  only for applications that declare the matching capability.
 
 traces:
   - rel14.0-uc001-application-consistency
@@ -207,7 +207,7 @@ test_cases:
 
   - id: TC7
     use_case: rel14.0-uc001-application-consistency
-    name: Four-application matrix and runnable Prose classification are truthful
+    name: Three-application ownership and capability matrix is truthful
     status: implemented
     evidence_type: go_test
     command: |
@@ -216,11 +216,6 @@ test_cases:
       chatbot_mesh_normalized: true
       coding_agent_ownership_reconciled: true
       agent_architecture_status_reconciled: true
-      prose_editor_runnable_manifest_and_local_audit_present: true
-      prose_editor_in_runnable_list: true
-      prose_editor_not_in_audit_only_list: true
-      prose_editor_has_three_agents_and_one_wrapper: true
-      prose_editor_optional_runtime_capabilities_not_claimed: true
     traces:
       - rel14.0-uc001-application-consistency S7
       - srd003-application-consistency AC1
