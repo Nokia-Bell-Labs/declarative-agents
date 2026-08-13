@@ -36,7 +36,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: A query changes nothing.

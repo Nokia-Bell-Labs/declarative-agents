@@ -1,7 +1,7 @@
 name: bench-request
 purpose: Execute one bench read request through atomic evaluation, filesystem, and transform words.
 initial_state: AwaitingRequest
-budget: {max_iterations: 8}
+budget: {max_iterations: 8, command_timeout: 10m}
 states:
   - {name: AwaitingRequest, meaning: Seeded by one trusted machine_request route.}
   - {name: Querying, meaning: Reading evaluation artifacts.}
@@ -18,10 +18,10 @@ states:
   - {name: ReadingExperiment, meaning: Reading one evaluator experiment artifact.}
   - {name: ShapingExperiment, meaning: Returning parsed experiment YAML.}
   - {name: ListingProfiles, meaning: Reading model profile summaries.}
-  - {name: Ready, meaning: Terminal successful response.}
-  - {name: Missing, meaning: Terminal missing artifact response.}
-  - {name: Denied, meaning: Terminal denied path response.}
-  - {name: Failed, meaning: Terminal infrastructure response.}
+  - {name: Ready, meaning: Terminal successful response., run_status: failed}
+  - {name: Missing, meaning: Terminal missing artifact response., run_status: failed}
+  - {name: Denied, meaning: Terminal denied path response., run_status: failed}
+  - {name: Failed, meaning: Terminal infrastructure response., run_status: failed}
 terminal_states: [Ready, Missing, Denied, Failed]
 signals:
   - Seed

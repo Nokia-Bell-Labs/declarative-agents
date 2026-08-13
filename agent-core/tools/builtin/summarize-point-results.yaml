@@ -14,7 +14,6 @@ tools:
     description: Reads PointContext test, token, and version fields without mutating them.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Summarization is read-only and has no effects to reverse.

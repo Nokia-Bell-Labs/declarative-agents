@@ -11,7 +11,7 @@ tools:
     description: Standalone validation double.
     emits: [ToolDone, ToolFailed]
     side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
-    reversibility: {classification: reversible, undo: noop, requires_confirmation: false}
+    reversibility: {classification: reversible, requires_confirmation: false}
     undo: {strategy: noop, description: The standalone validation double mutates nothing.}
     errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]
 
@@ -24,7 +24,7 @@ tools:
     description: Standalone apply double.
     emits: [ToolDone, ToolFailed]
     side_effects: [{kind: child_process, state: simulated, target: conformance_double}]
-    reversibility: {classification: compensatable, undo: helm_rollback, requires_confirmation: false}
+    reversibility: {classification: compensatable, requires_confirmation: false}
     undo: {strategy: compensating_action, description: The standalone rollback double represents compensation.}
     errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]
 
@@ -37,7 +37,7 @@ tools:
     description: Standalone rollout verification double.
     emits: [ToolDone, ToolFailed]
     side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
-    reversibility: {classification: reversible, undo: noop, requires_confirmation: false}
+    reversibility: {classification: reversible, requires_confirmation: false}
     undo: {strategy: noop, description: The standalone verification double mutates nothing.}
     errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]
 
@@ -50,7 +50,7 @@ tools:
     description: Standalone compensation double.
     emits: [ToolDone, ToolFailed]
     side_effects: [{kind: child_process, state: simulated, target: conformance_double}]
-    reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
+    reversibility: {classification: irreversible, requires_confirmation: true}
     undo: {strategy: irreversible, description: Compensation is terminal for the standalone request.}
     errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]
 
@@ -63,7 +63,7 @@ tools:
     description: Standalone bounded rollout poll double.
     emits: [ToolDone, ToolFailed]
     side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
-    reversibility: {classification: reversible, undo: noop, requires_confirmation: false}
+    reversibility: {classification: reversible, requires_confirmation: false}
     undo: {strategy: noop, description: The standalone poll double mutates nothing.}
     errors: [{signal: ToolFailed, condition: The standalone command reports an incomplete rollout, state_after_failure: No external state changed.}]
 
@@ -85,6 +85,6 @@ tools:
           revision: {type: integer}
         required: [ready, desired, revision]
     side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
-    reversibility: {classification: reversible, undo: noop, requires_confirmation: false}
+    reversibility: {classification: reversible, requires_confirmation: false}
     undo: {strategy: noop, description: The standalone count read mutates nothing.}
     errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]

@@ -15,7 +15,6 @@ tools:
     description: Advances only current-task graph nodes to Executing.
   reversibility:
     classification: reversible
-    undo: pipeline_state_restore
   undo:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded graph lifecycle.
@@ -37,7 +36,7 @@ tools:
   emits: [TaskFileFormatted, CommandError]
   category: word
   side_effects: [{kind: none, description: Serializes plan state without writing a file.}]
-  reversibility: {classification: reversible, undo: noop}
+  reversibility: {classification: reversible}
   undo: {strategy: noop, description: Projection changes no state.}
   problem: The generic write word needs declared path and YAML content without hidden filesystem work.
   goals: [Produce path and content parameters consumed by write.]

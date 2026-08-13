@@ -279,14 +279,14 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: checkpoint_rollback reverts DB state and validates its inputs
-    go_test: TestCheckpointRollbackRevertsDBStateToTargetStep, TestCheckpointRollbackRequiresRevertibleCheckpoint, TestCheckpointRollbackRequiresTargetIteration, TestCheckpointRollbackReportsMissingTargetIteration, TestCheckpointRollbackUndoRequestsCompensation
+    go_test: TestCheckpointRollbackReportsMissingUndoAfterDBRevert, TestCheckpointRollbackRequiresRevertibleCheckpoint, TestCheckpointRollbackRequiresTargetIteration, TestCheckpointRollbackReportsMissingTargetIteration, TestCheckpointRollbackUndoRequestsCompensation
     status: done
     description: |
       checkpoint_rollback resolves the target iteration to a step, calls the
       Dolt adapter Revert to rewind DB-persisted state, and returns a summary
       naming the run and target. It requires a revertible Checkpoint backend
-      and a target iteration, reports a missing target, and its Undo requests
-      compensation rather than silently reversing.
+      and a target iteration, reports a missing target or reverse path after DB
+      Revert, and its Undo requests compensation rather than silently reversing.
     inputs:
       tool: checkpoint_rollback
       checkpoint: fakeReverter

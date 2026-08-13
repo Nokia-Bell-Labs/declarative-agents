@@ -37,7 +37,6 @@ tools:
         state: exit_requested
     reversibility:
       classification: irreversible
-      undo: noop
       requires_confirmation: true
     undo:
       strategy: irreversible

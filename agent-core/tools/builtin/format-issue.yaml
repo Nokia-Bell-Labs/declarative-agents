@@ -31,7 +31,6 @@ tools:
     description: Reads the current plan, workspace directory, and dependency IDs without mutating them.
   reversibility:
     classification: reversible
-    undo: noop
     requires_confirmation: false
   undo:
     strategy: noop

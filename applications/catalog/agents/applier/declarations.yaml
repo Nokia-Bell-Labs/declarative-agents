@@ -9,7 +9,7 @@ tools:
     emits: [ServerLaunched, CommandError]
     side_effects:
       - {kind: network_listen, target: applier_apply, state: listener_started}
-    reversibility: {classification: compensatable, undo: rest_server_stop}
+    reversibility: {classification: compensatable}
     undo:
       strategy: compensating_action
       description: Stop the application-owned request listener.
@@ -27,7 +27,7 @@ tools:
     emits: [ServerLaunched, CommandError]
     side_effects:
       - {kind: network_listen, target: applier_control, state: listener_started}
-    reversibility: {classification: compensatable, undo: rest_server_stop}
+    reversibility: {classification: compensatable}
     undo:
       strategy: compensating_action
       description: Stop the application-owned control listener.
@@ -45,7 +45,7 @@ tools:
     emits: [ServerLaunched, CommandError]
     side_effects:
       - {kind: network_listen, target: monitor, state: listener_started}
-    reversibility: {classification: compensatable, undo: rest_server_stop}
+    reversibility: {classification: compensatable}
     undo:
       strategy: compensating_action
       description: Stop the application-owned monitor listener.
@@ -63,7 +63,7 @@ tools:
     emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
     side_effects:
       - {kind: state_mutation, target: rest_server_queue, state: selected_event_consumed}
-    reversibility: {classification: reversible, undo: queue_event_restore}
+    reversibility: {classification: reversible}
     undo:
       strategy: queue_event_restore
       description: Restore the receipt-recorded event to the source queue.
@@ -89,7 +89,7 @@ tools:
     emits: [ServerStopped, CommandError]
     side_effects:
       - {kind: network_listener_shutdown, target: monitor, state: listener_stopped}
-    reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+    reversibility: {classification: compensatable}
     undo:
       strategy: server_shutdown_or_user_action_compensation
       description: Relaunch the trusted monitor definition when compensation is required.
@@ -109,7 +109,7 @@ tools:
     emits: [ServerStopped, CommandError]
     side_effects:
       - {kind: network_listener_shutdown, target: applier_apply, state: listener_stopped}
-    reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+    reversibility: {classification: compensatable}
     undo:
       strategy: server_shutdown_or_user_action_compensation
       description: Relaunch the trusted request definition when compensation is required.

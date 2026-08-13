@@ -34,7 +34,6 @@ tools:
     description: Stores pass/fail status and command output from the configured oracle exec word.
   reversibility:
     classification: reversible
-    undo: point_context_restore
     requires_confirmation: false
   undo:
     strategy: point_context_restore

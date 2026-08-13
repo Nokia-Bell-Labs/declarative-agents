@@ -25,7 +25,6 @@ tools:
     description: Reads matching file paths and lines from the workspace without mutating state.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Search is read-only and has no effects to reverse.

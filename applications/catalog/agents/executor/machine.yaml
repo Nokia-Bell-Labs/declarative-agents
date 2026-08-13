@@ -61,6 +61,7 @@ pipeline_diagram: |-
   ```
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 100
   max_consecutive_parse_errors: 5
 states:
@@ -86,10 +87,13 @@ states:
   meaning: |
     Lint passed. The test validation command is running.
 - name: Succeeded
+  run_status: succeeded
   meaning: Terminal. Validation passed — the task is complete.
 - name: Failed
+  run_status: failed
   meaning: Terminal. An unrecoverable error or validation failure occurred.
 - name: BudgetExceeded
+  run_status: budget_exceeded
   meaning: Terminal. Iteration or token budget was exhausted.
 terminal_states:
 - Succeeded

@@ -195,7 +195,7 @@ func lifecycleControlServer() Server {
 			"exit": {
 				Method: "POST", Path: "/lifecycle/exit", Binding: bindingLifecycleControl,
 				LifecycleControl: LifecycleControl{
-					Action: "exit", Signal: "ExitRequested",
+					Action: "enqueue_signal", Signal: "ExitRequested",
 					TargetSchema: bodySchemaWithRequired("reason"),
 				},
 				Request:  RequestBinding{BodySchema: bodySchemaWithRequired("reason")},

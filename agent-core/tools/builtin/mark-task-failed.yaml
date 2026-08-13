@@ -11,7 +11,7 @@ tools:
     target: requirement_graph
     state: current_task_failed
     description: Advances current-task nodes from Executing to Failed.
-  reversibility: {classification: reversible, undo: pipeline_state_restore}
+  reversibility: {classification: reversible}
   undo:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded graph status before failure marking.

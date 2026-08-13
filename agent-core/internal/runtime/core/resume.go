@@ -39,7 +39,7 @@ type ResumeState struct {
 // and returns params seeded to re-enter the loop at the restored position. It is
 // the single, hook-free resume contract: no ValidateCheckpoint, RestoreConversation,
 // RestoreDomain, or workspace restore fan-out. The resume signal is params.InitialSignal
-// when set, otherwise Approved, so a run suspended at an approval gate advances.
+// when set, otherwise the machine's required resume_signal.
 func LoadResume(params LoopParams) (ResumeState, error) {
 	pos, exec, err := resolveCheckpoint(params.Checkpoint).Load()
 	finalized := errors.Is(err, ErrCheckpointFinalized)
@@ -57,6 +57,9 @@ func LoadResume(params LoopParams) (ResumeState, error) {
 	sig := params.InitialSignal
 	if sig == "" {
 		sig = resumeSignal(params.MachineSpec)
+	}
+	if sig == "" && !finalized {
+		return ResumeState{}, errors.New("resume: machine resume_signal is required when no override is supplied")
 	}
 	params.InitialState = pos.CurrentState
 	params.InitialSignal = sig
@@ -98,10 +101,10 @@ func resumeInitialResult(execution Execution, resumeSignal Signal) Result {
 }
 
 func resumeSignal(machine *MachineSpec) Signal {
-	if machine != nil && machine.ResumeSignal != "" {
+	if machine != nil {
 		return Signal(machine.ResumeSignal)
 	}
-	return Approved
+	return ""
 }
 
 // validateResumeCompatibility rejects a checkpoint the current machine cannot

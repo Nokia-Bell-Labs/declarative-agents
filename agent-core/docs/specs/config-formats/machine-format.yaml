@@ -92,30 +92,33 @@ schema:
     required: false
     description: |
       Signal whose Result.Output becomes RunResult.summary. Must name a declared
-      signal. Defaults to TaskCompleted for compatibility; diagnostics report
-      when the default is used.
+      signal. When omitted, no signal implicitly supplies the run summary;
+      a transition may instead declare summary: true.
 
   - field: resume_signal
     type: string
-    required: false
+    required: when signals declares AwaitApproval
     description: |
       Signal used when a checkpoint resumes without an operator
-      --resume-signal override. Must name a declared signal. Defaults to
-      Approved for compatibility; diagnostics report when the default is used.
+      --resume-signal override. A resumable approval machine must declare it
+      and it must name a declared signal. Machines without approval suspension
+      have no implicit resume signal. The paired suspend signal is the engine
+      lifecycle signal AwaitApproval emitted by the suspend word; it is
+      protocol vocabulary rather than profile policy.
 
   - field: budget
     type: object
-    required: false
+    required: true
     description: |
       Resource limits that bound the agent's execution.
     sub_fields:
       - field: max_iterations
         type: int
+        required: true
         description: |
           Maximum number of state transitions before halting. When
           exceeded, the machine transitions via the BudgetExhausted
-          signal. The documented compatibility default is 100; diagnostics
-          report when it is omitted.
+          signal. Must be a positive integer.
       - field: max_tokens
         type: int
         description: |
@@ -129,10 +132,10 @@ schema:
           with StatusCancelled (not BudgetExhausted).
       - field: command_timeout
         type: duration string
+        required: true
         description: |
           Positive per-dispatch timeout applied to every command in this
-          machine. Omission preserves the compatibility behavior of no
-          per-command timeout and produces a diagnostic.
+          machine. Runtime profiles fail validation when it is omitted.
       - field: max_consecutive_parse_errors
         type: int
         description: |
@@ -155,10 +158,10 @@ schema:
         - Running
         - Done
 
-      Rich object form: a list of objects with name and optional
-      meaning and run_status metadata. The meaning field documents the state's
-      semantic purpose. Terminal states may declare run_status as succeeded,
-      failed, budget_exceeded, cancelled, or suspended.
+      Rich object form: a list of objects with name and optional meaning
+      metadata. The meaning field documents the state's semantic purpose.
+      Every terminal state must declare run_status as succeeded, failed,
+      budget_exceeded, cancelled, or suspended.
         states:
         - name: Idle
           meaning: Initial state before any work begins.
@@ -174,8 +177,8 @@ schema:
 
       Every state referenced in transitions, initial_state, and
       terminal_states must appear here.
-      run_status is valid only on terminal states. Omitted run_status uses the
-      legacy terminal-name default for backward compatibility.
+      run_status is valid only on terminal states and is required for each name
+      listed by terminal_states.
 
   - field: terminal_states
     type: "[]string"

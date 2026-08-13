@@ -12,7 +12,6 @@ tools:
     description: Creates a directory and any missing parent directories.
   reversibility:
     classification: reversible
-    undo: workspace_restore
   undo:
     strategy: workspace_restore
     description: Restore the workspace ref captured before directory creation.

@@ -38,7 +38,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Listing local Ollama models does not mutate local or remote state.

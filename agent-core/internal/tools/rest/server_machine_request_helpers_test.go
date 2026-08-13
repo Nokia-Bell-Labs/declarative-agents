@@ -17,9 +17,13 @@ import (
 
 func requestMachineSpec() *core.MachineSpec {
 	return &core.MachineSpec{
-		Name:           "request",
-		InitialState:   "Start",
-		States:         core.StateSpecsFromNames("Start", "Responding", "Done", "Failed"),
+		Name:         "request",
+		InitialState: "Start",
+		States: core.StateSpecs{
+			{Name: "Start"}, {Name: "Responding"},
+			{Name: "Done", RunStatus: core.StatusSucceeded},
+			{Name: "Failed", RunStatus: core.StatusFailed},
+		},
 		TerminalStates: []string{"Done", "Failed"},
 		Signals:        core.SignalSpecsFromNames("Seed", "DocumentationReady", "DocumentMissing", "CommandError"),
 		Transitions: []core.TransitionSpec{
@@ -33,9 +37,12 @@ func requestMachineSpec() *core.MachineSpec {
 
 func requestReadMachineSpec() *core.MachineSpec {
 	return &core.MachineSpec{
-		Name:           "request",
-		InitialState:   "Start",
-		States:         core.StateSpecsFromNames("Start", "Responding", "Done"),
+		Name:         "request",
+		InitialState: "Start",
+		States: core.StateSpecs{
+			{Name: "Start"}, {Name: "Responding"},
+			{Name: "Done", RunStatus: core.StatusSucceeded},
+		},
 		TerminalStates: []string{"Done"},
 		Signals:        core.SignalSpecsFromNames("ReadRequested", "DocumentationReady"),
 		Transitions: []core.TransitionSpec{

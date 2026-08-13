@@ -41,7 +41,6 @@ tools:
         state: routes_registered
     reversibility:
       classification: compensatable
-      undo: rest_server_stop
     undo:
       strategy: compensating_action
       description: Stop the REST server if the launch command owns the listener.
@@ -97,7 +96,6 @@ tools:
         state: selected_event_consumed
     reversibility:
       classification: reversible
-      undo: queue_event_restore
     undo:
       strategy: queue_event_restore
       description: Restore the receipt-recorded event to the front of its source queue.
@@ -162,7 +160,6 @@ tools:
         state: server_stopped
     reversibility:
       classification: compensatable
-      undo: server_shutdown_or_user_action_compensation
     undo:
       strategy: server_shutdown_or_user_action_compensation
       description: The receipt records shutdown loss; MachineSpec must relaunch the trusted monitor definition.

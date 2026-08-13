@@ -14,6 +14,7 @@ invariants:
   - The Chroma server is an external precondition; the request path assumes an ingested collection.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 10000
 states:
   - {name: Idle, meaning: Initial state before the RAG servers start.}
@@ -24,8 +25,8 @@ states:
   - {name: Exiting, meaning: Routing ExitRequested to exit_agent.}
   - {name: StoppingMonitor, meaning: Stopping the monitor server.}
   - {name: StoppingRequests, meaning: Stopping the query server.}
-  - {name: Failed, meaning: Terminal. A server or boundary word failed.}
-  - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit.}
+  - {name: Failed, meaning: Terminal. A server or boundary word failed., run_status: failed}
+  - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit., run_status: succeeded}
 terminal_states:
   - Done
   - Failed

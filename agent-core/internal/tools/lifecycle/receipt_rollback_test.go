@@ -46,6 +46,12 @@ func (c undoStub) Undo(core.Result) core.Result {
 	return core.Result{Signal: core.ToolDone, CommandName: c.name, Output: "undone"}
 }
 
+type nonReverserStub struct{ name string }
+
+func (b nonReverserStub) Build(core.Result) core.Command {
+	return undoStub{name: b.name}
+}
+
 // recordingReverter is a CheckpointReverter that only records the Revert call;
 // the receipt walk's inputs come from the Execution passed to rollbackViaReceipts.
 type recordingReverter struct {
@@ -130,6 +136,57 @@ func TestRollbackViaReceiptsCleanWhenAllReverse(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, report.Reverted)
 	require.Contains(t, report.Detail, "reversed 1, pending compensation 0, skipped 0, failed 0")
+}
+
+func TestUndoEntryMissingRollbackPlumbingFails(t *testing.T) {
+	t.Parallel()
+	entry := core.Entry{CommandName: "sample", Receipt: "receipt"}
+
+	empty := core.NewRegistry()
+	nonReverser := core.NewRegistry()
+	nonReverser.Register(core.ToolSpec{
+		Name: "sample", Rollback: core.RollbackPolicy{Classification: "compensatable"},
+	}, nonReverserStub{name: "sample"})
+	noReceipt := core.NewRegistry()
+	noReceipt.Register(core.ToolSpec{
+		Name: "sample", Rollback: core.RollbackPolicy{Classification: "reversible"},
+	}, reverserStub{name: "sample"})
+
+	for _, test := range []struct {
+		name     string
+		registry core.CommandResolver
+		entry    core.Entry
+		want     string
+	}{
+		{name: "no registry", want: "no registry", entry: entry},
+		{name: "no builder", registry: empty, want: "no builder registered", entry: entry},
+		{name: "no reverser", registry: nonReverser, want: "does not implement Reverser", entry: entry},
+		{name: "no receipt", registry: noReceipt, want: "no receipt", entry: core.Entry{CommandName: "sample"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			outcome := undoEntry(test.registry, nil, 2, test.entry)
+			require.NotNil(t, outcome.failure)
+			require.Contains(t, outcome.failure.Detail, test.want)
+			require.False(t, outcome.skipped)
+		})
+	}
+}
+
+func TestUndoEntryDeclaredIrreversibleStillSkips(t *testing.T) {
+	t.Parallel()
+	registry := core.NewRegistry()
+	registry.Register(core.ToolSpec{
+		Name: "publish",
+		Rollback: core.RollbackPolicy{
+			Classification: "irreversible",
+		},
+	}, nonReverserStub{name: "publish"})
+
+	outcome := undoEntry(registry, nil, 2, core.Entry{CommandName: "publish"})
+
+	require.True(t, outcome.skipped)
+	require.Nil(t, outcome.failure)
+	require.Contains(t, outcome.line, "irreversible by declaration")
 }
 
 // TestRollbackViaReceiptsHonorsExecReversibilityTiers exercises the real exec
@@ -236,6 +293,10 @@ func TestRollbackViaReceiptsSurfacesEveryCompensation(t *testing.T) {
 	reg := core.NewRegistry()
 	reg.Register(core.ToolSpec{Name: "ok", Visibility: core.Internal}, reverserStub{name: "ok"})
 	reg.Register(core.ToolSpec{Name: "fails", Visibility: core.Internal}, reverserStub{name: "fails", undoFails: true})
+	reg.Register(core.ToolSpec{
+		Name: "irreversible", Visibility: core.Internal,
+		Rollback: core.RollbackPolicy{Classification: "irreversible"},
+	}, nonReverserStub{name: "irreversible"})
 	reg.Register(
 		core.ToolSpec{Name: "pending", Visibility: core.Internal},
 		reverserStub{name: "pending", compensationRequired: true},

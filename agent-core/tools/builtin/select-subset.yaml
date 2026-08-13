@@ -43,7 +43,6 @@ tools:
     description: Reads command state and produces a Result without mutating runtime or external state.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Selection reads prior state and changes no external state.

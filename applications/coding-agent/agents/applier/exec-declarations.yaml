@@ -75,7 +75,6 @@ tools:
         description: Runs `helm upgrade --dry-run` as a child process; renders only, mutates no cluster state.
     reversibility:
       classification: reversible
-      undo: noop
       requires_confirmation: false
     errors:
       - signal: ToolFailed
@@ -127,7 +126,6 @@ tools:
         description: Runs `helm upgrade --reuse-values` as a child process; upgrades the release and re-renders the affected Deployments without waiting for readiness.
     reversibility:
       classification: compensatable
-      undo: helm_rollback
       requires_confirmation: false
     errors:
       - signal: ToolFailed
@@ -179,7 +177,6 @@ tools:
         description: Runs `helm rollback` as a child process; returns the release to its prior revision.
     reversibility:
       classification: irreversible
-      undo: irreversible
       requires_confirmation: true
     errors:
       - signal: ToolFailed
@@ -229,7 +226,6 @@ tools:
         description: Runs `kubectl rollout status` on all coding role Deployments; reads rollout progress and mutates nothing.
     reversibility:
       classification: reversible
-      undo: noop
       requires_confirmation: false
     errors:
       - signal: ToolFailed
@@ -280,7 +276,6 @@ tools:
         description: Runs `kubectl rollout status` with a short timeout as a child process; reads status and mutates nothing.
     reversibility:
       classification: reversible
-      undo: noop
       requires_confirmation: false
     errors:
       - signal: ToolFailed
@@ -340,7 +335,6 @@ tools:
         description: Runs `kubectl get deployment -o go-template` as a child process; reads the Deployment and mutates nothing.
     reversibility:
       classification: reversible
-      undo: noop
       requires_confirmation: false
     errors:
       - signal: ToolFailed

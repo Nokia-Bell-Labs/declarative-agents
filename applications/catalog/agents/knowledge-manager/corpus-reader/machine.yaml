@@ -20,6 +20,7 @@ invariants:
   - The Chroma and Ollama servers are external preconditions, surfaced through chroma_ready and ollama_ready, not started by the agent.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 16
 states:
   - name: Idle
@@ -37,8 +38,10 @@ states:
   - name: Answering
     meaning: The configured model is answering over the retrieved chunks.
   - name: Succeeded
+    run_status: succeeded
     meaning: Terminal. A grounded answer was produced from retrieved chunks.
   - name: Failed
+    run_status: failed
     meaning: Terminal. A REST, embedding, or model boundary word failed.
 terminal_states:
   - Succeeded

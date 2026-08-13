@@ -80,7 +80,7 @@ primary_entities:
     references: [RestServer, Endpoint, InboundEvent]
   - name: LifecycleControlEndpoint
     kind: inbound_control_route
-    responsibility: Validates exit, pause, rollback request, resume, or signal injection requests and enqueues declared lifecycle events for MachineSpec.
+    responsibility: Validates fixed or allowlisted signal enqueue requests and publishes declared lifecycle events for MachineSpec.
     owns: [control_request_validation, control_signal_mapping]
     references: [Endpoint, InboundEvent, MachineSpec]
   - name: MachineRequestBinding

@@ -12,6 +12,7 @@ invariants:
   - exit_agent owns exit behavior as visible lifecycle vocabulary.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 5
 states:
   - name: Idle
@@ -23,8 +24,10 @@ states:
   - name: Exiting
     meaning: The machine dispatches exit_agent after ExitRequested.
   - name: Succeeded
+    run_status: succeeded
     meaning: Terminal. The agent exit request completed.
   - name: Failed
+    run_status: failed
     meaning: Terminal. Control routing or lifecycle execution failed.
 terminal_states:
   - Succeeded

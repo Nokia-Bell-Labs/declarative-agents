@@ -117,7 +117,6 @@ tools:
     description: Reads workspace directory entries without mutating state.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Directory listing is read-only and has no effects to reverse.

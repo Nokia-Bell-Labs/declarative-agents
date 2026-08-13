@@ -4,6 +4,7 @@ initial_state: Idle
 metric_labels:
   profile: monitored_qwen
 budget:
+  command_timeout: 10m
   max_iterations: 12
   max_consecutive_parse_errors: 2
 states:
@@ -14,8 +15,11 @@ states:
   - name: AwaitingMonitorExit
   - name: StoppingMonitor
   - name: Succeeded
+    run_status: succeeded
   - name: Failed
+    run_status: failed
   - name: BudgetExceeded
+    run_status: budget_exceeded
 terminal_states:
   - Succeeded
   - Failed

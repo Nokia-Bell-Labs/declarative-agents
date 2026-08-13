@@ -31,7 +31,6 @@ tools:
     description: Reads resolved suite dimensions without mutating them.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Read-only materialization has no effects to reverse.

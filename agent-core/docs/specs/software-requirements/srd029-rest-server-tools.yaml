@@ -76,7 +76,7 @@ requirements:
       - R5.5: stream_events endpoints SHALL expose server-sent events or watch streams for configured runtime event sources.
       - R5.6: health endpoints SHALL return liveness or readiness metadata without mutating machine state.
       - R5.7: static_metadata endpoints SHALL return configured schema, route, machine, tool, or profile metadata.
-      - R5.8: lifecycle_control endpoints SHALL validate configured lifecycle requests such as exit, pause, rollback request, resume, or signal injection and enqueue declared lifecycle signals for MachineSpec routing.
+      - R5.8: lifecycle_control endpoints SHALL use enqueue_signal for one configured signal or inject_signal for an allowlisted request signal, and SHALL enqueue the selected signal for MachineSpec routing.
 
   R6:
     title: Request validation and responses
@@ -142,7 +142,7 @@ requirements:
 
 non_goals:
   - Defining outbound REST client tools; see srd028-rest-client-tools.
-  - Implementing lifecycle_control actions beyond the validated set (exit, pause, rollback_request, resume, inject_signal), or running lifecycle operations directly rather than enqueueing request events for MachineSpec routing.
+  - Implementing lifecycle_control behavior beyond fixed or allowlisted signal enqueueing, or running lifecycle operations directly rather than enqueueing request events for MachineSpec routing.
   - Defining a general web framework for arbitrary Go handlers.
   - Allowing HTTP handlers to run hidden workflows outside MachineSpec.
   - Letting lifecycle control endpoints bypass rest_server_await, rest_await_event, or MachineSpec routing.
@@ -246,7 +246,7 @@ implementation_status:
     - Plain Go tests for launch, await, fan-in filters, timeout, stopped-source signals, stop, shutdown policy validation, stream shutdown unblocking, validation failures, redaction, invoke_handler, stream_events, machine_request, and Knowledge Manager conformance.
     - OpenAPI server binding preserves configured response mapping, machine_request, monitor view, queue, signal, and allowed_signals while importing method, path, request schema, and response schema.
     - Queue overflow behavior supports reject, drop_oldest, and drop_newest. Unsupported shutdown queue controls are rejected during ValidateDefinition.
-    - Modeled lifecycle_control endpoints (R5.8, R11.4, R11.6): ValidateDefinition validates the action (exit, pause, rollback_request, resume, inject_signal) and the rollback target selector, and the endpoint enqueues the lifecycle request event for MachineSpec routing without running any lifecycle operation directly (proven by TestRESTServer_LifecycleControlEnqueuesSignals). Configured emit_signal control routes that MachineSpec routes to exit_agent remain as an alternative used by current control profiles.
+    - Modeled lifecycle_control endpoints (R5.8, R11.4, R11.6): ValidateDefinition accepts enqueue_signal with a configured signal or inject_signal with an allowlist, validates any target selector, and enqueues the lifecycle request event for MachineSpec routing without running a lifecycle operation directly (proven by TestRESTServer_LifecycleControlEnqueuesSignals). Configured emit_signal control routes that MachineSpec routes to exit_agent remain as an alternative used by current control profiles.
   partial:
     - R10 read_policy supports only the default first_available behavior; priority_order, round_robin, and other values are rejected during ToolDef factory validation (TestRESTServer_ControlQueueAndReadPolicyConformance).
 

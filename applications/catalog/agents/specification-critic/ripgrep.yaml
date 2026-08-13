@@ -63,7 +63,6 @@ tools:
         description: Searches target files without mutation.
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Search changes nothing.

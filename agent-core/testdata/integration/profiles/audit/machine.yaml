@@ -1,6 +1,9 @@
 name: core-spec-audit
 purpose: Validate Agent Core specifications without a catalog checkout.
 initial_state: Idle
+budget:
+  command_timeout: 10m
+  max_iterations: 100
 states:
   - {name: Idle, meaning: Initial state.}
   - {name: Loading, meaning: Loading the specification corpus.}
@@ -8,8 +11,8 @@ states:
   - {name: Searching, meaning: Running declared grep checks.}
   - {name: Reducing, meaning: Reducing grep evidence.}
   - {name: Reporting, meaning: Formatting findings.}
-  - {name: Passed, meaning: Terminal success.}
-  - {name: Failed, meaning: Terminal failure.}
+  - {name: Passed, meaning: Terminal success., run_status: succeeded}
+  - {name: Failed, meaning: Terminal failure., run_status: failed}
 terminal_states: [Passed, Failed]
 signals:
   - {name: Seed, trigger: Loop initialization.}

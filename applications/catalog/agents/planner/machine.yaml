@@ -65,6 +65,8 @@ pipeline_diagram: |-
   ```
 initial_state: Idle
 budget:
+  command_timeout: 10m
+  max_iterations: 100
   max_consecutive_parse_errors: 5
 states:
 - name: Idle
@@ -130,10 +132,13 @@ states:
 - name: QueryingRemainingWork
   meaning: Reading graph state so the machine can route ready, done, or blocked work.
 - name: Completed
+  run_status: succeeded
   meaning: Terminal. All tasks in the graph are done.
 - name: Stalled
+  run_status: failed
   meaning: Terminal. Remaining tasks are blocked by failed dependencies.
 - name: Failed
+  run_status: failed
   meaning: Terminal. An unrecoverable error occurred.
 terminal_states:
 - Completed

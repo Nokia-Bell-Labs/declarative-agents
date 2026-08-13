@@ -34,7 +34,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Driving a read-only route changes nothing.

@@ -17,6 +17,7 @@ invariants:
   - The creator forwards the provisioning-workflow-orchestrator's decided values-plane document to the deployment API as the apply content; it authors no values decision (that is the provisioning-workflow-orchestrator's).
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 10000
 states:
   - {name: Idle, meaning: Initial state before the creator servers start.}
@@ -27,8 +28,8 @@ states:
   - {name: Exiting, meaning: Routing ExitRequested to exit_agent.}
   - {name: StoppingMonitor, meaning: Stopping the monitor server.}
   - {name: StoppingRequests, meaning: Stopping the instance server.}
-  - {name: Failed, meaning: Terminal. A server or boundary word failed.}
-  - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit.}
+  - {name: Failed, meaning: Terminal. A server or boundary word failed., run_status: failed}
+  - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit., run_status: succeeded}
 terminal_states:
   - Done
   - Failed

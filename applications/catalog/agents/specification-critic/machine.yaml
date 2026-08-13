@@ -27,6 +27,9 @@ lifecycle: |-
 
   Search iteration is deterministic and sequential, with no LLM calls.
 initial_state: Idle
+budget:
+  command_timeout: 10m
+  max_iterations: 100
 states:
 - name: Idle
   meaning: Initial state before validation begins.
@@ -54,8 +57,10 @@ states:
 - name: Reporting
   meaning: Formatting the validation results into a human-readable report.
 - name: Passed
+  run_status: succeeded
   meaning: Terminal. All validation checks passed.
 - name: Failed
+  run_status: failed
   meaning: Terminal. Validation errors were found or an infrastructure error occurred.
 terminal_states:
 - Passed

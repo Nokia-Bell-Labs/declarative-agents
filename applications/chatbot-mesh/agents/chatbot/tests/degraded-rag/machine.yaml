@@ -12,6 +12,7 @@ configuration:
   tools: tools.yaml
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 6
 states:
   - name: Idle
@@ -19,8 +20,10 @@ states:
   - name: Checking
     meaning: The turn has run; its signal decides the outcome.
   - name: Passed
+    run_status: succeeded
     meaning: Terminal. The chatbot answered the turn.
   - name: Failed
+    run_status: failed
     meaning: Terminal. The chatbot did not answer.
 terminal_states: [Passed, Failed]
 signals:

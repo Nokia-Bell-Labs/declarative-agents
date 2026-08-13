@@ -30,6 +30,7 @@ pipeline_diagram: |-
   ```
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 10000
 metric_labels:
   workflow: bench
@@ -47,8 +48,10 @@ states:
 - name: StoppingHTTP
   meaning: The generic REST listener is draining and stopping.
 - name: Done
+  run_status: succeeded
   meaning: Terminal. The user requested shutdown.
 - name: Failed
+  run_status: failed
   meaning: Terminal. An infrastructure error occurred during experiment launch.
 terminal_states:
 - Done

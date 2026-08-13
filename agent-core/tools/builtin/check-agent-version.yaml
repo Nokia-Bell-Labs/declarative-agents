@@ -19,7 +19,6 @@ tools:
     description: Writes a warning when the configured and traced agent versions differ.
   reversibility:
     classification: reversible
-    undo: point_context_restore
   undo:
     strategy: point_context_restore
     description: Restore PointContext from the persisted pre-command receipt.

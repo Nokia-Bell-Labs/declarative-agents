@@ -33,7 +33,6 @@ tools:
     description: Records the created issue ID for task execution and dependent issues.
   reversibility:
     classification: reversible
-    undo: pipeline_state_restore
     requires_confirmation: false
   undo:
     strategy: pipeline_state_restore

@@ -23,7 +23,6 @@ tools:
     description: Records exit code, timing, and timeout in point context. The result.json artifact write is a separate declared write transition, not a side effect of this word.
   reversibility:
     classification: compensatable
-    undo: workspace_restore_and_point_context_restore
   undo:
     strategy: compensating_action
     description: Restore point context and workspace refs; external child process effects may require compensation. The result artifact is reversed by the write word's own receipt.

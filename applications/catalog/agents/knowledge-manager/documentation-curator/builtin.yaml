@@ -22,7 +22,7 @@ tools:
       schema: {type: object}
     side_effects:
       - {kind: network_listen, target: documentation_curator_http, state: listener_started}
-    reversibility: {classification: compensatable, undo: stop_curator_http}
+    reversibility: {classification: compensatable}
     undo:
       strategy: compensating_action
       description: Stop the configured curator HTTP listener.
@@ -57,7 +57,7 @@ tools:
       schema: {type: object}
     side_effects:
       - {kind: network_listener_shutdown, target: documentation_curator_http, state: listener_stopped}
-    reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+    reversibility: {classification: compensatable}
     undo:
       strategy: server_shutdown_or_user_action_compensation
       description: The receipt records shutdown loss; MachineSpec must relaunch the trusted curator definition.
@@ -88,7 +88,7 @@ tools:
     output: {description: Control launch result, schema: {type: object}}
     side_effects:
       - {kind: network_listen, target: documentation_curator_control, state: listener_started}
-    reversibility: {classification: compensatable, undo: rest_server_stop}
+    reversibility: {classification: compensatable}
     undo: {strategy: compensating_action, description: Stop the control listener.}
     errors:
       - {signal: CommandError, condition: Control server launch fails, state_after_failure: No control route is exposed.}
@@ -116,7 +116,7 @@ tools:
     output: {description: Selected control event, schema: {type: object}}
     side_effects:
       - {kind: state_mutation, target: rest_server_queue, state: selected_event_consumed}
-    reversibility: {classification: reversible, undo: queue_event_restore}
+    reversibility: {classification: reversible}
     undo:
       strategy: queue_event_restore
       description: Restore the receipt-recorded event to the front of its source queue.

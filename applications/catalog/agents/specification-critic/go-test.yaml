@@ -23,7 +23,6 @@ tools:
         description: Reads or compiles target module sources without mutation.
     reversibility: &reversible
       classification: reversible
-      undo: noop
     undo: &noop
       strategy: noop
       description: The command changes no governed state.

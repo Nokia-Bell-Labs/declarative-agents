@@ -59,8 +59,8 @@ func TestMergeToolDefs(t *testing.T) {
 			Problem:  "Compile the workspace.",
 			Reversibility: ToolReversibility{
 				Classification: "reversible",
-				Undo:           "noop",
 			},
+			Undo: ToolUndoContract{Strategy: "noop"},
 		},
 		{Name: "test", Binary: "go", Args: []string{"test"}},
 	}
@@ -73,8 +73,8 @@ func TestMergeToolDefs(t *testing.T) {
 			Problem:  "Compile the workspace with race detector.",
 			Reversibility: ToolReversibility{
 				Classification: "reversible",
-				Undo:           "noop",
 			},
+			Undo: ToolUndoContract{Strategy: "noop"},
 		},
 		{Name: "lint", Binary: "golangci-lint"},
 	}

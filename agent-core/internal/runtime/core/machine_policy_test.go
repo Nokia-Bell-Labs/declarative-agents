@@ -20,11 +20,34 @@ func TestMachinePolicySignalsOverrideLegacyDefaults(t *testing.T) {
 
 	params.Hooks.TaskCompletedSignal = "HookSummary"
 	require.Equal(t, Signal("HookSummary"), taskCompletedSignal(params))
-	require.Equal(t, TaskCompleted, taskCompletedSignal(LoopParams{}))
-	require.Equal(t, Approved, resumeSignal(nil))
+	require.Empty(t, taskCompletedSignal(LoopParams{}))
+	require.Empty(t, resumeSignal(nil))
 }
 
-func TestMachinePolicyDiagnosticsNameEveryImplicitDefault(t *testing.T) {
+func TestValidateMachinePolicyRequiresResumeSignalAndIterationBudget(t *testing.T) {
+	t.Parallel()
+	err := ValidateRequiredMachinePolicy(MachineSpec{
+		Signals: SignalSpecsFromNames(string(AwaitApproval)),
+	})
+	require.ErrorContains(t, err, "resume_signal")
+	require.ErrorContains(t, err, "budget.max_iterations")
+	require.ErrorContains(t, err, "budget.command_timeout")
+
+	require.NoError(t, ValidateRequiredMachinePolicy(MachineSpec{
+		ResumeSignal: "Continue",
+		BudgetSpec:   &BudgetSpec{MaxIterations: 10, CommandTimeout: "1m"},
+		Signals:      SignalSpecsFromNames(string(AwaitApproval), "Continue"),
+	}))
+
+	err = ValidateRequiredMachinePolicy(MachineSpec{
+		BudgetSpec:     &BudgetSpec{MaxIterations: 10, CommandTimeout: "1m"},
+		States:         StateSpecs{{Name: "Done"}},
+		TerminalStates: []string{"Done"},
+	})
+	require.ErrorContains(t, err, "states.Done.run_status")
+}
+
+func TestMachinePolicyDiagnosticsNameRemainingImplicitDefaults(t *testing.T) {
 	t.Parallel()
 	spec := MachineSpec{
 		InitialState: "Idle",
@@ -42,13 +65,13 @@ func TestMachinePolicyDiagnosticsNameEveryImplicitDefault(t *testing.T) {
 	for _, diagnostic := range diagnostics {
 		codes[diagnostic.Code] = true
 	}
-	for _, code := range []string{
-		DiagnosticImplicitSummarySignal, DiagnosticImplicitResumeSignal,
-		DiagnosticImplicitCommandTimeout, DiagnosticImplicitMaxIterations,
-		DiagnosticMissingTerminalStatus,
-	} {
+	for _, code := range []string{DiagnosticMissingTerminalStatus} {
 		require.True(t, codes[code], code)
 	}
+	require.False(t, codes[DiagnosticImplicitSummarySignal])
+	require.False(t, codes[DiagnosticImplicitResumeSignal])
+	require.False(t, codes[DiagnosticImplicitCommandTimeout])
+	require.False(t, codes[DiagnosticImplicitMaxIterations])
 }
 
 func TestTransitionReportOutputDecoratesAnyCommandResult(t *testing.T) {

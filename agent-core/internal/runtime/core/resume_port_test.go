@@ -160,6 +160,16 @@ func TestResumeHonorsExplicitResumeSignal(t *testing.T) {
 	require.Equal(t, Rejected, state.Params.InitialSignal)
 }
 
+func TestLoadResumeRejectsMissingResumeSignal(t *testing.T) {
+	t.Parallel()
+	params := resumeLoopParams()
+	params.Checkpoint = suspendedCheckpoint()
+	params.InitialSignal = ""
+
+	_, err := LoadResume(params)
+	require.ErrorContains(t, err, "machine resume_signal is required")
+}
+
 // TestResumeReportsMissingCheckpoint verifies a not-found snapshot surfaces
 // ErrNoCheckpoint through the resume path.
 func TestResumeReportsMissingCheckpoint(t *testing.T) {

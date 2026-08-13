@@ -20,7 +20,6 @@ tools:
         description: Records formal test suites for evidence reduction.
     reversibility:
       classification: reversible
-      undo: validation_state_restore
     undo:
       strategy: session_state_restore
       description: Restore validation state before claim loading.
@@ -73,7 +72,6 @@ tools:
         description: Appends deterministic claim-resolution findings.
     reversibility:
       classification: reversible
-      undo: validation_state_restore
     undo:
       strategy: session_state_restore
       description: Restore validation state before claim resolution.
@@ -124,7 +122,6 @@ tools:
         description: Appends deterministic skipped, failed, or missing-run findings.
     reversibility:
       classification: reversible
-      undo: validation_state_restore
     undo:
       strategy: session_state_restore
       description: Restore validation state before result reduction.

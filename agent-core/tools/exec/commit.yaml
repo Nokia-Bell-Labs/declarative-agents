@@ -13,7 +13,6 @@ tools:
     description: Creates a commit object and moves the current branch ref.
   reversibility:
     classification: compensatable
-    undo: workspace_restore_or_revert_commit
   undo:
     strategy: compensating_action
     description: Restore the workspace ref when checkpointed; otherwise compensate with an explicit revert/reset policy.

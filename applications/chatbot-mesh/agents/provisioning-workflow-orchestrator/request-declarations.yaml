@@ -38,7 +38,6 @@ tools:
         state: instance_created
     reversibility:
       classification: compensatable
-      undo: creator_terminate
     undo:
       strategy: compensating_action
       description: A created ingest instance is terminated through the creator on a later failure; the provisioning-workflow-orchestrator issues the compensating request.
@@ -92,7 +91,6 @@ tools:
         state: rollout_executed
     reversibility:
       classification: irreversible
-      undo: irreversible
       requires_confirmation: true
     undo:
       strategy: irreversible
@@ -145,7 +143,6 @@ tools:
         state: rollout_executed
     reversibility:
       classification: irreversible
-      undo: irreversible
       requires_confirmation: true
     undo:
       strategy: irreversible
@@ -201,7 +198,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Reading the rollout status changes nothing.
@@ -261,7 +257,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Reading the deployed mesh view changes nothing.

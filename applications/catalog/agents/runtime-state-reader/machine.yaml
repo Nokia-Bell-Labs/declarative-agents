@@ -9,6 +9,7 @@ metric_labels:
   profile: runtime-state-reader
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 6
 states:
   - name: Idle
@@ -20,8 +21,10 @@ states:
   - name: Stopping
     meaning: The machine stops the owned monitor REST listener.
   - name: Done
+    run_status: succeeded
     meaning: Terminal. The monitor REST listener stopped without error.
   - name: Failed
+    run_status: failed
     meaning: Terminal state for launch failures.
 terminal_states:
   - Done

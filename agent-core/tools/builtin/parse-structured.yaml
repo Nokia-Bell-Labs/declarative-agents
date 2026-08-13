@@ -31,7 +31,6 @@ tools:
     description: Parses and validates selected command output without mutating runtime or external state.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Parsing reads prior state and changes no external state.

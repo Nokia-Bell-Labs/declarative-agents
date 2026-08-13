@@ -16,6 +16,7 @@ lifecycle: |-
   3. ReadingHistory -> Failed (ToolFailed or CommandError): history failed.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 3
 states:
 - name: Idle
@@ -23,8 +24,10 @@ states:
 - name: ReadingHistory
   meaning: The checkpoint history command is running.
 - name: Done
+  run_status: succeeded
   meaning: Terminal. Checkpoint history was read.
 - name: Failed
+  run_status: failed
   meaning: Terminal. Checkpoint history could not be read.
 terminal_states:
 - Done

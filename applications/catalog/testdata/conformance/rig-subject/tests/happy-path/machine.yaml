@@ -9,6 +9,7 @@ configuration:
   tools: tools.yaml
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 6
 states:
   - name: Idle
@@ -16,8 +17,10 @@ states:
   - name: Checking
     meaning: The subject has been driven; its answer decides the outcome.
   - name: Passed
+    run_status: succeeded
     meaning: Terminal. The subject behaved as this scenario expects.
   - name: Failed
+    run_status: failed
     meaning: Terminal. The subject did not behave as this scenario expects.
 terminal_states: [Passed, Failed]
 signals:

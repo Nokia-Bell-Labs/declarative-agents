@@ -110,7 +110,7 @@ func init() {
 	f.StringVar(&flagOutput, "output", "", "output directory for runtime artifacts")
 	f.StringVar(&flagDoltDSN, "dolt-dsn", "", "MySQL-wire DSN to a dolt sql-server for the persistent checkpoint backend (default: no persistence)")
 	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
-	f.StringVar(&flagResumeSignal, "resume-signal", "", "resume signal override (default: machine resume_signal, then Approved)")
+	f.StringVar(&flagResumeSignal, "resume-signal", "", "resume signal override (default: required machine resume_signal)")
 	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary used by child-process words (default: agent, resolved from PATH)")
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
 
@@ -345,6 +345,10 @@ func loadRunResources() (runResources, error) {
 	if err != nil {
 		shutdownTelemetry()
 		return runResources{}, fmt.Errorf("load machine spec for budget: %w", err)
+	}
+	if err := core.ValidateRequiredMachinePolicy(machineSpec); err != nil {
+		shutdownTelemetry()
+		return runResources{}, fmt.Errorf("load machine runtime policy: %w", err)
 	}
 	if err := validateRuntimeToolWiring(machineSpec, defs); err != nil {
 		shutdownTelemetry()
@@ -654,7 +658,7 @@ func runBudget(machine core.MachineSpec, st *agentState) core.Budget {
 }
 
 func defaultRunBudget() core.Budget {
-	return core.Budget{MaxIterations: 100}
+	return core.Budget{}
 }
 
 func cliResultReporter(rr core.RunResult, res core.Result) core.RunResult {
@@ -670,9 +674,7 @@ func cliResultReporterForMachine(machine *core.MachineSpec) func(core.RunResult,
 func reportRunResult(machine *core.MachineSpec, rr core.RunResult, res core.Result) core.RunResult {
 	reportOperatorOutput(res)
 	declaredSummary := machineDeclaresSummary(machine)
-	if !declaredSummary && strings.TrimSpace(res.Output) != "" {
-		rr.Summary = boundedTerminalSummary(res.Output)
-	} else if declaredSummary {
+	if declaredSummary {
 		rr.Summary = boundedTerminalSummary(rr.Summary)
 	}
 	if message := commandFailureMessage(res); message != "" {

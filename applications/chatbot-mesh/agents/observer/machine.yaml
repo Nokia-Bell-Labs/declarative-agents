@@ -9,7 +9,7 @@ invariants:
   - An unreachable agent degrades the fleet view; it does not stop the poll loop.
   - The polling interval is a declared REST client config value.
 initial_state: Idle
-budget: {max_iterations: 1000000}
+budget: {max_iterations: 1000000, command_timeout: 10m}
 states:
   - {name: Idle, meaning: Before listeners launch.}
   - {name: LaunchingControl, meaning: Launching lifecycle control server.}
@@ -26,8 +26,8 @@ states:
   - {name: Exiting, meaning: Routing lifecycle exit.}
   - {name: StoppingMonitor, meaning: Stopping monitor REST server.}
   - {name: StoppingControl, meaning: Stopping control REST server.}
-  - {name: Done, meaning: Clean terminal shutdown.}
-  - {name: Failed, meaning: Boundary or lifecycle failure.}
+  - {name: Done, meaning: Clean terminal shutdown., run_status: succeeded}
+  - {name: Failed, meaning: Boundary or lifecycle failure., run_status: failed}
 terminal_states: [Done, Failed]
 signals:
   - {name: Seed, trigger: Startup.}

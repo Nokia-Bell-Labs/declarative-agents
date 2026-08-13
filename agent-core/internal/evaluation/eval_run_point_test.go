@@ -136,7 +136,10 @@ transitions:
 
 	result := (&runPointCmd{
 		es: es, pointRegistry: reg,
-		config: catalog.RunPointConfig{PointMachine: machine, SuccessState: "Done"},
+		config: catalog.RunPointConfig{
+			PointMachine: machine, AgentName: "critic-point",
+			MaxIterations: 20, SuccessState: "Done",
+		},
 	}).Execute()
 
 	require.Equal(t, SigPointDone, result.Signal, result.Output)

@@ -16,12 +16,13 @@ purpose: |-
   (GH-684).
 initial_state: AwaitingRequest
 budget:
+  command_timeout: 10m
   max_iterations: 3
 states:
   - {name: AwaitingRequest, meaning: Seeded by the rollout endpoint.}
   - {name: Reading, meaning: Asking the creator for the rollout status.}
-  - {name: StatusRead, meaning: Terminal. The creator reported the rollout phase.}
-  - {name: Failed, meaning: Terminal. The status could not be read.}
+  - {name: StatusRead, meaning: Terminal. The creator reported the rollout phase., run_status: failed}
+  - {name: Failed, meaning: Terminal. The status could not be read., run_status: failed}
 terminal_states:
   - StatusRead
   - Failed

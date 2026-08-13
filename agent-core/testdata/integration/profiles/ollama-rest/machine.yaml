@@ -2,6 +2,7 @@ name: ollama-rest-model-listing
 purpose: List live local Ollama models through the configured REST tool.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 8
   max_consecutive_parse_errors: 2
 states:
@@ -9,8 +10,11 @@ states:
   - name: Composing
   - name: Parsing
   - name: Succeeded
+    run_status: succeeded
   - name: Failed
+    run_status: failed
   - name: BudgetExceeded
+    run_status: budget_exceeded
 terminal_states: [Succeeded, Failed, BudgetExceeded]
 signals:
   - name: Seed

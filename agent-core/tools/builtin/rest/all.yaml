@@ -72,7 +72,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: REST reads do not mutate local or remote state.
@@ -129,7 +128,6 @@ tools:
         state: resource_updated
     reversibility:
       classification: compensatable
-      undo: configured_compensation
     undo:
       strategy: compensating_action
       description: Use configured compensation or previous-state restore when available.
@@ -184,7 +182,6 @@ tools:
         state: resource_created
     reversibility:
       classification: compensatable
-      undo: configured_compensation
     undo:
       strategy: compensating_action
       description: Use configured delete or deactivate compensation when resource identity is available.
@@ -238,7 +235,6 @@ tools:
         state: resource_deleted
     reversibility:
       classification: compensatable
-      undo: configured_compensation
     undo:
       strategy: compensating_action
       description: Use configured restore or recreate compensation when prior state is available.
@@ -292,7 +288,6 @@ tools:
         state: configured_operation_invoked
     reversibility:
       classification: compensatable
-      undo: configured_compensation
     undo:
       strategy: compensating_action
       description: Noop unless the REST operation declares compensation.
@@ -351,7 +346,6 @@ tools:
         state: async_request_recorded
     reversibility:
       classification: compensatable
-      undo: configured_compensation
     undo:
       strategy: compensating_action
       description: Cancel or compensate when the configured operation supports it.
@@ -405,7 +399,6 @@ tools:
         state: async_request_consumed
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Await does not mutate remote state.
@@ -462,7 +455,6 @@ tools:
         state: server_registered
     reversibility:
       classification: compensatable
-      undo: rest_server_stop
     undo:
       strategy: compensating_action
       description: Stop the owned server listener through rest_server_stop.
@@ -514,7 +506,6 @@ tools:
         state: event_consumed
     reversibility:
       classification: reversible
-      undo: queue_event_restore
     undo:
       strategy: queue_event_restore
       description: Restore the receipt-recorded event to the front of its server queue.
@@ -572,7 +563,6 @@ tools:
         state: selected_event_consumed
     reversibility:
       classification: reversible
-      undo: queue_event_restore
     undo:
       strategy: queue_event_restore
       description: Restore the receipt-recorded event to the front of its source server queue.
@@ -636,7 +626,6 @@ tools:
         state: server_stopped
     reversibility:
       classification: compensatable
-      undo: server_shutdown_or_user_action_compensation
     undo:
       strategy: server_shutdown_or_user_action_compensation
       description: The receipt records shutdown loss; MachineSpec must relaunch the trusted server definition.

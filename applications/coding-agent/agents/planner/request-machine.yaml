@@ -2,6 +2,7 @@ name: coding-planner-request
 purpose: Plan one coding request, delegate it to the remote executor, then gate the shared workspace through the remote critic.
 initial_state: AwaitingRequest
 budget:
+  command_timeout: 10m
   max_iterations: 8
 states:
   - {name: AwaitingRequest, meaning: The trusted endpoint has seeded a task and workspace identity.}
@@ -9,9 +10,9 @@ states:
   - {name: Parsing, meaning: Canonical planner parsing is validating the structured plan.}
   - {name: Executing, meaning: The task is running on the declared executor service over the shared workspace mount.}
   - {name: Critiquing, meaning: The executor result is being gated by the declared critic service.}
-  - {name: Succeeded, meaning: Terminal after critic acceptance.}
-  - {name: Rejected, meaning: Terminal after critic rejection.}
-  - {name: Failed, meaning: Terminal after planning or remote-boundary failure.}
+  - {name: Succeeded, meaning: Terminal after critic acceptance., run_status: succeeded}
+  - {name: Rejected, meaning: Terminal after critic rejection., run_status: failed}
+  - {name: Failed, meaning: Terminal after planning or remote-boundary failure., run_status: failed}
 terminal_states: [Succeeded, Rejected, Failed]
 signals:
   - {name: Seed, trigger: A validated planner request.}

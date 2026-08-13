@@ -5,6 +5,7 @@ purpose: |-
   transforms, predicates guard review state, and file_write persists reviews.
 initial_state: AwaitingRequest
 budget:
+  command_timeout: 10m
   max_iterations: 16
 states:
   - {name: AwaitingRequest, meaning: Seeded by a trusted machine_request route.}
@@ -40,20 +41,20 @@ states:
   - {name: BuildingRejection, meaning: Build a rejected review artifact.}
   - {name: WritingDecision, meaning: Persist the decision artifact.}
   - {name: ShapingDecision, meaning: Return the persisted decision.}
-  - {name: DocumentIndexReady, meaning: Terminal document index response.}
-  - {name: DocumentDetailReady, meaning: Terminal document detail response.}
-  - {name: ConfigReady, meaning: Terminal config response.}
-  - {name: SourceReady, meaning: Terminal source response.}
-  - {name: SearchReady, meaning: Terminal search response.}
-  - {name: ValidationReady, meaning: Terminal valid response.}
-  - {name: ValidationRejected, meaning: Terminal validation findings response.}
-  - {name: SuggestionReady, meaning: Terminal persisted suggestion response.}
-  - {name: DecisionReady, meaning: Terminal persisted decision response.}
-  - {name: ActionRejected, meaning: Terminal invalid review transition.}
-  - {name: ActionMissing, meaning: Terminal missing review.}
-  - {name: DocumentNotFound, meaning: Terminal missing resource.}
-  - {name: RequestDenied, meaning: Terminal denied resource path.}
-  - {name: Failed, meaning: Terminal infrastructure failure.}
+  - {name: DocumentIndexReady, meaning: Terminal document index response., run_status: failed}
+  - {name: DocumentDetailReady, meaning: Terminal document detail response., run_status: failed}
+  - {name: ConfigReady, meaning: Terminal config response., run_status: failed}
+  - {name: SourceReady, meaning: Terminal source response., run_status: failed}
+  - {name: SearchReady, meaning: Terminal search response., run_status: failed}
+  - {name: ValidationReady, meaning: Terminal valid response., run_status: failed}
+  - {name: ValidationRejected, meaning: Terminal validation findings response., run_status: failed}
+  - {name: SuggestionReady, meaning: Terminal persisted suggestion response., run_status: failed}
+  - {name: DecisionReady, meaning: Terminal persisted decision response., run_status: failed}
+  - {name: ActionRejected, meaning: Terminal invalid review transition., run_status: failed}
+  - {name: ActionMissing, meaning: Terminal missing review., run_status: failed}
+  - {name: DocumentNotFound, meaning: Terminal missing resource., run_status: failed}
+  - {name: RequestDenied, meaning: Terminal denied resource path., run_status: failed}
+  - {name: Failed, meaning: Terminal infrastructure failure., run_status: failed}
 terminal_states:
   - DocumentIndexReady
   - DocumentDetailReady

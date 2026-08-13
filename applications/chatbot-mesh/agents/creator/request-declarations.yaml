@@ -36,7 +36,6 @@ tools:
         state: instance_applied
     reversibility:
       classification: compensatable
-      undo: apply_instance
     undo:
       strategy: compensating_action
       description: A superseding apply reverses a prior operation through the deployment API.
@@ -113,7 +112,6 @@ tools:
         description: Runs the agent binary against the corpus-ingest profile; the child writes embeddings into the configured Chroma collection.
     reversibility:
       classification: irreversible
-      undo: irreversible
       requires_confirmation: true
     errors:
       - signal: ToolFailed
@@ -161,7 +159,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Resolving a collection changes no documents.
@@ -211,7 +208,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Reading a count changes nothing.
@@ -262,7 +258,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Reading a count changes nothing.
@@ -314,7 +309,6 @@ tools:
     side_effects: []
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Comparing a count changes nothing.
@@ -382,7 +376,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Reading the deployed mesh view changes nothing.
@@ -437,7 +430,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Reading the rollout status does not mutate state.

@@ -33,7 +33,6 @@ tools:
         description: Appends reduced grep findings to validation state.
     reversibility:
       classification: reversible
-      undo: validation_state_restore
     undo:
       strategy: session_state_restore
       description: Restore validation state to the snapshot before grep reduction.

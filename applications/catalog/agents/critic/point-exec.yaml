@@ -40,7 +40,6 @@ tools:
     description: Reads source, module, and test files from the point workspace.
   reversibility:
     classification: reversible
-    undo: noop
     requires_confirmation: false
   undo:
     strategy: noop
@@ -109,7 +108,6 @@ tools:
     description: Creates the baseline commit in the point workspace repository.
   reversibility:
     classification: compensatable
-    undo: workspace_restore_or_revert_commit
     requires_confirmation: false
   undo:
     strategy: compensating_action

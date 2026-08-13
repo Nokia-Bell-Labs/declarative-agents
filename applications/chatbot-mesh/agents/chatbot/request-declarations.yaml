@@ -37,7 +37,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Computing an embedding does not mutate state.
@@ -85,7 +84,6 @@ tools:
     side_effects: []
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Rendering a configured constant has no durable effect.
@@ -118,7 +116,7 @@ tools:
     emits: [SourceSelectionComposed, CommandError]
     output: {description: Source-classifier input., schema: {type: string}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Prompt composition changes no external state.}
     config:
       signal: SourceSelectionComposed
@@ -160,7 +158,7 @@ tools:
     side_effects:
       - {kind: external_api_call, target: ollama.chat, description: Classifies the question against declared source descriptions.}
       - {kind: state_mutation, target: conversation_history, state: appended, description: Appends the source-selector response after success.}
-    reversibility: {classification: reversible, undo: conversation_truncate, requires_confirmation: false}
+    reversibility: {classification: reversible, requires_confirmation: false}
     undo:
       strategy: conversation_truncate
       description: Restore conversation history captured before the source-selector call.
@@ -225,7 +223,7 @@ tools:
         required: [response]
         additionalProperties: false
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Shaping model text changes no external state.}
     config:
       signal: SourceSelectionCaptured
@@ -255,7 +253,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Validated source names., schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Parsing changes no external state.}
     config:
       source: $from(capture_source_selection).response
@@ -292,7 +290,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Trusted selected topology entries., schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Set selection changes no external state.}
     config:
       candidates: $from(parse_source_selection).names
@@ -323,7 +321,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Complete trusted topology selection., schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Set selection changes no external state.}
     config:
       candidates: $from(declare_rag_topology).names
@@ -354,7 +352,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Declared selected and not-selected names., schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Reporting changes no external state.}
     config:
       candidates: $from(declare_rag_topology).names
@@ -404,7 +402,6 @@ tools:
         description: Appends the tier-selector response after a successful provider call.
     reversibility:
       classification: reversible
-      undo: conversation_truncate
       requires_confirmation: false
     undo:
       strategy: conversation_truncate
@@ -488,7 +485,6 @@ tools:
     side_effects: []
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Parsing a response has no durable effect.
@@ -536,7 +532,6 @@ tools:
         description: Appends the model response after a successful provider call.
     reversibility:
       classification: reversible
-      undo: conversation_truncate
       requires_confirmation: false
     undo:
       strategy: conversation_truncate
@@ -612,7 +607,6 @@ tools:
         description: Appends the model response after a successful provider call.
     reversibility:
       classification: reversible
-      undo: conversation_truncate
       requires_confirmation: false
     undo:
       strategy: conversation_truncate

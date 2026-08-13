@@ -229,6 +229,15 @@ func ValidateRunPointConfig(toolName string, cfg RunPointConfig) error {
 	if len(cfg.PointToolDeclarations) == 0 {
 		return fmt.Errorf("tool %q config requires point_tool_declarations", toolName)
 	}
+	if cfg.AgentName == "" {
+		return fmt.Errorf("tool %q config requires agent_name", toolName)
+	}
+	if cfg.MaxIterations <= 0 {
+		return fmt.Errorf("tool %q config requires positive max_iterations", toolName)
+	}
+	if cfg.SuccessState == "" {
+		return fmt.Errorf("tool %q config requires success_state", toolName)
+	}
 	return nil
 }
 

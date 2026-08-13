@@ -33,7 +33,6 @@ tools:
         state: listener_started
     reversibility:
       classification: compensatable
-      undo: rest_server_stop
     undo:
       strategy: compensating_action
       description: Stop the launched control server.
@@ -79,7 +78,6 @@ tools:
         state: selected_event_consumed
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: noop
       description: Queue restore is not implemented.

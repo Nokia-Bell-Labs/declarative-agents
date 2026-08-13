@@ -74,34 +74,21 @@ func (c *runPointCmd) Execute() core.Result {
 			CommandName: "run_point",
 		}
 	}
-	agentName := c.config.AgentName
-	if agentName == "" {
-		agentName = "critic-point"
-	}
-	maxIter := c.config.MaxIterations
-	if maxIter <= 0 {
-		maxIter = 20
-	}
-	successState := c.config.SuccessState
-	if successState == "" {
-		successState = "Done"
-	}
-
 	tracer := c.es.Tracer
 	if tracer == nil {
 		tracer = tracing.NoopTracer{}
 	}
 	params := core.LoopParams{
 		MachineFile: c.es.PointMachine,
-		AgentName:   agentName,
+		AgentName:   c.config.AgentName,
 		Trace:       tracer,
 		Budget: core.Budget{
-			MaxIterations: maxIter,
+			MaxIterations: c.config.MaxIterations,
 		},
 		Registry: c.pointRegistry,
 		Hooks: core.LoopHooks{
 			TerminalStatus: func(s core.State) core.RunStatus {
-				if s == core.State(successState) {
+				if s == core.State(c.config.SuccessState) {
 					return core.StatusSucceeded
 				}
 				return core.StatusFailed
@@ -239,7 +226,11 @@ func pointToolFactories(es *EvalState) (*toolregistry.BuiltinRegistry, toolregis
 	// run_agent emits path/content parameters and the point machine dispatches
 	// the generic write word rooted at the current point workspace.
 	builtins.Register("file_write", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
-		return &filesystem.WriteBuilder{RootFunc: pointRoot, Metrics: def.Metrics}, nil
+		return &filesystem.WriteBuilder{
+			RootFunc:     pointRoot,
+			UndoStrategy: def.Undo.Strategy,
+			Metrics:      def.Metrics,
+		}, nil
 	})
 	execFactory := func(def catalog.ToolDef, _ string) core.Builder {
 		return &toolexec.ExecBuilder{Def: def, RootFunc: pointRoot}

@@ -35,7 +35,7 @@ func TestLoop_DispatchesNamedActionTargetingTerminalState(t *testing.T) {
 	spec := MachineSpec{
 		Name:           "terminal-action",
 		InitialState:   "Start",
-		States:         StateSpecsFromNames("Start", "Done"),
+		States:         StateSpecs{{Name: "Start"}, {Name: "Done", RunStatus: StatusSucceeded}},
 		TerminalStates: []string{"Done"},
 		Signals:        SignalSpecsFromNames(string(Seed), string(ToolDone)),
 		Transitions: []TransitionSpec{{
@@ -81,6 +81,9 @@ func TestLoop_ActionlessTerminalTransitionStopsWithoutDispatch(t *testing.T) {
 		IsTerminal: func(state State) bool { return state == "Done" },
 		Trace:      tr,
 		Budget:     Budget{MaxIterations: 1},
+		Hooks: LoopHooks{
+			TerminalStatus: func(State) RunStatus { return StatusSucceeded },
+		},
 	}, context.Background())
 
 	require.NoError(t, err)
@@ -373,11 +376,11 @@ func TestLoop_DurationTracked(t *testing.T) {
 	require.True(t, rr.Duration > 0, "duration should be positive")
 }
 
-func TestLoop_DefaultTerminalStatus(t *testing.T) {
+func TestLoop_OmittedTerminalStatusFailsClosed(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, StatusSucceeded, defaultTerminalStatus(State("Succeeded")))
-	require.Equal(t, StatusBudgetExceeded, defaultTerminalStatus(State("BudgetExceeded")))
-	require.Equal(t, StatusFailed, defaultTerminalStatus(State("Anything")))
+	require.Equal(t, StatusFailed, TerminalStatusForState(nil, State("Succeeded")))
+	require.Equal(t, StatusFailed, TerminalStatusForState(nil, State("BudgetExceeded")))
+	require.Equal(t, StatusFailed, TerminalStatusForState(nil, State("Anything")))
 }
 
 func TestLoopUsesDeclaredStatusForArbitrarilyNamedTerminal(t *testing.T) {

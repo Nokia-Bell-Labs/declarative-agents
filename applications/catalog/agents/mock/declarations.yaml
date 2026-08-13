@@ -42,7 +42,6 @@ tools:
         state: routes_registered
     reversibility:
       classification: compensatable
-      undo: rest_server_stop
     undo:
       strategy: compensating_action
       description: Stop the REST server if the launch command owns the listener.
@@ -98,7 +97,6 @@ tools:
         state: selected_event_consumed
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: irreversible
       description: A consumed control event cannot be returned to the queue.
@@ -165,7 +163,6 @@ tools:
         state: server_stopped
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: irreversible
       description: The listener and its per-instance request log are gone; relaunch is a separate action.

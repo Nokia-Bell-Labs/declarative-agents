@@ -1,6 +1,9 @@
 name: core-test-evidence-audit
 purpose: Audit Agent Core formal test claims through declared subprocesses.
 initial_state: Idle
+budget:
+  command_timeout: 10m
+  max_iterations: 100
 states:
   - {name: Idle, meaning: Initial state.}
   - {name: LoadingClaims, meaning: Loading formal claims.}
@@ -12,8 +15,8 @@ states:
   - {name: RunningTests, meaning: Running tests.}
   - {name: ReducingTests, meaning: Reducing results.}
   - {name: Reporting, meaning: Formatting findings.}
-  - {name: Passed, meaning: Terminal success.}
-  - {name: Failed, meaning: Terminal failure.}
+  - {name: Passed, meaning: Terminal success., run_status: succeeded}
+  - {name: Failed, meaning: Terminal failure., run_status: failed}
 terminal_states: [Passed, Failed]
 signals:
   - {name: Seed, trigger: Loop initialization.}

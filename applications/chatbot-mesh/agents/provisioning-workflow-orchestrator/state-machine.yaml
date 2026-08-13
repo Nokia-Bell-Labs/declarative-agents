@@ -16,12 +16,13 @@ purpose: |-
   and no LLM configuration (GH-686's rule, applied here).
 initial_state: AwaitingRequest
 budget:
+  command_timeout: 10m
   max_iterations: 3
 states:
   - {name: AwaitingRequest, meaning: Seeded by the state endpoint.}
   - {name: Reading, meaning: Asking the creator for the deployed mesh view.}
-  - {name: StateRead, meaning: Terminal. The creator reported the deployed mesh view.}
-  - {name: Failed, meaning: Terminal. The mesh view could not be read.}
+  - {name: StateRead, meaning: Terminal. The creator reported the deployed mesh view., run_status: failed}
+  - {name: Failed, meaning: Terminal. The mesh view could not be read., run_status: failed}
 terminal_states:
   - StateRead
   - Failed

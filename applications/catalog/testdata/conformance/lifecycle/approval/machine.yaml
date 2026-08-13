@@ -16,7 +16,9 @@ lifecycle: |-
   3. ApplyingApproval -> Succeeded (TaskCompleted): approved path completed.
   4. AwaitingApproval -> Rejected (Rejected): approval was denied.
 initial_state: Idle
+resume_signal: Approved
 budget:
+  command_timeout: 10m
   max_iterations: 5
 states:
 - name: Idle
@@ -26,10 +28,13 @@ states:
 - name: ApplyingApproval
   meaning: The approved path is running after resume.
 - name: Succeeded
+  run_status: succeeded
   meaning: Terminal. The approved path completed.
 - name: Rejected
+  run_status: failed
   meaning: Terminal. The operator rejected the risky action.
 - name: Failed
+  run_status: failed
   meaning: Terminal. Suspend or resume failed.
 terminal_states:
 - Succeeded

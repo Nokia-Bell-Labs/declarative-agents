@@ -15,7 +15,6 @@ tools:
     description: Reads the configured sample documentation path.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Read-only presence projection has no effects to reverse.

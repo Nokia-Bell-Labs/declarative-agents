@@ -48,7 +48,6 @@ tools:
     description: Reads file contents from the configured workspace without mutating state.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Read-only command has no effects to reverse.

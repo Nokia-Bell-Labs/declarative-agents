@@ -49,6 +49,9 @@ pipeline_diagram: |-
     X --> S[Stalled]
   ```
 initial_state: Idle
+budget:
+  max_iterations: 100
+  command_timeout: 10m
 states:
 - name: Idle
   meaning: Initial state before planning begins.
@@ -89,10 +92,13 @@ states:
 - name: QueryingRemainingWork
   meaning: Reading graph state before preserving pass-through completion routing.
 - name: Completed
+  run_status: succeeded
   meaning: Terminal. All tasks in the graph are done.
 - name: Stalled
+  run_status: failed
   meaning: Terminal. Remaining tasks are blocked by failed dependencies.
 - name: Failed
+  run_status: failed
   meaning: Terminal. An unrecoverable error occurred.
 terminal_states:
 - Completed

@@ -2,6 +2,7 @@ name: coding-agent-role-server
 purpose: Persistently host one coding role's request and lifecycle surfaces.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 10000
 states:
   - {name: Idle, meaning: No listeners have started.}
@@ -10,8 +11,8 @@ states:
   - {name: AwaitingControl, meaning: Both listeners are healthy and serving.}
   - {name: Exiting, meaning: A declared lifecycle exit is being applied.}
   - {name: StoppingRequests, meaning: The request listener is draining.}
-  - {name: Done, meaning: Terminal after graceful shutdown.}
-  - {name: Failed, meaning: Terminal after a listener or lifecycle failure.}
+  - {name: Done, meaning: Terminal after graceful shutdown., run_status: succeeded}
+  - {name: Failed, meaning: Terminal after a listener or lifecycle failure., run_status: failed}
 terminal_states: [Done, Failed]
 signals:
   - {name: Seed, trigger: Process startup.}

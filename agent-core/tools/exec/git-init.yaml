@@ -14,7 +14,6 @@ tools:
     description: Creates .git metadata in the workspace.
   reversibility:
     classification: reversible
-    undo: workspace_restore
   undo:
     strategy: workspace_restore
     description: Restore the workspace ref captured before git init.

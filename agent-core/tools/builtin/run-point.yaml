@@ -21,7 +21,6 @@ tools:
     description: Reports point start, failure, and terminal progress.
   reversibility:
     classification: compensatable
-    undo: nested_machine_compensation
   undo:
     strategy: compensating_action
     description: Restore evaluator session state and surface required nested-machine and workspace compensation.
@@ -37,7 +36,7 @@ tools:
   - Record exactly one completed point and return its PASS, FAIL, or TIMEOUT status when the nested loop terminates normally.
   requirements:
     input:
-    - must consume one materialized point from command-state label `point` and require configured point machine, tool selection, and declarations
+    - must consume one materialized point from command-state label `point` and require configured point machine, tool selection, declarations, agent name, positive iteration bound, and success state
     output:
     - "must emit PointDone with `<point_id>: <status>` after recording the point"
     errors:

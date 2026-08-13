@@ -4,6 +4,7 @@ metric_labels:
   profile: monitor
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 6
 states:
   - name: Idle
@@ -11,7 +12,9 @@ states:
   - name: AwaitingControl
   - name: Stopping
   - name: Done
+    run_status: succeeded
   - name: Failed
+    run_status: failed
 terminal_states: [Done, Failed]
 signals:
   - name: Seed

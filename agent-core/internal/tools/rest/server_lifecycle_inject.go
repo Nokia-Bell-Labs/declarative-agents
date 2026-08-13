@@ -49,7 +49,7 @@ func canonicalLifecycleExitEndpoint(authRef string) Endpoint {
 		Binding: bindingLifecycleControl,
 		Signal:  lifecycleExitSignal,
 		LifecycleControl: LifecycleControl{
-			Action:         lifecycleActionExit,
+			Action:         lifecycleActionEnqueueSignal,
 			Signal:         lifecycleExitSignal,
 			RequireAuthRef: authRef,
 		},

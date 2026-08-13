@@ -124,13 +124,13 @@ test_cases:
       - srd005-agentic-loop AC2
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Default terminal status maps Succeeded, BudgetExceeded, and others
-    go_test: TestLoop_DefaultTerminalStatus
+    name: Omitted terminal status fails closed regardless of state spelling
+    go_test: TestLoop_OmittedTerminalStatusFailsClosed
     inputs:
       states: "[Succeeded, BudgetExceeded, Anything]"
     expected:
-      succeeded_status: succeeded
-      budget_status: budget_exceeded
+      succeeded_status: failed
+      budget_status: failed
       other_status: failed
     traces:
       - srd005-agentic-loop AC5

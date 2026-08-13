@@ -13,7 +13,7 @@ tools:
   parameters: {type: object, properties: {}, additionalProperties: false}
   output: {description: REST server launch result, schema: {type: object}}
   side_effects: [{kind: network_listen, target: bench_http, state: listener_started}]
-  reversibility: {classification: compensatable, undo: stop_bench_http}
+  reversibility: {classification: compensatable}
   undo: {strategy: compensating_action, description: Stop the configured listener.}
   errors: [{signal: CommandError, condition: Listener launch fails, state_after_failure: No route is exposed.}]
   relationships: {before: [await_bench_action], after: [stop_bench_http]}
@@ -33,7 +33,7 @@ tools:
   parameters: {type: object, properties: {}, additionalProperties: false}
   output: {description: Bench operator event, schema: {type: object}}
   side_effects: [{kind: state_mutation, target: bench_action_queue, state: event_consumed}]
-  reversibility: {classification: reversible, undo: queue_event_restore}
+  reversibility: {classification: reversible}
   undo:
     strategy: queue_event_restore
     description: Restore the receipt-recorded event to the front of its source queue.
@@ -63,7 +63,7 @@ tools:
   parameters: {type: object, properties: {}, additionalProperties: false}
   output: {description: Suite predicate result, schema: {type: object}}
   side_effects: [{kind: state_read, target: bench_operator_event, state: read_only}]
-  reversibility: {classification: reversible, undo: noop}
+  reversibility: {classification: reversible}
   undo: {strategy: noop, description: Comparison changes nothing.}
   errors: [{signal: CommandError, condition: Suite selector cannot resolve, state_after_failure: No child started.}]
   relationships: {before: [await_bench_action], after: [launch_evaluator]}
@@ -90,7 +90,7 @@ tools:
   side_effects:
     - {kind: child_process, target: critic_agent, state: evaluation_running}
     - {kind: filesystem_write, target: eval_results, state: evaluator_owned}
-  reversibility: {classification: compensatable, undo: child_agent_workspace_restore}
+  reversibility: {classification: compensatable}
   undo: {strategy: compensating_action, description: Compensate evaluator artifacts according to child boundary policy.}
   errors: [{signal: ToolFailed, condition: Critic exits unsuccessfully, state_after_failure: Partial evaluator artifacts may exist.}]
   relationships: {before: [validate_eval_suite], after: [await_bench_action]}
@@ -113,7 +113,7 @@ tools:
   parameters: {type: object, properties: {}, additionalProperties: false}
   output: {description: REST server stop result, schema: {type: object}}
   side_effects: [{kind: network_listener_shutdown, target: bench_http, state: listener_stopped}]
-  reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+  reversibility: {classification: compensatable}
   undo:
     strategy: server_shutdown_or_user_action_compensation
     description: The receipt records shutdown loss; MachineSpec must relaunch the trusted bench definition.

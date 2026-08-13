@@ -37,7 +37,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: A heartbeat check does not mutate state.
@@ -91,7 +90,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: A version check does not mutate state.
@@ -147,7 +145,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Computing an embedding does not mutate state.
@@ -208,7 +205,6 @@ tools:
           the call leaves no net change to reverse.
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Create-or-get is idempotent for a stable collection name.
@@ -264,7 +260,6 @@ tools:
           the call leaves no net change to reverse.
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Create-or-get is idempotent for a stable collection name.
@@ -322,7 +317,6 @@ tools:
         state: records_added
     reversibility:
       classification: compensatable
-      undo: delete_records
     undo:
       strategy: compensating_action
       description: Delete the receipt-recorded IDs from the trusted Chroma collection.
@@ -379,7 +373,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Reading a count does not mutate state.
@@ -421,7 +414,7 @@ tools:
     side_effects:
       - {kind: child_process, target: find, state: read_only}
       - {kind: filesystem_read, target: configured_document_resource, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Discovery changes nothing.}
     errors: [{signal: ToolFailed, condition: find traversal fails, state_after_failure: No state changes.}]
 
@@ -462,7 +455,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Listing is read-only.
@@ -526,7 +518,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Reading is read-only.
@@ -598,7 +589,6 @@ tools:
         description: Appends the model response after a successful provider call.
     reversibility:
       classification: reversible
-      undo: conversation_truncate
       requires_confirmation: false
     undo:
       strategy: conversation_truncate

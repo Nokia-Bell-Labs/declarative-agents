@@ -54,6 +54,21 @@ func TestParseToolDefs(t *testing.T) {
 	assert.Equal(t, ".", pathMapping.Default)
 }
 
+func TestParseToolDefsRejectsReversibilityUndo(t *testing.T) {
+	t.Parallel()
+	_, err := ParseToolDefs([]byte(`tools:
+  - name: sample
+    type: exec
+    binary: "true"
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+`))
+	require.ErrorContains(t, err, `reversibility has unknown field "undo"`)
+}
+
 func TestParseToolDefs_Errors(t *testing.T) {
 	t.Parallel()
 
@@ -315,7 +330,8 @@ func TestToolDef_ToToolSpec_IgnoresStructuredContractFields(t *testing.T) {
 		SideEffects: ToolSideEffects{
 			Items: []ToolSideEffect{{Kind: "none", Description: "Read-only."}},
 		},
-		Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+		Reversibility: ToolReversibility{Classification: "reversible"},
+		Undo:          ToolUndoContract{Strategy: "noop"},
 	}
 
 	spec := td.ToToolSpec()

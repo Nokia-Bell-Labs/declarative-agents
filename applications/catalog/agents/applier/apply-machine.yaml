@@ -7,6 +7,7 @@ purpose: |-
   apply failure is Failed, and a verification failure is compensated by rollback.
 initial_state: AwaitingRequest
 budget:
+  command_timeout: 10m
   max_iterations: 8
 states:
   - {name: AwaitingRequest, meaning: Seeded by an application-owned apply endpoint.}
@@ -15,10 +16,10 @@ states:
   - {name: Applying, meaning: Applying the validated patch.}
   - {name: Verifying, meaning: Verifying every application-owned rollout target.}
   - {name: RollingBack, meaning: Compensating a verification failure.}
-  - {name: Done, meaning: Terminal. The rollout applied and verified.}
-  - {name: Rejected, meaning: Terminal. Validation rejected the patch before apply.}
-  - {name: RolledBack, meaning: Terminal. Verification failed and compensation succeeded.}
-  - {name: Failed, meaning: Terminal. Write, apply, or compensation failed.}
+  - {name: Done, meaning: Terminal. The rollout applied and verified., run_status: succeeded}
+  - {name: Rejected, meaning: Terminal. Validation rejected the patch before apply., run_status: failed}
+  - {name: RolledBack, meaning: Terminal. Verification failed and compensation succeeded., run_status: failed}
+  - {name: Failed, meaning: Terminal. Write, apply, or compensation failed., run_status: failed}
 terminal_states:
   - Done
   - Rejected

@@ -269,15 +269,19 @@ func TestRESTServerQueueNameAndPayloadShapeAreEnforced(t *testing.T) {
 	})
 }
 
-func TestLifecycleControlActionSelectsDefaultSignal(t *testing.T) {
+func TestLifecycleControlActionNamesSignalEnqueueModes(t *testing.T) {
 	t.Parallel()
-	cases := map[string]string{
-		"exit": "ExitRequested", "pause": "PauseRequested",
-		"rollback_request": "RollbackRequested", "resume": "ResumeRequested",
-	}
-	for action, expected := range cases {
-		endpoint := Endpoint{LifecycleControl: LifecycleControl{Action: action}}
-		require.Equal(t, expected, lifecycleSignal(endpoint), action)
+	endpoint := Endpoint{LifecycleControl: LifecycleControl{
+		Action: "enqueue_signal", Signal: "ExitRequested",
+	}}
+	require.NoError(t, validateLifecycleControlEndpoint("exit", endpoint))
+	require.Equal(t, "ExitRequested", lifecycleSignal(endpoint))
+
+	for _, action := range []string{"exit", "pause", "rollback_request", "resume"} {
+		err := validateLifecycleControlEndpoint("legacy", Endpoint{
+			LifecycleControl: LifecycleControl{Action: action, Signal: "Requested"},
+		})
+		require.ErrorContains(t, err, "unsupported action")
 	}
 }
 

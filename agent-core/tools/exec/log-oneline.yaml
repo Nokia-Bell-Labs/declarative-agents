@@ -39,7 +39,6 @@ tools:
     description: Reads repository metadata and workspace state required by Git.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Read-only Git inspection has no repository effects to reverse.

@@ -12,7 +12,7 @@ tools:
       schema: {type: string}
     side_effects:
       - {kind: state_mutation, target: specification findings, state: ref findings appended}
-    reversibility: {classification: reversible, undo: restore_snapshot}
+    reversibility: {classification: reversible}
     undo: {strategy: restore_snapshot, description: Restore prior validation findings.}
     errors:
       - signal: CommandError

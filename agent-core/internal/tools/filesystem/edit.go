@@ -15,19 +15,20 @@ import (
 const editErrorMaxLines = 100
 
 type editCmd struct {
-	root        string
-	path        string
-	oldString   string
-	newString   string
-	snapshot    fileSnapshot
-	hasSnapshot bool
-	recorder    monitor.ToolMetricsRecorder
-	metrics     core.MetricConfig
+	root         string
+	path         string
+	oldString    string
+	newString    string
+	undoStrategy string
+	snapshot     fileSnapshot
+	hasSnapshot  bool
+	recorder     monitor.ToolMetricsRecorder
+	metrics      core.MetricConfig
 }
 
 func (e *editCmd) Name() string { return "edit" }
 func (e *editCmd) Undo(prior core.Result) core.Result {
-	return undoFileFromReceipt(e.Name(), e.root, prior.Receipt, e.snapshot, e.hasSnapshot)
+	return undoFileByStrategy(e.Name(), e.undoStrategy, e.root, prior.Receipt, e.snapshot, e.hasSnapshot)
 }
 
 func (e *editCmd) Execute() core.Result {
@@ -95,8 +96,9 @@ func (e *editCmd) apply(resolved, relPath, content string) core.Result {
 
 // EditBuilder constructs edit commands.
 type EditBuilder struct {
-	Root    string
-	Metrics core.MetricConfig
+	Root         string
+	UndoStrategy string
+	Metrics      core.MetricConfig
 }
 
 func (b *EditBuilder) Build(res core.Result) core.Command {
@@ -112,14 +114,14 @@ func (b *EditBuilder) Build(res core.Result) core.Command {
 	if n == "" {
 		return missingParam("edit", "new_string")
 	}
-	return &editCmd{root: b.Root, path: p, oldString: o, newString: n, metrics: b.Metrics}
+	return &editCmd{root: b.Root, path: p, oldString: o, newString: n, undoStrategy: b.UndoStrategy, metrics: b.Metrics}
 }
 
 // BuildReverser returns an edit command configured only for receipt-driven Undo:
 // the receipt carries the prior file state, so the rollback receipt walk needs
 // no path/string input (core.Reverser; srd035-checkpoint-port R3).
 func (b *EditBuilder) BuildReverser() core.Command {
-	return &editCmd{root: b.Root, metrics: b.Metrics}
+	return &editCmd{root: b.Root, undoStrategy: b.UndoStrategy, metrics: b.Metrics}
 }
 
 // EditToolSpec returns the ToolSpec for the edit tool.

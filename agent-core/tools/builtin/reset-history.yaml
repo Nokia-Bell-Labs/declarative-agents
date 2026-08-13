@@ -15,7 +15,6 @@ tools:
     description: Clears the in-memory LLM conversation history.
   reversibility:
     classification: reversible
-    undo: conversation_restore
   undo:
     strategy: conversation_restore
     description: Restore the conversation snapshot captured before clearing history.

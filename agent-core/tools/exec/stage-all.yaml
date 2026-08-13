@@ -14,7 +14,6 @@ tools:
     description: Moves working tree changes into the Git index.
   reversibility:
     classification: reversible
-    undo: workspace_restore
   undo:
     strategy: workspace_restore
     description: Restore the workspace ref and index captured before staging.

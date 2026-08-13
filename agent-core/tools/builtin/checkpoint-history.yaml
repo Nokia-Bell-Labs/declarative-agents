@@ -52,7 +52,6 @@ tools:
     description: Reads the run's execution_steps, tool_outputs, and receipts from Dolt commit history through the checkpoint port Load.
   reversibility:
     classification: reversible
-    undo: noop
     receipt: empty
     requires_confirmation: false
   undo:

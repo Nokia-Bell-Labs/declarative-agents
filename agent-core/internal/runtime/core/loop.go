@@ -120,12 +120,13 @@ func resolveTerminalStatus(hooks LoopHooks, spec *MachineSpec, s State) RunStatu
 	return TerminalStatusForState(spec, s)
 }
 
-// TerminalStatusForState resolves declared policy and then legacy defaults.
+// TerminalStatusForState resolves declared policy and fails closed when a
+// program assembled outside profile validation omits it.
 func TerminalStatusForState(spec *MachineSpec, state State) RunStatus {
 	if status, ok := DeclaredTerminalStatus(spec, state); ok {
 		return status
 	}
-	return defaultTerminalStatus(state)
+	return StatusFailed
 }
 
 // DeclaredTerminalStatus returns the profile-owned outcome for a terminal state.
@@ -139,17 +140,6 @@ func DeclaredTerminalStatus(spec *MachineSpec, state State) (RunStatus, bool) {
 		}
 	}
 	return "", false
-}
-
-func defaultTerminalStatus(s State) RunStatus {
-	switch s {
-	case State("Succeeded"), State("Done"), State("Passed"), State("Completed"):
-		return StatusSucceeded
-	case State("BudgetExceeded"):
-		return StatusBudgetExceeded
-	default:
-		return StatusFailed
-	}
 }
 
 func mapRunStatusToFinishReason(s RunStatus) string {

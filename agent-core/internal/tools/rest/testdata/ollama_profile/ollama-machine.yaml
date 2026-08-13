@@ -14,6 +14,7 @@ invariants:
   - The final answer must use model names from the REST result.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 8
   max_consecutive_parse_errors: 2
 states:
@@ -24,10 +25,13 @@ states:
   - name: Parsing
     meaning: The model response is being parsed into one tool request.
   - name: Succeeded
+    run_status: succeeded
     meaning: Terminal. The model listed live Ollama models and produced a final answer.
   - name: Failed
+    run_status: failed
     meaning: Terminal. The model or REST boundary failed.
   - name: BudgetExceeded
+    run_status: budget_exceeded
     meaning: Terminal. The loop exhausted its iteration or parse-error budget.
 terminal_states:
   - Succeeded

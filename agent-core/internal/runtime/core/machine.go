@@ -92,8 +92,8 @@ func unmarshalNamedSpecs[T interface{ StateSpec | SignalSpec }](value *yaml.Node
 	return specs, nil
 }
 
-// BudgetSpec is the optional budget block in machine YAML.
-// Zero values mean "use default" or "unlimited".
+// BudgetSpec defines machine resource limits. MaxIterations is required;
+// zero values on the remaining fields mean unlimited.
 type BudgetSpec struct {
 	MaxIterations             int    `yaml:"max_iterations,omitempty"`
 	MaxTokens                 int    `yaml:"max_tokens,omitempty"`
@@ -102,7 +102,7 @@ type BudgetSpec struct {
 	MaxConsecutiveParseErrors int    `yaml:"max_consecutive_parse_errors,omitempty"`
 }
 
-// ToBudget converts a BudgetSpec into a Budget, applying defaults.
+// ToBudget converts a BudgetSpec into a Budget, applying optional limits.
 func (bs *BudgetSpec) ToBudget(defaults Budget) Budget {
 	b := defaults
 	if bs == nil {

@@ -14,18 +14,19 @@ import (
 )
 
 type writeCmd struct {
-	root        string
-	path        string
-	content     string
-	snapshot    fileSnapshot
-	hasSnapshot bool
-	recorder    monitor.ToolMetricsRecorder
-	metrics     core.MetricConfig
+	root         string
+	path         string
+	content      string
+	undoStrategy string
+	snapshot     fileSnapshot
+	hasSnapshot  bool
+	recorder     monitor.ToolMetricsRecorder
+	metrics      core.MetricConfig
 }
 
 func (w *writeCmd) Name() string { return "write" }
 func (w *writeCmd) Undo(prior core.Result) core.Result {
-	return undoFileFromReceipt(w.Name(), w.root, prior.Receipt, w.snapshot, w.hasSnapshot)
+	return undoFileByStrategy(w.Name(), w.undoStrategy, w.root, prior.Receipt, w.snapshot, w.hasSnapshot)
 }
 
 func (w *writeCmd) Execute() core.Result {
@@ -74,9 +75,10 @@ func writablePath(root, path string) (string, error) {
 // nested machines (for example the evaluator point machine) only know their
 // workspace directory once an earlier word has created it.
 type WriteBuilder struct {
-	Root     string
-	RootFunc func() string
-	Metrics  core.MetricConfig
+	Root         string
+	RootFunc     func() string
+	UndoStrategy string
+	Metrics      core.MetricConfig
 }
 
 func (b *WriteBuilder) root() string {
@@ -95,14 +97,26 @@ func (b *WriteBuilder) Build(res core.Result) core.Command {
 	if !contentPresent {
 		return missingParam("write", "content")
 	}
-	return &writeCmd{root: b.root(), path: p, content: c, metrics: b.Metrics}
+	return &writeCmd{root: b.root(), path: p, content: c, undoStrategy: b.UndoStrategy, metrics: b.Metrics}
 }
 
 // BuildReverser returns a write command configured only for receipt-driven Undo:
 // the receipt carries the prior file state, so the rollback receipt walk needs
 // no path/content input (core.Reverser; srd035-checkpoint-port R3).
 func (b *WriteBuilder) BuildReverser() core.Command {
-	return &writeCmd{root: b.root(), metrics: b.Metrics}
+	return &writeCmd{root: b.root(), undoStrategy: b.UndoStrategy, metrics: b.Metrics}
+}
+
+func undoFileByStrategy(commandName, strategy, root, receipt string, snap fileSnapshot, ok bool) core.Result {
+	switch strategy {
+	case "", "file_snapshot_restore":
+		return undoFileFromReceipt(commandName, root, receipt, snap, ok)
+	case "noop":
+		return core.NoopUndo(commandName)
+	default:
+		err := fmt.Errorf("undo %s: unsupported undo strategy %q", commandName, strategy)
+		return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+	}
 }
 
 // WriteToolSpec returns the ToolSpec for the write tool.

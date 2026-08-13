@@ -198,7 +198,7 @@ func TestWrite_ReceiptUndoRestoresFromFreshInstance(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "exist.txt"), []byte("original"), 0o600))
 
-	cmd := (&WriteBuilder{Root: root}).Build(toolReq(`{"path":"exist.txt","content":"changed"}`))
+	cmd := (&WriteBuilder{Root: root, UndoStrategy: "file_snapshot_restore"}).Build(toolReq(`{"path":"exist.txt","content":"changed"}`))
 	res := cmd.Execute()
 	require.Equal(t, core.ToolDone, res.Signal)
 	require.NotEmpty(t, res.Receipt)
@@ -217,7 +217,7 @@ func TestWrite_ReceiptUndoRestoresFromFreshInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, exec, 1)
 
-	fresh := (&WriteBuilder{Root: root}).Build(toolReq(`{"path":"exist.txt","content":"changed"}`))
+	fresh := (&WriteBuilder{Root: root, UndoStrategy: "file_snapshot_restore"}).Build(toolReq(`{"path":"exist.txt","content":"changed"}`))
 	undo := fresh.Undo(core.Result{Receipt: exec[0].Receipt})
 	require.Equal(t, core.ToolDone, undo.Signal)
 
@@ -232,12 +232,12 @@ func TestWrite_ReceiptUndoRemovesCreatedFileFromFreshInstance(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	cmd := (&WriteBuilder{Root: root}).Build(toolReq(`{"path":"new.txt","content":"created"}`))
+	cmd := (&WriteBuilder{Root: root, UndoStrategy: "file_snapshot_restore"}).Build(toolReq(`{"path":"new.txt","content":"created"}`))
 	res := cmd.Execute()
 	require.Equal(t, core.ToolDone, res.Signal)
 	require.NotEmpty(t, res.Receipt)
 
-	fresh := (&WriteBuilder{Root: root}).Build(toolReq(`{"path":"new.txt","content":"created"}`))
+	fresh := (&WriteBuilder{Root: root, UndoStrategy: "file_snapshot_restore"}).Build(toolReq(`{"path":"new.txt","content":"created"}`))
 	undo := fresh.Undo(core.Result{Receipt: res.Receipt})
 	require.Equal(t, core.ToolDone, undo.Signal)
 
@@ -253,18 +253,69 @@ func TestEdit_ReceiptUndoRestoresFromFreshInstance(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("hello world"), 0o644))
 
-	cmd := (&EditBuilder{Root: root}).Build(toolReq(`{"path":"e.txt","old_string":"hello","new_string":"goodbye"}`))
+	cmd := (&EditBuilder{Root: root, UndoStrategy: "file_snapshot_restore"}).Build(toolReq(`{"path":"e.txt","old_string":"hello","new_string":"goodbye"}`))
 	res := cmd.Execute()
 	require.Equal(t, core.EditDone, res.Signal)
 	require.NotEmpty(t, res.Receipt)
 
-	fresh := (&EditBuilder{Root: root}).Build(toolReq(`{"path":"e.txt","old_string":"hello","new_string":"goodbye"}`))
+	fresh := (&EditBuilder{Root: root, UndoStrategy: "file_snapshot_restore"}).Build(toolReq(`{"path":"e.txt","old_string":"hello","new_string":"goodbye"}`))
 	undo := fresh.Undo(core.Result{Receipt: res.Receipt})
 	require.Equal(t, core.ToolDone, undo.Signal)
 
 	data, err := os.ReadFile(filepath.Join(root, "e.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", string(data))
+}
+
+func TestWriteAndEdit_UndoHonorsNoopStrategy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("write", func(t *testing.T) {
+		root := t.TempDir()
+		path := filepath.Join(root, "w.txt")
+		require.NoError(t, os.WriteFile(path, []byte("before"), 0o644))
+		cmd := (&WriteBuilder{Root: root, UndoStrategy: "noop"}).
+			Build(toolReq(`{"path":"w.txt","content":"after"}`))
+		res := cmd.Execute()
+		require.Equal(t, core.ToolDone, res.Signal)
+
+		undo := cmd.Undo(res)
+		require.Equal(t, core.ToolDone, undo.Signal)
+		assert.Equal(t, "undo: no-op", undo.Output)
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, "after", string(data))
+	})
+
+	t.Run("edit", func(t *testing.T) {
+		root := t.TempDir()
+		path := filepath.Join(root, "e.txt")
+		require.NoError(t, os.WriteFile(path, []byte("before"), 0o644))
+		cmd := (&EditBuilder{Root: root, UndoStrategy: "noop"}).
+			Build(toolReq(`{"path":"e.txt","old_string":"before","new_string":"after"}`))
+		res := cmd.Execute()
+		require.Equal(t, core.EditDone, res.Signal)
+
+		undo := cmd.Undo(res)
+		require.Equal(t, core.ToolDone, undo.Signal)
+		assert.Equal(t, "undo: no-op", undo.Output)
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, "after", string(data))
+	})
+}
+
+func TestWrite_UndoRejectsUnknownStrategy(t *testing.T) {
+	t.Parallel()
+
+	cmd := (&WriteBuilder{Root: t.TempDir(), UndoStrategy: "unknown"}).
+		Build(toolReq(`{"path":"w.txt","content":"after"}`))
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+
+	undo := cmd.Undo(res)
+	assert.Equal(t, core.CommandError, undo.Signal)
+	assert.ErrorContains(t, undo.Err, `unsupported undo strategy "unknown"`)
 }
 
 func TestWrite_MissingParams(t *testing.T) {

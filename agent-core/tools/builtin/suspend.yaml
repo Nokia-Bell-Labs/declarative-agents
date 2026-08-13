@@ -22,7 +22,6 @@ tools:
     description: Hands control to an operator approval decision before resume.
   reversibility:
     classification: compensatable
-    undo: resume_with_rejected_or_rollback_checkpoint
   undo:
     strategy: compensating_action
     description: Resume with an explicit approval/rejection signal or roll back to an earlier checkpoint.

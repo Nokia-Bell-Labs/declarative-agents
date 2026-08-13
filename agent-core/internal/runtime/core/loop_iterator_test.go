@@ -64,6 +64,7 @@ func TestLoopForEachResumeContinuesAfterLastPersistedItem(t *testing.T) {
 	require.Equal(t, StatusCancelled, first.Status)
 	require.Equal(t, []string{"alpha"}, order.values())
 
+	params.InitialSignal = Approved
 	resumed, err := LoadResume(params)
 	require.NoError(t, err)
 	require.NotNil(t, resumed.Params.InitialIterator)
@@ -286,7 +287,7 @@ func entryLabels(execution Execution) []string {
 const iteratorMachineYAML = `
 name: iterator-test
 initial_state: Start
-states: [Start, Loading, Iterating, Joined, Done, Failed]
+states: [Start, Loading, Iterating, Joined, {name: Done, run_status: succeeded}, {name: Failed, run_status: failed}]
 terminal_states: [Done, Failed]
 signals: [Seed, ItemsReady, ItemDone, CommandError, ItemsDone, ItemsEmpty]
 transitions:

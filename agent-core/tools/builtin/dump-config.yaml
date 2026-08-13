@@ -16,7 +16,6 @@ tools:
     description: Writes resolved experiment configuration for reproducibility.
   reversibility:
     classification: reversible
-    undo: owned_artifact_removal_and_point_context_restore
   undo:
     strategy: owned_artifact_removal_and_point_context_restore
     description: Remove the receipt-recorded experiment config and restore PointContext.

@@ -18,7 +18,6 @@ tools:
     description: Sets session directory, reps, timeout, Ollama URL, and iteration start time.
   reversibility:
     classification: reversible
-    undo: owned_artifact_removal_and_evaluator_session_restore
   undo:
     strategy: owned_artifact_removal_and_evaluator_session_restore
     description: Remove the receipt-recorded session directory and restore evaluator session state.

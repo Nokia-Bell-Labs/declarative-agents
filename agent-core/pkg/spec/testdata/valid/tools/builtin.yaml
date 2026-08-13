@@ -10,7 +10,6 @@ tools:
         description: "Mutates internal state."
     reversibility:
       classification: reversible
-      undo: "noop"
     undo:
       strategy: noop
       description: "Stateless tool."

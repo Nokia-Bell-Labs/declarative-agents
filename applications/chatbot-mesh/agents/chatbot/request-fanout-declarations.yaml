@@ -36,7 +36,7 @@ tools:
           mapped: {type: object}
     side_effects:
       - {kind: external_api, target: rag_server.query, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Querying a RAG source does not mutate it.}
     config:
       rest_ref: rag
@@ -67,7 +67,7 @@ tools:
       description: Ordered answered and failed query outcomes.
       schema: {type: object}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Partitioning changes no external state.}
     config:
       items: $from(rag_queries).items
@@ -102,7 +102,7 @@ tools:
       description: Ordered model-compatible and model-excluded query results.
       schema: {type: object}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Partitioning changes no external state.}
     config:
       items: $from(partition_query_results).matched
@@ -135,7 +135,7 @@ tools:
     emits: [GroundingRendered, CommandError]
     output: {description: Joined grounding sections., schema: {type: string}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Rendering changes no external state.}
     config:
       items: $from(partition_embedding_models).matched
@@ -168,7 +168,7 @@ tools:
     emits: [Composed]
     output: {description: Grounded answer prompt., schema: {type: string}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Prompt composition changes no external state.}
     config:
       signal: Composed
@@ -212,7 +212,7 @@ tools:
     emits: [ResponseComposed]
     output: {description: Answer and source outcome metadata., schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Response composition changes no external state.}
     config:
       signal: ResponseComposed

@@ -57,7 +57,6 @@ tools:
     description: Stores parsed suite config and defaults in critic session state.
   reversibility:
     classification: reversible
-    undo: evaluator_session_restore
     requires_confirmation: false
   errors:
   - signal: CommandError
@@ -99,6 +98,7 @@ tools:
   requirements:
     input:
     - must require point_machine, point_tools, and point_tool_declarations in config
+    - must require agent_name, positive max_iterations, and success_state in config
     - must bind the current point input supplied by the session for_each iterator
     output:
     - must emit PointDone after the nested point machine reaches its configured success state
@@ -151,7 +151,6 @@ tools:
     description: Reports point start, failure, and terminal progress.
   reversibility:
     classification: compensatable
-    undo: nested_machine_compensation
     requires_confirmation: false
   undo:
     strategy: compensating_action
