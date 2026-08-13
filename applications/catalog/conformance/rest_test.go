@@ -31,6 +31,7 @@ const restWebhookMachine = `name: rest-webhook-conformance
 initial_state: Idle
 budget:
   max_iterations: 8
+  command_timeout: 10m
 states:
   - name: Idle
     meaning: Initial state before the webhook server launches.

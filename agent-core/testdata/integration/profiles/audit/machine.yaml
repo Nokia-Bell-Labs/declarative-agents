@@ -2,6 +2,7 @@ name: core-spec-audit
 purpose: Validate Agent Core specifications without a catalog checkout.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 100
 states:
   - {name: Idle, meaning: Initial state.}

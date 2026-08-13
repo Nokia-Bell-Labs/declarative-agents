@@ -2,6 +2,7 @@ name: coding-planner-request
 purpose: Plan one coding request, delegate it to the remote executor, then gate the shared workspace through the remote critic.
 initial_state: AwaitingRequest
 budget:
+  command_timeout: 10m
   max_iterations: 8
 states:
   - {name: AwaitingRequest, meaning: The trusted endpoint has seeded a task and workspace identity.}

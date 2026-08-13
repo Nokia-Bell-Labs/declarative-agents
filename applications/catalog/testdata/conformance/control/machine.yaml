@@ -12,6 +12,7 @@ invariants:
   - exit_agent owns exit behavior as visible lifecycle vocabulary.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 5
 states:
   - name: Idle

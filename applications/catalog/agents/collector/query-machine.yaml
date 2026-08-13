@@ -5,7 +5,7 @@ purpose: |
   metric list and get paths return paginated metric summaries and one metric's
   records. No path mutates machine state.
 initial_state: AwaitingRequest
-budget: {max_iterations: 8}
+budget: {max_iterations: 8, command_timeout: 10m}
 states:
   - {name: AwaitingRequest, meaning: Seeded by a trusted machine_request route.}
   - {name: ListingTraces, meaning: Paginated trace summary read from spool.}

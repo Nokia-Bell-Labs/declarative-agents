@@ -132,10 +132,10 @@ schema:
           with StatusCancelled (not BudgetExhausted).
       - field: command_timeout
         type: duration string
+        required: true
         description: |
           Positive per-dispatch timeout applied to every command in this
-          machine. Omission preserves the compatibility behavior of no
-          per-command timeout and produces a diagnostic.
+          machine. Runtime profiles fail validation when it is omitted.
       - field: max_consecutive_parse_errors
         type: int
         description: |

@@ -16,6 +16,7 @@ lifecycle: |-
   3. RollingBack -> Failed (ToolFailed or CommandError): rollback failed.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 3
 states:
 - name: Idle

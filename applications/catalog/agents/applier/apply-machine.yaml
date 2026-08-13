@@ -7,6 +7,7 @@ purpose: |-
   apply failure is Failed, and a verification failure is compensated by rollback.
 initial_state: AwaitingRequest
 budget:
+  command_timeout: 10m
   max_iterations: 8
 states:
   - {name: AwaitingRequest, meaning: Seeded by an application-owned apply endpoint.}

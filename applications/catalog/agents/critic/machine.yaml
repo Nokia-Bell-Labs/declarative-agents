@@ -68,6 +68,7 @@ pipeline_diagram: |-
   ```
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 10000
 states:
 - name: Idle

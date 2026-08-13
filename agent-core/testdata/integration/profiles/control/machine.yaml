@@ -2,6 +2,7 @@ name: core-control
 purpose: Prove generic REST control and deferred shutdown in Agent Core.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 5
 states:
   - {name: Idle, meaning: Initial state.}

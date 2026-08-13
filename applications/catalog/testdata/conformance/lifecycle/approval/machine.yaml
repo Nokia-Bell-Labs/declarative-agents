@@ -18,6 +18,7 @@ lifecycle: |-
 initial_state: Idle
 resume_signal: Approved
 budget:
+  command_timeout: 10m
   max_iterations: 5
 states:
 - name: Idle

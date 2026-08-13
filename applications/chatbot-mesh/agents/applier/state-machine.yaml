@@ -14,6 +14,7 @@ purpose: |-
   in Unavailable so the endpoint answers 502 rather than a stale or empty view.
 initial_state: AwaitingRequest
 budget:
+  command_timeout: 10m
   max_iterations: 3
 states:
   - {name: AwaitingRequest, meaning: Seeded by the state endpoint.}

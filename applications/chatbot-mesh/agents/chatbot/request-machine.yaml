@@ -13,6 +13,7 @@ purpose: |-
   declared sources that were not selected.
 initial_state: AwaitingRequest
 budget:
+  command_timeout: 10m
   # Fixed pipeline plus one iteration per declared source. This source-independent
   # ceiling supports substantially more than the shipped two-source topology.
   max_iterations: 72

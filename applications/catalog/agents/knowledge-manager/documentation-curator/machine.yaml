@@ -15,6 +15,7 @@ lifecycle: |-
   4. Exit the agent, then stop monitor and curator HTTP listeners.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 10000
 metric_labels:
   workflow: documentation_curator

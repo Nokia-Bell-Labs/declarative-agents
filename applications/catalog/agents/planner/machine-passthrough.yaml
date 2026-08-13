@@ -49,6 +49,9 @@ pipeline_diagram: |-
     X --> S[Stalled]
   ```
 initial_state: Idle
+budget:
+  max_iterations: 100
+  command_timeout: 10m
 states:
 - name: Idle
   meaning: Initial state before planning begins.

@@ -7,6 +7,7 @@ purpose: |-
   namespace, command arguments, endpoint, and response mapping.
 initial_state: AwaitingRequest
 budget:
+  command_timeout: 10m
   max_iterations: 5
 states:
   - {name: AwaitingRequest, meaning: Seeded by an application-owned rollout endpoint.}

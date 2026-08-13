@@ -17,6 +17,7 @@ invariants:
   - The creator forwards the provisioning-workflow-orchestrator's decided values-plane document to the deployment API as the apply content; it authors no values decision (that is the provisioning-workflow-orchestrator's).
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 10000
 states:
   - {name: Idle, meaning: Initial state before the creator servers start.}

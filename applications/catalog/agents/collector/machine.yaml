@@ -9,7 +9,7 @@ invariants:
   - Collector process telemetry is configured by deployment as file-only.
   - Accepted metric batches spool to a separate metric evidence file; trace intake, spool, and relay are unaffected.
 initial_state: Idle
-budget: {max_iterations: 1000000}
+budget: {max_iterations: 1000000, command_timeout: 10m}
 states:
   - {name: Idle, meaning: Before listeners launch.}
   - {name: LaunchingControl, meaning: Launching lifecycle control.}

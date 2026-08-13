@@ -13,6 +13,7 @@ invariants:
   - The chat turn is stateless; the browser sends the conversation history with each request.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 10000
 states:
   - {name: Idle, meaning: Initial state before the chatbots start.}

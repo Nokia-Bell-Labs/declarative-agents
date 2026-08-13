@@ -43,6 +43,7 @@ purpose: |-
   tell the provisioning-workflow-orchestrator a directory held no documents when nobody looked.
 initial_state: AwaitingRequest
 budget:
+  command_timeout: 10m
   max_iterations: 8
 states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted instance endpoint with the decided operation body.}

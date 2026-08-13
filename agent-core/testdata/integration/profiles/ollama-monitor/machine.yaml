@@ -4,6 +4,7 @@ initial_state: Idle
 metric_labels:
   profile: monitored_qwen
 budget:
+  command_timeout: 10m
   max_iterations: 12
   max_consecutive_parse_errors: 2
 states:

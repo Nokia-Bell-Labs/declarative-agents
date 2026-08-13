@@ -46,6 +46,9 @@ func ValidateRequiredMachinePolicy(spec MachineSpec) error {
 	if spec.BudgetSpec == nil || spec.BudgetSpec.MaxIterations <= 0 {
 		missing = append(missing, "budget.max_iterations")
 	}
+	if spec.BudgetSpec == nil || spec.BudgetSpec.CommandTimeout == "" {
+		missing = append(missing, "budget.command_timeout")
+	}
 	for _, terminal := range spec.TerminalStates {
 		if _, declared := DeclaredTerminalStatus(&spec, State(terminal)); !declared {
 			missing = append(missing, fmt.Sprintf("states.%s.run_status", terminal))
@@ -88,20 +91,6 @@ func validateReportOutput(index int, transition TransitionSpec) string {
 
 func machinePolicyDiagnostics(spec MachineSpec) []MachineDiagnostic {
 	var diagnostics []MachineDiagnostic
-	policies := []struct {
-		code    string
-		missing bool
-	}{
-		{DiagnosticImplicitCommandTimeout, spec.BudgetSpec == nil || spec.BudgetSpec.CommandTimeout == ""},
-	}
-	for _, policy := range policies {
-		if policy.missing {
-			diagnostics = append(diagnostics, MachineDiagnostic{
-				Severity: MachineDiagnosticWarning, Code: policy.code,
-				Message: "machine uses the documented runtime default",
-			})
-		}
-	}
 	for _, terminal := range spec.TerminalStates {
 		if _, declared := DeclaredTerminalStatus(&spec, State(terminal)); !declared {
 			diagnostics = append(diagnostics, MachineDiagnostic{

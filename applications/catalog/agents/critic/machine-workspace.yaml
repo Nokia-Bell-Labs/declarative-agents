@@ -6,6 +6,7 @@ purpose: |-
   critic-verdict.json in the supplied workspace.
 initial_state: Idle
 budget:
+  command_timeout: 10m
   max_iterations: 4
 states:
   - name: Idle
