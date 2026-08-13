@@ -12,7 +12,7 @@ invariants:
   - OpenAPI imports populate REST definitions without generating Go code.
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 1m
   max_iterations: 20
 states:
   - name: Idle

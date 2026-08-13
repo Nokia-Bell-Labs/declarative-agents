@@ -14,7 +14,7 @@ invariants:
   - The model plays no part; the single boundary word is machine-sequenced from Seed.
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 1m
   max_iterations: 4
 states:
   - name: Idle

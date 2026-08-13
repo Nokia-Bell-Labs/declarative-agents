@@ -11,7 +11,7 @@ configuration:
   tools: tools.yaml
 initial_state: Idle
 budget:
-  command_timeout: 10m
+  command_timeout: 1m
   max_iterations: 6
 states:
   - name: Idle
