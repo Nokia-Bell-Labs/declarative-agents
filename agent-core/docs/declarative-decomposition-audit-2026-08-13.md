@@ -267,7 +267,7 @@ sub-issue completes.
 | Remaining tools | GH-1632 | ten focused tool packages | complete |
 | Runtime and root | GH-1634 | runtime, cmd, support | complete |
 | Spec and planning | GH-1633 | `pkg/spec`, `internal/planning` | complete |
-| Telemetry and model | GH-1635 | evaluation, OTLP, observability, model | pending |
+| Telemetry and model | GH-1635 | evaluation, OTLP, observability, model | complete |
 | Applications | GH-1636 | catalog Go and consolidation | pending |
 
 ## Accepted findings
@@ -578,4 +578,36 @@ Prior findings:
 No new finding passed the gate. Tempting splits remain rejected: Validate's 36 checkers (already charter-selectable), split `load_graph`, discovery I/O to `find` (Q2 / GH-1384), stale YAML filenames (no defect). Residual, not filed: `reversibility.undo` is still unread (`tool_models.go:56-59`) and belongs with GH-1541.
 
 Tests: `go test ./pkg/spec ./internal/planning/...` passed (`pkg/spec` 6.46s; extract 0.54s, graph 0.66s, pipeline 0.82s, plan 0.96s).
+
+### Evaluation, OTLP, observability, and model -- GH-1635
+
+Complete. Audited `internal/evaluation` (3,733 lines), `internal/tools/otlp`
+(3,849), `internal/observability` (2,076), and `internal/model` (1,278).
+
+Every exported word is one agent-visible contract. The eleven evaluator point
+words remain the cleanest family: `create_point_dir` and `sample_docs` emit
+copy parameters rather than copying, and `record_point_failure` leaves
+`meta.json` to `collect_metrics`. `internal/observability` is still generic
+ports and stores, not application workflow.
+
+Prior findings:
+
+| Issue | Status | Evidence |
+|---|---|---|
+| GH-1567 | HELD | `ReceiverBuilder` implements `Reverser` (`receiver.go:336-340`). Launch emits a receipt. Rollback walk calls `BuildReverser().Undo`. |
+| GH-1568 | HELD | `spool_get_metric` is a bounded page with `page_size`/`offset`/`total`. Residual wording: `output.description` still says "All spooled records" while the schema describes a page; not refiled. |
+| GH-1569 | HELD | Factory rejects `max_bytes > 0 && max_files < 2`. Rotation errors instead of deleting the active file. |
+| GH-1570 | HELD | `InitSession` errors if the grid is empty or defaults are missing. Defaults come from ToolDef config. |
+| GH-1571 | HELD | Stop schema lists the five metric keys the runtime emits. Relay dropped `accepted_span_count`. |
+| GH-1572 | HELD | Split into `spool_span_heatmap` and `spool_span_group_by`. Empty `group_by` is `CommandError`. |
+| GH-1573 | HELD | Sample layout is ToolDef config. `run_point` declares `state_mutation` + `stderr_write` and threads the tracer. |
+| GH-1574 | HELD | `checkModel` / CLI reporting / `testutil.go` are gone. Adapter is POST `/api/chat` only. |
+
+No new finding passed the gate. Duckdb, otelcol, SpanStub, and the Ollama CLI
+probe stay in the rejected register (Q2–Q4, Q6). Residuals not filed:
+`run_point` Go defaults (`critic-point` / `20` / `Done`) when the critic
+re-declaration is absent (Q1, declared-knob fallback class).
+
+Tests: evaluation 1.93s, otlp 1.08s, observability subpackages, and model
+subpackages passed.
 
