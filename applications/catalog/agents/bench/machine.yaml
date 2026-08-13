@@ -47,8 +47,10 @@ states:
 - name: StoppingHTTP
   meaning: The generic REST listener is draining and stopping.
 - name: Done
+  run_status: succeeded
   meaning: Terminal. The user requested shutdown.
 - name: Failed
+  run_status: failed
   meaning: Terminal. An infrastructure error occurred during experiment launch.
 terminal_states:
 - Done

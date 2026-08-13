@@ -11,7 +11,9 @@ states:
   - name: AwaitingControl
   - name: Stopping
   - name: Done
+    run_status: succeeded
   - name: Failed
+    run_status: failed
 terminal_states: [Done, Failed]
 signals:
   - name: Seed

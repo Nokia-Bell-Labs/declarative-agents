@@ -26,8 +26,8 @@ states:
   - {name: Exiting, meaning: Routing ExitRequested to exit_agent.}
   - {name: StoppingMonitor, meaning: Stopping the monitor server.}
   - {name: StoppingRequests, meaning: Stopping the intent server.}
-  - {name: Failed, meaning: Terminal. A server or boundary word failed.}
-  - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit.}
+  - {name: Failed, meaning: Terminal. A server or boundary word failed., run_status: failed}
+  - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit., run_status: succeeded}
 terminal_states:
   - Done
   - Failed

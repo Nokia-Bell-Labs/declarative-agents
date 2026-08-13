@@ -14,8 +14,11 @@ states:
   - name: AwaitingMonitorExit
   - name: StoppingMonitor
   - name: Succeeded
+    run_status: succeeded
   - name: Failed
+    run_status: failed
   - name: BudgetExceeded
+    run_status: budget_exceeded
 terminal_states:
   - Succeeded
   - Failed

@@ -8,9 +8,9 @@ states:
   - {name: Idle, meaning: Initial state.}
   - {name: AwaitingApproval, meaning: Suspended for approval.}
   - {name: ApplyingApproval, meaning: Completing approved work.}
-  - {name: Succeeded, meaning: Terminal success.}
-  - {name: Rejected, meaning: Terminal rejection.}
-  - {name: Failed, meaning: Terminal failure.}
+  - {name: Succeeded, meaning: Terminal success., run_status: succeeded}
+  - {name: Rejected, meaning: Terminal rejection., run_status: failed}
+  - {name: Failed, meaning: Terminal failure., run_status: failed}
 terminal_states: [Succeeded, Rejected, Failed]
 signals:
   - {name: Seed, trigger: Loop initialization.}

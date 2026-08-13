@@ -17,13 +17,13 @@ states:
   - {name: ComputingSpanGroupBy, meaning: Group-by counts over the same request filter.}
   - {name: ComposingSpanStats, meaning: Compose the two declared analyses into the stable response.}
   - {name: ComputingBreakdown, meaning: Attribute divergence between a selection and its complement.}
-  - {name: TracesReady, meaning: Terminal paginated trace response.}
-  - {name: TraceReady, meaning: Terminal single-trace response.}
-  - {name: MetricsReady, meaning: Terminal paginated metric response.}
-  - {name: MetricReady, meaning: Terminal single-metric response.}
-  - {name: SpanStatsResponse, meaning: Terminal duration-heatmap and group-by response.}
-  - {name: SpanBreakdownResponse, meaning: Terminal attribute-divergence response.}
-  - {name: Failed, meaning: Terminal spool read failure.}
+  - {name: TracesReady, meaning: Terminal paginated trace response., run_status: failed}
+  - {name: TraceReady, meaning: Terminal single-trace response., run_status: failed}
+  - {name: MetricsReady, meaning: Terminal paginated metric response., run_status: failed}
+  - {name: MetricReady, meaning: Terminal single-metric response., run_status: failed}
+  - {name: SpanStatsResponse, meaning: Terminal duration-heatmap and group-by response., run_status: failed}
+  - {name: SpanBreakdownResponse, meaning: Terminal attribute-divergence response., run_status: failed}
+  - {name: Failed, meaning: Terminal spool read failure., run_status: failed}
 terminal_states: [TracesReady, TraceReady, MetricsReady, MetricReady, SpanStatsResponse, SpanBreakdownResponse, Failed]
 signals:
   - Seed

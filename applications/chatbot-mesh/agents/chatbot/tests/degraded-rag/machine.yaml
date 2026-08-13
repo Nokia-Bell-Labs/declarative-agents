@@ -19,8 +19,10 @@ states:
   - name: Checking
     meaning: The turn has run; its signal decides the outcome.
   - name: Passed
+    run_status: succeeded
     meaning: Terminal. The chatbot answered the turn.
   - name: Failed
+    run_status: failed
     meaning: Terminal. The chatbot did not answer.
 terminal_states: [Passed, Failed]
 signals:

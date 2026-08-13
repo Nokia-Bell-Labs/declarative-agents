@@ -50,7 +50,7 @@ func monitorRuntimeMachine() core.MachineSpec {
 		MetricLabels: core.MetricLabels{"profile": "monitor"},
 		InitialState: "Idle",
 		States: core.StateSpecs{
-			{Name: "Idle"}, {Name: "Working"}, {Name: "Done"},
+			{Name: "Idle"}, {Name: "Working"}, {Name: "Done", RunStatus: core.StatusSucceeded},
 		},
 		TerminalStates: []string{"Done"},
 		Transitions: []core.TransitionSpec{

@@ -17,8 +17,10 @@ states:
   - name: Checking
     meaning: The query has run; its signal decides the outcome.
   - name: Passed
+    run_status: succeeded
     meaning: Terminal. The rag-server answered the query.
   - name: Failed
+    run_status: failed
     meaning: Terminal. The rag-server did not answer as expected.
 terminal_states: [Passed, Failed]
 signals:

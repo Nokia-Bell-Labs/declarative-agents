@@ -89,10 +89,13 @@ states:
 - name: QueryingRemainingWork
   meaning: Reading graph state before preserving pass-through completion routing.
 - name: Completed
+  run_status: succeeded
   meaning: Terminal. All tasks in the graph are done.
 - name: Stalled
+  run_status: failed
   meaning: Terminal. Remaining tasks are blocked by failed dependencies.
 - name: Failed
+  run_status: failed
   meaning: Terminal. An unrecoverable error occurred.
 terminal_states:
 - Completed

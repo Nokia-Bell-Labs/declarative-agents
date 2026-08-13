@@ -22,8 +22,10 @@ states:
   - name: Stopping
     meaning: The machine stops the owned mock REST listener.
   - name: Done
+    run_status: succeeded
     meaning: Terminal. The mock listener stopped without error.
   - name: Failed
+    run_status: failed
     meaning: Terminal state for launch, fixture, and control failures.
 terminal_states:
   - Done

@@ -20,8 +20,10 @@ states:
   - name: Stopping
     meaning: The machine stops the owned monitor REST listener.
   - name: Done
+    run_status: succeeded
     meaning: Terminal. The monitor REST listener stopped without error.
   - name: Failed
+    run_status: failed
     meaning: Terminal state for launch failures.
 terminal_states:
   - Done

@@ -27,8 +27,8 @@ states:
   - {name: Exiting, meaning: The lifecycle exit word is running.}
   - {name: StoppingMonitor, meaning: The monitor listener is stopping.}
   - {name: StoppingHTTP, meaning: The curator HTTP listener is stopping.}
-  - {name: Failed, meaning: Terminal listener or lifecycle failure.}
-  - {name: Done, meaning: Terminal clean shutdown.}
+  - {name: Failed, meaning: Terminal listener or lifecycle failure., run_status: failed}
+  - {name: Done, meaning: Terminal clean shutdown., run_status: succeeded}
 terminal_states: [Done, Failed]
 signals:
   - {name: Seed, trigger: Agent startup.}

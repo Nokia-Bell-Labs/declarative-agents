@@ -18,8 +18,8 @@ budget:
 states:
   - {name: AwaitingRequest, meaning: Seeded by the state endpoint.}
   - {name: Reading,         meaning: Reading the release's computed values.}
-  - {name: Read,            meaning: Terminal. The deployed values were read.}
-  - {name: Unavailable,     meaning: Terminal. The release's values could not be read.}
+  - {name: Read,            meaning: Terminal. The deployed values were read., run_status: failed}
+  - {name: Unavailable,     meaning: Terminal. The release's values could not be read., run_status: failed}
 terminal_states:
   - Read
   - Unavailable

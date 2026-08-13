@@ -16,8 +16,8 @@ states:
   - {name: RunningTests, meaning: Running the declared full-module test command.}
   - {name: ReducingTests, meaning: Reducing test events against resolved claims.}
   - {name: Reporting, meaning: Formatting all findings.}
-  - {name: Passed, meaning: Terminal successful audit.}
-  - {name: Failed, meaning: Terminal failed audit.}
+  - {name: Passed, meaning: Terminal successful audit., run_status: succeeded}
+  - {name: Failed, meaning: Terminal failed audit., run_status: failed}
 terminal_states: [Passed, Failed]
 signals:
   - {name: Seed, trigger: Loop initialization.}

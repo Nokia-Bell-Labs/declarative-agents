@@ -46,6 +46,11 @@ func ValidateRequiredMachinePolicy(spec MachineSpec) error {
 	if spec.BudgetSpec == nil || spec.BudgetSpec.MaxIterations <= 0 {
 		missing = append(missing, "budget.max_iterations")
 	}
+	for _, terminal := range spec.TerminalStates {
+		if _, declared := DeclaredTerminalStatus(&spec, State(terminal)); !declared {
+			missing = append(missing, fmt.Sprintf("states.%s.run_status", terminal))
+		}
+	}
 	if len(missing) > 0 {
 		return fmt.Errorf("required machine policy missing: %v", missing)
 	}

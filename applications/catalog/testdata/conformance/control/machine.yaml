@@ -23,8 +23,10 @@ states:
   - name: Exiting
     meaning: The machine dispatches exit_agent after ExitRequested.
   - name: Succeeded
+    run_status: succeeded
     meaning: Terminal. The agent exit request completed.
   - name: Failed
+    run_status: failed
     meaning: Terminal. Control routing or lifecycle execution failed.
 terminal_states:
   - Succeeded

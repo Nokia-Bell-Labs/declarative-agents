@@ -27,10 +27,13 @@ states:
 - name: ApplyingApproval
   meaning: The approved path is running after resume.
 - name: Succeeded
+  run_status: succeeded
   meaning: Terminal. The approved path completed.
 - name: Rejected
+  run_status: failed
   meaning: Terminal. The operator rejected the risky action.
 - name: Failed
+  run_status: failed
   meaning: Terminal. Suspend or resume failed.
 terminal_states:
 - Succeeded

@@ -53,8 +53,10 @@ states:
   - name: Reporting
     meaning: Reducing every scenario verdict into the run result.
   - name: Passed
+    run_status: succeeded
     meaning: Terminal. Every scenario passed.
   - name: Failed
+    run_status: failed
     meaning: Terminal. A scenario failed, discovery found nothing, or a word errored.
 terminal_states:
   - Passed

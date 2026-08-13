@@ -37,8 +37,10 @@ states:
   - name: Answering
     meaning: The configured model is answering over the retrieved chunks.
   - name: Succeeded
+    run_status: succeeded
     meaning: Terminal. A grounded answer was produced from retrieved chunks.
   - name: Failed
+    run_status: failed
     meaning: Terminal. A REST, embedding, or model boundary word failed.
 terminal_states:
   - Succeeded

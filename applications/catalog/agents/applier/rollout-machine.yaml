@@ -13,9 +13,9 @@ states:
   - {name: Polling, meaning: Reading the selected Deployment rollout status.}
   - {name: ReadingComplete, meaning: The rollout is complete; reading the counts.}
   - {name: ReadingProgressing, meaning: The rollout is incomplete; reading the counts.}
-  - {name: Complete, meaning: Terminal. The rollout is complete.}
-  - {name: Progressing, meaning: Terminal. The rollout is still progressing.}
-  - {name: Unavailable, meaning: Terminal. The selected Deployment could not be read.}
+  - {name: Complete, meaning: Terminal. The rollout is complete., run_status: succeeded}
+  - {name: Progressing, meaning: Terminal. The rollout is still progressing., run_status: failed}
+  - {name: Unavailable, meaning: Terminal. The selected Deployment could not be read., run_status: failed}
 terminal_states:
   - Complete
   - Progressing

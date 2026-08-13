@@ -26,8 +26,8 @@ states:
   - {name: Exiting, meaning: Routing lifecycle exit.}
   - {name: StoppingMonitor, meaning: Stopping monitor REST server.}
   - {name: StoppingControl, meaning: Stopping control REST server.}
-  - {name: Done, meaning: Clean terminal shutdown.}
-  - {name: Failed, meaning: Boundary or lifecycle failure.}
+  - {name: Done, meaning: Clean terminal shutdown., run_status: succeeded}
+  - {name: Failed, meaning: Boundary or lifecycle failure., run_status: failed}
 terminal_states: [Done, Failed]
 signals:
   - {name: Seed, trigger: Startup.}

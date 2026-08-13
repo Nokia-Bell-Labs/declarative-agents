@@ -28,8 +28,8 @@ states:
   - {name: StoppingQuery, meaning: Stopping query REST.}
   - {name: StoppingMonitor, meaning: Stopping monitor REST.}
   - {name: StoppingControl, meaning: Stopping control REST.}
-  - {name: Done, meaning: Clean terminal shutdown.}
-  - {name: Failed, meaning: Boundary or lifecycle failure.}
+  - {name: Done, meaning: Clean terminal shutdown., run_status: succeeded}
+  - {name: Failed, meaning: Boundary or lifecycle failure., run_status: failed}
 terminal_states: [Done, Failed]
 signals:
   - {name: Seed, trigger: Startup.}

@@ -22,8 +22,10 @@ states:
   - name: Stopping
     meaning: The machine stops its owned listener.
   - name: Done
+    run_status: succeeded
     meaning: Terminal. The listener stopped without error.
   - name: Failed
+    run_status: failed
     meaning: Terminal. Launch or control failed.
 terminal_states: [Done, Failed]
 signals:

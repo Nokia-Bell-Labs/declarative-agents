@@ -17,10 +17,13 @@ states:
   - name: RecordingRejected
     meaning: The oracle failed and the rejecting verdict is being written.
   - name: Succeeded
+    run_status: succeeded
     meaning: Terminal. The oracle passed and an explicit accepting verdict was recorded.
   - name: Rejected
+    run_status: failed
     meaning: Terminal. The oracle failed and an explicit rejecting verdict was recorded.
   - name: Failed
+    run_status: failed
     meaning: Terminal. Infrastructure prevented evaluation or verdict recording.
 terminal_states:
   - Succeeded

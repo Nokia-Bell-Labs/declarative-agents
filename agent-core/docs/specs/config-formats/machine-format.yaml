@@ -158,10 +158,10 @@ schema:
         - Running
         - Done
 
-      Rich object form: a list of objects with name and optional
-      meaning and run_status metadata. The meaning field documents the state's
-      semantic purpose. Terminal states may declare run_status as succeeded,
-      failed, budget_exceeded, cancelled, or suspended.
+      Rich object form: a list of objects with name and optional meaning
+      metadata. The meaning field documents the state's semantic purpose.
+      Every terminal state must declare run_status as succeeded, failed,
+      budget_exceeded, cancelled, or suspended.
         states:
         - name: Idle
           meaning: Initial state before any work begins.
@@ -177,8 +177,8 @@ schema:
 
       Every state referenced in transitions, initial_state, and
       terminal_states must appear here.
-      run_status is valid only on terminal states. Omitted run_status uses the
-      legacy terminal-name default for backward compatibility.
+      run_status is valid only on terminal states and is required for each name
+      listed by terminal_states.
 
   - field: terminal_states
     type: "[]string"

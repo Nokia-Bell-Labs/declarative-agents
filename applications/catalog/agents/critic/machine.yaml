@@ -89,8 +89,10 @@ states:
 - name: Reporting
   meaning: Printing session summary (pass/fail/timeout counts, total duration).
 - name: Done
+  run_status: succeeded
   meaning: Terminal. All points evaluated and reported.
 - name: Failed
+  run_status: failed
   meaning: Terminal. Infrastructure error prevented evaluation.
 terminal_states:
 - Done

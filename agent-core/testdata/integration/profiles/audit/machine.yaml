@@ -10,8 +10,8 @@ states:
   - {name: Searching, meaning: Running declared grep checks.}
   - {name: Reducing, meaning: Reducing grep evidence.}
   - {name: Reporting, meaning: Formatting findings.}
-  - {name: Passed, meaning: Terminal success.}
-  - {name: Failed, meaning: Terminal failure.}
+  - {name: Passed, meaning: Terminal success., run_status: succeeded}
+  - {name: Failed, meaning: Terminal failure., run_status: failed}
 terminal_states: [Passed, Failed]
 signals:
   - {name: Seed, trigger: Loop initialization.}

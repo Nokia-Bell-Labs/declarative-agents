@@ -23,8 +23,10 @@ states:
 - name: ReadingHistory
   meaning: The checkpoint history command is running.
 - name: Done
+  run_status: succeeded
   meaning: Terminal. Checkpoint history was read.
 - name: Failed
+  run_status: failed
   meaning: Terminal. Checkpoint history could not be read.
 terminal_states:
 - Done

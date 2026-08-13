@@ -15,8 +15,10 @@ states:
   - name: Reading
     meaning: The dependency read has run; its signal decides the outcome.
   - name: Done
+    run_status: succeeded
     meaning: Terminal. The dependency answered.
   - name: Failed
+    run_status: failed
     meaning: Terminal. The dependency did not answer as contracted.
 terminal_states: [Done, Failed]
 signals:

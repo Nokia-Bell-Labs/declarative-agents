@@ -21,8 +21,10 @@ states:
   - name: Posting
     meaning: The lifecycle-exit request is in flight to the control server.
   - name: Done
+    run_status: succeeded
     meaning: Terminal. The control server accepted the exit request.
   - name: Failed
+    run_status: failed
     meaning: Terminal. The control-server call failed.
 terminal_states:
   - Done

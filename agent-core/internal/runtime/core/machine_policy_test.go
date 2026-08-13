@@ -37,6 +37,13 @@ func TestValidateMachinePolicyRequiresResumeSignalAndIterationBudget(t *testing.
 		BudgetSpec:   &BudgetSpec{MaxIterations: 10},
 		Signals:      SignalSpecsFromNames(string(AwaitApproval), "Continue"),
 	}))
+
+	err = ValidateRequiredMachinePolicy(MachineSpec{
+		BudgetSpec:     &BudgetSpec{MaxIterations: 10},
+		States:         StateSpecs{{Name: "Done"}},
+		TerminalStates: []string{"Done"},
+	})
+	require.ErrorContains(t, err, "states.Done.run_status")
 }
 
 func TestMachinePolicyDiagnosticsNameRemainingImplicitDefaults(t *testing.T) {

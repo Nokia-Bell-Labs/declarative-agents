@@ -131,8 +131,10 @@ states:
 - name: CollectingFailureMetrics
   meaning: Writing failure metadata through the shared collect_metrics word.
 - name: Done
+  run_status: succeeded
   meaning: Terminal. Evaluation point completed successfully.
 - name: Failed
+  run_status: failed
   meaning: Terminal. An infrastructure error prevented evaluation.
 terminal_states:
 - Done

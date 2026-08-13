@@ -50,10 +50,13 @@ states:
   - name: Counting
     meaning: The collection item count is being read for verification.
   - name: Succeeded
+    run_status: succeeded
     meaning: Terminal. The corpus was ingested and the count verified.
   - name: Failed
+    run_status: failed
     meaning: Terminal. A REST, read, embedding, or model boundary word failed.
   - name: BudgetExceeded
+    run_status: budget_exceeded
     meaning: Terminal. The loop exhausted its iteration or parse-error budget.
 terminal_states:
   - Succeeded

@@ -86,10 +86,13 @@ states:
   meaning: |
     Lint passed. The test validation command is running.
 - name: Succeeded
+  run_status: succeeded
   meaning: Terminal. Validation passed — the task is complete.
 - name: Failed
+  run_status: failed
   meaning: Terminal. An unrecoverable error or validation failure occurred.
 - name: BudgetExceeded
+  run_status: budget_exceeded
   meaning: Terminal. Iteration or token budget was exhausted.
 terminal_states:
 - Succeeded

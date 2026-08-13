@@ -23,8 +23,10 @@ states:
 - name: RollingBack
   meaning: The checkpoint rollback command is running.
 - name: Done
+  run_status: succeeded
   meaning: Terminal. Rollback completed.
 - name: Failed
+  run_status: failed
   meaning: Terminal. Rollback failed.
 terminal_states:
 - Done
