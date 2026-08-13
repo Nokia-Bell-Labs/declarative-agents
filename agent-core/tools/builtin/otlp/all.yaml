@@ -898,7 +898,7 @@ tools:
   - Does not mutate, rotate, or delete spool files.
   parameters: {type: object, properties: {}}
   output:
-    description: All spooled records for one metric name.
+    description: One bounded page of spooled records for one metric name; total reports all matching records.
     schema:
       type: object
       properties:
