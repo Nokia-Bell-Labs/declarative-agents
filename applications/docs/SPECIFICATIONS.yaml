@@ -21,9 +21,7 @@ overview: |
   checks parse documents, verify module classification and root orchestration,
   enforce ownership-aware stats, and invoke application-owned capability
   evidence. The runnable set is chatbot-mesh, coding-agent,
-  agent-architecture, and Prose Editor. Prose Editor contributes three local
-  agents and reports one canonical corpus-reader wrapper separately. Agent
-  Architecture's runnable-module evidence is implemented;
+  and agent-architecture. Agent Architecture's runnable-module evidence is implemented;
   its managed-service status is partial because live srd002 AC1 through AC3
   observations remain dependency-gated. ENG01 remains the sole kind-rig
   contract.
@@ -54,9 +52,9 @@ roadmap_summary:
     status: implemented
     evidence: |
       The SRD, cross-application use case, and eight-case test suite are
-      reciprocal and executable. Root conformance tests validate all four
+      reciprocal and executable. Root conformance tests validate all three
       manifests, ownership, package assets, canonical applier promotion, shared
-      UI tokens, README/status classification, and runnable Prose evidence.
+      UI tokens, and README/status classification.
 
 foundation_document_index:
   - id: application-composition-pattern-language
@@ -183,10 +181,10 @@ coverage_gaps:
   - id: release-14-application-normalization
     status: implemented
     description: |
-      The four showcase applications now have validated manifests and normalized
+      The three showcase applications have validated manifests and normalized
       ownership. Coding Agent and Agent Architecture are composition-only with
-      local composition wrappers; Chatbot Mesh and Prose Editor are agent-owning
-      while reporting wrappers separately. TC1 through TC8 are executable.
+      local composition wrappers; Chatbot Mesh is agent-owning while reporting
+      wrappers separately. TC1 through TC8 are executable.
   - id: knowledge-manager-live-managed-service-evidence
     status: dependency_gated
     description: |

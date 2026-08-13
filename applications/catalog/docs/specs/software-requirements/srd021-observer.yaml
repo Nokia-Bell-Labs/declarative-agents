@@ -47,7 +47,7 @@ requirements:
     items:
       - R4.1: Coding-agent and agent-architecture SHALL each deploy the catalog observer family as a workload pointed at their own release label selector and namespace, adopting the family by reference.
       - R4.2: The chatbot-mesh observer SHALL rebind to the catalog family, retaining the descriptive observer actor name via the historical_aliases pattern used by the catalog role-catalog renames.
-      - R4.3: Prose-editor adoption follows its own topology-and-observability SRD work; it is out of scope for this family SRD.
+      - R4.3: Prose Editor is downstream-owned and is not an in-repository adopter of this family.
 
 non_goals:
   - Shipping the catalog observer profile, tools, and UX (that is the adoption implementation, tracked separately).

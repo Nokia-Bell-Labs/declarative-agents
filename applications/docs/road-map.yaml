@@ -174,8 +174,8 @@ releases:
     name: Application consistency and conformance
     description: |
       Implement one capability-aware composition, actor, package, UI, README, and
-      status contract for Chatbot Mesh, Coding Agent, Agent Architecture, and
-      Prose Editor. agents/application.yaml becomes the composition authority.
+      status contract for Chatbot Mesh, Coding Agent, and Agent Architecture.
+      agents/application.yaml becomes the composition authority.
       Packaged closures and provenance derive from it, while absent optional
       capabilities require no empty directories.
     status: implemented
@@ -209,7 +209,7 @@ releases:
         summary: |
           Parse and trace shared documents, then validate manifests, actor
           grammar, package derivation, UI tokens, README/status agreement, the
-          four-application matrix, and root audit.
+          three-application matrix, and root audit.
         status: implemented
         implemented_cases: [TC1, TC2, TC3, TC4, TC5, TC6, TC7, TC8]
         planned_cases: []
@@ -230,9 +230,6 @@ releases:
         action: Normalize Agent Architecture manifest, applier ownership, package/UI roots, and stale capability status.
         status: implemented
       - order: 6
-        action: Verify Prose Editor's runnable tracer with three local agents and one canonical wrapper.
-        status: implemented
-      - order: 7
         action: Run the full Release 14.0 suite and close only evidence-backed capability states.
         status: implemented
     current_application_evidence:
@@ -259,14 +256,6 @@ releases:
           Canonical curator, collector, lifecycle-exit, and applier behavior
           remains catalog-owned. The local applier is one composition wrapper,
           and package/UI assets derive from the manifest.
-      - path: applications/prose-editor
-        module_state: runnable
-        ownership: agent-owning
-        release_14_status: implemented
-        note: |
-          The deterministic tracer contributes three local agents and composes
-          one canonical corpus-reader wrapper. Optional service, package, Helm,
-          kind, and UI capabilities remain not_applicable.
     evidence_status:
       shared_documents: implemented
       reciprocal_traceability: implemented
@@ -274,12 +263,11 @@ releases:
       current_root_audit: implemented
       cross_application_manifest_validation: implemented
       application_normalization: implemented
-      prose_runnable_classification: implemented
     implementation_evidence:
       - path: applications/docs/specs/software-requirements/srd003-application-consistency.yaml
         proves: Numbered capability-aware composition consistency requirements and acceptance criteria.
       - path: applications/docs/specs/use-cases/rel14.0-uc001-application-consistency.yaml
-        proves: Four-application flow, ownership touchpoints, and runnable Prose classification.
+        proves: Three-application flow and ownership touchpoints.
       - path: applications/docs/specs/test-suites/test-rel14.0-application-consistency.yaml
         proves: Requirement-to-AC-to-flow-to-test coverage and eight executable cases.
       - path: applications/docs/ARCHITECTURE.yaml

@@ -19,7 +19,6 @@ var lintModuleDirs = []string{
 	"applications/chatbot-mesh",
 	"applications/coding-agent",
 	"applications/agent-architecture",
-	"applications/prose-editor",
 	"design-patterns/magefiles",
 }
 

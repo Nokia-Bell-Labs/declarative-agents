@@ -120,10 +120,7 @@ configuration:
     applications/chatbot-mesh/magefiles/integration_helm.go reads SSL_CERT_FILE, the
     OS and Go name for the host CA bundle. Values a parent sets on a child it owns:
     magefiles/uidist.go reads the release-gate variable magefiles/tag.go sets on the
-    gate it launches, and applications/prose-editor/cmd/prose-editor-tracer-boundary
-    reads its per-run workspace, fixtures, session, scenario, and fault because the
-    tracer integration reaches it through the agent, which runs it as a declared
-    exec tool whose argv is fixed in YAML.'
+    gate it launches.'
   - os.Environ is allowed for child-process inheritance. A caller may add environment entries on an exec.Cmd when a declared or third-party child contract requires them, including PATH prepends, KUBECONFIG, DOLT_ROOT_PATH, CGO_ENABLED, GOOS, DOCKER_BUILDKIT, and BD_NON_INTERACTIVE; those values do not authorize reading process environment as an application configuration channel. Reading one of those values back is sanctioned only where it is the child half of a contract a parent in this repository owns, or a third-party convention, and only with the annotation above.
 tool_language:
   rules:

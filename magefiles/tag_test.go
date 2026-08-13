@@ -479,8 +479,6 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/coding-agent"},
 		{name: "applications/agent-architecture integration", dir: "/release/applications/agent-architecture",
 			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/agent-architecture"},
-		{name: "applications/prose-editor integration", dir: "/release/applications/prose-editor",
-			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/prose-editor"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("release gates = %#v, want %#v", got, want)
@@ -520,15 +518,15 @@ func TestChatbotAndArchitectureReleaseGatesCanOverlap(t *testing.T) {
 	}
 }
 
-func TestApplicationReleaseStageStartsThreeLanesBeforeFourth(t *testing.T) {
+func TestApplicationReleaseStageStartsAllThreeLanes(t *testing.T) {
 	var applications []releaseGate
 	for _, gate := range releaseGates("/release") {
 		if gate.stage == 4 {
 			applications = append(applications, gate)
 		}
 	}
-	if len(applications) != 4 {
-		t.Fatalf("application gates = %d, want 4", len(applications))
+	if len(applications) != 3 {
+		t.Fatalf("application gates = %d, want 3", len(applications))
 	}
 	started := make(chan string, len(applications))
 	release := make(chan struct{})
@@ -542,7 +540,7 @@ func TestApplicationReleaseStageStartsThreeLanesBeforeFourth(t *testing.T) {
 				return nil
 			})
 	}()
-	first := map[string]bool{
+	startedLanes := map[string]bool{
 		<-started: true,
 		<-started: true,
 		<-started: true,
@@ -552,14 +550,9 @@ func TestApplicationReleaseStageStartsThreeLanesBeforeFourth(t *testing.T) {
 		"applications/coding-agent integration",
 		"applications/agent-architecture integration",
 	} {
-		if !first[want] {
-			t.Fatalf("first three lanes = %v, missing %q", first, want)
+		if !startedLanes[want] {
+			t.Fatalf("started lanes = %v, missing %q", startedLanes, want)
 		}
-	}
-	select {
-	case fourth := <-started:
-		t.Fatalf("fourth lane %q started before capacity was released", fourth)
-	default:
 	}
 	close(release)
 	if err := <-done; err != nil {
