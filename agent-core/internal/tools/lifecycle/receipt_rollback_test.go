@@ -52,6 +52,19 @@ func (b nonReverserStub) Build(core.Result) core.Command {
 	return undoStub{name: b.name}
 }
 
+type policyOnlyResolver struct{ spec core.ToolSpec }
+
+func (r policyOnlyResolver) Resolve(string) (core.Builder, bool) {
+	return nil, false
+}
+
+func (r policyOnlyResolver) SpecByName(name string) (core.ToolSpec, bool) {
+	if name != r.spec.Name {
+		return core.ToolSpec{}, false
+	}
+	return r.spec, true
+}
+
 // recordingReverter is a CheckpointReverter that only records the Revert call;
 // the receipt walk's inputs come from the Execution passed to rollbackViaReceipts.
 type recordingReverter struct {
@@ -135,6 +148,36 @@ func TestRollbackViaReceiptsCleanWhenAllReverse(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, report.Reverted)
+	require.Contains(t, report.Detail, "reversed 1, pending compensation 0, skipped 0, failed 0")
+}
+
+func TestRollbackViaReceiptsDeclaredNoopNeedsNoBuilderOrReceipt(t *testing.T) {
+	t.Parallel()
+	resolver := policyOnlyResolver{spec: core.ToolSpec{
+		Name: "read",
+		Rollback: core.RollbackPolicy{
+			Classification: "reversible",
+			Strategy:       "noop",
+		},
+	}}
+	execution := core.Execution{
+		{Iteration: 1, CommandName: "seed", Signal: core.ToolDone},
+		{Iteration: 2, CommandName: "read", Signal: core.ToolDone},
+	}
+
+	report, err := rollbackViaReceipts(rollbackViaReceiptsOptions{
+		Reverter:        &recordingReverter{},
+		Registry:        resolver,
+		RunID:           "run-noop",
+		Execution:       execution,
+		TargetIteration: 1,
+	})
+
+	require.NoError(t, err, report.Detail)
+	require.Equal(t, 1, report.Reverted)
+	require.Empty(t, report.Skipped)
+	require.Empty(t, report.PendingCompensation)
+	require.Contains(t, report.Detail, "step=1 read: undo: no-op")
 	require.Contains(t, report.Detail, "reversed 1, pending compensation 0, skipped 0, failed 0")
 }
 
