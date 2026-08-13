@@ -34,7 +34,6 @@ tools:
         description: "Read-only tool."
     reversibility:
       classification: reversible
-      undo: noop
       requires_confirmation: false
     undo:
       strategy: noop

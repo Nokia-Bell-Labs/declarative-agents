@@ -52,7 +52,6 @@ tools:
         description: "Appends the model response to the in-memory conversation history."
     reversibility:
       classification: reversible
-      undo: conversation_truncate
       requires_confirmation: false
     undo:
       strategy: conversation_truncate

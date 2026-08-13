@@ -36,7 +36,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Payment reads do not mutate local or remote state.
@@ -91,7 +90,6 @@ tools:
         state: async_request_recorded
     reversibility:
       classification: compensatable
-      undo: cancelPayment
     undo:
       strategy: compensating_action
       description: Cancel the payment when the configured service supports it.
@@ -142,7 +140,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: A readiness probe does not mutate remote state.
@@ -184,7 +181,7 @@ tools:
       - kind: state_read
         target: local_clock
         state: read_only
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Waiting changes no state.}
     errors:
       - signal: CommandError
@@ -236,7 +233,6 @@ tools:
         state: server_registered
     reversibility:
       classification: compensatable
-      undo: rest_server_stop
     undo:
       strategy: compensating_action
       description: Stop the owned listener through stop_payment_webhooks.
@@ -286,7 +282,6 @@ tools:
         state: event_consumed
     reversibility:
       classification: reversible
-      undo: queue_event_restore
     undo:
       strategy: queue_event_restore
       description: Restore the receipt-recorded event to the front of its server queue.
@@ -341,7 +336,6 @@ tools:
         state: server_stopped
     reversibility:
       classification: compensatable
-      undo: server_shutdown_or_user_action_compensation
     undo:
       strategy: server_shutdown_or_user_action_compensation
       description: The receipt records shutdown loss; MachineSpec must relaunch the trusted payment webhook definition.

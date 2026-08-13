@@ -33,7 +33,6 @@ tools:
     description: Stores commit provenance from the configured rev_parse exec word.
   reversibility:
     classification: reversible
-    undo: point_context_restore
     requires_confirmation: false
   undo:
     strategy: point_context_restore

@@ -147,7 +147,7 @@ func TestToolAuthoringIrreversibleConfirmation(t *testing.T) {
 		Target:      "release_registry",
 		Description: "Publishes immutable artifacts to external users.",
 	}}}
-	def.Reversibility = ToolReversibility{Classification: "irreversible", Undo: "none"}
+	def.Reversibility = ToolReversibility{Classification: "irreversible"}
 	def.Undo = ToolUndoContract{Strategy: "none", Description: "Publication cannot be undone safely."}
 
 	findings := ReviewToolAuthoring([]ToolDef{def}, ContractValidationOptions{Strict: true})

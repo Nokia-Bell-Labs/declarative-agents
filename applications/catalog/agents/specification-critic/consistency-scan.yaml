@@ -89,7 +89,7 @@ tools:
       - {kind: child_process, target: rg, state: read_only}
       - {kind: child_process, target: base64, state: read_only}
       - {kind: child_process, target: tr, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Scanning changes nothing.}
     errors:
       - signal: CommandError

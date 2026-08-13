@@ -108,9 +108,6 @@ func ValidateReceiptContract(def ToolDef) ContractFinding {
 // a receipt-consuming undo.
 func declaresReceiptConsumingUndo(def ToolDef) bool {
 	strategy := def.Undo.Strategy
-	if strategy == "" {
-		strategy = def.Reversibility.Undo
-	}
 	return strategy != "" && strategy != "noop"
 }
 

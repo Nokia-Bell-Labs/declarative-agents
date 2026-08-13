@@ -13,7 +13,6 @@ tools:
     description: Advances the current task's nodes to Done without choosing a route.
   reversibility:
     classification: reversible
-    undo: pipeline_state_restore
   undo:
     strategy: pipeline_state_restore
     description: Restore graph status and retry values from the receipt-recorded pre-completion snapshot.

@@ -16,7 +16,6 @@ tools:
     description: Updates only the current task to represent all ready requirements.
   reversibility:
     classification: reversible
-    undo: pipeline_state_restore
   undo:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded pipeline state captured before extraction.
@@ -75,7 +74,7 @@ tools:
     target: pipeline_state
     state: current_plan_seeded
     description: Sets only the current implementation plan from trusted profile configuration.
-  reversibility: {classification: reversible, undo: pipeline_state_restore}
+  reversibility: {classification: reversible}
   undo:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded pipeline state captured before plan seeding.
@@ -120,7 +119,7 @@ tools:
     target: requirement_graph
     state: selected_nodes_planning
     description: Advances selected current-task nodes to Planning.
-  reversibility: {classification: reversible, undo: pipeline_state_restore}
+  reversibility: {classification: reversible}
   undo:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded graph lifecycle before the mutation.

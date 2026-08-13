@@ -16,7 +16,6 @@ tools:
     description: Sets the parsed implementation plan on pipeline state.
   reversibility:
     classification: reversible
-    undo: pipeline_state_restore
   undo:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded pipeline and parse-retry state captured before parsing.

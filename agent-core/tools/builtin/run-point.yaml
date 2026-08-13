@@ -21,7 +21,6 @@ tools:
     description: Reports point start, failure, and terminal progress.
   reversibility:
     classification: compensatable
-    undo: nested_machine_compensation
   undo:
     strategy: compensating_action
     description: Restore evaluator session state and surface required nested-machine and workspace compensation.

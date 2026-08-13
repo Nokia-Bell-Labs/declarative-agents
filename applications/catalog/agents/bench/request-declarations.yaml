@@ -14,7 +14,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Evaluation session summaries, schema: {type: array}}
     side_effects: [{kind: filesystem_read, target: evaluation_artifacts, state: read_only}]
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Artifact queries change nothing.}
     errors: [{signal: CommandError, condition: Artifact reads fail, state_after_failure: No state changes.}]
     config: &evaluation_root {data_dir: eval-results}
@@ -83,7 +83,7 @@ tools:
     side_effects:
       - {kind: child_process, target: find, state: read_only}
       - {kind: filesystem_read, target: bench_configs, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Discovery changes nothing.}
     errors: [{signal: ToolFailed, condition: The agents root or find traversal fails, state_after_failure: No state changes.}]
 
@@ -102,7 +102,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Configuration resource entries, schema: {type: array}}
     side_effects: [{kind: filesystem_read, target: bench_configs, state: read_only}]
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Resource reads change nothing.}
     errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: No state changes.}]
     config: &config_resource
@@ -179,7 +179,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Wrapped transform input, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Composition changes nothing.}
     errors: [{signal: CommandError, condition: Input composition fails, state_after_failure: No state changes.}]
     config:
@@ -222,7 +222,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Bench configuration categories, mode: raw, schema: {type: array}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Transform changes nothing.}
     errors: [{signal: ToolFailed, condition: jq cannot shape input, state_after_failure: No state changes.}]
 
@@ -253,7 +253,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Bench configuration detail, mode: raw, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Transform changes nothing.}
     errors: [{signal: ToolFailed, condition: jq cannot shape input, state_after_failure: No state changes.}]
 
@@ -305,6 +305,6 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Model profile summaries, mode: raw, schema: {type: array}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Profile reads change nothing.}
     errors: [{signal: ToolFailed, condition: Profile shaping fails, state_after_failure: No state changes.}]

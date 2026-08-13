@@ -239,7 +239,7 @@ func missingAuditFields(def ToolDef, category string) []string {
 		{"output.schema", len(def.Output.Schema) > 0},
 		{"side_effects", len(def.SideEffects.Items) > 0 || def.SideEffects.LegacyText != ""},
 		{"reversibility.classification", def.Reversibility.Classification != ""},
-		{"undo", def.Undo.Strategy != "" || def.Reversibility.Undo != "" || len(def.Requirements.Undo) > 0},
+		{"undo", def.Undo.Strategy != "" || len(def.Requirements.Undo) > 0},
 		{"errors", len(def.Errors) > 0 || len(def.Requirements.Errors) > 0},
 		{"relationships", len(def.Relationships.Before) > 0 || len(def.Relationships.After) > 0 || len(def.Relationships.Overlaps) > 0},
 	}
@@ -422,7 +422,7 @@ func missingReversibility(def ToolDef, category string, opts ContractValidationO
 }
 
 func missingUndo(def ToolDef, category string, opts ContractValidationOptions) ContractFinding {
-	if def.Undo.Strategy != "" || def.Reversibility.Undo != "" || len(def.Requirements.Undo) > 0 {
+	if def.Undo.Strategy != "" || len(def.Requirements.Undo) > 0 {
 		return ContractFinding{}
 	}
 	return ContractFinding{
@@ -431,7 +431,7 @@ func missingUndo(def ToolDef, category string, opts ContractValidationOptions) C
 		Severity:    severity(opts),
 		Category:    category,
 		Message:     fmt.Sprintf("tool %q is missing undo strategy", def.Name),
-		Remediation: "add undo.strategy or reversibility.undo describing noop, state restore, workspace restore, or compensation",
+		Remediation: "add undo.strategy describing noop, state restore, workspace restore, or compensation",
 	}
 }
 

@@ -16,7 +16,6 @@ tools:
     description: Updates only the current task cursor.
   reversibility:
     classification: reversible
-    undo: pipeline_state_restore
   undo:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded pipeline state captured before extraction.

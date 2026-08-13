@@ -36,7 +36,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: A heartbeat check does not mutate state.
@@ -89,7 +88,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: A version check does not mutate state.
@@ -141,7 +139,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Computing an embedding does not mutate state.
@@ -198,7 +195,6 @@ tools:
           the call leaves no net change to reverse.
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Create-or-get is idempotent for a stable collection name.
@@ -254,7 +250,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Querying a collection does not mutate state.
@@ -312,7 +307,6 @@ tools:
         description: Appends the model response after a successful provider call.
     reversibility:
       classification: reversible
-      undo: conversation_truncate
       requires_confirmation: false
     undo:
       strategy: conversation_truncate

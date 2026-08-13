@@ -34,7 +34,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: A chat turn against mocks changes nothing durable.

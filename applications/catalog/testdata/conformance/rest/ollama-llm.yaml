@@ -38,7 +38,6 @@ tools:
         description: Appends the model response after a successful provider call.
     reversibility:
       classification: reversible
-      undo: conversation_truncate
       requires_confirmation: false
     undo:
       strategy: conversation_truncate

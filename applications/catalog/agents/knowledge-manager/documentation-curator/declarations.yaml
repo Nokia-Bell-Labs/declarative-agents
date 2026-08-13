@@ -35,7 +35,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Listing documents does not mutate service or workspace state.
@@ -90,7 +89,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Fetching a document does not mutate service or workspace state.
@@ -148,7 +146,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Searching documents does not mutate service or workspace state.
@@ -204,7 +201,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Validation does not mutate service or workspace state.
@@ -261,7 +257,6 @@ tools:
         state: patch_suggestion_created
     reversibility:
       classification: compensatable
-      undo: doc_patch_reject
     undo:
       strategy: compensating_action
       description: Reject the created suggestion while it is still pending.
@@ -318,7 +313,6 @@ tools:
         state: patch_approved
     reversibility:
       classification: compensatable
-      undo: doc_patch_reject
     undo:
       strategy: compensating_action
       description: Reject the pending patch before it is applied.
@@ -374,7 +368,6 @@ tools:
         state: patch_rejected
     reversibility:
       classification: compensatable
-      undo: doc_patch_reopen
     undo:
       strategy: compensating_action
       description: Reopen the pending patch when the service supports it.
@@ -430,7 +423,6 @@ tools:
         state: patch_reopened
     reversibility:
       classification: compensatable
-      undo: doc_patch_reject
     undo:
       strategy: compensating_action
       description: Reject the reopened patch when review should remain closed.
@@ -486,7 +478,6 @@ tools:
         state: routes_registered
     reversibility:
       classification: compensatable
-      undo: rest_server_stop
     undo:
       strategy: compensating_action
       description: Stop the REST server if the launch command owns the listener.
@@ -542,7 +533,6 @@ tools:
         state: selected_event_consumed
     reversibility:
       classification: reversible
-      undo: queue_event_restore
     undo:
       strategy: queue_event_restore
       description: Restore the receipt-recorded event to the front of its source queue.
@@ -607,7 +597,6 @@ tools:
         state: listener_stopped
     reversibility:
       classification: compensatable
-      undo: server_shutdown_or_user_action_compensation
     undo:
       strategy: server_shutdown_or_user_action_compensation
       description: The receipt records shutdown loss; MachineSpec must relaunch the trusted monitor definition.

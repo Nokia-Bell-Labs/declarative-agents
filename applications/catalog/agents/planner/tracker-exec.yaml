@@ -65,7 +65,6 @@ tools:
     description: Creates one issue through the profile-selected tracker CLI.
   reversibility:
     classification: compensatable
-    undo: tracker_issue_close
     requires_confirmation: false
   undo:
     strategy: compensating_action

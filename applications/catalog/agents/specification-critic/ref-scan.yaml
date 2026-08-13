@@ -70,7 +70,7 @@ tools:
     output_cap: 2097152
     side_effects:
       - {kind: child_process, target: bash/rg/find, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Scanning changes nothing.}
     errors:
       - signal: CommandError

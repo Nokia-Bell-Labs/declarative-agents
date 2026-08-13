@@ -18,7 +18,6 @@ tools:
     description: Loads specification documents into validation state.
   reversibility:
     classification: reversible
-    undo: validation_state_restore
   undo:
     strategy: session_state_restore
     description: Restore validation state to the snapshot before loading the corpus.

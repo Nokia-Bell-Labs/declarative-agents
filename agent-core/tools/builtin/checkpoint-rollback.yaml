@@ -101,7 +101,6 @@ tools:
     description: Replays each reverted entry's restored, receipt-bearing Result into its tool's receipt-consuming Undo to reverse external effects; irreversible entries are skipped and logged.
   reversibility:
     classification: compensatable
-    undo: compensating_action
     receipt: compensatable_boundary_compensation
     requires_confirmation: true
   undo:

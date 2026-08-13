@@ -47,7 +47,6 @@ tools:
     description: Replaces text in one workspace file.
   reversibility:
     classification: reversible
-    undo: file_snapshot_restore
   undo:
     strategy: file_snapshot_restore
     description: Restore the prior file bytes and mode captured in the edit receipt.

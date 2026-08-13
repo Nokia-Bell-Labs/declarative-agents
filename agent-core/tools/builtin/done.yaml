@@ -12,7 +12,6 @@ tools:
     description: Emits TaskCompleted and does not mutate state.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Completion signaling has no effects to reverse.

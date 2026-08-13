@@ -7,7 +7,7 @@ tools:
     description: Launch the role's declared machine-request listener.
     category: boundary
     side_effects: [{kind: network_listen, target: role_requests, state: listener_started}]
-    reversibility: {classification: compensatable, undo: rest_server_stop}
+    reversibility: {classification: compensatable}
     undo: {strategy: compensating_action, description: Stop the request listener.}
     config: {rest_ref: role_requests}
 
@@ -19,7 +19,7 @@ tools:
     description: Launch the role's real lifecycle health and exit listener.
     category: boundary
     side_effects: [{kind: network_listen, target: role_control, state: listener_started}]
-    reversibility: {classification: compensatable, undo: rest_server_stop}
+    reversibility: {classification: compensatable}
     undo: {strategy: compensating_action, description: Stop the control listener.}
     config: {rest_ref: role_control}
 
@@ -31,7 +31,7 @@ tools:
     description: Keep the profile alive while selecting declared lifecycle events.
     category: boundary
     side_effects: [{kind: state_mutation, target: role_control_queue, state: selected_event_consumed}]
-    reversibility: {classification: irreversible, undo: noop}
+    reversibility: {classification: irreversible}
     undo: {strategy: noop, description: Consumed lifecycle events are not restored.}
     config:
       sources:
@@ -47,6 +47,6 @@ tools:
     description: Drain and stop the role's request listener during lifecycle exit.
     category: boundary
     side_effects: [{kind: network_listener_shutdown, target: role_requests, state: listener_stopped}]
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Relaunch is a separate machine action.}
     config: {rest_ref: role_requests}

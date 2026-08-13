@@ -58,7 +58,6 @@ tools:
     description: Records controlled exit intent through an injected runtime dependency.
   reversibility:
     classification: compensatable
-    undo: compensating_action
     requires_confirmation: true
   undo:
     strategy: compensating_action

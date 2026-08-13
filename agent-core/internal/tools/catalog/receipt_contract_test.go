@@ -15,7 +15,8 @@ func reversibleWriteDef() ToolDef {
 	return ToolDef{
 		Name:          "write",
 		Type:          "builtin",
-		Reversibility: ToolReversibility{Classification: "reversible", Undo: "workspace_restore"},
+		Reversibility: ToolReversibility{Classification: "reversible"},
+		Undo:          ToolUndoContract{Strategy: "workspace_restore"},
 		SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: "filesystem_write"}}},
 	}
 }
@@ -55,7 +56,8 @@ func TestValidateReceiptPresenceIgnoresReadOnlyReversibleTool(t *testing.T) {
 
 	def := ToolDef{
 		Name:          "find",
-		Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+		Reversibility: ToolReversibility{Classification: "reversible"},
+		Undo:          ToolUndoContract{Strategy: "noop"},
 		SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: "filesystem_read"}}},
 	}
 
@@ -95,7 +97,8 @@ func TestValidateReceiptContractFailsMutatingReversibleWithNoopUndo(t *testing.T
 
 	def := ToolDef{
 		Name:          "write",
-		Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+		Reversibility: ToolReversibility{Classification: "reversible"},
+		Undo:          ToolUndoContract{Strategy: "noop"},
 		SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: "filesystem_write"}}},
 	}
 
@@ -112,7 +115,8 @@ func TestValidateReceiptContractIgnoresReadOnlyReversibleTool(t *testing.T) {
 
 	def := ToolDef{
 		Name:          "find",
-		Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+		Reversibility: ToolReversibility{Classification: "reversible"},
+		Undo:          ToolUndoContract{Strategy: "noop"},
 		SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: "filesystem_read"}}},
 	}
 
@@ -130,7 +134,8 @@ func TestValidateReceiptContractIgnoresReadOnlyStateThroughMutatingKind(t *testi
 	for _, kind := range []string{"external_api", "child_process"} {
 		def := ToolDef{
 			Name:          "read_" + kind,
-			Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+			Reversibility: ToolReversibility{Classification: "reversible"},
+			Undo:          ToolUndoContract{Strategy: "noop"},
 			SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: kind, State: "read_only"}}},
 		}
 
@@ -147,7 +152,8 @@ func TestValidateReceiptContractIgnoresProcessLocalListenerShutdown(t *testing.T
 	// restart, so a reversible server-lifecycle word producing it needs no receipt.
 	def := ToolDef{
 		Name:          "stop_server",
-		Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+		Reversibility: ToolReversibility{Classification: "reversible"},
+		Undo:          ToolUndoContract{Strategy: "noop"},
 		SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: "network_listener_shutdown", State: "listener_stopped"}}},
 	}
 
@@ -162,7 +168,8 @@ func TestValidateReceiptContractFailsMutatingStateThroughSameKind(t *testing.T) 
 	// The same kind without a read_only state is still a mutation needing a receipt.
 	def := ToolDef{
 		Name:          "write_external",
-		Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+		Reversibility: ToolReversibility{Classification: "reversible"},
+		Undo:          ToolUndoContract{Strategy: "noop"},
 		SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: "external_api", State: "records_added"}}},
 	}
 

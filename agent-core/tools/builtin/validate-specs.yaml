@@ -16,7 +16,6 @@ tools:
     description: Records validation findings in validation state.
   reversibility:
     classification: reversible
-    undo: validation_state_restore
   undo:
     strategy: session_state_restore
     description: Restore validation state to the snapshot before running checks.

@@ -19,7 +19,7 @@ tools:
       schema: {type: object}
     side_effects:
       - {kind: network_listen, target: collector_control, state: listener_started}
-    reversibility: {classification: compensatable, undo: rest_server_stop}
+    reversibility: {classification: compensatable}
     undo: {strategy: compensating_action, description: Stop the owned control listener.}
     errors:
       - {signal: CommandError, condition: config or bind failure, state_after_failure: no new control listener remains}
@@ -44,7 +44,7 @@ tools:
     output: {description: REST launch result, schema: {type: object}}
     side_effects:
       - {kind: network_listen, target: collector_monitor, state: listener_started}
-    reversibility: {classification: compensatable, undo: rest_server_stop}
+    reversibility: {classification: compensatable}
     undo: {strategy: compensating_action, description: Stop the owned monitor listener.}
     errors:
       - {signal: CommandError, condition: config or bind failure, state_after_failure: no new monitor listener remains}
@@ -69,7 +69,7 @@ tools:
     output: {description: REST launch result, schema: {type: object}}
     side_effects:
       - {kind: network_listen, target: collector_query, state: listener_started}
-    reversibility: {classification: compensatable, undo: rest_server_stop}
+    reversibility: {classification: compensatable}
     undo: {strategy: compensating_action, description: Stop the owned query listener.}
     errors:
       - {signal: CommandError, condition: config or bind failure, state_after_failure: no new query listener remains}
@@ -91,7 +91,7 @@ tools:
     output: {description: REST stop result, schema: {type: object}}
     side_effects:
       - {kind: network_listener_shutdown, target: collector_query, state: listener_stopped}
-    reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+    reversibility: {classification: compensatable}
     undo:
       strategy: server_shutdown_or_user_action_compensation
       description: The receipt records shutdown loss; MachineSpec must relaunch the trusted query definition.
@@ -120,7 +120,7 @@ tools:
     output: {description: Selected lifecycle event, schema: {type: object}}
     side_effects:
       - {kind: state_mutation, target: rest_server_queue, state: selected_event_consumed}
-    reversibility: {classification: reversible, undo: queue_event_restore}
+    reversibility: {classification: reversible}
     undo:
       strategy: queue_event_restore
       description: Restore the receipt-recorded event to the front of its source queue.
@@ -153,7 +153,7 @@ tools:
     output: {description: Predicate result, schema: {type: object}}
     side_effects:
       - {kind: none, target: batch metadata, state: unchanged}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Comparison changes nothing.}
     errors:
       - {signal: CommandError, condition: selector or coercion failure, state_after_failure: no branch outcome is emitted}
@@ -184,7 +184,7 @@ tools:
     output: {description: Spool result and batch, schema: {type: object}}
     side_effects:
       - {kind: filesystem_write, target: collector trace spool, state: durable_lines_appended}
-    reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
+    reversibility: {classification: irreversible, requires_confirmation: true}
     undo: {strategy: irreversible, description: Audit evidence remains retained and cannot be removed safely after rotation.}
     errors:
       - {signal: CommandError, condition: selection or filesystem failure, state_after_failure: command-state source remains}
@@ -213,7 +213,7 @@ tools:
     output: {description: Metric batch and bounded metadata, schema: {type: object}}
     side_effects:
       - {kind: state_mutation, target: receiver metric queue, state: consumes one FIFO metric batch}
-    reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
+    reversibility: {classification: irreversible, requires_confirmation: true}
     undo: {strategy: irreversible, description: A consumed concurrent queue item cannot be restored in original order.}
     errors:
       - {signal: CommandError, condition: receiver is absent or the wait is canceled, state_after_failure: no metric batch is returned}
@@ -240,7 +240,7 @@ tools:
     output: {description: Metric spool result and batch, schema: {type: object}}
     side_effects:
       - {kind: filesystem_write, target: collector metric spool, state: durable_lines_appended}
-    reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
+    reversibility: {classification: irreversible, requires_confirmation: true}
     undo: {strategy: irreversible, description: Audit evidence remains retained and cannot be removed safely after rotation.}
     errors:
       - {signal: CommandError, condition: selection or filesystem failure, state_after_failure: command-state source remains}
@@ -269,7 +269,7 @@ tools:
     output: {description: Mode predicate result, schema: {type: object}}
     side_effects:
       - {kind: none, target: mode literal, state: unchanged}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Comparison changes nothing.}
     errors:
       - {signal: CommandError, condition: malformed mode predicate, state_after_failure: relay is not invoked}
@@ -305,7 +305,7 @@ tools:
         required: [endpoint, span_count]
     side_effects:
       - {kind: external_api, target: OTLP collector endpoint, state: spans_may_be_retained}
-    reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
+    reversibility: {classification: irreversible, requires_confirmation: true}
     undo: {strategy: irreversible, description: OTLP cannot retract accepted spans.}
     errors:
       - {signal: CommandError, condition: selection transport or rejection failure, state_after_failure: spool evidence remains}
@@ -331,7 +331,7 @@ tools:
     output: {description: REST stop result, schema: {type: object}}
     side_effects:
       - {kind: network_listener_shutdown, target: collector_monitor, state: listener_stopped}
-    reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+    reversibility: {classification: compensatable}
     undo:
       strategy: server_shutdown_or_user_action_compensation
       description: The receipt records shutdown loss; MachineSpec must relaunch the trusted monitor definition.
@@ -357,7 +357,7 @@ tools:
     output: {description: REST stop result, schema: {type: object}}
     side_effects:
       - {kind: network_listener_shutdown, target: collector_control, state: listener_stopped}
-    reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+    reversibility: {classification: compensatable}
     undo:
       strategy: server_shutdown_or_user_action_compensation
       description: The receipt records shutdown loss; MachineSpec must relaunch the trusted control definition.

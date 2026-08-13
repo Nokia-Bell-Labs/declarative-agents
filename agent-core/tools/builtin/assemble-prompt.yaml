@@ -13,7 +13,6 @@ tools:
     description: Projects structured planner context without mutating state.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Prompt assembly has no effects to reverse.
@@ -68,7 +67,7 @@ tools:
   emits: [FailureCaptured, CommandError]
   category: word
   side_effects: [{kind: none, description: Wraps prior output without domain mutation.}]
-  reversibility: {classification: reversible, undo: noop}
+  reversibility: {classification: reversible}
   undo: {strategy: noop, description: History truncation removes captured context.}
   problem: Retry prompt composition needs the prior validation failure rather than a compiled nil context.
   goals: [Publish prior failure output as a command-state-addressable object.]

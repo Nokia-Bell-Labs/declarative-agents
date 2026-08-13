@@ -12,7 +12,6 @@ tools:
     description: Formats the previous edit result with a re-read instruction without mutating state.
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: The nudge only changes the command output passed to the next transition.

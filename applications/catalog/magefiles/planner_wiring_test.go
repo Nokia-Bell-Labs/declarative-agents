@@ -56,7 +56,6 @@ type plannerDeclaration struct {
 	} `yaml:"output"`
 	Reversibility struct {
 		Classification string `yaml:"classification"`
-		Undo           string `yaml:"undo"`
 	} `yaml:"reversibility"`
 	Undo struct {
 		Strategy string `yaml:"strategy"`
@@ -336,9 +335,6 @@ func TestPlannerInvokeExecutorDeclaresSelfInvokeCompensation(t *testing.T) {
 		}
 		if declaration.Reversibility.Classification != "compensatable" {
 			t.Fatalf("invoke_executor reversibility = %q, want compensatable", declaration.Reversibility.Classification)
-		}
-		if declaration.Reversibility.Undo != "child_agent_workspace_restore" {
-			t.Fatalf("invoke_executor reversibility undo = %q, want child_agent_workspace_restore", declaration.Reversibility.Undo)
 		}
 		if declaration.Undo.Strategy != "compensating_action" {
 			t.Fatalf("invoke_executor undo strategy = %q, want compensating_action", declaration.Undo.Strategy)

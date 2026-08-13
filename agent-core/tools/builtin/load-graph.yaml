@@ -15,7 +15,6 @@ tools:
     description: Loads the corpus and builds the requirement graph, seeding pipeline state for extraction.
   reversibility:
     classification: reversible
-    undo: pipeline_state_restore
   undo:
     strategy: pipeline_state_restore
     description: Restore graph presence and receipt-recorded pipeline values captured before loading.

@@ -68,7 +68,7 @@ func writeFileRollbackProgram(t *testing.T) string {
     type: builtin
     init: file_write
     visibility: internal
-    reversibility: {classification: reversible, undo: file_snapshot_restore}
+    reversibility: {classification: reversible}
     undo: {strategy: file_snapshot_restore, description: restore prior file}
 `)
 	profile := filepath.Join(dir, "profile.yaml")

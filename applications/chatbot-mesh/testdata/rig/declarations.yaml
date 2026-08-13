@@ -35,7 +35,6 @@ tools:
         state: work_list_seeded
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: irreversible
       description: A seeded work list is replaced by a new run, not restored.
@@ -89,7 +88,6 @@ tools:
         state: cursor_advanced
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: irreversible
       description: A consumed cursor position is not restored.
@@ -139,7 +137,6 @@ tools:
         state: mocks_recorded
     reversibility:
       classification: compensatable
-      undo: stop_service
     undo:
       strategy: compensating_action
       description: Decode the per-item receipt and stop only this mock.
@@ -195,7 +192,6 @@ tools:
         state: subject_recorded
     reversibility:
       classification: compensatable
-      undo: stop_service
     undo:
       strategy: compensating_action
       description: Decode the subject receipt and stop only that child.
@@ -242,7 +238,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: A health read changes no state.
@@ -290,7 +285,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Waiting changes no state.
@@ -347,7 +341,6 @@ tools:
         state: validator_completed
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: irreversible
       description: A validator run that already drove the subject cannot be unrun.
@@ -396,7 +389,6 @@ tools:
         state: outcomes_recorded
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: irreversible
       description: Recorded outcomes remain part of this scenario's report.
@@ -445,7 +437,6 @@ tools:
         state: verdict_recorded
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
@@ -490,7 +481,6 @@ tools:
         state: verdict_recorded
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
@@ -540,7 +530,6 @@ tools:
         state: verdict_recorded
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
@@ -590,7 +579,6 @@ tools:
         state: verdict_recorded
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
@@ -640,7 +628,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Listing children changes no state.
@@ -686,7 +673,6 @@ tools:
         state: child_stopped
     reversibility:
       classification: irreversible
-      undo: noop
     undo:
       strategy: irreversible
       description: A stopped child is restarted by a new scenario, not by undo.
@@ -727,7 +713,7 @@ tools:
         required: [stopped, children]
     side_effects:
       - {kind: child_process, target: all_tracked_scenario_children, state: stopped}
-    reversibility: {classification: irreversible, undo: irreversible}
+    reversibility: {classification: irreversible}
     undo: {strategy: irreversible, description: Recovery stops leaked children and does not restart them.}
     errors: []
 
@@ -769,7 +755,6 @@ tools:
         state: read_only
     reversibility:
       classification: reversible
-      undo: noop
     undo:
       strategy: noop
       description: Reporting reads the collected verdicts and changes nothing.

@@ -13,7 +13,7 @@ tools:
         workspace_id: {type: string}
     side_effects:
       - {kind: external_api, target: coding_executor.execute, state: workspace_mutated}
-    reversibility: {classification: compensatable, undo: workspace_restore}
+    reversibility: {classification: compensatable}
     undo: {strategy: compensating_action, description: Restore the external workspace checkpoint.}
     config: {rest_ref: executor, operation: execute}
 
@@ -30,6 +30,6 @@ tools:
         workspace_id: {type: string}
     side_effects:
       - {kind: external_api, target: coding_critic.review, state: verdict_recorded}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: The critic verdict is an explicit workspace artifact.}
     config: {rest_ref: critic, operation: review}

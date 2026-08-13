@@ -33,7 +33,7 @@ tools:
     side_effects:
       - {kind: child_process, target: find, state: read_only}
       - {kind: filesystem_read, target: docs, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Discovery changes nothing.}
     errors: [{signal: ToolFailed, condition: The docs root or find traversal fails, state_after_failure: No state changes.}]
 
@@ -54,7 +54,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Documentation resource entries, schema: {type: array}}
     side_effects: [{kind: filesystem_read, target: docs, state: read_only}]
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Resource listing changes nothing.}
     errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: No state changes.}]
     config: &docs_resource
@@ -94,7 +94,7 @@ tools:
     parameters: {type: object, properties: {path: {type: string}}, required: [path]}
     output: {description: Documentation detail, schema: {type: object}}
     side_effects: [{kind: filesystem_read, target: docs, state: read_only}]
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Resource reads change nothing.}
     errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: No state changes.}]
     config: *docs_resource
@@ -116,7 +116,7 @@ tools:
     parameters: {type: object, properties: {path: {type: string}}, required: [path]}
     output: {description: Config detail, schema: {type: object}}
     side_effects: [{kind: filesystem_read, target: configs, state: read_only}]
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Config reads change nothing.}
     errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: No state changes.}]
     config:
@@ -146,7 +146,7 @@ tools:
     parameters: {type: object, properties: {path: {type: string}}, required: [path]}
     output: {description: Source detail, schema: {type: object}}
     side_effects: [{kind: filesystem_read, target: workspace_source, state: read_only}]
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Source reads change nothing.}
     errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: No state changes.}]
     config:
@@ -176,7 +176,7 @@ tools:
     parameters: {type: object, properties: {path: {type: string}}, required: [path]}
     output: {description: Persisted review detail, schema: {type: object}}
     side_effects: [{kind: filesystem_read, target: curator_reviews, state: read_only}]
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Review reads change nothing.}
     errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: Review is unchanged.}]
     config:
@@ -204,7 +204,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Wrapped index input, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Composition changes nothing.}
     errors: [{signal: CommandError, condition: Composition fails, state_after_failure: No state changes.}]
     config:
@@ -229,7 +229,7 @@ tools:
     parameters: {type: object, properties: {}}
     output: {description: Document index response, mode: raw, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: jq changes nothing.}
     errors: [{signal: ToolFailed, condition: Input is invalid JSON, state_after_failure: No state changes.}]
 
@@ -301,7 +301,7 @@ tools:
     output: {description: ripgrep JSON event stream, mode: structured, schema: {type: object}}
     output_cap: 1048576
     side_effects: [{kind: child_process, target: rg, state: read_only}]
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Search changes nothing.}
     errors: [{signal: ToolFailed, condition: No matches or rg rejects input, state_after_failure: No state changes.}]
 
@@ -339,7 +339,7 @@ tools:
       required: [query]
     output: {description: Search response JSON, mode: raw, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Response shaping changes nothing.}
     errors: [{signal: ToolFailed, condition: jq cannot shape rg output, state_after_failure: No state changes.}]
 
@@ -421,7 +421,7 @@ tools:
       required: [path, instruction]
     output: {description: Hash material, mode: structured, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Composition changes nothing.}
     errors: [{signal: CommandError, condition: A command-state source is unresolved, state_after_failure: No artifact exists.}]
 
@@ -441,7 +441,7 @@ tools:
     parameters: {type: object, properties: {}}
     output: {description: SHA-256 output, mode: structured, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Hashing changes nothing.}
     errors: [{signal: ToolFailed, condition: sha256sum fails, state_after_failure: No artifact exists.}]
 
@@ -485,7 +485,7 @@ tools:
       required: [path, instruction, hash]
     output: {description: Review write request, mode: raw, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Building output changes nothing.}
     errors: [{signal: ToolFailed, condition: jq cannot build the artifact, state_after_failure: No artifact exists.}]
 
@@ -506,7 +506,7 @@ tools:
       required: [path, content]
     output: {description: Filesystem write result, schema: {type: string}}
     side_effects: [{kind: filesystem_write, target: curator_reviews, state: review_persisted}]
-    reversibility: {classification: reversible, undo: file_restore}
+    reversibility: {classification: reversible}
     undo: {strategy: workspace_restore, description: Restore the prior file snapshot from the receipt.}
     errors: [{signal: CommandError, condition: Path or write fails, state_after_failure: Receipt rollback restores prior state when available.}]
 
@@ -568,7 +568,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Review status predicate, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Comparison changes nothing.}
     errors: [{signal: CommandError, condition: Review status cannot resolve, state_after_failure: Review remains unchanged.}]
     config:
@@ -612,7 +612,7 @@ tools:
       required: [status, decided_by]
     output: {description: Decision write request, mode: raw, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Building output changes nothing.}
     errors: [{signal: ToolFailed, condition: jq cannot build the decision, state_after_failure: Review remains unchanged.}]
 

@@ -249,8 +249,27 @@ func (se ToolSideEffects) IsZero() bool {
 // ToolReversibility classifies whether a tool's effects can be undone.
 type ToolReversibility struct {
 	Classification       string `yaml:"classification,omitempty"`
-	Undo                 string `yaml:"undo,omitempty"`
 	RequiresConfirmation bool   `yaml:"requires_confirmation,omitempty"`
+}
+
+func (tr *ToolReversibility) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind != yaml.MappingNode {
+		return fmt.Errorf("reversibility must be a mapping")
+	}
+	for i := 0; i < len(value.Content); i += 2 {
+		switch value.Content[i].Value {
+		case "classification", "receipt", "requires_confirmation":
+		default:
+			return fmt.Errorf("reversibility has unknown field %q", value.Content[i].Value)
+		}
+	}
+	type wire ToolReversibility
+	var decoded wire
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+	*tr = ToolReversibility(decoded)
+	return nil
 }
 
 // ToolUndoContract describes how to reverse or compensate tool effects.

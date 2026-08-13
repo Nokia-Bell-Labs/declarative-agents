@@ -21,7 +21,6 @@ tools:
         state: selected_event_consumed
     reversibility:
       classification: reversible
-      undo: queue_event_restore
     undo:
       strategy: queue_event_restore
       payload: rest_await_event

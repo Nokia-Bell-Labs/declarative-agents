@@ -13,7 +13,6 @@ tools:
         description: "Read-only tool."
     reversibility:
       classification: reversible
-      undo: noop
       requires_confirmation: false
     undo:
       strategy: noop
@@ -30,7 +29,6 @@ tools:
         description: "Computes in memory."
     reversibility:
       classification: reversible
-      undo: noop
       requires_confirmation: false
     undo:
       strategy: noop
@@ -47,7 +45,6 @@ tools:
         description: "Writes the summary artifact."
     reversibility:
       classification: reversible
-      undo: workspace_restore
       requires_confirmation: false
     undo:
       strategy: workspace_restore

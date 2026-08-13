@@ -26,7 +26,7 @@ tools:
           skipped_lines: {type: integer}
     side_effects:
       - {kind: filesystem_read, target: collector trace spool, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Reading a spool changes nothing.}
     errors:
       - {signal: CommandError, condition: spool path cannot be read, state_after_failure: no output is returned}
@@ -62,7 +62,7 @@ tools:
           skipped_lines: {type: integer}
     side_effects:
       - {kind: filesystem_read, target: collector trace spool, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Reading a spool changes nothing.}
     errors:
       - {signal: CommandError, condition: spool path cannot be read or trace_id is empty, state_after_failure: no output is returned}
@@ -97,7 +97,7 @@ tools:
           skipped_lines: {type: integer}
     side_effects:
       - {kind: filesystem_read, target: collector metric spool, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Reading a spool changes nothing.}
     errors:
       - {signal: CommandError, condition: spool path cannot be read, state_after_failure: no output is returned}
@@ -158,7 +158,7 @@ tools:
           skipped_lines: {type: integer}
     side_effects:
       - {kind: filesystem_read, target: collector metric spool, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Reading a spool changes nothing.}
     errors:
       - {signal: CommandError, condition: spool path cannot be read or metric_name is empty, state_after_failure: no output is returned}
@@ -195,7 +195,7 @@ tools:
           skipped_lines: {type: integer}
     side_effects:
       - {kind: filesystem_read, target: collector trace spool, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Reading a spool changes nothing.}
     errors:
       - {signal: CommandError, condition: spool path cannot be read, state_after_failure: no output is returned}
@@ -234,7 +234,7 @@ tools:
           dropped_span_total: {type: integer}
     side_effects:
       - {kind: filesystem_read, target: collector trace spool, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Reading a spool changes nothing.}
     errors:
       - {signal: CommandError, condition: group_by is missing or spool path cannot be read, state_after_failure: no output is returned}
@@ -262,7 +262,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Group-by selection predicate, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Comparison changes nothing.}
     errors: [{signal: CommandError, condition: selector cannot resolve, state_after_failure: No analytics are dispatched.}]
     config:
@@ -289,7 +289,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Combined Explore statistics response, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Composition changes nothing.}
     errors: [{signal: CommandError, condition: Composition fails, state_after_failure: No state changes.}]
     config:
@@ -322,7 +322,7 @@ tools:
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Heatmap-only Explore statistics response, schema: {type: object}}
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Composition changes nothing.}
     errors: [{signal: CommandError, condition: Composition fails, state_after_failure: No state changes.}]
     config:
@@ -362,7 +362,7 @@ tools:
           skipped_lines: {type: integer}
     side_effects:
       - {kind: filesystem_read, target: collector trace spool, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Reading a spool changes nothing.}
     errors:
       - {signal: CommandError, condition: spool path cannot be read, state_after_failure: no output is returned}

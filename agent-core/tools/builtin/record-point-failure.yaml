@@ -34,7 +34,6 @@ tools:
     description: Stores failure stage and cause from the preceding command result.
   reversibility:
     classification: reversible
-    undo: point_context_restore
   undo:
     strategy: point_context_restore
     description: Restore PointContext from the persisted pre-command receipt.

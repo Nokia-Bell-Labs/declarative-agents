@@ -38,7 +38,6 @@ tools:
     state: named receiver remains live until stop or undo
   reversibility:
     classification: compensatable
-    undo: otlp_receiver_stop
   undo:
     strategy: receiver_stop
     description: Decode the launch receipt and stop the named listener when it is still running.
@@ -99,7 +98,6 @@ tools:
     state: consumes one FIFO batch
   reversibility:
     classification: irreversible
-    undo: irreversible
     requires_confirmation: true
   undo:
     strategy: irreversible
@@ -152,7 +150,6 @@ tools:
     state: read_only
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Loading a batch changes nothing.
@@ -206,7 +203,6 @@ tools:
     state: appends durable audit evidence and may rotate bounded generations
   reversibility:
     classification: irreversible
-    undo: irreversible
     requires_confirmation: true
   undo:
     strategy: irreversible
@@ -261,7 +257,6 @@ tools:
     state: upstream may retain accepted spans
   reversibility:
     classification: irreversible
-    undo: irreversible
     requires_confirmation: true
   undo:
     strategy: irreversible
@@ -326,7 +321,6 @@ tools:
     state: releases the listener and marks receiver stopped
   reversibility:
     classification: irreversible
-    undo: irreversible
     requires_confirmation: true
   undo:
     strategy: irreversible
@@ -393,7 +387,6 @@ tools:
     state: read_only
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Reading a spool changes nothing.
@@ -465,7 +458,6 @@ tools:
     state: read_only
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Reading a spool changes nothing.
@@ -535,7 +527,6 @@ tools:
     state: read_only
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Reading a spool changes nothing.
@@ -612,7 +603,6 @@ tools:
     state: read_only
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Reading a spool changes nothing.
@@ -688,7 +678,6 @@ tools:
     state: read_only
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Reading a spool changes nothing.
@@ -745,7 +734,6 @@ tools:
     state: consumes one FIFO metric batch
   reversibility:
     classification: irreversible
-    undo: irreversible
     requires_confirmation: true
   undo:
     strategy: irreversible
@@ -803,7 +791,6 @@ tools:
     state: appends durable audit evidence and may rotate bounded generations
   reversibility:
     classification: irreversible
-    undo: irreversible
     requires_confirmation: true
   undo:
     strategy: irreversible
@@ -871,7 +858,6 @@ tools:
     state: read_only
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Reading a spool changes nothing.
@@ -945,7 +931,6 @@ tools:
     state: read_only
   reversibility:
     classification: reversible
-    undo: noop
   undo:
     strategy: noop
     description: Reading a spool changes nothing.

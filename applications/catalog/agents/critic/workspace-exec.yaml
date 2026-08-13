@@ -38,7 +38,6 @@ tools:
         description: Runs the declared Go oracle in the supplied workspace.
     reversibility:
       classification: reversible
-      undo: noop
       requires_confirmation: false
     undo:
       strategy: noop
@@ -95,7 +94,6 @@ tools:
         description: Writes the canonical accepting verdict artifact.
     reversibility:
       classification: compensatable
-      undo: verdict_file_compensation
       requires_confirmation: false
     undo:
       strategy: compensating_action
@@ -154,7 +152,6 @@ tools:
         description: Writes the canonical rejecting verdict artifact.
     reversibility:
       classification: compensatable
-      undo: verdict_file_compensation
       requires_confirmation: false
     undo:
       strategy: compensating_action

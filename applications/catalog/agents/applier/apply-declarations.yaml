@@ -17,7 +17,7 @@ tools:
       schema: {type: string}
     side_effects:
       - {kind: filesystem_write, target: workspace_file, description: Creates or replaces the values file read by the local rollout commands.}
-    reversibility: {classification: reversible, undo: workspace_restore}
+    reversibility: {classification: reversible}
     undo:
       strategy: workspace_restore
       description: Restore the workspace ref captured before the write.

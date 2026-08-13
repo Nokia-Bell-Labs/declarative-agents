@@ -16,7 +16,6 @@ tools:
     description: Writes point metadata to meta.json.
   reversibility:
     classification: reversible
-    undo: owned_artifact_removal_and_point_context_restore
   undo:
     strategy: owned_artifact_removal_and_point_context_restore
     description: Remove the receipt-recorded metrics artifact and restore PointContext.
