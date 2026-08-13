@@ -37,8 +37,9 @@ const (
 	lifecycleExitPath = "/api/lifecycle/exit"
 	// lifecycleExitSignal is the grammar signal the injected exit endpoint emits.
 	lifecycleExitSignal = "ExitRequested"
-	// lifecycleActionExit is the lifecycle_control action the injected endpoint runs.
-	lifecycleActionExit = "exit"
+	// lifecycleActionEnqueueSignal names the fixed-signal enqueue mode used by
+	// the injected endpoint.
+	lifecycleActionEnqueueSignal = "enqueue_signal"
 )
 
 // handledServerBindings is the closed set of endpoint bindings handleEndpoint
@@ -544,16 +545,6 @@ func writeLifecycleAuthError(w http.ResponseWriter, err error) {
 func lifecycleSignal(endpoint Endpoint) string {
 	if endpoint.LifecycleControl.Signal != "" {
 		return endpoint.LifecycleControl.Signal
-	}
-	switch endpoint.LifecycleControl.Action {
-	case "exit":
-		return "ExitRequested"
-	case "pause":
-		return "PauseRequested"
-	case "rollback_request":
-		return "RollbackRequested"
-	case "resume":
-		return "ResumeRequested"
 	}
 	return endpoint.Signal
 }

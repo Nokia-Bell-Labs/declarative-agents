@@ -629,15 +629,15 @@ func shutdownDrainPolicy(shutdown ShutdownConfig) string {
 func validateLifecycleControlEndpoint(name string, endpoint Endpoint) error {
 	control := endpoint.LifecycleControl
 	switch control.Action {
-	case "exit", "pause", "rollback_request", "resume", "inject_signal":
+	case "enqueue_signal", "inject_signal":
 	default:
 		return fmt.Errorf("endpoint %q lifecycle_control has unsupported action %q", name, control.Action)
 	}
 	if control.Action == "inject_signal" && len(control.AllowedSignals) == 0 {
 		return fmt.Errorf("endpoint %q lifecycle_control inject_signal requires allowed_signals", name)
 	}
-	if control.Action != "inject_signal" && lifecycleSignal(endpoint) == "" {
-		return fmt.Errorf("endpoint %q lifecycle_control requires signal", name)
+	if control.Action == "enqueue_signal" && lifecycleSignal(endpoint) == "" {
+		return fmt.Errorf("endpoint %q lifecycle_control enqueue_signal requires signal", name)
 	}
 	return validateResponseMapping(name, endpoint.Response)
 }
