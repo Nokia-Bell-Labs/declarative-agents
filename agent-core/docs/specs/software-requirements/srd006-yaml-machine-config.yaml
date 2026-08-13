@@ -12,12 +12,13 @@ goals:
   - G2: Validation with referential integrity checks.
   - G3: BuildTransitionTable converting YAML to a core.TransitionTable.
   - G4: Trusted data-driven iteration with deterministic join semantics.
+  - G5: Workload-derived command timeout envelopes for shipped machines.
 
 requirements:
   R1:
     title: YAML schema (MachineSpec)
     items:
-      - R1.1: "Top-level fields: name (string), initial_state (string), states (list), terminal_states (list), signals (list), transitions (list of TransitionSpec), budget (optional BudgetSpec)."
+      - R1.1: "Top-level fields: name (string), initial_state (string), states (list), terminal_states (list), signals (list), transitions (list of TransitionSpec), budget (required BudgetSpec)."
       - R1.2: "TransitionSpec fields: state (string), signal (string), next (string), action (string, optional), label (string, optional), and for_each (optional ForEachSpec)."
       - R1.3: "action is either a tool name resolvable from the Registry, the special sentinel $tool for dynamic dispatch, or empty for terminal transitions."
       - R1.4: "$tool is resolved using a caller-supplied ActionFunc for runtime tool lookup."
@@ -66,16 +67,26 @@ requirements:
       - R5.8: "Runtime data may supply items only; it cannot supply actions or executable expressions. The iterator does not provide general scripting."
       - R5.9: "Each join outcome SHALL retain result.output as a string and SHALL add result.structured_output only when the already-redacted ResultDigest output has recognized applied redaction metadata and is valid JSON. The projection SHALL preserve object, array, and scalar JSON shapes, SHALL be absent for plain text and output_omitted results, and SHALL be shaped at join time without changing the persisted IteratorOutcome format."
 
+  R6:
+    title: Command timeout envelope
+    items:
+      - R6.1: Every shipped MachineSpec SHALL declare a finite, positive budget.command_timeout.
+      - R6.2: The declared command_timeout SHALL exceed the longest legitimate duration of every action reachable in that machine, including scheduling margin.
+      - R6.3: Calibration SHALL use the selected ToolDef timeout, REST limit or machine_request timeout, model or child-process limit, and blocking await duration as authorities; one copied repository-wide value SHALL NOT substitute for workload review.
+      - R6.4: A selected operation with an environment-overridable timeout SHALL declare a finite maximum that does not exceed the machine command_timeout.
+      - R6.5: Each owning module SHALL statically test its shipped machine-to-authority mapping without sleeping for the declared wall-clock duration.
+
 non_goals:
   - Dynamic table modification during a run.
   - Tool registration from YAML (tools are registered in Go and resolved by name).
   - CLI integration (domain agent responsibility).
   - Unbounded parallel iteration.
   - A general expression, mutation, or scripting language in machine YAML.
+  - Propagating request-machine timeout policy into nested runners; that runtime wiring is tracked separately.
 
 acceptance_criteria:
   - id: AC1
-    criterion: MachineSpec has name, initial_state, states, terminal_states, signals, and transitions. TransitionSpec has state, signal, next, optional action, and optional command-state label. An unlabeled transition falls back to its executed command name, including programmatic tables without MachineSpec labels, while a labeled $tool transition keeps its stable label distinct from the selected command.
+    criterion: MachineSpec has name, initial_state, states, terminal_states, signals, transitions, and a required budget with a positive command timeout. TransitionSpec has state, signal, next, optional action, and optional command-state label. An unlabeled transition falls back to its executed command name, including programmatic tables without MachineSpec labels, while a labeled $tool transition keeps its stable label distinct from the selected command.
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
@@ -92,6 +103,9 @@ acceptance_criteria:
   - id: AC5
     criterion: A trusted command-state array drives sequential or positively bounded parallel named-action dispatches with per-item trace, checkpoint, receipt, cancellation, rollback visibility, deterministic input-order join output, and checkpoint-resume progress; fail-fast waits for all started children and collect-all retains every outcome.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9]
+  - id: AC6
+    criterion: Every shipped machine declares a finite command timeout above its longest selected operation with margin, and the owning module verifies that mapping statically.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
 
 depends_on:
   - srd_id: srd001-core-types
@@ -111,6 +125,7 @@ diagrams:
       Goals --> R3["R3: BuildTransitionTable"]
       Goals --> R4["R4: File loading"]
       Goals --> R5["R5: Data-driven iteration and join"]
+      Goals --> R6["R6: Command timeout envelope"]
       AC1["AC1: MachineSpec has name, initial_state, states, terminal_sta..."]
       R1 --> AC1
       AC2["AC2: Validation checks referential integrity for initial_state..."]
@@ -121,4 +136,6 @@ diagrams:
       R4 --> AC4
       AC5["AC5: trusted bounded iteration, join, and resume"]
       R5 --> AC5
+      AC6["AC6: workload-derived finite command timeout envelopes"]
+      R6 --> AC6
     ```
