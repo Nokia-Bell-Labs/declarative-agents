@@ -92,8 +92,8 @@ func validateServerAuthRefs(servers map[string]Server, auth map[string]AuthProfi
 // (client_command.retryDelay), so both are validated here.
 func validateRetryPolicies(policies map[string]RetryPolicy) error {
 	for name, retry := range policies {
-		if retry.Attempts < 0 {
-			return fmt.Errorf("retry policy %q attempts must be non-negative", name)
+		if retry.Attempts <= 0 {
+			return fmt.Errorf("retry policy %q attempts must be positive", name)
 		}
 		switch retry.Backoff {
 		case "", "none", "fixed", "exponential":
@@ -108,6 +108,87 @@ func validateRetryPolicies(policies map[string]RetryPolicy) error {
 		}
 	}
 	return nil
+}
+
+// RetryAggregateTimeout returns the conservative dispatch authority for one
+// retrying HTTP operation: every bounded attempt plus the delay before each
+// retry. It calls retryDelay so static inspection and runtime execution share
+// fixed, exponential, max-delay, and overflow-saturation semantics.
+func RetryAggregateTimeout(attemptTimeout time.Duration, retry RetryPolicy) (time.Duration, error) {
+	if attemptTimeout <= 0 {
+		return 0, fmt.Errorf("attempt timeout must be positive")
+	}
+	if err := validateRetryPolicies(map[string]RetryPolicy{"selected": retry}); err != nil {
+		return 0, err
+	}
+	total, err := checkedDurationProduct(attemptTimeout, retry.Attempts)
+	if err != nil {
+		return 0, fmt.Errorf("retry attempt timeout aggregate: %w", err)
+	}
+	retries := retry.Attempts - 1
+	if retries == 0 || retry.Backoff == "none" {
+		return total, nil
+	}
+	return addRetryDelayAggregate(total, retries, retry)
+}
+
+func addRetryDelayAggregate(
+	total time.Duration,
+	retries int,
+	retry RetryPolicy,
+) (time.Duration, error) {
+	if retry.Backoff == "" || retry.Backoff == "fixed" {
+		delays, err := checkedDurationProduct(retryDelay(retry, 1), retries)
+		if err != nil {
+			return 0, fmt.Errorf("retry delay aggregate: %w", err)
+		}
+		return checkedDurationSum(total, delays)
+	}
+
+	maxDelay := parseDuration(retry.MaxDelay, 0)
+	for attempt := 1; attempt <= retries; attempt++ {
+		delay := retryDelay(retry, attempt)
+		next, err := checkedDurationSum(total, delay)
+		if err != nil {
+			return 0, fmt.Errorf("retry delay aggregate: %w", err)
+		}
+		total = next
+		remaining := retries - attempt
+		if remaining == 0 || delay == 0 {
+			return total, nil
+		}
+		if maxDelay > 0 && delay == maxDelay {
+			delays, productErr := checkedDurationProduct(delay, remaining)
+			if productErr != nil {
+				return 0, fmt.Errorf("retry delay aggregate: %w", productErr)
+			}
+			return checkedDurationSum(total, delays)
+		}
+	}
+	return total, nil
+}
+
+func checkedDurationProduct(value time.Duration, count int) (time.Duration, error) {
+	if value < 0 || count < 0 {
+		return 0, fmt.Errorf("duration and count must be non-negative")
+	}
+	if value == 0 || count == 0 {
+		return 0, nil
+	}
+	if value > time.Duration(1<<63-1)/time.Duration(count) {
+		return 0, fmt.Errorf("duration overflow")
+	}
+	return value * time.Duration(count), nil
+}
+
+func checkedDurationSum(left, right time.Duration) (time.Duration, error) {
+	if left < 0 || right < 0 {
+		return 0, fmt.Errorf("durations must be non-negative")
+	}
+	if left > time.Duration(1<<63-1)-right {
+		return 0, fmt.Errorf("duration overflow")
+	}
+	return left + right, nil
 }
 
 func validateOptionalDuration(value string) error {
@@ -236,6 +317,11 @@ func addUnique(seen map[string]string, name, owner string) error {
 
 func validateClients(clients map[string]Client, retries map[string]RetryPolicy) error {
 	for clientName, client := range clients {
+		if client.RetryRef != "" {
+			if _, ok := retries[client.RetryRef]; !ok {
+				return fmt.Errorf("REST client %q references undefined retry policy %q", clientName, client.RetryRef)
+			}
+		}
 		for resourceName, resource := range client.Resources {
 			if err := validateResource(clientName, resourceName, resource, retries[client.RetryRef], client.Operations); err != nil {
 				return err

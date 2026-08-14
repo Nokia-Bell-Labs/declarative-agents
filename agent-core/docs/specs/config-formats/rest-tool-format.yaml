@@ -46,6 +46,29 @@ timeout_envelope:
     budget.command_timeout. Equal, malformed, non-positive, or larger expanded
     values fail startup before network or queue dispatch. Deployment schemas
     may enforce tighter bounds but cannot replace this runtime comparison.
+  retry_aggregate: |
+    A client with retry_ref derives one conservative dispatch authority from
+    its selected request timeout and retry policy. For A attempts with
+    per-attempt timeout T, the aggregate is A*T plus the delay before each
+    retry: sum(delay(i), i=1..A-1). attempts shall be a positive integer.
+    A missing retry_ref target, malformed duration, non-positive attempt count,
+    or duration-arithmetic overflow fails startup.
+
+    none contributes zero delay. fixed and the legacy empty backoff contribute
+    min(initial_delay, max_delay) before every retry when max_delay is positive.
+    exponential contributes initial_delay, then doubles for each later retry
+    with overflow-safe saturation at a positive max_delay when present. The
+    inspector uses checked arithmetic rather than treating time.Duration
+    saturation as a finite authority.
+
+    The aggregate applies to synchronous client words and rest_client_send.
+    rest_client_await reads previously stored async state in a later dispatch,
+    so its async.timeout remains a separate authority and does not acquire the
+    submission retry aggregate.
+  retry_evidence: |
+    Deterministic inspection evidence names the client, retry_ref, attempts,
+    normalized backoff, aggregate duration, and enclosing command_timeout.
+    The ordinary client limit entries remain visible as per-attempt evidence.
   closure_resolution: |
     Validation follows profile REST definitions, declaration includes and
     profile-local override precedence, machine_request profile or machine
@@ -410,7 +433,7 @@ schema:
       - field: attempts
         type: int
         required: true
-        description: Maximum attempts including the first try.
+        description: Strictly positive maximum attempts including the first try.
       - field: backoff
         type: string
         required: false
@@ -1604,6 +1627,15 @@ validation_rules:
       network, redirect, and credential-scope policies before network I/O, so a
       resolved port outside the client's ports allowlist is refused.
       Runtime input_mapping authority fields remain forbidden.
+  - id: V37
+    rule: |
+      A non-empty client retry_ref MUST resolve to one retry policy whose
+      attempts is positive. Timeout-envelope inspection MUST add the selected
+      request timeout once per attempt plus every fixed or capped exponential
+      delay before attempts two through N using checked duration arithmetic.
+      Missing references, malformed delays, non-positive attempts, and
+      aggregate overflow MUST fail before dispatch. rest_client_await keeps its
+      separate async timeout and MUST NOT inherit the submission aggregate.
 
 invalid_examples:
   ambiguous_resource_operation: |

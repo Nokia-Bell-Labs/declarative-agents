@@ -441,6 +441,42 @@ test_cases:
       - srd028-rest-client-tools AC8
       - srd028-rest-client-tools AC9
 
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST retry aggregate stays within the machine command envelope
+    go_test: go test ./pkg/profileaudit -run TestInspectRESTRetryAggregate
+    status: done
+    description: |
+      Inspect selected REST operations without sending requests. The timeout
+      authority adds every bounded request attempt and the fixed or capped
+      exponential delay before each retry. Equality and overrun fail before
+      dispatch, as do a missing retry_ref target, a non-positive attempt count,
+      malformed delay, and checked-arithmetic overflow. A one-attempt operation
+      remains the per-attempt request bound, and rest_client_await keeps only its
+      separate async timeout.
+    inputs:
+      retry_cases:
+        - one_attempt
+        - fixed_below_envelope
+        - exponential_capped_below_envelope
+        - aggregate_equal_to_envelope
+        - aggregate_above_envelope
+        - missing_retry_policy
+        - non_positive_attempts
+        - malformed_delay
+        - duration_overflow
+    expected:
+      network_requests_sent: 0
+      aggregate_matches_runtime_backoff: true
+      deterministic_client_policy_evidence: true
+      equal_and_larger_rejected: true
+      invalid_and_overflowing_policy_rejected: true
+      await_submission_aggregate_applied: false
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd027-rest-tool-runtime AC6
+      - srd028-rest-client-tools AC2
+      - srd028-rest-client-tools AC8
+
   - use_case: rel03.0-uc002-rest-client-async
     name: REST dispatch cancellation reaches request and retry transport
     go_test: go test ./internal/tools/rest -run 'TestRESTClient(DispatchCancellation|CancelledMutation|ExecuteRetains)'
