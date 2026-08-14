@@ -135,8 +135,8 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator rejects invalid point and aggregate duration envelopes
-    planned_go_test: go test ./internal/evaluation -run 'TestInitEvalSessionRejects(InvalidPointTimeout|ExcessiveAggregateDuration|AggregateDurationOverflow)$'
-    status: planned
+    go_test: go test ./internal/evaluation -run 'TestInitEvalSessionRejects(InvalidPointTimeout|ExcessiveAggregateDuration|AggregateDurationOverflow)$'
+    status: implemented
     inputs:
       point_timeout_authority: 15m
       aggregate_session_authority: 24h
@@ -153,8 +153,8 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Nested evaluator dispatch uses the point machine command timeout
-    planned_go_test: go test ./internal/evaluation -run TestRunPointPropagatesMachineCommandTimeout$
-    status: planned
+    go_test: go test ./internal/evaluation -run TestRunPointPropagatesMachineCommandTimeout$
+    status: implemented
     inputs:
       point_machine: synthetic machine with a finite command_timeout
       point_command: context-aware blocking command
@@ -167,8 +167,8 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Critic and bench profiles reserve nested evaluator timeout margins
-    planned_go_test: applications/catalog go test ./magefiles -run TestCatalogEvaluatorTimeoutEnvelopes$
-    status: planned
+    go_test: applications/catalog go test ./magefiles -run TestCatalogEvaluatorTimeoutEnvelopes$
+    status: implemented
     inputs:
       point_runtime_authority: 15m
       aggregate_session_authority: 24h
