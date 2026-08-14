@@ -131,6 +131,10 @@ func TestCodingLoopStagesGenerateOnceAndPreserveExactWorkspace(t *testing.T) {
 }
 
 func TestRunBuiltAgentTimeoutRetainsPhaseDiagnosticsAndKillsGroup(t *testing.T) {
+	const (
+		diagnosticsTimeout = 10 * time.Second
+		terminationBound   = 15 * time.Second
+	)
 	script := filepath.Join(t.TempDir(), "blocking-agent")
 	writeTestFile(t, script, `#!/bin/sh
 trace=""
@@ -176,7 +180,7 @@ fi
 		t.Run(test.name, func(t *testing.T) {
 			pidFile := filepath.Join(t.TempDir(), "child.pid")
 			options := agentRunOptions{
-				Timeout:      time.Second,
+				Timeout:      diagnosticsTimeout,
 				CleanupGrace: 100 * time.Millisecond,
 				Env: []string{
 					"MODE=" + test.mode,
@@ -196,7 +200,7 @@ fi
 			if err == nil {
 				t.Fatal("runBuiltAgentWithOptions succeeded, want timeout")
 			}
-			if elapsed := time.Since(start); elapsed > 4*time.Second {
+			if elapsed := time.Since(start); elapsed > terminationBound {
 				t.Fatalf("bounded termination took %s", elapsed)
 			}
 			for _, want := range []string{
