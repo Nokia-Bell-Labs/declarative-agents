@@ -31,7 +31,7 @@ invocation: |
           [--directory <path>] [--dolt-dsn <dsn>] \
           [--resume-checkpoint <id>] [--resume-signal <signal>] \
           [--otel-log-file <file>] [--otel-otlp-endpoint <host:port>] \
-          [--otel-service-name <name>]
+          [--otel-service-name <name>] [--telemetry-capture <off|delta|full>]
 
   Lifecycle profile invocations.
     agent --profile /work/applications/catalog/testdata/conformance/lifecycle/history/profile.yaml \
@@ -80,7 +80,14 @@ invocation: |
     resumed state.
 
   Diagnostic flags.
-    --verbose-trace      Record boundary-tool input/output in OTel traces.
+    --telemetry-capture  Content capture level for telemetry (default: off).
+                         off records counts only. delta is reserved for bounded
+                         change-oriented content and currently also records
+                         counts only. full records current verbose LLM and
+                         boundary-tool content.
+    --verbose-trace      Backward-compatible alias for
+                         --telemetry-capture=full. Combining it with explicit
+                         off or delta is an error; explicit full is accepted.
     --otel-log-file      OTel trace output file.
     --otel-otlp-endpoint OTLP gRPC endpoint for live trace and metric export.
                          It composes with --otel-log-file for dual export.

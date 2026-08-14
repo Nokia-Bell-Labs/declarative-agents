@@ -214,12 +214,12 @@ func invokeLLMFactory(st *agentState) toolregistry.BuiltinFactory {
 			history = llm.NewConversation(nil, "", llm.ChatOptions{})
 		}
 		return toollm.NewInvokeLLMBuilder(def, toollm.InvokeLLMFactoryDeps{
-			History:    history,
-			Registry:   st.registry,
-			Tracer:     st.tracer,
-			Verbose:    st.verbose,
-			Ctx:        st.ctx,
-			OnResolved: onModelResolved(st),
+			History:      history,
+			Registry:     st.registry,
+			Tracer:       st.tracer,
+			CaptureLevel: st.captureLevel,
+			Ctx:          st.ctx,
+			OnResolved:   onModelResolved(st),
 		})
 	}
 }
@@ -244,8 +244,8 @@ func parseResponseFactory(st *agentState) toolregistry.BuiltinFactory {
 			StateFunc: func() core.State {
 				return st.manifestState
 			},
-			Verbose: st.verbose,
-			Retry:   st.parseRetries,
+			CaptureLevel: st.captureLevel,
+			Retry:        st.parseRetries,
 		}, nil
 	}
 }
@@ -478,7 +478,7 @@ func profileMachineRequestRunner(st *agentState) toolrest.MachineRequestRunner {
 }
 
 // requestLocalState returns a per-request agentState for machine_request tool
-// factories. It shares the host's immutable deps (tracer, verbose, ctx,
+// factories. It shares the host's immutable deps (tracer, capture level, ctx,
 // directories) but binds tool construction to the request's own registry and a
 // fresh conversation and parse-retry and manifest-state tracker, so
 // parse_response and $tool resolve the tool vocabulary against the request

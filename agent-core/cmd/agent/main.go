@@ -36,6 +36,7 @@ var (
 	flagOTelService      string
 	flagOTelParent       string
 	flagDirectory        string
+	flagTelemetryCapture string
 	flagVerboseTrace     bool
 	flagRequest          string
 	flagOutput           string
@@ -44,6 +45,7 @@ var (
 	flagResumeSignal     string
 	flagChildAgent       string
 	flagValidateConfig   bool
+	telemetryCaptureSet  = func() bool { return false }
 )
 
 const (
@@ -105,7 +107,9 @@ func init() {
 	f.StringVar(&flagOTelService, "otel-service-name", "agent", "OTel resource service.name for this agent, so a cross-agent trace distinguishes agents")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
-	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
+	f.StringVar(&flagTelemetryCapture, "telemetry-capture", string(toollm.CaptureOff), "telemetry content capture level: off, delta, or full")
+	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record full LLM input/output in traces (alias for --telemetry-capture=full)")
+	telemetryCaptureSet = func() bool { return f.Changed("telemetry-capture") }
 	f.StringVar(&flagRequest, "request", "", "request data file")
 	f.StringVar(&flagOutput, "output", "", "output directory for runtime artifacts")
 	f.StringVar(&flagDoltDSN, "dolt-dsn", "", "MySQL-wire DSN to a dolt sql-server for the persistent checkpoint backend (default: no persistence)")
@@ -133,7 +137,7 @@ type agentState struct {
 	isolateConversations bool
 	maxDuration          time.Duration
 	maxTokens            int
-	verbose              bool
+	captureLevel         toollm.CaptureLevel
 	ctx                  context.Context
 	directory            string
 	request              string
@@ -572,7 +576,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		tracer:              deps.Tracer,
 		coreRoot:            cfg.CoreRoot,
 		parseRetries:        deps.ParseRetries,
-		verbose:             cfg.VerboseTrace,
+		captureLevel:        cfg.TelemetryCapture,
 		ctx:                 deps.Ctx,
 		directory:           cfg.Directory,
 		request:             cfg.Request,
@@ -611,7 +615,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 	toolAction := toolregistry.BuildDynamicToolAction(toolregistry.DynamicToolActionDeps{
 		Registry: deps.Registry,
 		Tracer:   deps.Tracer,
-		Verbose:  cfg.VerboseTrace,
+		Verbose:  cfg.TelemetryCapture.CapturesFullContent(),
 	})
 	return core.LoopParams{
 		MachineFile:          cfg.Machine,

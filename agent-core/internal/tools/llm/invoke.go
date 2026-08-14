@@ -48,7 +48,7 @@ type invokeLLMCmd struct {
 	numCtx       int
 	temperature  float64
 	seed         int
-	verbose      bool
+	captureLevel CaptureLevel
 	ctx          context.Context
 	callTimeout  time.Duration
 	metrics      core.MetricConfig
@@ -207,7 +207,7 @@ func (c *invokeLLMCmd) chat(messages []modelllm.Message) (modelllm.ChatResponse,
 		genai.AttrRequestTemperature.Float64(c.temperature),
 		genai.AttrRequestSeed.Int(c.seed),
 	)
-	if c.verbose {
+	if c.captureLevel.CapturesFullContent() {
 		if inputJSON, err := json.Marshal(messages); err == nil {
 			c.tracer.SetAttributes(genai.AttrInputMessages.String(string(inputJSON)))
 		}
@@ -242,7 +242,7 @@ func (c *invokeLLMCmd) chatResult(chatResp modelllm.ChatResponse, duration time.
 	c.tracer.Event("history.assistant_appended", attribute.Int("history_len", c.history.Len()))
 	cost := core.Cost{Duration: duration, TokensIn: chatResp.TokensIn, TokensOut: chatResp.TokensOut}
 	c.tracer.SetAttributes(genai.AttrUsageInputTokens.Int(cost.TokensIn), genai.AttrUsageOutputTokens.Int(cost.TokensOut))
-	if c.verbose {
+	if c.captureLevel.CapturesFullContent() {
 		c.tracer.SetAttributes(genai.AttrOutputMessages.String(chatResp.Content))
 	}
 	c.recordTokenMetrics(cost)
@@ -271,7 +271,7 @@ type InvokeLLMBuilder struct {
 	Seed         int
 	CallTimeout  time.Duration
 	Metrics      core.MetricConfig
-	Verbose      bool
+	CaptureLevel CaptureLevel
 	Ctx          context.Context
 	// UserPromptFrom, when set, is the command-state $from selector the built
 	// command resolves its user message from instead of the dispatch Result.
@@ -280,12 +280,12 @@ type InvokeLLMBuilder struct {
 
 // InvokeLLMFactoryDeps are process-local ports for invoke_llm construction.
 type InvokeLLMFactoryDeps struct {
-	History    *modelllm.Conversation
-	Registry   *core.Registry
-	Tracer     tracing.Tracer
-	Verbose    bool
-	Ctx        context.Context
-	OnResolved func(InvokeLLMResolvedConfig)
+	History      *modelllm.Conversation
+	Registry     *core.Registry
+	Tracer       tracing.Tracer
+	CaptureLevel CaptureLevel
+	Ctx          context.Context
+	OnResolved   func(InvokeLLMResolvedConfig)
 }
 
 // InvokeLLMResolvedConfig exposes metadata needed by neighboring tools.
@@ -333,7 +333,7 @@ func invokeBuilder(
 		Tracer: tracerOrNoop(deps.Tracer), ContextLimit: cfg.ContextLimit, NumCtx: cfg.NumCtx,
 		Temperature: resolveTemperature(cfg), Seed: resolveSeed(cfg),
 		CallTimeout: durationSeconds(cfg.LLMTimeout),
-		Metrics:     def.Metrics, Verbose: deps.Verbose, Ctx: deps.Ctx,
+		Metrics:     def.Metrics, CaptureLevel: deps.CaptureLevel, Ctx: deps.Ctx,
 		UserPromptFrom: cfg.UserPromptFrom,
 	}
 }
@@ -370,7 +370,7 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 		state: state, model: b.Model, providerName: b.ProviderName, serverAddr: b.ServerAddr,
 		userMessage: res.Output, promptFrom: b.UserPromptFrom, tracer: tracerOrNoop(b.Tracer), contextLimit: b.ContextLimit,
 		numCtx: b.NumCtx, temperature: b.Temperature, seed: b.Seed,
-		callTimeout: b.CallTimeout, metrics: b.Metrics, verbose: b.Verbose, ctx: ctx,
+		callTimeout: b.CallTimeout, metrics: b.Metrics, captureLevel: b.CaptureLevel, ctx: ctx,
 	}
 }
 

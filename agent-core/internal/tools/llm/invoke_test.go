@@ -168,7 +168,7 @@ func TestInvokeLLMDispatchTracerIsolatesTwoTurns(t *testing.T) {
 		Client: client, History: modelllm.NewConversation(nil, "", modelllm.ChatOptions{}),
 		Registry: core.NewRegistry(), Assembler: conversationAssembler{}, State: "Composing",
 		Model: "test", ProviderName: "test", Tracer: tracing.NoopTracer{},
-		Ctx: context.Background(), Verbose: true, ContextLimit: 1000,
+		Ctx: context.Background(), CaptureLevel: CaptureFull, ContextLimit: 1000,
 	}
 
 	for _, prompt := range []string{"first prompt", "second prompt"} {
@@ -212,7 +212,7 @@ func TestParseResponseDispatchTracerCapturesRawOutput(t *testing.T) {
 	}
 	raw := `{"tool":"done","parameters":{"summary":"complete"}}`
 	cmd := (&ParseResponseBuilder{
-		Registry: core.NewRegistry(), Tracer: tracing.NoopTracer{}, Verbose: true,
+		Registry: core.NewRegistry(), Tracer: tracing.NoopTracer{}, CaptureLevel: CaptureFull,
 	}).Build(core.Result{Output: raw})
 	aware, ok := cmd.(core.TracerAware)
 	require.True(t, ok)
@@ -226,6 +226,36 @@ func TestParseResponseDispatchTracerCapturesRawOutput(t *testing.T) {
 	spans := recorder.Ended()
 	require.Len(t, spans, 1)
 	require.Equal(t, raw, readOnlySpanAttrs(spans[0])["llm.raw_output"])
+}
+
+func TestDeltaCaptureDoesNotRecordFullContent(t *testing.T) {
+	t.Parallel()
+
+	invokeTracer := tracing.NewRecordingTracer()
+	invokeSpan, invokeDone := invokeTracer.Push("chat")
+	builder := &InvokeLLMBuilder{
+		Client: fakeClient{}, History: modelllm.NewConversation(nil, "", modelllm.ChatOptions{}),
+		Registry: core.NewRegistry(), Assembler: conversationAssembler{},
+		Model: "test", ProviderName: "test", Tracer: invokeSpan,
+		Ctx: context.Background(), CaptureLevel: CaptureDelta,
+	}
+	require.Equal(t, core.LLMResponded, builder.Build(core.Result{Output: "secret prompt"}).Execute().Signal)
+	invokeDone()
+	require.NotContains(t, invokeTracer.Spans[0].SetAttrs, "gen_ai.input.messages")
+	require.NotContains(t, invokeTracer.Spans[0].SetAttrs, "gen_ai.output.messages")
+	require.Contains(t, invokeTracer.Spans[0].SetAttrs, "gen_ai.usage.input_tokens")
+	require.Contains(t, invokeTracer.Spans[0].SetAttrs, "gen_ai.usage.output_tokens")
+
+	parseTracer := tracing.NewRecordingTracer()
+	parseSpan, parseDone := parseTracer.Push("parse")
+	raw := `{"tool":"done","parameters":{"summary":"secret response"}}`
+	res := (&ParseResponseBuilder{
+		Registry: core.NewRegistry(), Tracer: parseSpan, CaptureLevel: CaptureDelta,
+	}).Build(core.Result{Output: raw}).Execute()
+	parseDone()
+	require.Equal(t, core.TaskCompleted, res.Signal)
+	require.NotContains(t, parseTracer.Spans[0].SetAttrs, "llm.raw_output")
+	require.Equal(t, int64(len(raw)), parseTracer.Spans[0].SetAttrs["raw_response_bytes"])
 }
 
 func TestInvokeLLMUsesRuntimeStateForManifest(t *testing.T) {
