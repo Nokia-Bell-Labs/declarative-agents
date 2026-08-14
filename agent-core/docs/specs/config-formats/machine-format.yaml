@@ -149,6 +149,19 @@ schema:
           - a request machine whose longest REST operation is 30s may use 1m;
           - a host with a 10m blocking control await may use 11m;
           - an evaluator with a 24h await or child operation may use 25h.
+
+          Startup validates this relationship from the executable profile
+          closure. The inspector follows declaration includes and override
+          precedence, selected actions, REST definitions and machine_request
+          profiles, child profiles, evaluator point machines, and compatibility
+          wrappers. It reports the machine, action, authority source, operation
+          duration, and command timeout for each failure.
+
+          Environment expansion happens before authority comparison. The active
+          machine command_timeout is the finite maximum for every expanded
+          operation timeout in that machine; an equal or larger value is
+          rejected before dispatch. A deployment schema may impose a tighter
+          input bound, but it is not the runtime safety boundary.
       - field: max_consecutive_parse_errors
         type: int
         description: |
@@ -520,6 +533,19 @@ validation_rules: |
   - Dynamic $tool availability is derived from the current state, the next
     $tool transition, and selected external ToolDef emits
   - Explicit ToolSpec phases may only narrow the transition-derived set
+
+  Profile closure timeout inspection occurs after profile-owned paths,
+  declaration includes and overrides, REST definitions, and environment
+  references resolve, but before any command dispatch:
+  - Every reachable named action and every selected $tool candidate resolves to
+    a finite operation authority or to a known non-blocking word.
+  - ToolDef, REST, model, child/service, evaluator-point, and await authorities
+    are compared with the MachineSpec that dispatches them.
+  - command_timeout must be strictly greater than each resolved operation.
+  - Compatibility aliases are ordinary profile references and are inspected
+    through their canonical closure.
+  - Agent Core inspects only the profile supplied by its caller. Each owning
+    module discovers and supplies its shipped profile inventory in owner tests.
 
   Validation failures cause the agent to abort before processing any input.
 

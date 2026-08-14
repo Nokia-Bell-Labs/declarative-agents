@@ -30,6 +30,29 @@ release_03_0_support:
   reserved:
     - document_resources top-level config and machine_request.document_resources are typed target-format fields that ValidateDefinition rejects until generic REST document resource loading is implemented. Current request machines use profile-selected filesystem resource ToolDefs.
 
+timeout_envelope:
+  authority: |
+    A selected REST client operation derives its finite authority from the
+    referenced client limit profile and its async timeout where applicable. A
+    machine_request endpoint derives its outer request authority from
+    machine_request.timeout and separately inspects the referenced request
+    profile or machine. REST await words derive their authority from the
+    selected ToolDef config and referenced queue or source timeout.
+  environment_expansion: |
+    REST definitions and ToolDef declarations expand ${VAR} and
+    ${VAR:-default} before timeout-envelope validation. The MachineSpec that
+    dispatches the selected REST word supplies the finite maximum: every
+    expanded operation timeout must remain strictly below
+    budget.command_timeout. Equal, malformed, non-positive, or larger expanded
+    values fail startup before network or queue dispatch. Deployment schemas
+    may enforce tighter bounds but cannot replace this runtime comparison.
+  closure_resolution: |
+    Validation follows profile REST definitions, declaration includes and
+    profile-local override precedence, machine_request profile or machine
+    references, and compatibility wrappers. Diagnostics name the selected
+    action, REST authority path, operation duration, and enclosing machine
+    command timeout.
+
 schema:
   description: |
     A REST definition file MAY live beside an agent profile, a tool declaration

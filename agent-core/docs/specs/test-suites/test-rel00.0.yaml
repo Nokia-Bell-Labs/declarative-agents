@@ -308,6 +308,19 @@ test_cases:
     traces:
       - srd022-builtin-tools AC7
 
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Machine policy requires an explicit finite command timeout
+    go_test: go test ./internal/runtime/core -run TestValidateMachinePolicyRequiresResumeSignalAndIterationBudget
+    inputs:
+      missing_command_timeout: true
+      valid_command_timeout: 1m
+    expected:
+      missing_value_rejected: true
+      positive_finite_value_accepted: true
+      implementation_follow_up_adds_closure_derived_authority_evidence: true
+    traces:
+      - srd006-yaml-machine-config AC6
+
   # --- srd001: core types (verified by compilation and loop tests) ---
   - use_case: rel00.0-uc001-domain-agent-integration
     name: State and Signal are named string types with three generic constants
