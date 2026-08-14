@@ -32,6 +32,7 @@ const (
 )
 
 type invokeLLMCmd struct {
+	toolName                string
 	client                  modelllm.Client
 	history                 *modelllm.Conversation
 	registry                *core.Registry
@@ -60,7 +61,12 @@ type invokeLLMCmd struct {
 	hasSnapshot             bool
 }
 
-func (c *invokeLLMCmd) Name() string        { return "invoke_llm" }
+func (c *invokeLLMCmd) Name() string {
+	if c.toolName != "" {
+		return c.toolName
+	}
+	return "invoke_llm"
+}
 func (c *invokeLLMCmd) SerialDispatchOnly() {}
 func (c *invokeLLMCmd) SpanName() string {
 	return genai.InferenceSpanName(c.model)
@@ -257,6 +263,7 @@ func (c *invokeLLMCmd) chatResult(chatResp modelllm.ChatResponse, duration time.
 
 // InvokeLLMBuilder constructs invoke_llm commands.
 type InvokeLLMBuilder struct {
+	ToolName                string
 	Client                  modelllm.Client
 	History                 *modelllm.Conversation
 	Registry                *core.Registry
@@ -332,7 +339,8 @@ func invokeBuilder(
 	deps InvokeLLMFactoryDeps,
 ) *InvokeLLMBuilder {
 	return &InvokeLLMBuilder{
-		Client: client, History: deps.History, Registry: deps.Registry,
+		ToolName: def.Name,
+		Client:   client, History: deps.History, Registry: deps.Registry,
 		Assembler: newLLMAssembler(cfg, parser), State: core.State(cfg.ManifestState),
 		Model: cfg.Model, ProviderName: cfg.Provider, ServerAddr: serverAddr,
 		Tracer: tracerOrNoop(deps.Tracer), ContextLimit: cfg.ContextLimit, NumCtx: cfg.NumCtx,
@@ -373,7 +381,8 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 		state = b.State
 	}
 	return &invokeLLMCmd{
-		client: b.Client, history: b.History, registry: b.Registry, assembler: b.Assembler,
+		toolName: b.ToolName,
+		client:   b.Client, history: b.History, registry: b.Registry, assembler: b.Assembler,
 		state: state, model: b.Model, providerName: b.ProviderName, serverAddr: b.ServerAddr,
 		userMessage: res.Output, promptFrom: b.UserPromptFrom, tracer: tracerOrNoop(b.Tracer), contextLimit: b.ContextLimit,
 		numCtx: b.NumCtx, temperature: b.Temperature, seed: b.Seed,
@@ -388,7 +397,8 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 // client or prompt assembly.
 func (b *InvokeLLMBuilder) BuildReverser() core.Command {
 	return &invokeLLMCmd{
-		history: b.History, tracer: tracerOrNoop(b.Tracer),
+		toolName: b.ToolName,
+		history:  b.History, tracer: tracerOrNoop(b.Tracer),
 		conversationRefResolver: b.ConversationRefResolver,
 	}
 }

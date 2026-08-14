@@ -7,6 +7,7 @@ import (
 	"fmt"
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -35,6 +36,7 @@ func TestInvokeLLM_Success(t *testing.T) {
 
 	cmd := builder.Build(core.Result{Output: "implement the feature"})
 	require.Implements(t, (*core.SerialDispatchOnly)(nil), cmd)
+	require.Equal(t, "invoke_llm", cmd.Name())
 	res := cmd.Execute()
 
 	assert.Equal(t, core.LLMResponded, res.Signal)
@@ -77,29 +79,36 @@ func TestInvokeLLM_UndoRestoresPreviousHistoryLength(t *testing.T) {
 	require.Equal(t, "existing", history.History()[0].Content)
 }
 
-func TestInvokeLLM_ReceiptRestoresConversationFromFreshInstance(t *testing.T) {
+func TestInvokeLLM_AliasReceiptRestoresConversationFromFreshRegistry(t *testing.T) {
 	client := &fakeChatClient{
 		response: modelllm.ChatResponse{Content: "assistant response"},
 	}
 	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
 	history.Append(modelllm.Message{Role: modelllm.User, Content: "existing"})
+	def := catalog.ToolDef{Name: "invoke_llm_deep", Type: "builtin", Init: "invoke_llm"}
 	const reference = "checkpoint:run-7/step-3"
 
-	builder := &InvokeLLMBuilder{
-		Client:                  client,
-		History:                 history,
-		Registry:                core.NewRegistry(),
-		Assembler:               &fakeAssembler{},
-		Model:                   "test-model",
-		Tracer:                  noopTracer(),
-		ConversationRefProvider: staticConversationReference{ref: reference, available: true},
-		ConversationRefResolver: fakeConversationReferenceResolver{conversations: map[string][]modelllm.Message{
-			reference: {{Role: modelllm.User, Content: "existing"}},
-		}},
-		Ctx: context.Background(),
-	}
+	builder := invokeBuilder(
+		def,
+		catalog.LLMToolConfig{Model: "test-model"},
+		nil,
+		client,
+		"",
+		InvokeLLMFactoryDeps{
+			History:                 history,
+			Registry:                core.NewRegistry(),
+			Tracer:                  noopTracer(),
+			ConversationRefProvider: staticConversationReference{ref: reference, available: true},
+			ConversationRefResolver: fakeConversationReferenceResolver{conversations: map[string][]modelllm.Message{
+				reference: {{Role: modelllm.User, Content: "existing"}},
+			}},
+			Ctx: context.Background(),
+		},
+	)
+	builder.Assembler = &fakeAssembler{}
 
 	cmd := builder.Build(core.Result{Output: "new prompt"})
+	require.Equal(t, def.Name, cmd.Name())
 	res := cmd.Execute()
 	require.Equal(t, core.LLMResponded, res.Signal)
 	require.NotEmpty(t, res.Receipt)
@@ -107,7 +116,7 @@ func TestInvokeLLM_ReceiptRestoresConversationFromFreshInstance(t *testing.T) {
 
 	cp := &core.InMemoryCheckpoint{}
 	require.NoError(t, cp.Save(core.Position{}, core.Execution{{
-		CommandName: "invoke_llm",
+		CommandName: cmd.Name(),
 		Result:      safeCheckpointResult(),
 		Receipt:     res.Receipt,
 	}}))
@@ -115,11 +124,33 @@ func TestInvokeLLM_ReceiptRestoresConversationFromFreshInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, exec, 1)
 
-	fresh := builder.Build(core.Result{Output: "new prompt"})
+	freshHistory := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	freshBuilder := invokeBuilder(
+		def,
+		catalog.LLMToolConfig{},
+		nil,
+		nil,
+		"",
+		InvokeLLMFactoryDeps{
+			History: freshHistory,
+			ConversationRefResolver: fakeConversationReferenceResolver{conversations: map[string][]modelllm.Message{
+				reference: {{Role: modelllm.User, Content: "existing"}},
+			}},
+		},
+	)
+	freshRegistry := core.NewRegistry()
+	freshRegistry.Register(def.ToToolSpec(), freshBuilder)
+	resolved, ok := freshRegistry.Resolve(exec[0].CommandName)
+	require.True(t, ok)
+	reverser, ok := resolved.(core.Reverser)
+	require.True(t, ok)
+	fresh := reverser.BuildReverser()
+	require.Equal(t, def.Name, fresh.Name())
+
 	undo := fresh.Undo(core.Result{Receipt: exec[0].Receipt})
 	require.Equal(t, core.ToolDone, undo.Signal)
-	require.Equal(t, 1, history.Len())
-	require.Equal(t, "existing", history.History()[0].Content)
+	require.Equal(t, 1, freshHistory.Len())
+	require.Equal(t, "existing", freshHistory.History()[0].Content)
 }
 
 func TestInvokeLLM_LegacyReceiptRestoresConversation(t *testing.T) {

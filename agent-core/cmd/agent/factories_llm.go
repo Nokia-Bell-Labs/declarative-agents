@@ -100,10 +100,10 @@ func parseResponseFactory(st *agentState) toolregistry.BuiltinFactory {
 }
 
 func resetHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
-	return func(catalog.ToolDef, map[string]string) (core.Builder, error) {
+	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
 		refProvider, refResolver := llmConversationReferencePorts(st)
 		return &toollm.ResetHistoryBuilder{
-			History: st.conversation, Tracer: st.tracer,
+			ToolName: def.Name, History: st.conversation, Tracer: st.tracer,
 			ConversationRefProvider: refProvider,
 			ConversationRefResolver: refResolver,
 		}, nil

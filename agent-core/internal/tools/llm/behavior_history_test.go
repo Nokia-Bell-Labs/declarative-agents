@@ -5,6 +5,7 @@ package llm
 import (
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -19,6 +20,7 @@ func TestResetHistory(t *testing.T) {
 	builder := &ResetHistoryBuilder{History: history, Tracer: noopTracer()}
 	cmd := builder.Build(core.Result{})
 	require.Implements(t, (*core.SerialDispatchOnly)(nil), cmd)
+	require.Equal(t, "reset_history", cmd.Name())
 	res := cmd.Execute()
 
 	assert.Equal(t, core.ToolDone, res.Signal)
@@ -47,13 +49,15 @@ func TestResetHistory_UndoRestoresPreviousMessages(t *testing.T) {
 	require.Equal(t, "hi", history.History()[1].Content)
 }
 
-func TestResetHistory_ReceiptRestoresFromFreshInstance(t *testing.T) {
+func TestResetHistory_AliasReceiptRestoresFromFreshRegistry(t *testing.T) {
 	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
 	history.Append(modelllm.Message{Role: modelllm.User, Content: "hello"})
 	history.Append(modelllm.Message{Role: modelllm.Assistant, Content: "hi"})
+	def := catalog.ToolDef{Name: "clear_conversation", Type: "builtin", Init: "reset_history"}
 	const reference = "checkpoint:run-8/step-5"
 
 	builder := &ResetHistoryBuilder{
+		ToolName:                def.Name,
 		History:                 history,
 		Tracer:                  noopTracer(),
 		ConversationRefProvider: staticConversationReference{ref: reference, available: true},
@@ -65,6 +69,7 @@ func TestResetHistory_ReceiptRestoresFromFreshInstance(t *testing.T) {
 		}},
 	}
 	cmd := builder.Build(core.Result{})
+	require.Equal(t, def.Name, cmd.Name())
 	res := cmd.Execute()
 	require.Equal(t, core.ToolDone, res.Signal)
 	require.NotEmpty(t, res.Receipt)
@@ -72,7 +77,7 @@ func TestResetHistory_ReceiptRestoresFromFreshInstance(t *testing.T) {
 
 	cp := &core.InMemoryCheckpoint{}
 	require.NoError(t, cp.Save(core.Position{}, core.Execution{{
-		CommandName: "reset_history",
+		CommandName: cmd.Name(),
 		Result:      safeCheckpointResult(),
 		Receipt:     res.Receipt,
 	}}))
@@ -80,12 +85,31 @@ func TestResetHistory_ReceiptRestoresFromFreshInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, exec, 1)
 
-	fresh := builder.Build(core.Result{})
+	freshHistory := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	freshBuilder := &ResetHistoryBuilder{
+		ToolName: def.Name,
+		History:  freshHistory,
+		ConversationRefResolver: fakeConversationReferenceResolver{conversations: map[string][]modelllm.Message{
+			reference: {
+				{Role: modelllm.User, Content: "hello"},
+				{Role: modelllm.Assistant, Content: "hi"},
+			},
+		}},
+	}
+	freshRegistry := core.NewRegistry()
+	freshRegistry.Register(def.ToToolSpec(), freshBuilder)
+	resolved, ok := freshRegistry.Resolve(exec[0].CommandName)
+	require.True(t, ok)
+	reverser, ok := resolved.(core.Reverser)
+	require.True(t, ok)
+	fresh := reverser.BuildReverser()
+	require.Equal(t, def.Name, fresh.Name())
+
 	undo := fresh.Undo(core.Result{Receipt: exec[0].Receipt})
 	require.Equal(t, core.ToolDone, undo.Signal)
-	require.Equal(t, 2, history.Len())
-	require.Equal(t, "hello", history.History()[0].Content)
-	require.Equal(t, "hi", history.History()[1].Content)
+	require.Equal(t, 2, freshHistory.Len())
+	require.Equal(t, "hello", freshHistory.History()[0].Content)
+	require.Equal(t, "hi", freshHistory.History()[1].Content)
 }
 
 func TestResetHistory_LegacyReceiptRestoresConversation(t *testing.T) {
