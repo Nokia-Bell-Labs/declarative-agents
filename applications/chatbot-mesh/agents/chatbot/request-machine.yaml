@@ -39,7 +39,7 @@ states:
   - {name: Answering, meaning: The chosen chat-LLM word is answering over the composed grounding prompt.}
   - {name: Reporting, meaning: The answer and fixed-selector source metadata are being composed.}
   - {name: Finalizing, meaning: The composed response is being mapped to the terminal HTTP result.}
-  - {name: LLMResponded, meaning: Terminal. A mapped chat response is ready., run_status: failed}
+  - {name: LLMResponded, meaning: Terminal. A mapped chat response is ready., run_status: succeeded}
   - {name: Failed, meaning: Terminal. A non-degradable boundary or collection operation failed., run_status: failed}
 terminal_states: [LLMResponded, Failed]
 signals:

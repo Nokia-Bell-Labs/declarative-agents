@@ -41,31 +41,64 @@ func TestControlPlaneBodyIsClean(t *testing.T) {
 	}
 }
 
-func TestControlPlaneRequestMachinesClassifyTerminalStatus(t *testing.T) {
+func TestApplicationRequestMachinesClassifyTerminalStatus(t *testing.T) {
 	for _, test := range []struct {
 		agent     string
+		machine   string
 		succeeded []string
 		failed    []string
 	}{
 		{
 			agent:     "provisioning-workflow-orchestrator",
+			machine:   "request-machine.yaml",
 			succeeded: []string{"Reconfigured"},
 			failed:    []string{"Rejected", "Failed"},
 		},
 		{
 			agent:     "creator",
+			machine:   "request-machine.yaml",
 			succeeded: []string{"HealthReported", "StateReported", "Ingested"},
 			failed:    []string{"IngestRejected", "IngestFailed", "Failed"},
 		},
+		{
+			agent:     "chatbot",
+			machine:   "request-machine.yaml",
+			succeeded: []string{"LLMResponded"},
+			failed:    []string{"Failed"},
+		},
+		{
+			agent:     "rag-server",
+			machine:   "request-machine.yaml",
+			succeeded: []string{"QueryResponded"},
+			failed:    []string{"QueryRejected", "Failed"},
+		},
+		{
+			agent:     "provisioning-workflow-orchestrator",
+			machine:   "rollout-machine.yaml",
+			succeeded: []string{"StatusRead"},
+			failed:    []string{"Failed"},
+		},
+		{
+			agent:     "provisioning-workflow-orchestrator",
+			machine:   "state-machine.yaml",
+			succeeded: []string{"StateRead"},
+			failed:    []string{"Failed"},
+		},
+		{
+			agent:     "applier",
+			machine:   "state-machine.yaml",
+			succeeded: []string{"Read"},
+			failed:    []string{"Unavailable"},
+		},
 	} {
-		t.Run(test.agent, func(t *testing.T) {
+		t.Run(test.agent+"/"+test.machine, func(t *testing.T) {
 			var machine struct {
 				States []struct {
 					Name      string `yaml:"name"`
 					RunStatus string `yaml:"run_status"`
 				} `yaml:"states"`
 			}
-			readIntakeYAML(t, filepath.Join(agentDir(t, test.agent), "request-machine.yaml"), &machine)
+			readIntakeYAML(t, filepath.Join(agentDir(t, test.agent), test.machine), &machine)
 			statuses := map[string]string{}
 			for _, state := range machine.States {
 				statuses[state.Name] = state.RunStatus

@@ -14,7 +14,7 @@ states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted query endpoint with the request body.}
   - {name: ResolvingCollection, meaning: Create-or-get the collection and carry the query vector forward.}
   - {name: Querying, meaning: Query the resolved collection with the caller-supplied vector.}
-  - {name: QueryResponded, meaning: Terminal. The retrieved chunks are ready for the HTTP response., run_status: failed}
+  - {name: QueryResponded, meaning: Terminal. The retrieved chunks are ready for the HTTP response., run_status: succeeded}
   - {name: QueryRejected, meaning: Terminal. Chroma rejected the query vector (for example an embedding-space or dimension mismatch)., run_status: failed}
   - {name: Failed, meaning: Terminal. A Chroma boundary word failed., run_status: failed}
 terminal_states:
