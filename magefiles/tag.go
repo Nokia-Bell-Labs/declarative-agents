@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,10 +28,13 @@ type releaseGate struct {
 	dir  string
 	args []string
 	env  []string
-	// Gates in one stage may overlap. Gates sharing a lane remain serial
-	// because they use the same fixed ports or local infrastructure.
-	stage int
-	lane  string
+	// Gates sharing a lane remain serial because they use the same fixed ports
+	// or local infrastructure. Independent lanes may overlap when every
+	// requested resource has capacity.
+	lane      string
+	resources []releaseResourceClass
+	priority  int
+	exclusive bool
 }
 
 type releaseGateRunner func(string) error
@@ -38,7 +42,21 @@ type releaseCommandRunner func(releaseGate) error
 
 type remoteTagsFunc func(date string) (string, error)
 
-const releaseStageConcurrency = 3
+type releaseResourceClass string
+
+const (
+	releaseResourceDocker     releaseResourceClass = "docker"
+	releaseResourceHostOllama releaseResourceClass = "host-ollama"
+	releaseResourceCPU        releaseResourceClass = "cpu"
+
+	chatbotReleasePriority = 100
+)
+
+var releaseResourceCapacities = map[releaseResourceClass]int{
+	releaseResourceDocker:     3,
+	releaseResourceHostOllama: 1,
+	releaseResourceCPU:        1,
+}
 
 // Tag creates the single repository-wide release tag.
 func Tag() error {
@@ -195,113 +213,190 @@ func runReleaseGates(commit string) error {
 func releaseGates(root string) []releaseGate {
 	catalogRoot := filepath.Join(root, catalogModule)
 	gates := []releaseGate{
-		{name: "root audit", dir: root, args: []string{"mage", "audit"}, stage: 0, lane: "root"},
+		{name: "root audit", dir: root, args: []string{"mage", "audit"},
+			lane: "root", exclusive: true},
 		// Lint gates a release from GH-1479 on. It could not before: the policy
 		// had never run, and its first run reported findings, which GH-1481
-		// cleared. It sits early because it is the cheapest gate here, and a
-		// policy violation should not wait behind the integration aggregates.
-		{name: "root lint", dir: root, args: []string{"mage", "lint"}, stage: 1, lane: "root"},
+		// cleared.
+		{name: "root lint", dir: root, args: []string{"mage", "lint"},
+			lane: "root-lint", resources: []releaseResourceClass{releaseResourceCPU}},
 		// DA_RELEASE_GATE makes the UI reproducibility gate treat a missing npm
 		// as fatal rather than a developer skip (GH-1349), so a release cannot
 		// pass without rebuilding shipped UIs and auditing their dependencies.
 		{name: "root test", dir: root, args: []string{"mage", "test"},
-			env: []string{uiDistReleaseEnv + "=1"}, stage: 2, lane: "root"},
+			env:       []string{uiDistReleaseEnv + "=1"},
+			lane:      "root-test",
+			resources: []releaseResourceClass{releaseResourceCPU}},
 		{name: "agent-core integration", dir: filepath.Join(root, "agent-core"),
-			args: []string{"mage", "integration:all"}, stage: 3, lane: "agent-core"},
+			args: []string{"mage", "integration:all"}, lane: "agent-core",
+			resources: []releaseResourceClass{releaseResourceCPU, releaseResourceHostOllama}},
 		{name: "catalog integration", dir: catalogRoot,
-			args: []string{"mage", "integration:all"}, stage: 3, lane: "catalog"},
+			args: []string{"mage", "integration:all"}, lane: "catalog",
+			resources: []releaseResourceClass{releaseResourceCPU}},
 		{name: "catalog conformance", dir: catalogRoot,
-			args: []string{"mage", "conformance"}, stage: 3, lane: "catalog"},
+			args: []string{"mage", "conformance"}, lane: "catalog",
+			resources: []releaseResourceClass{releaseResourceCPU}},
 	}
 	// Every released application module must enter the release gate through its
 	// own integration:all aggregate; otherwise an application is tagged without
 	// its application-owned integration evidence ever running (GH-1343).
 	for _, mod := range applicationModules {
+		priority := 0
+		resources := []releaseResourceClass{releaseResourceDocker}
+		if mod == "applications/chatbot-mesh" {
+			priority = chatbotReleasePriority
+			resources = append(resources, releaseResourceHostOllama)
+		}
 		gates = append(gates, releaseGate{
-			name:  mod + " integration",
-			dir:   filepath.Join(root, filepath.FromSlash(mod)),
-			args:  []string{"mage", "integration:all"},
-			stage: 4,
-			lane:  mod,
+			name:      mod + " integration",
+			dir:       filepath.Join(root, filepath.FromSlash(mod)),
+			args:      []string{"mage", "integration:all"},
+			lane:      mod,
+			resources: resources,
+			priority:  priority,
 		})
 	}
 	return gates
 }
 
 func executeReleaseGates(gates []releaseGate, run releaseCommandRunner) error {
-	for first := 0; first < len(gates); {
-		last := first + 1
-		for last < len(gates) && gates[last].stage == gates[first].stage {
-			last++
-		}
-		if err := executeReleaseStage(gates[first:last], releaseStageConcurrency, run); err != nil {
+	firstScheduled := 0
+	for firstScheduled < len(gates) && gates[firstScheduled].exclusive {
+		if err := executeReleaseSchedule(
+			gates[firstScheduled:firstScheduled+1],
+			firstScheduled,
+			map[releaseResourceClass]int{},
+			run,
+		); err != nil {
 			return err
 		}
-		first = last
+		firstScheduled++
 	}
-	return nil
+	return executeReleaseSchedule(
+		gates[firstScheduled:],
+		firstScheduled,
+		releaseResourceCapacities,
+		run,
+	)
 }
 
 type releaseLane struct {
-	index int
-	name  string
-	gates []releaseGate
+	index     int
+	name      string
+	gates     []indexedReleaseGate
+	next      int
+	active    bool
+	started   bool
+	startedAt time.Time
 }
 
-type releaseLaneResult struct {
+type indexedReleaseGate struct {
 	index int
-	err   error
+	gate  releaseGate
 }
 
-func executeReleaseStage(
+type releaseGateResult struct {
+	index     int
+	laneIndex int
+	err       error
+}
+
+func executeReleaseSchedule(
 	gates []releaseGate,
-	limit int,
+	indexOffset int,
+	capacities map[releaseResourceClass]int,
 	run releaseCommandRunner,
 ) error {
-	if limit < 1 {
-		limit = 1
-	}
-	lanes := releaseLanes(gates)
+	lanes := releaseLanes(gates, indexOffset)
 	if len(lanes) == 0 {
 		return nil
 	}
+	if err := validateReleaseResources(gates, capacities); err != nil {
+		return err
+	}
 
-	results := make(chan releaseLaneResult, len(lanes))
-	next, active := 0, 0
-	launch := func(lane releaseLane) {
+	results := make(chan releaseGateResult, len(gates))
+	inUse := make(map[releaseResourceClass]int)
+	var failureDetected atomic.Bool
+	active := 0
+	launch := func(laneIndex int) {
+		lane := &lanes[laneIndex]
+		item := lane.gates[lane.next]
+		if !lane.started {
+			lane.started = true
+			lane.startedAt = time.Now()
+			fmt.Printf("=== release lane: %s ===\n", lane.name)
+		}
+		acquireReleaseResources(item.gate.resources, inUse)
+		lane.active = true
 		active++
 		go func() {
-			results <- releaseLaneResult{index: lane.index, err: executeReleaseLane(lane, run)}
+			err := executeReleaseGate(item.gate, run)
+			if err != nil {
+				// Publish failure before the result so the scheduler cannot
+				// launch another gate while this completion is buffered behind
+				// another in-flight result.
+				failureDetected.Store(true)
+			}
+			results <- releaseGateResult{
+				index:     item.index,
+				laneIndex: laneIndex,
+				err:       err,
+			}
 		}()
 	}
-	for next < len(lanes) && active < limit {
-		launch(lanes[next])
-		next++
-	}
 
-	var failures []releaseLaneResult
-	for active > 0 {
+	var failures []releaseGateResult
+	for {
+		if len(failures) == 0 && !failureDetected.Load() {
+			for _, laneIndex := range runnableReleaseLanes(lanes) {
+				if failureDetected.Load() {
+					break
+				}
+				gate := lanes[laneIndex].gates[lanes[laneIndex].next].gate
+				if releaseResourcesAvailable(gate.resources, capacities, inUse) {
+					launch(laneIndex)
+				}
+			}
+		}
+		if active == 0 {
+			break
+		}
+
 		result := <-results
 		active--
+		lane := &lanes[result.laneIndex]
+		lane.active = false
+		releaseReleaseResources(lane.gates[lane.next].gate.resources, inUse)
 		if result.err != nil {
 			failures = append(failures, result)
+			continue
 		}
-		if len(failures) == 0 && next < len(lanes) {
-			launch(lanes[next])
-			next++
+		lane.next++
+		if lane.next == len(lane.gates) {
+			fmt.Printf("=== release lane complete: %s (%s) ===\n",
+				lane.name, time.Since(lane.startedAt).Round(time.Millisecond))
 		}
 	}
+
 	if len(failures) == 0 {
+		for _, lane := range lanes {
+			if lane.next != len(lane.gates) {
+				gate := lane.gates[lane.next].gate
+				return fmt.Errorf("release scheduler cannot launch %s with resources %v",
+					gate.name, gate.resources)
+			}
+		}
 		return nil
 	}
 	sort.Slice(failures, func(i, j int) bool { return failures[i].index < failures[j].index })
 	return failures[0].err
 }
 
-func releaseLanes(gates []releaseGate) []releaseLane {
+func releaseLanes(gates []releaseGate, indexOffset int) []releaseLane {
 	indexByName := make(map[string]int)
 	var lanes []releaseLane
-	for _, gate := range gates {
+	for gateIndex, gate := range gates {
 		laneName := gate.lane
 		if laneName == "" {
 			laneName = "serial"
@@ -312,27 +407,105 @@ func releaseLanes(gates []releaseGate) []releaseLane {
 			indexByName[laneName] = index
 			lanes = append(lanes, releaseLane{index: index, name: laneName})
 		}
-		lanes[index].gates = append(lanes[index].gates, gate)
+		lanes[index].gates = append(lanes[index].gates, indexedReleaseGate{
+			index: indexOffset + gateIndex,
+			gate:  gate,
+		})
 	}
 	return lanes
 }
 
-func executeReleaseLane(lane releaseLane, run releaseCommandRunner) error {
-	started := time.Now()
-	fmt.Printf("=== release lane: %s ===\n", lane.name)
-	for _, gate := range lane.gates {
-		started := time.Now()
-		fmt.Printf("=== release gate: %s ===\n", gate.name)
-		if err := run(gate); err != nil {
-			elapsed := time.Since(started).Round(time.Millisecond)
-			return fmt.Errorf("%s failed after %s: %w", gate.name, elapsed, err)
+func runnableReleaseLanes(lanes []releaseLane) []int {
+	var runnable []int
+	for laneIndex := range lanes {
+		lane := &lanes[laneIndex]
+		if !lane.active && lane.next < len(lane.gates) {
+			runnable = append(runnable, laneIndex)
 		}
-		fmt.Printf("=== release gate complete: %s (%s) ===\n",
-			gate.name, time.Since(started).Round(time.Millisecond))
 	}
-	fmt.Printf("=== release lane complete: %s (%s) ===\n",
-		lane.name, time.Since(started).Round(time.Millisecond))
+	sort.SliceStable(runnable, func(i, j int) bool {
+		left := lanes[runnable[i]].gates[lanes[runnable[i]].next]
+		right := lanes[runnable[j]].gates[lanes[runnable[j]].next]
+		if left.gate.priority != right.gate.priority {
+			return left.gate.priority > right.gate.priority
+		}
+		return left.index < right.index
+	})
+	return runnable
+}
+
+func validateReleaseResources(
+	gates []releaseGate,
+	capacities map[releaseResourceClass]int,
+) error {
+	for _, gate := range gates {
+		required := make(map[releaseResourceClass]int)
+		for _, resource := range gate.resources {
+			required[resource]++
+			if required[resource] > capacities[resource] {
+				return fmt.Errorf(
+					"release gate %s requires %d %s slots, capacity is %d",
+					gate.name, required[resource], resource, capacities[resource])
+			}
+		}
+	}
 	return nil
+}
+
+func releaseResourcesAvailable(
+	resources []releaseResourceClass,
+	capacities map[releaseResourceClass]int,
+	inUse map[releaseResourceClass]int,
+) bool {
+	required := make(map[releaseResourceClass]int)
+	for _, resource := range resources {
+		required[resource]++
+		if inUse[resource]+required[resource] > capacities[resource] {
+			return false
+		}
+	}
+	return true
+}
+
+func acquireReleaseResources(
+	resources []releaseResourceClass,
+	inUse map[releaseResourceClass]int,
+) {
+	for _, resource := range resources {
+		inUse[resource]++
+	}
+}
+
+func releaseReleaseResources(
+	resources []releaseResourceClass,
+	inUse map[releaseResourceClass]int,
+) {
+	for _, resource := range resources {
+		inUse[resource]--
+	}
+}
+
+func executeReleaseGate(gate releaseGate, run releaseCommandRunner) error {
+	started := time.Now()
+	fmt.Printf("=== release gate: %s ===\n", gate.name)
+	if err := run(gate); err != nil {
+		elapsed := time.Since(started).Round(time.Millisecond)
+		logReleaseGatePhase(gate, elapsed, "failure")
+		return fmt.Errorf("%s failed after %s: %w", gate.name, elapsed, err)
+	}
+	elapsed := time.Since(started).Round(time.Millisecond)
+	fmt.Printf("=== release gate complete: %s (%s) ===\n", gate.name, elapsed)
+	logReleaseGatePhase(gate, elapsed, "success")
+	return nil
+}
+
+func logReleaseGatePhase(gate releaseGate, elapsed time.Duration, outcome string) {
+	fmt.Printf("phase target=release name=%s elapsed=%s outcome=%s lane=%s\n",
+		releasePhaseField(gate.name), elapsed, outcome, releasePhaseField(gate.lane))
+}
+
+func releasePhaseField(value string) string {
+	return strings.NewReplacer(" ", "-", "/", "-").Replace(value)
 }
 
 func runReleaseCommand(gate releaseGate) error {

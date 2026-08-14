@@ -185,4 +185,10 @@ func TestSpecificationCriticAuditProfileDeclaresEvidencePipeline(t *testing.T) {
 			t.Errorf("Go exec declarations missing %q", want)
 		}
 	}
+	if got := strings.Count(machine, "action: go_test_run"); got != 1 {
+		t.Errorf("audit machine go_test_run actions = %d, want one shared evidence run", got)
+	}
+	if got := strings.Count(tools, "args: [test, -json, -count=1, ./...]"); got != 1 {
+		t.Errorf("audit go test execution declarations = %d, want one shared evidence run", got)
+	}
 }

@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
@@ -463,99 +462,148 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 	root := "/release"
 	got := releaseGates(root)
 	want := []releaseGate{
-		{name: "root audit", dir: root, args: []string{"mage", "audit"}, stage: 0, lane: "root"},
-		{name: "root lint", dir: root, args: []string{"mage", "lint"}, stage: 1, lane: "root"},
+		{name: "root audit", dir: root, args: []string{"mage", "audit"},
+			lane: "root", exclusive: true},
+		{name: "root lint", dir: root, args: []string{"mage", "lint"},
+			lane: "root-lint", resources: []releaseResourceClass{releaseResourceCPU}},
 		{name: "root test", dir: root, args: []string{"mage", "test"},
-			env: []string{uiDistReleaseEnv + "=1"}, stage: 2, lane: "root"},
+			env:       []string{uiDistReleaseEnv + "=1"},
+			lane:      "root-test",
+			resources: []releaseResourceClass{releaseResourceCPU}},
 		{name: "agent-core integration", dir: "/release/agent-core",
-			args: []string{"mage", "integration:all"}, stage: 3, lane: "agent-core"},
+			args: []string{"mage", "integration:all"}, lane: "agent-core",
+			resources: []releaseResourceClass{releaseResourceCPU, releaseResourceHostOllama}},
 		{name: "catalog integration", dir: "/release/applications/catalog",
-			args: []string{"mage", "integration:all"}, stage: 3, lane: "catalog"},
+			args: []string{"mage", "integration:all"}, lane: "catalog",
+			resources: []releaseResourceClass{releaseResourceCPU}},
 		{name: "catalog conformance", dir: "/release/applications/catalog",
-			args: []string{"mage", "conformance"}, stage: 3, lane: "catalog"},
+			args: []string{"mage", "conformance"}, lane: "catalog",
+			resources: []releaseResourceClass{releaseResourceCPU}},
 		{name: "applications/chatbot-mesh integration", dir: "/release/applications/chatbot-mesh",
-			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/chatbot-mesh"},
+			args: []string{"mage", "integration:all"}, lane: "applications/chatbot-mesh",
+			resources: []releaseResourceClass{releaseResourceDocker, releaseResourceHostOllama},
+			priority:  chatbotReleasePriority},
 		{name: "applications/coding-agent integration", dir: "/release/applications/coding-agent",
-			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/coding-agent"},
+			args: []string{"mage", "integration:all"}, lane: "applications/coding-agent",
+			resources: []releaseResourceClass{releaseResourceDocker}},
 		{name: "applications/agent-architecture integration", dir: "/release/applications/agent-architecture",
-			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/agent-architecture"},
+			args: []string{"mage", "integration:all"}, lane: "applications/agent-architecture",
+			resources: []releaseResourceClass{releaseResourceDocker}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("release gates = %#v, want %#v", got, want)
 	}
 }
 
-func TestChatbotAndArchitectureReleaseGatesCanOverlap(t *testing.T) {
-	var selected []releaseGate
-	for _, gate := range releaseGates("/release") {
-		if gate.name == "applications/chatbot-mesh integration" ||
-			gate.name == "applications/agent-architecture integration" {
-			selected = append(selected, gate)
-		}
-	}
-	if len(selected) != 2 || selected[0].lane == selected[1].lane {
-		t.Fatalf("application release lanes are not independent: %#v", selected)
-	}
-	started := make(chan string, 2)
-	release := make(chan struct{})
+func TestPostAuditCPUGateOverlapsAllThreeDockerApplicationLanes(t *testing.T) {
+	gates := releaseGates("/release")
+	started := make(chan string, len(gates))
+	releaseInitial := make(chan struct{})
 	done := make(chan error, 1)
+	initial := map[string]bool{
+		"root lint":                                   true,
+		"applications/chatbot-mesh integration":       true,
+		"applications/coding-agent integration":       true,
+		"applications/agent-architecture integration": true,
+	}
+
 	go func() {
-		done <- executeReleaseStage(selected, 2, func(gate releaseGate) error {
+		done <- executeReleaseGates(gates, func(gate releaseGate) error {
 			started <- gate.name
-			<-release
+			if initial[gate.name] {
+				<-releaseInitial
+			}
 			return nil
 		})
 	}()
-	first, second := <-started, <-started
-	got := map[string]bool{first: true, second: true}
-	if !got["applications/chatbot-mesh integration"] ||
-		!got["applications/agent-architecture integration"] {
-		t.Fatalf("concurrent gates = %q, %q", first, second)
+
+	if got := receiveReleaseStart(t, started); got != "root audit" {
+		t.Fatalf("first gate = %q, want root audit", got)
 	}
-	close(release)
-	if err := <-done; err != nil {
+	got := make(map[string]bool)
+	for range initial {
+		got[receiveReleaseStart(t, started)] = true
+	}
+	if !reflect.DeepEqual(got, initial) {
+		t.Fatalf("initial post-audit gates = %v, want %v", got, initial)
+	}
+
+	close(releaseInitial)
+	if err := receiveReleaseResult(t, done); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestApplicationReleaseStageStartsAllThreeLanes(t *testing.T) {
-	var applications []releaseGate
-	for _, gate := range releaseGates("/release") {
-		if gate.stage == 4 {
-			applications = append(applications, gate)
-		}
-	}
-	if len(applications) != 3 {
-		t.Fatalf("application gates = %d, want 3", len(applications))
-	}
-	started := make(chan string, len(applications))
-	release := make(chan struct{})
+func TestHostOllamaPrioritizesChatbotBeforeAgentCore(t *testing.T) {
+	all := releaseGates("/release")
+	gates := []releaseGate{all[0], all[3], all[6]}
+	started := make(chan string, len(gates))
+	releaseChatbot := make(chan struct{})
 	done := make(chan error, 1)
+
 	go func() {
-		done <- executeReleaseStage(
-			applications, releaseStageConcurrency,
-			func(gate releaseGate) error {
-				started <- gate.name
-				<-release
-				return nil
-			})
+		done <- executeReleaseGates(gates, func(gate releaseGate) error {
+			started <- gate.name
+			if gate.name == "applications/chatbot-mesh integration" {
+				<-releaseChatbot
+			}
+			return nil
+		})
 	}()
-	startedLanes := map[string]bool{
-		<-started: true,
-		<-started: true,
-		<-started: true,
+
+	if got := receiveReleaseStart(t, started); got != "root audit" {
+		t.Fatalf("first gate = %q, want root audit", got)
 	}
-	for _, want := range []string{
-		"applications/chatbot-mesh integration",
-		"applications/coding-agent integration",
-		"applications/agent-architecture integration",
-	} {
-		if !startedLanes[want] {
-			t.Fatalf("started lanes = %v, missing %q", startedLanes, want)
-		}
+	if got := receiveReleaseStart(t, started); got != "applications/chatbot-mesh integration" {
+		t.Fatalf("first host-ollama gate = %q, want chatbot", got)
 	}
-	close(release)
-	if err := <-done; err != nil {
+	select {
+	case got := <-started:
+		t.Fatalf("host-ollama gate %q overlapped chatbot", got)
+	default:
+	}
+	close(releaseChatbot)
+	if got := receiveReleaseStart(t, started); got != "agent-core integration" {
+		t.Fatalf("second host-ollama gate = %q, want agent-core", got)
+	}
+	if err := receiveReleaseResult(t, done); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCatalogReleaseLaneStaysSerial(t *testing.T) {
+	all := releaseGates("/release")
+	gates := []releaseGate{all[0], all[4], all[5]}
+	started := make(chan string, len(gates))
+	releaseIntegration := make(chan struct{})
+	done := make(chan error, 1)
+
+	go func() {
+		done <- executeReleaseGates(gates, func(gate releaseGate) error {
+			started <- gate.name
+			if gate.name == "catalog integration" {
+				<-releaseIntegration
+			}
+			return nil
+		})
+	}()
+
+	if got := receiveReleaseStart(t, started); got != "root audit" {
+		t.Fatalf("first gate = %q, want root audit", got)
+	}
+	if got := receiveReleaseStart(t, started); got != "catalog integration" {
+		t.Fatalf("first catalog gate = %q, want integration", got)
+	}
+	select {
+	case got := <-started:
+		t.Fatalf("catalog gate %q overlapped integration", got)
+	default:
+	}
+	close(releaseIntegration)
+	if got := receiveReleaseStart(t, started); got != "catalog conformance" {
+		t.Fatalf("second catalog gate = %q, want conformance", got)
+	}
+	if err := receiveReleaseResult(t, done); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -602,58 +650,6 @@ func TestReleaseGatesCoverEveryApplicationModule(t *testing.T) {
 	}
 }
 
-func TestExecuteReleaseStageRunsIndependentLanesConcurrently(t *testing.T) {
-	gates := []releaseGate{
-		{name: "a1", lane: "a"},
-		{name: "b1", lane: "b"},
-		{name: "a2", lane: "a"},
-	}
-	started := make(chan string, len(gates))
-	release := make(chan struct{})
-	done := make(chan error, 1)
-	var mu sync.Mutex
-	var running, maxRunning int
-	var calls []string
-
-	go func() {
-		done <- executeReleaseStage(gates, 2, func(gate releaseGate) error {
-			mu.Lock()
-			calls = append(calls, gate.name)
-			running++
-			if running > maxRunning {
-				maxRunning = running
-			}
-			mu.Unlock()
-			started <- gate.name
-			if gate.name != "a2" {
-				<-release
-			}
-			mu.Lock()
-			running--
-			mu.Unlock()
-			return nil
-		})
-	}()
-
-	first, second := <-started, <-started
-	if got := map[string]bool{first: true, second: true}; !got["a1"] || !got["b1"] {
-		t.Fatalf("first concurrent gates = %q, %q; want a1 and b1", first, second)
-	}
-	close(release)
-	if err := <-done; err != nil {
-		t.Fatal(err)
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	if maxRunning != 2 {
-		t.Fatalf("maximum concurrent gates = %d, want 2", maxRunning)
-	}
-	a1, a2 := slicesIndex(calls, "a1"), slicesIndex(calls, "a2")
-	if a1 < 0 || a2 < 0 || a1 >= a2 {
-		t.Fatalf("shared lane order = %v, want a1 before a2", calls)
-	}
-}
-
 func TestReleaseGatesRootFailureBlocksEveryLaterRealGate(t *testing.T) {
 	gateErr := errors.New("audit failed")
 	started := make(chan string, len(releaseGates("/release")))
@@ -690,7 +686,112 @@ func TestReleaseGatesRootFailureBlocksEveryLaterRealGate(t *testing.T) {
 	}
 }
 
-func TestExecuteReleaseGatesStopsAtFailure(t *testing.T) {
+func TestReleaseFailureStopsLaunchesAndWaitsForInFlightCleanup(t *testing.T) {
+	gateErr := errors.New("cpu gate failed")
+	gates := []releaseGate{
+		{name: "audit", lane: "audit", exclusive: true},
+		{name: "failing", lane: "failing", resources: []releaseResourceClass{releaseResourceCPU}},
+		{name: "cleanup", lane: "cleanup", resources: []releaseResourceClass{releaseResourceDocker}},
+		{name: "queued", lane: "queued", resources: []releaseResourceClass{releaseResourceCPU}},
+	}
+	started := make(chan string, len(gates))
+	fail := make(chan struct{})
+	cleanup := make(chan struct{})
+	done := make(chan error, 1)
+
+	go func() {
+		done <- executeReleaseGates(gates, func(gate releaseGate) error {
+			started <- gate.name
+			switch gate.name {
+			case "failing":
+				<-fail
+				return gateErr
+			case "cleanup":
+				<-cleanup
+			}
+			return nil
+		})
+	}()
+
+	if got := receiveReleaseStart(t, started); got != "audit" {
+		t.Fatalf("first gate = %q, want audit", got)
+	}
+	running := map[string]bool{
+		receiveReleaseStart(t, started): true,
+		receiveReleaseStart(t, started): true,
+	}
+	if !running["failing"] || !running["cleanup"] {
+		t.Fatalf("post-audit running gates = %v", running)
+	}
+	close(fail)
+	select {
+	case err := <-done:
+		t.Fatalf("scheduler returned before cleanup completed: %v", err)
+	case got := <-started:
+		t.Fatalf("scheduler launched %q after failure", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(cleanup)
+	if err := receiveReleaseResult(t, done); !errors.Is(err, gateErr) {
+		t.Fatalf("error = %v, want %v", err, gateErr)
+	}
+	select {
+	case got := <-started:
+		t.Fatalf("scheduler launched queued gate %q after failure", got)
+	default:
+	}
+}
+
+func TestReleaseFailureReturnsEarliestOriginalGateIndex(t *testing.T) {
+	earlierErr := errors.New("earlier gate failed")
+	laterErr := errors.New("later gate failed")
+	gates := []releaseGate{
+		{name: "audit", lane: "audit", exclusive: true},
+		{name: "earlier", lane: "earlier", resources: []releaseResourceClass{releaseResourceCPU}},
+		{name: "later", lane: "later", resources: []releaseResourceClass{releaseResourceDocker}},
+	}
+	started := make(chan string, len(gates))
+	releaseEarlier := make(chan struct{})
+	laterFinished := make(chan struct{})
+	done := make(chan error, 1)
+
+	go func() {
+		done <- executeReleaseGates(gates, func(gate releaseGate) error {
+			started <- gate.name
+			switch gate.name {
+			case "earlier":
+				<-releaseEarlier
+				return earlierErr
+			case "later":
+				close(laterFinished)
+				return laterErr
+			}
+			return nil
+		})
+	}()
+
+	if got := receiveReleaseStart(t, started); got != "audit" {
+		t.Fatalf("first gate = %q, want audit", got)
+	}
+	running := map[string]bool{
+		receiveReleaseStart(t, started): true,
+		receiveReleaseStart(t, started): true,
+	}
+	if !running["earlier"] || !running["later"] {
+		t.Fatalf("post-audit running gates = %v", running)
+	}
+	select {
+	case <-laterFinished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("later gate did not fail")
+	}
+	close(releaseEarlier)
+	if err := receiveReleaseResult(t, done); !errors.Is(err, earlierErr) {
+		t.Fatalf("error = %v, want earliest gate failure %v", err, earlierErr)
+	}
+}
+
+func TestExecuteReleaseGatesStopsAtSameLaneFailure(t *testing.T) {
 	gateErr := errors.New("tests failed")
 	gates := []releaseGate{
 		{name: "audit"}, {name: "test"}, {name: "integration"},
@@ -711,13 +812,33 @@ func TestExecuteReleaseGatesStopsAtFailure(t *testing.T) {
 	}
 }
 
-func slicesIndex(values []string, want string) int {
-	for index, value := range values {
-		if value == want {
-			return index
-		}
+func receiveReleaseStart(t *testing.T, started <-chan string) string {
+	t.Helper()
+	select {
+	case name := <-started:
+		return name
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for release gate to start")
+		return ""
 	}
-	return -1
+}
+
+func receiveReleaseResult(t *testing.T, done <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for release scheduler")
+		return nil
+	}
+}
+
+func TestReleasePhaseFieldIsParseable(t *testing.T) {
+	got := releasePhaseField("applications/chatbot-mesh integration")
+	if got != "applications-chatbot-mesh-integration" {
+		t.Fatalf("phase field = %q, want a single stable token", got)
+	}
 }
 
 func TestNextRevisionFromTags(t *testing.T) {
