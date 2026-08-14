@@ -15,7 +15,7 @@ release_03_0_support:
     - rest.version, clients, servers, openapi, auth, limits, retry_policies, and response_mappings.
     - REST client resource operations and RPC-shaped operations.
     - REST client async send and await by request_id.
-    - REST server emit_signal, emit_dynamic_signal, read_state, invoke_handler, stream_events, health, static_metadata, machine_request, and monitor endpoints.
+    - REST server emit_signal, emit_dynamic_signal, read_state, invoke_handler, stream_events, health, static_metadata, machine_request, signal_source, and monitor endpoints.
     - OpenAPI import from local files into client operations and server endpoints.
     - network.cidrs parsing and CIDR enforcement.
     - async correlation selectors and wire-level idempotency metadata; readiness polling is authored as explicit REST probe and lifecycle delay states in MachineSpec.
@@ -36,8 +36,10 @@ timeout_envelope:
     referenced client limit profile and its async timeout where applicable. A
     machine_request endpoint derives its outer request authority from
     machine_request.timeout and separately inspects the referenced request
-    profile or machine. REST await words derive their authority from the
-    selected ToolDef config and referenced queue or source timeout.
+    profile or machine. A signal_source endpoint derives its finite host-run
+    authority from signal_source.timeout. REST await words derive their
+    authority from the selected ToolDef config and referenced queue or source
+    timeout.
   environment_expansion: |
     REST definitions and ToolDef declarations expand ${VAR} and
     ${VAR:-default} before timeout-envelope validation. The MachineSpec that
@@ -527,7 +529,7 @@ schema:
       - field: binding
         type: string
         required: true
-        description: Endpoint binding kind from srd029-rest-server-tools R5 or srd030-machine-request-rest-binding.
+        description: Endpoint binding kind from srd029-rest-server-tools R5, srd030-machine-request-rest-binding, or srd046-request-driven-signal-source. signal_source is independent from machine_request and drives the injected host-profile SignalSource without an inbound queue.
       - field: monitor_view
         type: string
         required: false
@@ -569,6 +571,10 @@ schema:
         type: machine_request_config
         required: false
         description: Request-to-machine mapping used when binding is machine_request.
+      - field: signal_source
+        type: signal_source_config
+        required: false
+        description: Trusted request-to-SignalEnvelope mapping used only when binding is signal_source.
       - field: request
         type: request_binding
         required: false
@@ -751,6 +757,84 @@ schema:
         type: json_schema
         required: false
         description: Response body schema that terminal output should satisfy. Validation is enforced before machine_request writes a success response.
+
+  signal_source_config:
+    note: REST definitions load this mapping with strict field checking. Runtime input supplies only values selected by these trusted selectors and cannot provide a raw signal or program authority.
+    fields:
+      - field: source
+        type: string
+        required: true
+        description: Configured source identity copied to SignalEnvelope.source and bounded trace attributes.
+      - field: discriminator_field
+        type: string
+        required: true
+        description: Declared $.body, $.query, $.path, or $.headers selector whose string value is looked up only in signal_mapping.
+      - field: signal_mapping
+        type: map[string]string
+        required: true
+        description: Non-empty closed discriminator mapping to trusted signal names. Unknown keys return refused_undeclared without invoking the host runner.
+      - field: run_id_field
+        type: string
+        required: true
+        description: Declared request selector yielding the non-empty host run id.
+      - field: expected_state_field
+        type: string
+        required: false
+        description: Optional declared request selector yielding the expected-state admission guard.
+      - field: payload
+        type: map[string]string
+        required: true
+        description: Non-empty output-field to declared-request-selector mapping used to construct SignalEnvelope.payload.
+      - field: sensitive
+        type: "[]string"
+        required: false
+        description: Payload output fields converted to typed core.OutputRedactionPath values before admission. Every entry must name a payload mapping key.
+      - field: timeout
+        type: duration string
+        required: true
+        description: Positive maximum time for admission and the accepted host run.
+      - field: responses
+        type: signal_source_response_mappings
+        required: true
+        description: HTTP policy selected after source validation or admission; it does not rewrite accepted when the later run fails.
+
+  signal_source_response_mappings:
+    fields:
+      - field: accepted
+        type: signal_source_response
+        required: true
+        description: Response for an accepted admission whose run did not fail.
+      - field: refused_undeclared
+        type: signal_source_response
+        required: true
+        description: Response for an unknown discriminator or core refused_undeclared outcome.
+      - field: refused_conflict
+        type: signal_source_response
+        required: false
+        description: Response for refused_conflict. Status defaults to HTTP 409 when omitted.
+      - field: source_validation
+        type: signal_source_response
+        required: true
+        description: Response for transport, schema, mapping, or caller-authority validation failure. The runner is not called.
+      - field: machine_run_failed
+        type: signal_source_response
+        required: true
+        description: Response policy for runner failure, timeout, cancellation, or an accepted admission whose run later failed.
+
+  signal_source_response:
+    fields:
+      - field: status
+        type: int
+        required: true
+        description: HTTP status in the range 100-599.
+      - field: include_diagnostic
+        type: bool
+        required: false
+        description: Permits a redacted stage or diagnostic in addition to the fixed outcome fields.
+      - field: include_output
+        type: bool
+        required: false
+        description: Permits the redacted terminal run summary in addition to the fixed outcome fields.
 
   document_resource:
     fields:
@@ -1636,6 +1720,14 @@ validation_rules:
       Missing references, malformed delays, non-positive attempts, and
       aggregate overflow MUST fail before dispatch. rest_client_await keeps its
       separate async timeout and MUST NOT inherit the submission aggregate.
+  - id: V38
+    rule: signal_source endpoints MUST declare a bounded source identity, declared discriminator and run-id selectors, a non-empty closed signal mapping, a non-empty payload mapping, a positive timeout, and statuses for accepted, refused_undeclared, source_validation, and machine_run_failed; refused_conflict defaults to HTTP 409.
+  - id: V39
+    rule: signal_source selectors MUST reference fields declared by endpoint.request and MUST NOT select signal, profile, machine, tools, tool declarations, model configuration, checkpoint, URL, method, host, or other caller program authority.
+  - id: V40
+    rule: signal_source sensitive entries MUST name payload mapping keys and become typed one-segment Result output-redaction paths before the injected host runner is called.
+  - id: V41
+    rule: signal_source validates and maps the complete request before invoking its injected SignalSource runner; unknown discriminators and invalid requests do not invoke the runner, enter emit_signal queues, or use machine_request.
 
 invalid_examples:
   ambiguous_resource_operation: |
@@ -1756,6 +1848,7 @@ implementation_status:
     - rest_await_event source-filter config through ToolDef config.
     - emit_signal lifecycle exit routes and exit_agent ToolDef config.
     - machine_request endpoint binding config.
+    - signal_source endpoint binding with trusted closed request mapping, typed sensitive paths, host-runner injection, configured outcome responses, bounded tracing, and no inbound queue.
     - filesystem resource words used by the Knowledge Manager request machine.
     - generic machine_request response trace fields for server, route, and request machine emitted directly by internal/tools/rest.
     - always-on Knowledge Manager conformance coverage for generic machine_request routes under plain go test.

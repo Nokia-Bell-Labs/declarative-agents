@@ -347,12 +347,12 @@ srd_index:
   - id: srd046-request-driven-signal-source
     title: Request-Driven Signal Source
     summary: A transport-neutral SignalSource maps validated requests to declared signal and payload envelopes, atomically distinguishes accepted, refused_undeclared, and refused_conflict, preserves checkpoint and resume behavior, and allows model-free profiles without changing the model path.
-    status: specified
+    status: implemented
     path: docs/specs/software-requirements/srd046-request-driven-signal-source.yaml
   - id: srd047-dolt-boundary-word
     title: Configured Dolt Boundary Words
     summary: General-purpose provision, query, and write words whose trusted configuration owns connection, database, SQL, parameter schemas, schema lifecycle, and commit messages, with bound caller params, commit-per-write, checkpoint-database separation, and real-Dolt integration proof.
-    status: specified
+    status: implemented
     path: docs/specs/software-requirements/srd047-dolt-boundary-word.yaml
 
 config_format_index:
@@ -601,13 +601,13 @@ use_case_index:
   - id: rel14.0-uc001-request-driven-signal
     title: A model-free profile advances from a validated HTTP request
     release: "14.0"
-    status: specified
+    status: implemented
     test_suite: test-rel14.0-agent-input-and-dolt
     path: docs/specs/use-cases/rel14.0-uc001-request-driven-signal.yaml
   - id: rel14.0-uc002-dolt-boundary-word
     title: Declared Dolt words provision and update a versioned store
     release: "14.0"
-    status: specified
+    status: implemented
     test_suite: test-rel14.0-agent-input-and-dolt
     path: docs/specs/use-cases/rel14.0-uc002-dolt-boundary-word.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
@@ -759,7 +759,7 @@ test_suite_index:
       - rel14.0-uc001-request-driven-signal
       - rel14.0-uc002-dolt-boundary-word
     formal_test_cases: 13
-    status: specified
+    status: implemented
     path: docs/specs/test-suites/test-rel14.0-agent-input-and-dolt.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
@@ -840,14 +840,15 @@ srd_to_use_case_mapping:
     coverage: Full. Covers AC1 through AC9 via SC8 and telemetry initialization.
 
 coverage_gaps: |
-  Release 14.0 specifies srd046 request-driven signal admission and srd047
+  Release 14.0 implements srd046 request-driven signal admission and srd047
   configured Dolt boundary words. rel14.0-uc001 and rel14.0-uc002 trace every
-  acceptance criterion into test-rel14.0-agent-input-and-dolt. GH-1733 owns the
-  model-free HTTP source, lifecycle cases, and unchanged mock-model regression.
-  GH-1732 owns the Dolt words and the required real-Dolt integration target for
-  database and schema creation, parameterized reads and writes, commit history,
-  checkpoint-database separation, caller-authority refusal, and failed-write
-  rollback. Those cases remain specified until the implementation issues land.
+  acceptance criterion into implemented cases in
+  test-rel14.0-agent-input-and-dolt. The request-signal proof covers model-free
+  profile serving, HTTP mapping, ordinary Loop dispatch, process-local and Dolt
+  continuation, Noop refusal, lifecycle ownership, and the unchanged mock-model
+  runOrResume path. The Dolt-word proof retains the real-server gate for schema
+  creation, bound reads and writes, commit history, database separation,
+  authority refusal, and failed-write rollback.
 
   Release 99.0 srd043, rel99.0-uc002, and
   test-rel99.0-application-catalog-migration define the application/catalog

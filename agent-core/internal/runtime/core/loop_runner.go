@@ -89,7 +89,7 @@ func initialSignalResult(p LoopParams) (Signal, Result) {
 	if res.Signal == "" {
 		res.Signal = p.InitialSignal
 	}
-	if res.Output == "" {
+	if res.Output == "" && !p.PreserveInitialResultOutput {
 		res.Output = "Resume."
 	}
 	return p.InitialSignal, res

@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -159,6 +161,7 @@ type agentState struct {
 	lifecycleCheckpoint core.Checkpoint
 	monitor             toolrest.MonitorState
 	restDefs            toolrest.Collection
+	signalSourceRunner  toolrest.SignalSourceRunner
 	shutdown            func()
 	reapServices        func()
 }
@@ -210,6 +213,9 @@ func runPrepared(prepared preparedRun) (err error) {
 	defer func() {
 		err = errors.Join(err, prepared.Close())
 	}()
+	if hasRequestSignalSources(prepared.State.restDefs) {
+		return serveRequestSignalSources(prepared)
+	}
 	result, err := runOrResume(prepared.Config, resumeDeps{
 		Params: prepared.Params,
 		State:  prepared.State,
@@ -226,6 +232,258 @@ func runPrepared(prepared preparedRun) (err error) {
 	runExitCode = exitCodeForStatus(result.Status)
 	prepared.Shutdown.Apply()
 	return nil
+}
+
+type boundSignalSourceRunner struct {
+	mu     sync.RWMutex
+	runner toolrest.SignalSourceRunner
+}
+
+func (r *boundSignalSourceRunner) Bind(runner toolrest.SignalSourceRunner) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.runner = runner
+}
+
+func (r *boundSignalSourceRunner) RequestSignal(
+	ctx context.Context,
+	envelope core.SignalEnvelope,
+) core.SignalAdmission {
+	r.mu.RLock()
+	runner := r.runner
+	r.mu.RUnlock()
+	if runner != nil {
+		return runner.RequestSignal(ctx, envelope)
+	}
+	return core.SignalAdmission{
+		Outcome: core.AdmissionRefusedConflict,
+		Source:  envelope.Source, RequestID: envelope.RequestID, RunID: envelope.RunID,
+		Signal: envelope.Signal, Stage: "runner_unavailable",
+		Err: fmt.Errorf("request signal source runner is unavailable"),
+	}
+}
+
+type requestSignalCheckpointProvider func(string) (openedCheckpoint, error)
+
+type requestSignalCheckpointStore struct {
+	cfg     runtimeConfig
+	machine core.MachineSpec
+	mu      sync.Mutex
+	memory  map[string]*core.InMemoryCheckpoint
+}
+
+func (s *requestSignalCheckpointStore) Open(runID string) (openedCheckpoint, error) {
+	if s.cfg.DoltDSN != "" {
+		cp, err := openDoltCheckpoint(s.cfg.DoltDSN, runID, terminalPredicate(s.machine))
+		if err != nil {
+			return openedCheckpoint{}, fmt.Errorf("open request signal Dolt checkpoint: %w", err)
+		}
+		return openedCheckpoint{
+			Checkpoint: cp, close: cp.Close, label: "request signal checkpoint " + runID,
+		}, nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.memory == nil {
+		s.memory = make(map[string]*core.InMemoryCheckpoint)
+	}
+	checkpoint := s.memory[runID]
+	if checkpoint == nil {
+		checkpoint = core.NewInMemoryCheckpoint(runID)
+		s.memory[runID] = checkpoint
+	}
+	return openedCheckpoint{Checkpoint: checkpoint}, nil
+}
+
+type hostRequestSignalRunner struct {
+	source      *core.LoopSignalSource
+	params      core.LoopParams
+	state       *agentState
+	checkpoints requestSignalCheckpointProvider
+	afterRun    func()
+	activeMu    sync.Mutex
+	active      map[string]struct{}
+	stateMu     sync.Mutex
+}
+
+func (r *hostRequestSignalRunner) RequestSignal(
+	ctx context.Context,
+	envelope core.SignalEnvelope,
+) core.SignalAdmission {
+	if !r.begin(envelope.RunID) {
+		return refusedSignalAdmission(envelope, "concurrent_conflict", nil)
+	}
+	defer r.end(envelope.RunID)
+	checkpoint, err := r.checkpoints(envelope.RunID)
+	if err != nil {
+		return refusedSignalAdmission(envelope, "checkpoint_open_failed", err)
+	}
+	params := r.params
+	params.Checkpoint = checkpoint.Checkpoint
+	params.MonitorRecorder = requestSignalMonitorRecorder(r.state, envelope.RunID)
+	params.Hooks.RestoreSnapshot = r.restoreSnapshot
+	// Builders and snapshot hooks retain the host's conversation and domain
+	// state. Serialize that mutable host state across different run IDs while
+	// begin still refuses, rather than queues, a concurrent request for one run.
+	r.stateMu.Lock()
+	admission := r.source.Admit(ctx, envelope, params)
+	r.stateMu.Unlock()
+	closeRequestSignalCheckpoint(checkpoint, &admission)
+	if r.afterRun != nil {
+		r.afterRun()
+	}
+	return admission
+}
+
+func requestSignalMonitorRecorder(st *agentState, runID string) monitor.RuntimeRecorder {
+	recorder := st.monitor.Recorder
+	scoped, ok := recorder.(monitor.TrustedEnvelopeRecorder)
+	if !ok || st.monitor.Machine == nil {
+		return recorder
+	}
+	return scoped.WithTrustedEnvelope(monitorEnvelopePolicy(
+		*st.monitor.Machine, st.monitor.Tools, runID,
+	))
+}
+
+func refusedSignalAdmission(
+	envelope core.SignalEnvelope,
+	stage string,
+	err error,
+) core.SignalAdmission {
+	return core.SignalAdmission{
+		Outcome: core.AdmissionRefusedConflict,
+		Source:  envelope.Source, RequestID: envelope.RequestID, RunID: envelope.RunID,
+		Signal: envelope.Signal, Stage: stage, Err: err,
+	}
+}
+
+func closeRequestSignalCheckpoint(
+	checkpoint openedCheckpoint,
+	admission *core.SignalAdmission,
+) {
+	if checkpoint.close != nil {
+		if closeErr := checkpoint.close(); closeErr != nil {
+			admission.Err = errors.Join(admission.Err, fmt.Errorf("close request signal checkpoint: %w", closeErr))
+			admission.Stage = "checkpoint_close_failed"
+			if admission.Accepted() {
+				admission.RunStatus = core.StatusFailed
+			}
+		}
+	}
+}
+
+func (r *hostRequestSignalRunner) begin(runID string) bool {
+	r.activeMu.Lock()
+	defer r.activeMu.Unlock()
+	if r.active == nil {
+		r.active = make(map[string]struct{})
+	}
+	if _, exists := r.active[runID]; exists {
+		return false
+	}
+	r.active[runID] = struct{}{}
+	return true
+}
+
+func (r *hostRequestSignalRunner) end(runID string) {
+	r.activeMu.Lock()
+	defer r.activeMu.Unlock()
+	delete(r.active, runID)
+}
+
+func (r *hostRequestSignalRunner) restoreSnapshot(snapshot core.AgentSnapshot) error {
+	if len(snapshot.Conversation) > 0 {
+		if err := r.state.restoreConversation(snapshot.Conversation); err != nil {
+			return fmt.Errorf("restore conversation: %w", err)
+		}
+	}
+	if err := r.state.restoreDomain(snapshot.Domain); err != nil {
+		return fmt.Errorf("restore domain: %w", err)
+	}
+	return nil
+}
+
+type requestSignalServers struct {
+	state     *toolrest.ServerState
+	names     []string
+	addresses map[string]string
+}
+
+func hasRequestSignalSources(defs toolrest.Collection) bool {
+	return len(requestSignalServerNames(defs)) > 0
+}
+
+func requestSignalServerNames(defs toolrest.Collection) []string {
+	names := make([]string, 0)
+	for name, server := range defs.Servers {
+		for _, endpoint := range server.Endpoints {
+			if endpoint.Binding == "signal_source" {
+				names = append(names, name)
+				break
+			}
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+func launchRequestSignalServers(
+	st *agentState,
+	runner toolrest.SignalSourceRunner,
+) (*requestSignalServers, error) {
+	servers := &requestSignalServers{
+		state: toolrest.NewServerState(), addresses: make(map[string]string),
+	}
+	for _, name := range requestSignalServerNames(st.restDefs) {
+		def, err := st.restDefs.ResolveServer(name)
+		if err != nil {
+			return nil, errors.Join(err, servers.Close())
+		}
+		def.MachineRequestRunner = profileMachineRequestRunner(st)
+		def.SignalSourceRunner = runner
+		def.Monitor = st.monitor
+		def.RunID = st.runID
+		def.Credentials = toolrest.EnvironmentCredentials{}
+		output, err := servers.state.Launch(def)
+		if err != nil {
+			return nil, errors.Join(err, servers.Close())
+		}
+		servers.names = append(servers.names, name)
+		servers.addresses[name], _ = output["address"].(string)
+	}
+	return servers, nil
+}
+
+func (s *requestSignalServers) Close() error {
+	if s == nil || s.state == nil {
+		return nil
+	}
+	var errs []error
+	for i := len(s.names) - 1; i >= 0; i-- {
+		if _, err := s.state.Stop(s.names[i]); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	s.names = nil
+	return errors.Join(errs...)
+}
+
+func serveRequestSignalSources(prepared preparedRun) error {
+	store := &requestSignalCheckpointStore{cfg: prepared.Config, machine: *prepared.Params.MachineSpec}
+	runner := &hostRequestSignalRunner{
+		source: core.NewLoopSignalSource(), params: prepared.Params, state: prepared.State,
+		checkpoints: store.Open, afterRun: prepared.Shutdown.Apply,
+	}
+	if bound, ok := prepared.State.signalSourceRunner.(*boundSignalSourceRunner); ok {
+		bound.Bind(runner)
+	}
+	servers, err := launchRequestSignalServers(prepared.State, runner)
+	if err != nil {
+		return fmt.Errorf("launch request signal servers: %w", err)
+	}
+	<-prepared.Ctx.Done()
+	return servers.Close()
 }
 
 // validateConfig loads the profile, machine spec, tool definitions, and REST
@@ -417,10 +675,18 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		resources.shutdownTelemetry()
 		return preparedRun{}, err
 	}
-	checkpoint, err := resolveCheckpoint(cfg, resources.Machine, runID)
-	if err != nil {
-		resources.shutdownTelemetry()
-		return preparedRun{}, err
+	checkpoint := openedCheckpoint{Checkpoint: core.NoopCheckpoint{}}
+	if hasRequestSignalSources(resources.RestDefinitions) {
+		// Request serving replaces this template with the envelope RunID's
+		// adapter. A non-noop template also tells lifecycle words that the host
+		// has process-local continuation even when Dolt is not configured.
+		checkpoint.Checkpoint = core.NewInMemoryCheckpoint(runID)
+	} else {
+		checkpoint, err = resolveCheckpoint(cfg, resources.Machine, runID)
+		if err != nil {
+			resources.shutdownTelemetry()
+			return preparedRun{}, err
+		}
 	}
 	checkpoints.Add(checkpoint)
 	lifecycleCheckpoint, err := resolveLifecycleCheckpoint(cfg, resources.Definitions, checkpoint.Checkpoint)
@@ -445,6 +711,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	reg := core.NewRegistry()
 	builtins := toolregistry.NewBuiltinRegistry()
 	retries := parseErrorRetryTracker(resources.Machine)
+	signalSourceRunner := &boundSignalSourceRunner{}
 	// One live source is shared: the loop refreshes it per dispatch and the
 	// monitor command_state view reads it (srd033-monitor-rest-api R7.1).
 	commandStateSource := core.NewLiveCommandStateSource()
@@ -459,9 +726,10 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 			monitorRuntime.Store, monitorRuntime.Recorder, &resources.Machine, resources.Definitions,
 			commandStateSource,
 		),
-		RestDefs:     resources.RestDefinitions,
-		shutdown:     shutdown.Request,
-		ParseRetries: retries,
+		RestDefs:           resources.RestDefinitions,
+		SignalSourceRunner: signalSourceRunner,
+		shutdown:           shutdown.Request,
+		ParseRetries:       retries,
 	})
 
 	registerBuiltinFactories(builtins, st, selectedInits)
@@ -573,6 +841,7 @@ type agentStateDeps struct {
 	Ctx                 context.Context
 	Monitor             toolrest.MonitorState
 	RestDefs            toolrest.Collection
+	SignalSourceRunner  toolrest.SignalSourceRunner
 	shutdown            func()
 	ParseRetries        *toollm.ParseErrorRetryTracker
 }
@@ -606,6 +875,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		lifecycleCheckpoint: deps.LifecycleCheckpoint,
 		monitor:             deps.Monitor,
 		restDefs:            deps.RestDefs,
+		signalSourceRunner:  deps.SignalSourceRunner,
 		shutdown:            deps.shutdown,
 	}
 }

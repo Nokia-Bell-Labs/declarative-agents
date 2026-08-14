@@ -136,5 +136,7 @@ related_documents:
 implementation_status:
   specified:
     - Signal-source envelope, trusted mapping, atomic admission outcomes, ordinary machine execution, lifecycle semantics, and compatibility proof.
-  planned:
-    - "GH-1733: HTTP request source, model-free profile support, lifecycle coverage, and mock-model regression."
+  implemented:
+    - "GH-1742: transport-neutral SignalEnvelope, admission ownership, ordinary Loop execution, checkpoint behavior, and lifecycle outcomes."
+    - "GH-1741: strict REST signal_source definition, request mapping, response policy, redaction, and trace behavior."
+    - "GH-1743: profile-detected model-free serving, per-RunID in-memory or Dolt checkpoints, host state restoration, owned server shutdown, core-owned fixtures, and mock-model runOrResume regression."

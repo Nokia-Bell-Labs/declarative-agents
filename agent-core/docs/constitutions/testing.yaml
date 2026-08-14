@@ -155,6 +155,7 @@ coverage_notes:
 - Release 00.0 has formal YAML coverage through test-rel00.0.
 - Release 01.0 currently relies on Go and integration tests until a formal suite is added.
 - Release 02.0 has formal lifecycle and tool-contract suites, plus Go tests for implemented runtime pieces.
+- Release 14.0 has implemented request-signal unit, HTTP, lifecycle, mock-model compatibility, and real-Dolt evidence in test-rel14.0-agent-input-and-dolt.
 references:
 - docs/SPECIFICATIONS.yaml
 - docs/specs/test-suites/test-rel00.0.yaml
