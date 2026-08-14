@@ -1,0 +1,82 @@
+id: rel14.0-uc002-dolt-boundary-word
+title: Declared Dolt words provision and update a versioned store
+
+summary: |
+  A profile provisions a domain database and schema from trusted ToolDef
+  configuration, writes one row with caller-supplied declared parameters, and
+  reads it through a separate query word. The write produces exactly one Dolt
+  commit whose message comes from trusted configuration. The caller cannot
+  provide SQL, connection, database, schema, or commit-message authority. The
+  domain database remains separate from the runtime checkpoint database.
+
+actor: A declarative machine invoking configured general-purpose Dolt boundary words
+
+trigger: |
+  A composition starts against a real Dolt server where its configured domain
+  database does not yet exist.
+
+flow:
+  - F1: MachineSpec dispatches dolt_provision, which resolves a trusted connection, creates the configured database, applies the ordered schema, and commits changed schema once (srd047 R1, R3).
+  - F2: A repeated dolt_provision sees the compatible schema and succeeds without destructive recreation or an empty duplicate commit (srd047 R3).
+  - F3: MachineSpec dispatches dolt_write with only schema-declared params; the word binds them to its configured mutation and creates one declared-template Dolt commit (srd047 R2, R5).
+  - F4: MachineSpec dispatches dolt_query with declared params; the word runs its configured read statement and returns bounded ordered structured rows without a commit (srd047 R4).
+  - F5: Traces and Results expose operation, database, row counts, and commit identity while omitting connection, credentials, raw SQL, and sensitive params (srd047 R6).
+  - F6: Startup rejects a Dolt word configured for the exact checkpoint server-and-database identity, while a separate database on the same server remains valid (srd047 R7).
+  - F7: A runtime request containing SQL, connection, database, schema, or commit_message is refused before database execution, and a failed mutation creates no commit (srd047 R2, R7).
+
+touchpoints:
+  - T1: "srd047-dolt-boundary-word R1 -- separate general-purpose provision, query, and write words"
+  - T2: "srd047-dolt-boundary-word R2 -- trusted SQL authority and caller-bound declared params"
+  - T3: "srd047-dolt-boundary-word R3 -- idempotent database and schema provisioning"
+  - T4: "srd047-dolt-boundary-word R4 -- bounded read-only query"
+  - T5: "srd047-dolt-boundary-word R5 -- one commit per successful configured write"
+  - T6: "srd047-dolt-boundary-word R6 -- signals, lifecycle declarations, traces, and errors"
+  - T7: "srd047-dolt-boundary-word R7 -- checkpoint isolation and real-Dolt integration proof"
+
+success_criteria:
+  - id: S1
+    criterion: Separate declared words remain general-purpose and MachineSpec owns provision, write, and query order.
+    traces:
+      - srd047-dolt-boundary-word AC1
+  - id: S2
+    criterion: The caller supplies only declared params, and all SQL and connection authority remains in trusted configuration.
+    traces:
+      - srd047-dolt-boundary-word AC2
+  - id: S3
+    criterion: A real Dolt server gains the configured database and schema once, and compatible reprovisioning creates no empty commit.
+    traces:
+      - srd047-dolt-boundary-word AC3
+      - srd047-dolt-boundary-word AC7
+  - id: S4
+    criterion: A configured write creates exactly one visible declared-message commit and a configured query returns the written row without committing.
+    traces:
+      - srd047-dolt-boundary-word AC4
+      - srd047-dolt-boundary-word AC5
+      - srd047-dolt-boundary-word AC7
+  - id: S5
+    criterion: Structured signals, results, traces, errors, and compensation metadata expose no secret or caller-controlled authority.
+    traces:
+      - srd047-dolt-boundary-word AC6
+  - id: S6
+    criterion: The word database and checkpoint database are distinct, caller authority fields are refused before execution, and a failed write creates no commit.
+    traces:
+      - srd047-dolt-boundary-word AC7
+
+failure_scenarios:
+  - id: E1
+    scenario: A caller includes sql or database beside valid params.
+    expected: Parameter validation emits CommandError before opening an operation against that authority.
+  - id: E2
+    scenario: A configured write statement fails after its transaction begins.
+    expected: The transaction rolls back, no commit appears in Dolt history, and the error names statement_execute.
+  - id: E3
+    scenario: Word and checkpoint configuration resolve to the same server and database.
+    expected: Startup validation rejects the profile before either backend mutates data.
+
+out_of_scope:
+  - A downstream consumer schema or task lifecycle.
+  - Arbitrary SQL consoles, ORMs, migration frameworks, and branch administration.
+  - Changes to the DoltCheckpoint schema or lifecycle contract.
+
+test_suite_trace: test-rel14.0-agent-input-and-dolt
+status: specified

@@ -2,7 +2,7 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Forty-five SRDs define the
+  Specification index for the agent-core framework. Forty-seven SRDs define the
   generic agentic loop engine and its supporting packages.
   Releases 00.0 through 08.0 have implemented proof in their indexed use cases
   and test suites. Release 03.0 includes named executable REST conformance
@@ -10,9 +10,9 @@ overview: |
   executable AC6 profile-closure timeout inspection and cmd/agent startup
   enforcement tests over core-owned synthetic fixtures. Replacing every
   application owner's inventory check remains the GH-1679 follow-up.
-  Thirty-one use cases exercise the SRDs across fifteen releases. Seventeen
-  formal YAML test suites cover 324 acceptance test cases across releases 00.0
-  through 13.0 and release 99.0; additional
+  Thirty-three use cases exercise the SRDs across sixteen releases. Eighteen
+  formal YAML test suites cover 337 acceptance test cases across releases 00.0
+  through 14.0 and release 99.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
 
@@ -34,6 +34,10 @@ overview: |
   srd041 for the value predicate word. Release 11.0 covers srd042 for the OTLP
   receiver tool family. Release 12.0 covers srd044 for the spool query tools.
   Release 13.0 covers srd045 for the span-analytics tools.
+  Release 14.0 covers srd046 for request-driven signal admission and srd047 for
+  configured Dolt provision, query, and write boundary words. Their formal
+  suite specifies the GH-1732 real-Dolt integration obligation and the GH-1733
+  model-free and model-path compatibility obligations.
   Release 99.0 covers srd037 dispatch planning and srd043
   application/catalog source-layout migration.
 
@@ -122,6 +126,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: implemented
+  - version: "14.0"
+    name: Request-driven signals and configured Dolt words
+    use_cases_done: 0
+    use_cases_total: 2
+    status: in_progress
   - version: "99.0"
     name: Architectural migrations and cleanup
     use_cases_done: 2
@@ -335,6 +344,16 @@ srd_index:
     summary: Read-only builtin words for aggregate reads over the srd042 NDJSON spool -- a filtered duration-over-time heatmap, group-by counts with a reported dropped remainder, and attribute divergence between a selected region and its complement.
     status: implemented
     path: docs/specs/software-requirements/srd045-span-analytics-tools.yaml
+  - id: srd046-request-driven-signal-source
+    title: Request-Driven Signal Source
+    summary: A transport-neutral SignalSource maps validated requests to declared signal and payload envelopes, atomically distinguishes accepted, refused_undeclared, and refused_conflict, preserves checkpoint and resume behavior, and allows model-free profiles without changing the model path.
+    status: specified
+    path: docs/specs/software-requirements/srd046-request-driven-signal-source.yaml
+  - id: srd047-dolt-boundary-word
+    title: Configured Dolt Boundary Words
+    summary: General-purpose provision, query, and write words whose trusted configuration owns connection, database, SQL, parameter schemas, schema lifecycle, and commit messages, with bound caller params, commit-per-write, checkpoint-database separation, and real-Dolt integration proof.
+    status: specified
+    path: docs/specs/software-requirements/srd047-dolt-boundary-word.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -579,6 +598,18 @@ use_case_index:
     status: implemented
     test_suite: test-rel13.0-span-analytics
     path: docs/specs/use-cases/rel13.0-uc001-span-analytics.yaml
+  - id: rel14.0-uc001-request-driven-signal
+    title: A model-free profile advances from a validated HTTP request
+    release: "14.0"
+    status: specified
+    test_suite: test-rel14.0-agent-input-and-dolt
+    path: docs/specs/use-cases/rel14.0-uc001-request-driven-signal.yaml
+  - id: rel14.0-uc002-dolt-boundary-word
+    title: Declared Dolt words provision and update a versioned store
+    release: "14.0"
+    status: specified
+    test_suite: test-rel14.0-agent-input-and-dolt
+    path: docs/specs/use-cases/rel14.0-uc002-dolt-boundary-word.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -721,6 +752,15 @@ test_suite_index:
     formal_test_cases: 8
     status: implemented
     path: docs/specs/test-suites/test-rel13.0-span-analytics.yaml
+  - id: test-rel14.0-agent-input-and-dolt
+    title: Test Suite for Release 14.0 Request Signals and Dolt Words
+    release: "14.0"
+    traces:
+      - rel14.0-uc001-request-driven-signal
+      - rel14.0-uc002-dolt-boundary-word
+    formal_test_cases: 13
+    status: specified
+    path: docs/specs/test-suites/test-rel14.0-agent-input-and-dolt.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"
@@ -800,6 +840,15 @@ srd_to_use_case_mapping:
     coverage: Full. Covers AC1 through AC9 via SC8 and telemetry initialization.
 
 coverage_gaps: |
+  Release 14.0 specifies srd046 request-driven signal admission and srd047
+  configured Dolt boundary words. rel14.0-uc001 and rel14.0-uc002 trace every
+  acceptance criterion into test-rel14.0-agent-input-and-dolt. GH-1733 owns the
+  model-free HTTP source, lifecycle cases, and unchanged mock-model regression.
+  GH-1732 owns the Dolt words and the required real-Dolt integration target for
+  database and schema creation, parameterized reads and writes, commit history,
+  checkpoint-database separation, caller-authority refusal, and failed-write
+  rollback. Those cases remain specified until the implementation issues land.
+
   Release 99.0 srd043, rel99.0-uc002, and
   test-rel99.0-application-catalog-migration define the application/catalog
   migration. Fourteen implemented formal cases map one-to-one to GH-1036 child

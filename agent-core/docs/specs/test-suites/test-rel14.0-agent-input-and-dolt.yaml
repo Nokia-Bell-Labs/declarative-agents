@@ -1,0 +1,281 @@
+id: test-rel14.0-agent-input-and-dolt
+title: Test Suite for Release 14.0 Request Signals and Dolt Words
+release: "14.0"
+
+traces:
+  - rel14.0-uc001-request-driven-signal
+  - rel14.0-uc002-dolt-boundary-word
+
+preconditions:
+  - srd046-request-driven-signal-source defines model-free profiles, SignalEnvelope admission, request-driven lifecycle behavior, and model-path compatibility.
+  - srd047-dolt-boundary-word defines trusted Dolt provision, query, and write boundary contracts.
+  - GH-1733 implements the request-driven HTTP source and mock-model regression.
+  - GH-1732 implements unit tests plus a real-Dolt mage integration:doltWord target or equivalent standard integration target.
+
+test_cases:
+  - use_case: rel14.0-uc001-request-driven-signal
+    name: Model-free profile starts without model construction
+    planned_go_test: go test ./cmd/agent -run TestRequestSignalSource_ModelFreeProfile
+    status: planned
+    description: |
+      A profile selects an HTTP source and deterministic words but no invoke_llm
+      declaration. Validation and startup succeed, no model client factory runs,
+      and one request completes. A mock-model profile then runs through the
+      unchanged model path.
+    inputs:
+      profiles: [model_free_http, mock_model]
+    expected:
+      model_free_client_constructions: 0
+      model_free_succeeds: true
+      mock_model_succeeds: true
+    traces:
+      - rel14.0-uc001-request-driven-signal S1
+      - rel14.0-uc001-request-driven-signal S5
+      - srd046-request-driven-signal-source AC1
+      - srd046-request-driven-signal-source AC6
+
+  - use_case: rel14.0-uc001-request-driven-signal
+    name: Trusted mapping validates signal payload and redaction
+    planned_go_test: go test ./internal/tools/rest -run TestRequestSignalSource_TrustedMapping
+    status: planned
+    description: |
+      Config maps a closed discriminator to a declared signal and payload
+      fields. Valid input produces one SignalEnvelope. Unknown discriminators,
+      schema-invalid values, and raw signal names are refused before run
+      creation. Sensitive mapped values are absent from live and persisted
+      output.
+    inputs:
+      mappings: {create: WorkRequested}
+      invalid: [unknown_discriminator, raw_signal, wrong_payload_type]
+    expected:
+      valid_signal: WorkRequested
+      invalid_runs_created: 0
+      sensitive_values_exposed: false
+    traces:
+      - rel14.0-uc001-request-driven-signal S1
+      - srd046-request-driven-signal-source AC2
+
+  - use_case: rel14.0-uc001-request-driven-signal
+    name: Admission distinguishes accepted undeclared and conflict
+    planned_go_test: go test ./internal/runtime/core -run TestSignalAdmission_Outcomes
+    status: planned
+    description: |
+      The current state accepts one configured signal, a globally unknown
+      signal is refused_undeclared, and a declared signal with no transition,
+      stale state guard, or active owner is refused_conflict. Refused cases
+      leave Position, Execution, and checkpoint bytes unchanged.
+    inputs:
+      cases: [accepted, unknown, no_transition, stale_state, active_owner]
+    expected:
+      outcomes: [accepted, refused_undeclared, refused_conflict, refused_conflict, refused_conflict]
+      refused_mutations: 0
+    traces:
+      - rel14.0-uc001-request-driven-signal S2
+      - rel14.0-uc001-request-driven-signal S3
+      - srd046-request-driven-signal-source AC3
+
+  - use_case: rel14.0-uc001-request-driven-signal
+    name: Accepted signal uses the ordinary machine execution path
+    planned_go_test: go test ./cmd/agent -run TestRequestSignalSource_OrdinaryLoopPath
+    status: planned
+    description: |
+      An accepted envelope becomes the Result signal and payload consumed by
+      StateMachine.Step. The selected Registry builder dispatches normally. The
+      response reports admission separately from a successful and a failing
+      terminal outcome, including the configured HTTP 409 conflict mapping.
+    inputs:
+      terminals: [Succeeded, Failed]
+    expected:
+      admission: accepted
+      ordinary_run_events: true
+      run_statuses: [succeeded, failed]
+      conflict_http_status: 409
+    traces:
+      - rel14.0-uc001-request-driven-signal S2
+      - srd046-request-driven-signal-source AC4
+
+  - use_case: rel14.0-uc001-request-driven-signal
+    name: Suspended request-driven run resumes exactly once
+    planned_go_test: go test ./cmd/agent -run TestRequestSignalSource_SuspendResume
+    status: planned
+    description: |
+      The first accepted request reaches StatusSuspended and persists Position
+      and Execution. A second request loads that checkpoint, uses its mapped
+      signal and payload as the first resumed Result, and reaches success
+      without replaying the first request or duplicating a source entry.
+      NoopCheckpoint refuses the same suspended-run claim.
+    inputs:
+      requests: [start, continue]
+      backends: [in_memory, dolt, noop]
+    expected:
+      accepted_source_entries: 2
+      replayed_requests: 0
+      noop_refused: true
+    traces:
+      - rel14.0-uc001-request-driven-signal S4
+      - srd046-request-driven-signal-source AC5
+
+  - use_case: rel14.0-uc001-request-driven-signal
+    name: Cancellation and failures release request ownership
+    planned_go_test: go test ./internal/runtime/core ./internal/tools/rest -run TestSignalSource_ReleasesOwnership
+    status: planned
+    description: |
+      Success, suspension, command failure, cancellation, timeout, and
+      checkpoint failure each release the run's admission owner. Trace records
+      bounded source, signal, state, outcome, and stage fields without sensitive
+      payload content.
+    inputs:
+      exits: [success, suspended, command_error, cancelled, timeout, checkpoint_error]
+    expected:
+      ownership_released: 6
+      sensitive_trace_values: 0
+    traces:
+      - rel14.0-uc001-request-driven-signal S5
+      - srd046-request-driven-signal-source AC6
+
+  - use_case: rel14.0-uc002-dolt-boundary-word
+    name: Dolt declarations keep word kinds and authority separate
+    planned_go_test: go test ./internal/tools/dolt -run TestDoltDeclarationsAndConfigValidation
+    status: planned
+    description: |
+      Shared declarations register distinct provision, query, and write inits.
+      Startup accepts one fixed operation per ToolDef and rejects unknown config,
+      kind-mismatched or multi-statement SQL, undeclared placeholders, and
+      caller-authority input fields.
+    inputs:
+      kinds: [provision, query, write]
+      invalid: [unknown_field, kind_mismatch, multi_statement, undeclared_placeholder, runtime_sql]
+    expected:
+      factories_registered: 3
+      invalid_rejected: 5
+    traces:
+      - rel14.0-uc002-dolt-boundary-word S1
+      - rel14.0-uc002-dolt-boundary-word S2
+      - srd047-dolt-boundary-word AC1
+      - srd047-dolt-boundary-word AC2
+
+  - use_case: rel14.0-uc002-dolt-boundary-word
+    name: Real Dolt provisioning creates database and schema idempotently
+    planned_go_test: mage integration:doltWord
+    status: planned
+    description: |
+      Against a real Dolt server, dolt_provision creates a missing configured
+      database, applies ordered schema statements, and creates one schema
+      commit. Repeating the operation reports no schema change and adds no empty
+      commit. An incompatible schema fails without a commit.
+    inputs:
+      database_exists: false
+      provision_runs: 2
+    expected:
+      database_created: true
+      schema_applied: true
+      schema_commits: 1
+      incompatible_schema_commits: 0
+    traces:
+      - rel14.0-uc002-dolt-boundary-word S3
+      - srd047-dolt-boundary-word AC3
+      - srd047-dolt-boundary-word AC7
+
+  - use_case: rel14.0-uc002-dolt-boundary-word
+    name: Real Dolt query binds params and never commits
+    planned_go_test: mage integration:doltWord
+    status: planned
+    description: |
+      A configured SELECT binds a declared value and returns ordered columns and
+      rows with row_count and limits. A low row or byte limit sets truncated.
+      Mutation-shaped query config is rejected, and query adds no Dolt commit.
+    inputs:
+      params: {status: open}
+      limits: [rows, bytes]
+    expected:
+      bound_value_used: true
+      structured_rows: true
+      truncation_deterministic: true
+      commits_added: 0
+    traces:
+      - rel14.0-uc002-dolt-boundary-word S4
+      - srd047-dolt-boundary-word AC4
+      - srd047-dolt-boundary-word AC7
+
+  - use_case: rel14.0-uc002-dolt-boundary-word
+    name: Real Dolt write creates one declared-message commit
+    planned_go_test: mage integration:doltWord
+    status: planned
+    description: |
+      A configured INSERT binds declared params in one transaction. Dolt history
+      gains exactly one commit whose message comes from the configured template,
+      and output reports rows_affected and its exact commit hash. A zero-row
+      update follows commit_on_no_change false and adds no commit.
+    inputs:
+      operations: [insert_one, update_zero]
+      commit_on_no_change: false
+    expected:
+      insert_commits: 1
+      message_matches_template: true
+      hash_matches_history: true
+      zero_row_commits: 0
+    traces:
+      - rel14.0-uc002-dolt-boundary-word S4
+      - srd047-dolt-boundary-word AC5
+      - srd047-dolt-boundary-word AC7
+
+  - use_case: rel14.0-uc002-dolt-boundary-word
+    name: Caller authority and failed writes create no commit
+    planned_go_test: mage integration:doltWord
+    status: planned
+    description: |
+      Inputs containing SQL, DSN, database, schema, or commit_message are each
+      refused before statement execution. A validly shaped request whose
+      configured statement violates a constraint rolls back and leaves Dolt
+      history unchanged.
+    inputs:
+      forbidden_fields: [sql, dsn, database, schema, commit_message]
+      failure: constraint_violation
+    expected:
+      refused_before_execution: 5
+      failed_write_commits: 0
+    traces:
+      - rel14.0-uc002-dolt-boundary-word S2
+      - rel14.0-uc002-dolt-boundary-word S6
+      - srd047-dolt-boundary-word AC2
+      - srd047-dolt-boundary-word AC7
+
+  - use_case: rel14.0-uc002-dolt-boundary-word
+    name: Word and checkpoint databases remain separate
+    planned_go_test: mage integration:doltWord
+    status: planned
+    description: |
+      One Dolt server hosts a domain-word database and a checkpoint database.
+      Both operate without reading each other's tables or branches. Config that
+      normalizes to the same server and database is rejected at startup.
+    inputs:
+      valid_databases: [agent_domain, agent_checkpoint]
+      invalid_databases: [shared]
+    expected:
+      separate_databases_succeed: true
+      shared_database_rejected: true
+      cross_table_access: false
+    traces:
+      - rel14.0-uc002-dolt-boundary-word S6
+      - srd047-dolt-boundary-word AC7
+
+  - use_case: rel14.0-uc002-dolt-boundary-word
+    name: Dolt signals traces errors and receipts follow boundary contracts
+    planned_go_test: go test ./internal/tools/dolt -run TestDoltBoundaryContracts
+    status: planned
+    description: |
+      Success emits the word-specific signals; infrastructure faults emit
+      CommandError with a precise stage. Query has noop Undo. Compensatable
+      writes encode an opaque operation, database, and commit receipt consumed
+      only by their configured compensation path. Traces redact SQL, secrets,
+      credentials, and sensitive params.
+    inputs:
+      stages: [connection_resolution, statement_execute, stage, commit, timeout]
+      reversibility: [noop, compensatable, irreversible]
+    expected:
+      errors_staged: true
+      receipt_opaque_to_core: true
+      sensitive_trace_values: 0
+    traces:
+      - rel14.0-uc002-dolt-boundary-word S5
+      - srd047-dolt-boundary-word AC6
