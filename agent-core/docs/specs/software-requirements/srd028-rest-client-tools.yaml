@@ -108,8 +108,9 @@ requirements:
       - R8.3: Retry policy SHALL be configured per operation and SHALL respect srd027 timeout, redirect, and size-limit rules.
       - R8.4: Retries SHALL not be enabled for non-idempotent operations unless config declares an idempotency token or safe retry policy.
       - R8.5: Tool output and traces SHOULD include retry count and idempotency metadata when available.
-      - R8.6: A retry policy's declared backoff and max_delay SHALL be honored between attempts—none waits zero, fixed uses initial_delay, and exponential doubles initial_delay with overflow-safe saturation at max_delay—and the delay SHALL be cancellation-aware so a cancelled dispatch stops waiting. An unsupported backoff, negative attempt count, or invalid/negative delay SHALL be rejected at load.
+      - R8.6: A retry policy's declared backoff and max_delay SHALL be honored between attempts—none waits zero, fixed uses initial_delay, and exponential doubles initial_delay with overflow-safe saturation at max_delay—and the delay SHALL be cancellation-aware so a cancelled dispatch stops waiting. An unsupported backoff, non-positive attempt count, missing retry_ref target, or invalid/negative delay SHALL be rejected at load.
       - R8.7: The dispatch context SHALL govern both the in-flight HTTP request and retry waits. Cancellation of a non-idempotent request without an idempotency token SHALL report an indeterminate remote outcome.
+      - R8.8: Before dispatch, timeout-envelope inspection SHALL conservatively bound a selected retrying operation as attempts multiplied by the client request timeout plus the delay before each retry. Fixed and exponential delay terms SHALL match R8.6, checked duration arithmetic SHALL reject overflow instead of saturating, deterministic evidence SHALL name the client, retry_ref, attempts, backoff, aggregate duration, and enclosing command timeout, and the aggregate SHALL remain strictly below that command timeout. rest_client_await SHALL retain its separate async timeout and SHALL NOT inherit the prior submission's retry aggregate.
 
   R9:
     title: Metrics, tracing, and redaction
@@ -259,7 +260,7 @@ acceptance_criteria:
 
   - id: AC8
     criterion: Idempotency, retry, metrics, tracing, and redaction requirements are explicit for external API calls.
-    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6, R8.7, R9.1, R9.2, R9.3, R9.4, R10.8]
+    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6, R8.7, R8.8, R9.1, R9.2, R9.3, R9.4, R10.8]
 
   - id: AC9
     criterion: Error and recovery requirements distinguish domain failures from infrastructure failures and report operation identity, failure stage, status, diagnostics, and resulting signal.
