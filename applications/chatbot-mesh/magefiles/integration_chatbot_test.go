@@ -57,13 +57,14 @@ func TestAssertChatbotTierSelectionTraceAttributesAnswerDispatch(t *testing.T) {
 		chatbotSpanLine("machine_request chatbot/chat", "turn-fast", "", nil),
 		chatbotSpanLine("chat qwen-fast", "source-selector", "turn-fast", map[string]string{"gen_ai.request.model": "qwen-fast"}),
 		chatbotSpanLine("chat qwen-fast", "tier-selector", "turn-fast", map[string]string{"gen_ai.request.model": "qwen-fast"}),
-		chatbotSpanLine("execute_tool parse_response", "fast-parse", "turn-fast", map[string]string{"command.name": "parse_response"}),
-		chatbotSpanLine("chat qwen-fast", "fast-answer", "turn-fast", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "qwen-fast"}),
+		chatbotSpanLine("execute_tool parse_tier", "fast-parse", "turn-fast", map[string]string{"command.name": "parse_tier"}),
+		chatbotSpanLine("chat qwen-fast", "late-tier-selector", "turn-fast", map[string]string{"command.name": "select_tier", "gen_ai.request.model": "qwen-fast"}),
+		chatbotSpanLine("chat qwen-fast", "fast-answer", "turn-fast", map[string]string{"command.name": "invoke_llm_fast", "gen_ai.request.model": "qwen-fast"}),
 		chatbotSpanLine("execute_tool compose_response", "fast-compose", "turn-fast", map[string]string{"command.name": "compose_response"}),
 		chatbotSpanLine("machine_request chatbot/chat", "turn-deep", "", nil),
 		chatbotSpanLine("chat qwen-fast", "deep-selector", "turn-deep", map[string]string{"gen_ai.request.model": "qwen-fast"}),
-		chatbotSpanLine("execute_tool parse_response", "deep-parse", "turn-deep", map[string]string{"command.name": "parse_response"}),
-		chatbotSpanLine("chat ornith-deep", "deep-answer", "turn-deep", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "ornith-deep"}),
+		chatbotSpanLine("execute_tool parse_tier", "deep-parse", "turn-deep", map[string]string{"command.name": "parse_tier"}),
+		chatbotSpanLine("chat ornith-deep", "deep-answer", "turn-deep", map[string]string{"command.name": "invoke_llm_deep", "gen_ai.request.model": "ornith-deep"}),
 		chatbotSpanLine("execute_tool compose_response", "deep-compose", "turn-deep", map[string]string{"command.name": "compose_response"}),
 	})
 	if err := assertChatbotTierSelectionTrace(trace, "qwen-fast", "ornith-deep"); err != nil {
@@ -74,12 +75,12 @@ func TestAssertChatbotTierSelectionTraceAttributesAnswerDispatch(t *testing.T) {
 func TestAssertChatbotTierSelectionTraceDoesNotRequireBothTiers(t *testing.T) {
 	trace := writeChromaTrace(t, []string{
 		chatbotSpanLine("machine_request chatbot/chat", "turn-1", "", nil),
-		chatbotSpanLine("execute_tool parse_response", "parse-1", "turn-1", map[string]string{"command.name": "parse_response"}),
-		chatbotSpanLine("chat qwen-fast", "answer-1", "turn-1", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "qwen-fast"}),
+		chatbotSpanLine("execute_tool parse_tier", "parse-1", "turn-1", map[string]string{"command.name": "parse_tier"}),
+		chatbotSpanLine("chat qwen-fast", "answer-1", "turn-1", map[string]string{"command.name": "invoke_llm_fast", "gen_ai.request.model": "qwen-fast"}),
 		chatbotSpanLine("execute_tool compose_response", "compose-1", "turn-1", map[string]string{"command.name": "compose_response"}),
 		chatbotSpanLine("machine_request chatbot/chat", "turn-2", "", nil),
-		chatbotSpanLine("execute_tool parse_response", "parse-2", "turn-2", map[string]string{"command.name": "parse_response"}),
-		chatbotSpanLine("chat qwen-fast", "answer-2", "turn-2", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "qwen-fast"}),
+		chatbotSpanLine("execute_tool parse_tier", "parse-2", "turn-2", map[string]string{"command.name": "parse_tier"}),
+		chatbotSpanLine("chat qwen-fast", "answer-2", "turn-2", map[string]string{"command.name": "invoke_llm_fast", "gen_ai.request.model": "qwen-fast"}),
 		chatbotSpanLine("execute_tool compose_response", "compose-2", "turn-2", map[string]string{"command.name": "compose_response"}),
 	})
 	if err := assertChatbotTierSelectionTrace(trace, "qwen-fast", "ornith-deep"); err != nil {
@@ -98,7 +99,7 @@ func TestAssertChatbotTierSelectionTraceRejectsInvalidAttribution(t *testing.T) 
 			lines: []string{
 				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
 				chatbotSpanLine("chat qwen-fast", "selector", "turn", map[string]string{"gen_ai.request.model": "qwen-fast"}),
-				chatbotSpanLine("execute_tool parse_response", "parse", "turn", map[string]string{"command.name": "parse_response"}),
+				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier"}),
 				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
 			},
 			wantErr: "0 answer-word dispatch spans",
@@ -107,8 +108,8 @@ func TestAssertChatbotTierSelectionTraceRejectsInvalidAttribution(t *testing.T) 
 			name: "undeclared answer model",
 			lines: []string{
 				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
-				chatbotSpanLine("execute_tool parse_response", "parse", "turn", map[string]string{"command.name": "parse_response"}),
-				chatbotSpanLine("chat other", "answer", "turn", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "other"}),
+				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier"}),
+				chatbotSpanLine("chat other", "answer", "turn", map[string]string{"command.name": "invoke_llm_fast", "gen_ai.request.model": "other"}),
 				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
 			},
 			wantErr: "undeclared model",
@@ -117,9 +118,9 @@ func TestAssertChatbotTierSelectionTraceRejectsInvalidAttribution(t *testing.T) 
 			name: "two answer words",
 			lines: []string{
 				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
-				chatbotSpanLine("execute_tool parse_response", "parse", "turn", map[string]string{"command.name": "parse_response"}),
-				chatbotSpanLine("chat qwen-fast", "fast", "turn", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "qwen-fast"}),
-				chatbotSpanLine("chat ornith-deep", "deep", "turn", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "ornith-deep"}),
+				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier"}),
+				chatbotSpanLine("chat qwen-fast", "fast", "turn", map[string]string{"command.name": "invoke_llm_fast", "gen_ai.request.model": "qwen-fast"}),
+				chatbotSpanLine("chat ornith-deep", "deep", "turn", map[string]string{"command.name": "invoke_llm_deep", "gen_ai.request.model": "ornith-deep"}),
 				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
 			},
 			wantErr: "2 answer-word dispatch spans",
@@ -128,8 +129,8 @@ func TestAssertChatbotTierSelectionTraceRejectsInvalidAttribution(t *testing.T) 
 			name: "answer dispatch without model",
 			lines: []string{
 				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
-				chatbotSpanLine("execute_tool parse_response", "parse", "turn", map[string]string{"command.name": "parse_response"}),
-				chatbotSpanLine("chat unknown", "answer", "turn", map[string]string{"command.name": "invoke_llm"}),
+				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier"}),
+				chatbotSpanLine("chat unknown", "answer", "turn", map[string]string{"command.name": "invoke_llm_fast"}),
 				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
 			},
 			wantErr: "has no gen_ai.request.model",
