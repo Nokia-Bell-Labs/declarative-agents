@@ -16,7 +16,7 @@ purpose: |-
   and no LLM configuration (GH-686's rule, applied here).
 initial_state: AwaitingRequest
 budget:
-  command_timeout: 1m
+  command_timeout: 3m
   max_iterations: 3
 states:
   - {name: AwaitingRequest, meaning: Seeded by the state endpoint.}

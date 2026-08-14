@@ -29,6 +29,9 @@ func TestCopyShippedProfile(t *testing.T) {
 	if base := filepath.Base(copied); base != "profile.yaml" {
 		t.Fatalf("copied profile base = %q, want profile.yaml", base)
 	}
+	if !strings.HasSuffix(filepath.ToSlash(copied), rel) {
+		t.Fatalf("copied profile path = %q, want catalog-relative suffix %q", copied, rel)
+	}
 	dstDir := filepath.Dir(copied)
 
 	// The patched field is applied in the file that carries it.
@@ -70,6 +73,42 @@ func TestCopyShippedProfileNoPatches(t *testing.T) {
 	}
 }
 
+func TestCopyShippedProfilePreservesSiblingProfileClosures(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		profile    string
+		dependency string
+		patches    map[string]string
+	}{
+		{
+			name:       "bench critic child",
+			profile:    "agents/bench/profile.yaml",
+			dependency: "agents/critic/profile.yaml",
+		},
+		{
+			name:       "planner executor child",
+			profile:    "agents/planner/profile.yaml",
+			dependency: "agents/executor/profile.yaml",
+			patches:    map[string]string{"machine: machine.yaml": "machine: machine-passthrough.yaml"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			copied := CopyShippedProfile(t, test.profile, test.patches)
+			stageRoot := copiedCatalogRoot(t, copied, test.profile)
+			dependency := filepath.Join(stageRoot, filepath.FromSlash(test.dependency))
+			if got, want := readFile(t, dependency), readFile(t, ProfilePath(test.dependency)); got != want {
+				t.Errorf("staged dependency %s differs from shipped source", test.dependency)
+			}
+			if _, err := os.Stat(filepath.Join(stageRoot, "agents", "collector", "profile.yaml")); !os.IsNotExist(err) {
+				t.Errorf("unreferenced collector family was staged: %v", err)
+			}
+		})
+	}
+}
+
 func TestProfilePatchesAreSimultaneousAndRejectOverlap(t *testing.T) {
 	t.Parallel()
 	replacer, err := newProfileReplacer(map[string]string{
@@ -100,4 +139,13 @@ func readFile(t *testing.T, path string) string {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(data)
+}
+
+func copiedCatalogRoot(t *testing.T, copied, relative string) string {
+	t.Helper()
+	root := copied
+	for range strings.Split(filepath.ToSlash(relative), "/") {
+		root = filepath.Dir(root)
+	}
+	return root
 }

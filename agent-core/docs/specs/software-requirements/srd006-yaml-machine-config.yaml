@@ -73,8 +73,13 @@ requirements:
       - R6.1: Every shipped MachineSpec SHALL declare a finite, positive budget.command_timeout.
       - R6.2: The declared command_timeout SHALL exceed the longest legitimate duration of every action reachable in that machine, including scheduling margin.
       - R6.3: Calibration SHALL use the selected ToolDef timeout, REST limit or machine_request timeout, model or child-process limit, and blocking await duration as authorities; one copied repository-wide value SHALL NOT substitute for workload review.
-      - R6.4: A selected operation with an environment-overridable timeout SHALL declare a finite maximum that does not exceed the machine command_timeout.
+      - R6.4: A selected operation with an environment-overridable timeout SHALL resolve to a finite value strictly below the machine command_timeout.
       - R6.5: Each owning module SHALL statically test its shipped machine-to-authority mapping without sleeping for the declared wall-clock duration.
+      - R6.6: "A reusable profile inspector SHALL resolve declaration includes and override precedence, selected named and dynamic actions, REST definitions, machine_request profile or machine references, child profiles, evaluator point machines, and compatibility wrappers before comparing authorities."
+      - R6.7: "The inspector SHALL classify ToolDef, REST, model, child/service, evaluator-point, and await authorities; it SHALL fail closed when a reachable timeout-bearing boundary action has no supported finite authority."
+      - R6.8: "Environment expansion SHALL precede comparison. The active MachineSpec command_timeout SHALL be the finite runtime maximum, and an expanded operation timeout that is malformed, non-positive, equal to, or greater than that maximum SHALL fail startup before dispatch."
+      - R6.9: "Diagnostics SHALL deterministically identify the profile, machine, selected action, authority source, operation duration, and command timeout."
+      - R6.10: "Agent Core SHALL inspect only a caller-supplied profile closure. Catalog and application owners SHALL discover their own shipped profile inventories and invoke the shared inspector without Agent Core runtime tests discovering product source trees."
 
 non_goals:
   - Dynamic table modification during a run.
@@ -83,6 +88,8 @@ non_goals:
   - Unbounded parallel iteration.
   - A general expression, mutation, or scripting language in machine YAML.
   - Propagating request-machine timeout policy into nested runners; that runtime wiring is tracked separately.
+  - Treating a Helm, JSON Schema, or other deployment-input limit as the runtime timeout safety boundary.
+  - Inventing a second profile registry or compatibility-alias inventory for timeout inspection.
 
 acceptance_criteria:
   - id: AC1
@@ -104,8 +111,8 @@ acceptance_criteria:
     criterion: A trusted command-state array drives sequential or positively bounded parallel named-action dispatches with per-item trace, checkpoint, receipt, cancellation, rollback visibility, deterministic input-order join output, and checkpoint-resume progress; fail-fast waits for all started children and collect-all retains every outcome.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9]
   - id: AC6
-    criterion: Every shipped machine declares a finite command timeout above its longest selected operation with margin, and the owning module verifies that mapping statically.
-    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+    criterion: Every shipped machine declares a finite command timeout strictly above each closure-resolved selected operation. The reusable inspector resolves includes, overrides, aliases, request and nested machines, classifies all supported authority families, rejects unresolved or oversized environment-expanded values before dispatch, emits deterministic evidence, and is driven by each owner's profile inventory without cross-owner discovery.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R6.8, R6.9, R6.10]
 
 depends_on:
   - srd_id: srd001-core-types

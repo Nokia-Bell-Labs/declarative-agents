@@ -24,6 +24,7 @@ import (
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profileaudit"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
@@ -341,16 +342,8 @@ func loadRunResources() (runResources, error) {
 		shutdownTelemetry()
 		return runResources{}, err
 	}
-	machineSpec, err := core.LoadMachineSpec(cfg.Machine)
+	machineSpec, err := loadValidatedRuntimeMachine(cfg, defs)
 	if err != nil {
-		shutdownTelemetry()
-		return runResources{}, fmt.Errorf("load machine spec for budget: %w", err)
-	}
-	if err := core.ValidateRequiredMachinePolicy(machineSpec); err != nil {
-		shutdownTelemetry()
-		return runResources{}, fmt.Errorf("load machine runtime policy: %w", err)
-	}
-	if err := validateRuntimeToolWiring(machineSpec, defs); err != nil {
 		shutdownTelemetry()
 		return runResources{}, err
 	}
@@ -364,6 +357,25 @@ func loadRunResources() (runResources, error) {
 		RestDefinitions: restDefs, Machine: machineSpec, Program: program,
 		shutdownTelemetry: shutdownTelemetry,
 	}, nil
+}
+
+func loadValidatedRuntimeMachine(
+	cfg runtimeConfig, defs []catalog.ToolDef,
+) (core.MachineSpec, error) {
+	machineSpec, err := core.LoadMachineSpec(cfg.Machine)
+	if err != nil {
+		return core.MachineSpec{}, fmt.Errorf("load machine spec for budget: %w", err)
+	}
+	if err := core.ValidateRequiredMachinePolicy(machineSpec); err != nil {
+		return core.MachineSpec{}, fmt.Errorf("load machine runtime policy: %w", err)
+	}
+	if err := validateRuntimeToolWiring(machineSpec, defs); err != nil {
+		return core.MachineSpec{}, err
+	}
+	if err := profileaudit.Validate(cfg.Profile); err != nil {
+		return core.MachineSpec{}, fmt.Errorf("inspect profile timeout closure: %w", err)
+	}
+	return machineSpec, nil
 }
 
 // validateRuntimeToolWiring is the ordinary startup boundary. It rejects

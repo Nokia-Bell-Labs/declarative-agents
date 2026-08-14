@@ -14,10 +14,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Serving profiles (monitor, control, rest, knowledge-manager, bench) launch an
@@ -235,61 +238,203 @@ func rewriteFile(t *testing.T, path string, replacements map[string]string) stri
 	return content
 }
 
-// CopyShippedProfile copies the whole directory tree of a shipped profile into
-// a temp dir so a family test can run the wrapper an operator actually ships
-// rather than a synthesized reconstruction. relProfile is the profile path
-// relative to the agent-profiles root (e.g. "agents/runtime-state-reader/profile.yaml").
+// CopyShippedProfile stages a shipped profile under its catalog-relative path
+// so a family test can run the wrapper an operator actually ships rather than
+// a synthesized reconstruction. relProfile is relative to the catalog root
+// (e.g. "agents/runtime-state-reader/profile.yaml").
 //
-// The entire profile directory is copied recursively, so the profile's relative
-// references (machine.yaml, tools.yaml, rest.yaml, and any subdir such as
-// openapi/ or llm/) resolve from the copy exactly as agent-core resolves them in
-// production. The /opt/agent-core tool_config_dirs the shipped profile hard-codes
-// need no patching: --core-root remaps them onto the checkout
-// (spec.SetAgentCoreInstallRoot).
+// The requested profile directory is copied recursively. YAML references that
+// leave that directory are then copied transitively under the same
+// catalog-relative paths; a referenced sibling profile brings its whole family
+// directory. This preserves package-root references such as
+// agents/critic/profile.yaml without copying unrelated generated catalog
+// artifacts. /opt/agent-core references need no staging because --core-root
+// remaps them onto the checkout (spec.SetAgentCoreInstallRoot).
 //
-// patches applies simultaneous exact string replacements across every copied file, for the
-// few values the harness must control (chiefly hard-coded listen addresses). It
-// patches only the named fields — it never rebuilds the machine, tools, or
-// wrapper — and returns the path to the copied profile.yaml.
+// patches applies simultaneous exact string replacements only within the
+// requested family for the few values the harness must control (chiefly
+// hard-coded listen addresses). Transitive dependencies remain byte-identical.
 func CopyShippedProfile(t *testing.T, relProfile string, patches map[string]string) string {
 	t.Helper()
-	srcProfile := ProfilePath(relProfile)
-	srcDir := filepath.Dir(srcProfile)
-	dstDir := t.TempDir()
+	root := ProfilesRoot()
+	srcProfile := filepath.Clean(ProfilePath(relProfile))
+	if err := requirePathWithin(root, srcProfile); err != nil {
+		t.Fatalf("copy shipped profile %s: %v", relProfile, err)
+	}
 	replacer, err := newProfileReplacer(patches)
 	if err != nil {
 		t.Fatalf("copy shipped profile %s: %v", relProfile, err)
 	}
+	stage := &shippedProfileStage{
+		sourceRoot: root,
+		targetRoot: t.TempDir(),
+		patchRoot:  filepath.Dir(srcProfile),
+		replacer:   replacer,
+		copied:     make(map[string]bool),
+	}
+	if err := stage.copyClosure(filepath.Dir(srcProfile)); err != nil {
+		t.Fatalf("copy shipped profile %s: %v", relProfile, err)
+	}
+	relative, _ := filepath.Rel(root, srcProfile)
+	return filepath.Join(stage.targetRoot, relative)
+}
 
-	err = filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, walkErr error) error {
+type shippedProfileStage struct {
+	sourceRoot string
+	targetRoot string
+	patchRoot  string
+	replacer   *strings.Replacer
+	copied     map[string]bool
+	pending    []string
+}
+
+var shippedProfileTemplatePattern = regexp.MustCompile(`\$\{[^}\r\n]+\}`)
+
+func (s *shippedProfileStage) copyClosure(initial string) error {
+	s.pending = append(s.pending, initial)
+	for len(s.pending) > 0 {
+		source := s.pending[0]
+		s.pending = s.pending[1:]
+		if s.copied[source] {
+			continue
+		}
+		info, err := os.Lstat(source)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			if err := s.copyDirectory(source); err != nil {
+				return err
+			}
+			continue
+		}
+		if info.Mode().IsRegular() {
+			if err := s.copyFile(source); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *shippedProfileStage) copyDirectory(source string) error {
+	s.copied[source] = true
+	return filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		rel, err := filepath.Rel(srcDir, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dstDir, rel)
-		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		if !d.Type().IsRegular() {
+		if entry.IsDir() {
 			return nil
 		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
+		if !entry.Type().IsRegular() {
+			return nil
 		}
-		content := replacer.Replace(string(data))
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return err
-		}
-		return os.WriteFile(target, []byte(content), 0o644)
+		return s.copyFile(path)
 	})
-	if err != nil {
-		t.Fatalf("copy shipped profile %s: %v", relProfile, err)
+}
+
+func (s *shippedProfileStage) copyFile(source string) error {
+	source = filepath.Clean(source)
+	if s.copied[source] {
+		return nil
 	}
-	return filepath.Join(dstDir, filepath.Base(srcProfile))
+	if err := requirePathWithin(s.sourceRoot, source); err != nil {
+		return err
+	}
+	data, err := os.ReadFile(source)
+	if err != nil {
+		return err
+	}
+	relative, err := filepath.Rel(s.sourceRoot, source)
+	if err != nil {
+		return err
+	}
+	target := filepath.Join(s.targetRoot, relative)
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	content := string(data)
+	if requirePathWithin(s.patchRoot, source) == nil {
+		content = s.replacer.Replace(content)
+	}
+	if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+		return err
+	}
+	s.copied[source] = true
+	if filepath.Ext(source) == ".yaml" || filepath.Ext(source) == ".yml" {
+		return s.enqueueYAMLReferences(source, data)
+	}
+	return nil
+}
+
+func (s *shippedProfileStage) enqueueYAMLReferences(source string, data []byte) error {
+	var document yaml.Node
+	inspectable := shippedProfileTemplatePattern.ReplaceAll(data, []byte("template_value"))
+	if err := yaml.Unmarshal(inspectable, &document); err != nil {
+		return fmt.Errorf("parse YAML dependencies in %s: %w", source, err)
+	}
+	var visit func(*yaml.Node)
+	visit = func(node *yaml.Node) {
+		if node.Kind == yaml.ScalarNode {
+			if dependency := s.resolveYAMLDependency(source, node.Value); dependency != "" {
+				if isProfileFilename(filepath.Base(dependency)) {
+					dependency = filepath.Dir(dependency)
+				}
+				s.pending = append(s.pending, dependency)
+			}
+		}
+		for _, child := range node.Content {
+			visit(child)
+		}
+	}
+	visit(&document)
+	return nil
+}
+
+func (s *shippedProfileStage) resolveYAMLDependency(source, value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.ContainsAny(value, "*?[") ||
+		strings.HasPrefix(value, "/opt/agent-core/") {
+		return ""
+	}
+	pathLike := strings.HasSuffix(value, ".yaml") || strings.HasSuffix(value, ".yml") ||
+		strings.HasPrefix(value, "agents/") || strings.HasPrefix(value, "testdata/") ||
+		strings.HasPrefix(value, "./") || strings.HasPrefix(value, "../")
+	if !pathLike || filepath.IsAbs(value) {
+		return ""
+	}
+	var candidate string
+	if strings.HasPrefix(value, "agents/") || strings.HasPrefix(value, "testdata/") {
+		candidate = filepath.Join(s.sourceRoot, filepath.FromSlash(value))
+	} else {
+		candidate = filepath.Join(filepath.Dir(source), filepath.FromSlash(value))
+	}
+	candidate = filepath.Clean(candidate)
+	if requirePathWithin(s.sourceRoot, candidate) != nil {
+		return ""
+	}
+	if info, err := os.Stat(candidate); err == nil && (info.IsDir() || info.Mode().IsRegular()) {
+		return candidate
+	}
+	return ""
+}
+
+func requirePathWithin(root, candidate string) error {
+	relative, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	if err != nil {
+		return fmt.Errorf("compare catalog path: %w", err)
+	}
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) ||
+		filepath.IsAbs(relative) {
+		return fmt.Errorf("path escapes catalog root: %s", candidate)
+	}
+	return nil
+}
+
+func isProfileFilename(name string) bool {
+	return name == "profile.yaml" ||
+		strings.HasPrefix(name, "profile-") && strings.HasSuffix(name, ".yaml") ||
+		strings.HasSuffix(name, "-profile.yaml")
 }
 
 func newProfileReplacer(patches map[string]string) (*strings.Replacer, error) {
