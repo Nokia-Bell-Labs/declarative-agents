@@ -83,25 +83,8 @@ type serverRuntime struct {
 	activeStreams  int
 	droppedEvents  int
 	owned          bool
+	ownership      string
 	mu             sync.Mutex
-}
-
-// Launch starts a configured REST server without waiting for requests.
-func (s *ServerState) Launch(def ServerDefinition) (map[string]interface{}, error) {
-	runtime, err := newServerRuntime(def)
-	if err != nil {
-		return nil, err
-	}
-	s.mu.Lock()
-	if _, exists := s.servers[def.Name]; exists {
-		s.mu.Unlock()
-		_ = runtime.listener.Close()
-		return nil, fmt.Errorf("REST server %q is already launched", def.Name)
-	}
-	s.servers[def.Name] = runtime
-	s.mu.Unlock()
-	go serveRuntime(runtime)
-	return runtime.launchOutput(), nil
 }
 
 // Stop shuts down a configured REST server and drains queued events.
@@ -166,42 +149,6 @@ func (s *ServerState) resolveAwaitSources(options AwaitAnyOptions) ([]resolvedAw
 		})
 	}
 	return sources, nil
-}
-
-func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
-	def.Server.Endpoints = injectLifecycleExit(def.Server)
-	if err := validateRouteConflicts(def.Server.Endpoints); err != nil {
-		return nil, err
-	}
-	// Fixtures load before the listener binds, so a malformed fixture stops the
-	// server from serving rather than failing the first request (srd039 R4.2).
-	mock, err := newMockState(def.Server.Endpoints)
-	if err != nil {
-		return nil, err
-	}
-	listener, err := net.Listen("tcp", def.Server.Address)
-	if err != nil {
-		return nil, fmt.Errorf("bind REST server %q: %w", def.Name, err)
-	}
-	var requestMon monitor.RuntimeRecorder
-	if def.Monitor.Recorder != nil {
-		requestMon = def.Monitor.Recorder
-	} else if def.Monitor.Store != nil {
-		requestMon = monitor.NewRecorder(def.Monitor.Store, nil)
-	}
-	runtime := &serverRuntime{
-		name: def.Name, def: def, mock: mock, listener: listener, stopped: make(chan struct{}),
-		runner:         machineRequestRunner(def.MachineRequestRunner),
-		requestMonitor: requestMon,
-		queue:          make(chan InboundEvent, queueCapacity(def.Server.Queue)), owned: true,
-	}
-	runtime.httpServer = &http.Server{
-		Handler:           runtime,
-		ReadTimeout:       parseDuration(def.Limits.ReadTimeout, 0),
-		ReadHeaderTimeout: parseDuration(def.Limits.ConnectTimeout, 0),
-		MaxHeaderBytes:    def.Limits.MaxHeaderBytes,
-	}
-	return runtime, nil
 }
 
 func serveRuntime(runtime *serverRuntime) {

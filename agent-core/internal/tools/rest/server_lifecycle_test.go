@@ -4,8 +4,10 @@ package rest
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,6 +50,160 @@ func TestRESTServer_DuplicateLaunchReleasesNewListener(t *testing.T) {
 		require.NoError(t, err, "duplicate launch leaked listener at %s", address)
 		require.NoError(t, rebound.Close())
 	}
+}
+
+func TestRESTServer_LaunchReceiptStopsOnlyOwnedListener(t *testing.T) {
+	t.Parallel()
+	server := namedControlServer("receipt_control")
+	state := NewServerState()
+	builder := ServerBuilder{
+		ToolName: "launch_control_alias", Init: InitServerLaunch,
+		Server: ServerDefinition{Name: "receipt_control", Server: server}, State: state,
+	}
+	result := builder.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
+	require.Equal(t, "launch_control_alias", result.CommandName)
+	receipt, err := decodeServerLaunchReceipt(result.Receipt)
+	require.NoError(t, err)
+	require.Equal(t, serverLaunchReceiptStrategy, receipt.Strategy)
+	require.Equal(t, "launch_control_alias", receipt.Declaration)
+	require.Equal(t, "receipt_control", receipt.Server)
+	require.NotEmpty(t, receipt.Address)
+	require.NotEmpty(t, receipt.Ownership)
+	require.Equal(t, "ok", getJSON(t, "http://"+receipt.Address+"/health")["status"])
+
+	undoResult := builder.BuildReverser().Undo(result)
+	require.Equal(t, core.Signal("ServerStopped"), undoResult.Signal, undoResult.Output)
+	require.Equal(t, "launch_control_alias", undoResult.CommandName)
+	_, err = state.runtime("receipt_control")
+	require.ErrorContains(t, err, "is not launched")
+}
+
+func TestRESTServer_LaunchUndoInFreshProcessIsAlreadyCompensated(t *testing.T) {
+	t.Parallel()
+	server := namedControlServer("fresh_receipt")
+	liveState := NewServerState()
+	liveBuilder := ServerBuilder{
+		ToolName: "launch_fresh_alias", Init: InitServerLaunch,
+		Server: ServerDefinition{Name: "fresh_receipt", Server: server}, State: liveState,
+	}
+	result := liveBuilder.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
+	t.Cleanup(func() { _, _ = liveState.Stop("fresh_receipt") })
+	receipt, err := decodeServerLaunchReceipt(result.Receipt)
+	require.NoError(t, err)
+
+	freshBuilder := liveBuilder
+	freshBuilder.State = NewServerState()
+	undoResult := freshBuilder.BuildReverser().Undo(result)
+	require.Equal(t, core.Signal("ServerStopped"), undoResult.Signal, undoResult.Output)
+	var output map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(undoResult.Output), &output))
+	require.Equal(t, "already_compensated", output["status"])
+	require.Equal(t, "launch_fresh_alias", undoResult.CommandName)
+
+	// The fresh process-local state cannot claim or stop the listener that
+	// remains owned by the originating process.
+	require.Equal(t, "ok", getJSON(t, "http://"+receipt.Address+"/health")["status"])
+}
+
+func TestRESTServer_LaunchUndoRejectsInvalidOrUnownedReceipts(t *testing.T) {
+	t.Parallel()
+	server := namedControlServer("strict_receipt")
+	state := NewServerState()
+	builder := ServerBuilder{
+		ToolName: "launch_strict_alias", Init: InitServerLaunch,
+		Server: ServerDefinition{Name: "strict_receipt", Server: server}, State: state,
+	}
+	result := builder.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
+	t.Cleanup(func() { _, _ = state.Stop("strict_receipt") })
+	receipt, err := decodeServerLaunchReceipt(result.Receipt)
+	require.NoError(t, err)
+	baseURL := "http://" + receipt.Address
+
+	tests := []struct {
+		name        string
+		commandName string
+		receipt     string
+		want        string
+	}{
+		{name: "malformed", receipt: "{", want: "decode REST server launch receipt"},
+		{
+			name: "wrong strategy",
+			receipt: launchReceiptWith(t, receipt, func(value *serverLaunchReceipt) {
+				value.Strategy = "server_shutdown"
+			}),
+			want: "strategy",
+		},
+		{
+			name: "wrong declaration",
+			receipt: launchReceiptWith(t, receipt, func(value *serverLaunchReceipt) {
+				value.Declaration = "other_launch_alias"
+			}),
+			want: "declaration",
+		},
+		{
+			name: "wrong server",
+			receipt: launchReceiptWith(t, receipt, func(value *serverLaunchReceipt) {
+				value.Server = "other_server"
+			}),
+			want: "configured server",
+		},
+		{
+			name: "wrong address",
+			receipt: launchReceiptWith(t, receipt, func(value *serverLaunchReceipt) {
+				value.Address = "127.0.0.1:1"
+			}),
+			want: "listener address",
+		},
+		{
+			name: "wrong ownership",
+			receipt: launchReceiptWith(t, receipt, func(value *serverLaunchReceipt) {
+				value.Ownership = strings.Repeat("0", serverOwnershipBytes*2)
+			}),
+			want: "not owned by the launch receipt",
+		},
+		{
+			name: "wrong persisted command alias", commandName: "other_launch_alias",
+			receipt: result.Receipt, want: "does not match declaration",
+		},
+		{
+			name:    "unknown field",
+			receipt: strings.TrimSuffix(result.Receipt, "}") + `,"unexpected":true}`,
+			want:    "unknown field",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			prior := core.Result{CommandName: test.commandName, Receipt: test.receipt}
+			undoResult := builder.BuildReverser().Undo(prior)
+			require.Equal(t, core.CommandError, undoResult.Signal, undoResult.Output)
+			require.ErrorContains(t, undoResult.Err, test.want)
+			require.Equal(t, "ok", getJSON(t, baseURL+"/health")["status"])
+		})
+	}
+
+	runtime, err := state.runtime("strict_receipt")
+	require.NoError(t, err)
+	runtime.owned = false
+	undoResult := builder.BuildReverser().Undo(result)
+	require.Equal(t, core.CommandError, undoResult.Signal, undoResult.Output)
+	require.ErrorContains(t, undoResult.Err, "not process-owned")
+	require.Equal(t, "ok", getJSON(t, baseURL+"/health")["status"])
+	runtime.owned = true
+}
+
+func launchReceiptWith(
+	t *testing.T,
+	receipt serverLaunchReceipt,
+	mutate func(*serverLaunchReceipt),
+) string {
+	t.Helper()
+	mutate(&receipt)
+	data, err := json.Marshal(receipt)
+	require.NoError(t, err)
+	return string(data)
 }
 
 func TestRESTServer_ControlQueueAndReadPolicyConformance(t *testing.T) {
