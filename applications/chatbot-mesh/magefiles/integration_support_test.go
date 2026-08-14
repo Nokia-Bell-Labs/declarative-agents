@@ -96,8 +96,8 @@ func TestDetachedAgentCleanupReportsProcessOutcomes(t *testing.T) {
 		wait        time.Duration
 		wantErrText string
 	}{
-		{name: "zero exit", script: "#!/bin/sh\nexit 0\n", wait: time.Second},
-		{name: "spontaneous crash", script: "#!/bin/sh\nexit 7\n", wait: time.Second, wantErrText: "exit status 7"},
+		{name: "zero exit", script: "#!/bin/sh\nexit 0\n", wait: detachedAgentGracefulWait},
+		{name: "spontaneous crash", script: "#!/bin/sh\nexit 7\n", wait: detachedAgentGracefulWait, wantErrText: "exit status 7"},
 		{name: "expected force kill", script: "#!/bin/sh\nwhile :; do :; done\n", forceKill: true, wait: time.Second},
 		{name: "graceful timeout", script: "#!/bin/sh\nwhile :; do :; done\n", wait: 20 * time.Millisecond, wantErrText: "did not stop within"},
 	}
