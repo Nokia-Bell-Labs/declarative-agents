@@ -53,6 +53,24 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 	if strings.Count(topology, "name: declare_rag_topology") != 1 {
 		t.Error("topology must contain exactly one declaration word")
 	}
+	var rendered struct {
+		Tools []struct {
+			Reversibility map[string]any `yaml:"reversibility"`
+			Undo          map[string]any `yaml:"undo"`
+		} `yaml:"tools"`
+	}
+	if err := yaml.Unmarshal([]byte(topology), &rendered); err != nil {
+		t.Fatalf("parse co-generated topology declarations: %v", err)
+	}
+	if len(rendered.Tools) != 1 {
+		t.Fatalf("co-generated topology declarations contain %d tools, want 1", len(rendered.Tools))
+	}
+	if _, nested := rendered.Tools[0].Reversibility["undo"]; nested {
+		t.Error("co-generated topology nests undo inside reversibility")
+	}
+	if strategy := rendered.Tools[0].Undo["strategy"]; strategy != "noop" {
+		t.Errorf("co-generated topology undo strategy = %v, want noop", strategy)
+	}
 
 	root := filepath.Join(chart, "..", "agents", "chatbot")
 	machine, err := os.ReadFile(filepath.Join(root, "request-machine.yaml"))
