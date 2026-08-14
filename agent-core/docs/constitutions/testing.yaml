@@ -117,6 +117,7 @@ mage_targets:
   - mage integration:ollamaRest
   - mage integration:ollamaMonitor
   - mage integration:dolt
+  - mage integration:doltWord
   - mage integration:all
 quality_gates:
   code:

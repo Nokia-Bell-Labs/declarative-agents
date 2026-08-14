@@ -19,6 +19,7 @@
 # Defaults to the repository-local .netrc.
 # container_netrc: .netrc
 
-# Dolt executable used by `mage integration:dolt`.
+# Dolt executable used by `mage integration:dolt` and
+# `mage integration:doltWord`.
 # Defaults to looking up dolt on PATH.
 # dolt_bin: /path/to/dolt

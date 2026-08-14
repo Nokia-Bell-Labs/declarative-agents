@@ -3,13 +3,8 @@
 package main
 
 import (
-	"bytes"
-	"context"
-	"database/sql"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,8 +18,6 @@ import (
 )
 
 const doltTestDB = "agent_core_test"
-
-var doltBin = flag.String("dolt-bin", "", "path or command name for the Dolt integration-test executable")
 
 // TestDoltCheckpointSuspendResumeRoundTrip proves same-process adapter reopen:
 // a run persisted through DoltCheckpoint is reloaded by a new adapter with an
@@ -367,109 +360,4 @@ func TestDoltCheckpointConversationReferencesAgainstRealDolt(t *testing.T) {
 	domain, err = fresh.ResolveDomainSnapshot(revertedDomainRef)
 	require.NoError(t, err)
 	require.Equal(t, []byte(firstPosition.Snapshot.Domain), domain)
-}
-
-func TestDoltBinaryPrefersExplicitFlag(t *testing.T) {
-	previous := *doltBin
-	t.Cleanup(func() { *doltBin = previous })
-	*doltBin = " /declared/bin/dolt "
-
-	require.Equal(t, "/declared/bin/dolt", doltBinary())
-}
-
-// doltBinary resolves the dolt executable: an explicit test flag wins,
-// otherwise the binary is looked up on PATH. An empty result means no dolt is
-// available and the gated tests skip.
-func doltBinary() string {
-	if configured := strings.TrimSpace(*doltBin); configured != "" {
-		return configured
-	}
-	if path, err := exec.LookPath("dolt"); err == nil {
-		return path
-	}
-	return ""
-}
-
-// startDoltServer launches a `dolt sql-server` from a prebuilt dolt binary on an
-// ephemeral port against a throwaway data directory, waits until it accepts
-// connections, and returns a database-less DSN base ("root@tcp(127.0.0.1:PORT)/").
-// The server is torn down when the test ends. It skips when no dolt binary is
-// installed so `go test ./...` stays green on machines without dolt, while
-// `mage integration:dolt` runs it for real.
-func startDoltServer(t *testing.T) string {
-	t.Helper()
-	bin := doltBinary()
-	if bin == "" {
-		t.Skip("no dolt binary found (install dolt or pass -dolt-bin); skipping Dolt integration test")
-	}
-
-	port := freeTCPPort(t)
-	dataDir := t.TempDir()
-	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, bin, "sql-server",
-		"--host=127.0.0.1",
-		fmt.Sprintf("--port=%d", port),
-		"--data-dir="+dataDir,
-	)
-	// DOLT_ROOT_HOST=% lets root connect over TCP from 127.0.0.1; the server
-	// otherwise only provisions root@localhost. The empty password matches the DSN.
-	cmd.Env = append(os.Environ(), "DOLT_ROOT_HOST=%", "DOLT_ROOT_PASSWORD=")
-	var log bytes.Buffer
-	cmd.Stdout = &log
-	cmd.Stderr = &log
-	require.NoError(t, cmd.Start())
-	t.Cleanup(func() {
-		cancel()
-		_ = cmd.Wait()
-	})
-
-	base := fmt.Sprintf("root@tcp(127.0.0.1:%d)/", port)
-	waitForDolt(t, base, &log)
-	return base
-}
-
-// freeTCPPort reserves an ephemeral port and releases it for the server to claim.
-func freeTCPPort(t *testing.T) int {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	port := listener.Addr().(*net.TCPAddr).Port
-	require.NoError(t, listener.Close())
-	return port
-}
-
-// waitForDolt polls the freshly started server until it answers a ping or the
-// deadline passes, surfacing the captured server log on timeout.
-func waitForDolt(t *testing.T, base string, log *bytes.Buffer) {
-	t.Helper()
-	db, err := sql.Open("dolt", base)
-	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
-
-	deadline := time.Now().Add(60 * time.Second)
-	for {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		err := db.PingContext(ctx)
-		cancel()
-		if err == nil {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("dolt sql-server did not become ready within 60s: %v\nserver log:\n%s", err, log.String())
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-}
-
-// requireDoltTestDB creates the shared test database on a database-less DSN base
-// so subsequent adapters can select it.
-func requireDoltTestDB(t *testing.T, base string) {
-	t.Helper()
-	db, err := sql.Open("dolt", base)
-	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_, err = db.ExecContext(ctx, "CREATE DATABASE IF NOT EXISTS "+doltTestDB)
-	require.NoError(t, err)
 }

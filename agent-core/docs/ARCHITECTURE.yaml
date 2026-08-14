@@ -21,7 +21,7 @@ overview:
     packages own tracing, telemetry, traceparent, GenAI attributes, and the
     embedded monitor store. Model packages own the LLM boundary, conversations,
     profiles, parsing, and prompt assembly. Focused internal/tools packages own
-    catalog, registry, exec, filesystem, LLM, REST, service-child, OTLP,
+    catalog, registry, exec, filesystem, LLM, REST, Dolt, service-child, OTLP,
     lifecycle, control, validation, undo, and checkpoint behavior. Monitor readers expose
     cached runtime metrics through OpenTelemetry and REST/OpenAPI read models
     for live agent state. Evaluation and support packages provide session
@@ -250,6 +250,26 @@ overview:
             - internal/tools/undo
             - Go standard library net/http
             - github.com/getkin/kin-openapi/openapi3
+          must_not_depend_on:
+            - cmd/agent
+            - internal/evaluation
+            - internal/planning
+      - path: internal/tools/dolt/
+        responsibility: |
+          Dolt owns the general-purpose configured provision, query, and write
+          boundary words, trusted operation validation, bound parameters,
+          normalized server-and-database identity, bounded results, commit
+          receipts, and compensation metadata. MachineSpec owns sequencing
+          among the three words.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/observability/tracing
+            - internal/tools/catalog
+            - internal/tools/registry for factory types
+            - internal/tools/undo
+            - github.com/go-sql-driver/mysql for DSN parsing and MySQL-wire configuration
+            - Go standard library database/sql
           must_not_depend_on:
             - cmd/agent
             - internal/evaluation
@@ -1444,6 +1464,8 @@ project_structure:
       role: Model-boundary, response parsing, conversation state, and done tool package
     - path: internal/tools/rest/
       role: REST client/server boundary tool package with OpenAPI loading, operation definitions, async inbox integration, and net/http runtime behavior
+    - path: internal/tools/dolt/
+      role: Configured Dolt provision, query, and write boundary words with trusted connection references and commit receipts
     - path: internal/tools/service/
       role: Scenario-rig service-child lifecycle, deterministic discovery, validator execution, and session words
     - path: internal/tools/otlp/
@@ -1500,7 +1522,8 @@ package_specification_coverage: |
   mapping covers internal/runtime/core, internal/observability, internal/model,
   the internal/tools package family, internal/support/cli, and pkg/spec behavior.
   Within the tool family, srd039 covers the REST mock binding, srd040 covers
-  internal/tools/service, and srd042 covers internal/tools/otlp.
+  internal/tools/service, srd042 covers internal/tools/otlp, and srd047 covers
+  internal/tools/dolt.
 
   Configured-agent packages are covered at the release layer. cmd/agent is
   governed by cfg-runtime-contract, release 01.0 use cases, lifecycle use cases,

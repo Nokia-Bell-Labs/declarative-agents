@@ -148,5 +148,5 @@ related_documents:
 implementation_status:
   specified:
     - Trusted operation config, provision/query/write contracts, commit semantics, checkpoint separation, and real-Dolt proof obligations.
-  planned:
-    - "GH-1732: runtime words, declarations, unit tests, and real-Dolt integration gate."
+  implemented:
+    - "GH-1732: runtime words, declarations, unit tests, and mage integration:doltWord real-Dolt gate."
