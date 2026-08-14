@@ -1,0 +1,4 @@
+tools:
+  - echo_request
+  - fail_request
+  - suspend

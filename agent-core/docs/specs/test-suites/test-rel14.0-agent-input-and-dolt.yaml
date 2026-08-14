@@ -15,8 +15,8 @@ preconditions:
 test_cases:
   - use_case: rel14.0-uc001-request-driven-signal
     name: Model-free profile starts without model construction
-    planned_go_test: go test ./cmd/agent -run TestRequestSignalSource_ModelFreeProfile
-    status: planned
+    go_test: go test ./cmd/agent -run 'TestRequestSignalSource_(ModelFreeProfile|ModelRunOrResumeRegression)'
+    status: implemented
     description: |
       A profile selects an HTTP source and deterministic words but no invoke_llm
       declaration. Validation and startup succeed, no model client factory runs,
@@ -36,8 +36,8 @@ test_cases:
 
   - use_case: rel14.0-uc001-request-driven-signal
     name: Trusted mapping validates signal payload and redaction
-    planned_go_test: go test ./internal/tools/rest -run TestRequestSignalSource_TrustedMapping
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRequestSignalSource_TrustedMapping
+    status: implemented
     description: |
       Config maps a closed discriminator to a declared signal and payload
       fields. Valid input produces one SignalEnvelope. Unknown discriminators,
@@ -57,8 +57,8 @@ test_cases:
 
   - use_case: rel14.0-uc001-request-driven-signal
     name: Admission distinguishes accepted undeclared and conflict
-    planned_go_test: go test ./internal/runtime/core -run TestSignalAdmission_Outcomes
-    status: planned
+    go_test: go test ./internal/runtime/core -run TestSignalAdmission_Outcomes
+    status: implemented
     description: |
       The current state accepts one configured signal, a globally unknown
       signal is refused_undeclared, and a declared signal with no transition,
@@ -76,8 +76,8 @@ test_cases:
 
   - use_case: rel14.0-uc001-request-driven-signal
     name: Accepted signal uses the ordinary machine execution path
-    planned_go_test: go test ./cmd/agent -run TestRequestSignalSource_OrdinaryLoopPath
-    status: planned
+    go_test: go test ./cmd/agent -run TestRequestSignalSource_OrdinaryLoopPath
+    status: implemented
     description: |
       An accepted envelope becomes the Result signal and payload consumed by
       StateMachine.Step. The selected Registry builder dispatches normally. The
@@ -96,8 +96,8 @@ test_cases:
 
   - use_case: rel14.0-uc001-request-driven-signal
     name: Suspended request-driven run resumes exactly once
-    planned_go_test: go test ./cmd/agent -run TestRequestSignalSource_SuspendResume
-    status: planned
+    go_test: go test ./cmd/agent -run TestRequestSignalSource_SuspendResume
+    status: implemented
     description: |
       The first accepted request reaches StatusSuspended and persists Position
       and Execution. A second request loads that checkpoint, uses its mapped
@@ -117,8 +117,8 @@ test_cases:
 
   - use_case: rel14.0-uc001-request-driven-signal
     name: Cancellation and failures release request ownership
-    planned_go_test: go test ./internal/runtime/core ./internal/tools/rest -run TestSignalSource_ReleasesOwnership
-    status: planned
+    go_test: go test ./internal/runtime/core ./internal/tools/rest -run TestSignalSource_ReleasesOwnership
+    status: implemented
     description: |
       Success, suspension, command failure, cancellation, timeout, and
       checkpoint failure each release the run's admission owner. Trace records

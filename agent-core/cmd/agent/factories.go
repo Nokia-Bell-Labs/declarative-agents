@@ -431,6 +431,7 @@ func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
 		toolrest.RegisterFactories(br, toolrest.FactoryDeps{
 			Definitions:        st.restDefs,
 			MachineRunner:      profileMachineRequestRunner(st),
+			SignalSourceRunner: st.signalSourceRunner,
 			Monitor:            st.monitor,
 			RunID:              st.runID,
 			CredentialResolver: toolrest.EnvironmentCredentials{},

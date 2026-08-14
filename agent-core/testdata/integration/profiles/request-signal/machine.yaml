@@ -1,0 +1,39 @@
+name: core-request-signal
+purpose: Prove model-free HTTP signal admission, ordinary dispatch, and continuation.
+initial_state: Ready
+resume_signal: ContinueRequested
+budget:
+  command_timeout: 5s
+  max_iterations: 4
+states:
+  - {name: Ready, meaning: Awaiting a trusted request signal.}
+  - {name: Processing, meaning: Running deterministic request work.}
+  - {name: Suspending, meaning: Persisting an approval suspension.}
+  - {name: AwaitingApproval, meaning: Declarative destination for the suspended signal.}
+  - {name: Continuing, meaning: Running deterministic continuation work.}
+  - {name: Failing, meaning: Producing an ordinary failed terminal result.}
+  - {name: Succeeded, meaning: Terminal success., run_status: succeeded}
+  - {name: Failed, meaning: Terminal failure., run_status: failed}
+terminal_states: [Succeeded, Failed]
+signals:
+  - {name: StartRequested, trigger: Trusted source requested ordinary work.}
+  - {name: SuspendRequested, trigger: Trusted source requested suspended work.}
+  - {name: ContinueRequested, trigger: Trusted source continued a suspended run.}
+  - {name: FailRequested, trigger: Trusted source requested the failure proof.}
+  - {name: WorkCompleted, trigger: Deterministic request work completed.}
+  - {name: WorkFailed, trigger: Deterministic request work reached domain failure.}
+  - {name: AwaitApproval, trigger: Suspend handed control back to the caller.}
+  - {name: CommandError, trigger: Runtime or persistence failed.}
+transitions:
+  - {state: Ready, signal: StartRequested, next: Processing, action: echo_request, label: request, summary: true}
+  - {state: Processing, signal: WorkCompleted, next: Succeeded}
+  - {state: Ready, signal: SuspendRequested, next: Suspending, action: suspend, label: suspension}
+  - {state: Suspending, signal: AwaitApproval, next: AwaitingApproval}
+  - {state: Suspending, signal: ContinueRequested, next: Continuing, action: echo_request, label: continuation, summary: true}
+  - {state: Continuing, signal: WorkCompleted, next: Succeeded}
+  - {state: Ready, signal: FailRequested, next: Failing, action: fail_request, label: failure, summary: true}
+  - {state: Failing, signal: WorkFailed, next: Failed}
+  - {state: Processing, signal: CommandError, next: Failed}
+  - {state: Suspending, signal: CommandError, next: Failed}
+  - {state: Continuing, signal: CommandError, next: Failed}
+  - {state: Failing, signal: CommandError, next: Failed}

@@ -773,6 +773,61 @@ overview:
         - docs/specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml
         - docs/specs/test-suites/test-rel03.0-rest-tools.yaml
 
+  request_signal_source_architecture:
+    status: implemented
+    summary: |
+      A profile whose trusted REST collection contains a signal_source endpoint
+      starts as a request-driven host. cmd/agent launches the configured REST
+      servers directly and waits for lifecycle cancellation instead of entering
+      the ordinary Seed bootstrap. Profiles without that binding continue
+      through the unchanged runOrResume path.
+
+      The REST adapter validates and maps one request to core.SignalEnvelope.
+      A shared core.LoopSignalSource owns per-run admission and passes accepted
+      signals into the host MachineSpec, Registry, LoopParams policy, budget,
+      timeout, monitor, and tracer. It does not create a second transition
+      engine. Model clients remain tool-owned: registration constructs one only
+      when the selected declarations include invoke_llm.
+
+      Checkpoint identity follows SignalEnvelope.RunID. Process-local serving
+      keeps one InMemoryCheckpoint per run. A configured --dolt-dsn opens and
+      closes a DoltCheckpoint for the envelope run ID on each request, allowing
+      continuation after process restart. Resume restores Position, Execution,
+      conversation, and domain snapshots before the new signal and payload
+      enter Loop. NoopCheckpoint still permits fresh execution but refuses an
+      explicit suspended-run claim.
+    request_flow: |
+      ```mermaid
+      sequenceDiagram
+        participant H as HTTP caller
+        participant R as REST signal_source
+        participant A as LoopSignalSource
+        participant C as Checkpoint per RunID
+        participant L as core.Loop
+
+        H->>R: validated configured request
+        R->>A: SignalEnvelope
+        A->>C: load current run when present
+        A->>A: declare, state, and ownership admission
+        A->>L: mapped signal and payload
+        L->>C: save Position and Execution
+        L-->>A: succeeded, failed, or suspended
+        A-->>R: admission and run outcome
+        R-->>H: configured HTTP response
+      ```
+    ownership_rules:
+      - REST configuration owns route, schema, closed signal mapping, run-id mapping, timeout, redaction, and response policy.
+      - cmd/agent owns profile detection, listener lifecycle, per-run checkpoint construction, and domain snapshot restoration.
+      - core.LoopSignalSource owns admission, per-run dispatch exclusion, remembered process-local state, and ordinary Loop entry.
+      - MachineSpec and the selected Registry own all transitions and actions; signal_source adds no hidden workflow.
+    proof:
+      - cmd/agent TestRequestSignalSource_ModelFreeProfile
+      - cmd/agent TestRequestSignalSource_OrdinaryLoopPath
+      - cmd/agent TestRequestSignalSource_SuspendResume
+      - cmd/agent TestRequestSignalSource_ModelRunOrResumeRegression
+      - internal/runtime/core TestSignalAdmission_Outcomes and TestSignalSource_ReleasesOwnership
+      - internal/tools/rest TestRequestSignalSource_TrustedMapping and signal-source handler tests
+
   embedded_monitor_runtime_architecture:
     status: current
     summary: |

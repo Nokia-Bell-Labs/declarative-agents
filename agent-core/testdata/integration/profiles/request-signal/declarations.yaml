@@ -1,0 +1,51 @@
+tools:
+  - name: echo_request
+    type: builtin
+    init: compose
+    category: word
+    visibility: internal
+    emits: [WorkCompleted]
+    config:
+      template: '{"value":{{ json value }}}'
+      inputs:
+        value: $.data
+      signal: WorkCompleted
+    side_effects:
+      - {kind: none, description: Renders trusted request data without external effects.}
+    reversibility: {classification: reversible}
+    undo: {strategy: noop, description: Rendering has no effects to reverse.}
+  - name: suspend
+    type: builtin
+    init: suspend
+    category: boundary
+    visibility: internal
+    emits: [AwaitApproval, CommandError]
+    config:
+      label: request-signal-approval
+      reason: awaiting continuation request
+      require_checkpoint: true
+    side_effects:
+      - {kind: state_mutation, target: lifecycle_checkpoint, state: suspended, description: Requests a checkpointed continuation boundary.}
+      - {kind: human_boundary, target: request_caller, description: Returns control until the next mapped request.}
+    reversibility: {classification: compensatable}
+    undo:
+      strategy: compensating_action
+      description: Continue, reject, or roll back the suspended request.
+      payload: suspend_receipt
+      captures: [label, reason, checkpoint_required, checkpoint_configured, checkpoint_reference_context]
+      requires: [operator_decision, resume_signal_or_rollback_target]
+  - name: fail_request
+    type: builtin
+    init: compose
+    category: word
+    visibility: internal
+    emits: [WorkFailed]
+    config:
+      template: '{"value":{{ json value }}}'
+      inputs:
+        value: $.data
+      signal: WorkFailed
+    side_effects:
+      - {kind: none, description: Renders the configured failure proof without external effects.}
+    reversibility: {classification: reversible}
+    undo: {strategy: noop, description: Rendering has no effects to reverse.}

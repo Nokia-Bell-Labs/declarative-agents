@@ -89,6 +89,23 @@ they need end-to-end evidence for a specific agent program, and the assertion
 that a particular shipped profile is wired a particular way lives in
 `applications/catalog` with the assets it reads.
 
+## Request Signal Sources
+
+A trusted REST definition with a `signal_source` endpoint turns the selected
+profile into a request-driven host. Startup serves those configured listeners
+instead of seeding the ordinary loop. Each validated request maps a closed
+discriminator to a machine-declared signal and structured payload, then enters
+the same `core.Loop`, registry, budget, timeout, tracing, and checkpoint path as
+other runs. Profiles without `signal_source` keep the existing `runOrResume`
+startup path, and profiles without `invoke_llm` construct no model client.
+
+The request's configured run ID selects its checkpoint. Without `--dolt-dsn`,
+the host keeps one in-memory checkpoint per run for continuation while the
+process lives. With `--dolt-dsn`, each request opens the Dolt adapter for that
+run ID, so a suspended run can continue after restart. `NoopCheckpoint` remains
+the disabled adapter and refuses an explicit suspended-run claim. The generic
+proof profile is under `testdata/integration/profiles/request-signal/`.
+
 ## Lifecycle Operations
 
 Lifecycle features are opt-in: checkpointing, suspend/resume, approval gates,

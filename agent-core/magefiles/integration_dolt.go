@@ -34,7 +34,7 @@ func (Integration) Dolt() error {
 
 	cmd := exec.Command(
 		"go", "test", "./cmd/agent",
-		"-run", "TestDoltCheckpoint|TestDoltCommandStateRehydratesThroughRealAdapter",
+		"-run", "TestDoltCheckpoint|TestDoltCommandStateRehydratesThroughRealAdapter|TestRequestSignalSource_SuspendResume",
 		"-count=1",
 		"-args", "-dolt-bin", doltBin,
 	)

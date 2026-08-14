@@ -88,6 +88,10 @@ type LoopHooks struct {
 	TaskCompletedSignal  Signal
 	SnapshotConversation func() (json.RawMessage, error)
 	SnapshotDomain       func() (json.RawMessage, error)
+	// RestoreSnapshot rehydrates domain-owned state after request-signal resume
+	// has loaded and validated a checkpoint, before the resumed loop dispatches.
+	// Ordinary run/resume callers keep their existing explicit restore path.
+	RestoreSnapshot func(AgentSnapshot) error
 }
 
 // LoopParams bundles all inputs for Loop.

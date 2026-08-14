@@ -40,6 +40,7 @@ type FactoryDeps struct {
 	ServerState        *ServerState
 	AsyncState         *AsyncState
 	MachineRunner      MachineRequestRunner
+	SignalSourceRunner SignalSourceRunner
 	Monitor            MonitorState
 	RunID              string
 	CredentialResolver CredentialResolver
@@ -444,6 +445,7 @@ func newServerBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.
 		return nil, err
 	}
 	server.MachineRequestRunner = deps.MachineRunner
+	server.SignalSourceRunner = deps.SignalSourceRunner
 	server.Monitor = deps.Monitor
 	server.RunID = deps.RunID
 	server.Credentials = deps.CredentialResolver

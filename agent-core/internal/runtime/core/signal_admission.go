@@ -107,11 +107,7 @@ func (s *LoopSignalSource) paramsAtCurrentPosition(
 		(remembered.known && remembered.status == StatusSuspended) ||
 		(!remembered.known && checkpointPersistenceEnabled(params.Checkpoint))
 	if !loadPersisted {
-		if remembered.known {
-			params.InitialState = remembered.state
-		} else {
-			params.InitialState = initialAdmissionState(params, spec)
-		}
+		params = signalParamsWithoutCheckpoint(params, spec, remembered)
 		return params, params.InitialState, "", nil
 	}
 	if !checkpointPersistenceEnabled(params.Checkpoint) {
@@ -134,7 +130,30 @@ func (s *LoopSignalSource) paramsAtCurrentPosition(
 	if err := validateSignalProgram(params.Program, resumed.Position.Snapshot.Program); err != nil {
 		return params, resumed.Position.CurrentState, "checkpoint_incompatible", err
 	}
+	if err := restoreSignalSnapshot(params, resumed.Position.Snapshot); err != nil {
+		return params, resumed.Position.CurrentState, "checkpoint_restore_failed", err
+	}
 	return resumed.Params, resumed.Position.CurrentState, "", nil
+}
+
+func signalParamsWithoutCheckpoint(
+	params LoopParams,
+	spec MachineSpec,
+	remembered rememberedSignalRun,
+) LoopParams {
+	if remembered.known {
+		params.InitialState = remembered.state
+	} else {
+		params.InitialState = initialAdmissionState(params, spec)
+	}
+	return params
+}
+
+func restoreSignalSnapshot(params LoopParams, snapshot AgentSnapshot) error {
+	if params.Hooks.RestoreSnapshot == nil {
+		return nil
+	}
+	return params.Hooks.RestoreSnapshot(snapshot)
 }
 
 func validateSignalProgram(expected, persisted ProgramRef) error {

@@ -1,0 +1,43 @@
+rest:
+  version: v1
+  servers:
+    request_signals:
+      address: 127.0.0.1:0
+      shutdown: {timeout: 1s}
+      lifecycle_exit: {disabled: true}
+      endpoints:
+        request:
+          method: POST
+          path: /signals
+          binding: signal_source
+          request:
+            body_schema:
+              type: object
+              required: [kind, run_id, expected_state, data, secret]
+              properties:
+                kind: {type: string}
+                run_id: {type: string}
+                expected_state: {type: string}
+                data: {type: string}
+                secret: {type: string}
+          signal_source:
+            source: core_request_fixture
+            discriminator_field: $.body.kind
+            signal_mapping:
+              start: StartRequested
+              suspend: SuspendRequested
+              continue: ContinueRequested
+              fail: FailRequested
+            run_id_field: $.body.run_id
+            expected_state_field: $.body.expected_state
+            payload:
+              data: $.body.data
+              secret: $.body.secret
+            sensitive: [secret]
+            timeout: 5s
+            responses:
+              accepted: {status: 202, include_output: true}
+              refused_undeclared: {status: 422}
+              refused_conflict: {status: 409}
+              source_validation: {status: 400}
+              machine_run_failed: {status: 502, include_diagnostic: true}
