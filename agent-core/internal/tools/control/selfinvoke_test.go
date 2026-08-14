@@ -4,6 +4,8 @@ package control
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +38,43 @@ func TestSelfInvokeUsesSharedExecuteConfigArgs(t *testing.T) {
 	require.Contains(t, result.Output, "--core-root /checkout/agent-core")
 	require.Contains(t, result.Output, "--directory /workspace")
 	require.Contains(t, result.Output, "--otel-log-file "+dir+"/child-child-1.otel.json")
+}
+
+func TestSelfInvokeCancellationAfterChildStartRetainsReceipt(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "started")
+	script := filepath.Join(dir, "child")
+	require.NoError(t, os.WriteFile(script, []byte(`#!/bin/sh
+for marker; do :; done
+printf started > "$marker"
+sleep 30
+`), 0o700))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cmd := (&SelfInvokeBuilder{
+		ToolName: "launch_evaluator",
+		Config: execute.Config{
+			Binary: script, Profile: "agents/critic/profile.yaml",
+		},
+		WorkspacePath: dir,
+		ExtraArgs:     []string{marker},
+	}).Build(core.Result{Output: `{"parameters":{"run_id":"cancelled-child"}}`})
+	resultCh := make(chan core.Result, 1)
+	go func() {
+		resultCh <- cmd.(core.ContextCommand).ExecuteContext(ctx)
+	}()
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(marker)
+		return err == nil
+	}, time.Second, 10*time.Millisecond)
+
+	cancel()
+	result := <-resultCh
+
+	require.Equal(t, core.ToolFailed, result.Signal)
+	require.Equal(t, "launch_evaluator", result.CommandName)
+	require.NotEmpty(t, result.Receipt)
 }
 
 func TestSelfInvokeResolvesRequestAndOutputFromCommandState(t *testing.T) {

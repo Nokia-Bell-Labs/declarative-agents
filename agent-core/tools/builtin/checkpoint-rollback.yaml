@@ -79,6 +79,9 @@ tools:
                 type: array
                 items:
                   type: string
+              data:
+                type: object
+                description: Concrete receipt-owned context needed to perform the compensation.
             required:
             - step
             - command

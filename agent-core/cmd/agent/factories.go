@@ -291,12 +291,14 @@ func selfInvokeFactory(st *agentState) toolregistry.BuiltinFactory {
 		config := childExecuteConfig(parsed, st.coreRoot)
 		config.Binary = st.childAgentBinary
 		return &control.SelfInvokeBuilder{
-			Config:      config,
-			RequestFrom: parsed.RequestFrom,
-			OutputFrom:  parsed.OutputFrom,
-			ExtraArgs:   directoryArgs(vars["directory"]),
-			Ctx:         st.ctx,
-			Tracer:      st.tracer,
+			ToolName:      def.Name,
+			Config:        config,
+			RequestFrom:   parsed.RequestFrom,
+			OutputFrom:    parsed.OutputFrom,
+			WorkspacePath: vars["directory"],
+			ExtraArgs:     directoryArgs(vars["directory"]),
+			Ctx:           st.ctx,
+			Tracer:        st.tracer,
 		}, nil
 	}
 }

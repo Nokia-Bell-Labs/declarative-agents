@@ -31,6 +31,24 @@ func BoundaryCompensationUndo(commandName, description string) core.Result {
 	}
 }
 
+// BoundaryCompensationResult returns a structured pending-compensation result.
+// Lifecycle rollback can project the same strategy, requirements, and concrete
+// boundary data into its pending_compensation report without interpreting the
+// originating tool's opaque receipt.
+func BoundaryCompensationResult(commandName string, compensation BoundaryCompensation) core.Result {
+	output := EncodeBoundaryReceipt(BoundaryCompensationPayload{
+		BoundaryCompensation: compensation,
+	})
+	if output == "" {
+		return BoundaryCompensationUndo(commandName, compensation.Reason)
+	}
+	return core.Result{
+		Signal:      core.CompensationRequired,
+		CommandName: commandName,
+		Output:      output,
+	}
+}
+
 // EncodeBoundaryReceipt serializes a boundary compensation payload into an opaque,
 // tool-owned receipt for Result.Receipt. It returns "" when there is no strategy
 // (nothing to compensate), so read-only or non-compensatable results carry no

@@ -66,6 +66,7 @@ type Result struct {
 	Stdout   string
 	Stderr   string
 	Duration time.Duration
+	Started  bool
 	TimedOut bool
 	Err      error
 }
@@ -82,6 +83,7 @@ func RunAgent(ctx context.Context, cfg Config, extraArgs ...string) *Result {
 		Stderr:   r.Stderr,
 		ExitCode: r.ExitCode,
 		Duration: r.Duration,
+		Started:  r.Started,
 		TimedOut: r.TimedOut,
 		Err:      r.Err,
 	}

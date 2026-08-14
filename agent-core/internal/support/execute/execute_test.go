@@ -32,15 +32,18 @@ func TestBuildArgs_ProfileOnly(t *testing.T) {
 func TestRunAgentMapsSuccessAndFailure(t *testing.T) {
 	success := RunAgent(context.Background(), Config{Binary: "printf", Timeout: time.Second}, "done")
 	require.True(t, success.Success())
+	assert.True(t, success.Started)
 	assert.Equal(t, "done", success.Stdout)
 
 	failure := RunAgent(context.Background(), Config{Binary: "false", Timeout: time.Second})
 	require.False(t, failure.Success())
+	assert.True(t, failure.Started)
 	assert.NotEqual(t, 0, failure.ExitCode)
 }
 
 func TestRunAgentReportsMissingBinary(t *testing.T) {
 	result := RunAgent(context.Background(), Config{Binary: "/nonexistent/agent", Timeout: time.Second})
 	require.False(t, result.Success())
+	assert.False(t, result.Started)
 	require.Error(t, result.Err)
 }
