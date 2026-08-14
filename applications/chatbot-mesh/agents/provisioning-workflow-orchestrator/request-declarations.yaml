@@ -37,10 +37,11 @@ tools:
         target: creator.instance
         state: instance_created
     reversibility:
-      classification: compensatable
+      classification: irreversible
+      requires_confirmation: true
     undo:
-      strategy: compensating_action
-      description: A created ingest instance is terminated through the creator on a later failure; the provisioning-workflow-orchestrator issues the compensating request.
+      strategy: irreversible
+      description: The creator exposes no receipt-backed operation that can remove the ingested records or restore the prior collection.
     errors:
       - signal: Rejected
         condition: The creator reports the ingested collection count does not meet the requested source.
