@@ -23,8 +23,9 @@ type ConnectionResolver interface {
 }
 
 type FactoryDeps struct {
-	Opener      DatabaseOpener
-	Connections ConnectionResolver
+	Opener             DatabaseOpener
+	Connections        ConnectionResolver
+	CheckpointIdentity *DatabaseIdentity
 }
 type builderConfig struct {
 	toolName string
@@ -60,16 +61,9 @@ func operationFactory(kind OperationKind, deps FactoryDeps) toolregistry.Builtin
 				def.Name, initForKind(kind), kind, prepared.Kind,
 			)
 		}
-		cfg := builderConfig{
-			toolName: def.Name, config: prepared, vars: maps.Clone(vars),
-			opener: deps.Opener, resolver: deps.Connections,
-			undo: def.Undo, reverse: def.Reversibility.Classification,
-		}
-		if cfg.opener == nil {
-			cfg.opener = SQLDatabaseOpener{}
-		}
-		if cfg.resolver == nil {
-			cfg.resolver = varsConnectionResolver{}
+		cfg, err := prepareBuilderConfig(def, prepared, vars, deps)
+		if err != nil {
+			return nil, err
 		}
 		switch kind {
 		case KindProvision:
@@ -83,6 +77,60 @@ func operationFactory(kind OperationKind, deps FactoryDeps) toolregistry.Builtin
 		}
 	}
 }
+
+func prepareBuilderConfig(
+	def catalog.ToolDef,
+	prepared *PreparedConfig,
+	vars map[string]string,
+	deps FactoryDeps,
+) (builderConfig, error) {
+	opener := deps.Opener
+	if opener == nil {
+		opener = SQLDatabaseOpener{}
+	}
+	resolver := deps.Connections
+	if resolver == nil {
+		resolver = varsConnectionResolver{}
+	}
+	if err := validateCheckpointSeparation(
+		def.Name, prepared, vars, resolver, deps.CheckpointIdentity,
+	); err != nil {
+		return builderConfig{}, err
+	}
+	return builderConfig{
+		toolName: def.Name, config: prepared, vars: maps.Clone(vars),
+		opener: opener, resolver: resolver,
+		undo: def.Undo, reverse: def.Reversibility.Classification,
+	}, nil
+}
+
+func validateCheckpointSeparation(
+	toolName string,
+	config *PreparedConfig,
+	vars map[string]string,
+	resolver ConnectionResolver,
+	checkpoint *DatabaseIdentity,
+) error {
+	if checkpoint == nil {
+		return nil
+	}
+	dsn, err := resolver.ResolveConnection(context.Background(), config.ConnectionRef, vars)
+	if err != nil {
+		return fmt.Errorf("tool %q resolve connection for checkpoint separation: %w", toolName, err)
+	}
+	identity, err := IdentityFromDSN(dsn, config.Database)
+	if err != nil {
+		return fmt.Errorf("tool %q resolve database identity: %w", toolName, err)
+	}
+	if identity.SameDatabase(*checkpoint) {
+		return fmt.Errorf(
+			"tool %q database %q collides with the active Dolt checkpoint on server %q",
+			toolName, identity.Database, identity.Server,
+		)
+	}
+	return nil
+}
+
 func initForKind(kind OperationKind) string {
 	switch kind {
 	case KindProvision:

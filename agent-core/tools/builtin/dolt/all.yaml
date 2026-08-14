@@ -1,0 +1,298 @@
+# General-purpose Dolt boundary word declarations. Profiles opt in explicitly
+# and replace trusted operation config for each selected declaration.
+tools:
+  - name: dolt_provision
+    type: builtin
+    init: dolt_provision
+    category: boundary
+    description: Provision one configured Dolt database schema.
+    problem: A machine needs an explicit database lifecycle word while connection, database, schema, and commit authority remain in trusted configuration.
+    goals:
+      - Create the configured database when it does not exist.
+      - Apply configured schema statements idempotently and commit schema changes once.
+      - Return a bounded structured provisioning result without connection material.
+    requirements:
+      input:
+        - Runtime input must be an empty object; schema and connection authority come only from trusted config.
+      output:
+        - Output reports operation, database, creation and schema-change status, commit hash, and bounded diagnostics.
+      side_effects:
+        - May create one configured database and commit configured schema changes.
+      undo:
+        - Compensatable declarations require a separately declared action that consumes the opaque commit receipt.
+      errors:
+        - Configuration, connection, database creation, schema, stage, commit, timeout, cancellation, and compensation failures emit CommandError.
+    non_goals:
+      - Does not select a connection, database, schema, SQL statement, or commit message at runtime.
+      - Does not run queries or data mutations.
+      - Does not sequence later query, write, or compensation actions.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [DoltProvisioned, CommandError]
+    output:
+      description: Structured result for one configured Dolt schema provisioning operation.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          database: {type: string}
+          created: {type: boolean}
+          schema_changed: {type: boolean}
+          commit_hash: {type: string}
+          diagnostics:
+            type: array
+            items: {type: string}
+        required: [operation, database, created, schema_changed, commit_hash, diagnostics]
+        additionalProperties: false
+    side_effects:
+      - kind: external_api
+        target: configured_dolt_database
+        state: database_and_schema_provisioned
+        description: Creates the configured database when absent and commits configured schema changes.
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Decode the opaque operation, database, server, and commit receipt and invoke a separately declared compensation action.
+      payload: boundary_compensation
+      captures: [operation, database, server, commit_hash]
+      requires: [receipt, declared_compensation_action]
+    errors:
+      - signal: CommandError
+        condition: Trusted config or connection reference is invalid or unresolved.
+        message_shape: "dolt_provision: config_validation|connection_resolution: <redacted diagnostic>"
+        state_after_failure: No database statement has executed when validation or connection resolution fails.
+      - signal: CommandError
+        condition: Database creation, schema application, staging, or commit fails.
+        message_shape: "dolt_provision: database_create|schema_apply|stage|commit: <redacted diagnostic>"
+        state_after_failure: The current SQL transaction is rolled back when supported and no successful commit is reported.
+      - signal: CommandError
+        condition: The operation times out, is cancelled, or compensation cannot consume its receipt.
+        message_shape: "dolt_provision: timeout|cancellation|compensation: <redacted diagnostic>"
+        state_after_failure: Partial external state is not reported as successfully committed.
+    relationships:
+      before: [dolt_query, dolt_write]
+      overlaps:
+        - tool: dolt_write
+          difference: Provision owns configured database and schema lifecycle; write performs one configured data mutation.
+    config:
+      connection_ref: ""
+      database: ""
+      operation: ""
+      kind: provision
+      statement: ""
+      schema_statements: []
+      parameter_schema:
+        type: object
+        properties: {}
+        additionalProperties: false
+      max_rows: 0
+      max_bytes: 0
+      timeout: 30s
+      commit_message: ""
+      commit_on_no_change: false
+
+  - name: dolt_query
+    type: builtin
+    init: dolt_query
+    category: boundary
+    description: Execute one configured read-only Dolt query.
+    problem: A machine needs a relational read word whose server, database, SQL, limits, and parameter authority remain in trusted configuration.
+    goals:
+      - Bind only schema-valid caller parameter values to one configured read statement.
+      - Return ordered columns and bounded structured rows.
+      - Avoid database staging and commits.
+    requirements:
+      input:
+        - Runtime input contains only parameter values declared by the configured operation schema.
+      output:
+        - Output reports operation, database, ordered column metadata, rows, row count, truncation, and elapsed duration.
+      side_effects:
+        - Observes one configured Dolt database without staging or committing changes.
+      undo:
+        - Uses noop because the word is read-only and returns an empty receipt.
+      errors:
+        - Configuration, parameter, connection, execution, scan, timeout, and cancellation failures emit CommandError.
+    non_goals:
+      - Does not accept runtime SQL, connection, database, result limits, or operation kind.
+      - Does not mutate data or schema.
+      - Does not choose subsequent machine actions from query results.
+    parameters:
+      type: object
+      properties:
+        parameters:
+          type: object
+          description: Values accepted by the configured operation's parameter schema.
+      additionalProperties: false
+    emits: [DoltRowsRead, CommandError]
+    output:
+      description: Bounded structured rows from one configured Dolt read operation.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          database: {type: string}
+          columns:
+            type: array
+            items:
+              type: object
+              properties:
+                name: {type: string}
+                database_type: {type: string}
+                nullable: {type: boolean}
+              required: [name]
+              additionalProperties: false
+          rows:
+            type: array
+            items:
+              type: object
+              additionalProperties: true
+          row_count: {type: integer}
+          truncated: {type: boolean}
+          elapsed: {type: string}
+        required: [operation, database, columns, rows, row_count, truncated, elapsed]
+        additionalProperties: false
+    side_effects:
+      - kind: external_api
+        target: configured_dolt_database
+        state: read_only
+        description: Reads bounded rows without staging or committing database changes.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: The query only observes configured database state and returns an empty receipt.
+    errors:
+      - signal: CommandError
+        condition: Trusted config, connection resolution, or runtime parameter validation fails.
+        message_shape: "dolt_query: config_validation|connection_resolution|parameter_validation: <redacted diagnostic>"
+        state_after_failure: No query is executed when validation or connection resolution fails.
+      - signal: CommandError
+        condition: Statement execution or bounded result scanning fails.
+        message_shape: "dolt_query: statement_execute|result_scan: <redacted diagnostic>"
+        state_after_failure: No database state is changed and no partial result is reported as successful.
+      - signal: CommandError
+        condition: The operation times out or is cancelled.
+        message_shape: "dolt_query: timeout|cancellation: <redacted diagnostic>"
+        state_after_failure: The in-flight read is cancelled and database state remains unchanged.
+    relationships:
+      after: [dolt_provision, dolt_write]
+      before: [dolt_write]
+      overlaps:
+        - tool: dolt_write
+          difference: Query accepts only configured read statements and never stages or commits changes.
+    config:
+      connection_ref: ""
+      database: ""
+      operation: ""
+      kind: query
+      statement: ""
+      schema_statements: []
+      parameter_schema:
+        type: object
+        properties: {}
+        additionalProperties: false
+      max_rows: 100
+      max_bytes: 65536
+      timeout: 30s
+      commit_message: ""
+      commit_on_no_change: false
+
+  - name: dolt_write
+    type: builtin
+    init: dolt_write
+    category: boundary
+    description: Execute and commit one configured Dolt data mutation.
+    problem: A machine needs an explicit relational mutation word while connection, database, SQL, parameter, and commit-message authority remain in trusted configuration.
+    goals:
+      - Bind only schema-valid caller values to one configured mutation.
+      - Stage and commit a successful change exactly once with the configured message template.
+      - Return mutation and commit identity suitable for declared compensation.
+    requirements:
+      input:
+        - Runtime input contains only parameter values declared by the configured operation schema.
+      output:
+        - Output reports operation, database, affected rows, commit hash, commit status, and elapsed duration.
+      side_effects:
+        - May mutate and commit data in one configured Dolt database.
+      undo:
+        - Compensatable declarations require a separately declared action that consumes the opaque commit receipt.
+      errors:
+        - Configuration, parameter, connection, execution, stage, commit, timeout, cancellation, and compensation failures emit CommandError.
+    non_goals:
+      - Does not accept runtime SQL, connection, database, operation kind, or commit-message text.
+      - Does not provision schema or perform reads as a hidden workflow.
+      - Does not select or execute a compensation action itself.
+    parameters:
+      type: object
+      properties:
+        parameters:
+          type: object
+          description: Values accepted by the configured operation's parameter schema.
+      additionalProperties: false
+    emits: [DoltCommitted, DoltNoChange, CommandError]
+    output:
+      description: Structured result for one configured Dolt mutation and its optional commit.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          database: {type: string}
+          rows_affected: {type: integer}
+          commit_hash: {type: string}
+          committed: {type: boolean}
+          elapsed: {type: string}
+        required: [operation, database, rows_affected, commit_hash, committed, elapsed]
+        additionalProperties: false
+    side_effects:
+      - kind: external_api
+        target: configured_dolt_database
+        state: data_mutated_and_committed
+        description: Executes one configured data mutation and may create one Dolt commit.
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Decode the opaque operation, database, server, and commit receipt and invoke a separately declared compensation action.
+      payload: boundary_compensation
+      captures: [operation, database, server, commit_hash]
+      requires: [receipt, declared_compensation_action]
+    errors:
+      - signal: CommandError
+        condition: Trusted config, connection resolution, or runtime parameter validation fails.
+        message_shape: "dolt_write: config_validation|connection_resolution|parameter_validation: <redacted diagnostic>"
+        state_after_failure: No mutation is executed when validation or connection resolution fails.
+      - signal: CommandError
+        condition: Mutation execution, staging, or commit fails.
+        message_shape: "dolt_write: statement_execute|stage|commit: <redacted diagnostic>"
+        state_after_failure: The current SQL transaction is rolled back before commit when supported and committed true is never reported.
+      - signal: CommandError
+        condition: The operation times out, is cancelled, or compensation cannot consume its receipt.
+        message_shape: "dolt_write: timeout|cancellation|compensation: <redacted diagnostic>"
+        state_after_failure: Partial external state is not reported as successfully committed.
+    relationships:
+      after: [dolt_provision, dolt_query]
+      before: [dolt_query]
+      overlaps:
+        - tool: dolt_query
+          difference: Write accepts only configured data mutations and may stage and commit a change.
+        - tool: dolt_provision
+          difference: Write mutates data in an existing configured database and does not own schema lifecycle.
+    config:
+      connection_ref: ""
+      database: ""
+      operation: ""
+      kind: write
+      statement: ""
+      schema_statements: []
+      parameter_schema:
+        type: object
+        properties: {}
+        additionalProperties: false
+      max_rows: 0
+      max_bytes: 0
+      timeout: 30s
+      commit_message: ""
+      commit_on_no_change: false

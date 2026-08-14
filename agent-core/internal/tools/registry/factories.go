@@ -15,6 +15,7 @@ type StandardFactoryDeps struct {
 	RegisterEvaluation     FactoryRegistrar
 	RegisterSpecValidation FactoryRegistrar
 	RegisterREST           FactoryRegistrar
+	RegisterDolt           FactoryRegistrar
 	RegisterCompose        FactoryRegistrar
 	RegisterService        FactoryRegistrar
 	RegisterOTLP           FactoryRegistrar
@@ -64,6 +65,7 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 		hookFactory("evaluation", deps.RegisterEvaluation),
 		hookFactory("spec_validation", deps.RegisterSpecValidation),
 		hookFactory("rest", deps.RegisterREST),
+		hookFactory("dolt", deps.RegisterDolt),
 		hookFactory("compose", deps.RegisterCompose),
 		hookFactory("otlp", deps.RegisterOTLP),
 		hookFactory("service", deps.RegisterService),

@@ -150,6 +150,7 @@ type agentState struct {
 	output               string
 	childAgentBinary     string
 	runID                string
+	doltDSN              string
 	checkpoint           core.Checkpoint
 	// lifecycleCheckpoint is the backend the checkpoint_history/checkpoint_rollback
 	// tools read and revert through. For the history and rollback families it is
@@ -600,6 +601,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		output:              cfg.Output,
 		childAgentBinary:    cfg.ChildAgentBinary,
 		runID:               deps.RunID,
+		doltDSN:             cfg.DoltDSN,
 		checkpoint:          checkpointOrNoop(deps.Checkpoint),
 		lifecycleCheckpoint: deps.LifecycleCheckpoint,
 		monitor:             deps.Monitor,

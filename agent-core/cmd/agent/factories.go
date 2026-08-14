@@ -3,6 +3,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/compose"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/control"
+	tooldolt "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/dolt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/lifecycle"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
@@ -56,10 +59,45 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterEvaluation:     registerEvaluationFactories(st),
 		RegisterSpecValidation: registerSpecValidationFactories(st),
 		RegisterREST:           registerRESTFactories(st),
+		RegisterDolt:           registerDoltFactories(st),
 		RegisterCompose:        registerComposeFactories(),
 		RegisterOTLP:           registerOTLPFactories(),
 		RegisterService:        registerServiceFactories(st),
 	}
+}
+
+func registerDoltFactories(st *agentState) toolregistry.FactoryRegistrar {
+	checkpoint, checkpointErr := doltCheckpointIdentity(st.doltDSN)
+	deps := tooldolt.FactoryDeps{
+		Connections:        environmentDoltConnections{},
+		CheckpointIdentity: checkpoint,
+	}
+	return func(br *toolregistry.BuiltinRegistry) {
+		register := func(init string, factory toolregistry.BuiltinFactory) {
+			br.Register(init, func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+				if checkpointErr != nil {
+					return nil, checkpointErr
+				}
+				return factory(def, vars)
+			})
+		}
+		register(tooldolt.InitProvision, tooldolt.ProvisionFactory(deps))
+		register(tooldolt.InitQuery, tooldolt.QueryFactory(deps))
+		register(tooldolt.InitWrite, tooldolt.WriteFactory(deps))
+	}
+}
+
+type environmentDoltConnections struct{}
+
+func (environmentDoltConnections) ResolveConnection(
+	_ context.Context, ref string, _ map[string]string,
+) (string, error) {
+	//nolint:forbidigo // Trusted ToolDef config names the environment reference; DSN authority remains at cmd/agent.
+	value, ok := os.LookupEnv(ref)
+	if !ok || value == "" {
+		return "", fmt.Errorf("configured Dolt connection reference %q is unavailable", ref)
+	}
+	return value, nil
 }
 
 func registerComposeFactories() toolregistry.FactoryRegistrar {

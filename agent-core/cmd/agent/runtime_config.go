@@ -16,6 +16,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	tooldolt "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/dolt"
 	toolexec "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/exec"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
@@ -166,6 +167,17 @@ func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec, runID string
 		close:      cp.Close,
 		label:      "loop checkpoint",
 	}, nil
+}
+
+func doltCheckpointIdentity(dsn string) (*tooldolt.DatabaseIdentity, error) {
+	if strings.TrimSpace(dsn) == "" {
+		return nil, nil
+	}
+	identity, err := tooldolt.IdentityFromDSN(dsn, "")
+	if err != nil {
+		return nil, fmt.Errorf("resolve active Dolt checkpoint identity: %w", err)
+	}
+	return &identity, nil
 }
 
 // resolveRunID returns the stable identity shared by checkpoint, monitor, and
