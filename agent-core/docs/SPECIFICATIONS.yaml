@@ -6,7 +6,10 @@ overview: |
   generic agentic loop engine and its supporting packages.
   Releases 00.0 through 08.0 have implemented proof in their indexed use cases
   and test suites. Release 03.0 includes named executable REST conformance
-  evidence and rollback-time compensation execution.
+  evidence and rollback-time compensation execution. Release 00.0 includes
+  executable AC6 profile-closure timeout inspection and cmd/agent startup
+  enforcement tests over core-owned synthetic fixtures. Replacing every
+  application owner's inventory check remains the GH-1679 follow-up.
   Thirty-one use cases exercise the SRDs across fifteen releases. Seventeen
   formal YAML test suites cover 324 acceptance test cases across releases 00.0
   through 13.0 and release 99.0; additional
@@ -786,7 +789,7 @@ srd_to_use_case_mapping:
   - use_case: rel00.0-uc001-domain-agent-integration
     srd: srd006-yaml-machine-config
     why_required: Domain agent can define state machines via YAML using ParseMachineSpec and BuildTransitionTable.
-    coverage: AC1 through AC5 are executable. AC6 has explicit finite-policy evidence; closure-derived authority and environment-expanded startup rejection are specified for GH-1678 and GH-1679.
+    coverage: AC1 through AC6 have executable agent-core evidence. GH-1678 covers reusable closure-derived authority inspection, environment-expanded rejection, and cmd/agent startup enforcement; replacing all owner-module inventory checks remains GH-1679 follow-up work.
   - use_case: rel00.0-uc001-domain-agent-integration
     srd: srd007-tracer-interface
     why_required: Domain agent supplies a Tracer implementation satisfying the port interface.

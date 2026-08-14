@@ -309,15 +309,21 @@ test_cases:
       - srd022-builtin-tools AC7
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Machine policy requires an explicit finite command timeout
-    go_test: go test ./internal/runtime/core -run TestValidateMachinePolicyRequiresResumeSignalAndIterationBudget
+    name: Profile closure inspection enforces finite operation authorities before dispatch
+    go_test: go test ./pkg/profileaudit ./cmd/agent -run 'TestInspect|TestStartupEnforcesProfileTimeoutClosure'
     inputs:
       missing_command_timeout: true
       valid_command_timeout: 1m
+      closure_edges: [declaration_include_override, dynamic_selection, rest_machine_request, child_profile, evaluator_point_machine, compatibility_wrapper]
+      authorities: [tooldef_timeout, rest_limits, machine_request, model, child_service, evaluator_point, blocking_await]
     expected:
       missing_value_rejected: true
       positive_finite_value_accepted: true
-      implementation_follow_up_adds_closure_derived_authority_evidence: true
+      environment_expanded_before_comparison: true
+      malformed_non_positive_equal_and_larger_rejected: true
+      diagnostics_are_deterministic: true
+      normal_startup_and_validate_config_enforce_before_dispatch: true
+      core_fixtures_do_not_discover_application_catalog: true
     traces:
       - srd006-yaml-machine-config AC6
 
