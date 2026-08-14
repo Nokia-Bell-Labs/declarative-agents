@@ -443,8 +443,8 @@ test_cases:
 
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST retry aggregate stays within the machine command envelope
-    planned_go_test: go test ./pkg/profileaudit -run TestInspectRESTRetryAggregate
-    status: planned
+    go_test: go test ./pkg/profileaudit -run TestInspectRESTRetryAggregate
+    status: done
     description: |
       Inspect selected REST operations without sending requests. The timeout
       authority adds every bounded request attempt and the fixed or capped

@@ -183,47 +183,6 @@ func (i *inspector) inspectRESTEventSource(
 	}
 }
 
-func (i *inspector) inspectRESTClient(
-	closure loadedClosure,
-	commandTimeout time.Duration,
-	def catalog.ToolDef,
-) error {
-	restRef, _ := configString(def.Config, "rest_ref")
-	resource, _ := configString(def.Config, "resource")
-	operation, _ := configString(def.Config, "operation")
-	resolved, err := closure.rest.ResolveClientOperation(toolrest.ClientToolConfig{
-		RestRef: restRef, Resource: resource, Operation: operation,
-	})
-	if err != nil {
-		return fmt.Errorf("profile %s action %q REST authority: %w", closure.profilePath, def.Name, err)
-	}
-	base := fmt.Sprintf("REST client %s limits", restRef)
-	if resolved.Limits.Timeout == "" {
-		i.addUnsupported(closure, def, commandTimeout, base+".timeout")
-	} else {
-		i.addDuration(closure, def.Name, base+".timeout", resolved.Limits.Timeout, commandTimeout)
-	}
-	for field, raw := range map[string]string{
-		"connect_timeout": resolved.Limits.ConnectTimeout,
-		"read_timeout":    resolved.Limits.ReadTimeout,
-	} {
-		if raw != "" {
-			i.addDuration(closure, def.Name, base+"."+field, raw, commandTimeout)
-		}
-	}
-	if def.Init == "rest_client_send" || def.Init == "rest_client_await" {
-		if resolved.Operation.Async == nil {
-			return fmt.Errorf("profile %s action %q requires an async REST operation", closure.profilePath, def.Name)
-		}
-		i.addDurationDefault(
-			closure, def.Name,
-			fmt.Sprintf("REST client %s operation %s async.timeout", restRef, operation),
-			resolved.Operation.Async.Timeout, defaultRESTAwait, commandTimeout,
-		)
-	}
-	return nil
-}
-
 func (i *inspector) inspectRESTServer(
 	closure loadedClosure,
 	commandTimeout time.Duration,
