@@ -9,6 +9,13 @@ import (
 	"time"
 )
 
+const (
+	maxEvaluatorPointDeadline   = 15 * time.Minute
+	criticPointProcessingMargin = time.Minute
+	maxEvaluatorSessionDeadline = 24 * time.Hour
+	benchSessionCleanupMargin   = time.Hour
+)
+
 func TestCatalogShortMachineTimeoutEnvelopes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -65,11 +72,8 @@ func TestCatalogLongMachineTimeoutEnvelopes(t *testing.T) {
 		want      time.Duration
 		authority time.Duration
 	}{
-		{name: "bench evaluator", path: "../agents/bench/machine.yaml", want: 25 * time.Hour, authority: 24 * time.Hour},
 		{name: "bench request", path: "../agents/bench/request-machine.yaml", want: time.Minute, authority: 30 * time.Second},
-		{name: "critic session model", path: "../agents/critic/machine.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
 		{name: "critic workspace model", path: "../agents/critic/machine-workspace.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
-		{name: "critic point model", path: "../agents/critic/point.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
 		{name: "planner session model", path: "../agents/planner/machine.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
 		{name: "planner plan-only model", path: "../agents/planner/machine-plan-only.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
 		{name: "planner passthrough child", path: "../agents/planner/machine-passthrough.yaml", want: 16 * time.Minute, authority: 15 * time.Minute},
@@ -91,6 +95,41 @@ func TestCatalogLongMachineTimeoutEnvelopes(t *testing.T) {
 	}
 }
 
+func TestCatalogEvaluatorTimeoutEnvelopes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name           string
+		machinePath    string
+		action         string
+		authority      time.Duration
+		requiredMargin time.Duration
+	}{
+		{
+			name: "critic point child runtime", machinePath: "../agents/critic/point.yaml",
+			action: "run_agent", authority: maxEvaluatorPointDeadline, requiredMargin: criticPointProcessingMargin,
+		},
+		{
+			name: "critic session run_point", machinePath: "../agents/critic/machine.yaml",
+			action: "run_point", authority: maxEvaluatorPointDeadline, requiredMargin: criticPointProcessingMargin,
+		},
+		{
+			name: "bench evaluator child session", machinePath: "../agents/bench/machine.yaml",
+			action: "launch_evaluator", authority: maxEvaluatorSessionDeadline, requiredMargin: benchSessionCleanupMargin,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got := readCatalogMachineCommandTimeout(t, test.machinePath)
+			if minimum := test.authority + test.requiredMargin; got < minimum {
+				t.Errorf("%s command_timeout = %s, must be at least %s (%s authority + %s margin)",
+					test.machinePath, got, minimum, test.authority, test.requiredMargin)
+			}
+			requireCatalogMachineAction(t, test.machinePath, test.action)
+		})
+	}
+}
+
 func readCatalogMachineCommandTimeout(t *testing.T, path string) time.Duration {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -106,4 +145,16 @@ func readCatalogMachineCommandTimeout(t *testing.T, path string) time.Duration {
 		t.Fatalf("%s command_timeout: %v", path, err)
 	}
 	return timeout
+}
+
+func requireCatalogMachineAction(t *testing.T, path, action string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pattern := regexp.MustCompile(`(?m)^\s*action:\s*` + regexp.QuoteMeta(action) + `\s*$`)
+	if !pattern.Match(data) {
+		t.Errorf("%s does not dispatch action %q", path, action)
+	}
 }

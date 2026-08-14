@@ -13,6 +13,11 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
+const (
+	maxEvaluatorPointTimeout    = 15 * time.Minute
+	maxEvaluatorSessionDuration = 24 * time.Hour
+)
+
 // SuiteConfig defines a complete evaluation suite.
 type SuiteConfig struct {
 	Name       string           `yaml:"name"`
@@ -199,7 +204,14 @@ func ParseSuiteConfig(data []byte, baseDir string) (SuiteConfig, error) {
 
 	var timeout time.Duration
 	if raw.Timeout != "" {
-		timeout, _ = time.ParseDuration(raw.Timeout)
+		parsedTimeout, err := time.ParseDuration(raw.Timeout)
+		if err != nil {
+			return SuiteConfig{}, fmt.Errorf("suite %q: invalid timeout %q: %w", raw.Name, raw.Timeout, err)
+		}
+		timeout = parsedTimeout
+		if err := validateEvaluatorPointTimeout(timeout); err != nil {
+			return SuiteConfig{}, fmt.Errorf("suite %q: %w", raw.Name, err)
+		}
 	}
 
 	suite := SuiteConfig{
@@ -218,6 +230,16 @@ func ParseSuiteConfig(data []byte, baseDir string) (SuiteConfig, error) {
 	suite.Profiles = profiles
 
 	return suite, nil
+}
+
+func validateEvaluatorPointTimeout(timeout time.Duration) error {
+	if timeout <= 0 {
+		return fmt.Errorf("point timeout must be positive")
+	}
+	if timeout > maxEvaluatorPointTimeout {
+		return fmt.Errorf("point timeout %s exceeds maximum %s", timeout, maxEvaluatorPointTimeout)
+	}
+	return nil
 }
 
 func hasLegacySuiteFields(data []byte) bool {

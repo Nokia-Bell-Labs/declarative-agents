@@ -5,6 +5,7 @@ package evaluation
 import (
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -52,6 +53,7 @@ type EvalSessionState struct {
 	Suite        SuiteConfig
 	SessionDir   string
 	PointMachine string
+	PointSpec    *core.MachineSpec
 	Result       SessionResult
 	Stderr       io.Writer
 	Tracer       tracing.Tracer
@@ -78,8 +80,11 @@ func (s *EvalSessionState) InitSession(outputDir string, reps int, timeout time.
 	if reps < 1 {
 		return fmt.Errorf("initialize session requires reps of at least 1")
 	}
-	if timeout <= 0 {
-		return fmt.Errorf("initialize session requires a positive timeout")
+	if err := validateEvaluatorPointTimeout(timeout); err != nil {
+		return fmt.Errorf("initialize session: %w", err)
+	}
+	if _, err := s.aggregateSessionDuration(reps, timeout); err != nil {
+		return fmt.Errorf("initialize session: %w", err)
 	}
 	s.SessionDir = filepath.Join(outputDir, s.Suite.Name, time.Now().Format("20060102-150405"))
 	if err := os.MkdirAll(s.SessionDir, 0o755); err != nil {
@@ -96,6 +101,40 @@ func (s *EvalSessionState) InitSession(outputDir string, reps int, timeout time.
 
 	s.start = time.Now()
 	return nil
+}
+
+func (s *EvalSessionState) aggregateSessionDuration(reps int, timeout time.Duration) (time.Duration, error) {
+	dimensions := []struct {
+		name  string
+		value int
+	}{
+		{name: "profiles", value: len(s.Suite.Profiles)},
+		{name: "grid points", value: len(s.gridPoints)},
+		{name: "samples", value: len(s.Suite.Samples)},
+		{name: "repetitions", value: reps},
+	}
+
+	pointCount := int64(1)
+	for _, dimension := range dimensions {
+		if dimension.value < 1 {
+			return 0, fmt.Errorf("aggregate duration requires at least one %s", dimension.name)
+		}
+		value := int64(dimension.value)
+		if pointCount > math.MaxInt64/value {
+			return 0, fmt.Errorf("aggregate duration overflows while multiplying %s", dimension.name)
+		}
+		pointCount *= value
+	}
+
+	timeoutNanos := int64(timeout)
+	if pointCount > math.MaxInt64/timeoutNanos {
+		return 0, fmt.Errorf("aggregate duration overflows for %d points at %s", pointCount, timeout)
+	}
+	aggregate := time.Duration(pointCount * timeoutNanos)
+	if aggregate > maxEvaluatorSessionDuration {
+		return 0, fmt.Errorf("aggregate duration %s exceeds maximum %s", aggregate, maxEvaluatorSessionDuration)
+	}
+	return aggregate, nil
 }
 
 // ExpandGrid materializes the suite's grid into iteration points.
