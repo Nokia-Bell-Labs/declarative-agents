@@ -71,7 +71,7 @@ func TestBenchConformance(t *testing.T) {
 	// srd006: generic REST lifecycle words are the visible human-input boundary.
 	result.RequireToolSpans(t, "launch_bench_http", "await_bench_action", "stop_bench_http")
 	result.RequireToolSpans(t, "list_evaluation_sessions", "list_resource", "read_resource")
-	result.RequireToolSpans(t, "validate_eval_suite", "self_invoke")
+	result.RequireToolSpans(t, "validate_eval_suite", "launch_evaluator")
 
 	// srd006: the host shutdown reaches Done even though request machines also
 	// contribute terminal events to the shared trace.
