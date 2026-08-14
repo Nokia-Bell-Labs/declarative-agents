@@ -95,7 +95,11 @@ type LoopParams struct {
 	InitialState  State
 	InitialSignal Signal
 	InitialResult Result
-	InitialRun    RunResult
+	// PreserveInitialResultOutput keeps an explicitly empty initial output
+	// empty. Signal admission uses it after fail-closed payload redaction;
+	// existing model and resume callers retain the historical "Resume." default.
+	PreserveInitialResultOutput bool
+	InitialRun                  RunResult
 	// InitialExecution seeds the loop's Execution log so a resumed run continues
 	// appending to the persisted history instead of starting a fresh log (srd035).
 	InitialExecution Execution
