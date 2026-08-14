@@ -15,10 +15,16 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry/genai"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 )
+
+const instrumentationName = "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/ollama"
 
 // chatReq is the JSON body sent to Ollama POST /api/chat.
 type chatReq struct {
@@ -63,6 +69,7 @@ func NewAdapter(baseURL, model string, opts ...Option) (*Adapter, error) {
 		baseURL: strings.TrimRight(baseURL, "/"),
 		model:   model,
 		client:  &http.Client{Timeout: 5 * time.Minute},
+		tracer:  tracing.NoopTracer{},
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -77,7 +84,7 @@ func (a *Adapter) Model() string { return a.model }
 // Chat sends a chat request to Ollama POST /api/chat and returns the
 // response. Satisfies llm.Client.
 func (a *Adapter) Chat(ctx context.Context, messages []llm.Message, opts llm.ChatOptions) (llm.ChatResponse, error) {
-	tr, span := a.chatSpan(ctx, opts.Model)
+	ctx, tr, span := a.chatSpan(ctx, opts.Model)
 	defer span()
 
 	dtos := make([]msgDTO, len(messages))
@@ -142,13 +149,10 @@ func (a *Adapter) Chat(ctx context.Context, messages []llm.Message, opts llm.Cha
 	}, nil
 }
 
-// chatSpan creates a semconv inference span for the Chat call if a
-// tracer is configured, otherwise returns a noop.
-func (a *Adapter) chatSpan(ctx context.Context, model string) (tracing.Tracer, func()) {
-	if a.tracer == nil {
-		return tracing.NoopTracer{}, func() {}
-	}
-
+// chatSpan creates a semconv inference span parented by the active span in the
+// caller context. The adapter tracer remains a safe fallback for direct calls
+// that do not carry a span; no per-call adapter state is mutated.
+func (a *Adapter) chatSpan(ctx context.Context, model string) (context.Context, tracing.Tracer, func()) {
 	serverAddr := ""
 	if u, err := url.Parse(a.baseURL); err == nil {
 		serverAddr = u.Host
@@ -163,5 +167,56 @@ func (a *Adapter) chatSpan(ctx context.Context, model string) (tracing.Tracer, f
 		}
 	}
 
-	return a.tracer.Push(genai.InferenceSpanName(model), attrs...)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	parent := oteltrace.SpanFromContext(ctx)
+	if parent.SpanContext().IsValid() {
+		tracer := parent.TracerProvider().Tracer(instrumentationName)
+		child, done := contextTracer{tracer: tracer, ctx: ctx}.Push(genai.InferenceSpanName(model), attrs...)
+		return child.Context(), child, done
+	}
+	if a.tracer == nil {
+		return ctx, tracing.NoopTracer{}, func() {}
+	}
+	child, done := a.tracer.Push(genai.InferenceSpanName(model), attrs...)
+	return contextWithTracerSpan(ctx, child), child, done
 }
+
+func contextWithTracerSpan(ctx context.Context, tracer tracing.Tracer) context.Context {
+	span := oteltrace.SpanFromContext(tracer.Context())
+	if span.SpanContext().IsValid() {
+		return oteltrace.ContextWithSpan(ctx, span)
+	}
+	return ctx
+}
+
+// contextTracer is a request-scoped adapter over an OTel tracer. It exists so
+// Chat can honor an arbitrary caller context without replacing Adapter.tracer.
+type contextTracer struct {
+	tracer oteltrace.Tracer
+	ctx    context.Context
+}
+
+func (t contextTracer) Push(name string, attrs ...attribute.KeyValue) (tracing.Tracer, func()) {
+	ctx, span := t.tracer.Start(t.ctx, name, oteltrace.WithAttributes(attrs...))
+	return contextTracer{tracer: t.tracer, ctx: ctx}, func() { span.End() }
+}
+
+func (t contextTracer) Event(name string, attrs ...attribute.KeyValue) {
+	oteltrace.SpanFromContext(t.ctx).AddEvent(name, oteltrace.WithAttributes(attrs...))
+}
+
+func (t contextTracer) SetAttributes(attrs ...attribute.KeyValue) {
+	oteltrace.SpanFromContext(t.ctx).SetAttributes(attrs...)
+}
+
+func (t contextTracer) RecordError(err error) {
+	span := oteltrace.SpanFromContext(t.ctx)
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
+}
+
+func (t contextTracer) Context() context.Context { return t.ctx }
+
+var _ tracing.Tracer = contextTracer{}

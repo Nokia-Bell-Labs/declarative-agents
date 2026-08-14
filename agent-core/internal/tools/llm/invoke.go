@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/ollama"
@@ -65,12 +66,19 @@ func (c *invokeLLMCmd) SpanCreationAttrs() []attribute.KeyValue {
 	return genai.InferenceAttrs(c.providerName, c.model, c.serverAddr)
 }
 
+// SetTracer receives the active dispatch span so all turn-local telemetry is
+// recorded on the command scope owned by Dispatch.
+func (c *invokeLLMCmd) SetTracer(tracer tracing.Tracer) {
+	c.tracer = tracerOrNoop(tracer)
+}
+
 // SetCommandState receives the read-only command-state view the engine injects
 // before dispatch, so a configured user_prompt_from selector resolves against
 // prior steps (core.CommandStateAware).
 func (c *invokeLLMCmd) SetCommandState(view core.CommandStateView) { c.view = view }
 
 var _ core.CommandStateAware = (*invokeLLMCmd)(nil)
+var _ core.TracerAware = (*invokeLLMCmd)(nil)
 
 func (c *invokeLLMCmd) Execute() core.Result {
 	c.ensureContext()
@@ -213,10 +221,20 @@ func (c *invokeLLMCmd) chat(messages []modelllm.Message) (modelllm.ChatResponse,
 }
 
 func (c *invokeLLMCmd) chatContext() (context.Context, context.CancelFunc) {
-	if c.callTimeout <= 0 {
-		return c.ctx, func() {}
+	ctx := c.ctx
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return context.WithTimeout(c.ctx, c.callTimeout)
+	if c.tracer != nil {
+		span := oteltrace.SpanFromContext(c.tracer.Context())
+		if span.SpanContext().IsValid() {
+			ctx = oteltrace.ContextWithSpan(ctx, span)
+		}
+	}
+	if c.callTimeout <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, c.callTimeout)
 }
 
 func (c *invokeLLMCmd) chatResult(chatResp modelllm.ChatResponse, duration time.Duration) core.Result {
@@ -312,7 +330,7 @@ func invokeBuilder(
 		Client: client, History: deps.History, Registry: deps.Registry,
 		Assembler: newLLMAssembler(cfg, parser), State: core.State(cfg.ManifestState),
 		Model: cfg.Model, ProviderName: cfg.Provider, ServerAddr: serverAddr,
-		Tracer: deps.Tracer, ContextLimit: cfg.ContextLimit, NumCtx: cfg.NumCtx,
+		Tracer: tracerOrNoop(deps.Tracer), ContextLimit: cfg.ContextLimit, NumCtx: cfg.NumCtx,
 		Temperature: resolveTemperature(cfg), Seed: resolveSeed(cfg),
 		CallTimeout: durationSeconds(cfg.LLMTimeout),
 		Metrics:     def.Metrics, Verbose: deps.Verbose, Ctx: deps.Ctx,
@@ -350,7 +368,7 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 	return &invokeLLMCmd{
 		client: b.Client, history: b.History, registry: b.Registry, assembler: b.Assembler,
 		state: state, model: b.Model, providerName: b.ProviderName, serverAddr: b.ServerAddr,
-		userMessage: res.Output, promptFrom: b.UserPromptFrom, tracer: b.Tracer, contextLimit: b.ContextLimit,
+		userMessage: res.Output, promptFrom: b.UserPromptFrom, tracer: tracerOrNoop(b.Tracer), contextLimit: b.ContextLimit,
 		numCtx: b.NumCtx, temperature: b.Temperature, seed: b.Seed,
 		callTimeout: b.CallTimeout, metrics: b.Metrics, verbose: b.Verbose, ctx: ctx,
 	}
@@ -375,9 +393,16 @@ func newLLMClient(cfg catalog.LLMToolConfig, tracer tracing.Tracer) (modelllm.Cl
 	// construction performs no hidden network probe.
 	client, err := ollama.NewAdapter(cfg.ProviderURL, cfg.Model,
 		ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
-		ollama.WithTracer(tracer),
+		ollama.WithTracer(tracerOrNoop(tracer)),
 	)
 	return client, serverAddr(cfg.ProviderURL), err
+}
+
+func tracerOrNoop(tracer tracing.Tracer) tracing.Tracer {
+	if tracer == nil {
+		return tracing.NoopTracer{}
+	}
+	return tracer
 }
 
 func resolveLLMParser(cfg catalog.LLMToolConfig) (modelllm.ResponseParser, error) {

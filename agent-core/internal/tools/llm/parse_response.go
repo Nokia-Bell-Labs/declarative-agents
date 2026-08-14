@@ -30,6 +30,14 @@ type parseResponseCmd struct {
 
 func (p *parseResponseCmd) Name() string { return "parse_response" }
 
+// SetTracer receives the active dispatch span so parsing attributes and events
+// remain isolated to the turn that produced the response.
+func (p *parseResponseCmd) SetTracer(tracer tracing.Tracer) {
+	p.tracer = tracerOrNoop(tracer)
+}
+
+var _ core.TracerAware = (*parseResponseCmd)(nil)
+
 func (p *parseResponseCmd) Execute() core.Result {
 	p.snapshotRetry()
 	p.tracer.SetAttributes(attribute.Int("raw_response_bytes", len(p.raw)))
@@ -158,7 +166,7 @@ func (b *ParseResponseBuilder) Build(res core.Result) core.Command {
 	state := b.manifestState(res)
 	return &parseResponseCmd{
 		raw: res.Output, registry: b.Registry, parser: b.Parser,
-		tracer: b.Tracer, state: state, verbose: b.Verbose, retry: b.Retry,
+		tracer: tracerOrNoop(b.Tracer), state: state, verbose: b.Verbose, retry: b.Retry,
 	}
 }
 
