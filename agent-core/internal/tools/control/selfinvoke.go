@@ -191,42 +191,46 @@ func (c *selfInvokeCmd) decodeUndoReceipt(prior core.Result) (undo.BoundaryCompe
 	if err := validateSelfInvokeRequirements(compensation.Requires); err != nil {
 		return undo.BoundaryCompensation{}, err
 	}
-	name, err := requiredReceiptString(compensation.Data, "command_name")
-	if err != nil {
+	if err := c.validateUndoReceiptData(compensation.Data); err != nil {
 		return undo.BoundaryCompensation{}, err
 	}
+	return compensation, nil
+}
+
+func (c *selfInvokeCmd) validateUndoReceiptData(data map[string]interface{}) error {
+	name, err := requiredReceiptString(data, "command_name")
+	if err != nil {
+		return err
+	}
 	if name != c.Name() {
-		return undo.BoundaryCompensation{}, fmt.Errorf(
+		return fmt.Errorf(
 			"child boundary receipt command %q does not match reverser %q", name, c.Name(),
 		)
 	}
-	profile, err := requiredReceiptString(compensation.Data, "child_profile")
+	profile, err := requiredReceiptString(data, "child_profile")
 	if err != nil {
-		return undo.BoundaryCompensation{}, err
+		return err
 	}
 	if c.config.Profile != "" && profile != c.config.Profile {
-		return undo.BoundaryCompensation{}, fmt.Errorf(
+		return fmt.Errorf(
 			"child boundary receipt profile %q does not match configured profile %q",
 			profile, c.config.Profile,
 		)
 	}
-	if _, err := requiredReceiptString(compensation.Data, "child_run_id"); err != nil {
-		return undo.BoundaryCompensation{}, err
+	if _, err := requiredReceiptString(data, "child_run_id"); err != nil {
+		return err
 	}
-	workspacePath, err := requiredReceiptString(compensation.Data, "child_workspace_path")
+	workspacePath, err := requiredReceiptString(data, "child_workspace_path")
 	if err != nil {
-		return undo.BoundaryCompensation{}, err
+		return err
 	}
 	if c.workspacePath != "" && workspacePath != c.workspacePath {
-		return undo.BoundaryCompensation{}, fmt.Errorf(
+		return fmt.Errorf(
 			"child boundary receipt workspace path %q does not match configured workspace path %q",
 			workspacePath, c.workspacePath,
 		)
 	}
-	if err := validateArtifactPaths(compensation.Data["artifact_paths"]); err != nil {
-		return undo.BoundaryCompensation{}, err
-	}
-	return compensation, nil
+	return validateArtifactPaths(data["artifact_paths"])
 }
 
 func validateSelfInvokeRequirements(requires []string) error {

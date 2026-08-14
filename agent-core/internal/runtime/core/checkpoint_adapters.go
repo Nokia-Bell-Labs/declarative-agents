@@ -57,6 +57,13 @@ type InMemoryCheckpoint struct {
 	domains          map[string][]byte
 }
 
+type checkpointSnapshotReferences struct {
+	conversationRef string
+	conversation    []byte
+	domainRef       string
+	domain          []byte
+}
+
 // NewInMemoryCheckpoint creates a reference adapter with stable run isolation.
 // A zero-value InMemoryCheckpoint still supports Save/Load but reports
 // conversation references unavailable.
@@ -75,14 +82,7 @@ func (c *InMemoryCheckpoint) Save(position Position, execution Execution) error 
 	if err != nil {
 		return fmt.Errorf("in-memory checkpoint save: %w", err)
 	}
-	conversationRef, conversation, err := c.snapshotReferenceFor(
-		position.Snapshot.Conversation,
-		execution,
-	)
-	if err != nil {
-		return fmt.Errorf("in-memory checkpoint save: %w", err)
-	}
-	domainRef, domain, err := c.snapshotReferenceFor(position.Snapshot.Domain, execution)
+	references, err := c.prepareSnapshotReferences(position, execution)
 	if err != nil {
 		return fmt.Errorf("in-memory checkpoint save: %w", err)
 	}
@@ -91,21 +91,44 @@ func (c *InMemoryCheckpoint) Save(position Position, execution Execution) error 
 	c.position = clonePosition(position)
 	c.execution = sanitized
 	c.saved = true
-	c.currentRef = conversationRef
-	c.currentDomainRef = domainRef
-	if conversationRef != "" {
+	c.currentRef = references.conversationRef
+	c.currentDomainRef = references.domainRef
+	if references.conversationRef != "" {
 		if c.conversations == nil {
 			c.conversations = make(map[string][]byte)
 		}
-		c.conversations[conversationRef] = conversation
+		c.conversations[references.conversationRef] = references.conversation
 	}
-	if domainRef != "" {
+	if references.domainRef != "" {
 		if c.domains == nil {
 			c.domains = make(map[string][]byte)
 		}
-		c.domains[domainRef] = domain
+		c.domains[references.domainRef] = references.domain
 	}
 	return nil
+}
+
+func (c *InMemoryCheckpoint) prepareSnapshotReferences(
+	position Position,
+	execution Execution,
+) (checkpointSnapshotReferences, error) {
+	conversationRef, conversation, err := c.snapshotReferenceFor(
+		position.Snapshot.Conversation,
+		execution,
+	)
+	if err != nil {
+		return checkpointSnapshotReferences{}, err
+	}
+	domainRef, domain, err := c.snapshotReferenceFor(position.Snapshot.Domain, execution)
+	if err != nil {
+		return checkpointSnapshotReferences{}, err
+	}
+	return checkpointSnapshotReferences{
+		conversationRef: conversationRef,
+		conversation:    conversation,
+		domainRef:       domainRef,
+		domain:          domain,
+	}, nil
 }
 
 func (c *InMemoryCheckpoint) Load() (Position, Execution, error) {

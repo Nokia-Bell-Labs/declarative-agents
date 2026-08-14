@@ -213,20 +213,27 @@ func decodeRetryReceipt(receipt string) (int, bool, error) {
 			return 0, false, fmt.Errorf("retry receipt has unknown field %q", field)
 		}
 	}
+	retries, err := decodeRetryReceiptFields(envelope)
+	if err != nil {
+		return 0, false, err
+	}
+	return retries, true, nil
+}
 
+func decodeRetryReceiptFields(envelope map[string]json.RawMessage) (int, error) {
 	rawCounter, ok := envelope["parse_retry_counter"]
 	if !ok {
-		return 0, false, fmt.Errorf("retry receipt is missing parse_retry_counter field")
+		return 0, fmt.Errorf("retry receipt is missing parse_retry_counter field")
 	}
 	var retries *int
 	if err := json.Unmarshal(rawCounter, &retries); err != nil {
-		return 0, false, fmt.Errorf("invalid parse_retry_counter: %w", err)
+		return 0, fmt.Errorf("invalid parse_retry_counter: %w", err)
 	}
 	if retries == nil {
-		return 0, false, fmt.Errorf("retry receipt has null parse_retry_counter")
+		return 0, fmt.Errorf("retry receipt has null parse_retry_counter")
 	}
 	if *retries < 0 {
-		return 0, false, fmt.Errorf("retry receipt has negative parse_retry_counter")
+		return 0, fmt.Errorf("retry receipt has negative parse_retry_counter")
 	}
 
 	// The unversioned shape was emitted before receipt-driven fresh Undo was
@@ -235,14 +242,14 @@ func decodeRetryReceipt(receipt string) (int, bool, error) {
 	if rawVersion, versioned := envelope["retry_receipt_version"]; versioned {
 		var version *int
 		if err := json.Unmarshal(rawVersion, &version); err != nil {
-			return 0, false, fmt.Errorf("invalid retry receipt version: %w", err)
+			return 0, fmt.Errorf("invalid retry receipt version: %w", err)
 		}
 		if version == nil {
-			return 0, false, fmt.Errorf("retry receipt has null version")
+			return 0, fmt.Errorf("retry receipt has null version")
 		}
 		if *version != retryReceiptVersion1 {
-			return 0, false, fmt.Errorf("unsupported retry receipt version %d", *version)
+			return 0, fmt.Errorf("unsupported retry receipt version %d", *version)
 		}
 	}
-	return *retries, true, nil
+	return *retries, nil
 }
