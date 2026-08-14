@@ -4,55 +4,95 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
-	"regexp"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profileaudit"
 )
 
 const observerPollIntervalPattern = `^(?:(?:[1-9]|[1-9][0-9]|[1-5][0-9]{2})s|(?:[1-9]|10)m)$`
 
-func TestChatbotMeshMachineTimeoutEnvelopes(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name      string
-		path      string
-		want      time.Duration
-		authority time.Duration
-	}{
-		{name: "chatbot control await", path: "../agents/chatbot/machine.yaml", want: 11 * time.Minute, authority: 10 * time.Minute},
-		{name: "chatbot request model", path: "../agents/chatbot/request-machine.yaml", want: 3 * time.Minute, authority: 2 * time.Minute},
-		{name: "chatbot single-turn model", path: "../agents/chatbot/tests/single-turn/machine.yaml", want: 2 * time.Minute, authority: time.Minute},
-		{name: "chatbot degraded model", path: "../agents/chatbot/tests/degraded-rag/machine.yaml", want: 2 * time.Minute, authority: time.Minute},
-		{name: "creator control await", path: "../agents/creator/machine.yaml", want: 11 * time.Minute, authority: 10 * time.Minute},
-		{name: "creator ingest request", path: "../agents/creator/request-machine.yaml", want: 11 * time.Minute, authority: 10 * time.Minute},
-		{name: "observer bounded poll", path: "../agents/observer/machine.yaml", want: 11 * time.Minute, authority: 10 * time.Minute},
-		{name: "orchestrator control await", path: "../agents/provisioning-workflow-orchestrator/machine.yaml", want: 11 * time.Minute, authority: 10 * time.Minute},
-		{name: "orchestrator request", path: "../agents/provisioning-workflow-orchestrator/request-machine.yaml", want: 3 * time.Minute, authority: 130 * time.Second},
-		{name: "orchestrator state request", path: "../agents/provisioning-workflow-orchestrator/state-machine.yaml", want: time.Minute, authority: 20 * time.Second},
-		{name: "orchestrator rollout request", path: "../agents/provisioning-workflow-orchestrator/rollout-machine.yaml", want: time.Minute, authority: 30 * time.Second},
-		{name: "RAG control await", path: "../agents/rag-server/machine.yaml", want: 11 * time.Minute, authority: 10 * time.Minute},
-		{name: "RAG query request", path: "../agents/rag-server/request-machine.yaml", want: time.Minute, authority: 10 * time.Second},
-		{name: "RAG query fixture", path: "../agents/rag-server/tests/query/machine.yaml", want: time.Minute, authority: 10 * time.Second},
-		{name: "applier state request", path: "../agents/applier/state-machine.yaml", want: time.Minute, authority: 30 * time.Second},
-		{name: "scenario rig validator", path: "../testdata/rig/machine.yaml", want: 6 * time.Minute, authority: 5 * time.Minute},
+func TestChatbotMeshProfileTimeoutEnvelopes(t *testing.T) {
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			got := readMeshMachineCommandTimeout(t, test.path)
-			if got != test.want {
-				t.Errorf("%s command_timeout = %s, want %s", test.path, got, test.want)
-			}
-			if got <= test.authority {
-				t.Errorf("%s command_timeout = %s, must exceed governing operation %s", test.path, got, test.authority)
-			}
-		})
+	coreRoot := demoCoreRoot(root)
+	profiles, compositionProfiles := stageMeshTimeoutProfiles(t, root)
+	for _, profile := range profiles {
+		if err := profileaudit.ValidateWithOptions(
+			profile, profileaudit.Options{CoreRoot: coreRoot},
+		); err != nil {
+			t.Errorf("%s: %v", profile, err)
+		}
+	}
+
+	orchestrator := compositionProfiles["provisioning-workflow-orchestrator"]
+	report, err := profileaudit.InspectWithOptions(
+		orchestrator, profileaudit.Options{CoreRoot: coreRoot},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestMachines := map[string]bool{}
+	for _, operation := range report.Operations {
+		requestMachines[filepath.Base(operation.Machine)] = true
+	}
+	for _, name := range []string{"request-machine.yaml", "rollout-machine.yaml", "state-machine.yaml"} {
+		if !requestMachines[name] {
+			t.Errorf("orchestrator closure omitted request variant %s", name)
+		}
+	}
+	t.Logf(
+		"validated %d mesh profiles (%d composition roots)",
+		len(profiles), len(compositionProfiles),
+	)
+}
+
+func TestObserverPollIntervalAtMachineEnvelopeIsRejected(t *testing.T) {
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreRoot := demoCoreRoot(root)
+	profile := filepath.Join(root, "agents", "observer", "profile.yaml")
+	report, err := profileaudit.InspectWithOptions(
+		profile, profileaudit.Options{CoreRoot: coreRoot},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var observerAwait profileaudit.Operation
+	for _, operation := range report.Operations {
+		if operation.Action == "await_observer_control" &&
+			operation.Authority == "ToolDef config.timeout" {
+			observerAwait = operation
+			break
+		}
+	}
+	if observerAwait.Action == "" {
+		t.Fatal("observer closure exposes no polling interval authority")
+	}
+	t.Setenv("OBSERVER_POLL_INTERVAL", observerAwait.CommandTimeout.String())
+	err = profileaudit.ValidateWithOptions(
+		profile, profileaudit.Options{CoreRoot: coreRoot},
+	)
+	var validation *profileaudit.ValidationError
+	if !errors.As(err, &validation) {
+		t.Fatalf("observer poll interval equal to its machine envelope was not rejected by policy: %v", err)
+	}
+	if len(validation.Diagnostics) == 0 ||
+		validation.Diagnostics[0].Action != observerAwait.Action {
+		t.Fatalf("observer mutation rejection did not identify %s: %v",
+			observerAwait.Action, validation.Diagnostics)
 	}
 }
 
-func TestObserverPollIntervalIsBoundedByMachineEnvelope(t *testing.T) {
+func TestObserverPollIntervalHelmSchemaConstraint(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("../helm/values.schema.json")
 	if err != nil {
@@ -74,24 +114,56 @@ func TestObserverPollIntervalIsBoundedByMachineEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(declaration), "timeout: ${OBSERVER_POLL_INTERVAL:-10s}") {
-		t.Error("observer await no longer reads the Helm-bounded poll interval")
+	if !strings.Contains(string(declaration), "timeout: ${OBSERVER_POLL_INTERVAL") {
+		t.Error("observer await no longer reads the deployment poll interval")
 	}
 }
 
-func readMeshMachineCommandTimeout(t *testing.T, path string) time.Duration {
+func stageMeshTimeoutProfiles(
+	t *testing.T,
+	root string,
+) ([]string, map[string]string) {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	catalogRoot, err := resolveCatalogRoot("chatbot-mesh timeout policy", root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	match := regexp.MustCompile(`command_timeout:\s*([0-9]+(?:ns|us|µs|ms|s|m|h))`).FindSubmatch(data)
-	if len(match) != 2 {
-		t.Fatalf("%s has no command_timeout", path)
-	}
-	timeout, err := time.ParseDuration(string(match[1]))
+	composition, err := resolveChatbotComposition(root, catalogRoot)
 	if err != nil {
-		t.Fatalf("%s command_timeout: %v", path, err)
+		t.Fatal(err)
 	}
-	return timeout
+	chart, cleanup, err := stagePackageChart(filepath.Join(root, "helm"), root, catalogRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanup)
+
+	profileSet := map[string]bool{}
+	compositionProfiles := make(map[string]string, len(composition.manifest.Roots))
+	for _, manifestRoot := range composition.manifest.Roots {
+		profile := filepath.Join(
+			chart, "profiles", filepath.FromSlash(manifestRoot.RuntimePath),
+		)
+		profileSet[profile] = true
+		compositionProfiles[manifestRoot.ID] = profile
+	}
+	smokeProfiles, err := meshProfiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, profile := range smokeProfiles {
+		relative, err := filepath.Rel(filepath.Join(root, "agents"), profile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(filepath.ToSlash(relative), "/tests/") {
+			profileSet[profile] = true
+		}
+	}
+	profiles := make([]string, 0, len(profileSet))
+	for profile := range profileSet {
+		profiles = append(profiles, profile)
+	}
+	sort.Strings(profiles)
+	return profiles, compositionProfiles
 }

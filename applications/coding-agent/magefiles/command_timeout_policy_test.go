@@ -3,56 +3,112 @@
 package main
 
 import (
-	"os"
-	"regexp"
+	"path/filepath"
 	"testing"
-	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profileaudit"
 )
 
-func TestCodingAgentMachineTimeoutEnvelopes(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name      string
-		path      string
-		want      time.Duration
-		authority time.Duration
-	}{
-		{
-			name: "role server control await", path: "../agents/role-server/machine.yaml",
-			want: 11 * time.Minute, authority: 10 * time.Minute,
-		},
-		{
-			name: "planner request endpoint", path: "../agents/planner/request-machine.yaml",
-			want: 21 * time.Minute, authority: 20 * time.Minute,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			got := readCodingMachineCommandTimeout(t, test.path)
-			if got != test.want {
-				t.Errorf("%s command_timeout = %s, want %s", test.path, got, test.want)
-			}
-			if got <= test.authority {
-				t.Errorf("%s command_timeout = %s, must exceed governing operation %s", test.path, got, test.authority)
-			}
-		})
-	}
-}
-
-func readCodingMachineCommandTimeout(t *testing.T, path string) time.Duration {
-	t.Helper()
-	data, err := os.ReadFile(path)
+func TestCodingAgentProfileTimeoutEnvelopes(t *testing.T) {
+	roots := codingPolicyRoots(t)
+	manifest, err := readApplicationProfileManifestWithCatalog(
+		filepath.Join(roots.Application, filepath.FromSlash(profileManifestPath)),
+		roots.Profiles,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	match := regexp.MustCompile(`command_timeout:\s*([0-9]+(?:ns|us|µs|ms|s|m|h))`).FindSubmatch(data)
-	if len(match) != 2 {
-		t.Fatalf("%s has no command_timeout", path)
+	profiles := stageCodingTimeoutProfiles(t, roots, manifest)
+	for _, profile := range profiles {
+		if err := profileaudit.ValidateWithOptions(
+			profile, profileaudit.Options{CoreRoot: roots.Core},
+		); err != nil {
+			t.Errorf("%s: %v", profile, err)
+		}
 	}
-	timeout, err := time.ParseDuration(string(match[1]))
+
+	requestProfile, requestMachine := false, false
+	for _, profile := range profiles[len(manifest.Catalog.References):] {
+		report, err := profileaudit.InspectWithOptions(
+			profile, profileaudit.Options{CoreRoot: roots.Core},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, operation := range report.Operations {
+			if filepath.Base(operation.Profile) == "request-profile.yaml" {
+				requestProfile = true
+			}
+			if filepath.Base(operation.Machine) == "request-machine.yaml" {
+				requestMachine = true
+			}
+		}
+	}
+	if !requestProfile || !requestMachine {
+		t.Errorf(
+			"serving closures omitted request variants: profile=%t machine=%t",
+			requestProfile, requestMachine,
+		)
+	}
+	t.Logf(
+		"validated %d coding profiles (%d canonical, %d serving)",
+		len(profiles), len(manifest.Catalog.References), len(manifest.Deployment.Entries),
+	)
+}
+
+func codingPolicyRoots(t *testing.T) integrationRoots {
+	t.Helper()
+	application, err := filepath.Abs("..")
 	if err != nil {
-		t.Fatalf("%s command_timeout: %v", path, err)
+		t.Fatal(err)
 	}
-	return timeout
+	profiles, err := resolveCatalogRoot("coding-agent timeout policy", application)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repository := filepath.Clean(filepath.Join(application, "..", ".."))
+	core, err := absoluteOwnerPath(
+		loadDemoConfigOrEmpty(application).CoreRoot,
+		application,
+		filepath.Join(repository, "agent-core"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return integrationRoots{Application: application, Core: core, Profiles: profiles}
+}
+
+func stageCodingTimeoutProfiles(
+	t *testing.T,
+	roots integrationRoots,
+	manifest applicationProfileManifest,
+) []string {
+	t.Helper()
+	source, err := inspectPackageSource(roots.Profiles, manifest.Catalog.CompatibleRelease)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := t.TempDir()
+	canonicalRoot := filepath.Join(stage, "profiles")
+	if _, err := assembleProfileClosure(
+		manifest, roots.Profiles, canonicalRoot, source,
+	); err != nil {
+		t.Fatal(err)
+	}
+	deploymentRoot := filepath.Join(stage, "deployment")
+	shards, err := packageServingDeployment(
+		roots.Application, roots.Profiles, deploymentRoot, manifest, source,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles := make([]string, 0, len(manifest.Catalog.References)+len(shards))
+	for _, ref := range manifest.Catalog.References {
+		profiles = append(profiles, filepath.Join(canonicalRoot, filepath.FromSlash(ref.RuntimePath)))
+	}
+	for _, shard := range shards {
+		profiles = append(profiles,
+			filepath.Join(deploymentRoot, shard.Path, filepath.FromSlash(shard.Profile)))
+	}
+	return profiles
 }

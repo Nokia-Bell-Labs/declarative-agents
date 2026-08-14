@@ -2,7 +2,7 @@ name: coding-agent-role-server
 purpose: Persistently host one coding role's request and lifecycle surfaces.
 initial_state: Idle
 budget:
-  command_timeout: 11m
+  command_timeout: 21m
   max_iterations: 10000
 states:
   - {name: Idle, meaning: No listeners have started.}

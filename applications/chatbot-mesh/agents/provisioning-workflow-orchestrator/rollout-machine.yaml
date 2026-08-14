@@ -16,7 +16,7 @@ purpose: |-
   (GH-684).
 initial_state: AwaitingRequest
 budget:
-  command_timeout: 1m
+  command_timeout: 3m
   max_iterations: 3
 states:
   - {name: AwaitingRequest, meaning: Seeded by the rollout endpoint.}
