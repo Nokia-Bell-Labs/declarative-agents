@@ -134,6 +134,55 @@ test_cases:
       - srd019-eval-harness AC1
 
   - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator rejects invalid point and aggregate duration envelopes
+    go_test: go test ./internal/evaluation -run 'TestInitEvalSessionRejects(InvalidPointTimeout|ExcessiveAggregateDuration|AggregateDurationOverflow)$'
+    status: implemented
+    inputs:
+      point_timeout_authority: 15m
+      aggregate_session_authority: 24h
+      point_timeout_cases: [malformed, zero, negative, above_authority]
+      aggregate_cases: [at_authority, above_authority, multiplication_overflow]
+    expected:
+      malformed_and_non_positive_rejected: true
+      point_timeout_above_15m_rejected: true
+      aggregate_duration_above_24h_rejected: true
+      overflow_rejected: true
+      session_directory_created_on_failure: false
+    traces:
+      - srd019-eval-harness AC5
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Nested evaluator dispatch uses the point machine command timeout
+    go_test: go test ./internal/evaluation -run TestRunPointPropagatesMachineCommandTimeout$
+    status: implemented
+    inputs:
+      point_machine: synthetic machine with a finite command_timeout
+      point_command: context-aware blocking command
+    expected:
+      nested_loop_uses_declared_command_timeout: true
+      deadline_observed_without_wall_clock_sleep: true
+      omitted_or_copied_fallback_timeout: false
+    traces:
+      - srd019-eval-harness AC5
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Critic and bench profiles reserve nested evaluator timeout margins
+    go_test: applications/catalog go test ./magefiles -run TestCatalogEvaluatorTimeoutEnvelopes$
+    status: implemented
+    inputs:
+      point_runtime_authority: 15m
+      aggregate_session_authority: 24h
+      critic_profiles: [agents/critic/point.yaml, agents/critic/machine.yaml]
+      bench_profile: agents/bench/machine.yaml
+    expected:
+      critic_point_command_margin_at_least: 1m
+      critic_run_point_dispatch_margin_at_least: 1m
+      bench_child_session_margin_at_least: 1h
+      all_bounds_finite_and_profile_owned: true
+    traces:
+      - srd019-eval-harness AC5
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator receipts remove only owned artifacts
     go_test: go test ./internal/evaluation -run 'Test(EvaluatorReceiptRejectsArtifactOutsideOwnedRoot|CollectMetricsRejectsMissingPointDirectory)'
     inputs:

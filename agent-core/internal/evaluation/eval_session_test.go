@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -111,6 +112,80 @@ func TestInitEvalSessionRequiresExpandedGrid(t *testing.T) {
 	require.Equal(t, core.CommandError, result.Signal)
 	require.ErrorContains(t, result.Err, "requires expand_eval_grid")
 	require.Empty(t, es.SessionDir)
+}
+
+func TestInitEvalSessionRejectsInvalidPointTimeout(t *testing.T) {
+	t.Parallel()
+
+	base := suiteFixture(t)
+	profileDir := writeProfileFixtures(t, base, "agent")
+	for _, test := range []struct {
+		name    string
+		timeout string
+	}{
+		{name: "malformed", timeout: "later"},
+		{name: "zero", timeout: "0s"},
+		{name: "negative", timeout: "-1s"},
+		{name: "above maximum", timeout: "15m1s"},
+	} {
+		t.Run("suite "+test.name, func(t *testing.T) {
+			_, err := ParseSuiteConfig([]byte(fmt.Sprintf(`
+name: timeout-test
+profiles: [%s/agent.yaml]
+samples_dir: samples
+timeout: %s
+`, profileDir, test.timeout)), base)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "timeout")
+		})
+	}
+
+	for _, timeout := range []time.Duration{0, -time.Second, maxEvaluatorPointTimeout + time.Second} {
+		es := readyDurationSession(t, 1)
+		err := es.InitSession(t.TempDir(), 1, timeout, "", 0)
+		require.Error(t, err)
+		require.Empty(t, es.SessionDir)
+	}
+}
+
+func TestInitEvalSessionRejectsExcessiveAggregateDuration(t *testing.T) {
+	t.Parallel()
+
+	atLimit := readyDurationSession(t, 96)
+	require.NoError(t, atLimit.InitSession(t.TempDir(), 1, maxEvaluatorPointTimeout, "", 0))
+	require.NotEmpty(t, atLimit.SessionDir)
+
+	aboveLimit := readyDurationSession(t, 97)
+	err := aboveLimit.InitSession(t.TempDir(), 1, maxEvaluatorPointTimeout, "", 0)
+	require.ErrorContains(t, err, "aggregate duration")
+	require.ErrorContains(t, err, "exceeds maximum 24h0m0s")
+	require.Empty(t, aboveLimit.SessionDir)
+}
+
+func TestInitEvalSessionRejectsAggregateDurationOverflow(t *testing.T) {
+	t.Parallel()
+
+	es := readyDurationSession(t, 2)
+	err := es.InitSession(t.TempDir(), math.MaxInt, maxEvaluatorPointTimeout, "", 0)
+	require.ErrorContains(t, err, "aggregate duration overflows")
+	require.Empty(t, es.SessionDir)
+}
+
+func readyDurationSession(t *testing.T, profileCount int) *EvalSessionState {
+	t.Helper()
+	profiles := make([]SuiteProfile, profileCount)
+	for i := range profiles {
+		profiles[i].Name = fmt.Sprintf("profile-%d", i)
+	}
+	return &EvalSessionState{
+		Suite: SuiteConfig{
+			Name:     "duration-test",
+			Profiles: profiles,
+			Samples:  []Sample{{Name: "sample"}},
+		},
+		gridPoints: []GridPoint{{}},
+		Stderr:     &bytes.Buffer{},
+	}
 }
 
 func TestDiscoverSamplesUsesDeclaredLayout(t *testing.T) {

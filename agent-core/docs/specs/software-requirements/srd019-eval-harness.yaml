@@ -15,6 +15,7 @@ goals:
   - G3: Capture full experiment configuration alongside results for reproducibility.
   - G4: Produce structured metrics (meta.json) and trace data (trace.ndjson) per evaluation point.
   - G5: Analyze results with convergence tracking, model statistics, and detailed breakdowns.
+  - G6: Bound child-point and aggregate-session duration so no valid inner evaluation is preempted by an outer dispatch timeout.
 
 requirements:
   R0:
@@ -84,10 +85,21 @@ requirements:
       - R5.3: StrAttr and IntAttr extract typed attribute values from spans.
       - R5.4: AgentVersion extracts the agent.version attribute from trace spans.
 
+  R6:
+    title: Bounded evaluator duration envelopes
+    items:
+      - R6.1: The resolved per-point child runtime timeout SHALL parse strictly as a positive finite duration no greater than 15 minutes. init_eval_session SHALL validate the effective value after ToolDef defaults and suite overrides are resolved.
+      - R6.2: Before creating session artifacts, init_eval_session SHALL calculate the aggregate child runtime as resolved profiles × grid points × samples × repetitions × per-point timeout. It SHALL reject arithmetic overflow and totals greater than 24 hours.
+      - R6.3: run_point SHALL load the point MachineSpec and propagate its budget.command_timeout into the nested LoopParams.CommandTimeout. The point-machine command timeout SHALL exceed the 15-minute child runtime authority by at least one minute so run_agent can consume the full valid child deadline without the point dispatcher cancelling it first.
+      - R6.4: The critic session's run_point dispatch is a sibling outer envelope over the same 15-minute child authority. It SHALL also reserve at least one minute for scheduling, workspace preparation, result persistence, oracle execution, trace and metric collection, and point cleanup. The critic point-machine and session run_point bounds need not be ordered relative to each other.
+      - R6.5: The bench child-session dispatch SHALL exceed the 24-hour aggregate-session authority by at least one hour for session initialization, summary reporting, artifact finalization, and cleanup.
+      - R6.6: Deterministic zero-sleep tests SHALL prove point-timeout propagation, invalid and excessive duration rejection, overflow rejection, and the critic and bench outer-envelope relationships.
+
 non_goals:
   - LLM-based evaluation (the evaluator is deterministic, no LLM calls).
   - Parallel point execution within a single session.
   - Automatic LLM artifact management.
+  - REST machine_request timeout propagation, which is governed by srd030-machine-request-rest-binding.
 
 acceptance_criteria:
   - id: AC1
@@ -110,6 +122,10 @@ acceptance_criteria:
     criterion: Classify correctly assigns per-tool and overall convergence classes from a run's tool-metric snapshots, and ComputeModelStats derives the recovery and stuck rates consistently from those classes.
     traces: [R4.4]
 
+  - id: AC5
+    criterion: Evaluator point and session durations have finite validated authorities, nested point dispatch uses the point MachineSpec timeout, and outer critic and bench boundaries retain explicit processing margin.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6]
+
 depends_on:
   - srd_id: srd001-core-types
     symbols_used: [Command, Result, Signal, Builder]
@@ -131,6 +147,7 @@ diagrams:
       Goals --> R3["R3: Evaluation tools"]
       Goals --> R4["R4: Result analysis"]
       Goals --> R5["R5: Trace and span utilities"]
+      Goals --> R6["R6: Bounded evaluator duration envelopes"]
       AC1["AC1: The session state machine executes all grid points and pr..."]
       R2 --> AC1
       AC0["AC0: Suite YAML is documented and validated as evaluator tool..."]
@@ -143,4 +160,6 @@ diagrams:
       R5 --> AC3
       AC4["AC4: Classify assigns per-tool and overall convergence classes f..."]
       R4 --> AC4
+      AC5["AC5: Evaluator point and session durations have finite validated..."]
+      R6 --> AC5
     ```
