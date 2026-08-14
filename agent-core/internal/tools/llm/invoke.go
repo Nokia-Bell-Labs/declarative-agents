@@ -50,12 +50,13 @@ type invokeLLMCmd struct {
 	seed                    int
 	captureLevel            CaptureLevel
 	conversationRefProvider ConversationReferenceProvider
+	conversationRefResolver ConversationReferenceResolver
 	ctx                     context.Context
 	callTimeout             time.Duration
 	metrics                 core.MetricConfig
 	recorder                monitor.ToolMetricsRecorder
 	prevLen                 int
-	prevMessages            []modelllm.Message
+	prevConversationRef     string
 	hasSnapshot             bool
 }
 
@@ -172,8 +173,11 @@ func stringifyPrompt(v interface{}) string {
 }
 
 func (c *invokeLLMCmd) snapshotHistory() {
-	c.prevLen = c.history.Len()
-	c.prevMessages = c.history.Snapshot()
+	c.prevLen = len(c.history.Snapshot())
+	c.prevConversationRef = ""
+	if ref, ok := c.conversationReference(); ok {
+		c.prevConversationRef = ref
+	}
 	c.hasSnapshot = true
 	c.history.Append(modelllm.Message{Role: modelllm.User, Content: c.userMessage})
 	c.tracer.Event("history.user_appended", attribute.Int("history_len", c.history.Len()))
@@ -245,7 +249,7 @@ func (c *invokeLLMCmd) chatResult(chatResp modelllm.ChatResponse, duration time.
 		Signal:  core.LLMResponded,
 		Output:  chatResp.Content,
 		Cost:    cost,
-		Receipt: encodeConversationReceipt(c.prevMessages),
+		Receipt: encodeConversationReceipt(c.prevLen, c.prevConversationRef),
 	}
 }
 
@@ -268,6 +272,7 @@ type InvokeLLMBuilder struct {
 	Metrics                 core.MetricConfig
 	CaptureLevel            CaptureLevel
 	ConversationRefProvider ConversationReferenceProvider
+	ConversationRefResolver ConversationReferenceResolver
 	Ctx                     context.Context
 	// UserPromptFrom, when set, is the command-state $from selector the built
 	// command resolves its user message from instead of the dispatch Result.
@@ -281,6 +286,7 @@ type InvokeLLMFactoryDeps struct {
 	Tracer                  tracing.Tracer
 	CaptureLevel            CaptureLevel
 	ConversationRefProvider ConversationReferenceProvider
+	ConversationRefResolver ConversationReferenceResolver
 	Ctx                     context.Context
 	OnResolved              func(InvokeLLMResolvedConfig)
 }
@@ -332,7 +338,8 @@ func invokeBuilder(
 		CallTimeout: durationSeconds(cfg.LLMTimeout),
 		Metrics:     def.Metrics, CaptureLevel: deps.CaptureLevel,
 		ConversationRefProvider: deps.ConversationRefProvider, Ctx: deps.Ctx,
-		UserPromptFrom: cfg.UserPromptFrom,
+		ConversationRefResolver: deps.ConversationRefResolver,
+		UserPromptFrom:          cfg.UserPromptFrom,
 	}
 }
 
@@ -369,7 +376,8 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 		userMessage: res.Output, promptFrom: b.UserPromptFrom, tracer: tracerOrNoop(b.Tracer), contextLimit: b.ContextLimit,
 		numCtx: b.NumCtx, temperature: b.Temperature, seed: b.Seed,
 		callTimeout: b.CallTimeout, metrics: b.Metrics, captureLevel: b.CaptureLevel,
-		conversationRefProvider: b.ConversationRefProvider, ctx: ctx,
+		conversationRefProvider: b.ConversationRefProvider,
+		conversationRefResolver: b.ConversationRefResolver, ctx: ctx,
 	}
 }
 

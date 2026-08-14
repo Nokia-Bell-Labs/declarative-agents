@@ -59,6 +59,11 @@ requirements:
       - R3.3: The Receipt SHALL serialize as a JSON string, or as null (or an omitted field) when a tool returns no receipt, such as a read-only tool.
       - R3.4: Save and Load SHALL round-trip the Receipt verbatim, preserving its exact bytes.
       - R3.5: Shared boundary helpers SHALL expose only strategy, reason, requirements, and an opaque family-owned data map; adding family-specific compensation data SHALL NOT extend a cross-family typed union.
+      - R3.6: "New invoke_llm and reset_history receipts SHALL use a versioned v2 tool-owned envelope containing only the prior conversation length and, when available, a stable conversation checkpoint run/step reference; the envelope SHALL NOT contain prompt, system, user, or assistant content."
+      - R3.7: The LLM tool family SHALL continue to decode legacy full-conversation receipts and restore their embedded conversation exactly.
+      - R3.8: Direct same-process Undo SHALL restore from command-local state without serializing that state, while fresh-process Undo SHALL restore v2 receipts through a narrow conversation-reference resolver injected into the LLM tool family; core and checkpoint adapters SHALL NOT decode the receipt.
+      - R3.9: "invoke_llm Undo MAY truncate an authoritative current or resolved conversation to the valid prior length; reset_history Undo SHALL require either its exact command-local snapshot or successful reference resolution."
+      - R3.10: A v2 Undo that requires exact restart restoration but has a missing, invalid, or unresolvable reference SHALL fail explicitly without changing the current conversation or exposing conversation content.
 
   R4:
     title: Conversation and domain policy in the typed snapshot
@@ -101,7 +106,7 @@ non_goals:
   - Defining the Dolt schema, commit-per-step, branch-per-run, or revert mechanics; those belong to srd036.
   - Retaining the key/blob StateStore, its store-path prefixes, or its List and Delete methods.
   - Keeping CheckpointPolicy or an engine-owned reverse undo-walk.
-  - Specifying the receipt schema for any specific tool; each tool owns and decodes its own receipt.
+  - Specifying receipt schemas for tool families other than the LLM v2 safety envelope in R3.6-R3.10; every originating tool remains the sole owner and decoder of its receipt.
   - Modeling workspace or git refs as a separately persisted state layer.
 
 acceptance_criteria:
@@ -114,8 +119,8 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
 
   - id: AC3
-    criterion: Each Entry carries an opaque Receipt that adapters persist and restore verbatim, serialized as a JSON string or null, and the engine never interprets it.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+    criterion: Each Entry carries an opaque Receipt that adapters persist and restore verbatim and the engine never interprets; new LLM conversation receipts contain only v2 prior-length and optional checkpoint-reference metadata, legacy receipts remain undoable, and direct or reference-resolved restart Undo restores exactly while missing or invalid restart references fail without mutation or content exposure.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10]
 
   - id: AC4
     criterion: Conversation folds into the typed snapshot and is restored on Load; no separate conversation snapshot hook or conversation store path remains.
@@ -168,6 +173,7 @@ implementation_status:
     - Save-after-dispatch timing, single resume path, and retirement of CheckpointPolicy and the engine undo-walk.
     - Boundary-value JSON round trips, byte-exact valid UTF-8 receipts, caller-memory isolation, nil/empty execution preservation, and invalid conversation rejection.
     - "GH-489: Versioned typed output-redaction metadata, pre-Entry field removal, adapter enforcement, and selector denial for unversioned legacy output (R7)."
+    - "GH-1684: Reference-only LLM conversation receipt v2 with legacy decode, command-local direct Undo, and resolver-based restart restoration (R3.6-R3.10)."
   planned: []
 
 diagrams:

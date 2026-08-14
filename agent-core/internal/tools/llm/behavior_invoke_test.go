@@ -64,8 +64,13 @@ func TestInvokeLLM_UndoRestoresPreviousHistoryLength(t *testing.T) {
 	res := cmd.Execute()
 	require.Equal(t, core.LLMResponded, res.Signal)
 	require.Equal(t, 3, history.Len())
+	require.NotContains(t, res.Receipt, "existing")
+	require.NotContains(t, res.Receipt, "new prompt")
+	require.NotContains(t, res.Receipt, "assistant response")
+	require.NotContains(t, res.Receipt, `"role"`)
+	require.NotContains(t, res.Receipt, `"content"`)
 
-	undo := cmd.Undo(core.Result{})
+	undo := cmd.Undo(core.Result{Receipt: res.Receipt})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, 1, history.Len())
 	require.Equal(t, "existing", history.History()[0].Content)
@@ -77,15 +82,20 @@ func TestInvokeLLM_ReceiptRestoresConversationFromFreshInstance(t *testing.T) {
 	}
 	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
 	history.Append(modelllm.Message{Role: modelllm.User, Content: "existing"})
+	const reference = "checkpoint:run-7/step-3"
 
 	builder := &InvokeLLMBuilder{
-		Client:    client,
-		History:   history,
-		Registry:  core.NewRegistry(),
-		Assembler: &fakeAssembler{},
-		Model:     "test-model",
-		Tracer:    noopTracer(),
-		Ctx:       context.Background(),
+		Client:                  client,
+		History:                 history,
+		Registry:                core.NewRegistry(),
+		Assembler:               &fakeAssembler{},
+		Model:                   "test-model",
+		Tracer:                  noopTracer(),
+		ConversationRefProvider: staticConversationReference{ref: reference, available: true},
+		ConversationRefResolver: fakeConversationReferenceResolver{conversations: map[string][]modelllm.Message{
+			reference: {{Role: modelllm.User, Content: "existing"}},
+		}},
+		Ctx: context.Background(),
 	}
 
 	cmd := builder.Build(core.Result{Output: "new prompt"})
@@ -109,6 +119,74 @@ func TestInvokeLLM_ReceiptRestoresConversationFromFreshInstance(t *testing.T) {
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, 1, history.Len())
 	require.Equal(t, "existing", history.History()[0].Content)
+}
+
+func TestInvokeLLM_LegacyReceiptRestoresConversation(t *testing.T) {
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	history.Append(modelllm.Message{Role: modelllm.User, Content: "current"})
+	cmd := (&InvokeLLMBuilder{History: history}).Build(core.Result{})
+	legacy := []modelllm.Message{{Role: modelllm.User, Content: "legacy"}}
+
+	undo := cmd.Undo(core.Result{Receipt: encodeLegacyConversationReceipt(t, legacy)})
+
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, legacy, history.History())
+}
+
+func TestInvokeLLM_V2RestartUndoRequiresValidReference(t *testing.T) {
+	tests := []struct {
+		name     string
+		receipt  string
+		resolver ConversationReferenceResolver
+		wantErr  string
+	}{
+		{
+			name:    "missing reference",
+			receipt: encodeConversationReceipt(1, ""),
+			wantErr: "no conversation reference",
+		},
+		{
+			name:    "missing resolver",
+			receipt: encodeConversationReceipt(1, "checkpoint:run/step"),
+			wantErr: "resolver is not configured",
+		},
+		{
+			name:    "invalid reference",
+			receipt: encodeConversationReceipt(1, "checkpoint:missing"),
+			resolver: fakeConversationReferenceResolver{
+				conversations: map[string][]modelllm.Message{},
+			},
+			wantErr: "conversation reference not found",
+		},
+		{
+			name:    "snapshot too short",
+			receipt: encodeConversationReceipt(2, "checkpoint:short"),
+			resolver: fakeConversationReferenceResolver{
+				conversations: map[string][]modelllm.Message{
+					"checkpoint:short": {{Role: modelllm.User, Content: "only one"}},
+				},
+			},
+			wantErr: "need at least 2",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+			history.Append(modelllm.Message{Role: modelllm.Assistant, Content: "unchanged"})
+			builder := &InvokeLLMBuilder{
+				History:                 history,
+				ConversationRefResolver: tt.resolver,
+			}
+			fresh := builder.Build(core.Result{})
+
+			undo := fresh.Undo(core.Result{Receipt: tt.receipt})
+
+			require.Equal(t, core.CommandError, undo.Signal)
+			require.ErrorContains(t, undo.Err, tt.wantErr)
+			require.Equal(t, []modelllm.Message{{Role: modelllm.Assistant, Content: "unchanged"}}, history.History())
+			require.NotContains(t, undo.Output, "unchanged")
+		})
+	}
 }
 
 func TestInvokeLLM_UndoRestoresUserMessageAfterError(t *testing.T) {

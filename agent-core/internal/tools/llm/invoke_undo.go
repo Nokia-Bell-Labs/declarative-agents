@@ -8,30 +8,52 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
-// Undo restores the conversation to its pre-invoke state. It prefers the
-// tool-owned receipt on the prior Result (so a fresh command instance can undo
-// after a process restart) and falls back to truncating the shared history on
-// the live in-process path (srd035-checkpoint-port R3; #44 R2, R3).
+// Undo restores the conversation to its pre-invoke state. Legacy receipts carry
+// the full snapshot; v2 receipts use command-local state in process or resolve
+// an authoritative checkpoint reference after restart.
 func (c *invokeLLMCmd) Undo(prior core.Result) core.Result {
-	if msgs, ok, err := decodeConversationReceipt(prior.Receipt); err != nil {
-		e := fmt.Errorf("undo invoke_llm: decode receipt: %w", err)
-		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: e.Error(), Err: e}
-	} else if ok {
-		c.history.Restore(msgs)
-		return core.Result{
-			Signal: core.ToolDone, CommandName: c.Name(),
-			Output: fmt.Sprintf("undo: restored conversation to %d messages", len(msgs)),
+	receipt, ok, err := decodeConversationReceipt(prior.Receipt)
+	if err != nil {
+		return c.undoError(fmt.Errorf("decode receipt: %w", err))
+	}
+	if ok && receipt.legacy {
+		c.history.Restore(receipt.legacyConversation)
+		return c.undoSuccess(receipt.priorLength)
+	}
+	return c.undoV2OrLocal(receipt, ok)
+}
+
+func (c *invokeLLMCmd) undoV2OrLocal(receipt decodedConversationReceipt, hasReceipt bool) core.Result {
+	targetLength := c.prevLen
+	if hasReceipt {
+		targetLength = receipt.priorLength
+	}
+	if c.hasSnapshot && c.prevLen == targetLength {
+		if err := c.history.TruncateTo(targetLength); err != nil {
+			return c.undoError(err)
 		}
+		return c.undoSuccess(targetLength)
 	}
-	if !c.hasSnapshot {
-		err := fmt.Errorf("undo invoke_llm: no conversation snapshot recorded")
-		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
+	if !hasReceipt {
+		return c.undoError(fmt.Errorf("no conversation snapshot recorded"))
 	}
-	if err := c.history.TruncateTo(c.prevLen); err != nil {
-		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
+
+	messages, err := resolveConversationReceipt(receipt, c.conversationRefResolver)
+	if err != nil {
+		return c.undoError(err)
 	}
+	c.history.Restore(messages)
+	return c.undoSuccess(len(messages))
+}
+
+func (c *invokeLLMCmd) undoSuccess(length int) core.Result {
 	return core.Result{
 		Signal: core.ToolDone, CommandName: c.Name(),
-		Output: fmt.Sprintf("undo: restored conversation to %d messages", c.prevLen),
+		Output: fmt.Sprintf("undo: restored conversation to %d messages", length),
 	}
+}
+
+func (c *invokeLLMCmd) undoError(err error) core.Result {
+	err = fmt.Errorf("undo invoke_llm: %w", err)
+	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
 }

@@ -4,10 +4,15 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"testing"
+
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/prompt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeChatClient struct {
@@ -46,4 +51,29 @@ func (s *fakeParser) EnvelopeConfig() (*prompt.Envelope, bool) {
 
 func noopTracer() tracing.Tracer {
 	return tracing.NoopTracer{}
+}
+
+type fakeConversationReferenceResolver struct {
+	conversations map[string][]modelllm.Message
+	err           error
+}
+
+func (f fakeConversationReferenceResolver) ResolveConversationReference(reference string) ([]modelllm.Message, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	messages, ok := f.conversations[reference]
+	if !ok {
+		return nil, fmt.Errorf("conversation reference not found")
+	}
+	result := make([]modelllm.Message, len(messages))
+	copy(result, messages)
+	return result, nil
+}
+
+func encodeLegacyConversationReceipt(t *testing.T, messages []modelllm.Message) string {
+	t.Helper()
+	receipt, err := json.Marshal(legacyConversationReceipt{Conversation: messages})
+	require.NoError(t, err)
+	return string(receipt)
 }
