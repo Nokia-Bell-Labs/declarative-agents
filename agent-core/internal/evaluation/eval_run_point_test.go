@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -92,6 +93,59 @@ func TestBuildPointRegistryRejectsUndeclaredSelection(t *testing.T) {
 		PointToolDeclarations: []string{declarations},
 	})
 	require.ErrorContains(t, err, `tool "absent" is selected but not declared`)
+}
+
+func TestRunPointPropagatesMachineCommandTimeout(t *testing.T) {
+	t.Parallel()
+
+	machine := filepath.Join(t.TempDir(), "point.yaml")
+	require.NoError(t, os.WriteFile(machine, []byte(`
+name: timeout-point
+initial_state: Idle
+states:
+  - {name: Idle}
+  - {name: Running}
+  - {name: Failed, run_status: failed}
+terminal_states: [Failed]
+signals: [Seed, CommandError]
+budget:
+  max_iterations: 3
+  command_timeout: 5ms
+transitions:
+  - {state: Idle, signal: Seed, next: Running, action: context_blocking}
+  - {state: Running, signal: CommandError, next: Failed}
+`), 0o600))
+
+	cancelled := make(chan struct{})
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "context_blocking"}, evalContextBlockingBuilder{cancelled: cancelled})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	es := &EvalSessionState{
+		EvalState: EvalState{
+			PC:  &PointContext{PointID: "timeout-point"},
+			Ctx: ctx,
+		},
+		PointMachine: machine,
+		Stderr:       &bytes.Buffer{},
+	}
+	cmd := &runPointCmd{
+		es: es, pointRegistry: reg,
+		config: catalog.RunPointConfig{
+			PointMachine: machine, AgentName: "critic-point",
+			MaxIterations: 3, SuccessState: "Done",
+		},
+	}
+
+	result := cmd.Execute()
+
+	require.Equal(t, SigPointDone, result.Signal, result.Output)
+	require.ErrorContains(t, cmd.runResult.LastError, "timeout executing context_blocking after 5ms")
+	select {
+	case <-cancelled:
+	default:
+		t.Fatal("context-aware point command did not observe cancellation")
+	}
 }
 
 func TestPointMachineRoutesFailureThroughMetricsBeforeRunPointReturns(t *testing.T) {
@@ -228,4 +282,29 @@ func (evalTestFailureCmd) Execute() core.Result {
 }
 func (evalTestFailureCmd) Undo(core.Result) core.Result {
 	return core.NoopUndo("fail_before_metrics")
+}
+
+type evalContextBlockingBuilder struct {
+	cancelled chan struct{}
+}
+
+func (b evalContextBlockingBuilder) Build(core.Result) core.Command {
+	return &evalContextBlockingCmd{cancelled: b.cancelled}
+}
+
+type evalContextBlockingCmd struct {
+	cancelled chan struct{}
+}
+
+func (c *evalContextBlockingCmd) Name() string { return "context_blocking" }
+func (c *evalContextBlockingCmd) Execute() core.Result {
+	panic("context_blocking must execute through ExecuteContext")
+}
+func (c *evalContextBlockingCmd) ExecuteContext(ctx context.Context) core.Result {
+	<-ctx.Done()
+	close(c.cancelled)
+	return core.Result{Signal: core.CommandError, Err: ctx.Err()}
+}
+func (c *evalContextBlockingCmd) Undo(core.Result) core.Result {
+	return core.NoopUndo(c.Name())
 }
