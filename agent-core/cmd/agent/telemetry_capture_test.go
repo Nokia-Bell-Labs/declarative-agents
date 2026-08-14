@@ -11,8 +11,6 @@ import (
 )
 
 func TestRootCommandExposesTelemetryCaptureFlags(t *testing.T) {
-	t.Parallel()
-
 	capture := rootCmd.PersistentFlags().Lookup("telemetry-capture")
 	require.NotNil(t, capture)
 	require.Equal(t, string(toollm.CaptureOff), capture.DefValue)
