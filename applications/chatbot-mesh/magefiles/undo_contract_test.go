@@ -25,6 +25,21 @@ type declaredUndoContract struct {
 	} `yaml:"tools"`
 }
 
+type declaredRESTRollbackConfig struct {
+	Rest struct {
+		Clients map[string]struct {
+			Operations map[string]struct {
+				Compensation  map[string]interface{} `yaml:"compensation"`
+				Reversibility struct {
+					Classification       string `yaml:"classification"`
+					Undo                 string `yaml:"undo"`
+					RequiresConfirmation bool   `yaml:"requires_confirmation"`
+				} `yaml:"reversibility"`
+			} `yaml:"operations"`
+		} `yaml:"clients"`
+	} `yaml:"rest"`
+}
+
 func TestMutationUndoContractsStaySemanticallyAligned(t *testing.T) {
 	type expectedContract struct {
 		file, name, classification, strategy, payload string
@@ -53,6 +68,7 @@ func TestMutationUndoContractsStaySemanticallyAligned(t *testing.T) {
 		{"../../catalog/agents/collector/declarations.yaml", "relay_collector_spans", "irreversible", "irreversible", "", true},
 		{"../agents/applier/exec-declarations.yaml", "helm_rollback", "irreversible", "irreversible", "", true},
 		{"../agents/rag-server/request-declarations.yaml", "rag_resolve", "irreversible", "irreversible", "", true},
+		{"../agents/provisioning-workflow-orchestrator/request-declarations.yaml", "request_ingest", "irreversible", "irreversible", "", true},
 		{"../agents/provisioning-workflow-orchestrator/request-declarations.yaml", "request_rollout", "irreversible", "irreversible", "", true},
 		{"../agents/provisioning-workflow-orchestrator/request-declarations.yaml", "request_rollout_values", "irreversible", "irreversible", "", true},
 		{"../agents/creator/request-declarations.yaml", "apply_instance", "irreversible", "irreversible", "", true},
@@ -88,20 +104,7 @@ func TestMutationUndoContractsStaySemanticallyAligned(t *testing.T) {
 }
 
 func TestCreatorApplyRESTPolicyMatchesIrreversibleTool(t *testing.T) {
-	var config struct {
-		Rest struct {
-			Clients map[string]struct {
-				Operations map[string]struct {
-					Compensation  map[string]interface{} `yaml:"compensation"`
-					Reversibility struct {
-						Classification       string `yaml:"classification"`
-						Undo                 string `yaml:"undo"`
-						RequiresConfirmation bool   `yaml:"requires_confirmation"`
-					} `yaml:"reversibility"`
-				} `yaml:"operations"`
-			} `yaml:"clients"`
-		} `yaml:"rest"`
-	}
+	var config declaredRESTRollbackConfig
 	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "rest.yaml"), &config)
 	operation := config.Rest.Clients["deployment_api"].Operations["apply_instance"]
 	if operation.Reversibility.Classification != "irreversible" ||
@@ -113,6 +116,41 @@ func TestCreatorApplyRESTPolicyMatchesIrreversibleTool(t *testing.T) {
 	if len(operation.Compensation) != 0 {
 		t.Errorf("creator apply declares compensation without prior deployment state: %v",
 			operation.Compensation)
+	}
+}
+
+func TestRequestIngestRESTPolicyMatchesIrreversibleTool(t *testing.T) {
+	var config declaredRESTRollbackConfig
+	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "rest.yaml"), &config)
+	operation := config.Rest.Clients["creator"].Operations["creator_ingest"]
+	if operation.Reversibility.Classification != "irreversible" ||
+		operation.Reversibility.Undo != "irreversible" ||
+		!operation.Reversibility.RequiresConfirmation {
+		t.Errorf("creator ingest REST policy = %+v, want confirmed irreversible",
+			operation.Reversibility)
+	}
+	if len(operation.Compensation) != 0 {
+		t.Errorf("creator ingest declares unavailable compensation: %v", operation.Compensation)
+	}
+}
+
+func TestCorpusIngestAddRESTPolicyProducesCompensation(t *testing.T) {
+	var config declaredRESTRollbackConfig
+	readIntakeYAML(t, filepath.Join(agentDir(t, "corpus-ingest"), "corpus-rest.yaml"), &config)
+	operations := config.Rest.Clients["chroma"].Operations
+	add := operations["add_records"]
+	if add.Reversibility.Classification != "compensatable" ||
+		add.Reversibility.Undo != "delete_records" ||
+		add.Compensation["operation"] != "delete_records" {
+		t.Errorf("Chroma add REST policy = %+v compensation=%v, want delete-records compensation",
+			add.Reversibility, add.Compensation)
+	}
+	remove := operations["delete_records"]
+	if remove.Reversibility.Classification != "irreversible" ||
+		remove.Reversibility.Undo != "irreversible" ||
+		!remove.Reversibility.RequiresConfirmation {
+		t.Errorf("Chroma delete REST policy = %+v, want confirmed irreversible",
+			remove.Reversibility)
 	}
 }
 

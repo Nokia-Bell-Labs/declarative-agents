@@ -115,8 +115,9 @@ rest:
               target: creator.instance
               state: instance_created
           reversibility:
-            classification: reversible
-            undo: noop
+            classification: irreversible
+            undo: irreversible
+            requires_confirmation: true
         creator_rollout:
           # Delegate the decided rollout to the creator (srd004 R3.2): the provisioning-workflow-orchestrator
           # forwards the caller's full desired mesh state as the values-plane document
