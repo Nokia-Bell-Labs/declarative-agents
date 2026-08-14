@@ -5,6 +5,7 @@ package main
 import (
 	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -37,6 +38,49 @@ func TestControlPlaneBodyIsClean(t *testing.T) {
 		if controlPlaneBodyIsClean(body) {
 			t.Errorf("dirty[%d] %v should carry a transport-authority field", i, body)
 		}
+	}
+}
+
+func TestControlPlaneRequestMachinesClassifyTerminalStatus(t *testing.T) {
+	for _, test := range []struct {
+		agent     string
+		succeeded []string
+		failed    []string
+	}{
+		{
+			agent:     "provisioning-workflow-orchestrator",
+			succeeded: []string{"Reconfigured"},
+			failed:    []string{"Rejected", "Failed"},
+		},
+		{
+			agent:     "creator",
+			succeeded: []string{"HealthReported", "StateReported", "Ingested"},
+			failed:    []string{"IngestRejected", "IngestFailed", "Failed"},
+		},
+	} {
+		t.Run(test.agent, func(t *testing.T) {
+			var machine struct {
+				States []struct {
+					Name      string `yaml:"name"`
+					RunStatus string `yaml:"run_status"`
+				} `yaml:"states"`
+			}
+			readIntakeYAML(t, filepath.Join(agentDir(t, test.agent), "request-machine.yaml"), &machine)
+			statuses := map[string]string{}
+			for _, state := range machine.States {
+				statuses[state.Name] = state.RunStatus
+			}
+			for _, state := range test.succeeded {
+				if statuses[state] != "succeeded" {
+					t.Errorf("%s run_status = %q, want succeeded", state, statuses[state])
+				}
+			}
+			for _, state := range test.failed {
+				if statuses[state] != "failed" {
+					t.Errorf("%s run_status = %q, want failed", state, statuses[state])
+				}
+			}
+		})
 	}
 }
 
