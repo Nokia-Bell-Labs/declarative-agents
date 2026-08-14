@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 	"github.com/magefile/mage/mg"
@@ -21,6 +22,9 @@ const (
 	codingAgentImageRepository = "ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain"
 	codingAgentImageTag        = "0.1.0"
 	codingAgentGolangciLint    = "v2.12.2"
+	// A first uncached toolchain build downloads and compiles Go plus
+	// golangci-lint. Keep that networked build independent of kind operations.
+	codingAgentImageBuildTimeout = 10 * time.Minute
 )
 
 // Image groups production coding-agent image targets.
@@ -52,7 +56,7 @@ func codingAgentCoreRoot(applicationRoot string) string {
 // empty leaves the Dockerfile's published default.
 func buildCodingAgentImage(coreRoot, runtimeImage, image string) error {
 	contextDir, dockerfile, args := codingAgentImageBuild(coreRoot, runtimeImage, image)
-	ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), codingAgentImageBuildTimeout)
 	defer cancel()
 	command := exec.CommandContext(ctx, "docker", args...)
 	command.Dir = contextDir

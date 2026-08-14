@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -31,6 +32,16 @@ func TestCodingAgentImageBuildUsesPublishedRecipe(t *testing.T) {
 	}
 	if !reflect.DeepEqual(args, want) {
 		t.Errorf("docker args = %#v, want %#v", args, want)
+	}
+}
+
+func TestCodingAgentImageBuildHasDedicatedBoundedTimeout(t *testing.T) {
+	if codingAgentImageBuildTimeout != 10*time.Minute {
+		t.Fatalf("image build timeout = %s, want 10m", codingAgentImageBuildTimeout)
+	}
+	if codingAgentImageBuildTimeout <= codingHelmClusterTimeout {
+		t.Fatalf("image build timeout %s reuses shorter cluster-operation budget %s",
+			codingAgentImageBuildTimeout, codingHelmClusterTimeout)
 	}
 }
 
