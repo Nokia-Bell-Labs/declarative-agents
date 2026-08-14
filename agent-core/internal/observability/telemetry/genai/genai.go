@@ -63,6 +63,13 @@ const (
 	AttrToolCallArguments  = attribute.Key("gen_ai.tool.call.arguments")
 	AttrToolCallResult     = attribute.Key("gen_ai.tool.call.result")
 
+	// Repository-owned LLM capture metadata. These keys are outside the
+	// OpenTelemetry GenAI semantic conventions.
+	AttrInputDelta       = attribute.Key("llm.input.delta")
+	AttrOutputDelta      = attribute.Key("llm.output.delta")
+	AttrSystemPromptHash = attribute.Key("llm.system_prompt.hash")
+	AttrConversationRef  = attribute.Key("llm.conversation.ref")
+
 	// Server.
 	AttrServerAddress = attribute.Key("server.address")
 	AttrServerPort    = attribute.Key("server.port")

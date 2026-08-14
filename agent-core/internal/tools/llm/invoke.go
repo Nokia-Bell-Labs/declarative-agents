@@ -32,30 +32,31 @@ const (
 )
 
 type invokeLLMCmd struct {
-	client       modelllm.Client
-	history      *modelllm.Conversation
-	registry     *core.Registry
-	assembler    modelllm.PromptAssembler
-	state        core.State
-	model        string
-	providerName string
-	serverAddr   string
-	userMessage  string
-	promptFrom   string
-	view         core.CommandStateView
-	tracer       tracing.Tracer
-	contextLimit int
-	numCtx       int
-	temperature  float64
-	seed         int
-	captureLevel CaptureLevel
-	ctx          context.Context
-	callTimeout  time.Duration
-	metrics      core.MetricConfig
-	recorder     monitor.ToolMetricsRecorder
-	prevLen      int
-	prevMessages []modelllm.Message
-	hasSnapshot  bool
+	client                  modelllm.Client
+	history                 *modelllm.Conversation
+	registry                *core.Registry
+	assembler               modelllm.PromptAssembler
+	state                   core.State
+	model                   string
+	providerName            string
+	serverAddr              string
+	userMessage             string
+	promptFrom              string
+	view                    core.CommandStateView
+	tracer                  tracing.Tracer
+	contextLimit            int
+	numCtx                  int
+	temperature             float64
+	seed                    int
+	captureLevel            CaptureLevel
+	conversationRefProvider ConversationReferenceProvider
+	ctx                     context.Context
+	callTimeout             time.Duration
+	metrics                 core.MetricConfig
+	recorder                monitor.ToolMetricsRecorder
+	prevLen                 int
+	prevMessages            []modelllm.Message
+	hasSnapshot             bool
 }
 
 func (c *invokeLLMCmd) Name() string { return "invoke_llm" }
@@ -207,11 +208,7 @@ func (c *invokeLLMCmd) chat(messages []modelllm.Message) (modelllm.ChatResponse,
 		genai.AttrRequestTemperature.Float64(c.temperature),
 		genai.AttrRequestSeed.Int(c.seed),
 	)
-	if c.captureLevel.CapturesFullContent() {
-		if inputJSON, err := json.Marshal(messages); err == nil {
-			c.tracer.SetAttributes(genai.AttrInputMessages.String(string(inputJSON)))
-		}
-	}
+	c.recordInputCapture(messages)
 	chatCtx, cancel := c.chatContext()
 	defer cancel()
 	c.tracer.Event("chat.request_start")
@@ -242,9 +239,7 @@ func (c *invokeLLMCmd) chatResult(chatResp modelllm.ChatResponse, duration time.
 	c.tracer.Event("history.assistant_appended", attribute.Int("history_len", c.history.Len()))
 	cost := core.Cost{Duration: duration, TokensIn: chatResp.TokensIn, TokensOut: chatResp.TokensOut}
 	c.tracer.SetAttributes(genai.AttrUsageInputTokens.Int(cost.TokensIn), genai.AttrUsageOutputTokens.Int(cost.TokensOut))
-	if c.captureLevel.CapturesFullContent() {
-		c.tracer.SetAttributes(genai.AttrOutputMessages.String(chatResp.Content))
-	}
+	c.recordOutputCapture(chatResp.Content)
 	c.recordTokenMetrics(cost)
 	return core.Result{
 		Signal:  core.LLMResponded,
@@ -256,23 +251,24 @@ func (c *invokeLLMCmd) chatResult(chatResp modelllm.ChatResponse, duration time.
 
 // InvokeLLMBuilder constructs invoke_llm commands.
 type InvokeLLMBuilder struct {
-	Client       modelllm.Client
-	History      *modelllm.Conversation
-	Registry     *core.Registry
-	Assembler    modelllm.PromptAssembler
-	State        core.State
-	Model        string
-	ProviderName string
-	ServerAddr   string
-	Tracer       tracing.Tracer
-	ContextLimit int
-	NumCtx       int
-	Temperature  float64
-	Seed         int
-	CallTimeout  time.Duration
-	Metrics      core.MetricConfig
-	CaptureLevel CaptureLevel
-	Ctx          context.Context
+	Client                  modelllm.Client
+	History                 *modelllm.Conversation
+	Registry                *core.Registry
+	Assembler               modelllm.PromptAssembler
+	State                   core.State
+	Model                   string
+	ProviderName            string
+	ServerAddr              string
+	Tracer                  tracing.Tracer
+	ContextLimit            int
+	NumCtx                  int
+	Temperature             float64
+	Seed                    int
+	CallTimeout             time.Duration
+	Metrics                 core.MetricConfig
+	CaptureLevel            CaptureLevel
+	ConversationRefProvider ConversationReferenceProvider
+	Ctx                     context.Context
 	// UserPromptFrom, when set, is the command-state $from selector the built
 	// command resolves its user message from instead of the dispatch Result.
 	UserPromptFrom string
@@ -280,12 +276,13 @@ type InvokeLLMBuilder struct {
 
 // InvokeLLMFactoryDeps are process-local ports for invoke_llm construction.
 type InvokeLLMFactoryDeps struct {
-	History      *modelllm.Conversation
-	Registry     *core.Registry
-	Tracer       tracing.Tracer
-	CaptureLevel CaptureLevel
-	Ctx          context.Context
-	OnResolved   func(InvokeLLMResolvedConfig)
+	History                 *modelllm.Conversation
+	Registry                *core.Registry
+	Tracer                  tracing.Tracer
+	CaptureLevel            CaptureLevel
+	ConversationRefProvider ConversationReferenceProvider
+	Ctx                     context.Context
+	OnResolved              func(InvokeLLMResolvedConfig)
 }
 
 // InvokeLLMResolvedConfig exposes metadata needed by neighboring tools.
@@ -333,7 +330,8 @@ func invokeBuilder(
 		Tracer: tracerOrNoop(deps.Tracer), ContextLimit: cfg.ContextLimit, NumCtx: cfg.NumCtx,
 		Temperature: resolveTemperature(cfg), Seed: resolveSeed(cfg),
 		CallTimeout: durationSeconds(cfg.LLMTimeout),
-		Metrics:     def.Metrics, CaptureLevel: deps.CaptureLevel, Ctx: deps.Ctx,
+		Metrics:     def.Metrics, CaptureLevel: deps.CaptureLevel,
+		ConversationRefProvider: deps.ConversationRefProvider, Ctx: deps.Ctx,
 		UserPromptFrom: cfg.UserPromptFrom,
 	}
 }
@@ -370,7 +368,8 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 		state: state, model: b.Model, providerName: b.ProviderName, serverAddr: b.ServerAddr,
 		userMessage: res.Output, promptFrom: b.UserPromptFrom, tracer: tracerOrNoop(b.Tracer), contextLimit: b.ContextLimit,
 		numCtx: b.NumCtx, temperature: b.Temperature, seed: b.Seed,
-		callTimeout: b.CallTimeout, metrics: b.Metrics, captureLevel: b.CaptureLevel, ctx: ctx,
+		callTimeout: b.CallTimeout, metrics: b.Metrics, captureLevel: b.CaptureLevel,
+		conversationRefProvider: b.ConversationRefProvider, ctx: ctx,
 	}
 }
 

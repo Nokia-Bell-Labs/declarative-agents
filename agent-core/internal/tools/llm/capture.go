@@ -27,9 +27,8 @@ func ParseCaptureLevel(value string) (CaptureLevel, error) {
 	}
 }
 
-// CapturesFullContent reports whether current verbose content attributes should
-// be recorded. Delta deliberately remains counts-only until delta attributes
-// are implemented.
+// CapturesFullContent reports whether semantic-convention full-content
+// attributes should be recorded.
 func (l CaptureLevel) CapturesFullContent() bool {
 	return l == CaptureFull
 }

@@ -81,10 +81,11 @@ invocation: |
 
   Diagnostic flags.
     --telemetry-capture  Content capture level for telemetry (default: off).
-                         off records counts only. delta is reserved for bounded
-                         change-oriented content and currently also records
-                         counts only. full records current verbose LLM and
-                         boundary-tool content.
+                         off records no model or boundary-tool content. delta
+                         records bounded current-turn LLM input and output
+                         under repository-owned keys. full records verbose LLM
+                         and boundary-tool content under applicable semantic-
+                         convention and repository-owned keys.
     --verbose-trace      Backward-compatible alias for
                          --telemetry-capture=full. Combining it with explicit
                          off or delta is an error; explicit full is accepted.
