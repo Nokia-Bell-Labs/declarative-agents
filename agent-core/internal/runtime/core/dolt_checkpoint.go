@@ -79,6 +79,7 @@ type DoltCheckpoint struct {
 	finalized              bool
 	refMu                  sync.RWMutex
 	currentConversationRef string
+	currentDomainRef       string
 }
 
 var (
@@ -86,6 +87,8 @@ var (
 	_ CheckpointReverter            = (*DoltCheckpoint)(nil)
 	_ ConversationReferenceProvider = (*DoltCheckpoint)(nil)
 	_ ConversationSnapshotResolver  = (*DoltCheckpoint)(nil)
+	_ DomainReferenceProvider       = (*DoltCheckpoint)(nil)
+	_ DomainSnapshotResolver        = (*DoltCheckpoint)(nil)
 )
 
 const doltSignalColumn = "`signal`"
@@ -153,7 +156,7 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 		}
 		current.Result = sanitized
 	}
-	if err := d.validateConversationReference(position, step, isTerminal); err != nil {
+	if err := d.validateSnapshotReferences(position, step, isTerminal); err != nil {
 		return err
 	}
 	if err := d.prepare(); err != nil {
@@ -206,14 +209,19 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 	// DOLT_COMMIT is the durable version boundary and returns its exact hash.
 	// The remaining reference construction is local and prevalidated; tx.Commit
 	// releases the SQL transaction but cannot make an ambiguous hash lookup safe.
-	conversationRef, err := d.savedConversationReference(position, step, isTerminal, revision)
+	conversationRef, domainRef, err := d.savedSnapshotReferences(
+		position,
+		step,
+		isTerminal,
+		revision,
+	)
 	if err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("%w: save: tx commit: %v", ErrDolt, err)
 	}
-	d.setConversationReference(conversationRef)
+	d.setSnapshotReferences(conversationRef, domainRef)
 	d.persistedExecution = cloneExecution(execution)
 	d.hasPersistedExecution = true
 
@@ -299,7 +307,7 @@ func (d *DoltCheckpoint) loadCurrentExecution(position Position) (Execution, err
 	if err != nil {
 		return nil, fmt.Errorf("%w: load: execution: %v", ErrDolt, err)
 	}
-	if err := d.refreshConversationReference(position, execution); err != nil {
+	if err := d.refreshSnapshotReferences(position, execution); err != nil {
 		return nil, err
 	}
 	d.persistedExecution = cloneExecution(execution)
@@ -433,7 +441,7 @@ func (d *DoltCheckpoint) Revert(runID string, stepIndex int) error {
 	if err := d.db.Exec(`CALL DOLT_RESET('--hard', ?)`, hash); err != nil {
 		return fmt.Errorf("%w: revert: reset %q: %v", ErrDolt, hash, err)
 	}
-	d.setRevertedConversationReference(runID, stepIndex, hash)
+	d.setRevertedSnapshotReferences(runID, stepIndex, hash)
 	return nil
 }
 

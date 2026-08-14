@@ -290,6 +290,7 @@ func TestDoltCheckpointConversationReferencesAgainstRealDolt(t *testing.T) {
 		Snapshot: core.AgentSnapshot{
 			State: "Working", Signal: core.LLMResponded, Iteration: 1,
 			Conversation: json.RawMessage(`[{"role":"user","content":"first"}]`),
+			Domain:       json.RawMessage(`{"corpus":"first"}`),
 		},
 	}
 	firstExecution := core.Execution{{
@@ -299,12 +300,16 @@ func TestDoltCheckpointConversationReferencesAgainstRealDolt(t *testing.T) {
 	require.NoError(t, saver.Save(firstPosition, firstExecution))
 	firstRef, ok := saver.ConversationReference()
 	require.True(t, ok)
+	firstDomainRef, ok := saver.DomainReference()
+	require.True(t, ok)
+	require.Equal(t, firstRef, firstDomainRef)
 
 	secondPosition := firstPosition
 	secondPosition.Snapshot.Iteration = 2
 	secondPosition.Snapshot.Conversation = json.RawMessage(
 		`[{"role":"user","content":"first"},{"role":"assistant","content":"second"}]`,
 	)
+	secondPosition.Snapshot.Domain = json.RawMessage(`{"corpus":"second"}`)
 	secondExecution := append(firstExecution, core.Entry{
 		Iteration: 2, CommandName: "second", FromState: "Working", ToState: "Working",
 		Signal: core.LLMResponded, Result: core.DigestResult(core.Result{Signal: core.LLMResponded}),
@@ -319,9 +324,18 @@ func TestDoltCheckpointConversationReferencesAgainstRealDolt(t *testing.T) {
 	require.NoError(t, err)
 	latestRef, ok := fresh.ConversationReference()
 	require.True(t, ok)
+	latestDomainRef, ok := fresh.DomainReference()
+	require.True(t, ok)
+	require.Equal(t, latestRef, latestDomainRef)
 	resolved, err := fresh.ResolveConversationSnapshot(firstRef)
 	require.NoError(t, err)
 	require.JSONEq(t, string(firstPosition.Snapshot.Conversation), string(resolved))
+	domain, err := fresh.ResolveDomainSnapshot(firstDomainRef)
+	require.NoError(t, err)
+	require.Equal(t, []byte(firstPosition.Snapshot.Domain), domain)
+	domain, err = fresh.ResolveDomainSnapshot(latestDomainRef)
+	require.NoError(t, err)
+	require.Equal(t, []byte(secondPosition.Snapshot.Domain), domain)
 
 	firstParts := strings.Split(firstRef, ":")
 	latestParts := strings.Split(latestRef, ":")
@@ -331,10 +345,14 @@ func TestDoltCheckpointConversationReferencesAgainstRealDolt(t *testing.T) {
 	wrongStep[4] = firstParts[4]
 	_, err = fresh.ResolveConversationSnapshot(strings.Join(wrongStep, ":"))
 	require.ErrorIs(t, err, core.ErrConversationReferenceInvalid)
+	_, err = fresh.ResolveDomainSnapshot(strings.Join(wrongStep, ":"))
+	require.ErrorIs(t, err, core.ErrDomainReferenceInvalid)
 	wrongRevision := append([]string(nil), latestParts...)
 	wrongRevision[5] = firstParts[5]
 	_, err = fresh.ResolveConversationSnapshot(strings.Join(wrongRevision, ":"))
 	require.ErrorIs(t, err, core.ErrConversationReferenceInvalid)
+	_, err = fresh.ResolveDomainSnapshot(strings.Join(wrongRevision, ":"))
+	require.ErrorIs(t, err, core.ErrDomainReferenceInvalid)
 
 	require.NoError(t, fresh.Revert(runID, 0))
 	revertedRef, ok := fresh.ConversationReference()
@@ -343,6 +361,12 @@ func TestDoltCheckpointConversationReferencesAgainstRealDolt(t *testing.T) {
 	resolved, err = fresh.ResolveConversationSnapshot(revertedRef)
 	require.NoError(t, err)
 	require.JSONEq(t, string(firstPosition.Snapshot.Conversation), string(resolved))
+	revertedDomainRef, ok := fresh.DomainReference()
+	require.True(t, ok)
+	require.Equal(t, firstDomainRef, revertedDomainRef)
+	domain, err = fresh.ResolveDomainSnapshot(revertedDomainRef)
+	require.NoError(t, err)
+	require.Equal(t, []byte(firstPosition.Snapshot.Domain), domain)
 }
 
 func TestDoltBinaryPrefersExplicitFlag(t *testing.T) {

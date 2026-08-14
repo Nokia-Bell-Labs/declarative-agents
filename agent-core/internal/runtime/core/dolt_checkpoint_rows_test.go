@@ -26,6 +26,7 @@ type fakeScanner struct {
 	kind         string
 	machine      machineRow
 	conversation *string
+	domain       *string
 	hash         string
 	value        string
 	count        int
@@ -57,6 +58,8 @@ func (s *fakeScanner) Scan(dest ...any) error {
 		*dest[10].(*sql.NullString) = nsFromPtr(s.machine.programDigest)
 	case "conversation":
 		*dest[0].(*sql.NullString) = nsFromPtr(s.conversation)
+	case "domain":
+		*dest[0].(*sql.NullString) = nsFromPtr(s.domain)
 	case "log":
 		*dest[0].(*string) = s.hash
 	case "string":
