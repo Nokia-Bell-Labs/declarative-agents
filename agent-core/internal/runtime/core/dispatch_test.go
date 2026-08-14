@@ -35,6 +35,51 @@ func TestDispatch_StampsSpanAttributesAndCommandName(t *testing.T) {
 	require.Equal(t, int64(5), tr.child.attrs["gen_ai.usage.output_tokens"].AsInt64())
 }
 
+func TestDispatch_InjectsDistinctChildTracersAndIdentity(t *testing.T) {
+	t.Parallel()
+	tr := &dispatchTestTracer{}
+	cmd := &dispatchTracerAwareCmd{name: "tracer_aware"}
+
+	for iteration := 1; iteration <= 2; iteration++ {
+		res := dispatchWithMonitorContext(
+			context.Background(), cmd, tr, 0, nil,
+			monitor.DispatchContext{
+				RunID:          "run-42",
+				ConversationID: "request-7",
+				Iteration:      iteration,
+			},
+		)
+		require.Equal(t, ToolDone, res.Signal)
+	}
+
+	require.Len(t, cmd.tracers, 2)
+	require.NotSame(t, cmd.tracers[0], cmd.tracers[1])
+	require.Same(t, tr.children[0], cmd.tracers[0])
+	require.Same(t, tr.children[1], cmd.tracers[1])
+	require.Equal(t, cmd.tracers, cmd.executeTracers)
+	require.Equal(t, int64(1), tr.pushAttrSets[0]["iteration"].AsInt64())
+	require.Equal(t, int64(2), tr.pushAttrSets[1]["iteration"].AsInt64())
+	for _, attrs := range tr.pushAttrSets {
+		require.Equal(t, "run-42", attrs["run.id"].AsString())
+		require.Equal(t, "request-7", attrs["gen_ai.conversation.id"].AsString())
+	}
+	require.Empty(t, tr.attrs, "dispatch identity must not be stamped on the run span")
+}
+
+func TestDispatch_UsesRunIDAsConversationIdentity(t *testing.T) {
+	t.Parallel()
+	tr := &dispatchTestTracer{}
+
+	dispatchWithMonitorContext(
+		context.Background(),
+		dispatchResultCmd{name: "run_scoped", res: Result{Signal: ToolDone}},
+		tr, 0, nil,
+		monitor.DispatchContext{RunID: "run-conversation", Iteration: 3},
+	)
+
+	require.Equal(t, "run-conversation", tr.pushAttrs["gen_ai.conversation.id"].AsString())
+}
+
 func TestDispatch_RecordsCommandErrorsOnSpan(t *testing.T) {
 	t.Parallel()
 	tr := &dispatchTestTracer{}
@@ -364,18 +409,38 @@ func (c *dispatchMetricCmd) SetMonitorRecorder(rec monitor.ToolMetricsRecorder) 
 	c.rec = rec
 }
 
+type dispatchTracerAwareCmd struct {
+	name           string
+	tracers        []tracing.Tracer
+	executeTracers []tracing.Tracer
+}
+
+func (c *dispatchTracerAwareCmd) Name() string { return c.name }
+func (c *dispatchTracerAwareCmd) Execute() Result {
+	c.executeTracers = append(c.executeTracers, c.tracers[len(c.tracers)-1])
+	return Result{Signal: ToolDone}
+}
+func (c *dispatchTracerAwareCmd) Undo(_ Result) Result { return NoopUndo(c.name) }
+func (c *dispatchTracerAwareCmd) SetTracer(tracer tracing.Tracer) {
+	c.tracers = append(c.tracers, tracer)
+}
+
 type dispatchTestTracer struct {
-	pushName  string
-	pushAttrs map[string]attribute.Value
-	attrs     map[string]attribute.Value
-	errors    []error
-	child     *dispatchTestTracer
+	pushName     string
+	pushAttrs    map[string]attribute.Value
+	pushAttrSets []map[string]attribute.Value
+	attrs        map[string]attribute.Value
+	errors       []error
+	child        *dispatchTestTracer
+	children     []*dispatchTestTracer
 }
 
 func (r *dispatchTestTracer) Push(name string, attrs ...attribute.KeyValue) (tracing.Tracer, func()) {
 	r.pushName = name
 	r.pushAttrs = dispatchAttrs(attrs)
+	r.pushAttrSets = append(r.pushAttrSets, r.pushAttrs)
 	r.child = &dispatchTestTracer{}
+	r.children = append(r.children, r.child)
 	return r.child, func() {}
 }
 
@@ -416,6 +481,7 @@ func (r *dispatchRuntimeRecorder) RecordRun(context.Context, monitor.RunSnapshot
 }
 
 var _ MonitorRecorderAware = (*dispatchMetricCmd)(nil)
+var _ TracerAware = (*dispatchTracerAwareCmd)(nil)
 var _ ContextCommand = (*dispatchContextBlockingCmd)(nil)
 var _ monitor.RuntimeRecorder = (*dispatchRuntimeRecorder)(nil)
 var _ tracing.Tracer = (*dispatchTestTracer)(nil)

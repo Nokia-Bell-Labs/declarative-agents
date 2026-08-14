@@ -32,10 +32,14 @@ func dispatchWithMonitorContext(
 		spanName = so.SpanName()
 		spanAttrs = so.SpanCreationAttrs()
 	}
+	spanAttrs = append(spanAttrs, dispatchIdentityAttrs(dispatchCtx)...)
 
 	child, done := tr.Push(spanName, spanAttrs...)
 	defer done()
 
+	if aware, ok := cmd.(TracerAware); ok {
+		aware.SetTracer(child)
+	}
 	var toolMetrics *dispatchMetricRecorder
 	if aware, ok := cmd.(MonitorRecorderAware); ok && rec != nil {
 		toolMetrics = &dispatchMetricRecorder{
@@ -55,6 +59,18 @@ func dispatchWithMonitorContext(
 	stampSpan(child, cmd.Name(), res)
 	recordDispatchMetrics(child.Context(), rec, dispatchCtx, res)
 	return res
+}
+
+func dispatchIdentityAttrs(dc monitor.DispatchContext) []attribute.KeyValue {
+	conversationID := dc.ConversationID
+	if conversationID == "" {
+		conversationID = dc.RunID
+	}
+	return []attribute.KeyValue{
+		attribute.Int("iteration", dc.Iteration),
+		attribute.String("run.id", dc.RunID),
+		genai.AttrConversationID.String(conversationID),
+	}
 }
 
 // SafeExecuteContext runs a command with caller cancellation. ContextCommand

@@ -162,9 +162,10 @@ type Snapshot struct {
 
 // DispatchContext carries runtime-owned identity for standard metrics.
 type DispatchContext struct {
-	RunID        string
-	AgentName    string
-	State        string
-	Iteration    int
-	MetricLabels map[string]string
+	RunID          string
+	ConversationID string
+	AgentName      string
+	State          string
+	Iteration      int
+	MetricLabels   map[string]string
 }
