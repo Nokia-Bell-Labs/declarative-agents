@@ -3,16 +3,45 @@
 package lifecycle
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
+
+const (
+	checkpointRollbackReceiptVersion  = 1
+	checkpointRollbackReceiptStrategy = "operator_selected_rollback_recovery"
+	maxCheckpointRollbackReceiptBytes = 4096
+)
+
+var checkpointRollbackReceiptRequirements = []string{
+	"operator_decision",
+	"resume_checkpoint_or_rollback_target",
+}
+
+type checkpointRollbackReceipt struct {
+	Version            int      `json:"version"`
+	Strategy           string   `json:"strategy"`
+	Declaration        string   `json:"declaration"`
+	Run                string   `json:"run"`
+	TargetIteration    int      `json:"target_iteration"`
+	TargetStep         int      `json:"target_step"`
+	PriorBranch        string   `json:"prior_branch,omitempty"`
+	PriorCheckpoint    string   `json:"prior_checkpoint,omitempty"`
+	RollbackCheckpoint string   `json:"rollback_checkpoint,omitempty"`
+	Requires           []string `json:"requires"`
+}
 
 // CheckpointHistoryBuilder constructs checkpoint_history commands.
 type CheckpointHistoryBuilder struct {
@@ -56,6 +85,7 @@ func (c *checkpointHistoryCmd) Undo(_ core.Result) core.Result { return core.Noo
 
 // CheckpointRollbackBuilder constructs checkpoint_rollback commands.
 type CheckpointRollbackBuilder struct {
+	ToolName   string
 	Config     catalog.CheckpointRollbackConfig
 	Checkpoint core.CheckpointReverter
 	Registry   core.CommandResolver
@@ -65,12 +95,21 @@ type CheckpointRollbackBuilder struct {
 
 func (b *CheckpointRollbackBuilder) Build(_ core.Result) core.Command {
 	return &checkpointRollbackCmd{
-		config: b.Config, checkpoint: b.Checkpoint, registry: b.Registry,
+		toolName: b.ToolName,
+		config:   b.Config, checkpoint: b.Checkpoint, registry: b.Registry,
 		runID: b.RunID, tracer: b.Tracer,
 	}
 }
 
+// BuildReverser constructs an undo-only command from declaration identity alone.
+// It validates the successful rollback's persisted receipt and reports operator
+// recovery work; it cannot replay the original forward execution.
+func (b *CheckpointRollbackBuilder) BuildReverser() core.Command {
+	return &checkpointRollbackRecoveryCmd{toolName: b.ToolName}
+}
+
 type checkpointRollbackCmd struct {
+	toolName   string
 	config     catalog.CheckpointRollbackConfig
 	checkpoint core.CheckpointReverter
 	registry   core.CommandResolver
@@ -78,7 +117,9 @@ type checkpointRollbackCmd struct {
 	tracer     tracing.Tracer
 }
 
-func (c *checkpointRollbackCmd) Name() string { return "checkpoint_rollback" }
+func (c *checkpointRollbackCmd) Name() string {
+	return lifecycleToolName(c.toolName, "checkpoint_rollback")
+}
 
 var _ core.ContextCommand = (*checkpointRollbackCmd)(nil)
 
@@ -104,6 +145,7 @@ func (c *checkpointRollbackCmd) ExecuteContext(ctx context.Context) core.Result 
 	if err != nil {
 		return commandError(c.Name(), err)
 	}
+	priorCheckpoint := rollbackCheckpointReference(c.checkpoint)
 	report, err := rollbackViaReceipts(rollbackViaReceiptsOptions{
 		Context:         ctx,
 		Reverter:        c.checkpoint,
@@ -129,11 +171,233 @@ func (c *checkpointRollbackCmd) ExecuteContext(ctx context.Context) core.Result 
 		}
 		return commandError(c.Name(), err)
 	}
-	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: rollbackOutput(report, nil)}
+	return c.successfulRollbackResult(report, priorCheckpoint)
 }
 
-func (c *checkpointRollbackCmd) Undo(_ core.Result) core.Result {
-	return undo.BoundaryCompensationUndo(c.Name(), "operator can resume from the original checkpoint or choose another rollback checkpoint")
+func (c *checkpointRollbackCmd) successfulRollbackResult(
+	report rollbackReport,
+	priorCheckpoint string,
+) core.Result {
+	receipt, err := encodeCheckpointRollbackReceipt(checkpointRollbackReceipt{
+		Version:            checkpointRollbackReceiptVersion,
+		Strategy:           checkpointRollbackReceiptStrategy,
+		Declaration:        c.Name(),
+		Run:                c.runID,
+		TargetIteration:    *c.config.ToIteration,
+		TargetStep:         report.TargetStep,
+		PriorBranch:        rollbackPriorBranch(c.runID),
+		PriorCheckpoint:    priorCheckpoint,
+		RollbackCheckpoint: rollbackCheckpointReference(c.checkpoint),
+		Requires:           append([]string(nil), checkpointRollbackReceiptRequirements...),
+	})
+	if err != nil {
+		return commandError(c.Name(), fmt.Errorf("encode checkpoint rollback receipt: %w", err))
+	}
+	return core.Result{
+		Signal: core.ToolDone, CommandName: c.Name(),
+		Output: rollbackOutput(report, nil), Receipt: receipt,
+	}
+}
+
+func (c *checkpointRollbackCmd) Undo(prior core.Result) core.Result {
+	return (&checkpointRollbackRecoveryCmd{toolName: c.toolName}).Undo(prior)
+}
+
+type checkpointRollbackRecoveryCmd struct {
+	toolName string
+}
+
+func (c *checkpointRollbackRecoveryCmd) Name() string {
+	return lifecycleToolName(c.toolName, "checkpoint_rollback")
+}
+
+func (c *checkpointRollbackRecoveryCmd) Execute() core.Result {
+	return commandError(c.Name(), fmt.Errorf("%s recovery command is undo-only", c.Name()))
+}
+
+func (c *checkpointRollbackRecoveryCmd) Undo(prior core.Result) core.Result {
+	receipt, err := c.decodeReceipt(prior)
+	if err != nil {
+		return commandError(c.Name(), fmt.Errorf("decode checkpoint rollback receipt: %w", err))
+	}
+	data := map[string]interface{}{
+		"run":              receipt.Run,
+		"target_iteration": receipt.TargetIteration,
+		"target_step":      receipt.TargetStep,
+		"actions": []string{
+			"resume_from_rollback_checkpoint",
+			"select_another_rollback_target",
+			"restore_prior_checkpoint",
+		},
+	}
+	addRollbackRecoveryData(data, "prior_branch", receipt.PriorBranch)
+	addRollbackRecoveryData(data, "prior_checkpoint", receipt.PriorCheckpoint)
+	addRollbackRecoveryData(data, "rollback_checkpoint", receipt.RollbackCheckpoint)
+	return undo.BoundaryCompensationResult(c.Name(), undo.BoundaryCompensation{
+		Strategy: checkpointRollbackReceiptStrategy,
+		Reason: fmt.Sprintf(
+			"rollback of run %q to iteration %d (step %d) remains applied; "+
+				"an operator must choose a checkpoint to resume or another rollback target",
+			receipt.Run, receipt.TargetIteration, receipt.TargetStep,
+		),
+		Requires: append([]string(nil), receipt.Requires...),
+		Data:     data,
+	})
+}
+
+func (c *checkpointRollbackRecoveryCmd) decodeReceipt(
+	prior core.Result,
+) (checkpointRollbackReceipt, error) {
+	if prior.CommandName != "" && prior.CommandName != c.Name() {
+		return checkpointRollbackReceipt{}, fmt.Errorf(
+			"command %q does not match declaration %q", prior.CommandName, c.Name(),
+		)
+	}
+	receipt, err := decodeCheckpointRollbackReceipt(prior.Receipt)
+	if err != nil {
+		return checkpointRollbackReceipt{}, err
+	}
+	if receipt.Declaration != c.Name() {
+		return checkpointRollbackReceipt{}, fmt.Errorf(
+			"declaration %q does not match %q", receipt.Declaration, c.Name(),
+		)
+	}
+	return receipt, nil
+}
+
+func encodeCheckpointRollbackReceipt(receipt checkpointRollbackReceipt) (string, error) {
+	if err := validateCheckpointRollbackReceipt(receipt); err != nil {
+		return "", err
+	}
+	value, err := json.Marshal(receipt)
+	if err != nil {
+		return "", err
+	}
+	if len(value) > maxCheckpointRollbackReceiptBytes {
+		return "", fmt.Errorf("receipt exceeds %d bytes", maxCheckpointRollbackReceiptBytes)
+	}
+	return string(value), nil
+}
+
+func decodeCheckpointRollbackReceipt(value string) (checkpointRollbackReceipt, error) {
+	if value == "" {
+		return checkpointRollbackReceipt{}, fmt.Errorf("receipt is required")
+	}
+	if len(value) > maxCheckpointRollbackReceiptBytes {
+		return checkpointRollbackReceipt{}, fmt.Errorf(
+			"receipt exceeds %d bytes", maxCheckpointRollbackReceiptBytes,
+		)
+	}
+	var receipt checkpointRollbackReceipt
+	decoder := json.NewDecoder(bytes.NewReader([]byte(value)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&receipt); err != nil {
+		return checkpointRollbackReceipt{}, err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return checkpointRollbackReceipt{}, fmt.Errorf("multiple JSON values")
+		}
+		return checkpointRollbackReceipt{}, err
+	}
+	if err := validateCheckpointRollbackReceipt(receipt); err != nil {
+		return checkpointRollbackReceipt{}, err
+	}
+	return receipt, nil
+}
+
+func validateCheckpointRollbackReceipt(receipt checkpointRollbackReceipt) error {
+	if receipt.Version != checkpointRollbackReceiptVersion {
+		return fmt.Errorf("unsupported receipt version %d", receipt.Version)
+	}
+	if receipt.Strategy != checkpointRollbackReceiptStrategy {
+		return fmt.Errorf(
+			"strategy %q does not match %q",
+			receipt.Strategy, checkpointRollbackReceiptStrategy,
+		)
+	}
+	if err := validateCheckpointRollbackReceiptFields(receipt); err != nil {
+		return err
+	}
+	if receipt.TargetIteration < 0 {
+		return fmt.Errorf("target_iteration must be non-negative")
+	}
+	if receipt.TargetStep < 0 {
+		return fmt.Errorf("target_step must be non-negative")
+	}
+	return validateCheckpointRollbackReceiptRequirements(receipt.Requires)
+}
+
+func validateCheckpointRollbackReceiptFields(receipt checkpointRollbackReceipt) error {
+	for name, field := range map[string]string{
+		"strategy": receipt.Strategy, "declaration": receipt.Declaration, "run": receipt.Run,
+	} {
+		if !canonicalRollbackReceiptField(field) {
+			return fmt.Errorf("%s is required and must be canonical", name)
+		}
+	}
+	for name, field := range map[string]string{
+		"prior_branch":        receipt.PriorBranch,
+		"prior_checkpoint":    receipt.PriorCheckpoint,
+		"rollback_checkpoint": receipt.RollbackCheckpoint,
+	} {
+		if field != "" && !canonicalRollbackReceiptField(field) {
+			return fmt.Errorf("%s must be canonical when present", name)
+		}
+	}
+	return nil
+}
+
+func validateCheckpointRollbackReceiptRequirements(requires []string) error {
+	if len(requires) != len(checkpointRollbackReceiptRequirements) {
+		return fmt.Errorf("requires must name the operator recovery decision")
+	}
+	for i, requirement := range checkpointRollbackReceiptRequirements {
+		if requires[i] != requirement {
+			return fmt.Errorf("requires must name the operator recovery decision")
+		}
+	}
+	return nil
+}
+
+func canonicalRollbackReceiptField(value string) bool {
+	if value == "" || len(value) > maxCheckpointRollbackReceiptBytes ||
+		!utf8.ValidString(value) || strings.TrimSpace(value) != value {
+		return false
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			return false
+		}
+	}
+	return true
+}
+
+func rollbackPriorBranch(runID string) string {
+	if runID == "" || runID == "latest" {
+		return ""
+	}
+	return runID
+}
+
+func rollbackCheckpointReference(checkpoint core.Checkpoint) string {
+	if provider, ok := checkpoint.(core.ConversationReferenceProvider); ok {
+		if reference, available := provider.ConversationReference(); available {
+			return reference
+		}
+	}
+	if provider, ok := checkpoint.(core.DomainReferenceProvider); ok {
+		if reference, available := provider.DomainReference(); available {
+			return reference
+		}
+	}
+	return ""
+}
+
+func addRollbackRecoveryData(data map[string]interface{}, key, value string) {
+	if value != "" {
+		data[key] = value
+	}
 }
 
 func commandError(commandName string, err error) core.Result {

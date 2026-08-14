@@ -12,7 +12,7 @@ tools:
   emits:
   - ToolDone
   - CommandError
-  description: Roll back a run to the last persisted step of a target iteration by reverting the Dolt branch and replaying receipts.
+  description: Roll back a run to the last persisted step of a target iteration by reverting the Dolt branch and replaying receipts, then persist operator recovery context.
   category: boundary
   problem: |
     Operators need rollback as a machine action with explicit inputs, not as
@@ -28,13 +28,15 @@ tools:
     - must receive a target iteration and resolve its last execution step.
     output:
     - must print the run id, target step, reverted-entry count, skipped irreversible entries, and pending compensation work.
+    - on success, must emit a strict receipt containing the declaration alias, run, target iteration and step, prior branch or checkpoint when available, resulting rollback checkpoint when available, and required operator decision.
     side_effects:
     - must revert DB-persisted state on the run branch to the target step (DB-only).
     - reverses external effects only through each tool's receipt-consuming Undo; effects with no sufficient receipt are not reverted.
     undo:
-    - must document that rollback recovery requires an operator-selected step.
+    - must validate the persisted rollback receipt in a fresh receipt-only reverser and report named pending operator recovery without replaying the original forward execution.
     errors:
     - must fail when the target step is invalid, Revert fails, or a receipt-walk Undo fails.
+    - must emit no receipt when rollback or receipt validation fails.
   non_goals:
   - Does not resume the agent after rollback.
   - Does not revert files, HTTP, or workspace effects inside the Dolt adapter; Revert is DB-only and external effects are reversed only through tool receipts.
@@ -108,14 +110,21 @@ tools:
     requires_confirmation: true
   undo:
     strategy: compensating_action
-    description: Operator can choose another target step or resume from the run's latest state; external audit history cannot be erased.
-    payload: boundary_compensation
+    description: Operator must choose the rollback checkpoint to resume, another rollback target, or the recorded prior checkpoint; the original forward execution is never replayed automatically.
+    payload: checkpoint_rollback_receipt
     captures:
+    - declaration
     - run
+    - target_iteration
     - target_step
+    - prior_branch
+    - prior_checkpoint
+    - rollback_checkpoint
+    - requires
     requires:
     - run
     - operator_decision
+    - resume_checkpoint_or_rollback_target
   errors:
   - signal: CommandError
     condition: rollback fails to resolve the run/step, revert the branch, or replay a receipt-consuming Undo

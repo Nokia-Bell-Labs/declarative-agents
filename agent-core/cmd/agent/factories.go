@@ -186,6 +186,7 @@ func checkpointRollbackFactory(st *agentState) toolregistry.BuiltinFactory {
 		}
 		reverter, _ := st.checkpointForOps().(core.CheckpointReverter)
 		return &lifecycle.CheckpointRollbackBuilder{
+			ToolName:   def.Name,
 			Config:     cfg,
 			Checkpoint: reverter,
 			Registry:   st.registry,
