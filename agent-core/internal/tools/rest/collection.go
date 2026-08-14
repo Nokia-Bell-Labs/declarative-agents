@@ -61,6 +61,7 @@ type ServerDefinition struct {
 	Auth                 map[string]AuthProfile
 	Credentials          CredentialResolver
 	MachineRequestRunner MachineRequestRunner
+	SignalSourceRunner   SignalSourceRunner
 	Monitor              MonitorState
 	RunID                string
 }
@@ -80,6 +81,11 @@ type MonitorState struct {
 // MachineRequestRunner runs one request-scoped machine.
 type MachineRequestRunner interface {
 	RunMachineRequest(context.Context, MachineRequestRun) (MachineRequestResult, error)
+}
+
+// SignalSourceRunner admits into the host program, never a nested request machine.
+type SignalSourceRunner interface {
+	RequestSignal(context.Context, core.SignalEnvelope) core.SignalAdmission
 }
 
 // MachineRequestRun is the accepted HTTP request visible to a request machine.

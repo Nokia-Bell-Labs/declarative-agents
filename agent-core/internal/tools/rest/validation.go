@@ -809,6 +809,13 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 			return err
 		}
 	}
+	if endpoint.Binding == bindingSignalSource {
+		if err := validateSignalSourceEndpoint(name, endpoint); err != nil {
+			return err
+		}
+	} else if signalSourceYAMLSet(endpoint.SignalSource) {
+		return fmt.Errorf("endpoint %q has signal_source config but binding is %q", name, endpoint.Binding)
+	}
 	if endpoint.StaticAssets != nil && endpoint.Binding != bindingStaticAssets {
 		return fmt.Errorf(
 			"endpoint %q has static_assets config but binding is %q (want %q)",
@@ -993,6 +1000,197 @@ func validateMachineRequestSensitiveFields(mapping MachineRequestMapping) error 
 		seen[name] = true
 	}
 	return nil
+}
+
+func validateSignalSourceEndpoint(name string, endpoint Endpoint) error {
+	cfg := endpoint.SignalSource
+	if err := validateSignalSourceNoConflicts(name, endpoint); err != nil {
+		return err
+	}
+	if err := validateSignalSourceIdentity(name, cfg); err != nil {
+		return err
+	}
+	if err := validateSignalSourceSelectors(name, endpoint.Request, cfg); err != nil {
+		return err
+	}
+	if err := validateSignalSourceMappings(name, endpoint.Request, cfg); err != nil {
+		return err
+	}
+	if err := validateSignalSourceSensitive(name, cfg); err != nil {
+		return err
+	}
+	timeout, err := time.ParseDuration(cfg.Timeout)
+	if err != nil || timeout <= 0 {
+		return fmt.Errorf("endpoint %q signal_source timeout must be a positive duration", name)
+	}
+	return validateSignalSourceResponses(name, cfg.Responses)
+}
+
+func validateSignalSourceNoConflicts(name string, endpoint Endpoint) error {
+	if endpoint.Signal != "" || len(endpoint.AllowedSignals) > 0 ||
+		endpoint.SignalField != "" || len(endpoint.SignalMapping) > 0 {
+		return fmt.Errorf("endpoint %q signal_source must not set emit_signal fields", name)
+	}
+	if machineRequestYAMLSet(endpoint.MachineRequest) {
+		return fmt.Errorf("endpoint %q signal_source must not set machine_request", name)
+	}
+	if lifecycleControlSet(endpoint.LifecycleControl) || queueConfigSet(endpoint.Queue) {
+		return fmt.Errorf("endpoint %q signal_source must not set lifecycle_control or queue", name)
+	}
+	if len(endpoint.Response.Schema) > 0 || len(endpoint.Response.Output) > 0 ||
+		len(endpoint.Response.Redact) > 0 || endpoint.Response.ResourceID != "" ||
+		endpoint.Response.RequestID != "" {
+		return fmt.Errorf("endpoint %q signal_source must use signal_source.responses", name)
+	}
+	return nil
+}
+
+func validateSignalSourceIdentity(name string, cfg SignalSourceBinding) error {
+	if strings.TrimSpace(cfg.Source) == "" {
+		return fmt.Errorf("endpoint %q signal_source requires source", name)
+	}
+	if cfg.Source != strings.TrimSpace(cfg.Source) {
+		return fmt.Errorf("endpoint %q signal_source source must not have surrounding whitespace", name)
+	}
+	if len(cfg.Source) > 128 {
+		return fmt.Errorf("endpoint %q signal_source source exceeds 128 bytes", name)
+	}
+	if len(cfg.SignalMapping) == 0 {
+		return fmt.Errorf("endpoint %q signal_source requires a closed signal_mapping", name)
+	}
+	if len(cfg.Payload) == 0 {
+		return fmt.Errorf("endpoint %q signal_source requires payload mapping", name)
+	}
+	return nil
+}
+
+func validateSignalSourceSelectors(
+	name string,
+	request RequestBinding,
+	cfg SignalSourceBinding,
+) error {
+	if err := validateSignalSourceSelector(name, request, "discriminator_field", cfg.DiscriminatorField); err != nil {
+		return err
+	}
+	if err := validateSignalSourceSelector(name, request, "run_id_field", cfg.RunIDField); err != nil {
+		return err
+	}
+	if cfg.ExpectedStateField != "" {
+		if err := validateSignalSourceSelector(name, request, "expected_state_field", cfg.ExpectedStateField); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSignalSourceMappings(
+	name string,
+	request RequestBinding,
+	cfg SignalSourceBinding,
+) error {
+	for discriminator, signal := range cfg.SignalMapping {
+		if discriminator == "" || strings.TrimSpace(signal) == "" {
+			return fmt.Errorf("endpoint %q signal_source signal_mapping keys and values must be non-empty", name)
+		}
+	}
+	for field, selector := range cfg.Payload {
+		if !validSignalPayloadField(field) {
+			return fmt.Errorf("endpoint %q signal_source payload field %q is invalid", name, field)
+		}
+		if err := validateSignalSourceSelector(name, request, "payload."+field, selector); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var signalSourceAuthorityFields = map[string]bool{
+	"signal": true, "profile": true, "profile_path": true, "machine": true, "method": true, "url": true, "host": true,
+	"machine_spec": true, "tools": true, "tool_declarations": true, "model": true, "model_config": true, "checkpoint": true, "checkpoint_connection": true,
+}
+
+func validateSignalSourceSelector(
+	name string,
+	request RequestBinding,
+	field string,
+	selector string,
+) error {
+	parsed, ok := core.ParseSelector(selector)
+	if !ok || parsed.Label != "" || len(parsed.Path) < 2 {
+		return fmt.Errorf("endpoint %q signal_source %s %q must be a declared $.group.field selector", name, field, selector)
+	}
+	group, requestField := parsed.Path[0], parsed.Path[1]
+	switch group {
+	case "body":
+		if !bodySchemaDeclares(request.BodySchema, requestField) {
+			return fmt.Errorf("endpoint %q signal_source %s selects undeclared body field %q", name, field, requestField)
+		}
+	case "query":
+		if _, ok := request.Query[requestField]; !ok || len(parsed.Path) != 2 {
+			return fmt.Errorf("endpoint %q signal_source %s selects undeclared query field %q", name, field, requestField)
+		}
+	case "path":
+		if _, ok := request.Path[requestField]; !ok || len(parsed.Path) != 2 {
+			return fmt.Errorf("endpoint %q signal_source %s selects undeclared path field %q", name, field, requestField)
+		}
+	case "headers":
+		_, declared := lookupHeaderSchema(request.Headers, requestField)
+		if !declared || len(parsed.Path) != 2 || requestField != strings.ToLower(requestField) {
+			return fmt.Errorf("endpoint %q signal_source %s selects undeclared header field %q", name, field, requestField)
+		}
+	default:
+		return fmt.Errorf("endpoint %q signal_source %s selects unsupported request group %q", name, field, group)
+	}
+	if signalSourceAuthorityFields[strings.ToLower(requestField)] {
+		return fmt.Errorf("endpoint %q signal_source %s cannot select caller program or signal authority %q", name, field, requestField)
+	}
+	return nil
+}
+
+func validSignalPayloadField(field string) bool {
+	return field != "" && field == strings.TrimSpace(field) &&
+		!strings.Contains(field, ".") && !strings.ContainsAny(field, "\r\n\t")
+}
+
+func validateSignalSourceSensitive(name string, cfg SignalSourceBinding) error {
+	seen := map[string]bool{}
+	for _, field := range cfg.Sensitive {
+		if seen[field] {
+			return fmt.Errorf("endpoint %q signal_source sensitive field %q is duplicated", name, field)
+		}
+		if _, ok := cfg.Payload[field]; !ok {
+			return fmt.Errorf("endpoint %q signal_source sensitive field %q is not mapped payload", name, field)
+		}
+		seen[field] = true
+	}
+	return nil
+}
+
+func validateSignalSourceResponses(name string, responses SignalSourceResponseMappings) error {
+	required := map[string]SignalSourceResponse{
+		"accepted": responses.Accepted, "refused_undeclared": responses.RefusedUndeclared, "source_validation": responses.SourceValidation, "machine_run_failed": responses.MachineRunFailed,
+	}
+	for outcome, response := range required {
+		if !validHTTPStatus(response.Status) {
+			return fmt.Errorf("endpoint %q signal_source response %s requires HTTP status 100-599", name, outcome)
+		}
+	}
+	if responses.RefusedConflict.Status != 0 && !validHTTPStatus(responses.RefusedConflict.Status) {
+		return fmt.Errorf("endpoint %q signal_source response refused_conflict has invalid HTTP status", name)
+	}
+	return nil
+}
+
+func validHTTPStatus(status int) bool {
+	return status >= 100 && status <= 599
+}
+
+func signalSourceYAMLSet(cfg SignalSourceBinding) bool {
+	return cfg.Source != "" || cfg.DiscriminatorField != "" || len(cfg.SignalMapping) > 0 || cfg.RunIDField != "" ||
+		cfg.ExpectedStateField != "" || len(cfg.Payload) > 0 ||
+		len(cfg.Sensitive) > 0 || cfg.Timeout != "" || cfg.Responses.Accepted.Status != 0 ||
+		cfg.Responses.RefusedUndeclared.Status != 0 || cfg.Responses.RefusedConflict.Status != 0 ||
+		cfg.Responses.SourceValidation.Status != 0 || cfg.Responses.MachineRunFailed.Status != 0
 }
 
 func validateStaticAssetsEndpoint(name string, endpoint Endpoint) error {

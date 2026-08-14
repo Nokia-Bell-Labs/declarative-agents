@@ -186,6 +186,7 @@ type Endpoint struct {
 	Response           ResponseMapping     `yaml:"response,omitempty"`
 	Queue              QueueConfig         `yaml:"queue,omitempty"`
 	MachineRequest     MachineRequest      `yaml:"machine_request,omitempty"`
+	SignalSource       SignalSourceBinding `yaml:"signal_source,omitempty"`
 	StaticAssets       *StaticAssetsConfig `yaml:"static_assets,omitempty"`
 	Redirect           *RedirectConfig     `yaml:"redirect,omitempty"`
 	MonitorProxy       *MonitorProxyConfig `yaml:"monitor_proxy,omitempty"`
@@ -284,6 +285,35 @@ type MachineResponseMapping struct {
 	Headers     map[string]string      `yaml:"headers,omitempty"`
 	Body        map[string]string      `yaml:"body,omitempty"`
 	Schema      map[string]interface{} `yaml:"schema,omitempty"`
+}
+
+// SignalSourceBinding maps validated HTTP data into a trusted SignalEnvelope.
+type SignalSourceBinding struct {
+	Source             string                       `yaml:"source"`
+	DiscriminatorField string                       `yaml:"discriminator_field"`
+	SignalMapping      map[string]string            `yaml:"signal_mapping"`
+	RunIDField         string                       `yaml:"run_id_field"`
+	ExpectedStateField string                       `yaml:"expected_state_field,omitempty"`
+	Payload            map[string]string            `yaml:"payload"`
+	Sensitive          []string                     `yaml:"sensitive,omitempty"`
+	Timeout            string                       `yaml:"timeout"`
+	Responses          SignalSourceResponseMappings `yaml:"responses"`
+}
+
+// SignalSourceResponseMappings selects HTTP policy without changing admission.
+type SignalSourceResponseMappings struct {
+	Accepted          SignalSourceResponse `yaml:"accepted"`
+	RefusedUndeclared SignalSourceResponse `yaml:"refused_undeclared"`
+	RefusedConflict   SignalSourceResponse `yaml:"refused_conflict,omitempty"`
+	SourceValidation  SignalSourceResponse `yaml:"source_validation"`
+	MachineRunFailed  SignalSourceResponse `yaml:"machine_run_failed"`
+}
+
+// SignalSourceResponse controls status and redacted run disclosure.
+type SignalSourceResponse struct {
+	Status            int  `yaml:"status"`
+	IncludeDiagnostic bool `yaml:"include_diagnostic,omitempty"`
+	IncludeOutput     bool `yaml:"include_output,omitempty"`
 }
 
 // DocumentResource is reserved target-format config for document corpora.
