@@ -54,10 +54,10 @@ states:
   - {name: CountingBeforeIngest, meaning: The collection's document count before the child run is being read.}
   - {name: Ingesting, meaning: The corpus-ingest child agent is running over the requested directory.}
   - {name: CountingAfterIngest, meaning: The collection's document count after the child run is being read.}
-  - {name: HealthReported, meaning: Terminal. The instance is healthy and the reported health is ready for the HTTP response., run_status: failed}
-  - {name: StateReported, meaning: Terminal. The applier reported the deployed mesh view., run_status: failed}
+  - {name: HealthReported, meaning: Terminal. The instance is healthy and the reported health is ready for the HTTP response., run_status: succeeded}
+  - {name: StateReported, meaning: Terminal. The applier reported the deployed mesh view., run_status: succeeded}
   - {name: JudgingIngest, meaning: The post-run count is being tested against the pre-run count to decide whether the run added documents.}
-  - {name: Ingested, meaning: Terminal. The child run increased the collection's document count., run_status: failed}
+  - {name: Ingested, meaning: Terminal. The child run increased the collection's document count., run_status: succeeded}
   - {name: IngestRejected, meaning: Terminal. The child run completed but wrote no documents, so it did not meet the requested source., run_status: failed}
   - {name: IngestFailed, meaning: Terminal. The child run failed, or the collection could not be read., run_status: failed}
   - {name: Failed, meaning: Terminal. A deployment-API boundary word failed., run_status: failed}
