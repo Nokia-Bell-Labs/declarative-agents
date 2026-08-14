@@ -75,7 +75,7 @@ test_cases:
     name: Core integrations use only core-owned profiles
     issue: GH-1038
     go_test: mage audit
-    integration_target: cd magefiles && go test ./...; mage integration:monitor; mage integration:ollamaRest; mage integration:ollamaMonitor; mage integration:dolt
+    integration_target: cd magefiles && go test ./...; mage integration:monitor; mage integration:ollamaRest; mage integration:ollamaMonitor; mage integration:dolt; mage integration:doltWord
     status: implemented
     description: |
       Run service integrations from agent-core using minimal profiles under

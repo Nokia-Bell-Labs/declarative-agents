@@ -312,7 +312,7 @@ func commitDolt(ctx context.Context, tx Transaction, statement, message string) 
 		return "", err
 	}
 	if strings.TrimSpace(hash) == "" {
-		return "", errors.New("Dolt commit returned no hash")
+		return "", errors.New("dolt commit returned no hash")
 	}
 	return hash, nil
 }

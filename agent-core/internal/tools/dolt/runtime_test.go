@@ -441,7 +441,7 @@ func (*recordingTracer) Context() context.Context { return context.Background() 
 func (r *recordingTracer) joined() string {
 	var values []string
 	for _, attr := range r.attrs {
-		values = append(values, string(attr.Key)+"="+attr.Value.Emit())
+		values = append(values, string(attr.Key)+"="+attr.Value.String())
 	}
 	return strings.Join(values, " ")
 }

@@ -135,14 +135,23 @@ sql-server` from a prebuilt dolt binary on an ephemeral port for the duration of
 each test — no Docker and no manual setup:
 
 ```bash
-mage integration:dolt   # runs the gated tests, auto-managing the server
+mage integration:dolt       # checkpoint persistence and rehydration
+mage integration:doltWord   # configured provision, query, and write words
 ```
+
+The boundary-word gate in `cmd/agent/dolt_word_integration_test.go` loads the
+shared declarations through the production registry and real SQL driver. It
+proves database and ordered schema provisioning, idempotence, parameter binding,
+bounded rows, commit hash and message history, no-change and failure rollback,
+runtime authority refusal, and checkpoint database separation.
 
 The tests require only a `dolt` binary on `PATH` (install from
 <https://docs.dolthub.com/introduction/installation>). To use another binary,
-set `dolt_bin` in `demo.yaml`; `mage integration:dolt` passes that declaration
-to the tests through `-dolt-bin`. Tests skip cleanly when no binary is found, so
-`go test ./...` stays green on machines without dolt.
+set `dolt_bin` in `demo.yaml`; both targets pass that declaration to the tests
+through `-dolt-bin`. Each server uses an isolated temporary data root and commit
+identity. Tests skip cleanly when no binary is found, so `go test ./...` stays
+green on machines without dolt; a discovered or configured Dolt binary turns
+server and assertion failures into gate failures.
 
 ### Persistent Dolt Server (production)
 

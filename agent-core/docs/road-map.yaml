@@ -551,7 +551,7 @@ releases:
         status: done
       - id: gh-1732
         summary: Implement the configured Dolt boundary words and real-Dolt integration gate.
-        status: planned
+        status: implemented
       - id: gh-1733
         summary: Implement the HTTP request signal source, model-free profiles, lifecycle coverage, and model regression.
         status: planned
@@ -564,15 +564,15 @@ releases:
         status: specified
       - id: rel14.0-uc002-dolt-boundary-word
         summary: Declared Dolt words provision, update, commit, and query a separate versioned store.
-        status: specified
+        status: implemented
     test_suites:
       - id: test-rel14.0-agent-input-and-dolt
         summary: Formal unit, compatibility, lifecycle, authority, and real-Dolt integration obligations for both seams.
-        status: specified
+        status: in_progress
     proof:
       - planned go test ./cmd/agent ./internal/runtime/core ./internal/tools/rest for GH-1733
-      - planned go test ./internal/tools/dolt for GH-1732
-      - planned mage integration:doltWord against a real Dolt server for GH-1732
+      - go test ./internal/tools/dolt ./internal/tools/catalog for GH-1732
+      - mage integration:doltWord against a real Dolt server for GH-1732
       - mage audit
 
   - version: "99.0"

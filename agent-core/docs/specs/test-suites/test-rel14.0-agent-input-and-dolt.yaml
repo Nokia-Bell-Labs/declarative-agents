@@ -135,8 +135,8 @@ test_cases:
 
   - use_case: rel14.0-uc002-dolt-boundary-word
     name: Dolt declarations keep word kinds and authority separate
-    planned_go_test: go test ./internal/tools/dolt -run TestDoltDeclarationsAndConfigValidation
-    status: planned
+    go_test: go test ./internal/tools/dolt ./internal/tools/catalog -run 'TestDoltDeclarations|TestDecodeConfigStrictAndValid|TestPrepareConfigRejectsUnsafeStatements|TestFactoriesStrictlySeparateOperationKinds'
+    status: implemented
     description: |
       Shared declarations register distinct provision, query, and write inits.
       Startup accepts one fixed operation per ToolDef and rejects unknown config,
@@ -156,8 +156,8 @@ test_cases:
 
   - use_case: rel14.0-uc002-dolt-boundary-word
     name: Real Dolt provisioning creates database and schema idempotently
-    planned_go_test: mage integration:doltWord
-    status: planned
+    go_test: mage integration:doltWord
+    status: implemented
     description: |
       Against a real Dolt server, dolt_provision creates a missing configured
       database, applies ordered schema statements, and creates one schema
@@ -178,8 +178,8 @@ test_cases:
 
   - use_case: rel14.0-uc002-dolt-boundary-word
     name: Real Dolt query binds params and never commits
-    planned_go_test: mage integration:doltWord
-    status: planned
+    go_test: mage integration:doltWord
+    status: implemented
     description: |
       A configured SELECT binds a declared value and returns ordered columns and
       rows with row_count and limits. A low row or byte limit sets truncated.
@@ -199,8 +199,8 @@ test_cases:
 
   - use_case: rel14.0-uc002-dolt-boundary-word
     name: Real Dolt write creates one declared-message commit
-    planned_go_test: mage integration:doltWord
-    status: planned
+    go_test: mage integration:doltWord
+    status: implemented
     description: |
       A configured INSERT binds declared params in one transaction. Dolt history
       gains exactly one commit whose message comes from the configured template,
@@ -221,15 +221,15 @@ test_cases:
 
   - use_case: rel14.0-uc002-dolt-boundary-word
     name: Caller authority and failed writes create no commit
-    planned_go_test: mage integration:doltWord
-    status: planned
+    go_test: mage integration:doltWord
+    status: implemented
     description: |
-      Inputs containing SQL, DSN, database, schema, or commit_message are each
+      Inputs containing SQL, connection, database, schema, or commit_message are each
       refused before statement execution. A validly shaped request whose
       configured statement violates a constraint rolls back and leaves Dolt
       history unchanged.
     inputs:
-      forbidden_fields: [sql, dsn, database, schema, commit_message]
+      forbidden_fields: [sql, connection, database, schema, commit_message]
       failure: constraint_violation
     expected:
       refused_before_execution: 5
@@ -242,8 +242,8 @@ test_cases:
 
   - use_case: rel14.0-uc002-dolt-boundary-word
     name: Word and checkpoint databases remain separate
-    planned_go_test: mage integration:doltWord
-    status: planned
+    go_test: mage integration:doltWord
+    status: implemented
     description: |
       One Dolt server hosts a domain-word database and a checkpoint database.
       Both operate without reading each other's tables or branches. Config that
@@ -261,8 +261,8 @@ test_cases:
 
   - use_case: rel14.0-uc002-dolt-boundary-word
     name: Dolt signals traces errors and receipts follow boundary contracts
-    planned_go_test: go test ./internal/tools/dolt -run TestDoltBoundaryContracts
-    status: planned
+    go_test: go test ./internal/tools/dolt -run 'TestWriteStagesAndCommitsExactlyOnceWithTrustedMessage|TestWriteNoChangeAndFailuresNeverCreateCommit|TestRuntimeRejectsAuthorityAndCancellationBeforeOpening'
+    status: implemented
     description: |
       Success emits the word-specific signals; infrastructure faults emit
       CommandError with a precise stage. Query has noop Undo. Compensatable

@@ -182,7 +182,7 @@ func classify(tokens []string) (StatementKind, error) {
 	}
 	for _, token := range tokens {
 		if strings.HasPrefix(token, "DOLT_") {
-			return "", fmt.Errorf("Dolt control function %q is not allowed", token)
+			return "", fmt.Errorf("dolt control function %q is not allowed", token)
 		}
 	}
 	first := tokens[0]

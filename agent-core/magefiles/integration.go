@@ -25,6 +25,7 @@ func (i Integration) All() error {
 		{"ollamaRest", i.OllamaRest},
 		{"ollamaMonitor", i.OllamaMonitor},
 		{"dolt", i.Dolt},
+		{"doltWord", i.DoltWord},
 	}
 
 	var passed, failed, skipped int

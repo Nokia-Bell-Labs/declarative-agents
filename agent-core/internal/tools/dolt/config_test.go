@@ -52,7 +52,7 @@ func TestPrepareConfigRejectsUnsafeStatements(t *testing.T) {
 		{name: "write read", kind: KindWrite, statement: "SELECT * FROM t WHERE id = :id", want: "operation-kind mismatch"},
 		{name: "select outfile", kind: KindQuery, statement: "SELECT * INTO OUTFILE '/tmp/x' FROM t", want: "potentially mutating"},
 		{name: "mutating cte", kind: KindQuery, statement: "WITH x AS (SELECT 1) DELETE FROM t", want: "mutating common-table"},
-		{name: "dolt control function", kind: KindQuery, statement: "SELECT DOLT_COMMIT('-am', 'unsafe')", want: "Dolt control function"},
+		{name: "dolt control function", kind: KindQuery, statement: "SELECT DOLT_COMMIT('-am', 'unsafe')", want: "dolt control function"},
 		{name: "executable comment", kind: KindQuery, statement: "SELECT 1 /*! INTO OUTFILE '/tmp/x' */", want: "executable SQL comments"},
 		{name: "unnamed placeholder", kind: KindQuery, statement: "SELECT * FROM t WHERE id = ?", want: "unnamed SQL placeholders"},
 	}
