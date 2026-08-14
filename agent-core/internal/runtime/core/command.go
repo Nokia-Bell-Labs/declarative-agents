@@ -77,6 +77,13 @@ type ContextCommand interface {
 	ExecuteContext(ctx context.Context) Result
 }
 
+// ContextUndoCommand is an optional rollback contract for Undo operations that
+// can block. Receipt walks prefer UndoContext so cancellation reaches in-flight
+// compensation; commands that implement only Command retain Undo compatibility.
+type ContextUndoCommand interface {
+	UndoContext(ctx context.Context, prior Result) Result
+}
+
 // MonitorRecorderAware lets commands receive the tool-facing monitor recorder.
 type MonitorRecorderAware interface {
 	SetMonitorRecorder(monitor.ToolMetricsRecorder)

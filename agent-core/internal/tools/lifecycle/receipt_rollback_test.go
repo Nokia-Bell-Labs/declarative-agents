@@ -207,7 +207,7 @@ func TestUndoEntryMissingRollbackPlumbingFails(t *testing.T) {
 		{name: "no receipt", registry: noReceipt, want: "no receipt", entry: core.Entry{CommandName: "sample"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			outcome := undoEntry(test.registry, nil, 2, test.entry)
+			outcome := undoEntry(context.Background(), test.registry, nil, 2, test.entry)
 			require.NotNil(t, outcome.failure)
 			require.Contains(t, outcome.failure.Detail, test.want)
 			require.False(t, outcome.skipped)
@@ -225,7 +225,7 @@ func TestUndoEntryDeclaredIrreversibleStillSkips(t *testing.T) {
 		},
 	}, nonReverserStub{name: "publish"})
 
-	outcome := undoEntry(registry, nil, 2, core.Entry{CommandName: "publish"})
+	outcome := undoEntry(context.Background(), registry, nil, 2, core.Entry{CommandName: "publish"})
 
 	require.True(t, outcome.skipped)
 	require.Nil(t, outcome.failure)

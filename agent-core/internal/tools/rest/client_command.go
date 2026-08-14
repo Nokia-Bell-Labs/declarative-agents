@@ -106,16 +106,22 @@ var _ core.ContextCommand = (*clientCmd)(nil)
 
 func (c restCompensationCmd) Name() string { return c.toolName }
 
+var _ core.ContextUndoCommand = restCompensationCmd{}
+
 func (c restCompensationCmd) Execute() core.Result {
 	return restCompensationError(c.toolName, "compensation_execute", fmt.Errorf("REST compensation commands are undo-only"))
 }
 
 func (c restCompensationCmd) Undo(prior core.Result) core.Result {
+	return c.UndoContext(context.Background(), prior)
+}
+
+func (c restCompensationCmd) UndoContext(ctx context.Context, prior core.Result) core.Result {
 	commandName := prior.CommandName
 	if commandName == "" {
 		commandName = c.toolName
 	}
-	return c.executor.CompensateFromReceipt(context.Background(), commandName, prior.Receipt)
+	return c.executor.CompensateFromReceipt(ctx, commandName, prior.Receipt)
 }
 
 func (c *clientCmd) Execute() core.Result {
