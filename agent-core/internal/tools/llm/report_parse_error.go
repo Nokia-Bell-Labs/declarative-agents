@@ -14,6 +14,7 @@ import (
 )
 
 type reportParseErrorCmd struct {
+	toolName         string
 	errorText        string
 	feedbackTemplate string
 	tracer           tracing.Tracer
@@ -22,7 +23,12 @@ type reportParseErrorCmd struct {
 	hasSnapshot      bool
 }
 
-func (r *reportParseErrorCmd) Name() string { return "report_parse_error" }
+func (r *reportParseErrorCmd) Name() string {
+	if r.toolName != "" {
+		return r.toolName
+	}
+	return "report_parse_error"
+}
 
 func (r *reportParseErrorCmd) Execute() core.Result {
 	if r.retry != nil {
@@ -40,6 +46,7 @@ func (r *reportParseErrorCmd) Execute() core.Result {
 	} else {
 		res = core.Result{Signal: core.ToolDone, Output: parseFeedback(r.errorText, r.feedbackTemplate)}
 	}
+	res.CommandName = r.Name()
 	if r.hasSnapshot {
 		res.Receipt = encodeRetryReceipt(r.prevRetries)
 	}
@@ -58,14 +65,14 @@ func (r *reportParseErrorCmd) Undo(prior core.Result) core.Result {
 		return core.NoopUndo(r.Name())
 	}
 	if retries, ok, err := decodeRetryReceipt(prior.Receipt); err != nil {
-		e := fmt.Errorf("undo report_parse_error: decode receipt: %w", err)
+		e := fmt.Errorf("undo %s: decode receipt: %w", r.Name(), err)
 		return core.Result{Signal: core.CommandError, CommandName: r.Name(), Output: e.Error(), Err: e}
 	} else if ok {
 		r.retry.Restore(retries)
 		return core.Result{Signal: core.ToolDone, CommandName: r.Name(), Output: fmt.Sprintf("undo: restored parse retry counter to %d", retries)}
 	}
 	if !r.hasSnapshot {
-		err := fmt.Errorf("undo report_parse_error: no retry counter snapshot recorded")
+		err := fmt.Errorf("undo %s: no retry counter snapshot recorded", r.Name())
 		return core.Result{Signal: core.CommandError, CommandName: r.Name(), Output: err.Error(), Err: err}
 	}
 	r.retry.Restore(r.prevRetries)
@@ -74,6 +81,7 @@ func (r *reportParseErrorCmd) Undo(prior core.Result) core.Result {
 
 // ReportParseErrorBuilder constructs report_parse_error commands.
 type ReportParseErrorBuilder struct {
+	ToolName         string
 	Tracer           tracing.Tracer
 	Retry            *ParseErrorRetryTracker
 	FeedbackTemplate string
@@ -81,7 +89,19 @@ type ReportParseErrorBuilder struct {
 
 func (b *ReportParseErrorBuilder) Build(res core.Result) core.Command {
 	return &reportParseErrorCmd{
+		toolName:  b.ToolName,
 		errorText: res.Output, feedbackTemplate: b.FeedbackTemplate,
 		tracer: b.Tracer, retry: b.Retry,
 	}
 }
+
+// BuildReverser constructs the receipt-only parse-error command used after
+// restart.
+func (b *ReportParseErrorBuilder) BuildReverser() core.Command {
+	return &reportParseErrorCmd{
+		toolName: b.ToolName,
+		retry:    b.Retry,
+	}
+}
+
+var _ core.Reverser = (*ReportParseErrorBuilder)(nil)

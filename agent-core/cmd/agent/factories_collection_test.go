@@ -102,6 +102,35 @@ func TestProfilePolicyReachesBuiltinBuilders(t *testing.T) {
 	require.Equal(t, "fix {{error}}", reportBuilder.(*toollm.ReportParseErrorBuilder).FeedbackTemplate)
 }
 
+func TestLLMParseFactoriesPreserveDeclarationNamesInReversers(t *testing.T) {
+	st := &agentState{
+		registry:     core.NewRegistry(),
+		parseRetries: &toollm.ParseErrorRetryTracker{MaxConsecutive: 3},
+	}
+	builtins := toolregistry.NewBuiltinRegistry()
+	registerLLMFactories(st)(builtins)
+
+	defs := []catalog.ToolDef{
+		{Name: "decode_response", Type: "builtin", Init: "parse_response"},
+		{
+			Name: "explain_parse_failure", Type: "builtin", Init: "report_parse_error",
+			Config: map[string]interface{}{"feedback_template": "fix {{error}}"},
+		},
+	}
+	reg := core.NewRegistry()
+	for _, def := range defs {
+		require.NoError(t, toolregistry.RegisterSingleBuiltin(reg, builtins, def, nil))
+
+		builder, ok := reg.Resolve(def.Name)
+		require.True(t, ok)
+		require.Equal(t, def.Name, builder.Build(core.Result{}).Name())
+
+		reverser, ok := builder.(core.Reverser)
+		require.True(t, ok)
+		require.Equal(t, def.Name, reverser.BuildReverser().Name())
+	}
+}
+
 func TestCollectionFactoriesRegisterValidConfig(t *testing.T) {
 	defs := []catalog.ToolDef{
 		{Name: "partition", Type: "builtin", Init: "partition", Config: map[string]interface{}{

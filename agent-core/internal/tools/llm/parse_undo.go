@@ -16,7 +16,7 @@ func (p *parseResponseCmd) Undo(prior core.Result) core.Result {
 		return core.NoopUndo(p.Name())
 	}
 	if retries, ok, err := decodeRetryReceipt(prior.Receipt); err != nil {
-		e := fmt.Errorf("undo parse_response: decode receipt: %w", err)
+		e := fmt.Errorf("undo %s: decode receipt: %w", p.Name(), err)
 		return core.Result{Signal: core.CommandError, CommandName: p.Name(), Output: e.Error(), Err: e}
 	} else if ok {
 		p.retry.Restore(retries)
@@ -26,7 +26,7 @@ func (p *parseResponseCmd) Undo(prior core.Result) core.Result {
 		}
 	}
 	if !p.hasSnapshot {
-		err := fmt.Errorf("undo parse_response: no retry counter snapshot recorded")
+		err := fmt.Errorf("undo %s: no retry counter snapshot recorded", p.Name())
 		return core.Result{Signal: core.CommandError, CommandName: p.Name(), Output: err.Error(), Err: err}
 	}
 	p.retry.Restore(p.prevRetries)
