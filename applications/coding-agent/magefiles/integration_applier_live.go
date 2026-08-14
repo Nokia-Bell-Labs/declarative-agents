@@ -250,6 +250,11 @@ func stageCodingApplierLiveChart(applicationRoot string) (string, func(), error)
 // the planner Deployment. That makes the applier's own kubectl rollout status
 // verify fail deterministically, without racing an out-of-band patch.
 //
+// The strategic patch also drops progressDeadlineSeconds so the unpullable
+// image trips ProgressDeadlineExceeded in seconds rather than consuming the
+// 120s verify window. The 130s machine_request budget must retain headroom for
+// helm_rollback and the RolledBack -> 500 response.
+//
 // The extra Role is installed by the host-side initial install, so the applier
 // already holds these test-only permissions when an in-cluster upgrade re-applies
 // the chart: helm creates the hook Pod under the applier ServiceAccount, and the
@@ -304,7 +309,7 @@ spec:
         - {{ .Release.Namespace }}
         - --type=strategic
         - -p
-        - '{"spec":{"template":{"spec":{"containers":[{"name":"planner","image":"invalid.local/applier-live-rollback:missing"}]}}}}'
+        - '{"spec":{"progressDeadlineSeconds":5,"template":{"spec":{"containers":[{"name":"planner","image":"invalid.local/applier-live-rollback:missing"}]}}}}'
 {{- end }}
 {{- end }}
 `
