@@ -69,6 +69,9 @@ func TestLoopTraceShapeIsRunWithDirectToolChildren(t *testing.T) {
 	run := (*tracer.spans)[0]
 	require.Equal(t, "invoke_agent trace-shape", run.name)
 	require.Nil(t, run.parent)
+	require.Equal(t, "run-123", run.attrs["run.id"])
+	require.Equal(t, "run-123", run.attrs["gen_ai.conversation.id"],
+		"run-scoped agents use their stable run identity")
 	require.EqualValues(t, 2, run.attrs["run.iterations"])
 	require.EqualValues(t, 2, run.attrs["iteration"],
 		"the final iteration is an attribute on the run span")
@@ -90,10 +93,36 @@ func TestLoopTraceShapeIsRunWithDirectToolChildren(t *testing.T) {
 		require.Contains(t, tool.attrs, "command.duration_ms")
 		require.Contains(t, tool.attrs, "gen_ai.usage.input_tokens")
 		require.Contains(t, tool.attrs, "gen_ai.usage.output_tokens")
+		require.Equal(t, "run-123", tool.attrs["gen_ai.conversation.id"])
 	}
 	for _, span := range *tracer.spans {
 		require.NotEqual(t, "invoke_agent", span.name,
 			"the loop creates no per-iteration invoke_agent child spans")
+	}
+}
+
+func TestLoopTraceShapeUsesRequestConversationIdentity(t *testing.T) {
+	tracer := newTopologyTracer()
+	params := simpleLoopParams(tracer)
+	params.RunID = "host-run"
+	params.RequestID = "request-123"
+	params.ConversationID = "conversation-123"
+	params.AgentName = "request-machine"
+
+	result, err := Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, StatusSucceeded, result.Status)
+
+	grouping := (*tracer.spans)[0]
+	require.Equal(t, "invoke_agent request-machine", grouping.name)
+	require.Equal(t, "host-run", grouping.attrs["run.id"])
+	require.Equal(t, "request-123", grouping.attrs[string(AttrRequestID)])
+	require.Equal(t, "conversation-123", grouping.attrs["gen_ai.conversation.id"])
+
+	for _, dispatch := range (*tracer.spans)[1:] {
+		require.Same(t, grouping, dispatch.parent)
+		require.Equal(t, "host-run", dispatch.attrs["run.id"])
+		require.Equal(t, "conversation-123", dispatch.attrs["gen_ai.conversation.id"])
 	}
 }
 

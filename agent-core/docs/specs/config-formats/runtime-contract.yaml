@@ -31,7 +31,7 @@ invocation: |
           [--directory <path>] [--dolt-dsn <dsn>] \
           [--resume-checkpoint <id>] [--resume-signal <signal>] \
           [--otel-log-file <file>] [--otel-otlp-endpoint <host:port>] \
-          [--otel-service-name <name>]
+          [--otel-service-name <name>] [--telemetry-capture <off|delta|full>]
 
   Lifecycle profile invocations.
     agent --profile /work/applications/catalog/testdata/conformance/lifecycle/history/profile.yaml \
@@ -80,7 +80,15 @@ invocation: |
     resumed state.
 
   Diagnostic flags.
-    --verbose-trace      Record boundary-tool input/output in OTel traces.
+    --telemetry-capture  Content capture level for telemetry (default: off).
+                         off records no model or boundary-tool content. delta
+                         records bounded current-turn LLM input and output
+                         under repository-owned keys. full records verbose LLM
+                         and boundary-tool content under applicable semantic-
+                         convention and repository-owned keys.
+    --verbose-trace      Backward-compatible alias for
+                         --telemetry-capture=full. Combining it with explicit
+                         off or delta is an error; explicit full is accepted.
     --otel-log-file      OTel trace output file.
     --otel-otlp-endpoint OTLP gRPC endpoint for live trace and metric export.
                          It composes with --otel-log-file for dual export.
@@ -218,7 +226,21 @@ startup_sequence:
       the folded conversation snapshot, and the Execution carries the ordered
       entries, each with the originating tool's opaque receipt. Resume requires
       --resume-checkpoint plus a persistent backend and Loads Position and
-      Execution before re-entering the same machine.
+      Execution before re-entering the same machine. Persistent adapters also
+      expose optional narrow conversation-reference capabilities beside the
+      unchanged two-method Checkpoint port. Before each dispatch, invoke_llm
+      and reset_history can read the latest completed run/step/revision
+      reference. Fresh rollback commands resolve that opaque reference through
+      the target lifecycle checkpoint and decode only the returned conversation
+      JSON at the cmd/agent composition boundary. NoopCheckpoint reports the
+      capability unavailable. Request-local machine runners omit persistence
+      and receive no provider or resolver, so they emit no synthetic
+      llm.conversation.ref value.
+      Commands that mutate shared process-local state may implement the
+      domain-neutral SerialDispatchOnly capability. A parallel for_each rejects
+      the complete batch before execution when an item command implements it;
+      invoke_llm and reset_history are serial-only, while sequential for_each
+      continues to dispatch them normally.
     implementation: core.Checkpoint, core.ResumeFromCheckpoint
 
   - step: 7
@@ -364,7 +386,16 @@ lifecycle: |
   tool encodes the receipt during Execute (prior content, resource ids, or a
   workspace commit hash it manages); its receipt-consuming Undo decodes it to
   reverse the effect. Read-only tools return an empty receipt. The engine and
-  the checkpoint adapters never interpret a receipt.
+  the checkpoint adapters never interpret a receipt. New LLM receipts contain
+  only a prior message count and an optional opaque checkpoint reference; full
+  conversation text remains only in AgentSnapshot.Conversation. The
+  trace-plus-receipt growth contract excludes that authoritative versioned
+  storage and does not normalize Dolt history.
+  Dolt references use the exact hash returned by DOLT_COMMIT for the step.
+  DOLT_COMMIT is the durable backend boundary after all step rows are written;
+  Load derives the active reference from branch HEAD, and resolution checks the
+  exact commit metadata and historical step row rather than searching by a
+  non-unique message.
 
   Rollback has two halves.
   Dolt Revert(run_id, step_index) rewinds DB-persisted state to a target step;

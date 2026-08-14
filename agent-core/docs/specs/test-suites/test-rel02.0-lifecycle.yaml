@@ -10,7 +10,7 @@ preconditions:
   - Persistence defaults to NoopCheckpoint so disabled-mode runs keep current loop behavior with no store configured.
   - InMemoryCheckpoint is the reference adapter for in-process round-trip scenarios.
   - A fake database/sql seam (fakeDB) stands in for Dolt so branch-per-run, commit-per-step, merge-on-terminal, and Revert are asserted without a live server.
-  - A reachable local dolt sql-server enables the end-to-end CLI suspend/resume integration test; it is skipped when no server is reachable.
+  - A local dolt binary enables gated end-to-end persistence tests whose harness starts an ephemeral sql-server; they skip when no binary is available.
   - Test commands can encode opaque receipts during Execute and reverse them through a receipt-consuming Undo.
 
 test_cases:
@@ -100,6 +100,61 @@ test_cases:
     traces:
       - srd035-checkpoint-port AC2
       - srd035-checkpoint-port AC3
+
+  - use_case: rel02.0-uc001-approval-suspend-resume
+    name: Conversation references survive restart and stay unavailable without persistence
+    go_test: TestDoltCheckpointConversationReferencesSurviveFreshAdapter, TestDoltCheckpointConversationReferenceRejectsWrongRunAndStep, TestDoltCheckpointConversationReferenceRejectsLaterRevisionClaimingEarlierStep, TestDoltCheckpointConversationReferencesAgainstRealDolt, TestNoopCheckpointReportsConversationReferencesUnavailable, TestResetHistoryFactoryRestartsFromCheckpointReference, TestInvokeLLMRestartsThroughCompositionCheckpointPorts, TestRequestLocalStateDoesNotExposeHostCheckpointReferences, TestLoopParallelForEachRejectsSerialDispatchBeforeExecution, TestLoopSequentialForEachAllowsSerialDispatch
+    status: done
+    description: |
+      A persistent checkpoint exposes the latest completed run/step/revision
+      reference and resolves its authoritative AgentSnapshot.Conversation
+      through a fresh adapter or command. Parsing rejects cross-run and
+      mismatched step/revision identities, including against a real gated Dolt
+      server, and Revert restores the target reference. cmd/agent supplies the loop provider and
+      lifecycle-target resolver to invoke_llm and reset_history. Noop and
+      request-local execution expose neither a usable reference nor synthetic
+      telemetry identity. Parallel for_each rejects serial-only commands before
+      execution or conversation mutation, while sequential dispatch remains supported.
+    inputs:
+      backends: [DoltCheckpoint, InMemoryCheckpoint, NoopCheckpoint]
+      restart_boundary: [fresh_adapter, fresh_command]
+      request_machine_persistence: omitted
+    expected:
+      historical_conversation_resolved: true
+      run_isolation: strict
+      restart_undo: [invoke_llm, reset_history]
+      disabled_reference_available: false
+      request_machine_reference_available: false
+    traces:
+      - srd035-checkpoint-port AC3
+      - srd035-checkpoint-port AC5
+      - srd035-checkpoint-port AC8
+      - srd036-dolt-state-persistence AC5
+
+  - use_case: rel02.0-uc001-approval-suspend-resume
+    name: Ten-turn trace-plus-receipt content growth is linear
+    go_test: TestTenTurnDeltaTraceAndReceiptVolumeGrowsLinearly
+    status: done
+    description: |
+      Run ten zero-sleep invoke_llm turns with fixed-size prompts and responses.
+      Sum serialized trace content attribute values and v2 receipt bytes. The
+      ten-turn total stays within twice the five-turn total plus a constant,
+      remains below the quadratic doubling bound, and is smaller than the old
+      full-history-receipt baseline. Versioned AgentSnapshot.Conversation
+      storage is authoritative and excluded from the metric.
+    inputs:
+      turns: 10
+      telemetry_capture: delta
+      sleep: zero
+      excluded_storage: AgentSnapshot.Conversation
+    expected:
+      growth_bound: linear
+      below_quadratic_doubling: true
+      below_full_history_receipt_baseline: true
+      receipts_contain_conversation_text: false
+    traces:
+      - srd035-checkpoint-port AC3
+      - srd035-checkpoint-port AC8
 
   - use_case: rel02.0-uc001-approval-suspend-resume
     name: Resume re-enters the loop from the typed port and reports not-found
@@ -237,7 +292,7 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: Revert resets the run branch to the target step commit
-    go_test: TestDoltCheckpointRevertResetsToStepCommit, TestDoltCheckpointRevertUnresolvedStep
+    go_test: TestDoltCheckpointRevertResetsToStepCommit, TestDoltCheckpointRevertLeavesReferenceUnavailableWithoutTargetConversation, TestDoltCheckpointRevertLeavesReferenceUnavailableForDifferentAdapterRun, TestDoltCheckpointRevertUnresolvedStep
     status: done
     description: |
       Revert(run_id, step_index) resets the run branch to the commit recorded

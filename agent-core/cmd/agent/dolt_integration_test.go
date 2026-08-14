@@ -276,6 +276,75 @@ func TestDoltCheckpointRevertResetsBranch(t *testing.T) {
 	require.Equal(t, "first-output", gotExec[0].Result.Output)
 }
 
+func TestDoltCheckpointConversationReferencesAgainstRealDolt(t *testing.T) {
+	base := startDoltServer(t)
+	requireDoltTestDB(t, base)
+	dsn := base + doltTestDB
+	runID := fmt.Sprintf("run-ref-%d", time.Now().UnixNano())
+	noMerge := func(core.State) bool { return false }
+
+	saver, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	require.NoError(t, err)
+	firstPosition := core.Position{
+		CurrentState: "Working", LastSignal: core.LLMResponded,
+		Snapshot: core.AgentSnapshot{
+			State: "Working", Signal: core.LLMResponded, Iteration: 1,
+			Conversation: json.RawMessage(`[{"role":"user","content":"first"}]`),
+		},
+	}
+	firstExecution := core.Execution{{
+		Iteration: 1, CommandName: "first", FromState: "Start", ToState: "Working",
+		Signal: core.LLMResponded, Result: core.DigestResult(core.Result{Signal: core.LLMResponded}),
+	}}
+	require.NoError(t, saver.Save(firstPosition, firstExecution))
+	firstRef, ok := saver.ConversationReference()
+	require.True(t, ok)
+
+	secondPosition := firstPosition
+	secondPosition.Snapshot.Iteration = 2
+	secondPosition.Snapshot.Conversation = json.RawMessage(
+		`[{"role":"user","content":"first"},{"role":"assistant","content":"second"}]`,
+	)
+	secondExecution := append(firstExecution, core.Entry{
+		Iteration: 2, CommandName: "second", FromState: "Working", ToState: "Working",
+		Signal: core.LLMResponded, Result: core.DigestResult(core.Result{Signal: core.LLMResponded}),
+	})
+	require.NoError(t, saver.Save(secondPosition, secondExecution))
+	require.NoError(t, saver.Close())
+
+	fresh, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, fresh.Close()) }()
+	_, _, err = fresh.Load()
+	require.NoError(t, err)
+	latestRef, ok := fresh.ConversationReference()
+	require.True(t, ok)
+	resolved, err := fresh.ResolveConversationSnapshot(firstRef)
+	require.NoError(t, err)
+	require.JSONEq(t, string(firstPosition.Snapshot.Conversation), string(resolved))
+
+	firstParts := strings.Split(firstRef, ":")
+	latestParts := strings.Split(latestRef, ":")
+	require.Len(t, firstParts, 6)
+	require.Len(t, latestParts, 6)
+	wrongStep := append([]string(nil), latestParts...)
+	wrongStep[4] = firstParts[4]
+	_, err = fresh.ResolveConversationSnapshot(strings.Join(wrongStep, ":"))
+	require.ErrorIs(t, err, core.ErrConversationReferenceInvalid)
+	wrongRevision := append([]string(nil), latestParts...)
+	wrongRevision[5] = firstParts[5]
+	_, err = fresh.ResolveConversationSnapshot(strings.Join(wrongRevision, ":"))
+	require.ErrorIs(t, err, core.ErrConversationReferenceInvalid)
+
+	require.NoError(t, fresh.Revert(runID, 0))
+	revertedRef, ok := fresh.ConversationReference()
+	require.True(t, ok)
+	require.Equal(t, firstRef, revertedRef)
+	resolved, err = fresh.ResolveConversationSnapshot(revertedRef)
+	require.NoError(t, err)
+	require.JSONEq(t, string(firstPosition.Snapshot.Conversation), string(resolved))
+}
+
 func TestDoltBinaryPrefersExplicitFlag(t *testing.T) {
 	previous := *doltBin
 	t.Cleanup(func() { *doltBin = previous })

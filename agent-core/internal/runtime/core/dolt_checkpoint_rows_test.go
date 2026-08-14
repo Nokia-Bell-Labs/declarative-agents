@@ -23,12 +23,14 @@ func (t *fakeTx) Commit() error { return nil }
 func (t *fakeTx) Rollback() error { return nil }
 
 type fakeScanner struct {
-	kind    string
-	machine machineRow
-	hash    string
-	count   int
-	missing bool
-	scanErr error
+	kind         string
+	machine      machineRow
+	conversation *string
+	hash         string
+	value        string
+	count        int
+	missing      bool
+	scanErr      error
 }
 
 func (s *fakeScanner) Scan(dest ...any) error {
@@ -53,8 +55,12 @@ func (s *fakeScanner) Scan(dest ...any) error {
 		*dest[8].(*sql.NullString) = nsFromPtr(s.machine.iterator)
 		*dest[9].(*sql.NullString) = nsFromPtr(s.machine.programProfile)
 		*dest[10].(*sql.NullString) = nsFromPtr(s.machine.programDigest)
+	case "conversation":
+		*dest[0].(*sql.NullString) = nsFromPtr(s.conversation)
 	case "log":
 		*dest[0].(*string) = s.hash
+	case "string":
+		*dest[0].(*string) = s.value
 	}
 	return nil
 }

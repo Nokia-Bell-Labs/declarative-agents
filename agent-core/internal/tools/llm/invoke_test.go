@@ -4,11 +4,16 @@ package llm
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
@@ -46,6 +51,26 @@ func (c *countingClient) Chat(
 ) (modelllm.ChatResponse, error) {
 	c.calls++
 	return modelllm.ChatResponse{}, nil
+}
+
+type conversationAssembler struct{}
+
+func (conversationAssembler) AssembleMessages(history *modelllm.Conversation, _ *core.Registry, _ core.State) []modelllm.Message {
+	return history.Snapshot()
+}
+
+type sequencedClient struct {
+	responses []modelllm.ChatResponse
+	spanIDs   []oteltrace.SpanID
+}
+
+func (c *sequencedClient) Chat(
+	ctx context.Context, _ []modelllm.Message, _ modelllm.ChatOptions,
+) (modelllm.ChatResponse, error) {
+	c.spanIDs = append(c.spanIDs, oteltrace.SpanFromContext(ctx).SpanContext().SpanID())
+	response := c.responses[0]
+	c.responses = c.responses[1:]
+	return response, nil
 }
 
 func floatPtr(f float64) *float64 { return &f }
@@ -125,6 +150,96 @@ func TestInvokeLLMDefaultsPreserveDeterministicDecoding(t *testing.T) {
 
 	require.InDelta(t, 0.0, client.opts.Temperature, 1e-9)
 	require.Equal(t, 42, client.opts.Seed)
+}
+
+func TestInvokeLLMDispatchTracerIsolatesTwoTurns(t *testing.T) {
+	t.Parallel()
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	defer func() { require.NoError(t, provider.Shutdown(context.Background())) }()
+	root := telemetry.TraceAdapter{
+		T: telemetry.NewTraceFromProvider(provider, "invoke-turn-test", context.Background()),
+	}
+	client := &sequencedClient{responses: []modelllm.ChatResponse{
+		{Content: "one", TokensIn: 11, TokensOut: 3},
+		{Content: "second response", TokensIn: 22, TokensOut: 4},
+	}}
+	builder := &InvokeLLMBuilder{
+		Client: client, History: modelllm.NewConversation(nil, "", modelllm.ChatOptions{}),
+		Registry: core.NewRegistry(), Assembler: conversationAssembler{}, State: "Composing",
+		Model: "test", ProviderName: "test", Tracer: tracing.NoopTracer{},
+		Ctx: context.Background(), CaptureLevel: CaptureFull, ContextLimit: 1000,
+	}
+
+	for _, prompt := range []string{"first prompt", "second prompt"} {
+		cmd := builder.Build(core.Result{Output: prompt})
+		aware, ok := cmd.(core.TracerAware)
+		require.True(t, ok)
+		dispatch, done := root.Push("chat test")
+		aware.SetTracer(dispatch)
+		require.Equal(t, core.LLMResponded, cmd.Execute().Signal)
+		done()
+	}
+
+	spans := recorder.Ended()
+	require.Len(t, spans, 2)
+	require.Equal(t, spans[0].SpanContext().SpanID(), client.spanIDs[0])
+	require.Equal(t, spans[1].SpanContext().SpanID(), client.spanIDs[1])
+
+	firstAttrs := readOnlySpanAttrs(spans[0])
+	secondAttrs := readOnlySpanAttrs(spans[1])
+	require.Contains(t, firstAttrs["gen_ai.input.messages"], "first prompt")
+	require.NotContains(t, firstAttrs["gen_ai.input.messages"], "second prompt")
+	require.Contains(t, secondAttrs["gen_ai.input.messages"], "second prompt")
+	require.Equal(t, []modelllm.Message{
+		{Role: modelllm.User, Content: "first prompt"},
+	}, decodeMessages(t, firstAttrs["gen_ai.input.messages"]))
+	require.Equal(t, []modelllm.Message{
+		{Role: modelllm.Assistant, Content: "one"},
+	}, decodeMessages(t, firstAttrs["gen_ai.output.messages"]))
+	require.Equal(t, []modelllm.Message{
+		{Role: modelllm.User, Content: "first prompt"},
+		{Role: modelllm.Assistant, Content: "one"},
+		{Role: modelllm.User, Content: "second prompt"},
+	}, decodeMessages(t, secondAttrs["gen_ai.input.messages"]))
+	require.Equal(t, []modelllm.Message{
+		{Role: modelllm.Assistant, Content: "second response"},
+	}, decodeMessages(t, secondAttrs["gen_ai.output.messages"]))
+	require.Equal(t, int64(1000), firstAttrs["context.limit"])
+	require.Equal(t, int64(1000), secondAttrs["context.limit"])
+	require.Less(t, firstAttrs["context.estimated_tokens"], secondAttrs["context.estimated_tokens"])
+	require.Equal(t, int64(11), firstAttrs["gen_ai.usage.input_tokens"])
+	require.Equal(t, int64(22), secondAttrs["gen_ai.usage.input_tokens"])
+	require.Equal(t, int64(3), eventAttrs(t, spans[0], "chat.request_done")["response_content_len"])
+	require.Equal(t, int64(15), eventAttrs(t, spans[1], "chat.request_done")["response_content_len"])
+	require.Equal(t, expectedInvokeEvents(), spanEventNames(spans[0]))
+	require.Equal(t, expectedInvokeEvents(), spanEventNames(spans[1]))
+}
+
+func TestParseResponseDispatchTracerCapturesRawOutput(t *testing.T) {
+	t.Parallel()
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	defer func() { require.NoError(t, provider.Shutdown(context.Background())) }()
+	root := telemetry.TraceAdapter{
+		T: telemetry.NewTraceFromProvider(provider, "parse-dispatch-test", context.Background()),
+	}
+	raw := `{"tool":"done","parameters":{"summary":"complete"}}`
+	cmd := (&ParseResponseBuilder{
+		Registry: core.NewRegistry(), Tracer: tracing.NoopTracer{}, CaptureLevel: CaptureFull,
+	}).Build(core.Result{Output: raw})
+	aware, ok := cmd.(core.TracerAware)
+	require.True(t, ok)
+	dispatch, done := root.Push("execute_tool parse_response")
+	aware.SetTracer(dispatch)
+
+	res := cmd.Execute()
+	done()
+
+	require.Equal(t, core.TaskCompleted, res.Signal)
+	spans := recorder.Ended()
+	require.Len(t, spans, 1)
+	require.Equal(t, raw, readOnlySpanAttrs(spans[0])["llm.raw_output"])
 }
 
 func TestInvokeLLMUsesRuntimeStateForManifest(t *testing.T) {
@@ -221,4 +336,39 @@ func TestInvokeLLMFallsBackToConfiguredManifestState(t *testing.T) {
 
 	require.Equal(t, core.LLMResponded, res.Signal)
 	require.Equal(t, []core.State{"Configured"}, assembler.states)
+}
+
+func readOnlySpanAttrs(span sdktrace.ReadOnlySpan) map[string]interface{} {
+	attrs := make(map[string]interface{}, len(span.Attributes()))
+	for _, attr := range span.Attributes() {
+		attrs[string(attr.Key)] = tracing.AttrValue(attr.Value)
+	}
+	return attrs
+}
+
+func eventAttrs(t *testing.T, span sdktrace.ReadOnlySpan, name string) map[string]interface{} {
+	t.Helper()
+	for _, event := range span.Events() {
+		if event.Name == name {
+			attrs := make(map[string]interface{}, len(event.Attributes))
+			for _, attr := range event.Attributes {
+				attrs[string(attr.Key)] = tracing.AttrValue(attr.Value)
+			}
+			return attrs
+		}
+	}
+	t.Fatalf("event %q not found", name)
+	return nil
+}
+
+func spanEventNames(span sdktrace.ReadOnlySpan) string {
+	names := make([]string, 0, len(span.Events()))
+	for _, event := range span.Events() {
+		names = append(names, event.Name)
+	}
+	return strings.Join(names, ",")
+}
+
+func expectedInvokeEvents() string {
+	return "history.user_appended,prompt.assembled,chat.request_start,chat.request_done,history.assistant_appended"
 }

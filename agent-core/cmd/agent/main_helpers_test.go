@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 	"github.com/stretchr/testify/require"
 	"go/ast"
@@ -102,6 +103,8 @@ type agentFlagSnapshot struct {
 	otelLog          string
 	otelParent       string
 	directory        string
+	telemetryCapture string
+	captureChanged   bool
 	verboseTrace     bool
 	request          string
 	output           string
@@ -117,6 +120,8 @@ func snapshotAgentFlags() agentFlagSnapshot {
 		otelLog:          flagOTelLog,
 		otelParent:       flagOTelParent,
 		directory:        flagDirectory,
+		telemetryCapture: flagTelemetryCapture,
+		captureChanged:   rootCmd.PersistentFlags().Changed("telemetry-capture"),
 		verboseTrace:     flagVerboseTrace,
 		request:          flagRequest,
 		output:           flagOutput,
@@ -132,6 +137,8 @@ func restoreAgentFlags(s agentFlagSnapshot) {
 	flagOTelLog = s.otelLog
 	flagOTelParent = s.otelParent
 	flagDirectory = s.directory
+	flagTelemetryCapture = s.telemetryCapture
+	rootCmd.PersistentFlags().Lookup("telemetry-capture").Changed = s.captureChanged
 	flagVerboseTrace = s.verboseTrace
 	flagRequest = s.request
 	flagOutput = s.output
@@ -141,7 +148,7 @@ func restoreAgentFlags(s agentFlagSnapshot) {
 }
 
 func clearAgentFlags() {
-	restoreAgentFlags(agentFlagSnapshot{})
+	restoreAgentFlags(agentFlagSnapshot{telemetryCapture: string(toollm.CaptureOff)})
 }
 
 func repoRootFromTest(t *testing.T) string {

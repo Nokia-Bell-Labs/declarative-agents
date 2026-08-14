@@ -77,7 +77,17 @@ func (t *tracedDynamicToolCmd) SetCommandState(view core.CommandStateView) {
 	}
 }
 
+// SetTracer keeps the verbose wrapper and its inner command scoped to the
+// dispatch-owned child span.
+func (t *tracedDynamicToolCmd) SetTracer(tracer tracing.Tracer) {
+	t.tracer = tracer
+	if aware, ok := t.inner.(core.TracerAware); ok {
+		aware.SetTracer(tracer)
+	}
+}
+
 var _ core.CommandStateAware = (*tracedDynamicToolCmd)(nil)
+var _ core.TracerAware = (*tracedDynamicToolCmd)(nil)
 
 func (t *tracedDynamicToolCmd) Execute() core.Result {
 	child, done := t.tracer.Push("dispatch/"+t.toolName,

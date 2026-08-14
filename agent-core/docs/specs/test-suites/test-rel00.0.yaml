@@ -939,6 +939,54 @@ test_cases:
       - srd015-genai-semconv AC3
 
   - use_case: rel00.0-uc001-domain-agent-integration
+    name: Delta capture isolates current-turn messages and prompt hashes
+    go_test: TestInvokeLLMDeltaCaptureIsolatesTwoTurns
+    inputs:
+      turns: 2
+      capture_level: delta
+    expected:
+      current_user_and_assistant_only: true
+      full_message_attributes_absent: true
+      rendered_system_prompt_hash_stable: true
+    traces:
+      - srd015-genai-semconv AC5
+      - srd015-genai-semconv AC6
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Full capture emits input and assistant message arrays
+    go_test: TestInvokeLLMDispatchTracerIsolatesTwoTurns
+    inputs:
+      turns: 2
+      capture_level: full
+    expected:
+      input_message_array_valid: true
+      output_message_array_valid: true
+    traces:
+      - srd015-genai-semconv AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Off capture omits model and parser content
+    go_test: TestCaptureOffRecordsNoContent
+    inputs:
+      capture_level: off
+    expected:
+      model_content_absent: true
+      parser_raw_output_absent: true
+    traces:
+      - srd015-genai-semconv AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Conversation references are emitted only when available
+    go_test: TestInvokeLLMConversationReferenceIsOptional
+    inputs:
+      providers: "missing, unavailable, empty, available"
+    expected:
+      missing_reference_omitted: true
+      available_reference_emitted: true
+    traces:
+      - srd015-genai-semconv AC6
+
+  - use_case: rel00.0-uc001-domain-agent-integration
     name: Traceparent formats valid and invalid contexts
     go_test: TestParseTraceparentProtocolBoundaries
     inputs:

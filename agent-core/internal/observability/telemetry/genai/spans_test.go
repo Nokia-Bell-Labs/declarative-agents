@@ -84,6 +84,13 @@ func TestErrorAttrs(t *testing.T) {
 	assert.Equal(t, "_OTHER", m["error.type"])
 }
 
+func TestRepositoryOwnedCaptureAttributeKeys(t *testing.T) {
+	assert.Equal(t, attribute.Key("llm.input.delta"), AttrInputDelta)
+	assert.Equal(t, attribute.Key("llm.output.delta"), AttrOutputDelta)
+	assert.Equal(t, attribute.Key("llm.system_prompt.hash"), AttrSystemPromptHash)
+	assert.Equal(t, attribute.Key("llm.conversation.ref"), AttrConversationRef)
+}
+
 func attrMap(attrs []attribute.KeyValue) map[string]string {
 	m := make(map[string]string)
 	for _, a := range attrs {

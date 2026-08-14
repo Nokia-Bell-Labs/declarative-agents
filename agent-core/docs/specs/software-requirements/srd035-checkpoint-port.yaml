@@ -30,6 +30,7 @@ goals:
   - G5: Define the reference adapters (Noop default, InMemory for tests) and name Dolt as the default persistent backend.
   - G6: Define save timing and a single resume contract, and declare CheckpointPolicy and the engine undo-walk as non-goals.
   - G7: Define typed output-redaction metadata and require every adapter to enforce it before storing the forward output plane.
+  - G8: Define stable conversation checkpoint references and bound duplicate trace-plus-receipt content growth.
 
 requirements:
   R1:
@@ -59,6 +60,11 @@ requirements:
       - R3.3: The Receipt SHALL serialize as a JSON string, or as null (or an omitted field) when a tool returns no receipt, such as a read-only tool.
       - R3.4: Save and Load SHALL round-trip the Receipt verbatim, preserving its exact bytes.
       - R3.5: Shared boundary helpers SHALL expose only strategy, reason, requirements, and an opaque family-owned data map; adding family-specific compensation data SHALL NOT extend a cross-family typed union.
+      - R3.6: "New invoke_llm and reset_history receipts SHALL use a versioned v2 tool-owned envelope containing only the prior conversation length and, when available, a stable conversation checkpoint run/step/revision reference; the envelope SHALL NOT contain prompt, system, user, or assistant content."
+      - R3.7: The LLM tool family SHALL continue to decode legacy full-conversation receipts and restore their embedded conversation exactly.
+      - R3.8: Direct same-process Undo SHALL restore from command-local state without serializing that state, while fresh-process Undo SHALL restore v2 receipts through narrow conversation-reference provider and resolver seams injected into the LLM tool family; core and checkpoint adapters SHALL NOT decode the receipt.
+      - R3.9: "invoke_llm Undo MAY truncate an authoritative current or resolved conversation to the valid prior length; reset_history Undo SHALL require either its exact command-local snapshot or successful reference resolution. A valid prior length of zero MAY restore by safe truncation without inventing a reference."
+      - R3.10: A v2 Undo that requires exact restart restoration but has a missing, invalid, or unresolvable reference SHALL fail explicitly without changing the current conversation or exposing conversation content.
 
   R4:
     title: Conversation and domain policy in the typed snapshot
@@ -75,6 +81,7 @@ requirements:
       - R5.3: DoltCheckpoint SHALL be the default persistent backend; this SRD names it and defers its schema, commit-per-step, branch-per-run, and revert behavior to srd036.
       - R5.4: Disabled-mode (Noop) execution SHALL preserve current loop behavior and SHALL add no persistence overhead.
       - R5.5: InMemoryCheckpoint SHALL isolate saved and loaded caller memory, preserve nil versus empty Execution, and reject invalid conversation or domain JSON without replacing the last valid checkpoint.
+      - R5.6: "Conversation reference capability SHALL remain outside the two-method Checkpoint interface as optional narrow provider and JSON-snapshot resolver ports. NoopCheckpoint and request-local machines without persistence SHALL report references unavailable and SHALL NOT emit synthetic llm.conversation.ref values."
 
   R6:
     title: Save timing, resume, and non-goals
@@ -97,11 +104,23 @@ requirements:
       - R7.7: Load SHALL retain unversioned legacy entries for position, cost, signal, error, receipt, and rollback accounting. A command-state reader SHALL reject their outputs with a typed unavailable error rather than expose them by command name or label.
       - R7.8: Receipts remain opaque and outside the output-redaction contract; adapters SHALL continue to round-trip them verbatim in the reverse plane.
 
+  R8:
+    title: Stable conversation references and duplicate-content growth
+    items:
+      - R8.1: "A conversation checkpoint reference SHALL strictly identify backend, run_id, step_index, and immutable revision while remaining opaque outside persistence adapters."
+      - R8.2: The current reference exposed before a dispatch SHALL identify the latest completed checkpoint whose AgentSnapshot.Conversation contains the authoritative full conversation.
+      - R8.3: InMemoryCheckpoint or DoltCheckpoint test coverage SHALL resolve a reference through a fresh command or adapter instance and SHALL reject malformed, cross-run, wrong-step, and unavailable references without exposing conversation content.
+      - R8.4: "cmd/agent SHALL wire the provider from the active loop checkpoint and the resolver from the target lifecycle checkpoint into invoke_llm and reset_history. Request-machine LoopParams omit persistence, so their LLM factories SHALL receive neither capability."
+      - R8.5: A zero-sleep 10-turn test SHALL measure serialized trace content attribute bytes plus LLM receipt bytes, prove sub-quadratic growth with a linear bound, and compare the result with the former full-history-receipt baseline.
+      - R8.6: The R8.5 metric SHALL exclude versioned AgentSnapshot.Conversation storage. AgentSnapshot.Conversation remains the sole authoritative full-conversation record, and this epic SHALL NOT normalize Dolt historical snapshots.
+      - R8.7: "Commands that mutate process-local state MAY implement a domain-neutral serial-dispatch-only capability. Parallel for_each SHALL reject a batch containing such a command before any batch command executes; invoke_llm and reset_history SHALL implement the capability, while sequential dispatch remains supported."
+
 non_goals:
   - Defining the Dolt schema, commit-per-step, branch-per-run, or revert mechanics; those belong to srd036.
+  - Normalizing or deduplicating versioned AgentSnapshot.Conversation rows in Dolt; the duplicate-content growth criterion covers trace attributes and receipts only.
   - Retaining the key/blob StateStore, its store-path prefixes, or its List and Delete methods.
   - Keeping CheckpointPolicy or an engine-owned reverse undo-walk.
-  - Specifying the receipt schema for any specific tool; each tool owns and decodes its own receipt.
+  - Specifying receipt schemas for tool families other than the LLM v2 safety envelope in R3.6-R3.10; every originating tool remains the sole owner and decoder of its receipt.
   - Modeling workspace or git refs as a separately persisted state layer.
 
 acceptance_criteria:
@@ -114,8 +133,8 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
 
   - id: AC3
-    criterion: Each Entry carries an opaque Receipt that adapters persist and restore verbatim, serialized as a JSON string or null, and the engine never interprets it.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+    criterion: Each Entry carries an opaque Receipt that adapters persist and restore verbatim and the engine never interprets; new LLM conversation receipts contain only v2 prior-length and optional checkpoint-reference metadata, legacy receipts remain undoable, and direct or reference-resolved restart Undo restores exactly while missing or invalid restart references fail without mutation or content exposure.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10]
 
   - id: AC4
     criterion: Conversation folds into the typed snapshot and is restored on Load; no separate conversation snapshot hook or conversation store path remains.
@@ -133,9 +152,13 @@ acceptance_criteria:
     criterion: Result carries versioned typed sensitive-output paths; core removes marked object fields before constructing a live Entry; malformed metadata and marked non-object output cause whole-output omission; every Save adapter reapplies the policy; and unversioned legacy output remains available only for lifecycle accounting, never command-state selection.
     traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7, R7.8]
 
+  - id: AC8
+    criterion: Stable run/step/revision references resolve authoritative conversation JSON after a simulated restart with strict run isolation; disabled and request-local persistence emits no reference; cmd/agent wires restart Undo for invoke_llm and reset_history; parallel for_each rejects their serial-only capability before execution while sequential dispatch remains supported; and 10 zero-sleep turns keep trace-plus-receipt content within a linear bound below the old full-history-receipt baseline while excluding authoritative snapshot storage.
+    traces: [R3.6, R3.8, R3.9, R5.6, R8.1, R8.2, R8.3, R8.4, R8.5, R8.6, R8.7]
+
 test_trace_plan:
   - test_suite: test-rel02.0-lifecycle
-    covers: [AC1, AC2, AC3, AC4, AC5, AC6]
+    covers: [AC1, AC2, AC3, AC4, AC5, AC6, AC8]
   - test_suite: test-rel07.0-command-state
     covers: [AC7]
 
@@ -168,6 +191,8 @@ implementation_status:
     - Save-after-dispatch timing, single resume path, and retirement of CheckpointPolicy and the engine undo-walk.
     - Boundary-value JSON round trips, byte-exact valid UTF-8 receipts, caller-memory isolation, nil/empty execution preservation, and invalid conversation rejection.
     - "GH-489: Versioned typed output-redaction metadata, pre-Entry field removal, adapter enforcement, and selector denial for unversioned legacy output (R7)."
+    - "GH-1684: Reference-only LLM conversation receipt v2 with legacy decode, command-local direct Undo, and resolver-based restart restoration (R3.6-R3.10)."
+    - "GH-1683: Stable run/step/revision conversation references, checkpoint-backed cmd/agent provider/resolver wiring, disabled-mode unavailability, and linear 10-turn trace-plus-receipt growth coverage (R5.6, R8)."
   planned: []
 
 diagrams:
@@ -182,6 +207,7 @@ diagrams:
       Goals --> R5["R5: Reference adapters and default backend"]
       Goals --> R6["R6: Save timing, resume, and non-goals"]
       Goals --> R7["R7: Typed output-redaction contract"]
+      Goals --> R8["R8: Stable references and linear duplicate-content growth"]
       AC1["AC1: Two-method port; no key/blob StateStore"]
       R1 --> AC1
       AC2["AC2: Typed Position and Execution with JSON wire format"]
@@ -196,4 +222,6 @@ diagrams:
       R6 --> AC6
       AC7["AC7: Typed redaction, fail closed, adapter enforcement"]
       R7 --> AC7
+      AC8["AC8: Restart-resolvable references and linear trace-plus-receipt growth"]
+      R8 --> AC8
     ```

@@ -42,6 +42,13 @@ type stateAwareCmd struct {
 
 func (c *stateAwareCmd) SetCommandState(view core.CommandStateView) { c.view = view }
 
+type tracerAwareCmd struct {
+	namedCmd
+	tracer tracing.Tracer
+}
+
+func (c *tracerAwareCmd) SetTracer(tracer tracing.Tracer) { c.tracer = tracer }
+
 type receiptCmd struct {
 	namedCmd
 	undone core.Result
@@ -67,6 +74,22 @@ func TestTracedDynamicToolForwardsCommandState(t *testing.T) {
 	view := core.NewCommandStateView(core.Execution{})
 	aware.SetCommandState(view)
 	require.Equal(t, view, inner.view)
+}
+
+func TestTracedDynamicToolForwardsTracer(t *testing.T) {
+	t.Parallel()
+	inner := &tracerAwareCmd{namedCmd: namedCmd{name: "invoke_llm_deep"}}
+	wrapper := &tracedDynamicToolCmd{
+		inner: inner, tracer: tracing.NoopTracer{}, toolName: "invoke_llm_deep",
+	}
+	aware, ok := core.Command(wrapper).(core.TracerAware)
+	require.True(t, ok, "wrapper must be TracerAware")
+	injected := &tracing.NoopTracer{}
+
+	aware.SetTracer(injected)
+
+	require.Same(t, injected, inner.tracer)
+	require.Same(t, injected, wrapper.tracer)
 }
 
 func TestTracedDynamicToolForwardsPersistedUndoResult(t *testing.T) {

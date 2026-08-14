@@ -79,6 +79,80 @@ func TestLoopParallelForEachFailFastCancelsAndJoinsChildren(t *testing.T) {
 	require.GreaterOrEqual(t, len(tracker.startedValues()), 2)
 }
 
+func TestLoopParallelForEachRejectsSerialDispatchBeforeExecution(t *testing.T) {
+	t.Parallel()
+	spec := parallelIteratorMachine(t, ForEachFailFast)
+	sharedConversation := []string{"existing"}
+	command := &serialIteratorCommand{conversation: &sharedConversation}
+	registry := NewRegistry()
+	registry.Register(ToolSpec{Name: "list"}, iteratorListBuilder{items: []string{"alpha", "beta"}})
+	registry.Register(ToolSpec{Name: "item"}, serialIteratorBuilder{command: command})
+	checkpoint := &InMemoryCheckpoint{}
+
+	result, err := Loop(LoopParams{
+		MachineSpec: &spec, Registry: registry, Trace: &loopRecorder{},
+		Budget: Budget{MaxIterations: 20}, Checkpoint: checkpoint,
+	}, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusFailed, result.Status)
+	require.Zero(t, command.executions)
+	require.Equal(t, []string{"existing"}, sharedConversation)
+	_, execution, err := checkpoint.Load()
+	require.NoError(t, err)
+	var joined struct {
+		Items []struct {
+			Result struct {
+				Error string `json:"error"`
+			} `json:"result"`
+		} `json:"items"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(execution[len(execution)-1].Result.Output), &joined))
+	require.Equal(t, `iterator action "item" requires serial dispatch and cannot run in parallel mode`,
+		joined.Items[0].Result.Error)
+}
+
+func TestLoopSequentialForEachAllowsSerialDispatch(t *testing.T) {
+	t.Parallel()
+	spec, err := ParseMachineSpec([]byte(iteratorMachineYAML))
+	require.NoError(t, err)
+	sharedConversation := []string{"existing"}
+	command := &serialIteratorCommand{conversation: &sharedConversation}
+	registry := NewRegistry()
+	registry.Register(ToolSpec{Name: "list"}, iteratorListBuilder{items: []string{"alpha", "beta"}})
+	registry.Register(ToolSpec{Name: "item"}, serialIteratorBuilder{command: command})
+
+	result, err := Loop(LoopParams{
+		MachineSpec: &spec, Registry: registry, Trace: &loopRecorder{},
+		Budget: Budget{MaxIterations: 20},
+	}, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusSucceeded, result.Status)
+	require.Equal(t, 2, command.executions)
+	require.Equal(t, []string{"existing", "turn", "turn"}, sharedConversation)
+}
+
+type serialIteratorBuilder struct {
+	command *serialIteratorCommand
+}
+
+func (b serialIteratorBuilder) Build(Result) Command { return b.command }
+
+type serialIteratorCommand struct {
+	conversation *[]string
+	executions   int
+}
+
+func (c *serialIteratorCommand) Name() string        { return "item" }
+func (c *serialIteratorCommand) SerialDispatchOnly() {}
+func (c *serialIteratorCommand) Undo(Result) Result  { return NoopUndo(c.Name()) }
+func (c *serialIteratorCommand) Execute() Result {
+	c.executions++
+	*c.conversation = append(*c.conversation, "turn")
+	return Result{Signal: "ItemDone", CommandName: c.Name()}
+}
+
 func parallelIteratorMachine(t *testing.T, failure string) MachineSpec {
 	t.Helper()
 	specYAML := strings.Replace(

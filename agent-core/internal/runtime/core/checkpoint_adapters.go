@@ -3,6 +3,7 @@
 package core
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -20,17 +21,37 @@ func (NoopCheckpoint) Load() (Position, Execution, error) {
 	return Position{}, nil, ErrNoCheckpoint
 }
 
-var _ Checkpoint = NoopCheckpoint{}
+func (NoopCheckpoint) ConversationReference() (string, bool) { return "", false }
+
+func (NoopCheckpoint) ResolveConversationSnapshot(string) (json.RawMessage, error) {
+	return nil, ErrConversationReferenceUnavailable
+}
+
+var (
+	_ Checkpoint                    = NoopCheckpoint{}
+	_ ConversationReferenceProvider = NoopCheckpoint{}
+	_ ConversationSnapshotResolver  = NoopCheckpoint{}
+)
 
 // InMemoryCheckpoint is the reference adapter for tests. It round-trips a
 // Position and Execution in process, including the folded conversation and
 // per-entry receipts, and is safe for concurrent use
 // (srd035-checkpoint-port R5.2).
 type InMemoryCheckpoint struct {
-	mu        sync.Mutex
-	saved     bool
-	position  Position
-	execution Execution
+	mu            sync.Mutex
+	runID         string
+	saved         bool
+	position      Position
+	execution     Execution
+	currentRef    string
+	conversations map[string]json.RawMessage
+}
+
+// NewInMemoryCheckpoint creates a reference adapter with stable run isolation.
+// A zero-value InMemoryCheckpoint still supports Save/Load but reports
+// conversation references unavailable.
+func NewInMemoryCheckpoint(runID string) *InMemoryCheckpoint {
+	return &InMemoryCheckpoint{runID: runID}
 }
 
 func (c *InMemoryCheckpoint) Save(position Position, execution Execution) error {
@@ -44,11 +65,22 @@ func (c *InMemoryCheckpoint) Save(position Position, execution Execution) error 
 	if err != nil {
 		return fmt.Errorf("in-memory checkpoint save: %w", err)
 	}
+	ref, conversation, err := c.conversationReferenceFor(position, execution)
+	if err != nil {
+		return fmt.Errorf("in-memory checkpoint save: %w", err)
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.position = clonePosition(position)
 	c.execution = sanitized
 	c.saved = true
+	c.currentRef = ref
+	if ref != "" {
+		if c.conversations == nil {
+			c.conversations = make(map[string]json.RawMessage)
+		}
+		c.conversations[ref] = conversation
+	}
 	return nil
 }
 
@@ -61,7 +93,47 @@ func (c *InMemoryCheckpoint) Load() (Position, Execution, error) {
 	return clonePosition(c.position), cloneExecution(c.execution), nil
 }
 
-var _ Checkpoint = (*InMemoryCheckpoint)(nil)
+func (c *InMemoryCheckpoint) ConversationReference() (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.currentRef, c.currentRef != ""
+}
+
+func (c *InMemoryCheckpoint) ResolveConversationSnapshot(reference string) (json.RawMessage, error) {
+	parsed, err := parseCheckpointReference(reference)
+	if err != nil || parsed.backend != "memory" || parsed.runID != c.runID {
+		return nil, fmt.Errorf("%w: in-memory checkpoint", ErrConversationReferenceInvalid)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	conversation, ok := c.conversations[reference]
+	if !ok {
+		return nil, fmt.Errorf("%w: in-memory checkpoint", ErrConversationReferenceUnavailable)
+	}
+	return append(json.RawMessage(nil), conversation...), nil
+}
+
+func (c *InMemoryCheckpoint) conversationReferenceFor(
+	position Position,
+	execution Execution,
+) (string, json.RawMessage, error) {
+	if c.runID == "" || len(execution) == 0 || len(position.Snapshot.Conversation) == 0 {
+		return "", nil, nil
+	}
+	digest := sha256.Sum256(position.Snapshot.Conversation)
+	ref, err := formatCheckpointReference("memory", c.runID, len(execution)-1, fmt.Sprintf("%x", digest))
+	if err != nil {
+		return "", nil, err
+	}
+	conversation := append(json.RawMessage(nil), position.Snapshot.Conversation...)
+	return ref, conversation, nil
+}
+
+var (
+	_ Checkpoint                    = (*InMemoryCheckpoint)(nil)
+	_ ConversationReferenceProvider = (*InMemoryCheckpoint)(nil)
+	_ ConversationSnapshotResolver  = (*InMemoryCheckpoint)(nil)
+)
 
 // clonePosition copies a Position so callers cannot mutate persisted state
 // through the shared conversation byte slice.

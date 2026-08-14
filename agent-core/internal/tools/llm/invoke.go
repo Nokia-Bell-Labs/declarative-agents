@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/ollama"
@@ -31,38 +32,47 @@ const (
 )
 
 type invokeLLMCmd struct {
-	client       modelllm.Client
-	history      *modelllm.Conversation
-	registry     *core.Registry
-	assembler    modelllm.PromptAssembler
-	state        core.State
-	model        string
-	providerName string
-	serverAddr   string
-	userMessage  string
-	promptFrom   string
-	view         core.CommandStateView
-	tracer       tracing.Tracer
-	contextLimit int
-	numCtx       int
-	temperature  float64
-	seed         int
-	verbose      bool
-	ctx          context.Context
-	callTimeout  time.Duration
-	metrics      core.MetricConfig
-	recorder     monitor.ToolMetricsRecorder
-	prevLen      int
-	prevMessages []modelllm.Message
-	hasSnapshot  bool
+	client                  modelllm.Client
+	history                 *modelllm.Conversation
+	registry                *core.Registry
+	assembler               modelllm.PromptAssembler
+	state                   core.State
+	model                   string
+	providerName            string
+	serverAddr              string
+	userMessage             string
+	promptFrom              string
+	view                    core.CommandStateView
+	tracer                  tracing.Tracer
+	contextLimit            int
+	numCtx                  int
+	temperature             float64
+	seed                    int
+	captureLevel            CaptureLevel
+	conversationRefProvider ConversationReferenceProvider
+	conversationRefResolver ConversationReferenceResolver
+	ctx                     context.Context
+	callTimeout             time.Duration
+	metrics                 core.MetricConfig
+	recorder                monitor.ToolMetricsRecorder
+	prevLen                 int
+	prevConversationRef     string
+	hasSnapshot             bool
 }
 
-func (c *invokeLLMCmd) Name() string { return "invoke_llm" }
+func (c *invokeLLMCmd) Name() string        { return "invoke_llm" }
+func (c *invokeLLMCmd) SerialDispatchOnly() {}
 func (c *invokeLLMCmd) SpanName() string {
 	return genai.InferenceSpanName(c.model)
 }
 func (c *invokeLLMCmd) SpanCreationAttrs() []attribute.KeyValue {
 	return genai.InferenceAttrs(c.providerName, c.model, c.serverAddr)
+}
+
+// SetTracer receives the active dispatch span so all turn-local telemetry is
+// recorded on the command scope owned by Dispatch.
+func (c *invokeLLMCmd) SetTracer(tracer tracing.Tracer) {
+	c.tracer = tracerOrNoop(tracer)
 }
 
 // SetCommandState receives the read-only command-state view the engine injects
@@ -71,6 +81,8 @@ func (c *invokeLLMCmd) SpanCreationAttrs() []attribute.KeyValue {
 func (c *invokeLLMCmd) SetCommandState(view core.CommandStateView) { c.view = view }
 
 var _ core.CommandStateAware = (*invokeLLMCmd)(nil)
+var _ core.SerialDispatchOnly = (*invokeLLMCmd)(nil)
+var _ core.TracerAware = (*invokeLLMCmd)(nil)
 
 func (c *invokeLLMCmd) Execute() core.Result {
 	c.ensureContext()
@@ -163,8 +175,11 @@ func stringifyPrompt(v interface{}) string {
 }
 
 func (c *invokeLLMCmd) snapshotHistory() {
-	c.prevLen = c.history.Len()
-	c.prevMessages = c.history.Snapshot()
+	c.prevLen = len(c.history.Snapshot())
+	c.prevConversationRef = ""
+	if ref, ok := c.conversationReference(); ok {
+		c.prevConversationRef = ref
+	}
 	c.hasSnapshot = true
 	c.history.Append(modelllm.Message{Role: modelllm.User, Content: c.userMessage})
 	c.tracer.Event("history.user_appended", attribute.Int("history_len", c.history.Len()))
@@ -199,11 +214,7 @@ func (c *invokeLLMCmd) chat(messages []modelllm.Message) (modelllm.ChatResponse,
 		genai.AttrRequestTemperature.Float64(c.temperature),
 		genai.AttrRequestSeed.Int(c.seed),
 	)
-	if c.verbose {
-		if inputJSON, err := json.Marshal(messages); err == nil {
-			c.tracer.SetAttributes(genai.AttrInputMessages.String(string(inputJSON)))
-		}
-	}
+	c.recordInputCapture(messages)
 	chatCtx, cancel := c.chatContext()
 	defer cancel()
 	c.tracer.Event("chat.request_start")
@@ -213,10 +224,20 @@ func (c *invokeLLMCmd) chat(messages []modelllm.Message) (modelllm.ChatResponse,
 }
 
 func (c *invokeLLMCmd) chatContext() (context.Context, context.CancelFunc) {
-	if c.callTimeout <= 0 {
-		return c.ctx, func() {}
+	ctx := c.ctx
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return context.WithTimeout(c.ctx, c.callTimeout)
+	if c.tracer != nil {
+		span := oteltrace.SpanFromContext(c.tracer.Context())
+		if span.SpanContext().IsValid() {
+			ctx = oteltrace.ContextWithSpan(ctx, span)
+		}
+	}
+	if c.callTimeout <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, c.callTimeout)
 }
 
 func (c *invokeLLMCmd) chatResult(chatResp modelllm.ChatResponse, duration time.Duration) core.Result {
@@ -224,37 +245,37 @@ func (c *invokeLLMCmd) chatResult(chatResp modelllm.ChatResponse, duration time.
 	c.tracer.Event("history.assistant_appended", attribute.Int("history_len", c.history.Len()))
 	cost := core.Cost{Duration: duration, TokensIn: chatResp.TokensIn, TokensOut: chatResp.TokensOut}
 	c.tracer.SetAttributes(genai.AttrUsageInputTokens.Int(cost.TokensIn), genai.AttrUsageOutputTokens.Int(cost.TokensOut))
-	if c.verbose {
-		c.tracer.SetAttributes(genai.AttrOutputMessages.String(chatResp.Content))
-	}
+	c.recordOutputCapture(chatResp.Content)
 	c.recordTokenMetrics(cost)
 	return core.Result{
 		Signal:  core.LLMResponded,
 		Output:  chatResp.Content,
 		Cost:    cost,
-		Receipt: encodeConversationReceipt(c.prevMessages),
+		Receipt: encodeConversationReceipt(c.prevLen, c.prevConversationRef),
 	}
 }
 
 // InvokeLLMBuilder constructs invoke_llm commands.
 type InvokeLLMBuilder struct {
-	Client       modelllm.Client
-	History      *modelllm.Conversation
-	Registry     *core.Registry
-	Assembler    modelllm.PromptAssembler
-	State        core.State
-	Model        string
-	ProviderName string
-	ServerAddr   string
-	Tracer       tracing.Tracer
-	ContextLimit int
-	NumCtx       int
-	Temperature  float64
-	Seed         int
-	CallTimeout  time.Duration
-	Metrics      core.MetricConfig
-	Verbose      bool
-	Ctx          context.Context
+	Client                  modelllm.Client
+	History                 *modelllm.Conversation
+	Registry                *core.Registry
+	Assembler               modelllm.PromptAssembler
+	State                   core.State
+	Model                   string
+	ProviderName            string
+	ServerAddr              string
+	Tracer                  tracing.Tracer
+	ContextLimit            int
+	NumCtx                  int
+	Temperature             float64
+	Seed                    int
+	CallTimeout             time.Duration
+	Metrics                 core.MetricConfig
+	CaptureLevel            CaptureLevel
+	ConversationRefProvider ConversationReferenceProvider
+	ConversationRefResolver ConversationReferenceResolver
+	Ctx                     context.Context
 	// UserPromptFrom, when set, is the command-state $from selector the built
 	// command resolves its user message from instead of the dispatch Result.
 	UserPromptFrom string
@@ -262,12 +283,14 @@ type InvokeLLMBuilder struct {
 
 // InvokeLLMFactoryDeps are process-local ports for invoke_llm construction.
 type InvokeLLMFactoryDeps struct {
-	History    *modelllm.Conversation
-	Registry   *core.Registry
-	Tracer     tracing.Tracer
-	Verbose    bool
-	Ctx        context.Context
-	OnResolved func(InvokeLLMResolvedConfig)
+	History                 *modelllm.Conversation
+	Registry                *core.Registry
+	Tracer                  tracing.Tracer
+	CaptureLevel            CaptureLevel
+	ConversationRefProvider ConversationReferenceProvider
+	ConversationRefResolver ConversationReferenceResolver
+	Ctx                     context.Context
+	OnResolved              func(InvokeLLMResolvedConfig)
 }
 
 // InvokeLLMResolvedConfig exposes metadata needed by neighboring tools.
@@ -312,11 +335,13 @@ func invokeBuilder(
 		Client: client, History: deps.History, Registry: deps.Registry,
 		Assembler: newLLMAssembler(cfg, parser), State: core.State(cfg.ManifestState),
 		Model: cfg.Model, ProviderName: cfg.Provider, ServerAddr: serverAddr,
-		Tracer: deps.Tracer, ContextLimit: cfg.ContextLimit, NumCtx: cfg.NumCtx,
+		Tracer: tracerOrNoop(deps.Tracer), ContextLimit: cfg.ContextLimit, NumCtx: cfg.NumCtx,
 		Temperature: resolveTemperature(cfg), Seed: resolveSeed(cfg),
 		CallTimeout: durationSeconds(cfg.LLMTimeout),
-		Metrics:     def.Metrics, Verbose: deps.Verbose, Ctx: deps.Ctx,
-		UserPromptFrom: cfg.UserPromptFrom,
+		Metrics:     def.Metrics, CaptureLevel: deps.CaptureLevel,
+		ConversationRefProvider: deps.ConversationRefProvider, Ctx: deps.Ctx,
+		ConversationRefResolver: deps.ConversationRefResolver,
+		UserPromptFrom:          cfg.UserPromptFrom,
 	}
 }
 
@@ -350,11 +375,25 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 	return &invokeLLMCmd{
 		client: b.Client, history: b.History, registry: b.Registry, assembler: b.Assembler,
 		state: state, model: b.Model, providerName: b.ProviderName, serverAddr: b.ServerAddr,
-		userMessage: res.Output, promptFrom: b.UserPromptFrom, tracer: b.Tracer, contextLimit: b.ContextLimit,
+		userMessage: res.Output, promptFrom: b.UserPromptFrom, tracer: tracerOrNoop(b.Tracer), contextLimit: b.ContextLimit,
 		numCtx: b.NumCtx, temperature: b.Temperature, seed: b.Seed,
-		callTimeout: b.CallTimeout, metrics: b.Metrics, verbose: b.Verbose, ctx: ctx,
+		callTimeout: b.CallTimeout, metrics: b.Metrics, captureLevel: b.CaptureLevel,
+		conversationRefProvider: b.ConversationRefProvider,
+		conversationRefResolver: b.ConversationRefResolver, ctx: ctx,
 	}
 }
+
+// BuildReverser constructs the receipt-only command used by a fresh rollback
+// process. It needs conversation state and the checkpoint resolver, not a model
+// client or prompt assembly.
+func (b *InvokeLLMBuilder) BuildReverser() core.Command {
+	return &invokeLLMCmd{
+		history: b.History, tracer: tracerOrNoop(b.Tracer),
+		conversationRefResolver: b.ConversationRefResolver,
+	}
+}
+
+var _ core.Reverser = (*InvokeLLMBuilder)(nil)
 
 func newLLMAssembler(cfg catalog.LLMToolConfig, parser modelllm.ResponseParser) modelllm.PromptAssembler {
 	return &modelllm.DefaultAssembler{
@@ -375,9 +414,16 @@ func newLLMClient(cfg catalog.LLMToolConfig, tracer tracing.Tracer) (modelllm.Cl
 	// construction performs no hidden network probe.
 	client, err := ollama.NewAdapter(cfg.ProviderURL, cfg.Model,
 		ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
-		ollama.WithTracer(tracer),
+		ollama.WithTracer(tracerOrNoop(tracer)),
 	)
 	return client, serverAddr(cfg.ProviderURL), err
+}
+
+func tracerOrNoop(tracer tracing.Tracer) tracing.Tracer {
+	if tracer == nil {
+		return tracing.NoopTracer{}
+	}
+	return tracer
 }
 
 func resolveLLMParser(cfg catalog.LLMToolConfig) (modelllm.ResponseParser, error) {

@@ -17,23 +17,31 @@ import (
 const doneToolName = "done"
 
 type parseResponseCmd struct {
-	raw         string
-	registry    *core.Registry
-	parser      modelllm.ResponseParser
-	tracer      tracing.Tracer
-	state       core.State
-	verbose     bool
-	retry       *ParseErrorRetryTracker
-	prevRetries int
-	hasSnapshot bool
+	raw          string
+	registry     *core.Registry
+	parser       modelllm.ResponseParser
+	tracer       tracing.Tracer
+	state        core.State
+	captureLevel CaptureLevel
+	retry        *ParseErrorRetryTracker
+	prevRetries  int
+	hasSnapshot  bool
 }
 
 func (p *parseResponseCmd) Name() string { return "parse_response" }
 
+// SetTracer receives the active dispatch span so parsing attributes and events
+// remain isolated to the turn that produced the response.
+func (p *parseResponseCmd) SetTracer(tracer tracing.Tracer) {
+	p.tracer = tracerOrNoop(tracer)
+}
+
+var _ core.TracerAware = (*parseResponseCmd)(nil)
+
 func (p *parseResponseCmd) Execute() core.Result {
 	p.snapshotRetry()
 	p.tracer.SetAttributes(attribute.Int("raw_response_bytes", len(p.raw)))
-	if p.verbose {
+	if p.captureLevel.CapturesFullContent() {
 		p.tracer.SetAttributes(attribute.String("llm.raw_output", p.raw))
 	}
 	toolReq, sig, errMsg := p.parse(p.tracer)
@@ -145,20 +153,20 @@ func (p *parseResponseCmd) availableToolNames() []string {
 
 // ParseResponseBuilder constructs parse_response commands.
 type ParseResponseBuilder struct {
-	Registry  *core.Registry
-	Parser    modelllm.ResponseParser
-	Tracer    tracing.Tracer
-	State     core.State
-	StateFunc func() core.State
-	Verbose   bool
-	Retry     *ParseErrorRetryTracker
+	Registry     *core.Registry
+	Parser       modelllm.ResponseParser
+	Tracer       tracing.Tracer
+	State        core.State
+	StateFunc    func() core.State
+	CaptureLevel CaptureLevel
+	Retry        *ParseErrorRetryTracker
 }
 
 func (b *ParseResponseBuilder) Build(res core.Result) core.Command {
 	state := b.manifestState(res)
 	return &parseResponseCmd{
 		raw: res.Output, registry: b.Registry, parser: b.Parser,
-		tracer: b.Tracer, state: state, verbose: b.Verbose, retry: b.Retry,
+		tracer: tracerOrNoop(b.Tracer), state: state, captureLevel: b.CaptureLevel, retry: b.Retry,
 	}
 }
 

@@ -4,11 +4,14 @@ package rest
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -16,6 +19,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry/genai"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
@@ -89,6 +93,7 @@ type MachineRequestRun struct {
 	Config          MachineRequest          `json:"-"`
 	MonitorRecorder monitor.RuntimeRecorder `json:"-"`
 	RunID           string                  `json:"-"`
+	ConversationID  string                  `json:"-"`
 }
 
 // MachineRequestResult records the short-lived machine outcome.
@@ -250,6 +255,8 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 		// without it this wraps the no-op global provider and behaves as before.
 		Trace:           requestScopedTrace(ctx),
 		RunID:           req.RunID,
+		RequestID:       req.RequestID,
+		ConversationID:  req.ConversationID,
 		AgentName:       machineRequestAgentName(req),
 		Directory:       ".",
 		MonitorRecorder: requestRecorder,
@@ -517,15 +524,17 @@ func (r *serverRuntime) handleMachineRequest(
 ) {
 	ctx, cancel := context.WithTimeout(req.Context(), r.machineRequestTimeout(endpoint))
 	defer cancel()
-	ctx, endSpan := startMachineRequestSpan(ctx, req, r.name, name)
+	requestID, conversationID := machineRequestIdentity(req.Header.Get("X-Request-ID"))
+	ctx, endSpan := startMachineRequestSpan(ctx, req, r.name, name, requestID, conversationID)
 	defer endSpan()
 	result, err := r.runner.RunMachineRequest(ctx, MachineRequestRun{
 		Server: r.name, Route: name, Method: req.Method, Path: req.URL.Path,
-		RequestID:       req.Header.Get("X-Request-ID"),
+		RequestID:       requestID,
 		Payload:         machineRequestPayload(endpoint.MachineRequest.Request, payload),
 		Config:          endpoint.MachineRequest,
 		MonitorRecorder: r.requestMonitor,
 		RunID:           r.def.RunID,
+		ConversationID:  conversationID,
 	})
 	if err != nil {
 		writeMachineRequestError(w, err)
@@ -542,7 +551,11 @@ func (r *serverRuntime) handleMachineRequest(
 // server span join into one connected trace. An incoming tracestate rides along
 // opaquely. An absent or malformed traceparent falls back to a new root span
 // rather than failing the request, reusing the srd016 parser (srd016 R5).
-func startMachineRequestSpan(ctx context.Context, req *http.Request, server, route string) (context.Context, func()) {
+func startMachineRequestSpan(
+	ctx context.Context,
+	req *http.Request,
+	server, route, requestID, conversationID string,
+) (context.Context, func()) {
 	if tp := req.Header.Get("traceparent"); tp != "" {
 		if sc, err := telemetry.ParseTraceparent(tp); err == nil {
 			if ts := req.Header.Get("tracestate"); ts != "" {
@@ -554,8 +567,34 @@ func startMachineRequestSpan(ctx context.Context, req *http.Request, server, rou
 		}
 		// A malformed header falls through to a new root span (srd016 R5.3).
 	}
-	ctx, span := otel.Tracer("agent-core/rest/machine_request").Start(ctx, "machine_request "+server+"/"+route)
+	ctx, span := otel.Tracer("agent-core/rest/machine_request").Start(
+		ctx,
+		"machine_request "+server+"/"+route,
+		oteltrace.WithAttributes(
+			core.AttrRequestID.String(requestID),
+			genai.AttrConversationID.String(conversationID),
+		),
+	)
 	return ctx, func() { span.End() }
+}
+
+var machineRequestIDSequence atomic.Uint64
+
+func machineRequestIdentity(requestID string) (string, string) {
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" {
+		var raw [16]byte
+		if _, err := rand.Read(raw[:]); err == nil {
+			requestID = "request-" + hex.EncodeToString(raw[:])
+		} else {
+			requestID = fmt.Sprintf(
+				"request-%d-%d",
+				time.Now().UnixNano(),
+				machineRequestIDSequence.Add(1),
+			)
+		}
+	}
+	return requestID, requestID
 }
 
 func (r *serverRuntime) machineRequestTimeout(endpoint Endpoint) time.Duration {

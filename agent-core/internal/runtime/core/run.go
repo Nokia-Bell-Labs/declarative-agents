@@ -6,9 +6,15 @@ import (
 	"encoding/json"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 )
+
+// AttrRequestID is the repository-owned request identity attribute. OpenTelemetry
+// defines no general semantic convention for an application request identifier.
+const AttrRequestID attribute.Key = "declarative_agents.request.id"
 
 // RunStatus describes the outcome of a completed run.
 type RunStatus string
@@ -107,12 +113,18 @@ type LoopParams struct {
 	Hooks           LoopHooks
 	// RunID identifies one logical run across checkpoint, monitor, and trace
 	// records. It remains stable when that run is resumed.
-	RunID        string
-	AgentName    string
-	AgentVersion string
-	ProviderName string
-	MachineFile  string
-	MachineSpec  *MachineSpec
+	RunID string
+	// RequestID identifies the request that owns a request-scoped run. It is
+	// empty for ordinary run-scoped agents.
+	RequestID string
+	// ConversationID groups all spans belonging to one conversation. When empty,
+	// the loop uses RunID so ordinary and resumed runs retain stable identity.
+	ConversationID string
+	AgentName      string
+	AgentVersion   string
+	ProviderName   string
+	MachineFile    string
+	MachineSpec    *MachineSpec
 	// Program identifies the immutable declarative profile whose tools the run
 	// registered. It is persisted for cross-process receipt rollback.
 	Program    ProgramRef

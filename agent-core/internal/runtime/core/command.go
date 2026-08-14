@@ -12,6 +12,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 )
 
 // State represents a position in the agentic loop lifecycle.
@@ -87,6 +88,13 @@ type MonitorRecorderAware interface {
 // outputs only and never receipts (srd038-command-state-store R3).
 type CommandStateAware interface {
 	SetCommandState(CommandStateView)
+}
+
+// TracerAware lets a command receive the active dispatch child tracer. Commands
+// use this scope for command-local spans and attributes; Dispatch remains the
+// owner of the per-command child span.
+type TracerAware interface {
+	SetTracer(tracing.Tracer)
 }
 
 // TraceContextAware lets a command receive the active dispatch span's context so
@@ -178,6 +186,14 @@ type SpanOverride interface {
 // Builder constructs a ready-to-execute Command from the previous Result.
 type Builder interface {
 	Build(res Result) Command
+}
+
+// SerialDispatchOnly is an optional command capability for stateful commands
+// whose process-local state cannot be mutated safely by parallel for_each
+// workers. Parallel iterator construction rejects the complete batch before
+// executing any command when one command implements this marker.
+type SerialDispatchOnly interface {
+	SerialDispatchOnly()
 }
 
 // Reverser is an opt-in Builder capability for reversible tools: BuildReverser
