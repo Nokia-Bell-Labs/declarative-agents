@@ -223,7 +223,7 @@ func (c receiptGuardCommand) Undo(core.Result) core.Result { return core.Result{
 type receiptGuardNonReverser struct{ name string }
 
 func (b receiptGuardNonReverser) Build(core.Result) core.Command {
-	return receiptGuardCommand{name: b.name}
+	return receiptGuardCommand(b)
 }
 
 func TestValidateReceiptFamiliesGuardsSelectedMutatorPlumbing(t *testing.T) {
