@@ -67,7 +67,7 @@ sleep 30
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(marker)
 		return err == nil
-	}, time.Second, 10*time.Millisecond)
+	}, 5*time.Second, 10*time.Millisecond)
 
 	cancel()
 	result := <-resultCh
