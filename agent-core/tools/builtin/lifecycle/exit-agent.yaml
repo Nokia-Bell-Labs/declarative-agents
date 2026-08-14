@@ -16,18 +16,21 @@ tools:
   - Report AgentExited after the configured runtime shutdown hook is invoked.
   - Return CommandError when no shutdown hook is wired.
   - Keep exit routing visible in MachineSpec transitions.
+  - Preserve the selected declaration alias in command results and diagnostics.
   requirements:
     input:
     - must receive reason, status, and drain policy from ToolDef config or validated event context.
     - must prefer validated runtime event payload fields over ToolDef defaults.
     output:
     - must report requested status, reason, drain policy, resulting signal, and optional drain or checkpoint result fields as structured JSON.
+    - must emit no rollback receipt after successful shutdown because the effect is irreversible.
     side_effects:
     - must mutate lifecycle run state through the injected shutdown dependency.
     undo:
-    - must document operator-managed restart or checkpoint resume compensation.
+    - must classify a completed shutdown as irreversible and let rollback skip it explicitly.
     errors:
     - must fail when the shutdown dependency is missing.
+    - must emit no receipt when shutdown or input validation fails.
   non_goals:
   - Does not call os.Exit.
   - Does not bypass MachineSpec routing.
@@ -54,23 +57,14 @@ tools:
   side_effects:
   - kind: state_mutation
     target: lifecycle_state
-    state: exit_requested
-    description: Records controlled exit intent through an injected runtime dependency.
+    state: exited
+    description: Completes controlled shutdown through an injected runtime dependency.
   reversibility:
-    classification: compensatable
+    classification: irreversible
     requires_confirmation: true
   undo:
-    strategy: compensating_action
-    description: Operator can restart the agent or resume from a checkpoint.
-    payload: boundary_compensation
-    captures:
-    - reason
-    - status
-    - drain_policy
-    requires:
-    - operator_decision
-    - profile
-    - checkpoint_id
+    strategy: irreversible
+    description: A completed process shutdown cannot be automatically reversed; rollback reports an explicit irreversible skip.
   errors:
   - signal: CommandError
     condition: shutdown dependency is missing

@@ -97,11 +97,13 @@ func TestExitAgentStatusAndOutput(t *testing.T) {
 			if tt.wantErr != "" {
 				require.Equal(t, core.CommandError, res.Signal)
 				require.ErrorContains(t, res.Err, tt.wantErr)
+				require.Empty(t, res.Receipt)
 				assert.False(t, shutdownCalled)
 				return
 			}
 			require.Equal(t, core.Signal("AgentExited"), res.Signal)
 			require.Equal(t, "exit_agent", res.CommandName)
+			require.Empty(t, res.Receipt)
 			assert.True(t, shutdownCalled)
 			assert.Equal(t, tt.wantOutput, requireExitOutput(t, res))
 		})
@@ -126,15 +128,16 @@ func TestExitAgentRequiresShutdownDependency(t *testing.T) {
 	require.ErrorContains(t, res.Err, "shutdown dependency")
 }
 
-func TestExitAgentUndoRequestsOperatorCompensation(t *testing.T) {
+func TestExitAgentUndoRejectsAutomaticReversal(t *testing.T) {
 	t.Parallel()
 	cmd := (ExitBuilder{Config: ExitConfig{Reason: "operator"}}).Build(core.Result{})
 
 	res := cmd.Undo(core.Result{})
 
-	require.Equal(t, core.CompensationRequired, res.Signal)
-	require.NoError(t, res.Err)
-	require.Contains(t, res.Output, "restart the agent or resume from a checkpoint")
+	require.Equal(t, core.CommandError, res.Signal)
+	require.ErrorContains(t, res.Err, "irreversible")
+	require.Contains(t, res.Output, "completed agent shutdown")
+	require.Empty(t, res.Receipt)
 }
 
 func TestRESTLifecycleControl_ExitAgentSignal(t *testing.T) {

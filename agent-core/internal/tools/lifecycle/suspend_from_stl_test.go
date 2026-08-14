@@ -25,6 +25,7 @@ func TestSuspendBuilderEmitsAwaitApproval(t *testing.T) {
 	require.Equal(t, core.AwaitApproval, res.Signal)
 	require.Equal(t, "suspend", res.CommandName)
 	require.Equal(t, "needs review", res.Output)
+	require.NotEmpty(t, res.Receipt)
 }
 
 func TestSuspendRequiresCheckpointBackendWhenConfigured(t *testing.T) {
@@ -43,6 +44,7 @@ func TestSuspendRequiresCheckpointBackendWhenConfigured(t *testing.T) {
 		require.Equal(t, core.CommandError, res.Signal)
 		require.ErrorContains(t, res.Err, "persistent checkpoint backend")
 		require.Contains(t, res.Output, "persistent checkpoint backend")
+		require.Empty(t, res.Receipt)
 	}
 }
 
@@ -54,6 +56,7 @@ func TestSuspendAllowsMissingCheckpointByDefault(t *testing.T) {
 
 	require.Equal(t, core.AwaitApproval, res.Signal)
 	require.Equal(t, "awaiting approval", res.Output)
+	require.NotEmpty(t, res.Receipt)
 }
 
 func TestSuspendWithPersistentCheckpointSatisfiesGate(t *testing.T) {
