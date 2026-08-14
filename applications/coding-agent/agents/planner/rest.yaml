@@ -84,7 +84,7 @@ rest:
               status: $.status
           side_effects:
             - {kind: external_api, target: coding_executor.execute, state: workspace_mutated}
-          reversibility: {classification: compensatable, undo: workspace_restore}
+          reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
     critic:
       base_url: ${CRITIC_URL:-http://127.0.0.1:18220}
       auth_ref: none

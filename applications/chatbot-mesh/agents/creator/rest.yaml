@@ -110,8 +110,9 @@ rest:
               target: deployment_api.apply
               state: instance_applied
           reversibility:
-            classification: compensatable
-            undo: apply_instance
+            classification: irreversible
+            undo: irreversible
+            requires_confirmation: true
         read_rollout:
           # Verify the instance's health through the deployment API's rollout read
           # (srd005 R4.1) before reporting the operation complete. The rollout

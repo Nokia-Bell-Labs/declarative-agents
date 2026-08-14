@@ -55,6 +55,7 @@ func TestMutationUndoContractsStaySemanticallyAligned(t *testing.T) {
 		{"../agents/rag-server/request-declarations.yaml", "rag_resolve", "irreversible", "irreversible", "", true},
 		{"../agents/provisioning-workflow-orchestrator/request-declarations.yaml", "request_rollout", "irreversible", "irreversible", "", true},
 		{"../agents/provisioning-workflow-orchestrator/request-declarations.yaml", "request_rollout_values", "irreversible", "irreversible", "", true},
+		{"../agents/creator/request-declarations.yaml", "apply_instance", "irreversible", "irreversible", "", true},
 		{"../agents/creator/request-declarations.yaml", "run_corpus_ingest", "irreversible", "irreversible", "", true},
 		{"../../../agent-core/tools/builtin/otlp/all.yaml", "await_spans", "irreversible", "irreversible", "", true},
 		{"../../../agent-core/tools/builtin/otlp/all.yaml", "spool_spans", "irreversible", "irreversible", "", true},
@@ -83,6 +84,35 @@ func TestMutationUndoContractsStaySemanticallyAligned(t *testing.T) {
 				t.Error("receipt-consuming undo has no captures")
 			}
 		})
+	}
+}
+
+func TestCreatorApplyRESTPolicyMatchesIrreversibleTool(t *testing.T) {
+	var config struct {
+		Rest struct {
+			Clients map[string]struct {
+				Operations map[string]struct {
+					Compensation  map[string]interface{} `yaml:"compensation"`
+					Reversibility struct {
+						Classification       string `yaml:"classification"`
+						Undo                 string `yaml:"undo"`
+						RequiresConfirmation bool   `yaml:"requires_confirmation"`
+					} `yaml:"reversibility"`
+				} `yaml:"operations"`
+			} `yaml:"clients"`
+		} `yaml:"rest"`
+	}
+	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "rest.yaml"), &config)
+	operation := config.Rest.Clients["deployment_api"].Operations["apply_instance"]
+	if operation.Reversibility.Classification != "irreversible" ||
+		operation.Reversibility.Undo != "irreversible" ||
+		!operation.Reversibility.RequiresConfirmation {
+		t.Errorf("creator apply REST policy = %+v, want confirmed irreversible",
+			operation.Reversibility)
+	}
+	if len(operation.Compensation) != 0 {
+		t.Errorf("creator apply declares compensation without prior deployment state: %v",
+			operation.Compensation)
 	}
 }
 
