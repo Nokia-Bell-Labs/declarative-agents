@@ -26,7 +26,7 @@ rest:
     payments:
       path: openapi/payments.yaml
       base_url: https://payments.example.invalid
-      expose: [getPayment, createPayment]
+      expose: [getPayment]
       bind:
         receivePaymentWebhook: payment_webhook
       side_effects:
@@ -103,7 +103,21 @@ rest:
               state: payment_submitted
           reversibility:
             classification: compensatable
-            undo: cancelPayment
+            undo: cancel_payment
+          compensation:
+            operation: cancel_payment
+            reason: Cancel the accepted payment.
+        cancel_payment:
+          openapi_operation_id: cancelPayment
+          success: {status: [202], signal: RESTAccepted}
+          side_effects:
+            - kind: external_api
+              target: payments.payment
+              state: cancellation_submitted
+          reversibility:
+            classification: irreversible
+            undo: irreversible
+            requires_confirmation: true
   servers:
     payments_webhooks:
       address: 127.0.0.1:0

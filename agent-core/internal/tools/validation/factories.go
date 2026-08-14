@@ -22,27 +22,40 @@ type specValidationConfig struct {
 	RunFrom        string   `json:"run_from"`
 }
 
+// FactoryDeps supplies the shared validation state and optional durable domain
+// reference capabilities used by receipt-driven rollback.
+type FactoryDeps struct {
+	Directory         string
+	State             *SpecState
+	ReferenceProvider DomainReferenceProvider
+	SnapshotResolver  DomainSnapshotResolver
+}
+
 // RegisterSpecFactories registers spec validation builtin tool factories.
-func RegisterSpecFactories(br *toolregistry.BuiltinRegistry, directory string) {
-	var vs *SpecState
+func RegisterSpecFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
+	vs := deps.State
 	initVS := func() *SpecState {
 		if vs == nil {
-			vs = &SpecState{Directory: directory, TargetDirectory: directory}
+			vs = &SpecState{Directory: deps.Directory, TargetDirectory: deps.Directory}
 		}
 		return vs
 	}
-	registerLoadCorpusFactory(br, initVS)
-	registerLoadTestClaimsFactory(br, initVS)
-	registerValidateSpecsFactory(br, initVS)
-	registerReduceConsistencyFactory(br, initVS)
-	registerReduceRefFactory(br, initVS)
-	registerReduceGrepFactory(br, initVS)
-	registerResolveTestEvidenceFactory(br, initVS)
-	registerReduceTestEvidenceRunFactory(br, initVS)
+	registerLoadCorpusFactory(br, initVS, deps)
+	registerLoadTestClaimsFactory(br, initVS, deps)
+	registerValidateSpecsFactory(br, initVS, deps)
+	registerReduceConsistencyFactory(br, initVS, deps)
+	registerReduceRefFactory(br, initVS, deps)
+	registerReduceGrepFactory(br, initVS, deps)
+	registerResolveTestEvidenceFactory(br, initVS, deps)
+	registerReduceTestEvidenceRunFactory(br, initVS, deps)
 	registerFormatReportFactory(br, initVS)
 }
 
-func registerReduceConsistencyFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
+func registerReduceConsistencyFactory(
+	br *toolregistry.BuiltinRegistry,
+	initVS func() *SpecState,
+	deps FactoryDeps,
+) {
 	br.Register("reduce_consistency_checks", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
 		var cfg specValidationConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
@@ -51,11 +64,18 @@ func registerReduceConsistencyFactory(br *toolregistry.BuiltinRegistry, initVS f
 		if cfg.ResultsFrom == "" {
 			cfg.ResultsFrom = "$from(consistency_results).items"
 		}
-		return &ReduceConsistencyChecksBuilder{VS: initVS(), ResultsFrom: cfg.ResultsFrom}, nil
+		return &ReduceConsistencyChecksBuilder{
+			ToolName: def.Name, VS: initVS(), ResultsFrom: cfg.ResultsFrom,
+			ReferenceProvider: deps.ReferenceProvider, SnapshotResolver: deps.SnapshotResolver,
+		}, nil
 	})
 }
 
-func registerReduceRefFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
+func registerReduceRefFactory(
+	br *toolregistry.BuiltinRegistry,
+	initVS func() *SpecState,
+	deps FactoryDeps,
+) {
 	br.Register("reduce_ref_checks", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
 		var cfg specValidationConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
@@ -64,22 +84,36 @@ func registerReduceRefFactory(br *toolregistry.BuiltinRegistry, initVS func() *S
 		if cfg.ResultsFrom == "" {
 			cfg.ResultsFrom = "$from(ref_results).items"
 		}
-		return &ReduceRefChecksBuilder{VS: initVS(), ResultsFrom: cfg.ResultsFrom}, nil
+		return &ReduceRefChecksBuilder{
+			ToolName: def.Name, VS: initVS(), ResultsFrom: cfg.ResultsFrom,
+			ReferenceProvider: deps.ReferenceProvider, SnapshotResolver: deps.SnapshotResolver,
+		}, nil
 	})
 }
 
-func registerLoadTestClaimsFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
-	br.Register("load_test_claims", func(_ catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+func registerLoadTestClaimsFactory(
+	br *toolregistry.BuiltinRegistry,
+	initVS func() *SpecState,
+	deps FactoryDeps,
+) {
+	br.Register("load_test_claims", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		s := initVS()
 		if dir := vars["directory"]; dir != "" {
 			s.Directory = dir
 			s.TargetDirectory = dir
 		}
-		return &LoadTestClaimsBuilder{VS: s}, nil
+		return &LoadTestClaimsBuilder{
+			ToolName: def.Name, VS: s,
+			ReferenceProvider: deps.ReferenceProvider, SnapshotResolver: deps.SnapshotResolver,
+		}, nil
 	})
 }
 
-func registerResolveTestEvidenceFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
+func registerResolveTestEvidenceFactory(
+	br *toolregistry.BuiltinRegistry,
+	initVS func() *SpecState,
+	deps FactoryDeps,
+) {
 	br.Register("resolve_test_evidence", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
 		var cfg specValidationConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
@@ -95,13 +129,18 @@ func registerResolveTestEvidenceFactory(br *toolregistry.BuiltinRegistry, initVS
 			cfg.TestsFrom = "$from(go_test_inventory).output"
 		}
 		return &ResolveTestEvidenceBuilder{
-			VS: initVS(), ModuleFrom: cfg.ModuleFrom,
+			ToolName: def.Name, VS: initVS(), ModuleFrom: cfg.ModuleFrom,
 			PackagesFrom: cfg.PackagesFrom, TestsFrom: cfg.TestsFrom,
+			ReferenceProvider: deps.ReferenceProvider, SnapshotResolver: deps.SnapshotResolver,
 		}, nil
 	})
 }
 
-func registerReduceTestEvidenceRunFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
+func registerReduceTestEvidenceRunFactory(
+	br *toolregistry.BuiltinRegistry,
+	initVS func() *SpecState,
+	deps FactoryDeps,
+) {
 	br.Register("reduce_test_evidence_run", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
 		var cfg specValidationConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
@@ -110,11 +149,18 @@ func registerReduceTestEvidenceRunFactory(br *toolregistry.BuiltinRegistry, init
 		if cfg.RunFrom == "" {
 			cfg.RunFrom = "$from(go_test_run).output"
 		}
-		return &ReduceTestEvidenceRunBuilder{VS: initVS(), RunFrom: cfg.RunFrom}, nil
+		return &ReduceTestEvidenceRunBuilder{
+			ToolName: def.Name, VS: initVS(), RunFrom: cfg.RunFrom,
+			ReferenceProvider: deps.ReferenceProvider, SnapshotResolver: deps.SnapshotResolver,
+		}, nil
 	})
 }
 
-func registerLoadCorpusFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
+func registerLoadCorpusFactory(
+	br *toolregistry.BuiltinRegistry,
+	initVS func() *SpecState,
+	deps FactoryDeps,
+) {
 	br.Register("load_corpus", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		s := initVS()
 		if dir := vars["directory"]; dir != "" {
@@ -124,21 +170,35 @@ func registerLoadCorpusFactory(br *toolregistry.BuiltinRegistry, initVS func() *
 		if err := applySpecValidationConfig(s, def, vars); err != nil {
 			return nil, err
 		}
-		return &LoadCorpusBuilder{VS: s}, nil
+		return &LoadCorpusBuilder{
+			ToolName: def.Name, VS: s,
+			ReferenceProvider: deps.ReferenceProvider, SnapshotResolver: deps.SnapshotResolver,
+		}, nil
 	})
 }
 
-func registerValidateSpecsFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
+func registerValidateSpecsFactory(
+	br *toolregistry.BuiltinRegistry,
+	initVS func() *SpecState,
+	deps FactoryDeps,
+) {
 	br.Register("validate_specs", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		s := initVS()
 		if err := applySpecValidationConfig(s, def, vars); err != nil {
 			return nil, err
 		}
-		return &ValidateSpecsBuilder{VS: s}, nil
+		return &ValidateSpecsBuilder{
+			ToolName: def.Name, VS: s,
+			ReferenceProvider: deps.ReferenceProvider, SnapshotResolver: deps.SnapshotResolver,
+		}, nil
 	})
 }
 
-func registerReduceGrepFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
+func registerReduceGrepFactory(
+	br *toolregistry.BuiltinRegistry,
+	initVS func() *SpecState,
+	deps FactoryDeps,
+) {
 	br.Register("reduce_grep_checks", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		s := initVS()
 		var cfg specValidationConfig
@@ -148,7 +208,10 @@ func registerReduceGrepFactory(br *toolregistry.BuiltinRegistry, initVS func() *
 		if cfg.ResultsFrom == "" {
 			cfg.ResultsFrom = "$from(grep_results).items"
 		}
-		return &ReduceGrepChecksBuilder{VS: s, ResultsFrom: cfg.ResultsFrom}, nil
+		return &ReduceGrepChecksBuilder{
+			ToolName: def.Name, VS: s, ResultsFrom: cfg.ResultsFrom,
+			ReferenceProvider: deps.ReferenceProvider, SnapshotResolver: deps.SnapshotResolver,
+		}, nil
 	})
 }
 
@@ -158,7 +221,7 @@ func registerFormatReportFactory(br *toolregistry.BuiltinRegistry, initVS func()
 		if err := applySpecValidationConfig(s, def, vars); err != nil {
 			return nil, err
 		}
-		return &FormatReportBuilder{VS: s}, nil
+		return &FormatReportBuilder{ToolName: def.Name, VS: s}, nil
 	})
 }
 

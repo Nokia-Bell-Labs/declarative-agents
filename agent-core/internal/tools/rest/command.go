@@ -3,12 +3,23 @@
 package rest
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"strconv"
+	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
+)
+
+const (
+	serverLaunchReceiptStrategy = "compensating_action"
+	maxServerLaunchReceiptBytes = 4096
 )
 
 // ServerBuilder constructs REST server launch, await, and stop commands.
@@ -59,6 +70,14 @@ type awaitEventCmd struct {
 	state    *ServerState
 }
 
+type serverLaunchReceipt struct {
+	Strategy    string `json:"strategy"`
+	Declaration string `json:"declaration"`
+	Server      string `json:"server"`
+	Address     string `json:"address"`
+	Ownership   string `json:"ownership"`
+}
+
 func (c serverCmd) Name() string { return c.toolName }
 
 func (c serverCmd) Execute() core.Result {
@@ -96,7 +115,11 @@ func (c serverCmd) Undo(prior core.Result) core.Result {
 	if c.init != InitServerLaunch {
 		return core.NoopUndo(c.toolName)
 	}
-	output, err := c.state.Stop(c.server.Name)
+	receipt, err := c.decodeLaunchReceipt(prior)
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
+	output, err := c.state.UndoLaunch(receipt.Server, receipt.Address, receipt.Ownership)
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
@@ -104,11 +127,24 @@ func (c serverCmd) Undo(prior core.Result) core.Result {
 }
 
 func (c serverCmd) launch() core.Result {
-	output, err := c.state.Launch(c.server)
+	output, identity, err := c.state.launchOwned(c.server)
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
-	return core.Result{Signal: core.Signal("ServerLaunched"), CommandName: c.toolName, Output: jsonOutput(output)}
+	receipt, err := json.Marshal(serverLaunchReceipt{
+		Strategy:    serverLaunchReceiptStrategy,
+		Declaration: c.toolName,
+		Server:      c.server.Name,
+		Address:     identity.address,
+		Ownership:   identity.ownership,
+	})
+	if err != nil {
+		return commandError(c.toolName, fmt.Errorf("encode REST server launch receipt: %w", err))
+	}
+	return core.Result{
+		Signal: core.Signal("ServerLaunched"), CommandName: c.toolName,
+		Output: jsonOutput(output), Receipt: string(receipt),
+	}
 }
 
 func (c serverCmd) await() core.Result {
@@ -222,6 +258,104 @@ func (c serverCmd) undoStop(receipt string) core.Result {
 		"MachineSpec must relaunch server %q at %q; stop drained %v queued events",
 		restRef, stringValue(compensation.Data["server_addr"]), compensationData["drained_events"],
 	))
+}
+
+func (c serverCmd) decodeLaunchReceipt(prior core.Result) (serverLaunchReceipt, error) {
+	if prior.CommandName != "" && prior.CommandName != c.toolName {
+		return serverLaunchReceipt{}, fmt.Errorf(
+			"REST server launch receipt command %q does not match declaration %q",
+			prior.CommandName, c.toolName,
+		)
+	}
+	receipt, err := decodeServerLaunchReceipt(prior.Receipt)
+	if err != nil {
+		return serverLaunchReceipt{}, fmt.Errorf("decode REST server launch receipt: %w", err)
+	}
+	if receipt.Strategy != serverLaunchReceiptStrategy {
+		return serverLaunchReceipt{}, fmt.Errorf(
+			"REST server launch receipt strategy %q does not match %q",
+			receipt.Strategy, serverLaunchReceiptStrategy,
+		)
+	}
+	if receipt.Declaration != c.toolName {
+		return serverLaunchReceipt{}, fmt.Errorf(
+			"REST server launch receipt declaration %q does not match %q",
+			receipt.Declaration, c.toolName,
+		)
+	}
+	if receipt.Server != c.server.Name {
+		return serverLaunchReceipt{}, fmt.Errorf(
+			"REST server launch receipt server %q does not match configured server %q",
+			receipt.Server, c.server.Name,
+		)
+	}
+	if err := validateServerLaunchAddress(c.server.Server.Address, receipt.Address); err != nil {
+		return serverLaunchReceipt{}, fmt.Errorf("REST server launch receipt address: %w", err)
+	}
+	ownership, err := hex.DecodeString(receipt.Ownership)
+	if err != nil || len(ownership) != serverOwnershipBytes ||
+		hex.EncodeToString(ownership) != receipt.Ownership {
+		return serverLaunchReceipt{}, fmt.Errorf("REST server launch receipt ownership is invalid")
+	}
+	return receipt, nil
+}
+
+func decodeServerLaunchReceipt(value string) (serverLaunchReceipt, error) {
+	if value == "" {
+		return serverLaunchReceipt{}, fmt.Errorf("receipt is required")
+	}
+	if len(value) > maxServerLaunchReceiptBytes {
+		return serverLaunchReceipt{}, fmt.Errorf("receipt exceeds %d bytes", maxServerLaunchReceiptBytes)
+	}
+	var receipt serverLaunchReceipt
+	decoder := json.NewDecoder(bytes.NewReader([]byte(value)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&receipt); err != nil {
+		return serverLaunchReceipt{}, err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return serverLaunchReceipt{}, fmt.Errorf("multiple JSON values")
+		}
+		return serverLaunchReceipt{}, err
+	}
+	for name, field := range map[string]string{
+		"strategy": receipt.Strategy, "declaration": receipt.Declaration,
+		"server": receipt.Server, "address": receipt.Address, "ownership": receipt.Ownership,
+	} {
+		if field == "" || strings.TrimSpace(field) != field {
+			return serverLaunchReceipt{}, fmt.Errorf("%s is required and must be canonical", name)
+		}
+	}
+	return receipt, nil
+}
+
+func validateServerLaunchAddress(configured, actual string) error {
+	actualHost, actualPortText, err := net.SplitHostPort(actual)
+	if err != nil {
+		return fmt.Errorf("invalid bound address %q: %w", actual, err)
+	}
+	actualPort, err := strconv.Atoi(actualPortText)
+	if err != nil || actualPort < 1 || actualPort > 65535 {
+		return fmt.Errorf("invalid bound port in %q", actual)
+	}
+	configuredHost, configuredPortText, err := net.SplitHostPort(configured)
+	if err != nil {
+		return fmt.Errorf("invalid configured address %q: %w", configured, err)
+	}
+	configuredPort, err := strconv.Atoi(configuredPortText)
+	if err != nil || configuredPort < 0 || configuredPort > 65535 {
+		return fmt.Errorf("invalid configured port in %q", configured)
+	}
+	if configuredPort != 0 && configuredPort != actualPort {
+		return fmt.Errorf("bound address %q does not match configured address %q", actual, configured)
+	}
+	configuredIP, actualIP := net.ParseIP(configuredHost), net.ParseIP(actualHost)
+	if configuredIP != nil && !configuredIP.IsUnspecified() &&
+		(actualIP == nil || !configuredIP.Equal(actualIP)) {
+		return fmt.Errorf("bound address %q does not match configured address %q", actual, configured)
+	}
+	return nil
 }
 
 func stringValue(value interface{}) string {

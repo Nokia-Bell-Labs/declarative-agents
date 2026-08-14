@@ -280,7 +280,7 @@ test_cases:
       session/config/source reads, dispatches a launch through value_predicate and
       self_invoke, requests clean shutdown, and waits for the host machine to exit.
     expected:
-      asserted_tool_spans: [launch_bench_http, await_bench_action, list_evaluation_sessions, list_resource, read_resource, validate_eval_suite, self_invoke, stop_bench_http]
+      asserted_tool_spans: [launch_bench_http, await_bench_action, list_evaluation_sessions, list_resource, read_resource, validate_eval_suite, launch_evaluator, stop_bench_http]
       error_status_spans: 0
       terminal_states: [Done]
     traces:

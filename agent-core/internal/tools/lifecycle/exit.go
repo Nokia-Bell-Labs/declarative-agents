@@ -11,7 +11,6 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 // ExitConfig configures the generic exit_agent builtin.
@@ -25,6 +24,7 @@ type ExitConfig struct {
 
 // ExitBuilder constructs exit_agent commands.
 type ExitBuilder struct {
+	ToolName string
 	Config   ExitConfig
 	Shutdown func()
 	Tracer   tracing.Tracer
@@ -37,17 +37,21 @@ type exitRuntimeField struct {
 
 func (b ExitBuilder) Build(previous core.Result) core.Command {
 	cfg, err := configWithRuntimePayload(b.Config, previous.Output)
-	return &exitCmd{config: cfg, buildErr: err, shutdown: b.Shutdown, tracer: b.Tracer}
+	return &exitCmd{
+		toolName: b.ToolName, config: cfg, buildErr: err,
+		shutdown: b.Shutdown, tracer: b.Tracer,
+	}
 }
 
 type exitCmd struct {
+	toolName string
 	config   ExitConfig
 	buildErr error
 	shutdown func()
 	tracer   tracing.Tracer
 }
 
-func (c *exitCmd) Name() string { return "exit_agent" }
+func (c *exitCmd) Name() string { return lifecycleToolName(c.toolName, "exit_agent") }
 
 func (c *exitCmd) Execute() core.Result {
 	if c.buildErr != nil {
@@ -69,7 +73,8 @@ func (c *exitCmd) Execute() core.Result {
 }
 
 func (c *exitCmd) Undo(_ core.Result) core.Result {
-	return undo.BoundaryCompensationUndo(c.Name(), "operator can restart the agent or resume from a checkpoint")
+	err := fmt.Errorf("cannot undo %s: completed agent shutdown is irreversible", c.Name())
+	return commandError(c.Name(), err)
 }
 
 func (c *exitCmd) output() string {

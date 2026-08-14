@@ -371,6 +371,9 @@ func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 			return &fakeScanner{scanErr: sql.ErrNoRows}
 		}
 		machine, exists := store.machines[args[0].(string)]
+		if strings.Contains(query, "SELECT domain ") {
+			return &fakeScanner{kind: "domain", domain: machine.domain, missing: !exists}
+		}
 		return &fakeScanner{kind: "conversation", conversation: machine.conversation, missing: !exists}
 	case strings.Contains(query, "FROM dolt_branches"):
 		count := 0

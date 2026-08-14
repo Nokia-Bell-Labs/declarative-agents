@@ -14,6 +14,7 @@ import (
 )
 
 type resetHistoryCmd struct {
+	toolName     string
 	history      *modelllm.Conversation
 	tracer       tracing.Tracer
 	prevMessages []modelllm.Message
@@ -23,7 +24,12 @@ type resetHistoryCmd struct {
 	refResolver  ConversationReferenceResolver
 }
 
-func (r *resetHistoryCmd) Name() string        { return "reset_history" }
+func (r *resetHistoryCmd) Name() string {
+	if r.toolName != "" {
+		return r.toolName
+	}
+	return "reset_history"
+}
 func (r *resetHistoryCmd) SerialDispatchOnly() {}
 
 var _ core.SerialDispatchOnly = (*resetHistoryCmd)(nil)
@@ -79,6 +85,7 @@ func (r *resetHistoryCmd) Undo(prior core.Result) core.Result {
 
 // ResetHistoryBuilder constructs reset_history commands.
 type ResetHistoryBuilder struct {
+	ToolName                string
 	History                 *modelllm.Conversation
 	Tracer                  tracing.Tracer
 	ConversationRefProvider ConversationReferenceProvider
@@ -87,7 +94,8 @@ type ResetHistoryBuilder struct {
 
 func (b *ResetHistoryBuilder) Build(_ core.Result) core.Command {
 	return &resetHistoryCmd{
-		history: b.History, tracer: b.Tracer,
+		toolName: b.ToolName,
+		history:  b.History, tracer: b.Tracer,
 		refProvider: b.ConversationRefProvider,
 		refResolver: b.ConversationRefResolver,
 	}
@@ -96,7 +104,8 @@ func (b *ResetHistoryBuilder) Build(_ core.Result) core.Command {
 // BuildReverser constructs the receipt-only reset command used after restart.
 func (b *ResetHistoryBuilder) BuildReverser() core.Command {
 	return &resetHistoryCmd{
-		history: b.History, tracer: b.Tracer,
+		toolName: b.ToolName,
+		history:  b.History, tracer: b.Tracer,
 		refResolver: b.ConversationRefResolver,
 	}
 }

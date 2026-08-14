@@ -10,68 +10,104 @@ import (
 )
 
 // LoadTestClaimsBuilder loads only formal test suites for the evidence audit.
-type LoadTestClaimsBuilder struct{ VS *SpecState }
+type LoadTestClaimsBuilder struct {
+	ToolName          string
+	VS                *SpecState
+	ReferenceProvider DomainReferenceProvider
+	SnapshotResolver  DomainSnapshotResolver
+}
 
 func (b *LoadTestClaimsBuilder) Build(_ core.Result) core.Command {
-	return &loadTestClaimsCmd{vs: b.VS}
+	return &loadTestClaimsCmd{
+		toolName: b.ToolName,
+		vs:       b.VS,
+		undo:     newSpecUndoSupport(b.ReferenceProvider, b.SnapshotResolver),
+	}
+}
+
+func (b *LoadTestClaimsBuilder) BuildReverser() core.Command {
+	return &loadTestClaimsCmd{
+		toolName: b.ToolName,
+		vs:       b.VS,
+		undo:     newSpecUndoSupport(nil, b.SnapshotResolver),
+	}
 }
 
 type loadTestClaimsCmd struct {
-	vs          *SpecState
-	snapshot    specSnapshot
-	hasSnapshot bool
+	toolName string
+	vs       *SpecState
+	undo     specUndoSupport
 }
 
-func (c *loadTestClaimsCmd) Name() string { return "load_test_claims" }
+func (c *loadTestClaimsCmd) Name() string {
+	return validationCommandName(c.toolName, "load_test_claims")
+}
 func (c *loadTestClaimsCmd) Undo(prior core.Result) core.Result {
-	return undoSpecState(c.Name(), c.vs, prior, c.snapshot, c.hasSnapshot)
+	return c.undo.restore(c.Name(), c.vs, prior)
 }
 func (c *loadTestClaimsCmd) Execute() core.Result {
 	suites, err := spec.LoadTestSuites(c.vs.Directory)
 	if err != nil {
 		return evidenceReductionError(c.Name(), err)
 	}
-	c.snapshot = snapshotSpec(c.vs)
-	c.hasSnapshot = true
+	if err := c.undo.capture(c.vs); err != nil {
+		return specCaptureError(c.Name(), err)
+	}
 	c.vs.Corpus = &spec.Corpus{RootDir: c.vs.Directory, TestSuites: suites}
 	return core.Result{
 		Signal: core.ToolDone, CommandName: c.Name(),
 		Output:  fmt.Sprintf("loaded %d formal test suites", len(suites)),
-		Receipt: encodeSpecReceipt(c.snapshot),
+		Receipt: c.undo.receipt,
 	}
 }
 
 // ResolveTestEvidenceBuilder reduces the three declared inventory commands into
 // formal go_test resolution findings.
 type ResolveTestEvidenceBuilder struct {
-	VS           *SpecState
-	ModuleFrom   string
-	PackagesFrom string
-	TestsFrom    string
+	ToolName          string
+	VS                *SpecState
+	ModuleFrom        string
+	PackagesFrom      string
+	TestsFrom         string
+	ReferenceProvider DomainReferenceProvider
+	SnapshotResolver  DomainSnapshotResolver
 }
 
 func (b *ResolveTestEvidenceBuilder) Build(_ core.Result) core.Command {
 	return &resolveTestEvidenceCmd{
-		vs: b.VS, moduleFrom: b.ModuleFrom,
+		toolName: b.ToolName,
+		vs:       b.VS, moduleFrom: b.ModuleFrom,
 		packagesFrom: b.PackagesFrom, testsFrom: b.TestsFrom,
+		undo: newSpecUndoSupport(b.ReferenceProvider, b.SnapshotResolver),
+	}
+}
+
+func (b *ResolveTestEvidenceBuilder) BuildReverser() core.Command {
+	return &resolveTestEvidenceCmd{
+		toolName: b.ToolName,
+		vs:       b.VS, moduleFrom: b.ModuleFrom,
+		packagesFrom: b.PackagesFrom, testsFrom: b.TestsFrom,
+		undo: newSpecUndoSupport(nil, b.SnapshotResolver),
 	}
 }
 
 type resolveTestEvidenceCmd struct {
+	toolName                 string
 	vs                       *SpecState
 	moduleFrom, packagesFrom string
 	testsFrom                string
 	view                     core.CommandStateView
-	snapshot                 specSnapshot
-	hasSnapshot              bool
+	undo                     specUndoSupport
 }
 
-func (c *resolveTestEvidenceCmd) Name() string { return "resolve_test_evidence" }
+func (c *resolveTestEvidenceCmd) Name() string {
+	return validationCommandName(c.toolName, "resolve_test_evidence")
+}
 func (c *resolveTestEvidenceCmd) SetCommandState(view core.CommandStateView) {
 	c.view = view
 }
 func (c *resolveTestEvidenceCmd) Undo(prior core.Result) core.Result {
-	return undoSpecState(c.Name(), c.vs, prior, c.snapshot, c.hasSnapshot)
+	return c.undo.restore(c.Name(), c.vs, prior)
 }
 
 func (c *resolveTestEvidenceCmd) Execute() core.Result {
@@ -92,40 +128,58 @@ func (c *resolveTestEvidenceCmd) Execute() core.Result {
 		return evidenceReductionError(c.Name(), err)
 	}
 
-	c.snapshot = snapshotSpec(c.vs)
-	c.hasSnapshot = true
+	findings := spec.ValidateGoTestEvidence(inventory, c.vs.Corpus.TestSuites)
+	if err := c.undo.capture(c.vs); err != nil {
+		return specCaptureError(c.Name(), err)
+	}
 	c.vs.TestInventory = inventory
-	c.vs.Findings = append(c.vs.Findings,
-		spec.ValidateGoTestEvidence(inventory, c.vs.Corpus.TestSuites)...)
+	c.vs.Findings = append(c.vs.Findings, findings...)
 	res := evidenceValidationResult(c.Name(), c.vs)
-	res.Receipt = encodeSpecReceipt(c.snapshot)
+	res.Receipt = c.undo.receipt
 	return res
 }
 
 // ReduceTestEvidenceRunBuilder reduces one declared full-module test run.
 type ReduceTestEvidenceRunBuilder struct {
-	VS      *SpecState
-	RunFrom string
+	ToolName          string
+	VS                *SpecState
+	RunFrom           string
+	ReferenceProvider DomainReferenceProvider
+	SnapshotResolver  DomainSnapshotResolver
 }
 
 func (b *ReduceTestEvidenceRunBuilder) Build(_ core.Result) core.Command {
-	return &reduceTestEvidenceRunCmd{vs: b.VS, runFrom: b.RunFrom}
+	return &reduceTestEvidenceRunCmd{
+		toolName: b.ToolName,
+		vs:       b.VS, runFrom: b.RunFrom,
+		undo: newSpecUndoSupport(b.ReferenceProvider, b.SnapshotResolver),
+	}
+}
+
+func (b *ReduceTestEvidenceRunBuilder) BuildReverser() core.Command {
+	return &reduceTestEvidenceRunCmd{
+		toolName: b.ToolName,
+		vs:       b.VS, runFrom: b.RunFrom,
+		undo: newSpecUndoSupport(nil, b.SnapshotResolver),
+	}
 }
 
 type reduceTestEvidenceRunCmd struct {
-	vs          *SpecState
-	runFrom     string
-	view        core.CommandStateView
-	snapshot    specSnapshot
-	hasSnapshot bool
+	toolName string
+	vs       *SpecState
+	runFrom  string
+	view     core.CommandStateView
+	undo     specUndoSupport
 }
 
-func (c *reduceTestEvidenceRunCmd) Name() string { return "reduce_test_evidence_run" }
+func (c *reduceTestEvidenceRunCmd) Name() string {
+	return validationCommandName(c.toolName, "reduce_test_evidence_run")
+}
 func (c *reduceTestEvidenceRunCmd) SetCommandState(view core.CommandStateView) {
 	c.view = view
 }
 func (c *reduceTestEvidenceRunCmd) Undo(prior core.Result) core.Result {
-	return undoSpecState(c.Name(), c.vs, prior, c.snapshot, c.hasSnapshot)
+	return c.undo.restore(c.Name(), c.vs, prior)
 }
 
 func (c *reduceTestEvidenceRunCmd) Execute() core.Result {
@@ -141,11 +195,12 @@ func (c *reduceTestEvidenceRunCmd) Execute() core.Result {
 	if err != nil {
 		return evidenceReductionError(c.Name(), err)
 	}
-	c.snapshot = snapshotSpec(c.vs)
-	c.hasSnapshot = true
+	if err := c.undo.capture(c.vs); err != nil {
+		return specCaptureError(c.Name(), err)
+	}
 	c.vs.Findings = append(c.vs.Findings, findings...)
 	res := evidenceValidationResult(c.Name(), c.vs)
-	res.Receipt = encodeSpecReceipt(c.snapshot)
+	res.Receipt = c.undo.receipt
 	return res
 }
 
@@ -179,4 +234,7 @@ func evidenceReductionError(name string, err error) core.Result {
 var (
 	_ core.CommandStateAware = (*resolveTestEvidenceCmd)(nil)
 	_ core.CommandStateAware = (*reduceTestEvidenceRunCmd)(nil)
+	_ core.Reverser          = (*LoadTestClaimsBuilder)(nil)
+	_ core.Reverser          = (*ResolveTestEvidenceBuilder)(nil)
+	_ core.Reverser          = (*ReduceTestEvidenceRunBuilder)(nil)
 )

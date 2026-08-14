@@ -14,6 +14,9 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
+	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
 func TestResetHistoryFactoryRestartsFromCheckpointReference(t *testing.T) {
@@ -81,6 +84,74 @@ func TestRequestLocalStateDoesNotExposeHostCheckpointReferences(t *testing.T) {
 	provider, resolver := llmConversationReferencePorts(local)
 	require.Nil(t, provider)
 	require.Nil(t, resolver)
+}
+
+func TestValidationStateRestartsThroughCompositionDomainPorts(t *testing.T) {
+	t.Parallel()
+	prior := &validation.SpecState{
+		Directory:       "/persisted-source",
+		TargetDirectory: "/persisted-target",
+		SuitePaths:      []string{"suite.yaml"},
+		Corpus:          &spec.Corpus{RootDir: "/persisted-source"},
+		Findings:        []spec.Finding{{Level: "warning", Message: "prior"}},
+		HasErrors:       true,
+		CorpusOptional:  true,
+	}
+	origin := checkpointAgentState(core.NoopCheckpoint{})
+	origin.validation = prior
+	domain, err := origin.snapshotDomain()
+	require.NoError(t, err)
+
+	checkpoint := core.NewInMemoryCheckpoint("validation-run")
+	require.NoError(t, checkpoint.Save(
+		core.Position{Snapshot: core.AgentSnapshot{Domain: domain}},
+		core.Execution{{
+			Result: core.ResultDigest{
+				RedactionVersion: core.OutputRedactionVersion1,
+				RedactionStatus:  core.OutputRedactionApplied,
+			},
+		}},
+	))
+
+	active := checkpointAgentState(checkpoint)
+	active.validation = prior
+	provider, resolver := validationReferencePorts(active)
+	result := (&validation.ValidateSpecsBuilder{
+		ToolName: "audit_specs", VS: prior,
+		ReferenceProvider: provider, SnapshotResolver: resolver,
+	}).Build(core.Result{}).Execute()
+	require.NotEqual(t, core.CommandError, result.Signal, result.Output)
+	require.NotEmpty(t, result.Receipt)
+
+	fresh := &validation.SpecState{}
+	undo := (&validation.ValidateSpecsBuilder{
+		ToolName: "audit_specs", VS: fresh, SnapshotResolver: resolver,
+	}).BuildReverser().Undo(core.Result{Receipt: result.Receipt})
+	require.Equal(t, core.ToolDone, undo.Signal, undo.Output)
+	require.Equal(t, "/persisted-source", fresh.Directory)
+	require.Equal(t, "/persisted-target", fresh.TargetDirectory)
+	require.Equal(t, prior.SuitePaths, fresh.SuitePaths)
+	require.Equal(t, prior.Corpus, fresh.Corpus)
+	require.Equal(t, []spec.Finding{{Level: "warning", Message: "prior"}}, fresh.Findings)
+	require.True(t, fresh.HasErrors)
+	require.True(t, fresh.CorpusOptional)
+}
+
+func TestValidationFactoryWiresSharedStateAndDomainPorts(t *testing.T) {
+	t.Parallel()
+	state := checkpointAgentState(core.NewInMemoryCheckpoint("validation-run"))
+	builtins := toolregistry.NewBuiltinRegistry()
+	registerBuiltinFactories(builtins, state, map[string]bool{"validate_specs": true})
+	factory, ok := builtins.Resolve("validate_specs")
+	require.True(t, ok)
+
+	builder, err := factory(catalog.ToolDef{Name: "audit_specs"}, nil)
+	require.NoError(t, err)
+	validationBuilder := builder.(*validation.ValidateSpecsBuilder)
+	require.Equal(t, "audit_specs", validationBuilder.ToolName)
+	require.Same(t, state.validation, validationBuilder.VS)
+	require.NotNil(t, validationBuilder.ReferenceProvider)
+	require.NotNil(t, validationBuilder.SnapshotResolver)
 }
 
 func checkpointWithConversation(

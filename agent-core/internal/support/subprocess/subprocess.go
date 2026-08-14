@@ -34,6 +34,7 @@ type Result struct {
 	Stderr   string
 	ExitCode int
 	Duration time.Duration
+	Started  bool
 	TimedOut bool
 	Err      error
 }
@@ -128,13 +129,14 @@ func Run(ctx context.Context, spec Spec) *Result {
 	}
 
 	start := time.Now()
-	err := runCmd(cmd, spec.Stdin)
+	started, err := runCmd(cmd, spec.Stdin)
 	elapsed := time.Since(start)
 
 	result := &Result{
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 		Duration: elapsed,
+		Started:  started,
 	}
 
 	if err != nil {
@@ -202,17 +204,20 @@ func (s Spec) withTimeout(ctx context.Context) (context.Context, context.CancelF
 
 // runCmd runs cmd, streaming stdin from a goroutine when the spec provides it so
 // a child that never drains its input cannot wedge the writer.
-func runCmd(cmd *exec.Cmd, stdin string) error {
+func runCmd(cmd *exec.Cmd, stdin string) (bool, error) {
 	if stdin == "" {
-		return cmd.Run()
+		if err := cmd.Start(); err != nil {
+			return false, err
+		}
+		return true, cmd.Wait()
 	}
 	pipe, err := cmd.StdinPipe()
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := cmd.Start(); err != nil {
 		_ = pipe.Close()
-		return err
+		return false, err
 	}
 	written := make(chan struct{})
 	go func() {
@@ -223,7 +228,7 @@ func runCmd(cmd *exec.Cmd, stdin string) error {
 	waitErr := cmd.Wait()
 	_ = pipe.Close()
 	<-written
-	return waitErr
+	return true, waitErr
 }
 
 // EnvVar formats an environment variable assignment.

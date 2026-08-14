@@ -52,6 +52,13 @@ func (b nonReverserStub) Build(core.Result) core.Command {
 	return undoStub{name: b.name}
 }
 
+type nilReverserStub struct{ name string }
+
+func (b nilReverserStub) Build(core.Result) core.Command {
+	return undoStub{name: b.name}
+}
+func (b nilReverserStub) BuildReverser() core.Command { return nil }
+
 type policyOnlyResolver struct{ spec core.ToolSpec }
 
 func (r policyOnlyResolver) Resolve(string) (core.Builder, bool) {
@@ -194,6 +201,10 @@ func TestUndoEntryMissingRollbackPlumbingFails(t *testing.T) {
 	noReceipt.Register(core.ToolSpec{
 		Name: "sample", Rollback: core.RollbackPolicy{Classification: "reversible"},
 	}, reverserStub{name: "sample"})
+	nilReverser := core.NewRegistry()
+	nilReverser.Register(core.ToolSpec{
+		Name: "sample", Rollback: core.RollbackPolicy{Classification: "reversible"},
+	}, nilReverserStub{name: "sample"})
 
 	for _, test := range []struct {
 		name     string
@@ -204,6 +215,7 @@ func TestUndoEntryMissingRollbackPlumbingFails(t *testing.T) {
 		{name: "no registry", want: "no registry", entry: entry},
 		{name: "no builder", registry: empty, want: "no builder registered", entry: entry},
 		{name: "no reverser", registry: nonReverser, want: "does not implement Reverser", entry: entry},
+		{name: "nil reverser", registry: nilReverser, want: "BuildReverser returned nil", entry: entry},
 		{name: "no receipt", registry: noReceipt, want: "no receipt", entry: core.Entry{CommandName: "sample"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {

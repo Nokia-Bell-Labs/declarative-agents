@@ -33,6 +33,42 @@ type GoTestInventory struct {
 	allTests   map[string]bool            // union of every top-level test name
 }
 
+type goTestInventoryJSON struct {
+	ModulePath string                     `json:"module_path"`
+	Packages   map[string]bool            `json:"packages"`
+	ByPackage  map[string]map[string]bool `json:"by_package"`
+	AllTests   map[string]bool            `json:"all_tests"`
+}
+
+// MarshalJSON exposes the inventory's logical indexes to domain checkpoint
+// codecs without making the mutable maps part of the package API.
+func (i GoTestInventory) MarshalJSON() ([]byte, error) {
+	return json.Marshal(goTestInventoryJSON{
+		ModulePath: i.modulePath,
+		Packages:   i.packages,
+		ByPackage:  i.byPackage,
+		AllTests:   i.allTests,
+	})
+}
+
+// UnmarshalJSON restores the inventory indexes from an authoritative domain
+// checkpoint. The validation package decodes into a detached state before
+// publishing it, so these maps cannot partially replace live state.
+func (i *GoTestInventory) UnmarshalJSON(data []byte) error {
+	var decoded goTestInventoryJSON
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	if strings.TrimSpace(decoded.ModulePath) == "" {
+		return fmt.Errorf("go test inventory module path is empty")
+	}
+	i.modulePath = decoded.ModulePath
+	i.packages = decoded.Packages
+	i.byPackage = decoded.ByPackage
+	i.allTests = decoded.AllTests
+	return nil
+}
+
 // ParseGoTestInventory builds an inventory from the outputs of the profile's
 // declared `go list -m`, `go list ./...`, and `go test -json -list` exec words.
 // Keeping command execution in the profile makes the subprocess boundary

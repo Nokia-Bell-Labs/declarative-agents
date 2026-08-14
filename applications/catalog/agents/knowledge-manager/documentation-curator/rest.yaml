@@ -50,6 +50,7 @@ rest:
       output: {status: $.status, findings: $.findings, checked_paths: $.checked_paths}
     doc_suggestions:
       output: {patch_id: $.patch_id, path: $.path, suggestions: $.suggestions, status: $.status}
+      resource_id: $.patch_id
       redact: [body.proposed_patch]
     patch_decision:
       output: {patch_id: $.patch_id, status: $.status, decided_by: $.decided_by, applied: $.applied}
@@ -120,8 +121,28 @@ rest:
           success: {status: [202], signal: RESTAccepted, response_ref: doc_suggestions}
           response_ref: doc_suggestions
           side_effects: [{kind: external_api, target: documentation.suggestions, state: review_persisted}]
-          reversibility: {classification: compensatable, undo: doc_patch_reject}
-          compensation: {operation: doc_patch_reject, reason: Reject the persisted pending review.}
+          reversibility: {classification: compensatable, undo: doc_suggestion_reject}
+          compensation:
+            operation: doc_suggestion_reject
+            reason: Reject the persisted pending review.
+            parameters: {decided_by: rollback}
+        doc_suggestion_reject:
+          method: POST
+          path: /api/v1/docs/patches/{id}/reject
+          params:
+            path: {id: {type: string}}
+            body_schema:
+              type: object
+              properties: {decided_by: {type: string}, reason: {type: string}}
+              required: [decided_by]
+          body: {decided_by: "{{ params.decided_by }}", reason: "{{ params.reason }}"}
+          success: {status: [200], signal: RESTResponded, response_ref: patch_decision}
+          failures:
+            - {status: [404], signal: RESTMissing}
+            - {status: [409, 422], signal: RESTDomainFailed, response_ref: patch_decision}
+          response_ref: patch_decision
+          side_effects: [{kind: external_api, target: documentation.patch, state: rejected}]
+          reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
         doc_patch_approve: &approve_client
           method: POST
           path: /api/v1/docs/patches/{patch_id}/approve

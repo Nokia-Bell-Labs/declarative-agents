@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,9 @@ func TestParseResponse_ValidToolCall(t *testing.T) {
 	cmd := builder.Build(core.Result{Output: `{"tool":"read","parameters":{"path":"main.go"}}`})
 	res := cmd.Execute()
 
+	assert.Equal(t, "parse_response", cmd.Name())
 	assert.Equal(t, core.ToolDone, res.Signal)
+	assert.Equal(t, "parse_response", res.CommandName)
 	var tr modelllm.ToolRequest
 	require.NoError(t, json.Unmarshal([]byte(res.Output), &tr))
 	assert.Equal(t, "read", tr.ToolName)
@@ -158,7 +161,9 @@ func TestReportParseError(t *testing.T) {
 	cmd := builder.Build(core.Result{Output: "malformed JSON: unexpected EOF"})
 	res := cmd.Execute()
 
+	assert.Equal(t, "report_parse_error", cmd.Name())
 	assert.Equal(t, core.ToolDone, res.Signal)
+	assert.Equal(t, "report_parse_error", res.CommandName)
 	assert.Equal(t,
 		"Your previous response was invalid. malformed JSON: unexpected EOF\n\n"+
 			"Please respond with a single JSON object: {\"tool\": \"<tool_name>\", \"parameters\": {<params>}}",
@@ -226,19 +231,28 @@ func TestReportParseError_UndoRestoresRetryCounter(t *testing.T) {
 	require.Equal(t, 0, tracker.Snapshot())
 }
 
-func TestReportParseError_ReceiptRestoresRetryCounterFromFreshInstance(t *testing.T) {
+func TestReportParseError_AliasReceiptRestoresRetryCounterFromFreshRegistry(t *testing.T) {
 	tracker := &ParseErrorRetryTracker{MaxConsecutive: 3}
-	builder := &ReportParseErrorBuilder{Tracer: noopTracer(), Retry: tracker}
+	tracker.ReportParseError()
+	def := catalog.ToolDef{Name: "explain_parse_failure", Type: "builtin", Init: "report_parse_error"}
+	builder := &ReportParseErrorBuilder{
+		ToolName: def.Name,
+		Tracer:   noopTracer(),
+		Retry:    tracker,
+	}
 
 	cmd := builder.Build(core.Result{Output: "bad JSON"})
+	require.Equal(t, def.Name, cmd.Name())
 	res := cmd.Execute()
 	require.Equal(t, core.ToolDone, res.Signal)
+	require.Equal(t, def.Name, res.CommandName)
 	require.NotEmpty(t, res.Receipt)
-	require.Equal(t, 1, tracker.Snapshot())
+	require.JSONEq(t, `{"retry_receipt_version":1,"parse_retry_counter":1}`, res.Receipt)
+	require.Equal(t, 2, tracker.Snapshot())
 
 	cp := &core.InMemoryCheckpoint{}
 	require.NoError(t, cp.Save(core.Position{}, core.Execution{{
-		CommandName: "report_parse_error",
+		CommandName: cmd.Name(),
 		Result:      safeCheckpointResult(),
 		Receipt:     res.Receipt,
 	}}))
@@ -246,10 +260,21 @@ func TestReportParseError_ReceiptRestoresRetryCounterFromFreshInstance(t *testin
 	require.NoError(t, err)
 	require.Len(t, exec, 1)
 
-	fresh := builder.Build(core.Result{Output: "bad JSON"})
+	freshTracker := &ParseErrorRetryTracker{MaxConsecutive: 3}
+	freshBuilder := &ReportParseErrorBuilder{ToolName: def.Name, Retry: freshTracker}
+	freshRegistry := core.NewRegistry()
+	freshRegistry.Register(def.ToToolSpec(), freshBuilder)
+	resolved, ok := freshRegistry.Resolve(exec[0].CommandName)
+	require.True(t, ok)
+	reverser, ok := resolved.(core.Reverser)
+	require.True(t, ok)
+	fresh := reverser.BuildReverser()
+	require.Equal(t, def.Name, fresh.Name())
+
 	undo := fresh.Undo(core.Result{Receipt: exec[0].Receipt})
 	require.Equal(t, core.ToolDone, undo.Signal)
-	require.Equal(t, 0, tracker.Snapshot())
+	require.Equal(t, def.Name, undo.CommandName)
+	require.Equal(t, 1, freshTracker.Snapshot())
 }
 
 func TestParseResponse_ResetsRetryCounterAfterSuccessfulParse(t *testing.T) {
@@ -278,4 +303,160 @@ func TestParseResponse_ResetsRetryCounterAfterSuccessfulParse(t *testing.T) {
 	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, 2, tracker.Snapshot())
+}
+
+func TestParseResponse_AliasReceiptsRestoreSuccessfulAndFailedParsesFromFreshRegistry(t *testing.T) {
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{
+		Name:        "read",
+		InputSchema: json.RawMessage(`{"type":"object","required":["path"]}`),
+		Visibility:  core.External,
+	}, &filesystem.ReadBuilder{Root: "/tmp"})
+	def := catalog.ToolDef{Name: "decode_response", Type: "builtin", Init: "parse_response"}
+
+	tests := []struct {
+		name       string
+		raw        string
+		wantSignal core.Signal
+	}{
+		{
+			name:       "successful parse resets retry counter",
+			raw:        `{"tool":"read","parameters":{"path":"main.go"}}`,
+			wantSignal: core.ToolDone,
+		},
+		{
+			name:       "failed parse preserves retry counter",
+			raw:        `not json`,
+			wantSignal: core.ParseFailed,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := &ParseErrorRetryTracker{MaxConsecutive: 3}
+			tracker.ReportParseError()
+			tracker.ReportParseError()
+			builder := &ParseResponseBuilder{
+				ToolName: def.Name,
+				Registry: reg,
+				Parser:   &fakeParser{},
+				Tracer:   noopTracer(),
+				Retry:    tracker,
+			}
+
+			cmd := builder.Build(core.Result{Output: tt.raw})
+			require.Equal(t, def.Name, cmd.Name())
+			res := cmd.Execute()
+			require.Equal(t, tt.wantSignal, res.Signal)
+			require.Equal(t, def.Name, res.CommandName)
+			require.NotEmpty(t, res.Receipt)
+			require.JSONEq(t, `{"retry_receipt_version":1,"parse_retry_counter":2}`, res.Receipt)
+
+			cp := &core.InMemoryCheckpoint{}
+			require.NoError(t, cp.Save(core.Position{}, core.Execution{{
+				CommandName: cmd.Name(),
+				Result:      safeCheckpointResult(),
+				Receipt:     res.Receipt,
+			}}))
+			_, exec, err := cp.Load()
+			require.NoError(t, err)
+			require.Len(t, exec, 1)
+
+			freshTracker := &ParseErrorRetryTracker{MaxConsecutive: 3}
+			freshBuilder := &ParseResponseBuilder{ToolName: def.Name, Retry: freshTracker}
+			freshRegistry := core.NewRegistry()
+			freshRegistry.Register(def.ToToolSpec(), freshBuilder)
+			resolved, ok := freshRegistry.Resolve(exec[0].CommandName)
+			require.True(t, ok)
+			reverser, ok := resolved.(core.Reverser)
+			require.True(t, ok)
+			fresh := reverser.BuildReverser()
+			require.Equal(t, def.Name, fresh.Name())
+
+			undo := fresh.Undo(core.Result{Receipt: exec[0].Receipt})
+			require.Equal(t, core.ToolDone, undo.Signal)
+			require.Equal(t, def.Name, undo.CommandName)
+			require.Equal(t, 2, freshTracker.Snapshot())
+		})
+	}
+}
+
+func TestParseRetryReversers_ReturnNamedErrorsForInvalidReceipts(t *testing.T) {
+	tests := []struct {
+		name    string
+		receipt string
+		wantErr string
+	}{
+		{name: "missing", wantErr: "no retry counter snapshot recorded"},
+		{name: "malformed", receipt: `{`, wantErr: "decode receipt"},
+		{
+			name:    "missing counter",
+			receipt: `{"retry_receipt_version":1}`,
+			wantErr: "missing parse_retry_counter",
+		},
+		{
+			name:    "unrelated",
+			receipt: `{"version":2,"prior_conversation_length":0}`,
+			wantErr: "unknown field",
+		},
+	}
+	builders := []struct {
+		name    string
+		builder core.Reverser
+	}{
+		{
+			name: "parse response",
+			builder: &ParseResponseBuilder{
+				ToolName: "decode_response",
+				Retry:    &ParseErrorRetryTracker{},
+			},
+		},
+		{
+			name: "report parse error",
+			builder: &ReportParseErrorBuilder{
+				ToolName: "explain_parse_failure",
+				Retry:    &ParseErrorRetryTracker{},
+			},
+		},
+	}
+	for _, builder := range builders {
+		t.Run(builder.name, func(t *testing.T) {
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					cmd := builder.builder.BuildReverser()
+					undo := cmd.Undo(core.Result{Receipt: tt.receipt})
+
+					require.Equal(t, core.CommandError, undo.Signal)
+					require.Equal(t, cmd.Name(), undo.CommandName)
+					require.ErrorContains(t, undo.Err, tt.wantErr)
+					require.Contains(t, undo.Output, cmd.Name())
+				})
+			}
+		})
+	}
+}
+
+func TestParseRetryReversers_AcceptLegacyUnversionedReceipts(t *testing.T) {
+	parseTracker := &ParseErrorRetryTracker{}
+	reportTracker := &ParseErrorRetryTracker{}
+	builders := []struct {
+		builder core.Reverser
+		tracker *ParseErrorRetryTracker
+	}{
+		{builder: &ParseResponseBuilder{
+			ToolName: "decode_response",
+			Retry:    parseTracker,
+		}, tracker: parseTracker},
+		{builder: &ReportParseErrorBuilder{
+			ToolName: "explain_parse_failure",
+			Retry:    reportTracker,
+		}, tracker: reportTracker},
+	}
+	for _, tt := range builders {
+		cmd := tt.builder.BuildReverser()
+		undo := cmd.Undo(core.Result{Receipt: `{"parse_retry_counter":2}`})
+
+		require.Equal(t, core.ToolDone, undo.Signal)
+		require.Equal(t, cmd.Name(), undo.CommandName)
+		require.Equal(t, 2, tt.tracker.Snapshot())
+	}
 }

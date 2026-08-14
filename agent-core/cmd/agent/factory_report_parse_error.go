@@ -21,7 +21,7 @@ func reportParseErrorFactory(st *agentState) toolregistry.BuiltinFactory {
 			return nil, fmt.Errorf("tool %q config feedback_template is required", def.Name)
 		}
 		return &toollm.ReportParseErrorBuilder{
-			Tracer: st.tracer, Retry: st.parseRetries,
+			ToolName: def.Name, Tracer: st.tracer, Retry: st.parseRetries,
 			FeedbackTemplate: cfg.FeedbackTemplate,
 		}, nil
 	}

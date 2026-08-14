@@ -127,3 +127,72 @@ func ValidateReceiptContracts(defs []ToolDef) error {
 	}
 	return nil
 }
+
+// ReceiptFamily groups selected declarations by their concrete builder family.
+// The family name is included in every finding so a factory regression identifies
+// both the registration boundary and the declaration alias that cannot roll back.
+type ReceiptFamily struct {
+	Name        string
+	Definitions []ToolDef
+}
+
+// ValidateReceiptFamilies is the static builder-side counterpart to the
+// declaration checks above. For each selected state-mutating declaration whose
+// undo is non-noop, it verifies that registry reconstruction produced a builder,
+// that the builder exposes a fresh Reverser, and that the fresh command retains
+// the declaration alias.
+//
+// This deliberately does not execute commands or interpret receipts. Family
+// round-trip tests remain responsible for proving that successful execution
+// emits a sufficient receipt and that a fresh reverser consumes it (srd025 R3.5).
+func ValidateReceiptFamilies(
+	families []ReceiptFamily,
+	resolver core.CommandResolver,
+) error {
+	var msgs []string
+	for _, family := range families {
+		for _, def := range family.Definitions {
+			if !declaresReversibleMutation(def) ||
+				!declaresReceiptConsumingUndo(def) {
+				continue
+			}
+			if err := validateReceiptFamilyBuilder(family.Name, def, resolver); err != nil {
+				msgs = append(msgs, err.Error())
+			}
+		}
+	}
+	if len(msgs) > 0 {
+		return fmt.Errorf("receipt-family validation failed: %s", strings.Join(msgs, "; "))
+	}
+	return nil
+}
+
+func validateReceiptFamilyBuilder(
+	family string,
+	def ToolDef,
+	resolver core.CommandResolver,
+) error {
+	prefix := fmt.Sprintf("family %q declaration %q", family, def.Name)
+	if resolver == nil {
+		return fmt.Errorf("%s: no registry", prefix)
+	}
+	builder, ok := resolver.Resolve(def.Name)
+	if !ok {
+		return fmt.Errorf("%s: no builder registered", prefix)
+	}
+	reverser, ok := builder.(core.Reverser)
+	if !ok {
+		return fmt.Errorf("%s: builder does not implement Reverser", prefix)
+	}
+	command := reverser.BuildReverser()
+	if command == nil {
+		return fmt.Errorf("%s: BuildReverser returned nil", prefix)
+	}
+	if command.Name() != def.Name {
+		return fmt.Errorf(
+			"%s: fresh reverser name %q does not preserve declaration alias",
+			prefix, command.Name(),
+		)
+	}
+	return nil
+}

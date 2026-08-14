@@ -1,6 +1,7 @@
 tools:
 - name: suspend
   type: builtin
+  contract: migrated
   init: suspend
   visibility: internal
   emits:
@@ -24,28 +25,36 @@ tools:
     classification: compensatable
   undo:
     strategy: compensating_action
-    description: Resume with an explicit approval/rejection signal or roll back to an earlier checkpoint.
-    payload: boundary_compensation
+    description: Resume with Approved, reject with Rejected, or roll back to an earlier checkpoint.
+    payload: suspend_receipt
     captures:
+    - label
     - reason
     - checkpoint_required
+    - checkpoint_configured
+    - checkpoint_reference_context
+    requires:
+    - operator_decision
+    - resume_signal_or_rollback_target
   problem: A machine needs an explicit human approval boundary that stops automatic dispatch and optionally requires durable checkpoint support before yielding control.
   goals:
   - Emit AwaitApproval with the configured reason, or the default `awaiting approval` reason.
   - Refuse suspension when require_checkpoint is true and no persistent checkpoint backend is configured.
-  - Preserve label, reason, checkpoint requirement, and compensation intent for lifecycle tracing and rollback.
+  - Preserve declaration alias, label, resolved reason, checkpoint requirement/reference context, and compensation intent in a strict receipt for rollback.
   requirements:
     input:
     - must take label, reason, and require_checkpoint only from trusted tool configuration
     output:
     - must emit AwaitApproval with the resolved reason when the gate is valid
+    - must emit a strict receipt that a fresh receipt-only reverser can validate and report as pending resume, rejection, or rollback compensation
     errors:
     - must emit CommandError before suspension when a required persistent checkpoint backend is unavailable
+    - must emit no receipt when suspension fails
   non_goals:
   - Does not approve or reject the run on the operator's behalf.
   - Does not itself persist a checkpoint; the loop owns persistence through the Checkpoint port.
   output:
-    description: The configured or default reason presented at the approval boundary.
+    description: The configured or default reason presented at the approval boundary; the opaque receipt carries rollback compensation context.
     schema: {type: string}
   errors:
   - signal: CommandError

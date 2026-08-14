@@ -17,6 +17,7 @@ import (
 const doneToolName = "done"
 
 type parseResponseCmd struct {
+	toolName     string
 	raw          string
 	registry     *core.Registry
 	parser       modelllm.ResponseParser
@@ -28,7 +29,12 @@ type parseResponseCmd struct {
 	hasSnapshot  bool
 }
 
-func (p *parseResponseCmd) Name() string { return "parse_response" }
+func (p *parseResponseCmd) Name() string {
+	if p.toolName != "" {
+		return p.toolName
+	}
+	return "parse_response"
+}
 
 // SetTracer receives the active dispatch span so parsing attributes and events
 // remain isolated to the turn that produced the response.
@@ -53,6 +59,7 @@ func (p *parseResponseCmd) Execute() core.Result {
 	} else {
 		res = p.resultForToolRequest(toolReq, sig)
 	}
+	res.CommandName = p.Name()
 	if p.hasSnapshot {
 		res.Receipt = encodeRetryReceipt(p.prevRetries)
 	}
@@ -153,6 +160,7 @@ func (p *parseResponseCmd) availableToolNames() []string {
 
 // ParseResponseBuilder constructs parse_response commands.
 type ParseResponseBuilder struct {
+	ToolName     string
 	Registry     *core.Registry
 	Parser       modelllm.ResponseParser
 	Tracer       tracing.Tracer
@@ -165,10 +173,21 @@ type ParseResponseBuilder struct {
 func (b *ParseResponseBuilder) Build(res core.Result) core.Command {
 	state := b.manifestState(res)
 	return &parseResponseCmd{
-		raw: res.Output, registry: b.Registry, parser: b.Parser,
+		toolName: b.ToolName,
+		raw:      res.Output, registry: b.Registry, parser: b.Parser,
 		tracer: tracerOrNoop(b.Tracer), state: state, captureLevel: b.CaptureLevel, retry: b.Retry,
 	}
 }
+
+// BuildReverser constructs the receipt-only parse command used after restart.
+func (b *ParseResponseBuilder) BuildReverser() core.Command {
+	return &parseResponseCmd{
+		toolName: b.ToolName,
+		retry:    b.Retry,
+	}
+}
+
+var _ core.Reverser = (*ParseResponseBuilder)(nil)
 
 func (b *ParseResponseBuilder) manifestState(res core.Result) core.State {
 	if b.StateFunc != nil {

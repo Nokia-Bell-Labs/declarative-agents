@@ -299,6 +299,6 @@ func TestValidateClientsRejectsMissingRetryPolicy(t *testing.T) {
 	t.Parallel()
 	err := validateClients(map[string]Client{
 		"api": {RetryRef: "missing"},
-	}, nil)
+	}, nil, nil)
 	require.ErrorContains(t, err, `undefined retry policy "missing"`)
 }

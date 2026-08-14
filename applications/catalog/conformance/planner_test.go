@@ -434,7 +434,7 @@ func TestPlannerShippedProfileTerminalExecution(t *testing.T) {
 
 	result.RequireExit(t, 0)
 	result.RootRequired(t)
-	result.RequireToolSpans(t, "load_graph", "select_all_ready", "seed_passthrough_plan", "mark_nodes_planning", "reset_retry_count", "mark_nodes_executing", "format_task_file", "write", "self_invoke", "vet", "build", "test", "mark_task_done", "remaining_work")
+	result.RequireToolSpans(t, "load_graph", "select_all_ready", "seed_passthrough_plan", "mark_nodes_planning", "reset_retry_count", "mark_nodes_executing", "format_task_file", "write", "invoke_executor", "vet", "build", "test", "mark_task_done", "remaining_work")
 	result.RequireTerminalState(t, "Completed")
 	args := readFile(t, childArgs)
 	if !strings.Contains(args, "--profile agents/executor/profile.yaml") {
@@ -482,8 +482,8 @@ func TestPlannerShippedProfileRetryExhaustion(t *testing.T) {
 	result.RequireTerminalState(t, "Stalled")
 	result.RequireToolSpans(t, "increment_retry", "check_retry_limit", "remaining_work")
 	result.RequireToolSpans(t, "mark_task_failed")
-	if got := len(result.Spans.Named("execute_tool self_invoke")); got != 2 {
-		t.Fatalf("self_invoke span count = %d, want 2 (initial attempt plus first retry)", got)
+	if got := len(result.Spans.Named("execute_tool invoke_executor")); got != 2 {
+		t.Fatalf("invoke_executor span count = %d, want 2 (initial attempt plus first retry)", got)
 	}
 	if got := len(result.Spans.Named("execute_tool increment_retry")); got != 2 {
 		t.Fatalf("increment_retry span count = %d, want 2", got)

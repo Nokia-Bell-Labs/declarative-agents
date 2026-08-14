@@ -386,6 +386,37 @@ test_cases:
       - srd036-dolt-state-persistence AC6
 
   - use_case: rel02.0-uc002-history-rollback
+    name: Reconstructed registry proves representative rollback families
+    go_test: TestValidateReceiptFamiliesGuardsSelectedMutatorPlumbing, TestFreshRollbackRegistryTracesRepresentativeFamilies
+    status: done
+    description: |
+      Static family validation rejects a selected mutating declaration when its
+      reconstructed builder or fresh Reverser is absent, nil, or loses the
+      declaration alias. A mixed-family tracer verifies the persisted program
+      digest, rebuilds builders from declarations, and walks real LLM retry,
+      validation, SelfInvoke, suspend, checkpoint, exit, and REST receipts.
+      Receiptless no-op entries succeed, irreversible entries are explicit
+      skips, named compensation stays pending, malformed receipts remain named
+      partial failures, and unrelated entries continue reversing.
+    inputs:
+      restart_boundary: reconstructed_registry
+      families: [llm, validation, child, lifecycle, rest]
+      controls: [receiptless_noop, irreversible, malformed_receipt]
+    expected:
+      program_digest_verified: true
+      aliases_preserved: true
+      receipt_backed_effects_reversed: true
+      pending_compensation_named: true
+      irreversible_skips_explicit: true
+      missing_reverse_plumbing_failures: false
+      malformed_receipt_failures_named: true
+    traces:
+      - srd025-rollback-lifecycle AC3
+      - srd025-rollback-lifecycle AC4
+      - srd035-checkpoint-port AC3
+      - srd036-dolt-state-persistence AC6
+
+  - use_case: rel02.0-uc002-history-rollback
     name: Lifecycle profiles wire checkpoint_history and checkpoint_rollback
     go_test: cd ../applications/catalog && go test ./conformance -run '^TestLifecycleHistoryRollback$'
     status: done

@@ -57,6 +57,10 @@ rest:
               reversibility:
                 classification: compensatable
                 undo: restore_previous_issue_fields
+              compensation:
+                operation: set
+                parameters:
+                  title: restored
       operations:
         search_issues:
           method: GET

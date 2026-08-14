@@ -12,6 +12,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 // rollbackViaReceiptsOptions configures a two-part rollback: a git-style DB
@@ -38,10 +39,11 @@ type UndoFailure struct {
 // operator or a later machine action. It is a successful classification of a
 // compensatable effect, not a receipt-walk failure.
 type PendingCompensation struct {
-	Step        int      `json:"step"`
-	CommandName string   `json:"command"`
-	Description string   `json:"description"`
-	Requires    []string `json:"requires"`
+	Step        int                    `json:"step"`
+	CommandName string                 `json:"command"`
+	Description string                 `json:"description"`
+	Requires    []string               `json:"requires"`
+	Data        map[string]interface{} `json:"data,omitempty"`
 }
 
 // PartialRollbackError reports that the DB Revert succeeded but one or more
@@ -323,12 +325,21 @@ func compensationOutcome(
 	res core.Result,
 ) entryOutcome {
 	description := policy.Description
+	requires := append([]string{}, policy.Requires...)
+	var data map[string]interface{}
+	if compensation, ok, err := undo.DecodeBoundaryReceipt(res.Output); err == nil && ok {
+		if compensation.Reason != "" {
+			description = compensation.Reason
+		}
+		requires = append([]string{}, compensation.Requires...)
+		data = compensation.Data
+	}
 	if description == "" {
 		description = res.Output
 	}
 	pending := &PendingCompensation{
 		Step: step, CommandName: entry.CommandName,
-		Description: description, Requires: append([]string{}, policy.Requires...),
+		Description: description, Requires: requires, Data: data,
 	}
 	traceRollbackEntry(tracer, "rollback.entry_compensation_required", step, entry.CommandName,
 		attribute.String("detail", description))

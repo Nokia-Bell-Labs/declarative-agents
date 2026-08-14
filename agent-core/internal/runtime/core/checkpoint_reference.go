@@ -20,6 +20,17 @@ var (
 	// ErrConversationReferenceInvalid reports a malformed, cross-run, or
 	// backend-incompatible conversation checkpoint reference.
 	ErrConversationReferenceInvalid = errors.New("invalid conversation checkpoint reference")
+	// ErrDomainReferenceUnavailable reports that persistence cannot provide
+	// the authoritative opaque domain snapshot named by a checkpoint reference.
+	ErrDomainReferenceUnavailable = errors.New("domain checkpoint reference unavailable")
+	// ErrDomainReferenceInvalid reports a malformed, cross-run, or
+	// backend-incompatible domain checkpoint reference.
+	ErrDomainReferenceInvalid = errors.New("invalid domain checkpoint reference")
+)
+
+const (
+	maxCheckpointReferenceLength = 512
+	maxReferencePartLength       = 255
 )
 
 // ConversationReferenceProvider is an optional capability beside Checkpoint.
@@ -35,6 +46,19 @@ type ConversationSnapshotResolver interface {
 	ResolveConversationSnapshot(reference string) (json.RawMessage, error)
 }
 
+// DomainReferenceProvider is an optional capability beside Checkpoint. It
+// reports the latest completed dispatch whose opaque AgentSnapshot.Domain bytes
+// are authoritative without coupling core to a domain-owned schema.
+type DomainReferenceProvider interface {
+	DomainReference() (string, bool)
+}
+
+// DomainSnapshotResolver resolves an opaque checkpoint reference to the exact
+// AgentSnapshot.Domain bytes stored at that immutable run/step/revision.
+type DomainSnapshotResolver interface {
+	ResolveDomainSnapshot(reference string) ([]byte, error)
+}
+
 type checkpointReference struct {
 	backend  string
 	runID    string
@@ -48,13 +72,20 @@ func formatCheckpointReference(backend, runID string, step int, revision string)
 		return "", ErrConversationReferenceInvalid
 	}
 	encode := base64.RawURLEncoding.EncodeToString
-	return fmt.Sprintf(
+	reference := fmt.Sprintf(
 		"checkpoint:v1:%s:%s:%d:%s",
 		backend, encode([]byte(runID)), step, encode([]byte(revision)),
-	), nil
+	)
+	if len(reference) > maxCheckpointReferenceLength {
+		return "", ErrConversationReferenceInvalid
+	}
+	return reference, nil
 }
 
 func parseCheckpointReference(reference string) (checkpointReference, error) {
+	if len(reference) == 0 || len(reference) > maxCheckpointReferenceLength {
+		return checkpointReference{}, ErrConversationReferenceInvalid
+	}
 	parts := strings.Split(reference, ":")
 	if len(parts) != 6 || parts[0] != "checkpoint" || parts[1] != "v1" {
 		return checkpointReference{}, ErrConversationReferenceInvalid
@@ -118,7 +149,8 @@ func validLowerAlphaNumeric(value string, length int, maxLetter byte) bool {
 }
 
 func validReferencePart(value string) bool {
-	if value == "" || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
+	if value == "" || len(value) > maxReferencePartLength ||
+		!utf8.ValidString(value) || strings.TrimSpace(value) != value {
 		return false
 	}
 	for _, r := range value {

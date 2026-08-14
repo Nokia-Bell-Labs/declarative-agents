@@ -457,7 +457,10 @@ tools:
       classification: compensatable
     undo:
       strategy: compensating_action
-      description: Stop the owned server listener through rest_server_stop.
+      description: Validate the launch receipt and stop only its process-local owned listener; absence in a fresh process is already compensated.
+      payload: rest_server_launch
+      captures: [strategy, declaration, server, address, ownership]
+      requires: [receipt]
     errors:
       - signal: CommandError
         condition: Config decode, bind, route conflict, machine_request setup, or schema failure.

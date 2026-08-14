@@ -35,10 +35,11 @@ tools:
         target: deployment_api.apply
         state: instance_applied
     reversibility:
-      classification: compensatable
+      classification: irreversible
+      requires_confirmation: true
     undo:
-      strategy: compensating_action
-      description: A superseding apply reverses a prior operation through the deployment API.
+      strategy: irreversible
+      description: The deployment API exposes no prior-state handle that can restore a successful apply.
     errors:
       - signal: CommandError
         condition: Network, timeout, schema, or mapping failure reaching the deployment API.

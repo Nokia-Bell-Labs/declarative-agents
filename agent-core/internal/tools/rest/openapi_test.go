@@ -289,8 +289,9 @@ func restOpenAPIConfig(path string) string {
             state: payment_created
       reversibility:
         createPayment:
-          classification: compensatable
-          undo: cancelPayment
+          classification: irreversible
+          undo: irreversible
+          requires_confirmation: true
   servers:
     payments_webhooks:
       address: 127.0.0.1:0

@@ -44,7 +44,7 @@ func TestLoadCorpusLoadsConfiguredCharters(t *testing.T) {
 
 func TestRegisterSpecFactoriesConfiguresCharterSuitePaths(t *testing.T) {
 	br := toolregistry.NewBuiltinRegistry()
-	RegisterSpecFactories(br, "/target")
+	RegisterSpecFactories(br, FactoryDeps{Directory: "/target"})
 	factory, ok := br.Resolve("load_corpus")
 	require.True(t, ok)
 

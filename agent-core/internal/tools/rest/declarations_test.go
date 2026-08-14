@@ -83,6 +83,14 @@ func TestRESTDeclarationsMatchRuntimeOutputAndUndoKeys(t *testing.T) {
 	requireOutputProperties(t, byName["rest_client_send"], "request_id", "operation_id", "correlation")
 	requireOutputProperties(t, byName["rest_client_await"], "request_id", "operation_id")
 	requireOutputProperties(t, byName["rest_server_await"], "source", "route", "signal")
+	launch := byName["rest_server_launch"]
+	require.Equal(t, serverLaunchReceiptStrategy, launch.Undo.Strategy)
+	require.Equal(t, "rest_server_launch", launch.Undo.Payload)
+	require.Equal(t,
+		[]string{"strategy", "declaration", "server", "address", "ownership"},
+		launch.Undo.Captures,
+	)
+	require.Equal(t, []string{"receipt"}, launch.Undo.Requires)
 	awaitAny := byName["rest_await_event"]
 	require.Equal(t, "queue_event_restore", awaitAny.Undo.Strategy)
 	require.Equal(t, []string{"source", "event"}, awaitAny.Undo.Captures)

@@ -159,7 +159,9 @@ func TestRESTClient_ChromaAddFreshUndoUsesConfiguredDelete(t *testing.T) {
 	defer upstream.Close()
 
 	collection := NewCollection()
-	require.NoError(t, collection.Add(chromaCompensationDefinition(upstream.URL)))
+	definition := chromaCompensationDefinition(upstream.URL)
+	require.NoError(t, ValidateDefinition(definition))
+	require.NoError(t, collection.Add(definition))
 	add, err := collection.ResolveClientOperation(ClientToolConfig{RestRef: "chroma", Operation: "add_records"})
 	require.NoError(t, err)
 	builder := ClientBuilder{
@@ -208,13 +210,17 @@ func chromaCompensationDefinition(baseURL string) Definition {
 				"add_records": {
 					Method: http.MethodPost, Path: "/collections/{collection}/add", Params: params, Body: body,
 					Success:       StatusMapping{Status: []int{http.StatusCreated}, Signal: "DocumentAdded"},
+					SideEffects:   []SideEffect{{Kind: "external_api", Target: "chroma.records", State: "records_added"}},
 					Reversibility: Reversibility{Classification: "compensatable", Undo: "delete_records"},
 					Compensation:  map[string]interface{}{"operation": "delete_records"},
 				},
 				"delete_records": {
 					Method: http.MethodPost, Path: "/collections/{collection}/delete", Params: params, Body: body,
-					Success:       StatusMapping{Status: []int{http.StatusOK}, Signal: "DocumentDeleted"},
-					Reversibility: Reversibility{Classification: "irreversible", Undo: "irreversible"},
+					Success:     StatusMapping{Status: []int{http.StatusOK}, Signal: "DocumentDeleted"},
+					SideEffects: []SideEffect{{Kind: "external_api", Target: "chroma.records", State: "records_deleted"}},
+					Reversibility: Reversibility{
+						Classification: "irreversible", Undo: "irreversible", RequiresConfirmation: true,
+					},
 				},
 			},
 		}},

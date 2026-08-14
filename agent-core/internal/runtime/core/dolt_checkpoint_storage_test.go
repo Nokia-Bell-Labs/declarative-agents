@@ -52,10 +52,14 @@ func TestDoltCheckpointConversationReferencesSurviveFreshAdapter(t *testing.T) {
 	first.Snapshot.Conversation = json.RawMessage(
 		`[{"role":"user","content":"first"}]`,
 	)
+	first.Snapshot.Domain = json.RawMessage(`{"corpus":"first"}`)
 	saver := NewDoltCheckpoint(db, "reference-run", nil)
 	require.NoError(t, saver.Save(first, sampleExecution()[:1]))
 	firstRef, ok := saver.ConversationReference()
 	require.True(t, ok)
+	firstDomainRef, ok := saver.DomainReference()
+	require.True(t, ok)
+	require.Equal(t, firstRef, firstDomainRef)
 	firstParsed, err := parseCheckpointReference(firstRef)
 	require.NoError(t, err)
 	require.Equal(t, db.commits[0].hash, firstParsed.revision)
@@ -66,6 +70,7 @@ func TestDoltCheckpointConversationReferencesSurviveFreshAdapter(t *testing.T) {
 	second.Snapshot.Conversation = json.RawMessage(
 		`[{"role":"user","content":"first"},{"role":"assistant","content":"second"}]`,
 	)
+	second.Snapshot.Domain = json.RawMessage(`{"corpus":"second"}`)
 	require.NoError(t, saver.Save(second, sampleExecution()))
 
 	fresh := NewDoltCheckpoint(db, "reference-run", nil)
@@ -73,6 +78,9 @@ func TestDoltCheckpointConversationReferencesSurviveFreshAdapter(t *testing.T) {
 	require.NoError(t, err)
 	latestRef, ok := fresh.ConversationReference()
 	require.True(t, ok)
+	latestDomainRef, ok := fresh.DomainReference()
+	require.True(t, ok)
+	require.Equal(t, latestRef, latestDomainRef)
 	require.NotEqual(t, firstRef, latestRef)
 	require.Positive(t, countCalls(db.calls, "HASHOF('HEAD')"),
 		"Load resolves the checked-out branch HEAD directly")
@@ -83,6 +91,12 @@ func TestDoltCheckpointConversationReferencesSurviveFreshAdapter(t *testing.T) {
 	resolved, err = fresh.ResolveConversationSnapshot(latestRef)
 	require.NoError(t, err)
 	require.JSONEq(t, string(second.Snapshot.Conversation), string(resolved))
+	domain, err := fresh.ResolveDomainSnapshot(firstDomainRef)
+	require.NoError(t, err)
+	require.Equal(t, []byte(first.Snapshot.Domain), domain)
+	domain, err = fresh.ResolveDomainSnapshot(latestDomainRef)
+	require.NoError(t, err)
+	require.Equal(t, []byte(second.Snapshot.Domain), domain)
 }
 
 func TestDoltCheckpointConversationReferenceRejectsWrongRunAndStep(t *testing.T) {
@@ -95,6 +109,8 @@ func TestDoltCheckpointConversationReferenceRejectsWrongRunAndStep(t *testing.T)
 
 	_, err := NewDoltCheckpoint(db, "other-run", nil).ResolveConversationSnapshot(ref)
 	require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+	_, err = NewDoltCheckpoint(db, "other-run", nil).ResolveDomainSnapshot(ref)
+	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
 
 	parsed, err := parseCheckpointReference(ref)
 	require.NoError(t, err)
@@ -104,6 +120,8 @@ func TestDoltCheckpointConversationReferenceRejectsWrongRunAndStep(t *testing.T)
 	require.NoError(t, err)
 	_, err = saver.ResolveConversationSnapshot(wrongStep)
 	require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+	_, err = saver.ResolveDomainSnapshot(wrongStep)
+	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
 }
 
 func TestDoltCheckpointConversationReferenceRejectsLaterRevisionClaimingEarlierStep(t *testing.T) {
@@ -123,6 +141,51 @@ func TestDoltCheckpointConversationReferenceRejectsLaterRevisionClaimingEarlierS
 	require.NoError(t, err)
 	_, err = saver.ResolveConversationSnapshot(forged)
 	require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+	_, err = saver.ResolveDomainSnapshot(forged)
+	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
+}
+
+func TestDoltCheckpointDomainReferenceRejectsEarlierRevisionClaimingLaterStep(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	saver := NewDoltCheckpoint(db, "reference-run", nil)
+	require.NoError(t, saver.Save(samplePosition(), sampleExecution()[:1]))
+	firstRef, ok := saver.DomainReference()
+	require.True(t, ok)
+	first, err := parseCheckpointReference(firstRef)
+	require.NoError(t, err)
+
+	require.NoError(t, saver.Save(samplePosition(), sampleExecution()))
+	latestRef, ok := saver.DomainReference()
+	require.True(t, ok)
+	latest, err := parseCheckpointReference(latestRef)
+	require.NoError(t, err)
+
+	wrongRevision, err := formatCheckpointReference(
+		latest.backend,
+		latest.runID,
+		latest.step,
+		first.revision,
+	)
+	require.NoError(t, err)
+	_, err = saver.ResolveDomainSnapshot(wrongRevision)
+	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
+}
+
+func TestDoltCheckpointDomainReferenceReportsUnavailableSnapshot(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	position := samplePosition()
+	position.Snapshot.Domain = nil
+	checkpoint := NewDoltCheckpoint(db, "reference-run", nil)
+	require.NoError(t, checkpoint.Save(position, sampleExecution()[:1]))
+	ref, ok := checkpoint.ConversationReference()
+	require.True(t, ok)
+	_, ok = checkpoint.DomainReference()
+	require.False(t, ok)
+
+	_, err := checkpoint.ResolveDomainSnapshot(ref)
+	require.ErrorIs(t, err, ErrDomainReferenceUnavailable)
 }
 
 func TestDoltCheckpointConversationReferenceRejectsSQLPayloadsBeforeQuery(t *testing.T) {
@@ -144,6 +207,8 @@ func TestDoltCheckpointConversationReferenceRejectsSQLPayloadsBeforeQuery(t *tes
 		calls := len(db.calls)
 		_, err := checkpoint.ResolveConversationSnapshot(reference)
 		require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+		_, err = checkpoint.ResolveDomainSnapshot(reference)
+		require.ErrorIs(t, err, ErrDomainReferenceInvalid)
 		require.Len(t, db.calls, calls, "invalid revision must not reach the database")
 	}
 }
