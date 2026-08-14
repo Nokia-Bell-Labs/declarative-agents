@@ -357,7 +357,7 @@ func (r *loopRunner) recordCheckpointFailure(err error) {
 func (r *loopRunner) dispatchContext(labels MetricLabels) monitor.DispatchContext {
 	return monitor.DispatchContext{
 		RunID:          r.params.RunID,
-		ConversationID: r.params.RunID,
+		ConversationID: loopConversationID(r.params),
 		AgentName:      r.params.AgentName,
 		State:          string(r.state),
 		Iteration:      r.iteration,

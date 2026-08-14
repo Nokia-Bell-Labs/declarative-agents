@@ -74,7 +74,7 @@ func startRunTrace(params LoopParams) (tracing.Tracer, func()) {
 }
 
 func runSpanAttrs(params LoopParams) []attribute.KeyValue {
-	return append(
+	attrs := append(
 		genai.AgentAttrs(params.AgentName, params.AgentVersion, params.ProviderName, params.ModelName),
 		attribute.String("run.id", params.RunID),
 		attribute.String("directory", params.Directory),
@@ -82,6 +82,20 @@ func runSpanAttrs(params LoopParams) []attribute.KeyValue {
 		attribute.Int("budget.max_tokens", params.Budget.MaxTokens),
 		attribute.Int64("budget.max_duration_ms", params.Budget.MaxDuration.Milliseconds()),
 	)
+	if params.RequestID != "" {
+		attrs = append(attrs, AttrRequestID.String(params.RequestID))
+	}
+	if conversationID := loopConversationID(params); conversationID != "" {
+		attrs = append(attrs, genai.AttrConversationID.String(conversationID))
+	}
+	return attrs
+}
+
+func loopConversationID(params LoopParams) string {
+	if params.ConversationID != "" {
+		return params.ConversationID
+	}
+	return params.RunID
 }
 
 func recordRunResult(tr tracing.Tracer, rr RunResult) {
