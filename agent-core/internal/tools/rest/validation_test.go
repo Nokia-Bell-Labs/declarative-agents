@@ -150,6 +150,7 @@ func asyncMissingRequestID(def Definition) Definition {
 	op := validWriteOperation()
 	op.Async = &AsyncClientConfig{Timeout: "10s"}
 	def.Clients["github"].Operations["async_mutate"] = op
+	def.Clients["github"].Operations["set"] = validWriteOperation()
 	return def
 }
 
@@ -157,6 +158,7 @@ func asyncMissingTimeout(def Definition) Definition {
 	op := validWriteOperation()
 	op.Async = &AsyncClientConfig{RequestID: "$.id"}
 	def.Clients["github"].Operations["async_mutate"] = op
+	def.Clients["github"].Operations["set"] = validWriteOperation()
 	return def
 }
 
@@ -270,6 +272,12 @@ func validWriteOperation() Operation {
 	op.Params.BodySchema = bodySchema("title")
 	op.SideEffects = []SideEffect{{Kind: "external_api", Target: "github.issue"}}
 	op.Reversibility = Reversibility{Classification: "compensatable", Undo: "restore"}
+	op.Compensation = map[string]interface{}{
+		"operation": "set",
+		"parameters": map[string]interface{}{
+			"title": "restored",
+		},
+	}
 	return op
 }
 

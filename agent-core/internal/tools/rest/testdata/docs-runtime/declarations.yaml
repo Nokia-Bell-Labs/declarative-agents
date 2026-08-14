@@ -220,7 +220,7 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Request documentation change suggestions through the configured documentation API.
-    problem: Documentation workflows need suggestion creation to expose patch state and compensation.
+    problem: Documentation workflows need suggestion creation to expose patch state.
     goals:
       - Submit one declared documentation change request.
       - Return a patch ID for later approval handling.
@@ -256,10 +256,11 @@ tools:
         target: documentation.suggestions
         state: patch_suggestion_created
     reversibility:
-      classification: compensatable
+      classification: irreversible
+      requires_confirmation: true
     undo:
-      strategy: compensating_action
-      description: Reject the created suggestion while it is still pending.
+      strategy: irreversible
+      description: The created patch ID is not available as an executable rollback target mapping.
     errors:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or response mapping failure.

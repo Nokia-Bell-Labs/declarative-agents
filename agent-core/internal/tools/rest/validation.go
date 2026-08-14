@@ -55,7 +55,7 @@ func ValidateDefinition(def Definition) error {
 	if err := validateRetryPolicies(def.RetryPolicies); err != nil {
 		return err
 	}
-	if err := validateClients(def.Clients, def.RetryPolicies); err != nil {
+	if err := validateClients(def.Clients, def.RetryPolicies, def.ResponseMappings); err != nil {
 		return err
 	}
 	if err := validateServers(def.Servers, def.Limits); err != nil {
@@ -315,7 +315,11 @@ func addUnique(seen map[string]string, name, owner string) error {
 	return nil
 }
 
-func validateClients(clients map[string]Client, retries map[string]RetryPolicy) error {
+func validateClients(
+	clients map[string]Client,
+	retries map[string]RetryPolicy,
+	responseMappings map[string]ResponseMapping,
+) error {
 	for clientName, client := range clients {
 		if client.RetryRef != "" {
 			if _, ok := retries[client.RetryRef]; !ok {
@@ -323,12 +327,16 @@ func validateClients(clients map[string]Client, retries map[string]RetryPolicy) 
 			}
 		}
 		for resourceName, resource := range client.Resources {
-			if err := validateResource(clientName, resourceName, resource, retries[client.RetryRef], client.Operations); err != nil {
+			if err := validateResource(
+				clientName, resourceName, resource, retries[client.RetryRef], responseMappings,
+			); err != nil {
 				return err
 			}
 		}
 		for operationName, operation := range client.Operations {
-			if err := validateOperation(operationName, operation, false, client.Operations); err != nil {
+			if err := validateOperation(
+				operationName, operation, false, client.Operations, responseMappings,
+			); err != nil {
 				return err
 			}
 			if err := validateAsyncRetry(operationName, operation, retries[client.RetryRef]); err != nil {
@@ -339,7 +347,13 @@ func validateClients(clients map[string]Client, retries map[string]RetryPolicy) 
 	return nil
 }
 
-func validateResource(clientName, resourceName string, resource Resource, retry RetryPolicy, clientOps map[string]Operation) error {
+func validateResource(
+	clientName string,
+	resourceName string,
+	resource Resource,
+	retry RetryPolicy,
+	responseMappings map[string]ResponseMapping,
+) error {
 	if resource.IDField != "" || resource.VersionField != "" {
 		return fmt.Errorf(
 			"resource %s.%s id_field and version_field are reserved and not implemented",
@@ -353,7 +367,9 @@ func validateResource(clientName, resourceName string, resource Resource, retry 
 		if operation.Path == "" {
 			operation.Path = resource.Path
 		}
-		if err := validateOperation(resourceName+"."+verb, operation, isMutatingVerb(verb), clientOps); err != nil {
+		if err := validateOperation(
+			resourceName+"."+verb, operation, isMutatingVerb(verb), resource.Operations, responseMappings,
+		); err != nil {
 			return err
 		}
 		if err := validateAsyncRetry(resourceName+"."+verb, operation, retry); err != nil {
@@ -363,7 +379,13 @@ func validateResource(clientName, resourceName string, resource Resource, retry 
 	return nil
 }
 
-func validateOperation(name string, operation Operation, mutatingResource bool, clientOps map[string]Operation) error {
+func validateOperation(
+	name string,
+	operation Operation,
+	mutatingResource bool,
+	clientOps map[string]Operation,
+	responseMappings map[string]ResponseMapping,
+) error {
 	if err := validateDeclaredInputs(name, operation); err != nil {
 		return err
 	}
@@ -377,7 +399,7 @@ func validateOperation(name string, operation Operation, mutatingResource bool, 
 		return err
 	}
 	if isMutatingOperation(operation, mutatingResource) {
-		if err := validateMutatingOperation(name, operation); err != nil {
+		if err := validateMutatingOperation(name, operation, clientOps, responseMappings); err != nil {
 			return err
 		}
 	}
@@ -501,7 +523,12 @@ func validateStatusMappings(name string, operation Operation) error {
 	return nil
 }
 
-func validateMutatingOperation(name string, operation Operation) error {
+func validateMutatingOperation(
+	name string,
+	operation Operation,
+	operations map[string]Operation,
+	responseMappings map[string]ResponseMapping,
+) error {
 	if len(operation.SideEffects) == 0 {
 		return fmt.Errorf("operation %q mutates state without side_effects", name)
 	}
@@ -511,7 +538,174 @@ func validateMutatingOperation(name string, operation Operation) error {
 	if operation.Reversibility.Classification == "irreversible" && !operation.Reversibility.RequiresConfirmation {
 		return fmt.Errorf("operation %q is irreversible without confirmation", name)
 	}
+	if operation.Reversibility.Classification == "compensatable" {
+		return validateCompensationOperation(name, operation, operations, responseMappings)
+	}
 	return nil
+}
+
+func validateCompensationOperation(
+	name string,
+	operation Operation,
+	operations map[string]Operation,
+	responseMappings map[string]ResponseMapping,
+) error {
+	if len(operation.Compensation) == 0 {
+		return fmt.Errorf("operation %q is compensatable without an executable compensation target", name)
+	}
+	targetName, ok := operation.Compensation["operation"].(string)
+	if !ok || strings.TrimSpace(targetName) == "" {
+		return fmt.Errorf("operation %q compensation requires a non-empty operation target", name)
+	}
+	target, ok := operations[targetName]
+	if !ok {
+		return fmt.Errorf("operation %q compensation target %q is not defined in the same REST operation scope", name, targetName)
+	}
+	if target.BaseURLSource == bodySourceCommandState || target.Params.BodySource == bodySourceCommandState {
+		return fmt.Errorf("operation %q compensation target %q requires command_state and cannot execute from a fresh rollback receipt", name, targetName)
+	}
+	configured, err := compensationParameterMapping(name, operation.Compensation, target.Params)
+	if err != nil {
+		return err
+	}
+	produced := compensationProducedParams(operation, target, configured, responseMappings)
+	for required := range requiredOperationParams(target) {
+		if !produced[required] {
+			return fmt.Errorf(
+				"operation %q compensation target %q requires parameter %q that the rollback receipt cannot produce",
+				name, targetName, required,
+			)
+		}
+	}
+	return nil
+}
+
+func compensationParameterMapping(
+	name string,
+	compensation map[string]interface{},
+	target RequestBinding,
+) (map[string]interface{}, error) {
+	raw, exists := compensation["parameters"]
+	if !exists {
+		return nil, nil
+	}
+	parameters, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("operation %q compensation parameters must be a mapping", name)
+	}
+	declared := declaredParamNames(target)
+	for parameter := range parameters {
+		if !declared[parameter] {
+			return nil, fmt.Errorf(
+				"operation %q compensation parameter %q is not declared by its target",
+				name, parameter,
+			)
+		}
+	}
+	return parameters, nil
+}
+
+func compensationProducedParams(
+	source Operation,
+	target Operation,
+	configured map[string]interface{},
+	responseMappings map[string]ResponseMapping,
+) map[string]bool {
+	produced := requiredOperationParams(source)
+	for name, value := range configured {
+		if compensationMappingValueAvailable(value) {
+			produced[name] = true
+		}
+	}
+	if operationProducesResourceID(source, produced, responseMappings) {
+		for _, alias := range []string{"resource_id", "id", "number"} {
+			produced[alias] = true
+		}
+	}
+	if operationProducesRequestID(source, produced, responseMappings) {
+		produced["request_id"] = true
+	}
+	if source.Async != nil && source.Async.IdempotencyToken != "" {
+		produced["idempotency_token"] = true
+	}
+
+	switch target.Params.BodySource {
+	case bodySourceNone:
+		return map[string]bool{}
+	case bodySourcePreviousResult:
+		selected := map[string]bool{}
+		for name, selector := range target.Params.InputMapping {
+			parsed, ok := core.ParseSelector(selector)
+			if ok && parsed.Label == "" && len(parsed.Path) == 1 && produced[parsed.Path[0]] {
+				selected[name] = true
+			}
+		}
+		return selected
+	default:
+		return produced
+	}
+}
+
+func compensationMappingValueAvailable(value interface{}) bool {
+	if value == nil {
+		return false
+	}
+	text, ok := value.(string)
+	return !ok || strings.TrimSpace(text) != ""
+}
+
+func requiredOperationParams(operation Operation) map[string]bool {
+	required := map[string]bool{}
+	for name := range operation.Params.Path {
+		required[name] = true
+	}
+	for _, name := range bodyRequiredFields(operation.Params.BodySchema) {
+		required[name] = true
+	}
+	return required
+}
+
+func bodyRequiredFields(schema map[string]interface{}) []string {
+	var required []string
+	switch values := schema["required"].(type) {
+	case []interface{}:
+		for _, value := range values {
+			if name, ok := value.(string); ok && name != "" {
+				required = append(required, name)
+			}
+		}
+	case []string:
+		required = append(required, values...)
+	}
+	return required
+}
+
+func operationProducesResourceID(
+	operation Operation,
+	produced map[string]bool,
+	responseMappings map[string]ResponseMapping,
+) bool {
+	if resolvedResponseMapping(
+		ClientOperationDefinition{Operation: operation, ResponseMappings: responseMappings},
+		operation.Success,
+	).ResourceID != "" {
+		return true
+	}
+	return produced["resource_id"] || produced["id"] || produced["number"]
+}
+
+func operationProducesRequestID(
+	operation Operation,
+	produced map[string]bool,
+	responseMappings map[string]ResponseMapping,
+) bool {
+	if resolvedResponseMapping(
+		ClientOperationDefinition{Operation: operation, ResponseMappings: responseMappings},
+		operation.Success,
+	).RequestID != "" || produced["request_id"] {
+		return true
+	}
+	return operation.Async != nil && operation.Async.RequestID != ""
 }
 
 func validateAsyncOperation(name string, async AsyncClientConfig, _ map[string]Operation) error {

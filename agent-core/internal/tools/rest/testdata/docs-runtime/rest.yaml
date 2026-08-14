@@ -226,11 +226,9 @@ rest:
               target: documentation.suggestions
               state: patch_suggestion_created
           reversibility:
-            classification: compensatable
-            undo: doc_patch_reject
-          compensation:
-            operation: doc_patch_reject
-            reason: Reject the created suggestion before it is applied.
+            classification: irreversible
+            undo: irreversible
+            requires_confirmation: true
         doc_patch_approve:
           method: POST
           path: /api/v1/docs/patches/{patch_id}/approve

@@ -395,6 +395,9 @@ func newClientBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.
 	if init == InitClientSend && operation.Operation.Async == nil {
 		return nil, fmt.Errorf("tool %q requires async REST operation", def.Name)
 	}
+	if err := validateClientRollbackPolicy(def, init, operation); err != nil {
+		return nil, err
+	}
 	if err := validateClientEmits(def, init, operation); err != nil {
 		return nil, err
 	}
@@ -402,6 +405,30 @@ func newClientBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.
 		ToolName: def.Name, Init: init, Operation: operation, Definitions: deps.Definitions,
 		AsyncState: deps.AsyncState, Credentials: deps.CredentialResolver, Metrics: def.Metrics,
 	}, nil
+}
+
+func validateClientRollbackPolicy(
+	def catalog.ToolDef,
+	init string,
+	operation ClientOperationDefinition,
+) error {
+	toolExpectsReceipt := def.Reversibility.Classification == "compensatable"
+	operationProducesReceipt := init != InitClientAwait &&
+		operation.Operation.Reversibility.Classification == "compensatable" &&
+		len(operation.Operation.Compensation) > 0
+	if toolExpectsReceipt == operationProducesReceipt {
+		return nil
+	}
+	if toolExpectsReceipt {
+		return fmt.Errorf(
+			"tool %q is compensatable but REST operation %q cannot produce a rollback receipt",
+			def.Name, operation.OperationName,
+		)
+	}
+	return fmt.Errorf(
+		"tool %q rollback policy %q disagrees with receipt-producing REST operation %q",
+		def.Name, def.Reversibility.Classification, operation.OperationName,
+	)
 }
 
 func newServerBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.Builder, error) {
