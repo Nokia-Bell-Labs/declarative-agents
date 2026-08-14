@@ -24,6 +24,7 @@ import (
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profileaudit"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
@@ -132,6 +133,10 @@ type agentState struct {
 	providerName  string
 	manifestState core.State
 	parseRetries  *toollm.ParseErrorRetryTracker
+	validation    *validation.SpecState
+	// validationEnabled distinguishes runtime-selected validation words from
+	// the factory-catalog probe that invokes every registrar to discover names.
+	validationEnabled bool
 	// isolateConversations gives each invoke_llm word its own conversation instead
 	// of the shared one, so a request-scoped router word's tool call does not
 	// pollute the answer word's history. Set on request-local machine_request state.
@@ -756,12 +761,22 @@ func (st *agentState) snapshotConversation() (json.RawMessage, error) {
 }
 
 type agentDomainSnapshot struct {
-	ConsecutiveParseErrors int `json:"consecutive_parse_errors"`
+	ConsecutiveParseErrors int             `json:"consecutive_parse_errors"`
+	Validation             json.RawMessage `json:"validation,omitempty"`
 }
 
 func (st *agentState) snapshotDomain() (json.RawMessage, error) {
+	var validationSnapshot json.RawMessage
+	if st.validation != nil {
+		var err error
+		validationSnapshot, err = validation.EncodeSpecState(st.validation)
+		if err != nil {
+			return nil, fmt.Errorf("encode validation domain snapshot: %w", err)
+		}
+	}
 	return json.Marshal(agentDomainSnapshot{
 		ConsecutiveParseErrors: st.parseRetries.Snapshot(),
+		Validation:             validationSnapshot,
 	})
 }
 
@@ -776,7 +791,22 @@ func (st *agentState) restoreDomain(data json.RawMessage) error {
 	if st.parseRetries == nil && snapshot.ConsecutiveParseErrors > 0 {
 		return fmt.Errorf("domain snapshot has parse retries but current machine has no parse retry budget")
 	}
+	var restoredValidation *validation.SpecState
+	if len(snapshot.Validation) > 0 {
+		if st.validation == nil {
+			return fmt.Errorf("domain snapshot has validation state but current machine has no validation state")
+		}
+		restoredValidation = &validation.SpecState{Stderr: st.validation.Stderr}
+		if err := validation.RestoreSpecState(restoredValidation, snapshot.Validation); err != nil {
+			return fmt.Errorf("restore validation state: %w", err)
+		}
+	} else if st.validation != nil {
+		return fmt.Errorf("domain snapshot is missing validation state")
+	}
 	st.parseRetries.Restore(snapshot.ConsecutiveParseErrors)
+	if restoredValidation != nil {
+		*st.validation = *restoredValidation
+	}
 	return nil
 }
 

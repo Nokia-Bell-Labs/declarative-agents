@@ -24,6 +24,7 @@ import (
 )
 
 func registerBuiltinFactories(br *toolregistry.BuiltinRegistry, st *agentState, selected map[string]bool) {
+	st.validationEnabled = validationFactoriesSelected(selected)
 	toolregistry.RegisterStandardBuiltinFactories(br, selected, standardFactoryDeps(st))
 }
 
@@ -323,8 +324,41 @@ func directoryArgs(directory string) []string {
 
 func registerSpecValidationFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
-		validation.RegisterSpecFactories(br, st.directory)
+		state := st.validation
+		if state == nil {
+			state = &validation.SpecState{
+				Directory:       st.directory,
+				TargetDirectory: st.directory,
+			}
+			if st.validationEnabled {
+				st.validation = state
+			}
+		}
+		provider, resolver := validationReferencePorts(st)
+		validation.RegisterSpecFactories(br, validation.FactoryDeps{
+			Directory: st.directory, State: state,
+			ReferenceProvider: provider, SnapshotResolver: resolver,
+		})
 	}
+}
+
+func validationFactoriesSelected(selected map[string]bool) bool {
+	for _, name := range []string{
+		"load_corpus",
+		"load_test_claims",
+		"validate_specs",
+		"reduce_consistency_checks",
+		"reduce_ref_checks",
+		"reduce_grep_checks",
+		"resolve_test_evidence",
+		"reduce_test_evidence_run",
+		"format_report",
+	} {
+		if selected[name] {
+			return true
+		}
+	}
+	return false
 }
 
 func registerPlanningFactories(st *agentState) toolregistry.FactoryRegistrar {
@@ -393,6 +427,7 @@ func requestLocalState(host *agentState, reg *core.Registry) *agentState {
 	local.conversation = llm.NewConversation(nil, "", llm.ChatOptions{})
 	local.isolateConversations = true
 	local.manifestState = ""
+	local.validation = nil
 	maxConsecutive := 0
 	if host.parseRetries != nil {
 		maxConsecutive = host.parseRetries.MaxConsecutive
