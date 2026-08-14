@@ -40,7 +40,7 @@ tools:
           catalog: {type: string}
         required: [items, names, catalog]
     side_effects: []
-    reversibility: {classification: reversible, undo: noop}
+    reversibility: {classification: reversible}
     undo: {strategy: noop, description: Declaring topology changes no external state.}
     config:
       signal: RagTopologyDeclared
