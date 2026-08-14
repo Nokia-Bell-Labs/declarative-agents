@@ -30,6 +30,11 @@ func (r *loopRunner) dispatchParallelIterator() bool {
 	commands, err := r.parallelIteratorCommands(start)
 	if err != nil {
 		r.result = Result{Signal: CommandError, CommandName: "for_each", Err: err, Output: err.Error()}
+		frame.Outcomes = append(frame.Outcomes, IteratorOutcome{
+			Index: start, Input: cloneRawMessage(frame.Items[start]),
+			CommandName: r.result.CommandName, Result: DigestResult(r.result),
+		})
+		frame.NextIndex = start + 1
 		frame.Halted = true
 		return false
 	}
@@ -96,8 +101,8 @@ func (r *loopRunner) parallelIteratorCommands(start int) ([]parallelIteratorComm
 		input := r.result
 		input.State = frame.BodyState
 		command := builder.Build(input)
-		if command == nil {
-			return nil, fmt.Errorf("iterator action %q built a nil command for item %d", frame.Action, index)
+		if err := validateParallelIteratorCommand(frame.Action, index, command); err != nil {
+			return nil, err
 		}
 		injectCommandStateBindings(command, r.execution, map[string]string{
 			frame.Spec.As: string(frame.Items[index]),
@@ -114,6 +119,19 @@ func (r *loopRunner) parallelIteratorCommands(start int) ([]parallelIteratorComm
 		})
 	}
 	return commands, nil
+}
+
+func validateParallelIteratorCommand(action string, index int, command Command) error {
+	if command == nil {
+		return fmt.Errorf("iterator action %q built a nil command for item %d", action, index)
+	}
+	if _, serial := command.(SerialDispatchOnly); serial {
+		return fmt.Errorf(
+			"iterator action %q requires serial dispatch and cannot run in parallel mode",
+			action,
+		)
+	}
+	return nil
 }
 
 func (r *loopRunner) runParallelIteratorCommands(commands []parallelIteratorCommand) []parallelIteratorResult {

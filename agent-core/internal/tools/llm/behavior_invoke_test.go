@@ -34,6 +34,7 @@ func TestInvokeLLM_Success(t *testing.T) {
 	}
 
 	cmd := builder.Build(core.Result{Output: "implement the feature"})
+	require.Implements(t, (*core.SerialDispatchOnly)(nil), cmd)
 	res := cmd.Execute()
 
 	assert.Equal(t, core.LLMResponded, res.Signal)
@@ -187,6 +188,18 @@ func TestInvokeLLM_V2RestartUndoRequiresValidReference(t *testing.T) {
 			require.NotContains(t, undo.Output, "unchanged")
 		})
 	}
+}
+
+func TestInvokeLLM_V2RestartUndoRestoresEmptyFirstTurnWithoutReference(t *testing.T) {
+	t.Parallel()
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	history.Append(modelllm.Message{Role: modelllm.Assistant, Content: "current"})
+	fresh := (&InvokeLLMBuilder{History: history}).Build(core.Result{})
+
+	undo := fresh.Undo(core.Result{Receipt: encodeConversationReceipt(0, "")})
+
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Empty(t, history.History())
 }
 
 func TestInvokeLLM_UndoRestoresUserMessageAfterError(t *testing.T) {

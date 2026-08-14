@@ -231,10 +231,18 @@ func TestDoltCheckpointRevertResetsToStepCommit(t *testing.T) {
 	cp := NewDoltCheckpoint(db, "run-1", nil)
 	exec := sampleExecution()
 	require.NoError(t, cp.Save(samplePosition(), exec[:1]))
+	targetRef, ok := cp.ConversationReference()
+	require.True(t, ok)
 	require.NoError(t, cp.Save(samplePosition(), exec))
 
 	require.NoError(t, cp.Revert("run-1", 0))
 	require.Equal(t, 1, countCalls(db.calls, "DOLT_RESET"), "revert resets the branch")
+	revertedRef, ok := cp.ConversationReference()
+	require.True(t, ok)
+	require.Equal(t, targetRef, revertedRef, "Revert exposes the exact target commit reference")
+	conversation, err := cp.ResolveConversationSnapshot(revertedRef)
+	require.NoError(t, err)
+	require.JSONEq(t, string(samplePosition().Snapshot.Conversation), string(conversation))
 
 	// After reverting to step 0's commit, Load returns only step 0.
 	_, gotExec, err := cp.Load()
@@ -354,6 +362,35 @@ func TestDoltCheckpointRevertUnresolvedStep(t *testing.T) {
 
 	err := cp.Revert("run-1", 99)
 	require.ErrorIs(t, err, ErrRevertUnresolved)
+}
+
+func TestDoltCheckpointRevertLeavesReferenceUnavailableWithoutTargetConversation(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", nil)
+	withoutConversation := samplePosition()
+	withoutConversation.Snapshot.Conversation = nil
+	require.NoError(t, cp.Save(withoutConversation, sampleExecution()[:1]))
+	require.NoError(t, cp.Save(samplePosition(), sampleExecution()))
+	_, ok := cp.ConversationReference()
+	require.True(t, ok)
+
+	require.NoError(t, cp.Revert("run-1", 0))
+	_, ok = cp.ConversationReference()
+	require.False(t, ok)
+}
+
+func TestDoltCheckpointRevertLeavesReferenceUnavailableForDifferentAdapterRun(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	adapter := NewDoltCheckpoint(db, "adapter-run", nil)
+	require.NoError(t, adapter.Save(samplePosition(), sampleExecution()[:1]))
+	other := NewDoltCheckpoint(db, "other-run", nil)
+	require.NoError(t, other.Save(samplePosition(), sampleExecution()[:1]))
+
+	require.NoError(t, adapter.Revert("other-run", 0))
+	_, ok := adapter.ConversationReference()
+	require.False(t, ok)
 }
 
 // TestCommandStateViewRehydratesFromDoltLoad proves the command-state view built

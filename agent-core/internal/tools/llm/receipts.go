@@ -151,6 +151,9 @@ func resolveConversationReceipt(
 	resolver ConversationReferenceResolver,
 ) ([]modelllm.Message, error) {
 	if receipt.reference == "" {
+		if receipt.priorLength == 0 {
+			return []modelllm.Message{}, nil
+		}
 		return nil, fmt.Errorf("receipt has no conversation reference")
 	}
 	if resolver == nil {

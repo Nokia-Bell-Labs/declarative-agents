@@ -18,6 +18,7 @@ func TestResetHistory(t *testing.T) {
 
 	builder := &ResetHistoryBuilder{History: history, Tracer: noopTracer()}
 	cmd := builder.Build(core.Result{})
+	require.Implements(t, (*core.SerialDispatchOnly)(nil), cmd)
 	res := cmd.Execute()
 
 	assert.Equal(t, core.ToolDone, res.Signal)
@@ -146,6 +147,21 @@ func TestResetHistory_V2RestartUndoRequiresValidReference(t *testing.T) {
 			require.NotContains(t, undo.Output, "unchanged")
 		})
 	}
+}
+
+func TestResetHistory_V2RestartUndoRestoresEmptyHistoryWithoutReference(t *testing.T) {
+	t.Parallel()
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	history.Append(modelllm.Message{Role: modelllm.Assistant, Content: "current"})
+	fresh := (&ResetHistoryBuilder{
+		History: history,
+		Tracer:  noopTracer(),
+	}).Build(core.Result{})
+
+	undo := fresh.Undo(core.Result{Receipt: encodeConversationReceipt(0, "")})
+
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Empty(t, history.History())
 }
 
 func TestResetHistory_RejectsUnrelatedAndUnknownReceiptFields(t *testing.T) {

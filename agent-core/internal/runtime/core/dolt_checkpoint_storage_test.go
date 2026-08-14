@@ -4,6 +4,7 @@ package core
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -42,6 +43,120 @@ func TestDoltCheckpointSaveLoadRoundTrip(t *testing.T) {
 	// Receipt round-trips verbatim; the empty receipt restores empty from NULL.
 	require.Equal(t, `{"file":"a.txt"}`, gotExec[0].Receipt)
 	require.Equal(t, "", gotExec[1].Receipt)
+}
+
+func TestDoltCheckpointConversationReferencesSurviveFreshAdapter(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	first := samplePosition()
+	first.Snapshot.Conversation = json.RawMessage(
+		`[{"role":"user","content":"first"}]`,
+	)
+	saver := NewDoltCheckpoint(db, "reference-run", nil)
+	require.NoError(t, saver.Save(first, sampleExecution()[:1]))
+	firstRef, ok := saver.ConversationReference()
+	require.True(t, ok)
+	firstParsed, err := parseCheckpointReference(firstRef)
+	require.NoError(t, err)
+	require.Equal(t, db.commits[0].hash, firstParsed.revision)
+	require.Zero(t, countCalls(db.calls, "FROM dolt_log WHERE message LIKE"),
+		"Save uses the hash returned directly by DOLT_COMMIT")
+
+	second := samplePosition()
+	second.Snapshot.Conversation = json.RawMessage(
+		`[{"role":"user","content":"first"},{"role":"assistant","content":"second"}]`,
+	)
+	require.NoError(t, saver.Save(second, sampleExecution()))
+
+	fresh := NewDoltCheckpoint(db, "reference-run", nil)
+	_, _, err = fresh.Load()
+	require.NoError(t, err)
+	latestRef, ok := fresh.ConversationReference()
+	require.True(t, ok)
+	require.NotEqual(t, firstRef, latestRef)
+	require.Positive(t, countCalls(db.calls, "HASHOF('HEAD')"),
+		"Load resolves the checked-out branch HEAD directly")
+
+	resolved, err := fresh.ResolveConversationSnapshot(firstRef)
+	require.NoError(t, err)
+	require.JSONEq(t, string(first.Snapshot.Conversation), string(resolved))
+	resolved, err = fresh.ResolveConversationSnapshot(latestRef)
+	require.NoError(t, err)
+	require.JSONEq(t, string(second.Snapshot.Conversation), string(resolved))
+}
+
+func TestDoltCheckpointConversationReferenceRejectsWrongRunAndStep(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	saver := NewDoltCheckpoint(db, "reference-run", nil)
+	require.NoError(t, saver.Save(samplePosition(), sampleExecution()[:1]))
+	ref, ok := saver.ConversationReference()
+	require.True(t, ok)
+
+	_, err := NewDoltCheckpoint(db, "other-run", nil).ResolveConversationSnapshot(ref)
+	require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+
+	parsed, err := parseCheckpointReference(ref)
+	require.NoError(t, err)
+	wrongStep, err := formatCheckpointReference(
+		parsed.backend, parsed.runID, parsed.step+1, parsed.revision,
+	)
+	require.NoError(t, err)
+	_, err = saver.ResolveConversationSnapshot(wrongStep)
+	require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+}
+
+func TestDoltCheckpointConversationReferenceRejectsLaterRevisionClaimingEarlierStep(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	saver := NewDoltCheckpoint(db, "reference-run", nil)
+	require.NoError(t, saver.Save(samplePosition(), sampleExecution()[:1]))
+	require.NoError(t, saver.Save(samplePosition(), sampleExecution()))
+	latestRef, ok := saver.ConversationReference()
+	require.True(t, ok)
+	latest, err := parseCheckpointReference(latestRef)
+	require.NoError(t, err)
+
+	forged, err := formatCheckpointReference(
+		latest.backend, latest.runID, 0, latest.revision,
+	)
+	require.NoError(t, err)
+	_, err = saver.ResolveConversationSnapshot(forged)
+	require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+}
+
+func TestDoltCheckpointConversationReferenceRejectsSQLPayloadsBeforeQuery(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	checkpoint := NewDoltCheckpoint(db, "reference-run", nil)
+	encode := base64.RawURLEncoding.EncodeToString
+
+	for _, revision := range []string{
+		"0000000000000000000000000000000'",
+		"0000000000000000000000000000--x",
+		"0000000000000000000000000/*x*/",
+		"000000000000000000000000000\n000",
+	} {
+		reference := fmt.Sprintf(
+			"checkpoint:v1:dolt:%s:0:%s",
+			encode([]byte("reference-run")), encode([]byte(revision)),
+		)
+		calls := len(db.calls)
+		_, err := checkpoint.ResolveConversationSnapshot(reference)
+		require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+		require.Len(t, db.calls, calls, "invalid revision must not reach the database")
+	}
+}
+
+func TestRenderDoltASOfRevisionAcceptsOnlyHashGrammar(t *testing.T) {
+	t.Parallel()
+	literal, err := renderDoltASOfRevision("8f09la6epq7omn89khmr0o1kfjgbgugn")
+	require.NoError(t, err)
+	require.Equal(t, "'8f09la6epq7omn89khmr0o1kfjgbgugn'", literal)
+	for _, revision := range []string{"'", "--", "/*x*/", "line\nbreak"} {
+		_, err := renderDoltASOfRevision(revision)
+		require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+	}
 }
 
 func TestDoltCheckpointSaveEmptyExecutionReapsAllStepRows(t *testing.T) {

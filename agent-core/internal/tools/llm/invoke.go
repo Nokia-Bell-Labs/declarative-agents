@@ -60,7 +60,8 @@ type invokeLLMCmd struct {
 	hasSnapshot             bool
 }
 
-func (c *invokeLLMCmd) Name() string { return "invoke_llm" }
+func (c *invokeLLMCmd) Name() string        { return "invoke_llm" }
+func (c *invokeLLMCmd) SerialDispatchOnly() {}
 func (c *invokeLLMCmd) SpanName() string {
 	return genai.InferenceSpanName(c.model)
 }
@@ -80,6 +81,7 @@ func (c *invokeLLMCmd) SetTracer(tracer tracing.Tracer) {
 func (c *invokeLLMCmd) SetCommandState(view core.CommandStateView) { c.view = view }
 
 var _ core.CommandStateAware = (*invokeLLMCmd)(nil)
+var _ core.SerialDispatchOnly = (*invokeLLMCmd)(nil)
 var _ core.TracerAware = (*invokeLLMCmd)(nil)
 
 func (c *invokeLLMCmd) Execute() core.Result {
@@ -380,6 +382,18 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 		conversationRefResolver: b.ConversationRefResolver, ctx: ctx,
 	}
 }
+
+// BuildReverser constructs the receipt-only command used by a fresh rollback
+// process. It needs conversation state and the checkpoint resolver, not a model
+// client or prompt assembly.
+func (b *InvokeLLMBuilder) BuildReverser() core.Command {
+	return &invokeLLMCmd{
+		history: b.History, tracer: tracerOrNoop(b.Tracer),
+		conversationRefResolver: b.ConversationRefResolver,
+	}
+}
+
+var _ core.Reverser = (*InvokeLLMBuilder)(nil)
 
 func newLLMAssembler(cfg catalog.LLMToolConfig, parser modelllm.ResponseParser) modelllm.PromptAssembler {
 	return &modelllm.DefaultAssembler{

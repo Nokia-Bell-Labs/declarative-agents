@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 )
 
@@ -71,16 +72,20 @@ type DoltCheckpoint struct {
 	// persistedExecution distinguishes a no-command terminal Position save
 	// from a dispatch save. The former updates only the machine position and
 	// must not rewrite the last Entry as a duplicate command step.
-	persistedExecution    Execution
-	hasPersistedExecution bool
-	finalizing            bool
-	merged                bool
-	finalized             bool
+	persistedExecution     Execution
+	hasPersistedExecution  bool
+	finalizing             bool
+	merged                 bool
+	finalized              bool
+	refMu                  sync.RWMutex
+	currentConversationRef string
 }
 
 var (
-	_ Checkpoint         = (*DoltCheckpoint)(nil)
-	_ CheckpointReverter = (*DoltCheckpoint)(nil)
+	_ Checkpoint                    = (*DoltCheckpoint)(nil)
+	_ CheckpointReverter            = (*DoltCheckpoint)(nil)
+	_ ConversationReferenceProvider = (*DoltCheckpoint)(nil)
+	_ ConversationSnapshotResolver  = (*DoltCheckpoint)(nil)
 )
 
 const doltSignalColumn = "`signal`"
@@ -148,6 +153,9 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 		}
 		current.Result = sanitized
 	}
+	if err := d.validateConversationReference(position, step, isTerminal); err != nil {
+		return err
+	}
 	if err := d.prepare(); err != nil {
 		return err
 	}
@@ -190,13 +198,22 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 	if finalizationOnly {
 		message = terminalCommitMessage(position.CurrentState)
 	}
-	if err := tx.Exec(`CALL DOLT_COMMIT('-A', '--allow-empty', '-m', ?)`, message); err != nil {
+	revision, err := commitDoltTransaction(tx, message)
+	if err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("%w: save: commit step %d: %v", ErrDolt, step, err)
+	}
+	// DOLT_COMMIT is the durable version boundary and returns its exact hash.
+	// The remaining reference construction is local and prevalidated; tx.Commit
+	// releases the SQL transaction but cannot make an ambiguous hash lookup safe.
+	conversationRef, err := d.savedConversationReference(position, step, isTerminal, revision)
+	if err != nil {
+		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("%w: save: tx commit: %v", ErrDolt, err)
 	}
+	d.setConversationReference(conversationRef)
 	d.persistedExecution = cloneExecution(execution)
 	d.hasPersistedExecution = true
 
@@ -257,15 +274,10 @@ func (d *DoltCheckpoint) Load() (Position, Execution, error) {
 		}
 		return Position{}, nil, fmt.Errorf("%w: load: machine: %v", ErrDolt, err)
 	}
-	if err := ensureToolOutputRedactionColumns(d.db); err != nil {
-		return Position{}, nil, fmt.Errorf("%w: load: redaction schema: %v", ErrDolt, err)
-	}
-	exec, err := loadExecution(d.db, d.runID)
+	exec, err := d.loadCurrentExecution(pos)
 	if err != nil {
-		return Position{}, nil, fmt.Errorf("%w: load: execution: %v", ErrDolt, err)
+		return Position{}, nil, err
 	}
-	d.persistedExecution = cloneExecution(exec)
-	d.hasPersistedExecution = true
 	if d.terminal != nil && d.terminal(pos.CurrentState) {
 		// The terminal commit is the durable marker for an interrupted
 		// merge/delete lifecycle. A fresh adapter reconstructs finalizing from
@@ -277,6 +289,22 @@ func (d *DoltCheckpoint) Load() (Position, Execution, error) {
 		return pos, exec, fmt.Errorf("%w: load run %q", ErrCheckpointFinalized, d.runID)
 	}
 	return pos, exec, nil
+}
+
+func (d *DoltCheckpoint) loadCurrentExecution(position Position) (Execution, error) {
+	if err := ensureToolOutputRedactionColumns(d.db); err != nil {
+		return nil, fmt.Errorf("%w: load: redaction schema: %v", ErrDolt, err)
+	}
+	execution, err := loadExecution(d.db, d.runID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: load: execution: %v", ErrDolt, err)
+	}
+	if err := d.refreshConversationReference(position, execution); err != nil {
+		return nil, err
+	}
+	d.persistedExecution = cloneExecution(execution)
+	d.hasPersistedExecution = true
+	return execution, nil
 }
 
 // loadFinalized distinguishes a never-persisted run from one whose branch was
@@ -405,6 +433,7 @@ func (d *DoltCheckpoint) Revert(runID string, stepIndex int) error {
 	if err := d.db.Exec(`CALL DOLT_RESET('--hard', ?)`, hash); err != nil {
 		return fmt.Errorf("%w: revert: reset %q: %v", ErrDolt, hash, err)
 	}
+	d.setRevertedConversationReference(runID, stepIndex, hash)
 	return nil
 }
 

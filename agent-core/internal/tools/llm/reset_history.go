@@ -23,7 +23,10 @@ type resetHistoryCmd struct {
 	refResolver  ConversationReferenceResolver
 }
 
-func (r *resetHistoryCmd) Name() string { return "reset_history" }
+func (r *resetHistoryCmd) Name() string        { return "reset_history" }
+func (r *resetHistoryCmd) SerialDispatchOnly() {}
+
+var _ core.SerialDispatchOnly = (*resetHistoryCmd)(nil)
 
 func (r *resetHistoryCmd) Execute() core.Result {
 	r.prevMessages = r.history.Snapshot()
@@ -89,3 +92,13 @@ func (b *ResetHistoryBuilder) Build(_ core.Result) core.Command {
 		refResolver: b.ConversationRefResolver,
 	}
 }
+
+// BuildReverser constructs the receipt-only reset command used after restart.
+func (b *ResetHistoryBuilder) BuildReverser() core.Command {
+	return &resetHistoryCmd{
+		history: b.History, tracer: b.Tracer,
+		refResolver: b.ConversationRefResolver,
+	}
+}
+
+var _ core.Reverser = (*ResetHistoryBuilder)(nil)

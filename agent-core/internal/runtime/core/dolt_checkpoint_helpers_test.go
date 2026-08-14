@@ -81,6 +81,7 @@ func (s *fakeStore) clone() *fakeStore {
 type fakeCommit struct {
 	hash    string
 	message string
+	branch  string
 	snap    *fakeStore
 }
 
@@ -88,6 +89,7 @@ type fakeDB struct {
 	store    *fakeStore
 	branches map[string]bool
 	merged   map[string]bool
+	heads    map[string]string
 	current  string
 	commits  []fakeCommit
 	calls    []string
@@ -116,6 +118,7 @@ func newFakeDB() *fakeDB {
 		store:                 newFakeStore(),
 		branches:              map[string]bool{"main": true},
 		merged:                map[string]bool{},
+		heads:                 map[string]string{},
 		current:               "main",
 		redactionColumns:      map[string]bool{},
 		machineProgramColumns: map[string]bool{},
@@ -130,14 +133,8 @@ func (f *fakeDB) Close() error { return nil }
 
 func (f *fakeDB) Exec(query string, args ...any) error {
 	f.calls = append(f.calls, query)
-	if f.failOn != "" && strings.Contains(query, f.failOn) {
-		f.failSeen++
-		if f.failOnCall == 0 || f.failSeen == f.failOnCall {
-			if f.failErr != nil {
-				return f.failErr
-			}
-			return sql.ErrConnDone
-		}
+	if err := f.failure(query); err != nil {
+		return err
 	}
 	switch {
 	case strings.Contains(query, "CREATE TABLE IF NOT EXISTS machines"):
@@ -192,6 +189,7 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 	case strings.Contains(query, "DOLT_CHECKOUT('-b'"):
 		b := args[0].(string)
 		f.branches[b] = true
+		f.heads[b] = f.heads[f.current]
 		f.current = b
 		return nil
 	case strings.Contains(query, "DOLT_CHECKOUT("):
@@ -202,12 +200,7 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		f.current = b
 		return nil
 	case strings.Contains(query, "DOLT_COMMIT"):
-		msg := args[len(args)-1].(string)
-		f.commits = append(f.commits, fakeCommit{
-			hash:    "hash-" + strconv.Itoa(len(f.commits)+1),
-			message: msg,
-			snap:    f.store.clone(),
-		})
+		f.recordCommit(args[len(args)-1].(string))
 		return nil
 	case strings.Contains(query, "DOLT_MERGE"):
 		f.merged[args[0].(string)] = true
@@ -221,6 +214,7 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		for _, c := range f.commits {
 			if c.hash == hash {
 				f.store = c.snap.clone()
+				f.heads[f.current] = hash
 				return nil
 			}
 		}
@@ -288,6 +282,29 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 	return nil
 }
 
+func (f *fakeDB) recordCommit(message string) string {
+	hash := fmt.Sprintf("%032x", len(f.commits)+1)
+	f.commits = append(f.commits, fakeCommit{
+		hash: hash, message: message, branch: f.current, snap: f.store.clone(),
+	})
+	f.heads[f.current] = hash
+	return hash
+}
+
+func (f *fakeDB) failure(query string) error {
+	if f.failOn == "" || !strings.Contains(query, f.failOn) {
+		return nil
+	}
+	f.failSeen++
+	if f.failOnCall != 0 && f.failSeen != f.failOnCall {
+		return nil
+	}
+	if f.failErr != nil {
+		return f.failErr
+	}
+	return sql.ErrConnDone
+}
+
 func deleteRunRows[T any](rows map[string]T, args []any) {
 	runID := args[0].(string)
 	if len(args) == 1 {
@@ -317,7 +334,44 @@ func deleteRowsAtOrAfter[T any](rows map[string]T, runID string, step int) {
 
 func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 	f.calls = append(f.calls, query)
+	if err := f.failure(query); err != nil {
+		return &fakeScanner{scanErr: err}
+	}
 	switch {
+	case strings.Contains(query, "DOLT_COMMIT"):
+		hash := f.recordCommit(args[len(args)-1].(string))
+		return &fakeScanner{kind: "string", value: hash}
+	case strings.Contains(query, "HASHOF('HEAD')"):
+		return &fakeScanner{kind: "string", value: f.heads[f.current], missing: f.heads[f.current] == ""}
+	case strings.Contains(query, "FROM dolt_log") && strings.Contains(query, "commit_hash = ?"):
+		revision := args[0].(string)
+		for _, commit := range f.commits {
+			if commit.hash == revision {
+				return &fakeScanner{kind: "string", value: commit.message}
+			}
+		}
+		return &fakeScanner{kind: "string", missing: true}
+	case strings.Contains(query, "FROM transitions AS OF"):
+		store, ok := f.storeAtRevision(revisionFromASOf(query))
+		if !ok {
+			return &fakeScanner{scanErr: sql.ErrNoRows}
+		}
+		transition, exists := store.transitions[rowKey(args[0].(string), args[1].(int))]
+		return &fakeScanner{kind: "string", value: transition.signal, missing: !exists}
+	case strings.Contains(query, "FROM execution_steps AS OF"):
+		store, ok := f.storeAtRevision(revisionFromASOf(query))
+		if !ok {
+			return &fakeScanner{scanErr: sql.ErrNoRows}
+		}
+		_, exists := store.steps[rowKey(args[0].(string), args[1].(int))]
+		return &fakeScanner{kind: "count", count: map[bool]int{true: 1}[exists]}
+	case strings.Contains(query, "FROM machines AS OF"):
+		store, ok := f.storeAtRevision(revisionFromASOf(query))
+		if !ok {
+			return &fakeScanner{scanErr: sql.ErrNoRows}
+		}
+		machine, exists := store.machines[args[0].(string)]
+		return &fakeScanner{kind: "conversation", conversation: machine.conversation, missing: !exists}
 	case strings.Contains(query, "FROM dolt_branches"):
 		count := 0
 		if f.branches[args[0].(string)] {
@@ -376,6 +430,20 @@ func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 		return &fakeScanner{kind: "log", missing: true}
 	}
 	return &fakeScanner{missing: true}
+}
+
+func (f *fakeDB) storeAtRevision(revision string) (*fakeStore, bool) {
+	for _, commit := range f.commits {
+		if commit.hash == revision {
+			return commit.snap, true
+		}
+	}
+	return nil, false
+}
+
+func revisionFromASOf(query string) string {
+	remainder := strings.SplitN(query, "AS OF '", 2)[1]
+	return strings.SplitN(remainder, "'", 2)[0]
 }
 
 func (f *fakeDB) Query(query string, args ...any) (Rows, error) {

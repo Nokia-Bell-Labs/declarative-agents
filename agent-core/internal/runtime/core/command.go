@@ -188,6 +188,14 @@ type Builder interface {
 	Build(res Result) Command
 }
 
+// SerialDispatchOnly is an optional command capability for stateful commands
+// whose process-local state cannot be mutated safely by parallel for_each
+// workers. Parallel iterator construction rejects the complete batch before
+// executing any command when one command implements this marker.
+type SerialDispatchOnly interface {
+	SerialDispatchOnly()
+}
+
 // Reverser is an opt-in Builder capability for reversible tools: BuildReverser
 // constructs a fresh Command configured only for receipt-driven Undo, so a
 // rollback can reverse a persisted step from its opaque Receipt alone, without

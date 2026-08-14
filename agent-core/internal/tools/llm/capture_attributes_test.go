@@ -5,6 +5,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -171,6 +172,86 @@ func TestInvokeLLMConversationReferenceIsOptional(t *testing.T) {
 			require.Equal(t, tc.wantRef, got)
 		})
 	}
+}
+
+func TestTenTurnDeltaTraceAndReceiptVolumeGrowsLinearly(t *testing.T) {
+	t.Parallel()
+	const turns = 10
+	prompt := strings.Repeat("prompt-", 24)
+	response := strings.Repeat("answer-", 24)
+	tracer := tracing.NewRecordingTracer()
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	builder := &InvokeLLMBuilder{
+		Client:  &sequencedClient{responses: repeatedResponses(turns, response)},
+		History: history, Registry: core.NewRegistry(),
+		Assembler: systemConversationAssembler{content: "stable system"},
+		Model:     "test", ProviderName: "test", Tracer: tracing.NoopTracer{},
+		Ctx: context.Background(), CaptureLevel: CaptureDelta,
+		ConversationRefProvider: staticConversationReference{
+			ref: "checkpoint:v1:dolt:cnVuLTE:8:aGFzaC05", available: true,
+		},
+	}
+
+	var currentBytes, firstHalfBytes, legacyBaselineBytes int
+	for turn := 0; turn < turns; turn++ {
+		prior := history.Snapshot()
+		legacyReceipt, err := json.Marshal(legacyConversationReceipt{Conversation: prior})
+		require.NoError(t, err)
+		span, done := tracer.Push("chat")
+		cmd := builder.Build(core.Result{Output: prompt})
+		cmd.(core.TracerAware).SetTracer(span)
+		result := cmd.Execute()
+		done()
+		require.Equal(t, core.LLMResponded, result.Signal)
+		require.NotContains(t, result.Receipt, prompt)
+		require.NotContains(t, result.Receipt, response)
+
+		attrs := tracer.Spans[turn].SetAttrs
+		require.NotEmpty(t, attrs["llm.input.delta"], "turn %d must capture input delta", turn)
+		require.NotEmpty(t, attrs["llm.output.delta"], "turn %d must capture output delta", turn)
+		require.NotContains(t, attrs, "gen_ai.input.messages",
+			"turn %d must not duplicate full input history", turn)
+		require.NotContains(t, attrs, "gen_ai.output.messages",
+			"turn %d must not duplicate full output history", turn)
+		traceBytes := traceContentAttributeBytes(attrs)
+		require.Positive(t, traceBytes, "turn %d must contribute content bytes", turn)
+		turnBytes := traceBytes + len(result.Receipt)
+		currentBytes += turnBytes
+		legacyBaselineBytes += traceBytes + len(legacyReceipt)
+		if turn < turns/2 {
+			firstHalfBytes += turnBytes
+		}
+	}
+
+	require.LessOrEqual(t, currentBytes, 2*firstHalfBytes+64,
+		"doubling turns stays within a linear bound")
+	require.Less(t, currentBytes, 4*firstHalfBytes,
+		"growth is strictly below the quadratic doubling bound")
+	require.Less(t, currentBytes, legacyBaselineBytes,
+		"reference receipts are smaller than the old full-history receipt baseline")
+	// Versioned AgentSnapshot.Conversation storage is authoritative and is
+	// intentionally excluded from this duplicate trace-plus-receipt metric.
+}
+
+func repeatedResponses(count int, content string) []modelllm.ChatResponse {
+	responses := make([]modelllm.ChatResponse, count)
+	for i := range responses {
+		responses[i].Content = content
+	}
+	return responses
+}
+
+func traceContentAttributeBytes(attrs map[string]interface{}) int {
+	total := 0
+	for _, key := range []string{
+		"llm.input.delta", "llm.output.delta",
+		"gen_ai.input.messages", "gen_ai.output.messages",
+	} {
+		if value, ok := attrs[key].(string); ok {
+			total += len(value)
+		}
+	}
+	return total
 }
 
 func TestRenderedSystemPromptHashTreatsAbsenceAsEmpty(t *testing.T) {
