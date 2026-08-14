@@ -3,6 +3,7 @@
 package lifecycle
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -16,6 +17,7 @@ import (
 // rollbackViaReceiptsOptions configures a two-part rollback: a git-style DB
 // Revert followed by a reverse receipt walk that reverses external effects.
 type rollbackViaReceiptsOptions struct {
+	Context         context.Context
 	Reverter        core.CheckpointReverter
 	Registry        core.CommandResolver
 	Tracer          tracing.Tracer
@@ -95,6 +97,9 @@ type rollbackReport struct {
 // than a clean rollback (srd026 R3.7, R6.4). Declared manual compensation is a
 // separate successful outcome, not an Undo failure.
 func rollbackViaReceipts(opts rollbackViaReceiptsOptions) (rollbackReport, error) {
+	if opts.Context == nil {
+		opts.Context = context.Background()
+	}
 	targetStep, err := resolveTargetStep(opts.Execution, opts.TargetIteration)
 	if err != nil {
 		return rollbackReport{}, err
@@ -122,7 +127,7 @@ func walkRollbackEntries(opts rollbackViaReceiptsOptions, targetStep int) (rollb
 	var failures []UndoFailure
 	for step := len(opts.Execution) - 1; step > targetStep; step-- {
 		entry := opts.Execution[step]
-		outcome := undoEntry(opts.Registry, opts.Tracer, step, entry)
+		outcome := undoEntry(opts.Context, opts.Registry, opts.Tracer, step, entry)
 		b.WriteString(outcome.line)
 		applyEntryOutcome(&report, &failures, entry, outcome)
 	}
@@ -199,16 +204,28 @@ func resolveTargetStep(execution core.Execution, targetIteration int) (int, erro
 // receipt. Only a registered irreversible declaration may skip the walk;
 // missing rollback plumbing is a partial-rollback failure.
 // CompensationRequired becomes operator work, while CommandError is a failure.
-func undoEntry(registry core.CommandResolver, tracer tracing.Tracer, step int, entry core.Entry) entryOutcome {
+func undoEntry(
+	ctx context.Context,
+	registry core.CommandResolver,
+	tracer tracing.Tracer,
+	step int,
+	entry core.Entry,
+) entryOutcome {
 	command, policy, outcome := prepareUndoEntry(registry, tracer, step, entry)
 	if outcome != nil {
 		return *outcome
 	}
-	res := command.Undo(core.Result{
+	prior := core.Result{
 		Receipt:     entry.Receipt,
 		Output:      entry.Result.Output,
 		CommandName: entry.CommandName,
-	})
+	}
+	var res core.Result
+	if contextual, ok := command.(core.ContextUndoCommand); ok {
+		res = contextual.UndoContext(ctx, prior)
+	} else {
+		res = command.Undo(prior)
+	}
 	if res.Signal == core.CompensationRequired {
 		return compensationOutcome(tracer, step, entry, policy, res)
 	}

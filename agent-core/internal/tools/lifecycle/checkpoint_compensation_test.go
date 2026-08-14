@@ -3,6 +3,7 @@
 package lifecycle
 
 import (
+	"context"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestCheckpointRollbackRestoresFileViaPersistedReceipt(t *testing.T) {
@@ -105,6 +107,67 @@ func TestRollbackCheckpointExecutesBoundaryCompensation(t *testing.T) {
 	require.Equal(t, core.ToolDone, res.Signal, res.Output)
 	require.Contains(t, res.Output, "step=1 rest_set_issue:")
 	require.True(t, restored)
+}
+
+func TestCheckpointRollbackCancelsInFlightRESTCompensation(t *testing.T) {
+	t.Parallel()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		close(started)
+		select {
+		case <-req.Context().Done():
+		case <-release:
+			writeLifecycleJSON(t, w, http.StatusOK, map[string]interface{}{"id": "1", "title": "late"})
+		}
+	}))
+	defer func() {
+		close(release)
+		upstream.Close()
+	}()
+
+	collection, operation := lifecycleRESTCollection(t, upstream.URL)
+	writeBuilder := toolrest.ClientBuilder{
+		ToolName: "rest_set_issue", Init: toolrest.InitClientSet,
+		Operation: operation, Definitions: collection,
+	}
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "rest_set_issue", Visibility: core.Internal}, writeBuilder)
+
+	target := 1
+	cmd := (&CheckpointRollbackBuilder{
+		Config:     catalog.CheckpointRollbackConfig{ToIteration: &target},
+		Checkpoint: lifecycleReverterWithRESTReceipt(t),
+		Registry:   reg,
+		RunID:      "run-cancel",
+	}).Build(core.Result{})
+	contextual, ok := cmd.(core.ContextCommand)
+	require.True(t, ok)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	results := make(chan core.Result, 1)
+	go func() {
+		results <- contextual.ExecuteContext(ctx)
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("REST compensation request did not start")
+	}
+	cancel()
+
+	select {
+	case result := <-results:
+		require.Equal(t, core.CommandError, result.Signal, result.Output)
+		var partial *PartialRollbackError
+		require.ErrorAs(t, result.Err, &partial)
+		require.Len(t, partial.Failures, 1)
+		require.Equal(t, "rest_set_issue", partial.Failures[0].CommandName)
+		require.Contains(t, partial.Failures[0].Detail, context.Canceled.Error())
+		require.Contains(t, result.Output, `"command":"rest_set_issue"`)
+	case <-time.After(time.Second):
+		t.Fatal("checkpoint rollback did not return after context cancellation")
+	}
 }
 
 func TestCheckpointRollbackReportsMissingRESTCompensationExecutor(t *testing.T) {

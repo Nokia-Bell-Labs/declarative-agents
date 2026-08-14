@@ -3,6 +3,7 @@
 package lifecycle
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -79,12 +80,20 @@ type checkpointRollbackCmd struct {
 
 func (c *checkpointRollbackCmd) Name() string { return "checkpoint_rollback" }
 
+var _ core.ContextCommand = (*checkpointRollbackCmd)(nil)
+
 // Execute rolls the run back to the target iteration in two parts: (1) the
 // CheckpointReverter reverts the persisted DB state git-style to the target
 // step, then (2) the reverse receipt walk reverses external effects (files,
 // resources) of the entries after the target by rebuilding each tool through
 // core.Reverser and calling its receipt-driven Undo (srd036 R6; #44).
 func (c *checkpointRollbackCmd) Execute() core.Result {
+	return c.ExecuteContext(context.Background())
+}
+
+// ExecuteContext preserves the dispatch context across the receipt walk so
+// context-aware Undo implementations can cancel in-flight compensation.
+func (c *checkpointRollbackCmd) ExecuteContext(ctx context.Context) core.Result {
 	if c.checkpoint == nil {
 		return commandError(c.Name(), fmt.Errorf("checkpoint_rollback requires a revertible Checkpoint backend"))
 	}
@@ -96,6 +105,7 @@ func (c *checkpointRollbackCmd) Execute() core.Result {
 		return commandError(c.Name(), err)
 	}
 	report, err := rollbackViaReceipts(rollbackViaReceiptsOptions{
+		Context:         ctx,
 		Reverter:        c.checkpoint,
 		Registry:        c.registry,
 		Tracer:          c.tracer,
