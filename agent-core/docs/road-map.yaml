@@ -525,6 +525,56 @@ releases:
       - go test ./internal/tools/otlp -run 'TestSpanStats|TestSpanAnalytics|TestSpanBreakdown'
       - mage audit
 
+  - version: "14.0"
+    name: Request-driven signals and configured Dolt words
+    description: |
+      Release 14.0 adds two independent agent-core seams. A model-free profile
+      can accept a validated request through a transport-neutral signal source,
+      admit its configured signal against the current machine state, and run
+      the ordinary transition path. Admission distinguishes accepted,
+      refused_undeclared, and refused_conflict without changing the existing
+      model-driven path. Checkpoint, suspend, and resume retain their normal
+      lifecycle contracts.
+
+      A separate boundary-word family provisions, queries, and writes a
+      configured Dolt database. Trusted ToolDef configuration owns connection,
+      database, statements, parameter schemas, and commit messages; callers
+      supply declared bound params only. Successful writes create one Dolt
+      commit. The word database must remain separate from the srd036 checkpoint
+      database. A real-Dolt integration target, not a mock-only test, proves
+      provisioning, schema, parameterized reads and writes, commit history,
+      authority refusal, and database isolation.
+    status: in_progress
+    planned_work:
+      - id: gh-1731
+        summary: Specify the request-driven signal source and Dolt boundary-word seams.
+        status: done
+      - id: gh-1732
+        summary: Implement the configured Dolt boundary words and real-Dolt integration gate.
+        status: planned
+      - id: gh-1733
+        summary: Implement the HTTP request signal source, model-free profiles, lifecycle coverage, and model regression.
+        status: planned
+    srds:
+      - srd046-request-driven-signal-source
+      - srd047-dolt-boundary-word
+    use_cases:
+      - id: rel14.0-uc001-request-driven-signal
+        summary: A model-free profile advances from a validated HTTP request and resumes from its checkpoint.
+        status: specified
+      - id: rel14.0-uc002-dolt-boundary-word
+        summary: Declared Dolt words provision, update, commit, and query a separate versioned store.
+        status: specified
+    test_suites:
+      - id: test-rel14.0-agent-input-and-dolt
+        summary: Formal unit, compatibility, lifecycle, authority, and real-Dolt integration obligations for both seams.
+        status: specified
+    proof:
+      - planned go test ./cmd/agent ./internal/runtime/core ./internal/tools/rest for GH-1733
+      - planned go test ./internal/tools/dolt for GH-1732
+      - planned mage integration:doltWord against a real Dolt server for GH-1732
+      - mage audit
+
   - version: "99.0"
     name: Architectural migrations and cleanup
     description: |

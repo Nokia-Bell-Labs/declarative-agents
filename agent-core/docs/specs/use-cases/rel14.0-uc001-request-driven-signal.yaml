@@ -1,0 +1,78 @@
+id: rel14.0-uc001-request-driven-signal
+title: A model-free profile advances from a validated HTTP request
+
+summary: |
+  An operator starts a profile whose vocabulary has no model word. Trusted HTTP
+  source configuration validates a request and maps its discriminator to a
+  declared signal plus structured payload. The runtime admits that envelope
+  against the current state, executes the ordinary MachineSpec transition, and
+  returns the admission and run outcome. Undeclared and conflicting requests
+  are refused without state or checkpoint mutation. A later request resumes a
+  suspended run through the same checkpoint and loop path.
+
+actor: An external caller invoking a trusted request source on a model-free agent profile
+
+trigger: |
+  The profile is serving a configured HTTP source and receives a schema-valid
+  request whose configured mapping identifies one machine signal and run id.
+
+flow:
+  - F1: The profile starts without invoke_llm configuration or model-client construction (srd046 R1).
+  - F2: The HTTP source validates method, route, body, discriminator, run id, and sensitive-field policy before mapping a SignalEnvelope (srd046 R2).
+  - F3: Admission atomically checks the envelope against the current Position and transition table and acquires single-dispatch ownership for the run (srd046 R3).
+  - F4: The accepted signal and payload enter the ordinary StateMachine.Step, Registry, Dispatch, and Loop path (srd046 R4).
+  - F5: The response reports accepted plus the state and run outcome; a later command failure remains distinct from admission (srd046 R4).
+  - F6: A declared signal that has no transition from the current state returns refused_conflict, while an unknown mapping or signal returns refused_undeclared; neither changes runtime or durable state (srd046 R3).
+  - F7: A request resumes a suspended run by loading its checkpoint and using the new signal and payload as the first resumed Result, without replay or duplication (srd046 R5).
+  - F8: A mock-model profile runs through the existing model-driven path as a compatibility regression (srd046 R6).
+
+touchpoints:
+  - T1: "srd046-request-driven-signal-source R1 -- model-free profile and transport-neutral source envelope"
+  - T2: "srd046-request-driven-signal-source R2 -- trusted request mapping and sensitive payload handling"
+  - T3: "srd046-request-driven-signal-source R3 -- atomic accepted, refused_undeclared, and refused_conflict admission"
+  - T4: "srd046-request-driven-signal-source R4 -- ordinary machine execution and response"
+  - T5: "srd046-request-driven-signal-source R5 -- checkpoint, suspend, and request-driven resume"
+  - T6: "srd046-request-driven-signal-source R6 -- source observability and unchanged model path"
+
+success_criteria:
+  - id: S1
+    criterion: A model-free profile starts without constructing a model client, and one validated HTTP request maps to a transport-neutral SignalEnvelope.
+    traces:
+      - srd046-request-driven-signal-source AC1
+      - srd046-request-driven-signal-source AC2
+  - id: S2
+    criterion: Accepted input takes the ordinary machine path and returns both admission and resulting run state.
+    traces:
+      - srd046-request-driven-signal-source AC3
+      - srd046-request-driven-signal-source AC4
+  - id: S3
+    criterion: Undeclared and conflicting requests are distinguished and leave Position, Execution, and the durable checkpoint byte-equivalent.
+    traces:
+      - srd046-request-driven-signal-source AC3
+  - id: S4
+    criterion: A suspended run resumes from its checkpoint with the new accepted signal and payload exactly once.
+    traces:
+      - srd046-request-driven-signal-source AC5
+  - id: S5
+    criterion: Source outcomes are traced without sensitive payloads, request ownership is released, and the mock-model regression remains unchanged.
+    traces:
+      - srd046-request-driven-signal-source AC6
+
+failure_scenarios:
+  - id: E1
+    scenario: The caller puts an arbitrary signal name in a request field.
+    expected: The source refuses it as undeclared unless trusted config maps the field value to a declared signal.
+  - id: E2
+    scenario: Two requests target the same run while one owns dispatch.
+    expected: Exactly one is admitted; the other receives refused_conflict and is not queued.
+  - id: E3
+    scenario: A request claims a suspended run while persistence is NoopCheckpoint.
+    expected: The request is refused without starting a fresh replacement run.
+
+out_of_scope:
+  - A downstream task or blackboard profile.
+  - Timer and queue source adapters beyond their shared SignalEnvelope contract.
+  - Changes to invoke_llm or model response parsing.
+
+test_suite_trace: test-rel14.0-agent-input-and-dolt
+status: specified
