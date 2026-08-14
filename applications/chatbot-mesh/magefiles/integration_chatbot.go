@@ -390,7 +390,7 @@ func assertChatbotMonitorReachable() error {
 // assertChatbotTierSelectionTrace proves, from the chatbot's own span log, that
 // every chat turn dynamically dispatched exactly one declared answer word and
 // that the dispatch carries the word's configured model. The answer phase starts
-// after parse_tier's parse_response span, so earlier model spans from
+// after the alias-preserving parse_tier span, so earlier model spans from
 // select_sources and select_tier cannot count.
 func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) error {
 	spans, err := readChromaSpans(tracePath)
@@ -403,6 +403,10 @@ func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) err
 	declaredByModel := map[string]string{
 		fastModel: "invoke_llm_fast",
 		deepModel: "invoke_llm_deep",
+	}
+	declaredWords := map[string]bool{
+		"invoke_llm_fast": true,
+		"invoke_llm_deep": true,
 	}
 	parentByID := make(map[string]string, len(spans))
 	var turns []chromaSpan
@@ -427,14 +431,14 @@ func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) err
 				continue
 			}
 			switch s.commandName() {
-			case "parse_response":
+			case "parse_tier":
 				parseTierCount++
 				parseTierSeen = true
 			case "compose_response":
 				composeResponseCount++
 				parseTierSeen = false
 			default:
-				if parseTierSeen && strings.HasPrefix(s.Name, "chat ") {
+				if parseTierSeen && declaredWords[s.commandName()] && strings.HasPrefix(s.Name, "chat ") {
 					answerSpans = append(answerSpans, s)
 				}
 			}
