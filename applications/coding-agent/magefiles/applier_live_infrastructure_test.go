@@ -23,6 +23,17 @@ func TestCodingApplierLiveOwnsDedicatedClusterRecovery(t *testing.T) {
 	}
 }
 
+func TestCodingApplierLiveRollbackHookKeepsRollbackInsideRequestBudget(t *testing.T) {
+	for _, want := range []string{
+		`"progressDeadlineSeconds":5`,
+		`"image":"invalid.local/applier-live-rollback:missing"`,
+	} {
+		if !strings.Contains(codingApplierLiveRollbackHook, want) {
+			t.Fatalf("rollback hook missing %q", want)
+		}
+	}
+}
+
 func TestCodingApplierLiveInfrastructureHealthy(t *testing.T) {
 	var calls []string
 	run := func(_ context.Context, name string, args ...string) ([]byte, error) {
