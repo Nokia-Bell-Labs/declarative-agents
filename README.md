@@ -49,7 +49,7 @@ mage audit      # run the release analysis gate in each sub-module
 mage test       # run tests for applicable sub-modules
 mage stats      # combined LOC and per-agent stats (states, transitions, tools, YAML) as JSON
 mage clean      # remove generated artifacts in each sub-module
-mage tag        # create root and module release tags
+mage tag        # create the canonical repository release tag
 ```
 
 Each sub-module also has its own mage targets. Run `mage -l` inside any directory with a `magefiles/` folder to list available targets.
@@ -69,9 +69,9 @@ which owns the ingress; its ports and lifecycle are documented in the
 [chatbot-mesh README](applications/chatbot-mesh/README.md).
 
 Root releases require every release gate to exit successfully before tagging:
-`mage audit`, `mage test`, `agent-core` and `applications/catalog`
-`mage integration:all`, catalog `mage conformance` using repository discovery,
-and application-owned gates from each application root.
+`mage audit`, `mage lint`, `mage test`, `agent-core` and
+`applications/catalog` `mage integration:all`, catalog `mage conformance` using
+repository discovery, and application-owned gates from each application root.
 A documented skip reported by a gate is accepted only when that gate exits
 successfully. A failed gate cannot be waived; fix the failure and run the gates
 again before creating a tag.
@@ -82,6 +82,16 @@ Application workflows such as planner-executor-critic run from
 
 `mage tag` requires a clean `main` worktree, records the exact HEAD commit, runs
 all gates above itself, and verifies HEAD is unchanged before creating the tag.
+The repository audit is the exclusive first gate. After it passes, a
+resource-aware scheduler makes every other lane eligible: CPU-only root,
+catalog, and agent-core work shares one CPU slot; application integrations share
+three Docker slots; and Chatbot Mesh and agent-core share one host-Ollama slot.
+Chatbot Mesh has launch priority for that host-Ollama slot, allowing all three
+application lanes plus one CPU-heavy gate to overlap without unbounded host
+contention. Gates in the same lane remain serial (including catalog integration
+before conformance). On failure, the scheduler starts no new gates, lets every
+in-flight child finish its own cleanup, and reports the failed gate with the
+earliest canonical gate order.
 It also acquires a Git-private repository lock before checking or running any
 gate, so a second invocation fails with the active process metadata instead of
 competing for test, model, Docker, and kind resources. The lock is removed on a
