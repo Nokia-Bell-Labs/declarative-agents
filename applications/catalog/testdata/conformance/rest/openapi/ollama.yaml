@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 openapi: 3.0.3
 info:
   title: Ollama Local API

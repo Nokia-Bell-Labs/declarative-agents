@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel00.0-uc001-application-contract-conformance
 title: Verify a Runnable Application Against the Shared Contract
 

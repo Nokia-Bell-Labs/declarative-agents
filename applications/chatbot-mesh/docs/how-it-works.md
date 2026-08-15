@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # How the chatbot mesh works
 
 This is a reader's walkthrough of the chatbot mesh: what the parts are, how a

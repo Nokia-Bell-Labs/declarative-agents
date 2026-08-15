@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Chatbot mesh values. The ragUnits list is the single source of truth for the RAG
 # topology: each entry renders a rag-server Deployment/Service and a Chroma
 # StatefulSet/Service, the chatbot's declared runtime topology, REST network

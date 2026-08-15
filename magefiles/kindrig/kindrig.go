@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package kindrig is the shared kind cluster lifecycle for integration tests
 // and demos (eng01-kind-test-demo-rig). It moves the cluster code the

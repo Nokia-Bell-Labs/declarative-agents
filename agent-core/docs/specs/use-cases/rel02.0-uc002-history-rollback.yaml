@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel02.0-uc002-history-rollback
 title: User inspects history and rolls back after a bad tool action
 

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 tools:
   - launch_observer_control
   - launch_observer_monitor

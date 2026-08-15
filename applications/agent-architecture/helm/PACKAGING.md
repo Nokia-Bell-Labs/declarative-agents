@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Packaging the agent-architecture chart
 
 `mage helm:package` produces a self-contained archive under `helm/dist/`. The chart

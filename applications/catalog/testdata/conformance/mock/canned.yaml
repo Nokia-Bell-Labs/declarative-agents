@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # A single canned response per route: the common case, where a dependency
 # always answers the same way for the length of a scenario.
 routes:

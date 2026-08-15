@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Transition Spans
 
 This chapter presents the Transition Spans pattern, which projects an execution onto OpenTelemetry run and dispatch spans. Transition outcomes update run attributes; tool and model dispatches create child spans. The chapter covers the shipped topology, trace-context propagation, and post-run evaluation metrics.

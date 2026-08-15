@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel14.0-uc001-served-trace-ui
 title: The collector serves its own trace UI at the query origin
 

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel04.0-uc002-monitor-rest-api
 title: Supervisor reads monitor state through REST
 status: done

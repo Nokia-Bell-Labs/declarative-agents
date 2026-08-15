@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 prompt: |
   Implement the Hello function in greet.go according to the SRD
   in doc/specs/software-requirements/srd001-greet.yaml.

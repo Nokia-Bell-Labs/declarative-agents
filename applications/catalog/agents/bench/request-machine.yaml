@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: bench-request
 purpose: Execute one bench read request through atomic evaluation, filesystem, and transform words.
 initial_state: AwaitingRequest

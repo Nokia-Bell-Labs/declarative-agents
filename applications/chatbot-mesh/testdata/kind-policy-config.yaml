@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Kind cluster configuration for integration:policyProof. disableDefaultCNI
 # drops kindnet, whose absence is what lets a policy-enforcing CNI (Calico)
 # take over; the podSubnet is Calico's expected default. The node image is

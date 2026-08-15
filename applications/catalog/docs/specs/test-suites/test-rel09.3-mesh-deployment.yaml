@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel09.3-mesh-deployment
 title: Test Suite for Release 09.3 Mesh Deployment and Tiered Swap (Relocated)
 release: "09.3"

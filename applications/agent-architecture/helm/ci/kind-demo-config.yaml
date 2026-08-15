@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Persistent ENG01 demo cluster with a pinned node. The demo uses kubectl
 # port-forward and therefore reserves no host ingress ports.
 kind: Cluster

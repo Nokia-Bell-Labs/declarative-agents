@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: provisioning-workflow-orchestrator-provisioning-request
 purpose: |-
   One request-scoped run of a provisioning intent. The machine_request intent

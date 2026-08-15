@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Deepseek variant of the generate state machine.
 # Differs from the default machine.yaml by adding a nudge_reread
 # transition after EditDone, prompting the model to re-read files

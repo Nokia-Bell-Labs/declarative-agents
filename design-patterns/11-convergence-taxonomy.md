@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Convergence Taxonomy
 
 This chapter presents the Convergence Taxonomy pattern, which reads a completed execution and assigns one of four convergence types — Clean, Recovery, Stuck, or Divergent — based on transition patterns. Each type points to a distinct root cause. The chapter covers the classification rules, the classifier's interface with the execution record, and how the taxonomy drives remediation.

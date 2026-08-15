@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Packaged profiles
 
 The `profiles/` subtree is staged into the chart and projected into each agent at

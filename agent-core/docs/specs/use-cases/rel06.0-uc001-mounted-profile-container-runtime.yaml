@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel06.0-uc001-mounted-profile-container-runtime
 title: Runtime container runs an externally mounted agent profile
 

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel09.0-uc001-scenario-rig-run
 title: A rig machine runs one scenario hermetically to a verdict
 

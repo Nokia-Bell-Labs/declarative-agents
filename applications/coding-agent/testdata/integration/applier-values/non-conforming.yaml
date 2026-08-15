@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # A non-conforming coding values patch. The coding roles run a single replica --
 # the shared workspace admits no concurrent writer -- so the schema pins each
 # role's replicas to 1. replicas: 2 violates the schema at /roles/planner/replicas,

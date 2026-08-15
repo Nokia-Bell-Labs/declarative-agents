@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 apiVersion: v2
 name: chatbot-mesh
 description: The declarative-agents chatbot mesh — chatbot, N values-driven RAG (agent + Chroma) pairs, an LLM, a Dolt checkpoint backend, and the canonical catalog collector with a spool query surface, over the rel06.0 mounted-profile runtime image (srd015).

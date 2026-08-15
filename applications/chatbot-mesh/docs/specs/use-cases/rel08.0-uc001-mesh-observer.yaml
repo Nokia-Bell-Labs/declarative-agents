@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel08.0-uc001-mesh-observer
 title: The observer agent discovers the mesh and shows a fleet view
 

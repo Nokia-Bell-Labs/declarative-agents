@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Historical Bench Documentation UX Inventory
 
 This inventory records the bench documentation browser as it existed before it

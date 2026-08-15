@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Reserved for the live tier (mage integration:applierLive): a conforming coding
 # values patch whose sentinel resource request (751Mi) the live applier chart keys
 # on to force a deterministic post-upgrade verification failure, so the applier's

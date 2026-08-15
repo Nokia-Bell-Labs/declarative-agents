@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 apiVersion: v2
 name: agent-architecture
 description: Persistent documentation-curator and collector agents over mounted canonical profiles.

@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Boundary Tool
 
 This chapter presents the Boundary Tool pattern, which composes agents through non-terminal boundary tools. A parent machine delegates to a child agent through one tool call; the child runs its own execution and returns one signal. Each machine stays flat and independently validatable; hierarchy emerges from composition, not from nesting.

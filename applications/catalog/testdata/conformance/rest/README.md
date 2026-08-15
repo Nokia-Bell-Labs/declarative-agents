@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # REST conformance fixtures
 
 This directory is the canonical owner of the REST profile fixtures. The seven

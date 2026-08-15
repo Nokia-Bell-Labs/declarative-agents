@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # A patch the chart's values.schema.json must reject. The RAG unit name is
 # constrained to a DNS label -- it becomes a Kubernetes object name -- and
 # "Rag_0" violates it on two counts: an uppercase letter and an underscore.

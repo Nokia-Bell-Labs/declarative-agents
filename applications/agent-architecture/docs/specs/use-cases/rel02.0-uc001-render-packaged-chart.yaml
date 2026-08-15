@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel02.0-uc001-render-packaged-chart
 title: Render and Validate the Packaged Agent Architecture Chart
 status: planned

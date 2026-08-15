@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package appmanifest validates application composition manifests and resolves
 // their package-time profile closure. It deliberately knows no application

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: monitored-qwen-ollama-rest
 purpose: Start the embedded monitor without blocking Qwen, then prove token metrics while the run remains queryable.
 initial_state: Idle

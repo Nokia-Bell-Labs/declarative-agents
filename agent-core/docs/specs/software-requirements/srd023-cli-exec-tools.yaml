@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: srd023-cli-exec-tools
 title: CLI and Exec Tool Declarations
 

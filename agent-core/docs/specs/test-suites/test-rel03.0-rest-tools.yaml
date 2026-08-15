@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel03.0-rest-tools
 title: Test Suite for Release 03.0 REST Tools
 release: "03.0"

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: chroma-rag-request
 purpose: |-
   One request-scoped run of the RAG query. The machine_request query endpoint

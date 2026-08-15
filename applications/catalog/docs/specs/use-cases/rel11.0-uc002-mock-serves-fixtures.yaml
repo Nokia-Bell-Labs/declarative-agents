@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel11.0-uc002-mock-serves-fixtures
 title: One Mock Profile Stands In for Any REST Dependency and Records What It Received
 

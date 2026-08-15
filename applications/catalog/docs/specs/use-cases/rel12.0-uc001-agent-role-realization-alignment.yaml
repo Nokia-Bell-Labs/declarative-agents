@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel12.0-uc001-agent-role-realization-alignment
 title: Migrate Concrete Agent Names as One Versioned Compatibility Release
 release: "12.0"

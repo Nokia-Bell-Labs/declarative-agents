@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Tool selection for the planner agent.
 # Shared across all planner machine variants (full, passthrough, plan-only).
 # Each tool is a direct transition action in at least one variant.

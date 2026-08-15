@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 tools:
   - {name: stop_service, type: builtin, init: stop_service, category: boundary, emits: [ServiceStopped, CommandError]}
   - {name: init_scenario_session, type: builtin, init: init_scenario_session, category: boundary, emits: [SessionSeeded, NoScenarios, CommandError]}

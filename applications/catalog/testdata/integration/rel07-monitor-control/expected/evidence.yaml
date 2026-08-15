@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 runtime_state_reader_profile: agents/runtime-state-reader/profile.yaml
 control_profile: testdata/conformance/control/profile.yaml
 monitor_state_routes:

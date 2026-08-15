@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Layers on ci/kind-values.yaml to stand the applier up on kind, for the live tier.
 #
 # The chart disables the applier by default: its image bundles helm, kubectl, and the

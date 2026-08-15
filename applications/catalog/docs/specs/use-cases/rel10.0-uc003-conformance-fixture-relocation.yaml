@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel10.0-uc003-conformance-fixture-relocation
 title: Conformance Grammar Fixtures Relocated to testdata/conformance
 

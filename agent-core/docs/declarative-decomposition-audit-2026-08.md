@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Declarative Decomposition Audit -- 2026-08
 
 Register for recurring audit GH-1395. The audit examines production Go against

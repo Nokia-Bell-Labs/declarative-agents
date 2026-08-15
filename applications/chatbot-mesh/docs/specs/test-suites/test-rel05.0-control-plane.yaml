@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel05.0-control-plane
 title: Test Suite for Release 05.0 Control Plane
 release: "05.0"

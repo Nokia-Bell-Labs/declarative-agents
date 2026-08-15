@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Tool-contract completeness baseline (GH-1525).
 #
 # Generated from spec.IncompleteToolContracts. This list is a ratchet: it may

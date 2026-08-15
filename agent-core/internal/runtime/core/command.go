@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package core provides the generic agentic loop engine: a state machine,
 // command dispatch, tool registry, budget tracking, and tracing.

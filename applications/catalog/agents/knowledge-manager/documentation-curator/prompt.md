@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Documentation Curator Prompt
 
 You are the Knowledge Manager documentation curator.

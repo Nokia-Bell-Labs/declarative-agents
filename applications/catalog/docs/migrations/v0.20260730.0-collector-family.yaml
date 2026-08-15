@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: migration-v0.20260730.0-collector-family
 title: Canonical Collector Family Release
 release: applications/catalog/v0.20260730.0

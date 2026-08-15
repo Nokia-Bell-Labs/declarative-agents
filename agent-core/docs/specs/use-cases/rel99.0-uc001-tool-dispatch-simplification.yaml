@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel99.0-uc001-tool-dispatch-simplification
 title: Maintainer simplifies tool dispatch wiring without changing core dispatch
 

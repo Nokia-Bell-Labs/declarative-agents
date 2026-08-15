@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # LLM tool declaration for the executor agent — DeepSeek model.
 # Loaded through a executor profile tool_declarations entry.
 

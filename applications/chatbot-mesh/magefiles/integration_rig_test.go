@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 package main
 
@@ -9,6 +10,10 @@ import (
 	"strings"
 	"testing"
 )
+
+func yamlDocument(data []byte) string {
+	return strings.TrimPrefix(string(data), "# Copyright (c) 2026 Nokia\n# SPDX-License-Identifier: BSD-3-Clause\n")
+}
 
 func TestCollectorIntakeFilterScenario(t *testing.T) {
 	applicationRoot, err := filepath.Abs("..")
@@ -96,7 +101,7 @@ func TestStageRigRuntimeUsesCatalogScenarioCritic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(profile) != "name: scenario-critic\nmachine: ../../agents/scenario-critic/machine.yaml\ntools:\n  - ../../agents/scenario-critic/tools.yaml\ntool_declarations:\n  - declarations.yaml\nrest_definitions:\n  - rest.yaml\n" {
+	if yamlDocument(profile) != "name: scenario-critic\nmachine: ../../agents/scenario-critic/machine.yaml\ntools:\n  - ../../agents/scenario-critic/tools.yaml\ntool_declarations:\n  - declarations.yaml\nrest_definitions:\n  - rest.yaml\n" {
 		t.Fatalf("staged rig profile does not select catalog scenario critic:\n%s", profile)
 	}
 	declarations, err := os.ReadFile(filepath.Join(stage, "testdata", "rig", "declarations.yaml"))
@@ -123,7 +128,7 @@ func TestMeshScenarioCriticIdentities(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if !strings.HasPrefix(string(data), "name: "+test.identity+"\n") {
+				if !strings.HasPrefix(yamlDocument(data), "name: "+test.identity+"\n") {
 					t.Fatalf("%s/%s does not declare %q:\n%s", test.scenario, file, test.identity, data)
 				}
 			}

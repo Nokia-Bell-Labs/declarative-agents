@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Monitor static-assets fixture
 
 `dist/` is a minimal source-controlled SPA fixture, not generated output. Keep

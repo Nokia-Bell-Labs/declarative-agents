@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel14.0-application-consistency
 title: Release 14.0 Application Consistency Test Suite
 release: "14.0"

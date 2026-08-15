@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel05.0-uc001-qwen-monitor-token-progress
 title: Qwen run exposes increasing token metrics through embedded monitor
 

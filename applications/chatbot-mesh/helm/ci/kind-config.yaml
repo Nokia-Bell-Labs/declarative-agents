@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Kind cluster configuration for the helm integration scenarios (smoke, swap,
 # llm-tier). The node image is pinned by version and digest so every machine
 # creates the same cluster (eng01-kind-test-demo-rig); the digest is the

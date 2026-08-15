@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Compatibility entry point for the full shared exec declaration bundle.
 # Pass via: agent --tools-declaration tools/exec.yaml
 includes:

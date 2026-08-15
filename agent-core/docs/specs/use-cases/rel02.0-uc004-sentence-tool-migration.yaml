@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel02.0-uc004-sentence-tool-migration
 title: Developer migrates a sentence-shaped tool into machine-composed words
 

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel03.0-uc004-openapi-import
 title: OpenAPI import defines REST operations and endpoint bindings
 

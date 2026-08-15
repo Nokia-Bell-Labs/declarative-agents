@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Tool selection for the critic point machine (point.yaml).
 # Loaded by run_point to build the nested point registry.
 

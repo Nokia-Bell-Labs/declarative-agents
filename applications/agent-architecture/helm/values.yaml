@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Both workloads run the shared agent-core image (GH-1368); there is no per-app
 # runtime image. agent-core carries the agent and the core-owned tools the
 # curator profile names (including jq and ripgrep) under /opt/agent-core. The

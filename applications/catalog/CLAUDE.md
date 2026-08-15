@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Project Instructions for AI Agents
 
 This file provides instructions and context for AI coding agents working on this project.

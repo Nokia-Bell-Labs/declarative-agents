@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Pins the linter set for `mage lint` (golangci-lint run ./...) so the release
 # gate is reproducible for a given golangci-lint major version. With
 # default: none the enabled set is explicit here, so a future release changing

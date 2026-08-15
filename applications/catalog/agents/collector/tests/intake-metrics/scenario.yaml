@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 batch: batch.json
 expected_metric_count: 1
 expected_metric_name: fixture_dispatch_count

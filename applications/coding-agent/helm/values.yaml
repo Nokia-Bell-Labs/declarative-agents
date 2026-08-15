@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Every coding role runs the shared agent-core-toolchain image (GH-1368):
 # agent-core layered with the Go 1.26 toolchain and pinned golangci-lint
 # v2.12.2 required by the canonical executor. It replaces the retired per-app

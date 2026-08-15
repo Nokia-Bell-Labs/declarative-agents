@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel02.0-render-packaged-chart
 title: Test Suite for Release 02.0 Packaged Chart Render and Validation
 release: "02.0"

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel04.0-uc001-in-cluster-llm-tier
 title: A Fresh-Cluster Install Answers a Turn With No External LLM Dependency
 

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel03.0-uc001-package-serving-profiles
 title: Package Serving Profiles for Separate Containers
 status: implemented

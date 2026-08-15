@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel07.0-command-state
 title: Test Suite for Release 07.0 Command-State Store and Two-Plane Persistence
 release: "07.0"

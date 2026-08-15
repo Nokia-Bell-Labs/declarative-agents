@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel04.0-monitor
 title: Test Suite for Release 04.0 Embedded Monitor
 release: "04.0"

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # A values-plane patch of the shape the provisioning-workflow-orchestrator decides and the creator
 # forwards to the applier's apply endpoint (srd006 R1.4). It carries deployment
 # values only: no host, URL, method, or credential for a running agent (R2.3).

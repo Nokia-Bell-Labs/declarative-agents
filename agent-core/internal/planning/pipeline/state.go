@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package pipeline implements the builtin tool builders for the planner
 // pipeline state machine. These tools orchestrate task extraction,

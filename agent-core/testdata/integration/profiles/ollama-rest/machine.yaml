@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: ollama-rest-model-listing
 purpose: List live local Ollama models through the configured REST tool.
 initial_state: Idle

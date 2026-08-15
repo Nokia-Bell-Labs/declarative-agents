@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel08.0-uc001-http-trace-propagation
 title: Two agents linked by a REST call produce one connected trace
 

@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Inference Boundary
 
 This chapter presents the Inference Boundary pattern, which places all inference behind one tool and a provider adapter. Swapping a model supported by that adapter is a configuration change; adding a provider requires an adapter implementation while leaving the machine and other tools unchanged.

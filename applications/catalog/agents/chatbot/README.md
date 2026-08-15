@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # chatbot (relocated)
 
 The chatbot agent is no longer maintained in the applications/catalog catalog. The mesh

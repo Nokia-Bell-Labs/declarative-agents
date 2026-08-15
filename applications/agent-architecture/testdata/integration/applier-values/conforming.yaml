@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # A conforming agent-architecture values patch: it adjusts the collector's memory
 # request within the chart schema. The applier's dry-run validate step accepts it
 # and the render carries it, which is the evidence a schema that rejected every

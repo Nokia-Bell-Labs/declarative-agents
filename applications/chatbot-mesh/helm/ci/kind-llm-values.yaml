@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Small-footprint values for the in-cluster LLM-tier kind smoke (rel09.5, GH-338).
 # The LLM tier is enabled with CPU-only small models so the preload and readiness
 # gate run on a disposable kind cluster without a GPU. This diverges from GPU

@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Phase-Scoped Toolset
 
 This chapter presents the Phase-Scoped Toolset pattern, which derives model-visible tools from the machine's `$tool` transitions, each tool's emitted signals, visibility, and optional tool-level phase restrictions. The derived manifest shrinks the model's decision space and prevents calls the current grammar cannot route.

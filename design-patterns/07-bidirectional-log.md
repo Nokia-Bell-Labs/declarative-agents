@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Bidirectional Log
 
 This chapter presents the Bidirectional Log pattern, which treats the recorded execution as a bidirectional log persisted one commit per step. Forward traversal is normal execution; backward traversal is rollback — a git-style revert of the persisted state followed by a reverse walk that replays each step's receipt through the owning tool's Undo. The chapter covers the typed checkpoint port, the Dolt-backed history, receipt-driven undo, the two-part rollback, and the handling of irreversible tools.

@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # agent-core
 
 A profile-driven runtime for declarative, tool-augmented agents.
@@ -359,4 +362,4 @@ go get gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core
 
 ## License
 
-Copyright (c) 2026 Nokia. All rights reserved.
+BSD 3-Clause — Copyright (c) 2026, Nokia Bell Labs. See [LICENSE](LICENSE).

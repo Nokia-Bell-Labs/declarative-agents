@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: applier-state-request
 purpose: |-
   One request-scoped read of the deployed mesh view, serving the state GET endpoint

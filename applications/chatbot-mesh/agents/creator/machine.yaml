@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: creator
 purpose: |-
   The creator profile hosts the mesh control plane's agent lifecycle management (LCM)

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # nResults must be >= 1 (MeshView.Validate: params.nResults must be > 0).
 applier:
   params: {nResults: 0}

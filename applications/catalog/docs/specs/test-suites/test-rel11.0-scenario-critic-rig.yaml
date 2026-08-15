@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel11.0-scenario-critic-rig
 title: Test Suite for Release 11.0 Scenario Critic Test Rig
 historical_aliases: [test-rel11.0-assembler-rig]

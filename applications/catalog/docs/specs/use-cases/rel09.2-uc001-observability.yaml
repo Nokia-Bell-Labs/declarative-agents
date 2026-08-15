@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel09.2-uc001-observability
 title: Observability Panel and Cross-Agent Trace Waterfall (Relocated)
 status: relocated

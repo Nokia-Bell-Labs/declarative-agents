@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # The applier enabled with its network policy on: a values-plane deployment of the
 # srd006 actuator that must lint and render.
 applier:

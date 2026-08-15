@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package service provides the words a rig machine composes other machines
 // with (srd040): background serve-mode child agents, one-validator child

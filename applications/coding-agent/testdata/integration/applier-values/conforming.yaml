@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # A conforming coding values patch: it adjusts an executor resource request
 # within the coding chart schema. The applier's dry-run validate step accepts it
 # and the render carries it, which is the evidence a schema that rejected every

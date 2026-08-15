@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel03.0-live-helm-smoke
 title: Test Suite for Release 03.0 Live Helm Smoke
 release: "03.0"

@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package agentbuild holds the one agent-CLI build recipe shared by the
 // catalog magefile and the conformance harness. Both previously duplicated the

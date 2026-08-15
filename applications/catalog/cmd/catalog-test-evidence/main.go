@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // catalog-test-evidence preserves the specification-critic's Go JSON evidence
 // contract while running catalog conformance from a stable test-binary path.

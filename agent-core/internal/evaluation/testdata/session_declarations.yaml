@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Tool declarations for the synthetic session machine. Each word carries the
 # full contract metadata a sentence tool is required to declare, so a core test
 # can assert the contract without reading a shipped profile.

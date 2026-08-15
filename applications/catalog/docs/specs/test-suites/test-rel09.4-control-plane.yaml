@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel09.4-control-plane
 title: Test Suite for Release 09.4 Control Plane (Relocated)
 release: "09.4"

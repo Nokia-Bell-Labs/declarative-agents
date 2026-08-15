@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel02.0-tool-contracts
 title: Test Suite for Release 02.0 Tool Contracts
 release: "02.0"

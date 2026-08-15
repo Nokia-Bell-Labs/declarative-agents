@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Configured REST Tool
 
 *Design note for a generic REST boundary word and its use as the transport

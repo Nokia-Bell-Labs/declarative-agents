@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: core-test-evidence-audit
 purpose: Audit Agent Core formal test claims through declared subprocesses.
 initial_state: Idle

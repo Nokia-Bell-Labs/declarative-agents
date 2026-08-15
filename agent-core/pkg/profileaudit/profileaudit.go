@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package profileaudit inspects the executable timeout closure of one agent
 // profile. It accepts a caller-supplied profile instead of discovering an

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel03.0-uc005-ollama-openapi-model-listing
 title: Qwen agent lists Ollama models through an OpenAPI REST tool
 

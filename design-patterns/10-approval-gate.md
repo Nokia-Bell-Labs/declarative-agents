@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Approval Gate
 
 This chapter presents the Approval Gate pattern, which suspends execution at a declared machine state, checkpoints the execution, and waits for an external authority to approve or reject. It separates the complete pattern from the narrower lifecycle conformance fixture in the reference implementation.

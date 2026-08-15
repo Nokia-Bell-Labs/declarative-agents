@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: otlp-replay
 purpose: Load one trusted OTLP protobuf-JSON batch and relay it through declared words.
 initial_state: ReadingBatch

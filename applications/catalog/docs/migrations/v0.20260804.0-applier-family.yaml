@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: migration-v0.20260804.0-applier-family
 title: Canonical Applier Family Promotion
 root_release: v0.20260804.0

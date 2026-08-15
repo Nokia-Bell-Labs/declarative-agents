@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Specification validation builtin declarations.
 includes:
   - ../load-corpus.yaml

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel15.0-uc001-explore-panel
 title: An operator narrows a latency band to a responsible attribute and lands on a trace
 

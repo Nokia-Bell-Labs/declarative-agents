@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Declarative Agents
 
 Profile-driven runtime and design patterns for declarative, tool-augmented LLM agents: an agent is a YAML profile, interpreted by one Go runtime.

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Tool selection for the scenario critic rig machine (machine.yaml).
 #
 # The three fail_scenario_* words share one init with collect_scenario_verdict:

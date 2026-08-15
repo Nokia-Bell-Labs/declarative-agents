@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package envexpand expands environment references in mounted configuration
 // before it is parsed. REST definitions and tool declarations both use it, so a

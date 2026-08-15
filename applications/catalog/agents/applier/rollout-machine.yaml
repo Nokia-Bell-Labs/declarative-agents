@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: applier-rollout-request
 purpose: |-
   Read one application-selected Deployment rollout without confusing a broken

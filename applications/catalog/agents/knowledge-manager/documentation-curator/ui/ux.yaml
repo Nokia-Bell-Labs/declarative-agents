@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: documentation-curator-ui
 title: Knowledge Manager Documentation UI
 source_owner: agents/knowledge-manager/documentation-curator
