@@ -53,6 +53,127 @@ func TestChatResponseDecodesTrace(t *testing.T) {
 	}
 }
 
+func TestChatbotFanOutFixturePinsInventoryVocabulary(t *testing.T) {
+	const wantQuestion = "List every named project or system described across the knowledge base. Return one line for each of these three entries: the corpus-agent system, the development methodology, and the photovoltaic energy project. Use the exact name from the retrieved chunks."
+	if chatbotFanOutQuestion != wantQuestion {
+		t.Fatalf("fan-out question = %q, want %q", chatbotFanOutQuestion, wantQuestion)
+	}
+	wantDocs := []struct{ id, text string }{
+		{"solar-1", "Knowledge-base project and system inventory answer: the exact name of the photovoltaic energy project is Solar Ridge. Return the proper name Solar Ridge when listing every named project or system. It has a capacity of 55 megawatts across 140000 panels on a decommissioned quarry."},
+		{"solar-2", "Knowledge-base system inventory entry: the exact project name Solar Ridge identifies the photovoltaic system that feeds a 33 kilovolt substation and includes a 12 megawatt-hour battery for evening dispatch."},
+	}
+	if !reflect.DeepEqual(disjointCorpus2Docs, wantDocs) {
+		t.Fatalf("rag1 fan-out fixture = %#v, want %#v", disjointCorpus2Docs, wantDocs)
+	}
+}
+
+func TestAssertChatbotFanOutResponseRequiresDualRAGEvidence(t *testing.T) {
+	valid := decodeChatResponse(t, `{
+		"answer":"Chroma Corpus Agents and Solar Ridge are described.",
+		"trace":{"status":"succeeded"},
+		"metadata":{
+			"query_counts":{"succeeded":2,"failed":0},
+			"sources":{
+				"not_selected":[],
+				"composed":[
+					{"input":{"name":"rag0"},"result":{"signal":"QueryResponded","structured_output":{"mapped":{"documents":[["Chroma Corpus Agents use a vector database."]]}}}},
+					{"input":{"name":"rag1"},"result":{"signal":"QueryResponded","structured_output":{"mapped":{"documents":[["Knowledge-base project inventory entry: Solar Ridge."]]}}}}
+				],
+				"embedding_model_excluded":[],
+				"query_failed":[]
+			}
+		}
+	}`)
+	if err := assertChatbotFanOutResponse(valid, 200); err != nil {
+		t.Fatalf("valid dual-RAG fan-out evidence failed: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*chatResponse)
+		wantErr string
+	}{
+		{
+			name: "free-form answer must use rag1",
+			mutate: func(resp *chatResponse) {
+				resp.Answer = "Only Chroma Corpus Agents are described."
+			},
+			wantErr: "answer omits",
+		},
+		{
+			name: "rag0 must compose retrieval evidence",
+			mutate: func(resp *chatResponse) {
+				resp.Metadata.Sources.Composed = resp.Metadata.Sources.Composed[1:]
+			},
+			wantErr: "rag0 evidence",
+		},
+		{
+			name: "rag1 retrieval evidence must contain Solar Ridge",
+			mutate: func(resp *chatResponse) {
+				resp.Metadata.Sources.Composed[1].Result.StructuredOutput.Mapped.Documents = [][]string{{"unrelated rag1 text"}}
+			},
+			wantErr: "rag1 evidence",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := decodeChatResponse(t, mustJSON(t, valid))
+			tt.mutate(&resp)
+			err := assertChatbotFanOutResponse(resp, 200)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestAssertChatbotDegradedResponsePinsRag1DownContrast(t *testing.T) {
+	valid := decodeChatResponse(t, `{
+		"answer":"Chroma Corpus Agents are described.",
+		"trace":{"status":"succeeded"},
+		"metadata":{
+			"query_counts":{"succeeded":1,"failed":1},
+			"sources":{
+				"not_selected":[],
+				"composed":[
+					{"input":{"name":"rag0"},"result":{"signal":"QueryResponded","structured_output":{"mapped":{"documents":[["Chroma Corpus Agents use a vector database."]]}}}}
+				],
+				"embedding_model_excluded":[],
+				"query_failed":[
+					{"input":{"name":"rag1"},"result":{"signal":"CommandError"}}
+				]
+			}
+		}
+	}`)
+	if err := assertChatbotDegradedResponse(valid, 200); err != nil {
+		t.Fatalf("valid rag1-down contrast failed: %v", err)
+	}
+
+	valid.Metadata.Sources.QueryFailed = nil
+	if err := assertChatbotDegradedResponse(valid, 200); err == nil ||
+		!strings.Contains(err.Error(), "want rag1 CommandError") {
+		t.Fatalf("missing rag1 failure evidence error = %v", err)
+	}
+}
+
+func decodeChatResponse(t *testing.T, raw string) chatResponse {
+	t.Helper()
+	var resp chatResponse
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("decode chat response fixture: %v", err)
+	}
+	return resp
+}
+
+func mustJSON(t *testing.T, value interface{}) string {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("encode chat response fixture: %v", err)
+	}
+	return string(data)
+}
+
 func TestAssertChatbotTierSelectionTraceAttributesAnswerDispatch(t *testing.T) {
 	trace := writeChromaTrace(t, []string{
 		chatbotSpanLine("machine_request chatbot/chat", "turn-fast", "", nil),

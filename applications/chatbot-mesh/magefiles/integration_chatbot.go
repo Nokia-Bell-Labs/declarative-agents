@@ -31,6 +31,8 @@ const (
 	rag1ControlExit   = "http://127.0.0.1:18096/api/lifecycle/exit"
 
 	chromaCorpus2 = "corpus2"
+
+	chatbotFanOutQuestion = "List every named project or system described across the knowledge base. Return one line for each of these three entries: the corpus-agent system, the development methodology, and the photovoltaic energy project. Use the exact name from the retrieved chunks."
 )
 
 // Chatbot proves the tier-selected, two-RAG chat turn end to end across the mesh
@@ -259,15 +261,31 @@ type chatResponse struct {
 		TerminalSignal string `json:"terminal_signal"`
 	} `json:"trace"`
 	Metadata struct {
+		QueryCounts struct {
+			Succeeded int `json:"succeeded"`
+			Failed    int `json:"failed"`
+		} `json:"query_counts"`
 		Sources struct {
-			NotSelected []string `json:"not_selected"`
-			Composed    []struct {
-				Input struct {
-					Name string `json:"name"`
-				} `json:"input"`
-			} `json:"composed"`
+			NotSelected            []string               `json:"not_selected"`
+			Composed               []chatbotSourceOutcome `json:"composed"`
+			EmbeddingModelExcluded []chatbotSourceOutcome `json:"embedding_model_excluded"`
+			QueryFailed            []chatbotSourceOutcome `json:"query_failed"`
 		} `json:"sources"`
 	} `json:"metadata"`
+}
+
+type chatbotSourceOutcome struct {
+	Input struct {
+		Name string `json:"name"`
+	} `json:"input"`
+	Result struct {
+		Signal           string `json:"signal"`
+		StructuredOutput struct {
+			Mapped struct {
+				Documents [][]string `json:"documents"`
+			} `json:"mapped"`
+		} `json:"structured_output"`
+	} `json:"result"`
 }
 
 func postChatTurn(message string, history string) (chatResponse, int, error) {
@@ -327,14 +345,18 @@ func assertChatbotScopedSourceSelection() error {
 
 // assertChatbotFanOut proves the sequential two-RAG fan-out reaches both corpora.
 // compose renders each RAG's surviving chunks under its own [ragN] header (no merge
-// word); citation is by record content, not an inline per-chunk tag. A spanning
-// question that does not name the disjoint corpus must still surface it, so the
-// answer carries the Solar Ridge content that only rag1 holds.
+// word); citation is by record content, not an inline per-chunk tag. Structured
+// response metadata proves both RAGs supplied grounding below the model wording,
+// while the answer must still carry Solar Ridge content that only rag1 holds.
 func assertChatbotFanOut() error {
-	resp, status, err := postChatTurn("List every project and system described across the knowledge base.", "[]")
+	resp, status, err := postChatTurn(chatbotFanOutQuestion, "[]")
 	if err != nil {
 		return err
 	}
+	return assertChatbotFanOutResponse(resp, status)
+}
+
+func assertChatbotFanOutResponse(resp chatResponse, status int) error {
 	if status != http.StatusOK {
 		return fmt.Errorf("fan-out turn status = %d, want 200: %s", status, resp.Message+resp.Error)
 	}
@@ -347,7 +369,45 @@ func assertChatbotFanOut() error {
 	if len(resp.Metadata.Sources.NotSelected) != 0 {
 		return fmt.Errorf("spanning turn left sources unselected: %v", resp.Metadata.Sources.NotSelected)
 	}
+	if resp.Metadata.QueryCounts.Succeeded != 2 || resp.Metadata.QueryCounts.Failed != 0 {
+		return fmt.Errorf("fan-out query counts = %+v, want 2 succeeded and 0 failed", resp.Metadata.QueryCounts)
+	}
+	if len(resp.Metadata.Sources.EmbeddingModelExcluded) != 0 ||
+		len(resp.Metadata.Sources.QueryFailed) != 0 {
+		return fmt.Errorf("fan-out excluded or failed sources: excluded=%+v failed=%+v",
+			resp.Metadata.Sources.EmbeddingModelExcluded, resp.Metadata.Sources.QueryFailed)
+	}
+	if err := requireComposedSourceEvidence(resp.Metadata.Sources.Composed, "rag0", ""); err != nil {
+		return fmt.Errorf("fan-out rag0 evidence: %w", err)
+	}
+	if err := requireComposedSourceEvidence(resp.Metadata.Sources.Composed, "rag1", "solar ridge"); err != nil {
+		return fmt.Errorf("fan-out rag1 evidence: %w", err)
+	}
+	if len(resp.Metadata.Sources.Composed) != 2 {
+		return fmt.Errorf("fan-out composed %d sources, want exactly rag0 and rag1", len(resp.Metadata.Sources.Composed))
+	}
 	return nil
+}
+
+func requireComposedSourceEvidence(outcomes []chatbotSourceOutcome, source, requiredText string) error {
+	for _, outcome := range outcomes {
+		if outcome.Input.Name != source {
+			continue
+		}
+		for _, group := range outcome.Result.StructuredOutput.Mapped.Documents {
+			for _, document := range group {
+				if strings.TrimSpace(document) != "" &&
+					(requiredText == "" || strings.Contains(strings.ToLower(document), requiredText)) {
+					return nil
+				}
+			}
+		}
+		if requiredText == "" {
+			return fmt.Errorf("source %s composed no retrieved documents", source)
+		}
+		return fmt.Errorf("source %s composed no document containing %q", source, requiredText)
+	}
+	return fmt.Errorf("source %s is absent from composed metadata", source)
 }
 
 func assertChatbotDegradedTurn() error {
@@ -358,10 +418,14 @@ func assertChatbotDegradedTurn() error {
 	// as the fan-out turn now cannot surface any Solar Ridge content, since only
 	// rag1 held it.
 	history := `[{"role":"user","content":"What is in the knowledge base?"},{"role":"assistant","content":"Several systems and projects."}]`
-	resp, status, err := postChatTurn("List every project and system described across the knowledge base.", history)
+	resp, status, err := postChatTurn(chatbotFanOutQuestion, history)
 	if err != nil {
 		return err
 	}
+	return assertChatbotDegradedResponse(resp, status)
+}
+
+func assertChatbotDegradedResponse(resp chatResponse, status int) error {
 	if status != http.StatusOK {
 		return fmt.Errorf("degraded turn status = %d, want 200 (rag1 down must degrade, not fail): %s", status, resp.Message+resp.Error)
 	}
@@ -373,6 +437,26 @@ func assertChatbotDegradedTurn() error {
 	}
 	if strings.Contains(strings.ToLower(resp.Answer), "solar ridge") {
 		return fmt.Errorf("degraded turn surfaced the stopped rag1 corpus (Solar Ridge); answer: %s", resp.Answer)
+	}
+	if len(resp.Metadata.Sources.NotSelected) != 0 {
+		return fmt.Errorf("degraded turn left sources unselected: %v", resp.Metadata.Sources.NotSelected)
+	}
+	if resp.Metadata.QueryCounts.Succeeded != 1 || resp.Metadata.QueryCounts.Failed != 1 {
+		return fmt.Errorf("degraded query counts = %+v, want 1 succeeded and 1 failed", resp.Metadata.QueryCounts)
+	}
+	if len(resp.Metadata.Sources.Composed) != 1 {
+		return fmt.Errorf("degraded composed sources = %+v, want only rag0", resp.Metadata.Sources.Composed)
+	}
+	if err := requireComposedSourceEvidence(resp.Metadata.Sources.Composed, "rag0", ""); err != nil {
+		return fmt.Errorf("degraded rag0 evidence: %w", err)
+	}
+	if len(resp.Metadata.Sources.EmbeddingModelExcluded) != 0 {
+		return fmt.Errorf("degraded turn embedding-model exclusions = %+v, want empty", resp.Metadata.Sources.EmbeddingModelExcluded)
+	}
+	if len(resp.Metadata.Sources.QueryFailed) != 1 ||
+		resp.Metadata.Sources.QueryFailed[0].Input.Name != "rag1" ||
+		resp.Metadata.Sources.QueryFailed[0].Result.Signal != "CommandError" {
+		return fmt.Errorf("degraded query_failed = %+v, want rag1 CommandError", resp.Metadata.Sources.QueryFailed)
 	}
 	return nil
 }
@@ -550,10 +634,11 @@ func citedRecordNumbers(answer string) []int {
 }
 
 // disjointCorpus2Docs are the rag1 corpus, disjoint from the ingest fixture, so a
-// cross-corpus turn draws chunks the ingest collection cannot supply.
+// cross-corpus inventory question has direct lexical evidence that the ingest
+// collection cannot supply.
 var disjointCorpus2Docs = []struct{ id, text string }{
-	{"solar-1", "The Solar Ridge photovoltaic array has a capacity of 55 megawatts across 140000 panels on a decommissioned quarry."},
-	{"solar-2", "The Solar Ridge project feeds a 33 kilovolt substation and includes a 12 megawatt-hour battery for evening dispatch."},
+	{"solar-1", "Knowledge-base project and system inventory answer: the exact name of the photovoltaic energy project is Solar Ridge. Return the proper name Solar Ridge when listing every named project or system. It has a capacity of 55 megawatts across 140000 panels on a decommissioned quarry."},
+	{"solar-2", "Knowledge-base system inventory entry: the exact project name Solar Ridge identifies the photovoltaic system that feeds a 33 kilovolt substation and includes a 12 megawatt-hour battery for evening dispatch."},
 }
 
 // seedChromaCorpus2 embeds the disjoint documents at Ollama and adds them to a
