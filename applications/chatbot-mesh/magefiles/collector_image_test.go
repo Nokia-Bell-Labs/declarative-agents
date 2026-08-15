@@ -4,6 +4,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -104,6 +106,50 @@ func collectorImageRef(t *testing.T) string {
 	return ref
 }
 
+// knownBadCollectorImage is the GH-736 pin: its arm64 binary is dynamically
+// linked against a loader the distroless image does not ship.
+const knownBadCollectorImage = "otel/opentelemetry-collector-contrib:0.116.0"
+
+func pinnedCollectorImageSkipReason(lookPath func(string) (string, error), dockerInfo func() error) string {
+	if _, err := lookPath("docker"); err != nil {
+		return "docker not on PATH"
+	}
+	if err := dockerInfo(); err != nil {
+		return "docker daemon is not running"
+	}
+	return ""
+}
+
+func dockerDaemonSkipReason(out []byte, err error) string {
+	if err == nil {
+		return ""
+	}
+	text := strings.ToLower(string(out) + " " + err.Error())
+	if strings.Contains(text, "cannot connect to the docker daemon") ||
+		strings.Contains(text, "is the docker daemon running") {
+		return "docker daemon is not running"
+	}
+	return ""
+}
+
+func pinnedCollectorImageCheck(ref string, out []byte, err error) error {
+	if err != nil {
+		return fmt.Errorf("pinned collector image %s does not run here: %v\n%s\n"+
+			"An exec error naming a missing interpreter means the image's binary for this "+
+			"architecture is dynamically linked against a loader the image does not ship; "+
+			"pin a release whose build is static (GH-736).", ref, err, strings.TrimSpace(string(out)))
+	}
+	if !strings.Contains(string(out), "otelcol") {
+		return fmt.Errorf("collector %s --version printed %q, want an otelcol version banner",
+			ref, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func hostDockerInfo() error {
+	return exec.Command("docker", "info").Run()
+}
+
 // TestPinnedCollectorImageRunsOnThisArchitecture executes the pinned collector
 // on the host architecture. A chart that renders perfectly is still broken when
 // its image cannot exec, and that failure only ever appears on the architecture
@@ -112,21 +158,66 @@ func collectorImageRef(t *testing.T) string {
 // contrib install must still exec on Apple Silicon.
 func TestPinnedCollectorImageRunsOnThisArchitecture(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("docker"); err != nil {
-		t.Skip("docker not on PATH")
+	if reason := pinnedCollectorImageSkipReason(exec.LookPath, hostDockerInfo); reason != "" {
+		t.Skip(reason)
 	}
 	ref := collectorImageRef(t)
-
 	out, err := exec.Command("docker", "run", "--rm", ref, "--version").CombinedOutput()
-
-	if err != nil {
-		t.Fatalf("pinned collector image %s does not run here: %v\n%s\n"+
-			"An exec error naming a missing interpreter means the image's binary for this "+
-			"architecture is dynamically linked against a loader the image does not ship; "+
-			"pin a release whose build is static (GH-736).", ref, err, strings.TrimSpace(string(out)))
+	if reason := dockerDaemonSkipReason(out, err); reason != "" {
+		t.Skip(reason)
 	}
-	if !strings.Contains(string(out), "otelcol") {
-		t.Errorf("collector %s --version printed %q, want an otelcol version banner",
-			ref, strings.TrimSpace(string(out)))
+	if checkErr := pinnedCollectorImageCheck(ref, out, err); checkErr != nil {
+		t.Fatal(checkErr)
+	}
+}
+
+func TestPinnedCollectorImageSkipReasonNamesDocker(t *testing.T) {
+	t.Parallel()
+	t.Run("not on PATH", func(t *testing.T) {
+		infoCalled := false
+		reason := pinnedCollectorImageSkipReason(
+			func(string) (string, error) { return "", exec.ErrNotFound },
+			func() error { infoCalled = true; return nil },
+		)
+		if infoCalled {
+			t.Fatal("docker info must not run when docker is absent")
+		}
+		if !strings.Contains(strings.ToLower(reason), "docker") {
+			t.Fatalf("skip reason = %q, want docker named", reason)
+		}
+	})
+	t.Run("daemon not running", func(t *testing.T) {
+		reason := pinnedCollectorImageSkipReason(
+			func(string) (string, error) { return "/usr/bin/docker", nil },
+			func() error { return errors.New("Cannot connect to the Docker daemon") },
+		)
+		if !strings.Contains(strings.ToLower(reason), "docker") {
+			t.Fatalf("skip reason = %q, want docker named", reason)
+		}
+	})
+}
+
+func TestPinnedCollectorImageKnownBadReleaseFails(t *testing.T) {
+	t.Parallel()
+	out := []byte("exec /otelcol-contrib: no such file or directory")
+	runErr := errors.New("exit status 255")
+	if reason := dockerDaemonSkipReason(out, runErr); reason != "" {
+		t.Fatalf("skip = %q, want fail for known-bad pin %s", reason, knownBadCollectorImage)
+	}
+	err := pinnedCollectorImageCheck(knownBadCollectorImage, out, runErr)
+	if err == nil {
+		t.Fatal("known-bad release must fail")
+	}
+	if !strings.Contains(err.Error(), knownBadCollectorImage) || !strings.Contains(err.Error(), "GH-736") {
+		t.Fatalf("error = %v, want the known-bad pin and GH-736", err)
+	}
+}
+
+func TestPinnedCollectorImageDockerRunDaemonErrorSkips(t *testing.T) {
+	t.Parallel()
+	out := []byte("Cannot connect to the Docker daemon at unix:///Users/x/.docker/run/docker.sock. Is the docker daemon running?")
+	reason := dockerDaemonSkipReason(out, errors.New("exit status 1"))
+	if !strings.Contains(strings.ToLower(reason), "docker") {
+		t.Fatalf("skip reason = %q, want docker named", reason)
 	}
 }
