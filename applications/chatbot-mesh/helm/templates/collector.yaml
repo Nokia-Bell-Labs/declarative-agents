@@ -1,5 +1,5 @@
-# Copyright (c) 2026 Nokia
-# SPDX-License-Identifier: BSD-3-Clause
+{{/* Copyright (c) 2026 Nokia */}}
+{{/* SPDX-License-Identifier: BSD-3-Clause */}}
 {{- if .Values.collector.enabled }}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
 {{- $external := .Values.collector.externalOTLPEndpoint -}}

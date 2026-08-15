@@ -6,48 +6,60 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
 
 func TestCheckCopyrightHeaderGoYAMLMarkdown(t *testing.T) {
 	cases := []struct {
-		ext     string
+		path    string
 		content string
 	}{
-		{".go", "// Copyright (c) 2026 Nokia\n// SPDX-License-Identifier: BSD-3-Clause\n\npackage demo\n"},
-		{".yaml", "# Copyright (c) 2026 Nokia\n# SPDX-License-Identifier: BSD-3-Clause\nname: demo\n"},
-		{".yml", "# Copyright (c) 2026 Nokia\n# SPDX-License-Identifier: BSD-3-Clause\nversion: \"2\"\n"},
-		{".md", "<!-- Copyright (c) 2026 Nokia -->\n<!-- SPDX-License-Identifier: BSD-3-Clause -->\n\n# Demo\n"},
+		{"demo.go", "// Copyright (c) 2026 Nokia\n// SPDX-License-Identifier: BSD-3-Clause\n\npackage demo\n"},
+		{"demo.yaml", "# Copyright (c) 2026 Nokia\n# SPDX-License-Identifier: BSD-3-Clause\nname: demo\n"},
+		{"demo.yml", "# Copyright (c) 2026 Nokia\n# SPDX-License-Identifier: BSD-3-Clause\nversion: \"2\"\n"},
+		{"demo.md", "<!-- Copyright (c) 2026 Nokia -->\n<!-- SPDX-License-Identifier: BSD-3-Clause -->\n\n# Demo\n"},
 	}
 	for _, tc := range cases {
-		if err := checkCopyrightHeader([]byte(tc.content), tc.ext); err != nil {
-			t.Errorf("%s: %v", tc.ext, err)
+		if err := checkCopyrightHeader([]byte(tc.content), tc.path); err != nil {
+			t.Errorf("%s: %v", tc.path, err)
 		}
+	}
+}
+
+func TestCheckCopyrightHeaderHelmTemplateYAML(t *testing.T) {
+	path := "applications/demo/helm/templates/deployment.yaml"
+	content := "{{/* Copyright (c) 2026 Nokia */}}\n{{/* SPDX-License-Identifier: BSD-3-Clause */}}\n{{- if .Values.enabled }}\napiVersion: apps/v1\nkind: Deployment\n{{- end }}\n"
+	if err := checkCopyrightHeader([]byte(content), path); err != nil {
+		t.Fatal(err)
 	}
 }
 
 func TestCheckCopyrightHeaderMarkdownFrontmatter(t *testing.T) {
 	content := "---\ntitle: Demo\n---\n<!-- Copyright (c) 2026 Nokia -->\n<!-- SPDX-License-Identifier: BSD-3-Clause -->\n\n# Body\n"
-	if err := checkCopyrightHeader([]byte(content), ".md"); err != nil {
+	if err := checkCopyrightHeader([]byte(content), "demo.md"); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestCheckCopyrightHeaderRejectsOldAndMITForms(t *testing.T) {
 	rejects := []struct {
-		ext     string
+		path    string
 		content string
 	}{
-		{".go", "// Copyright (c) 2026 Nokia. All" + " rights reserved.\n\npackage demo\n"},
-		{".go", "// Copyright (c) 2026 Petar Djukic. All" + " rights reserved.\n// SPDX-License-Identifier: " + "MIT\n\npackage demo\n"},
-		{".yaml", "# Copyright (c) 2026 Nokia. All" + " rights reserved.\nname: demo\n"},
-		{".md", "<!-- Copyright (c) 2026 Nokia. All" + " rights reserved. -->\n\n# Demo\n"},
-		{".md", "# Demo\n"},
+		{"demo.go", "// Copyright (c) 2026 Nokia. All" + " rights reserved.\n\npackage demo\n"},
+		{"demo.go", "// Copyright (c) 2026 Petar Djukic. All" + " rights reserved.\n// SPDX-License-Identifier: " + "MIT\n\npackage demo\n"},
+		{"demo.yaml", "# Copyright (c) 2026 Nokia. All" + " rights reserved.\nname: demo\n"},
+		{"demo.md", "<!-- Copyright (c) 2026 Nokia. All" + " rights reserved. -->\n\n# Demo\n"},
+		{"demo.md", "# Demo\n"},
+		{"applications/demo/helm/templates/deployment.yaml", "# Copyright (c) 2026 Nokia\n# SPDX-License-Identifier: BSD-3-Clause\napiVersion: v1\nkind: ConfigMap\n"},
+		{"applications/demo/helm/templates/deployment.yaml", "{{/* Copyright (c) 2026 Nokia */}}\n{{/* SPDX-License-Identifier: " + "MIT */}}\napiVersion: v1\nkind: ConfigMap\n"},
 	}
 	for _, tc := range rejects {
-		if err := checkCopyrightHeader([]byte(tc.content), tc.ext); err == nil {
-			t.Errorf("%s accepted non-canonical header:\n%s", tc.ext, tc.content)
+		if err := checkCopyrightHeader([]byte(tc.content), tc.path); err == nil {
+			t.Errorf("%s accepted non-canonical header:\n%s", tc.path, tc.content)
 		}
 	}
 }
@@ -63,8 +75,52 @@ func TestEveryTrackedSourceHasCanonicalCopyrightHeader(t *testing.T) {
 }
 
 func TestCheckCopyrightHeaderFrontmatterWithoutCloserFails(t *testing.T) {
-	if err := checkCopyrightHeader([]byte("---\ntitle: Demo\n"), ".md"); err == nil {
+	if err := checkCopyrightHeader([]byte("---\ntitle: Demo\n"), "demo.md"); err == nil {
 		t.Fatal("expected error for unclosed frontmatter")
+	}
+}
+
+func TestTrackedHelmTemplateYAMLInventory(t *testing.T) {
+	root, err := findRepositoryRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths, err := trackedCopyrightPaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, rel := range paths {
+		if isHelmTemplateYAML(rel) {
+			got = append(got, rel)
+		}
+	}
+	want := []string{
+		"applications/agent-architecture/helm/templates/applier.yaml",
+		"applications/agent-architecture/helm/templates/collector.yaml",
+		"applications/agent-architecture/helm/templates/curator.yaml",
+		"applications/agent-architecture/helm/templates/profiles-configmap.yaml",
+		"applications/chatbot-mesh/helm/templates/applier.yaml",
+		"applications/chatbot-mesh/helm/templates/chatbot.yaml",
+		"applications/chatbot-mesh/helm/templates/collector.yaml",
+		"applications/chatbot-mesh/helm/templates/creator.yaml",
+		"applications/chatbot-mesh/helm/templates/dolt.yaml",
+		"applications/chatbot-mesh/helm/templates/observer.yaml",
+		"applications/chatbot-mesh/helm/templates/ollama.yaml",
+		"applications/chatbot-mesh/helm/templates/profiles-configmap.yaml",
+		"applications/chatbot-mesh/helm/templates/provisioning-workflow-orchestrator.yaml",
+		"applications/chatbot-mesh/helm/templates/rag-units.yaml",
+		"applications/coding-agent/helm/templates/agents.yaml",
+		"applications/coding-agent/helm/templates/applier.yaml",
+		"applications/coding-agent/helm/templates/collector.yaml",
+		"applications/coding-agent/helm/templates/ollama.yaml",
+		"applications/coding-agent/helm/templates/profiles-configmaps.yaml",
+		"applications/coding-agent/helm/templates/workspace.yaml",
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("tracked Helm template YAML inventory =\n%v\nwant\n%v", got, want)
 	}
 }
 
