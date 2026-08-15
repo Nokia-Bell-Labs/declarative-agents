@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
@@ -29,8 +30,10 @@ import (
 )
 
 // schedulerSafeMonitorProcessTimeout bounds a genuinely stuck monitor process
-// without requiring `go run` startup, route scheduling, or shutdown to finish
-// inside five seconds during a parallel full-module evidence run.
+// without requiring startup, route scheduling, or shutdown to finish inside
+// five seconds during a parallel full-module evidence run. Audit prefers the
+// already-built bin/agent so this wait is serve-until-exit, not `go run`
+// compile (GH-1760).
 const schedulerSafeMonitorProcessTimeout = 30 * time.Second
 
 func requireMainWiresMonitorRecorder(t *testing.T) {
@@ -292,8 +295,7 @@ type lockedBuffer struct {
 
 func startMonitorAgentProcess(t *testing.T, root string, profilePath string) (*exec.Cmd, *lockedBuffer, *lockedBuffer) {
 	t.Helper()
-	cmd := exec.Command("go", "run", "./cmd/agent", "--profile", profilePath, "--directory", root, "--core-root", root)
-	cmd.Dir = root
+	cmd := monitorAgentCommand(root, profilePath)
 	stdout := &lockedBuffer{}
 	stderr := &lockedBuffer{}
 	cmd.Stdout = stdout
@@ -305,6 +307,19 @@ func startMonitorAgentProcess(t *testing.T, root string, profilePath string) (*e
 		}
 	})
 	return cmd, stdout, stderr
+}
+
+func monitorAgentCommand(root, profilePath string) *exec.Cmd {
+	args := []string{"--profile", profilePath, "--directory", root, "--core-root", root}
+	binary := filepath.Join(root, "bin", "agent")
+	if info, err := os.Stat(binary); err == nil && !info.IsDir() {
+		cmd := exec.Command(binary, args...)
+		cmd.Dir = root
+		return cmd
+	}
+	cmd := exec.Command("go", append([]string{"run", "./cmd/agent"}, args...)...)
+	cmd.Dir = root
+	return cmd
 }
 
 func waitForMonitorBaseURL(t *testing.T, stderr *lockedBuffer) string {
@@ -345,13 +360,18 @@ func requireProcessStillRunning(t *testing.T, resultCh <-chan error) {
 
 func requireProcessSucceeded(t *testing.T, resultCh <-chan error, stdout, stderr *lockedBuffer) {
 	t.Helper()
+	err := waitProcessResult(resultCh, schedulerSafeMonitorProcessTimeout)
+	require.NoError(t, err, "stdout=%s stderr=%s", stdout.String(), stderr.String())
+	require.Contains(t, stderr.String(), "terminal state: succeeded")
+}
+
+func waitProcessResult(resultCh <-chan error, timeout time.Duration) error {
 	select {
 	case err := <-resultCh:
-		require.NoError(t, err, "stdout=%s stderr=%s", stdout.String(), stderr.String())
-	case <-time.After(schedulerSafeMonitorProcessTimeout):
-		require.FailNow(t, "monitor process did not exit after control request")
+		return err
+	case <-time.After(timeout):
+		return errors.New("monitor process did not exit after control request")
 	}
-	require.Contains(t, stderr.String(), "terminal state: succeeded")
 }
 
 func requireMonitorSample(t *testing.T, samples []monitor.MetricSample, name string) {
@@ -384,4 +404,34 @@ func requireMetricData(t *testing.T, data metricdata.ResourceMetrics, name strin
 		}
 	}
 	require.Failf(t, "missing OTel metric", "metric %q not found in %#v", name, data)
+}
+
+func TestMonitorAgentCommandPrefersBuiltBinary(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	binary := filepath.Join(root, "bin", "agent")
+	require.NoError(t, os.MkdirAll(filepath.Dir(binary), 0o755))
+	require.NoError(t, os.WriteFile(binary, []byte("#!/bin/sh\n"), 0o755))
+	cmd := monitorAgentCommand(root, "monitor/profile.yaml")
+	require.Equal(t, binary, cmd.Path)
+	require.Equal(t, []string{
+		binary, "--profile", "monitor/profile.yaml", "--directory", root, "--core-root", root,
+	}, cmd.Args)
+}
+
+func TestMonitorAgentCommandFallsBackToGoRun(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	cmd := monitorAgentCommand(root, "monitor/profile.yaml")
+	require.Equal(t, []string{
+		"go", "run", "./cmd/agent",
+		"--profile", "monitor/profile.yaml", "--directory", root, "--core-root", root,
+	}, cmd.Args)
+}
+
+func TestWaitProcessResultFailsWhenProcessDoesNotExit(t *testing.T) {
+	t.Parallel()
+	resultCh := make(chan error)
+	err := waitProcessResult(resultCh, 10*time.Millisecond)
+	require.ErrorContains(t, err, "did not exit")
 }
