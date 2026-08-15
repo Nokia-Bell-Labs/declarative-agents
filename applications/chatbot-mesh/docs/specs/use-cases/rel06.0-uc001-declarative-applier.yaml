@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel06.0-uc001-declarative-applier
 title: The Applier Agent Realizes the Deployment API and Rolls Out a Values Change
 

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Go Style Constitution
 
 id: go-style
@@ -9,8 +11,8 @@ purpose: 'We use this constitution for Go source, tests, and magefiles in Agent 
   lifecycle, and configuration guidance.
 
   '
-copyright_header: "Every Go file starts with this header before the package declaration:\n\n  // Copyright (c) 2026 Nokia.\
-  \ All rights reserved.\n"
+copyright_header: "Every Go file starts with this header before the package declaration:\n\n  // Copyright (c) 2026 Nokia\n\
+  \  // SPDX-License-Identifier: BSD-3-Clause\n"
 implementation_strategy: 'Write all source files before running build or test commands. Plan the full
 
   change, edit files in dependency order, then compile and test once. Avoid

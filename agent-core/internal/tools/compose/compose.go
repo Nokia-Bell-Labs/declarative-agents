@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package compose provides the compose builtin: a word that renders a template
 // from command-state $from(label).path selectors, so a later word (for example

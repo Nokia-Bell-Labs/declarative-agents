@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 package main
 
@@ -189,9 +190,12 @@ func TestChatbotSourceRouterPromptMatchesDeclaration(t *testing.T) {
 			break
 		}
 	}
-	prompt := string(readRequiredChatbotAsset(t, chatbotAssetPath("source-router-prompt.md")))
+	prompt := strings.TrimPrefix(
+		string(readRequiredChatbotAsset(t, chatbotAssetPath("source-router-prompt.md"))),
+		"<!-- Copyright (c) 2026 Nokia -->\n<!-- SPDX-License-Identifier: BSD-3-Clause -->\n\n",
+	)
 	if strings.TrimSuffix(declared, "\n") != strings.TrimSuffix(prompt, "\n") {
-		t.Error("source-router-prompt.md must be identical to select_sources system_prompt")
+		t.Error("source-router-prompt.md body must be identical to select_sources system_prompt")
 	}
 }
 

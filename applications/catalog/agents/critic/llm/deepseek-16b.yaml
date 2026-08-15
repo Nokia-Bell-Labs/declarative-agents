@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # LLM variation for evaluation — DeepSeek Coder V2 16B.
 # The evaluator iterates over llm/*.yaml files to benchmark each model.
 #

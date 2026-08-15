@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Chroma reader grounding prompt
 
 You answer a question using only the corpus chunks retrieved from the local

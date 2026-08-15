@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 apiVersion: v2
 name: coding-agent
 description: Persistent planner, executor, and critic agents over role-sharded mounted profiles.

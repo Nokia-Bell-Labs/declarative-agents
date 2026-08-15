@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel10.0-uc001-role-catalog-renames
 title: Evaluator and Generator Families Renamed to Critic and Executor
 

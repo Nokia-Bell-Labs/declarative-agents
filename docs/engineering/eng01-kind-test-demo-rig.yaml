@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: eng01-kind-test-demo-rig
 title: "Standard kind Rig for Agent Integration Tests and Demos"
 

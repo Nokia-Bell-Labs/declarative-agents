@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Machine Interpreter
 
 Every developer who has written an agent has also written a state machine — they just didn't write it that way. The Machine Interpreter pattern makes this explicit: states, tools, and transitions move into a data file; a fixed engine does the rest.

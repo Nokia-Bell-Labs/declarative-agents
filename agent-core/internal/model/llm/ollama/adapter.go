@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package ollama implements the llm.Client interface for the Ollama
 // inference server through POST /api/chat.

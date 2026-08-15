@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Release 03.0 REST Design Audit
 
 Issue `agent-core-g60h` audits the REST runtime package and its release evidence. Main evidence comes from `internal/tools/rest/` and `tools/builtin/rest/all.yaml`. Profile evidence lives under `applications/catalog/testdata/conformance/rest/` (or `$AGENT_CATALOG_ROOT/testdata/conformance/rest/` at runtime); fixture evidence lives under `testdata/integration/rel03-rest-tools/`; release status evidence lives in `docs/SPECIFICATIONS.yaml`.

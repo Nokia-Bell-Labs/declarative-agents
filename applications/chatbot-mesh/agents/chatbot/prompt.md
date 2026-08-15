@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Chatbot grounding prompt
 
 The chatbot answers a user's question grounded in chunks retrieved from a RAG

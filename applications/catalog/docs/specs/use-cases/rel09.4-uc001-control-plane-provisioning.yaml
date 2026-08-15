@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel09.4-uc001-control-plane-provisioning
 title: Control-Plane Provisioning (Relocated)
 status: relocated

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # General-purpose Dolt boundary word declarations. Profiles opt in explicitly
 # and replace trusted operation config for each selected declaration.
 tools:

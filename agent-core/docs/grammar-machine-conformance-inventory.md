@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Grammar Machine Conformance Inventory
 
 This inventory records the conformance audit that produced

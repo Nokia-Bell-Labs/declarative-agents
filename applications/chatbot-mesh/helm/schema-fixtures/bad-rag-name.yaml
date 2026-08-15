@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # rag name is not a DNS-1035 label (uppercase, leading digit rejected).
 ragUnits:
   - {name: Rag_2, description: Invalid name fixture., collection: corpus3, embeddingModel: qwen3-embedding:8b, replicas: 1}

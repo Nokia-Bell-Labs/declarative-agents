@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel11.0-uc001-otlp-receiver-await
 title: A persistent machine receives, records, and relays OTLP trace and metric batches
 

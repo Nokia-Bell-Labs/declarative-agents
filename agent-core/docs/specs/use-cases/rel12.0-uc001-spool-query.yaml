@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel12.0-uc001-spool-query
 title: A collector reads trace summaries and span detail from its NDJSON spool
 

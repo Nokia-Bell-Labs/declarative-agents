@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel09.0-uc002-chatbot-turn
 title: Chatbot Turn Embeds, Retrieves From One RAG, and Answers (Relocated)
 status: relocated

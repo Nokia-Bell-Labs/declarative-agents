@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: monitored-qwen-ollama-rest
 purpose: Prove Ollama token metrics through the embedded monitor.
 initial_state: Idle

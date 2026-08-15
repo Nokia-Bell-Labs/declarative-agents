@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: observer
 purpose: |
   Persistently discover mesh agent pods from the Kubernetes API and poll each

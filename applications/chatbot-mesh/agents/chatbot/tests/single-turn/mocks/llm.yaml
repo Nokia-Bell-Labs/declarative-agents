@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Mock for the Ollama provider, claiming these behaviors:
 # - POST /api/embeddings: the embed_query REST word maps $.embedding.
 # - POST /api/chat: adapter chatResp shape {message:{role,content},...}. The

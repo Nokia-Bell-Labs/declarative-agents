@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Documentation Divergence Inventory
 
 This inventory records documentation drift found by comparing the current source

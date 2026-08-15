@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel14.0-uc001-application-consistency
 title: Normalize and Verify a Showcase Application Composition
 release: "14.0"

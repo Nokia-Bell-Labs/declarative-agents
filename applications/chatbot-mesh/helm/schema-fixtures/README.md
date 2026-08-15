@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # values.schema.json fixtures
 
 These values files exercise `helm/values.schema.json`, the schema that encodes the

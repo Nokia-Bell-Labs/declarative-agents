@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Mock for the first declared RAG server: the chatbot's generic rag_query maps
 # $.ids/$.documents/$.distances/$.embedding_model from a 200 (srd002).
 routes:

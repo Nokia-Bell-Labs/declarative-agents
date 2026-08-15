@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # The request-scoped machine resolves its words from the same profile, so
 # read_dependency is selected here alongside the server lifecycle words.
 tools:

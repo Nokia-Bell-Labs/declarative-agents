@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Negative fixture: report_result emits a signal session_machine.yaml does not
 # declare. Loading succeeds; emits validation is what must reject it.
 tools:

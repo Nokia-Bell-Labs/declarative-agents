@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel00.0-uc001-guided-agent-architecture
 title: Operator Runs the Guided Agent Architecture
 

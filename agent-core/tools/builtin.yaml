@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Compatibility entry point for the full shared builtin declaration bundle.
 # Pass via: agent --tools-declaration tools/builtin.yaml
 includes:

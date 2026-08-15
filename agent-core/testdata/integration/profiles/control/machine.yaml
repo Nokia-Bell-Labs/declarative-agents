@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: core-control
 purpose: Prove generic REST control and deferred shutdown in Agent Core.
 initial_state: Idle

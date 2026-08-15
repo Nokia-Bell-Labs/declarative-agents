@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Tool declarations for the critic session-level tools.
 # These tools drive the session machine (grid iteration, nested point loops).
 # Per-point tools are declared in tools/builtin.yaml.

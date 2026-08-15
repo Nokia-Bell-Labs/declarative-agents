@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Introduction
 
 Every agent has a bug that will surface only the first time a probabilistic tool like an large language model (LLM) returns an output no one expected. A problem like this is certain to occur, but impossible to find by reading the code. In an agent, the harness is code that wraps around the LLM tool. A reviewer can read it, but cannot trace every path through a loop that branches on every tool outcome, including from probabilistic tools. 

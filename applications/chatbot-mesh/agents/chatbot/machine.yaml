@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: chatbot
 purpose: |-
   The chatbot agent fronts the mesh. It launches a machine_request chat server, a

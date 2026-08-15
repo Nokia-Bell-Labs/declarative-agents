@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Tool Contract
 
 This chapter presents the Tool Contract pattern, which specifies each tool as a typed contract: one atomic operation with declared inputs, emittable signals, side effects, and an Undo operation. The chapter covers how contracts enable static validation and reversibility, and how boundary tools — those that cross into non-deterministic actors — declare their variance explicitly.

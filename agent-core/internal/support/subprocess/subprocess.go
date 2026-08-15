@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package subprocess provides a unified interface for invoking the agent
 // binary (or other binaries) as a child process with OTel propagation,

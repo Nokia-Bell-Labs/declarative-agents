@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Required classifier description is absent.
 ragUnits:
   - {name: rag0, collection: corpus, embeddingModel: qwen3-embedding:8b, replicas: 1}

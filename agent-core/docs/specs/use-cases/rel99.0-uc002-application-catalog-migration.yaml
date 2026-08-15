@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel99.0-uc002-application-catalog-migration
 title: Maintainers migrate applications and reusable catalog blocks to explicit owner roots
 

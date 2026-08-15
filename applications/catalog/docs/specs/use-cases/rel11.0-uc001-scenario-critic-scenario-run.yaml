@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel11.0-uc001-scenario-critic-scenario-run
 title: The Scenario Critic Runs an Agent's Scenarios to a Verdict Without Live Services
 historical_aliases: [rel11.0-uc001-assembler-scenario-run]

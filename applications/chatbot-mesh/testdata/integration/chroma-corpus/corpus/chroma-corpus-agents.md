@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Chroma Corpus Agents
 
 The Chroma corpus agents are two configured profiles that use a local Chroma

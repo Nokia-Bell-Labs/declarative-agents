@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: srd008-runtime-state-reader
 title: Runtime State Reader Functional Block
 historical_aliases: [srd008-monitor]

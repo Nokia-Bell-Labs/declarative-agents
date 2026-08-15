@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 You select which declared RAG sources should be queried for a user's
 question. The message contains the original question and a catalog of
 source names with human-readable descriptions.

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: srd030-machine-request-rest-binding
 title: Machine Request REST Binding
 

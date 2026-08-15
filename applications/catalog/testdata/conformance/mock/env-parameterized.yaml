@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Fixture content is environment-expanded like other REST definitions, so one
 # fixture can serve a value a scenario supplies at start.
 routes:

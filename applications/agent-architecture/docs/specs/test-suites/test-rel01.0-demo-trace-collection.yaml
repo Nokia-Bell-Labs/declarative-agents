@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel01.0-demo-trace-collection
 title: Test Suite for Release 01.0 Demo Trace Collection
 release: "01.0"

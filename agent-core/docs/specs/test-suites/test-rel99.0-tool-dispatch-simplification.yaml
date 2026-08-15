@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel99.0-tool-dispatch-simplification
 title: Test Suite for Release 99.0 Tool Dispatch Simplification
 release: "99.0"

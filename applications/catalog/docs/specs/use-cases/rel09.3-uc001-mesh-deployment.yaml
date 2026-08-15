@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel09.3-uc001-mesh-deployment
 title: Mesh Deployment and Tiered Swap (Relocated)
 status: relocated

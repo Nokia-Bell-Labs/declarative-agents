@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel13.0-span-analytics
 title: Test Suite for Release 13.0 Span Analytics Tools
 release: "13.0"

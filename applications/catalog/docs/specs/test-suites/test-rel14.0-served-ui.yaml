@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel14.0-served-ui
 title: Test Suite for Release 14.0 Served Collector Trace UI
 release: "14.0"

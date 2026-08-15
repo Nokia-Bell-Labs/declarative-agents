@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # The dependency answers. The fixture name decides the variable the rig
 # publishes the mock's address as: dep.yaml -> DEP_URL, which the subject's
 # rest.yaml declares as base_url: ${DEP_URL:-...}.

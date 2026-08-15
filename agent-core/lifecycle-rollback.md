@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Lifecycle, Checkpoint, Resume, and Rollback Operations
 
 This guide explains how to turn on lifecycle features, how to operate approval

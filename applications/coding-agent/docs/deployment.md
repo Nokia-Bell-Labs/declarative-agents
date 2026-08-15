@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Coding-agent deployment
 
 This guide covers the packaged Helm chart produced by the coding-agent example.

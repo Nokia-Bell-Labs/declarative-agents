@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: collector-trace-ui
 title: Collector Trace Query UI
 source_owner: agents/collector

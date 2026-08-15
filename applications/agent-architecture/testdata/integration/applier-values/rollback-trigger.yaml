@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Reserved for the live tier (mage integration:applierLive): a schema-conforming
 # values patch that repoints the collector image at a name never loaded into the
 # kind node. The dry-run validate step accepts it (the image reference is

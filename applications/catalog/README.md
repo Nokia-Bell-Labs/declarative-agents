@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # applications/catalog
 
 This directory is the repository-specific catalog of reusable declarative tool

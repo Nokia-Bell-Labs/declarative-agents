@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Chatbot Tier-Selector Prompt
 
 The tier selector (`select_tier` in

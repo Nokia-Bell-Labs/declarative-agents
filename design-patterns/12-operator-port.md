@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Operator Port
 
 This chapter presents the Operator Port pattern, which attaches an observation and control surface to a running engine. It separates the shipped monitor profile, runtime-only lifecycle-control conformance, and the broader signal-injection and rollback design intent.

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 suite: rel07-evaluator-generator
 subject_profile: agents/executor/profile.yaml
 expected_points: 1

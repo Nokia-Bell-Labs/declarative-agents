@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel05.0-uc001-control-plane-provisioning
 title: A Provisioning Intent Flows Chatbot to Provisioning Workflow Orchestrator to Creator and Serves
 

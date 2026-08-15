@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # coding-agent
 
 A Helm chart that deploys the coding application on Kubernetes: the planner,

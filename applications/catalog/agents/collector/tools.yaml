@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 tools:
   - otlp_receiver_launch
   - launch_collector_control

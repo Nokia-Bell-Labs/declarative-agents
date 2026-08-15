@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel16.0-applier
 title: Canonical Applier Family Conformance
 status: implemented

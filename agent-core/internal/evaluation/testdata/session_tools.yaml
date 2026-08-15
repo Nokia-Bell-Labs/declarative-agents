@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Tool selection for the synthetic session machine. The order is the order the
 # machine sequences the words, so a selection-driven test reads as a pipeline.
 tools:

@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Externalized State, Checkpointing, and Agent Lifecycle
 
 > Status: historical design note.

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Two RAG units with the same name. values.schema.json cannot express by-key
 # uniqueness, so the rag-units template fail-guards it (GH-465): helm render fails.
 ragUnits:

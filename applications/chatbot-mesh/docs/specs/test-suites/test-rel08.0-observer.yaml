@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel08.0-observer
 title: Test Suite for Release 08.0 Observer Agent
 release: "08.0"

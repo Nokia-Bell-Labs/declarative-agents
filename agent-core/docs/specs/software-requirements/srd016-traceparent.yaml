@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: srd016-traceparent
 title: W3C Traceparent Parse and Format
 

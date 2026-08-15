@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel15.0-explore
 title: Test Suite for Release 15.0 Collector Explore Panel
 release: "15.0"

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel07.0-uc002-two-plane-revert
 title: Reverting to an earlier step reaps later two-plane rows while the receipt walk reverses the surviving step
 

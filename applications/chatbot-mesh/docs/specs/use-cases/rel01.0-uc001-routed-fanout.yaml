@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel01.0-uc001-routed-fanout
 title: Chatbot Turn Selects Sources and a Model Tier Before Trusted RAG Fan-Out
 

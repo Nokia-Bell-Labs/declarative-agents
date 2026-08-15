@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Mock for the second RAG server, same contract as rag0.
 routes:
   - method: POST

@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # agent-architecture Helm chart
 
 This chart deploys the Agent Architecture demo: the documentation-curator and the

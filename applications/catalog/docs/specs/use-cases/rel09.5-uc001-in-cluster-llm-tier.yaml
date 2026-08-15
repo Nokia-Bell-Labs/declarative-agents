@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel09.5-uc001-in-cluster-llm-tier
 title: In-Cluster LLM Tier (Relocated)
 status: relocated

@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package llm defines the generic LLM infrastructure for agents built
 // on the agent-core framework. It provides a stateless Client interface

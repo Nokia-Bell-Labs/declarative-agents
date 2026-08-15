@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Source-count-independent multi-RAG fan-out. request-topology-declarations.yaml
 # declares the ordered topology; one sequential MachineSpec for_each dispatches
 # rag_query over it. The join retains each item and its structured REST output,

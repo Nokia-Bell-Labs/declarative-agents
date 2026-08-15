@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // The chatbot-mesh application self-governs its specification corpus with the
 // catalog specification critic, driven by the agent-core runtime it depends on as a platform.

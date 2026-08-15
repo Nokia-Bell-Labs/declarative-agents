@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: provisioning-workflow-orchestrator
 purpose: |-
   The provisioning-workflow-orchestrator profile hosts the mesh control plane's workflow orchestrator as a

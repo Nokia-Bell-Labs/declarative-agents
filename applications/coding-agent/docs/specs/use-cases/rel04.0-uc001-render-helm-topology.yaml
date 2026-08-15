@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel04.0-uc001-render-helm-topology
 title: Render the Persistent Coding-Agent Topology
 status: implemented

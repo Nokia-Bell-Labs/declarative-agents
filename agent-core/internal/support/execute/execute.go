@@ -1,5 +1,5 @@
-// Copyright (c) 2026 Petar Djukic. All rights reserved.
-// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package execute invokes a child agent binary as a subprocess
 // with OTel trace propagation.

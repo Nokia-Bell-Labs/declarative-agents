@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
 
 // Package conformance runs each profile family through the agent CLI with
 // OpenTelemetry file export enabled and asserts on the emitted trace.

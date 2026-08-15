@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # A valid values-plane patch reserved by integration:applierLive for the
 # compensating rollback leg (srd006 R3.2, GH-751). The live tier's staged chart
 # recognizes this otherwise ordinary parameter value and runs a post-upgrade

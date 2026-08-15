@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: coding-planner-request
 purpose: Plan one coding request, delegate it to the remote executor, then gate the shared workspace through the remote critic.
 initial_state: AwaitingRequest

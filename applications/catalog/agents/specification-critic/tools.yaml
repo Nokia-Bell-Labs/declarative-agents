@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Tool selection for the specification-critic state machine.
 # Used with: agent --machine agents/specification-critic/machine.yaml --tools agents/specification-critic/tools.yaml
 # Declarations live in tools/builtin.yaml.

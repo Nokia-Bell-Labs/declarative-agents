@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel10.0-uc001-value-predicate-branch
 title: A machine branches on a value it read from a service
 

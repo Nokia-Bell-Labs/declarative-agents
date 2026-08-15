@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Mock for a degraded first RAG server: every query fails with a 500,
 # which the chatbot's generic rag_query records as CommandError in its join. Per the request machine
 # (and srd002's degradation contract) the turn continues with the remaining

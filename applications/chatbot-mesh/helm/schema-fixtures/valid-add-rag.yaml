@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # A well-formed add-a-source patch: three RAG units, all fields valid.
 ragUnits:
   - {name: rag0, description: Primary corpus., collection: corpus, embeddingModel: qwen3-embedding:8b, replicas: 1}

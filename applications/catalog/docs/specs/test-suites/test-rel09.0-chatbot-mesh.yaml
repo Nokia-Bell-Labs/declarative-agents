@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel09.0-chatbot-mesh
 title: Test Suite for Release 09.0 RAG Server and Chatbot Turn (Relocated)
 release: "09.0"

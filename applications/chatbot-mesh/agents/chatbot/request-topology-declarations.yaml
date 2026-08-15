@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Local two-source topology. The Helm chart co-generates this declaration from
 # ragUnits; changing the list changes only trusted data, never the number of
 # words or machine states. catalog intentionally contains only names and

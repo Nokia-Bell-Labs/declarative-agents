@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: rig-subject
 purpose: |-
   A reference agent under test: it serves a route whose request-scoped machine

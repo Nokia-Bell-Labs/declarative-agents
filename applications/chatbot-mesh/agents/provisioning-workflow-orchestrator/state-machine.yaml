@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: provisioning-workflow-orchestrator-state-request
 purpose: |-
   One request-scoped read of the deployed mesh view, serving the panel's initial

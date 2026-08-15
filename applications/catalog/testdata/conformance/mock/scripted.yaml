@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # An ordered script: the dependency succeeds once, then fails. This is how a
 # scenario drives a subject's failure path without restarting anything. The
 # last response repeats once the script is exhausted.

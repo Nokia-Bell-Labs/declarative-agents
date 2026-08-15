@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Compatibility alias for the pre-#1075 profile path.
 #
 # New consumers must use agents/runtime-state-reader/profile.yaml. This wrapper

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: test-rel08.0-trace-propagation
 title: Test Suite for Release 08.0 HTTP Trace Propagation
 release: "08.0"

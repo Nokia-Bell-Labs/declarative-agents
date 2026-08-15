@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Tool selection for the critic session machine (machine.yaml).
 # Per-point tools live in agents/critic/tools-point.yaml and are loaded
 # by run_point for the nested point machine.

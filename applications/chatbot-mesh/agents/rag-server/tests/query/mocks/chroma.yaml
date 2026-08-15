@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Mock for the Chroma vector store. The fixture name publishes the
 # mock's address as CHROMA_URL, which the rag-server's client declares as
 # base_url: ${CHROMA_URL:-...}. The request machine resolves the collection,

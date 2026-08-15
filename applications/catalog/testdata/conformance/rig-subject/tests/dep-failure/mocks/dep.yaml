@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # The dependency succeeds once, then fails. The subject's clean failure path
 # is what this scenario asserts, so the scenario passes when the subject
 # degrades correctly.

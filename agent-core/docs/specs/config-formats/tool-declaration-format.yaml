@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: cfg-tool-declaration-format
 title: Tool Declaration Format (tool_config_dirs and declaration YAML)
 

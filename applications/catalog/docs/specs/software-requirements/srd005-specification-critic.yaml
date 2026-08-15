@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: srd005-specification-critic
 title: Specification Critic Functional Block
 historical_aliases: [srd005-jurist]

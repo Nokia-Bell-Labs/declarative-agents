@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Agent-as-Data
 
 This chapter presents the Agent-as-Data pattern, which packages the complete agent definition — machine, tool selection, and model binding — as three data files interpreted by a fixed binary. The chapter covers how the profile assembles these files, how the loader validates them before the first transition, and how the pattern enables agents to be versioned, composed, and swapped without touching code.

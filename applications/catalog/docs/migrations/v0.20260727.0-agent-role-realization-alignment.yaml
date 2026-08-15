@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: migration-v0.20260727.0-agent-role-realization-alignment
 title: Agent Role-Realization Naming Migration
 release: applications/catalog/v0.20260727.0

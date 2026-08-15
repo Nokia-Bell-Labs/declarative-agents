@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: rig-subject-request
 purpose: |-
   One request: read the dependency and terminate on a signal the endpoint maps

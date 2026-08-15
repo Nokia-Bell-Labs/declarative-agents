@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Helm values schema fixtures
 
 Each file is merged over `values.yaml`. Files named `valid-*` must lint and

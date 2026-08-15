@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel09.1-uc001-routed-fanout
 title: Chatbot Turn Selects a Model Tier and Fans Out Over Two RAGs (Relocated)
 status: relocated

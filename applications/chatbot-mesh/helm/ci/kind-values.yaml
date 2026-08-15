@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Small-footprint values for the kind smoke test (the smoke test itself lands in
 # its own issue). One RAG unit, minimal resources, no ingress, tiny storage.
 image:

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 name: creator-instance-request
 purpose: |-
   One request-scoped run of a decided instance operation. The machine_request

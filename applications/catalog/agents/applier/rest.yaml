@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Standalone catalog conformance binding. Consumer endpoints, ports, limits,
 # response mappings, and authority stay in each application wrapper.
 rest:

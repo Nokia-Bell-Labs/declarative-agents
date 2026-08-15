@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 id: rel14.0-uc001-request-driven-signal
 title: A model-free profile advances from a validated HTTP request
 

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # Synthetic session-shaped machine for agent-core contract tests.
 #
 # It has the shape a sentence-tool session pipeline has -- each stage is

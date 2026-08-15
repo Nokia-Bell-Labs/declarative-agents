@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # The rag-query-critic keeps query scope in this scenario path and configuration
 # rather than in the canonical Critic role identity.
 # The rag-server ships fixed listeners: query on 18085, lifecycle control and

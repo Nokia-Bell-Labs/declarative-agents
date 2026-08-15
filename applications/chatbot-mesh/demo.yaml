@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # chatbot-mesh demo configuration.
 #
 # Every setting is optional and declarative — the magefiles read it here, never

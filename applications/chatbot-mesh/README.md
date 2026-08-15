@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # chatbot-mesh
 
 A routed, multi-RAG, observable, deployable chatbot built entirely from declarative agents on the agent-core runtime.
