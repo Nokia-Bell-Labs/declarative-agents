@@ -1,5 +1,5 @@
-# Copyright (c) 2026 Nokia
-# SPDX-License-Identifier: BSD-3-Clause
+{{/* Copyright (c) 2026 Nokia */}}
+{{/* SPDX-License-Identifier: BSD-3-Clause */}}
 {{- range $role := list "planner" "executor" "critic" "collector" }}
 {{- if or (ne $role "collector") $.Values.collector.enabled }}
 {{- $context := dict "root" $ "role" $role -}}

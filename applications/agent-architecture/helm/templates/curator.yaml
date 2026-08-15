@@ -1,5 +1,5 @@
-# Copyright (c) 2026 Nokia
-# SPDX-License-Identifier: BSD-3-Clause
+{{/* Copyright (c) 2026 Nokia */}}
+{{/* SPDX-License-Identifier: BSD-3-Clause */}}
 {{- include "agent-architecture.validateValues" . -}}
 {{- $fullname := include "agent-architecture.fullname" . -}}
 {{- $curatorUIShards := .Values.curatorUI.shards | default (list) -}}

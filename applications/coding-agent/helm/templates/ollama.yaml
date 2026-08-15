@@ -1,5 +1,5 @@
-# Copyright (c) 2026 Nokia
-# SPDX-License-Identifier: BSD-3-Clause
+{{/* Copyright (c) 2026 Nokia */}}
+{{/* SPDX-License-Identifier: BSD-3-Clause */}}
 {{- if .Values.ollama.enabled }}
 {{- $fullname := include "coding-agent.fullname" . -}}
 apiVersion: apps/v1

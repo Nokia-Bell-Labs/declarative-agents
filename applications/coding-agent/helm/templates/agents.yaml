@@ -1,5 +1,5 @@
-# Copyright (c) 2026 Nokia
-# SPDX-License-Identifier: BSD-3-Clause
+{{/* Copyright (c) 2026 Nokia */}}
+{{/* SPDX-License-Identifier: BSD-3-Clause */}}
 {{- include "coding-agent.validateValues" . -}}
 {{- range $role := list "planner" "executor" "critic" }}
 {{- $roleValues := index $.Values.roles $role -}}

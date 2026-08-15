@@ -1,5 +1,5 @@
-# Copyright (c) 2026 Nokia
-# SPDX-License-Identifier: BSD-3-Clause
+{{/* Copyright (c) 2026 Nokia */}}
+{{/* SPDX-License-Identifier: BSD-3-Clause */}}
 {{- if .Values.controlPlane.enabled }}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
 {{- $tokenSecret := .Values.controlPlane.creator.deploymentApiTokenSecret.name | default (printf "%s-applier" $fullname) -}}

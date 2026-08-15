@@ -36,13 +36,33 @@ var copyrightHeaderByExt = map[string][2]string{
 	},
 }
 
-func copyrightHeaderLines(ext string) ([2]string, bool) {
+var helmTemplateYAMLHeader = [2]string{
+	"{{/* " + copyrightHolderLine + " */}}",
+	"{{/* " + spdxBSD3Clause + " */}}",
+}
+
+func isHelmTemplateYAML(path string) bool {
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	return len(parts) == 5 &&
+		parts[0] == "applications" &&
+		parts[1] != "" &&
+		parts[2] == "helm" &&
+		parts[3] == "templates" &&
+		parts[4] != "" &&
+		strings.EqualFold(filepath.Ext(parts[4]), ".yaml")
+}
+
+func copyrightHeaderLines(path string) ([2]string, bool) {
+	if isHelmTemplateYAML(path) {
+		return helmTemplateYAMLHeader, true
+	}
+	ext := strings.ToLower(filepath.Ext(path))
 	lines, ok := copyrightHeaderByExt[ext]
 	return lines, ok
 }
 
-func copyrightHeaderPrefix(ext string) (string, bool) {
-	lines, ok := copyrightHeaderLines(ext)
+func copyrightHeaderPrefix(path string) (string, bool) {
+	lines, ok := copyrightHeaderLines(path)
 	if !ok {
 		return "", false
 	}
@@ -74,20 +94,21 @@ func markdownFrontmatterEnd(content []byte) (int, error) {
 	return 0, fmt.Errorf("markdown frontmatter is missing a closing ---")
 }
 
-func copyrightHeaderOffset(content []byte, ext string) (int, error) {
-	if ext != ".md" {
+func copyrightHeaderOffset(content []byte, path string) (int, error) {
+	if strings.ToLower(filepath.Ext(path)) != ".md" {
 		return 0, nil
 	}
 	return markdownFrontmatterEnd(content)
 }
 
-func checkCopyrightHeader(content []byte, ext string) error {
-	prefix, ok := copyrightHeaderPrefix(ext)
+func checkCopyrightHeader(content []byte, path string) error {
+	ext := strings.ToLower(filepath.Ext(path))
+	prefix, ok := copyrightHeaderPrefix(path)
 	if !ok {
 		return fmt.Errorf("unsupported extension %q", ext)
 	}
 	normalized := bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
-	offset, err := copyrightHeaderOffset(normalized, ext)
+	offset, err := copyrightHeaderOffset(normalized, path)
 	if err != nil {
 		return err
 	}
@@ -133,7 +154,7 @@ func checkTrackedCopyrightHeaders(root string) error {
 		if err != nil {
 			return fmt.Errorf("read %s: %w", rel, err)
 		}
-		if err := checkCopyrightHeader(data, strings.ToLower(filepath.Ext(rel))); err != nil {
+		if err := checkCopyrightHeader(data, rel); err != nil {
 			failed = append(failed, fmt.Sprintf("%s: %v", rel, err))
 		}
 	}
