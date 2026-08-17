@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"time"
 
@@ -151,9 +150,12 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 
 	// The shared applier image is FROM agent-core (GH-1368): agent-core plus helm
 	// and kubectl, no baked chart. prepareCodingHelmCluster already built and
-	// loaded the agent-core image the collector runs on; the applier layers on it,
-	// and the chart reaches the pod through the mounted applier.chartArchive.
-	if err := buildCodingApplierImage(roots.Core, codingHelmCollectorImage, applierImage); err != nil {
+	// loaded the agent-core image the collector runs on. EnsureApplierImage
+	// layers helm and kubectl onto it under a tag-keyed lock so concurrent
+	// live-applier lanes cannot retag declarative-agents/applier:<rev> out from
+	// under inspect (GH-1764). The chart reaches the pod through the mounted
+	// applier.chartArchive.
+	if _, err := kindrig.EnsureApplierImage(roots.Core, codingHelmCollectorImage, applierImage); err != nil {
 		return &codingHelmSemanticError{Step: "applier image build", Cause: err}
 	}
 	if err := assertCodingApplierImageCarriesItsTools(applierImage); err != nil {
@@ -314,31 +316,6 @@ spec:
 {{- end }}
 {{- end }}
 `
-
-// buildCodingApplierImage builds the shared applier image from the locally built
-// agent-core runtime rather than published artifacts, so the live tier runs the
-// code under test the way the smoke does (GH-1368). The image is agent-core plus
-// helm and kubectl and bakes no chart; the chart reaches the running pod through
-// the mounted applier.chartArchive, so the build context carries nothing.
-//
-// TARGETARCH is passed explicitly. The Dockerfile defaults it to amd64, and a
-// plain docker build on an arm64 host does not set it -- the result is an arm64
-// image carrying amd64 helm and kubectl, which crash the first time an exec word
-// runs one. The kind nodes are the host's architecture, so the image has to be
-// too.
-func buildCodingApplierImage(coreRoot, runtimeImage, image string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "docker", "build",
-		"-f", filepath.Join(coreRoot, "applier.Dockerfile"),
-		"--build-arg", "RUNTIME_IMAGE="+runtimeImage,
-		"--build-arg", "TARGETARCH="+runtime.GOARCH,
-		"-t", image, coreRoot)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("docker build %s: %w: %s", image, err, strings.TrimSpace(string(output)))
-	}
-	return nil
-}
 
 // packageCodingApplierChart packages the staged chart directory into a gzipped
 // tarball and returns its path. This is the chart the applier's `helm upgrade

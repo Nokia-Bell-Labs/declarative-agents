@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"time"
 
@@ -126,9 +125,11 @@ func runApplierLive(resolved roots) (result error) {
 
 	// The shared applier image is FROM agent-core (GH-1368): agent-core plus helm
 	// and kubectl, no baked chart. prepareSmokeCluster already built and loaded the
-	// agent-core image the collector runs on; the applier layers on it, and the
-	// chart reaches the pod through the mounted applier.chartArchive.
-	if err := buildApplierImage(resolved.Core, smokeCollectorImage, applierImage); err != nil {
+	// agent-core image the collector runs on. EnsureApplierImage layers helm and
+	// kubectl onto it under a tag-keyed lock so concurrent live-applier lanes
+	// cannot retag declarative-agents/applier:<rev> out from under inspect
+	// (GH-1764). The chart reaches the pod through the mounted applier.chartArchive.
+	if _, err := kindrig.EnsureApplierImage(resolved.Core, smokeCollectorImage, applierImage); err != nil {
 		return fmt.Errorf("applier image build: %w", err)
 	}
 	if err := assertApplierImageCarriesItsTools(applierImage); err != nil {
@@ -192,29 +193,6 @@ func stageApplierLiveChart(resolved roots) (string, func(), error) {
 		return "", nil, fmt.Errorf("validate staged profiles: %w", err)
 	}
 	return chart, cleanup, nil
-}
-
-// buildApplierImage builds the shared applier image from the locally built
-// agent-core runtime rather than published artifacts, so the live tier runs the
-// code under test the way the smoke does (GH-1368). The image is agent-core plus
-// helm and kubectl and bakes no chart; the chart reaches the running pod through
-// the mounted applier.chartArchive, so the build context carries nothing.
-//
-// TARGETARCH is passed explicitly. The Dockerfile defaults it to amd64, and a plain
-// docker build on an arm64 host does not set it -- the result is an arm64 image
-// carrying amd64 helm and kubectl, which crash the first time an exec word runs one.
-func buildApplierImage(coreRoot, runtimeImage, image string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), applierLiveClusterTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "docker", "build",
-		"-f", filepath.Join(coreRoot, "applier.Dockerfile"),
-		"--build-arg", "RUNTIME_IMAGE="+runtimeImage,
-		"--build-arg", "TARGETARCH="+runtime.GOARCH,
-		"-t", image, coreRoot)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("docker build %s: %w: %s", image, err, strings.TrimSpace(string(output)))
-	}
-	return nil
 }
 
 // assertApplierImageCarriesItsTools runs each assumption the exec declarations make
