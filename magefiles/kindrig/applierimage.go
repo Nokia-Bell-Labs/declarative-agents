@@ -61,12 +61,12 @@ func (b imageBuilder) ensureApplier(
 		return result, nil
 	}
 
-	lockIdentity := agentCoreImageIdentity{
-		revision: identity.revision,
-		recipe:   identity.recipe,
-		platform: identity.platform,
-	}
-	unlock, err := b.acquireLock(coreRoot, lockIdentity)
+	// Lock the mutable tag, not the recipe. Chatbot Mesh FROMs
+	// declarative-agents/agent-core:<rev> while Coding Agent and Agent
+	// Architecture FROM :local; those recipes differ, so a recipe-keyed lock
+	// lets sibling lanes retag the same declarative-agents/applier:<rev>
+	// out from under inspect (GH-1764).
+	unlock, err := b.acquireApplierTagLock(image)
 	if err != nil {
 		return ApplierImageResult{}, err
 	}
@@ -182,4 +182,27 @@ func (b imageBuilder) inspectApplier(
 func logApplierImagePhase(result ApplierImageResult, outcome string) {
 	fmt.Printf("phase target=applier-image name=build elapsed=%s outcome=%s image=%s digest=%s runtime=%s\n",
 		result.Elapsed.Round(time.Millisecond), outcome, result.Reference, result.ImageID, result.RuntimeID)
+}
+
+// acquireApplierTagLock serializes every builder of the same mutable image
+// reference. The lock is machine-local (lockRoot) so concurrent Mage processes
+// on one Docker daemon cannot clobber each other's inspect.
+func (b imageBuilder) acquireApplierTagLock(image string) (func(), error) {
+	sum := sha256.Sum256([]byte("applier-image-tag\x00" + image))
+	if err := os.MkdirAll(b.lockRoot, 0o700); err != nil {
+		return nil, fmt.Errorf("create image lock root: %w", err)
+	}
+	path := filepath.Join(b.lockRoot, fmt.Sprintf("%x.lock", sum[:16]))
+	deadline := time.Now().Add(10 * time.Minute)
+	for {
+		if err := os.Mkdir(path, 0o700); err == nil {
+			return func() { _ = os.RemoveAll(path) }, nil
+		} else if !os.IsExist(err) {
+			return nil, fmt.Errorf("acquire image build lock: %w", err)
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("timed out waiting for image build lock %s", path)
+		}
+		b.sleep(100 * time.Millisecond)
+	}
 }

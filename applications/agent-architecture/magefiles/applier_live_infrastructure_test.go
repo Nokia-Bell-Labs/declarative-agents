@@ -7,10 +7,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestApplierLiveUsesSharedEnsurePath(t *testing.T) {
+	body, err := os.ReadFile("integration_applier_live.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(body)
+	if strings.Contains(source, "docker\", \"build\"") || strings.Contains(source, "docker build") {
+		t.Fatal("unlabeled docker build would retag declarative-agents/applier:<rev> without identity labels")
+	}
+	if !strings.Contains(source, "kindrig.EnsureApplierImage") {
+		t.Fatal("live applier must use the shared ensure path so concurrent lanes serialize on the tag")
+	}
+}
 
 func TestApplierLiveInfrastructureHealthy(t *testing.T) {
 	var calls []string
