@@ -13,6 +13,29 @@ import (
 	"time"
 )
 
+func TestApplierLiveRollbackTriggerKeepsRollbackInsideRequestBudget(t *testing.T) {
+	body, err := os.ReadFile(applierValuesFixture(t, "rollback-trigger.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(body)
+	for _, want := range []string{
+		"progressDeadlineSeconds: 5",
+		"invalid.local/agent-architecture-rollback-trigger",
+	} {
+		if !strings.Contains(source, want) {
+			t.Fatalf("rollback trigger missing %q", want)
+		}
+	}
+	out, ok := renderWithValues(t, applierValuesFixture(t, "rollback-trigger.yaml"))
+	if !ok {
+		t.Fatalf("rollback trigger did not render:\n%s", out)
+	}
+	if !strings.Contains(out, "progressDeadlineSeconds: 5") {
+		t.Fatalf("collector Deployment did not carry progressDeadlineSeconds: 5:\n%s", out)
+	}
+}
+
 func TestApplierLiveUsesSharedEnsurePath(t *testing.T) {
 	body, err := os.ReadFile("integration_applier_live.go")
 	if err != nil {

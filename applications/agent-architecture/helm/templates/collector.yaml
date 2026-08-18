@@ -28,6 +28,9 @@ metadata:
     app.kubernetes.io/component: collector
 spec:
   replicas: 1
+  {{- with .Values.collector.progressDeadlineSeconds }}
+  progressDeadlineSeconds: {{ . }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agent-architecture.selectorLabels" . | nindent 6 }}

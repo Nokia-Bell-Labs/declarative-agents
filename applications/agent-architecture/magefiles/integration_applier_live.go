@@ -489,10 +489,12 @@ func assertLiveApplyChangesTheRelease(environment smokeEnvironment, applicationR
 
 // assertLiveRollbackRestoresTheRelease proves the compensating action with real Helm
 // and kubectl (srd002-applier R3.2). The rollback-trigger patch repoints the collector
-// image at a name never loaded into the node, so the applier's helm_upgrade applies
-// and returns, the new collector ReplicaSet is ErrImageNeverPull, the applier's
-// kubectl rollout status of the collector observes the 120s timeout, runs helm
-// rollback, and maps RolledBack to the distinct 500 response.
+// image at a name never loaded into the node and sets progressDeadlineSeconds to 5, so
+// the applier's helm_upgrade applies and returns, the new collector ReplicaSet is
+// ErrImageNeverPull, ProgressDeadlineExceeded trips in seconds rather than consuming
+// the 120s verify window, the applier runs helm rollback, and maps RolledBack to the
+// distinct 500 response. The 130s machine_request budget retains headroom for that
+// rollback and response (GH-1745, GH-1767).
 //
 // Helm rollback creates a new release revision; it does not move the revision number
 // backwards. Restoration is proved by comparing the computed release values and by

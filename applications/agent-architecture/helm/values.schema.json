@@ -106,7 +106,8 @@
         "controlPort": {"const": 18191},
         "monitorPort": {"const": 18192},
         "queryPort": {"const": 18193},
-        "resources": {"$ref": "#/definitions/resources"}
+        "resources": {"$ref": "#/definitions/resources"},
+        "progressDeadlineSeconds": {"type": "integer", "minimum": 1}
       }
     },
     "applier": {

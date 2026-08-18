@@ -5,12 +5,16 @@
 # kind node. The dry-run validate step accepts it (the image reference is
 # schema-valid, only unpullable), the apply re-renders the collector Deployment with
 # it, and -- because the installed collector image pullPolicy is Never -- the new
-# ReplicaSet's pod is ErrImageNeverPull and never becomes ready. The applier's
-# kubectl rollout status of the collector times out, the apply machine reaches
-# RolledBack, and the applier runs a real helm rollback that restores the prior
-# collector image. The fake-based integration:applier tracer does not read this
-# file; it is the on-cluster rollback trigger the live target feeds.
+# ReplicaSet's pod is ErrImageNeverPull and never becomes ready.
+# progressDeadlineSeconds is 5 so the unpullable image trips ProgressDeadlineExceeded
+# in seconds rather than consuming the 120s kubectl rollout window; the 130s
+# machine_request budget must retain headroom for helm_rollback and the
+# RolledBack -> 500 response (GH-1745, GH-1767). The applier then reaches RolledBack
+# and runs a real helm rollback that restores the prior collector image. The
+# fake-based integration:applier tracer does not read this file; it is the
+# on-cluster rollback trigger the live target feeds.
 collector:
   image:
     repository: invalid.local/agent-architecture-rollback-trigger
     tag: missing
+  progressDeadlineSeconds: 5
