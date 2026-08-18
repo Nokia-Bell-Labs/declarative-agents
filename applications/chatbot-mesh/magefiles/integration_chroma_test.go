@@ -86,6 +86,58 @@ func TestChromaChildEnvironmentReplacesAmbientModel(t *testing.T) {
 	}
 }
 
+func TestChromaIngestTraceRetention(t *testing.T) {
+	t.Parallel()
+	t.Run("failure retains file and names path", func(t *testing.T) {
+		t.Parallel()
+		marker := []byte("ingest-failure-span\n")
+		var path string
+		err := runWithChromaIngestTrace(func(trace string) error {
+			path = trace
+			if err := os.WriteFile(trace, marker, 0o644); err != nil {
+				return err
+			}
+			return errors.New("chroma ingest exploded")
+		})
+		if err == nil {
+			t.Fatal("expected ingest failure")
+		}
+		if path == "" {
+			t.Fatal("ingest did not create a trace path")
+		}
+		t.Cleanup(func() { _ = os.Remove(path) })
+		if !strings.Contains(err.Error(), path) {
+			t.Fatalf("error %q does not name retained trace %s", err, path)
+		}
+		if !strings.Contains(err.Error(), "ingest trace retained at") {
+			t.Fatalf("error %q does not say the trace was retained", err)
+		}
+		got, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatalf("retained trace unreadable: %v", readErr)
+		}
+		if string(got) != string(marker) {
+			t.Fatalf("retained trace = %q, want %q", got, marker)
+		}
+	})
+	t.Run("success removes file", func(t *testing.T) {
+		t.Parallel()
+		var path string
+		if err := runWithChromaIngestTrace(func(trace string) error {
+			path = trace
+			return os.WriteFile(trace, []byte("ok\n"), 0o644)
+		}); err != nil {
+			t.Fatalf("success path returned %v", err)
+		}
+		if path == "" {
+			t.Fatal("ingest did not create a trace path")
+		}
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("successful ingest left trace %s: %v", path, err)
+		}
+	})
+}
+
 func TestRunChromaAgentTimeoutDiagnosis(t *testing.T) {
 	t.Parallel()
 	err := runChromaAgentWithTimeout(10*time.Millisecond, func(ctx context.Context) ([]byte, error) {

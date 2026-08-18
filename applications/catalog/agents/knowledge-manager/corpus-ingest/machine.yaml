@@ -57,7 +57,7 @@ states:
     meaning: Terminal. The corpus was ingested and the count verified.
   - name: Failed
     run_status: failed
-    meaning: Terminal. A REST, read, embedding, or model boundary word failed.
+    meaning: Terminal. A REST, embedding, listing, or unrecoverable model-boundary word failed.
   - name: BudgetExceeded
     run_status: budget_exceeded
     meaning: Terminal. The loop exhausted its iteration or parse-error budget.
@@ -186,7 +186,8 @@ transitions:
     action: invoke_llm
   - state: Composing
     signal: DocumentResourceDenied
-    next: Failed
+    next: Composing
+    action: invoke_llm
   - state: Embedding
     signal: DocumentEmbedded
     next: ResolvingCollection

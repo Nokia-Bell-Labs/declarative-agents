@@ -374,33 +374,58 @@ func runChromaIngest(binary, profilesRoot, coreRoot, chatModel string) error {
 		return err
 	}
 	defer cleanupRuntime()
+	profile := filepath.Join(runtimeRoot, chromaIngestProfile)
+	return runWithChromaIngestTrace(func(trace string) error {
+		if err := runChromaAgent(
+			binary, runtimeRoot, coreRoot, profile, corpusDir, trace, ingestTimeout,
+			chatModel); err != nil {
+			model := strings.TrimSpace(chatModel)
+			if model == "" {
+				model = "profile default"
+			}
+			return fmt.Errorf("chroma ingest run failed with chat model %q: %w\n%s",
+				model, err, chromaOllamaProcessDiagnostics())
+		}
+		if err := assertChromaIngestTrace(trace); err != nil {
+			return err
+		}
+		count, err := chromaCollectionCount()
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			return fmt.Errorf("ingest added no documents to the corpus collection")
+		}
+		return nil
+	})
+}
+
+// runWithChromaIngestTrace creates the ingest --otel-log-file and deletes it
+// only after a successful run. Failures and panics leave the file in place and
+// name its path on the returned error so a release-lane miss stays diagnosable.
+func runWithChromaIngestTrace(run func(trace string) error) error {
 	trace, cleanup, err := chromaTraceFile("ingest")
 	if err != nil {
 		return err
 	}
-	defer cleanup()
-	profile := filepath.Join(runtimeRoot, chromaIngestProfile)
-	if err := runChromaAgent(
-		binary, runtimeRoot, coreRoot, profile, corpusDir, trace, ingestTimeout,
-		chatModel); err != nil {
-		model := strings.TrimSpace(chatModel)
-		if model == "" {
-			model = "profile default"
+	retain := true
+	defer func() {
+		if !retain {
+			cleanup()
 		}
-		return fmt.Errorf("chroma ingest run failed with chat model %q: %w\n%s",
-			model, err, chromaOllamaProcessDiagnostics())
+	}()
+	if err := run(trace); err != nil {
+		return retainChromaIngestTrace(trace, err)
 	}
-	if err := assertChromaIngestTrace(trace); err != nil {
-		return err
-	}
-	count, err := chromaCollectionCount()
-	if err != nil {
-		return err
-	}
-	if count == 0 {
-		return fmt.Errorf("ingest added no documents to the corpus collection")
-	}
+	retain = false
 	return nil
+}
+
+func retainChromaIngestTrace(trace string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w\ningest trace retained at %s", err, trace)
 }
 
 func corpusIngestLibraryRoot(meshRoot string) (string, error) {
