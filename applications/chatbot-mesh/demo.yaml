@@ -35,5 +35,8 @@
 # Chat model used only by `mage integration:chroma`. The canonical corpus-ingest
 # profile keeps its own ornith:9b default for operator runs; the integration
 # selects this smaller bounded evidence model through the declared
-# CORPUS_CHAT_MODEL child contract. Defaults to qwen2.5:3b.
+# CORPUS_CHAT_MODEL child contract. Defaults to qwen2.5:3b. GH-1770 kept that
+# pin: a passing ingest's first turn is 492/38, and the Failed release sample
+# was 492/37 at iteration 7 (first read_resource). The ingest machine now
+# retries DocumentResourceDenied the same way it retries DocumentMissing.
 # chroma_integration_chat_model: qwen2.5:3b

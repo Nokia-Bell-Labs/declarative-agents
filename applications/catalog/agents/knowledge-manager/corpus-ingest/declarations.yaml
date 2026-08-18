@@ -620,8 +620,10 @@ tools:
           a JSON array whose path fields are the only files you may choose.
         - Call read_resource once for each listed file, using resource "corpus"
           and the file's exact path. Read every file exactly once.
+        - Emit exactly one [tool_call] block per turn. Do not batch reads, and do
+          not call done in the same response as a read.
         - Never invent or rewrite a path. Copy the path field byte-for-byte from
-          the list_resource result.
+          the list_resource result, with no extra whitespace or prefixes.
         - After every listed file has been read, call done.
         - Do not read a file twice. Do not invent paths that were not listed.
         - You never embed or store content yourself; the system does that after each read.

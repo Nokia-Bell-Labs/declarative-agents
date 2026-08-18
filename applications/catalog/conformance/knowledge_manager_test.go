@@ -251,6 +251,10 @@ func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
 		"DiscoveringCorpus", "ToolDone", "ListingCorpus", "list_resource")
 	requireKnowledgeTransition(t, machine.Transitions,
 		"ListingCorpus", "DocumentListReady", "Composing", "invoke_llm")
+	requireKnowledgeTransition(t, machine.Transitions,
+		"Composing", "DocumentMissing", "Composing", "invoke_llm")
+	requireKnowledgeTransition(t, machine.Transitions,
+		"Composing", "DocumentResourceDenied", "Composing", "invoke_llm")
 	for _, transition := range machine.Transitions {
 		if transition.State == "Composing" && transition.Signal == "DocumentListReady" {
 			t.Fatal("model-controlled Composing state still owns corpus discovery")
