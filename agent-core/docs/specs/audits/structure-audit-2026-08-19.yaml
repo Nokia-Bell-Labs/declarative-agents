@@ -1,0 +1,94 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: structure-audit-2026-08-19
+title: Repository Structure Audit -- 2026-08-19
+audit_date: "2026-08-19"
+
+scope:
+  issue: GH-1776
+  purpose: |
+    Compare tracked documentation and production command packages with the
+    repository's declared document locations and Go package roles.
+  document_placement:
+    authority: docs/constitutions/design.yaml
+    method: |
+      List tracked Markdown and YAML files directly below a docs tree after
+      excluding declared top-level documents, specs, constitutions,
+      engineering guidelines, fixtures, dependencies, and generated output.
+    reconciliation: |
+      The original method excludes docs/engineering. This run includes those
+      files as scope-reconciliation candidates because a repository-wide
+      placement gate must classify them too.
+  package_role:
+    authority: docs/constitutions/go-style.yaml
+    method: |
+      Rank production command packages by non-test size, then inspect functions
+      for runtime behavior that belongs in an internal package. Size orders the
+      review and is not itself a finding.
+  finding_gate:
+    - Search tracked files and open GitHub issues for every candidate basename.
+    - Preserve a live register named by an open recurring issue.
+    - Verify that a newer register carries prior rejected candidates before removing an older one.
+    - Classify each document as schema lag, misfiled, spent, or live.
+    - Name specific functions and an internal destination for every package-role finding.
+
+candidates:
+  documents:
+    - path: agent-core/docs/bench-documentation-ux-inventory.md
+      source: method_1
+      status: pending
+    - path: agent-core/docs/declarative-decomposition-audit-2026-08-13.md
+      source: method_1
+      status: pending
+    - path: agent-core/docs/declarative-decomposition-audit-2026-08.md
+      source: method_1
+      status: pending
+    - path: agent-core/docs/documentation-divergence-inventory.md
+      source: method_1
+      status: pending
+    - path: agent-core/docs/grammar-machine-conformance-inventory.md
+      source: method_1
+      status: pending
+    - path: agent-core/docs/rel03-rest-design-audit.md
+      source: method_1
+      status: pending
+    - path: agent-core/docs/tool-contract-completeness-baseline.yaml
+      source: method_1
+      status: pending
+    - path: applications/catalog/docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml
+      source: method_1
+      status: pending
+    - path: applications/catalog/docs/migrations/v0.20260730.0-collector-family.yaml
+      source: method_1
+      status: pending
+    - path: applications/catalog/docs/migrations/v0.20260804.0-applier-family.yaml
+      source: method_1
+      status: pending
+    - path: applications/chatbot-mesh/docs/how-it-works.md
+      source: method_1
+      status: pending
+    - path: applications/coding-agent/docs/deployment.md
+      source: method_1
+      status: pending
+    - path: applications/coding-agent/docs/migrations/rel14.0-actor-directories.yaml
+      source: method_1
+      status: pending
+    - path: applications/docs/pattern-language.yaml
+      source: method_1
+      status: pending
+    - path: docs/engineering/eng01-kind-test-demo-rig.yaml
+      source: scope_reconciliation
+      status: pending
+    - path: docs/engineering/eng02-agent-ui-placement.yaml
+      source: scope_reconciliation
+      status: pending
+  packages:
+    - path: agent-core/cmd/agent
+      production_lines: 2787
+      status: pending
+    - path: applications/catalog/cmd/catalog-test-evidence
+      production_lines: 218
+      status: pending
+
+findings: []
+rejected_candidates: []
