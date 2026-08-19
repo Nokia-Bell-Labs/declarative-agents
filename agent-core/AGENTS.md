@@ -7,6 +7,27 @@
 
 YAML under `docs/` and `docs/constitutions/` in this repository is the source of truth for agent-core behavior contracts. When workspace-wide editor rules or other guidance disagrees with that corpus, follow the repository docs.
 
+Place a new document at the path for its type. Types and locations are declared in `docs/constitutions/design.yaml`. Required fields live there; do not copy them here.
+
+| Type | Location |
+|------|----------|
+| vision | `docs/VISION.yaml` |
+| architecture | `docs/ARCHITECTURE.yaml` |
+| specifications | `docs/SPECIFICATIONS.yaml` |
+| roadmap | `docs/road-map.yaml` |
+| srd | `docs/specs/software-requirements/srdNNN-short-name.yaml` |
+| use_case | `docs/specs/use-cases/relNN.N-ucNNN-short-name.yaml` |
+| test_suite | `docs/specs/test-suites/test-relNN.N.yaml` |
+| semantic_model | `docs/specs/semantic-models/name.yaml` |
+| config_format | `docs/specs/config-formats/name.yaml` |
+| constitution | `docs/constitutions/name.yaml` |
+
+Do not create a document that matches no declared type. Register the type in `docs/constitutions/design.yaml` first, or do not add the file. `mage audit` enforces this.
+
+## Package layout
+
+`cmd` packages hold entry points and adapter wiring only, per `docs/constitutions/go-style.yaml`. Runtime logic belongs in `internal` packages.
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
