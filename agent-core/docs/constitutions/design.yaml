@@ -195,6 +195,16 @@ document_types:
     - preconditions
     - test_cases
     purpose: Maps release use cases and SRD criteria to named tests.
+  audit_register:
+    location: docs/specs/audits/name.yaml
+    required_fields:
+    - id
+    - title
+    - audit_date
+    - scope
+    - findings
+    - rejected_candidates
+    purpose: Records one recurring audit run, its findings, and rejected candidates.
   semantic_model:
     location: docs/specs/semantic-models/name.yaml
     required_fields:
@@ -216,13 +226,28 @@ document_types:
     - title
     - purpose
     purpose: Defines rules for agents and contributors working in this repo.
+  migration:
+    location: docs/migrations/name.yaml
+    required_fields:
+    - id
+    - title
+    - status
+    purpose: Records a source-layout or compatibility transition.
+  guide:
+    location: docs/guides/name.md
+    format: markdown
+    required_fields: []
+    purpose: Provides prose-heavy operator or developer guidance.
 naming_conventions:
   srd: srdNNN-short-name.yaml
   use_case: relNN.N-ucNNN-short-name.yaml
   test_suite: test-relNN.N.yaml
+  audit_register: kebab-case.yaml
   config_format: kebab-case.yaml
   semantic_model: kebab-case.yaml
   constitution: kebab-case.yaml
+  migration: kebab-case.yaml
+  guide: kebab-case.md
 completeness_checks:
 - id: C1
   check: YAML parses.
