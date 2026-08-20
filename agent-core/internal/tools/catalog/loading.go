@@ -97,10 +97,17 @@ func SelectTools(declarations []ToolDef, selection []string) ([]ToolDef, error) 
 
 // LoadToolDefs reads one declaration file and resolves includes.
 func LoadToolDefs(path string) ([]ToolDef, error) {
-	return loadToolDefsRecursive(path, nil, nil)
+	return loadToolDefsRecursive(path, nil, nil, nil)
 }
 
-func loadToolDefsRecursive(path string, stack map[string]bool, chain []string) ([]ToolDef, error) {
+type toolDefFileVisitor func(string, []byte) error
+
+func loadToolDefsRecursive(
+	path string,
+	stack map[string]bool,
+	chain []string,
+	visit toolDefFileVisitor,
+) ([]ToolDef, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("resolve path %s: %w", path, err)
@@ -118,20 +125,11 @@ func loadToolDefsRecursive(path string, stack map[string]bool, chain []string) (
 	defer delete(stack, abs)
 	chain = append(chain, abs)
 
-	data, err := os.ReadFile(abs)
+	file, err := readToolDefsFile(abs, visit)
 	if err != nil {
-		return nil, fmt.Errorf("load tool defs %s: %w", abs, err)
+		return nil, err
 	}
-	// Expanded before parsing, by the same rules the REST definition loader
-	// applies, so an address that differs between a local run and a deployment
-	// is an environment reference rather than a literal the deployment cannot
-	// reach (srd013 R5.6).
-	var file ToolDefsFile
-	if err := yaml.Unmarshal(envexpand.Expand(data), &file); err != nil {
-		return nil, fmt.Errorf("parse tool defs %s: %w", abs, err)
-	}
-
-	base, err := loadIncludedToolDefs(file.Includes, abs, stack, chain)
+	base, err := loadIncludedToolDefs(file.Includes, abs, stack, chain, visit)
 	if err != nil {
 		return nil, err
 	}
@@ -141,11 +139,36 @@ func loadToolDefsRecursive(path string, stack map[string]bool, chain []string) (
 	return MergeToolDefs(base, file.Tools), nil
 }
 
+func readToolDefsFile(path string, visit toolDefFileVisitor) (ToolDefsFile, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ToolDefsFile{}, fmt.Errorf("load tool defs %s: %w", path, err)
+	}
+	if visit != nil {
+		if err := visit(path, data); err != nil {
+			return ToolDefsFile{}, fmt.Errorf("visit tool defs %s: %w", path, err)
+		}
+	}
+	// Expanded before parsing, by the same rules the REST definition loader
+	// applies, so an address that differs between a local run and a deployment
+	// is an environment reference rather than a literal the deployment cannot
+	// reach (srd013 R5.6).
+	var file ToolDefsFile
+	if err := yaml.Unmarshal(envexpand.Expand(data), &file); err != nil {
+		return ToolDefsFile{}, fmt.Errorf("parse tool defs %s: %w", path, err)
+	}
+	return file, nil
+}
+
 // loadIncludedToolDefs resolves a file's includes against its own directory and
 // merges them in declaration order. from names the including file, so a failure
 // deep in an include chain reports which file pulled it in.
 func loadIncludedToolDefs(
-	includes []string, from string, stack map[string]bool, chain []string,
+	includes []string,
+	from string,
+	stack map[string]bool,
+	chain []string,
+	visit toolDefFileVisitor,
 ) ([]ToolDef, error) {
 	var base []ToolDef
 	dir := filepath.Dir(from)
@@ -154,7 +177,7 @@ func loadIncludedToolDefs(
 		if !filepath.IsAbs(incPath) {
 			incPath = filepath.Join(dir, incPath)
 		}
-		incDefs, err := loadToolDefsRecursive(incPath, stack, chain)
+		incDefs, err := loadToolDefsRecursive(incPath, stack, chain, visit)
 		if err != nil {
 			return nil, fmt.Errorf("include %s from %s: %w", inc, from, err)
 		}
