@@ -36,7 +36,26 @@ candidates:
   documents:
     - path: agent-core/docs/bench-documentation-ux-inventory.md
       source: method_1
-      status: pending
+      status: fixed
+      classification: spent
+      referrers:
+        tracked:
+          - this structure audit register only
+        open_issues:
+          - GH-1776
+          - GH-1794
+        closed_issues:
+          - GH-87
+          - GH-1026
+          - GH-1031
+      supersession:
+        status: absorbed
+        documents:
+          - applications/catalog/docs/specs/software-requirements/srd006-bench.yaml
+          - applications/catalog/docs/specs/software-requirements/srd011-knowledge-manager.yaml
+          - applications/catalog/docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
+          - applications/catalog/docs/specs/use-cases/rel07.0-uc004-bench-evaluator-profile-boundary.yaml
+      resolution: Deleted by GH-1794 after the finding gate found no live dependency.
     - path: agent-core/docs/declarative-decomposition-audit-2026-08-13.md
       source: method_1
       status: pending
@@ -45,13 +64,63 @@ candidates:
       status: pending
     - path: agent-core/docs/documentation-divergence-inventory.md
       source: method_1
-      status: pending
+      status: fixed
+      classification: spent
+      referrers:
+        tracked:
+          - this structure audit register only
+        open_issues:
+          - GH-1776
+          - GH-1794
+        closed_issues:
+          - GH-87
+          - GH-134
+          - GH-325
+          - GH-326
+          - GH-1310
+      supersession:
+        status: absorbed
+        documents:
+          - agent-core/README.md
+          - agent-core/docs/ARCHITECTURE.yaml
+          - agent-core/docs/specs/config-formats/runtime-contract.yaml
+          - agent-core/package-layout.md
+      resolution: Deleted by GH-1794 after every recorded drift section named completed work.
     - path: agent-core/docs/grammar-machine-conformance-inventory.md
       source: method_1
-      status: pending
+      status: fixed
+      classification: spent
+      referrers:
+        tracked:
+          - this structure audit register only
+        open_issues:
+          - GH-1776
+          - GH-1794
+        closed_issues:
+          - GH-87
+          - GH-1518
+      supersession:
+        status: absorbed
+        documents:
+          - agent-core/docs/ARCHITECTURE.yaml
+          - agent-core/docs/specs/semantic-models/tool-language.yaml
+          - agent-core/docs/specs/config-formats/tool-authoring-standard.yaml
+      resolution: Deleted by GH-1794 after its seven alignment units were complete.
     - path: agent-core/docs/rel03-rest-design-audit.md
       source: method_1
-      status: pending
+      status: retained_pending_relocation
+      classification: live_audit_report
+      referrers:
+        tracked:
+          - agent-core/docs/SPECIFICATIONS.yaml
+          - this structure audit register
+        open_issues:
+          - GH-1776
+          - GH-1792
+          - GH-1794
+      supersession:
+        status: not_superseded
+      resolution: GH-1792 relocates the report and repairs its active specification reference.
     - path: agent-core/docs/tool-contract-completeness-baseline.yaml
       source: method_1
       status: pending
