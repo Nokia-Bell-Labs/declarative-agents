@@ -56,12 +56,26 @@ candidates:
           - applications/catalog/docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
           - applications/catalog/docs/specs/use-cases/rel07.0-uc004-bench-evaluator-profile-boundary.yaml
       resolution: Deleted by GH-1794 after the finding gate found no live dependency.
-    - path: agent-core/docs/declarative-decomposition-audit-2026-08-13.md
+    - path: agent-core/docs/specs/audits/declarative-decomposition-audit-2026-08-13.md
+      previous_path: agent-core/docs/declarative-decomposition-audit-2026-08-13.md
       source: method_1
-      status: pending
-    - path: agent-core/docs/declarative-decomposition-audit-2026-08.md
+      status: fixed
+      classification: live_audit_report
+      document_type: audit_report
+      referrers:
+        - issue GH-1639
+        - this structure audit register
+      resolution: GH-1791 relocated the report and updated the recurring issue before removing the old path.
+    - path: agent-core/docs/specs/audits/declarative-decomposition-audit-2026-08.md
+      previous_path: agent-core/docs/declarative-decomposition-audit-2026-08.md
       source: method_1
-      status: pending
+      status: fixed
+      classification: live_audit_report
+      document_type: audit_report
+      referrers:
+        - agent-core/docs/specs/audits/declarative-decomposition-audit-2026-08-13.md
+        - this structure audit register
+      resolution: GH-1791 relocated the prior report after verifying all 79 rejected-candidate rows were carried forward.
     - path: agent-core/docs/documentation-divergence-inventory.md
       source: method_1
       status: fixed
@@ -122,36 +136,72 @@ candidates:
       supersession:
         status: not_superseded
       resolution: GH-1792 relocated the report and repaired its active specification reference.
-    - path: agent-core/docs/tool-contract-completeness-baseline.yaml
+    - path: agent-core/pkg/spec/testdata/tool-contract-completeness-baseline.yaml
+      previous_path: agent-core/docs/tool-contract-completeness-baseline.yaml
       source: method_1
-      status: pending
+      status: fixed
+      classification: code_adjacent_data
+      referrers:
+        - agent-core/pkg/spec/validate_contract_baseline.go
+        - agent-core/pkg/spec/tool_declaration_reach_test.go
+        - agent-core/pkg/spec/validate_contract_baseline_test.go
+      resolution: GH-1797 relocated the unchanged shrink-only ratchet beside its validator.
     - path: applications/catalog/docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml
       source: method_1
-      status: pending
+      status: fixed
+      classification: schema_lag
+      document_type: migration
+      resolution: GH-1795 registered the existing migration convention; no file move was required.
     - path: applications/catalog/docs/migrations/v0.20260730.0-collector-family.yaml
       source: method_1
-      status: pending
+      status: fixed
+      classification: schema_lag
+      document_type: migration
+      resolution: GH-1795 registered the existing migration convention; no file move was required.
     - path: applications/catalog/docs/migrations/v0.20260804.0-applier-family.yaml
       source: method_1
-      status: pending
-    - path: applications/chatbot-mesh/docs/how-it-works.md
+      status: fixed
+      classification: schema_lag
+      document_type: migration
+      resolution: GH-1795 registered the existing migration convention; no file move was required.
+    - path: applications/chatbot-mesh/docs/guides/how-it-works.md
+      previous_path: applications/chatbot-mesh/docs/how-it-works.md
       source: method_1
-      status: pending
-    - path: applications/coding-agent/docs/deployment.md
+      status: fixed
+      classification: misfiled
+      document_type: guide
+      resolution: GH-1790 moved the guide and repaired every active and relative link.
+    - path: applications/coding-agent/docs/guides/deployment.md
+      previous_path: applications/coding-agent/docs/deployment.md
       source: method_1
-      status: pending
+      status: fixed
+      classification: misfiled
+      document_type: guide
+      resolution: GH-1790 moved the guide and repaired README and specification-index links.
     - path: applications/coding-agent/docs/migrations/rel14.0-actor-directories.yaml
       source: method_1
-      status: pending
+      status: fixed
+      classification: schema_lag
+      document_type: migration
+      resolution: GH-1795 registered the existing migration convention; no file move was required.
     - path: applications/docs/pattern-language.yaml
       source: method_1
-      status: pending
+      status: fixed
+      classification: schema_lag
+      document_type: pattern_language
+      resolution: GH-1795 registered its active, repository-shared location.
     - path: docs/engineering/eng01-kind-test-demo-rig.yaml
       source: scope_reconciliation
-      status: pending
+      status: fixed
+      classification: schema_lag
+      document_type: engineering_guideline
+      resolution: GH-1795 declared the repository-wide engineering location.
     - path: docs/engineering/eng02-agent-ui-placement.yaml
       source: scope_reconciliation
-      status: pending
+      status: fixed
+      classification: schema_lag
+      document_type: engineering_guideline
+      resolution: GH-1795 declared the repository-wide engineering location.
   packages:
     - path: agent-core/cmd/agent
       production_lines: 2787
@@ -345,3 +395,53 @@ rejected_candidates:
       - GH-1395
       - GH-1580
       - GH-1636
+
+results:
+  document_placement:
+    before:
+      method_1_candidates: 14
+      scope_reconciliation_candidates: 2
+      total_candidates: 16
+    after:
+      method_1_output: 7
+      unclassified: 0
+      explanation: |
+        The remaining Method 1 output consists of four migration records, two
+        guides, and the shared application pattern language. The command is a
+        broad candidate generator; each remaining path now matches its declared
+        type and has a fixed disposition above.
+    changes:
+      document_types_declared: 6
+      guides_relocated: 2
+      audit_reports_relocated: 3
+      spent_documents_deleted: 3
+      code_adjacent_data_relocated: 1
+      paths_typed_without_move: 7
+  package_role:
+    before:
+      command_packages: 2
+      production_files: 12
+      production_lines: 3005
+    after:
+      unclassified_packages: 0
+      unclassified_files: 0
+      findings:
+        - GH-1798
+        - GH-1799
+      rejected_candidate_groups: 4
+  unresolved_external_work:
+    - issue: GH-1798
+      reason: Move program identity and rollback reconstruction into catalog and lifecycle packages.
+    - issue: GH-1799
+      reason: Move monitor recorder policy compilation into the monitor package.
+    - issue: GH-1781
+      reason: Rebase the placement-gate epic after this audit merges so it retains one document type registry.
+
+verification:
+  inventory_commands:
+    - git ls-files tracked docs candidate command from GH-1776 Method 1
+    - production command package ranking command from GH-1776 Method 2
+  yaml_parse: passed
+  mage_audit: passed
+  mage_lint: passed
+  mage_test: passed
