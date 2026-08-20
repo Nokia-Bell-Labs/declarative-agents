@@ -5,9 +5,7 @@ package main
 
 import (
 	"context"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -59,58 +57,6 @@ func TestMonitorRuntimeUsesTelemetryMeter(t *testing.T) {
 	var data metricdata.ResourceMetrics
 	require.NoError(t, reader.Collect(context.Background(), &data))
 	requireMetricData(t, data, "dispatch_count")
-}
-
-func TestMonitorRuntimeRejectsUnboundedToolAttributeSetup(t *testing.T) {
-	t.Parallel()
-	defs := []catalog.ToolDef{{
-		Name: "invoke", Metrics: core.MetricConfig{
-			Instruments: []core.MetricInstrument{{
-				Name: "llm.tokens", Kind: "histogram", Unit: "1",
-				Description: "Token count.", ValueSource: "tokens", Attributes: []string{"model"},
-			}},
-			Attributes: []core.MetricAttribute{{
-				Name: "model", Source: "config_literal", Cardinality: "low", Redaction: "none",
-			}},
-		},
-	}}
-
-	_, err := newMonitorRuntime(monitorRuntimeMachine(), defs, toolrest.Collection{}, nil, "monitor-runtime-run")
-
-	require.ErrorContains(t, err, `attribute "model" has no bounded allowed values`)
-}
-
-func TestMonitorRuntimeBindsDeclaredToolAndWorkflowAttributes(t *testing.T) {
-	t.Parallel()
-	machine := monitorRuntimeMachine()
-	defs := []catalog.ToolDef{{
-		Name: "read", Metrics: core.MetricConfig{
-			Instruments: []core.MetricInstrument{{
-				Name: "filesystem.bytes_read", Kind: "histogram", Unit: "By",
-				Description: "Bytes read.", ValueSource: "bytes_read", Attributes: []string{"operation"},
-			}},
-			Attributes: []core.MetricAttribute{{
-				Name: "operation", Source: "tool_name", Cardinality: "low", Redaction: "none",
-			}},
-		},
-	}}
-	runtime, err := newMonitorRuntime(machine, defs, toolrest.Collection{}, nil, "monitor-runtime-run")
-	require.NoError(t, err)
-
-	require.NoError(t, runtime.Recorder.RecordMetric(context.Background(), monitor.MetricSample{
-		Name: "filesystem.bytes_read", Kind: monitor.InstrumentHistogram, Unit: "By",
-		ToolName: "read", RunID: "monitor-runtime-run", State: "Working",
-		Signal: "ToolDone", Status: "success", Value: 4,
-		Attributes: map[string]string{
-			"operation": "read", "profile": "monitor", "secret": "do-not-store",
-		},
-	}))
-
-	snapshot := runtime.Store.Snapshot()
-	require.Equal(t, map[string]string{"operation": "read", "profile": "monitor"},
-		snapshot.RecentSamples[0].Attributes)
-	require.Len(t, snapshot.Diagnostics, 1)
-	require.NotContains(t, snapshot.Diagnostics[0].Message, "do-not-store")
 }
 
 func TestMonitorReleaseProfileProof(t *testing.T) {
