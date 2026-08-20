@@ -39,14 +39,17 @@ type patternInvariant struct {
 }
 
 type patternInvariantCheck struct {
-	Kind            string   `yaml:"kind"`
-	Command         string   `yaml:"command"`
-	Issue           string   `yaml:"issue"`
-	Reason          string   `yaml:"reason"`
-	NegativeTest    string   `yaml:"negative_test"`
-	Module          string   `yaml:"module"`
-	AdapterPackages []string `yaml:"adapter_packages"`
-	ProviderImports []string `yaml:"provider_imports"`
+	Kind                    string   `yaml:"kind"`
+	Command                 string   `yaml:"command"`
+	Issue                   string   `yaml:"issue"`
+	Reason                  string   `yaml:"reason"`
+	NegativeTest            string   `yaml:"negative_test"`
+	Module                  string   `yaml:"module"`
+	AdapterPackages         []string `yaml:"adapter_packages"`
+	ProviderImports         []string `yaml:"provider_imports"`
+	RootTypes               []string `yaml:"root_types"`
+	WholeValueFuncs         []string `yaml:"whole_value_functions"`
+	DocumentationOnlyFields []string `yaml:"documentation_only_fields"`
 }
 
 type executablePatternCheck struct {

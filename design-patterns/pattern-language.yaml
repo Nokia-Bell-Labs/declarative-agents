@@ -422,8 +422,30 @@ patterns:
         check:
           kind: executable
           tier: mechanical_test
-          issue: GH-1787
+          command: >-
+            cd magefiles && go test -count=1 -v . -run
+            'TestPatternInvariantDeclaredFields$|TestPatternInvariantDeclaredFieldRejectsUnreadField|TestPatternInvariantDeclaredFieldWholeValueConsumption|TestPatternInvariantDeclaredFieldParentPresenceIsNotChildRead'
           negative_test: TestPatternInvariantDeclaredFieldRejectsUnreadField
+          module: agent-core
+          root_types:
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog.ToolDef
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core.MachineSpec
+          whole_value_functions:
+            - encoding/json.Marshal
+            - gopkg.in/yaml.v3.Marshal
+          documentation_only_fields:
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core.MachineSpec.invariants
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core.MachineSpec.lifecycle
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core.MachineSpec.pipeline_diagram
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog.ToolErrorContract.condition
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog.ToolErrorContract.message_shape
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog.ToolErrorContract.state_after_failure
+          documentation_only_reason: >-
+            MachineSpec invariants, lifecycle, and pipeline_diagram are
+            author-facing narrative metadata. ToolErrorContract condition,
+            message_shape, and state_after_failure are failure-contract prose
+            used by specification review; runtime routing reads errors[].signal
+            and does not interpret these fields as control policy.
     consequences:
       benefits:
         - Agent changes are surface-level data diffs a reviewer can approve.
