@@ -155,10 +155,193 @@ candidates:
   packages:
     - path: agent-core/cmd/agent
       production_lines: 2787
-      status: pending
+      status: findings_filed
+      files:
+        - path: agent-core/cmd/agent/main.go
+          production_lines: 1139
+          disposition: retained_composition_root
+          responsibilities: CLI, run assembly, request-signal hosting, checkpoint selection, telemetry, operator output, and exit status.
+        - path: agent-core/cmd/agent/factories.go
+          production_lines: 478
+          disposition: retained_composition_root
+          responsibilities: Selected-init factory catalog and process dependency wiring.
+        - path: agent-core/cmd/agent/runtime_config.go
+          production_lines: 470
+          disposition: finding
+          finding: GH-1799
+          responsibilities: Profile-to-runtime adaptation plus monitor recorder policy compilation.
+        - path: agent-core/cmd/agent/program_ref.go
+          production_lines: 254
+          disposition: finding
+          finding: GH-1798
+          responsibilities: Program closure hashing and originating rollback resource reconstruction.
+        - path: agent-core/cmd/agent/lifecycle_request.go
+          production_lines: 188
+          disposition: retained_composition_root
+          responsibilities: Request selector rewrite, typed lifecycle decode, and target checkpoint adapter selection.
+        - path: agent-core/cmd/agent/factories_llm.go
+          production_lines: 112
+          disposition: retained_composition_root
+          responsibilities: LLM factory construction and process-state resolution hooks.
+        - path: agent-core/cmd/agent/conversation_checkpoint.go
+          production_lines: 79
+          disposition: retained_composition_root
+          responsibilities: Conversation and domain checkpoint JSON provider/resolver adapters.
+        - path: agent-core/cmd/agent/factory_report_parse_error.go
+          production_lines: 29
+          disposition: retained_composition_root
+          responsibilities: report_parse_error ToolDef-to-builder factory.
+        - path: agent-core/cmd/agent/dolt_driver.go
+          production_lines: 20
+          disposition: retained_composition_root
+          responsibilities: Dolt SQL driver registration.
+        - path: agent-core/cmd/agent/child_agent_config.go
+          production_lines: 18
+          disposition: retained_composition_root
+          responsibilities: Child-agent profile config to execute.Config adaptation.
     - path: applications/catalog/cmd/catalog-test-evidence
       production_lines: 218
-      status: pending
+      status: rejected
+      classification: build_test_support
+      files:
+        - path: applications/catalog/cmd/catalog-test-evidence/runner.go
+          production_lines: 200
+          disposition: retained_command_adapter
+          responsibilities: Go JSON evidence forwarding and stable compiled conformance test execution.
+        - path: applications/catalog/cmd/catalog-test-evidence/main.go
+          production_lines: 18
+          disposition: retained_entry_point
+          responsibilities: Process argv, error reporting, and exit status.
 
-findings: []
-rejected_candidates: []
+findings:
+  - id: cmd-agent-program-reconstruction
+    issue: GH-1798
+    rule: go-style package_layout.cmd
+    evidence:
+      file: agent-core/cmd/agent/program_ref.go
+      functions:
+        - augmentRollbackResources (lines 28-51)
+        - definitionsForExecution (lines 53-77)
+        - buildProgramRef (lines 96-116)
+        - loadReferencedProgram (lines 118-143)
+        - runtimeConfigForProfile (lines 145-159)
+        - programAssetFiles (lines 161-190)
+        - addDeclarationClosure (lines 192-222)
+        - addProgramDirectory (lines 224-234)
+        - mergeRESTCollections and mergeMap (lines 236-254)
+      contract:
+        - srd026-lifecycle-tools R3.5
+        - srd026-lifecycle-tools R3.12
+      reason: |
+        Program closure hashing and verified originating-resource reconstruction
+        are catalog and lifecycle algorithms. addDeclarationClosure duplicates
+        the include walk already owned by internal/tools/catalog.
+    destination:
+      - internal/tools/catalog for asset closure and ProgramRef digest construction
+      - internal/tools/lifecycle for checkpoint verification and originating ToolDef/REST reconstruction
+    cmd_wiring_remaining:
+      - adapt runtimeConfig and profile paths
+      - select the checkpoint backend and rollback operator profile
+      - register standard factories and call the catalog/lifecycle APIs
+    tests:
+      - cmd/agent TestAugmentRollbackResourcesLoadsVerifiedOriginatingProgram
+      - cmd/agent TestAugmentRollbackResourcesRejectsLegacyCheckpointWithoutProgram
+      - cmd/agent TestAugmentRollbackResourcesRejectsMissingReceiptBuilder
+      - cmd/agent TestFreshRollbackRegistryTracesRepresentativeFamilies
+      - cmd/agent TestFreshRollbackRegistryRestoresOriginatingFileTool
+      - cmd/agent TestFreshRollbackRegistryReportsAliasedSelfInvokeReceipt
+  - id: cmd-agent-monitor-policy-compilation
+    issue: GH-1799
+    rule: go-style package_layout.cmd
+    evidence:
+      file: agent-core/cmd/agent/runtime_config.go
+      functions:
+        - monitorRecorderConfig (lines 237-256)
+        - monitorEnvelopePolicy (lines 258-286)
+        - sortedSetValues (lines 288-297)
+        - toolMetricBindings (lines 299-320)
+        - toolMetricBinding (lines 322-356)
+        - machineMetricLabelValues (lines 358-379)
+        - metricAttributeAllowedValues (lines 381-404)
+      contract:
+        - srd032-tool-metrics-monitor-store R3.1
+        - srd032-tool-metrics-monitor-store R3.2
+        - srd032-tool-metrics-monitor-store R3.6
+        - srd032-tool-metrics-monitor-store R3.8
+      reason: |
+        These functions interpret MachineSpec and ToolDef metric declarations
+        into RecorderConfig, MetricBinding, AttributePolicy, and EnvelopePolicy,
+        all types owned by internal/observability/monitor.
+    destination:
+      - internal/observability/monitor
+    cmd_wiring_remaining:
+      - detect REST monitor-view opt-in without creating a monitor-to-rest import cycle
+      - allocate the process store and select the telemetry meter and run identity
+      - pass Store and Recorder into REST dependencies and LoopParams
+    tests:
+      - cmd/agent TestMonitorRuntimeRejectsUnboundedToolAttributeSetup
+      - cmd/agent TestMonitorRuntimeBindsDeclaredToolAndWorkflowAttributes
+      - cmd/agent TestMonitorRuntimeOptInProfileSetsLoopRecorder
+      - cmd/agent TestMonitorRuntimeRecordsDispatchMetricsInStore
+      - cmd/agent TestMachineNameDrivesSpanAndMetricIdentity
+
+rejected_candidates:
+  - id: cmd-agent-main-host-and-cli
+    gate_question: 5
+    files:
+      - agent-core/cmd/agent/main.go
+    reason: |
+      Request-signal listener lifecycle, per-run checkpoint construction,
+      domain snapshot adapters, startup sequencing, telemetry setup, operator
+      output, and exit mapping are assigned to cmd/agent by architecture,
+      srd018, srd035, and srd046. Size is only a review lead; main.go and
+      buildPreparedRun are already grandfathered by the Go size gate.
+    prior_evidence:
+      - GH-884
+      - GH-1553
+      - GH-1743
+  - id: cmd-agent-factory-wiring
+    gate_question: 5
+    files:
+      - agent-core/cmd/agent/factories.go
+      - agent-core/cmd/agent/factories_llm.go
+      - agent-core/cmd/agent/factory_report_parse_error.go
+    reason: |
+      These functions decode trusted ToolDef config, bind process dependencies,
+      and return builders implemented by owning internal packages. They contain
+      no independently selectable runtime operation and have no narrower
+      internal destination than the packages already providing the builders.
+  - id: cmd-agent-checkpoint-and-child-adapters
+    gate_question: 5
+    files:
+      - agent-core/cmd/agent/lifecycle_request.go
+      - agent-core/cmd/agent/conversation_checkpoint.go
+      - agent-core/cmd/agent/dolt_driver.go
+      - agent-core/cmd/agent/child_agent_config.go
+    reason: |
+      The runtime contract assigns request selector rewrite, conversation/domain
+      JSON provider and resolver ports, SQL driver registration, and child
+      profile adaptation to the composition boundary. Their implementations
+      already delegate checkpoint, Dolt, lifecycle, and child execution behavior
+      to internal packages.
+    prior_evidence:
+      - GH-1559
+      - GH-1683
+  - id: catalog-test-evidence-command
+    gate_question: 5
+    files:
+      - applications/catalog/cmd/catalog-test-evidence/main.go
+      - applications/catalog/cmd/catalog-test-evidence/runner.go
+    classification: build_test_support
+    reason: |
+      The only production caller is a Mage target that builds this helper into
+      a temporary directory and rewrites a staged specification-critic profile.
+      No shipped image or agent selects it. Moving it behind a product word or
+      into agent-core would weaken the independent Go JSON evidence boundary.
+    tests:
+      - applications/catalog/cmd/catalog-test-evidence/runner_test.go
+      - applications/catalog/magefiles/test_evidence_test.go
+    prior_evidence:
+      - GH-1395
+      - GH-1580
+      - GH-1636
