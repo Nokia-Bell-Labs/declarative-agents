@@ -170,6 +170,12 @@ declarative_agent:
       or test word can emit ToolFailed where that signal is unhandled. This is
       the central promise: an unexpected outcome becomes a validation error
       before the model runs, not a production dead end.
+  validation_binding: >
+    validation_story appears only in this worked example; it is not a
+    per-pattern field. Each pattern binds its claims to validation through its
+    typed invariants list instead. Executable checks name the command that
+    enforces the invariant or the issue that creates that command. Manual
+    checks state why no mechanical verdict exists.
 
 conventions:
   confidence_scale:
@@ -235,6 +241,23 @@ patterns:
       knows the machine state, and the machine never knows tool internals. The
       $tool slot may resolve a model-chosen tool at runtime, but dispatch is
       still validated against the declared registry and handled signal set.
+    invariants:
+      - id: P1.1
+        statement: Every machine is finite, refers only to declared grammar, and has no unreachable or dead non-terminal state.
+        check:
+          kind: executable
+          tier: compiler
+          command: >-
+            cd agent-core && go test ./internal/runtime/core -run
+            'TestParseMachineSpecValidationErrors|TestDiagnoseMachineSpecReportsReachabilityAndDeadGrammar'
+      - id: P1.2
+        statement: Every signal emitted by a dispatchable tool is handled from the state that receives the tool result.
+        check:
+          kind: executable
+          tier: compiler
+          command: >-
+            cd agent-core && go test ./internal/tools/catalog -run
+            TestValidateToolEmitsMissingFollowupTransition
     consequences:
       benefits:
         - Control flow is a readable, diffable artifact.
@@ -373,6 +396,29 @@ patterns:
       machine transitions, tool contracts, scoped visibility, and model binding
       before any tool or model is invoked. Registry factories and adapters may
       be compiled code, but they provide capability rather than per-agent policy.
+    invariants:
+      - id: P2.1
+        statement: Every profile resolves a complete machine, tool selection, declaration, and configuration closure before execution.
+        check:
+          kind: executable
+          tier: construction
+          command: >-
+            cd agent-core && go test ./internal/tools/catalog -run
+            'TestLoadProfile_MissingMachine|TestBuildProgramRefRejectsDeclarationIncludeCycle|TestBuildProgramRefReportsMissingAsset'
+      - id: P2.2
+        statement: Agent identity and agent-specific workflow policy do not change the fixed engine's behavior.
+        check:
+          kind: executable
+          tier: mechanical_test
+          command: >-
+            cd agent-core && go test ./internal/runtime/core -run
+            'TestLoop_DeclarativeInit_MachineNameDoesNotChangeEngineBehavior|TestCoreSourceDoesNotEmbedModeOrToolPolicyNames'
+      - id: P2.3
+        statement: Every field declared by the agent data schema is read by the interpreter or explicitly classified as documentation-only.
+        check:
+          kind: executable
+          tier: mechanical_test
+          issue: GH-1787
     consequences:
       benefits:
         - Agent changes are surface-level data diffs a reviewer can approve.
@@ -513,6 +559,23 @@ patterns:
       Enforce completeness during authoring and specification audit. At ordinary
       runtime startup, validate only wiring needed for execution: parse retries,
       emitted-signal routes, and receipt-consuming undo.
+    invariants:
+      - id: P3.1
+        statement: Every declared tool carries the complete six-section contract required for implementation, selection, composition, failure handling, and reversal.
+        check:
+          kind: executable
+          tier: linter
+          command: >-
+            cd agent-core && go test ./pkg/spec -run
+            'TestContractBaselineMatchesCorpus|TestContractBaselineRatchet'
+      - id: P3.2
+        statement: A tool contract represents one agent-selectable domain operation and does not hide separately selectable effects or rollback boundaries.
+        check:
+          kind: manual
+          reason: >-
+            Distinguishing a compound domain operation from bounded validation,
+            parsing, protocol handling, or recovery implementation requires
+            semantic judgment over both the declaration and its implementation.
     consequences:
       benefits:
         - A uniform, independently testable and reversible tool inventory.
@@ -642,6 +705,23 @@ patterns:
       from that target (or the target is terminal). Store the result as derived
       ToolSpec phases. Registry Manifest and ResolveExternalTool must share this
       rule so out-of-state calls fail before execution.
+    invariants:
+      - id: P4.1
+        statement: A model-visible tool is available in a phase only when every signal it emits is routable from that phase.
+        check:
+          kind: executable
+          tier: compiler
+          command: >-
+            cd agent-core && go test ./internal/tools/catalog -run
+            'TestDeriveDynamicToolPhasesScopesExternalToolsByRoutableSignals|TestApplyDynamicToolPhasesMakesMissingEmitToolsUnavailable'
+      - id: P4.2
+        statement: Manifest generation, model-response parsing, and dynamic dispatch apply one shared external-tool availability rule.
+        check:
+          kind: executable
+          tier: mechanical_test
+          command: >-
+            cd agent-core && go test ./internal/runtime/core -run
+            TestManifestAndAvailableExternalToolNamesUseAvailabilityRule
     consequences:
       benefits:
         - Out-of-phase actions are impossible, not merely improbable.
@@ -742,6 +822,13 @@ patterns:
       shape for the machine, and record token, latency, and model data at
       this boundary. Parsers must tolerate malformed or embedded tool calls,
       especially for open-weight models and changing API formats.
+    invariants:
+      - id: P5.1
+        statement: No package outside the declared inference adapter boundary imports a model-provider SDK or issues model HTTP calls.
+        check:
+          kind: executable
+          tier: linter
+          issue: GH-1786
     consequences:
       benefits:
         - Model-agnostic evaluation and provider changes isolated to adapters.
@@ -856,6 +943,23 @@ patterns:
       plus the lifecycle tool's reverse receipt walk for external effects; it
       returns a resumable position, and discarded entries survive only in the
       rollback report.
+    invariants:
+      - id: P6.1
+        statement: Every state-mutating reversible tool emits a sufficient receipt and provides non-noop receipt-consuming reversal.
+        check:
+          kind: executable
+          tier: compiler
+          command: >-
+            cd agent-core && go test ./internal/tools/catalog -run
+            'TestValidateReceiptPresenceFailsReversibleToolWithoutReceipt|TestValidateReceiptContractFailsMutatingReversibleWithNoopUndo'
+      - id: P6.2
+        statement: Rollback visits persisted execution entries in reverse order and reports every reversal, compensation, irreversible skip, and failure.
+        check:
+          kind: executable
+          tier: conformance_test
+          command: >-
+            cd agent-core && go test ./internal/tools/lifecycle -run
+            'TestRollbackViaReceiptsContinuesPastFailure|TestRollbackViaReceiptsCleanWhenAllReverse'
     consequences:
       benefits:
         - Deterministic recovery and cheap speculative exploration of reversible plans.
@@ -962,6 +1066,23 @@ patterns:
       execute_tool, and chat; do not infer monetary cost from token usage.
       Keep an NDJSON adapter for offline evaluation and a no-op adapter for
       tests or low-overhead deployments.
+    invariants:
+      - id: P7.1
+        statement: Each run emits one invoke_agent root whose dispatches are direct execute_tool or chat children with stable state, signal, tool, duration, and error attributes.
+        check:
+          kind: executable
+          tier: mechanical_test
+          command: >-
+            cd agent-core && go test ./internal/runtime/core -run
+            TestLoopTraceShapeIsRunWithDirectToolChildren
+      - id: P7.2
+        statement: Every supported cross-process agent transport propagates W3C trace context and treats absent or malformed context as a new root.
+        check:
+          kind: executable
+          tier: conformance_test
+          command: >-
+            cd agent-core && go test ./internal/tools/rest -run
+            'TestRESTClient_InjectsTraceparentFromActiveSpan|TestRESTServer_ExtractsTraceparentParentsMachineRequestSpan|TestRESTServer_TraceparentFallbackToNewRoot'
     consequences:
       benefits:
         - Backend independence and standard, searchable, visualizable traces.
@@ -1062,6 +1183,23 @@ patterns:
       inferring it from successful dispatch. The parent may compensate the child
       boundary as a whole, but it must not reach inside the child's execution
       log to undo individual tools.
+    invariants:
+      - id: P8.1
+        statement: Every child-agent boundary names a child profile, passes only declared inputs and authority, and collapses the child run to declared parent-level outcomes.
+        check:
+          kind: executable
+          tier: compiler
+          command: >-
+            cd agent-core && go test ./internal/tools/catalog -run
+            'TestValidateChildAgentConfigRequiresFields|TestValidateRunPointConfigRequiresFields'
+      - id: P8.2
+        statement: Workflow ordering and branching remain in MachineSpec while one boundary adapter's protocol, validation, and result reduction remain implementation structure.
+        check:
+          kind: manual
+          reason: >-
+            Deciding whether code hides independently meaningful workflow or
+            implements one declared boundary requires comparing agent-visible
+            effects and choices with the implementation's internal steps.
     consequences:
       benefits:
         - Isolation with flat machines; complexity stays local.
@@ -1177,6 +1315,23 @@ patterns:
       Execution, then resumes through --resume-checkpoint and --resume-signal;
       notification and decision metadata remain design intent. Recheck
       preconditions because the external world may have changed during the wait.
+    invariants:
+      - id: P9.1
+        statement: Every approval gate is an explicit machine transition before the gated effect and handles both approved and rejected decisions.
+        check:
+          kind: executable
+          tier: conformance_test
+          command: >-
+            cd applications/catalog && go test ./conformance -run
+            TestLifecycleApprovalSuspendResume
+      - id: P9.2
+        statement: Suspension persists the exact resumable position before exit, and resume validates program identity before injecting the decision signal.
+        check:
+          kind: executable
+          tier: mechanical_test
+          command: >-
+            cd agent-core && go test ./internal/runtime/core -run
+            'TestLoop_SuspendSucceedsWhenCheckpointSaveSucceeds|TestSignalSource_ResumeValidatesProgramIdentity|TestResumeHonorsExplicitResumeSignal'
     consequences:
       benefits:
         - Irreversible tools are safe to hold in the registry; they run only after approval.
@@ -1297,6 +1452,15 @@ patterns:
       snapshots into a six-class progression — Clean, Converged, Improving, Flat,
       Regressing, NoData — from which aggregate Recovery/Stuck rates are derived
       (see the reference-implementation known use below).
+    invariants:
+      - id: P10.1
+        statement: Convergence classification is a deterministic closed mapping from recorded execution evidence and contains no inference call.
+        check:
+          kind: executable
+          tier: mechanical_test
+          command: >-
+            cd agent-core && go test ./internal/evaluation -run
+            'TestClassify_MultiToolDeterministicOrder|TestClassify_ByteStableAcrossRepeatedRuns'
     consequences:
       benefits:
         - Actionable diagnostics and quantitative model comparison beyond binary metrics.
@@ -1396,6 +1560,23 @@ patterns:
       exit routes and discovers its ephemeral address from launch output.
       Generic injection and lifecycle-control bindings have conformance tests
       but no production profile; rollback intervention remains design intent.
+    invariants:
+      - id: P11.1
+        statement: Operator read endpoints return bounded cached state without dispatching tools or mutating the observed run.
+        check:
+          kind: executable
+          tier: conformance_test
+          command: >-
+            cd agent-core && go test ./internal/tools/rest -run
+            'TestMonitorREST_ReadOnlyCachedState|TestMonitorREST_FailureDoesNotMutateState'
+      - id: P11.2
+        statement: An injected operator signal is accepted only when the current machine state declares that signal and no conflicting dispatch owns the run.
+        check:
+          kind: executable
+          tier: mechanical_test
+          command: >-
+            cd agent-core && go test ./internal/runtime/core -run
+            TestSignalAdmission_Outcomes
     consequences:
       benefits:
         - Live inspection without stopping, and control through declared transitions only.
