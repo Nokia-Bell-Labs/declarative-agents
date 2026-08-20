@@ -152,7 +152,7 @@ checks prepared profiles, renders the supported matrix, writes
 `helm/dist/coding-agent-0.1.0.tgz`, verifies its complete inventory, and renders
 the archive independently. Setting `image` in `demo.yaml` overrides the tag built by
 `mage image:build`; the live smoke invokes that same Dockerfile rather than a
-smoke-only recipe. See the [deployment guide](docs/deployment.md), or run the
+smoke-only recipe. See the [deployment guide](docs/guides/deployment.md), or run the
 bounded packaged-chart proof with `mage integration:helmSmoke`.
 
 ## Status
@@ -276,7 +276,7 @@ connected collector agent trace. It skips only for missing host prerequisites.
 - [Architecture](docs/ARCHITECTURE.yaml)
 - [Road map](docs/road-map.yaml)
 - [Specification index](docs/SPECIFICATIONS.yaml)
-- [Deployment and operations](docs/deployment.md)
+- [Deployment and operations](docs/guides/deployment.md)
 - [Release 14 actor-directory migration](docs/migrations/rel14.0-actor-directories.yaml)
 - [Coding-loop use case](docs/specs/use-cases/rel01.0-uc001-coding-loop.yaml)
 - [Coding-loop test suite](docs/specs/test-suites/test-rel01.0-coding-loop.yaml)

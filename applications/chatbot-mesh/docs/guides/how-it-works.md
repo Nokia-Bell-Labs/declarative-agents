@@ -6,7 +6,7 @@
 This is a reader's walkthrough of the chatbot mesh: what the parts are, how a
 single question turns into a grounded answer, and how the mesh reconfigures
 itself while it runs. It is the prose companion to the machine-readable
-[ARCHITECTURE.yaml](ARCHITECTURE.yaml). Where a claim needs a normative source,
+[ARCHITECTURE.yaml](../ARCHITECTURE.yaml). Where a claim needs a normative source,
 we link the software requirements document (SRD) rather than restate it.
 
 The one idea to carry through: there is no bespoke orchestration code. Every
@@ -79,12 +79,12 @@ Table 1: Mesh components
 | Helm chart (`helm/`) | deploy | Deploy the whole mesh as one chart from values-driven RAG pairs |
 
 The normative detail lives in the SRDs: the RAG server in
-[srd001](specs/software-requirements/srd001-rag-server-agent.yaml), the chatbot in
-[srd002](specs/software-requirements/srd002-chatbot-agent.yaml), the deployment in
-[srd003](specs/software-requirements/srd003-chatbot-deployment.yaml), the
-provisioning-workflow-orchestrator in [srd004](specs/software-requirements/srd004-provisioning-workflow-orchestrator.yaml), the
-creator in [srd005](specs/software-requirements/srd005-creator.yaml), and the
-applier in [srd006](specs/software-requirements/srd006-applier.yaml).
+[srd001](../specs/software-requirements/srd001-rag-server-agent.yaml), the chatbot in
+[srd002](../specs/software-requirements/srd002-chatbot-agent.yaml), the deployment in
+[srd003](../specs/software-requirements/srd003-chatbot-deployment.yaml), the
+provisioning-workflow-orchestrator in [srd004](../specs/software-requirements/srd004-provisioning-workflow-orchestrator.yaml), the
+creator in [srd005](../specs/software-requirements/srd005-creator.yaml), and the
+applier in [srd006](../specs/software-requirements/srd006-applier.yaml).
 
 ## A single chat turn
 
@@ -213,8 +213,8 @@ with per-agent monitor streams as the version-one fallback (srd003 R5).
 
 ## Where to read more
 
-The [road map](road-map.yaml) sequences the six releases from the single-RAG turn
-through the control plane. The [use cases](specs/use-cases/) narrate each
+The [road map](../road-map.yaml) sequences the six releases from the single-RAG turn
+through the control plane. The [use cases](../specs/use-cases/) narrate each
 release's flow with inputs and expected outputs, and the
-[test suites](specs/test-suites/) validate them. For the standalone-program
-framing and the extraction decisions, see the [README](../README.md).
+[test suites](../specs/test-suites/) validate them. For the standalone-program
+framing and the extraction decisions, see the [README](../../README.md).

@@ -18,7 +18,7 @@ needs that catalog checkout only while packaging or running local ingest
 integrations; set `catalog_root` in `demo.yaml` to it. The resulting Helm archive contains the
 canonical closure and has no runtime dependency on the profile checkout.
 
-For a reader's walkthrough of how the parts fit together — a single chat turn, live reconfiguration, and deployment, with diagrams — see [docs/how-it-works.md](docs/how-it-works.md).
+For a reader's walkthrough of how the parts fit together — a single chat turn, live reconfiguration, and deployment, with diagrams — see [docs/guides/how-it-works.md](docs/guides/how-it-works.md).
 
 ## Composition
 
@@ -213,4 +213,4 @@ explains why the shared package owns `puppeteer-core` and downloads no browser.
 
 Start with `docs/VISION.yaml`, `docs/ARCHITECTURE.yaml`, `docs/road-map.yaml`,
 and `docs/SPECIFICATIONS.yaml`. Deployment package details are in
-`helm/PACKAGING.md`; the operator walkthrough is in `docs/how-it-works.md`.
+`helm/PACKAGING.md`; the operator walkthrough is in `docs/guides/how-it-works.md`.

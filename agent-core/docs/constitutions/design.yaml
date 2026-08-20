@@ -152,6 +152,24 @@ document_types:
     - title
     - releases
     purpose: Assigns SRDs and use cases to releases and status values.
+  pattern_language:
+    location: docs/pattern-language.yaml
+    required_fields:
+    - title
+    - version
+    - patterns
+    - grammar_check
+    - bibliography
+    purpose: Defines the connected pattern grammar for a repository scope.
+  engineering_guideline:
+    location: docs/engineering/engNN-short-name.yaml
+    required_fields:
+    - id
+    - title
+    - introduction
+    - sections
+    - references
+    purpose: Defines repository-wide engineering practices shared by modules.
   srd:
     location: docs/specs/software-requirements/srdNNN-short-name.yaml
     required_fields:
@@ -202,9 +220,15 @@ document_types:
     - title
     - audit_date
     - scope
+    - candidates
     - findings
     - rejected_candidates
-    purpose: Records one recurring audit run, its findings, and rejected candidates.
+    purpose: Records one recurring audit run and every candidate disposition.
+  audit_report:
+    location: docs/specs/audits/name.md
+    format: markdown
+    required_fields: []
+    purpose: Preserves a prose-heavy audit narrative and its evidence.
   semantic_model:
     location: docs/specs/semantic-models/name.yaml
     required_fields:
@@ -243,11 +267,14 @@ naming_conventions:
   use_case: relNN.N-ucNNN-short-name.yaml
   test_suite: test-relNN.N.yaml
   audit_register: kebab-case.yaml
+  audit_report: kebab-case.md
   config_format: kebab-case.yaml
+  engineering_guideline: engNN-short-name.yaml
+  guide: kebab-case.md
+  migration: kebab-case.yaml
+  pattern_language: pattern-language.yaml
   semantic_model: kebab-case.yaml
   constitution: kebab-case.yaml
-  migration: kebab-case.yaml
-  guide: kebab-case.md
 completeness_checks:
 - id: C1
   check: YAML parses.

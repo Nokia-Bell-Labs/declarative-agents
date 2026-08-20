@@ -12,7 +12,7 @@ This file is this run's durable output. Accepted findings are filed as separate
 issues. Rejected candidates from GH-1395 are carried forward below; a later
 recurrence must not refile them without new evidence.
 
-Prior register: `agent-core/docs/declarative-decomposition-audit-2026-08.md`
+Prior register: `agent-core/docs/specs/audits/declarative-decomposition-audit-2026-08.md`
 (GH-1395). Remediations for that run closed under epic GH-1582 (PR #1601).
 
 ## Scope and gate
