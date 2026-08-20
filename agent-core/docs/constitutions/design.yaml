@@ -262,6 +262,180 @@ document_types:
     format: markdown
     required_fields: []
     purpose: Provides prose-heavy operator or developer guidance.
+manual_invariant_schema:
+  purpose: |
+    A judge may adjudicate a manual pattern invariant only after the invariant
+    satisfies this schema. The mechanical layer supplies a finite pair set.
+    The judge answers one question for each pair and does not search the
+    repository.
+  rationale: |
+    The 2026-08-10 audit searched 121 candidates and rejected 71. A judge that
+    also searches has no stable denominator, so its precision cannot be
+    measured.
+  required_fields:
+  - id
+  - rule
+  - pairs
+  - question
+  - evidence_required
+  - labeled_examples
+  - disposition
+  fields:
+    id: |
+      The stable pattern invariant id from
+      design-patterns/pattern-language.yaml.
+    rule: |
+      One normative sentence that states the configuration the invariant
+      requires.
+    pairs:
+      purpose: |
+        Defines how a mechanical producer enumerates every declaration and
+        implementation pair before the judge runs.
+      required_fields:
+      - producer
+      - declaration
+      - implementation
+      producer: |
+        Names the command, check, or deterministic inventory that emits the
+        finite pair set.
+      declaration: |
+        Names the declaration-side path, field, or symbol included in each
+        pair.
+      implementation: |
+        Names the implementation-side path, function, or symbol included in
+        each pair.
+    question: |
+      One bounded question whose complete answer is yes or no for one supplied
+      pair.
+    evidence_required:
+      purpose: |
+        Defines the exact declaration and implementation evidence a verdict
+        must quote.
+      required_fields:
+      - declaration
+      - implementation
+    labeled_examples: |
+      Repository examples labeled violations and non_violations. These examples
+      form the judge regression suite and measure precision before a run is
+      trusted.
+    disposition: |
+      Defines both verdict outcomes. A confirmed finding cites this invariant
+      and proposes a replacement mechanical_check or conformance_test. A
+      non-violation records why the pair satisfies the rule.
+  run_rules:
+    bounded_input: |
+      The judge receives the complete mechanically produced pair set. It does
+      not search for additional candidates. Pair count is the denominator for
+      precision.
+    evidence: |
+      Discard a verdict that does not quote the required evidence from both
+      sides of its pair.
+    reproduction: |
+      A yes verdict is not a finding unless an independent run reproduces the
+      answer from the same pair and quotes compatible evidence.
+    citation: |
+      Every finding cites the violated invariant id. If no invariant covers a
+      concern, propose an invariant and do not file a remediation issue.
+    retirement: |
+      The judge discovers hard checks; it is not a standing inspector. Every
+      confirmed finding proposes the mechanical check or conformance test that
+      will replace that judgment for the detected case.
+  examples:
+  - id: P3.2
+    rule: |
+      A tool contract represents one agent-selectable domain operation and
+      does not hide separately selectable effects or rollback boundaries.
+    pairs:
+      producer: |
+        Join every selected ToolDef by init name to its Builder,
+        Command.Execute, and Undo symbols.
+      declaration: |
+        ToolDef problem, requirements, emits, side_effects, reversibility, and
+        undo fields.
+      implementation: |
+        The matched Builder, Command.Execute, Undo, and directly called
+        effect-owning functions.
+    question: |
+      Does this implementation perform more than one independently selectable
+      domain operation or rollback boundary behind the supplied ToolDef?
+    evidence_required:
+      declaration: |
+        Quote the ToolDef operation, emitted outcomes, declared effects, and
+        reversal boundary.
+      implementation: |
+        Quote the separate effects, branch, signal, or reversal boundaries that
+        make the operations independently selectable.
+    labeled_examples:
+      violations:
+      - label: spool_span_stats (GH-1572)
+        basis: |
+          One declared word returned two independent analytical results behind
+          one signal.
+      non_violations:
+      - label: delay
+        basis: |
+          One bounded wait emits elapsed or deadline while retry sequencing
+          remains in MachineSpec.
+      - label: invoke_llm
+        basis: |
+          Prompt assembly, provider adaptation, and response normalization
+          implement one declared inference transaction.
+    disposition:
+      confirmed: |
+        Cite P3.2 and propose a conformance test that exposes each independent
+        operation or a mechanical check that rejects the compound shape.
+      non_violation: |
+        Record which quoted implementation steps are internal to the one
+        declared operation.
+  - id: P8.2
+    rule: |
+      Workflow ordering and branching remain in MachineSpec while one boundary
+      adapter's protocol, validation, and result reduction remain
+      implementation structure.
+    pairs:
+      producer: |
+        Join every boundary ToolDef and machine action to its adapter
+        Command.Execute and the directly called child, transport, or protocol
+        functions.
+      declaration: |
+        The parent MachineSpec transition plus the boundary ToolDef inputs,
+        outcomes, effects, and child profile reference.
+      implementation: |
+        The matched adapter and its directly called protocol, validation,
+        reduction, and effect-owning functions.
+    question: |
+      Does this implementation choose agent-visible workflow order or branching
+      that the supplied MachineSpec could express?
+    evidence_required:
+      declaration: |
+        Quote the parent transition, boundary operation, declared outcomes, and
+        authority passed to the child.
+      implementation: |
+        Quote the ordering or branch and show the independently meaningful
+        state, signal, effect, or rollback boundary it hides.
+    labeled_examples:
+      violations:
+      - label: extract_task (GH-1560)
+        basis: |
+          The implementation performed a graph lifecycle transition that was
+          invisible in two of three machines.
+      non_violations:
+      - label: self_invoke
+        basis: |
+          The adapter launches one child profile and returns one parent signal;
+          the child machine owns its internal workflow.
+      - label: otlp_receiver_launch
+        basis: |
+          Binding one listener and registering its declared services implements
+          one boundary operation and one rollback boundary.
+    disposition:
+      confirmed: |
+        Cite P8.2 and propose a conformance test for the hidden transition or a
+        mechanical check that requires the state, signal, or effect in
+        MachineSpec.
+      non_violation: |
+        Record why the quoted sequence is protocol or validation structure
+        inside one declared boundary operation.
 naming_conventions:
   srd: srdNNN-short-name.yaml
   use_case: relNN.N-ucNNN-short-name.yaml
