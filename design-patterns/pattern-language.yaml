@@ -836,8 +836,16 @@ patterns:
         check:
           kind: executable
           tier: linter
-          issue: GH-1786
+          command: >-
+            cd magefiles && go test -count=1 -v . -run
+            'TestPatternInvariantInferenceBoundary$|TestPatternInvariantInferenceBoundaryRejectsImportOutsideAdapter|TestPatternInvariantInferenceBoundaryProviderListIsDeclarative'
           negative_test: TestPatternInvariantInferenceBoundaryRejectsImportOutsideAdapter
+          module: agent-core
+          adapter_packages:
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm
+          provider_imports:
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/ollama
     consequences:
       benefits:
         - Model-agnostic evaluation and provider changes isolated to adapters.

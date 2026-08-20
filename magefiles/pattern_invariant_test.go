@@ -5,12 +5,28 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
+
+type goPackageImports struct {
+	ImportPath string
+	Imports    []string
+}
+
+type inferenceBoundaryPolicy struct {
+	module          string
+	adapterPackages []string
+	providerImports []string
+}
 
 func TestPatternInvariantRepositoryConformance(t *testing.T) {
 	t.Parallel()
@@ -208,6 +224,184 @@ func TestRunPatternInvariantCommandRequiresNegativeTestEvidence(t *testing.T) {
 		!strings.Contains(err.Error(), "check command failed") {
 		t.Fatalf("failing command error = %v", err)
 	}
+}
+
+func TestPatternInvariantInferenceBoundary(t *testing.T) {
+	t.Parallel()
+
+	root := repositoryRoot(t)
+	policy, err := loadInferenceBoundaryPolicy(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packages, err := listGoPackageImports(root, policy.module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkInferenceBoundary(packages, policy); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPatternInvariantInferenceBoundaryRejectsImportOutsideAdapter(t *testing.T) {
+	t.Parallel()
+
+	const provider = "example.com/provider/sdk"
+	policy := inferenceBoundaryPolicy{
+		adapterPackages: []string{"example.com/project/internal/model"},
+		providerImports: []string{provider},
+	}
+	packages := []goPackageImports{
+		{ImportPath: "example.com/project/internal/model/openai", Imports: []string{provider}},
+		{ImportPath: "example.com/project/cmd/agent", Imports: []string{provider}},
+		{ImportPath: "example.com/project/internal/tools/search", Imports: []string{provider + "/chat"}},
+	}
+	err := checkInferenceBoundary(packages, policy)
+	if err == nil {
+		t.Fatal("inference boundary accepted planted provider imports")
+	}
+	for _, violatingPackage := range []string{
+		"example.com/project/cmd/agent",
+		"example.com/project/internal/tools/search",
+	} {
+		if !strings.Contains(err.Error(), violatingPackage) {
+			t.Errorf("error missing violating package %s: %v", violatingPackage, err)
+		}
+	}
+	if strings.Contains(err.Error(), "internal/model/openai") {
+		t.Fatalf("error reported package inside adapter boundary: %v", err)
+	}
+}
+
+func TestPatternInvariantInferenceBoundaryProviderListIsDeclarative(t *testing.T) {
+	t.Parallel()
+
+	root := patternInvariantFixture(t, inferenceBoundaryPolicyYAML(
+		"example.com/provider/existing-sdk"))
+	packages := []goPackageImports{{
+		ImportPath: "example.com/project/cmd/agent",
+		Imports:    []string{"example.com/provider/new-sdk"},
+	}}
+	policy, err := loadInferenceBoundaryPolicy(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkInferenceBoundary(packages, policy); err != nil {
+		t.Fatalf("undeclared provider changed verdict: %v", err)
+	}
+	writePatternInvariantFixture(t, root, inferenceBoundaryPolicyYAML(
+		"example.com/provider/existing-sdk",
+		"example.com/provider/new-sdk"))
+	policy, err = loadInferenceBoundaryPolicy(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkInferenceBoundary(packages, policy); err == nil {
+		t.Fatal("adding provider to pattern language did not change verdict")
+	}
+}
+
+func loadInferenceBoundaryPolicy(root string) (inferenceBoundaryPolicy, error) {
+	language, err := loadPatternInvariants(filepath.Join(root, patternLanguagePath))
+	if err != nil {
+		return inferenceBoundaryPolicy{}, err
+	}
+	for _, pattern := range language.Patterns {
+		for _, invariant := range pattern.Invariants {
+			if invariant.ID != "P5.1" || invariant.Check == nil {
+				continue
+			}
+			check := invariant.Check
+			if check.Module == "" || len(check.AdapterPackages) == 0 ||
+				len(check.ProviderImports) == 0 {
+				return inferenceBoundaryPolicy{}, errors.New(
+					"P5.1 requires module, adapter_packages, and provider_imports")
+			}
+			return inferenceBoundaryPolicy{
+				module:          check.Module,
+				adapterPackages: append([]string(nil), check.AdapterPackages...),
+				providerImports: append([]string(nil), check.ProviderImports...),
+			}, nil
+		}
+	}
+	return inferenceBoundaryPolicy{}, errors.New("pattern language has no P5.1 invariant")
+}
+
+func listGoPackageImports(root, module string) ([]goPackageImports, error) {
+	cmd := exec.Command("go", "list", "-json", "./...")
+	cmd.Dir = filepath.Join(root, filepath.FromSlash(module))
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("list Go packages in %s: %w", module, err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(output))
+	var packages []goPackageImports
+	for {
+		var pkg goPackageImports
+		err := decoder.Decode(&pkg)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("decode go list output: %w", err)
+		}
+		packages = append(packages, pkg)
+	}
+	return packages, nil
+}
+
+func checkInferenceBoundary(packages []goPackageImports, policy inferenceBoundaryPolicy) error {
+	violations := make(map[string]bool)
+	for _, pkg := range packages {
+		if packageMatchesAnyPrefix(pkg.ImportPath, policy.adapterPackages) {
+			continue
+		}
+		for _, imported := range pkg.Imports {
+			if packageMatchesAnyPrefix(imported, policy.providerImports) {
+				violations[pkg.ImportPath] = true
+			}
+		}
+	}
+	names := make([]string, 0, len(violations))
+	for name := range violations {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if len(names) > 0 {
+		return fmt.Errorf("packages outside inference adapter import provider code: %s",
+			strings.Join(names, ", "))
+	}
+	return nil
+}
+
+func packageMatchesAnyPrefix(importPath string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if importPath == prefix || strings.HasPrefix(importPath, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func inferenceBoundaryPolicyYAML(providerImports ...string) string {
+	var yaml strings.Builder
+	yaml.WriteString(`
+patterns:
+  - id: inference-boundary
+    invariants:
+      - id: P5.1
+        statement: Provider imports stay inside the adapter.
+        check:
+          kind: executable
+          module: agent-core
+          adapter_packages:
+            - example.com/project/internal/model
+          provider_imports:
+`)
+	for _, providerImport := range providerImports {
+		fmt.Fprintf(&yaml, "            - %s\n", providerImport)
+	}
+	return yaml.String()
 }
 
 func executableInvariantYAML(id, negativeTest string) string {
