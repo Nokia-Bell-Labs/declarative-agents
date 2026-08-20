@@ -16,7 +16,7 @@ import (
 // ContractBaselineFile is the tracked ratchet for tool-contract completeness.
 // It lists the declared words whose six-section contract is still incomplete.
 // The list may shrink and must never grow (GH-1525).
-const ContractBaselineFile = "docs/tool-contract-completeness-baseline.yaml"
+const ContractBaselineFile = "pkg/spec/testdata/tool-contract-completeness-baseline.yaml"
 
 type contractBaseline struct {
 	Incomplete []contractBaselineEntry `yaml:"incomplete"`
