@@ -106,9 +106,10 @@ candidates:
           - agent-core/docs/specs/semantic-models/tool-language.yaml
           - agent-core/docs/specs/config-formats/tool-authoring-standard.yaml
       resolution: Deleted by GH-1794 after its seven alignment units were complete.
-    - path: agent-core/docs/rel03-rest-design-audit.md
+    - path: agent-core/docs/specs/audits/rel03-rest-design-audit.md
+      previous_path: agent-core/docs/rel03-rest-design-audit.md
       source: method_1
-      status: retained_pending_relocation
+      status: fixed
       classification: live_audit_report
       referrers:
         tracked:
@@ -120,7 +121,7 @@ candidates:
           - GH-1794
       supersession:
         status: not_superseded
-      resolution: GH-1792 relocates the report and repairs its active specification reference.
+      resolution: GH-1792 relocated the report and repaired its active specification reference.
     - path: agent-core/docs/tool-contract-completeness-baseline.yaml
       source: method_1
       status: pending
