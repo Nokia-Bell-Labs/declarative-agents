@@ -81,3 +81,5 @@ test_cases:
       - cd ../.. && mage stats
     traces:
       - rel12.0-uc001-agent-role-realization-alignment S6
+
+preconditions: []

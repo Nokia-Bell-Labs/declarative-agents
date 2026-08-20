@@ -9,3 +9,7 @@ note: |
   Pointer-only tombstone. The canonical suite and its proof commands live with
   the chatbot-mesh example. This retained identifier exists only to redirect
   historical references.
+
+traces: []
+preconditions: []
+test_cases: []

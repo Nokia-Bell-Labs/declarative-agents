@@ -48,3 +48,5 @@ out_of_scope:
   - Live kind installation and deployment documentation.
 
 test_suite: test-rel04.0-helm-topology
+
+touchpoints: []

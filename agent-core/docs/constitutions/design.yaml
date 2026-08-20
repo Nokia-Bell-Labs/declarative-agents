@@ -204,7 +204,7 @@ document_types:
       success_criteria: S1, S2, S3
     purpose: Describes one end-to-end path through the architecture.
   test_suite:
-    location: docs/specs/test-suites/test-relNN.N.yaml
+    location: docs/specs/test-suites/test-relNN.N-short-name.yaml
     required_fields:
     - id
     - title
@@ -265,7 +265,7 @@ document_types:
 naming_conventions:
   srd: srdNNN-short-name.yaml
   use_case: relNN.N-ucNNN-short-name.yaml
-  test_suite: test-relNN.N.yaml
+  test_suite: test-relNN.N-short-name.yaml
   audit_register: kebab-case.yaml
   audit_report: kebab-case.md
   config_format: kebab-case.yaml

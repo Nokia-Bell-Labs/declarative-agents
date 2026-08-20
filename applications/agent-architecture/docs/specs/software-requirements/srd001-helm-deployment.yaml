@@ -163,3 +163,5 @@ diagrams:
       OP -->|browser| CURATOR
       OP -->|query surface| COLLECTOR
     ```
+
+non_goals: []

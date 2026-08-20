@@ -42,3 +42,15 @@ requirements_traced:
   - srd022-applier R4
   - srd022-applier R5
   - srd003-application-consistency R5
+
+summary: Applications invoke one canonical applier family through local wrappers.
+actor: An authorized application caller.
+trigger: An application submits a decided values document to its local applier wrapper.
+touchpoints:
+  - id: T1
+    target: srd022-applier
+    reason: Defines the canonical applier behavior and terminal outcomes.
+success_criteria:
+  - id: S1
+    criterion: Reusable behavior remains canonical while applications retain endpoint and rollout authority.
+out_of_scope: []

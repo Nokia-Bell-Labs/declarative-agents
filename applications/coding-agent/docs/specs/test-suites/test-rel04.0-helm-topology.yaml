@@ -35,3 +35,5 @@ test_cases:
     go_test: go test ./magefiles -run '^TestHelmSmallAndOllamaValuesRender$'
     status: implemented
     traces: [srd003-helm-topology AC3, srd003-helm-topology AC4]
+
+preconditions: []

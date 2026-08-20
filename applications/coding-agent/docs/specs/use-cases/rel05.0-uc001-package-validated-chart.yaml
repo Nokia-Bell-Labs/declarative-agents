@@ -45,3 +45,5 @@ out_of_scope:
   - Operator deployment and teardown guide.
 
 test_suite: test-rel05.0-helm-package-validation
+
+touchpoints: []

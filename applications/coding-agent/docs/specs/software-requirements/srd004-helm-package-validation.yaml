@@ -49,3 +49,6 @@ acceptance_criteria:
   - id: AC3
     criterion: A packaged .tgz contains all role assets and independently passes helm lint and helm template.
     traces: [R3]
+
+goals: []
+non_goals: []

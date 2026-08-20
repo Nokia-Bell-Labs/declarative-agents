@@ -190,3 +190,5 @@ diagrams:
       Verify -->|RolloutStalled| Rollback["helm rollback"]
       Rollback --> RolledBack["500"]
     ```
+
+non_goals: []

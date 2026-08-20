@@ -15,12 +15,18 @@ Place a new document at the path for its type. Types and locations are declared 
 | architecture | `docs/ARCHITECTURE.yaml` |
 | specifications | `docs/SPECIFICATIONS.yaml` |
 | roadmap | `docs/road-map.yaml` |
+| pattern_language | `docs/pattern-language.yaml` |
+| engineering_guideline | `docs/engineering/engNN-short-name.yaml` |
 | srd | `docs/specs/software-requirements/srdNNN-short-name.yaml` |
 | use_case | `docs/specs/use-cases/relNN.N-ucNNN-short-name.yaml` |
-| test_suite | `docs/specs/test-suites/test-relNN.N.yaml` |
+| test_suite | `docs/specs/test-suites/test-relNN.N-short-name.yaml` |
+| audit_register | `docs/specs/audits/name.yaml` |
+| audit_report | `docs/specs/audits/name.md` |
 | semantic_model | `docs/specs/semantic-models/name.yaml` |
 | config_format | `docs/specs/config-formats/name.yaml` |
 | constitution | `docs/constitutions/name.yaml` |
+| migration | `docs/migrations/name.yaml` |
+| guide | `docs/guides/name.md` |
 
 Do not create a document that matches no declared type. Register the type in `docs/constitutions/design.yaml` first, or do not add the file. `mage audit` enforces this.
 

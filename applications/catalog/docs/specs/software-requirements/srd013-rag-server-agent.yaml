@@ -9,3 +9,10 @@ note: |
   composition, so its requirements and evidence live with the canonical
   example. Reusable corpus behavior remains under srd012 in applications/catalog.
   This retained identifier exists only to redirect historical references.
+
+problem: See canonical_path.
+goals: []
+requirements: []
+non_goals:
+  - Duplicating the canonical document at this historical path.
+acceptance_criteria: []

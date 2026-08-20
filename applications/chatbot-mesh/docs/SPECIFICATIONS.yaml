@@ -239,3 +239,8 @@ test_suite_index:
     release: "08.0"
     traces: [rel08.0-uc001-mesh-observer]
     path: docs/specs/test-suites/test-rel08.0-observer.yaml
+
+foundation_document_index: []
+config_format_index: []
+semantic_model_index: []
+coverage_gaps: []

@@ -41,3 +41,5 @@ test_cases:
     integration_target: mage integration:helmSmoke
     status: implemented
     traces: [srd005-live-helm-smoke R3.3]
+
+preconditions: []
