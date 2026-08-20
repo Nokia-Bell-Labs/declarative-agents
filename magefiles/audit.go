@@ -4,22 +4,75 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
+
+	"gopkg.in/yaml.v3"
 )
+
+const patternLanguagePath = "design-patterns/pattern-language.yaml"
 
 type statFunc func(string) (os.FileInfo, error)
 type auditRunner func(string) error
+type patternCheckRunner func(string, string, string) error
+
+type patternLanguageFile struct {
+	Patterns []patternWithInvariants `yaml:"patterns"`
+}
+
+type patternWithInvariants struct {
+	ID         string             `yaml:"id"`
+	Invariants []patternInvariant `yaml:"invariants"`
+}
+
+type patternInvariant struct {
+	ID        string                 `yaml:"id"`
+	Statement string                 `yaml:"statement"`
+	Check     *patternInvariantCheck `yaml:"check"`
+}
+
+type patternInvariantCheck struct {
+	Kind                    string   `yaml:"kind"`
+	Command                 string   `yaml:"command"`
+	Issue                   string   `yaml:"issue"`
+	Reason                  string   `yaml:"reason"`
+	NegativeTest            string   `yaml:"negative_test"`
+	Module                  string   `yaml:"module"`
+	AdapterPackages         []string `yaml:"adapter_packages"`
+	ProviderImports         []string `yaml:"provider_imports"`
+	RootTypes               []string `yaml:"root_types"`
+	WholeValueFuncs         []string `yaml:"whole_value_functions"`
+	DocumentationOnlyFields []string `yaml:"documentation_only_fields"`
+}
+
+type executablePatternCheck struct {
+	invariantID  string
+	command      string
+	negativeTest string
+}
+
+type patternInvariantSummary struct {
+	total      int
+	executable int
+	pending    int
+	manual     int
+}
 
 // Audit first validates repository-wide document placement and actor-role
 // realization, warms the agent build cache once, then runs mage audit in each
 // sub-module and participating example module concurrently.
 func Audit() error {
 	if err := runDocumentPlacementAudit(); err != nil {
+		return err
+	}
+	if err := runPatternInvariantAudit(); err != nil {
 		return err
 	}
 	if err := runAgentRoleRealizationAudit(); err != nil {
@@ -49,6 +102,143 @@ func runAgentRoleRealizationAudit() error {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("agent role-realization audit: %w", err)
+	}
+	return nil
+}
+
+func runPatternInvariantAudit() error {
+	return checkPatternInvariants(".", runPatternInvariantCommand, os.Stdout)
+}
+
+func checkPatternInvariants(root string, run patternCheckRunner, output io.Writer) error {
+	language, err := loadPatternInvariants(filepath.Join(root, patternLanguagePath))
+	if err != nil {
+		return err
+	}
+	checks, summary, err := validatePatternInvariants(language)
+	fmt.Fprintf(output, "manual-invariant count: %d\n", summary.manual)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "pattern invariants: %d total, %d executable, %d pending\n",
+		summary.total, summary.executable, summary.pending)
+	for _, check := range checks {
+		if err := run(root, check.command, check.negativeTest); err != nil {
+			return fmt.Errorf("pattern invariant %s: %w", check.invariantID, err)
+		}
+	}
+	return nil
+}
+
+func loadPatternInvariants(path string) (patternLanguageFile, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return patternLanguageFile{}, fmt.Errorf("read pattern invariants: %w", err)
+	}
+	var language patternLanguageFile
+	if err := yaml.Unmarshal(data, &language); err != nil {
+		return patternLanguageFile{}, fmt.Errorf("parse pattern invariants: %w", err)
+	}
+	return language, nil
+}
+
+func validatePatternInvariants(language patternLanguageFile) ([]executablePatternCheck, patternInvariantSummary, error) {
+	var summary patternInvariantSummary
+	var checks []executablePatternCheck
+	seen := make(map[string]bool)
+	for _, pattern := range language.Patterns {
+		if len(pattern.Invariants) == 0 {
+			return nil, summary, fmt.Errorf("pattern %s has no invariants", pattern.ID)
+		}
+		for _, invariant := range pattern.Invariants {
+			summary.total++
+			check, class, err := validatePatternInvariant(invariant, seen)
+			if err != nil {
+				return nil, summary, err
+			}
+			switch class {
+			case "manual":
+				summary.manual++
+			case "pending":
+				summary.executable++
+				summary.pending++
+			case "executable":
+				summary.executable++
+				checks = append(checks, *check)
+			}
+		}
+	}
+	return checks, summary, nil
+}
+
+func validatePatternInvariant(
+	invariant patternInvariant,
+	seen map[string]bool,
+) (*executablePatternCheck, string, error) {
+	if invariant.ID == "" {
+		return nil, "", fmt.Errorf("pattern invariant has no id")
+	}
+	if seen[invariant.ID] {
+		return nil, "", fmt.Errorf("duplicate pattern invariant %s", invariant.ID)
+	}
+	seen[invariant.ID] = true
+	if invariant.Statement == "" {
+		return nil, "", fmt.Errorf("pattern invariant %s has no statement", invariant.ID)
+	}
+	if invariant.Check == nil {
+		return nil, "", fmt.Errorf("pattern invariant %s has no check block", invariant.ID)
+	}
+	return classifyPatternInvariant(invariant)
+}
+
+func classifyPatternInvariant(invariant patternInvariant) (*executablePatternCheck, string, error) {
+	check := invariant.Check
+	switch check.Kind {
+	case "manual":
+		if check.Reason == "" {
+			return nil, "", fmt.Errorf("manual pattern invariant %s has no reason", invariant.ID)
+		}
+		return nil, "manual", nil
+	case "executable":
+		if check.NegativeTest == "" {
+			return nil, "", fmt.Errorf("executable pattern invariant %s has no negative test", invariant.ID)
+		}
+		if check.Command == "" {
+			if check.Issue == "" {
+				return nil, "", fmt.Errorf("executable pattern invariant %s has no command or issue", invariant.ID)
+			}
+			return nil, "pending", nil
+		}
+		if !strings.Contains(check.Command, check.NegativeTest) {
+			return nil, "", fmt.Errorf(
+				"executable pattern invariant %s command does not select negative test %s",
+				invariant.ID, check.NegativeTest)
+		}
+		return &executablePatternCheck{
+			invariantID:  invariant.ID,
+			command:      check.Command,
+			negativeTest: check.NegativeTest,
+		}, "executable", nil
+	default:
+		return nil, "", fmt.Errorf("pattern invariant %s has unknown check kind %q", invariant.ID, check.Kind)
+	}
+}
+
+func runPatternInvariantCommand(root, command, negativeTest string) error {
+	var transcript bytes.Buffer
+	stream := io.MultiWriter(os.Stdout, &transcript)
+	cmd := exec.Command("sh", "-c", command)
+	cmd.Dir = root
+	cmd.Stdout = stream
+	cmd.Stderr = stream
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("check command failed: %w", err)
+	}
+	runMarker := "=== RUN   " + negativeTest
+	passMarker := "--- PASS: " + negativeTest
+	if !strings.Contains(transcript.String(), runMarker) ||
+		!strings.Contains(transcript.String(), passMarker) {
+		return fmt.Errorf("negative test %s did not run and pass", negativeTest)
 	}
 	return nil
 }
