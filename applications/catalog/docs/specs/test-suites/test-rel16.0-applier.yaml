@@ -3,7 +3,13 @@
 id: test-rel16.0-applier
 title: Canonical Applier Family Conformance
 status: implemented
-use_cases: [rel16.0-uc001-applier-family]
+release: "16.0"
+traces: [rel16.0-uc001-applier-family]
+
+preconditions:
+  - The catalog applier profile closes against agent-core shared tools.
+  - Each application manifest declares the canonical applier and one local wrapper.
+  - Each wrapper owns its REST and rollout declarations.
 
 test_cases:
   - id: applier-catalog-closure
@@ -38,13 +44,3 @@ test_cases:
     assertions:
       - Catalog counts applier once.
       - Application appliers are composition wrappers and contribute no additional canonical agent.
-
-requirements_traced:
-  - srd022-applier AC1
-  - srd022-applier AC2
-  - srd022-applier AC3
-  - srd022-applier AC4
-
-release: "16.0"
-traces: [rel16.0-uc001-applier-family]
-preconditions: []

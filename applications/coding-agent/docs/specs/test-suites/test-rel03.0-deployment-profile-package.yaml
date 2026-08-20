@@ -37,4 +37,7 @@ test_cases:
     status: implemented
     traces: [srd002-deployment-profile-package AC3]
 
-preconditions: []
+preconditions:
+  - agents/application.yaml names the three serving entry profiles.
+  - The compatible applications/catalog checkout is available.
+  - Application and canonical source trees contain no symlinks.

@@ -50,4 +50,25 @@ out_of_scope:
 
 test_suite: test-rel02.0-serving-contract
 
-touchpoints: []
+touchpoints:
+  - id: T1
+    target: srd001-serving-contract R1
+    reason: S1 traces this requirement in the existing success criteria.
+  - id: T2
+    target: srd001-serving-contract AC1
+    reason: S1 traces this requirement in the existing success criteria.
+  - id: T3
+    target: srd001-serving-contract R2
+    reason: S2 traces this requirement in the existing success criteria.
+  - id: T4
+    target: srd001-serving-contract R3
+    reason: S2 traces this requirement in the existing success criteria.
+  - id: T5
+    target: srd001-serving-contract AC2
+    reason: S2 traces this requirement in the existing success criteria.
+  - id: T6
+    target: srd001-serving-contract R4.3
+    reason: S3 traces this requirement in the existing success criteria.
+  - id: T7
+    target: srd001-serving-contract AC3
+    reason: S3 traces this requirement in the existing success criteria.

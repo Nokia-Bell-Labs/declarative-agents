@@ -60,4 +60,16 @@ out_of_scope:
 
 test_suite: test-rel01.0-demo-trace-collection
 
-touchpoints: []
+touchpoints:
+  - id: T1
+    target: architecture-agent-architecture design_decisions 7
+    reason: S1 traces this requirement in the existing success criteria.
+  - id: T2
+    target: test-rel01.0-demo-trace-collection collector_command
+    reason: S1 traces this requirement in the existing success criteria.
+  - id: T3
+    target: test-rel01.0-demo-trace-collection traced_curator_command
+    reason: S2 traces this requirement in the existing success criteria.
+  - id: T4
+    target: test-rel01.0-demo-trace-collection tracing_enabled
+    reason: S3 traces this requirement in the existing success criteria.

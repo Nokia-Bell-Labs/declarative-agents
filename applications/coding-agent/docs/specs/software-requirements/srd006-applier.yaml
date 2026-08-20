@@ -189,4 +189,11 @@ diagrams:
       Rollback --> RolledBack["500"]
     ```
 
-non_goals: []
+non_goals:
+  - The applier shall not decide the values change; the authorized operator or CI caller decides it and submits it as the apply
+    request's values-plane content.
+  - The applier shall not select role profiles or own agent lifecycle; those remain the packaging and chart's (srd002, srd003).
+  - The applier shall run the shared applier image -- agent-core plus the helm and kubectl CLIs, one recipe across every application,
+    baking no chart; this is a sanctioned divergence from the profile-free, binary-only image contract (srd003 R1.2), recorded
+    so the declarative-decomposition audit does not re-flag it. The chart the applier installs shall be delivered to its pod
+    at /chart as a mounted volume, so the chart bytes travel with the Helm release rather than an image rebuild.

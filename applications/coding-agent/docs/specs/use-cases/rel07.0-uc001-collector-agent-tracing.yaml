@@ -53,4 +53,16 @@ out_of_scope:
 
 test_suite: test-rel07.0-collector-agent-tracing
 
-touchpoints: []
+touchpoints:
+  - id: T1
+    target: srd003-helm-topology R3.4
+    reason: S1 traces this requirement in the existing success criteria.
+  - id: T2
+    target: srd003-helm-topology R3.3
+    reason: S2 traces this requirement in the existing success criteria.
+  - id: T3
+    target: srd004-helm-package-validation R1
+    reason: S3 traces this requirement in the existing success criteria.
+  - id: T4
+    target: srd005-live-helm-smoke R3.3
+    reason: S4 traces this requirement in the existing success criteria.

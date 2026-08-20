@@ -61,5 +61,16 @@ acceptance_criteria:
     criterion: Deterministic tests distinguish infrastructure and semantic failures and prove bounded diagnostics.
     traces: [R4]
 
-goals: []
-non_goals: []
+goals:
+  - id: G1
+    text: Prerequisites and ownership.
+  - id: G2
+    text: Real packaged topology.
+  - id: G3
+    text: End-to-end evidence.
+  - id: G4
+    text: Failure classification.
+non_goals:
+  - Production model performance and GPU sizing.
+  - Multi-node RWX and high availability.
+  - Public ingress and authentication.

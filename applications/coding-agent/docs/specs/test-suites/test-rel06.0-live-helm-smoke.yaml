@@ -36,4 +36,6 @@ test_cases:
     status: implemented
     traces: [srd005-live-helm-smoke AC1]
 
-preconditions: []
+preconditions:
+  - Docker, kind, Helm, kubectl, and the required local images are available.
+  - The agent-core and applications/catalog checkouts are present.

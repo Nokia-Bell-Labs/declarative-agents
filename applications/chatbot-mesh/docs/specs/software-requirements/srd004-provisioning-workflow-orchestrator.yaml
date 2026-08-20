@@ -173,4 +173,10 @@ diagrams:
       Provisioning Workflow Orchestrator -->|status| Chatbot
     ```
 
-non_goals: []
+non_goals:
+  - The provisioning-workflow-orchestrator SHALL NOT orchestrate the chat turn path (route, embed, fan-out, compose); that stays
+    in the chatbot (srd002).
+  - The provisioning-workflow-orchestrator SHALL NOT perform agent lifecycle mechanics (template selection, instance creation,
+    rollout execution, health probing); those are the creator (srd005).
+  - The provisioning-workflow-orchestrator SHALL NOT mutate a running agent's client registry in process; reconfiguration is
+    a rollout (srd003 R3.3).

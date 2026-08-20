@@ -36,4 +36,6 @@ test_cases:
     status: implemented
     traces: [srd003-helm-topology AC3, srd003-helm-topology AC4]
 
-preconditions: []
+preconditions:
+  - The
+  - Helm is available.

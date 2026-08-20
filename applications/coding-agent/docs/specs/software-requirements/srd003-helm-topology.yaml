@@ -68,5 +68,16 @@ acceptance_criteria:
     criterion: helm lint and default and CI helm template commands pass after mage helmPrepare.
     traces: [R4]
 
-goals: []
-non_goals: []
+goals:
+  - id: G1
+    text: Real role workloads.
+  - id: G2
+    text: Serving contract wiring.
+  - id: G3
+    text: Model and observability tiers.
+  - id: G4
+    text: Reproducible preparation.
+non_goals:
+  - values.schema.json and negative schema fixtures.
+  - Packaged-chart archive testing.
+  - Live kind installation and deployment documentation.

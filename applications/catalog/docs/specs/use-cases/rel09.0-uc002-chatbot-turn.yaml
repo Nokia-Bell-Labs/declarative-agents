@@ -15,5 +15,4 @@ trigger: See canonical_path.
 flow: []
 touchpoints: []
 success_criteria: []
-out_of_scope:
-  - Duplicating the canonical document at this historical path.
+out_of_scope: []
