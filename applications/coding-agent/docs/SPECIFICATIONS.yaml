@@ -73,7 +73,7 @@ foundation_document_index:
   - id: coding-agent-deployment-guide
     title: Coding-Agent Deployment and Operations
     summary: Packaged chart prerequisites, configuration, verification, troubleshooting, security, rollback, and teardown.
-    path: docs/deployment.md
+    path: docs/guides/deployment.md
 
 srd_index:
   - id: srd001-serving-contract
