@@ -64,3 +64,6 @@ acceptance_criteria:
   - id: AC4
     criterion: The existing local batch coding-loop tests and integrations remain valid.
     traces: [R2.4]
+
+goals: []
+non_goals: []

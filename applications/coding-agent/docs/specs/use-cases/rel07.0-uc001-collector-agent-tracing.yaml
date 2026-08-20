@@ -52,3 +52,5 @@ out_of_scope:
   - Relay mode; the chart collector runs spool-only.
 
 test_suite: test-rel07.0-collector-agent-tracing
+
+touchpoints: []

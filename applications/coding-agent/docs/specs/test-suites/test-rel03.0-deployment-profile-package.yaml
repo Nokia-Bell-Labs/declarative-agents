@@ -36,3 +36,5 @@ test_cases:
     go_test: go test ./magefiles -run '^TestDeploymentManifestPreservesProfileFreeRuntime$'
     status: implemented
     traces: [srd002-deployment-profile-package AC3]
+
+preconditions: []

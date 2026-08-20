@@ -60,3 +60,6 @@ acceptance_criteria:
   - id: AC3
     criterion: Deterministic tests distinguish infrastructure and semantic failures and prove bounded diagnostics.
     traces: [R4]
+
+goals: []
+non_goals: []

@@ -67,3 +67,6 @@ acceptance_criteria:
   - id: AC4
     criterion: helm lint and default and CI helm template commands pass after mage helmPrepare.
     traces: [R4]
+
+goals: []
+non_goals: []

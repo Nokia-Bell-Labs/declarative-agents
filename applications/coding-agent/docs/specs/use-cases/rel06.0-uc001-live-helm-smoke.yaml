@@ -54,3 +54,5 @@ out_of_scope:
   - Public ingress and authentication.
 
 test_suite: test-rel06.0-live-helm-smoke
+
+touchpoints: []

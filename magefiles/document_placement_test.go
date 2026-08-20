@@ -32,6 +32,8 @@ type documentType struct {
 type documentLocationMatcher struct {
 	documentType string
 	location     string
+	format       string
+	required     []string
 	pattern      *regexp.Regexp
 }
 
@@ -148,6 +150,90 @@ func TestDocumentPlacementRejectsUnknownPlaceholderSyntax(t *testing.T) {
 	}
 }
 
+func TestDocumentPlacementReportsMissingRequiredFields(t *testing.T) {
+	root := newDocumentPlacementRepository(t, `
+document_types:
+  constitution:
+    location: docs/constitutions/name.yaml
+  runbook:
+    location: docs/runbooks/name.yaml
+    required_fields:
+      - id
+      - title
+      - steps
+`, map[string]string{
+		"module/docs/runbooks/recovery.yaml": `
+id: recovery
+steps: []
+`,
+	})
+
+	err := checkDocumentPlacement(root)
+	if err == nil {
+		t.Fatal("placement check passed with a missing required field")
+	}
+	want := "module/docs/runbooks/recovery.yaml: document type runbook missing required field title"
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error missing %q:\n%v", want, err)
+	}
+}
+
+func TestDocumentPlacementLoadsRequiredFieldsWithoutCodeChange(t *testing.T) {
+	root := newDocumentPlacementRepository(t, `
+document_types:
+  constitution:
+    location: docs/constitutions/name.yaml
+  runbook:
+    location: docs/runbooks/name.yaml
+    required_fields:
+      - id
+`, map[string]string{
+		"module/docs/runbooks/recovery.yaml": "id: recovery",
+	})
+	if err := checkDocumentPlacement(root); err != nil {
+		t.Fatal(err)
+	}
+
+	writeDocumentPlacementFile(t, root, documentTypeRegistryPath, `
+document_types:
+  constitution:
+    location: docs/constitutions/name.yaml
+  runbook:
+    location: docs/runbooks/name.yaml
+    required_fields:
+      - id
+      - owner
+`)
+	err := checkDocumentPlacement(root)
+	if err == nil || !strings.Contains(err.Error(), "missing required field owner") {
+		t.Fatalf("placement after required_fields-only change = %v, want missing owner", err)
+	}
+}
+
+func TestDocumentPlacementChecksPresenceOnlyAndSkipsMarkdown(t *testing.T) {
+	root := newDocumentPlacementRepository(t, `
+document_types:
+  constitution:
+    location: docs/constitutions/name.yaml
+  runbook:
+    location: docs/runbooks/name.yaml
+    required_fields:
+      - id
+      - title
+  guide:
+    location: docs/guides/name.md
+    format: markdown
+    required_fields:
+      - ignored_for_markdown
+`, map[string]string{
+		"module/docs/runbooks/recovery.yaml": "id: recovery\ntitle:",
+		"module/docs/guides/operator.md":     "# Free-form guide",
+	})
+	if err := checkDocumentPlacement(root); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func checkDocumentPlacement(root string) error {
 	matchers, err := loadDocumentLocationMatchers(filepath.Join(root, documentTypeRegistryPath))
 	if err != nil {
@@ -163,16 +249,33 @@ func checkDocumentPlacement(root string) error {
 		if excludedDocumentPath(candidate) {
 			continue
 		}
-		matched := false
-		for _, matcher := range matchers {
+		var matched *documentLocationMatcher
+		for index := range matchers {
+			matcher := &matchers[index]
 			if matcher.pattern.MatchString(candidate) {
-				matched = true
+				matched = matcher
 				break
 			}
 		}
-		if !matched {
+		if matched == nil {
 			failures = append(failures,
 				candidate+": matches no declared document type location")
+			continue
+		}
+		if strings.EqualFold(matched.format, "markdown") {
+			continue
+		}
+		missing, err := missingDocumentFields(filepath.Join(root, filepath.FromSlash(candidate)), matched.required)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf(
+				"%s: document type %s cannot be parsed as YAML: %v",
+				candidate, matched.documentType, err))
+			continue
+		}
+		for _, field := range missing {
+			failures = append(failures, fmt.Sprintf(
+				"%s: document type %s missing required field %s",
+				candidate, matched.documentType, field))
 		}
 	}
 	if len(failures) != 0 {
@@ -207,10 +310,40 @@ func loadDocumentLocationMatchers(filename string) ([]documentLocationMatcher, e
 		matchers = append(matchers, documentLocationMatcher{
 			documentType: name,
 			location:     location,
+			format:       registry.DocumentTypes[name].Format,
+			required:     append([]string(nil), registry.DocumentTypes[name].RequiredFields...),
 			pattern:      pattern,
 		})
 	}
 	return matchers, nil
+}
+
+func missingDocumentFields(filename string, required []string) ([]string, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	var document yaml.Node
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		return nil, err
+	}
+
+	present := map[string]bool{}
+	if len(document.Content) != 0 {
+		root := document.Content[0]
+		if root.Kind == yaml.MappingNode {
+			for index := 0; index+1 < len(root.Content); index += 2 {
+				present[root.Content[index].Value] = true
+			}
+		}
+	}
+	var missing []string
+	for _, field := range required {
+		if !present[field] {
+			missing = append(missing, field)
+		}
+	}
+	return missing, nil
 }
 
 func compileDocumentLocation(location string) (*regexp.Regexp, error) {

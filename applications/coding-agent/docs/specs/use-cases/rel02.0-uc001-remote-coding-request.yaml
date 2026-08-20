@@ -49,3 +49,5 @@ out_of_scope:
   - Replacing the local canonical batch integrations.
 
 test_suite: test-rel02.0-serving-contract
+
+touchpoints: []

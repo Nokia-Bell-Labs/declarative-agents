@@ -8,3 +8,10 @@ note: |
   Pointer-only tombstone. The chatbot is chatbot-mesh application composition,
   so its requirements and evidence live with the canonical example. This
   retained identifier exists only to redirect historical references.
+
+problem: See canonical_path.
+goals: []
+requirements: []
+non_goals:
+  - Duplicating the canonical document at this historical path.
+acceptance_criteria: []

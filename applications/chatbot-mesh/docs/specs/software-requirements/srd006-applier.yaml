@@ -265,3 +265,5 @@ diagrams:
       Verify -->|RolloutStalled| Rollback
       Rollback --> Failed["500"]
     ```
+
+non_goals: []

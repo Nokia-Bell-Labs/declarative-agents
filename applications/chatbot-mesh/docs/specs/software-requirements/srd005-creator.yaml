@@ -199,3 +199,5 @@ diagrams:
       R5 --> AC5["AC5: sole deployment-API authority, no endpoint into an agent"]
       R6 --> AC5
     ```
+
+non_goals: []

@@ -66,3 +66,5 @@ out_of_scope:
   - Closing the independent Release 07.1 or 11.0 behavioral evidence gaps.
   - Publishing immutable release tags before this branch is merged to main.
   - Renaming stable capability words, historical IDs, or runtime monitor infrastructure.
+
+trigger: A maintainer starts the coordinated compatibility release.

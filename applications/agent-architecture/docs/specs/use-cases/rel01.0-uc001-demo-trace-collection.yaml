@@ -59,3 +59,5 @@ out_of_scope:
   - Browser automation of the collector query surface.
 
 test_suite: test-rel01.0-demo-trace-collection
+
+touchpoints: []

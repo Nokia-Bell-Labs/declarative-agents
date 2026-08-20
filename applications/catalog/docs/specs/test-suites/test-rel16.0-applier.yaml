@@ -5,7 +5,7 @@ title: Canonical Applier Family Conformance
 status: implemented
 use_cases: [rel16.0-uc001-applier-family]
 
-cases:
+test_cases:
   - id: applier-catalog-closure
     verifies: [S1]
     command: mage validate
@@ -44,3 +44,7 @@ requirements_traced:
   - srd022-applier AC2
   - srd022-applier AC3
   - srd022-applier AC4
+
+release: "16.0"
+traces: [rel16.0-uc001-applier-family]
+preconditions: []
