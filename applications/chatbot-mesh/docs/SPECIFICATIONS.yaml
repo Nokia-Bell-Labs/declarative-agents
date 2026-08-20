@@ -240,7 +240,39 @@ test_suite_index:
     traces: [rel08.0-uc001-mesh-observer]
     path: docs/specs/test-suites/test-rel08.0-observer.yaml
 
-foundation_document_index: []
+foundation_document_index:
+  - id: chatbot-mesh-example
+    title: "Chatbot Mesh: A Copyable Declarative Agent Application"
+    summary: Goals, boundaries, and success criteria for the chatbot mesh.
+    path: docs/VISION.yaml
+  - id: architecture-chatbot-mesh-example
+    title: Chatbot Mesh Architecture
+    summary: Components, ownership boundaries, deployment, and runtime flows.
+    path: docs/ARCHITECTURE.yaml
+  - id: chatbot-mesh-example-roadmap
+    title: Chatbot Mesh Example Road Map
+    summary: Release plan and implementation status for the application.
+    path: docs/road-map.yaml
+  - id: chatbot-mesh-how-it-works
+    title: How the Chatbot Mesh Works
+    summary: Operator and developer guide to the application flow.
+    path: docs/guides/how-it-works.md
+
 config_format_index: []
-semantic_model_index: []
-coverage_gaps: []
+
+semantic_model_index:
+  - id: sm-agent-role-realizations
+    title: Agent Role Realizations and Bindings
+    summary: Canonical role bindings for chatbot-mesh actors and profiles.
+    path: ../../docs/specs/semantic-models/agent-role-realizations.yaml
+
+coverage_gaps:
+  - release: "05.0"
+    status: partial
+    gap: Control-plane provisioning remains partially implemented.
+  - release: "07.0"
+    status: partial
+    gap: Collector-agent evidence remains partial.
+  - release: "08.0"
+    status: planned
+    gap: Fleet-observer evidence remains planned.

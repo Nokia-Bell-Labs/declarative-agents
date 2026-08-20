@@ -52,4 +52,16 @@ out_of_scope:
 
 test_suite: test-rel03.0-deployment-profile-package
 
-touchpoints: []
+touchpoints:
+  - id: T1
+    target: srd002-deployment-profile-package R1
+    reason: S1 traces this requirement in the existing success criteria.
+  - id: T2
+    target: srd002-deployment-profile-package R2
+    reason: S2 traces this requirement in the existing success criteria.
+  - id: T3
+    target: srd002-deployment-profile-package R3
+    reason: S3 traces this requirement in the existing success criteria.
+  - id: T4
+    target: srd002-deployment-profile-package R4
+    reason: S4 traces this requirement in the existing success criteria.

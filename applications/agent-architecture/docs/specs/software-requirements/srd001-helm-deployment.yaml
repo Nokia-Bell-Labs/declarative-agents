@@ -164,4 +164,7 @@ diagrams:
       OP -->|query surface| COLLECTOR
     ```
 
-non_goals: []
+non_goals:
+  - Forking the canonical documentation-curator or collector profiles into this application.
+  - Baking application profile or UI assets into a per-application runtime image.
+  - Moving application-owned applier behavior into the deployment chart.

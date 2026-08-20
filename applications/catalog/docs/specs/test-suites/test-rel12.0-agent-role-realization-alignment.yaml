@@ -82,4 +82,7 @@ test_cases:
     traces:
       - rel12.0-uc001-agent-role-realization-alignment S6
 
-preconditions: []
+preconditions:
+  - Issues 1068 through 1070 and 1072 through 1077 are complete.
+  - The shared role-realization semantic model and executable validator are present.
+  - Catalog releases 07.1 and 11.0 retain their independent in-progress evidence gaps.

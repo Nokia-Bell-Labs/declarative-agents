@@ -65,5 +65,16 @@ acceptance_criteria:
     criterion: The existing local batch coding-loop tests and integrations remain valid.
     traces: [R2.4]
 
-goals: []
-non_goals: []
+goals:
+  - id: G1
+    text: Persistent role hosts.
+  - id: G2
+    text: Canonical role composition.
+  - id: G3
+    text: Remote application sequence.
+  - id: G4
+    text: Shared workspace and trace.
+non_goals:
+  - Helm resources, profile ConfigMap sizing, and closure sharding.
+  - Per-request filesystem roots or dynamically supplied transport authority.
+  - Replacing the local canonical batch integrations.

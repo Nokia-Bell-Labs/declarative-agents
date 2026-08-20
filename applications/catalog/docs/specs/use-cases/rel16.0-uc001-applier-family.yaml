@@ -4,12 +4,13 @@ id: rel16.0-uc001-applier-family
 title: Three applications compose one canonical applier family
 status: implemented
 
-actors:
-  - catalog applier
-  - chatbot-mesh wrapper
-  - coding-agent wrapper
-  - agent-architecture wrapper
-  - authorized application caller
+summary: |
+  Applications invoke one catalog-owned applier family through local wrappers.
+  The catalog owns reusable validation, apply, verification, and compensation
+  behavior while each application retains endpoint and rollout authority.
+
+actor: Catalog maintainers, application wrapper owners, and authorized application callers.
+trigger: An application submits a decided values document to its local applier wrapper.
 
 preconditions:
   - The catalog applier profile closes against agent-core shared tools.
@@ -17,40 +18,54 @@ preconditions:
   - Each wrapper owns its REST and rollout declarations.
 
 flow:
-  - id: S1
-    action: The catalog boots the chart-independent applier profile and validates the host, apply, and rollout-read machines.
-  - id: S2
-    action: An application wrapper hosts its local endpoint and binds a decided values document to the canonical apply machine.
-  - id: S3
-    action: The machine writes and validates the document before invoking the application-owned apply command.
-  - id: S4
-    action: The application-owned verify word checks every local rollout target.
-  - id: S5
-    action: A failed verification invokes the application-owned rollback and reaches RolledBack only when compensation succeeds.
-  - id: S6
-    action: Packaging records canonical and local sources, and audits reject a copied promoted asset.
+  - id: F1
+    text: The catalog boots the chart-independent applier profile and validates the host, apply, and rollout-read machines.
+  - id: F2
+    text: An application wrapper hosts its local endpoint and binds a decided values document to the canonical apply machine.
+  - id: F3
+    text: The machine writes and validates the document before invoking the application-owned apply command.
+  - id: F4
+    text: The application-owned verify word checks every local rollout target.
+  - id: F5
+    text: A failed verification invokes the application-owned rollback and reaches RolledBack only when compensation succeeds.
+  - id: F6
+    text: Packaging records canonical and local sources, and audits reject a copied promoted asset.
 
-postconditions:
-  - One catalog family owns reusable applier behavior.
-  - Application wrappers retain endpoint, chart, rollout, and authorization authority.
-  - Validation and compensation outcomes remain explicit.
-
-requirements_traced:
-  - srd022-applier R1
-  - srd022-applier R2
-  - srd022-applier R3
-  - srd022-applier R4
-  - srd022-applier R5
-  - srd003-application-consistency R5
-
-summary: Applications invoke one canonical applier family through local wrappers.
-actor: An authorized application caller.
-trigger: An application submits a decided values document to its local applier wrapper.
 touchpoints:
   - id: T1
-    target: srd022-applier
-    reason: Defines the canonical applier behavior and terminal outcomes.
+    target: srd022-applier R1
+    reason: Defines the canonical lifecycle and request-machine sequence.
+  - id: T2
+    target: srd022-applier R2
+    reason: Defines the shared applier vocabulary.
+  - id: T3
+    target: srd022-applier R3
+    reason: Keeps deployment authority in each application wrapper.
+  - id: T4
+    target: srd022-applier R4
+    reason: Defines validation, verification, and compensation behavior.
+  - id: T5
+    target: srd022-applier R5
+    reason: Defines portability, release, and ownership evidence.
+  - id: T6
+    target: srd003-application-consistency R5
+    reason: Defines canonical-reference and composition-wrapper consistency.
+
 success_criteria:
   - id: S1
-    criterion: Reusable behavior remains canonical while applications retain endpoint and rollout authority.
-out_of_scope: []
+    criterion: The catalog applier profile boots independently with canonical host, apply, and rollout-read machines.
+  - id: S2
+    criterion: Every application wrapper binds its local endpoint and decided values document to the canonical apply machine.
+  - id: S3
+    criterion: Validation completes before the application-owned apply command runs.
+  - id: S4
+    criterion: Verification checks every rollout target selected by the application.
+  - id: S5
+    criterion: Verification failure invokes rollback and reports compensation success or failure explicitly.
+  - id: S6
+    criterion: Packaging records canonical and local sources without copying a promoted asset.
+
+out_of_scope:
+  - Owning any consuming application's chart, endpoint, deployment topology, credentials, RBAC, or operator workflow.
+  - Implementing Helm, kubectl, REST, lifecycle, or filesystem runtime behavior.
+  - Requiring one application to adopt another application's state-read extension.

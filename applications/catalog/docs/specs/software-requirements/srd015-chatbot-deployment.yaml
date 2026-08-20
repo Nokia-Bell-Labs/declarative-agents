@@ -13,6 +13,5 @@ note: |
 problem: See canonical_path.
 goals: []
 requirements: []
-non_goals:
-  - Duplicating the canonical document at this historical path.
+non_goals: []
 acceptance_criteria: []

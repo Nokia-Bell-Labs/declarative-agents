@@ -266,4 +266,10 @@ diagrams:
       Rollback --> Failed["500"]
     ```
 
-non_goals: []
+non_goals:
+  - The applier SHALL NOT decide the values changes; that decision is the provisioning-workflow-orchestrator's (srd004 R3.1).
+  - The applier SHALL NOT select templates or own agent lifecycle; those are the creator's (srd005).
+  - The applier SHALL run the shared applier image, which carries the helm and kubectl CLIs alongside the agent-core runtime
+    binary; this is a sanctioned divergence from the binary-only image contract (srd003 R1.3), recorded so the declarative-decomposition
+    audit does not re-flag it. The app's chart SHALL be delivered to the applier pod as a mounted volume at /chart rather than
+    baked into the image (GH-1368), so one shared image serves every application.

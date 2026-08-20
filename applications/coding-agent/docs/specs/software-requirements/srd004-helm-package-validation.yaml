@@ -50,5 +50,14 @@ acceptance_criteria:
     criterion: A packaged .tgz contains all role assets and independently passes helm lint and helm template.
     traces: [R3]
 
-goals: []
-non_goals: []
+goals:
+  - id: G1
+    text: Strict values.
+  - id: G2
+    text: Package integrity.
+  - id: G3
+    text: Self-contained Helm archive.
+non_goals:
+  - Live Kubernetes installation.
+  - kind cluster setup and teardown.
+  - Operator deployment and teardown guide.

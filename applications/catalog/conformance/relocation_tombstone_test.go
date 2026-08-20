@@ -6,29 +6,76 @@ package conformance
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
 
+var relocatedMeshRecords = map[string][]string{
+	"docs/specs/software-requirements/srd013-rag-server-agent.yaml": {
+		"problem", "goals", "requirements", "non_goals", "acceptance_criteria",
+	},
+	"docs/specs/software-requirements/srd014-chatbot-agent.yaml": {
+		"problem", "goals", "requirements", "non_goals", "acceptance_criteria",
+	},
+	"docs/specs/software-requirements/srd015-chatbot-deployment.yaml": {
+		"problem", "goals", "requirements", "non_goals", "acceptance_criteria",
+	},
+	"docs/specs/software-requirements/srd016-coordinator.yaml": {
+		"problem", "goals", "requirements", "non_goals", "acceptance_criteria",
+	},
+	"docs/specs/software-requirements/srd017-creator.yaml": {
+		"problem", "goals", "requirements", "non_goals", "acceptance_criteria",
+	},
+	"docs/specs/use-cases/rel09.0-uc001-rag-server-query.yaml": {
+		"summary", "actor", "trigger", "flow", "touchpoints", "success_criteria", "out_of_scope",
+	},
+	"docs/specs/use-cases/rel09.0-uc002-chatbot-turn.yaml": {
+		"summary", "actor", "trigger", "flow", "touchpoints", "success_criteria", "out_of_scope",
+	},
+	"docs/specs/use-cases/rel09.1-uc001-routed-fanout.yaml": {
+		"summary", "actor", "trigger", "flow", "touchpoints", "success_criteria", "out_of_scope",
+	},
+	"docs/specs/use-cases/rel09.2-uc001-observability.yaml": {
+		"summary", "actor", "trigger", "flow", "touchpoints", "success_criteria", "out_of_scope",
+	},
+	"docs/specs/use-cases/rel09.3-uc001-mesh-deployment.yaml": {
+		"summary", "actor", "trigger", "flow", "touchpoints", "success_criteria", "out_of_scope",
+	},
+	"docs/specs/use-cases/rel09.4-uc001-control-plane-provisioning.yaml": {
+		"summary", "actor", "trigger", "flow", "touchpoints", "success_criteria", "out_of_scope",
+	},
+	"docs/specs/use-cases/rel09.5-uc001-in-cluster-llm-tier.yaml": {
+		"summary", "actor", "trigger", "flow", "touchpoints", "success_criteria", "out_of_scope",
+	},
+	"docs/specs/test-suites/test-rel09.0-chatbot-mesh.yaml": {
+		"traces", "preconditions", "test_cases",
+	},
+	"docs/specs/test-suites/test-rel09.1-routing-fanout.yaml": {
+		"traces", "preconditions", "test_cases",
+	},
+	"docs/specs/test-suites/test-rel09.2-observability.yaml": {
+		"traces", "preconditions", "test_cases",
+	},
+	"docs/specs/test-suites/test-rel09.3-mesh-deployment.yaml": {
+		"traces", "preconditions", "test_cases",
+	},
+	"docs/specs/test-suites/test-rel09.4-control-plane.yaml": {
+		"traces", "preconditions", "test_cases",
+	},
+	"docs/specs/test-suites/test-rel09.5-llm-tier.yaml": {
+		"traces", "preconditions", "test_cases",
+	},
+}
+
 func TestRelocatedMeshRecordsArePointerOnlyTombstones(t *testing.T) {
 	t.Parallel()
-	records := []string{
-		"docs/specs/software-requirements/srd013-rag-server-agent.yaml",
-		"docs/specs/software-requirements/srd014-chatbot-agent.yaml",
-		"docs/specs/use-cases/rel09.0-uc001-rag-server-query.yaml",
-		"docs/specs/use-cases/rel09.0-uc002-chatbot-turn.yaml",
-		"docs/specs/use-cases/rel09.1-uc001-routed-fanout.yaml",
-		"docs/specs/use-cases/rel09.2-uc001-observability.yaml",
-		"docs/specs/test-suites/test-rel09.0-chatbot-mesh.yaml",
-		"docs/specs/test-suites/test-rel09.1-routing-fanout.yaml",
-		"docs/specs/test-suites/test-rel09.2-observability.yaml",
-	}
-	allowed := map[string]bool{
+	pointerFields := map[string]bool{
 		"id": true, "title": true, "release": true, "status": true,
 		"canonical_path": true, "note": true,
 	}
-	for _, rel := range records {
+	for rel, required := range relocatedMeshRecords {
 		var record map[string]any
 		readRoleYAML(t, rel, &record)
 		if record["status"] != "relocated" {
@@ -40,11 +87,35 @@ func TestRelocatedMeshRecordsArePointerOnlyTombstones(t *testing.T) {
 		} else if _, err := os.Stat(filepath.Join(ProfilesRoot(), "..", "..", filepath.FromSlash(canonical))); err != nil {
 			t.Errorf("%s canonical_path %s: %v", rel, canonical, err)
 		}
-		for key := range record {
+		allowed := make(map[string]bool, len(pointerFields)+len(required))
+		for key := range pointerFields {
+			allowed[key] = true
+		}
+		for _, key := range required {
+			allowed[key] = true
+		}
+		for key, value := range record {
 			if !allowed[key] {
 				t.Errorf("%s contains live %q content; relocated records must be pointer-only", rel, key)
+			} else if !pointerFields[key] && !isPointerSentinel(value) {
+				t.Errorf("%s field %q = %#v, want empty or canonical_path sentinel", rel, key, value)
 			}
 		}
+	}
+}
+
+func isPointerSentinel(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return true
+	case string:
+		return typed == "See canonical_path."
+	case []any:
+		return len(typed) == 0
+	case map[string]any:
+		return len(typed) == 0
+	default:
+		return false
 	}
 }
 
@@ -67,12 +138,10 @@ func TestRelocatedMeshSpecificationIndexPointsToCanonicalRecords(t *testing.T) {
 	if err := yaml.Unmarshal(data, &index); err != nil {
 		t.Fatal(err)
 	}
-	wanted := map[string]bool{
-		"srd013-rag-server-agent": false, "srd014-chatbot-agent": false,
-		"rel09.0-uc001-rag-server-query": false, "rel09.0-uc002-chatbot-turn": false,
-		"rel09.1-uc001-routed-fanout": false, "rel09.2-uc001-observability": false,
-		"test-rel09.0-chatbot-mesh": false, "test-rel09.1-routing-fanout": false,
-		"test-rel09.2-observability": false,
+	wanted := make(map[string]bool, len(relocatedMeshRecords))
+	for rel := range relocatedMeshRecords {
+		base := filepath.Base(rel)
+		wanted[strings.TrimSuffix(base, filepath.Ext(base))] = false
 	}
 	for _, section := range [][]entry{index.SRDs, index.UseCases, index.TestSuites} {
 		for _, indexed := range section {

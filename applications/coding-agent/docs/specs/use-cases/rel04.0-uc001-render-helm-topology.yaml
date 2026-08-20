@@ -49,4 +49,19 @@ out_of_scope:
 
 test_suite: test-rel04.0-helm-topology
 
-touchpoints: []
+touchpoints:
+  - id: T1
+    target: srd003-helm-topology R1
+    reason: S1 traces this requirement in the existing success criteria.
+  - id: T2
+    target: srd003-helm-topology AC1
+    reason: S1 traces this requirement in the existing success criteria.
+  - id: T3
+    target: srd003-helm-topology AC2
+    reason: S2 traces this requirement in the existing success criteria.
+  - id: T4
+    target: srd003-helm-topology AC3
+    reason: S3 traces this requirement in the existing success criteria.
+  - id: T5
+    target: srd003-helm-topology AC4
+    reason: S3 traces this requirement in the existing success criteria.
