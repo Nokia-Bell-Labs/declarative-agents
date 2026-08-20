@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	monitorruntime "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor/runtimeconfig"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
@@ -76,7 +77,7 @@ func TestMachineNameDrivesSpanAndMetricIdentity(t *testing.T) {
 	require.Equal(t, "planner", params.AgentName)
 	require.Equal(t, agentVersion, params.AgentVersion)
 
-	monitorConfig, err := monitorRecorderConfig(machine, nil, "run-planner")
+	monitorConfig, err := monitorruntime.CompileRecorderConfig(machine, nil, "run-planner")
 	require.NoError(t, err)
 	require.NotEmpty(t, monitorConfig.GlobalAttributes)
 	require.Equal(t, "agent.name", monitorConfig.GlobalAttributes[0].Name)
