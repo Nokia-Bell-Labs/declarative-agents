@@ -15,10 +15,13 @@ import (
 type statFunc func(string) (os.FileInfo, error)
 type auditRunner func(string) error
 
-// Audit first validates the repository-wide actor-role realization inventory,
-// warms the agent build cache once, then runs mage audit in each sub-module and
-// participating example module concurrently.
+// Audit first validates repository-wide document placement and actor-role
+// realization, warms the agent build cache once, then runs mage audit in each
+// sub-module and participating example module concurrently.
 func Audit() error {
+	if err := runDocumentPlacementAudit(); err != nil {
+		return err
+	}
 	if err := runAgentRoleRealizationAudit(); err != nil {
 		return err
 	}
@@ -26,6 +29,17 @@ func Audit() error {
 		return err
 	}
 	return auditSubModules(auditParticipants(), os.Stat, runMageAudit)
+}
+
+func runDocumentPlacementAudit() error {
+	cmd := exec.Command("go", "test", ".", "-count=1", "-run", "^TestDocumentPlacement")
+	cmd.Dir = "magefiles"
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("document placement audit: %w", err)
+	}
+	return nil
 }
 
 func runAgentRoleRealizationAudit() error {
