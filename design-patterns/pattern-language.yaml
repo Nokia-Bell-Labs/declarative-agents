@@ -248,16 +248,18 @@ patterns:
           kind: executable
           tier: compiler
           command: >-
-            cd agent-core && go test ./internal/runtime/core -run
+            cd agent-core && go test -count=1 -v ./internal/runtime/core -run
             'TestParseMachineSpecValidationErrors|TestDiagnoseMachineSpecReportsReachabilityAndDeadGrammar'
+          negative_test: TestParseMachineSpecValidationErrors
       - id: P1.2
         statement: Every signal emitted by a dispatchable tool is handled from the state that receives the tool result.
         check:
           kind: executable
           tier: compiler
           command: >-
-            cd agent-core && go test ./internal/tools/catalog -run
+            cd agent-core && go test -count=1 -v ./internal/tools/catalog -run
             TestValidateToolEmitsMissingFollowupTransition
+          negative_test: TestValidateToolEmitsMissingFollowupTransition
     consequences:
       benefits:
         - Control flow is a readable, diffable artifact.
@@ -403,22 +405,25 @@ patterns:
           kind: executable
           tier: construction
           command: >-
-            cd agent-core && go test ./internal/tools/catalog -run
+            cd agent-core && go test -count=1 -v ./internal/tools/catalog -run
             'TestLoadProfile_MissingMachine|TestBuildProgramRefRejectsDeclarationIncludeCycle|TestBuildProgramRefReportsMissingAsset'
+          negative_test: TestLoadProfile_MissingMachine
       - id: P2.2
         statement: Agent identity and agent-specific workflow policy do not change the fixed engine's behavior.
         check:
           kind: executable
           tier: mechanical_test
           command: >-
-            cd agent-core && go test ./internal/runtime/core -run
+            cd agent-core && go test -count=1 -v ./internal/runtime/core -run
             'TestLoop_DeclarativeInit_MachineNameDoesNotChangeEngineBehavior|TestCoreSourceDoesNotEmbedModeOrToolPolicyNames'
+          negative_test: TestCoreSourceDoesNotEmbedModeOrToolPolicyNames
       - id: P2.3
         statement: Every field declared by the agent data schema is read by the interpreter or explicitly classified as documentation-only.
         check:
           kind: executable
           tier: mechanical_test
           issue: GH-1787
+          negative_test: TestPatternInvariantDeclaredFieldRejectsUnreadField
     consequences:
       benefits:
         - Agent changes are surface-level data diffs a reviewer can approve.
@@ -566,8 +571,9 @@ patterns:
           kind: executable
           tier: linter
           command: >-
-            cd agent-core && go test ./pkg/spec -run
+            cd agent-core && go test -count=1 -v ./pkg/spec -run
             'TestContractBaselineMatchesCorpus|TestContractBaselineRatchet'
+          negative_test: TestContractBaselineRatchet
       - id: P3.2
         statement: A tool contract represents one agent-selectable domain operation and does not hide separately selectable effects or rollback boundaries.
         check:
@@ -712,16 +718,18 @@ patterns:
           kind: executable
           tier: compiler
           command: >-
-            cd agent-core && go test ./internal/tools/catalog -run
+            cd agent-core && go test -count=1 -v ./internal/tools/catalog -run
             'TestDeriveDynamicToolPhasesScopesExternalToolsByRoutableSignals|TestApplyDynamicToolPhasesMakesMissingEmitToolsUnavailable'
+          negative_test: TestApplyDynamicToolPhasesMakesMissingEmitToolsUnavailable
       - id: P4.2
         statement: Manifest generation, model-response parsing, and dynamic dispatch apply one shared external-tool availability rule.
         check:
           kind: executable
           tier: mechanical_test
           command: >-
-            cd agent-core && go test ./internal/runtime/core -run
+            cd agent-core && go test -count=1 -v ./internal/runtime/core -run
             TestManifestAndAvailableExternalToolNamesUseAvailabilityRule
+          negative_test: TestManifestAndAvailableExternalToolNamesUseAvailabilityRule
     consequences:
       benefits:
         - Out-of-phase actions are impossible, not merely improbable.
@@ -829,6 +837,7 @@ patterns:
           kind: executable
           tier: linter
           issue: GH-1786
+          negative_test: TestPatternInvariantInferenceBoundaryRejectsImportOutsideAdapter
     consequences:
       benefits:
         - Model-agnostic evaluation and provider changes isolated to adapters.
@@ -950,16 +959,18 @@ patterns:
           kind: executable
           tier: compiler
           command: >-
-            cd agent-core && go test ./internal/tools/catalog -run
+            cd agent-core && go test -count=1 -v ./internal/tools/catalog -run
             'TestValidateReceiptPresenceFailsReversibleToolWithoutReceipt|TestValidateReceiptContractFailsMutatingReversibleWithNoopUndo'
+          negative_test: TestValidateReceiptPresenceFailsReversibleToolWithoutReceipt
       - id: P6.2
         statement: Rollback visits persisted execution entries in reverse order and reports every reversal, compensation, irreversible skip, and failure.
         check:
           kind: executable
           tier: conformance_test
           command: >-
-            cd agent-core && go test ./internal/tools/lifecycle -run
+            cd agent-core && go test -count=1 -v ./internal/tools/lifecycle -run
             'TestRollbackViaReceiptsContinuesPastFailure|TestRollbackViaReceiptsCleanWhenAllReverse'
+          negative_test: TestRollbackViaReceiptsContinuesPastFailure
     consequences:
       benefits:
         - Deterministic recovery and cheap speculative exploration of reversible plans.
@@ -1073,16 +1084,18 @@ patterns:
           kind: executable
           tier: mechanical_test
           command: >-
-            cd agent-core && go test ./internal/runtime/core -run
+            cd agent-core && go test -count=1 -v ./internal/runtime/core -run
             TestLoopTraceShapeIsRunWithDirectToolChildren
+          negative_test: TestLoopTraceShapeIsRunWithDirectToolChildren
       - id: P7.2
         statement: Every supported cross-process agent transport propagates W3C trace context and treats absent or malformed context as a new root.
         check:
           kind: executable
           tier: conformance_test
           command: >-
-            cd agent-core && go test ./internal/tools/rest -run
+            cd agent-core && go test -count=1 -v ./internal/tools/rest -run
             'TestRESTClient_InjectsTraceparentFromActiveSpan|TestRESTServer_ExtractsTraceparentParentsMachineRequestSpan|TestRESTServer_TraceparentFallbackToNewRoot'
+          negative_test: TestRESTServer_TraceparentFallbackToNewRoot
     consequences:
       benefits:
         - Backend independence and standard, searchable, visualizable traces.
@@ -1190,8 +1203,9 @@ patterns:
           kind: executable
           tier: compiler
           command: >-
-            cd agent-core && go test ./internal/tools/catalog -run
+            cd agent-core && go test -count=1 -v ./internal/tools/catalog -run
             'TestValidateChildAgentConfigRequiresFields|TestValidateRunPointConfigRequiresFields'
+          negative_test: TestValidateChildAgentConfigRequiresFields
       - id: P8.2
         statement: Workflow ordering and branching remain in MachineSpec while one boundary adapter's protocol, validation, and result reduction remain implementation structure.
         check:
@@ -1322,16 +1336,18 @@ patterns:
           kind: executable
           tier: conformance_test
           command: >-
-            cd applications/catalog && go test ./conformance -run
+            cd applications/catalog && go test -count=1 -v ./conformance -run
             TestLifecycleApprovalSuspendResume
+          negative_test: TestLifecycleApprovalSuspendResume
       - id: P9.2
         statement: Suspension persists the exact resumable position before exit, and resume validates program identity before injecting the decision signal.
         check:
           kind: executable
           tier: mechanical_test
           command: >-
-            cd agent-core && go test ./internal/runtime/core -run
+            cd agent-core && go test -count=1 -v ./internal/runtime/core -run
             'TestLoop_SuspendSucceedsWhenCheckpointSaveSucceeds|TestSignalSource_ResumeValidatesProgramIdentity|TestResumeHonorsExplicitResumeSignal'
+          negative_test: TestSignalSource_ResumeValidatesProgramIdentity
     consequences:
       benefits:
         - Irreversible tools are safe to hold in the registry; they run only after approval.
@@ -1459,8 +1475,9 @@ patterns:
           kind: executable
           tier: mechanical_test
           command: >-
-            cd agent-core && go test ./internal/evaluation -run
+            cd agent-core && go test -count=1 -v ./internal/evaluation -run
             'TestClassify_MultiToolDeterministicOrder|TestClassify_ByteStableAcrossRepeatedRuns'
+          negative_test: TestClassify_ByteStableAcrossRepeatedRuns
     consequences:
       benefits:
         - Actionable diagnostics and quantitative model comparison beyond binary metrics.
@@ -1567,16 +1584,18 @@ patterns:
           kind: executable
           tier: conformance_test
           command: >-
-            cd agent-core && go test ./internal/tools/rest -run
+            cd agent-core && go test -count=1 -v ./internal/tools/rest -run
             'TestMonitorREST_ReadOnlyCachedState|TestMonitorREST_FailureDoesNotMutateState'
+          negative_test: TestMonitorREST_FailureDoesNotMutateState
       - id: P11.2
         statement: An injected operator signal is accepted only when the current machine state declares that signal and no conflicting dispatch owns the run.
         check:
           kind: executable
           tier: mechanical_test
           command: >-
-            cd agent-core && go test ./internal/runtime/core -run
+            cd agent-core && go test -count=1 -v ./internal/runtime/core -run
             TestSignalAdmission_Outcomes
+          negative_test: TestSignalAdmission_Outcomes
     consequences:
       benefits:
         - Live inspection without stopping, and control through declared transitions only.
