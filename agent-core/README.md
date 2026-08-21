@@ -147,7 +147,23 @@ durable history. Set `--dolt-dsn` to a MySQL-wire DSN for a running `dolt
 sql-server` when a run must persist checkpoints for history, resume, or
 rollback.
 
-### Dolt Integration Tests
+### Tests
+
+`mage test` is the fast suite: `go test -short -timeout 5m ./...`. A test that
+boots a process, binds a listener through a production launch path, or waits on
+multi-second wall-clock time skips under `-short`. The skip lives in the helper
+that performs that act, so every caller inherits it. `go test ./...` with no
+flags still runs every test.
+
+`mage test:full` runs `go test -timeout 20m ./...`. That is the same packages
+with the guarded tests included. A `*_integration_test.go` name is
+documentation; `testing.Short` is the mechanism.
+
+`mage integration:*` is the third tier. Those targets prove live Dolt, monitor,
+and Ollama boundaries. They do not pass `-short`. They skip cleanly when the
+external binary or service is missing.
+
+#### Dolt integration tests
 
 The gated Dolt checkpoint tests (`cmd/agent/dolt_integration_test.go`) exercise
 the real adapter over the MySQL wire protocol. They launch a throwaway `dolt

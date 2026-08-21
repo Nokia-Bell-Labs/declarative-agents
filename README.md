@@ -49,7 +49,8 @@ This repository uses [Mage](https://magefile.org/) for builds. From the repo roo
 mage            # run default target in each sub-module
 mage build      # build artifacts in each sub-module
 mage audit      # run the release analysis gate in each sub-module
-mage test       # run tests for applicable sub-modules
+mage test       # fast tests for applicable sub-modules (`-short` in agent-core)
+mage test:full  # same modules; agent-core omits `-short`
 mage stats      # combined LOC and per-agent stats (states, transitions, tools, YAML) as JSON
 mage clean      # remove generated artifacts in each sub-module
 mage tag        # create the canonical repository release tag

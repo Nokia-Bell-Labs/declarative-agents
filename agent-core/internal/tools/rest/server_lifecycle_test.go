@@ -29,6 +29,9 @@ func TestRESTServer_LaunchRegistersRoutes(t *testing.T) {
 }
 
 func TestRESTServer_DuplicateLaunchReleasesNewListener(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration-grade: binds real loopback listeners")
+	}
 	t.Parallel()
 	state := NewServerState()
 	first := monitorServer("duplicate")
@@ -54,6 +57,9 @@ func TestRESTServer_DuplicateLaunchReleasesNewListener(t *testing.T) {
 }
 
 func TestRESTServer_LaunchReceiptStopsOnlyOwnedListener(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration-grade: production REST server launch binds a real loopback listener")
+	}
 	t.Parallel()
 	server := namedControlServer("receipt_control")
 	state := NewServerState()
@@ -81,6 +87,9 @@ func TestRESTServer_LaunchReceiptStopsOnlyOwnedListener(t *testing.T) {
 }
 
 func TestRESTServer_LaunchUndoInFreshProcessIsAlreadyCompensated(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration-grade: production REST server launch binds a real loopback listener")
+	}
 	t.Parallel()
 	server := namedControlServer("fresh_receipt")
 	liveState := NewServerState()
@@ -109,6 +118,9 @@ func TestRESTServer_LaunchUndoInFreshProcessIsAlreadyCompensated(t *testing.T) {
 }
 
 func TestRESTServer_LaunchUndoRejectsInvalidOrUnownedReceipts(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration-grade: production REST server launch binds a real loopback listener")
+	}
 	t.Parallel()
 	server := namedControlServer("strict_receipt")
 	state := NewServerState()

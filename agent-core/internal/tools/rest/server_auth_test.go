@@ -13,6 +13,9 @@ import (
 )
 
 func TestInjectedLifecycleExitEnforcesDeclaredBearerAuth(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration-grade: production REST server launch binds a real loopback listener")
+	}
 	t.Parallel()
 	server := bareLifecycleServer("authenticated_exit")
 	server.LifecycleExit.AuthRef = "control"

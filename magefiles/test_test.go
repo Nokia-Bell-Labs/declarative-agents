@@ -85,6 +85,26 @@ func TestCatalogTestTargetUsesMageRunner(t *testing.T) {
 	t.Fatal("catalog test target is not registered")
 }
 
+func TestFullSuiteRunnerMapsAgentCoreToMageFull(t *testing.T) {
+	for _, target := range testTargets() {
+		got := fullSuiteRunner(target)
+		switch {
+		case target.module == agentCoreModule:
+			if !sameRunner(got, runMageTestFull) {
+				t.Fatalf("%s full runner is not mage test:full", target.module)
+			}
+		case sameRunner(target.run, runMageTest):
+			if !sameRunner(got, runMageTest) {
+				t.Fatalf("%s full runner dropped mage test", target.module)
+			}
+		default:
+			if !sameRunner(got, runGoFullTests) {
+				t.Fatalf("%s full runner is not go test without -short", target.module)
+			}
+		}
+	}
+}
+
 func TestSubModulesWrapsRunnerError(t *testing.T) {
 	root := t.TempDir()
 	writeGoMod(t, filepath.Join(root, "agent-core"))

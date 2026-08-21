@@ -8,13 +8,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 )
 
-// Aliases keeps the existing mage test:unit release gate available.
+// Aliases keeps the existing mage test:unit release gate available and exposes
+// test:full as the no-short fan-out (GH-1832).
 var Aliases = map[string]interface{}{
 	"test:unit": TestUnit,
+	"test:full": TestFull,
 }
 
 type unitTestRunner func(string) error
@@ -82,6 +85,32 @@ func Test() error {
 	// Shipped UI reproducibility gate: fail if a tracked dist no longer matches a
 	// clean source build (GH-518). Skips cleanly where node/npm is absent.
 	return UIDist()
+}
+
+// TestFull fans out the same modules as Test, but agent-core runs mage test:full
+// and go-test modules omit -short. Catalog and design-patterns keep mage test;
+// they have no short split. runGoUnitTests itself is unchanged.
+func TestFull() error {
+	if err := runBounded(testTargets(), testConcurrency, func(target testTarget) error {
+		return testSubModules([]string{target.module}, moduleHasGoTests, fullSuiteRunner(target))
+	}); err != nil {
+		return err
+	}
+	return UIDist()
+}
+
+func fullSuiteRunner(target testTarget) unitTestRunner {
+	if target.module == agentCoreModule {
+		return runMageTestFull
+	}
+	if sameRunner(target.run, runMageTest) {
+		return runMageTest
+	}
+	return runGoFullTests
+}
+
+func sameRunner(a, b unitTestRunner) bool {
+	return reflect.ValueOf(a).Pointer() == reflect.ValueOf(b).Pointer()
 }
 
 // discoverMaintainedGoModules returns every non-fixture Go module directory
@@ -204,6 +233,22 @@ func runMageTest(dir string) error {
 
 func runGoUnitTests(dir string) error {
 	cmd := exec.Command("go", "test", "-short", "./...")
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func runMageTestFull(dir string) error {
+	cmd := exec.Command("mage", "test:full")
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func runGoFullTests(dir string) error {
+	cmd := exec.Command("go", "test", "./...")
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

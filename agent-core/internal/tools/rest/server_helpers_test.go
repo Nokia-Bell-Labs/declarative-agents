@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+func skipIfShortRESTLaunch(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("integration-grade: production REST server launch binds a real loopback listener")
+	}
+}
+
 func requireLifecycleControlEnqueuesSignal(t *testing.T) {
 	t.Helper()
 
@@ -51,6 +58,9 @@ func requireUnsupportedReadPolicyRejected(t *testing.T) {
 
 func startRESTAwait(t *testing.T, await func() core.Result) <-chan core.Result {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("integration-grade: multi-second wall-clock wait")
+	}
 	started := make(chan struct{})
 	results := make(chan core.Result, 1)
 	go func() {
@@ -76,6 +86,9 @@ func requireAwaitBlocked(t *testing.T, results <-chan core.Result) {
 
 func requireRESTResult(t *testing.T, results <-chan core.Result) core.Result {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("integration-grade: multi-second wall-clock wait")
+	}
 	select {
 	case result := <-results:
 		return result
