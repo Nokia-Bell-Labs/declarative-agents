@@ -5,7 +5,8 @@
 
 This repository uses a domain-oriented Go package layout. Application-private
 code lives under `internal/`; `pkg/` is reserved for intentionally supported
-public Go APIs.
+public Go APIs. Placement rules are defined in
+`docs/constitutions/boundaries.yaml`; this file keeps the inventory.
 
 ## Ownership Rules
 
