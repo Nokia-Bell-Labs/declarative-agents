@@ -295,6 +295,9 @@ type lockedBuffer struct {
 
 func startMonitorAgentProcess(t *testing.T, root string, profilePath string) (*exec.Cmd, *lockedBuffer, *lockedBuffer) {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("integration-grade: spawns the agent as a child process")
+	}
 	cmd := monitorAgentCommand(root, profilePath)
 	stdout := &lockedBuffer{}
 	stderr := &lockedBuffer{}

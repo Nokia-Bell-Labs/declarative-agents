@@ -60,6 +60,9 @@ func TestMonitorRuntimeUsesTelemetryMeter(t *testing.T) {
 }
 
 func TestMonitorReleaseProfileProof(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration-grade: real in-process REST server and loop goroutine")
+	}
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 	requireMainWiresMonitorRecorder(t)

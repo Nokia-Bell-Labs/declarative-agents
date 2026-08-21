@@ -51,6 +51,9 @@ func doltBinary() string {
 // two Dolt Mage targets run it for real.
 func startDoltServer(t *testing.T) string {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("integration-grade: boots a real dolt sql-server")
+	}
 	bin := doltBinary()
 	if bin == "" {
 		t.Skip("no dolt binary found (install dolt or pass -dolt-bin); skipping Dolt integration test")

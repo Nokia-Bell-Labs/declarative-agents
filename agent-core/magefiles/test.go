@@ -9,8 +9,8 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
-// Test runs Go unit tests for agent-core.
+// Test runs the fast Go test suite for agent-core (`-short`).
 func Test() error {
-	fmt.Println("running go test ./...")
-	return sh.Run("go", "test", "./...")
+	fmt.Println("running go test -short -timeout 5m ./...")
+	return sh.Run("go", "test", "-short", "-timeout", "5m", "./...")
 }

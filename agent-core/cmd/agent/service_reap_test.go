@@ -14,6 +14,9 @@ import (
 )
 
 func TestPreparedRunCloseReapsServiceChildren(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration-grade: spawns a real OS child")
+	}
 	state := service.NewState()
 	script := filepath.Join(t.TempDir(), "serve-child")
 	require.NoError(t, os.WriteFile(

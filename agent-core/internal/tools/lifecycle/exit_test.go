@@ -223,6 +223,9 @@ func TestControlProfileSelectsExitAgentFlow(t *testing.T) {
 
 func launchControlServer(t *testing.T) (*rest.ServerState, string) {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("integration-grade: production REST server launch binds a real loopback listener")
+	}
 	collection, err := rest.LoadDefinitions([]string{controlRestPath(t)}, nil)
 	require.NoError(t, err)
 	def, err := collection.ResolveServer("agent_control")
@@ -235,6 +238,9 @@ func launchControlServer(t *testing.T) (*rest.ServerState, string) {
 
 func launchModeledControlServer(t *testing.T) (*rest.ServerState, string) {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("integration-grade: production REST server launch binds a real loopback listener")
+	}
 	state := rest.NewServerState()
 	output, err := state.Launch(rest.ServerDefinition{
 		Name: "modeled_control",

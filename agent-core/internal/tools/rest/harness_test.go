@@ -42,6 +42,7 @@ func launchRESTServerDefinition(
 	def ServerDefinition,
 ) (map[string]interface{}, string) {
 	t.Helper()
+	skipIfShortRESTLaunch(t)
 	result := ServerBuilder{
 		ToolName: "rest_server_launch", Init: InitServerLaunch, Server: def, State: state,
 	}.Build(core.Result{}).Execute()
@@ -129,6 +130,7 @@ func requireRESTCommand(
 
 func launchRESTServerCommand(t *testing.T, collection Collection, state *ServerState, name string) string {
 	t.Helper()
+	skipIfShortRESTLaunch(t)
 	def := requireRESTToolDef(t, InitServerLaunch)
 	def.Name = "launch_" + name
 	def.Config = map[string]interface{}{"rest_ref": name}
@@ -472,6 +474,7 @@ func launchMonitorRESTServerFromFactory(
 	monitorState MonitorState,
 ) (*ServerState, string) {
 	t.Helper()
+	skipIfShortRESTLaunch(t)
 	state := NewServerState()
 	collection := NewCollection()
 	require.NoError(t, collection.Add(Definition{Servers: map[string]Server{name: monitorServer(name)}}))
