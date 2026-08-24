@@ -31,6 +31,7 @@ import (
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/version"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profileaudit"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
@@ -52,7 +53,6 @@ type openedCheckpoint = checkpoint.Opened
 type closeableCheckpoint = checkpoint.Closeable
 
 const (
-	agentVersion             = "v0.0.0-dev"
 	terminalSummaryMaxBytes  = 1 << 20
 	terminalSummaryTruncated = "... [terminal summary truncated]"
 )
@@ -114,7 +114,7 @@ func init() {
 	telemetryCfg.RegisterFlags(f)
 	checkpointCfg.RegisterFlags(f)
 
-	rootCmd.Version = agentVersion
+	rootCmd.Version = version.String()
 }
 
 type agentState struct {
@@ -903,7 +903,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		Program:              deps.Program,
 		RunID:                deps.RunID,
 		AgentName:            machineAgentName(deps.Machine),
-		AgentVersion:         agentVersion,
+		AgentVersion:         version.Version,
 		ModelName:            deps.State.model,
 		ProviderName:         deps.State.providerName,
 		Trace:                deps.Tracer,

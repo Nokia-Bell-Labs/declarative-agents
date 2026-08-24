@@ -12,6 +12,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	rtcheckpoint "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/version"
 )
 
 func TestResolveRunIDFreshRunsDifferAndResumeRetainsID(t *testing.T) {
@@ -72,7 +73,8 @@ func TestMachineNameDrivesSpanAndMetricIdentity(t *testing.T) {
 		Tracer: tracing.NoopTracer{},
 	})
 	require.Equal(t, "planner", params.AgentName)
-	require.Equal(t, agentVersion, params.AgentVersion)
+	require.Equal(t, version.Version, params.AgentVersion)
+	require.Equal(t, version.String(), rootCmd.Version)
 
 	monitorConfig, err := monitorruntime.CompileRecorderConfig(machine, nil, "run-planner")
 	require.NoError(t, err)

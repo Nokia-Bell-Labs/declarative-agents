@@ -1495,6 +1495,8 @@ project_structure:
       role: Generic agentic loop engine (types, state machine, dispatch, registry, loop, machine config)
 
   infrastructure:
+    - path: internal/version/
+      role: Build-time binary identity (Version, Commit, Date) populated via -ldflags -X; CLI --version uses String(), traces and checkpoints record Version
     - path: internal/observability/tracing/
       role: Tracer port interface for OpenTelemetry (5 methods) and NoopTracer
     - path: internal/observability/telemetry/

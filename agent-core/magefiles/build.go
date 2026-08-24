@@ -34,10 +34,15 @@ func Build() error {
 		return fmt.Errorf("mkdir %s: %w", binDir, err)
 	}
 
+	ldflags, err := versionLdflags()
+	if err != nil {
+		return err
+	}
+
 	for _, pkg := range pkgs {
 		name := filepath.Base(pkg)
 		out := filepath.Join(binDir, name)
-		args := []string{"build", "-o", out}
+		args := appendLdflags([]string{"build", "-o", out}, ldflags)
 		args = append(args, pkg)
 		fmt.Printf("building %s → %s\n", pkg, out)
 		if err := sh.Run("go", args...); err != nil {
@@ -152,9 +157,15 @@ func Install() error {
 	if err != nil {
 		return err
 	}
+	ldflags, err := versionLdflags()
+	if err != nil {
+		return err
+	}
 	for _, pkg := range pkgs {
 		fmt.Printf("installing %s\n", pkg)
-		if err := sh.Run("go", "install", pkg); err != nil {
+		args := appendLdflags([]string{"install"}, ldflags)
+		args = append(args, pkg)
+		if err := sh.Run("go", args...); err != nil {
 			return fmt.Errorf("install %s: %w", pkg, err)
 		}
 	}

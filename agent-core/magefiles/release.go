@@ -30,6 +30,8 @@ type agentCoreDemoConfig struct {
 }
 
 // containerReleaseRef returns the release ref used for container builds.
+// mage docker passes this ref as AGENT_VERSION so the image reports the
+// tag it cloned, not git describe from the build-host checkout.
 func containerReleaseRef() (string, error) {
 	return containerReleaseRefFrom(".", gitOutput)
 }

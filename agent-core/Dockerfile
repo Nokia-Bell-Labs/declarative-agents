@@ -7,6 +7,10 @@ FROM ${GO_IMAGE} AS builder
 
 ARG AGENT_CORE_REPO=https://github.com/Nokia-Bell-Labs/declarative-agents/agent-core.git
 ARG AGENT_CORE_REF=main
+ARG AGENT_VERSION=v0.0.0-dev
+ARG AGENT_COMMIT=unknown
+ARG AGENT_DATE=unknown
+ARG VERSION_PKG=github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/version
 
 WORKDIR /src
 
@@ -20,11 +24,15 @@ RUN --mount=type=secret,id=git_credentials,target=/root/.netrc \
 RUN go mod download
 
 # Build the binary before tests so integration-style tests can invoke bin/agent.
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o bin/agent ./cmd/agent
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-s -w -X ${VERSION_PKG}.Version=${AGENT_VERSION} -X ${VERSION_PKG}.Commit=${AGENT_COMMIT} -X ${VERSION_PKG}.Date=${AGENT_DATE}" \
+    -o bin/agent ./cmd/agent
 
 RUN go test ./...
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/agent ./cmd/agent
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-s -w -X ${VERSION_PKG}.Version=${AGENT_VERSION} -X ${VERSION_PKG}.Commit=${AGENT_COMMIT} -X ${VERSION_PKG}.Date=${AGENT_DATE}" \
+    -o /out/agent ./cmd/agent
 
 FROM ${RUNTIME_IMAGE} AS runtime
 
