@@ -4,11 +4,13 @@
 package doltcheckpoint
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/doltsql"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -152,8 +154,9 @@ func (d *DoltCheckpoint) setSnapshotReferences(conversation, domain string) {
 
 func commitDoltTransaction(tx Transaction, message string) (string, error) {
 	var revision string
-	err := tx.QueryRow(
-		`CALL DOLT_COMMIT('-A', '--allow-empty', '-m', ?)`,
+	err := tx.QueryRowContext(
+		context.Background(),
+		doltsql.StageAllEmptyCommitSQL,
 		message,
 	).Scan(&revision)
 	return revision, err
@@ -161,7 +164,7 @@ func commitDoltTransaction(tx Transaction, message string) (string, error) {
 
 func headRevision(db Database) (string, error) {
 	var revision string
-	err := db.QueryRow(`SELECT HASHOF('HEAD')`).Scan(&revision)
+	err := db.QueryRowContext(context.Background(), doltsql.HeadHashSQL).Scan(&revision)
 	return revision, err
 }
 
@@ -182,7 +185,7 @@ func verifyDoltReference(db Database, reference core.CheckpointReference) error 
 		return invalidDoltReference(reference, nil)
 	}
 	var count int
-	err = db.QueryRow(
+	err = db.QueryRowContext(context.Background(),
 		fmt.Sprintf(
 			`SELECT COUNT(*) FROM execution_steps AS OF %s WHERE run_id = ? AND step_index = ?`,
 			asOf,
@@ -207,7 +210,7 @@ func invalidDoltReference(reference core.CheckpointReference, cause error) error
 
 func loadCommitMessageAtRevision(db Database, revision string) (string, error) {
 	var message string
-	err := db.QueryRow(
+	err := db.QueryRowContext(context.Background(),
 		`SELECT message FROM dolt_log WHERE commit_hash = ? LIMIT 1`,
 		revision,
 	).Scan(&message)
@@ -220,7 +223,7 @@ func loadTransitionSignalAtRevision(db Database, reference core.CheckpointRefere
 		return "", err
 	}
 	var signal string
-	err = db.QueryRow(
+	err = db.QueryRowContext(context.Background(),
 		fmt.Sprintf(
 			"SELECT `signal` FROM transitions AS OF %s WHERE run_id = ? AND step_index = ?",
 			asOf,
@@ -259,7 +262,7 @@ func loadMachineSnapshotAtRevision(
 		return nil, err
 	}
 	var snapshot sql.NullString
-	err = db.QueryRow(
+	err = db.QueryRowContext(context.Background(),
 		fmt.Sprintf(`SELECT %s FROM machines AS OF %s WHERE run_id = ?`, column, asOf),
 		runID,
 	).Scan(&snapshot)

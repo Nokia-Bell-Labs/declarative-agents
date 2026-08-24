@@ -82,6 +82,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 
 - `cmd/agent`
 - `internal/boundaries`
+- `internal/doltsql`
 - `internal/evaluation`
 - `internal/gostyle`
 - `internal/model`

@@ -271,7 +271,8 @@ overview:
             - internal/tools/catalog
             - internal/tools/registry for factory types
             - internal/tools/undo
-            - github.com/go-sql-driver/mysql for DSN parsing and MySQL-wire configuration
+            - internal/doltsql for the shared SQL seam, identity, and DOLT_* statements
+            - github.com/go-sql-driver/mysql for DSN formatting of word connections
             - Go standard library database/sql
           must_not_depend_on:
             - cmd/agent
@@ -1007,7 +1008,8 @@ overview:
       receipt.
 
       DoltCheckpoint is the persistent backend when configured. It lives in
-      internal/runtime/checkpoint/dolt and stores the typed checkpoint model in
+      internal/runtime/checkpoint/dolt, reaches Dolt through the shared
+      internal/doltsql seam, and stores the typed checkpoint model in
       versioned SQL, commits once per step, branches per run, and provides
       Revert(run_id, step_index) for DB-persisted state.
       External effects are not reverted by Dolt. The checkpoint_rollback
@@ -1500,9 +1502,11 @@ project_structure:
     - path: internal/runtime/checkpoint/
       role: Agent checkpoint Config, flags, and backend open used by cmd/agent
     - path: internal/runtime/checkpoint/dolt/
-      role: Dolt-backed Checkpoint adapter behind database/sql; implements core ports without importing tools
+      role: Dolt-backed Checkpoint adapter; implements core ports through internal/doltsql
 
   infrastructure:
+    - path: internal/doltsql/
+      role: Shared Dolt SQL seam, driver registration, database identity, and DOLT_* statements
     - path: internal/version/
       role: Build-time binary identity (Version, Commit, Date) populated via -ldflags -X; CLI --version uses String(), traces and checkpoints record Version
     - path: internal/observability/tracing/

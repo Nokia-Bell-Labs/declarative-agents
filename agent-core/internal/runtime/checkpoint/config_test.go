@@ -90,6 +90,18 @@ func TestResumeID(t *testing.T) {
 	require.ErrorContains(t, err, "provide an explicit run id")
 }
 
+func TestDatabaseIdentityFromDSN(t *testing.T) {
+	t.Parallel()
+	id, err := Config{}.DatabaseIdentity()
+	require.NoError(t, err)
+	require.Nil(t, id)
+
+	id, err = Config{DoltDSN: "u:p@tcp(LOCALHOST:3306)/Runtime_State"}.DatabaseIdentity()
+	require.NoError(t, err)
+	require.Equal(t, "tcp://localhost:3306", id.Server)
+	require.Equal(t, "runtime_state", id.Database)
+}
+
 type noopCloseable struct{ core.NoopCheckpoint }
 
 func (noopCloseable) Close() error { return nil }

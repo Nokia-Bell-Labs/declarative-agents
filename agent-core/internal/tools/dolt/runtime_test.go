@@ -366,6 +366,9 @@ func (t *fakeTransaction) QueryRowContext(_ context.Context, query string, args 
 }
 func (t *fakeTransaction) Commit() error   { t.commits++; return nil }
 func (t *fakeTransaction) Rollback() error { t.rollbacks++; return nil }
+func (t *fakeTransaction) QueryContext(context.Context, string, ...any) (Rows, error) {
+	return nil, errors.New("query on write transaction is unused")
+}
 func (t *fakeTransaction) execQueries() []string {
 	out := make([]string, len(t.execCalls))
 	for i := range t.execCalls {

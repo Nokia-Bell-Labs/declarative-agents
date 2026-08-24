@@ -313,8 +313,8 @@ dependencies:
     - gopkg.in/yaml.v3 for YAML parsing
     - github.com/stretchr/testify for test assertions
     - github.com/getkin/kin-openapi/openapi3 for OpenAPI 3 loading, resolution, and validation for REST tools
-    - database/sql (standard library) as the Database/Transaction/Scanner/Rows seam for the Dolt checkpoint backend in internal/runtime/checkpoint/dolt, so internal/runtime/core never imports database/sql
-    - the Dolt SQL driver, registered by internal/runtime/checkpoint/dolt and invoked from cmd/agent, as the default persistent checkpoint backend (Noop when persistence is disabled)
+    - database/sql (standard library) as the Database/Transaction/Scanner/Rows seam in internal/doltsql, shared by the Dolt checkpoint backend and Dolt boundary words, so internal/runtime/core never imports database/sql
+    - the Dolt SQL driver, registered by internal/doltsql and invoked from cmd/agent, as the default persistent checkpoint backend (Noop when persistence is disabled)
   indirect:
     - github.com/dominikbraun/graph for spec dependency graphs
     - github.com/google/uuid for trace IDs

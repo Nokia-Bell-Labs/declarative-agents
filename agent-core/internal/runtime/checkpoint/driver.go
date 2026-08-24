@@ -3,11 +3,11 @@
 
 package checkpoint
 
-import doltcheckpoint "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint/dolt"
+import "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/doltsql"
 
 // RegisterDriver registers the persistent checkpoint SQL driver. cmd/agent
 // calls this once at process start; the package does not register at import
 // time (srd036-dolt-state-persistence R1.3, R1.4).
 func RegisterDriver() {
-	doltcheckpoint.RegisterDriver()
+	doltsql.RegisterDriver()
 }
