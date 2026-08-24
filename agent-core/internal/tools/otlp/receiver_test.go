@@ -22,8 +22,7 @@ import (
 
 func TestReceiverExportAwait(t *testing.T) {
 	state := NewState()
-	output, err := state.Launch(testReceiverConfig("receive"))
-	require.NoError(t, err)
+	output := launchReceiver(t, state, testReceiverConfig("receive"))
 	t.Cleanup(func() { _, _ = state.Stop("receive") })
 
 	conn, client := traceClient(t, output["address"].(string))
@@ -59,13 +58,12 @@ func TestReceiverOverflowPolicies(t *testing.T) {
 			cfg := testReceiverConfig("overflow")
 			cfg.QueueCapacity = 1
 			cfg.OverflowPolicy = test.policy
-			output, err := state.Launch(cfg)
-			require.NoError(t, err)
+			output := launchReceiver(t, state, cfg)
 			t.Cleanup(func() { _, _ = state.Stop("overflow") })
 			conn, client := traceClient(t, output["address"].(string))
 			defer func() { _ = conn.Close() }()
 
-			_, err = client.Export(context.Background(), traceRequest("first", 1))
+			_, err := client.Export(context.Background(), traceRequest("first", 1))
 			require.NoError(t, err)
 			response, err := client.Export(context.Background(), traceRequest("second", 2))
 			require.NoError(t, err)
@@ -82,8 +80,7 @@ func TestReceiverOverflowPolicies(t *testing.T) {
 
 func TestReceiverStopUnblocksAndReleases(t *testing.T) {
 	state := NewState()
-	output, err := state.Launch(testReceiverConfig("lifecycle"))
-	require.NoError(t, err)
+	output := launchReceiver(t, state, testReceiverConfig("lifecycle"))
 	address := output["address"].(string)
 
 	waited := make(chan error, 1)
@@ -102,8 +99,7 @@ func TestReceiverStopUnblocksAndReleases(t *testing.T) {
 
 	cfg := testReceiverConfig("replacement")
 	cfg.Address = address
-	_, err = state.Launch(cfg)
-	require.NoError(t, err)
+	_ = launchReceiver(t, state, cfg)
 	_, err = state.Stop("replacement")
 	require.NoError(t, err)
 }
@@ -123,8 +119,7 @@ func TestReceiverStopAppliesDrainPolicy(t *testing.T) {
 			state := NewState()
 			cfg := testReceiverConfig("drain-" + test.name)
 			cfg.DrainPolicy = test.policy
-			_, err := state.Launch(cfg)
-			require.NoError(t, err)
+			_ = launchReceiver(t, state, cfg)
 			runtime, err := state.runtime(cfg.Name)
 			require.NoError(t, err)
 			runtime.queue <- Batch{ID: "first", Request: traceRequest("first", 1)}
@@ -161,11 +156,10 @@ func TestReceiverRegistrationRejectsMalformedConfig(t *testing.T) {
 
 func TestReceiverBuildersShareLifecycleState(t *testing.T) {
 	state := NewState()
-	launch := ReceiverBuilder{
+	result := executeReceiverLaunch(t, ReceiverBuilder{
 		ToolName: "launch_receiver", Init: InitReceiverLaunch,
 		Config: testReceiverConfig("shared"), State: state,
-	}.Build(core.Result{})
-	result := launch.Execute()
+	})
 	require.Equal(t, core.Signal("ReceiverLaunched"), result.Signal)
 	var launched map[string]any
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &launched))
@@ -184,7 +178,7 @@ func TestReceiverLaunchReceiptCarriesBoundIdentity(t *testing.T) {
 		ToolName: "launch_receiver", Init: InitReceiverLaunch,
 		Config: testReceiverConfig("receipt"), State: state,
 	}
-	result := builder.Build(core.Result{}).Execute()
+	result := executeReceiverLaunch(t, builder)
 	require.Equal(t, core.Signal("ReceiverLaunched"), result.Signal)
 	require.NotEmpty(t, result.Receipt)
 	var receipt receiverReceipt
@@ -194,6 +188,27 @@ func TestReceiverLaunchReceiptCarriesBoundIdentity(t *testing.T) {
 
 	undone := builder.BuildReverser().Undo(result)
 	require.Equal(t, core.Signal("ReceiverStopped"), undone.Signal, undone.Output)
+}
+
+func skipIfShortOTLPLaunch(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("integration-grade: production OTLP receiver launch binds a real loopback listener")
+	}
+}
+
+func launchReceiver(t *testing.T, state *State, cfg ReceiverConfig) map[string]any {
+	t.Helper()
+	skipIfShortOTLPLaunch(t)
+	output, err := state.Launch(cfg)
+	require.NoError(t, err)
+	return output
+}
+
+func executeReceiverLaunch(t *testing.T, builder ReceiverBuilder) core.Result {
+	t.Helper()
+	skipIfShortOTLPLaunch(t)
+	return builder.Build(core.Result{}).Execute()
 }
 
 func testReceiverConfig(name string) ReceiverConfig {

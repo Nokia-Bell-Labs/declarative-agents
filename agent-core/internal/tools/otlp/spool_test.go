@@ -23,8 +23,7 @@ import (
 func TestAwaitSpansSignals(t *testing.T) {
 	t.Run("received", func(t *testing.T) {
 		state := NewState()
-		_, err := state.Launch(testReceiverConfig("await"))
-		require.NoError(t, err)
+		_ = launchReceiver(t, state, testReceiverConfig("await"))
 		t.Cleanup(func() { _, _ = state.Stop("await") })
 		runtime, err := state.runtime("await")
 		require.NoError(t, err)
@@ -46,15 +45,14 @@ func TestAwaitSpansSignals(t *testing.T) {
 
 	t.Run("timeout and stop", func(t *testing.T) {
 		state := NewState()
-		_, err := state.Launch(testReceiverConfig("signals"))
-		require.NoError(t, err)
+		_ = launchReceiver(t, state, testReceiverConfig("signals"))
 		timeout := AwaitBuilder{
 			ToolName: "await_spans",
 			Config:   AwaitConfig{Receiver: "signals", Timeout: time.Millisecond},
 			State:    state,
 		}.Build(core.Result{}).Execute()
 		require.Equal(t, core.Signal("AwaitTimedOut"), timeout.Signal)
-		_, err = state.Stop("signals")
+		_, err := state.Stop("signals")
 		require.NoError(t, err)
 		stopped := AwaitBuilder{
 			ToolName: "await_spans",
