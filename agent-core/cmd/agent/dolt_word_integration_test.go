@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	rtcheckpoint "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	tooldolt "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/dolt"
@@ -271,7 +272,7 @@ func TestDoltWordIntegration(t *testing.T) {
 		))
 
 		separateState := newAgentState(
-			runtimeConfig{DoltDSN: base + doltCheckpointDB},
+			runtimeConfig{Checkpoint: rtcheckpoint.Config{DoltDSN: base + doltCheckpointDB}},
 			agentStateDeps{},
 		)
 		separateRegistry, err := registerConfiguredDoltWords(separateState, query)
@@ -285,7 +286,7 @@ func TestDoltWordIntegration(t *testing.T) {
 	t.Run("rejects exact checkpoint and word database identity at startup", func(t *testing.T) {
 		before := doltCommitCount(t, base, doltWordDatabase)
 		collidingState := newAgentState(
-			runtimeConfig{DoltDSN: base + doltWordDatabase},
+			runtimeConfig{Checkpoint: rtcheckpoint.Config{DoltDSN: base + doltWordDatabase}},
 			agentStateDeps{},
 		)
 		_, err := registerConfiguredDoltWords(collidingState, query)

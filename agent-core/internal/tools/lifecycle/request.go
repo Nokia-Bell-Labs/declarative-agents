@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package main
+package lifecycle
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
@@ -28,9 +29,9 @@ import (
 // the inspecting machine never persists over the run it is reading
 // (srd009-lifecycle rel02.0-uc002, srd036-dolt-state-persistence R5/R6).
 
-// lifecycleRequest is the checkpoint-operation request payload read from the
+// Request is the checkpoint-operation request payload read from the
 // --request file for the history and rollback families.
-type lifecycleRequest struct {
+type Request struct {
 	// Suite is the universal request file path itself. Evaluator words consume
 	// it only when their ToolDef declares $request.suite.
 	Suite string `yaml:"-"`
@@ -41,10 +42,10 @@ type lifecycleRequest struct {
 	ToIteration *int `yaml:"to_iteration"`
 }
 
-// loadLifecycleRequest parses the --request file as a lifecycle checkpoint
-// request. An empty path yields the zero request (no target, no iteration).
-func loadLifecycleRequest(path string) (lifecycleRequest, error) {
-	var req lifecycleRequest
+// LoadRequest parses the --request file as a lifecycle checkpoint request.
+// An empty path yields the zero request (no target, no iteration).
+func LoadRequest(path string) (Request, error) {
+	var req Request
 	if path == "" {
 		return req, nil
 	}
@@ -75,7 +76,7 @@ func requestSourceField(v interface{}) (string, bool) {
 
 // requestSources maps each supported request field to its resolved value and
 // whether the field is present; absent fields let a tool keep its config default.
-func (r lifecycleRequest) requestSources() map[string]func() (interface{}, bool) {
+func (r Request) requestSources() map[string]func() (interface{}, bool) {
 	return map[string]func() (interface{}, bool){
 		"suite":      func() (interface{}, bool) { return r.Suite, r.Suite != "" },
 		"checkpoint": func() (interface{}, bool) { return r.Checkpoint, r.Checkpoint != "" },
@@ -88,9 +89,9 @@ func (r lifecycleRequest) requestSources() map[string]func() (interface{}, bool)
 	}
 }
 
-// defsDeclareRequestSources reports whether any selected tool declares a
+// DefsDeclareRequestSources reports whether any selected tool declares a
 // $request.<field> config source, i.e. whether the request-driven path applies.
-func defsDeclareRequestSources(defs []catalog.ToolDef) bool {
+func DefsDeclareRequestSources(defs []catalog.ToolDef) bool {
 	for i := range defs {
 		for _, v := range defs[i].Config {
 			if _, ok := requestSourceField(v); ok {
@@ -101,16 +102,17 @@ func defsDeclareRequestSources(defs []catalog.ToolDef) bool {
 	return false
 }
 
-type resolvedRequestSource struct {
+// ResolvedSource is provenance for one $request.<field> config substitution.
+type ResolvedSource struct {
 	Tool, Config, Field string
 }
 
-// resolveRequestSources replaces each declared $request.<field> config value
+// ResolveRequestSources replaces each declared $request.<field> config value
 // before typed config decode and returns provenance for composition-root wiring.
 // Unset fields are deleted so defaults apply; unknown fields fail as typos.
-func resolveRequestSources(defs []catalog.ToolDef, req lifecycleRequest) ([]resolvedRequestSource, error) {
+func ResolveRequestSources(defs []catalog.ToolDef, req Request) ([]ResolvedSource, error) {
 	sources := req.requestSources()
-	var resolved []resolvedRequestSource
+	var resolved []ResolvedSource
 	for i := range defs {
 		for key, v := range defs[i].Config {
 			field, ok := requestSourceField(v)
@@ -124,7 +126,7 @@ func resolveRequestSources(defs []catalog.ToolDef, req lifecycleRequest) ([]reso
 			}
 			if value, present := resolve(); present {
 				defs[i].Config[key] = value
-				resolved = append(resolved, resolvedRequestSource{
+				resolved = append(resolved, ResolvedSource{
 					Tool: defs[i].Name, Config: key, Field: field,
 				})
 			} else {
@@ -135,19 +137,22 @@ func resolveRequestSources(defs []catalog.ToolDef, req lifecycleRequest) ([]reso
 	return resolved, nil
 }
 
-func validateDeclaredRequestSources(cfg runtimeConfig, defs []catalog.ToolDef) error {
-	if !defsDeclareRequestSources(defs) {
+// ValidateDeclaredRequestSources loads the --request file at requestPath and
+// resolves declared $request sources on defs. requestPath is the only
+// runtimeConfig field the former composition-root helper read.
+func ValidateDeclaredRequestSources(requestPath string, defs []catalog.ToolDef) error {
+	if !DefsDeclareRequestSources(defs) {
 		return nil
 	}
-	request, err := loadLifecycleRequest(cfg.Request)
+	request, err := LoadRequest(requestPath)
 	if err != nil {
 		return err
 	}
-	_, err = resolveRequestSources(defs, request)
+	_, err = ResolveRequestSources(defs, request)
 	return err
 }
 
-func resolvesCheckpointTarget(resolved []resolvedRequestSource) bool {
+func resolvesCheckpointTarget(resolved []ResolvedSource) bool {
 	for _, source := range resolved {
 		if source.Config == "checkpoint" && source.Field == "checkpoint" {
 			return true
@@ -156,33 +161,33 @@ func resolvesCheckpointTarget(resolved []resolvedRequestSource) bool {
 	return false
 }
 
-// resolveLifecycleCheckpoint wires the checkpoint-operation backend for history
-// and rollback. Request selectors are resolved generically for every selected
+// ResolveCheckpoint wires the checkpoint-operation backend for history and
+// rollback. Request selectors are resolved generically for every selected
 // tool, but a separate backend opens only when resolution provenance says a
 // config named checkpoint consumed $request.checkpoint. Unrelated request
 // sources therefore cannot activate lifecycle backend wiring.
-func resolveLifecycleCheckpoint(cfg runtimeConfig, defs []catalog.ToolDef, loopCheckpoint core.Checkpoint) (openedCheckpoint, error) {
-	if !defsDeclareRequestSources(defs) {
-		return openedCheckpoint{Checkpoint: loopCheckpoint}, nil
+func ResolveCheckpoint(requestPath, doltDSN string, defs []catalog.ToolDef, loopCheckpoint core.Checkpoint) (checkpoint.Opened, error) {
+	if !DefsDeclareRequestSources(defs) {
+		return checkpoint.Opened{Checkpoint: loopCheckpoint}, nil
 	}
-	req, err := loadLifecycleRequest(cfg.Request)
+	req, err := LoadRequest(requestPath)
 	if err != nil {
-		return openedCheckpoint{}, err
+		return checkpoint.Opened{}, err
 	}
-	resolved, err := resolveRequestSources(defs, req)
+	resolved, err := ResolveRequestSources(defs, req)
 	if err != nil {
-		return openedCheckpoint{}, err
+		return checkpoint.Opened{}, err
 	}
-	if cfg.DoltDSN == "" || req.Checkpoint == "" || !resolvesCheckpointTarget(resolved) {
-		return openedCheckpoint{Checkpoint: loopCheckpoint}, nil
+	if doltDSN == "" || req.Checkpoint == "" || !resolvesCheckpointTarget(resolved) {
+		return checkpoint.Opened{Checkpoint: loopCheckpoint}, nil
 	}
-	target, err := openDoltCheckpoint(cfg.DoltDSN, req.Checkpoint, nil)
+	target, err := checkpoint.OpenDolt(doltDSN, req.Checkpoint, nil)
 	if err != nil {
-		return openedCheckpoint{}, fmt.Errorf("open target checkpoint %q: %w", req.Checkpoint, err)
+		return checkpoint.Opened{}, fmt.Errorf("open target checkpoint %q: %w", req.Checkpoint, err)
 	}
-	return openedCheckpoint{
+	return checkpoint.Opened{
 		Checkpoint: target,
-		close:      target.Close,
-		label:      fmt.Sprintf("target checkpoint %q", req.Checkpoint),
+		CloseFunc:  target.Close,
+		Label:      fmt.Sprintf("target checkpoint %q", req.Checkpoint),
 	}, nil
 }

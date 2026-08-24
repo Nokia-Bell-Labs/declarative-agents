@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
 )
 
 const testParentTraceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
@@ -22,13 +24,15 @@ func TestInitRunTelemetryRejectsMalformedExplicitParent(t *testing.T) {
 	}{
 		{
 			name: "without exporters",
-			cfg:  runtimeConfig{OTelParent: "malformed"},
+			cfg:  runtimeConfig{Telemetry: telemetry.Config{ParentSpan: "malformed"}},
 		},
 		{
 			name: "before provider setup",
 			cfg: runtimeConfig{
-				OTelParent: "malformed",
-				OTelLog:    filepath.Join(t.TempDir(), "missing", "trace.json"),
+				Telemetry: telemetry.Config{
+					ParentSpan: "malformed",
+					LogFile:    filepath.Join(t.TempDir(), "missing", "trace.json"),
+				},
 			},
 		},
 	} {
@@ -69,8 +73,10 @@ func TestInitRunTelemetryParenting(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tracePath := filepath.Join(t.TempDir(), "trace.json")
 			_, _, shutdown, err := initRunTelemetry(runtimeConfig{
-				OTelLog:    tracePath,
-				OTelParent: tc.parent,
+				Telemetry: telemetry.Config{
+					LogFile:    tracePath,
+					ParentSpan: tc.parent,
+				},
 			})
 			require.NoError(t, err)
 			shutdown()

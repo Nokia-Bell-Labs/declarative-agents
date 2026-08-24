@@ -16,14 +16,17 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/lifecycle"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
@@ -33,25 +36,20 @@ import (
 )
 
 var (
-	flagProfile          string
-	flagCoreRoot         string
-	flagOTelLog          string
-	flagOTelOTLP         string
-	flagOTelMetricOTLP   string
-	flagOTelService      string
-	flagOTelParent       string
-	flagDirectory        string
-	flagTelemetryCapture string
-	flagVerboseTrace     bool
-	flagRequest          string
-	flagOutput           string
-	flagDoltDSN          string
-	flagResumeCheckpoint string
-	flagResumeSignal     string
-	flagChildAgent       string
-	flagValidateConfig   bool
-	telemetryCaptureSet  = func() bool { return false }
+	flagProfile        string
+	flagCoreRoot       string
+	flagDirectory      string
+	flagRequest        string
+	flagOutput         string
+	flagChildAgent     string
+	flagValidateConfig bool
+	telemetryCfg       telemetry.Config
+	telemetryFlags     *pflag.FlagSet
+	checkpointCfg      checkpoint.Config
 )
+
+type openedCheckpoint = checkpoint.Opened
+type closeableCheckpoint = checkpoint.Closeable
 
 const (
 	agentVersion             = "v0.0.0-dev"
@@ -103,25 +101,18 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	checkpoint.RegisterDriver()
 	f := rootCmd.PersistentFlags()
+	telemetryFlags = f
 	f.StringVar(&flagProfile, "profile", "", "path to agent profile YAML")
 	f.StringVar(&flagCoreRoot, "core-root", "", "maps /opt/agent-core paths in the profile to this directory (development checkout)")
-	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
-	f.StringVar(&flagOTelOTLP, "otel-otlp-endpoint", "", "OTLP gRPC endpoint for OTel spans (host:port); enables the OTLP exporter (srd008)")
-	f.StringVar(&flagOTelMetricOTLP, "otel-metric-otlp-endpoint", "", "optional OTLP gRPC endpoint for OTel metrics; defaults to --otel-otlp-endpoint (srd008)")
-	f.StringVar(&flagOTelService, "otel-service-name", "agent", "OTel resource service.name for this agent, so a cross-agent trace distinguishes agents")
-	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
-	f.StringVar(&flagTelemetryCapture, "telemetry-capture", string(toollm.CaptureOff), "telemetry content capture level: off, delta, or full")
-	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record full LLM input/output in traces (alias for --telemetry-capture=full)")
-	telemetryCaptureSet = func() bool { return f.Changed("telemetry-capture") }
 	f.StringVar(&flagRequest, "request", "", "request data file")
 	f.StringVar(&flagOutput, "output", "", "output directory for runtime artifacts")
-	f.StringVar(&flagDoltDSN, "dolt-dsn", "", "MySQL-wire DSN to a dolt sql-server for the persistent checkpoint backend (default: no persistence)")
-	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
-	f.StringVar(&flagResumeSignal, "resume-signal", "", "resume signal override (default: required machine resume_signal)")
 	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary used by child-process words (default: agent, resolved from PATH)")
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
+	telemetryCfg.RegisterFlags(f)
+	checkpointCfg.RegisterFlags(f)
 
 	rootCmd.Version = agentVersion
 }
@@ -274,14 +265,13 @@ type requestSignalCheckpointStore struct {
 }
 
 func (s *requestSignalCheckpointStore) Open(runID string) (openedCheckpoint, error) {
-	if s.cfg.DoltDSN != "" {
-		cp, err := openDoltCheckpoint(s.cfg.DoltDSN, runID, terminalPredicate(s.machine))
+	if s.cfg.Checkpoint.DoltDSN != "" {
+		cp, err := s.cfg.Checkpoint.Open(s.machine, runID)
 		if err != nil {
 			return openedCheckpoint{}, fmt.Errorf("open request signal Dolt checkpoint: %w", err)
 		}
-		return openedCheckpoint{
-			Checkpoint: cp, close: cp.Close, label: "request signal checkpoint " + runID,
-		}, nil
+		cp.Label = "request signal checkpoint " + runID
+		return cp, nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -363,8 +353,8 @@ func closeRequestSignalCheckpoint(
 	checkpoint openedCheckpoint,
 	admission *core.SignalAdmission,
 ) {
-	if checkpoint.close != nil {
-		if closeErr := checkpoint.close(); closeErr != nil {
+	if checkpoint.CloseFunc != nil {
+		if closeErr := checkpoint.Close(); closeErr != nil {
 			admission.Err = errors.Join(admission.Err, fmt.Errorf("close request signal checkpoint: %w", closeErr))
 			admission.Stage = "checkpoint_close_failed"
 			if admission.Accepted() {
@@ -506,7 +496,7 @@ func validateConfig() error {
 		return err
 	}
 	resources.shutdownTelemetry()
-	if err := validateDeclaredRequestSources(resources.Config, resources.Definitions); err != nil {
+	if err := lifecycle.ValidateDeclaredRequestSources(resources.Config.Request, resources.Definitions); err != nil {
 		return err
 	}
 	reportMachineDiagnostics(resources.Machine)
@@ -553,7 +543,7 @@ type checkpointResources struct {
 }
 
 func (r *checkpointResources) Add(checkpoint openedCheckpoint) {
-	if checkpoint.close != nil {
+	if checkpoint.CloseFunc != nil {
 		r.opened = append(r.opened, checkpoint)
 	}
 }
@@ -561,10 +551,10 @@ func (r *checkpointResources) Add(checkpoint openedCheckpoint) {
 func (r *checkpointResources) Close() error {
 	var errs []error
 	for i := len(r.opened) - 1; i >= 0; i-- {
-		checkpoint := r.opened[i]
-		r.opened[i].close = nil
-		if err := checkpoint.close(); err != nil {
-			errs = append(errs, fmt.Errorf("close %s: %w", checkpoint.label, err))
+		item := r.opened[i]
+		r.opened[i].CloseFunc = nil
+		if err := item.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close %s: %w", item.Label, err))
 		}
 	}
 	r.opened = nil
@@ -683,14 +673,14 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		// has process-local continuation even when Dolt is not configured.
 		checkpoint.Checkpoint = core.NewInMemoryCheckpoint(runID)
 	} else {
-		checkpoint, err = resolveCheckpoint(cfg, resources.Machine, runID)
+		checkpoint, err = cfg.Checkpoint.Open(resources.Machine, runID)
 		if err != nil {
 			resources.shutdownTelemetry()
 			return preparedRun{}, err
 		}
 	}
 	checkpoints.Add(checkpoint)
-	lifecycleCheckpoint, err := resolveLifecycleCheckpoint(cfg, resources.Definitions, checkpoint.Checkpoint)
+	lifecycleCheckpoint, err := lifecycle.ResolveCheckpoint(cfg.Request, cfg.Checkpoint.DoltDSN, resources.Definitions, checkpoint.Checkpoint)
 	if err != nil {
 		return preparedRun{}, closeBuildFailure(err, nil, &checkpoints, resources.shutdownTelemetry)
 	}
@@ -783,19 +773,19 @@ func closeBuildFailure(primary error, cancel context.CancelFunc, checkpoints *ch
 }
 
 func initRunTelemetry(cfg runtimeConfig) (tracing.Tracer, metric.Meter, func(), error) {
-	parentCtx, err := telemetry.ParseParentSpan(cfg.OTelParent)
+	parentCtx, err := telemetry.ParseParentSpan(cfg.Telemetry.ParentSpan)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parse --otel-parent-span: %w", err)
 	}
-	if cfg.OTelLog == "" && cfg.OTelOTLP == "" && cfg.OTelMetricOTLP == "" {
+	if cfg.Telemetry.LogFile == "" && cfg.Telemetry.OTLPEndpoint == "" && cfg.Telemetry.MetricEndpoint == "" {
 		return tracing.NoopTracer{}, nil, func() {}, nil
 	}
 	exporter := telemetry.ExporterConfig{
-		FilePath:           cfg.OTelLog,
-		OTLPEndpoint:       cfg.OTelOTLP,
-		MetricOTLPEndpoint: cfg.OTelMetricOTLP,
+		FilePath:           cfg.Telemetry.LogFile,
+		OTLPEndpoint:       cfg.Telemetry.OTLPEndpoint,
+		MetricOTLPEndpoint: cfg.Telemetry.MetricEndpoint,
 	}
-	serviceName := cfg.OTelService
+	serviceName := cfg.Telemetry.ServiceName
 	if serviceName == "" {
 		serviceName = "agent"
 	}
@@ -849,7 +839,7 @@ type agentStateDeps struct {
 
 // checkpointOrNoop defaults an unset Checkpoint dependency to the no-op adapter.
 // The composition root resolves the Dolt-backed backend (or NoopCheckpoint) via
-// resolveCheckpoint; this guard covers direct constructions that omit it.
+// Config.Open; this guard covers direct constructions that omit it.
 func checkpointOrNoop(cp core.Checkpoint) core.Checkpoint {
 	if cp == nil {
 		return core.NoopCheckpoint{}
@@ -864,14 +854,14 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		tracer:              deps.Tracer,
 		coreRoot:            cfg.CoreRoot,
 		parseRetries:        deps.ParseRetries,
-		captureLevel:        cfg.TelemetryCapture,
+		captureLevel:        cfg.CaptureLevel,
 		ctx:                 deps.Ctx,
 		directory:           cfg.Directory,
 		request:             cfg.Request,
 		output:              cfg.Output,
 		childAgentBinary:    cfg.ChildAgentBinary,
 		runID:               deps.RunID,
-		doltDSN:             cfg.DoltDSN,
+		doltDSN:             cfg.Checkpoint.DoltDSN,
 		checkpoint:          checkpointOrNoop(deps.Checkpoint),
 		lifecycleCheckpoint: deps.LifecycleCheckpoint,
 		monitor:             deps.Monitor,
@@ -905,7 +895,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 	toolAction := toolregistry.BuildDynamicToolAction(toolregistry.DynamicToolActionDeps{
 		Registry: deps.Registry,
 		Tracer:   deps.Tracer,
-		Verbose:  cfg.TelemetryCapture.CapturesFullContent(),
+		Verbose:  cfg.CaptureLevel.CapturesFullContent(),
 	})
 	return core.LoopParams{
 		MachineFile:          cfg.Machine,
@@ -1090,7 +1080,7 @@ type resumeDeps struct {
 }
 
 func runOrResume(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
-	if cfg.ResumeCheckpoint == "" {
+	if cfg.Checkpoint.ResumeCheckpoint == "" {
 		result, err := core.Loop(deps.Params, deps.Ctx)
 		if err != nil {
 			return result, fmt.Errorf("loop: %w", err)
@@ -1106,7 +1096,7 @@ func runOrResume(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 // (srd035-checkpoint-port R6.2).
 func resumeRun(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 	params := deps.Params
-	params.InitialSignal = core.Signal(cfg.ResumeSignal)
+	params.InitialSignal = core.Signal(cfg.Checkpoint.ResumeSignal)
 	state, err := core.LoadResume(params)
 	if err != nil {
 		return core.RunResult{}, fmt.Errorf("resume: %w", err)

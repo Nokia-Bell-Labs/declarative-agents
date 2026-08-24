@@ -15,6 +15,8 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	monitorruntime "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor/runtimeconfig"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	tooldolt "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/dolt"
@@ -36,42 +38,20 @@ type runtimeConfig struct {
 	Directory        string
 	Request          string
 	Output           string
-	OTelLog          string
-	OTelOTLP         string
-	OTelMetricOTLP   string
-	OTelService      string
-	OTelParent       string
-	TelemetryCapture toollm.CaptureLevel
-	DoltDSN          string
-	ResumeCheckpoint string
-	ResumeSignal     string
+	Telemetry        telemetry.Config
+	// CaptureLevel is the composition-root conversion of Telemetry.Capture.
+	// observability cannot import tools, so the typed LLM capture level lives here.
+	CaptureLevel     toollm.CaptureLevel
+	Checkpoint       checkpoint.Config
 	ChildAgentBinary string
 }
 
-type closeableCheckpoint interface {
-	core.Checkpoint
-	Close() error
-}
-
-type openedCheckpoint struct {
-	core.Checkpoint
-	close func() error
-	label string
-}
-
-var openDoltCheckpoint = func(dsn, runID string, terminal func(core.State) bool) (closeableCheckpoint, error) {
-	return core.OpenDoltCheckpoint(dsn, runID, terminal)
-}
-
 func loadRuntimeConfig() (runtimeConfig, error) {
-	captureLevel, err := resolveTelemetryCapture(
-		flagTelemetryCapture,
-		telemetryCaptureSet(),
-		flagVerboseTrace,
-	)
+	resolved, err := telemetryCfg.ResolveCapture(telemetryFlags)
 	if err != nil {
 		return runtimeConfig{}, err
 	}
+	captureLevel := toollm.CaptureLevel(resolved)
 	if flagProfile == "" {
 		return runtimeConfig{}, fmt.Errorf("--profile is required")
 	}
@@ -99,34 +79,11 @@ func runtimeConfigFromProfile(p catalog.AgentProfile, captureLevel toollm.Captur
 		Directory:        directory,
 		Request:          flagRequest,
 		Output:           flagOutput,
-		OTelLog:          flagOTelLog,
-		OTelOTLP:         flagOTelOTLP,
-		OTelMetricOTLP:   flagOTelMetricOTLP,
-		OTelService:      flagOTelService,
-		OTelParent:       flagOTelParent,
-		TelemetryCapture: captureLevel,
-		DoltDSN:          flagDoltDSN,
-		ResumeCheckpoint: flagResumeCheckpoint,
-		ResumeSignal:     flagResumeSignal,
+		Telemetry:        telemetryCfg,
+		CaptureLevel:     captureLevel,
+		Checkpoint:       checkpointCfg,
 		ChildAgentBinary: flagChildAgent,
 	}
-}
-
-func resolveTelemetryCapture(value string, explicitlySet, verboseTrace bool) (toollm.CaptureLevel, error) {
-	level, err := toollm.ParseCaptureLevel(value)
-	if err != nil {
-		return "", fmt.Errorf("parse --telemetry-capture: %w", err)
-	}
-	if !verboseTrace {
-		return level, nil
-	}
-	if explicitlySet && level != toollm.CaptureFull {
-		return "", fmt.Errorf(
-			"--verbose-trace conflicts with --telemetry-capture=%s; use --telemetry-capture=full or omit one flag",
-			level,
-		)
-	}
-	return toollm.CaptureFull, nil
 }
 
 func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {
@@ -149,27 +106,6 @@ func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {
 	return defs, nil
 }
 
-// resolveCheckpoint returns the typed Checkpoint port for the run: the
-// Dolt-backed persistent backend when --dolt-dsn is configured, otherwise the
-// no-op adapter so a run without persistence keeps disabled-mode behavior
-// (srd035-checkpoint-port R5.1, srd036-dolt-state-persistence R1). The "dolt"
-// database/sql driver is registered at the composition root (dolt_driver.go),
-// which connects to a dolt sql-server over the MySQL wire protocol.
-func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec, runID string) (openedCheckpoint, error) {
-	if cfg.DoltDSN == "" {
-		return openedCheckpoint{Checkpoint: core.NoopCheckpoint{}}, nil
-	}
-	cp, err := openDoltCheckpoint(cfg.DoltDSN, runID, terminalPredicate(machine))
-	if err != nil {
-		return openedCheckpoint{}, fmt.Errorf("open dolt checkpoint: %w", err)
-	}
-	return openedCheckpoint{
-		Checkpoint: cp,
-		close:      cp.Close,
-		label:      "loop checkpoint",
-	}, nil
-}
-
 func doltCheckpointIdentity(dsn string) (*tooldolt.DatabaseIdentity, error) {
 	if strings.TrimSpace(dsn) == "" {
 		return nil, nil
@@ -184,27 +120,18 @@ func doltCheckpointIdentity(dsn string) (*tooldolt.DatabaseIdentity, error) {
 // resolveRunID returns the stable identity shared by checkpoint, monitor, and
 // trace records: the explicit checkpoint id on resume, or a fresh random id.
 func resolveRunID(cfg runtimeConfig) (string, error) {
-	if id := strings.TrimSpace(cfg.ResumeCheckpoint); id != "" {
-		if id == "latest" {
-			return "", fmt.Errorf("--resume-checkpoint %q is unsupported; provide an explicit run id", id)
-		}
+	id, err := cfg.Checkpoint.ResumeID()
+	if err != nil {
+		return "", err
+	}
+	if id != "" {
 		return id, nil
 	}
-	var id [16]byte
-	if _, err := rand.Read(id[:]); err != nil {
+	var buf [16]byte
+	if _, err := rand.Read(buf[:]); err != nil {
 		return "", fmt.Errorf("generate run id: %w", err)
 	}
-	return "run-" + hex.EncodeToString(id[:]), nil
-}
-
-// terminalPredicate reports which machine states end a run so the Dolt adapter
-// merges the run branch to main (srd036-dolt-state-persistence R4.3).
-func terminalPredicate(machine core.MachineSpec) func(core.State) bool {
-	terminal := make(map[core.State]bool, len(machine.TerminalStates))
-	for _, s := range machine.TerminalStates {
-		terminal[core.State(s)] = true
-	}
-	return func(s core.State) bool { return terminal[s] }
+	return "run-" + hex.EncodeToString(buf[:]), nil
 }
 
 type monitorRuntime struct {

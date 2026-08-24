@@ -10,7 +10,7 @@ import:pkg/profileaudit -> internal/runtime/core
 import:pkg/profileaudit -> internal/support/corepath
 import:pkg/profileaudit -> internal/tools/catalog
 import:pkg/profileaudit -> internal/tools/rest
-pkg:cmd/agent files=10 loc=2491
+pkg:cmd/agent files=8 loc=2198
 pkg:internal/evaluation files=23 loc=3860
 pkg:internal/gostyle files=1 loc=9
 pkg:internal/model files=1 loc=7
@@ -20,7 +20,7 @@ pkg:internal/model/prompt files=4 loc=140
 pkg:internal/observability files=1 loc=7
 pkg:internal/observability/monitor files=5 loc=1104
 pkg:internal/observability/monitor/runtimeconfig files=1 loc=219
-pkg:internal/observability/telemetry files=3 loc=562
+pkg:internal/observability/telemetry files=4 loc=639
 pkg:internal/observability/telemetry/genai files=2 loc=221
 pkg:internal/observability/tracing files=3 loc=218
 pkg:internal/planning files=1 loc=7
@@ -29,6 +29,7 @@ pkg:internal/planning/graph files=2 loc=455
 pkg:internal/planning/pipeline files=10 loc=1243
 pkg:internal/planning/plan files=3 loc=140
 pkg:internal/runtime files=1 loc=7
+pkg:internal/runtime/checkpoint files=2 loc=128
 pkg:internal/runtime/core files=36 loc=6908
 pkg:internal/support files=1 loc=7
 pkg:internal/support/corepath files=1 loc=51
@@ -42,7 +43,7 @@ pkg:internal/tools/control files=6 loc=1141
 pkg:internal/tools/dolt files=6 loc=1459
 pkg:internal/tools/exec files=6 loc=600
 pkg:internal/tools/filesystem files=9 loc=1320
-pkg:internal/tools/lifecycle files=6 loc=1541
+pkg:internal/tools/lifecycle files=7 loc=1735
 pkg:internal/tools/llm files=13 loc=1591
 pkg:internal/tools/otlp files=14 loc=3877
 pkg:internal/tools/registry files=3 loc=318
