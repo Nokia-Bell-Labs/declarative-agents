@@ -28,6 +28,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/version"
 )
 
 // ExporterConfig controls which exporters NewRoot sets up.
@@ -166,7 +168,8 @@ func NewRoot(serviceName, name string, cfg ExporterConfig, parentCtx context.Con
 
 // newServiceResource builds the OTel resource for serviceName, merging
 // env-derived attributes (OTEL_RESOURCE_ATTRIBUTES) with the explicit
-// service name; the explicit name wins on conflict.
+// service name and build-time service.version; the explicit name wins
+// on conflict.
 func newServiceResource(parentCtx context.Context, serviceName string) (*resource.Resource, error) {
 	envResource, err := resource.New(parentCtx, resource.WithFromEnv())
 	if err != nil {
@@ -175,6 +178,7 @@ func newServiceResource(parentCtx context.Context, serviceName string) (*resourc
 	explicitResource := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		semconv.ServiceNameKey.String(serviceName),
+		semconv.ServiceVersionKey.String(version.Version),
 	)
 	res, err := resource.Merge(envResource, explicitResource)
 	if err != nil {

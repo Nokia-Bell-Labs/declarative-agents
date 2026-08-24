@@ -17,6 +17,8 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/version"
 )
 
 type recordingExporter struct {
@@ -105,6 +107,7 @@ func TestNewRoot_MergesEnvironmentResourceAndKeepsExplicitServiceName(t *testing
 		"test.target", "unit",
 		"test.run.id", "run-123",
 		"service.name", "explicit-name",
+		"service.version", version.Version,
 	} {
 		require.Contains(t, output, value)
 	}

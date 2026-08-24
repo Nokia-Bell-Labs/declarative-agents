@@ -73,6 +73,8 @@ Component-owned flags:
   helpers, and trace replay support.
 - `internal/support`: private process, workspace, and CLI helper code. This
   domain contains process execution, subprocess, worktree, and CLI utilities.
+- `internal/version`: link-time binary identity (Version, Commit, Date)
+  consumed by cmd/agent and the OTel service.version resource attribute.
 
 ## Current Go Package Inventory
 
@@ -120,6 +122,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/tools/service`
 - `internal/tools/undo`
 - `internal/tools/validation`
+- `internal/version`
 - `pkg/profileaudit`
 - `pkg/spec`
 

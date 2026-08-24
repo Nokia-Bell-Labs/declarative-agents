@@ -20,7 +20,7 @@ pkg:internal/model/prompt files=4 loc=140
 pkg:internal/observability files=1 loc=7
 pkg:internal/observability/monitor files=5 loc=1104
 pkg:internal/observability/monitor/runtimeconfig files=1 loc=219
-pkg:internal/observability/telemetry files=4 loc=639
+pkg:internal/observability/telemetry files=4 loc=643
 pkg:internal/observability/telemetry/genai files=2 loc=221
 pkg:internal/observability/tracing files=3 loc=218
 pkg:internal/planning files=1 loc=7
@@ -51,5 +51,6 @@ pkg:internal/tools/rest files=32 loc=10126
 pkg:internal/tools/service files=6 loc=1637
 pkg:internal/tools/undo files=1 loc=84
 pkg:internal/tools/validation files=5 loc=1488
+pkg:internal/version files=1 loc=40
 pkg:pkg/profileaudit files=4 loc=1049
 pkg:pkg/spec files=30 loc=6311
