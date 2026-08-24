@@ -24,15 +24,14 @@ import (
 
 func TestReceiverExportAwaitMetrics(t *testing.T) {
 	state := NewState()
-	output, err := state.Launch(testReceiverConfig("metrics"))
-	require.NoError(t, err)
+	output := launchReceiver(t, state, testReceiverConfig("metrics"))
 	t.Cleanup(func() { _, _ = state.Stop("metrics") })
 
 	// Trace and metric services share one gRPC listener; a metric export must
 	// not disturb the trace queue.
 	traceConn, traceCli := traceClient(t, output["address"].(string))
 	defer func() { _ = traceConn.Close() }()
-	_, err = traceCli.Export(context.Background(), traceRequest("chatbot", 2))
+	_, err := traceCli.Export(context.Background(), traceRequest("chatbot", 2))
 	require.NoError(t, err)
 
 	conn, client := metricClient(t, output["address"].(string))
@@ -74,13 +73,12 @@ func TestReceiverMetricOverflowPolicies(t *testing.T) {
 			cfg.QueueCapacity = 1
 			cfg.OverflowPolicy = test.policy
 			cfg.DrainPolicy = DrainDrop
-			output, err := state.Launch(cfg)
-			require.NoError(t, err)
+			output := launchReceiver(t, state, cfg)
 			t.Cleanup(func() { _, _ = state.Stop("moverflow") })
 			conn, client := metricClient(t, output["address"].(string))
 			defer func() { _ = conn.Close() }()
 
-			_, err = client.Export(context.Background(), metricRequest("first", "m", 1))
+			_, err := client.Export(context.Background(), metricRequest("first", "m", 1))
 			require.NoError(t, err)
 			response, err := client.Export(context.Background(), metricRequest("second", "m", 2))
 			require.NoError(t, err)
@@ -103,8 +101,7 @@ func TestReceiverMetricOverflowPolicies(t *testing.T) {
 func TestAwaitMetricsSignals(t *testing.T) {
 	t.Run("received", func(t *testing.T) {
 		state := NewState()
-		_, err := state.Launch(testReceiverConfig("mawait"))
-		require.NoError(t, err)
+		_ = launchReceiver(t, state, testReceiverConfig("mawait"))
 		t.Cleanup(func() { _, _ = state.Stop("mawait") })
 		runtime, err := state.runtime("mawait")
 		require.NoError(t, err)
@@ -127,15 +124,14 @@ func TestAwaitMetricsSignals(t *testing.T) {
 
 	t.Run("timeout and stop", func(t *testing.T) {
 		state := NewState()
-		_, err := state.Launch(testReceiverConfig("msignals"))
-		require.NoError(t, err)
+		_ = launchReceiver(t, state, testReceiverConfig("msignals"))
 		timeout := MetricAwaitBuilder{
 			ToolName: "await_metrics",
 			Config:   AwaitConfig{Receiver: "msignals", Timeout: time.Millisecond},
 			State:    state,
 		}.Build(core.Result{}).Execute()
 		require.Equal(t, core.Signal("AwaitTimedOut"), timeout.Signal)
-		_, err = state.Stop("msignals")
+		_, err := state.Stop("msignals")
 		require.NoError(t, err)
 		stopped := MetricAwaitBuilder{
 			ToolName: "await_metrics",

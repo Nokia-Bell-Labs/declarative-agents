@@ -21,6 +21,8 @@ func TestHeavyweightHelpersSkipUnderShort(t *testing.T) {
 	dir := filepath.Dir(file)
 	requireHelperSkipsShort(t, filepath.Join(dir, "dolt_server_integration_test.go"), "startDoltServer")
 	requireHelperSkipsShort(t, filepath.Join(dir, "main_monitor_helpers_test.go"), "startMonitorAgentProcess")
+	otlp := filepath.Join(dir, "..", "..", "internal", "tools", "otlp")
+	requireHelperSkipsShort(t, filepath.Join(otlp, "receiver_test.go"), "skipIfShortOTLPLaunch")
 }
 
 func requireHelperSkipsShort(t *testing.T, path, name string) {
