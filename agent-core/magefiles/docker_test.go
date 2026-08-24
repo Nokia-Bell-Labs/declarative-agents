@@ -92,6 +92,62 @@ func TestContainerBuildArgsForDocker(t *testing.T) {
 	}
 }
 
+func TestContainerBuildArgsIncludesVersionMetadata(t *testing.T) {
+	got := containerBuildArgs(dockerBuildOptions{
+		Image:   "agent-core:latest",
+		Ref:     "v0.20260612.2",
+		Version: "v0.20260612.2",
+		Commit:  "abc1234",
+		Date:    "2026-08-24T15:00:00-04:00",
+	})
+	want := []string{
+		"build",
+		"--progress=plain",
+		"--build-arg", "AGENT_CORE_REF=v0.20260612.2",
+		"--build-arg", "AGENT_VERSION=v0.20260612.2",
+		"--build-arg", "AGENT_COMMIT=abc1234",
+		"--build-arg", "AGENT_DATE=2026-08-24T15:00:00-04:00",
+		"-t", "agent-core:latest",
+		".",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("containerBuildArgs = %#v, want %#v", got, want)
+	}
+}
+
+func TestWithContainerVersionUsesReleaseRef(t *testing.T) {
+	git := func(args ...string) (string, error) {
+		switch strings.Join(args, " ") {
+		case "rev-parse --short v0.20260612.2":
+			return "def5678", nil
+		case "log -1 --format=%cI v0.20260612.2":
+			return "2026-06-12T12:00:00Z", nil
+		default:
+			t.Fatalf("unexpected git args %q", args)
+			return "", nil
+		}
+	}
+	got := withContainerVersion(dockerBuildOptions{Ref: "v0.20260612.2"}, git)
+	if got.Version != "v0.20260612.2" {
+		t.Fatalf("Version = %q, want release ref", got.Version)
+	}
+	if got.Commit != "def5678" || got.Date != "2026-06-12T12:00:00Z" {
+		t.Fatalf("commit/date = %q %q", got.Commit, got.Date)
+	}
+}
+
+func TestWithContainerVersionKeepsRefWhenGitMissing(t *testing.T) {
+	got := withContainerVersion(dockerBuildOptions{Ref: "v0.20260612.2"}, func(...string) (string, error) {
+		return "", errors.New("git not found")
+	})
+	if got.Version != "v0.20260612.2" {
+		t.Fatalf("Version = %q, want release ref even without git", got.Version)
+	}
+	if got.Commit != "" || got.Date != "" {
+		t.Fatalf("commit/date should stay empty without git, got %q %q", got.Commit, got.Date)
+	}
+}
+
 func TestContainerBuildSummaryForDocker(t *testing.T) {
 	opts := dockerBuildOptions{
 		Image: "agent-core:latest",
@@ -144,6 +200,16 @@ func TestDockerfileRuntimeExcludesAgentProfiles(t *testing.T) {
 	}
 	if !strings.Contains(content, "COPY --from=builder /src/tools /opt/agent-core/tools") {
 		t.Fatal("Dockerfile should copy core-owned tools into the runtime image")
+	}
+	for _, want := range []string{
+		"ARG AGENT_VERSION=v0.0.0-dev",
+		"ARG AGENT_COMMIT=unknown",
+		"ARG AGENT_DATE=unknown",
+		"-X ${VERSION_PKG}.Version=${AGENT_VERSION}",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("Dockerfile missing version injection %q", want)
+		}
 	}
 	for _, want := range []string{
 		"Error: --profile is required; mount profiles and pass --profile /profiles/agents/<name>/profile.yaml",

@@ -29,6 +29,7 @@ func Docker() error {
 	if err != nil {
 		return err
 	}
+	opts = withContainerVersion(opts, gitOutput)
 
 	args := containerBuildArgs(opts)
 	fmt.Print(containerBuildSummary(opts, args))
@@ -40,10 +41,13 @@ func Docker() error {
 }
 
 type dockerBuildOptions struct {
-	Image string
-	Ref   string
-	Repo  string
-	NetRC string
+	Image   string
+	Ref     string
+	Repo    string
+	NetRC   string
+	Version string
+	Commit  string
+	Date    string
 }
 
 func dockerBuildOptionsFromDemo(ref string) (dockerBuildOptions, error) {
@@ -86,6 +90,7 @@ func containerBuildArgs(opts dockerBuildOptions) []string {
 	if opts.Repo != "" {
 		args = append(args, "--build-arg", "AGENT_CORE_REPO="+opts.Repo)
 	}
+	args = append(args, containerVersionBuildArgs(opts)...)
 	args = append(args, "-t", opts.Image, ".")
 	return args
 }
