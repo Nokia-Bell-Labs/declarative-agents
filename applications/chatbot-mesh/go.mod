@@ -30,6 +30,7 @@ require (
 	github.com/oasdiff/yaml3 v0.0.13 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/yuin/goldmark v1.4.13 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect
