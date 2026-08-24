@@ -39,6 +39,8 @@ type runtimeConfig struct {
 	Request          string
 	Output           string
 	Telemetry        telemetry.Config
+	// CaptureLevel is the composition-root conversion of Telemetry.Capture.
+	// observability cannot import tools, so the typed LLM capture level lives here.
 	CaptureLevel     toollm.CaptureLevel
 	Checkpoint       checkpoint.Config
 	ChildAgentBinary string
