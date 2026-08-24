@@ -5,11 +5,6 @@ package main
 
 import (
 	"bytes"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
-	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
-	"github.com/stretchr/testify/require"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -17,6 +12,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
 func TestMain(m *testing.M) {
@@ -101,12 +104,9 @@ func assertGenDeclNamesAbsent(t *testing.T, decl *ast.GenDecl, forbidden map[str
 type agentFlagSnapshot struct {
 	profile          string
 	coreRoot         string
-	otelLog          string
-	otelParent       string
+	telemetry        telemetry.Config
 	directory        string
-	telemetryCapture string
 	captureChanged   bool
-	verboseTrace     bool
 	request          string
 	output           string
 	resumeCheckpoint string
@@ -118,12 +118,9 @@ func snapshotAgentFlags() agentFlagSnapshot {
 	return agentFlagSnapshot{
 		profile:          flagProfile,
 		coreRoot:         flagCoreRoot,
-		otelLog:          flagOTelLog,
-		otelParent:       flagOTelParent,
+		telemetry:        telemetryCfg,
 		directory:        flagDirectory,
-		telemetryCapture: flagTelemetryCapture,
 		captureChanged:   rootCmd.PersistentFlags().Changed("telemetry-capture"),
-		verboseTrace:     flagVerboseTrace,
 		request:          flagRequest,
 		output:           flagOutput,
 		resumeCheckpoint: flagResumeCheckpoint,
@@ -135,12 +132,9 @@ func snapshotAgentFlags() agentFlagSnapshot {
 func restoreAgentFlags(s agentFlagSnapshot) {
 	flagProfile = s.profile
 	flagCoreRoot = s.coreRoot
-	flagOTelLog = s.otelLog
-	flagOTelParent = s.otelParent
+	telemetryCfg = s.telemetry
 	flagDirectory = s.directory
-	flagTelemetryCapture = s.telemetryCapture
 	rootCmd.PersistentFlags().Lookup("telemetry-capture").Changed = s.captureChanged
-	flagVerboseTrace = s.verboseTrace
 	flagRequest = s.request
 	flagOutput = s.output
 	flagResumeCheckpoint = s.resumeCheckpoint
@@ -149,7 +143,9 @@ func restoreAgentFlags(s agentFlagSnapshot) {
 }
 
 func clearAgentFlags() {
-	restoreAgentFlags(agentFlagSnapshot{telemetryCapture: string(toollm.CaptureOff)})
+	restoreAgentFlags(agentFlagSnapshot{
+		telemetry: telemetry.Config{Capture: string(toollm.CaptureOff), ServiceName: "agent"},
+	})
 }
 
 func repoRootFromTest(t *testing.T) string {

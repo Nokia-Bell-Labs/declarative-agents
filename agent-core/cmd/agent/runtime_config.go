@@ -15,6 +15,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	monitorruntime "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor/runtimeconfig"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	tooldolt "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/dolt"
@@ -36,12 +37,8 @@ type runtimeConfig struct {
 	Directory        string
 	Request          string
 	Output           string
-	OTelLog          string
-	OTelOTLP         string
-	OTelMetricOTLP   string
-	OTelService      string
-	OTelParent       string
-	TelemetryCapture toollm.CaptureLevel
+	Telemetry        telemetry.Config
+	CaptureLevel     toollm.CaptureLevel
 	DoltDSN          string
 	ResumeCheckpoint string
 	ResumeSignal     string
@@ -64,14 +61,11 @@ var openDoltCheckpoint = func(dsn, runID string, terminal func(core.State) bool)
 }
 
 func loadRuntimeConfig() (runtimeConfig, error) {
-	captureLevel, err := resolveTelemetryCapture(
-		flagTelemetryCapture,
-		telemetryCaptureSet(),
-		flagVerboseTrace,
-	)
+	resolved, err := telemetryCfg.ResolveCapture(telemetryFlags)
 	if err != nil {
 		return runtimeConfig{}, err
 	}
+	captureLevel := toollm.CaptureLevel(resolved)
 	if flagProfile == "" {
 		return runtimeConfig{}, fmt.Errorf("--profile is required")
 	}
@@ -99,34 +93,13 @@ func runtimeConfigFromProfile(p catalog.AgentProfile, captureLevel toollm.Captur
 		Directory:        directory,
 		Request:          flagRequest,
 		Output:           flagOutput,
-		OTelLog:          flagOTelLog,
-		OTelOTLP:         flagOTelOTLP,
-		OTelMetricOTLP:   flagOTelMetricOTLP,
-		OTelService:      flagOTelService,
-		OTelParent:       flagOTelParent,
-		TelemetryCapture: captureLevel,
+		Telemetry:        telemetryCfg,
+		CaptureLevel:     captureLevel,
 		DoltDSN:          flagDoltDSN,
 		ResumeCheckpoint: flagResumeCheckpoint,
 		ResumeSignal:     flagResumeSignal,
 		ChildAgentBinary: flagChildAgent,
 	}
-}
-
-func resolveTelemetryCapture(value string, explicitlySet, verboseTrace bool) (toollm.CaptureLevel, error) {
-	level, err := toollm.ParseCaptureLevel(value)
-	if err != nil {
-		return "", fmt.Errorf("parse --telemetry-capture: %w", err)
-	}
-	if !verboseTrace {
-		return level, nil
-	}
-	if explicitlySet && level != toollm.CaptureFull {
-		return "", fmt.Errorf(
-			"--verbose-trace conflicts with --telemetry-capture=%s; use --telemetry-capture=full or omit one flag",
-			level,
-		)
-	}
-	return toollm.CaptureFull, nil
 }
 
 func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {

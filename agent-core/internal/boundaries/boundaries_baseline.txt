@@ -10,7 +10,7 @@ import:pkg/profileaudit -> internal/runtime/core
 import:pkg/profileaudit -> internal/support/corepath
 import:pkg/profileaudit -> internal/tools/catalog
 import:pkg/profileaudit -> internal/tools/rest
-pkg:cmd/agent files=10 loc=2491
+pkg:cmd/agent files=10 loc=2453
 pkg:internal/evaluation files=23 loc=3860
 pkg:internal/gostyle files=1 loc=9
 pkg:internal/model files=1 loc=7
@@ -20,7 +20,7 @@ pkg:internal/model/prompt files=4 loc=140
 pkg:internal/observability files=1 loc=7
 pkg:internal/observability/monitor files=5 loc=1104
 pkg:internal/observability/monitor/runtimeconfig files=1 loc=219
-pkg:internal/observability/telemetry files=3 loc=562
+pkg:internal/observability/telemetry files=4 loc=639
 pkg:internal/observability/telemetry/genai files=2 loc=221
 pkg:internal/observability/tracing files=3 loc=218
 pkg:internal/planning files=1 loc=7

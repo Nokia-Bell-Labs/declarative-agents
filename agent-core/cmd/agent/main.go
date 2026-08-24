@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
@@ -35,14 +36,7 @@ import (
 var (
 	flagProfile          string
 	flagCoreRoot         string
-	flagOTelLog          string
-	flagOTelOTLP         string
-	flagOTelMetricOTLP   string
-	flagOTelService      string
-	flagOTelParent       string
 	flagDirectory        string
-	flagTelemetryCapture string
-	flagVerboseTrace     bool
 	flagRequest          string
 	flagOutput           string
 	flagDoltDSN          string
@@ -50,7 +44,8 @@ var (
 	flagResumeSignal     string
 	flagChildAgent       string
 	flagValidateConfig   bool
-	telemetryCaptureSet  = func() bool { return false }
+	telemetryCfg         telemetry.Config
+	telemetryFlags       *pflag.FlagSet
 )
 
 const (
@@ -104,17 +99,11 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	f := rootCmd.PersistentFlags()
+	telemetryFlags = f
 	f.StringVar(&flagProfile, "profile", "", "path to agent profile YAML")
 	f.StringVar(&flagCoreRoot, "core-root", "", "maps /opt/agent-core paths in the profile to this directory (development checkout)")
-	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
-	f.StringVar(&flagOTelOTLP, "otel-otlp-endpoint", "", "OTLP gRPC endpoint for OTel spans (host:port); enables the OTLP exporter (srd008)")
-	f.StringVar(&flagOTelMetricOTLP, "otel-metric-otlp-endpoint", "", "optional OTLP gRPC endpoint for OTel metrics; defaults to --otel-otlp-endpoint (srd008)")
-	f.StringVar(&flagOTelService, "otel-service-name", "agent", "OTel resource service.name for this agent, so a cross-agent trace distinguishes agents")
-	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
+	telemetryCfg.RegisterFlags(f)
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
-	f.StringVar(&flagTelemetryCapture, "telemetry-capture", string(toollm.CaptureOff), "telemetry content capture level: off, delta, or full")
-	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record full LLM input/output in traces (alias for --telemetry-capture=full)")
-	telemetryCaptureSet = func() bool { return f.Changed("telemetry-capture") }
 	f.StringVar(&flagRequest, "request", "", "request data file")
 	f.StringVar(&flagOutput, "output", "", "output directory for runtime artifacts")
 	f.StringVar(&flagDoltDSN, "dolt-dsn", "", "MySQL-wire DSN to a dolt sql-server for the persistent checkpoint backend (default: no persistence)")
@@ -783,19 +772,19 @@ func closeBuildFailure(primary error, cancel context.CancelFunc, checkpoints *ch
 }
 
 func initRunTelemetry(cfg runtimeConfig) (tracing.Tracer, metric.Meter, func(), error) {
-	parentCtx, err := telemetry.ParseParentSpan(cfg.OTelParent)
+	parentCtx, err := telemetry.ParseParentSpan(cfg.Telemetry.ParentSpan)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parse --otel-parent-span: %w", err)
 	}
-	if cfg.OTelLog == "" && cfg.OTelOTLP == "" && cfg.OTelMetricOTLP == "" {
+	if cfg.Telemetry.LogFile == "" && cfg.Telemetry.OTLPEndpoint == "" && cfg.Telemetry.MetricEndpoint == "" {
 		return tracing.NoopTracer{}, nil, func() {}, nil
 	}
 	exporter := telemetry.ExporterConfig{
-		FilePath:           cfg.OTelLog,
-		OTLPEndpoint:       cfg.OTelOTLP,
-		MetricOTLPEndpoint: cfg.OTelMetricOTLP,
+		FilePath:           cfg.Telemetry.LogFile,
+		OTLPEndpoint:       cfg.Telemetry.OTLPEndpoint,
+		MetricOTLPEndpoint: cfg.Telemetry.MetricEndpoint,
 	}
-	serviceName := cfg.OTelService
+	serviceName := cfg.Telemetry.ServiceName
 	if serviceName == "" {
 		serviceName = "agent"
 	}
@@ -864,7 +853,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		tracer:              deps.Tracer,
 		coreRoot:            cfg.CoreRoot,
 		parseRetries:        deps.ParseRetries,
-		captureLevel:        cfg.TelemetryCapture,
+		captureLevel:        cfg.CaptureLevel,
 		ctx:                 deps.Ctx,
 		directory:           cfg.Directory,
 		request:             cfg.Request,
@@ -905,7 +894,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 	toolAction := toolregistry.BuildDynamicToolAction(toolregistry.DynamicToolActionDeps{
 		Registry: deps.Registry,
 		Tracer:   deps.Tracer,
-		Verbose:  cfg.TelemetryCapture.CapturesFullContent(),
+		Verbose:  cfg.CaptureLevel.CapturesFullContent(),
 	})
 	return core.LoopParams{
 		MachineFile:          cfg.Machine,
