@@ -30,7 +30,7 @@ pkg:internal/planning/pipeline files=10 loc=1243
 pkg:internal/planning/plan files=3 loc=140
 pkg:internal/runtime files=1 loc=7
 pkg:internal/runtime/checkpoint files=2 loc=128
-pkg:internal/runtime/core files=36 loc=6908
+pkg:internal/runtime/core files=36 loc=6926
 pkg:internal/support files=1 loc=7
 pkg:internal/support/corepath files=1 loc=51
 pkg:internal/support/envexpand files=1 loc=37

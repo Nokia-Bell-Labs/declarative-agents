@@ -61,9 +61,9 @@ func TestDoltCheckpointConversationReferencesSurviveFreshAdapter(t *testing.T) {
 	firstDomainRef, ok := saver.DomainReference()
 	require.True(t, ok)
 	require.Equal(t, firstRef, firstDomainRef)
-	firstParsed, err := parseCheckpointReference(firstRef)
+	firstParsed, err := ParseCheckpointReference(firstRef)
 	require.NoError(t, err)
-	require.Equal(t, db.commits[0].hash, firstParsed.revision)
+	require.Equal(t, db.commits[0].hash, firstParsed.Revision)
 	require.Zero(t, countCalls(db.calls, "FROM dolt_log WHERE message LIKE"),
 		"Save uses the hash returned directly by DOLT_COMMIT")
 
@@ -113,10 +113,10 @@ func TestDoltCheckpointConversationReferenceRejectsWrongRunAndStep(t *testing.T)
 	_, err = NewDoltCheckpoint(db, "other-run", nil).ResolveDomainSnapshot(ref)
 	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
 
-	parsed, err := parseCheckpointReference(ref)
+	parsed, err := ParseCheckpointReference(ref)
 	require.NoError(t, err)
-	wrongStep, err := formatCheckpointReference(
-		parsed.backend, parsed.runID, parsed.step+1, parsed.revision,
+	wrongStep, err := FormatCheckpointReference(
+		parsed.Backend, parsed.RunID, parsed.Step+1, parsed.Revision,
 	)
 	require.NoError(t, err)
 	_, err = saver.ResolveConversationSnapshot(wrongStep)
@@ -133,11 +133,11 @@ func TestDoltCheckpointConversationReferenceRejectsLaterRevisionClaimingEarlierS
 	require.NoError(t, saver.Save(samplePosition(), sampleExecution()))
 	latestRef, ok := saver.ConversationReference()
 	require.True(t, ok)
-	latest, err := parseCheckpointReference(latestRef)
+	latest, err := ParseCheckpointReference(latestRef)
 	require.NoError(t, err)
 
-	forged, err := formatCheckpointReference(
-		latest.backend, latest.runID, 0, latest.revision,
+	forged, err := FormatCheckpointReference(
+		latest.Backend, latest.RunID, 0, latest.Revision,
 	)
 	require.NoError(t, err)
 	_, err = saver.ResolveConversationSnapshot(forged)
@@ -153,20 +153,20 @@ func TestDoltCheckpointDomainReferenceRejectsEarlierRevisionClaimingLaterStep(t 
 	require.NoError(t, saver.Save(samplePosition(), sampleExecution()[:1]))
 	firstRef, ok := saver.DomainReference()
 	require.True(t, ok)
-	first, err := parseCheckpointReference(firstRef)
+	first, err := ParseCheckpointReference(firstRef)
 	require.NoError(t, err)
 
 	require.NoError(t, saver.Save(samplePosition(), sampleExecution()))
 	latestRef, ok := saver.DomainReference()
 	require.True(t, ok)
-	latest, err := parseCheckpointReference(latestRef)
+	latest, err := ParseCheckpointReference(latestRef)
 	require.NoError(t, err)
 
-	wrongRevision, err := formatCheckpointReference(
-		latest.backend,
-		latest.runID,
-		latest.step,
-		first.revision,
+	wrongRevision, err := FormatCheckpointReference(
+		latest.Backend,
+		latest.RunID,
+		latest.Step,
+		first.Revision,
 	)
 	require.NoError(t, err)
 	_, err = saver.ResolveDomainSnapshot(wrongRevision)

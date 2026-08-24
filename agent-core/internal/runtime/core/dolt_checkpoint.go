@@ -18,11 +18,6 @@ import (
 // (srd036-dolt-state-persistence R1.4).
 var ErrDolt = errors.New("dolt checkpoint")
 
-// ErrCheckpointFinalized classifies an already-completed Load outcome and
-// attempts to save or merge a run after its terminal branch has been deleted.
-// Repeated finalization must not recreate the branch or merge it a second time.
-var ErrCheckpointFinalized = fmt.Errorf("%w: run already finalized", ErrDolt)
-
 // ErrRevertUnresolved reports that a Revert target (run_id, step_index) does not
 // resolve to a recorded commit (srd036-dolt-state-persistence R6.5).
 var ErrRevertUnresolved = fmt.Errorf("%w: revert target not found", ErrDolt)
@@ -151,7 +146,7 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 	var current Entry
 	if step >= 0 && !finalizationOnly {
 		current = execution[step]
-		sanitized, err := sanitizeResultDigestForSave(current.Result)
+		sanitized, err := SanitizeResultDigestForSave(current.Result)
 		if err != nil {
 			return fmt.Errorf("%w: save: step %d output redaction: %v", ErrDolt, step, err)
 		}
@@ -223,7 +218,7 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 		return fmt.Errorf("%w: save: tx commit: %v", ErrDolt, err)
 	}
 	d.setSnapshotReferences(conversationRef, domainRef)
-	d.persistedExecution = cloneExecution(execution)
+	d.persistedExecution = CloneExecution(execution)
 	d.hasPersistedExecution = true
 
 	if isTerminal {
@@ -311,7 +306,7 @@ func (d *DoltCheckpoint) loadCurrentExecution(position Position) (Execution, err
 	if err := d.refreshSnapshotReferences(position, execution); err != nil {
 		return nil, err
 	}
-	d.persistedExecution = cloneExecution(execution)
+	d.persistedExecution = CloneExecution(execution)
 	d.hasPersistedExecution = true
 	return execution, nil
 }

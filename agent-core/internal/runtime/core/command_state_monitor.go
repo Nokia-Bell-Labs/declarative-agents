@@ -62,7 +62,7 @@ func NewLiveCommandStateSource() *LiveCommandStateSource {
 // ObserveCommandState replaces the retained execution with a clone of the loop's
 // current log. Cloning keeps the loop's slice private to the loop.
 func (s *LiveCommandStateSource) ObserveCommandState(execution Execution) {
-	clone := cloneExecution(execution)
+	clone := CloneExecution(execution)
 	s.mu.Lock()
 	s.execution = clone
 	s.mu.Unlock()

@@ -68,7 +68,7 @@ func newLoopRunner(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx contex
 		taskCompletedSig:  taskCompletedSignal(p),
 		checkpoint:        resolveCheckpoint(p.Checkpoint),
 		checkpointEnabled: checkpointPersistenceEnabled(p.Checkpoint),
-		execution:         cloneExecution(p.InitialExecution),
+		execution:         CloneExecution(p.InitialExecution),
 		iterator:          cloneIteratorSnapshot(p.InitialIterator),
 	}
 }

@@ -60,16 +60,23 @@ type DomainSnapshotResolver interface {
 	ResolveDomainSnapshot(reference string) ([]byte, error)
 }
 
-type checkpointReference struct {
-	backend  string
-	runID    string
-	step     int
-	revision string
+// CheckpointReference is the parsed form of a checkpoint:v1 wire reference.
+// External checkpoint backends format and parse this grammar; the backend-name
+// switch and revision shape stay in core because they are the serialized-format
+// contract, not adapter code (srd035-checkpoint-port G8).
+type CheckpointReference struct {
+	Backend  string
+	RunID    string
+	Step     int
+	Revision string
 }
 
-func formatCheckpointReference(backend, runID string, step int, revision string) (string, error) {
-	if !validReferenceBackend(backend) || !validReferencePart(runID) ||
-		step < 0 || !validReferenceRevision(backend, revision) {
+// FormatCheckpointReference encodes a backend, run, step, and revision into the
+// checkpoint:v1 wire form. Invalid parts or an oversized encoding return
+// ErrConversationReferenceInvalid.
+func FormatCheckpointReference(backend, runID string, step int, revision string) (string, error) {
+	if !validReferenceBackend(backend) || !ValidReferencePart(runID) ||
+		step < 0 || !ValidReferenceRevision(backend, revision) {
 		return "", ErrConversationReferenceInvalid
 	}
 	encode := base64.RawURLEncoding.EncodeToString
@@ -83,29 +90,31 @@ func formatCheckpointReference(backend, runID string, step int, revision string)
 	return reference, nil
 }
 
-func parseCheckpointReference(reference string) (checkpointReference, error) {
+// ParseCheckpointReference decodes a checkpoint:v1 wire reference. Malformed,
+// oversized, or grammar-violating input returns ErrConversationReferenceInvalid.
+func ParseCheckpointReference(reference string) (CheckpointReference, error) {
 	if len(reference) == 0 || len(reference) > maxCheckpointReferenceLength {
-		return checkpointReference{}, ErrConversationReferenceInvalid
+		return CheckpointReference{}, ErrConversationReferenceInvalid
 	}
 	parts := strings.Split(reference, ":")
 	if len(parts) != 6 || parts[0] != "checkpoint" || parts[1] != "v1" {
-		return checkpointReference{}, ErrConversationReferenceInvalid
+		return CheckpointReference{}, ErrConversationReferenceInvalid
 	}
 	runID, err := decodeReferencePart(parts[3])
 	if err != nil {
-		return checkpointReference{}, err
+		return CheckpointReference{}, err
 	}
 	step, err := strconv.Atoi(parts[4])
 	if err != nil || step < 0 || strconv.Itoa(step) != parts[4] {
-		return checkpointReference{}, ErrConversationReferenceInvalid
+		return CheckpointReference{}, ErrConversationReferenceInvalid
 	}
 	revision, err := decodeReferencePart(parts[5])
 	if err != nil || !validReferenceBackend(parts[2]) ||
-		!validReferenceRevision(parts[2], revision) {
-		return checkpointReference{}, ErrConversationReferenceInvalid
+		!ValidReferenceRevision(parts[2], revision) {
+		return CheckpointReference{}, ErrConversationReferenceInvalid
 	}
-	return checkpointReference{
-		backend: parts[2], runID: runID, step: step, revision: revision,
+	return CheckpointReference{
+		Backend: parts[2], RunID: runID, Step: step, Revision: revision,
 	}, nil
 }
 
@@ -115,7 +124,7 @@ func decodeReferencePart(encoded string) (string, error) {
 		return "", ErrConversationReferenceInvalid
 	}
 	value := string(decoded)
-	if !validReferencePart(value) {
+	if !ValidReferencePart(value) {
 		return "", ErrConversationReferenceInvalid
 	}
 	return value, nil
@@ -125,7 +134,10 @@ func validReferenceBackend(backend string) bool {
 	return backend == "dolt" || backend == "memory"
 }
 
-func validReferenceRevision(backend, revision string) bool {
+// ValidReferenceRevision reports whether revision matches the serialized
+// grammar for backend: 32-character lowercase base32 (digits plus a-v) for
+// dolt, 64-character lowercase hex for memory.
+func ValidReferenceRevision(backend, revision string) bool {
 	switch backend {
 	case "dolt":
 		return validLowerAlphaNumeric(revision, 32, 'v')
@@ -149,7 +161,9 @@ func validLowerAlphaNumeric(value string, length int, maxLetter byte) bool {
 	return true
 }
 
-func validReferencePart(value string) bool {
+// ValidReferencePart reports whether value is a non-empty, trimmed, UTF-8 run
+// or revision identity with no control characters and at most 255 bytes.
+func ValidReferencePart(value string) bool {
 	if value == "" || len(value) > maxReferencePartLength ||
 		!utf8.ValidString(value) || strings.TrimSpace(value) != value {
 		return false

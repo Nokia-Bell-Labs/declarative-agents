@@ -51,7 +51,7 @@ func (c *signalCountCheckpoint) Load() (Position, Execution, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.loads++
-	return clonePosition(c.position), cloneExecution(c.exec), c.loadErr
+	return clonePosition(c.position), CloneExecution(c.exec), c.loadErr
 }
 
 func (c *signalCountCheckpoint) Save(position Position, execution Execution) error {
@@ -62,7 +62,7 @@ func (c *signalCountCheckpoint) Save(position Position, execution Execution) err
 		return c.saveErr
 	}
 	c.position = clonePosition(position)
-	c.exec = cloneExecution(execution)
+	c.exec = CloneExecution(execution)
 	return nil
 }
 
