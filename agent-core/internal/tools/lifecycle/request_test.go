@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package main
+package lifecycle
 
 import (
 	"testing"
@@ -14,11 +14,11 @@ import (
 func TestDefsDeclareRequestSourcesDetectsDeclaredSourceNotInitName(t *testing.T) {
 	// A checkpoint tool with no declared source is not request-driven, even
 	// though its init name matches a checkpoint op; identity no longer decides.
-	require.False(t, defsDeclareRequestSources([]catalog.ToolDef{{
+	require.False(t, DefsDeclareRequestSources([]catalog.ToolDef{{
 		Name: "checkpoint_history", Init: "checkpoint_history",
 	}}))
 	// A tool of any identity that declares a $request source is request-driven.
-	require.True(t, defsDeclareRequestSources([]catalog.ToolDef{{
+	require.True(t, DefsDeclareRequestSources([]catalog.ToolDef{{
 		Name: "checkpoint_rollback", Init: "checkpoint_rollback",
 		Config: map[string]interface{}{"to_iteration": "$request.to_iteration"},
 	}}))
@@ -35,7 +35,7 @@ func TestResolveRequestSourcesReplacesPresentAndDropsAbsent(t *testing.T) {
 		},
 	}}
 
-	resolved, err := resolveRequestSources(defs, lifecycleRequest{Checkpoint: "run-7", ToIteration: &step})
+	resolved, err := ResolveRequestSources(defs, Request{Checkpoint: "run-7", ToIteration: &step})
 	require.NoError(t, err)
 
 	require.Equal(t, "run-7", defs[0].Config["checkpoint"])
@@ -54,7 +54,7 @@ func TestResolveRequestSourcesDeletesUnsetSoDefaultsApply(t *testing.T) {
 		},
 	}}
 
-	resolved, err := resolveRequestSources(defs, lifecycleRequest{})
+	resolved, err := ResolveRequestSources(defs, Request{})
 	require.NoError(t, err)
 
 	_, hasCheckpoint := defs[0].Config["checkpoint"]
@@ -70,7 +70,7 @@ func TestResolveRequestSourcesRejectsUnknownField(t *testing.T) {
 		Config: map[string]interface{}{"checkpoint": "$request.mystery"},
 	}}
 
-	_, err := resolveRequestSources(defs, lifecycleRequest{})
+	_, err := ResolveRequestSources(defs, Request{})
 
 	require.ErrorContains(t, err, "unknown request source $request.mystery")
 }
@@ -81,7 +81,7 @@ func TestUnrelatedRequestSourceDoesNotSelectCheckpointBackend(t *testing.T) {
 		Config: map[string]interface{}{"query": "$request.checkpoint"},
 	}}
 
-	resolved, err := resolveRequestSources(defs, lifecycleRequest{Checkpoint: "run-7"})
+	resolved, err := ResolveRequestSources(defs, Request{Checkpoint: "run-7"})
 
 	require.NoError(t, err)
 	require.Equal(t, "run-7", defs[0].Config["query"])
@@ -94,7 +94,7 @@ func TestSuiteRequestSourceResolvesUniversalRequestPath(t *testing.T) {
 	defs := []catalog.ToolDef{{
 		Name: "parse_suite_config", Config: map[string]interface{}{"input": "$request.suite"},
 	}}
-	_, err := resolveRequestSources(defs, lifecycleRequest{Suite: "/tmp/suite.yaml"})
+	_, err := ResolveRequestSources(defs, Request{Suite: "/tmp/suite.yaml"})
 	require.NoError(t, err)
 	require.Equal(t, "/tmp/suite.yaml", defs[0].Config["input"])
 }

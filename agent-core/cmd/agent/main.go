@@ -26,6 +26,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/lifecycle"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
@@ -495,7 +496,7 @@ func validateConfig() error {
 		return err
 	}
 	resources.shutdownTelemetry()
-	if err := validateDeclaredRequestSources(resources.Config, resources.Definitions); err != nil {
+	if err := lifecycle.ValidateDeclaredRequestSources(resources.Config.Request, resources.Definitions); err != nil {
 		return err
 	}
 	reportMachineDiagnostics(resources.Machine)
@@ -679,7 +680,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		}
 	}
 	checkpoints.Add(checkpoint)
-	lifecycleCheckpoint, err := resolveLifecycleCheckpoint(cfg, resources.Definitions, checkpoint.Checkpoint)
+	lifecycleCheckpoint, err := lifecycle.ResolveCheckpoint(cfg.Request, cfg.Checkpoint.DoltDSN, resources.Definitions, checkpoint.Checkpoint)
 	if err != nil {
 		return preparedRun{}, closeBuildFailure(err, nil, &checkpoints, resources.shutdownTelemetry)
 	}
