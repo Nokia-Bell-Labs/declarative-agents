@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package core
+package doltcheckpoint
 
 import (
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
@@ -18,7 +19,7 @@ func TestDoltCheckpointSaveReplacesShortenedHistoryAndReceipt(t *testing.T) {
 		require.NoError(t, cp.Save(samplePosition(), original[:length]))
 	}
 
-	replacement := append(Execution(nil), original[:2]...)
+	replacement := append(core.Execution(nil), original[:2]...)
 	replacement[1].Result.Output = "replacement"
 	replacement[1].Receipt = ""
 	require.NoError(t, cp.Save(samplePosition(), replacement))
@@ -64,7 +65,7 @@ func TestDoltCheckpointSplitsToolOutputsAndReceipts(t *testing.T) {
 
 func TestDoltCheckpointMergeOnTerminalState(t *testing.T) {
 	t.Parallel()
-	terminal := func(s State) bool { return s == "Done" }
+	terminal := func(s core.State) bool { return s == "Done" }
 
 	db := newFakeDB()
 	cp := NewDoltCheckpoint(db, "run-1", terminal)
@@ -81,7 +82,7 @@ func TestDoltCheckpointMergeOnTerminalState(t *testing.T) {
 
 func TestDoltCheckpointFirstTerminalMergeWithoutMainSchema(t *testing.T) {
 	t.Parallel()
-	terminal := func(s State) bool { return s == "Done" }
+	terminal := func(s core.State) bool { return s == "Done" }
 	db := newFakeDB()
 	require.False(t, db.mainMachinesExists, "fresh main has no checkpoint schema")
 
@@ -98,7 +99,7 @@ func TestDoltCheckpointFirstTerminalMergeWithoutMainSchema(t *testing.T) {
 
 func TestDoltCheckpointTerminalFinalizationDoesNotDuplicateLastStep(t *testing.T) {
 	t.Parallel()
-	terminal := func(s State) bool { return s == "Done" }
+	terminal := func(s core.State) bool { return s == "Done" }
 	db := newFakeDB()
 	cp := NewDoltCheckpoint(db, "run-1", terminal)
 	execution := sampleExecution()[:1]
@@ -125,7 +126,7 @@ func TestDoltCheckpointTerminalFinalizationDoesNotDuplicateLastStep(t *testing.T
 
 func TestDoltCheckpointRepeatedFinalizationReturnsClassifiedError(t *testing.T) {
 	t.Parallel()
-	terminal := func(s State) bool { return s == "Done" }
+	terminal := func(s core.State) bool { return s == "Done" }
 	db := newFakeDB()
 	cp := NewDoltCheckpoint(db, "run-1", terminal)
 	execution := sampleExecution()[:1]
@@ -138,7 +139,7 @@ func TestDoltCheckpointRepeatedFinalizationReturnsClassifiedError(t *testing.T) 
 
 	err := cp.Save(terminalPos, execution)
 
-	require.ErrorIs(t, err, ErrCheckpointFinalized)
+	require.ErrorIs(t, err, core.ErrCheckpointFinalized)
 	require.Len(t, db.commits, commits)
 	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"))
 	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"))
@@ -147,7 +148,7 @@ func TestDoltCheckpointRepeatedFinalizationReturnsClassifiedError(t *testing.T) 
 
 func TestDoltCheckpointFreshAdapterFinalizesAfterMergeFault(t *testing.T) {
 	t.Parallel()
-	terminal := func(s State) bool { return s == "Done" }
+	terminal := func(s core.State) bool { return s == "Done" }
 	db := newFakeDB()
 	saver := NewDoltCheckpoint(db, "run-1", terminal)
 	execution := sampleExecution()[:1]
@@ -163,8 +164,8 @@ func TestDoltCheckpointFreshAdapterFinalizesAfterMergeFault(t *testing.T) {
 
 	loadedPos, loadedExecution, err := NewDoltCheckpoint(db, "run-1", terminal).Load()
 
-	require.ErrorIs(t, err, ErrCheckpointFinalized)
-	require.Equal(t, State("Done"), loadedPos.CurrentState)
+	require.ErrorIs(t, err, core.ErrCheckpointFinalized)
+	require.Equal(t, core.State("Done"), loadedPos.CurrentState)
 	require.Empty(t, loadedExecution, "terminal history remains reaped")
 	require.Len(t, db.commits, commits, "restart does not write a duplicate terminal commit")
 	require.Equal(t, 2, countCalls(db.calls, "DOLT_MERGE"), "only the failed merge is retried")
@@ -174,7 +175,7 @@ func TestDoltCheckpointFreshAdapterFinalizesAfterMergeFault(t *testing.T) {
 
 func TestDoltCheckpointFreshAdapterFinishesDeleteWithoutMergingTwice(t *testing.T) {
 	t.Parallel()
-	terminal := func(s State) bool { return s == "Done" }
+	terminal := func(s core.State) bool { return s == "Done" }
 	db := newFakeDB()
 	saver := NewDoltCheckpoint(db, "run-1", terminal)
 	execution := sampleExecution()[:1]
@@ -191,8 +192,8 @@ func TestDoltCheckpointFreshAdapterFinishesDeleteWithoutMergingTwice(t *testing.
 
 	loadedPos, loadedExecution, err := NewDoltCheckpoint(db, "run-1", terminal).Load()
 
-	require.ErrorIs(t, err, ErrCheckpointFinalized)
-	require.Equal(t, State("Done"), loadedPos.CurrentState)
+	require.ErrorIs(t, err, core.ErrCheckpointFinalized)
+	require.Equal(t, core.State("Done"), loadedPos.CurrentState)
 	require.Empty(t, loadedExecution)
 	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"), "durable main marker prevents a second merge")
 	require.Equal(t, 2, countCalls(db.calls, "DOLT_BRANCH('-d'"), "only the failed delete is retried")
@@ -201,7 +202,7 @@ func TestDoltCheckpointFreshAdapterFinishesDeleteWithoutMergingTwice(t *testing.
 
 func TestDoltCheckpointFreshAdapterRecognizesFinalizedRunOnMain(t *testing.T) {
 	t.Parallel()
-	terminal := func(s State) bool { return s == "Done" }
+	terminal := func(s core.State) bool { return s == "Done" }
 	db := newFakeDB()
 	saver := NewDoltCheckpoint(db, "run-1", terminal)
 	execution := sampleExecution()[:1]
@@ -217,12 +218,12 @@ func TestDoltCheckpointFreshAdapterRecognizesFinalizedRunOnMain(t *testing.T) {
 	loader := NewDoltCheckpoint(db, "run-1", terminal)
 	loadedPos, loadedExecution, err := loader.Load()
 
-	require.ErrorIs(t, err, ErrCheckpointFinalized)
-	require.Equal(t, State("Done"), loadedPos.CurrentState)
+	require.ErrorIs(t, err, core.ErrCheckpointFinalized)
+	require.Equal(t, core.State("Done"), loadedPos.CurrentState)
 	require.Empty(t, loadedExecution)
 	require.Equal(t, merges, countCalls(db.calls, "DOLT_MERGE"))
 	require.Equal(t, deletes, countCalls(db.calls, "DOLT_BRANCH('-d'"))
-	require.ErrorIs(t, loader.Save(terminalPos, execution), ErrCheckpointFinalized)
+	require.ErrorIs(t, loader.Save(terminalPos, execution), core.ErrCheckpointFinalized)
 	require.False(t, db.branches["run-1"], "classified repeat does not recreate the branch")
 }
 
@@ -288,7 +289,7 @@ func TestDoltCheckpointRevertReapsBothPlanes(t *testing.T) {
 // four run-owned history tables before merging the branch to main.
 func TestDoltCheckpointTerminalReapsRunHistoryBeforeMerge(t *testing.T) {
 	t.Parallel()
-	terminal := func(s State) bool { return s == "Done" }
+	terminal := func(s core.State) bool { return s == "Done" }
 	db := newFakeDB()
 	cp := NewDoltCheckpoint(db, "run-1", terminal)
 	exec := threeStepExecution()
@@ -347,7 +348,7 @@ func TestDoltCheckpointReceiptWalkReversesSurvivingStep(t *testing.T) {
 	var reversed []string
 	for i := len(restored) - 1; i >= 0; i-- {
 		rev := &receiptReverser{}
-		rev.Undo(Result{CommandName: restored[i].CommandName, Receipt: restored[i].Receipt})
+		rev.Undo(core.Result{CommandName: restored[i].CommandName, Receipt: restored[i].Receipt})
 		reversed = append(reversed, rev.seen)
 	}
 
@@ -411,8 +412,8 @@ func TestCommandStateViewRehydratesFromDoltLoad(t *testing.T) {
 	_, restored, err := cp.Load()
 	require.NoError(t, err)
 
-	live := NewCommandStateView(exec)
-	rehydrated := NewCommandStateView(restored)
+	live := core.NewCommandStateView(exec)
+	rehydrated := core.NewCommandStateView(restored)
 	for _, label := range []string{"invoke", "read", "write", "missing"} {
 		liveOut, liveOK := live.Lookup(label)
 		rehOut, rehOK := rehydrated.Lookup(label)

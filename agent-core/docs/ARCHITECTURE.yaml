@@ -14,7 +14,8 @@ overview:
 
     Four layers cooperate at runtime. The engine layer is internal/runtime/core.
     Domain-neutral loop machinery, command dispatch, registry behavior,
-    checkpoint operations, and machine configuration live there. Adapters call core
+    checkpoint operations, and machine configuration live there. Persistent
+    checkpoint backends live in internal/runtime/checkpoint. Adapters call core
     operations for run, resume, rollback, and history. The engine understands
     State, Signal, and Command values. It does not know coding tools, model
     providers, or workspace files.
@@ -991,7 +992,8 @@ overview:
       implemented. Disabled-mode behavior remains the default: when cmd/agent has
       no --dolt-dsn, it resolves NoopCheckpoint and existing machines run without
       durable checkpoint persistence. When --dolt-dsn is set, cmd/agent opens
-      DoltCheckpoint through the database/sql seam.
+      DoltCheckpoint in internal/runtime/checkpoint/dolt through the database/sql
+      seam.
 
     summary: |
       Rollback and lifecycle support is architectural because agent programs
@@ -1004,9 +1006,10 @@ overview:
       and then replays Undo. Each Execution entry carries an opaque, tool-owned
       receipt.
 
-      DoltCheckpoint is the persistent backend when configured. It stores the
-      typed checkpoint model in versioned SQL, commits once per step, branches
-      per run, and provides Revert(run_id, step_index) for DB-persisted state.
+      DoltCheckpoint is the persistent backend when configured. It lives in
+      internal/runtime/checkpoint/dolt and stores the typed checkpoint model in
+      versioned SQL, commits once per step, branches per run, and provides
+      Revert(run_id, step_index) for DB-persisted state.
       External effects are not reverted by Dolt. The checkpoint_rollback
       lifecycle tool performs the reverse receipt walk and calls each tool's
       receipt-consuming Undo.
@@ -1176,6 +1179,7 @@ overview:
       - internal/runtime/core/checkpoint_ops_test.go
       - internal/runtime/core/resume.go
       - internal/runtime/core/rollback.go
+      - internal/runtime/checkpoint/dolt/dolt_checkpoint.go
       - internal/tools/lifecycle/checkpoint.go
       - internal/tools/lifecycle/checkpoint_from_stl_test.go
 
@@ -1493,6 +1497,10 @@ project_structure:
   engine:
     - path: internal/runtime/core/
       role: Generic agentic loop engine (types, state machine, dispatch, registry, loop, machine config)
+    - path: internal/runtime/checkpoint/
+      role: Agent checkpoint Config, flags, and backend open used by cmd/agent
+    - path: internal/runtime/checkpoint/dolt/
+      role: Dolt-backed Checkpoint adapter behind database/sql; implements core ports without importing tools
 
   infrastructure:
     - path: internal/version/

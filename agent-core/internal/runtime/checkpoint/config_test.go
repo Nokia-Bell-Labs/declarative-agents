@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 
+	doltcheckpoint "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint/dolt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -56,7 +57,7 @@ func TestOpenWithDoltDSNOpensDoltBackend(t *testing.T) {
 	t.Parallel()
 	RegisterDriver()
 	_, err := Config{DoltDSN: "not-a-valid-dsn"}.Open(core.MachineSpec{}, "run-test")
-	require.ErrorIs(t, err, core.ErrDolt)
+	require.ErrorIs(t, err, doltcheckpoint.ErrDolt)
 }
 
 func TestOpenUsesOpenDoltSeam(t *testing.T) {

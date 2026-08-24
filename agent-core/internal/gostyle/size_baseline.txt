@@ -2,7 +2,7 @@
 # file:<path> exceeds 500 lines; func:<path>:<name> exceeds 40 lines.
 # Delete a line as its code is split under the limit; the gate fails on stale entries.
 file:cmd/agent/main.go
-file:internal/runtime/core/dolt_checkpoint.go
+file:internal/runtime/checkpoint/dolt/dolt_checkpoint.go
 file:internal/tools/rest/client_command.go
 file:internal/tools/rest/collection.go
 file:internal/tools/rest/factories.go
@@ -22,9 +22,9 @@ func:internal/evaluation/eval_tools.go:Execute
 func:internal/model/llm/ollama/adapter.go:Chat
 func:internal/planning/graph/graph.go:addReleaseEdges
 func:internal/planning/pipeline/factories.go:RegisterFactories
-func:internal/runtime/core/dolt_checkpoint.go:Save
-func:internal/runtime/core/dolt_checkpoint.go:createSchema
-func:internal/runtime/core/dolt_checkpoint.go:loadExecution
+func:internal/runtime/checkpoint/dolt/dolt_checkpoint.go:Save
+func:internal/runtime/checkpoint/dolt/dolt_checkpoint.go:createSchema
+func:internal/runtime/checkpoint/dolt/dolt_checkpoint.go:loadExecution
 func:internal/runtime/core/machine.go:BuildTransitionTable
 func:internal/runtime/core/machine.go:validateSpec
 func:internal/support/subprocess/subprocess.go:Run

@@ -1,13 +1,15 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package core
+package doltcheckpoint
 
 import (
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 func (d *DoltCheckpoint) ConversationReference() (string, bool) {
@@ -19,9 +21,7 @@ func (d *DoltCheckpoint) ConversationReference() (string, bool) {
 func (d *DoltCheckpoint) ResolveConversationSnapshot(reference string) (json.RawMessage, error) {
 	snapshot, err := d.resolveSnapshot(
 		reference,
-		"conversation",
-		ErrConversationReferenceInvalid,
-		ErrConversationReferenceUnavailable,
+		"conversation", core.ErrConversationReferenceInvalid, core.ErrConversationReferenceUnavailable,
 	)
 	return json.RawMessage(snapshot), err
 }
@@ -35,9 +35,7 @@ func (d *DoltCheckpoint) DomainReference() (string, bool) {
 func (d *DoltCheckpoint) ResolveDomainSnapshot(reference string) ([]byte, error) {
 	return d.resolveSnapshot(
 		reference,
-		"domain",
-		ErrDomainReferenceInvalid,
-		ErrDomainReferenceUnavailable,
+		"domain", core.ErrDomainReferenceInvalid, core.ErrDomainReferenceUnavailable,
 	)
 }
 
@@ -45,12 +43,12 @@ func (d *DoltCheckpoint) resolveSnapshot(
 	reference, column string,
 	invalid, unavailable error,
 ) ([]byte, error) {
-	parsed, err := ParseCheckpointReference(reference)
+	parsed, err := core.ParseCheckpointReference(reference)
 	if err != nil || parsed.Backend != "dolt" || parsed.RunID != d.runID {
 		return nil, fmt.Errorf("%w: dolt checkpoint run %q", invalid, d.runID)
 	}
 	if err := verifyDoltReference(d.db, parsed); err != nil {
-		if errors.Is(err, ErrConversationReferenceInvalid) {
+		if errors.Is(err, core.ErrConversationReferenceInvalid) {
 			return nil, fmt.Errorf("%w: dolt checkpoint run %q step %d",
 				invalid, parsed.RunID, parsed.Step)
 		}
@@ -69,7 +67,7 @@ func (d *DoltCheckpoint) resolveSnapshot(
 }
 
 func (d *DoltCheckpoint) savedSnapshotReferences(
-	position Position,
+	position core.Position,
 	step int,
 	terminal bool,
 	revision string,
@@ -78,7 +76,7 @@ func (d *DoltCheckpoint) savedSnapshotReferences(
 		(len(position.Snapshot.Conversation) == 0 && len(position.Snapshot.Domain) == 0) {
 		return "", "", nil
 	}
-	ref, err := FormatCheckpointReference("dolt", d.runID, step, revision)
+	ref, err := core.FormatCheckpointReference("dolt", d.runID, step, revision)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: save: checkpoint reference: %v", ErrDolt, err)
 	}
@@ -93,7 +91,7 @@ func (d *DoltCheckpoint) savedSnapshotReferences(
 }
 
 func (d *DoltCheckpoint) validateSnapshotReferences(
-	position Position,
+	position core.Position,
 	step int,
 	terminal bool,
 ) error {
@@ -101,13 +99,13 @@ func (d *DoltCheckpoint) validateSnapshotReferences(
 		(len(position.Snapshot.Conversation) == 0 && len(position.Snapshot.Domain) == 0) {
 		return nil
 	}
-	if !ValidReferencePart(d.runID) {
+	if !core.ValidReferencePart(d.runID) {
 		return fmt.Errorf("%w: save: checkpoint reference run", ErrDolt)
 	}
 	return nil
 }
 
-func (d *DoltCheckpoint) refreshSnapshotReferences(position Position, execution Execution) error {
+func (d *DoltCheckpoint) refreshSnapshotReferences(position core.Position, execution core.Execution) error {
 	d.setSnapshotReferences("", "")
 	if len(execution) == 0 ||
 		(len(position.Snapshot.Conversation) == 0 && len(position.Snapshot.Domain) == 0) {
@@ -118,7 +116,7 @@ func (d *DoltCheckpoint) refreshSnapshotReferences(position Position, execution 
 	if err != nil {
 		return fmt.Errorf("%w: load: checkpoint reference HEAD: %v", ErrDolt, err)
 	}
-	ref, err := FormatCheckpointReference("dolt", d.runID, step, revision)
+	ref, err := core.FormatCheckpointReference("dolt", d.runID, step, revision)
 	if err != nil {
 		return fmt.Errorf("%w: load: checkpoint reference: %v", ErrDolt, err)
 	}
@@ -167,7 +165,7 @@ func headRevision(db Database) (string, error) {
 	return revision, err
 }
 
-func verifyDoltReference(db Database, reference CheckpointReference) error {
+func verifyDoltReference(db Database, reference core.CheckpointReference) error {
 	asOf, err := renderDoltASOfRevision(reference.Revision)
 	if err != nil {
 		return invalidDoltReference(reference, nil)
@@ -180,7 +178,7 @@ func verifyDoltReference(db Database, reference CheckpointReference) error {
 	if err != nil {
 		return invalidDoltReference(reference, err)
 	}
-	if message != commitMessage(reference.Step, Signal(signal)) {
+	if message != commitMessage(reference.Step, core.Signal(signal)) {
 		return invalidDoltReference(reference, nil)
 	}
 	var count int
@@ -195,18 +193,16 @@ func verifyDoltReference(db Database, reference CheckpointReference) error {
 		return fmt.Errorf("%w: resolve checkpoint identity: %v", ErrDolt, err)
 	}
 	if count != 1 {
-		return fmt.Errorf("%w: dolt checkpoint run %q step %d",
-			ErrConversationReferenceInvalid, reference.RunID, reference.Step)
+		return fmt.Errorf("%w: dolt checkpoint run %q step %d", core.ErrConversationReferenceInvalid, reference.RunID, reference.Step)
 	}
 	return nil
 }
 
-func invalidDoltReference(reference CheckpointReference, cause error) error {
+func invalidDoltReference(reference core.CheckpointReference, cause error) error {
 	if cause != nil && !errors.Is(cause, sql.ErrNoRows) {
 		return fmt.Errorf("%w: resolve checkpoint identity: %v", ErrDolt, cause)
 	}
-	return fmt.Errorf("%w: dolt checkpoint run %q step %d",
-		ErrConversationReferenceInvalid, reference.RunID, reference.Step)
+	return fmt.Errorf("%w: dolt checkpoint run %q step %d", core.ErrConversationReferenceInvalid, reference.RunID, reference.Step)
 }
 
 func loadCommitMessageAtRevision(db Database, revision string) (string, error) {
@@ -218,7 +214,7 @@ func loadCommitMessageAtRevision(db Database, revision string) (string, error) {
 	return message, err
 }
 
-func loadTransitionSignalAtRevision(db Database, reference CheckpointReference) (string, error) {
+func loadTransitionSignalAtRevision(db Database, reference core.CheckpointReference) (string, error) {
 	asOf, err := renderDoltASOfRevision(reference.Revision)
 	if err != nil {
 		return "", err
@@ -239,7 +235,7 @@ func (d *DoltCheckpoint) setRevertedSnapshotReferences(runID string, step int, r
 	if runID != d.runID {
 		return
 	}
-	ref, err := FormatCheckpointReference("dolt", runID, step, revision)
+	ref, err := core.FormatCheckpointReference("dolt", runID, step, revision)
 	if err != nil {
 		return
 	}
@@ -256,7 +252,7 @@ func loadMachineSnapshotAtRevision(
 	runID, revision, column string,
 ) ([]byte, error) {
 	if column != "conversation" && column != "domain" {
-		return nil, ErrConversationReferenceInvalid
+		return nil, core.ErrConversationReferenceInvalid
 	}
 	asOf, err := renderDoltASOfRevision(revision)
 	if err != nil {
@@ -280,8 +276,8 @@ func loadMachineSnapshotAtRevision(
 // HASHOF/DOLT_COMMIT hash grammar. Dolt 2.x hashes are 32 lowercase base32
 // characters (digits plus a-v); no caller-controlled quoting reaches SQL.
 func renderDoltASOfRevision(revision string) (string, error) {
-	if !ValidReferenceRevision("dolt", revision) {
-		return "", ErrConversationReferenceInvalid
+	if !core.ValidReferenceRevision("dolt", revision) {
+		return "", core.ErrConversationReferenceInvalid
 	}
 	return "'" + revision + "'", nil
 }

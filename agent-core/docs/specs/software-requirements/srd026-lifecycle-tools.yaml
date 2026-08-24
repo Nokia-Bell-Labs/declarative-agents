@@ -161,7 +161,7 @@ test_trace_plan:
       - internal/tools/catalog/receipt_contract_test.go
       - internal/runtime/core/checkpoint_test.go
       - internal/runtime/core/checkpoint_adapters_test.go
-      - internal/runtime/core/dolt_checkpoint_revert_test.go
+      - internal/runtime/checkpoint/dolt/dolt_checkpoint_revert_test.go
 
 depends_on:
   - srd_id: srd001-core-types

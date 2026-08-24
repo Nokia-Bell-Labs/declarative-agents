@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/pflag"
 
+	doltcheckpoint "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint/dolt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -53,7 +54,7 @@ func (o Opened) Close() error {
 
 // OpenDolt opens the persistent Dolt backend. Tests replace this seam.
 var OpenDolt = func(dsn, runID string, terminal func(core.State) bool) (Closeable, error) {
-	return core.OpenDoltCheckpoint(dsn, runID, terminal)
+	return doltcheckpoint.OpenDoltCheckpoint(dsn, runID, terminal)
 }
 
 // Open returns the typed Checkpoint port for the run: the Dolt-backed

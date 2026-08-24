@@ -1,13 +1,13 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package core
+package doltcheckpoint
 
 import "database/sql"
 
 // newSQLDatabase bridges a *sql.DB to the Database seam using only the standard
-// library, so the Dolt driver stays at the composition root and core never
-// imports Dolt (srd036-dolt-state-persistence R1.2, R1.3).
+// library, so this package never imports Dolt types (srd036-dolt-state-persistence
+// R1.2, R1.3).
 func newSQLDatabase(db *sql.DB) Database { return &sqlDatabase{db: db} }
 
 type sqlDatabase struct{ db *sql.DB }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	doltcheckpoint "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint/dolt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -36,7 +37,7 @@ func TestDoltCheckpointSuspendResumeRoundTrip(t *testing.T) {
 	runID := fmt.Sprintf("run-it-%d", time.Now().UnixNano())
 	noMerge := func(core.State) bool { return false }
 
-	saver, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	saver, err := doltcheckpoint.OpenDoltCheckpoint(dsn, runID, noMerge)
 	require.NoError(t, err)
 	pos := core.Position{
 		CurrentState: "AwaitingApproval",
@@ -63,7 +64,7 @@ func TestDoltCheckpointSuspendResumeRoundTrip(t *testing.T) {
 	require.NoError(t, saver.Save(pos, exec))
 	require.NoError(t, saver.Close())
 
-	loader, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	loader, err := doltcheckpoint.OpenDoltCheckpoint(dsn, runID, noMerge)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, loader.Close()) }()
 
@@ -126,7 +127,7 @@ func runDoltProcessProofChild(t *testing.T, mode string) {
 	t.Helper()
 	dsn := os.Getenv("DOLT_PROCESS_PROOF_DSN") + doltTestDB
 	runID := os.Getenv("DOLT_PROCESS_PROOF_RUN_ID")
-	checkpoint, err := core.OpenDoltCheckpoint(dsn, runID, func(core.State) bool { return false })
+	checkpoint, err := doltcheckpoint.OpenDoltCheckpoint(dsn, runID, func(core.State) bool { return false })
 	require.NoError(t, err)
 	defer func() { require.NoError(t, checkpoint.Close()) }()
 
@@ -173,7 +174,7 @@ func TestDoltCommandStateRehydratesThroughRealAdapter(t *testing.T) {
 	runID := fmt.Sprintf("run-cs-%d", time.Now().UnixNano())
 	noMerge := func(core.State) bool { return false }
 
-	saver, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	saver, err := doltcheckpoint.OpenDoltCheckpoint(dsn, runID, noMerge)
 	require.NoError(t, err)
 	exec := core.Execution{{
 		Iteration: 1, CommandName: "embed_query", FromState: "Start", ToState: "Working",
@@ -186,7 +187,7 @@ func TestDoltCommandStateRehydratesThroughRealAdapter(t *testing.T) {
 	require.NoError(t, saver.Save(core.Position{CurrentState: "Working", LastSignal: core.LLMResponded}, exec))
 	require.NoError(t, saver.Close())
 
-	loader, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	loader, err := doltcheckpoint.OpenDoltCheckpoint(dsn, runID, noMerge)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, loader.Close()) }()
 
@@ -211,7 +212,7 @@ func TestDoltCheckpointTerminalMergesAndDeletes(t *testing.T) {
 	runID := fmt.Sprintf("run-term-%d", time.Now().UnixNano())
 	terminal := func(s core.State) bool { return s == "Done" }
 
-	saver, err := core.OpenDoltCheckpoint(dsn, runID, terminal)
+	saver, err := doltcheckpoint.OpenDoltCheckpoint(dsn, runID, terminal)
 	require.NoError(t, err)
 	exec := core.Execution{{
 		Iteration: 1, CommandName: "finish", FromState: "Working", ToState: "Done",
@@ -221,7 +222,7 @@ func TestDoltCheckpointTerminalMergesAndDeletes(t *testing.T) {
 	require.NoError(t, saver.Save(core.Position{CurrentState: "Done", LastSignal: core.TaskCompleted}, exec))
 	require.NoError(t, saver.Close())
 
-	loader, err := core.OpenDoltCheckpoint(dsn, runID, terminal)
+	loader, err := doltcheckpoint.OpenDoltCheckpoint(dsn, runID, terminal)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, loader.Close()) }()
 
@@ -242,7 +243,7 @@ func TestDoltCheckpointRevertResetsBranch(t *testing.T) {
 	runID := fmt.Sprintf("run-rev-%d", time.Now().UnixNano())
 	noMerge := func(core.State) bool { return false }
 
-	adapter, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	adapter, err := doltcheckpoint.OpenDoltCheckpoint(dsn, runID, noMerge)
 	require.NoError(t, err)
 	step0 := core.Execution{{
 		Iteration: 1, CommandName: "first", FromState: "Start", ToState: "Working",
@@ -259,7 +260,7 @@ func TestDoltCheckpointRevertResetsBranch(t *testing.T) {
 	require.NoError(t, adapter.Revert(runID, 0))
 	require.NoError(t, adapter.Close())
 
-	loader, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	loader, err := doltcheckpoint.OpenDoltCheckpoint(dsn, runID, noMerge)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, loader.Close()) }()
 
@@ -277,7 +278,7 @@ func TestDoltCheckpointConversationReferencesAgainstRealDolt(t *testing.T) {
 	runID := fmt.Sprintf("run-ref-%d", time.Now().UnixNano())
 	noMerge := func(core.State) bool { return false }
 
-	saver, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	saver, err := doltcheckpoint.OpenDoltCheckpoint(dsn, runID, noMerge)
 	require.NoError(t, err)
 	firstPosition := core.Position{
 		CurrentState: "Working", LastSignal: core.LLMResponded,
@@ -311,7 +312,7 @@ func TestDoltCheckpointConversationReferencesAgainstRealDolt(t *testing.T) {
 	require.NoError(t, saver.Save(secondPosition, secondExecution))
 	require.NoError(t, saver.Close())
 
-	fresh, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	fresh, err := doltcheckpoint.OpenDoltCheckpoint(dsn, runID, noMerge)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, fresh.Close()) }()
 	_, _, err = fresh.Load()
