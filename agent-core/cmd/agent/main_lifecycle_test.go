@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/stretchr/testify/require"
 )
@@ -65,37 +66,43 @@ func TestApprovalLifecycleProfileSuspendsThroughCheckpointPort(t *testing.T) {
 	require.Contains(t, firstStderr, "terminal state: suspended")
 }
 
-func TestResolveCheckpointDefaultsToNoop(t *testing.T) {
-	t.Parallel()
-
-	cp, err := resolveCheckpoint(runtimeConfig{}, core.MachineSpec{}, "run-test")
-
-	require.NoError(t, err)
-	require.IsType(t, core.NoopCheckpoint{}, cp.Checkpoint)
-}
-
-func TestResolveCheckpointWithDoltDSNOpensDoltBackend(t *testing.T) {
-	t.Parallel()
-
-	// A --dolt-dsn value routes to the Dolt adapter over the registered "dolt"
-	// (MySQL-wire) driver; an unparseable DSN surfaces as a typed ErrDolt.
-	_, err := resolveCheckpoint(runtimeConfig{DoltDSN: "not-a-valid-dsn"}, core.MachineSpec{}, "run-test")
-
-	require.ErrorIs(t, err, core.ErrDolt)
-}
-
 func TestResumeWithoutPersistentBackendReportsNoCheckpoint(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
 	clearAgentFlags()
 	flagProfile = profilePathFromTest(t, "lifecycle/profile.yaml")
-	flagResumeCheckpoint = "missing"
+	checkpointCfg.ResumeCheckpoint = "missing"
 
 	_, err := captureStderr(t, func() error {
 		return run(rootCmd, nil)
 	})
 	require.ErrorIs(t, err, core.ErrNoCheckpoint)
+}
+
+func TestResumeLoadOverridesRequestSeed(t *testing.T) {
+	cp := &core.InMemoryCheckpoint{}
+	require.NoError(t, cp.Save(core.Position{CurrentState: "Start"}, nil))
+	params := terminalLoopParams()
+	params.Checkpoint = cp
+	params.InitialSignal = core.Seed
+	params.InitialResult = core.Result{Signal: core.Seed, Output: "new request bytes"}
+	params.Table = core.TransitionTable{
+		{State: "Start", Signal: core.Seed}:     {NextState: "WrongSeedPath"},
+		{State: "Start", Signal: core.Approved}: {NextState: "Resumed"},
+	}
+	params.IsTerminal = func(state core.State) bool {
+		return state == "WrongSeedPath" || state == "Resumed"
+	}
+	params.Hooks.TerminalStatus = func(core.State) core.RunStatus { return core.StatusSucceeded }
+
+	result, err := runOrResume(runtimeConfig{
+		Checkpoint: checkpoint.Config{ResumeCheckpoint: "run-1", ResumeSignal: string(core.Approved)},
+	}, resumeDeps{Params: params, State: &agentState{}, Ctx: context.Background()})
+
+	require.NoError(t, err)
+	require.Equal(t, core.State("Resumed"), result.FinalState)
+	require.Equal(t, core.StatusSucceeded, result.Status)
 }
 
 func TestResumeRunReturnsFinalizedOutcomeWithoutDomainRestoreOrLoop(t *testing.T) {
@@ -109,7 +116,7 @@ func TestResumeRunReturnsFinalizedOutcomeWithoutDomainRestoreOrLoop(t *testing.T
 	}
 
 	result, err := resumeRun(
-		runtimeConfig{ResumeCheckpoint: "run-1"},
+		runtimeConfig{Checkpoint: checkpoint.Config{ResumeCheckpoint: "run-1"}},
 		resumeDeps{Params: params, Ctx: context.Background()},
 	)
 

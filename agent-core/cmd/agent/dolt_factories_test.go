@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	tooldolt "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/dolt"
@@ -60,7 +61,7 @@ func registerDoltQueryForCheckpoint(t *testing.T, database string) error {
 	t.Helper()
 	builtins := toolregistry.NewBuiltinRegistry()
 	state := newAgentState(runtimeConfig{
-		DoltDSN: "checkpoint:secret@tcp(LOCALHOST:3306)/runtime_state",
+		Checkpoint: checkpoint.Config{DoltDSN: "checkpoint:secret@tcp(LOCALHOST:3306)/runtime_state"},
 	}, agentStateDeps{})
 	registerBuiltinFactories(builtins, state, map[string]bool{tooldolt.InitQuery: true})
 	return toolregistry.RegisterSingleBuiltin(

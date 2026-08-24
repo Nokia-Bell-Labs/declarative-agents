@@ -23,6 +23,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
@@ -34,19 +35,20 @@ import (
 )
 
 var (
-	flagProfile          string
-	flagCoreRoot         string
-	flagDirectory        string
-	flagRequest          string
-	flagOutput           string
-	flagDoltDSN          string
-	flagResumeCheckpoint string
-	flagResumeSignal     string
-	flagChildAgent       string
-	flagValidateConfig   bool
-	telemetryCfg         telemetry.Config
-	telemetryFlags       *pflag.FlagSet
+	flagProfile        string
+	flagCoreRoot       string
+	flagDirectory      string
+	flagRequest        string
+	flagOutput         string
+	flagChildAgent     string
+	flagValidateConfig bool
+	telemetryCfg       telemetry.Config
+	telemetryFlags     *pflag.FlagSet
+	checkpointCfg      checkpoint.Config
 )
+
+type openedCheckpoint = checkpoint.Opened
+type closeableCheckpoint = checkpoint.Closeable
 
 const (
 	agentVersion             = "v0.0.0-dev"
@@ -98,6 +100,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	checkpoint.RegisterDriver()
 	f := rootCmd.PersistentFlags()
 	telemetryFlags = f
 	f.StringVar(&flagProfile, "profile", "", "path to agent profile YAML")
@@ -106,9 +109,7 @@ func init() {
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
 	f.StringVar(&flagRequest, "request", "", "request data file")
 	f.StringVar(&flagOutput, "output", "", "output directory for runtime artifacts")
-	f.StringVar(&flagDoltDSN, "dolt-dsn", "", "MySQL-wire DSN to a dolt sql-server for the persistent checkpoint backend (default: no persistence)")
-	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
-	f.StringVar(&flagResumeSignal, "resume-signal", "", "resume signal override (default: required machine resume_signal)")
+	checkpointCfg.RegisterFlags(f)
 	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary used by child-process words (default: agent, resolved from PATH)")
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
 
@@ -263,14 +264,13 @@ type requestSignalCheckpointStore struct {
 }
 
 func (s *requestSignalCheckpointStore) Open(runID string) (openedCheckpoint, error) {
-	if s.cfg.DoltDSN != "" {
-		cp, err := openDoltCheckpoint(s.cfg.DoltDSN, runID, terminalPredicate(s.machine))
+	if s.cfg.Checkpoint.DoltDSN != "" {
+		cp, err := s.cfg.Checkpoint.Open(s.machine, runID)
 		if err != nil {
 			return openedCheckpoint{}, fmt.Errorf("open request signal Dolt checkpoint: %w", err)
 		}
-		return openedCheckpoint{
-			Checkpoint: cp, close: cp.Close, label: "request signal checkpoint " + runID,
-		}, nil
+		cp.Label = "request signal checkpoint " + runID
+		return cp, nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -352,8 +352,8 @@ func closeRequestSignalCheckpoint(
 	checkpoint openedCheckpoint,
 	admission *core.SignalAdmission,
 ) {
-	if checkpoint.close != nil {
-		if closeErr := checkpoint.close(); closeErr != nil {
+	if checkpoint.CloseFunc != nil {
+		if closeErr := checkpoint.Close(); closeErr != nil {
 			admission.Err = errors.Join(admission.Err, fmt.Errorf("close request signal checkpoint: %w", closeErr))
 			admission.Stage = "checkpoint_close_failed"
 			if admission.Accepted() {
@@ -542,7 +542,7 @@ type checkpointResources struct {
 }
 
 func (r *checkpointResources) Add(checkpoint openedCheckpoint) {
-	if checkpoint.close != nil {
+	if checkpoint.CloseFunc != nil {
 		r.opened = append(r.opened, checkpoint)
 	}
 }
@@ -550,10 +550,10 @@ func (r *checkpointResources) Add(checkpoint openedCheckpoint) {
 func (r *checkpointResources) Close() error {
 	var errs []error
 	for i := len(r.opened) - 1; i >= 0; i-- {
-		checkpoint := r.opened[i]
-		r.opened[i].close = nil
-		if err := checkpoint.close(); err != nil {
-			errs = append(errs, fmt.Errorf("close %s: %w", checkpoint.label, err))
+		item := r.opened[i]
+		r.opened[i].CloseFunc = nil
+		if err := item.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close %s: %w", item.Label, err))
 		}
 	}
 	r.opened = nil
@@ -672,7 +672,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		// has process-local continuation even when Dolt is not configured.
 		checkpoint.Checkpoint = core.NewInMemoryCheckpoint(runID)
 	} else {
-		checkpoint, err = resolveCheckpoint(cfg, resources.Machine, runID)
+		checkpoint, err = cfg.Checkpoint.Open(resources.Machine, runID)
 		if err != nil {
 			resources.shutdownTelemetry()
 			return preparedRun{}, err
@@ -838,7 +838,7 @@ type agentStateDeps struct {
 
 // checkpointOrNoop defaults an unset Checkpoint dependency to the no-op adapter.
 // The composition root resolves the Dolt-backed backend (or NoopCheckpoint) via
-// resolveCheckpoint; this guard covers direct constructions that omit it.
+// Config.Open; this guard covers direct constructions that omit it.
 func checkpointOrNoop(cp core.Checkpoint) core.Checkpoint {
 	if cp == nil {
 		return core.NoopCheckpoint{}
@@ -860,7 +860,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		output:              cfg.Output,
 		childAgentBinary:    cfg.ChildAgentBinary,
 		runID:               deps.RunID,
-		doltDSN:             cfg.DoltDSN,
+		doltDSN:             cfg.Checkpoint.DoltDSN,
 		checkpoint:          checkpointOrNoop(deps.Checkpoint),
 		lifecycleCheckpoint: deps.LifecycleCheckpoint,
 		monitor:             deps.Monitor,
@@ -1079,7 +1079,7 @@ type resumeDeps struct {
 }
 
 func runOrResume(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
-	if cfg.ResumeCheckpoint == "" {
+	if cfg.Checkpoint.ResumeCheckpoint == "" {
 		result, err := core.Loop(deps.Params, deps.Ctx)
 		if err != nil {
 			return result, fmt.Errorf("loop: %w", err)
@@ -1095,7 +1095,7 @@ func runOrResume(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 // (srd035-checkpoint-port R6.2).
 func resumeRun(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 	params := deps.Params
-	params.InitialSignal = core.Signal(cfg.ResumeSignal)
+	params.InitialSignal = core.Signal(cfg.Checkpoint.ResumeSignal)
 	state, err := core.LoadResume(params)
 	if err != nil {
 		return core.RunResult{}, fmt.Errorf("resume: %w", err)

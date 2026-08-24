@@ -10,6 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
@@ -173,16 +174,16 @@ func resolveLifecycleCheckpoint(cfg runtimeConfig, defs []catalog.ToolDef, loopC
 	if err != nil {
 		return openedCheckpoint{}, err
 	}
-	if cfg.DoltDSN == "" || req.Checkpoint == "" || !resolvesCheckpointTarget(resolved) {
+	if cfg.Checkpoint.DoltDSN == "" || req.Checkpoint == "" || !resolvesCheckpointTarget(resolved) {
 		return openedCheckpoint{Checkpoint: loopCheckpoint}, nil
 	}
-	target, err := openDoltCheckpoint(cfg.DoltDSN, req.Checkpoint, nil)
+	target, err := checkpoint.OpenDolt(cfg.Checkpoint.DoltDSN, req.Checkpoint, nil)
 	if err != nil {
 		return openedCheckpoint{}, fmt.Errorf("open target checkpoint %q: %w", req.Checkpoint, err)
 	}
 	return openedCheckpoint{
 		Checkpoint: target,
-		close:      target.Close,
-		label:      fmt.Sprintf("target checkpoint %q", req.Checkpoint),
+		CloseFunc:  target.Close,
+		Label:      fmt.Sprintf("target checkpoint %q", req.Checkpoint),
 	}, nil
 }

@@ -185,7 +185,7 @@ test_cases:
 
   - use_case: rel02.0-uc001-approval-suspend-resume
     name: Approval profile suspends and resolves the checkpoint backend at the CLI
-    go_test: TestApprovalLifecycleProfileSuspendsThroughCheckpointPort, TestResolveCheckpointDefaultsToNoop, TestResolveCheckpointWithDoltDSNOpensDoltBackend, TestResumeWithoutPersistentBackendReportsNoCheckpoint
+    go_test: TestApprovalLifecycleProfileSuspendsThroughCheckpointPort, TestOpenDefaultsToNoop, TestOpenWithDoltDSNOpensDoltBackend, TestResumeWithoutPersistentBackendReportsNoCheckpoint
     status: done
     description: |
       The approval lifecycle profile routes through a suspend tool and exits

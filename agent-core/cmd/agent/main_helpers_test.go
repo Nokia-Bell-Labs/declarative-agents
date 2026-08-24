@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
@@ -102,30 +103,28 @@ func assertGenDeclNamesAbsent(t *testing.T, decl *ast.GenDecl, forbidden map[str
 }
 
 type agentFlagSnapshot struct {
-	profile          string
-	coreRoot         string
-	telemetry        telemetry.Config
-	directory        string
-	captureChanged   bool
-	request          string
-	output           string
-	resumeCheckpoint string
-	resumeSignal     string
-	validateConfig   bool
+	profile        string
+	coreRoot       string
+	telemetry      telemetry.Config
+	checkpoint     checkpoint.Config
+	directory      string
+	captureChanged bool
+	request        string
+	output         string
+	validateConfig bool
 }
 
 func snapshotAgentFlags() agentFlagSnapshot {
 	return agentFlagSnapshot{
-		profile:          flagProfile,
-		coreRoot:         flagCoreRoot,
-		telemetry:        telemetryCfg,
-		directory:        flagDirectory,
-		captureChanged:   rootCmd.PersistentFlags().Changed("telemetry-capture"),
-		request:          flagRequest,
-		output:           flagOutput,
-		resumeCheckpoint: flagResumeCheckpoint,
-		resumeSignal:     flagResumeSignal,
-		validateConfig:   flagValidateConfig,
+		profile:        flagProfile,
+		coreRoot:       flagCoreRoot,
+		telemetry:      telemetryCfg,
+		checkpoint:     checkpointCfg,
+		directory:      flagDirectory,
+		captureChanged: rootCmd.PersistentFlags().Changed("telemetry-capture"),
+		request:        flagRequest,
+		output:         flagOutput,
+		validateConfig: flagValidateConfig,
 	}
 }
 
@@ -133,12 +132,11 @@ func restoreAgentFlags(s agentFlagSnapshot) {
 	flagProfile = s.profile
 	flagCoreRoot = s.coreRoot
 	telemetryCfg = s.telemetry
+	checkpointCfg = s.checkpoint
 	flagDirectory = s.directory
 	rootCmd.PersistentFlags().Lookup("telemetry-capture").Changed = s.captureChanged
 	flagRequest = s.request
 	flagOutput = s.output
-	flagResumeCheckpoint = s.resumeCheckpoint
-	flagResumeSignal = s.resumeSignal
 	flagValidateConfig = s.validateConfig
 }
 

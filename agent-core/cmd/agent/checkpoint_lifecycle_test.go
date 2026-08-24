@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	rtcheckpoint "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
@@ -53,8 +54,8 @@ func TestCheckpointResourcesCloseDistinctHandlesOnce(t *testing.T) {
 	loop := &closingCheckpoint{name: "loop", closeErr: loopErr, events: &events}
 	target := &closingCheckpoint{name: "target", closeErr: targetErr, events: &events}
 	resources := checkpointResources{}
-	resources.Add(openedCheckpoint{Checkpoint: loop, close: loop.Close, label: "loop checkpoint"})
-	resources.Add(openedCheckpoint{Checkpoint: target, close: target.Close, label: "target checkpoint"})
+	resources.Add(openedCheckpoint{Checkpoint: loop, CloseFunc: loop.Close, Label: "loop checkpoint"})
+	resources.Add(openedCheckpoint{Checkpoint: target, CloseFunc: target.Close, Label: "target checkpoint"})
 
 	err := resources.Close()
 	secondErr := resources.Close()
@@ -68,15 +69,15 @@ func TestCheckpointResourcesCloseDistinctHandlesOnce(t *testing.T) {
 }
 
 func TestBuildPreparedRunTargetOpenFailureClosesLoopAndPreservesErrors(t *testing.T) {
-	originalOpen := openDoltCheckpoint
-	t.Cleanup(func() { openDoltCheckpoint = originalOpen })
+	originalOpen := rtcheckpoint.OpenDolt
+	t.Cleanup(func() { rtcheckpoint.OpenDolt = originalOpen })
 
 	var events []string
 	loopCloseErr := errors.New("loop close")
 	targetOpenErr := errors.New("target open")
 	loop := &closingCheckpoint{name: "loop", closeErr: loopCloseErr, events: &events}
 	calls := 0
-	openDoltCheckpoint = func(_, _ string, _ func(core.State) bool) (closeableCheckpoint, error) {
+	rtcheckpoint.OpenDolt = func(_, _ string, _ func(core.State) bool) (closeableCheckpoint, error) {
 		calls++
 		if calls == 1 {
 			return loop, nil
@@ -94,15 +95,15 @@ func TestBuildPreparedRunTargetOpenFailureClosesLoopAndPreservesErrors(t *testin
 }
 
 func TestBuildPreparedRunRegistrationFailureClosesBothBeforeTelemetry(t *testing.T) {
-	originalOpen := openDoltCheckpoint
-	t.Cleanup(func() { openDoltCheckpoint = originalOpen })
+	originalOpen := rtcheckpoint.OpenDolt
+	t.Cleanup(func() { rtcheckpoint.OpenDolt = originalOpen })
 
 	var events []string
 	loop := &closingCheckpoint{name: "loop", events: &events}
 	targetCloseErr := errors.New("target close")
 	target := &closingCheckpoint{name: "target", closeErr: targetCloseErr, events: &events}
 	opened := []closeableCheckpoint{loop, target}
-	openDoltCheckpoint = func(_, _ string, _ func(core.State) bool) (closeableCheckpoint, error) {
+	rtcheckpoint.OpenDolt = func(_, _ string, _ func(core.State) bool) (closeableCheckpoint, error) {
 		checkpoint := opened[0]
 		opened = opened[1:]
 		return checkpoint, nil
@@ -131,7 +132,7 @@ func TestPreparedRunCloseCancelsBeforeCheckpointAndTelemetry(t *testing.T) {
 	prepared := preparedRun{
 		Ctx: ctx, Cancel: cancel,
 		checkpoints: checkpointResources{opened: []openedCheckpoint{{
-			Checkpoint: checkpoint, close: checkpoint.Close, label: "loop checkpoint",
+			Checkpoint: checkpoint, CloseFunc: checkpoint.Close, Label: "loop checkpoint",
 		}}},
 		shutdownTelemetry: func() { events = append(events, "telemetry") },
 	}
@@ -168,7 +169,7 @@ func TestRunPreparedClosesCheckpointOnTerminalCancellationAndSuspension(t *testi
 				Config: runtimeConfig{}, Params: tc.params, State: &agentState{},
 				Ctx: ctx, Cancel: cancel, Shutdown: newDeferredShutdown(cancel),
 				checkpoints: checkpointResources{opened: []openedCheckpoint{{
-					Checkpoint: checkpoint, close: checkpoint.Close, label: "loop checkpoint",
+					Checkpoint: checkpoint, CloseFunc: checkpoint.Close, Label: "loop checkpoint",
 				}}},
 			}
 
@@ -218,7 +219,7 @@ func TestRunPreparedCheckpointFailuresReturnRunError(t *testing.T) {
 				Config: runtimeConfig{}, Params: params, State: &agentState{},
 				Ctx: context.Background(), Cancel: cancel, Shutdown: newDeferredShutdown(cancel),
 				checkpoints: checkpointResources{opened: []openedCheckpoint{{
-					Checkpoint: checkpoint, close: checkpoint.Close, label: "loop checkpoint",
+					Checkpoint: checkpoint, CloseFunc: checkpoint.Close, Label: "loop checkpoint",
 				}}},
 			}
 			runExitCode = ExitSucceeded
@@ -278,7 +279,7 @@ func lifecycleRunResources(t *testing.T, events *[]string) runResources {
 	request := filepath.Join(dir, "request.yaml")
 	require.NoError(t, os.WriteFile(request, []byte("checkpoint: target-run\n"), 0o644))
 	return runResources{
-		Config: runtimeConfig{DoltDSN: "test-dsn", Request: request},
+		Config: runtimeConfig{Checkpoint: rtcheckpoint.Config{DoltDSN: "test-dsn"}, Request: request},
 		Tracer: tracing.NoopTracer{},
 		Definitions: []catalog.ToolDef{{
 			Name: "checkpoint_history", Type: "builtin", Init: "checkpoint_history",
@@ -333,7 +334,7 @@ func TestRunPreparedReturnsCloseErrorAfterSuccessfulRun(t *testing.T) {
 		Config: runtimeConfig{}, Params: terminalLoopParams(), State: &agentState{},
 		Ctx: context.Background(), Cancel: cancel, Shutdown: newDeferredShutdown(cancel),
 		checkpoints: checkpointResources{opened: []openedCheckpoint{{
-			Checkpoint: checkpoint, close: checkpoint.Close, label: "loop checkpoint",
+			Checkpoint: checkpoint, CloseFunc: checkpoint.Close, Label: "loop checkpoint",
 		}}},
 	}
 	prepared.Params.Checkpoint = checkpoint
@@ -359,7 +360,7 @@ func TestRunPreparedSurfacesCloseErrorWithPrimaryLoopError(t *testing.T) {
 		Ctx:      context.Background(),
 		Shutdown: newDeferredShutdown(func() {}),
 		checkpoints: checkpointResources{opened: []openedCheckpoint{{
-			Checkpoint: checkpoint, close: checkpoint.Close, label: "loop checkpoint",
+			Checkpoint: checkpoint, CloseFunc: checkpoint.Close, Label: "loop checkpoint",
 		}}},
 	}
 

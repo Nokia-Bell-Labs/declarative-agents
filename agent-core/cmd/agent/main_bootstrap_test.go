@@ -56,31 +56,6 @@ func TestSeedRequestRejectsUnreadableFile(t *testing.T) {
 	require.Empty(t, params.InitialResult.Output)
 }
 
-func TestResumeLoadOverridesRequestSeed(t *testing.T) {
-	checkpoint := &core.InMemoryCheckpoint{}
-	require.NoError(t, checkpoint.Save(core.Position{CurrentState: "Start"}, nil))
-	params := terminalLoopParams()
-	params.Checkpoint = checkpoint
-	params.InitialSignal = core.Seed
-	params.InitialResult = core.Result{Signal: core.Seed, Output: "new request bytes"}
-	params.Table = core.TransitionTable{
-		{State: "Start", Signal: core.Seed}:     {NextState: "WrongSeedPath"},
-		{State: "Start", Signal: core.Approved}: {NextState: "Resumed"},
-	}
-	params.IsTerminal = func(state core.State) bool {
-		return state == "WrongSeedPath" || state == "Resumed"
-	}
-	params.Hooks.TerminalStatus = func(core.State) core.RunStatus { return core.StatusSucceeded }
-
-	result, err := runOrResume(runtimeConfig{
-		ResumeCheckpoint: "run-1", ResumeSignal: string(core.Approved),
-	}, resumeDeps{Params: params, State: &agentState{}, Ctx: context.Background()})
-
-	require.NoError(t, err)
-	require.Equal(t, core.State("Resumed"), result.FinalState)
-	require.Equal(t, core.StatusSucceeded, result.Status)
-}
-
 func TestCLIResultReporterDoesNotInventUndeclaredSummary(t *testing.T) {
 	got := cliResultReporter(core.RunResult{}, core.Result{
 		Signal: core.Signal("ResponseReady"), Output: `{"verdict":"pass"}`,
@@ -318,7 +293,7 @@ func TestRootCommandHelpShowsProfileOnlyRuntimeFlags(t *testing.T) {
 	for _, text := range []string{"--machine", "--tools", "--tools-declaration", "--tool-config-dir", "--profiles-dir", "--input", "--validate-test-evidence", "--run-test-evidence"} {
 		require.NotContains(t, usage, text)
 	}
-	for _, text := range []string{"--profile", "--request", "--output", "--directory"} {
+	for _, text := range []string{"--profile", "--request", "--output", "--directory", "--dolt-dsn", "--resume-checkpoint", "--resume-signal"} {
 		require.Contains(t, usage, text)
 	}
 }
