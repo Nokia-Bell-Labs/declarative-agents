@@ -138,7 +138,7 @@ func (c *InMemoryCheckpoint) Load() (Position, Execution, error) {
 	if !c.saved {
 		return Position{}, nil, ErrNoCheckpoint
 	}
-	return clonePosition(c.position), cloneExecution(c.execution), nil
+	return clonePosition(c.position), CloneExecution(c.execution), nil
 }
 
 func (c *InMemoryCheckpoint) ConversationReference() (string, bool) {
@@ -187,7 +187,7 @@ func (c *InMemoryCheckpoint) snapshotReferenceFor(
 		return "", nil, nil
 	}
 	digest := sha256.Sum256(snapshot)
-	ref, err := formatCheckpointReference("memory", c.runID, len(execution)-1, fmt.Sprintf("%x", digest))
+	ref, err := FormatCheckpointReference("memory", c.runID, len(execution)-1, fmt.Sprintf("%x", digest))
 	if err != nil {
 		return "", nil, err
 	}
@@ -199,16 +199,16 @@ func (c *InMemoryCheckpoint) resolveSnapshot(
 	snapshots map[string][]byte,
 	invalid, unavailable error,
 ) ([]byte, error) {
-	parsed, err := parseCheckpointReference(reference)
-	if err != nil || parsed.backend != "memory" || parsed.runID != c.runID {
+	parsed, err := ParseCheckpointReference(reference)
+	if err != nil || parsed.Backend != "memory" || parsed.RunID != c.runID {
 		return nil, fmt.Errorf("%w: in-memory checkpoint", invalid)
 	}
 	if snapshot, ok := snapshots[reference]; ok {
 		return append([]byte(nil), snapshot...), nil
 	}
 	for knownReference := range snapshots {
-		known, knownErr := parseCheckpointReference(knownReference)
-		if knownErr == nil && (known.step == parsed.step || known.revision == parsed.revision) {
+		known, knownErr := ParseCheckpointReference(knownReference)
+		if knownErr == nil && (known.Step == parsed.Step || known.Revision == parsed.Revision) {
 			return nil, fmt.Errorf("%w: in-memory checkpoint", invalid)
 		}
 	}
@@ -236,9 +236,10 @@ func clonePosition(p Position) Position {
 	return p
 }
 
-// cloneExecution copies the ordered dispatch log so callers cannot mutate
-// persisted entries after Save or Load.
-func cloneExecution(e Execution) Execution {
+// CloneExecution copies the ordered dispatch log so callers cannot mutate
+// persisted entries after Save or Load. External checkpoint backends must
+// clone before retaining a caller-supplied Execution.
+func CloneExecution(e Execution) Execution {
 	if e == nil {
 		return nil
 	}
@@ -254,9 +255,9 @@ func cloneExecution(e Execution) Execution {
 // retains Execution. It validates into a detached copy, so a failure cannot
 // partially replace the adapter's last valid state (srd035 R7.6).
 func sanitizeExecutionForSave(execution Execution) (Execution, error) {
-	sanitized := cloneExecution(execution)
+	sanitized := CloneExecution(execution)
 	for i := range sanitized {
-		result, err := sanitizeResultDigestForSave(sanitized[i].Result)
+		result, err := SanitizeResultDigestForSave(sanitized[i].Result)
 		if err != nil {
 			return nil, fmt.Errorf("step %d output redaction: %w", i, err)
 		}
@@ -265,7 +266,10 @@ func sanitizeExecutionForSave(execution Execution) (Execution, error) {
 	return sanitized, nil
 }
 
-func sanitizeResultDigestForSave(result ResultDigest) (ResultDigest, error) {
+// SanitizeResultDigestForSave reapplies typed field removal before an adapter
+// stores one ResultDigest. Missing, unknown, or malformed redaction metadata
+// yields output_omitted with no raw output (srd035-checkpoint-port R7.6).
+func SanitizeResultDigestForSave(result ResultDigest) (ResultDigest, error) {
 	if result.RedactionVersion != OutputRedactionVersion1 {
 		return omitResultDigest(result), nil
 	}

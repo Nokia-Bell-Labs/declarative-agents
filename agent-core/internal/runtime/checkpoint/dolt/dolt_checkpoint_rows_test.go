@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package core
+package doltcheckpoint
 
 import (
+	"context"
 	"database/sql"
 	"strings"
 	"testing"
@@ -13,11 +14,41 @@ import (
 
 type fakeTx struct{ db *fakeDB }
 
-func (t *fakeTx) Exec(q string, a ...any) error { return t.db.Exec(q, a...) }
+func (f *fakeDB) BeginTx(context.Context) (Transaction, error) { return f.Begin() }
 
-func (t *fakeTx) QueryRow(q string, a ...any) Scanner { return t.db.QueryRow(q, a...) }
+func (f *fakeDB) PingContext(context.Context) error { return nil }
 
-func (t *fakeTx) Query(q string, a ...any) (Rows, error) { return t.db.Query(q, a...) }
+func (f *fakeDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	if err := f.Exec(query, args...); err != nil {
+		return nil, err
+	}
+	return fakeResult(0), nil
+}
+
+func (f *fakeDB) QueryRowContext(_ context.Context, query string, args ...any) Scanner {
+	return f.QueryRow(query, args...)
+}
+
+func (f *fakeDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+	return f.Query(query, args...)
+}
+
+type fakeResult int64
+
+func (r fakeResult) LastInsertId() (int64, error) { return 0, nil }
+func (r fakeResult) RowsAffected() (int64, error) { return int64(r), nil }
+
+func (t *fakeTx) ExecContext(ctx context.Context, q string, a ...any) (sql.Result, error) {
+	return t.db.ExecContext(ctx, q, a...)
+}
+
+func (t *fakeTx) QueryRowContext(ctx context.Context, q string, a ...any) Scanner {
+	return t.db.QueryRowContext(ctx, q, a...)
+}
+
+func (t *fakeTx) QueryContext(ctx context.Context, q string, a ...any) (Rows, error) {
+	return t.db.QueryContext(ctx, q, a...)
+}
 
 func (t *fakeTx) Commit() error { return nil }
 
@@ -87,6 +118,8 @@ type fakeRows struct {
 }
 
 func (r *fakeRows) Next() bool { r.idx++; return r.idx < len(r.rows) }
+
+func (r *fakeRows) Columns() ([]Column, error) { return nil, nil }
 
 func (r *fakeRows) Err() error { return nil }
 

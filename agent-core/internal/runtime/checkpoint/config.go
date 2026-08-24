@@ -9,13 +9,14 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/doltsql"
+	doltcheckpoint "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint/dolt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 // Config holds the agent binary's checkpoint and resume flags. RegisterFlags
 // binds them onto a caller-supplied flag set; the package never touches a
-// global flagset. This package does not import internal/tools (boundaries.yaml);
-// Dolt word identity stays at the composition root.
+// global flagset. This package does not import internal/tools (boundaries.yaml).
 type Config struct {
 	DoltDSN          string // --dolt-dsn
 	ResumeCheckpoint string // --resume-checkpoint
@@ -53,7 +54,7 @@ func (o Opened) Close() error {
 
 // OpenDolt opens the persistent Dolt backend. Tests replace this seam.
 var OpenDolt = func(dsn, runID string, terminal func(core.State) bool) (Closeable, error) {
-	return core.OpenDoltCheckpoint(dsn, runID, terminal)
+	return doltcheckpoint.OpenDoltCheckpoint(dsn, runID, terminal)
 }
 
 // Open returns the typed Checkpoint port for the run: the Dolt-backed
@@ -99,4 +100,18 @@ func terminalPredicate(machine core.MachineSpec) func(core.State) bool {
 		terminal[core.State(s)] = true
 	}
 	return func(s core.State) bool { return terminal[s] }
+}
+
+// DatabaseIdentity returns the credential-free identity of the configured
+// checkpoint DSN so Dolt words can refuse the same database. A missing DSN
+// yields a nil identity.
+func (c Config) DatabaseIdentity() (*doltsql.DatabaseIdentity, error) {
+	if strings.TrimSpace(c.DoltDSN) == "" {
+		return nil, nil
+	}
+	identity, err := doltsql.IdentityFromDSN(c.DoltDSN, "")
+	if err != nil {
+		return nil, fmt.Errorf("resolve active Dolt checkpoint identity: %w", err)
+	}
+	return &identity, nil
 }

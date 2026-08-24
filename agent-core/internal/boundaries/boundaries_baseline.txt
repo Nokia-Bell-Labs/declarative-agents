@@ -1,7 +1,6 @@
 # GH-1835 package-boundaries baseline (see internal/boundaries).
 # import:<from> -> <to> is a grandfathered illegal edge; delete it when the edge is gone.
 # pkg:<path> files=<n> loc=<n> is a shrink-only package shape; delete a line when the package disappears.
-import:internal/runtime/core -> database/sql
 import:internal/observability/monitor/runtimeconfig -> internal/runtime/core
 import:internal/observability/monitor/runtimeconfig -> internal/tools/catalog
 import:pkg/spec -> internal/runtime/core
@@ -10,7 +9,8 @@ import:pkg/profileaudit -> internal/runtime/core
 import:pkg/profileaudit -> internal/support/corepath
 import:pkg/profileaudit -> internal/tools/catalog
 import:pkg/profileaudit -> internal/tools/rest
-pkg:cmd/agent files=8 loc=2198
+pkg:cmd/agent files=8 loc=2187
+pkg:internal/doltsql files=4 loc=274
 pkg:internal/evaluation files=23 loc=3860
 pkg:internal/gostyle files=1 loc=9
 pkg:internal/model files=1 loc=7
@@ -29,8 +29,9 @@ pkg:internal/planning/graph files=2 loc=455
 pkg:internal/planning/pipeline files=10 loc=1243
 pkg:internal/planning/plan files=3 loc=140
 pkg:internal/runtime files=1 loc=7
-pkg:internal/runtime/checkpoint files=2 loc=128
-pkg:internal/runtime/core files=36 loc=6908
+pkg:internal/runtime/checkpoint files=2 loc=132
+pkg:internal/runtime/checkpoint/dolt files=2 loc=1216
+pkg:internal/runtime/core files=33 loc=5626
 pkg:internal/support files=1 loc=7
 pkg:internal/support/corepath files=1 loc=51
 pkg:internal/support/envexpand files=1 loc=37
@@ -40,7 +41,7 @@ pkg:internal/tools files=1 loc=14
 pkg:internal/tools/catalog files=12 loc=2501
 pkg:internal/tools/compose files=2 loc=329
 pkg:internal/tools/control files=6 loc=1141
-pkg:internal/tools/dolt files=6 loc=1459
+pkg:internal/tools/dolt files=6 loc=1321
 pkg:internal/tools/exec files=6 loc=600
 pkg:internal/tools/filesystem files=9 loc=1320
 pkg:internal/tools/lifecycle files=7 loc=1735

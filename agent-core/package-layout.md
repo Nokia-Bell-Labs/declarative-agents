@@ -82,6 +82,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 
 - `cmd/agent`
 - `internal/boundaries`
+- `internal/doltsql`
 - `internal/evaluation`
 - `internal/gostyle`
 - `internal/model`
@@ -101,6 +102,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/planning/plan`
 - `internal/runtime`
 - `internal/runtime/checkpoint`
+- `internal/runtime/checkpoint/dolt`
 - `internal/runtime/core`
 - `internal/support`
 - `internal/support/corepath`

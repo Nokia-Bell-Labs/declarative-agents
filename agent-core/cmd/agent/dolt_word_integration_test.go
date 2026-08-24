@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	rtcheckpoint "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
+	doltcheckpoint "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint/dolt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	tooldolt "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/dolt"
@@ -253,7 +254,7 @@ func TestDoltWordIntegration(t *testing.T) {
 
 	t.Run("accepts separate checkpoint database on same server", func(t *testing.T) {
 		requireDoltDatabase(t, base, doltCheckpointDB)
-		checkpoint, err := core.OpenDoltCheckpoint(
+		checkpoint, err := doltcheckpoint.OpenDoltCheckpoint(
 			base+doltCheckpointDB,
 			"dolt-word-integration",
 			func(core.State) bool { return false },

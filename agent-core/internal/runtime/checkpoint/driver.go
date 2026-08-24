@@ -3,22 +3,11 @@
 
 package checkpoint
 
-import (
-	"database/sql"
-	"sync"
+import "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/doltsql"
 
-	"github.com/go-sql-driver/mysql"
-)
-
-var registerDriverOnce sync.Once
-
-// RegisterDriver registers the "dolt" database/sql driver so
-// core.OpenDoltCheckpoint's sql.Open("dolt", dsn) resolves. Dolt speaks the
-// MySQL wire protocol; the pure-Go MySQL driver connects to a running
-// `dolt sql-server`. cmd/agent must call this once at process start; the
-// package does not register at import time (srd036-dolt-state-persistence R1.3, R1.4).
+// RegisterDriver registers the persistent checkpoint SQL driver. cmd/agent
+// calls this once at process start; the package does not register at import
+// time (srd036-dolt-state-persistence R1.3, R1.4).
 func RegisterDriver() {
-	registerDriverOnce.Do(func() {
-		sql.Register("dolt", &mysql.MySQLDriver{})
-	})
+	doltsql.RegisterDriver()
 }

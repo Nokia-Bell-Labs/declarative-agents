@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package core
+package doltcheckpoint
 
 import (
 	"database/sql"
@@ -11,12 +11,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDoltCheckpointImplementsPort(t *testing.T) {
 	t.Parallel()
-	var cp Checkpoint = NewDoltCheckpoint(newFakeDB(), "run-1", nil)
+	var cp core.Checkpoint = NewDoltCheckpoint(newFakeDB(), "run-1", nil)
 	require.NotNil(t, cp)
 }
 
@@ -26,9 +27,9 @@ func TestDoltCheckpointSaveLoadRoundTrip(t *testing.T) {
 	cp := NewDoltCheckpoint(db, "run-1", nil)
 	exec := sampleExecution()
 	pos := samplePosition()
-	pos.Snapshot.Iterator = &IteratorSnapshot{
+	pos.Snapshot.Iterator = &core.IteratorSnapshot{
 		TransitionState: "Loading", TransitionSignal: "Ready", BodyState: "Iterating",
-		Action: "item", Spec: ForEachSpec{As: "item"},
+		Action: "item", Spec: core.ForEachSpec{As: "item"},
 		Items: []json.RawMessage{json.RawMessage(`{"name":"next"}`)}, NextIndex: 0,
 	}
 
@@ -61,9 +62,9 @@ func TestDoltCheckpointConversationReferencesSurviveFreshAdapter(t *testing.T) {
 	firstDomainRef, ok := saver.DomainReference()
 	require.True(t, ok)
 	require.Equal(t, firstRef, firstDomainRef)
-	firstParsed, err := parseCheckpointReference(firstRef)
+	firstParsed, err := core.ParseCheckpointReference(firstRef)
 	require.NoError(t, err)
-	require.Equal(t, db.commits[0].hash, firstParsed.revision)
+	require.Equal(t, db.commits[0].hash, firstParsed.Revision)
 	require.Zero(t, countCalls(db.calls, "FROM dolt_log WHERE message LIKE"),
 		"Save uses the hash returned directly by DOLT_COMMIT")
 
@@ -109,20 +110,20 @@ func TestDoltCheckpointConversationReferenceRejectsWrongRunAndStep(t *testing.T)
 	require.True(t, ok)
 
 	_, err := NewDoltCheckpoint(db, "other-run", nil).ResolveConversationSnapshot(ref)
-	require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+	require.ErrorIs(t, err, core.ErrConversationReferenceInvalid)
 	_, err = NewDoltCheckpoint(db, "other-run", nil).ResolveDomainSnapshot(ref)
-	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
+	require.ErrorIs(t, err, core.ErrDomainReferenceInvalid)
 
-	parsed, err := parseCheckpointReference(ref)
+	parsed, err := core.ParseCheckpointReference(ref)
 	require.NoError(t, err)
-	wrongStep, err := formatCheckpointReference(
-		parsed.backend, parsed.runID, parsed.step+1, parsed.revision,
+	wrongStep, err := core.FormatCheckpointReference(
+		parsed.Backend, parsed.RunID, parsed.Step+1, parsed.Revision,
 	)
 	require.NoError(t, err)
 	_, err = saver.ResolveConversationSnapshot(wrongStep)
-	require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+	require.ErrorIs(t, err, core.ErrConversationReferenceInvalid)
 	_, err = saver.ResolveDomainSnapshot(wrongStep)
-	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
+	require.ErrorIs(t, err, core.ErrDomainReferenceInvalid)
 }
 
 func TestDoltCheckpointConversationReferenceRejectsLaterRevisionClaimingEarlierStep(t *testing.T) {
@@ -133,17 +134,17 @@ func TestDoltCheckpointConversationReferenceRejectsLaterRevisionClaimingEarlierS
 	require.NoError(t, saver.Save(samplePosition(), sampleExecution()))
 	latestRef, ok := saver.ConversationReference()
 	require.True(t, ok)
-	latest, err := parseCheckpointReference(latestRef)
+	latest, err := core.ParseCheckpointReference(latestRef)
 	require.NoError(t, err)
 
-	forged, err := formatCheckpointReference(
-		latest.backend, latest.runID, 0, latest.revision,
+	forged, err := core.FormatCheckpointReference(
+		latest.Backend, latest.RunID, 0, latest.Revision,
 	)
 	require.NoError(t, err)
 	_, err = saver.ResolveConversationSnapshot(forged)
-	require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+	require.ErrorIs(t, err, core.ErrConversationReferenceInvalid)
 	_, err = saver.ResolveDomainSnapshot(forged)
-	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
+	require.ErrorIs(t, err, core.ErrDomainReferenceInvalid)
 }
 
 func TestDoltCheckpointDomainReferenceRejectsEarlierRevisionClaimingLaterStep(t *testing.T) {
@@ -153,24 +154,24 @@ func TestDoltCheckpointDomainReferenceRejectsEarlierRevisionClaimingLaterStep(t 
 	require.NoError(t, saver.Save(samplePosition(), sampleExecution()[:1]))
 	firstRef, ok := saver.DomainReference()
 	require.True(t, ok)
-	first, err := parseCheckpointReference(firstRef)
+	first, err := core.ParseCheckpointReference(firstRef)
 	require.NoError(t, err)
 
 	require.NoError(t, saver.Save(samplePosition(), sampleExecution()))
 	latestRef, ok := saver.DomainReference()
 	require.True(t, ok)
-	latest, err := parseCheckpointReference(latestRef)
+	latest, err := core.ParseCheckpointReference(latestRef)
 	require.NoError(t, err)
 
-	wrongRevision, err := formatCheckpointReference(
-		latest.backend,
-		latest.runID,
-		latest.step,
-		first.revision,
+	wrongRevision, err := core.FormatCheckpointReference(
+		latest.Backend,
+		latest.RunID,
+		latest.Step,
+		first.Revision,
 	)
 	require.NoError(t, err)
 	_, err = saver.ResolveDomainSnapshot(wrongRevision)
-	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
+	require.ErrorIs(t, err, core.ErrDomainReferenceInvalid)
 }
 
 func TestDoltCheckpointDomainReferenceReportsUnavailableSnapshot(t *testing.T) {
@@ -186,7 +187,7 @@ func TestDoltCheckpointDomainReferenceReportsUnavailableSnapshot(t *testing.T) {
 	require.False(t, ok)
 
 	_, err := checkpoint.ResolveDomainSnapshot(ref)
-	require.ErrorIs(t, err, ErrDomainReferenceUnavailable)
+	require.ErrorIs(t, err, core.ErrDomainReferenceUnavailable)
 }
 
 func TestDoltCheckpointConversationReferenceRejectsSQLPayloadsBeforeQuery(t *testing.T) {
@@ -207,9 +208,9 @@ func TestDoltCheckpointConversationReferenceRejectsSQLPayloadsBeforeQuery(t *tes
 		)
 		calls := len(db.calls)
 		_, err := checkpoint.ResolveConversationSnapshot(reference)
-		require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+		require.ErrorIs(t, err, core.ErrConversationReferenceInvalid)
 		_, err = checkpoint.ResolveDomainSnapshot(reference)
-		require.ErrorIs(t, err, ErrDomainReferenceInvalid)
+		require.ErrorIs(t, err, core.ErrDomainReferenceInvalid)
 		require.Len(t, db.calls, calls, "invalid revision must not reach the database")
 	}
 }
@@ -221,7 +222,7 @@ func TestRenderDoltASOfRevisionAcceptsOnlyHashGrammar(t *testing.T) {
 	require.Equal(t, "'8f09la6epq7omn89khmr0o1kfjgbgugn'", literal)
 	for _, revision := range []string{"'", "--", "/*x*/", "line\nbreak"} {
 		_, err := renderDoltASOfRevision(revision)
-		require.ErrorIs(t, err, ErrConversationReferenceInvalid)
+		require.ErrorIs(t, err, core.ErrConversationReferenceInvalid)
 	}
 }
 
@@ -260,26 +261,26 @@ func TestDoltCheckpointReappliesAndPersistsOutputRedaction(t *testing.T) {
 	db := newFakeDB()
 	cp := NewDoltCheckpoint(db, "redacted-run", nil)
 	entry := redactionCheckpointEntry("dolt-secret")
-	require.NoError(t, cp.Save(samplePosition(), Execution{entry}))
+	require.NoError(t, cp.Save(samplePosition(), core.Execution{entry}))
 
 	require.Len(t, db.toolOutputArgs, 1)
 	require.NotContains(t, fmt.Sprint(db.toolOutputArgs[0]), "dolt-secret")
 	stored := db.store.results[rowKey("redacted-run", 0)]
 	require.NotNil(t, stored.output)
 	require.JSONEq(t, `{"public":"ok"}`, *stored.output)
-	require.Equal(t, int64(OutputRedactionVersion1), *stored.redactionVersion)
+	require.Equal(t, int64(core.OutputRedactionVersion1), *stored.redactionVersion)
 	require.JSONEq(t, `[["secret"]]`, *stored.redactedPaths)
-	require.Equal(t, string(OutputRedactionApplied), *stored.status)
+	require.Equal(t, string(core.OutputRedactionApplied), *stored.status)
 	require.Equal(t, `{"opaque":"receipt"}`, *db.store.receipts[rowKey("redacted-run", 0)])
 
 	fresh := NewDoltCheckpoint(db, "redacted-run", nil)
 	_, restored, err := fresh.Load()
 	require.NoError(t, err)
-	value, err := ResolveFromSelector(NewCommandStateView(restored), "$from(fetch).public")
+	value, err := core.ResolveFromSelector(core.NewCommandStateView(restored), "$from(fetch).public")
 	require.NoError(t, err)
 	require.Equal(t, "ok", value)
-	_, err = ResolveFromSelector(NewCommandStateView(restored), "$from(fetch).secret")
-	var missing *UnresolvedPathError
+	_, err = core.ResolveFromSelector(core.NewCommandStateView(restored), "$from(fetch).secret")
+	var missing *core.UnresolvedPathError
 	require.ErrorAs(t, err, &missing)
 }
 
@@ -289,24 +290,24 @@ func TestDoltCheckpointPersistsFailClosedRedactionRow(t *testing.T) {
 	db := newFakeDB()
 	cp := NewDoltCheckpoint(db, "invalid-redaction", nil)
 	entry := redactionCheckpointEntry("must-not-persist")
-	entry.Result.RedactedPaths = []OutputRedactionPath{{" secret"}}
+	entry.Result.RedactedPaths = []core.OutputRedactionPath{{" secret"}}
 
-	require.NoError(t, cp.Save(samplePosition(), Execution{entry}))
+	require.NoError(t, cp.Save(samplePosition(), core.Execution{entry}))
 	require.Len(t, db.toolOutputArgs, 1)
 	require.NotContains(t, fmt.Sprint(db.toolOutputArgs[0]), "must-not-persist")
 	require.Len(t, db.commits, 1)
 
 	stored := db.store.results[rowKey("invalid-redaction", 0)]
 	require.Nil(t, stored.output)
-	require.Equal(t, int64(OutputRedactionVersion1), *stored.redactionVersion)
+	require.Equal(t, int64(core.OutputRedactionVersion1), *stored.redactionVersion)
 	require.Nil(t, stored.redactedPaths)
-	require.Equal(t, string(OutputRedactionOmitted), *stored.status)
+	require.Equal(t, string(core.OutputRedactionOmitted), *stored.status)
 
 	_, restored, err := NewDoltCheckpoint(db, "invalid-redaction", nil).Load()
 	require.NoError(t, err)
 	require.Equal(t, `{"opaque":"receipt"}`, restored[0].Receipt)
-	_, err = ResolveFromSelector(NewCommandStateView(restored), "$from(fetch).secret")
-	var unavailable *CommandStateOutputUnavailableError
+	_, err = core.ResolveFromSelector(core.NewCommandStateView(restored), "$from(fetch).secret")
+	var unavailable *core.CommandStateOutputUnavailableError
 	require.ErrorAs(t, err, &unavailable)
 }
 
@@ -345,8 +346,8 @@ func TestDoltCheckpointLegacyOutputLoadsButSelectorsDenyIt(t *testing.T) {
 		require.True(t, db.redactionColumns[column], "Load upgrades the legacy forward-plane schema")
 	}
 	require.Equal(t, `{"file":"a.txt"}`, restored[0].Receipt)
-	_, err = ResolveFromSelector(NewCommandStateView(restored), "$from(draft).value")
-	var unavailable *CommandStateOutputUnavailableError
+	_, err = core.ResolveFromSelector(core.NewCommandStateView(restored), "$from(draft).value")
+	var unavailable *core.CommandStateOutputUnavailableError
 	require.ErrorAs(t, err, &unavailable)
 	require.Zero(t, unavailable.Version)
 }
@@ -388,7 +389,7 @@ func TestDoltCheckpointLoadNotFound(t *testing.T) {
 	t.Parallel()
 	cp := NewDoltCheckpoint(newFakeDB(), "missing", nil)
 	_, _, err := cp.Load()
-	require.ErrorIs(t, err, ErrNoCheckpoint)
+	require.ErrorIs(t, err, core.ErrNoCheckpoint)
 }
 
 func TestDoltCheckpointLoadMissingRows(t *testing.T) {
@@ -397,7 +398,7 @@ func TestDoltCheckpointLoadMissingRows(t *testing.T) {
 	db.branches["empty-run"] = true
 
 	_, _, err := NewDoltCheckpoint(db, "empty-run", nil).Load()
-	require.ErrorIs(t, err, ErrNoCheckpoint)
+	require.ErrorIs(t, err, core.ErrNoCheckpoint)
 }
 
 func TestDoltCheckpointLoadCheckoutFailurePreservesAdapterError(t *testing.T) {
@@ -417,7 +418,7 @@ func TestDoltCheckpointLoadCheckoutFailurePreservesAdapterError(t *testing.T) {
 
 			_, _, err := NewDoltCheckpoint(db, "unavailable-run", nil).Load()
 			require.ErrorIs(t, err, ErrDolt)
-			require.NotErrorIs(t, err, ErrNoCheckpoint)
+			require.NotErrorIs(t, err, core.ErrNoCheckpoint)
 			require.ErrorContains(t, err, `load: checkout branch "unavailable-run"`)
 			require.ErrorContains(t, err, tc.err.Error())
 		})

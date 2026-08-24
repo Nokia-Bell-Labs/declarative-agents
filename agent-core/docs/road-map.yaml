@@ -305,7 +305,7 @@ releases:
         status: implemented
     proof:
       - go test ./internal/tools/rest -run TestRESTClient_CommandStateTracerBulletNonAdjacentWithRestart
-      - go test ./internal/runtime/core -run 'TestCommandStateView|TestDoltCheckpointRevertReapsBothPlanes|TestDoltCheckpointReceiptWalkReversesSurvivingStep|TestDoltCommandStateWritesOnlyNewStepBlob'
+      - go test ./internal/runtime/core ./internal/runtime/checkpoint/dolt -run 'TestCommandStateView|TestDoltCheckpointRevertReapsBothPlanes|TestDoltCheckpointReceiptWalkReversesSurvivingStep|TestDoltCommandStateWritesOnlyNewStepBlob'
       - go test ./internal/tools/rest -run 'TestRESTClient_CommandState'
 
   - version: "08.0"

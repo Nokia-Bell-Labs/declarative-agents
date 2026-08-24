@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 
+	doltcheckpoint "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint/dolt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -56,7 +57,7 @@ func TestOpenWithDoltDSNOpensDoltBackend(t *testing.T) {
 	t.Parallel()
 	RegisterDriver()
 	_, err := Config{DoltDSN: "not-a-valid-dsn"}.Open(core.MachineSpec{}, "run-test")
-	require.ErrorIs(t, err, core.ErrDolt)
+	require.ErrorIs(t, err, doltcheckpoint.ErrDolt)
 }
 
 func TestOpenUsesOpenDoltSeam(t *testing.T) {
@@ -87,6 +88,18 @@ func TestResumeID(t *testing.T) {
 	_, err = Config{ResumeCheckpoint: "latest"}.ResumeID()
 	require.ErrorContains(t, err, "--resume-checkpoint")
 	require.ErrorContains(t, err, "provide an explicit run id")
+}
+
+func TestDatabaseIdentityFromDSN(t *testing.T) {
+	t.Parallel()
+	id, err := Config{}.DatabaseIdentity()
+	require.NoError(t, err)
+	require.Nil(t, id)
+
+	id, err = Config{DoltDSN: "u:p@tcp(LOCALHOST:3306)/Runtime_State"}.DatabaseIdentity()
+	require.NoError(t, err)
+	require.Equal(t, "tcp://localhost:3306", id.Server)
+	require.Equal(t, "runtime_state", id.Database)
 }
 
 type noopCloseable struct{ core.NoopCheckpoint }

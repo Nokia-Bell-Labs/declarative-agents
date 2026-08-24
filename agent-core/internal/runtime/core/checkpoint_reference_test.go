@@ -85,7 +85,7 @@ func TestInMemoryDomainReferenceRejectsInvalidClaims(t *testing.T) {
 	require.NoError(t, checkpoint.Save(samplePosition(), sampleExecution()[:1]))
 	ref, ok := checkpoint.DomainReference()
 	require.True(t, ok)
-	parsed, err := parseCheckpointReference(ref)
+	parsed, err := ParseCheckpointReference(ref)
 	require.NoError(t, err)
 
 	_, err = checkpoint.ResolveDomainSnapshot("checkpoint:v1")
@@ -93,43 +93,43 @@ func TestInMemoryDomainReferenceRejectsInvalidClaims(t *testing.T) {
 	_, err = NewInMemoryCheckpoint("other-run").ResolveDomainSnapshot(ref)
 	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
 
-	wrongStep, err := formatCheckpointReference(
-		parsed.backend,
-		parsed.runID,
-		parsed.step+1,
-		parsed.revision,
+	wrongStep, err := FormatCheckpointReference(
+		parsed.Backend,
+		parsed.RunID,
+		parsed.Step+1,
+		parsed.Revision,
 	)
 	require.NoError(t, err)
 	_, err = checkpoint.ResolveDomainSnapshot(wrongStep)
 	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
 
-	replacement := strings.Repeat("0", len(parsed.revision))
-	if replacement == parsed.revision {
-		replacement = strings.Repeat("1", len(parsed.revision))
+	replacement := strings.Repeat("0", len(parsed.Revision))
+	if replacement == parsed.Revision {
+		replacement = strings.Repeat("1", len(parsed.Revision))
 	}
-	wrongRevision, err := formatCheckpointReference(
-		parsed.backend,
-		parsed.runID,
-		parsed.step,
+	wrongRevision, err := FormatCheckpointReference(
+		parsed.Backend,
+		parsed.RunID,
+		parsed.Step,
 		replacement,
 	)
 	require.NoError(t, err)
 	_, err = checkpoint.ResolveDomainSnapshot(wrongRevision)
 	require.ErrorIs(t, err, ErrDomainReferenceInvalid)
 
-	_, err = NewInMemoryCheckpoint(parsed.runID).ResolveDomainSnapshot(ref)
+	_, err = NewInMemoryCheckpoint(parsed.RunID).ResolveDomainSnapshot(ref)
 	require.ErrorIs(t, err, ErrDomainReferenceUnavailable)
 }
 
 func TestCheckpointReferenceParsingIsStrict(t *testing.T) {
 	t.Parallel()
 	const doltRevision = "8f09la6epq7omn89khmr0o1kfjgbgugn"
-	valid, err := formatCheckpointReference("dolt", "run/one", 3, doltRevision)
+	valid, err := FormatCheckpointReference("dolt", "run/one", 3, doltRevision)
 	require.NoError(t, err)
-	parsed, err := parseCheckpointReference(valid)
+	parsed, err := ParseCheckpointReference(valid)
 	require.NoError(t, err)
-	require.Equal(t, checkpointReference{
-		backend: "dolt", runID: "run/one", step: 3, revision: doltRevision,
+	require.Equal(t, CheckpointReference{
+		Backend: "dolt", RunID: "run/one", Step: 3, Revision: doltRevision,
 	}, parsed)
 	require.Equal(t,
 		"checkpoint:v1:dolt:cnVuL29uZQ:3:OGYwOWxhNmVwcTdvbW44OWtobXIwbzFrZmpnYmd1Z24",
@@ -144,7 +144,7 @@ func TestCheckpointReferenceParsingIsStrict(t *testing.T) {
 		"checkpoint:v1:dolt:cnVu:03:aGFzaA",
 		"checkpoint:v1:dolt:cnVu:-1:aGFzaA",
 	} {
-		_, err := parseCheckpointReference(invalid)
+		_, err := ParseCheckpointReference(invalid)
 		require.ErrorIs(t, err, ErrConversationReferenceInvalid, invalid)
 	}
 }
@@ -152,7 +152,7 @@ func TestCheckpointReferenceParsingIsStrict(t *testing.T) {
 func TestCheckpointReferencePayloadIsBounded(t *testing.T) {
 	t.Parallel()
 	const revision = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	ref, err := formatCheckpointReference(
+	ref, err := FormatCheckpointReference(
 		"memory",
 		strings.Repeat("r", maxReferencePartLength),
 		0,
@@ -161,14 +161,14 @@ func TestCheckpointReferencePayloadIsBounded(t *testing.T) {
 	require.NoError(t, err)
 	require.LessOrEqual(t, len(ref), maxCheckpointReferenceLength)
 
-	_, err = formatCheckpointReference(
+	_, err = FormatCheckpointReference(
 		"memory",
 		strings.Repeat("r", maxReferencePartLength+1),
 		0,
 		revision,
 	)
 	require.ErrorIs(t, err, ErrConversationReferenceInvalid)
-	_, err = parseCheckpointReference(strings.Repeat("x", maxCheckpointReferenceLength+1))
+	_, err = ParseCheckpointReference(strings.Repeat("x", maxCheckpointReferenceLength+1))
 	require.ErrorIs(t, err, ErrConversationReferenceInvalid)
 }
 
@@ -178,9 +178,9 @@ func TestCheckpointReferenceRevisionGrammarIsBackendSpecific(t *testing.T) {
 		doltRevision   = "8f09la6epq7omn89khmr0o1kfjgbgugn"
 		memoryRevision = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	)
-	_, err := formatCheckpointReference("dolt", "run", 0, doltRevision)
+	_, err := FormatCheckpointReference("dolt", "run", 0, doltRevision)
 	require.NoError(t, err)
-	_, err = formatCheckpointReference("memory", "run", 0, memoryRevision)
+	_, err = FormatCheckpointReference("memory", "run", 0, memoryRevision)
 	require.NoError(t, err)
 
 	for backend, revisions := range map[string][]string{
@@ -188,7 +188,7 @@ func TestCheckpointReferenceRevisionGrammarIsBackendSpecific(t *testing.T) {
 		"memory": {doltRevision, "g123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"},
 	} {
 		for _, revision := range revisions {
-			_, err := formatCheckpointReference(backend, "run", 0, revision)
+			_, err := FormatCheckpointReference(backend, "run", 0, revision)
 			require.ErrorIs(t, err, ErrConversationReferenceInvalid)
 		}
 	}

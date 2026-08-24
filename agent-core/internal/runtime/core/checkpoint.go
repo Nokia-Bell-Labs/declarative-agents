@@ -22,6 +22,11 @@ var (
 	// conversation required by a stateful checkpoint Position.
 	ErrConversationSnapshotFailed = errors.New("conversation snapshot failed")
 	ErrDomainSnapshotFailed       = errors.New("domain snapshot failed")
+	// ErrCheckpointFinalized classifies a Load (and a later Save or Merge)
+	// after a backend has recorded a terminal lifecycle marker. Any
+	// finalizing backend returns it; resume treats it as a completed run
+	// rather than a load failure (srd035-checkpoint-port R6).
+	ErrCheckpointFinalized = errors.New("checkpoint: run already finalized")
 )
 
 // Checkpoint is the typed persistence port (srd035-checkpoint-port). It exposes
@@ -38,7 +43,7 @@ type Checkpoint interface {
 // two-method Checkpoint plus a git-style Revert that resets a run's persisted
 // DB state to a prior step. External effects (files, resources) are reversed
 // separately by the lifecycle receipt walk, never here
-// (srd036-dolt-state-persistence R6). *DoltCheckpoint satisfies it; tests
+// (srd036-dolt-state-persistence R6). Persistent backends satisfy it; tests
 // supply fakes.
 type CheckpointReverter interface {
 	Checkpoint

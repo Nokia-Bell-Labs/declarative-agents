@@ -47,66 +47,6 @@ func TestLoop_SavesSnapshotAfterDispatchWithConfiguredAdapter(t *testing.T) {
 	require.JSONEq(t, `{"consecutive_parse_errors":3}`, string(pos.Snapshot.Domain))
 }
 
-// TestLoop_DoltFinalizesActionlessTerminalTransition proves the production Loop
-// drives the real DoltCheckpoint adapter with the actual terminal Position. The
-// finalization Save retains the two-method port and unchanged Execution, so it
-// creates no synthetic command Entry or duplicate step write.
-func TestLoop_DoltFinalizesActionlessTerminalTransition(t *testing.T) {
-	t.Parallel()
-	db := newFakeDB()
-	cp := NewDoltCheckpoint(db, "loop-terminal", func(state State) bool {
-		return state == "Finished"
-	})
-	params := simpleLoopParams(&loopRecorder{})
-	params.AgentName = "loop-terminal"
-	params.Checkpoint = cp
-
-	rr, err := Loop(params, context.Background())
-
-	require.NoError(t, err)
-	require.Equal(t, StatusSucceeded, rr.Status)
-	require.Equal(t, State("Finished"), rr.FinalState)
-	require.Equal(t, 2, rr.Iterations)
-	require.Equal(t, "Finished", db.store.machines["loop-terminal"].currentState)
-	require.Empty(t, db.store.transitions, "terminal history does not reach main")
-	require.Empty(t, db.store.steps, "terminal execution does not reach main")
-	require.Empty(t, db.store.results, "terminal forward-plane output does not reach main")
-	require.Empty(t, db.store.receipts, "terminal reverse-plane receipts do not reach main")
-	require.Equal(t, 2, countCalls(db.calls, "REPLACE INTO execution_steps"))
-	require.Equal(t, 2, countCalls(db.calls, "REPLACE INTO tool_outputs"))
-	require.Equal(t, 3, len(db.commits), "two command commits plus one terminal-position commit")
-	require.Equal(t, "finalize terminal state Finished", db.commits[2].message)
-	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"))
-	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"))
-	require.False(t, db.branches["loop-terminal"])
-}
-
-func TestLoop_DoltPreservesSuspendedRunBranch(t *testing.T) {
-	t.Parallel()
-	db := newFakeDB()
-	cp := NewDoltCheckpoint(db, "suspended-run", func(state State) bool {
-		return state == "Failed"
-	})
-	params := suspendLoopParams(
-		&loopRecorder{},
-		&staticBuilder{cmd: &fakeCmd{name: "suspend", signal: AwaitApproval}},
-	)
-	params.AgentName = "suspended-run"
-	params.Checkpoint = cp
-
-	rr, err := Loop(params, context.Background())
-
-	require.NoError(t, err)
-	require.Equal(t, StatusSuspended, rr.Status)
-	require.True(t, db.branches["suspended-run"])
-	require.Zero(t, countCalls(db.calls, "DOLT_MERGE"))
-	require.Zero(t, countCalls(db.calls, "DOLT_BRANCH('-d'"))
-	pos, execution, err := NewDoltCheckpoint(db, "suspended-run", cp.terminal).Load()
-	require.NoError(t, err)
-	require.Equal(t, State("AwaitingApproval"), pos.CurrentState)
-	require.Len(t, execution, 1)
-}
-
 func TestLoop_TerminalFinalizationFailureIsNotReportedAsSuccess(t *testing.T) {
 	t.Parallel()
 	params := simpleLoopParams(&loopRecorder{})
@@ -128,14 +68,11 @@ func TestLoop_TerminalFinalizationFailureIsNotReportedAsSuccess(t *testing.T) {
 
 func TestLoop_PeriodicSaveFailureStopsAtUnpersistedStep(t *testing.T) {
 	t.Parallel()
-	db := newFakeDB()
-	db.failOn = "REPLACE INTO execution_steps"
-	db.failOnCall = 2
-	cp := NewDoltCheckpoint(db, "periodic-save-failure", func(state State) bool {
-		return state == "Finished"
-	})
+	cp := &failOnSaveCheckpoint{
+		failOn: 2,
+		err:    errors.New("save unavailable"),
+	}
 	params := simpleLoopParams(&loopRecorder{})
-	params.AgentName = "periodic-save-failure"
 	params.Checkpoint = cp
 
 	rr, err := Loop(params, context.Background())
@@ -145,9 +82,11 @@ func TestLoop_PeriodicSaveFailureStopsAtUnpersistedStep(t *testing.T) {
 	require.Equal(t, State("Working"), rr.FinalState)
 	require.Equal(t, 2, rr.Iterations)
 	require.ErrorIs(t, rr.LastError, ErrCheckpointSaveFailed)
-	require.ErrorContains(t, rr.LastError, "adapter *core.DoltCheckpoint Save at iteration 2")
-	require.ErrorContains(t, rr.LastError, "dolt checkpoint")
-	require.Len(t, db.commits, 1, "the failed step must not be committed as resumable")
+	require.ErrorContains(t, rr.LastError, "adapter *core.failOnSaveCheckpoint Save at iteration 2")
+	require.ErrorContains(t, rr.LastError, "save unavailable")
+	_, execution, loadErr := cp.Load()
+	require.NoError(t, loadErr)
+	require.Len(t, execution, 1, "the failed step must not be persisted as resumable")
 }
 
 // TestLoop_PortSavePersistsConversation verifies that the loop folds the

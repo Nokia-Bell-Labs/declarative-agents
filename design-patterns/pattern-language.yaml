@@ -1047,7 +1047,7 @@ patterns:
               assertion: yaml_sequence_match
               field: tools
               match: {name: checkpoint_rollback, init: checkpoint_rollback}
-            - path: agent-core/internal/runtime/core/dolt_checkpoint_revert_test.go
+            - path: agent-core/internal/runtime/checkpoint/dolt/dolt_checkpoint_revert_test.go
               artifact: go_test
               assertion: go_test
               test: TestDoltCheckpointRevertResetsToStepCommit

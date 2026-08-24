@@ -12,6 +12,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/evaluation"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/pipeline"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/compose"
@@ -68,16 +69,16 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 }
 
 func registerDoltFactories(st *agentState) toolregistry.FactoryRegistrar {
-	checkpoint, checkpointErr := doltCheckpointIdentity(st.doltDSN)
+	identity, identityErr := checkpoint.Config{DoltDSN: st.doltDSN}.DatabaseIdentity()
 	deps := tooldolt.FactoryDeps{
 		Connections:        environmentDoltConnections{},
-		CheckpointIdentity: checkpoint,
+		CheckpointIdentity: identity,
 	}
 	return func(br *toolregistry.BuiltinRegistry) {
 		register := func(init string, factory toolregistry.BuiltinFactory) {
 			br.Register(init, func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-				if checkpointErr != nil {
-					return nil, checkpointErr
+				if identityErr != nil {
+					return nil, identityErr
 				}
 				return factory(def, vars)
 			})

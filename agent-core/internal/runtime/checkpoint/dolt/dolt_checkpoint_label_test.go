@@ -1,13 +1,15 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package core
+package doltcheckpoint
 
 import (
 	"context"
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,7 +45,7 @@ func TestDoltCheckpointSchemaUpgradeAddsNullableLabel(t *testing.T) {
 	_, restored, err := fresh.Load()
 	require.NoError(t, err)
 	require.Empty(t, restored[0].Label)
-	output, ok := NewCommandStateView(restored).Lookup("invoke")
+	output, ok := core.NewCommandStateView(restored).Lookup("invoke")
 	require.True(t, ok, "a null label falls back to command_name")
 	require.Equal(t, "hi", output)
 }
@@ -51,7 +53,7 @@ func TestDoltCheckpointSchemaUpgradeAddsNullableLabel(t *testing.T) {
 func TestCommandStateAuthoredLabelPersistsAcrossDoltRestart(t *testing.T) {
 	t.Parallel()
 
-	spec, err := ParseMachineSpec([]byte(`
+	spec, err := core.ParseMachineSpec([]byte(`
 name: persisted-labels
 initial_state: Start
 states: [Start, First, Second, Finished]
@@ -76,28 +78,22 @@ transitions:
 
 	db := newFakeDB()
 	checkpoint := NewDoltCheckpoint(db, "labeled-run", nil)
-	result, err := Loop(LoopParams{
+	result, err := core.Loop(core.LoopParams{
 		MachineSpec: &spec,
-		Trace:       &loopRecorder{},
-		Budget:      Budget{MaxIterations: 10},
+		Trace:       tracing.NoopTracer{},
+		Budget:      core.Budget{MaxIterations: 10},
 		Checkpoint:  checkpoint,
-		InitFunc: func(reg *Registry) error {
-			reg.Register(
-				ToolSpec{Name: "first_command", Visibility: Internal},
-				labelOutputBuilder{name: "first_command", signal: "FirstDone"},
-			)
-			reg.Register(
-				ToolSpec{Name: "second_command", Visibility: Internal},
-				labelOutputBuilder{name: "second_command", signal: "SecondDone"},
-			)
+		InitFunc: func(reg *core.Registry) error {
+			reg.Register(core.ToolSpec{Name: "first_command", Visibility: core.Internal}, labelOutputBuilder{name: "first_command", signal: "FirstDone"})
+			reg.Register(core.ToolSpec{Name: "second_command", Visibility: core.Internal}, labelOutputBuilder{name: "second_command", signal: "SecondDone"})
 			return nil
 		},
-		Hooks: LoopHooks{
-			TerminalStatus: func(State) RunStatus { return StatusSucceeded },
+		Hooks: core.LoopHooks{
+			TerminalStatus: func(core.State) core.RunStatus { return core.StatusSucceeded },
 		},
 	}, context.Background())
 	require.NoError(t, err)
-	require.Equal(t, StatusSucceeded, result.Status)
+	require.Equal(t, core.StatusSucceeded, result.Status)
 
 	fresh := NewDoltCheckpoint(db, "labeled-run", nil)
 	_, restored, err := fresh.Load()
@@ -110,26 +106,26 @@ transitions:
 	require.Equal(t, "receipt:first_command", restored[0].Receipt)
 	require.Equal(t, "receipt:second_command", restored[1].Receipt)
 
-	view := NewCommandStateView(restored)
-	value, err := ResolveFromSelector(view, "$from(repeated).value")
+	view := core.NewCommandStateView(restored)
+	value, err := core.ResolveFromSelector(view, "$from(repeated).value")
 	require.NoError(t, err)
 	require.Equal(t, "second_command", value, "duplicate restored labels resolve to the highest step")
 
-	value, err = ResolveFromSelector(view, "$from(first_command).value")
+	value, err = core.ResolveFromSelector(view, "$from(first_command).value")
 	require.NoError(t, err, "restored entries retain command-name addressing")
 	require.Equal(t, "first_command", value)
 
-	_, err = ResolveFromSelector(view, "$from(repeated).receipt")
-	var pathErr *UnresolvedPathError
+	_, err = core.ResolveFromSelector(view, "$from(repeated).receipt")
+	var pathErr *core.UnresolvedPathError
 	require.ErrorAs(t, err, &pathErr, "the forward view cannot resolve the separately restored receipt")
 }
 
 type labelOutputBuilder struct {
 	name   string
-	signal Signal
+	signal core.Signal
 }
 
-func (b labelOutputBuilder) Build(Result) Command {
+func (b labelOutputBuilder) Build(core.Result) core.Command {
 	return labelOutputCommand(b)
 }
 
@@ -137,8 +133,8 @@ type labelOutputCommand labelOutputBuilder
 
 func (c labelOutputCommand) Name() string { return c.name }
 
-func (c labelOutputCommand) Execute() Result {
-	return Result{
+func (c labelOutputCommand) Execute() core.Result {
+	return core.Result{
 		Output:      `{"value":"` + c.name + `"}`,
 		Signal:      c.signal,
 		CommandName: c.name,
@@ -146,4 +142,4 @@ func (c labelOutputCommand) Execute() Result {
 	}
 }
 
-func (c labelOutputCommand) Undo(Result) Result { return NoopUndo(c.name) }
+func (c labelOutputCommand) Undo(core.Result) core.Result { return core.NoopUndo(c.name) }

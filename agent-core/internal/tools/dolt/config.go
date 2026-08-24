@@ -6,12 +6,12 @@ package dolt
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/doltsql"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
@@ -54,7 +54,7 @@ type PreparedConfig struct {
 	CommitTemplate  *CommitTemplate
 }
 
-var literalIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var literalIdentifier = doltsql.IdentifierPattern
 
 func DecodeConfig(def catalog.ToolDef) (*PreparedConfig, error) {
 	var cfg OperationConfig

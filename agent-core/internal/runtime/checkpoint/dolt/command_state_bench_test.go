@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package core
+package doltcheckpoint
 
 import (
 	"flag"
@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,17 +24,17 @@ const (
 var doltBench = flag.Bool("dolt-bench", false,
 	"enable the filesystem-heavy real Dolt storage benchmark")
 
-func largeBlobExecution(steps, blobSize int) Execution {
+func largeBlobExecution(steps, blobSize int) core.Execution {
 	blob := strings.Repeat("x", blobSize)
-	exec := make(Execution, 0, steps)
+	exec := make(core.Execution, 0, steps)
 	for i := 0; i < steps; i++ {
-		exec = append(exec, Entry{
+		exec = append(exec, core.Entry{
 			Iteration:   i + 1,
 			CommandName: fmt.Sprintf("step-%d", i),
 			FromState:   "Working",
 			ToState:     "Working",
-			Signal:      LLMResponded,
-			Result:      checkpointDigest(LLMResponded, fmt.Sprintf(`{"blob":%q}`, blob), Cost{}),
+			Signal:      core.LLMResponded,
+			Result:      checkpointDigest(core.LLMResponded, fmt.Sprintf(`{"blob":%q}`, blob), core.Cost{}),
 		})
 	}
 	return exec
@@ -64,7 +65,7 @@ func BenchmarkDoltCheckpointSQLPayloadPerStep(b *testing.B) {
 // for repeated and distinct deterministic blobs. Enable it explicitly because
 // it requires the dolt executable and performs filesystem-heavy commits:
 //
-//	go test ./internal/runtime/core -run '^$' \
+//	go test ./internal/runtime/checkpoint/dolt -run '^$' \
 //	  -bench BenchmarkDoltRepositoryGrowthLargeBlob -benchtime=1x \
 //	  -args -dolt-bench=true
 func BenchmarkDoltRepositoryGrowthLargeBlob(b *testing.B) {
