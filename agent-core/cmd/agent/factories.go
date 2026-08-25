@@ -53,7 +53,7 @@ func builtinFactoryCatalog(st *agentState) []builtinFactoryCatalogEntry {
 
 func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 	return toolregistry.StandardFactoryDeps{
-		RegisterFilesystem:     registerFilesystemFactories(),
+		RegisterFilesystem:     filesystem.RegisterFactories,
 		RegisterLLM:            registerLLMFactories(st),
 		RegisterLifecycle:      registerLifecycleFactories(st),
 		RegisterControl:        registerControlFactories(st),
@@ -62,7 +62,7 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterSpecValidation: registerSpecValidationFactories(st),
 		RegisterREST:           registerRESTFactories(st),
 		RegisterDolt:           registerDoltFactories(st),
-		RegisterCompose:        registerComposeFactories(),
+		RegisterCompose:        compose.RegisterFactories,
 		RegisterOTLP:           registerOTLPFactories(),
 		RegisterService:        registerServiceFactories(st),
 	}
@@ -102,100 +102,10 @@ func (environmentDoltConnections) ResolveConnection(
 	return value, nil
 }
 
-func registerComposeFactories() toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		br.Register("compose", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
-			var cfg catalog.ComposeConfig
-			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-				return nil, err
-			}
-			if err := compose.ValidateConfig(def.Name, cfg.Inputs); err != nil {
-				return nil, err
-			}
-			return compose.Builder{
-				ToolName: def.Name,
-				Template: cfg.Template,
-				Inputs:   cfg.Inputs,
-				Signal:   core.Signal(cfg.Signal),
-			}, nil
-		})
-		br.Register("render_each", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
-			var cfg catalog.RenderEachConfig
-			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-				return nil, err
-			}
-			if err := compose.ValidateRenderEachConfig(def.Name, cfg.Items, cfg.ItemTemplate, cfg.Signal); err != nil {
-				return nil, err
-			}
-			return compose.RenderEachBuilder{
-				ToolName: def.Name, Items: cfg.Items, ItemTemplate: cfg.ItemTemplate,
-				Separator: cfg.Separator, Signal: core.Signal(cfg.Signal),
-			}, nil
-		})
-	}
-}
-
 func registerOTLPFactories() toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		toolotlp.RegisterFactories(br, toolotlp.NewState())
 	}
-}
-
-func registerFilesystemFactories() toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		fileFactories := []struct {
-			init    string
-			builder func(string, core.MetricConfig, string) core.Builder
-		}{
-			{"file_read", func(root string, metrics core.MetricConfig, _ string) core.Builder {
-				return &filesystem.ReadBuilder{Root: root, Metrics: metrics}
-			}},
-			{"file_write", func(root string, metrics core.MetricConfig, strategy string) core.Builder {
-				return &filesystem.WriteBuilder{Root: root, UndoStrategy: strategy, Metrics: metrics}
-			}},
-			{"file_edit", func(root string, metrics core.MetricConfig, strategy string) core.Builder {
-				return &filesystem.EditBuilder{Root: root, UndoStrategy: strategy, Metrics: metrics}
-			}},
-		}
-		for _, entry := range fileFactories {
-			registerFileFactory(br, entry.init, entry.builder)
-		}
-		br.Register("file_find", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &filesystem.FindBuilder{Root: vars["directory"], OutputLineCap: def.OutputCap}, nil
-		})
-		registerResourceFactories(br)
-	}
-}
-
-func registerFileFactory(br *toolregistry.BuiltinRegistry, init string, builder func(string, core.MetricConfig, string) core.Builder) {
-	br.Register(init, func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return builder(vars["directory"], def.Metrics, def.Undo.Strategy), nil
-	})
-}
-
-func registerResourceFactories(br *toolregistry.BuiltinRegistry) {
-	br.Register("list_resource", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		cfg, err := resourceConfig(def)
-		if err != nil {
-			return nil, err
-		}
-		return &filesystem.ListResourceBuilder{Root: vars["directory"], Resources: cfg}, nil
-	})
-	br.Register("read_resource", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		cfg, err := resourceConfig(def)
-		if err != nil {
-			return nil, err
-		}
-		return &filesystem.ReadResourceBuilder{Root: vars["directory"], Resources: cfg}, nil
-	})
-}
-
-func resourceConfig(def catalog.ToolDef) (filesystem.ResourceConfig, error) {
-	var cfg filesystem.ResourceConfig
-	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-		return filesystem.ResourceConfig{}, err
-	}
-	return cfg, nil
 }
 
 func registerLifecycleFactories(st *agentState) toolregistry.FactoryRegistrar {

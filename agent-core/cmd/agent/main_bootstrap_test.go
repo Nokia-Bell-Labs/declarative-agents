@@ -204,6 +204,8 @@ func TestBuiltinFactoryCatalogSelectsEntriesByInit(t *testing.T) {
 	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_rollback": true}))
 	require.True(t, byName["rest"].selectedBy(map[string]bool{"rest_server_launch": true}))
 	require.True(t, byName["rest"].selectedBy(map[string]bool{"rest_server_stop": true}))
+	require.True(t, byName["filesystem"].selectedBy(map[string]bool{"file_read": true}))
+	require.True(t, byName["compose"].selectedBy(map[string]bool{"render_each": true}))
 	require.False(t, byName["planning"].selectedBy(map[string]bool{"list_evaluation_sessions": true}))
 }
 

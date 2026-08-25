@@ -11,7 +11,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/control"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
@@ -33,19 +32,6 @@ func TestCollectionFactoriesRejectMalformedConfigAtRegistration(t *testing.T) {
 			def: catalog.ToolDef{Name: "select_subset", Type: "builtin", Init: "select_subset", Config: map[string]interface{}{
 				"candidates": "$from(c).names", "vocabulary": "$from(v).names",
 				"match_field": "name", "all_matched": "All", "partial": "Partial",
-			}},
-		},
-		{
-			name: "compose",
-			def: catalog.ToolDef{Name: "compose", Type: "builtin", Init: "compose", Config: map[string]interface{}{
-				"template": "{{ value }}", "inputs": map[string]string{"value": "bad-selector"},
-				"signal": "Composed",
-			}},
-		},
-		{
-			name: "render_each",
-			def: catalog.ToolDef{Name: "render_each", Type: "builtin", Init: "render_each", Config: map[string]interface{}{
-				"items": "$from(v).items", "item_template": "{{ bad path }}", "signal": "Rendered",
 			}},
 		},
 		{
@@ -75,14 +61,6 @@ func TestCollectionFactoriesRejectMalformedConfigAtRegistration(t *testing.T) {
 
 func TestProfilePolicyReachesBuiltinBuilders(t *testing.T) {
 	t.Parallel()
-
-	filesystemFactories := toolregistry.NewBuiltinRegistry()
-	registerFilesystemFactories()(filesystemFactories)
-	findFactory, ok := filesystemFactories.Resolve("file_find")
-	require.True(t, ok)
-	findBuilder, err := findFactory(catalog.ToolDef{OutputCap: 17}, map[string]string{"directory": "/tmp"})
-	require.NoError(t, err)
-	require.Equal(t, 17, findBuilder.(*filesystem.FindBuilder).OutputLineCap)
 
 	llmFactories := toolregistry.NewBuiltinRegistry()
 	registerLLMFactories(&agentState{})(llmFactories)
@@ -141,13 +119,6 @@ func TestCollectionFactoriesRegisterValidConfig(t *testing.T) {
 		{Name: "select_subset", Type: "builtin", Init: "select_subset", Config: map[string]interface{}{
 			"candidates": "$from(c).names", "vocabulary": "$from(v).names", "match_field": "name",
 			"all_matched": "All", "partial": "Partial", "empty": "Empty",
-		}},
-		{Name: "render_each", Type: "builtin", Init: "render_each", Config: map[string]interface{}{
-			"items": "$from(v).items", "item_template": "{{ name }}", "signal": "Rendered",
-		}},
-		{Name: "compose", Type: "builtin", Init: "compose", Config: map[string]interface{}{
-			"template": "{{ value }}", "inputs": map[string]string{"value": "$from(v).value"},
-			"signal": "Composed",
 		}},
 		{Name: "parse_structured", Type: "builtin", Init: "parse_structured", Config: map[string]interface{}{
 			"source": "$from(response).value",
