@@ -4,8 +4,6 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -53,53 +51,30 @@ func builtinFactoryCatalog(st *agentState) []builtinFactoryCatalogEntry {
 
 func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 	return toolregistry.StandardFactoryDeps{
-		RegisterFilesystem:     filesystem.RegisterFactories,
-		RegisterLLM:            registerLLMFactories(st),
-		RegisterLifecycle:      registerLifecycleFactories(st),
-		RegisterControl:        registerControlFactories(st),
+		RegisterFilesystem: filesystem.RegisterFactories,
+		RegisterLLM:        registerLLMFactories(st),
+		RegisterLifecycle:  registerLifecycleFactories(st),
+		RegisterControl: func(br *toolregistry.BuiltinRegistry) {
+			control.RegisterFactories(br, control.FactoryDeps{
+				Ctx: st.ctx, Tracer: st.tracer, CoreRoot: st.coreRoot, ChildAgentBinary: st.childAgentBinary,
+			})
+		},
 		RegisterPlanning:       registerPlanningFactories(st),
 		RegisterEvaluation:     registerEvaluationFactories(st),
 		RegisterSpecValidation: registerSpecValidationFactories(st),
 		RegisterREST:           registerRESTFactories(st),
-		RegisterDolt:           registerDoltFactories(st),
-		RegisterCompose:        compose.RegisterFactories,
-		RegisterOTLP:           registerOTLPFactories(),
-		RegisterService:        registerServiceFactories(st),
-	}
-}
-
-func registerDoltFactories(st *agentState) toolregistry.FactoryRegistrar {
-	identity, identityErr := checkpoint.Config{DoltDSN: st.doltDSN}.DatabaseIdentity()
-	deps := tooldolt.FactoryDeps{
-		Connections:        environmentDoltConnections{},
-		CheckpointIdentity: identity,
-	}
-	return func(br *toolregistry.BuiltinRegistry) {
-		register := func(init string, factory toolregistry.BuiltinFactory) {
-			br.Register(init, func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-				if identityErr != nil {
-					return nil, identityErr
-				}
-				return factory(def, vars)
+		RegisterDolt: func(br *toolregistry.BuiltinRegistry) {
+			identity, identityErr := checkpoint.Config{DoltDSN: st.doltDSN}.DatabaseIdentity()
+			tooldolt.RegisterFactories(br, tooldolt.FactoryDeps{
+				Connections:           tooldolt.EnvironmentConnections{},
+				CheckpointIdentity:    identity,
+				CheckpointIdentityErr: identityErr,
 			})
-		}
-		register(tooldolt.InitProvision, tooldolt.ProvisionFactory(deps))
-		register(tooldolt.InitQuery, tooldolt.QueryFactory(deps))
-		register(tooldolt.InitWrite, tooldolt.WriteFactory(deps))
+		},
+		RegisterCompose: compose.RegisterFactories,
+		RegisterOTLP:    registerOTLPFactories(),
+		RegisterService: registerServiceFactories(st),
 	}
-}
-
-type environmentDoltConnections struct{}
-
-func (environmentDoltConnections) ResolveConnection(
-	_ context.Context, ref string, _ map[string]string,
-) (string, error) {
-	//nolint:forbidigo // Trusted ToolDef config names the environment reference; DSN authority remains at cmd/agent.
-	value, ok := os.LookupEnv(ref)
-	if !ok || value == "" {
-		return "", fmt.Errorf("configured Dolt connection reference %q is unavailable", ref)
-	}
-	return value, nil
 }
 
 func registerOTLPFactories() toolregistry.FactoryRegistrar {
@@ -146,79 +121,6 @@ func checkpointRollbackFactory(st *agentState) toolregistry.BuiltinFactory {
 	}
 }
 
-func registerControlFactories(st *agentState) toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		br.Register("self_invoke", selfInvokeFactory(st))
-		br.Register("value_predicate", valuePredicateFactory())
-		br.Register("partition", partitionFactory())
-		br.Register("select_subset", selectSubsetFactory())
-	}
-}
-
-func partitionFactory() toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
-		var cfg catalog.PartitionConfig
-		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-			return nil, err
-		}
-		if err := control.ValidatePartitionConfig(
-			def.Name, cfg.Items, cfg.Field, cfg.Op, cfg.Right, cfg.OperandType, cfg.Satisfied,
-		); err != nil {
-			return nil, err
-		}
-		return control.PartitionBuilder{
-			ToolName: def.Name, Items: cfg.Items, Field: cfg.Field, Op: cfg.Op,
-			Right: cfg.Right, OperandType: cfg.OperandType, Satisfied: core.Signal(cfg.Satisfied),
-		}, nil
-	}
-}
-
-func selectSubsetFactory() toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
-		var cfg catalog.SelectSubsetConfig
-		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-			return nil, err
-		}
-		if err := control.ValidateSelectSubsetConfig(
-			def.Name, cfg.Candidates, cfg.Vocabulary, cfg.MatchField,
-			cfg.AllMatched, cfg.Partial, cfg.Empty,
-		); err != nil {
-			return nil, err
-		}
-		return control.SelectSubsetBuilder{
-			ToolName: def.Name, Candidates: cfg.Candidates, Vocabulary: cfg.Vocabulary,
-			MatchField: cfg.MatchField, AllMatched: core.Signal(cfg.AllMatched),
-			Partial: core.Signal(cfg.Partial), Empty: core.Signal(cfg.Empty),
-		}, nil
-	}
-}
-
-// valuePredicateFactory builds the value predicate word (srd041). Config is
-// validated here rather than at dispatch, so an unknown operator or a missing
-// signal name fails registration before a run reaches the branch it names.
-func valuePredicateFactory() toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
-		var cfg catalog.ValuePredicateConfig
-		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-			return nil, err
-		}
-		if err := control.ValidateValuePredicateConfig(
-			def.Name, cfg.Left, cfg.Op, cfg.Right, cfg.OperandType, cfg.Satisfied, cfg.Unsatisfied,
-		); err != nil {
-			return nil, err
-		}
-		return control.ValuePredicateBuilder{
-			ToolName:    def.Name,
-			Left:        cfg.Left,
-			Op:          cfg.Op,
-			Right:       cfg.Right,
-			OperandType: cfg.OperandType,
-			Satisfied:   core.Signal(cfg.Satisfied),
-			Unsatisfied: core.Signal(cfg.Unsatisfied),
-		}, nil
-	}
-}
-
 // registerServiceFactories registers the rig's service words. One service
 // state and one scenario session are shared across the family, so every child
 // a run starts stays reachable for teardown.
@@ -232,45 +134,6 @@ func registerServiceFactories(st *agentState) toolregistry.FactoryRegistrar {
 			CoreRoot: st.coreRoot,
 		})
 	}
-}
-
-func selfInvokeFactory(st *agentState) toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		parsed, err := decodeChildAgent(def)
-		if err != nil {
-			return nil, err
-		}
-		config := childExecuteConfig(parsed, st.coreRoot)
-		config.Binary = st.childAgentBinary
-		return &control.SelfInvokeBuilder{
-			ToolName:      def.Name,
-			Config:        config,
-			RequestFrom:   parsed.RequestFrom,
-			OutputFrom:    parsed.OutputFrom,
-			WorkspacePath: vars["directory"],
-			ExtraArgs:     directoryArgs(vars["directory"]),
-			Ctx:           st.ctx,
-			Tracer:        st.tracer,
-		}, nil
-	}
-}
-
-func decodeChildAgent(def catalog.ToolDef) (catalog.ChildAgentConfig, error) {
-	var parsed catalog.ChildAgentConfig
-	if err := catalog.DecodeToolConfig(def, &parsed); err != nil {
-		return catalog.ChildAgentConfig{}, err
-	}
-	if err := catalog.ValidateChildAgentConfig(def.Name, parsed); err != nil {
-		return catalog.ChildAgentConfig{}, err
-	}
-	return parsed, nil
-}
-
-func directoryArgs(directory string) []string {
-	if directory == "" {
-		return nil
-	}
-	return []string{"--directory", directory}
 }
 
 func registerSpecValidationFactories(st *agentState) toolregistry.FactoryRegistrar {

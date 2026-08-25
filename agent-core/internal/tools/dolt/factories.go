@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"os"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
@@ -24,9 +25,10 @@ type ConnectionResolver interface {
 }
 
 type FactoryDeps struct {
-	Opener             DatabaseOpener
-	Connections        ConnectionResolver
-	CheckpointIdentity *DatabaseIdentity
+	Opener                DatabaseOpener
+	Connections           ConnectionResolver
+	CheckpointIdentity    *DatabaseIdentity
+	CheckpointIdentityErr error
 }
 type builderConfig struct {
 	toolName string
@@ -50,6 +52,40 @@ func QueryFactory(deps FactoryDeps) toolregistry.BuiltinFactory {
 func WriteFactory(deps FactoryDeps) toolregistry.BuiltinFactory {
 	return operationFactory(KindWrite, deps)
 }
+
+// RegisterFactories registers Dolt builtin factories. CheckpointIdentityErr is
+// resolved by the caller before constructing deps; a non-nil error fails at
+// tool build time, not at registration.
+func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
+	register := func(init string, factory toolregistry.BuiltinFactory) {
+		br.Register(init, func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+			if deps.CheckpointIdentityErr != nil {
+				return nil, deps.CheckpointIdentityErr
+			}
+			return factory(def, vars)
+		})
+	}
+	register(InitProvision, ProvisionFactory(deps))
+	register(InitQuery, QueryFactory(deps))
+	register(InitWrite, WriteFactory(deps))
+}
+
+// EnvironmentConnections resolves a Dolt connection reference from the process
+// environment. cmd/agent supplies this resolver; LookupEnv here predates the
+// factory move and is not a new environment-variable contract.
+type EnvironmentConnections struct{}
+
+func (EnvironmentConnections) ResolveConnection(
+	_ context.Context, ref string, _ map[string]string,
+) (string, error) {
+	//nolint:forbidigo // Trusted ToolDef config names the environment reference; DSN authority remains at cmd/agent.
+	value, ok := os.LookupEnv(ref)
+	if !ok || value == "" {
+		return "", fmt.Errorf("configured Dolt connection reference %q is unavailable", ref)
+	}
+	return value, nil
+}
+
 func operationFactory(kind OperationKind, deps FactoryDeps) toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		prepared, err := DecodeConfig(def)

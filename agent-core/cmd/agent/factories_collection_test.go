@@ -21,20 +21,6 @@ func TestCollectionFactoriesRejectMalformedConfigAtRegistration(t *testing.T) {
 		def  catalog.ToolDef
 	}{
 		{
-			name: "partition",
-			def: catalog.ToolDef{Name: "partition", Type: "builtin", Init: "partition", Config: map[string]interface{}{
-				"items": "$.items", "field": "value", "op": "eq", "right": "x",
-				"operand_type": "string", "satisfied": "Partitioned",
-			}},
-		},
-		{
-			name: "select_subset",
-			def: catalog.ToolDef{Name: "select_subset", Type: "builtin", Init: "select_subset", Config: map[string]interface{}{
-				"candidates": "$from(c).names", "vocabulary": "$from(v).names",
-				"match_field": "name", "all_matched": "All", "partial": "Partial",
-			}},
-		},
-		{
 			name: "parse_structured",
 			def: catalog.ToolDef{Name: "parse_structured", Type: "builtin", Init: "parse_structured", Config: map[string]interface{}{
 				"source": "$from(response).value", "schema": map[string]interface{}{"type": 7},
@@ -112,14 +98,6 @@ func TestLLMParseFactoriesPreserveDeclarationNamesInReversers(t *testing.T) {
 
 func TestCollectionFactoriesRegisterValidConfig(t *testing.T) {
 	defs := []catalog.ToolDef{
-		{Name: "partition", Type: "builtin", Init: "partition", Config: map[string]interface{}{
-			"items": "$from(v).items", "field": "value", "op": "eq", "right": "x",
-			"operand_type": "string", "satisfied": "Partitioned",
-		}},
-		{Name: "select_subset", Type: "builtin", Init: "select_subset", Config: map[string]interface{}{
-			"candidates": "$from(c).names", "vocabulary": "$from(v).names", "match_field": "name",
-			"all_matched": "All", "partial": "Partial", "empty": "Empty",
-		}},
 		{Name: "parse_structured", Type: "builtin", Init: "parse_structured", Config: map[string]interface{}{
 			"source": "$from(response).value",
 			"schema": map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},

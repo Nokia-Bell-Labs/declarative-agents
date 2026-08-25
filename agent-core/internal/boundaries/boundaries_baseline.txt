@@ -9,7 +9,7 @@ import:pkg/profileaudit -> internal/runtime/core
 import:pkg/profileaudit -> internal/support/corepath
 import:pkg/profileaudit -> internal/tools/catalog
 import:pkg/profileaudit -> internal/tools/rest
-pkg:cmd/agent files=8 loc=2097
+pkg:cmd/agent files=7 loc=1941
 pkg:internal/doltsql files=4 loc=274
 pkg:internal/evaluation files=23 loc=3860
 pkg:internal/gostyle files=1 loc=9
@@ -40,8 +40,8 @@ pkg:internal/support/subprocess files=1 loc=254
 pkg:internal/tools files=1 loc=14
 pkg:internal/tools/catalog files=12 loc=2501
 pkg:internal/tools/compose files=3 loc=377
-pkg:internal/tools/control files=6 loc=1141
-pkg:internal/tools/dolt files=6 loc=1321
+pkg:internal/tools/control files=7 loc=1291
+pkg:internal/tools/dolt files=6 loc=1357
 pkg:internal/tools/exec files=6 loc=600
 pkg:internal/tools/filesystem files=10 loc=1396
 pkg:internal/tools/lifecycle files=7 loc=1735
