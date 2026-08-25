@@ -17,6 +17,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
@@ -403,4 +404,32 @@ func addRollbackRecoveryData(data map[string]interface{}, key, value string) {
 
 func commandError(commandName string, err error) core.Result {
 	return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+}
+
+func checkpointHistoryFactory(deps FactoryDeps) toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var cfg catalog.CheckpointHistoryConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		return &CheckpointHistoryBuilder{Config: cfg, Checkpoint: deps.opsCheckpoint()}, nil
+	}
+}
+
+func checkpointRollbackFactory(deps FactoryDeps) toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var cfg catalog.CheckpointRollbackConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		reverter, _ := deps.opsCheckpoint().(core.CheckpointReverter)
+		return &CheckpointRollbackBuilder{
+			ToolName:   def.Name,
+			Config:     cfg,
+			Checkpoint: reverter,
+			Registry:   deps.Registry,
+			RunID:      cfg.SelectedCheckpoint(),
+			Tracer:     deps.Tracer,
+		}, nil
+	}
 }

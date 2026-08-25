@@ -20,6 +20,12 @@ import (
 )
 
 const (
+	InitDelay              = "delay"
+	InitSuspend            = "suspend"
+	InitExitAgent          = "exit_agent"
+	InitCheckpointHistory  = "checkpoint_history"
+	InitCheckpointRollback = "checkpoint_rollback"
+
 	suspendReceiptVersion  = 1
 	suspendReceiptStrategy = "resume_reject_or_rollback"
 	// The loop assigns the durable checkpoint identity after Execute returns.
@@ -49,21 +55,30 @@ type suspendReceipt struct {
 
 // FactoryDeps holds shared dependencies for lifecycle builtins.
 type FactoryDeps struct {
-	Checkpoint core.Checkpoint
-	Tracer     tracing.Tracer
-	Shutdown   func()
+	Checkpoint    core.Checkpoint
+	OpsCheckpoint core.Checkpoint
+	Tracer        tracing.Tracer
+	Shutdown      func()
+	Registry      *core.Registry
+}
+
+func (d FactoryDeps) opsCheckpoint() core.Checkpoint {
+	if d.OpsCheckpoint != nil {
+		return d.OpsCheckpoint
+	}
+	return d.Checkpoint
 }
 
 // RegisterFactories registers lifecycle builtin factories.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
-	br.Register("delay", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+	br.Register(InitDelay, func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
 		var cfg DelayConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
 		return newDelayBuilder(def.Name, cfg)
 	})
-	br.Register("suspend", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register(InitSuspend, func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		var cfg SuspendConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
@@ -73,7 +88,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 			Checkpoint: deps.Checkpoint, Tracer: deps.Tracer,
 		}, nil
 	})
-	br.Register("exit_agent", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register(InitExitAgent, func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		var cfg ExitConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
@@ -83,6 +98,8 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 			Shutdown: deps.Shutdown, Tracer: deps.Tracer,
 		}, nil
 	})
+	br.Register(InitCheckpointHistory, checkpointHistoryFactory(deps))
+	br.Register(InitCheckpointRollback, checkpointRollbackFactory(deps))
 }
 
 type suspendCmd struct {

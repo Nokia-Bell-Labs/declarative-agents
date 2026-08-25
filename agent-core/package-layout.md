@@ -52,6 +52,14 @@ Component-owned flags:
 - `internal/runtime/checkpoint`: `--dolt-dsn`, `--resume-checkpoint`,
   `--resume-signal`
 
+## Builtin Factory Ownership
+
+A builtin init is registered by the package that builds the command, through a
+package-level `RegisterFactories(br, deps)` entry point. `cmd/agent` supplies
+`FactoryDeps` and never registers an init directly. Catalog probes invoke every
+registrar against a throwaway registry, so registrars must be side-effect-free
+apart from `br.Register` calls.
+
 ## Target Domains
 
 - `internal/runtime`: agent loop runtime, state machines, dispatch,

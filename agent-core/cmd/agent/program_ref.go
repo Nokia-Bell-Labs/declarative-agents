@@ -41,7 +41,7 @@ func augmentRollbackResources(resources runResources, checkpoint core.Checkpoint
 
 func selectsRollbackTool(defs []catalog.ToolDef) bool {
 	for _, def := range defs {
-		if def.Name == "checkpoint_rollback" || def.Init == "checkpoint_rollback" {
+		if def.Name == toollifecycle.InitCheckpointRollback || def.Init == toollifecycle.InitCheckpointRollback {
 			return true
 		}
 	}

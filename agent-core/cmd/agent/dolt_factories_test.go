@@ -18,16 +18,16 @@ import (
 func TestDoltSelectedInitRegistersWholeFactoryFamily(t *testing.T) {
 	t.Parallel()
 
-	families := builtinFactoryCatalog(&agentState{})
+	families := standardCatalog(&agentState{})
 	require.Len(t, families, 12)
-	var doltFamily builtinFactoryCatalogEntry
+	var doltFamily toolregistry.StandardFactoryCatalogEntry
 	for _, family := range families {
 		if family.Name == "dolt" {
 			doltFamily = family
 			break
 		}
 	}
-	require.True(t, doltFamily.selectedBy(map[string]bool{tooldolt.InitQuery: true}))
+	require.True(t, doltFamily.SelectedBy(map[string]bool{tooldolt.InitQuery: true}))
 
 	builtins := toolregistry.NewBuiltinRegistry()
 	registerBuiltinFactories(builtins, &agentState{}, map[string]bool{tooldolt.InitQuery: true})

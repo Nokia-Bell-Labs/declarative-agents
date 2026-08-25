@@ -5,6 +5,7 @@ package registry
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
@@ -48,6 +49,7 @@ func (br *BuiltinRegistry) Names() []string {
 	for n := range br.factories {
 		names = append(names, n)
 	}
+	sort.Strings(names)
 	return names
 }
 

@@ -124,9 +124,6 @@ type agentState struct {
 	resolved     *toollm.ResolvedModel
 	parseRetries *toollm.ParseErrorRetryTracker
 	validation   *validation.SpecState
-	// validationEnabled distinguishes runtime-selected validation words from
-	// the factory-catalog probe that invokes every registrar to discover names.
-	validationEnabled bool
 	// isolateConversations gives each invoke_llm word its own conversation instead
 	// of the shared one, so a request-scoped router word's tool call does not
 	// pollute the answer word's history. Set on request-local machine_request state.
@@ -856,6 +853,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		coreRoot:            cfg.CoreRoot,
 		resolved:            &toollm.ResolvedModel{},
 		parseRetries:        deps.ParseRetries,
+		validation:          &validation.SpecState{Directory: cfg.Directory, TargetDirectory: cfg.Directory},
 		captureLevel:        cfg.CaptureLevel,
 		ctx:                 deps.Ctx,
 		directory:           cfg.Directory,

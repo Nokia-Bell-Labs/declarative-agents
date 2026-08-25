@@ -12,6 +12,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
 )
 
 func TestCollectionFactoriesRejectMalformedConfigAtRegistration(t *testing.T) {
@@ -81,4 +82,41 @@ func TestLLMDoneInitRegistersWholeFactoryFamily(t *testing.T) {
 		toollm.InitNudgeReread,
 		toollm.InitDone,
 	}, builtins.Names())
+}
+
+func standardCatalog(st *agentState) []toolregistry.StandardFactoryCatalogEntry {
+	return toolregistry.StandardFactoryCatalog(standardFactoryDeps(st))
+}
+
+func TestFactoryRegistrarsProbeTwiceWithZeroValueDeps(t *testing.T) {
+	t.Parallel()
+	st := &agentState{}
+	var first, second [][]string
+	require.NotPanics(t, func() {
+		first = catalogInitSets(standardCatalog(st))
+		second = catalogInitSets(standardCatalog(st))
+	})
+	require.Equal(t, first, second)
+}
+
+func catalogInitSets(entries []toolregistry.StandardFactoryCatalogEntry) [][]string {
+	out := make([][]string, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, append([]string(nil), entry.Inits...))
+	}
+	return out
+}
+
+func TestSpecValidationCatalogInitsMatchPackageRegistration(t *testing.T) {
+	t.Parallel()
+	br := toolregistry.NewBuiltinRegistry()
+	validation.RegisterSpecFactories(br, validation.FactoryDeps{})
+	var catalogInits []string
+	for _, entry := range standardCatalog(&agentState{}) {
+		if entry.Name == "spec_validation" {
+			catalogInits = entry.Inits
+			break
+		}
+	}
+	require.Equal(t, br.Names(), catalogInits)
 }
