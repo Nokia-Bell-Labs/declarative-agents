@@ -620,7 +620,7 @@ engine_policy_audit:
         Selecting which grammar signal copies Result.Output into the summary is
         agent semantics. Long term this can move into machine metadata.
     - item: Factory-family registration gates
-      symbols: [registerBuiltinFactories, builtinFactoryCatalog]
+      symbols: [registerBuiltinFactories, registry.StandardFactoryCatalog]
       rationale: |
         Factory-family registration in cmd/agent uses a centralized
         catalog selected by tool init names, not by mode names. This is

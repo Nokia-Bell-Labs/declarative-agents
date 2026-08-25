@@ -39,6 +39,15 @@ func TestBuiltinRegistryRegisterResolveOverride(t *testing.T) {
 	require.Contains(t, br.Names(), "init")
 }
 
+func TestBuiltinRegistryNamesAreSorted(t *testing.T) {
+	t.Parallel()
+	br := NewBuiltinRegistry()
+	br.Register("zeta", nil)
+	br.Register("alpha", nil)
+	br.Register("mu", nil)
+	require.Equal(t, []string{"alpha", "mu", "zeta"}, br.Names())
+}
+
 func TestBuiltinRegistryDuplicatePanics(t *testing.T) {
 	t.Parallel()
 	br := NewBuiltinRegistry()

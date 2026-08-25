@@ -30,14 +30,14 @@ func TestResetHistoryFactoryRestartsFromCheckpointReference(t *testing.T) {
 	state := checkpointAgentState(checkpoint)
 	state.conversation.Restore(messages)
 
-	builder, err := resetHistoryFactory(state)(catalog.ToolDef{}, nil)
+	builder, err := resolveResetHistoryFactory(t, state)(catalog.ToolDef{}, nil)
 	require.NoError(t, err)
 	result := builder.Build(core.Result{}).Execute()
 	require.NotContains(t, result.Receipt, "prior user")
 	require.NotContains(t, result.Receipt, "prior assistant")
 
 	fresh := checkpointAgentState(checkpoint)
-	builder, err = resetHistoryFactory(fresh)(catalog.ToolDef{}, nil)
+	builder, err = resolveResetHistoryFactory(t, fresh)(catalog.ToolDef{}, nil)
 	require.NoError(t, err)
 	reverser, ok := builder.(core.Reverser)
 	require.True(t, ok)
@@ -85,6 +85,28 @@ func TestRequestLocalStateDoesNotExposeHostCheckpointReferences(t *testing.T) {
 	provider, resolver := llmConversationReferencePorts(local)
 	require.Nil(t, provider)
 	require.Nil(t, resolver)
+}
+
+func TestRequestLocalStateGetsFreshResolvedModel(t *testing.T) {
+	t.Parallel()
+	host := checkpointAgentState(core.NoopCheckpoint{})
+	host.ensureResolved().Model = "host-model"
+	host.ensureResolved().ManifestState = "Hosting"
+	local := requestLocalState(host, core.NewRegistry())
+	require.NotSame(t, host.resolved, local.resolved)
+	require.Empty(t, local.ensureResolved().Model)
+	require.Empty(t, local.ensureResolved().ManifestState)
+	require.Equal(t, "host-model", host.ensureResolved().Model)
+	require.Equal(t, core.State("Hosting"), host.ensureResolved().ManifestState)
+}
+
+func resolveResetHistoryFactory(t *testing.T, st *agentState) toolregistry.BuiltinFactory {
+	t.Helper()
+	builtins := toolregistry.NewBuiltinRegistry()
+	registerBuiltinFactories(builtins, st, map[string]bool{toollm.InitResetHistory: true})
+	factory, ok := builtins.Resolve(toollm.InitResetHistory)
+	require.True(t, ok)
+	return factory
 }
 
 func TestValidationStateRestartsThroughCompositionDomainPorts(t *testing.T) {

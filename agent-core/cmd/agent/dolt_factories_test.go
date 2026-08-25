@@ -18,16 +18,16 @@ import (
 func TestDoltSelectedInitRegistersWholeFactoryFamily(t *testing.T) {
 	t.Parallel()
 
-	families := builtinFactoryCatalog(&agentState{})
+	families := standardCatalog(&agentState{})
 	require.Len(t, families, 12)
-	var doltFamily builtinFactoryCatalogEntry
+	var doltFamily toolregistry.StandardFactoryCatalogEntry
 	for _, family := range families {
 		if family.Name == "dolt" {
 			doltFamily = family
 			break
 		}
 	}
-	require.True(t, doltFamily.selectedBy(map[string]bool{tooldolt.InitQuery: true}))
+	require.True(t, doltFamily.SelectedBy(map[string]bool{tooldolt.InitQuery: true}))
 
 	builtins := toolregistry.NewBuiltinRegistry()
 	registerBuiltinFactories(builtins, &agentState{}, map[string]bool{tooldolt.InitQuery: true})
@@ -55,6 +55,47 @@ func TestDoltFactoryAllowsSameServerDifferentDatabase(t *testing.T) {
 	err := registerDoltQueryForCheckpoint(t, "domain_data")
 
 	require.NoError(t, err)
+}
+
+func TestDoltFactoryDefersBadCheckpointDSNUntilBuild(t *testing.T) {
+	t.Parallel()
+
+	builtins := toolregistry.NewBuiltinRegistry()
+	require.NotPanics(t, func() {
+		registerBuiltinFactories(builtins, &agentState{doltDSN: "not-a-dsn"}, map[string]bool{tooldolt.InitQuery: true})
+	})
+	require.ElementsMatch(t, []string{
+		tooldolt.InitProvision,
+		tooldolt.InitQuery,
+		tooldolt.InitWrite,
+	}, builtins.Names())
+
+	err := toolregistry.RegisterSingleBuiltin(
+		core.NewRegistry(),
+		builtins,
+		catalog.ToolDef{
+			Name: "lookup_records",
+			Type: "builtin",
+			Init: tooldolt.InitQuery,
+			Config: map[string]interface{}{
+				"connection_ref": "DOLT_WORD_DSN",
+				"database":       "domain_data",
+				"operation":      "lookup_records",
+				"kind":           "query",
+				"statement":      "SELECT 1",
+				"parameter_schema": map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{},
+				},
+				"max_rows":  10,
+				"max_bytes": 1024,
+				"timeout":   "1s",
+			},
+		},
+		nil,
+	)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "resolve active Dolt checkpoint identity")
 }
 
 func registerDoltQueryForCheckpoint(t *testing.T, database string) error {

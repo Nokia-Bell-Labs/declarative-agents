@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -118,25 +117,17 @@ func init() {
 }
 
 type agentState struct {
-	parser        llm.ResponseParser
-	conversation  *llm.Conversation
-	registry      *core.Registry
-	tracer        tracing.Tracer
-	coreRoot      string
-	model         string
-	providerName  string
-	manifestState core.State
-	parseRetries  *toollm.ParseErrorRetryTracker
-	validation    *validation.SpecState
-	// validationEnabled distinguishes runtime-selected validation words from
-	// the factory-catalog probe that invokes every registrar to discover names.
-	validationEnabled bool
+	conversation *llm.Conversation
+	registry     *core.Registry
+	tracer       tracing.Tracer
+	coreRoot     string
+	resolved     *toollm.ResolvedModel
+	parseRetries *toollm.ParseErrorRetryTracker
+	validation   *validation.SpecState
 	// isolateConversations gives each invoke_llm word its own conversation instead
 	// of the shared one, so a request-scoped router word's tool call does not
 	// pollute the answer word's history. Set on request-local machine_request state.
 	isolateConversations bool
-	maxDuration          time.Duration
-	maxTokens            int
 	captureLevel         toollm.CaptureLevel
 	ctx                  context.Context
 	directory            string
@@ -166,6 +157,13 @@ func (st *agentState) checkpointForOps() core.Checkpoint {
 		return st.lifecycleCheckpoint
 	}
 	return st.checkpoint
+}
+
+func (st *agentState) ensureResolved() *toollm.ResolvedModel {
+	if st.resolved == nil {
+		st.resolved = &toollm.ResolvedModel{}
+	}
+	return st.resolved
 }
 
 type deferredShutdown struct {
@@ -853,7 +851,9 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		registry:            deps.Registry,
 		tracer:              deps.Tracer,
 		coreRoot:            cfg.CoreRoot,
+		resolved:            &toollm.ResolvedModel{},
 		parseRetries:        deps.ParseRetries,
+		validation:          &validation.SpecState{Directory: cfg.Directory, TargetDirectory: cfg.Directory},
 		captureLevel:        cfg.CaptureLevel,
 		ctx:                 deps.Ctx,
 		directory:           cfg.Directory,
@@ -897,6 +897,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		Tracer:   deps.Tracer,
 		Verbose:  cfg.CaptureLevel.CapturesFullContent(),
 	})
+	resolved := deps.State.ensureResolved()
 	return core.LoopParams{
 		MachineFile:          cfg.Machine,
 		MachineSpec:          &deps.Machine,
@@ -904,8 +905,8 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		RunID:                deps.RunID,
 		AgentName:            machineAgentName(deps.Machine),
 		AgentVersion:         version.Version,
-		ModelName:            deps.State.model,
-		ProviderName:         deps.State.providerName,
+		ModelName:            resolved.Model,
+		ProviderName:         resolved.ProviderName,
 		Trace:                deps.Tracer,
 		Budget:               runBudget(deps.Machine, deps.State),
 		CommandTimeout:       deps.Machine.BudgetSpec.CommandTimeoutDuration(),
@@ -932,11 +933,12 @@ func machineAgentName(machine core.MachineSpec) string {
 
 func runBudget(machine core.MachineSpec, st *agentState) core.Budget {
 	budget := machine.BudgetSpec.ToBudget(defaultRunBudget())
-	if st.maxDuration > 0 {
-		budget.MaxDuration = st.maxDuration
+	resolved := st.ensureResolved()
+	if resolved.MaxDuration > 0 {
+		budget.MaxDuration = resolved.MaxDuration
 	}
-	if st.maxTokens > 0 {
-		budget.MaxTokens = st.maxTokens
+	if resolved.MaxTokens > 0 {
+		budget.MaxTokens = resolved.MaxTokens
 	}
 	return budget
 }
