@@ -48,8 +48,11 @@ pkg:internal/tools/lifecycle files=7 loc=1781
 pkg:internal/tools/llm files=14 loc=1774
 pkg:internal/tools/otlp files=14 loc=3877
 pkg:internal/tools/registry files=3 loc=320
-pkg:internal/tools/rest files=36 loc=10170
+pkg:internal/tools/rest files=36 loc=9081
+pkg:internal/tools/rest/mock files=3 loc=332
+pkg:internal/tools/rest/monitor files=4 loc=826
 pkg:internal/tools/rest/resttest files=4 loc=539
+pkg:internal/tools/rest/servercmd files=5 loc=468
 pkg:internal/tools/service files=6 loc=1637
 pkg:internal/tools/undo files=1 loc=84
 pkg:internal/tools/validation files=5 loc=1488

@@ -72,7 +72,7 @@ type AwaitAnyOptions struct {
 type serverRuntime struct {
 	name           string
 	def            ServerDefinition
-	mock           *mockState
+	mock           MockEngine
 	httpServer     *http.Server
 	listener       net.Listener
 	queue          chan InboundEvent

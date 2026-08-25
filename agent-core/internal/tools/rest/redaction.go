@@ -189,6 +189,16 @@ func safeRedactionLabel(name, value string) bool {
 	return true
 }
 
+func safeLabels(labels map[string]string) map[string]string {
+	out := map[string]string{}
+	for name, value := range labels {
+		if safeRedactionLabel(name, value) {
+			out[name] = value
+		}
+	}
+	return out
+}
+
 func validRedactionSelector(selector string) bool {
 	_, _, ok := parseRedactionSelector(selector)
 	return ok

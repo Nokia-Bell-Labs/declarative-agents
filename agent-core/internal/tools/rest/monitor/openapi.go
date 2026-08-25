@@ -1,13 +1,19 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package rest
+package monitor
 
 import "strings"
 
-func (r *serverRuntime) monitorOpenAPI() map[string]interface{} {
+const (
+	bindingStreamEvents = "stream_events"
+	bindingEmitSignal   = "emit_signal"
+)
+
+func OpenAPI(s Surface) map[string]interface{} {
 	paths := map[string]interface{}{}
-	for name, endpoint := range r.def.Server.Endpoints {
+	for _, endpoint := range s.Endpoints() {
+		name := endpoint.Name
 		operation := monitorEndpointOperation(name, endpoint)
 		if operation == nil {
 			continue
@@ -23,7 +29,7 @@ func (r *serverRuntime) monitorOpenAPI() map[string]interface{} {
 	}
 }
 
-func monitorEndpointOperation(name string, endpoint Endpoint) map[string]interface{} {
+func monitorEndpointOperation(name string, endpoint Route) map[string]interface{} {
 	switch {
 	case endpoint.MonitorView != "" && endpoint.MonitorView != "openapi":
 		return monitorReadOperation(name, endpoint)
@@ -34,7 +40,7 @@ func monitorEndpointOperation(name string, endpoint Endpoint) map[string]interfa
 	}
 }
 
-func monitorReadOperation(name string, endpoint Endpoint) map[string]interface{} {
+func monitorReadOperation(name string, endpoint Route) map[string]interface{} {
 	if endpoint.Binding == bindingStreamEvents {
 		return monitorStreamOperation(name)
 	}
@@ -51,15 +57,15 @@ func monitorStreamOperation(name string) map[string]interface{} {
 	}
 }
 
-func monitorControlOperation(name string, endpoint Endpoint) map[string]interface{} {
+func monitorControlOperation(name string, endpoint Route) map[string]interface{} {
 	return map[string]interface{}{
 		"operationId": monitorOperationID(name),
-		"requestBody": monitorRequestBody(endpoint.Request.BodySchema),
+		"requestBody": monitorRequestBody(endpoint.BodySchema),
 		"responses":   monitorResponses("202", "Control request accepted", monitorControlResponseSchema()),
 	}
 }
 
-func addMonitorPathOperation(paths map[string]interface{}, endpoint Endpoint, operation map[string]interface{}) {
+func addMonitorPathOperation(paths map[string]interface{}, endpoint Route, operation map[string]interface{}) {
 	pathItem, _ := paths[endpoint.Path].(map[string]interface{})
 	if pathItem == nil {
 		pathItem = map[string]interface{}{}
@@ -81,7 +87,7 @@ func monitorOperationID(name string) string {
 	return "monitor" + strings.Join(parts, "")
 }
 
-func monitorControlEndpoint(endpoint Endpoint) bool {
+func monitorControlEndpoint(endpoint Route) bool {
 	return endpoint.Binding == bindingEmitSignal && strings.HasPrefix(endpoint.Path, "/monitor/control/")
 }
 
@@ -131,17 +137,17 @@ func monitorControlResponseSchema() map[string]interface{} {
 
 func monitorResponseSchema(view string) map[string]interface{} {
 	switch view {
-	case monitorViewMachine:
+	case ViewMachine:
 		return monitorMachineSchema()
-	case monitorViewState:
+	case ViewState:
 		return monitorStateSchema()
-	case monitorViewTools:
+	case ViewTools:
 		return monitorToolsSchema()
-	case monitorViewMetrics:
+	case ViewMetrics:
 		return monitorMetricsSchema()
-	case monitorViewEvents:
+	case ViewEvents:
 		return monitorEventsSchema()
-	case monitorViewCommandState:
+	case ViewCommandState:
 		return monitorCommandStateSchema()
 	default:
 		return monitorSchemaObject(map[string]map[string]interface{}{"data": monitorSchemaObject(nil)})
