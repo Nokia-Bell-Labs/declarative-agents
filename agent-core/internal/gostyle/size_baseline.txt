@@ -3,7 +3,6 @@
 # Delete a line as its code is split under the limit; the gate fails on stale entries.
 file:cmd/agent/main.go
 file:internal/runtime/checkpoint/dolt/dolt_checkpoint.go
-file:internal/tools/rest/client_command.go
 file:internal/tools/rest/factories.go
 file:internal/tools/rest/server_routes.go
 file:internal/tools/rest/validation.go

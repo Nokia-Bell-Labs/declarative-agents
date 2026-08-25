@@ -91,7 +91,7 @@ func TestEnvironmentCredentialsResolveReferenceNames(t *testing.T) {
 		_, err := resolver.ResolveCredential("DECLARATIVE_AGENT_MISSING_TOKEN_1609")
 		var resolutionErr credentialResolutionError
 		require.ErrorAs(t, err, &resolutionErr)
-		require.Equal(t, "DECLARATIVE_AGENT_MISSING_TOKEN_1609", resolutionErr.ref)
+		require.Equal(t, "DECLARATIVE_AGENT_MISSING_TOKEN_1609", resolutionErr.Ref)
 		require.NotContains(t, err.Error(), "must-not-leak")
 	})
 
@@ -100,7 +100,7 @@ func TestEnvironmentCredentialsResolveReferenceNames(t *testing.T) {
 		_, err := resolver.ResolveCredential("DECLARATIVE_AGENT_EMPTY_TOKEN")
 		var resolutionErr credentialResolutionError
 		require.ErrorAs(t, err, &resolutionErr)
-		require.Equal(t, "DECLARATIVE_AGENT_EMPTY_TOKEN", resolutionErr.ref)
+		require.Equal(t, "DECLARATIVE_AGENT_EMPTY_TOKEN", resolutionErr.Ref)
 		require.NotContains(t, err.Error(), "synthetic-secret")
 	})
 }

@@ -20,6 +20,11 @@ const (
 	authHeaderToken = "header_token"
 	authQueryToken  = "query_token"
 
+	bodySourceParams         = "params"
+	bodySourcePreviousResult = "previous_result"
+	bodySourceNone           = "none"
+	bodySourceCommandState   = "command_state"
+
 	redirectNone      = "none"
 	redirectSameHost  = "same_host"
 	redirectAllowlist = "allowlist"
@@ -1356,19 +1361,6 @@ func validateResponseMapping(name string, mapping ResponseMapping) error {
 		}
 	}
 	return nil
-}
-
-func (b RequestBinding) declares(name string) bool {
-	if _, ok := b.Path[name]; ok {
-		return true
-	}
-	if _, ok := b.Query[name]; ok {
-		return true
-	}
-	if _, ok := b.Headers[name]; ok {
-		return true
-	}
-	return bodySchemaDeclares(b.BodySchema, name)
 }
 
 func bodySchemaDeclares(schema map[string]interface{}, name string) bool {

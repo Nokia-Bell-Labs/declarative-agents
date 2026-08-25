@@ -10,6 +10,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	restclient "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/client"
 )
 
 // Collection indexes REST definitions loaded for one profile.
@@ -23,22 +24,10 @@ type Collection struct {
 }
 
 // ClientOperationResolver resolves trusted REST client operations.
-type ClientOperationResolver interface {
-	ResolveClientOperation(ClientToolConfig) (ClientOperationDefinition, error)
-}
+type ClientOperationResolver = restclient.OperationResolver
 
 // ClientOperationDefinition is a resolved client operation and trusted policy.
-type ClientOperationDefinition struct {
-	RestRef          string
-	Resource         string
-	OperationName    string
-	Client           Client
-	Operation        Operation
-	Auth             AuthProfile
-	Limits           LimitProfile
-	Retry            RetryPolicy
-	ResponseMappings map[string]ResponseMapping
-}
+type ClientOperationDefinition = restclient.ClientOperationDefinition
 
 // ServerDefinition is a resolved server plus its referenced limit profile.
 type ServerDefinition struct {

@@ -11,7 +11,6 @@ import (
 
 var (
 	bodyParamPattern     = regexp.MustCompile(`params\.([A-Za-z_][A-Za-z0-9_]*)`)
-	pathParamPattern     = regexp.MustCompile(`\{([A-Za-z_][A-Za-z0-9_]*)(?:\.\.\.)?\}`)
 	pathParamFullPattern = regexp.MustCompile(`^\{([A-Za-z_][A-Za-z0-9_]*)(\.\.\.)?\}$`)
 )
 
@@ -31,7 +30,7 @@ func validateDeclaredInputs(name string, operation Operation) error {
 		}
 	}
 	for _, field := range bodyTemplateFields(operation.Body) {
-		if !operation.Params.declares(field) {
+		if !operation.Params.Declares(field) {
 			return fmt.Errorf("operation %q body references undeclared param %q", name, field)
 		}
 	}

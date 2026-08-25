@@ -3,12 +3,10 @@
 
 package rest
 
+import restclient "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/client"
+
 // ClientToolConfig holds REST client ToolDef config.
-type ClientToolConfig struct {
-	RestRef   string `json:"rest_ref"`
-	Resource  string `json:"resource"`
-	Operation string `json:"operation"`
-}
+type ClientToolConfig = restclient.ClientToolConfig
 
 // ServerToolConfig holds REST server ToolDef config.
 type ServerToolConfig struct {

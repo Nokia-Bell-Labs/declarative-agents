@@ -129,8 +129,11 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/tools/otlp`
 - `internal/tools/registry`
 - `internal/tools/rest`
+- `internal/tools/rest/client`
+- `internal/tools/rest/credentials`
 - `internal/tools/rest/mock`
 - `internal/tools/rest/monitor`
+- `internal/tools/rest/redact`
 - `internal/tools/rest/resttest`
 - `internal/tools/rest/servercmd`
 - `internal/tools/service`
