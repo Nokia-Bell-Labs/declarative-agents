@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,7 +62,7 @@ func TestDocsRuntimeMonitorREST_StateEventsAndUI(t *testing.T) {
 	require.Contains(t, spaFallback, `id="app"`)
 }
 
-func curatorMonitorServerForTest(t *testing.T, def Definition) (Server, LimitProfile) {
+func curatorMonitorServerForTest(t *testing.T, def restdef.Definition) (restdef.Server, restdef.LimitProfile) {
 	t.Helper()
 	srv, ok := def.Servers["monitor"]
 	require.True(t, ok, "docs runtime rest.yaml should define servers.monitor")

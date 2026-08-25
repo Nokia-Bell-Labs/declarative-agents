@@ -11,12 +11,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	exectool "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/exec"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
 )
 
 // TestMachineRequestSeedFeedsRESTClientFirstWord proves a REST-client word can be
@@ -35,27 +35,27 @@ func TestMachineRequestSeedFeedsRESTClientFirstWord(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	def := Definition{
+	def := restdef.Definition{
 		Version: "v1",
-		Auth:    map[string]AuthProfile{"none": {Type: authNone}},
-		Limits:  map[string]LimitProfile{"test": {}},
-		Clients: map[string]Client{
+		Auth:    map[string]restdef.AuthProfile{"none": {Type: authNone}},
+		Limits:  map[string]restdef.LimitProfile{"test": {}},
+		Clients: map[string]restdef.Client{
 			"chroma": {
 				BaseURL: srv.URL, AuthRef: "none", LimitsRef: "test",
-				Operations: map[string]Operation{
+				Operations: map[string]restdef.Operation{
 					"query": {
 						Method: http.MethodPost,
 						Path:   "/query",
-						Params: RequestBinding{
+						Params: restdef.RequestBinding{
 							BodySchema:   objectSchema([]string{"query_embeddings"}, map[string]string{"query_embeddings": "array"}),
 							BodySource:   bodySourcePreviousResult,
 							InputMapping: map[string]string{"query_embeddings": "$.query_embeddings"},
 						},
 						Body:          map[string]interface{}{"query_embeddings": []interface{}{"{{ params.query_embeddings }}"}},
-						Success:       StatusMapping{Status: []int{200}, Signal: "QueryResponded"},
-						Response:      ResponseMapping{Output: map[string]string{"ok": "$.ok"}},
-						SideEffects:   []SideEffect{{Kind: "external_api", State: "read_only"}},
-						Reversibility: Reversibility{Classification: "reversible", Undo: "noop"},
+						Success:       restdef.StatusMapping{Status: []int{200}, Signal: "QueryResponded"},
+						Response:      restdef.ResponseMapping{Output: map[string]string{"ok": "$.ok"}},
+						SideEffects:   []restdef.SideEffect{{Kind: "external_api", State: "read_only"}},
+						Reversibility: restdef.Reversibility{Classification: "reversible", Undo: "noop"},
 					},
 				},
 			},
@@ -115,7 +115,7 @@ func TestRequestSeedExposesParametersNotTransportMetadata(t *testing.T) {
 func TestMachineRequestSeedCommandStateAddress(t *testing.T) {
 	t.Parallel()
 
-	cfg := MachineRequest{
+	cfg := restdef.MachineRequest{
 		MachineSpec: &core.MachineSpec{
 			Name:           "seed-exec-source",
 			InitialState:   "Start",
@@ -185,7 +185,7 @@ func TestMachineRequestSeedCommandStateAddress(t *testing.T) {
 func TestMachineRequestSeedRedactionLiveAndReloaded(t *testing.T) {
 	t.Parallel()
 
-	mapping := MachineRequestMapping{
+	mapping := restdef.MachineRequestMapping{
 		Body: map[string]string{
 			"directory": "$.directory",
 			"token":     "$.token",
@@ -197,7 +197,7 @@ func TestMachineRequestSeedRedactionLiveAndReloaded(t *testing.T) {
 			"directory": "/tmp/corpus",
 			"token":     "request-secret",
 		},
-		Config: MachineRequest{Request: mapping},
+		Config: restdef.MachineRequest{Request: mapping},
 	}, core.Seed)
 	require.Equal(t, []core.OutputRedactionPath{{"parameters", "token"}}, seed.Redaction.Paths)
 
@@ -244,14 +244,14 @@ func TestMachineRequestSeedRedactionFailsClosed(t *testing.T) {
 func TestMachineRequestSensitiveFieldsMustBeMapped(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, validateMachineRequestSensitiveFields(MachineRequestMapping{
+	require.NoError(t, validateMachineRequestSensitiveFields(restdef.MachineRequestMapping{
 		Body:      map[string]string{"token": "$.token"},
 		Sensitive: []string{"token"},
 	}))
-	require.ErrorContains(t, validateMachineRequestSensitiveFields(MachineRequestMapping{
+	require.ErrorContains(t, validateMachineRequestSensitiveFields(restdef.MachineRequestMapping{
 		Sensitive: []string{"token"},
 	}), "not a mapped request field")
-	require.ErrorContains(t, validateMachineRequestSensitiveFields(MachineRequestMapping{
+	require.ErrorContains(t, validateMachineRequestSensitiveFields(restdef.MachineRequestMapping{
 		Body:      map[string]string{"token": "$.token"},
 		Sensitive: []string{"token", "token"},
 	}), "duplicated")
@@ -329,7 +329,7 @@ func (c plainTextRespondCommand) Undo(_ core.Result) core.Result { return core.N
 func TestRESTServerMachineRequestWrapsPlainTextTerminalOutput(t *testing.T) {
 	t.Parallel()
 	cfg := machineRequestConfig("DocumentationReady", 0, false)
-	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"answer": "$.output"}}
+	cfg.Response.TerminalSignals["DocumentationReady"] = restdef.MachineResponseMapping{Status: 200, Body: map[string]string{"answer": "$.output"}}
 	cfg.InitFunc = func(reg *core.Registry) error {
 		reg.Register(core.ToolSpec{Name: "respond"}, plainTextRespondBuilder{signal: "DocumentationReady"})
 		return nil

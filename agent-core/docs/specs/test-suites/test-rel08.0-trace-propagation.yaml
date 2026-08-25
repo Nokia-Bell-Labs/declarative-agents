@@ -15,7 +15,7 @@ preconditions:
 test_cases:
   - use_case: rel08.0-uc001-http-trace-propagation
     name: Outbound client request injects traceparent from the active span
-    go_test: go test ./internal/tools/rest -run TestRESTClient_InjectsTraceparentFromActiveSpan
+    go_test: go test ./internal/tools/rest/client -run TestRESTClient_InjectsTraceparentFromActiveSpan
     status: implemented
     description: |
       A REST client word executed inside a recording dispatch span emits an
@@ -34,7 +34,7 @@ test_cases:
 
   - use_case: rel08.0-uc001-http-trace-propagation
     name: Outbound injection is uniform and omitted without a span
-    go_test: go test ./internal/tools/rest -run TestRESTClient_TraceparentUniformAndOmittedWithoutSpan
+    go_test: go test ./internal/tools/rest/client -run TestRESTClient_TraceparentUniformAndOmittedWithoutSpan
     status: implemented
     description: |
       Injection applies to every outbound client request with no per-operation

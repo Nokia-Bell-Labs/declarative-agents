@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +21,7 @@ import (
 func TestRESTServer_LaunchRegistersRoutes(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+	state, baseURL := launchRESTServer(t, controlServer(), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "control")
 
 	result := getJSON(t, baseURL+"/health")
@@ -232,7 +233,7 @@ func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 	t.Parallel()
 
 	t.Run("drains queued events", func(t *testing.T) {
-		state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+		state, baseURL := launchRESTServer(t, controlServer(), restdef.LimitProfile{})
 		postStatus(t, baseURL+"/approve/1", `{}`, http.StatusAccepted)
 		postStatus(t, baseURL+"/approve/2", `{}`, http.StatusAccepted)
 		result := stopRESTServer(t, state, "control")
@@ -246,7 +247,7 @@ func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 		server := namedControlServer("blocking")
 		server.Queue.Timeout = "1s"
 		server.Shutdown.UnblockAwaitSignal = "StoppedCustom"
-		state, _ := launchRESTServer(t, server, LimitProfile{})
+		state, _ := launchRESTServer(t, server, restdef.LimitProfile{})
 		runtime, err := state.runtime("blocking")
 		require.NoError(t, err)
 		results := startRESTAwait(t, func() core.Result {
@@ -266,7 +267,7 @@ func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 func TestRESTServer_StopPersistsRelaunchCompensation(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+	state, baseURL := launchRESTServer(t, controlServer(), restdef.LimitProfile{})
 	postStatus(t, baseURL+"/approve/1", `{}`, http.StatusAccepted)
 	postStatus(t, baseURL+"/approve/2", `{}`, http.StatusAccepted)
 	builder := ServerBuilder{
@@ -298,7 +299,7 @@ func TestRESTAwaitCommandSupportsDispatchCancellation(t *testing.T) {
 	t.Parallel()
 	server := namedControlServer("context_await")
 	server.Queue.Timeout = "30s"
-	state, _ := launchRESTServer(t, server, LimitProfile{})
+	state, _ := launchRESTServer(t, server, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "context_await")
 	command := awaitCommand(state, "context_await")
 	_, ok := command.(core.ContextCommand)
@@ -324,25 +325,25 @@ func TestRESTServer_ShutdownConfigValidation(t *testing.T) {
 		server := shutdownValidationServer("valid_shutdown")
 		server.Shutdown.DrainPolicy = policy
 		server.Shutdown.UnblockAwaitSignal = "StoppedCustom"
-		err := ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"valid_shutdown": server}})
+		err := ValidateDefinition(restdef.Definition{Version: "v1", Servers: map[string]restdef.Server{"valid_shutdown": server}})
 		require.NoError(t, err)
 	}
 
 	tests := []struct {
 		name     string
-		mutate   func(*ShutdownConfig)
+		mutate   func(*restdef.ShutdownConfig)
 		contains string
 	}{
-		{name: "inert drain policy", mutate: func(cfg *ShutdownConfig) { cfg.DrainPolicy = "drain" }, contains: "not implemented"},
-		{name: "drain timeout", mutate: func(cfg *ShutdownConfig) { cfg.DrainTimeout = "1s" }, contains: "drain_timeout"},
-		{name: "stop listeners false", mutate: func(cfg *ShutdownConfig) { cfg.StopListeners = boolPointer(false) }, contains: "stop_listeners"},
-		{name: "queue on shutdown", mutate: func(cfg *ShutdownConfig) { cfg.QueueOnShutdown = "drop" }, contains: "queue_on_shutdown"},
+		{name: "inert drain policy", mutate: func(cfg *restdef.ShutdownConfig) { cfg.DrainPolicy = "drain" }, contains: "not implemented"},
+		{name: "drain timeout", mutate: func(cfg *restdef.ShutdownConfig) { cfg.DrainTimeout = "1s" }, contains: "drain_timeout"},
+		{name: "stop listeners false", mutate: func(cfg *restdef.ShutdownConfig) { cfg.StopListeners = boolPointer(false) }, contains: "stop_listeners"},
+		{name: "queue on shutdown", mutate: func(cfg *restdef.ShutdownConfig) { cfg.QueueOnShutdown = "drop" }, contains: "queue_on_shutdown"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			server := shutdownValidationServer("invalid_shutdown")
 			tc.mutate(&server.Shutdown)
-			err := ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"invalid_shutdown": server}})
+			err := ValidateDefinition(restdef.Definition{Version: "v1", Servers: map[string]restdef.Server{"invalid_shutdown": server}})
 			require.ErrorContains(t, err, tc.contains)
 		})
 	}
@@ -354,7 +355,7 @@ func TestRESTServer_InjectsCanonicalLifecycleExit(t *testing.T) {
 	// A server that declares no exit route still answers the canonical path,
 	// and the enqueued event matches a control await filtering by the reserved
 	// route name, so injection alone drives the agent to exit (GH-1264).
-	state, baseURL := launchRESTServer(t, bareLifecycleServer("inject_default"), LimitProfile{})
+	state, baseURL := launchRESTServer(t, bareLifecycleServer("inject_default"), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "inject_default")
 
 	result := postJSON(t, baseURL+"/api/lifecycle/exit", `{"reason":"operator"}`, http.StatusAccepted)
@@ -380,13 +381,13 @@ func TestRESTServer_LifecycleExitInjectionIdempotent(t *testing.T) {
 	// route conflict and adds no duplicate: injection fills the gap, it does not
 	// override the profile's own exit declaration.
 	server := bareLifecycleServer("inject_declared")
-	server.Endpoints["exit"] = Endpoint{
+	server.Endpoints["exit"] = restdef.Endpoint{
 		Method: "POST", Path: "/api/lifecycle/exit", Binding: bindingEmitSignal,
 		Signal:   "ExitRequested",
-		Response: ResponseMapping{Output: map[string]string{"accepted": "true"}},
+		Response: restdef.ResponseMapping{Output: map[string]string{"accepted": "true"}},
 	}
 	state := NewServerState()
-	output, baseURL := launchRESTServerWithState(t, state, server, LimitProfile{})
+	output, baseURL := launchRESTServerWithState(t, state, server, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "inject_declared")
 
 	require.Equal(t, float64(2), output["route_count"])
@@ -400,7 +401,7 @@ func TestRESTServer_LifecycleExitOptOut(t *testing.T) {
 	// the server's own routes still answer.
 	server := bareLifecycleServer("inject_optout")
 	server.LifecycleExit.Disabled = true
-	state, baseURL := launchRESTServer(t, server, LimitProfile{})
+	state, baseURL := launchRESTServer(t, server, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "inject_optout")
 
 	postStatus(t, baseURL+"/api/lifecycle/exit", `{"reason":"operator"}`, http.StatusNotFound)
@@ -417,7 +418,7 @@ func TestRESTServerQueueNameAndPayloadShapeAreEnforced(t *testing.T) {
 			"type": "object", "required": []interface{}{"operator"},
 		}
 		server.Endpoints["approve"] = endpoint
-		state, baseURL := launchRESTServer(t, server, LimitProfile{})
+		state, baseURL := launchRESTServer(t, server, restdef.LimitProfile{})
 		defer stopRESTServer(t, state, "shaped")
 		postStatus(t, baseURL+"/approve/1", `{}`, http.StatusBadRequest)
 	})
@@ -428,7 +429,7 @@ func TestRESTServerQueueNameAndPayloadShapeAreEnforced(t *testing.T) {
 		endpoint := server.Endpoints["approve"]
 		endpoint.Queue.Name = "approvals"
 		server.Endpoints["approve"] = endpoint
-		state, baseURL := launchRESTServer(t, server, LimitProfile{})
+		state, baseURL := launchRESTServer(t, server, restdef.LimitProfile{})
 		defer stopRESTServer(t, state, "named_queue")
 		postStatus(t, baseURL+"/approve/1", `{}`, http.StatusAccepted)
 		event, signal, err := state.Await("named_queue")
@@ -440,15 +441,15 @@ func TestRESTServerQueueNameAndPayloadShapeAreEnforced(t *testing.T) {
 
 func TestLifecycleControlActionNamesSignalEnqueueModes(t *testing.T) {
 	t.Parallel()
-	endpoint := Endpoint{LifecycleControl: LifecycleControl{
+	endpoint := restdef.Endpoint{LifecycleControl: restdef.LifecycleControl{
 		Action: "enqueue_signal", Signal: "ExitRequested",
 	}}
 	require.NoError(t, validateLifecycleControlEndpoint("exit", endpoint))
 	require.Equal(t, "ExitRequested", lifecycleSignal(endpoint))
 
 	for _, action := range []string{"exit", "pause", "rollback_request", "resume"} {
-		err := validateLifecycleControlEndpoint("legacy", Endpoint{
-			LifecycleControl: LifecycleControl{Action: action, Signal: "Requested"},
+		err := validateLifecycleControlEndpoint("legacy", restdef.Endpoint{
+			LifecycleControl: restdef.LifecycleControl{Action: action, Signal: "Requested"},
 		})
 		require.ErrorContains(t, err, "unsupported action")
 	}
@@ -459,7 +460,7 @@ func TestRESTServer_StreamEventsUnblocksOnStop(t *testing.T) {
 
 	server := streamServer()
 	server.Queue.Timeout = "1s"
-	state, baseURL := launchRESTServer(t, server, LimitProfile{})
+	state, baseURL := launchRESTServer(t, server, restdef.LimitProfile{})
 	bodyC := make(chan string, 1)
 	errC := make(chan error, 1)
 	go streamResponse(baseURL+"/events", bodyC, errC)

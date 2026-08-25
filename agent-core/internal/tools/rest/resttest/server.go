@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
 const (
@@ -23,17 +24,17 @@ const (
 )
 
 // ControlServer is the shared loopback control-server fixture.
-func ControlServer() toolrest.Server {
+func ControlServer() restdef.Server {
 	return NamedControlServer("control")
 }
 
 // NamedControlServer returns a loopback control server with a named queue.
-func NamedControlServer(name string) toolrest.Server {
-	return toolrest.Server{
+func NamedControlServer(name string) restdef.Server {
+	return restdef.Server{
 		Address:  "127.0.0.1:0",
-		Queue:    toolrest.QueueConfig{Name: name, Capacity: 8, Timeout: "20ms"},
-		Shutdown: toolrest.ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain_then_stop"},
-		Endpoints: map[string]toolrest.Endpoint{
+		Queue:    restdef.QueueConfig{Name: name, Capacity: 8, Timeout: "20ms"},
+		Shutdown: restdef.ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain_then_stop"},
+		Endpoints: map[string]restdef.Endpoint{
 			"approve": SignalEndpoint("POST", "/approve/{id}", "Approved"),
 			"domain":  DynamicEndpoint("POST", "/domain"),
 			"action":  namedActionEndpoint(),
@@ -45,8 +46,8 @@ func NamedControlServer(name string) toolrest.Server {
 	}
 }
 
-func namedActionEndpoint() toolrest.Endpoint {
-	return toolrest.Endpoint{
+func namedActionEndpoint() restdef.Endpoint {
+	return restdef.Endpoint{
 		Method: "POST", Path: "/action", Binding: bindingDynamicSignal,
 		AllowedSignals: []string{"ExperimentRequested", "Shutdown"},
 		SignalField:    "body.type",
@@ -54,71 +55,71 @@ func namedActionEndpoint() toolrest.Endpoint {
 			"launch_eval": "ExperimentRequested",
 			"shutdown":    "Shutdown",
 		},
-		Request: toolrest.RequestBinding{BodySchema: BodySchemaWithRequired("type")},
+		Request: restdef.RequestBinding{BodySchema: BodySchemaWithRequired("type")},
 	}
 }
 
 // HandlerServer is the invoke_handler loopback fixture.
-func HandlerServer() toolrest.Server {
-	return toolrest.Server{
+func HandlerServer() restdef.Server {
+	return restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   toolrest.QueueConfig{Name: "handler", Capacity: 8, Timeout: "20ms"},
-		Endpoints: map[string]toolrest.Endpoint{
+		Queue:   restdef.QueueConfig{Name: "handler", Capacity: 8, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"handle": {
 				Method: "POST", Path: "/handle", Binding: bindingInvokeHandler,
-				Request:  toolrest.RequestBinding{BodySchema: BodySchemaWithRequired("name")},
-				Response: toolrest.ResponseMapping{Output: map[string]string{"handled": "true", "name": "$.name"}},
+				Request:  restdef.RequestBinding{BodySchema: BodySchemaWithRequired("name")},
+				Response: restdef.ResponseMapping{Output: map[string]string{"handled": "true", "name": "$.name"}},
 			},
 			"handle_signal": {
 				Method: "POST", Path: "/handle-signal", Binding: bindingInvokeHandler,
-				Signal: "Handled", Response: toolrest.ResponseMapping{Output: map[string]string{"accepted": "true"}},
+				Signal: "Handled", Response: restdef.ResponseMapping{Output: map[string]string{"accepted": "true"}},
 			},
 		},
 	}
 }
 
 // StreamServer is the stream_events loopback fixture.
-func StreamServer() toolrest.Server {
+func StreamServer() restdef.Server {
 	server := NamedControlServer("stream")
-	server.Endpoints["events"] = toolrest.Endpoint{Method: "GET", Path: "/events", Binding: bindingStreamEvents}
+	server.Endpoints["events"] = restdef.Endpoint{Method: "GET", Path: "/events", Binding: bindingStreamEvents}
 	return server
 }
 
 // LifecycleControlServer is the lifecycle-control loopback fixture.
-func LifecycleControlServer() toolrest.Server {
-	return toolrest.Server{
+func LifecycleControlServer() restdef.Server {
+	return restdef.Server{
 		Address:  "127.0.0.1:0",
-		Queue:    toolrest.QueueConfig{Name: "lifecycle", Capacity: 8, Timeout: "20ms", Overflow: queueOverflowReject},
-		Shutdown: toolrest.ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain_then_stop"},
-		Endpoints: map[string]toolrest.Endpoint{
+		Queue:    restdef.QueueConfig{Name: "lifecycle", Capacity: 8, Timeout: "20ms", Overflow: queueOverflowReject},
+		Shutdown: restdef.ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain_then_stop"},
+		Endpoints: map[string]restdef.Endpoint{
 			"exit": lifecycleExitEndpoint(),
 		},
 	}
 }
 
-func lifecycleExitEndpoint() toolrest.Endpoint {
-	return toolrest.Endpoint{
+func lifecycleExitEndpoint() restdef.Endpoint {
+	return restdef.Endpoint{
 		Method: "POST", Path: "/lifecycle/exit", Binding: bindingLifecycleControl,
-		LifecycleControl: toolrest.LifecycleControl{
+		LifecycleControl: restdef.LifecycleControl{
 			Action: "enqueue_signal", Signal: "ExitRequested",
 			TargetSchema: BodySchemaWithRequired("reason"),
 		},
-		Request:  toolrest.RequestBinding{BodySchema: BodySchemaWithRequired("reason")},
-		Response: toolrest.ResponseMapping{Output: map[string]string{"accepted": "true"}},
+		Request:  restdef.RequestBinding{BodySchema: BodySchemaWithRequired("reason")},
+		Response: restdef.ResponseMapping{Output: map[string]string{"accepted": "true"}},
 	}
 }
 
 // SignalEndpoint builds an emit_signal endpoint.
-func SignalEndpoint(method, path, signal string) toolrest.Endpoint {
-	return toolrest.Endpoint{Method: method, Path: path, Binding: bindingEmitSignal, Signal: signal}
+func SignalEndpoint(method, path, signal string) restdef.Endpoint {
+	return restdef.Endpoint{Method: method, Path: path, Binding: bindingEmitSignal, Signal: signal}
 }
 
 // DynamicEndpoint builds an emit_dynamic_signal endpoint.
-func DynamicEndpoint(method, path string) toolrest.Endpoint {
-	return toolrest.Endpoint{
+func DynamicEndpoint(method, path string) restdef.Endpoint {
+	return restdef.Endpoint{
 		Method: method, Path: path, Binding: bindingDynamicSignal,
 		AllowedSignals: []string{"DomainEventReceived"},
-		Request: toolrest.RequestBinding{Query: map[string]interface{}{
+		Request: restdef.RequestBinding{Query: map[string]interface{}{
 			"signal": map[string]interface{}{"type": "string"},
 		}},
 	}
@@ -136,7 +137,7 @@ func BodySchemaWithRequired(field string) map[string]interface{} {
 func StagedFanInCollection(t *testing.T) toolrest.Collection {
 	t.Helper()
 	collection := toolrest.NewCollection()
-	require.NoError(t, collection.Add(toolrest.Definition{Servers: map[string]toolrest.Server{
+	require.NoError(t, collection.Add(restdef.Definition{Servers: map[string]restdef.Server{
 		"first":  namedSignalServer("first", "FirstApproved"),
 		"second": namedSignalServer("second", "SecondApproved"),
 		"third":  namedSignalServer("third", "ThirdApproved"),
@@ -144,7 +145,7 @@ func StagedFanInCollection(t *testing.T) toolrest.Collection {
 	return collection
 }
 
-func namedSignalServer(name, signal string) toolrest.Server {
+func namedSignalServer(name, signal string) restdef.Server {
 	server := NamedControlServer(name)
 	approve := server.Endpoints["approve"]
 	approve.Signal = signal

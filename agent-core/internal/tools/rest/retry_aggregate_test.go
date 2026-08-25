@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,26 +18,26 @@ func TestRetryAggregateTimeout(t *testing.T) {
 	tests := []struct {
 		name           string
 		attemptTimeout time.Duration
-		retry          RetryPolicy
+		retry          restdef.RetryPolicy
 		want           time.Duration
 		wantErr        string
 	}{
 		{
 			name:           "one attempt",
 			attemptTimeout: 2 * time.Second,
-			retry:          RetryPolicy{Attempts: 1, Backoff: "none"},
+			retry:          restdef.RetryPolicy{Attempts: 1, Backoff: "none"},
 			want:           2 * time.Second,
 		},
 		{
 			name:           "fixed delays",
 			attemptTimeout: 2 * time.Second,
-			retry:          RetryPolicy{Attempts: 3, Backoff: "fixed", InitialDelay: "1s"},
+			retry:          restdef.RetryPolicy{Attempts: 3, Backoff: "fixed", InitialDelay: "1s"},
 			want:           8 * time.Second,
 		},
 		{
 			name:           "exponential capped delays",
 			attemptTimeout: time.Second,
-			retry: RetryPolicy{
+			retry: restdef.RetryPolicy{
 				Attempts: 4, Backoff: "exponential",
 				InitialDelay: "1s", MaxDelay: "2s",
 			},
@@ -45,19 +46,19 @@ func TestRetryAggregateTimeout(t *testing.T) {
 		{
 			name:           "none ignores declared delay",
 			attemptTimeout: time.Second,
-			retry:          RetryPolicy{Attempts: 3, Backoff: "none", InitialDelay: "1h"},
+			retry:          restdef.RetryPolicy{Attempts: 3, Backoff: "none", InitialDelay: "1h"},
 			want:           3 * time.Second,
 		},
 		{
 			name:           "attempt product overflows",
 			attemptTimeout: maxDuration/2 + 1,
-			retry:          RetryPolicy{Attempts: 2, Backoff: "none"},
+			retry:          restdef.RetryPolicy{Attempts: 2, Backoff: "none"},
 			wantErr:        "duration overflow",
 		},
 		{
 			name:           "delay sum overflows",
 			attemptTimeout: time.Second,
-			retry: RetryPolicy{
+			retry: restdef.RetryPolicy{
 				Attempts: 2, Backoff: "fixed",
 				InitialDelay: maxDuration.String(),
 			},

@@ -11,9 +11,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
-func readRequestPayload(req *http.Request, endpoint Endpoint, maxBytes int) (map[string]interface{}, error) {
+func readRequestPayload(req *http.Request, endpoint restdef.Endpoint, maxBytes int) (map[string]interface{}, error) {
 	payload := map[string]interface{}{}
 	if err := addQueryValues(payload, endpoint.Request.Query, req.URL.Query()); err != nil {
 		return nil, err
@@ -53,7 +55,7 @@ func readRequestBody(payload map[string]interface{}, req *http.Request, bodySche
 	return payload, nil
 }
 
-func endpointBodySchema(endpoint Endpoint) map[string]interface{} {
+func endpointBodySchema(endpoint restdef.Endpoint) map[string]interface{} {
 	if len(endpoint.Request.BodySchema) > 0 {
 		return endpoint.Request.BodySchema
 	}

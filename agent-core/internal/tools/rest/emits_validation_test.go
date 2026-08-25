@@ -6,18 +6,18 @@ package rest
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateClientEmitsRejectsSuccessAndFailureDrift(t *testing.T) {
 	t.Parallel()
 	operation := ClientOperationDefinition{
 		OperationName: "get",
-		Operation: Operation{
-			Success:  StatusMapping{Signal: "Read"},
-			Failures: []StatusMapping{{Signal: "Missing"}},
+		Operation: restdef.Operation{
+			Success:  restdef.StatusMapping{Signal: "Read"},
+			Failures: []restdef.StatusMapping{{Signal: "Missing"}},
 		},
 	}
 	def := catalog.ToolDef{Name: "get", Emits: []string{"Read", "CommandError"}}
@@ -33,7 +33,7 @@ func TestValidateClientSendUsesAcceptedSignal(t *testing.T) {
 	t.Parallel()
 	operation := ClientOperationDefinition{
 		OperationName: "start",
-		Operation:     Operation{Success: StatusMapping{Signal: "RemoteFinished"}},
+		Operation:     restdef.Operation{Success: restdef.StatusMapping{Signal: "RemoteFinished"}},
 	}
 	def := catalog.ToolDef{
 		Name: "send", Emits: []string{"RESTAccepted", "CommandError"},
@@ -45,8 +45,8 @@ func TestValidateServerAwaitEmitsIncludesEndpointSignals(t *testing.T) {
 	t.Parallel()
 	server := ServerDefinition{
 		Name: "control",
-		Server: Server{LifecycleExit: LifecycleExitInjection{Disabled: true},
-			Endpoints: map[string]Endpoint{
+		Server: restdef.Server{LifecycleExit: restdef.LifecycleExitInjection{Disabled: true},
+			Endpoints: map[string]restdef.Endpoint{
 				"exit": {Signal: "ExitRequested"},
 			}},
 	}

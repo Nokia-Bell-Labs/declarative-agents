@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"sort"
 
-	"go.opentelemetry.io/otel"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"go.opentelemetry.io/otel"
 )
 
 func machineRequestRunner(runner MachineRequestRunner) MachineRequestRunner {
@@ -76,7 +76,7 @@ func machineRequestMonitorRecorder(req MachineRequestRun) monitor.RuntimeRecorde
 	return scoped.WithTrustedEnvelope(machineRequestEnvelopePolicy(req.Config, req.RunID))
 }
 
-func machineRequestEnvelopePolicy(cfg MachineRequest, runID string) monitor.EnvelopePolicy {
+func machineRequestEnvelopePolicy(cfg restdef.MachineRequest, runID string) monitor.EnvelopePolicy {
 	machine := cfg.MachineSpec
 	tools := make(map[string]struct{}, len(machine.Transitions))
 	states := stringValueSet(machine.States.Names()...)
@@ -128,7 +128,7 @@ func collectForEachEnvelope(spec core.ForEachSpec, tools, signals map[string]str
 	}
 }
 
-func collectRequestSignals(cfg MachineRequest, signals map[string]struct{}) {
+func collectRequestSignals(cfg restdef.MachineRequest, signals map[string]struct{}) {
 	for signal := range cfg.Response.TerminalSignals {
 		signals[signal] = struct{}{}
 	}
@@ -189,7 +189,7 @@ func machineRequestAgentName(req MachineRequestRun) string {
 // consulted next only for the machines that name a state after the signal
 // reaching it, where the two keys coincide; that lookup predates the state map
 // and stays so those configurations keep their classification (GH-615).
-func machineRequestTerminalStatus(cfg MachineRequest) func(core.State) core.RunStatus {
+func machineRequestTerminalStatus(cfg restdef.MachineRequest) func(core.State) core.RunStatus {
 	return func(state core.State) core.RunStatus {
 		if status, ok := core.DeclaredTerminalStatus(cfg.MachineSpec, state); ok {
 			return status
@@ -213,7 +213,7 @@ func runStatusForHTTP(status int) core.RunStatus {
 	return core.StatusFailed
 }
 
-func machineRequestInitialSignal(cfg MachineRequest) core.Signal {
+func machineRequestInitialSignal(cfg restdef.MachineRequest) core.Signal {
 	if cfg.InitialSignal == "" {
 		return core.Seed
 	}
@@ -253,7 +253,7 @@ func requestSeed(req MachineRequestRun, signal core.Signal) core.Result {
 	}
 }
 
-func machineRequestSeedRedaction(mapping MachineRequestMapping) core.OutputRedaction {
+func machineRequestSeedRedaction(mapping restdef.MachineRequestMapping) core.OutputRedaction {
 	paths := make([]core.OutputRedactionPath, 0, len(mapping.Sensitive))
 	for _, name := range mapping.Sensitive {
 		paths = append(paths, core.OutputRedactionPath{"parameters", name})

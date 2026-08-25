@@ -480,7 +480,3 @@ func DeclaredParamNames(binding RequestBinding) map[string]bool {
 func declaredParamNames(binding RequestBinding) map[string]bool {
 	return DeclaredParamNames(binding)
 }
-
-func (b RequestBinding) Declares(name string) bool {
-	return DeclaredParamNames(b)[name]
-}

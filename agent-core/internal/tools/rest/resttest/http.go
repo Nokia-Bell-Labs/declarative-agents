@@ -26,14 +26,7 @@ func RequestStatus(t *testing.T, method, url, body string, want int) {
 }
 
 // RequestStatusWithHeaders sends a JSON request with extra headers.
-func RequestStatusWithHeaders(
-	t *testing.T,
-	method string,
-	url string,
-	body string,
-	headers map[string]string,
-	want int,
-) {
+func RequestStatusWithHeaders(t *testing.T, method, url, body string, headers map[string]string, want int) {
 	t.Helper()
 	req, err := http.NewRequest(method, url, bytes.NewBufferString(body))
 	require.NoError(t, err)

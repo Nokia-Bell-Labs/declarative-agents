@@ -6,9 +6,9 @@ package rest
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
 )
 
 func objectSchema(required []string, properties map[string]string) map[string]interface{} {
@@ -23,7 +23,7 @@ func objectSchema(required []string, properties map[string]string) map[string]in
 	return map[string]interface{}{"type": "object", "required": req, "properties": props}
 }
 
-func resolveThreadingOp(t *testing.T, def Definition, restRef, operation string) ClientOperationDefinition {
+func resolveThreadingOp(t *testing.T, def restdef.Definition, restRef, operation string) ClientOperationDefinition {
 	t.Helper()
 	collection := NewCollection()
 	require.NoError(t, collection.Add(def))

@@ -6,6 +6,7 @@ package rest
 import (
 	"testing"
 
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,7 +15,7 @@ func TestValidateDefinitionRejectsConfigFormatRules(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		mutate  func(Definition) Definition
+		mutate  func(restdef.Definition) restdef.Definition
 		wantErr string
 	}{
 		{name: "missing version", mutate: clearVersion, wantErr: "rest.version"},
@@ -43,7 +44,7 @@ func TestValidateDefinitionRejectsMergedNameCollisions(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		mutate  func(Definition) Definition
+		mutate  func(restdef.Definition) restdef.Definition
 		wantErr string
 	}{
 		{name: "operation import collision", mutate: duplicateImportedOperation, wantErr: "search_issues"},
@@ -101,69 +102,69 @@ func TestValidateStatusMappingsEveryHTTPCodeHasOneOwner(t *testing.T) {
 	}
 }
 
-func operationWithStatusMappings(success []int, failures ...[]int) Operation {
+func operationWithStatusMappings(success []int, failures ...[]int) restdef.Operation {
 	op := validReadOperation()
-	op.Success = StatusMapping{Status: success, Signal: "RESTDone"}
+	op.Success = restdef.StatusMapping{Status: success, Signal: "RESTDone"}
 	for index, statuses := range failures {
 		signal := "RESTFailed"
 		if index > 0 {
 			signal = "RESTDomainFailed"
 		}
-		op.Failures = append(op.Failures, StatusMapping{Status: statuses, Signal: signal})
+		op.Failures = append(op.Failures, restdef.StatusMapping{Status: statuses, Signal: signal})
 	}
 	return op
 }
 
-func clearVersion(def Definition) Definition {
+func clearVersion(def restdef.Definition) restdef.Definition {
 	def.Version = ""
 	return def
 }
 
-func undeclaredBodyParam(def Definition) Definition {
+func undeclaredBodyParam(def restdef.Definition) restdef.Definition {
 	op := def.Clients["github"].Resources["issue"].Operations["set"]
 	op.Body["title"] = "{{ params.missing }}"
 	def.Clients["github"].Resources["issue"].Operations["set"] = op
 	return def
 }
 
-func unsupportedResourceVerb(def Definition) Definition {
+func unsupportedResourceVerb(def restdef.Definition) restdef.Definition {
 	resource := def.Clients["github"].Resources["issue"]
 	resource.Operations["approve"] = validWriteOperation()
 	def.Clients["github"].Resources["issue"] = resource
 	return def
 }
 
-func missingSideEffects(def Definition) Definition {
+func missingSideEffects(def restdef.Definition) restdef.Definition {
 	op := validWriteOperation()
 	op.SideEffects = nil
 	def.Clients["github"].Operations["mutate"] = op
 	return def
 }
 
-func missingReversibility(def Definition) Definition {
+func missingReversibility(def restdef.Definition) restdef.Definition {
 	op := validWriteOperation()
-	op.Reversibility = Reversibility{}
+	op.Reversibility = restdef.Reversibility{}
 	def.Clients["github"].Operations["mutate"] = op
 	return def
 }
 
-func asyncMissingRequestID(def Definition) Definition {
+func asyncMissingRequestID(def restdef.Definition) restdef.Definition {
 	op := validWriteOperation()
-	op.Async = &AsyncClientConfig{Timeout: "10s"}
+	op.Async = &restdef.AsyncClientConfig{Timeout: "10s"}
 	def.Clients["github"].Operations["async_mutate"] = op
 	def.Clients["github"].Operations["set"] = validWriteOperation()
 	return def
 }
 
-func asyncMissingTimeout(def Definition) Definition {
+func asyncMissingTimeout(def restdef.Definition) restdef.Definition {
 	op := validWriteOperation()
-	op.Async = &AsyncClientConfig{RequestID: "$.id"}
+	op.Async = &restdef.AsyncClientConfig{RequestID: "$.id"}
 	def.Clients["github"].Operations["async_mutate"] = op
 	def.Clients["github"].Operations["set"] = validWriteOperation()
 	return def
 }
 
-func dynamicSignalNoAllowlist(def Definition) Definition {
+func dynamicSignalNoAllowlist(def restdef.Definition) restdef.Definition {
 	endpoint := def.Servers["control"].Endpoints["approve"]
 	endpoint.Binding = bindingDynamicSignal
 	endpoint.AllowedSignals = nil
@@ -171,15 +172,15 @@ func dynamicSignalNoAllowlist(def Definition) Definition {
 	return def
 }
 
-func publicListener(def Definition) Definition {
+func publicListener(def restdef.Definition) restdef.Definition {
 	server := def.Servers["control"]
 	server.Address = "0.0.0.0:8080"
 	def.Servers["control"] = server
 	return def
 }
 
-func unsupportedAuth(def Definition) Definition {
-	def.Auth["github_app"] = AuthProfile{Type: "magic_signature"}
+func unsupportedAuth(def restdef.Definition) restdef.Definition {
+	def.Auth["github_app"] = restdef.AuthProfile{Type: "magic_signature"}
 	return def
 }
 
@@ -194,85 +195,85 @@ func TestValidateDefinitionRejectsReservedResourceMetadataFields(t *testing.T) {
 	require.ErrorContains(t, ValidateDefinition(def), "id_field and version_field are reserved")
 }
 
-func unsupportedRedirect(def Definition) Definition {
+func unsupportedRedirect(def restdef.Definition) restdef.Definition {
 	limit := def.Limits["public_api"]
 	limit.Redirect.Mode = "anywhere"
 	def.Limits["public_api"] = limit
 	return def
 }
 
-func invalidRedaction(def Definition) Definition {
+func invalidRedaction(def restdef.Definition) restdef.Definition {
 	op := def.Clients["github"].Operations["search_issues"]
 	op.Response.Redact = []string{"secret"}
 	def.Clients["github"].Operations["search_issues"] = op
 	return def
 }
 
-func duplicateImportedOperation(def Definition) Definition {
-	def.OpenAPI = map[string]OpenAPIImport{"github": {Expose: []string{"search_issues"}}}
+func duplicateImportedOperation(def restdef.Definition) restdef.Definition {
+	def.OpenAPI = map[string]restdef.OpenAPIImport{"github": {Expose: []string{"search_issues"}}}
 	return def
 }
 
-func duplicateImportedEndpoint(def Definition) Definition {
-	def.OpenAPI = map[string]OpenAPIImport{"control": {Bind: map[string]string{"approveOp": "approve"}}}
+func duplicateImportedEndpoint(def restdef.Definition) restdef.Definition {
+	def.OpenAPI = map[string]restdef.OpenAPIImport{"control": {Bind: map[string]string{"approveOp": "approve"}}}
 	return def
 }
 
-func baseDefinition() Definition {
-	return Definition{
+func baseDefinition() restdef.Definition {
+	return restdef.Definition{
 		Version: "v1",
-		Auth: map[string]AuthProfile{
+		Auth: map[string]restdef.AuthProfile{
 			"github_app": {Type: authBearer, TokenRef: "github_token"},
 		},
-		Limits: map[string]LimitProfile{
-			"public_api": {Redirect: RedirectPolicy{Mode: redirectSameHost}},
+		Limits: map[string]restdef.LimitProfile{
+			"public_api": {Redirect: restdef.RedirectPolicy{Mode: redirectSameHost}},
 		},
-		Clients: map[string]Client{"github": baseClient()},
-		Servers: map[string]Server{"control": {
+		Clients: map[string]restdef.Client{"github": baseClient()},
+		Servers: map[string]restdef.Server{"control": {
 			Address: "127.0.0.1:0",
-			Endpoints: map[string]Endpoint{
+			Endpoints: map[string]restdef.Endpoint{
 				"approve": validEndpoint(),
 			},
 		}},
 	}
 }
 
-func baseClient() Client {
-	return Client{
+func baseClient() restdef.Client {
+	return restdef.Client{
 		BaseURL:   "https://api.github.com",
 		AuthRef:   "github_app",
 		LimitsRef: "public_api",
-		Resources: map[string]Resource{"issue": {
+		Resources: map[string]restdef.Resource{"issue": {
 			Path: "/repos/{owner}/{repo}/issues/{number}",
-			Operations: map[string]Operation{
+			Operations: map[string]restdef.Operation{
 				"get": validReadOperation(),
 				"set": validWriteOperation(),
 			},
 		}},
-		Operations: map[string]Operation{"search_issues": validReadOperation()},
+		Operations: map[string]restdef.Operation{"search_issues": validReadOperation()},
 	}
 }
 
-func validReadOperation() Operation {
-	return Operation{
+func validReadOperation() restdef.Operation {
+	return restdef.Operation{
 		Method: "GET",
 		Path:   "/search/issues",
 		Params: pathBinding(),
-		Success: StatusMapping{
+		Success: restdef.StatusMapping{
 			Status: []int{200},
 			Signal: "RESTResourceRead",
 		},
-		Response: ResponseMapping{Redact: []string{"headers.authorization"}},
+		Response: restdef.ResponseMapping{Redact: []string{"headers.authorization"}},
 	}
 }
 
-func validWriteOperation() Operation {
+func validWriteOperation() restdef.Operation {
 	op := validReadOperation()
 	op.Method = "PATCH"
 	op.Body = map[string]interface{}{"title": "{{ params.title }}"}
 	op.Params.BodySchema = bodySchema("title")
-	op.SideEffects = []SideEffect{{Kind: "external_api", Target: "github.issue"}}
-	op.Reversibility = Reversibility{Classification: "compensatable", Undo: "restore"}
+	op.SideEffects = []restdef.SideEffect{{Kind: "external_api", Target: "github.issue"}}
+	op.Reversibility = restdef.Reversibility{Classification: "compensatable", Undo: "restore"}
 	op.Compensation = map[string]interface{}{
 		"operation": "set",
 		"parameters": map[string]interface{}{
@@ -282,21 +283,21 @@ func validWriteOperation() Operation {
 	return op
 }
 
-func validEndpoint() Endpoint {
-	return Endpoint{
+func validEndpoint() restdef.Endpoint {
+	return restdef.Endpoint{
 		Method:  "POST",
 		Path:    "/approve/{id}",
 		Binding: "emit_signal",
 		Signal:  "Approved",
-		Request: RequestBinding{Path: map[string]interface{}{
+		Request: restdef.RequestBinding{Path: map[string]interface{}{
 			"id": map[string]interface{}{"type": "string"},
 		}},
-		Response: ResponseMapping{Redact: []string{"body.secret"}},
+		Response: restdef.ResponseMapping{Redact: []string{"body.secret"}},
 	}
 }
 
-func pathBinding() RequestBinding {
-	return RequestBinding{Path: map[string]interface{}{
+func pathBinding() restdef.RequestBinding {
+	return restdef.RequestBinding{Path: map[string]interface{}{
 		"owner":  map[string]interface{}{"type": "string"},
 		"repo":   map[string]interface{}{"type": "string"},
 		"number": map[string]interface{}{"type": "integer"},
@@ -312,27 +313,27 @@ func bodySchema(field string) map[string]interface{} {
 	}
 }
 
-func validStaticAssetsEndpoint() Endpoint {
-	return Endpoint{
+func validStaticAssetsEndpoint() restdef.Endpoint {
+	return restdef.Endpoint{
 		Method:  "GET",
 		Path:    "/ui/{path...}",
 		Binding: bindingStaticAssets,
-		StaticAssets: &StaticAssetsConfig{
+		StaticAssets: &restdef.StaticAssetsConfig{
 			Root: "/tmp/static-root",
 		},
-		Request: RequestBinding{Path: map[string]interface{}{
+		Request: restdef.RequestBinding{Path: map[string]interface{}{
 			"path": map[string]interface{}{"type": "string"},
 		}},
 	}
 }
 
-func singleServerDefinition(ep Endpoint) Definition {
-	return Definition{
+func singleServerDefinition(ep restdef.Endpoint) restdef.Definition {
+	return restdef.Definition{
 		Version: "v1",
-		Servers: map[string]Server{
+		Servers: map[string]restdef.Server{
 			"srv": {
 				Address: "127.0.0.1:0",
-				Endpoints: map[string]Endpoint{
+				Endpoints: map[string]restdef.Endpoint{
 					"e": ep,
 				},
 			},
@@ -345,12 +346,12 @@ func TestValidateDefinition_staticAssetsRejectsInvalidConfigs(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		ep      Endpoint
+		ep      restdef.Endpoint
 		wantErr string
 	}{
 		{
 			name: "wrong http method",
-			ep: func() Endpoint {
+			ep: func() restdef.Endpoint {
 				e := validStaticAssetsEndpoint()
 				e.Method = "POST"
 				return e
@@ -359,16 +360,16 @@ func TestValidateDefinition_staticAssetsRejectsInvalidConfigs(t *testing.T) {
 		},
 		{
 			name: "blank assets root",
-			ep: func() Endpoint {
+			ep: func() restdef.Endpoint {
 				e := validStaticAssetsEndpoint()
-				e.StaticAssets = &StaticAssetsConfig{Root: "  "}
+				e.StaticAssets = &restdef.StaticAssetsConfig{Root: "  "}
 				return e
 			}(),
 			wantErr: "non-empty root",
 		},
 		{
 			name: "missing static_assets block",
-			ep: func() Endpoint {
+			ep: func() restdef.Endpoint {
 				e := validStaticAssetsEndpoint()
 				e.StaticAssets = nil
 				return e
@@ -377,7 +378,7 @@ func TestValidateDefinition_staticAssetsRejectsInvalidConfigs(t *testing.T) {
 		},
 		{
 			name: "signal conflicts with static binding",
-			ep: func() Endpoint {
+			ep: func() restdef.Endpoint {
 				e := validStaticAssetsEndpoint()
 				e.Signal = "Noise"
 				return e
@@ -386,7 +387,7 @@ func TestValidateDefinition_staticAssetsRejectsInvalidConfigs(t *testing.T) {
 		},
 		{
 			name: "static_assets config with wrong binding",
-			ep: func() Endpoint {
+			ep: func() restdef.Endpoint {
 				e := validStaticAssetsEndpoint()
 				e.Binding = bindingEmitSignal
 				e.Signal = "Y"

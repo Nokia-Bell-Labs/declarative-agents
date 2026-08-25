@@ -10,9 +10,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
+
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
 const (
@@ -66,17 +67,6 @@ var handledServerBindings = map[string]bool{
 	bindingMonitorProxy:     true,
 	bindingMock:             true,
 	bindingMockLog:          true,
-}
-
-// sortedServerBindings returns the handled bindings in stable order for
-// diagnostics.
-func sortedServerBindings() string {
-	names := make([]string, 0, len(handledServerBindings))
-	for b := range handledServerBindings {
-		names = append(names, b)
-	}
-	sort.Strings(names)
-	return strings.Join(names, ", ")
 }
 
 var allowedUndeclaredHeaders = map[string]bool{
@@ -149,7 +139,7 @@ func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (r *serverRuntime) readEndpointPayload(
 	req *http.Request,
-	endpoint Endpoint,
+	endpoint restdef.Endpoint,
 	vars map[string]string,
 ) (map[string]interface{}, error) {
 	payload, err := readRequestPayload(req, endpoint, r.def.Limits.MaxRequestBytes)
@@ -166,7 +156,7 @@ func (r *serverRuntime) writeEndpointRequestError(
 	w http.ResponseWriter,
 	req *http.Request,
 	name string,
-	endpoint Endpoint,
+	endpoint restdef.Endpoint,
 	err error,
 ) {
 	if endpoint.Binding == bindingSignalSource {
@@ -177,7 +167,7 @@ func (r *serverRuntime) writeEndpointRequestError(
 }
 
 func (r *serverRuntime) authorizeEndpoint(
-	w http.ResponseWriter, req *http.Request, endpoint Endpoint,
+	w http.ResponseWriter, req *http.Request, endpoint restdef.Endpoint,
 ) (*http.Request, bool) {
 	if endpoint.Binding != bindingLifecycleControl {
 		return req, true
@@ -192,13 +182,13 @@ func (r *serverRuntime) authorizeEndpoint(
 
 type routeMatch struct {
 	name     string
-	endpoint Endpoint
+	endpoint restdef.Endpoint
 	vars     map[string]string
 	score    int
 	catchAll bool
 }
 
-func (r *serverRuntime) matchEndpoint(req *http.Request) (string, Endpoint, map[string]string, bool) {
+func (r *serverRuntime) matchEndpoint(req *http.Request) (string, restdef.Endpoint, map[string]string, bool) {
 	best := routeMatch{}
 	found := false
 	for name, endpoint := range r.def.Server.Endpoints {
@@ -216,7 +206,7 @@ func (r *serverRuntime) matchEndpoint(req *http.Request) (string, Endpoint, map[
 		}
 	}
 	if !found {
-		return "", Endpoint{}, nil, false
+		return "", restdef.Endpoint{}, nil, false
 	}
 	return best.name, best.endpoint, best.vars, true
 }
@@ -257,7 +247,7 @@ func (r *serverRuntime) handleEndpoint(
 	w http.ResponseWriter,
 	req *http.Request,
 	name string,
-	endpoint Endpoint,
+	endpoint restdef.Endpoint,
 	payload map[string]interface{},
 ) {
 	switch endpoint.Binding {
@@ -309,7 +299,7 @@ var monitorProxyClient = &http.Client{
 // agent's monitor state and SSE stream through one origin. Only the declared
 // upstreams are reachable; the caller supplies the agent key and the path suffix,
 // never a host, and only GET is forwarded so the proxy cannot drive mutations.
-func (r *serverRuntime) proxyMonitor(w http.ResponseWriter, req *http.Request, endpoint Endpoint) {
+func (r *serverRuntime) proxyMonitor(w http.ResponseWriter, req *http.Request, endpoint restdef.Endpoint) {
 	cfg := endpoint.MonitorProxy
 	if cfg == nil {
 		http.Error(w, "monitor_proxy is not configured", http.StatusInternalServerError)
@@ -380,7 +370,7 @@ func (r *serverRuntime) proxyMonitor(w http.ResponseWriter, req *http.Request, e
 	}
 }
 
-func (r *serverRuntime) writeRedirect(w http.ResponseWriter, endpoint Endpoint) {
+func (r *serverRuntime) writeRedirect(w http.ResponseWriter, endpoint restdef.Endpoint) {
 	cfg := endpoint.Redirect
 	if cfg == nil {
 		http.Error(w, "redirect is not configured", http.StatusInternalServerError)
@@ -394,7 +384,7 @@ func (r *serverRuntime) writeRedirect(w http.ResponseWriter, endpoint Endpoint) 
 	w.WriteHeader(status)
 }
 
-func (r *serverRuntime) serveStaticAssets(w http.ResponseWriter, req *http.Request, endpoint Endpoint) {
+func (r *serverRuntime) serveStaticAssets(w http.ResponseWriter, req *http.Request, endpoint restdef.Endpoint) {
 	cfg := endpoint.StaticAssets
 	if cfg == nil {
 		http.Error(w, "static_assets is not configured", http.StatusInternalServerError)
@@ -479,7 +469,7 @@ func (r *serverRuntime) invokeHandler(
 	w http.ResponseWriter,
 	req *http.Request,
 	name string,
-	endpoint Endpoint,
+	endpoint restdef.Endpoint,
 	payload map[string]interface{},
 ) {
 	if endpoint.Signal != "" {
@@ -501,7 +491,7 @@ func (r *serverRuntime) enqueueDynamicSignal(
 	w http.ResponseWriter,
 	req *http.Request,
 	name string,
-	endpoint Endpoint,
+	endpoint restdef.Endpoint,
 	payload map[string]interface{},
 ) {
 	signal := dynamicSignalFromRequest(req, payload, endpoint)
@@ -512,7 +502,7 @@ func (r *serverRuntime) enqueueDynamicSignal(
 	r.enqueueSignal(w, req, name, signal, payload, endpoint.Response.Redact)
 }
 
-func dynamicSignalFromRequest(req *http.Request, payload map[string]interface{}, endpoint Endpoint) string {
+func dynamicSignalFromRequest(req *http.Request, payload map[string]interface{}, endpoint restdef.Endpoint) string {
 	if endpoint.SignalField == "" {
 		return signalFromRequest(req, payload)
 	}
@@ -546,7 +536,7 @@ func (r *serverRuntime) enqueueLifecycleControl(
 	w http.ResponseWriter,
 	req *http.Request,
 	name string,
-	endpoint Endpoint,
+	endpoint restdef.Endpoint,
 	payload map[string]interface{},
 ) {
 	signal := lifecycleSignal(endpoint)
@@ -572,14 +562,14 @@ func writeLifecycleAuthError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), status)
 }
 
-func lifecycleSignal(endpoint Endpoint) string {
+func lifecycleSignal(endpoint restdef.Endpoint) string {
 	if endpoint.LifecycleControl.Signal != "" {
 		return endpoint.LifecycleControl.Signal
 	}
 	return endpoint.Signal
 }
 
-func validateLifecyclePayload(control LifecycleControl, payload map[string]interface{}) error {
+func validateLifecyclePayload(control restdef.LifecycleControl, payload map[string]interface{}) error {
 	if len(control.TargetSchema) == 0 {
 		return nil
 	}
@@ -616,14 +606,14 @@ func (r *serverRuntime) enqueueSignal(
 	writeJSON(w, http.StatusAccepted, map[string]interface{}{"accepted": true, "signal": signal})
 }
 
-func queueName(endpoint, server QueueConfig) string {
+func queueName(endpoint, server restdef.QueueConfig) string {
 	if endpoint.Name != "" {
 		return endpoint.Name
 	}
 	return server.Name
 }
 
-func (r *serverRuntime) offerEvent(event InboundEvent, queue QueueConfig) bool {
+func (r *serverRuntime) offerEvent(event InboundEvent, queue restdef.QueueConfig) bool {
 	select {
 	case r.queue <- event:
 		return true
@@ -632,7 +622,7 @@ func (r *serverRuntime) offerEvent(event InboundEvent, queue QueueConfig) bool {
 	}
 }
 
-func (r *serverRuntime) handleQueueOverflow(event InboundEvent, queue QueueConfig) bool {
+func (r *serverRuntime) handleQueueOverflow(event InboundEvent, queue restdef.QueueConfig) bool {
 	switch queueOverflow(queue, r.def.Server.Queue) {
 	case queueOverflowDropNewest:
 		r.incrementDroppedEvents()
@@ -645,7 +635,7 @@ func (r *serverRuntime) handleQueueOverflow(event InboundEvent, queue QueueConfi
 	}
 }
 
-func queueOverflow(endpoint, server QueueConfig) string {
+func queueOverflow(endpoint, server restdef.QueueConfig) string {
 	if endpoint.Overflow != "" {
 		return endpoint.Overflow
 	}
@@ -683,7 +673,7 @@ func inboundEvent(source, route, method, signal string, payload map[string]inter
 	}
 }
 
-func (r *serverRuntime) streamEvents(w http.ResponseWriter, endpoint Endpoint) {
+func (r *serverRuntime) streamEvents(w http.ResponseWriter, endpoint restdef.Endpoint) {
 	if endpoint.MonitorView != "" {
 		r.streamMonitorEvents(w)
 		return
@@ -723,7 +713,7 @@ func writeJSON(w http.ResponseWriter, status int, payload map[string]interface{}
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-func serverResponseOutput(mapping ResponseMapping, payload map[string]interface{}) map[string]interface{} {
+func serverResponseOutput(mapping restdef.ResponseMapping, payload map[string]interface{}) map[string]interface{} {
 	if len(mapping.Output) == 0 {
 		return map[string]interface{}{"handled": true}
 	}

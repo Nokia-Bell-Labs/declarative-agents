@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
 const (
@@ -170,7 +171,7 @@ func serveRuntime(runtime *serverRuntime) {
 	}
 }
 
-func validateRouteConflicts(endpoints map[string]Endpoint) error {
+func validateRouteConflicts(endpoints map[string]restdef.Endpoint) error {
 	seen := map[string]string{}
 	for name, endpoint := range endpoints {
 		key := endpoint.Method + " " + endpoint.Path
@@ -253,7 +254,7 @@ func (r *serverRuntime) decrementStreams() {
 	r.activeStreams--
 }
 
-func queueCapacity(queue QueueConfig) int {
+func queueCapacity(queue restdef.QueueConfig) int {
 	if queue.Capacity > 0 {
 		return queue.Capacity
 	}

@@ -6,9 +6,9 @@ package rest
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRESTClient_MutatingOperationsRequireEffects(t *testing.T) {
@@ -21,7 +21,7 @@ func TestRESTClient_MutatingOperationsRequireEffects(t *testing.T) {
 	require.ErrorContains(t, ValidateDefinition(mutatingDefinition(missingEffects)), "side_effects")
 
 	irreversible := validWriteOperation()
-	irreversible.Reversibility = Reversibility{Classification: "irreversible"}
+	irreversible.Reversibility = restdef.Reversibility{Classification: "irreversible"}
 	irreversible.Compensation = nil
 	require.ErrorContains(t, ValidateDefinition(mutatingDefinition(irreversible)), "confirmation")
 
@@ -39,14 +39,14 @@ func TestRESTClientFactoryRollbackPolicyMatchesResolvedOperation(t *testing.T) {
 	write := validWriteOperation()
 	read := validReadOperation()
 	irreversible := validWriteOperation()
-	irreversible.Reversibility = Reversibility{
+	irreversible.Reversibility = restdef.Reversibility{
 		Classification: "irreversible", Undo: "irreversible", RequiresConfirmation: true,
 	}
 	irreversible.Compensation = nil
-	definition := Definition{
+	definition := restdef.Definition{
 		Version: "v1",
-		Clients: map[string]Client{"github": {
-			Operations: map[string]Operation{
+		Clients: map[string]restdef.Client{"github": {
+			Operations: map[string]restdef.Operation{
 				"read":         read,
 				"write":        write,
 				"irreversible": irreversible,
@@ -111,12 +111,12 @@ func TestRESTClientFactoryRollbackPolicyMatchesResolvedOperation(t *testing.T) {
 	}
 }
 
-func mutatingDefinition(operation Operation) Definition {
-	return Definition{
+func mutatingDefinition(operation restdef.Operation) restdef.Definition {
+	return restdef.Definition{
 		Version: "v1",
-		Clients: map[string]Client{"github": {
-			BaseURL: "https://api.example", Resources: map[string]Resource{"issue": {
-				Path: "/issue/{number}", Operations: map[string]Operation{"set": operation},
+		Clients: map[string]restdef.Client{"github": {
+			BaseURL: "https://api.example", Resources: map[string]restdef.Resource{"issue": {
+				Path: "/issue/{number}", Operations: map[string]restdef.Operation{"set": operation},
 			}},
 		}},
 	}

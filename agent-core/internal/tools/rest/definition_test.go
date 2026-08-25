@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -62,7 +63,7 @@ func TestDefinitionCanonicalYAMLRoundTrip(t *testing.T) {
 	t.Parallel()
 	def, err := ParseDefinition([]byte(validDefinitionYAML))
 	require.NoError(t, err)
-	encoded, err := yaml.Marshal(DefinitionFile{Rest: def})
+	encoded, err := yaml.Marshal(restdef.DefinitionFile{Rest: def})
 	require.NoError(t, err)
 	roundTrip, err := ParseDefinition(encoded)
 	require.NoError(t, err)

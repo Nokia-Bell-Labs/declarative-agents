@@ -6,9 +6,11 @@ package rest
 import (
 	"encoding/json"
 	"fmt"
+
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
-func shutdownUnblockSignal(config ShutdownConfig) string {
+func shutdownUnblockSignal(config restdef.ShutdownConfig) string {
 	if config.UnblockAwaitSignal != "" {
 		return config.UnblockAwaitSignal
 	}

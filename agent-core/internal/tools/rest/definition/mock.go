@@ -1,10 +1,11 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package rest
+package definition
 
 // Mock types are declaration schema: they belong with the REST model, not the
-// mock engine. The engine in mock.go consumes these types and never the reverse.
+// mock engine. The engine converts these types at the package boundary and
+// never the reverse.
 
 // MockFixture is the on-disk fixture document a mock endpoint serves.
 type MockFixture struct {

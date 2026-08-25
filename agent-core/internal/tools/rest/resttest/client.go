@@ -14,6 +14,8 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
 // IssueHandler serves the canned GitHub-issue fixture used by client tests.
@@ -33,10 +35,10 @@ func IssueHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 // IssueClient is the shared GitHub-issue REST client fixture.
-func IssueClient() toolrest.Client {
-	return toolrest.Client{Resources: map[string]toolrest.Resource{"issue": {
+func IssueClient() restdef.Client {
+	return restdef.Client{Resources: map[string]restdef.Resource{"issue": {
 		Path: "/repos/{owner}/{repo}/issues/{number}",
-		Operations: map[string]toolrest.Operation{
+		Operations: map[string]restdef.Operation{
 			"get": IssueOperation(http.MethodGet, "RESTResourceRead"),
 			"set": issueSetOperation(),
 		},
@@ -44,22 +46,22 @@ func IssueClient() toolrest.Client {
 }
 
 // ClientDefinition builds a validated client definition against baseURL.
-func ClientDefinition(t *testing.T, baseURL string, client toolrest.Client) toolrest.Definition {
+func ClientDefinition(t *testing.T, baseURL string, client restdef.Client) restdef.Definition {
 	t.Helper()
 	client.BaseURL = baseURL
 	client.AuthRef = "none"
-	def := toolrest.Definition{
+	def := restdef.Definition{
 		Version: "v1",
-		Auth:    map[string]toolrest.AuthProfile{"none": {Type: "none"}},
-		Limits:  map[string]toolrest.LimitProfile{"test": {}},
-		Clients: map[string]toolrest.Client{"github": client},
+		Auth:    map[string]restdef.AuthProfile{"none": {Type: "none"}},
+		Limits:  map[string]restdef.LimitProfile{"test": {}},
+		Clients: map[string]restdef.Client{"github": client},
 	}
 	require.NoError(t, toolrest.ValidateDefinition(def))
 	return def
 }
 
 // ClientCommand builds a REST client command against the github/issue fixture.
-func ClientCommand(t *testing.T, def toolrest.Definition, init, operation string, input map[string]interface{}) core.Command {
+func ClientCommand(t *testing.T, def restdef.Definition, init, operation string, input map[string]interface{}) core.Command {
 	t.Helper()
 	return ClientCommandWithCredentials(t, def, init, operation, input, nil)
 }
@@ -67,11 +69,11 @@ func ClientCommand(t *testing.T, def toolrest.Definition, init, operation string
 // ClientCommandWithCredentials builds a REST client command with a credential resolver.
 func ClientCommandWithCredentials(
 	t *testing.T,
-	def toolrest.Definition,
+	def restdef.Definition,
 	init string,
 	operation string,
 	input map[string]interface{},
-	credentials toolrest.CredentialResolver,
+	credentials credentials.Resolver,
 ) core.Command {
 	t.Helper()
 	collection := toolrest.NewCollection()
@@ -88,29 +90,29 @@ func ClientCommandWithCredentials(
 }
 
 // IssueOperation is one GitHub-issue REST operation fixture.
-func IssueOperation(method, signal string) toolrest.Operation {
-	return toolrest.Operation{
+func IssueOperation(method, signal string) restdef.Operation {
+	return restdef.Operation{
 		Method: method,
-		Params: toolrest.RequestBinding{Path: map[string]interface{}{
+		Params: restdef.RequestBinding{Path: map[string]interface{}{
 			"owner": map[string]interface{}{}, "repo": map[string]interface{}{}, "number": map[string]interface{}{},
 		}},
-		Success:  toolrest.StatusMapping{Status: []int{200}, Signal: signal},
-		Failures: []toolrest.StatusMapping{{Status: []int{404}, Signal: "RESTMissing"}, {Status: []int{422}, Signal: "RESTDomainFailed"}},
-		Response: toolrest.ResponseMapping{
+		Success:  restdef.StatusMapping{Status: []int{200}, Signal: signal},
+		Failures: []restdef.StatusMapping{{Status: []int{404}, Signal: "RESTMissing"}, {Status: []int{422}, Signal: "RESTDomainFailed"}},
+		Response: restdef.ResponseMapping{
 			Output: map[string]string{"title": "$.title"}, Redact: []string{"body.secret"},
 			ResourceID: "$.id", RequestID: "$.request_id",
 		},
-		SideEffects:   []toolrest.SideEffect{{Kind: "external_api", State: "read_only"}},
-		Reversibility: toolrest.Reversibility{Classification: "reversible", Undo: "noop"},
+		SideEffects:   []restdef.SideEffect{{Kind: "external_api", State: "read_only"}},
+		Reversibility: restdef.Reversibility{Classification: "reversible", Undo: "noop"},
 	}
 }
 
-func issueSetOperation() toolrest.Operation {
+func issueSetOperation() restdef.Operation {
 	op := IssueOperation(http.MethodPatch, "RESTResourceWritten")
 	op.Params.BodySchema = bodySchema("title")
 	op.Body = map[string]interface{}{"title": "{{ params.title }}"}
-	op.SideEffects = []toolrest.SideEffect{{Kind: "external_api", State: "issue_updated"}}
-	op.Reversibility = toolrest.Reversibility{Classification: "compensatable", Undo: "restore"}
+	op.SideEffects = []restdef.SideEffect{{Kind: "external_api", State: "issue_updated"}}
+	op.Reversibility = restdef.Reversibility{Classification: "compensatable", Undo: "restore"}
 	op.Compensation = map[string]interface{}{
 		"operation":  "set",
 		"parameters": map[string]interface{}{"title": "restored"},
@@ -146,8 +148,8 @@ func LoopbackCIDR(server *httptest.Server) string {
 }
 
 // AuthCredentials is the in-memory credential map used by client tests.
-func AuthCredentials() toolrest.StaticCredentials {
-	return toolrest.StaticCredentials{
+func AuthCredentials() credentials.Static {
+	return credentials.Static{
 		"github_token": "synthetic-token",
 		"user_ref":     "synthetic-user",
 		"password_ref": "synthetic-password",

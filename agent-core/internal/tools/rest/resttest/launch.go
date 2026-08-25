@@ -1,10 +1,8 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-// Package resttest holds shared REST test helpers for internal/tools/rest and
-// the subpackages extracted from it. Tests compiled as package rest cannot
-// import this package (import cycle); they keep same-package copies until they
-// move into an extracted subpackage.
+// Package resttest holds shared REST test helpers. Package rest tests cannot
+// import it (cycle) and keep same-package copies until they move out.
 package resttest
 
 import (
@@ -20,6 +18,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
 // SkipIfShortRESTLaunch skips when the fast suite must not bind a listener.
@@ -31,7 +30,7 @@ func SkipIfShortRESTLaunch(t *testing.T) {
 }
 
 // LaunchRESTServer launches a loopback REST server and returns its state and base URL.
-func LaunchRESTServer(t *testing.T, server toolrest.Server, limits toolrest.LimitProfile) (*toolrest.ServerState, string) {
+func LaunchRESTServer(t *testing.T, server restdef.Server, limits restdef.LimitProfile) (*toolrest.ServerState, string) {
 	t.Helper()
 	state := toolrest.NewServerState()
 	_, baseURL := LaunchRESTServerWithState(t, state, server, limits)
@@ -42,8 +41,8 @@ func LaunchRESTServer(t *testing.T, server toolrest.Server, limits toolrest.Limi
 func LaunchRESTServerWithState(
 	t *testing.T,
 	state *toolrest.ServerState,
-	server toolrest.Server,
-	limits toolrest.LimitProfile,
+	server restdef.Server,
+	limits restdef.LimitProfile,
 ) (map[string]interface{}, string) {
 	t.Helper()
 	def := toolrest.ServerDefinition{Name: serverName(server), Server: server, Limits: limits}
@@ -127,7 +126,7 @@ func restDeclarationsPath(t *testing.T) string {
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "tools", "builtin", "rest", "all.yaml")
 }
 
-func serverName(server toolrest.Server) string {
+func serverName(server restdef.Server) string {
 	if server.Queue.Name != "" {
 		return server.Queue.Name
 	}

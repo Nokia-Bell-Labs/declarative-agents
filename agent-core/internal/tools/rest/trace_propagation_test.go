@@ -8,15 +8,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry/genai"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	oteltrace "go.opentelemetry.io/otel/trace"
-
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry/genai"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 func traceContextFixture(t *testing.T, tracestate string) oteltrace.SpanContext {
@@ -50,7 +50,7 @@ func TestRESTServer_ExtractsTraceparentParentsMachineRequestSpan(t *testing.T) {
 	defer otel.SetTracerProvider(prev)
 
 	cfg := machineRequestConfig("DocumentationReady", 0, false)
-	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
+	cfg.Response.TerminalSignals["DocumentationReady"] = restdef.MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
 	cfg.InitFunc = func(reg *core.Registry) error {
 		reg.Register(core.ToolSpec{Name: "respond"}, pathEchoBuilder{})
 		return nil
@@ -85,7 +85,7 @@ func TestRESTServer_ConcurrentMachineRequestsHaveDistinctConversationIdentity(t 
 
 	cfg := machineRequestConfig("DocumentationReady", 0, false)
 	cfg.Timeout = "1s"
-	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{
+	cfg.Response.TerminalSignals["DocumentationReady"] = restdef.MachineResponseMapping{
 		Status: 200,
 		Body:   map[string]string{"path": "$.path"},
 	}
@@ -172,7 +172,7 @@ func TestRESTServer_TraceparentFallbackToNewRoot(t *testing.T) {
 			defer otel.SetTracerProvider(prev)
 
 			cfg := machineRequestConfig("DocumentationReady", 0, false)
-			cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
+			cfg.Response.TerminalSignals["DocumentationReady"] = restdef.MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
 			cfg.InitFunc = func(reg *core.Registry) error {
 				reg.Register(core.ToolSpec{Name: "respond"}, pathEchoBuilder{})
 				return nil

@@ -9,6 +9,7 @@ import (
 	obsmonitor "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	restmonitor "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/monitor"
 )
 
@@ -21,11 +22,11 @@ const (
 	monitorViewCommandState = restmonitor.ViewCommandState
 )
 
-func (r *serverRuntime) writeReadState(w http.ResponseWriter, name string, endpoint Endpoint) {
+func (r *serverRuntime) writeReadState(w http.ResponseWriter, name string, endpoint restdef.Endpoint) {
 	restmonitor.WriteReadState(r.monitorSurface(), w, name, endpoint.MonitorView, endpoint.Labels)
 }
 
-func (r *serverRuntime) writeStaticMetadata(w http.ResponseWriter, endpoint Endpoint) {
+func (r *serverRuntime) writeStaticMetadata(w http.ResponseWriter, endpoint restdef.Endpoint) {
 	restmonitor.WriteStaticMetadata(r.monitorSurface(), w, endpoint.MonitorView)
 }
 

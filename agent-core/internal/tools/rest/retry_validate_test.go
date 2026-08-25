@@ -6,6 +6,7 @@ package rest
 import (
 	"testing"
 
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,33 +16,33 @@ func TestValidateRetryPolicies_RejectsBadFields(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		retry   RetryPolicy
+		retry   restdef.RetryPolicy
 		errText string
 	}{
-		{name: "unknown backoff", retry: RetryPolicy{Attempts: 1, Backoff: "linear"}, errText: "unsupported backoff"},
-		{name: "bad initial_delay", retry: RetryPolicy{Attempts: 1, InitialDelay: "soon"}, errText: "initial_delay"},
-		{name: "negative initial_delay", retry: RetryPolicy{Attempts: 1, InitialDelay: "-1ms"}, errText: "non-negative"},
-		{name: "bad max_delay", retry: RetryPolicy{Attempts: 1, Backoff: "exponential", MaxDelay: "later"}, errText: "max_delay"},
-		{name: "negative max_delay", retry: RetryPolicy{Attempts: 1, Backoff: "exponential", MaxDelay: "-1ms"}, errText: "non-negative"},
-		{name: "zero attempts", retry: RetryPolicy{Attempts: 0}, errText: "positive"},
-		{name: "negative attempts", retry: RetryPolicy{Attempts: -1}, errText: "attempts"},
+		{name: "unknown backoff", retry: restdef.RetryPolicy{Attempts: 1, Backoff: "linear"}, errText: "unsupported backoff"},
+		{name: "bad initial_delay", retry: restdef.RetryPolicy{Attempts: 1, InitialDelay: "soon"}, errText: "initial_delay"},
+		{name: "negative initial_delay", retry: restdef.RetryPolicy{Attempts: 1, InitialDelay: "-1ms"}, errText: "non-negative"},
+		{name: "bad max_delay", retry: restdef.RetryPolicy{Attempts: 1, Backoff: "exponential", MaxDelay: "later"}, errText: "max_delay"},
+		{name: "negative max_delay", retry: restdef.RetryPolicy{Attempts: 1, Backoff: "exponential", MaxDelay: "-1ms"}, errText: "non-negative"},
+		{name: "zero attempts", retry: restdef.RetryPolicy{Attempts: 0}, errText: "positive"},
+		{name: "negative attempts", retry: restdef.RetryPolicy{Attempts: -1}, errText: "attempts"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := validateRetryPolicies(map[string]RetryPolicy{"p": tt.retry})
+			err := validateRetryPolicies(map[string]restdef.RetryPolicy{"p": tt.retry})
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errText)
 		})
 	}
-	assert.NoError(t, validateRetryPolicies(map[string]RetryPolicy{
+	assert.NoError(t, validateRetryPolicies(map[string]restdef.RetryPolicy{
 		"ok": {Backoff: "exponential", InitialDelay: "100ms", MaxDelay: "2s", Attempts: 3},
 	}))
 }
 
 func TestValidateClientsRejectsMissingRetryPolicy(t *testing.T) {
 	t.Parallel()
-	err := validateClients(map[string]Client{
+	err := validateClients(map[string]restdef.Client{
 		"api": {RetryRef: "missing"},
 	}, nil, nil)
 	require.ErrorContains(t, err, `undefined retry policy "missing"`)

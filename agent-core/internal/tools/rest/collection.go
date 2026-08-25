@@ -11,16 +11,18 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	restclient "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/client"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
 // Collection indexes REST definitions loaded for one profile.
 type Collection struct {
-	Clients          map[string]Client
-	Servers          map[string]Server
-	Auth             map[string]AuthProfile
-	Limits           map[string]LimitProfile
-	RetryPolicies    map[string]RetryPolicy
-	ResponseMappings map[string]ResponseMapping
+	Clients          map[string]restdef.Client
+	Servers          map[string]restdef.Server
+	Auth             map[string]restdef.AuthProfile
+	Limits           map[string]restdef.LimitProfile
+	RetryPolicies    map[string]restdef.RetryPolicy
+	ResponseMappings map[string]restdef.ResponseMapping
 }
 
 // ClientOperationResolver resolves trusted REST client operations.
@@ -32,10 +34,10 @@ type ClientOperationDefinition = restclient.ClientOperationDefinition
 // ServerDefinition is a resolved server plus its referenced limit profile.
 type ServerDefinition struct {
 	Name                 string
-	Server               Server
-	Limits               LimitProfile
-	Auth                 map[string]AuthProfile
-	Credentials          CredentialResolver
+	Server               restdef.Server
+	Limits               restdef.LimitProfile
+	Auth                 map[string]restdef.AuthProfile
+	Credentials          credentials.Resolver
 	MachineRequestRunner MachineRequestRunner
 	SignalSourceRunner   SignalSourceRunner
 	Monitor              MonitorState
@@ -72,7 +74,7 @@ type MachineRequestRun struct {
 	Path            string                  `json:"path"`
 	RequestID       string                  `json:"request_id,omitempty"`
 	Payload         map[string]interface{}  `json:"payload,omitempty"`
-	Config          MachineRequest          `json:"-"`
+	Config          restdef.MachineRequest  `json:"-"`
 	MonitorRecorder monitor.RuntimeRecorder `json:"-"`
 	RunID           string                  `json:"-"`
 	ConversationID  string                  `json:"-"`
@@ -94,17 +96,17 @@ type MachineRequestResult struct {
 // NewCollection creates an empty REST definition collection.
 func NewCollection() Collection {
 	return Collection{
-		Clients:          map[string]Client{},
-		Servers:          map[string]Server{},
-		Auth:             map[string]AuthProfile{},
-		Limits:           map[string]LimitProfile{},
-		RetryPolicies:    map[string]RetryPolicy{},
-		ResponseMappings: map[string]ResponseMapping{},
+		Clients:          map[string]restdef.Client{},
+		Servers:          map[string]restdef.Server{},
+		Auth:             map[string]restdef.AuthProfile{},
+		Limits:           map[string]restdef.LimitProfile{},
+		RetryPolicies:    map[string]restdef.RetryPolicy{},
+		ResponseMappings: map[string]restdef.ResponseMapping{},
 	}
 }
 
 // Add merges a validated REST definition into the collection.
-func (c Collection) Add(def Definition) error {
+func (c Collection) Add(def restdef.Definition) error {
 	for name, profile := range def.Auth {
 		if _, exists := c.Auth[name]; exists {
 			return fmt.Errorf("duplicate REST auth %q", name)
@@ -162,17 +164,17 @@ func (c Collection) ResolveClientOperation(cfg ClientToolConfig) (ClientOperatio
 	}, nil
 }
 
-func (c Collection) resolveOperation(client Client, cfg ClientToolConfig) (Operation, error) {
+func (c Collection) resolveOperation(client restdef.Client, cfg ClientToolConfig) (restdef.Operation, error) {
 	if cfg.Resource == "" {
 		return operationByName(client.Operations, cfg.Operation, "client "+cfg.RestRef)
 	}
 	resource, ok := client.Resources[cfg.Resource]
 	if !ok {
-		return Operation{}, fmt.Errorf("REST resource %q is not defined on client %q", cfg.Resource, cfg.RestRef)
+		return restdef.Operation{}, fmt.Errorf("REST resource %q is not defined on client %q", cfg.Resource, cfg.RestRef)
 	}
 	operation, err := operationByName(resource.Operations, cfg.Operation, "resource "+cfg.Resource)
 	if err != nil {
-		return Operation{}, err
+		return restdef.Operation{}, err
 	}
 	if operation.Path == "" {
 		operation.Path = resource.Path
@@ -191,10 +193,10 @@ func (c Collection) ResolveServer(name string) (ServerDefinition, error) {
 	}, nil
 }
 
-func operationByName(operations map[string]Operation, name, owner string) (Operation, error) {
+func operationByName(operations map[string]restdef.Operation, name, owner string) (restdef.Operation, error) {
 	operation, ok := operations[name]
 	if !ok {
-		return Operation{}, fmt.Errorf("REST operation %q is not defined on %s", name, owner)
+		return restdef.Operation{}, fmt.Errorf("REST operation %q is not defined on %s", name, owner)
 	}
 	return operation, nil
 }

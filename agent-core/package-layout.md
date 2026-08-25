@@ -131,17 +131,23 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/tools/rest`
 - `internal/tools/rest/client`
 - `internal/tools/rest/credentials`
+- `internal/tools/rest/definition`
 - `internal/tools/rest/mock`
 - `internal/tools/rest/monitor`
 - `internal/tools/rest/redact`
 - `internal/tools/rest/resttest`
 - `internal/tools/rest/servercmd`
+- `internal/tools/rest/validation`
 - `internal/tools/service`
 - `internal/tools/undo`
 - `internal/tools/validation`
 - `internal/version`
 - `pkg/profileaudit`
 - `pkg/spec`
+
+REST subpackages layer as definition (model and loading) under validation; the
+parent keeps collection and the server runtime on top; client, credentials,
+redact, monitor, mock, and servercmd are leaves the parent imports.
 
 Public `pkg/` packages are `pkg/spec` and `pkg/profileaudit`.
 

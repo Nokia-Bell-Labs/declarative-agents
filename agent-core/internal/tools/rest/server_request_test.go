@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,23 +44,23 @@ func TestBrowserHeadersAllowedOnStaticAssetsEndpoint(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("<html>ok</html>"), 0o644))
-	srv := Server{
+	srv := restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: "browser_static", Capacity: 4, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: "browser_static", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"assets": {
 				Method: "GET", Path: "/ui/{path...}",
 				Binding: bindingStaticAssets,
-				StaticAssets: &StaticAssetsConfig{
+				StaticAssets: &restdef.StaticAssetsConfig{
 					Root: root,
 				},
-				Request: RequestBinding{Path: map[string]interface{}{
+				Request: restdef.RequestBinding{Path: map[string]interface{}{
 					"path": map[string]interface{}{"type": "string"},
 				}},
 			},
 		},
 	}
-	state, baseURL := launchRESTServer(t, srv, LimitProfile{})
+	state, baseURL := launchRESTServer(t, srv, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "browser_static")
 
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/ui/index.html", nil)

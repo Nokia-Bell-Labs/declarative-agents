@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
 )
 
 func appliedDigest(output string) core.ResultDigest {
@@ -30,10 +30,10 @@ func commandStateSource(entries ...core.Entry) *core.LiveCommandStateSource {
 // commandStateServer builds a server whose one read route exposes a command_state
 // view over the declared labels, with an optional response-size bound.
 func commandStateServer(name string, maxBytes int, labels []string) ServerDefinition {
-	server := Server{
+	server := restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: name, Capacity: 8, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: name, Capacity: 8, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"monitor_fleet": {
 				Method: "GET", Path: "/monitor/fleet",
 				Binding: bindingReadState, MonitorView: monitorViewCommandState, Labels: labels,
@@ -43,7 +43,7 @@ func commandStateServer(name string, maxBytes int, labels []string) ServerDefini
 	return ServerDefinition{
 		Name:   name,
 		Server: server,
-		Limits: LimitProfile{MaxResponseBytes: maxBytes},
+		Limits: restdef.LimitProfile{MaxResponseBytes: maxBytes},
 	}
 }
 
@@ -90,33 +90,23 @@ func TestMonitorCommandStateView_ValidationRejectsMisuse(t *testing.T) {
 
 	cases := []struct {
 		name    string
-		ep      Endpoint
+		ep      restdef.Endpoint
 		wantErr string
 	}{
 		{
-			"command_state without labels",
-			Endpoint{Binding: bindingReadState, MonitorView: monitorViewCommandState},
-			"non-empty labels allowlist",
+			"command_state without labels", restdef.Endpoint{Binding: bindingReadState, MonitorView: monitorViewCommandState}, "non-empty labels allowlist",
 		},
 		{
-			"command_state with empty labels",
-			Endpoint{Binding: bindingReadState, MonitorView: monitorViewCommandState, Labels: []string{}},
-			"non-empty labels allowlist",
+			"command_state with empty labels", restdef.Endpoint{Binding: bindingReadState, MonitorView: monitorViewCommandState, Labels: []string{}}, "non-empty labels allowlist",
 		},
 		{
-			"labels on current_state",
-			Endpoint{Binding: bindingReadState, MonitorView: monitorViewState, Labels: []string{"x"}},
-			"only valid with monitor_view command_state",
+			"labels on current_state", restdef.Endpoint{Binding: bindingReadState, MonitorView: monitorViewState, Labels: []string{"x"}}, "only valid with monitor_view command_state",
 		},
 		{
-			"labels without any view",
-			Endpoint{Binding: bindingReadState, Labels: []string{"x"}},
-			"only valid with monitor_view command_state",
+			"labels without any view", restdef.Endpoint{Binding: bindingReadState, Labels: []string{"x"}}, "only valid with monitor_view command_state",
 		},
 		{
-			"command_state on stream binding",
-			Endpoint{Binding: bindingStreamEvents, MonitorView: monitorViewCommandState, Labels: []string{"x"}},
-			"requires read_state binding",
+			"command_state on stream binding", restdef.Endpoint{Binding: bindingStreamEvents, MonitorView: monitorViewCommandState, Labels: []string{"x"}}, "requires read_state binding",
 		},
 	}
 	for _, tc := range cases {
@@ -127,7 +117,7 @@ func TestMonitorCommandStateView_ValidationRejectsMisuse(t *testing.T) {
 		})
 	}
 
-	valid := Endpoint{Binding: bindingReadState, MonitorView: monitorViewCommandState, Labels: []string{"polled_step"}}
+	valid := restdef.Endpoint{Binding: bindingReadState, MonitorView: monitorViewCommandState, Labels: []string{"polled_step"}}
 	require.NoError(t, validateMonitorView("endpoint", valid))
 }
 

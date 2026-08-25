@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
 )
 
-func launchRESTServer(t *testing.T, server Server, limits LimitProfile) (*ServerState, string) {
+func launchRESTServer(t *testing.T, server restdef.Server, limits restdef.LimitProfile) (*ServerState, string) {
 	t.Helper()
 	state := NewServerState()
 	_, baseURL := launchRESTServerWithState(t, state, server, limits)
@@ -28,8 +28,8 @@ func launchRESTServer(t *testing.T, server Server, limits LimitProfile) (*Server
 func launchRESTServerWithState(
 	t *testing.T,
 	state *ServerState,
-	server Server,
-	limits LimitProfile,
+	server restdef.Server,
+	limits restdef.LimitProfile,
 ) (map[string]interface{}, string) {
 	t.Helper()
 	def := ServerDefinition{Name: serverName(server), Server: server, Limits: limits}
@@ -267,8 +267,8 @@ func launchMachineRequestServer(
 
 func launchMachineRequestServerWithConfig(
 	t *testing.T,
-	cfg MachineRequest,
-	endpoints ...map[string]Endpoint,
+	cfg restdef.MachineRequest,
+	endpoints ...map[string]restdef.Endpoint,
 ) (*ServerState, string) {
 	t.Helper()
 	state := NewServerState()
@@ -283,7 +283,7 @@ func launchMachineRequestServerWithConfig(
 
 func launchMachineRequestServerWithRunner(
 	t *testing.T,
-	cfg MachineRequest,
+	cfg restdef.MachineRequest,
 	runner MachineRequestRunner,
 ) (*ServerState, string) {
 	t.Helper()
@@ -294,39 +294,39 @@ func launchMachineRequestServerWithRunner(
 	return state, baseURL
 }
 
-func catchAllDocsEndpoint(cfg MachineRequest) map[string]Endpoint {
-	cfg.Request = MachineRequestMapping{Path: map[string]string{"path": "$.path"}}
-	return map[string]Endpoint{
+func catchAllDocsEndpoint(cfg restdef.MachineRequest) map[string]restdef.Endpoint {
+	cfg.Request = restdef.MachineRequestMapping{Path: map[string]string{"path": "$.path"}}
+	return map[string]restdef.Endpoint{
 		"document": {
 			Method: "GET", Path: "/docs/{path...}", Binding: bindingMachineRequest,
-			Request:        RequestBinding{Path: map[string]interface{}{"path": map[string]interface{}{"type": "string"}}},
+			Request:        restdef.RequestBinding{Path: map[string]interface{}{"path": map[string]interface{}{"type": "string"}}},
 			MachineRequest: cfg,
 		},
 	}
 }
 
-func machineRequestServer(cfg MachineRequest) Server {
-	return Server{
+func machineRequestServer(cfg restdef.MachineRequest) restdef.Server {
+	return restdef.Server{
 		Address:  "127.0.0.1:0",
-		Queue:    QueueConfig{Name: "machine", Timeout: "20ms"},
-		Shutdown: ShutdownConfig{Timeout: "200ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:    restdef.QueueConfig{Name: "machine", Timeout: "20ms"},
+		Shutdown: restdef.ShutdownConfig{Timeout: "200ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"docs": {
 				Method: "POST", Path: "/docs", Binding: bindingMachineRequest,
-				Request:        RequestBinding{BodySchema: bodySchemaWithRequired("name")},
+				Request:        restdef.RequestBinding{BodySchema: bodySchemaWithRequired("name")},
 				MachineRequest: cfg,
 			},
 		},
 	}
 }
 
-func machineRequestConfig(signal string, delay time.Duration, fail bool) MachineRequest {
-	return MachineRequest{
+func machineRequestConfig(signal string, delay time.Duration, fail bool) restdef.MachineRequest {
+	return restdef.MachineRequest{
 		Timeout: "10ms",
-		Request: MachineRequestMapping{Body: map[string]string{
+		Request: restdef.MachineRequestMapping{Body: map[string]string{
 			"name": "$.name",
 		}},
-		Response: MachineRequestResponse{TerminalSignals: map[string]MachineResponseMapping{
+		Response: restdef.MachineRequestResponse{TerminalSignals: map[string]restdef.MachineResponseMapping{
 			"DocumentationReady": {Status: 200, Body: map[string]string{"greeting": "$.greeting"}},
 			"DocumentMissing":    {Status: 404, Body: map[string]string{"error": "$.message"}},
 			"CommandError":       {Status: 500, Body: map[string]string{"error": "$.message"}},
@@ -339,14 +339,14 @@ func machineRequestConfig(signal string, delay time.Duration, fail bool) Machine
 	}
 }
 
-func conformanceMachineRequestConfig() MachineRequest {
+func conformanceMachineRequestConfig() restdef.MachineRequest {
 	cfg := machineRequestConfig("DocumentationReady", 0, false)
 	cfg.MachineSpec = nil
 	cfg.InitFunc = nil
 	cfg.Timeout = "2s"
 	cfg.Profile = "profile.yaml"
 	cfg.Machine = "request-machine.yaml"
-	cfg.Response.TerminalSignals = map[string]MachineResponseMapping{
+	cfg.Response.TerminalSignals = map[string]restdef.MachineResponseMapping{
 		"DocumentationReady": {Status: 200, Body: map[string]string{"greeting": "$.greeting"}},
 	}
 	return cfg
@@ -374,7 +374,7 @@ func launchMonitorRESTServerFromFactory(
 	skipIfShortRESTLaunch(t)
 	state := NewServerState()
 	collection := NewCollection()
-	require.NoError(t, collection.Add(Definition{Servers: map[string]Server{name: monitorServer(name)}}))
+	require.NoError(t, collection.Add(restdef.Definition{Servers: map[string]restdef.Server{name: monitorServer(name)}}))
 	br := toolregistry.NewBuiltinRegistry()
 	RegisterFactories(br, FactoryDeps{Definitions: collection, ServerState: state, Monitor: monitorState})
 	factory, ok := br.Resolve(InitServerLaunch)

@@ -21,6 +21,7 @@ import (
 	toolotlp "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/otlp"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/service"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
 )
@@ -155,7 +156,7 @@ func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
 			SignalSourceRunner: st.signalSourceRunner,
 			Monitor:            st.monitor,
 			RunID:              st.runID,
-			CredentialResolver: toolrest.EnvironmentCredentials{},
+			CredentialResolver: credentials.Environment{},
 		})
 	}
 }

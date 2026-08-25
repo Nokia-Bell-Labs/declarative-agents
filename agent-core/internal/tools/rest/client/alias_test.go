@@ -16,34 +16,36 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 	restclient "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/client"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/redact"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/resttest"
 )
 
 type (
-	Definition                = toolrest.Definition
-	Client                    = toolrest.Client
-	Resource                  = toolrest.Resource
-	Operation                 = toolrest.Operation
-	StatusMapping             = toolrest.StatusMapping
-	AuthProfile               = toolrest.AuthProfile
-	LimitProfile              = toolrest.LimitProfile
-	RedirectPolicy            = toolrest.RedirectPolicy
-	NetworkPolicy             = toolrest.NetworkPolicy
-	RetryPolicy               = toolrest.RetryPolicy
-	RequestBinding            = toolrest.RequestBinding
-	ResponseMapping           = toolrest.ResponseMapping
-	AsyncClientConfig         = toolrest.AsyncClientConfig
-	SideEffect                = toolrest.SideEffect
-	Reversibility             = toolrest.Reversibility
+	Definition                = restdef.Definition
+	Client                    = restdef.Client
+	Resource                  = restdef.Resource
+	Operation                 = restdef.Operation
+	StatusMapping             = restdef.StatusMapping
+	AuthProfile               = restdef.AuthProfile
+	LimitProfile              = restdef.LimitProfile
+	RedirectPolicy            = restdef.RedirectPolicy
+	NetworkPolicy             = restdef.NetworkPolicy
+	RetryPolicy               = restdef.RetryPolicy
+	RequestBinding            = restdef.RequestBinding
+	ResponseMapping           = restdef.ResponseMapping
+	AsyncClientConfig         = restdef.AsyncClientConfig
+	SideEffect                = restdef.SideEffect
+	Reversibility             = restdef.Reversibility
 	ClientOperationDefinition = toolrest.ClientOperationDefinition
 	ClientToolConfig          = toolrest.ClientToolConfig
 	ClientBuilder             = toolrest.ClientBuilder
 	CompensationExecutor      = toolrest.CompensationExecutor
 	AsyncState                = toolrest.AsyncState
 	AsyncRequest              = toolrest.AsyncRequest
-	CredentialResolver        = toolrest.CredentialResolver
-	StaticCredentials         = toolrest.StaticCredentials
+	CredentialResolver        = credentials.Resolver
+	StaticCredentials         = credentials.Static
 	Collection                = toolrest.Collection
 )
 

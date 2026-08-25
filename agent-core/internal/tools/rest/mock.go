@@ -7,10 +7,11 @@ import (
 	"fmt"
 	"net/http"
 
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	restmock "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/mock"
 )
 
-func newMockState(endpoints map[string]Endpoint) (MockEngine, error) {
+func newMockState(endpoints map[string]restdef.Endpoint) (MockEngine, error) {
 	specs := make([]restmock.EndpointSpec, 0, len(endpoints))
 	for name, endpoint := range endpoints {
 		if endpoint.Binding != bindingMock {
@@ -21,11 +22,7 @@ func newMockState(endpoints map[string]Endpoint) (MockEngine, error) {
 	return restmock.New(specs)
 }
 
-func mockRoutes(name string, cfg *MockConfig) ([]restmock.Route, error) {
-	return restmock.LoadRoutes(name, toMockConfig(cfg))
-}
-
-func toMockConfig(cfg *MockConfig) *restmock.Config {
+func toMockConfig(cfg *restdef.MockConfig) *restmock.Config {
 	if cfg == nil {
 		return nil
 	}
@@ -38,7 +35,7 @@ func toMockConfig(cfg *MockConfig) *restmock.Config {
 	return out
 }
 
-func toMockResponses(responses []MockResponse) []restmock.Response {
+func toMockResponses(responses []restdef.MockResponse) []restmock.Response {
 	out := make([]restmock.Response, 0, len(responses))
 	for _, response := range responses {
 		out = append(out, restmock.Response{

@@ -6,15 +6,17 @@ package rest
 import (
 	"context"
 	"encoding/json"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
-	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
-	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
 )
 
 func requestMachineSpec() *core.MachineSpec {
@@ -127,33 +129,33 @@ type errCommandFailed struct{}
 
 func (errCommandFailed) Error() string { return "command failed" }
 
-func machineRequestDefinitionWithPath(path string) Definition {
-	return Definition{
+func machineRequestDefinitionWithPath(path string) restdef.Definition {
+	return restdef.Definition{
 		Version: "v1",
-		Servers: map[string]Server{"machine": {
+		Servers: map[string]restdef.Server{"machine": {
 			Address: "127.0.0.1:0",
-			Endpoints: map[string]Endpoint{"document": {
+			Endpoints: map[string]restdef.Endpoint{"document": {
 				Method: "GET", Path: path, Binding: bindingMachineRequest,
-				Request:        RequestBinding{Path: map[string]interface{}{"path": map[string]interface{}{"type": "string"}}},
+				Request:        restdef.RequestBinding{Path: map[string]interface{}{"path": map[string]interface{}{"type": "string"}}},
 				MachineRequest: machineRequestConfig("DocumentationReady", 0, false),
 			}},
 		}},
 	}
 }
 
-func openAPIMachineRequestDefinition(cfg MachineRequest) Definition {
-	return Definition{
+func openAPIMachineRequestDefinition(cfg restdef.MachineRequest) restdef.Definition {
+	return restdef.Definition{
 		Version: "v1",
-		OpenAPI: map[string]OpenAPIImport{"docs": {
+		OpenAPI: map[string]restdef.OpenAPIImport{"docs": {
 			Path: "docs.yaml",
 			Bind: map[string]string{"readDocument": "document"},
 		}},
-		Servers: map[string]Server{"machine": {
+		Servers: map[string]restdef.Server{"machine": {
 			Address: "127.0.0.1:0",
-			Endpoints: map[string]Endpoint{"document": {
+			Endpoints: map[string]restdef.Endpoint{"document": {
 				Binding:        bindingMachineRequest,
 				MachineRequest: cfg,
-				Response:       ResponseMapping{Output: map[string]string{"path": "$.path"}},
+				Response:       restdef.ResponseMapping{Output: map[string]string{"path": "$.path"}},
 			}},
 		}},
 	}
@@ -230,9 +232,9 @@ func tempProfileDir(t *testing.T) string {
 	return t.TempDir()
 }
 
-func unresolvedResponseConfig() MachineRequest {
-	cfg := MachineRequest{Profile: "profile.yaml"}
-	cfg.Response.TerminalSignals = map[string]MachineResponseMapping{"UnknownReady": {Status: 200}}
+func unresolvedResponseConfig() restdef.MachineRequest {
+	cfg := restdef.MachineRequest{Profile: "profile.yaml"}
+	cfg.Response.TerminalSignals = map[string]restdef.MachineResponseMapping{"UnknownReady": {Status: 200}}
 	return cfg
 }
 

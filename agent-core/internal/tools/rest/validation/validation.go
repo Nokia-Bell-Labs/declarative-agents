@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-package rest
+package validation
 
 import (
 	"fmt"
@@ -910,13 +910,6 @@ func validateShutdownConfig(name string, shutdown ShutdownConfig) error {
 		return fmt.Errorf("server %q shutdown.queue_on_shutdown is not supported", name)
 	}
 	return nil
-}
-
-func shutdownDrainPolicy(shutdown ShutdownConfig) string {
-	if shutdown.DrainPolicy != "" {
-		return shutdown.DrainPolicy
-	}
-	return shutdownPolicyDrainThenStop
 }
 
 func validateLifecycleControlEndpoint(name string, endpoint Endpoint) error {

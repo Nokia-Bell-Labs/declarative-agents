@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 const signalSourceTraceLimit = 128
@@ -27,7 +27,7 @@ func (r *serverRuntime) handleSignalSource(
 	w http.ResponseWriter,
 	req *http.Request,
 	route string,
-	endpoint Endpoint,
+	endpoint restdef.Endpoint,
 	requestPayload map[string]interface{},
 ) {
 	requestID := signalSourceRequestID(req.Header.Get("X-Request-ID"))
@@ -53,7 +53,7 @@ func (r *serverRuntime) runMappedSignalSource(
 	w http.ResponseWriter,
 	req *http.Request,
 	ctx context.Context,
-	cfg SignalSourceBinding,
+	cfg restdef.SignalSourceBinding,
 	envelope core.SignalEnvelope,
 	start time.Time,
 	finish func(signalSourceTrace),
@@ -78,7 +78,7 @@ func (r *serverRuntime) runMappedSignalSource(
 
 func (r *serverRuntime) writeMappedSignalValidationError(
 	w http.ResponseWriter,
-	cfg SignalSourceBinding,
+	cfg restdef.SignalSourceBinding,
 	envelope core.SignalEnvelope,
 	err error,
 	start time.Time,
@@ -95,7 +95,7 @@ func (r *serverRuntime) writeMappedSignalValidationError(
 
 func (r *serverRuntime) writeUndeclaredSignalSource(
 	w http.ResponseWriter,
-	cfg SignalSourceBinding,
+	cfg restdef.SignalSourceBinding,
 	envelope core.SignalEnvelope,
 	start time.Time,
 	finish func(signalSourceTrace),
@@ -113,7 +113,7 @@ func (r *serverRuntime) writeUndeclaredSignalSource(
 
 func (r *serverRuntime) writeUnavailableSignalSource(
 	w http.ResponseWriter,
-	cfg SignalSourceBinding,
+	cfg restdef.SignalSourceBinding,
 	envelope core.SignalEnvelope,
 	start time.Time,
 	finish func(signalSourceTrace),
@@ -132,7 +132,7 @@ func (r *serverRuntime) handleSignalSourceValidationError(
 	w http.ResponseWriter,
 	req *http.Request,
 	route string,
-	endpoint Endpoint,
+	endpoint restdef.Endpoint,
 	err error,
 ) {
 	requestID := signalSourceRequestID(req.Header.Get("X-Request-ID"))
@@ -150,7 +150,7 @@ func (r *serverRuntime) handleSignalSourceValidationError(
 }
 
 func mapSignalSourceRequest(
-	cfg SignalSourceBinding,
+	cfg restdef.SignalSourceBinding,
 	route string,
 	requestID string,
 	request map[string]interface{},
@@ -182,7 +182,7 @@ func mapSignalSourceRequest(
 
 func mapSignalExpectedState(
 	request map[string]interface{},
-	cfg SignalSourceBinding,
+	cfg restdef.SignalSourceBinding,
 	envelope *core.SignalEnvelope,
 ) error {
 	if cfg.ExpectedStateField == "" {
@@ -198,7 +198,7 @@ func mapSignalExpectedState(
 
 func mapSignalPayload(
 	request map[string]interface{},
-	cfg SignalSourceBinding,
+	cfg restdef.SignalSourceBinding,
 	envelope *core.SignalEnvelope,
 ) error {
 	payload := make(map[string]interface{}, len(cfg.Payload))
@@ -282,9 +282,9 @@ func signalSourceResponseKind(admission core.SignalAdmission) string {
 }
 
 func signalSourceResponse(
-	responses SignalSourceResponseMappings,
+	responses restdef.SignalSourceResponseMappings,
 	kind string,
-) SignalSourceResponse {
+) restdef.SignalSourceResponse {
 	switch kind {
 	case "accepted":
 		return responses.Accepted
@@ -305,7 +305,7 @@ func signalSourceResponse(
 
 func (r *serverRuntime) writeSignalSourceResponse(
 	w http.ResponseWriter,
-	cfg SignalSourceBinding,
+	cfg restdef.SignalSourceBinding,
 	envelope core.SignalEnvelope,
 	result signalSourceResult,
 ) {

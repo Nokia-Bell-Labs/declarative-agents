@@ -14,19 +14,19 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.opentelemetry.io/otel"
-	oteltrace "go.opentelemetry.io/otel/trace"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry/genai"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"go.opentelemetry.io/otel"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 func (r *serverRuntime) handleMachineRequest(
 	w http.ResponseWriter,
 	req *http.Request,
 	name string,
-	endpoint Endpoint,
+	endpoint restdef.Endpoint,
 	payload map[string]interface{},
 ) {
 	ctx, cancel := context.WithTimeout(req.Context(), r.machineRequestTimeout(endpoint))
@@ -104,7 +104,7 @@ func machineRequestIdentity(requestID string) (string, string) {
 	return requestID, requestID
 }
 
-func (r *serverRuntime) machineRequestTimeout(endpoint Endpoint) time.Duration {
+func (r *serverRuntime) machineRequestTimeout(endpoint restdef.Endpoint) time.Duration {
 	if timeout := parseDuration(endpoint.MachineRequest.Timeout, 0); timeout > 0 {
 		return timeout
 	}
@@ -116,7 +116,7 @@ func (r *serverRuntime) machineRequestTimeout(endpoint Endpoint) time.Duration {
 
 func (r *serverRuntime) writeMachineResponse(
 	w http.ResponseWriter,
-	endpoint Endpoint,
+	endpoint restdef.Endpoint,
 	result MachineRequestResult,
 ) {
 	mapping, _, ok := endpoint.MachineRequest.Response.ResponseMapping(
@@ -149,7 +149,7 @@ func (r *serverRuntime) writeMachineResponse(
 	writeMachineJSON(w, status, body)
 }
 
-func validateMachineResponseBody(mapping MachineResponseMapping, body map[string]interface{}) error {
+func validateMachineResponseBody(mapping restdef.MachineResponseMapping, body map[string]interface{}) error {
 	if len(mapping.Schema) == 0 {
 		return nil
 	}
@@ -159,7 +159,7 @@ func validateMachineResponseBody(mapping MachineResponseMapping, body map[string
 	return nil
 }
 
-func machineResponseBody(mapping MachineResponseMapping, result MachineRequestResult) map[string]interface{} {
+func machineResponseBody(mapping restdef.MachineResponseMapping, result MachineRequestResult) map[string]interface{} {
 	body := map[string]interface{}{}
 	for name, selector := range mapping.Body {
 		body[name] = machineSelectorValue(selector, result.Output)
@@ -190,7 +190,7 @@ func machineSelectorValue(selector string, output map[string]interface{}) interf
 	return value
 }
 
-func machineRequestPayload(mapping MachineRequestMapping, payload map[string]interface{}) map[string]interface{} {
+func machineRequestPayload(mapping restdef.MachineRequestMapping, payload map[string]interface{}) map[string]interface{} {
 	out := map[string]interface{}{}
 	copyMappedValues(out, payload, "body", mapping.Body)
 	copyMappedValues(out, payload, "query", mapping.Query)

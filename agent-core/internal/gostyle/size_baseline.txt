@@ -5,7 +5,7 @@ file:cmd/agent/main.go
 file:internal/runtime/checkpoint/dolt/dolt_checkpoint.go
 file:internal/tools/rest/factories.go
 file:internal/tools/rest/server_routes.go
-file:internal/tools/rest/validation.go
+file:internal/tools/rest/validation/validation.go
 func:cmd/agent/main.go:buildPreparedRun
 func:internal/evaluation/eval_convergence.go:classifyTool
 func:internal/evaluation/eval_convergence.go:deriveOverall
@@ -29,7 +29,7 @@ func:internal/support/subprocess/subprocess.go:Run
 func:internal/tools/catalog/emits.go:ValidateToolEmits
 func:internal/tools/catalog/tooldef.go:ExtractParamMappings
 func:internal/tools/rest/server_routes.go:proxyMonitor
-func:internal/tools/rest/validation.go:validateEndpoint
+func:internal/tools/rest/validation/validation.go:validateEndpoint
 func:pkg/spec/corpus.go:LoadCorpus
 func:pkg/spec/corpus.go:discoverAndParseMachines
 func:pkg/spec/corpus.go:validate
