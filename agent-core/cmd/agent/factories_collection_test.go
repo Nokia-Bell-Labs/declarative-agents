@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -97,6 +98,36 @@ func TestFactoryRegistrarsProbeTwiceWithZeroValueDeps(t *testing.T) {
 		second = catalogInitSets(standardCatalog(st))
 	})
 	require.Equal(t, first, second)
+}
+
+func TestCatalogProbeDoesNotWriteServiceReap(t *testing.T) {
+	t.Parallel()
+	st := &agentState{}
+	kept := false
+	st.reapServices = func() { kept = true }
+	_ = standardCatalog(st)
+	registerServiceFactories(st)(toolregistry.NewBuiltinRegistry())
+	st.reapServices()
+	require.True(t, kept)
+}
+
+func TestNewAgentStateServiceStateSurvivesCatalogProbe(t *testing.T) {
+	t.Parallel()
+	st := newAgentState(runtimeConfig{}, agentStateDeps{Ctx: context.Background()})
+	require.NotNil(t, st.services)
+	require.NotNil(t, st.reapServices)
+	svc := st.services
+	_ = standardCatalog(st)
+	registerServiceFactories(st)(toolregistry.NewBuiltinRegistry())
+	require.Same(t, svc, st.services)
+}
+
+func TestRequestLocalStateAllocatesOwnServiceState(t *testing.T) {
+	t.Parallel()
+	host := newAgentState(runtimeConfig{}, agentStateDeps{Ctx: context.Background()})
+	local := requestLocalState(host, core.NewRegistry())
+	require.NotNil(t, local.services)
+	require.NotSame(t, host.services, local.services)
 }
 
 func catalogInitSets(entries []toolregistry.StandardFactoryCatalogEntry) [][]string {
