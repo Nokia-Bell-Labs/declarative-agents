@@ -29,8 +29,8 @@ import (
 func TestRequestSignalSource_ModelFreeProfile(t *testing.T) {
 	prepared := prepareRequestSignalFixture(t, "")
 	require.NotNil(t, prepared.State.conversation, "a conversation container may exist without a model client")
-	require.Empty(t, prepared.State.model)
-	require.Empty(t, prepared.State.providerName)
+	require.Empty(t, prepared.State.ensureResolved().Model)
+	require.Empty(t, prepared.State.ensureResolved().ProviderName)
 	_, modelRegistered := prepared.State.registry.Resolve("invoke_llm")
 	require.False(t, modelRegistered)
 

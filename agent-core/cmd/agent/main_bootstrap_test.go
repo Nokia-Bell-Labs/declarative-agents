@@ -208,6 +208,10 @@ func TestBuiltinFactoryCatalogSelectsEntriesByInit(t *testing.T) {
 	require.True(t, byName["compose"].selectedBy(map[string]bool{"render_each": true}))
 	require.True(t, byName["control"].selectedBy(map[string]bool{"self_invoke": true}))
 	require.True(t, byName["dolt"].selectedBy(map[string]bool{"dolt_query": true}))
+	require.True(t, byName["llm"].selectedBy(map[string]bool{"done": true}))
+	require.True(t, byName["llm"].selectedBy(map[string]bool{"nudge_reread": true}))
+	require.False(t, byName["control"].selectedBy(map[string]bool{"done": true}))
+	require.False(t, byName["control"].selectedBy(map[string]bool{"nudge_reread": true}))
 	require.False(t, byName["planning"].selectedBy(map[string]bool{"list_evaluation_sessions": true}))
 }
 

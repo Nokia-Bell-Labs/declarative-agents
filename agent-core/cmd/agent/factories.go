@@ -83,6 +83,25 @@ func registerOTLPFactories() toolregistry.FactoryRegistrar {
 	}
 }
 
+func registerLLMFactories(st *agentState) toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		provider, resolver := llmConversationReferencePorts(st)
+		toollm.RegisterFactories(br, toollm.FactoryDeps{
+			Ctx:                  st.ctx,
+			Tracer:               st.tracer,
+			Registry:             st.registry,
+			Conversation:         st.conversation,
+			IsolateConversations: st.isolateConversations,
+			CaptureLevel:         st.captureLevel,
+			ParseRetries:         st.parseRetries,
+			ConversationRefs: toollm.ReferencePorts{
+				Provider: provider, Resolver: resolver,
+			},
+			Resolved: st.ensureResolved(),
+		})
+	}
+}
+
 func registerLifecycleFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		lifecycle.RegisterFactories(br, lifecycle.FactoryDeps{
@@ -232,16 +251,16 @@ func profileMachineRequestRunner(st *agentState) toolrest.MachineRequestRunner {
 // requestLocalState returns a per-request agentState for machine_request tool
 // factories. It shares the host's immutable deps (tracer, capture level, ctx,
 // directories) but binds tool construction to the request's own registry and a
-// fresh conversation and parse-retry and manifest-state tracker, so
+// fresh conversation, parse-retry tracker, and ResolvedModel, so
 // parse_response and $tool resolve the tool vocabulary against the request
 // registry and the request's invoke_llm words neither share history with the
-// host agent nor leak state across requests.
+// host agent nor leak parser or model state across requests.
 func requestLocalState(host *agentState, reg *core.Registry) *agentState {
 	local := *host
 	local.registry = reg
 	local.conversation = llm.NewConversation(nil, "", llm.ChatOptions{})
 	local.isolateConversations = true
-	local.manifestState = ""
+	local.resolved = &toollm.ResolvedModel{}
 	local.validation = nil
 	maxConsecutive := 0
 	if host.parseRetries != nil {
