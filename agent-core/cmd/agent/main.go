@@ -29,6 +29,7 @@ import (
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/service"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/version"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profileaudit"
@@ -146,6 +147,7 @@ type agentState struct {
 	restDefs            toolrest.Collection
 	signalSourceRunner  toolrest.SignalSourceRunner
 	shutdown            func()
+	services            *service.State
 	reapServices        func()
 }
 
@@ -846,7 +848,7 @@ func checkpointOrNoop(cp core.Checkpoint) core.Checkpoint {
 }
 
 func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
-	return &agentState{
+	st := &agentState{
 		conversation:        llm.NewConversation(nil, "", llm.ChatOptions{}),
 		registry:            deps.Registry,
 		tracer:              deps.Tracer,
@@ -869,6 +871,8 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		signalSourceRunner:  deps.SignalSourceRunner,
 		shutdown:            deps.shutdown,
 	}
+	bindServiceState(st)
+	return st
 }
 
 func registerRuntimeTools(reg *core.Registry, builtins *toolregistry.BuiltinRegistry, cfg runtimeConfig, machine core.MachineSpec, defs []catalog.ToolDef) error {

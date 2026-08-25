@@ -94,17 +94,19 @@ func registerLifecycleFactories(st *agentState) toolregistry.FactoryRegistrar {
 	}
 }
 
-// registerServiceFactories registers the rig's service words. One service
-// state and one scenario session are shared across the family, so every child
-// a run starts stays reachable for teardown.
+func bindServiceState(st *agentState) {
+	state := service.NewStateWithContext(st.ctx)
+	st.services = state
+	st.reapServices = func() { state.Reap() }
+}
+
+// registerServiceFactories registers the rig's service words against the
+// service state allocated on agentState, so every child a run starts stays
+// reachable for teardown.
 func registerServiceFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
-		state := service.NewStateWithContext(st.ctx)
-		st.reapServices = func() { state.Reap() }
 		service.RegisterBuiltins(br, service.FactoryDeps{
-			State:    state,
-			Session:  service.NewScenarioSession(state),
-			CoreRoot: st.coreRoot,
+			State: st.services, CoreRoot: st.coreRoot,
 		})
 	}
 }
@@ -176,10 +178,10 @@ func profileMachineRequestRunner(st *agentState) toolrest.MachineRequestRunner {
 // requestLocalState returns a per-request agentState for machine_request tool
 // factories. It shares the host's immutable deps (tracer, capture level, ctx,
 // directories) but binds tool construction to the request's own registry and a
-// fresh conversation, parse-retry tracker, and ResolvedModel, so
+// fresh conversation, parse-retry tracker, ResolvedModel, and service State, so
 // parse_response and $tool resolve the tool vocabulary against the request
 // registry and the request's invoke_llm words neither share history with the
-// host agent nor leak parser or model state across requests.
+// host agent nor leak parser, model, or child-process state across requests.
 func requestLocalState(host *agentState, reg *core.Registry) *agentState {
 	local := *host
 	local.registry = reg
@@ -192,5 +194,6 @@ func requestLocalState(host *agentState, reg *core.Registry) *agentState {
 		maxConsecutive = host.parseRetries.MaxConsecutive
 	}
 	local.parseRetries = &toollm.ParseErrorRetryTracker{MaxConsecutive: maxConsecutive}
+	bindServiceState(&local)
 	return &local
 }
