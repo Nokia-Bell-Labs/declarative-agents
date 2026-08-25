@@ -118,6 +118,17 @@ func (s *ServerState) runtime(name string) (*serverRuntime, error) {
 	return runtime, nil
 }
 
+// ActiveStreamCount returns the number of in-flight stream handlers on a launched server.
+func (s *ServerState) ActiveStreamCount(name string) (int, error) {
+	runtime, err := s.runtime(name)
+	if err != nil {
+		return 0, err
+	}
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	return runtime.activeStreams, nil
+}
+
 // RestoreEvent returns a receipt-recorded event to the front of its source's
 // pending queue so rollback preserves the order of remaining events.
 func (s *ServerState) RestoreEvent(name string, event InboundEvent) error {

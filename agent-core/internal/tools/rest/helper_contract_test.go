@@ -23,7 +23,10 @@ func TestTestingHelpersAttributeFailuresToCallers(t *testing.T) {
 	restTests, err := filepath.Glob(filepath.Join(restDir, "*_test.go"))
 	require.NoError(t, err)
 	require.NotEmpty(t, restTests)
-	files := restTests
+	resttestFiles, err := filepath.Glob(filepath.Join(restDir, "resttest", "*.go"))
+	require.NoError(t, err)
+	require.NotEmpty(t, resttestFiles)
+	files := append(restTests, resttestFiles...)
 
 	var missing []string
 	for _, path := range files {

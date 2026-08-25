@@ -4,7 +4,6 @@
 file:cmd/agent/main.go
 file:internal/runtime/checkpoint/dolt/dolt_checkpoint.go
 file:internal/tools/rest/client_command.go
-file:internal/tools/rest/collection.go
 file:internal/tools/rest/factories.go
 file:internal/tools/rest/server_routes.go
 file:internal/tools/rest/validation.go
@@ -30,7 +29,6 @@ func:internal/runtime/core/machine.go:validateSpec
 func:internal/support/subprocess/subprocess.go:Run
 func:internal/tools/catalog/emits.go:ValidateToolEmits
 func:internal/tools/catalog/tooldef.go:ExtractParamMappings
-func:internal/tools/rest/collection.go:RunMachineRequest
 func:internal/tools/rest/server_routes.go:proxyMonitor
 func:internal/tools/rest/validation.go:validateEndpoint
 func:pkg/spec/corpus.go:LoadCorpus

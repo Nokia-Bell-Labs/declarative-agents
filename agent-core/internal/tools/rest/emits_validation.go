@@ -90,6 +90,11 @@ func serverEndpointSignals(server Server) []string {
 	return signals
 }
 
+// ServerEndpointSignals returns the grammar signals a server's endpoints may emit.
+func ServerEndpointSignals(server Server) []string {
+	return serverEndpointSignals(server)
+}
+
 func endpointSignals(endpoint Endpoint) []string {
 	signals := []string{lifecycleSignal(endpoint)}
 	signals = append(signals, endpoint.AllowedSignals...)

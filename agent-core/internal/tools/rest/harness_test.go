@@ -250,13 +250,8 @@ func streamResponse(url string, bodyC chan<- string, errC chan<- error) {
 func requireActiveStreams(t *testing.T, state *ServerState, name string, want int) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		runtime, err := state.runtime(name)
-		if err != nil {
-			return false
-		}
-		runtime.mu.Lock()
-		defer runtime.mu.Unlock()
-		return runtime.activeStreams == want
+		got, err := state.ActiveStreamCount(name)
+		return err == nil && got == want
 	}, 500*time.Millisecond, 10*time.Millisecond)
 }
 

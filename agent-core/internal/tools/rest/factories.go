@@ -327,35 +327,6 @@ func configuredPath(base, path string) string {
 	return filepath.Join(base, path)
 }
 
-// ClientToolConfig holds REST client ToolDef config.
-type ClientToolConfig struct {
-	RestRef   string `json:"rest_ref"`
-	Resource  string `json:"resource"`
-	Operation string `json:"operation"`
-}
-
-// ServerToolConfig holds REST server ToolDef config.
-type ServerToolConfig struct {
-	RestRef string `json:"rest_ref"`
-}
-
-// AwaitEventToolConfig holds REST event fan-in ToolDef config.
-type AwaitEventToolConfig struct {
-	Sources         []AwaitEventSourceConfig `json:"sources"`
-	AllowedSignals  []string                 `json:"allowed_signals"`
-	Timeout         string                   `json:"timeout"`
-	ReadPolicy      string                   `json:"read_policy"`
-	StoppedBehavior string                   `json:"stopped_behavior"`
-}
-
-// AwaitEventSourceConfig selects one REST server source.
-type AwaitEventSourceConfig struct {
-	Server          string   `json:"server"`
-	Routes          []string `json:"routes"`
-	Signals         []string `json:"signals"`
-	StoppedBehavior string   `json:"stopped_behavior"`
-}
-
 // RegisterFactories registers REST builtin factories.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	if deps.ServerState == nil {
@@ -487,7 +458,7 @@ func awaitAnyOptions(toolName string, cfg AwaitEventToolConfig, defs Collection)
 	if len(cfg.Sources) == 0 {
 		return AwaitAnyOptions{}, fmt.Errorf("tool %q config requires sources", toolName)
 	}
-	timeout, err := awaitTimeout(toolName, cfg.Timeout)
+	timeout, err := parseAwaitTimeout(toolName, cfg.Timeout)
 	if err != nil {
 		return AwaitAnyOptions{}, err
 	}
@@ -536,7 +507,7 @@ func awaitSourceConfig(
 	}, nil
 }
 
-func awaitTimeout(toolName, value string) (time.Duration, error) {
+func parseAwaitTimeout(toolName, value string) (time.Duration, error) {
 	if value == "" {
 		return 0, nil
 	}
