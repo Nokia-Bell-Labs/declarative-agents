@@ -12,6 +12,8 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
 const (
@@ -44,7 +46,7 @@ type FactoryDeps struct {
 	SignalSourceRunner SignalSourceRunner
 	Monitor            MonitorState
 	RunID              string
-	CredentialResolver CredentialResolver
+	CredentialResolver credentials.Resolver
 }
 
 // BuiltinRegistrar registers builtin factories for a selected tool set. The
@@ -89,25 +91,25 @@ func (r *ProfileMachineRequestRunner) RunMachineRequest(
 	return defaultMachineRequestRunner{}.RunMachineRequest(ctx, req)
 }
 
-func (r *ProfileMachineRequestRunner) prepareConfig(cfg MachineRequest) (MachineRequest, error) {
+func (r *ProfileMachineRequestRunner) prepareConfig(cfg restdef.MachineRequest) (restdef.MachineRequest, error) {
 	profilePath, profile, err := r.loadRequestProfile(cfg)
 	if err != nil {
-		return MachineRequest{}, err
+		return restdef.MachineRequest{}, err
 	}
 	machinePath := requestMachinePath(cfg, profile, filepath.Dir(profilePath))
 	machine, err := core.LoadMachineSpec(machinePath)
 	if err != nil {
-		return MachineRequest{}, fmt.Errorf("machine_config_invalid: load request machine: %w", err)
+		return restdef.MachineRequest{}, fmt.Errorf("machine_config_invalid: load request machine: %w", err)
 	}
 	if err := core.ValidateRequiredMachinePolicy(machine); err != nil {
-		return MachineRequest{}, fmt.Errorf("machine_config_invalid: request machine policy: %w", err)
+		return restdef.MachineRequest{}, fmt.Errorf("machine_config_invalid: request machine policy: %w", err)
 	}
 	if err := validateMachineResponses(machine, cfg.Response); err != nil {
-		return MachineRequest{}, err
+		return restdef.MachineRequest{}, err
 	}
 	reg, err := r.requestRegistry(profilePath, profile, machine)
 	if err != nil {
-		return MachineRequest{}, err
+		return restdef.MachineRequest{}, err
 	}
 	cfg.MachineSpec = &machine
 	cfg.Registry = reg
@@ -124,7 +126,7 @@ func (r *ProfileMachineRequestRunner) prepareConfig(cfg MachineRequest) (Machine
 }
 
 func (r *ProfileMachineRequestRunner) loadRequestProfile(
-	cfg MachineRequest,
+	cfg restdef.MachineRequest,
 ) (string, catalog.AgentProfile, error) {
 	if cfg.Profile == "" {
 		return "", catalog.AgentProfile{}, fmt.Errorf("machine_config_invalid: machine_request profile is required")
@@ -137,7 +139,7 @@ func (r *ProfileMachineRequestRunner) loadRequestProfile(
 	return path, profile, nil
 }
 
-func requestMachinePath(cfg MachineRequest, profile catalog.AgentProfile, profileDir string) string {
+func requestMachinePath(cfg restdef.MachineRequest, profile catalog.AgentProfile, profileDir string) string {
 	if cfg.Machine == "" {
 		return profile.Machine
 	}
@@ -297,7 +299,7 @@ func machineActionNames(machine core.MachineSpec) []string {
 // must be declared terminal -- a non-terminal state never ends a run, so a
 // mapping onto one is dead configuration that would surface as a
 // response_missing at request time instead of at load (srd030 R2.5; GH-615).
-func validateMachineResponses(machine core.MachineSpec, response MachineRequestResponse) error {
+func validateMachineResponses(machine core.MachineSpec, response restdef.MachineRequestResponse) error {
 	signals := map[string]bool{}
 	for _, signal := range machine.Signals.Names() {
 		signals[signal] = true
@@ -325,35 +327,6 @@ func configuredPath(base, path string) string {
 		return path
 	}
 	return filepath.Join(base, path)
-}
-
-// ClientToolConfig holds REST client ToolDef config.
-type ClientToolConfig struct {
-	RestRef   string `json:"rest_ref"`
-	Resource  string `json:"resource"`
-	Operation string `json:"operation"`
-}
-
-// ServerToolConfig holds REST server ToolDef config.
-type ServerToolConfig struct {
-	RestRef string `json:"rest_ref"`
-}
-
-// AwaitEventToolConfig holds REST event fan-in ToolDef config.
-type AwaitEventToolConfig struct {
-	Sources         []AwaitEventSourceConfig `json:"sources"`
-	AllowedSignals  []string                 `json:"allowed_signals"`
-	Timeout         string                   `json:"timeout"`
-	ReadPolicy      string                   `json:"read_policy"`
-	StoppedBehavior string                   `json:"stopped_behavior"`
-}
-
-// AwaitEventSourceConfig selects one REST server source.
-type AwaitEventSourceConfig struct {
-	Server          string   `json:"server"`
-	Routes          []string `json:"routes"`
-	Signals         []string `json:"signals"`
-	StoppedBehavior string   `json:"stopped_behavior"`
 }
 
 // RegisterFactories registers REST builtin factories.
@@ -487,7 +460,7 @@ func awaitAnyOptions(toolName string, cfg AwaitEventToolConfig, defs Collection)
 	if len(cfg.Sources) == 0 {
 		return AwaitAnyOptions{}, fmt.Errorf("tool %q config requires sources", toolName)
 	}
-	timeout, err := awaitTimeout(toolName, cfg.Timeout)
+	timeout, err := parseAwaitTimeout(toolName, cfg.Timeout)
 	if err != nil {
 		return AwaitAnyOptions{}, err
 	}
@@ -536,7 +509,7 @@ func awaitSourceConfig(
 	}, nil
 }
 
-func awaitTimeout(toolName, value string) (time.Duration, error) {
+func parseAwaitTimeout(toolName, value string) (time.Duration, error) {
 	if value == "" {
 		return 0, nil
 	}

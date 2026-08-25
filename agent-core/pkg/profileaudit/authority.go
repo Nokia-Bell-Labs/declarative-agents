@@ -226,7 +226,7 @@ func (i *inspector) inspectRESTServerLaunch(
 			continue
 		}
 		if err := i.inspectMachineRequestEndpoint(
-			closure, commandTimeout, def.Name, server, name, endpoint,
+			closure, commandTimeout, def.Name, server, name,
 		); err != nil {
 			return err
 		}
@@ -236,8 +236,9 @@ func (i *inspector) inspectRESTServerLaunch(
 
 func (i *inspector) inspectMachineRequestEndpoint(
 	closure loadedClosure, commandTimeout time.Duration, action string,
-	server toolrest.ServerDefinition, name string, endpoint toolrest.Endpoint,
+	server toolrest.ServerDefinition, name string,
 ) error {
+	endpoint := server.Server.Endpoints[name]
 	raw := endpoint.MachineRequest.Timeout
 	if raw == "" {
 		raw = server.Limits.Timeout

@@ -481,7 +481,7 @@ test_cases:
 
   - use_case: rel03.0-uc002-rest-client-async
     name: REST dispatch cancellation reaches request and retry transport
-    go_test: go test ./internal/tools/rest -run 'TestRESTClient(DispatchCancellation|CancelledMutation|ExecuteRetains)'
+    go_test: go test ./internal/tools/rest/client -run 'TestRESTClient(DispatchCancellation|CancelledMutation|ExecuteRetains)'
     status: done
     description: |
       Cancel dispatch during an in-flight HTTP request and a declared retry

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +16,7 @@ import (
 // config-validation time, so --validate-config cannot approve it (#510).
 func TestValidateEndpointRejectsUnknownBinding(t *testing.T) {
 	t.Parallel()
-	err := validateEndpoint("e", Endpoint{Method: "GET", Path: "/x", Binding: "totally_bogus"})
+	err := validateEndpoint("e", restdef.Endpoint{Method: "GET", Path: "/x", Binding: "totally_bogus"})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unknown binding")
 	require.Contains(t, err.Error(), "totally_bogus")
@@ -27,7 +28,7 @@ func TestValidateEndpointRejectsUnknownBinding(t *testing.T) {
 // with a path-specific diagnostic rather than defaulting into the 501 handler.
 func TestValidateEndpointRejectsEmptyBinding(t *testing.T) {
 	t.Parallel()
-	err := validateEndpoint("e", Endpoint{Method: "GET", Path: "/x"})
+	err := validateEndpoint("e", restdef.Endpoint{Method: "GET", Path: "/x"})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no binding")
 }
@@ -39,7 +40,7 @@ func TestValidateEndpointRejectsEmptyBinding(t *testing.T) {
 func TestValidateEndpointAcceptsEveryHandledBinding(t *testing.T) {
 	t.Parallel()
 	for binding := range handledServerBindings {
-		err := validateEndpoint("e", Endpoint{Method: "GET", Path: "/x", Binding: binding})
+		err := validateEndpoint("e", restdef.Endpoint{Method: "GET", Path: "/x", Binding: binding})
 		if err != nil {
 			require.NotContains(t, err.Error(), "unknown binding", "binding %q rejected as unknown", binding)
 			require.NotContains(t, err.Error(), "no binding", "binding %q rejected as empty", binding)
@@ -51,7 +52,7 @@ func TestValidateEndpointAcceptsEveryHandledBinding(t *testing.T) {
 // public ValidateDefinition entry point used by --validate-config.
 func TestValidateDefinitionRejectsUnknownBinding(t *testing.T) {
 	t.Parallel()
-	err := ValidateDefinition(singleServerDefinition(Endpoint{Method: "GET", Path: "/x", Binding: "nope"}))
+	err := ValidateDefinition(singleServerDefinition(restdef.Endpoint{Method: "GET", Path: "/x", Binding: "nope"}))
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "unknown binding"), "got: %v", err)
 }

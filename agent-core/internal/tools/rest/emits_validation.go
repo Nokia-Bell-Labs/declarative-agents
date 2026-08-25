@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
 func validateClientEmits(def catalog.ToolDef, init string, operation ClientOperationDefinition) error {
@@ -55,7 +56,7 @@ func validateAwaitAnyEmits(
 	return requireDeclaredSignals(def, actual, "REST event sources")
 }
 
-func awaitSourceSignals(server Server, routes []string) []string {
+func awaitSourceSignals(server restdef.Server, routes []string) []string {
 	if len(routes) == 0 {
 		return serverEndpointSignals(server)
 	}
@@ -73,7 +74,7 @@ func awaitSourceSignals(server Server, routes []string) []string {
 	return signals
 }
 
-func operationSignals(operation Operation) []string {
+func operationSignals(operation restdef.Operation) []string {
 	signals := []string{operation.Success.Signal}
 	for _, mapping := range operation.Failures {
 		signals = append(signals, mapping.Signal)
@@ -81,7 +82,7 @@ func operationSignals(operation Operation) []string {
 	return signals
 }
 
-func serverEndpointSignals(server Server) []string {
+func serverEndpointSignals(server restdef.Server) []string {
 	endpoints := injectLifecycleExit(server)
 	var signals []string
 	for _, endpoint := range endpoints {
@@ -90,7 +91,12 @@ func serverEndpointSignals(server Server) []string {
 	return signals
 }
 
-func endpointSignals(endpoint Endpoint) []string {
+// ServerEndpointSignals returns the grammar signals a server's endpoints may emit.
+func ServerEndpointSignals(server restdef.Server) []string {
+	return serverEndpointSignals(server)
+}
+
+func endpointSignals(endpoint restdef.Endpoint) []string {
 	signals := []string{lifecycleSignal(endpoint)}
 	signals = append(signals, endpoint.AllowedSignals...)
 	for _, signal := range endpoint.SignalMapping {

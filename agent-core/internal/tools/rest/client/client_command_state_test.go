@@ -1,0 +1,306 @@
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
+
+package client_test
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+)
+
+// TestRESTClient_CommandStateThreadsNonAdjacentStep proves the rest-tool-format
+// command_state_threading example validates and executes: a query word reaches
+// back past an intervening step to a labeled embed word through body_source
+// command_state and $from(embed_query) selectors, and the flat vector renders as
+// a nested array through the single-token raw passthrough (srd028 R13; srd038
+// R1-R3; rel07.0-uc001).
+func TestRESTClient_CommandStateThreadsNonAdjacentStep(t *testing.T) {
+	t.Parallel()
+
+	embedding := []interface{}{0.11, 0.22, 0.33}
+	embed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		require.Equal(t, "/api/embed", req.URL.Path)
+		writeJSON(w, http.StatusOK, map[string]interface{}{"embedding": embedding})
+	}))
+	defer embed.Close()
+
+	var queryBody map[string]interface{}
+	var queryPath string
+	query := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		queryPath = req.URL.Path
+		require.NoError(t, json.NewDecoder(req.Body).Decode(&queryBody))
+		writeJSON(w, http.StatusOK, map[string]interface{}{"ids": []interface{}{"doc-7"}})
+	}))
+	defer query.Close()
+
+	def := commandStateDefinition(t, embed.URL, query.URL)
+
+	// Word 1: embed_query produces the vector and carries the input text forward.
+	embedResult := threadingCommand(
+		resolveThreadingOp(t, def, "ollama", "embed_query"),
+		seedParameters(t, map[string]interface{}{"model": "all-minilm", "input": "corpus-a"}),
+	).Execute()
+	require.Equal(t, core.Signal("RESTResponded"), embedResult.Signal, embedResult.Output)
+
+	// The store view holds embed_query and a later intervening step, so word 3
+	// resolves embed_query non-adjacently by label.
+	view := core.NewCommandStateView(core.Execution{
+		{CommandName: "embed_query", Result: commandStateDigest(embedResult.Output)},
+		{CommandName: "record_event", Result: commandStateDigest(`{"status":"logged"}`)},
+	})
+
+	queryCmd := threadingCommand(resolveThreadingOp(t, def, "chroma", "query_collection"), core.Result{})
+	queryCmd.(core.CommandStateAware).SetCommandState(view)
+	queryResult := queryCmd.Execute()
+	require.Equal(t, core.Signal("RESTResponded"), queryResult.Signal, queryResult.Output)
+
+	require.Equal(t, "/query/corpus-a", queryPath)
+	require.Equal(t, []interface{}{embedding}, queryBody["query_embeddings"])
+	require.EqualValues(t, 5, queryBody["n_results"])
+}
+
+func TestRESTClient_CommandStateSelectsTrustedBaseURL(t *testing.T) {
+	t.Parallel()
+
+	var requests int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		requests++
+		require.Equal(t, "/healthz", req.URL.Path)
+		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "healthy"})
+	}))
+	defer server.Close()
+
+	def := dynamicTargetDefinition(t, "http://127.0.0.1:1", AuthProfile{Type: authNone})
+	op := resolveThreadingOp(t, def, "subject", "probe")
+	cmd := threadingCommand(op, core.Result{})
+	cmd.(core.CommandStateAware).SetCommandState(core.NewCommandStateView(core.Execution{{
+		CommandName: "start_subject",
+		Result:      commandStateDigest(`{"base_url":` + jsonString(t, server.URL) + `}`),
+	}}))
+
+	result := cmd.Execute()
+	require.Equal(t, core.Signal("Healthy"), result.Signal, result.Output)
+	require.Equal(t, 1, requests)
+	require.Contains(t, result.Output, `"selected_authority":"`+server.URL)
+	require.NotContains(t, result.Output, "/healthz")
+}
+
+func TestRESTClient_CommandStateBaseURLRejectsUnsafeValuesBeforeIO(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		output  string
+		message string
+	}{
+		{name: "missing label", output: "", message: `no prior step labeled "start_subject"`},
+		{name: "non string", output: `{"base_url":42}`, message: "resolved to float64, want string"},
+		{name: "empty", output: `{"base_url":" "}`, message: "resolved to an empty URL"},
+		{name: "relative", output: `{"base_url":"/local"}`, message: "must be an absolute HTTP URL"},
+		{name: "unsafe scheme", output: `{"base_url":"file:///tmp/service"}`, message: `scheme "file" is not allowed`},
+		{name: "userinfo", output: `{"base_url":"http://user:secret@127.0.0.1:1"}`, message: "must not contain user information"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			def := dynamicTargetDefinition(t, "http://127.0.0.1:1", AuthProfile{Type: authNone})
+			op := resolveThreadingOp(t, def, "subject", "probe")
+			cmd := threadingCommand(op, core.Result{})
+			execution := core.Execution{}
+			if tc.output != "" {
+				execution = append(execution, core.Entry{
+					CommandName: "start_subject",
+					Result:      commandStateDigest(tc.output),
+				})
+			}
+			cmd.(core.CommandStateAware).SetCommandState(core.NewCommandStateView(execution))
+			result := cmd.Execute()
+			require.Equal(t, core.CommandError, result.Signal, result.Output)
+			require.ErrorContains(t, result.Err, tc.message)
+			require.Contains(t, result.Output, `"failure_stage":"target_resolution"`)
+		})
+	}
+}
+
+func TestRESTClient_CommandStateBaseURLGuardsCredentialScope(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("request must not be sent when credential scope changes")
+	}))
+	defer server.Close()
+
+	def := dynamicTargetDefinition(t, "https://api.example.invalid", AuthProfile{Type: authBearer, TokenRef: "token"})
+	op := resolveThreadingOp(t, def, "subject", "probe")
+	cmd := ClientBuilder{
+		ToolName: "probe", Init: InitClientInvoke, Operation: op,
+		Credentials: StaticCredentials{"token": "top-secret"},
+	}.Build(core.Result{})
+	cmd.(core.CommandStateAware).SetCommandState(core.NewCommandStateView(core.Execution{{
+		CommandName: "start_subject",
+		Result:      commandStateDigest(`{"base_url":` + jsonString(t, server.URL) + `}`),
+	}}))
+
+	result := cmd.Execute()
+	require.Equal(t, core.CommandError, result.Signal, result.Output)
+	require.ErrorContains(t, result.Err, "differs from credential scope")
+	require.NotContains(t, result.Output, "top-secret")
+}
+
+// TestRESTClient_CommandStateRejectionTable covers the R13.3 / V32 rejections
+// enforced at definition validation time: undeclared and authority targets, a
+// malformed $from, a $.-style selector under command_state, and a $from selector
+// under previous_result.
+func TestRESTClient_CommandStateRejectionTable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		mutate  func(op *Operation)
+		message string
+	}{
+		{
+			name:    "undeclared input_mapping target",
+			mutate:  func(op *Operation) { op.Params.InputMapping["unknown"] = "$from(embed_query).embedding" },
+			message: "input_mapping target \"unknown\" is not declared",
+		},
+		{
+			name:    "transport authority target",
+			mutate:  func(op *Operation) { op.Params.InputMapping["url"] = "$from(embed_query).embedding" },
+			message: "input_mapping target \"url\" cannot set REST authority",
+		},
+		{
+			name:    "malformed $from selector",
+			mutate:  func(op *Operation) { op.Params.InputMapping["query_embeddings"] = "$from(embed_query" },
+			message: "must be a $from(label).path selector under body_source command_state",
+		},
+		{
+			name:    "$. selector under command_state",
+			mutate:  func(op *Operation) { op.Params.InputMapping["query_embeddings"] = "$.embedding" },
+			message: "must be a $from(label).path selector under body_source command_state",
+		},
+		{
+			name: "$from selector under previous_result",
+			mutate: func(op *Operation) {
+				op.Params.BodySource = bodySourcePreviousResult
+				op.Params.InputMapping["query_embeddings"] = "$from(embed_query).embedding"
+			},
+			message: "must use the $. prefix",
+		},
+		{
+			name:    "base URL selector without source",
+			mutate:  func(op *Operation) { op.BaseURLSelector = "$from(start_subject).base_url" },
+			message: "base_url_selector requires base_url_source command_state",
+		},
+		{
+			name: "malformed base URL selector",
+			mutate: func(op *Operation) {
+				op.BaseURLSource = bodySourceCommandState
+				op.BaseURLSelector = "$.base_url"
+			},
+			message: "must be a $from(label).path selector under base_url_source command_state",
+		},
+		{
+			name:    "unsupported base URL source",
+			mutate:  func(op *Operation) { op.BaseURLSource = "params" },
+			message: `unsupported base_url_source "params"`,
+		},
+		{
+			name:    "selected auth override without dynamic source",
+			mutate:  func(op *Operation) { op.AllowSelectedAuth = true },
+			message: "allow_auth_on_selected_authority requires base_url_source command_state",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			def := commandStateDefinition(t, "http://embed.invalid", "http://query.invalid")
+			client := def.Clients["chroma"]
+			op := client.Operations["query_collection"]
+			op.Params.InputMapping = cloneStringMap(op.Params.InputMapping)
+			tc.mutate(&op)
+			client.Operations["query_collection"] = op
+			def.Clients["chroma"] = client
+
+			require.ErrorContains(t, ValidateDefinition(def), tc.message)
+		})
+	}
+}
+
+func commandStateDefinition(t *testing.T, embedURL, queryURL string) Definition {
+	t.Helper()
+	def := Definition{
+		Version: "v1",
+		Auth:    map[string]AuthProfile{"none": {Type: authNone}},
+		Limits:  map[string]LimitProfile{"test": {}},
+		Clients: map[string]Client{
+			"ollama": {
+				BaseURL: embedURL, AuthRef: "none", LimitsRef: "test",
+				Operations: map[string]Operation{"embed_query": embedOperation()},
+			},
+			"chroma": {
+				BaseURL: queryURL, AuthRef: "none", LimitsRef: "test",
+				Operations: map[string]Operation{"query_collection": commandStateQueryOperation()},
+			},
+		},
+	}
+	require.NoError(t, ValidateDefinition(def))
+	return def
+}
+
+func commandStateQueryOperation() Operation {
+	return Operation{
+		Method: http.MethodPost,
+		Path:   "/query/{collection}",
+		Params: RequestBinding{
+			Path:       map[string]interface{}{"collection": map[string]interface{}{"type": "string"}},
+			BodySchema: objectSchema([]string{"query_embeddings"}, map[string]string{"query_embeddings": "array"}),
+			BodySource: bodySourceCommandState,
+			InputMapping: map[string]string{
+				"query_embeddings": "$from(embed_query).mapped.embedding",
+				"collection":       "$from(embed_query).carried.input",
+			},
+		},
+		Body:          map[string]interface{}{"query_embeddings": []interface{}{"{{ params.query_embeddings }}"}, "n_results": 5},
+		Success:       StatusMapping{Status: []int{200}, Signal: "RESTResponded"},
+		Response:      ResponseMapping{Output: map[string]string{"ids": "$.ids"}},
+		SideEffects:   []SideEffect{{Kind: "external_api", State: "read_only"}},
+		Reversibility: Reversibility{Classification: "reversible", Undo: "noop"},
+	}
+}
+
+func dynamicTargetDefinition(t *testing.T, configuredURL string, auth AuthProfile) Definition {
+	t.Helper()
+	def := Definition{
+		Version: "v1",
+		Auth:    map[string]AuthProfile{"selected": auth},
+		Limits:  map[string]LimitProfile{"test": {}},
+		Clients: map[string]Client{"subject": {
+			BaseURL: configuredURL, AuthRef: "selected", LimitsRef: "test",
+			Operations: map[string]Operation{"probe": {
+				Method:          http.MethodGet,
+				Path:            "/healthz",
+				BaseURLSource:   bodySourceCommandState,
+				BaseURLSelector: "$from(start_subject).base_url",
+				Params:          RequestBinding{BodySource: bodySourceNone},
+				Success:         StatusMapping{Status: []int{200}, Signal: "Healthy"},
+				SideEffects:     []SideEffect{{Kind: "external_api", State: "read_only"}},
+				Reversibility:   Reversibility{Classification: "reversible", Undo: "noop"},
+			}},
+		}},
+	}
+	require.NoError(t, ValidateDefinition(def))
+	return def
+}
+
+func jsonString(t *testing.T, value string) string {
+	t.Helper()
+	data, err := json.Marshal(value)
+	require.NoError(t, err)
+	return string(data)
+}

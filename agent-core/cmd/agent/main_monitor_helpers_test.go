@@ -15,6 +15,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -224,7 +225,7 @@ func launchProofMonitorREST(t *testing.T, proof monitorProof) (*toolrest.ServerS
 		Definitions:        proof.restDefs,
 		ServerState:        state,
 		Monitor:            proof.monitorState,
-		CredentialResolver: toolrest.EmptyCredentialResolver{},
+		CredentialResolver: credentials.Empty{},
 	})
 	factory, ok := br.Resolve(toolrest.InitServerLaunch)
 	require.True(t, ok)

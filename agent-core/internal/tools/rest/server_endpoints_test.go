@@ -8,13 +8,14 @@ import (
 	"testing"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRESTServer_AwaitInboundSignals(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+	state, baseURL := launchRESTServer(t, controlServer(), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "control")
 
 	postStatus(t, baseURL+"/approve/123", `{}`, http.StatusAccepted)
@@ -39,7 +40,7 @@ func TestRESTServer_LifecycleControlEnqueuesSignals(t *testing.T) {
 func TestRESTServer_RejectsUndeclaredQueryAndHeader(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, validationServer(), LimitProfile{MaxRequestBytes: 128})
+	state, baseURL := launchRESTServer(t, validationServer(), restdef.LimitProfile{MaxRequestBytes: 128})
 	defer stopRESTServer(t, state, "validation")
 
 	postStatus(t, baseURL+"/approve/1?unexpected=value", `{}`, http.StatusBadRequest)
@@ -57,7 +58,7 @@ func TestRESTServer_RejectsUndeclaredQueryAndHeader(t *testing.T) {
 func TestRESTServer_ToleratesForwardingMetadataWithoutExposingIt(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, validationServer(), LimitProfile{MaxRequestBytes: 128})
+	state, baseURL := launchRESTServer(t, validationServer(), restdef.LimitProfile{MaxRequestBytes: 128})
 	defer stopRESTServer(t, state, "validation")
 
 	headers := map[string]string{
@@ -82,7 +83,7 @@ func TestRESTServer_ToleratesForwardingMetadataWithoutExposingIt(t *testing.T) {
 func TestRESTServer_RedactsAwaitAndStreamOutput(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, redactionServer(), LimitProfile{})
+	state, baseURL := launchRESTServer(t, redactionServer(), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "redaction")
 
 	requestStatusWithHeaders(t, http.MethodPost, baseURL+"/approve/123?token=query-secret",
@@ -105,7 +106,7 @@ func TestRESTServer_RedactsAwaitAndStreamOutput(t *testing.T) {
 func TestRESTServer_RedactsHandlerResponses(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, redactionServer(), LimitProfile{})
+	state, baseURL := launchRESTServer(t, redactionServer(), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "redaction")
 
 	result := postJSON(t, baseURL+"/handle-secret", `{"secret":"body-secret"}`, http.StatusOK)
@@ -115,7 +116,7 @@ func TestRESTServer_RedactsHandlerResponses(t *testing.T) {
 func TestRESTServer_RequestValidationFailures(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, validationServer(), LimitProfile{MaxRequestBytes: 12})
+	state, baseURL := launchRESTServer(t, validationServer(), restdef.LimitProfile{MaxRequestBytes: 12})
 	defer stopRESTServer(t, state, "validation")
 
 	postStatus(t, baseURL+"/approve/1", `{}`, http.StatusAccepted)
@@ -132,7 +133,7 @@ func TestRESTServer_RequestValidationFailures(t *testing.T) {
 func TestRESTServer_InvokeHandlerBindings(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, handlerServer(), LimitProfile{})
+	state, baseURL := launchRESTServer(t, handlerServer(), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "handler")
 
 	result := postJSON(t, baseURL+"/handle", `{"name":"alice"}`, http.StatusOK)
@@ -146,7 +147,7 @@ func TestRESTServer_InvokeHandlerBindings(t *testing.T) {
 func TestRESTServer_StreamEvents(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, streamServer(), LimitProfile{})
+	state, baseURL := launchRESTServer(t, streamServer(), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "stream")
 
 	postStatus(t, baseURL+"/approve/123", `{}`, http.StatusAccepted)

@@ -29,6 +29,7 @@ import (
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/service"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/version"
@@ -435,7 +436,7 @@ func launchRequestSignalServers(
 		def.SignalSourceRunner = runner
 		def.Monitor = st.monitor
 		def.RunID = st.runID
-		def.Credentials = toolrest.EnvironmentCredentials{}
+		def.Credentials = credentials.Environment{}
 		output, err := servers.state.Launch(def)
 		if err != nil {
 			return nil, errors.Join(err, servers.Close())
@@ -486,10 +487,8 @@ func serveRequestSignalSources(prepared preparedRun) error {
 // 1.
 //
 // The chatbot deployment runs this as an init-container so an invalid rendered
-// rest.yaml fails the rollout before the agent serves (srd015 R2.2). The
-// agent-profiles and chatbot-mesh audit gates run it over every shipped profile
-// as a boot smoke, so a profile the runtime would reject fails the audit rather
-// than surfacing the first time an agent starts (GH-614).
+// rest.yaml fails the rollout before the agent serves (srd015 R2.2). Agent-profiles
+// and chatbot-mesh audit gates run it over every shipped profile (GH-614).
 func validateConfig() error {
 	resources, err := loadRunResources()
 	if err != nil {

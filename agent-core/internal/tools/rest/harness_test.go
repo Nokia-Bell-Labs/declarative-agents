@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
 )
 
-func launchRESTServer(t *testing.T, server Server, limits LimitProfile) (*ServerState, string) {
+func launchRESTServer(t *testing.T, server restdef.Server, limits restdef.LimitProfile) (*ServerState, string) {
 	t.Helper()
 	state := NewServerState()
 	_, baseURL := launchRESTServerWithState(t, state, server, limits)
@@ -28,8 +28,8 @@ func launchRESTServer(t *testing.T, server Server, limits LimitProfile) (*Server
 func launchRESTServerWithState(
 	t *testing.T,
 	state *ServerState,
-	server Server,
-	limits LimitProfile,
+	server restdef.Server,
+	limits restdef.LimitProfile,
 ) (map[string]interface{}, string) {
 	t.Helper()
 	def := ServerDefinition{Name: serverName(server), Server: server, Limits: limits}
@@ -250,112 +250,9 @@ func streamResponse(url string, bodyC chan<- string, errC chan<- error) {
 func requireActiveStreams(t *testing.T, state *ServerState, name string, want int) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		runtime, err := state.runtime(name)
-		if err != nil {
-			return false
-		}
-		runtime.mu.Lock()
-		defer runtime.mu.Unlock()
-		return runtime.activeStreams == want
+		got, err := state.ActiveStreamCount(name)
+		return err == nil && got == want
 	}, 500*time.Millisecond, 10*time.Millisecond)
-}
-
-func clientCommand(t *testing.T, def Definition, init, operation string, input map[string]interface{}) core.Command {
-	t.Helper()
-	return clientCommandWithCredentials(t, def, init, operation, input, nil)
-}
-
-func clientCommandWithCredentials(
-	t *testing.T,
-	def Definition,
-	init string,
-	operation string,
-	input map[string]interface{},
-	credentials CredentialResolver,
-) core.Command {
-	t.Helper()
-	return clientCommandWithMetricsAndCredentials(t, def, init, operation, input, restMetrics(), credentials)
-}
-
-func clientCommandWithMetrics(
-	t *testing.T,
-	def Definition,
-	init string,
-	operation string,
-	input map[string]interface{},
-	metrics core.MetricConfig,
-) core.Command {
-	t.Helper()
-	return clientCommandWithMetricsAndCredentials(t, def, init, operation, input, metrics, nil)
-}
-
-func clientCommandWithMetricsAndCredentials(
-	t *testing.T,
-	def Definition,
-	init string,
-	operation string,
-	input map[string]interface{},
-	metrics core.MetricConfig,
-	credentials CredentialResolver,
-) core.Command {
-	t.Helper()
-	collection := NewCollection()
-	require.NoError(t, collection.Add(def))
-	resolved, err := collection.ResolveClientOperation(ClientToolConfig{
-		RestRef: "github", Resource: "issue", Operation: operation,
-	})
-	require.NoError(t, err)
-	params, err := json.Marshal(map[string]interface{}{"tool": init, "parameters": input})
-	require.NoError(t, err)
-	return ClientBuilder{
-		ToolName: init, Init: init, Operation: resolved, Credentials: credentials, Metrics: metrics,
-	}.Build(core.Result{Output: string(params)})
-}
-
-func restMetrics() core.MetricConfig {
-	return core.MetricConfig{
-		Instruments: []core.MetricInstrument{
-			{Name: "rest.http_status_code", Kind: "gauge", Unit: "1", Description: "HTTP status.", ValueSource: "http_status_code", Attributes: []string{"operation"}},
-			{Name: "rest.retry_count", Kind: "counter", Unit: "{retry}", Description: "Retry count.", ValueSource: "retry_count", Attributes: []string{"operation"}},
-			{Name: "rest.request_bytes", Kind: "histogram", Unit: "By", Description: "Request bytes.", ValueSource: "request_bytes", Attributes: []string{"operation"}},
-			{Name: "rest.response_bytes", Kind: "histogram", Unit: "By", Description: "Response bytes.", ValueSource: "response_bytes", Attributes: []string{"operation"}},
-		},
-		Attributes: []core.MetricAttribute{{Name: "operation", Source: "configured_operation", Cardinality: "bounded", AllowedValues: []string{"get"}, Redaction: "none"}},
-	}
-}
-
-func requireClientSignal(t *testing.T, def Definition, init, operation string, input map[string]interface{}, signal string) {
-	t.Helper()
-	result := clientCommand(t, def, init, operation, input).Execute()
-	require.Equal(t, core.Signal(signal), result.Signal, result.Output)
-	require.Contains(t, result.Output, `"operation":"`+operation+`"`)
-}
-
-func clientDefinition(t *testing.T, baseURL string, client Client) Definition {
-	t.Helper()
-	client.BaseURL = baseURL
-	client.AuthRef = "none"
-	def := Definition{
-		Version: "v1",
-		Auth: map[string]AuthProfile{
-			"none": {Type: authNone},
-		},
-		Limits:  map[string]LimitProfile{"test": {}},
-		Clients: map[string]Client{"github": client},
-	}
-	require.NoError(t, ValidateDefinition(def))
-	return def
-}
-
-func resolvedClientOperation(t *testing.T, def Definition) ClientOperationDefinition {
-	t.Helper()
-	collection := NewCollection()
-	require.NoError(t, collection.Add(def))
-	resolved, err := collection.ResolveClientOperation(ClientToolConfig{
-		RestRef: "github", Resource: "issue", Operation: "get",
-	})
-	require.NoError(t, err)
-	return resolved
 }
 
 func launchMachineRequestServer(
@@ -370,8 +267,8 @@ func launchMachineRequestServer(
 
 func launchMachineRequestServerWithConfig(
 	t *testing.T,
-	cfg MachineRequest,
-	endpoints ...map[string]Endpoint,
+	cfg restdef.MachineRequest,
+	endpoints ...map[string]restdef.Endpoint,
 ) (*ServerState, string) {
 	t.Helper()
 	state := NewServerState()
@@ -386,7 +283,7 @@ func launchMachineRequestServerWithConfig(
 
 func launchMachineRequestServerWithRunner(
 	t *testing.T,
-	cfg MachineRequest,
+	cfg restdef.MachineRequest,
 	runner MachineRequestRunner,
 ) (*ServerState, string) {
 	t.Helper()
@@ -397,39 +294,39 @@ func launchMachineRequestServerWithRunner(
 	return state, baseURL
 }
 
-func catchAllDocsEndpoint(cfg MachineRequest) map[string]Endpoint {
-	cfg.Request = MachineRequestMapping{Path: map[string]string{"path": "$.path"}}
-	return map[string]Endpoint{
+func catchAllDocsEndpoint(cfg restdef.MachineRequest) map[string]restdef.Endpoint {
+	cfg.Request = restdef.MachineRequestMapping{Path: map[string]string{"path": "$.path"}}
+	return map[string]restdef.Endpoint{
 		"document": {
 			Method: "GET", Path: "/docs/{path...}", Binding: bindingMachineRequest,
-			Request:        RequestBinding{Path: map[string]interface{}{"path": map[string]interface{}{"type": "string"}}},
+			Request:        restdef.RequestBinding{Path: map[string]interface{}{"path": map[string]interface{}{"type": "string"}}},
 			MachineRequest: cfg,
 		},
 	}
 }
 
-func machineRequestServer(cfg MachineRequest) Server {
-	return Server{
+func machineRequestServer(cfg restdef.MachineRequest) restdef.Server {
+	return restdef.Server{
 		Address:  "127.0.0.1:0",
-		Queue:    QueueConfig{Name: "machine", Timeout: "20ms"},
-		Shutdown: ShutdownConfig{Timeout: "200ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:    restdef.QueueConfig{Name: "machine", Timeout: "20ms"},
+		Shutdown: restdef.ShutdownConfig{Timeout: "200ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"docs": {
 				Method: "POST", Path: "/docs", Binding: bindingMachineRequest,
-				Request:        RequestBinding{BodySchema: bodySchemaWithRequired("name")},
+				Request:        restdef.RequestBinding{BodySchema: bodySchemaWithRequired("name")},
 				MachineRequest: cfg,
 			},
 		},
 	}
 }
 
-func machineRequestConfig(signal string, delay time.Duration, fail bool) MachineRequest {
-	return MachineRequest{
+func machineRequestConfig(signal string, delay time.Duration, fail bool) restdef.MachineRequest {
+	return restdef.MachineRequest{
 		Timeout: "10ms",
-		Request: MachineRequestMapping{Body: map[string]string{
+		Request: restdef.MachineRequestMapping{Body: map[string]string{
 			"name": "$.name",
 		}},
-		Response: MachineRequestResponse{TerminalSignals: map[string]MachineResponseMapping{
+		Response: restdef.MachineRequestResponse{TerminalSignals: map[string]restdef.MachineResponseMapping{
 			"DocumentationReady": {Status: 200, Body: map[string]string{"greeting": "$.greeting"}},
 			"DocumentMissing":    {Status: 404, Body: map[string]string{"error": "$.message"}},
 			"CommandError":       {Status: 500, Body: map[string]string{"error": "$.message"}},
@@ -442,14 +339,14 @@ func machineRequestConfig(signal string, delay time.Duration, fail bool) Machine
 	}
 }
 
-func conformanceMachineRequestConfig() MachineRequest {
+func conformanceMachineRequestConfig() restdef.MachineRequest {
 	cfg := machineRequestConfig("DocumentationReady", 0, false)
 	cfg.MachineSpec = nil
 	cfg.InitFunc = nil
 	cfg.Timeout = "2s"
 	cfg.Profile = "profile.yaml"
 	cfg.Machine = "request-machine.yaml"
-	cfg.Response.TerminalSignals = map[string]MachineResponseMapping{
+	cfg.Response.TerminalSignals = map[string]restdef.MachineResponseMapping{
 		"DocumentationReady": {Status: 200, Body: map[string]string{"greeting": "$.greeting"}},
 	}
 	return cfg
@@ -477,7 +374,7 @@ func launchMonitorRESTServerFromFactory(
 	skipIfShortRESTLaunch(t)
 	state := NewServerState()
 	collection := NewCollection()
-	require.NoError(t, collection.Add(Definition{Servers: map[string]Server{name: monitorServer(name)}}))
+	require.NoError(t, collection.Add(restdef.Definition{Servers: map[string]restdef.Server{name: monitorServer(name)}}))
 	br := toolregistry.NewBuiltinRegistry()
 	RegisterFactories(br, FactoryDeps{Definitions: collection, ServerState: state, Monitor: monitorState})
 	factory, ok := br.Resolve(InitServerLaunch)

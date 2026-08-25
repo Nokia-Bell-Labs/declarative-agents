@@ -4,60 +4,60 @@
 package rest
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
-	"gopkg.in/yaml.v3"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	restvalidation "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/validation"
 )
 
 // LoadDefinition reads and validates a REST definition YAML file.
-func LoadDefinition(path string) (Definition, error) {
-	data, err := os.ReadFile(path)
+func LoadDefinition(path string) (restdef.Definition, error) {
+	def, err := restdef.LoadDefinition(path)
 	if err != nil {
-		return Definition{}, fmt.Errorf("load REST definition %s: %w", path, err)
+		return restdef.Definition{}, err
 	}
-	def, err := parseDefinitionRaw(data)
-	if err != nil {
-		return Definition{}, fmt.Errorf("parse REST definition %s: %w", path, err)
-	}
-	if err := CompileOpenAPIImports(&def, filepath.Dir(path)); err != nil {
-		return Definition{}, fmt.Errorf("compile OpenAPI imports %s: %w", path, err)
-	}
-	if err := ValidateDefinition(def); err != nil {
-		return Definition{}, err
+	if err := restvalidation.ValidateDefinition(def); err != nil {
+		return restdef.Definition{}, err
 	}
 	return def, nil
 }
 
 // ParseDefinition parses and validates REST definition YAML bytes.
-func ParseDefinition(data []byte) (Definition, error) {
-	def, err := parseDefinitionRaw(data)
+func ParseDefinition(data []byte) (restdef.Definition, error) {
+	def, err := restdef.ParseDefinition(data)
 	if err != nil {
-		return Definition{}, err
+		return restdef.Definition{}, err
 	}
-	if err := ValidateDefinition(def); err != nil {
-		return Definition{}, err
+	if err := restvalidation.ValidateDefinition(def); err != nil {
+		return restdef.Definition{}, err
 	}
 	return def, nil
 }
 
-// parseDefinitionRaw decodes a trusted REST definition with strict field
-// checking. REST definitions are trusted, chart-mounted config, so an unknown
-// field is an authoring error, not data to ignore: KnownFields(true) rejects it
-// loudly instead of silently dropping it. This closes the gap where documented
-// but unimplemented machine_request fields (error_responses, trace, and the
-// like) were accepted and then had no effect (GH-486).
-func parseDefinitionRaw(data []byte) (Definition, error) {
-	var file DefinitionFile
-	decoder := yaml.NewDecoder(bytes.NewReader(expandEnv(data)))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&file); err != nil {
-		return Definition{}, fmt.Errorf("parse REST definition: %w", err)
-	}
-	return file.Rest, nil
+// ValidateDefinition validates a declarative REST definition before use.
+func ValidateDefinition(def restdef.Definition) error {
+	return restvalidation.ValidateDefinition(def)
+}
+
+// CompileOpenAPIImports loads OpenAPI imports into the internal REST model.
+func CompileOpenAPIImports(def *restdef.Definition, baseDir string) error {
+	return restdef.CompileOpenAPIImports(def, baseDir)
+}
+
+// RetryAggregateTimeout returns the conservative dispatch authority for one
+// retrying HTTP operation. pkg/profileaudit calls this parent wrapper so it
+// does not grow a new public-to-internal import edge onto rest/validation.
+func RetryAggregateTimeout(attemptTimeout time.Duration, retry restdef.RetryPolicy) (time.Duration, error) {
+	return restvalidation.RetryAggregateTimeout(attemptTimeout, retry)
+}
+
+// ValidateRuntimeInput rejects transport authority supplied at runtime.
+func ValidateRuntimeInput(input map[string]interface{}) error {
+	return restvalidation.ValidateRuntimeInput(input)
 }
 
 // LoadDefinitions reads REST definition files and directories.

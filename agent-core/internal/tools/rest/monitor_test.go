@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMonitorREST_ReadOnlyCachedState(t *testing.T) {
@@ -280,11 +280,11 @@ func monitorToolDefs() []catalog.ToolDef {
 	}}
 }
 
-func monitorServer(name string) Server {
-	return Server{
+func monitorServer(name string) restdef.Server {
+	return restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: name, Capacity: 8, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: name, Capacity: 8, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"monitor_machine": {Method: "GET", Path: "/monitor/machine", Binding: bindingReadState, MonitorView: monitorViewMachine},
 			"monitor_state":   {Method: "GET", Path: "/monitor/state", Binding: bindingReadState, MonitorView: monitorViewState},
 			"monitor_tools":   {Method: "GET", Path: "/monitor/tools", Binding: bindingReadState, MonitorView: monitorViewTools},
@@ -295,7 +295,7 @@ func monitorServer(name string) Server {
 			"control_exit": {
 				Method: "POST", Path: "/monitor/control/exit",
 				Binding: bindingEmitSignal, Signal: "ExitRequested",
-				Request: RequestBinding{BodySchema: map[string]interface{}{
+				Request: restdef.RequestBinding{BodySchema: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
 						"reason": map[string]interface{}{"type": "string"},

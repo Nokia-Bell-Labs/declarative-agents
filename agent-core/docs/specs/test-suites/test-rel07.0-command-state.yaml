@@ -34,7 +34,7 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Adjacent label selection threads the previous word's output
-    go_test: go test ./internal/tools/rest -run TestRESTClient_CommandStateThreadsNonAdjacentStep
+    go_test: go test ./internal/tools/rest/client -run TestRESTClient_CommandStateThreadsNonAdjacentStep
     status: implemented
     description: |
       A query word directly after an embed word selects the embed word's output
@@ -54,7 +54,7 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Non-adjacent label selection reaches past an intervening word
-    go_test: go test ./internal/tools/rest -run 'TestRESTClient_CommandState(ThreadsNonAdjacentStep|TracerBulletNonAdjacentWithRestart)'
+    go_test: go test ./internal/tools/rest/client -run 'TestRESTClient_CommandState(ThreadsNonAdjacentStep|TracerBulletNonAdjacentWithRestart)'
     status: implemented
     description: |
       In a three-word chain the third word selects the first word's vector by
@@ -326,7 +326,7 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Selector rejection table blocks unsafe threading
-    go_test: go test ./internal/tools/rest -run 'TestRESTClient_CommandState(RejectionTable|MissNamesLabel|NoViewConfiguredRejected)'
+    go_test: go test ./internal/tools/rest/client -run 'TestRESTClient_CommandState(RejectionTable|MissNamesLabel|NoViewConfiguredRejected)'
     status: implemented
     description: |
       The R13.3 rejection list applies to command_state threading: an undeclared
@@ -347,7 +347,7 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: REST response mapping emits typed redaction before persistence
-    go_test: go test ./internal/tools/rest -run TestRESTClient_RedactionRunsBeforePersistence
+    go_test: go test ./internal/tools/rest/client -run TestRESTClient_RedactionRunsBeforePersistence
     status: implemented
     coverage: component-integration
     description: |

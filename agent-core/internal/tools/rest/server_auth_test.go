@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,10 +23,10 @@ func TestInjectedLifecycleExitEnforcesDeclaredBearerAuth(t *testing.T) {
 	server.LifecycleExit.AuthRef = "control"
 	def := ServerDefinition{
 		Name: "authenticated_exit", Server: server,
-		Auth: map[string]AuthProfile{
+		Auth: map[string]restdef.AuthProfile{
 			"control": {Type: authBearer, TokenRef: "CONTROL_TOKEN"},
 		},
-		Credentials: StaticCredentials{"CONTROL_TOKEN": "synthetic-secret"},
+		Credentials: credentials.Static{"CONTROL_TOKEN": "synthetic-secret"},
 	}
 	state := NewServerState()
 	output, err := state.Launch(def)
@@ -70,14 +72,14 @@ func TestLifecycleAuthRefMustResolveAtLoad(t *testing.T) {
 	t.Parallel()
 	server := bareLifecycleServer("bad_auth")
 	server.LifecycleExit.AuthRef = "missing"
-	err := ValidateDefinition(Definition{
-		Version: "v1", Servers: map[string]Server{"bad_auth": server},
+	err := ValidateDefinition(restdef.Definition{
+		Version: "v1", Servers: map[string]restdef.Server{"bad_auth": server},
 	})
 	require.ErrorContains(t, err, `unknown auth profile "missing"`)
 }
 
 func TestEnvironmentCredentialsResolveReferenceNames(t *testing.T) {
-	resolver := EnvironmentCredentials{}
+	var resolver credentials.Environment
 
 	t.Run("present", func(t *testing.T) {
 		t.Setenv("DECLARATIVE_AGENT_CONTROL_TOKEN", "synthetic-secret")
@@ -89,18 +91,18 @@ func TestEnvironmentCredentialsResolveReferenceNames(t *testing.T) {
 	t.Run("missing", func(t *testing.T) {
 		t.Setenv("DECLARATIVE_AGENT_OTHER_TOKEN", "must-not-leak")
 		_, err := resolver.ResolveCredential("DECLARATIVE_AGENT_MISSING_TOKEN_1609")
-		var resolutionErr credentialResolutionError
+		var resolutionErr credentials.ResolutionError
 		require.ErrorAs(t, err, &resolutionErr)
-		require.Equal(t, "DECLARATIVE_AGENT_MISSING_TOKEN_1609", resolutionErr.ref)
+		require.Equal(t, "DECLARATIVE_AGENT_MISSING_TOKEN_1609", resolutionErr.Ref)
 		require.NotContains(t, err.Error(), "must-not-leak")
 	})
 
 	t.Run("empty", func(t *testing.T) {
 		t.Setenv("DECLARATIVE_AGENT_EMPTY_TOKEN", "")
 		_, err := resolver.ResolveCredential("DECLARATIVE_AGENT_EMPTY_TOKEN")
-		var resolutionErr credentialResolutionError
+		var resolutionErr credentials.ResolutionError
 		require.ErrorAs(t, err, &resolutionErr)
-		require.Equal(t, "DECLARATIVE_AGENT_EMPTY_TOKEN", resolutionErr.ref)
+		require.Equal(t, "DECLARATIVE_AGENT_EMPTY_TOKEN", resolutionErr.Ref)
 		require.NotContains(t, err.Error(), "synthetic-secret")
 	})
 }

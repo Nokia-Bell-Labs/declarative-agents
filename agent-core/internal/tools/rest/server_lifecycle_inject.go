@@ -3,6 +3,10 @@
 
 package rest
 
+import (
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+)
+
 import "net/http"
 
 // injectLifecycleExit synthesizes the canonical POST /api/lifecycle/exit
@@ -13,11 +17,11 @@ import "net/http"
 // without overriding a profile's explicit intent. The declared endpoint map is
 // never mutated: a fresh map is returned only when an endpoint is added, since
 // the source map is shared with the resolving Collection.
-func injectLifecycleExit(server Server) map[string]Endpoint {
+func injectLifecycleExit(server restdef.Server) map[string]restdef.Endpoint {
 	if server.LifecycleExit.Disabled || lifecycleExitDeclared(server.Endpoints) {
 		return server.Endpoints
 	}
-	injected := make(map[string]Endpoint, len(server.Endpoints)+1)
+	injected := make(map[string]restdef.Endpoint, len(server.Endpoints)+1)
 	for name, endpoint := range server.Endpoints {
 		injected[name] = endpoint
 	}
@@ -28,7 +32,7 @@ func injectLifecycleExit(server Server) map[string]Endpoint {
 // lifecycleExitDeclared reports whether a server already carries a lifecycle
 // exit surface, either under the reserved route name or at the canonical path,
 // so injection neither overwrites a map entry nor conflicts on the route.
-func lifecycleExitDeclared(endpoints map[string]Endpoint) bool {
+func lifecycleExitDeclared(endpoints map[string]restdef.Endpoint) bool {
 	if _, ok := endpoints[lifecycleExitRouteName]; ok {
 		return true
 	}
@@ -43,24 +47,24 @@ func lifecycleExitDeclared(endpoints map[string]Endpoint) bool {
 // canonicalLifecycleExitEndpoint is the injected exit route: a lifecycle_control
 // endpoint that enqueues ExitRequested for MachineSpec routing. AuthRef is empty
 // for parity with today's auth:none control servers.
-func canonicalLifecycleExitEndpoint(authRef string) Endpoint {
-	return Endpoint{
+func canonicalLifecycleExitEndpoint(authRef string) restdef.Endpoint {
+	return restdef.Endpoint{
 		Method:  http.MethodPost,
 		Path:    lifecycleExitPath,
 		Binding: bindingLifecycleControl,
 		Signal:  lifecycleExitSignal,
-		LifecycleControl: LifecycleControl{
+		LifecycleControl: restdef.LifecycleControl{
 			Action:         lifecycleActionEnqueueSignal,
 			Signal:         lifecycleExitSignal,
 			RequireAuthRef: authRef,
 		},
-		Request: RequestBinding{BodySchema: map[string]interface{}{
+		Request: restdef.RequestBinding{BodySchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"reason": map[string]interface{}{"type": "string"},
 				"status": map[string]interface{}{"type": "string"},
 			},
 		}},
-		Response: ResponseMapping{Output: map[string]string{"accepted": "true"}},
+		Response: restdef.ResponseMapping{Output: map[string]string{"accepted": "true"}},
 	}
 }

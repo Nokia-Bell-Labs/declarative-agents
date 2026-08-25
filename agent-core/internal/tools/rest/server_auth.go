@@ -9,6 +9,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
 type lifecycleAuthError struct {
@@ -77,7 +80,7 @@ func cloneURL(req *http.Request) *url.URL {
 }
 
 func authorizeWithProfile(
-	req *http.Request, auth AuthProfile, resolver CredentialResolver,
+	req *http.Request, auth restdef.AuthProfile, resolver credentials.Resolver,
 ) error {
 	switch auth.Type {
 	case "", authNone:
@@ -106,7 +109,7 @@ func authorizeWithProfile(
 }
 
 func authorizeLifecycleBasic(
-	req *http.Request, auth AuthProfile, resolver CredentialResolver,
+	req *http.Request, auth restdef.AuthProfile, resolver credentials.Resolver,
 ) error {
 	username, userErr := resolveCredential(resolver, auth.UsernameRef)
 	password, passErr := resolveCredential(resolver, auth.PasswordRef)

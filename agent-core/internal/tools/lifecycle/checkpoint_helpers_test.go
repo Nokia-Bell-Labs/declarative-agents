@@ -8,6 +8,7 @@ import (
 	"errors"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 	"github.com/stretchr/testify/require"
 	"net/http"
@@ -54,18 +55,18 @@ var _ core.CheckpointReverter = (*fakeReverter)(nil)
 
 func lifecycleRESTCollection(t *testing.T, baseURL string) (toolrest.Collection, toolrest.ClientOperationDefinition) {
 	t.Helper()
-	def := toolrest.Definition{
+	def := restdef.Definition{
 		Version: "v1",
-		Auth:    map[string]toolrest.AuthProfile{"none": {Type: "none"}},
-		Clients: map[string]toolrest.Client{"github": {
+		Auth:    map[string]restdef.AuthProfile{"none": {Type: "none"}},
+		Clients: map[string]restdef.Client{"github": {
 			BaseURL: baseURL,
 			AuthRef: "none",
-			Resources: map[string]toolrest.Resource{"issue": {
+			Resources: map[string]restdef.Resource{"issue": {
 				Path: "/repos/{owner}/{repo}/issues/{number}",
-				Operations: map[string]toolrest.Operation{
+				Operations: map[string]restdef.Operation{
 					"set": {
 						Method: http.MethodPatch,
-						Params: toolrest.RequestBinding{
+						Params: restdef.RequestBinding{
 							Path: map[string]interface{}{"owner": map[string]interface{}{}, "repo": map[string]interface{}{}, "number": map[string]interface{}{}},
 							BodySchema: map[string]interface{}{
 								"type":       "object",
@@ -73,10 +74,10 @@ func lifecycleRESTCollection(t *testing.T, baseURL string) (toolrest.Collection,
 							},
 						},
 						Body:          map[string]interface{}{"title": "{{ params.title }}"},
-						Success:       toolrest.StatusMapping{Status: []int{200}, Signal: "RESTResourceWritten"},
-						Response:      toolrest.ResponseMapping{ResourceID: "$.id"},
-						SideEffects:   []toolrest.SideEffect{{Kind: "external_api", State: "issue_updated"}},
-						Reversibility: toolrest.Reversibility{Classification: "compensatable", Undo: "restore"},
+						Success:       restdef.StatusMapping{Status: []int{200}, Signal: "RESTResourceWritten"},
+						Response:      restdef.ResponseMapping{ResourceID: "$.id"},
+						SideEffects:   []restdef.SideEffect{{Kind: "external_api", State: "issue_updated"}},
+						Reversibility: restdef.Reversibility{Classification: "compensatable", Undo: "restore"},
 						Compensation: map[string]interface{}{
 							"operation":  "set",
 							"parameters": map[string]interface{}{"title": "restored"},

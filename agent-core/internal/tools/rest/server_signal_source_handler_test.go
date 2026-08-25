@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 func TestSignalSourceHandler_DefaultConflictAndConfiguredStatuses(t *testing.T) {
@@ -43,13 +43,13 @@ func TestSignalSourceHandler_DefaultConflictAndConfiguredStatuses(t *testing.T) 
 			outcome   core.AdmissionOutcome
 			runStatus core.RunStatus
 			stage     string
-			configure func(*SignalSourceBinding)
+			configure func(*restdef.SignalSourceBinding)
 			want      int
 		}{
 			{
 				name: "accepted", outcome: core.AdmissionAccepted,
 				runStatus: core.StatusSucceeded, stage: "succeeded",
-				configure: func(cfg *SignalSourceBinding) {
+				configure: func(cfg *restdef.SignalSourceBinding) {
 					cfg.Responses.Accepted.Status = http.StatusCreated
 				},
 				want: http.StatusCreated,
@@ -57,7 +57,7 @@ func TestSignalSourceHandler_DefaultConflictAndConfiguredStatuses(t *testing.T) 
 			{
 				name: "conflict", outcome: core.AdmissionRefusedConflict,
 				runStatus: "", stage: "stale_expected_state",
-				configure: func(cfg *SignalSourceBinding) {
+				configure: func(cfg *restdef.SignalSourceBinding) {
 					cfg.Responses.RefusedConflict.Status = http.StatusTooManyRequests
 				},
 				want: http.StatusTooManyRequests,
@@ -221,8 +221,8 @@ func validSignalSourceJSON(secret string) string {
 	return `{"event":"created","run_id":"run-1","expected_state":"Waiting","data":"public","token":"` + secret + `"}`
 }
 
-func signalSourceTestEndpoint(cfg SignalSourceBinding) Endpoint {
-	return Endpoint{
+func signalSourceTestEndpoint(cfg restdef.SignalSourceBinding) restdef.Endpoint {
+	return restdef.Endpoint{
 		Method: http.MethodPost, Path: "/events", Binding: bindingSignalSource,
 		SignalSource: cfg,
 	}

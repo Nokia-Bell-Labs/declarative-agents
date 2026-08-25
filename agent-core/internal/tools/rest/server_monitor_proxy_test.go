@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,17 +22,17 @@ func TestMonitorProxy_ForwardsToDeclaredUpstream(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	srv := Server{
+	srv := restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: "mp_ok", Capacity: 4, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: "mp_ok", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"proxy": {
 				Method: "GET", Path: "/monitor-proxy/{agent}/{path...}", Binding: bindingMonitorProxy,
-				MonitorProxy: &MonitorProxyConfig{Upstreams: map[string]string{"rag0": upstream.URL}},
+				MonitorProxy: &restdef.MonitorProxyConfig{Upstreams: map[string]string{"rag0": upstream.URL}},
 			},
 		},
 	}
-	state, baseURL := launchRESTServer(t, srv, LimitProfile{})
+	state, baseURL := launchRESTServer(t, srv, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "mp_ok")
 
 	body := requestBody(t, http.MethodGet, baseURL+"/monitor-proxy/rag0/monitor/state?x=1", "", http.StatusOK)
@@ -41,17 +42,17 @@ func TestMonitorProxy_ForwardsToDeclaredUpstream(t *testing.T) {
 
 func TestMonitorProxy_UnknownAgentIs404(t *testing.T) {
 	t.Parallel()
-	srv := Server{
+	srv := restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: "mp_404", Capacity: 4, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: "mp_404", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"proxy": {
 				Method: "GET", Path: "/monitor-proxy/{agent}/{path...}", Binding: bindingMonitorProxy,
-				MonitorProxy: &MonitorProxyConfig{Upstreams: map[string]string{"rag0": "http://127.0.0.1:1"}},
+				MonitorProxy: &restdef.MonitorProxyConfig{Upstreams: map[string]string{"rag0": "http://127.0.0.1:1"}},
 			},
 		},
 	}
-	state, baseURL := launchRESTServer(t, srv, LimitProfile{})
+	state, baseURL := launchRESTServer(t, srv, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "mp_404")
 
 	requestBody(t, http.MethodGet, baseURL+"/monitor-proxy/nope/monitor/state", "", http.StatusNotFound)
@@ -59,33 +60,33 @@ func TestMonitorProxy_UnknownAgentIs404(t *testing.T) {
 
 func TestValidateDefinition_monitorProxyErrors(t *testing.T) {
 	t.Parallel()
-	base := func(ep Endpoint) Definition {
-		return Definition{
+	base := func(ep restdef.Endpoint) restdef.Definition {
+		return restdef.Definition{
 			Version: "v1",
-			Servers: map[string]Server{
-				"s": {Address: "127.0.0.1:0", Endpoints: map[string]Endpoint{"e": ep}},
+			Servers: map[string]restdef.Server{
+				"s": {Address: "127.0.0.1:0", Endpoints: map[string]restdef.Endpoint{"e": ep}},
 			},
 		}
 	}
 	tests := []struct {
 		name    string
-		def     Definition
+		def     restdef.Definition
 		wantErr string
 	}{
 		{
 			name: "empty upstreams",
-			def: base(Endpoint{
+			def: base(restdef.Endpoint{
 				Method: "GET", Path: "/monitor-proxy/{agent}/{path...}", Binding: bindingMonitorProxy,
-				MonitorProxy: &MonitorProxyConfig{},
-				Request:      RequestBinding{Path: map[string]interface{}{"agent": map[string]interface{}{"type": "string"}, "path": map[string]interface{}{"type": "string"}}},
+				MonitorProxy: &restdef.MonitorProxyConfig{},
+				Request:      restdef.RequestBinding{Path: map[string]interface{}{"agent": map[string]interface{}{"type": "string"}, "path": map[string]interface{}{"type": "string"}}},
 			}),
 			wantErr: "non-empty upstreams",
 		},
 		{
 			name: "config with wrong binding",
-			def: base(Endpoint{
+			def: base(restdef.Endpoint{
 				Method: "GET", Path: "/x", Binding: bindingHealth,
-				MonitorProxy: &MonitorProxyConfig{Upstreams: map[string]string{"a": "http://127.0.0.1:1"}},
+				MonitorProxy: &restdef.MonitorProxyConfig{Upstreams: map[string]string{"a": "http://127.0.0.1:1"}},
 			}),
 			wantErr: "monitor_proxy config but binding",
 		},

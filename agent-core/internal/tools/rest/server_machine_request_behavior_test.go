@@ -6,16 +6,18 @@ package rest
 import (
 	"context"
 	"encoding/json"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/stretchr/testify/require"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 func TestRESTServerMachineRequestTerminalStatusMapping(t *testing.T) {
@@ -104,7 +106,7 @@ func TestRESTServerMachineRequestRecordsMonitorEvents(t *testing.T) {
 	state := NewServerState()
 	server := machineRequestServer(machineRequestConfig("DocumentationReady", 0, false))
 	def := ServerDefinition{
-		Name: "machine", Server: server, Limits: LimitProfile{},
+		Name: "machine", Server: server, Limits: restdef.LimitProfile{},
 		Monitor: MonitorState{Store: store},
 	}
 	_, baseURL := launchRESTServerDefinition(t, state, def)
@@ -282,15 +284,15 @@ func TestProfileMachineRequestRunnerRejectsInvalidConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		cfg  MachineRequest
+		cfg  restdef.MachineRequest
 		dir  func(*testing.T) string
 		want string
 	}{
-		{name: "missing profile", cfg: MachineRequest{}, dir: tempProfileDir, want: "profile is required"},
-		{name: "missing machine", cfg: MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutMachine, want: "machine is required"},
-		{name: "missing selected tool", cfg: MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutRespondTool, want: "respond"},
-		{name: "missing max iterations", cfg: MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutMaxIterations, want: "budget.max_iterations"},
-		{name: "missing command timeout", cfg: MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutCommandTimeout, want: "budget.command_timeout"},
+		{name: "missing profile", cfg: restdef.MachineRequest{}, dir: tempProfileDir, want: "profile is required"},
+		{name: "missing machine", cfg: restdef.MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutMachine, want: "machine is required"},
+		{name: "missing selected tool", cfg: restdef.MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutRespondTool, want: "respond"},
+		{name: "missing max iterations", cfg: restdef.MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutMaxIterations, want: "budget.max_iterations"},
+		{name: "missing command timeout", cfg: restdef.MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutCommandTimeout, want: "budget.command_timeout"},
 		{name: "unresolved response signal", cfg: unresolvedResponseConfig(), dir: writeConformanceProfile, want: "terminal signal"},
 	}
 	for _, tc := range tests {
@@ -308,7 +310,7 @@ func TestRESTServerMachineRequestConfiguredInitialSignal(t *testing.T) {
 	cfg := machineRequestConfig("DocumentationReady", 0, false)
 	cfg.InitialSignal = "ReadRequested"
 	cfg.MachineSpec = requestReadMachineSpec()
-	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
+	cfg.Response.TerminalSignals["DocumentationReady"] = restdef.MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
 	cfg.InitFunc = func(reg *core.Registry) error {
 		reg.Register(core.ToolSpec{Name: "respond"}, pathEchoBuilder{})
 		return nil
@@ -325,7 +327,7 @@ func TestRESTServerMachineRequestConfiguredInitialSignal(t *testing.T) {
 func TestRESTServerMachineRequestMatchesCatchAllPath(t *testing.T) {
 	t.Parallel()
 	cfg := machineRequestConfig("DocumentationReady", 0, false)
-	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
+	cfg.Response.TerminalSignals["DocumentationReady"] = restdef.MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
 	cfg.InitFunc = func(reg *core.Registry) error {
 		reg.Register(core.ToolSpec{Name: "respond"}, pathEchoBuilder{})
 		return nil
@@ -345,9 +347,9 @@ func TestRESTServerMachineRequestOpenAPIBindPreservesConfig(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "docs.yaml"), docsOpenAPI())
 	cfg := machineRequestConfig("DocumentationReady", 0, false)
 	cfg.InitialSignal = "ReadRequested"
-	cfg.Request = MachineRequestMapping{Path: map[string]string{"path": "$.path"}}
+	cfg.Request = restdef.MachineRequestMapping{Path: map[string]string{"path": "$.path"}}
 	cfg.MachineSpec = requestReadMachineSpec()
-	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
+	cfg.Response.TerminalSignals["DocumentationReady"] = restdef.MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
 	cfg.InitFunc = func(reg *core.Registry) error {
 		reg.Register(core.ToolSpec{Name: "respond"}, pathEchoBuilder{})
 		return nil
@@ -374,9 +376,9 @@ func TestRESTServerMachineRequestOpenAPIBindKeepsExplicitCatchAllPath(t *testing
 	writeFile(t, filepath.Join(dir, "docs.yaml"), docsOpenAPI())
 	cfg := machineRequestConfig("DocumentationReady", 0, false)
 	cfg.InitialSignal = "ReadRequested"
-	cfg.Request = MachineRequestMapping{Path: map[string]string{"path": "$.path"}}
+	cfg.Request = restdef.MachineRequestMapping{Path: map[string]string{"path": "$.path"}}
 	cfg.MachineSpec = requestReadMachineSpec()
-	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
+	cfg.Response.TerminalSignals["DocumentationReady"] = restdef.MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
 	cfg.InitFunc = func(reg *core.Registry) error {
 		reg.Register(core.ToolSpec{Name: "respond"}, pathEchoBuilder{})
 		return nil
@@ -385,7 +387,7 @@ func TestRESTServerMachineRequestOpenAPIBindKeepsExplicitCatchAllPath(t *testing
 	endpoint := def.Servers["machine"].Endpoints["document"]
 	endpoint.Method = "GET"
 	endpoint.Path = "/docs/{path...}"
-	endpoint.Request = RequestBinding{Path: map[string]interface{}{"path": map[string]interface{}{"type": "string"}}}
+	endpoint.Request = restdef.RequestBinding{Path: map[string]interface{}{"path": map[string]interface{}{"type": "string"}}}
 	def.Servers["machine"].Endpoints["document"] = endpoint
 	require.NoError(t, CompileOpenAPIImports(&def, dir))
 	endpoint = def.Servers["machine"].Endpoints["document"]

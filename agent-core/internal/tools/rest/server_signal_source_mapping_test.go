@@ -12,9 +12,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
 )
 
 type recordingSignalSourceRunner struct {
@@ -210,18 +210,18 @@ rest:
 	})
 }
 
-func testSignalSourceBinding() SignalSourceBinding {
-	return SignalSourceBinding{
+func testSignalSourceBinding() restdef.SignalSourceBinding {
+	return restdef.SignalSourceBinding{
 		Source: "orders", DiscriminatorField: "$.body.event",
 		SignalMapping: map[string]string{"created": "OrderCreated"},
 		RunIDField:    "$.body.run_id", ExpectedStateField: "$.body.expected_state",
 		Payload:   map[string]string{"data": "$.body.data", "token": "$.body.token"},
 		Sensitive: []string{"token"}, Timeout: "100ms",
-		Responses: SignalSourceResponseMappings{
-			Accepted:          SignalSourceResponse{Status: http.StatusAccepted},
-			RefusedUndeclared: SignalSourceResponse{Status: http.StatusUnprocessableEntity},
-			SourceValidation:  SignalSourceResponse{Status: http.StatusBadRequest},
-			MachineRunFailed:  SignalSourceResponse{Status: http.StatusInternalServerError},
+		Responses: restdef.SignalSourceResponseMappings{
+			Accepted:          restdef.SignalSourceResponse{Status: http.StatusAccepted},
+			RefusedUndeclared: restdef.SignalSourceResponse{Status: http.StatusUnprocessableEntity},
+			SourceValidation:  restdef.SignalSourceResponse{Status: http.StatusBadRequest},
+			MachineRunFailed:  restdef.SignalSourceResponse{Status: http.StatusInternalServerError},
 		},
 	}
 }
@@ -241,15 +241,15 @@ func signalSourceRequestPayload(
 
 func launchSignalSourceTestServer(
 	t *testing.T,
-	cfg SignalSourceBinding,
+	cfg restdef.SignalSourceBinding,
 	runner SignalSourceRunner,
 ) (*ServerState, string) {
 	t.Helper()
-	server := Server{
-		Address: "127.0.0.1:0", Shutdown: ShutdownConfig{Timeout: "200ms"},
-		Endpoints: map[string]Endpoint{"webhook": {
+	server := restdef.Server{
+		Address: "127.0.0.1:0", Shutdown: restdef.ShutdownConfig{Timeout: "200ms"},
+		Endpoints: map[string]restdef.Endpoint{"webhook": {
 			Method: http.MethodPost, Path: "/events", Binding: bindingSignalSource,
-			Request: RequestBinding{BodySchema: map[string]interface{}{
+			Request: restdef.RequestBinding{BodySchema: map[string]interface{}{
 				"type": "object",
 				"required": []interface{}{
 					"event", "run_id", "expected_state", "data", "token",
@@ -265,8 +265,8 @@ func launchSignalSourceTestServer(
 			SignalSource: cfg,
 		}},
 	}
-	require.NoError(t, ValidateDefinition(Definition{
-		Version: "v1", Servers: map[string]Server{"signals": server},
+	require.NoError(t, ValidateDefinition(restdef.Definition{
+		Version: "v1", Servers: map[string]restdef.Server{"signals": server},
 	}))
 	state := NewServerState()
 	_, baseURL := launchRESTServerDefinition(t, state, ServerDefinition{

@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
+	"github.com/stretchr/testify/require"
 )
 
 // These cover the terminal-state response mapping (srd030 R4.3; GH-615). The
@@ -59,12 +59,12 @@ func applyShapedMachine() *core.MachineSpec {
 	}
 }
 
-func applyShapedConfig(validateOK, applyOK bool) MachineRequest {
-	return MachineRequest{
+func applyShapedConfig(validateOK, applyOK bool) restdef.MachineRequest {
+	return restdef.MachineRequest{
 		Timeout:     "2s",
-		Request:     MachineRequestMapping{Body: map[string]string{"name": "$.name"}},
+		Request:     restdef.MachineRequestMapping{Body: map[string]string{"name": "$.name"}},
 		MachineSpec: applyShapedMachine(),
-		Response: MachineRequestResponse{TerminalStates: map[string]MachineResponseMapping{
+		Response: restdef.MachineRequestResponse{TerminalStates: map[string]restdef.MachineResponseMapping{
 			"Done":     {Status: http.StatusOK, Body: map[string]string{"status": "$.stage"}},
 			"Rejected": {Status: http.StatusBadRequest, Body: map[string]string{"status": "$.stage"}},
 			"Failed":   {Status: http.StatusInternalServerError, Body: map[string]string{"status": "$.stage"}},
@@ -85,9 +85,9 @@ func TestMachineRequestTerminalStatusUsesMachineDeclaration(t *testing.T) {
 		},
 		TerminalStates: []string{"Finished"},
 	}
-	cfg := MachineRequest{
+	cfg := restdef.MachineRequest{
 		MachineSpec: spec,
-		Response: MachineRequestResponse{TerminalStates: map[string]MachineResponseMapping{
+		Response: restdef.MachineRequestResponse{TerminalStates: map[string]restdef.MachineResponseMapping{
 			"Finished": {Status: http.StatusInternalServerError},
 		}},
 	}
@@ -137,7 +137,7 @@ func TestMachineRequestTerminalStateSeparatesClientAndServerErrors(t *testing.T)
 func TestMachineRequestTerminalStateOutranksSignal(t *testing.T) {
 	t.Parallel()
 	cfg := applyShapedConfig(false, false)
-	cfg.Response.TerminalSignals = map[string]MachineResponseMapping{
+	cfg.Response.TerminalSignals = map[string]restdef.MachineResponseMapping{
 		string(core.ToolFailed): {Status: http.StatusTeapot, Body: map[string]string{"status": "$.stage"}},
 	}
 	state, baseURL := launchMachineRequestServerWithConfig(t, cfg)
@@ -152,7 +152,7 @@ func TestMachineRequestFallsBackToSignalMapping(t *testing.T) {
 	t.Parallel()
 	cfg := applyShapedConfig(false, false)
 	cfg.Response.TerminalStates = nil
-	cfg.Response.TerminalSignals = map[string]MachineResponseMapping{
+	cfg.Response.TerminalSignals = map[string]restdef.MachineResponseMapping{
 		string(core.ToolFailed): {Status: http.StatusConflict, Body: map[string]string{"status": "$.stage"}},
 	}
 	state, baseURL := launchMachineRequestServerWithConfig(t, cfg)
@@ -185,14 +185,14 @@ func TestValidateMachineResponsesRejectsNonTerminalState(t *testing.T) {
 	t.Parallel()
 	machine := *applyShapedMachine()
 
-	err := validateMachineResponses(machine, MachineRequestResponse{
-		TerminalStates: map[string]MachineResponseMapping{"Applying": {Status: http.StatusOK}},
+	err := validateMachineResponses(machine, restdef.MachineRequestResponse{
+		TerminalStates: map[string]restdef.MachineResponseMapping{"Applying": {Status: http.StatusOK}},
 	})
 	require.ErrorContains(t, err, "machine_config_invalid")
 	require.ErrorContains(t, err, "Applying")
 
-	require.NoError(t, validateMachineResponses(machine, MachineRequestResponse{
-		TerminalStates: map[string]MachineResponseMapping{"Rejected": {Status: http.StatusBadRequest}},
+	require.NoError(t, validateMachineResponses(machine, restdef.MachineRequestResponse{
+		TerminalStates: map[string]restdef.MachineResponseMapping{"Rejected": {Status: http.StatusBadRequest}},
 	}))
 }
 
@@ -200,17 +200,17 @@ func TestValidateMachineResponsesRejectsNonTerminalState(t *testing.T) {
 // one of the two maps is required, and either alone is enough.
 func TestMachineRequestEndpointAcceptsEitherResponseMap(t *testing.T) {
 	t.Parallel()
-	endpoint := func(response MachineRequestResponse) Endpoint {
-		return Endpoint{
+	endpoint := func(response restdef.MachineRequestResponse) restdef.Endpoint {
+		return restdef.Endpoint{
 			Method: "POST", Path: "/docs", Binding: bindingMachineRequest,
-			MachineRequest: MachineRequest{Machine: "m.yaml", Timeout: "2s", Response: response},
+			MachineRequest: restdef.MachineRequest{Machine: "m.yaml", Timeout: "2s", Response: response},
 		}
 	}
-	mapping := map[string]MachineResponseMapping{"Done": {Status: http.StatusOK}}
+	mapping := map[string]restdef.MachineResponseMapping{"Done": {Status: http.StatusOK}}
 
-	require.NoError(t, validateMachineRequestEndpoint("docs", endpoint(MachineRequestResponse{TerminalStates: mapping})))
-	require.NoError(t, validateMachineRequestEndpoint("docs", endpoint(MachineRequestResponse{TerminalSignals: mapping})))
+	require.NoError(t, validateMachineRequestEndpoint("docs", endpoint(restdef.MachineRequestResponse{TerminalStates: mapping})))
+	require.NoError(t, validateMachineRequestEndpoint("docs", endpoint(restdef.MachineRequestResponse{TerminalSignals: mapping})))
 
-	err := validateMachineRequestEndpoint("docs", endpoint(MachineRequestResponse{}))
+	err := validateMachineRequestEndpoint("docs", endpoint(restdef.MachineRequestResponse{}))
 	require.ErrorContains(t, err, "terminal_states or terminal_signals")
 }

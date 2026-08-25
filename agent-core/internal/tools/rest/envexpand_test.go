@@ -3,7 +3,11 @@
 
 package rest
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/envexpand"
+)
 
 func TestExpandEnvSubstitutesAndDefaults(t *testing.T) {
 	t.Setenv("RAG_COLLECTION", "corpus7")
@@ -23,7 +27,7 @@ func TestExpandEnvSubstitutesAndDefaults(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := string(expandEnv([]byte(c.in))); got != c.want {
+			if got := string(envexpand.Expand([]byte(c.in))); got != c.want {
 				t.Errorf("expandEnv(%q) = %q, want %q", c.in, got, c.want)
 			}
 		})
@@ -40,7 +44,7 @@ func TestExpandEnvLeavesSelectorsUntouched(t *testing.T) {
 		"documents: $.documents",
 	}
 	for _, in := range inputs {
-		if got := string(expandEnv([]byte(in))); got != in {
+		if got := string(envexpand.Expand([]byte(in))); got != in {
 			t.Errorf("expandEnv(%q) = %q, want unchanged", in, got)
 		}
 	}

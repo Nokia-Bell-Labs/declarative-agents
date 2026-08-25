@@ -13,21 +13,22 @@ import (
 	"sync"
 	"testing"
 
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 )
 
 // mockServer builds a mock-profile-shaped server: a catch-all mock mount, a log route,
 // and health. The mock mount answers whatever methods and paths its fixture
 // declares, so the literal routes must stay more specific than the catch-all.
-func mockServer(t *testing.T, name string, cfg *MockConfig) Server {
+func mockServer(t *testing.T, name string, cfg *restdef.MockConfig) restdef.Server {
 	t.Helper()
-	return Server{
+	return restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: name, Capacity: 4, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: name, Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"mock": {
 				Method: http.MethodGet, Path: "/{path...}", Binding: bindingMock, Mock: cfg,
-				Request: RequestBinding{Path: map[string]interface{}{
+				Request: restdef.RequestBinding{Path: map[string]interface{}{
 					"path": map[string]interface{}{"type": "string"},
 				}},
 			},
@@ -72,7 +73,7 @@ routes:
       - status: 500
         body: "boom"
 `)
-	state, baseURL := launchRESTServer(t, mockServer(t, "mock_seq", &MockConfig{Fixtures: fixture}), LimitProfile{})
+	state, baseURL := launchRESTServer(t, mockServer(t, "mock_seq", &restdef.MockConfig{Fixtures: fixture}), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "mock_seq")
 
 	first := requestBody(t, http.MethodPost, baseURL+"/deploy", "", http.StatusOK)
@@ -103,7 +104,7 @@ routes:
       - status: 202
         body: "accepted"
 `)
-	state, baseURL := launchRESTServer(t, mockServer(t, "mock_log", &MockConfig{Fixtures: fixture}), LimitProfile{})
+	state, baseURL := launchRESTServer(t, mockServer(t, "mock_log", &restdef.MockConfig{Fixtures: fixture}), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "mock_log")
 
 	requestBody(t, http.MethodPost, baseURL+"/deploy", `{"release":"a"}`, http.StatusAccepted)
@@ -167,9 +168,9 @@ func TestRESTServer_MockBindingFixtureValidation(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			endpoint := Endpoint{
+			endpoint := restdef.Endpoint{
 				Method: http.MethodGet, Path: "/{path...}", Binding: bindingMock,
-				Mock: &MockConfig{Fixtures: writeFixture(t, tc.fixture)},
+				Mock: &restdef.MockConfig{Fixtures: writeFixture(t, tc.fixture)},
 			}
 
 			// --validate-config path.
@@ -180,7 +181,7 @@ func TestRESTServer_MockBindingFixtureValidation(t *testing.T) {
 			// Server startup path: the listener must never come up.
 			_, err = newServerRuntime(ServerDefinition{
 				Name:   "mock_invalid",
-				Server: Server{Address: "127.0.0.1:0", Endpoints: map[string]Endpoint{"mock": endpoint}},
+				Server: restdef.Server{Address: "127.0.0.1:0", Endpoints: map[string]restdef.Endpoint{"mock": endpoint}},
 			})
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tc.want)
@@ -199,7 +200,7 @@ func TestRESTServer_MockBindingConcurrentSequencing(t *testing.T) {
 	for i := 0; i < calls; i++ {
 		fixture += fmt.Sprintf("      - status: 200\n        body: \"%d\"\n", i)
 	}
-	state, baseURL := launchRESTServer(t, mockServer(t, "mock_conc", &MockConfig{Fixtures: writeFixture(t, fixture)}), LimitProfile{})
+	state, baseURL := launchRESTServer(t, mockServer(t, "mock_conc", &restdef.MockConfig{Fixtures: writeFixture(t, fixture)}), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "mock_conc")
 
 	// A dedicated client without keep-alives: the shared DefaultClient pool would
@@ -257,14 +258,14 @@ routes:
       - status: 200
         body: "${MOCK_TEST_BODY:-fallback}"
 `)
-	server := mockServer(t, "mock_inline", &MockConfig{
+	server := mockServer(t, "mock_inline", &restdef.MockConfig{
 		Fixtures: fixture,
-		Routes: []MockRoute{{
+		Routes: []restdef.MockRoute{{
 			Method: http.MethodGet, Path: "/inline",
-			Responses: []MockResponse{{Status: 200, Body: "inline-body"}},
+			Responses: []restdef.MockResponse{{Status: 200, Body: "inline-body"}},
 		}},
 	})
-	state, baseURL := launchRESTServer(t, server, LimitProfile{})
+	state, baseURL := launchRESTServer(t, server, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "mock_inline")
 
 	require.Equal(t, "inline-body", requestBody(t, http.MethodGet, baseURL+"/inline", "", http.StatusOK))
@@ -276,17 +277,17 @@ routes:
 func TestRESTServer_MockBindingLogIsPerInstance(t *testing.T) {
 	t.Parallel()
 
-	cfg := &MockConfig{Routes: []MockRoute{{
+	cfg := &restdef.MockConfig{Routes: []restdef.MockRoute{{
 		Method: http.MethodGet, Path: "/ping",
-		Responses: []MockResponse{{Status: 200, Body: "pong"}},
+		Responses: []restdef.MockResponse{{Status: 200, Body: "pong"}},
 	}}}
 
-	state, baseURL := launchRESTServer(t, mockServer(t, "mock_inst_a", cfg), LimitProfile{})
+	state, baseURL := launchRESTServer(t, mockServer(t, "mock_inst_a", cfg), restdef.LimitProfile{})
 	requestBody(t, http.MethodGet, baseURL+"/ping", "", http.StatusOK)
 	require.Len(t, readMockLog(t, baseURL), 1)
 	stopRESTServer(t, state, "mock_inst_a")
 
-	second, secondURL := launchRESTServer(t, mockServer(t, "mock_inst_b", cfg), LimitProfile{})
+	second, secondURL := launchRESTServer(t, mockServer(t, "mock_inst_b", cfg), restdef.LimitProfile{})
 	defer stopRESTServer(t, second, "mock_inst_b")
 	require.Empty(t, readMockLog(t, secondURL), "a fresh instance starts with an empty log")
 }
@@ -296,19 +297,19 @@ func TestRESTServer_MockBindingLogIsPerInstance(t *testing.T) {
 func TestRESTServer_MockConfigBindingMismatch(t *testing.T) {
 	t.Parallel()
 
-	err := validateEndpoint("m", Endpoint{
+	err := validateEndpoint("m", restdef.Endpoint{
 		Method: http.MethodGet, Path: "/x", Binding: bindingHealth,
-		Mock: &MockConfig{Routes: []MockRoute{{Method: "GET", Path: "/x", Responses: []MockResponse{{Status: 200}}}}},
+		Mock: &restdef.MockConfig{Routes: []restdef.MockRoute{{Method: "GET", Path: "/x", Responses: []restdef.MockResponse{{Status: 200}}}}},
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "has mock config but binding is")
 
-	err = validateEndpoint("m", Endpoint{Method: http.MethodGet, Path: "/x", Binding: bindingMock})
+	err = validateEndpoint("m", restdef.Endpoint{Method: http.MethodGet, Path: "/x", Binding: bindingMock})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "requires mock config")
 
-	err = validateEndpoint("m", Endpoint{
-		Method: http.MethodGet, Path: "/x", Binding: bindingMock, Mock: &MockConfig{},
+	err = validateEndpoint("m", restdef.Endpoint{
+		Method: http.MethodGet, Path: "/x", Binding: bindingMock, Mock: &restdef.MockConfig{},
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "declares no routes")

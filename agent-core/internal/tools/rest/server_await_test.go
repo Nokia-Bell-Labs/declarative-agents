@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,9 +19,9 @@ func TestRESTAwaitEvent_MultiSourceFanIn(t *testing.T) {
 	t.Parallel()
 
 	state := NewServerState()
-	_, _ = launchRESTServerWithState(t, state, namedControlServer("first"), LimitProfile{})
+	_, _ = launchRESTServerWithState(t, state, namedControlServer("first"), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "first")
-	_, secondURL := launchRESTServerWithState(t, state, namedControlServer("second"), LimitProfile{})
+	_, secondURL := launchRESTServerWithState(t, state, namedControlServer("second"), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "second")
 
 	postStatus(t, secondURL+"/approve/123", `{}`, http.StatusAccepted)
@@ -37,7 +38,7 @@ func TestRESTAwaitEvent_MultiSourceFanIn(t *testing.T) {
 func TestRESTAwaitEvent_SourceFiltersPreserveUnrelatedEvents(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+	state, baseURL := launchRESTServer(t, controlServer(), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "control")
 
 	postStatus(t, baseURL+"/domain?signal=DomainEventReceived", `{}`, http.StatusAccepted)
@@ -61,7 +62,7 @@ func TestRESTAwaitEvent_SourceFiltersPreserveUnrelatedEvents(t *testing.T) {
 func TestRESTAwaitEvent_Timeout(t *testing.T) {
 	t.Parallel()
 
-	state, _ := launchRESTServer(t, namedControlServer("timeout"), LimitProfile{})
+	state, _ := launchRESTServer(t, namedControlServer("timeout"), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "timeout")
 
 	_, signal, err := state.AwaitAny(AwaitAnyOptions{
@@ -74,7 +75,7 @@ func TestRESTAwaitEvent_Timeout(t *testing.T) {
 func TestRESTAwaitEvent_ServerStopped(t *testing.T) {
 	t.Parallel()
 
-	state, _ := launchRESTServer(t, namedControlServer("stopped"), LimitProfile{})
+	state, _ := launchRESTServer(t, namedControlServer("stopped"), restdef.LimitProfile{})
 	options := AwaitAnyOptions{
 		Sources: []AwaitSource{{Server: "stopped"}},
 		Timeout: time.Second,
@@ -95,7 +96,7 @@ func TestRESTAwaitEvent_ServerStopped(t *testing.T) {
 func TestRESTAwaitEvent_StoppedSourceCommandError(t *testing.T) {
 	t.Parallel()
 
-	state, _ := launchRESTServer(t, namedControlServer("stopped_error"), LimitProfile{})
+	state, _ := launchRESTServer(t, namedControlServer("stopped_error"), restdef.LimitProfile{})
 	source := AwaitSource{Server: "stopped_error", StoppedBehavior: StoppedSourceCommandError}
 	results := startRESTAwait(t, func() core.Result { return awaitAnyResult(state, source) })
 	requireAwaitBlocked(t, results)
@@ -108,8 +109,8 @@ func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
 
 	state := NewServerState()
 	collection := NewCollection()
-	require.NoError(t, collection.Add(Definition{Servers: map[string]Server{"control": controlServer()}}))
-	_, baseURL := launchRESTServerWithState(t, state, controlServer(), LimitProfile{})
+	require.NoError(t, collection.Add(restdef.Definition{Servers: map[string]restdef.Server{"control": controlServer()}}))
+	_, baseURL := launchRESTServerWithState(t, state, controlServer(), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "control")
 
 	def := requireRESTToolDef(t, InitAwaitEvent)
@@ -130,7 +131,7 @@ func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
 func TestRESTAwaitEvent_PersistedUndoRestoresConsumedEventInOrder(t *testing.T) {
 	t.Parallel()
 
-	state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+	state, baseURL := launchRESTServer(t, controlServer(), restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "control")
 	postStatus(t, baseURL+"/approve/123", `{}`, http.StatusAccepted)
 	postStatus(t, baseURL+"/approve/456", `{}`, http.StatusAccepted)

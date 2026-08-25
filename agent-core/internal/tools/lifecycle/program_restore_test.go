@@ -11,6 +11,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
 func TestReconstructProgramResourcesVerifiesFiltersAndMerges(t *testing.T) {
@@ -22,7 +23,7 @@ func TestReconstructProgramResourcesVerifiesFiltersAndMerges(t *testing.T) {
 	current := ProgramResources{
 		Definitions: []catalog.ToolDef{{Name: "checkpoint_rollback"}},
 		RestDefinitions: toolrest.Collection{
-			Auth: map[string]toolrest.AuthProfile{
+			Auth: map[string]restdef.AuthProfile{
 				"shared": {Type: "basic"},
 				"local":  {Type: "bearer"},
 			},
@@ -39,7 +40,7 @@ func TestReconstructProgramResourcesVerifiesFiltersAndMerges(t *testing.T) {
 						{Name: "unused", Binary: "false"},
 					},
 					RestDefinitions: toolrest.Collection{
-						Auth: map[string]toolrest.AuthProfile{
+						Auth: map[string]restdef.AuthProfile{
 							"shared": {Type: "token"},
 							"origin": {Type: "api_key"},
 						},

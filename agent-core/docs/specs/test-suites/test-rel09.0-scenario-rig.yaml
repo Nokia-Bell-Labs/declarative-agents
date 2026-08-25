@@ -106,7 +106,7 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Declarative REST health retry times out within its bound
-    go_test: go test ./internal/tools/lifecycle ./internal/tools/rest -run 'TestDelay_ElapsedAndDeadlineSignals|TestRESTClient_CommandStateSelectsTrustedBaseURL'
+    go_test: go test ./internal/tools/lifecycle ./internal/tools/rest/client -run 'TestDelay_ElapsedAndDeadlineSignals|TestRESTClient_CommandStateSelectsTrustedBaseURL'
     status: implemented
     description: |
       Each REST dispatch probes the trusted labeled child URL once. The

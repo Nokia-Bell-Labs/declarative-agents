@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 )
 
 const (
@@ -72,7 +73,7 @@ type AwaitAnyOptions struct {
 type serverRuntime struct {
 	name           string
 	def            ServerDefinition
-	mock           *mockState
+	mock           MockEngine
 	httpServer     *http.Server
 	listener       net.Listener
 	queue          chan InboundEvent
@@ -118,6 +119,17 @@ func (s *ServerState) runtime(name string) (*serverRuntime, error) {
 	return runtime, nil
 }
 
+// ActiveStreamCount returns the number of in-flight stream handlers on a launched server.
+func (s *ServerState) ActiveStreamCount(name string) (int, error) {
+	runtime, err := s.runtime(name)
+	if err != nil {
+		return 0, err
+	}
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	return runtime.activeStreams, nil
+}
+
 // RestoreEvent returns a receipt-recorded event to the front of its source's
 // pending queue so rollback preserves the order of remaining events.
 func (s *ServerState) RestoreEvent(name string, event InboundEvent) error {
@@ -159,7 +171,7 @@ func serveRuntime(runtime *serverRuntime) {
 	}
 }
 
-func validateRouteConflicts(endpoints map[string]Endpoint) error {
+func validateRouteConflicts(endpoints map[string]restdef.Endpoint) error {
 	seen := map[string]string{}
 	for name, endpoint := range endpoints {
 		key := endpoint.Method + " " + endpoint.Path
@@ -242,7 +254,7 @@ func (r *serverRuntime) decrementStreams() {
 	r.activeStreams--
 }
 
-func queueCapacity(queue QueueConfig) int {
+func queueCapacity(queue restdef.QueueConfig) int {
 	if queue.Capacity > 0 {
 		return queue.Capacity
 	}

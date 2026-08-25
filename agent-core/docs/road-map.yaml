@@ -304,9 +304,9 @@ releases:
         summary: Formal tests for label selection, duplicate-label resolution, restart rehydration, the R13.3 rejection table, redaction-before-persistence, five-table round-trip, and revert reap
         status: implemented
     proof:
-      - go test ./internal/tools/rest -run TestRESTClient_CommandStateTracerBulletNonAdjacentWithRestart
+      - go test ./internal/tools/rest/client -run TestRESTClient_CommandStateTracerBulletNonAdjacentWithRestart
       - go test ./internal/runtime/core ./internal/runtime/checkpoint/dolt -run 'TestCommandStateView|TestDoltCheckpointRevertReapsBothPlanes|TestDoltCheckpointReceiptWalkReversesSurvivingStep|TestDoltCommandStateWritesOnlyNewStepBlob'
-      - go test ./internal/tools/rest -run 'TestRESTClient_CommandState'
+      - go test ./internal/tools/rest/client -run 'TestRESTClient_CommandState'
 
   - version: "08.0"
     name: HTTP trace propagation

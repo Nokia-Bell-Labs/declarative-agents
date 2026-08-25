@@ -196,7 +196,7 @@ test_cases:
 
   - use_case: rel11.0-uc001-scenario-critic-scenario-run
     name: Subject readiness is a machine-visible REST retry loop
-    go_test: cd ../../agent-core && go test ./internal/tools/lifecycle ./internal/tools/rest ./internal/tools/service -run '^(TestDelay_ElapsedAndDeadlineSignals|TestDelay_CancellationAndValidation|TestRESTClient_CommandStateSelectsTrustedBaseURL|TestSubjectHealthTarget_PreservesRelativeAndAlternateListenerPaths)$'
+    go_test: cd ../../agent-core && go test ./internal/tools/lifecycle ./internal/tools/rest/client ./internal/tools/service -run '^(TestDelay_ElapsedAndDeadlineSignals|TestDelay_CancellationAndValidation|TestRESTClient_CommandStateSelectsTrustedBaseURL|TestSubjectHealthTarget_PreservesRelativeAndAlternateListenerPaths)$'
     integration_target: mage rig
     status: implemented
     description: |

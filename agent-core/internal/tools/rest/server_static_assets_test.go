@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,26 +22,26 @@ func TestStaticAssets_literalRouteWinsOverCatchAll(t *testing.T) {
 	require.NoError(t, os.MkdirAll(nested, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(nested, "file"), []byte("file-body"), 0o644))
 
-	srv := Server{
+	srv := restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: "static_prec", Capacity: 4, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: "static_prec", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"literal": {
 				Method: "GET", Path: "/api/x", Binding: bindingHealth,
 			},
 			"catchall": {
 				Method: "GET", Path: "/api/{path...}",
 				Binding: bindingStaticAssets,
-				StaticAssets: &StaticAssetsConfig{
+				StaticAssets: &restdef.StaticAssetsConfig{
 					Root: root,
 				},
-				Request: RequestBinding{Path: map[string]interface{}{
+				Request: restdef.RequestBinding{Path: map[string]interface{}{
 					"path": map[string]interface{}{"type": "string"},
 				}},
 			},
 		},
 	}
-	state, baseURL := launchRESTServer(t, srv, LimitProfile{})
+	state, baseURL := launchRESTServer(t, srv, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "static_prec")
 
 	body := requestBody(t, http.MethodGet, baseURL+"/api/x", "", http.StatusOK)
@@ -58,24 +59,24 @@ func TestStaticAssets_SPAServesIndexForUnknownPath(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("<html>spa</html>"), 0o644))
 
-	srv := Server{
+	srv := restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: "static_spa", Capacity: 4, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: "static_spa", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"ui": {
 				Method: "GET", Path: "/ui/{path...}",
 				Binding: bindingStaticAssets,
-				StaticAssets: &StaticAssetsConfig{
+				StaticAssets: &restdef.StaticAssetsConfig{
 					Root: root,
 					SPA:  true,
 				},
-				Request: RequestBinding{Path: map[string]interface{}{
+				Request: restdef.RequestBinding{Path: map[string]interface{}{
 					"path": map[string]interface{}{"type": "string"},
 				}},
 			},
 		},
 	}
-	state, baseURL := launchRESTServer(t, srv, LimitProfile{})
+	state, baseURL := launchRESTServer(t, srv, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "static_spa")
 
 	out := requestBody(t, http.MethodGet, baseURL+"/ui/no/such/route", "", http.StatusOK)
@@ -88,24 +89,24 @@ func TestStaticAssets_SPARootServesIndex(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("<html>root</html>"), 0o644))
 
-	srv := Server{
+	srv := restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: "static_root", Capacity: 4, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: "static_root", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"ui": {
 				Method: "GET", Path: "/ui/{path...}",
 				Binding: bindingStaticAssets,
-				StaticAssets: &StaticAssetsConfig{
+				StaticAssets: &restdef.StaticAssetsConfig{
 					Root: root,
 					SPA:  true,
 				},
-				Request: RequestBinding{Path: map[string]interface{}{
+				Request: restdef.RequestBinding{Path: map[string]interface{}{
 					"path": map[string]interface{}{"type": "string"},
 				}},
 			},
 		},
 	}
-	state, baseURL := launchRESTServer(t, srv, LimitProfile{})
+	state, baseURL := launchRESTServer(t, srv, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "static_root")
 
 	for _, p := range []string{"/ui/", "/ui"} {
@@ -120,25 +121,25 @@ func TestStaticAssets_exactRouteWinsOverEmptyCatchAll(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("idx"), 0o644))
 
-	srv := Server{
+	srv := restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: "exact_vs_catch", Capacity: 4, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: "exact_vs_catch", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"index": {Method: "GET", Path: "/docs", Binding: bindingHealth},
 			"docs": {
 				Method: "GET", Path: "/docs/{path...}",
 				Binding: bindingStaticAssets,
-				StaticAssets: &StaticAssetsConfig{
+				StaticAssets: &restdef.StaticAssetsConfig{
 					Root: root,
 					SPA:  true,
 				},
-				Request: RequestBinding{Path: map[string]interface{}{
+				Request: restdef.RequestBinding{Path: map[string]interface{}{
 					"path": map[string]interface{}{"type": "string"},
 				}},
 			},
 		},
 	}
-	state, baseURL := launchRESTServer(t, srv, LimitProfile{})
+	state, baseURL := launchRESTServer(t, srv, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "exact_vs_catch")
 
 	exact := requestBody(t, http.MethodGet, baseURL+"/docs", "", http.StatusOK)
@@ -154,24 +155,24 @@ func TestStaticAssets_missingFile404WithoutSPA(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("<html>idx</html>"), 0o644))
 
-	srv := Server{
+	srv := restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: "static_404", Capacity: 4, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: "static_404", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"ui": {
 				Method: "GET", Path: "/ui/{path...}",
 				Binding: bindingStaticAssets,
-				StaticAssets: &StaticAssetsConfig{
+				StaticAssets: &restdef.StaticAssetsConfig{
 					Root: root,
 					SPA:  false,
 				},
-				Request: RequestBinding{Path: map[string]interface{}{
+				Request: restdef.RequestBinding{Path: map[string]interface{}{
 					"path": map[string]interface{}{"type": "string"},
 				}},
 			},
 		},
 	}
-	state, baseURL := launchRESTServer(t, srv, LimitProfile{})
+	state, baseURL := launchRESTServer(t, srv, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "static_404")
 
 	requestStatus(t, http.MethodGet, baseURL+"/ui/missing.bin", "", http.StatusNotFound)
@@ -185,14 +186,14 @@ func TestStaticAssets_monitorOpenAPIOmitsStaticCatchAll(t *testing.T) {
 
 	state := NewServerState()
 	srv := monitorServer("openapi_mix")
-	srv.Endpoints["ui_assets"] = Endpoint{
+	srv.Endpoints["ui_assets"] = restdef.Endpoint{
 		Method: "GET", Path: "/ui/{path...}",
 		Binding: bindingStaticAssets,
-		StaticAssets: &StaticAssetsConfig{
+		StaticAssets: &restdef.StaticAssetsConfig{
 			Root: root,
 			SPA:  true,
 		},
-		Request: RequestBinding{Path: map[string]interface{}{
+		Request: restdef.RequestBinding{Path: map[string]interface{}{
 			"path": map[string]interface{}{"type": "string"},
 		}},
 	}
@@ -216,23 +217,23 @@ func TestStaticAssets_metadataIncludesEndpointNames(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "a.txt"), []byte("a"), 0o644))
 
-	srv := Server{
+	srv := restdef.Server{
 		Address: "127.0.0.1:0",
-		Queue:   QueueConfig{Name: "static_meta", Capacity: 4, Timeout: "20ms"},
-		Endpoints: map[string]Endpoint{
+		Queue:   restdef.QueueConfig{Name: "static_meta", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
 			"health":   {Method: "GET", Path: "/health", Binding: bindingHealth},
 			"metadata": {Method: "GET", Path: "/metadata", Binding: bindingStaticMetadata},
 			"assets": {
 				Method: "GET", Path: "/files/{path...}",
 				Binding:      bindingStaticAssets,
-				StaticAssets: &StaticAssetsConfig{Root: root},
-				Request: RequestBinding{Path: map[string]interface{}{
+				StaticAssets: &restdef.StaticAssetsConfig{Root: root},
+				Request: restdef.RequestBinding{Path: map[string]interface{}{
 					"path": map[string]interface{}{"type": "string"},
 				}},
 			},
 		},
 	}
-	state, baseURL := launchRESTServer(t, srv, LimitProfile{})
+	state, baseURL := launchRESTServer(t, srv, restdef.LimitProfile{})
 	defer stopRESTServer(t, state, "static_meta")
 
 	meta := requestBody(t, http.MethodGet, baseURL+"/metadata", "", http.StatusOK)

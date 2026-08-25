@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 // Package profileaudit inspects the executable timeout closure of one agent
-// profile. It accepts a caller-supplied profile instead of discovering an
-// application catalog, so owner modules retain their own inventory boundary.
+// profile. Callers supply the profile so owner modules keep their inventory.
 package profileaudit
 
 import (
