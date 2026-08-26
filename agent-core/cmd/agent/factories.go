@@ -26,6 +26,8 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
 )
 
+var doltCfg tooldolt.Config
+
 func registerBuiltinFactories(br *toolregistry.BuiltinRegistry, st *agentState, selected map[string]bool) {
 	toolregistry.RegisterStandardBuiltinFactories(br, selected, standardFactoryDeps(st))
 }
@@ -47,7 +49,7 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterDolt: func(br *toolregistry.BuiltinRegistry) {
 			identity, identityErr := checkpoint.Config{DoltDSN: st.doltDSN}.DatabaseIdentity()
 			tooldolt.RegisterFactories(br, tooldolt.FactoryDeps{
-				Connections:           tooldolt.EnvironmentConnections{},
+				Connections:           tooldolt.StaticConnections(st.doltConnections),
 				CheckpointIdentity:    identity,
 				CheckpointIdentityErr: identityErr,
 			})
@@ -176,13 +178,8 @@ func profileMachineRequestRunner(st *agentState) toolrest.MachineRequestRunner {
 	})
 }
 
-// requestLocalState returns a per-request agentState for machine_request tool
-// factories. It shares the host's immutable deps (tracer, capture level, ctx,
-// directories) but binds tool construction to the request's own registry and a
-// fresh conversation, parse-retry tracker, ResolvedModel, and service State, so
-// parse_response and $tool resolve the tool vocabulary against the request
-// registry and the request's invoke_llm words neither share history with the
-// host agent nor leak parser, model, or child-process state across requests.
+// requestLocalState copies host deps into a request-scoped agentState so
+// machine_request factories bind the request registry, conversation, and services.
 func requestLocalState(host *agentState, reg *core.Registry) *agentState {
 	local := *host
 	local.registry = reg

@@ -19,6 +19,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	tooldolt "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/dolt"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
@@ -107,6 +108,7 @@ type agentFlagSnapshot struct {
 	coreRoot       string
 	telemetry      telemetry.Config
 	checkpoint     checkpoint.Config
+	dolt           tooldolt.Config
 	directory      string
 	captureChanged bool
 	request        string
@@ -120,6 +122,7 @@ func snapshotAgentFlags() agentFlagSnapshot {
 		coreRoot:       flagCoreRoot,
 		telemetry:      telemetryCfg,
 		checkpoint:     checkpointCfg,
+		dolt:           doltCfg,
 		directory:      flagDirectory,
 		captureChanged: rootCmd.PersistentFlags().Changed("telemetry-capture"),
 		request:        flagRequest,
@@ -133,6 +136,7 @@ func restoreAgentFlags(s agentFlagSnapshot) {
 	flagCoreRoot = s.coreRoot
 	telemetryCfg = s.telemetry
 	checkpointCfg = s.checkpoint
+	doltCfg = s.dolt
 	flagDirectory = s.directory
 	rootCmd.PersistentFlags().Lookup("telemetry-capture").Changed = s.captureChanged
 	flagRequest = s.request

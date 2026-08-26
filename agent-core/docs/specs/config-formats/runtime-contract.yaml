@@ -31,6 +31,7 @@ invocation: |
     agent --profile /work/applications/catalog/agents/<agent>/profile.yaml \
           [--request <file>] [--output <dir>] \
           [--directory <path>] [--dolt-dsn <dsn>] \
+          [--dolt-connection <name>=<dsn>] \
           [--resume-checkpoint <id>] [--resume-signal <signal>] \
           [--otel-log-file <file>] [--otel-otlp-endpoint <host:port>] \
           [--otel-service-name <name>] [--telemetry-capture <off|delta|full>]
@@ -67,6 +68,10 @@ invocation: |
     --dolt-dsn          MySQL-wire DSN to a running dolt sql-server for the
                          persistent checkpoint backend. Without this flag,
                          persistence uses NoopCheckpoint.
+    --dolt-connection    Named Dolt word DSN (NAME=DSN), independent of
+                         --dolt-dsn. Repeatable. ToolDef connection_ref
+                         names resolve through this map, not process
+                         environment.
     --resume-checkpoint  Run id to Load before re-entering the loop.
     --resume-signal      Signal used for the first resumed transition
                          (default: Approved).
@@ -102,7 +107,7 @@ invocation: |
     cmd/agent does not expose --machine, --tools, --tools-declaration,
     --tool-config-dir, --profiles-dir, --input, --checkpoint,
     --to-iteration, or --state-store-dir. Runtime surface is --profile plus
-    runtime data, --dolt-dsn, resume, and diagnostics.
+    runtime data, --dolt-dsn, --dolt-connection, resume, and diagnostics.
 
   Request files carry lifecycle data. Targets for history and rollback are
   lifecycle tool input. A request file can name
