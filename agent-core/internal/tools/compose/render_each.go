@@ -112,18 +112,7 @@ func renderItem(template string, item interface{}) (string, error) {
 }
 
 func itemFieldValue(item interface{}, field string) (interface{}, error) {
-	current := item
-	for _, component := range strings.Split(field, ".") {
-		object, ok := current.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("field %q cannot be read from %T", field, current)
-		}
-		current, ok = object[component]
-		if !ok {
-			return nil, fmt.Errorf("field %q is absent", field)
-		}
-	}
-	return current, nil
+	return resolveItemPath(item, field)
 }
 
 func (c *renderEachCmd) fault(err error) core.Result {

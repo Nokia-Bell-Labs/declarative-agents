@@ -1,0 +1,58 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+tools:
+- name: flat_map
+  type: builtin
+  init: flat_map
+  category: word
+  visibility: internal
+  emits: [Flattened, CommandError]
+  description: Flatten parallel nested arrays into ordered rows while carrying parent fields.
+  problem: Provider responses group element arrays under parent objects, but downstream words need one object per element.
+  goals:
+  - Preserve parent order and element order.
+  - Zip named parallel arrays into one output row per index.
+  - Copy configured parent fields onto every emitted row.
+  requirements:
+    input:
+    - Trusted configuration selects the parent array and maps output names to dotted item paths.
+    - Numeric item-path components address array elements, so ids.0 selects the first nested row.
+    output:
+    - Output contains items and count; items is the ordered flattened array.
+    errors:
+    - Missing fields, invalid indexes, non-array element fields, and unequal parallel-array lengths emit CommandError.
+  non_goals:
+  - Does not alter canonical command-state or REST selector syntax.
+  - Does not infer field pairings or pad unequal arrays.
+  parameters:
+    type: object
+    properties: {}
+  output:
+    description: Ordered flattened objects and their count.
+    schema:
+      type: object
+      properties:
+        items: {type: array, items: {type: object}}
+        count: {type: integer}
+      required: [items, count]
+  side_effects:
+  - kind: none
+    description: Reads command state and produces a Result without mutating runtime or external state.
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Flattening reads prior state and changes no external state.
+  errors:
+  - signal: CommandError
+    condition: A selector or item path does not resolve, an element field is not an array, or parallel lengths differ.
+    message_shape: 'flat_map: <error>'
+    state_after_failure: No successful flattened output is published.
+  relationships:
+    before: [render_each, reorder_by_index, machine-selected successor]
+    after: [nested-array-producing predecessor]
+  config:
+    items: $from(join_fanout).sources
+    element_fields: {id: ids.0, text: documents.0}
+    carry_fields: {source: name}
+    signal: Flattened

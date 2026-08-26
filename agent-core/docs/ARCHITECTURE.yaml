@@ -365,8 +365,10 @@ overview:
       - path: internal/tools/compose/
         responsibility: |
           Compose owns flat configured substitution and render_each owns ordered
-          per-item array rendering. The two words stay separate so compose does
-          not acquire a template control language.
+          per-item array rendering. flat_map zips parallel nested arrays while
+          carrying parent fields, and reorder_by_index joins ordered index rows
+          back to trusted candidates. These words stay separate so compose does
+          not acquire a template control language or hidden ranking policy.
         dependencies:
           may_depend_on:
             - internal/runtime/core

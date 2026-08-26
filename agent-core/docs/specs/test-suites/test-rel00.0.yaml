@@ -292,16 +292,20 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Builtin collection words transform and validate selected arrays and structured output
-    go_test: go test ./internal/tools/catalog ./internal/tools/control ./internal/tools/compose ./internal/tools/llm -run 'Test(Partition|SelectSubset|ValidatePartition|ValidateSelectSubset|RenderEach|ValidateRenderEach|ValidateParseStructuredConfig|ParseStructured|CompileStructured)'
+    go_test: go test ./internal/tools/catalog ./internal/tools/control ./internal/tools/compose ./internal/tools/llm -run 'Test(Partition|SelectSubset|ValidatePartition|ValidateSelectSubset|RenderEach|ValidateRenderEach|FlatMap|ReorderByIndex|ValidateArrayTransformConfig|ValidateParseStructuredConfig|ParseStructured|CompileStructured)'
     inputs:
-      words: [partition, select_subset, render_each, parse_structured]
-      outcomes: [full, partial, empty, adjacent_valid, adjacent_invalid, malformed, schema_invalid, unresolved_selector]
+      words: [partition, select_subset, render_each, flat_map, reorder_by_index, parse_structured]
+      outcomes: [full, partial, empty, nested_arrays, mismatched_lengths, ranked_subset, invalid_index, adjacent_valid, adjacent_invalid, malformed, schema_invalid, unresolved_selector]
     expected:
       input_order_preserved: true
       undeclared_candidates_excluded: true
       trusted_vocabulary_values_selected_in_candidate_order: true
       duplicate_name_policy_deterministic: true
       iterator_structured_output_traversable: true
+      parallel_nested_arrays_flattened: true
+      parent_fields_carried: true
+      candidates_joined_in_result_order: true
+      invalid_and_duplicate_indexes_rejected: true
       empty_array_renders_empty: true
       parse_structured_accepts_adjacent_output: true
       other_current_result_paths_rejected: true

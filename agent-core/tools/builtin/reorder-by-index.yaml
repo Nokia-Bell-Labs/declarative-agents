@@ -1,0 +1,58 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+tools:
+- name: reorder_by_index
+  type: builtin
+  init: reorder_by_index
+  category: word
+  visibility: internal
+  emits: [Reordered, CommandError]
+  description: Reorder candidate values by indexes from an ordered result array.
+  problem: Ranking providers return ordered index rows, while downstream words need the corresponding trusted candidates.
+  goals:
+  - Join each result row to one candidate through a declared integer index field.
+  - Preserve provider result order and retain aligned result rows.
+  - Reject ambiguous or invalid indexes.
+  requirements:
+    input:
+    - Trusted configuration selects candidate and ordering arrays and the index field.
+    output:
+    - Output contains reordered items, aligned ordering rows, and count.
+    errors:
+    - Missing, non-integer, negative, out-of-range, and duplicate indexes emit CommandError.
+  non_goals:
+  - Does not calculate relevance, sort scores, or call a ranking provider.
+  - Does not alter canonical command-state or REST selector syntax.
+  parameters:
+    type: object
+    properties: {}
+  output:
+    description: Candidates in result-row order with aligned provider rows.
+    schema:
+      type: object
+      properties:
+        items: {type: array}
+        rows: {type: array, items: {type: object}}
+        count: {type: integer}
+      required: [items, rows, count]
+  side_effects:
+  - kind: none
+    description: Reads command state and produces a Result without mutating runtime or external state.
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Reordering reads prior state and changes no external state.
+  errors:
+  - signal: CommandError
+    condition: A selector or index field does not resolve, or an index is not one unique candidate address.
+    message_shape: 'reorder_by_index: <error>'
+    state_after_failure: No successful reordered output is published.
+  relationships:
+    before: [render_each, machine-selected successor]
+    after: [flat_map, ranking-result-producing predecessor]
+  config:
+    items: $from(flatten).items
+    order: $from(rerank).results
+    index_field: index
+    signal: Reordered
