@@ -50,3 +50,5 @@ tools:
     description: Parsed tool-request JSON or a plain completion summary.
     schema:
       type: string
+  config:
+    manifest_state: Composing

@@ -33,22 +33,31 @@ func TestValidateToolPhasesAcceptsDeclaredAndUnscopedWords(t *testing.T) {
 	}))
 }
 
-func TestValidateToolPhasesRejectsManifestStateDifferentFromDynamicTarget(t *testing.T) {
+func TestValidateToolPhasesRejectsActualSelectorStateDifferentFromDynamicTarget(t *testing.T) {
 	t.Parallel()
 	machine := dynamicValidationMachine()
-	defs := dynamicValidationDefs("Answering")
+	defs := dynamicValidationDefs("Answering", "Reporting")
 
 	err := ValidateToolPhases(machine, defs)
 
 	require.ErrorContains(t, err,
-		`invoke_llm tool "select_tool" manifest_state "Answering" disagrees with $tool target "Reporting" after Answering/ToolReady`)
+		`invoke_llm selector tool "select_tool" manifest_state "Answering" disagrees with $tool target "Reporting" after Answering/ToolReady`)
 }
 
 func TestValidateToolPhasesAcceptsManifestStateMatchingDynamicTarget(t *testing.T) {
 	t.Parallel()
 	require.NoError(t, ValidateToolPhases(
-		dynamicValidationMachine(), dynamicValidationDefs("Reporting"),
+		dynamicValidationMachine(), dynamicValidationDefs("Reporting", "Reporting"),
 	))
+}
+
+func TestValidateToolPhasesRejectsActualParserStateDifferentFromDynamicTarget(t *testing.T) {
+	t.Parallel()
+	err := ValidateToolPhases(
+		dynamicValidationMachine(), dynamicValidationDefs("Reporting", "Answering"),
+	)
+	require.ErrorContains(t, err,
+		`parse_response tool "parse_tool" manifest_state "Answering" disagrees with $tool target "Reporting" after Answering/ToolReady`)
 }
 
 func TestValidateToolPhasesRejectsWordScopedToNoState(t *testing.T) {
@@ -87,34 +96,38 @@ func TestValidateToolPhasesRejectsWordScopedToNoState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			err := ValidateToolPhases(dynamicValidationMachine(), append(
-				dynamicValidationDefs("Reporting"), tt.tool,
+				dynamicValidationDefs("Reporting", "Reporting"), tt.tool,
 			))
 			require.ErrorContains(t, err, tt.message)
 		})
 	}
 }
 
-func TestValidateToolPhasesRejectsDeclarationOrderDependentManifestStates(t *testing.T) {
+func TestValidateToolPhasesIgnoresUnrelatedInvokeManifestStatesAndOrder(t *testing.T) {
 	t.Parallel()
-	defs := dynamicValidationDefs("Reporting")
+	defs := dynamicValidationDefs("Reporting", "Reporting")
 	defs = append(defs, ToolDef{
 		Name: "alternate_model", Type: "builtin", Init: "invoke_llm",
 		Visibility: "internal", Config: map[string]interface{}{"manifest_state": "Answering"},
 	})
 
-	err := ValidateToolPhases(dynamicValidationMachine(), defs)
+	require.NoError(t, ValidateToolPhases(dynamicValidationMachine(), defs))
 
-	require.ErrorContains(t, err,
-		`invoke_llm tool "alternate_model" manifest_state "Answering" disagrees with $tool target "Reporting"`)
+	for left, right := 0, len(defs)-1; left < right; left, right = left+1, right-1 {
+		defs[left], defs[right] = defs[right], defs[left]
+	}
+	require.NoError(t, ValidateToolPhases(dynamicValidationMachine(), defs))
 }
 
 func dynamicValidationMachine() core.MachineSpec {
 	return core.MachineSpec{
 		Name:           "dynamic-validation",
-		States:         core.StateSpecsFromNames("Answering", "Reporting", "Done", "Failed"),
+		States:         core.StateSpecsFromNames("Preparing", "Selecting", "Answering", "Reporting", "Done", "Failed"),
 		TerminalStates: []string{"Done", "Failed"},
-		Signals:        core.SignalSpecsFromNames("ToolReady", "ToolDone", "ToolFailed", "SearchDone"),
+		Signals:        core.SignalSpecsFromNames("Seed", "LLMResponded", "ToolReady", "ToolDone", "ToolFailed", "SearchDone"),
 		Transitions: []core.TransitionSpec{
+			{State: "Preparing", Signal: "Seed", Next: "Selecting", Action: "select_tool"},
+			{State: "Selecting", Signal: "LLMResponded", Next: "Answering", Action: "parse_tool"},
 			{State: "Answering", Signal: "ToolReady", Next: "Reporting", Action: "$tool"},
 			{State: "Reporting", Signal: "ToolDone", Next: "Done"},
 			{State: "Reporting", Signal: "ToolFailed", Next: "Failed"},
@@ -122,15 +135,17 @@ func dynamicValidationMachine() core.MachineSpec {
 	}
 }
 
-func dynamicValidationDefs(manifestState string) []ToolDef {
+func dynamicValidationDefs(selectorState, parserState string) []ToolDef {
 	return []ToolDef{
 		{
 			Name: "select_tool", Type: "builtin", Init: "invoke_llm",
-			Visibility: "internal", Config: map[string]interface{}{"manifest_state": manifestState},
+			Visibility: "internal", Emits: []string{"LLMResponded"},
+			Config: map[string]interface{}{"manifest_state": selectorState},
 		},
 		{
 			Name: "parse_tool", Type: "builtin", Init: "parse_response",
-			Visibility: "internal",
+			Visibility: "internal", Emits: []string{"ToolReady"},
+			Config: map[string]interface{}{"manifest_state": parserState},
 		},
 		{
 			Name: "write", Type: "builtin", Init: "file_write",

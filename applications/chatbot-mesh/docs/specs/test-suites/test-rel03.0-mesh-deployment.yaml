@@ -116,7 +116,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Mesh hot-swap tracer on kind
     integration_target: mage integration:helmSwap
-    go_test: go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$|^TestKindDependencyImagesCoverEveryExternalPodImage$|^TestHelmFailureEvidenceIsBoundedAndNamesRootCauses$|^TestHelmSwapInstallAndUpgradeUseThinReleaseArgs$|^TestHelmSwapReturnsCapturedOutput$'
+    go_test: go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$|^TestKindDependencyImagesCoverEveryExternalPodImage$|^TestHelmFailureEvidenceIsBoundedAndNamesRootCauses$|^TestHelmSwapInstallAndUpgradeUseThinReleaseArgs$|^TestHelmSwapReturnsCapturedOutput$|^TestObserverTierDecisionAfterAcceptsDispatchAndFallback$'
     status: implemented
     description: |
       Integration.HelmSwap proves the tiered-swap rollout mechanics on a kind
@@ -130,7 +130,9 @@ test_cases:
       shutdown drain, then reconnects to the Service and requires another answer
       from the replacement pod. It needs docker/kind/helm/kubectl but no installed
       Ollama models; it skips cleanly when the toolchain is absent and deletes a
-      cluster it created in all paths.
+      cluster it created in all paths. Observer live-turn evidence accepts either
+      a successful tier dispatch (ToolDone) or the declared fallback
+      (ParseFailed); both prove the parser reached Answering.
 
       Both install and upgrade use the same external collector/observer archive
       names and checksums. Each revision is projected from its exact values
@@ -152,6 +154,7 @@ test_cases:
       later_rag_identity_does_not_drift: true
       active_turn_completes_before_old_pod_exits: true
       replacement_pod_serves_next_turn: true
+      observer_tier_decision_accepts_dispatch_or_fallback: true
       projected_release_secret_max_bytes: 917504
       actual_release_secret_max_bytes: 917504
       helm_release_revisions_checked: [1, 2]

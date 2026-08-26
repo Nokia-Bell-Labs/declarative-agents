@@ -303,10 +303,9 @@ type InvokeLLMFactoryDeps struct {
 
 // InvokeLLMResolvedConfig exposes metadata needed by neighboring tools.
 type InvokeLLMResolvedConfig struct {
-	Model         string
-	ProviderName  string
-	Parser        modelllm.ResponseParser
-	ManifestState core.State
+	Model        string
+	ProviderName string
+	Parser       modelllm.ResponseParser
 }
 
 // NewInvokeLLMBuilder creates the configured invoke_llm builder.
@@ -452,7 +451,7 @@ func resolveLLMParser(cfg catalog.LLMToolConfig) (modelllm.ResponseParser, error
 
 func resolvedLLMConfig(cfg catalog.LLMToolConfig, parser modelllm.ResponseParser) InvokeLLMResolvedConfig {
 	return InvokeLLMResolvedConfig{
-		Model: cfg.Model, ProviderName: cfg.Provider, Parser: parser, ManifestState: core.State(cfg.ManifestState),
+		Model: cfg.Model, ProviderName: cfg.Provider, Parser: parser,
 	}
 }
 

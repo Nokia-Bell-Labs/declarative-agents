@@ -188,6 +188,14 @@ type LLMToolConfig struct {
 	Seed        *int     `json:"seed"`
 }
 
+// ParseResponseConfig holds the state and parser profile used to validate one
+// invoke_llm response. The parse word owns these values so declaration order
+// among unrelated invoke words cannot change its behavior.
+type ParseResponseConfig struct {
+	ManifestState   string `json:"manifest_state"`
+	ResponseProfile string `json:"response_profile"`
+}
+
 // LoadSuiteConfig holds config for evaluator session setup tools.
 type LoadSuiteConfig struct {
 	Input             string `json:"input"`

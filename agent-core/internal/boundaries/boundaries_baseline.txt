@@ -38,7 +38,7 @@ pkg:internal/support/envexpand files=1 loc=37
 pkg:internal/support/execute files=1 loc=110
 pkg:internal/support/subprocess files=1 loc=254
 pkg:internal/tools files=1 loc=14
-pkg:internal/tools/catalog files=12 loc=2628
+pkg:internal/tools/catalog files=12 loc=2672
 pkg:internal/tools/compose files=4 loc=754
 pkg:internal/tools/control files=7 loc=1291
 pkg:internal/tools/dolt files=6 loc=1357
