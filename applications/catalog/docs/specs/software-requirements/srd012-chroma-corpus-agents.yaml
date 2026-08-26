@@ -13,16 +13,18 @@ context: |
 
   Chroma does not embed text server-side over its raw HTTP API (see spike #239);
   the client must supply vectors. The agents therefore compute embeddings at a
-  provider (a local Ollama /api/embed word) and thread the resulting vector into
-  the Chroma add and query words using the REST client previous-Result parameter
-  threading defined by agent-core srd028-rest-client-tools R12 (body_source
-  previous_result, input_mapping, and carry_forward). No embedding vector is
-  authored by a model; the vector always rides between boundary words.
+  configured provider and thread the resulting vector into the Chroma add and
+  query words using the REST client previous-Result parameter threading defined
+  by agent-core srd028-rest-client-tools R12 (body_source previous_result,
+  input_mapping, and carry_forward). The canonical profile defaults to Ollama,
+  while a consuming wrapper may select another declared REST client and a
+  globally unique document-embedding operation. No embedding vector is authored
+  by a model; the vector always rides between boundary words.
 
   The reusable HTTP runtime, the embedding transport, and the threading mechanism
-  stay in agent-core. The Chroma and Ollama REST definitions, the collection
-  identity, the corpus selection, both machines, and the reader prompt stay
-  profile-owned.
+  stay in agent-core. Provider and Chroma REST definitions, provider selection,
+  the collection identity, the corpus selection, both machines, and the reader
+  prompt stay profile-owned.
 
 problem: |
   The corpus family needs its own requirements document so that changes to
@@ -33,7 +35,7 @@ problem: |
 
 goals:
   - G1: Model the ingest and reader profiles as configured Chroma retrieval boundary functional blocks.
-  - G2: Define the profile-owned Chroma and Ollama REST vocabulary and the provider-embedding threading contract.
+  - G2: Define the profile-owned Chroma and embedding-provider REST vocabulary and the provider-embedding threading contract.
   - G3: Record the corpus actor boundary, inputs, tool selections, runtime dependencies, outputs, and terminal outcomes.
   - G4: Keep REST authority, collection identity, corpus selection, and prompts profile-owned while agent-core supplies the HTTP runtime and the previous-Result threading capability.
 
@@ -51,9 +53,10 @@ requirements:
     items:
       - R2.1: chroma_ready SHALL check the Chroma v2 heartbeat and ollama_ready SHALL check the Ollama version endpoint, each failing fast when its server is unreachable.
       - R2.2: chroma_collection SHALL create-or-get a plain collection and resolve the returned collection identifier for use in the add, query, and count paths; it SHALL NOT configure a server-side embedding function, because the agent supplies vectors.
-      - R2.3: embed_document and embed_query SHALL call the provider embedding endpoint (Ollama /api/embed) with the configured embedding model and map the returned vector into the word's Result output.
+      - R2.3: embed_document and embed_query SHALL call their configured provider embedding operations with the configured embedding model and map the returned vector into the word's Result output. The canonical operations SHALL default to Ollama.
       - R2.4: chroma_add SHALL write documents, ids, and agent-supplied embeddings to the resolved collection, and chroma_query SHALL query the resolved collection with agent-supplied query embeddings and a configured result count.
       - R2.5: chroma_count SHALL read the collection item count for post-ingest verification.
+      - R2.6: A consuming ingest wrapper SHALL be able to select embed_document's trusted REST client and globally unique operation name through environment-expanded ToolDef configuration without renaming a client, overriding the catalog ToolDef, or copying the machine.
   R3:
     title: Provider-embedding threading
     items:
@@ -64,14 +67,15 @@ requirements:
   R4:
     title: Inputs, tools, and runtime dependencies
     items:
-      - R4.1: Corpus inputs SHALL include the profile-owned Chroma and Ollama REST definitions, the configured corpus file set, the configured embedding model, and, for the reader, the request question.
+      - R4.1: Corpus inputs SHALL include the profile-owned Chroma and provider REST definitions, the configured corpus file set, the configured embedding model, and, for the reader, the request question.
       - R4.2: The profiles SHALL select only existing agent-core tool families -- REST client words, read, and invoke_llm.
-      - R4.3: The REST asset network policy SHALL permit only the configured local Chroma host and port and the local Ollama host and port, and SHALL set a max_response_bytes bound.
+      - R4.3: The REST asset network policy SHALL permit only the configured Chroma, chat-provider, and embedding-provider endpoints, pair credentials with their allowed base URLs, and set a max_response_bytes bound.
       - R4.4: The reusable ingest machine, declarations, and trusted corpus-discovery policy SHALL be library-profile-owned, while an application MAY supply a wrapper profile with its own REST endpoints, collection/model values, and corpus fixture; agent-core supplies the HTTP runtime and previous-Result threading capability.
+      - R4.5: Query-side and document-side embedding operations SHALL own their input_type values independently, so retrieval providers may declare search_query and search_document while both operations name the same configured model family.
   R5:
     title: Lifecycle precondition and persistence
     items:
-      - R5.1: The profiles SHALL treat a running Chroma server (started by the harness or operator as chroma run --path <dir>) and a reachable Ollama with the embedding model as external preconditions, surfaced through the chroma_ready and ollama_ready words rather than started by the agent.
+      - R5.1: The profiles SHALL treat a running Chroma server (started by the harness or operator as chroma run --path <dir>), the configured chat provider, and the configured embedding provider as external preconditions rather than services started by the agent. The canonical default surfaces Chroma and Ollama through chroma_ready and ollama_ready; a selected document-embedding operation SHALL fail explicitly when its provider is unavailable.
       - R5.2: The Chroma persistence directory SHALL be a configuration input to the server lifecycle, not authored by the agent.
   R6:
     title: Outputs and outcomes
@@ -83,6 +87,7 @@ non_goals:
   - Define Go package APIs for the agent-core HTTP runtime or the previous-Result threading capability.
   - Reimplement HTTP transport, embedding transport, or vector storage in applications/catalog.
   - Add server-side embedding to Chroma or a new embedding builtin word; embeddings come from the provider REST word threaded by srd028 R12.
+  - Require all embedding providers to use Ollama request or response shapes.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
 
 acceptance_criteria:
@@ -90,14 +95,14 @@ acceptance_criteria:
     criterion: The ingest and reader profiles are described as configured Chroma retrieval boundary words and explicit machine steps rather than Go packages.
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
   - id: AC2
-    criterion: The Chroma and Ollama REST vocabulary is named with each word's boundary behavior and the create-or-get collection identity resolution.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+    criterion: The Chroma and provider REST vocabulary is named with each word's boundary behavior, configurable document-provider binding, and create-or-get collection identity resolution.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
   - id: AC3
     criterion: The provider-embedding threading contract is specified in terms of srd028 R12 body_source previous_result, input_mapping, carry_forward, and single-token vector reshape, with no model-authored vectors.
     traces: [R3.1, R3.2, R3.3, R3.4]
   - id: AC4
-    criterion: Corpus inputs, selected tool families, network policy, and profile-owned authority are named and separated from agent-core runtime capability.
-    traces: [R4.1, R4.2, R4.3, R4.4]
+    criterion: Corpus inputs, selected tool families, network policy, independent query/document input types, and profile-owned authority are named and separated from agent-core runtime capability.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
   - id: AC5
     criterion: The server-lifecycle precondition and persistence-directory configuration are checkable by profile validation and the integration target.
     traces: [R5.1, R5.2]

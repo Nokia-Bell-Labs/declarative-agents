@@ -10,38 +10,76 @@ import (
 )
 
 const (
-	InitCompose    = "compose"
-	InitRenderEach = "render_each"
+	InitCompose        = "compose"
+	InitRenderEach     = "render_each"
+	InitFlatMap        = "flat_map"
+	InitReorderByIndex = "reorder_by_index"
 )
 
 // RegisterFactories registers compose builtin factories.
 func RegisterFactories(br *toolregistry.BuiltinRegistry) {
-	br.Register(InitCompose, func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
-		var cfg catalog.ComposeConfig
-		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-			return nil, err
-		}
-		if err := ValidateConfig(def.Name, cfg.Inputs); err != nil {
-			return nil, err
-		}
-		return Builder{
-			ToolName: def.Name,
-			Template: cfg.Template,
-			Inputs:   cfg.Inputs,
-			Signal:   core.Signal(cfg.Signal),
-		}, nil
-	})
-	br.Register(InitRenderEach, func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
-		var cfg catalog.RenderEachConfig
-		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-			return nil, err
-		}
-		if err := ValidateRenderEachConfig(def.Name, cfg.Items, cfg.ItemTemplate, cfg.Signal); err != nil {
-			return nil, err
-		}
-		return RenderEachBuilder{
-			ToolName: def.Name, Items: cfg.Items, ItemTemplate: cfg.ItemTemplate,
-			Separator: cfg.Separator, Signal: core.Signal(cfg.Signal),
-		}, nil
-	})
+	br.Register(InitCompose, composeFactory)
+	br.Register(InitRenderEach, renderEachFactory)
+	br.Register(InitFlatMap, flatMapFactory)
+	br.Register(InitReorderByIndex, reorderByIndexFactory)
+}
+
+func composeFactory(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+	var cfg catalog.ComposeConfig
+	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+		return nil, err
+	}
+	if err := ValidateConfig(def.Name, cfg.Inputs); err != nil {
+		return nil, err
+	}
+	return Builder{
+		ToolName: def.Name, Template: cfg.Template, Inputs: cfg.Inputs,
+		Signal: core.Signal(cfg.Signal),
+	}, nil
+}
+
+func renderEachFactory(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+	var cfg catalog.RenderEachConfig
+	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+		return nil, err
+	}
+	if err := ValidateRenderEachConfig(def.Name, cfg.Items, cfg.ItemTemplate, cfg.Signal); err != nil {
+		return nil, err
+	}
+	return RenderEachBuilder{
+		ToolName: def.Name, Items: cfg.Items, ItemTemplate: cfg.ItemTemplate,
+		Separator: cfg.Separator, Signal: core.Signal(cfg.Signal),
+	}, nil
+}
+
+func flatMapFactory(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+	var cfg catalog.FlatMapConfig
+	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+		return nil, err
+	}
+	if err := ValidateFlatMapConfig(
+		def.Name, cfg.Items, cfg.ElementFields, cfg.CarryFields, cfg.Signal,
+	); err != nil {
+		return nil, err
+	}
+	return FlatMapBuilder{
+		ToolName: def.Name, Items: cfg.Items, ElementFields: cfg.ElementFields,
+		CarryFields: cfg.CarryFields, Signal: core.Signal(cfg.Signal),
+	}, nil
+}
+
+func reorderByIndexFactory(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+	var cfg catalog.ReorderByIndexConfig
+	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+		return nil, err
+	}
+	if err := ValidateReorderByIndexConfig(
+		def.Name, cfg.Items, cfg.Order, cfg.IndexField, cfg.Signal,
+	); err != nil {
+		return nil, err
+	}
+	return ReorderByIndexBuilder{
+		ToolName: def.Name, Items: cfg.Items, Order: cfg.Order,
+		IndexField: cfg.IndexField, Signal: core.Signal(cfg.Signal),
+	}, nil
 }

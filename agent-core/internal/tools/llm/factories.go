@@ -6,7 +6,6 @@ package llm
 import (
 	"context"
 	"fmt"
-	"time"
 
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
@@ -33,8 +32,6 @@ type ResolvedModel struct {
 	Model         string
 	ProviderName  string
 	ManifestState core.State
-	MaxDuration   time.Duration
-	MaxTokens     int
 }
 
 // ReferencePorts are checkpoint-backed conversation ports already resolved by
@@ -131,8 +128,6 @@ func applyResolved(resolved *ResolvedModel) func(InvokeLLMResolvedConfig) {
 		resolved.Model = cfg.Model
 		resolved.ProviderName = cfg.ProviderName
 		resolved.ManifestState = cfg.ManifestState
-		resolved.MaxDuration = cfg.MaxTime
-		resolved.MaxTokens = cfg.MaxTokens
 	}
 }
 

@@ -6,7 +6,7 @@ purpose: |-
   collection. It checks the Chroma and Ollama servers, lists the configured
   corpus once, then lets the model drive a per-document loop: the model chooses
   the next listed file to read (read_resource), or signals done. After each read the machine
-  sequences the deterministic embedding steps -- embed the document at Ollama,
+  sequences the deterministic embedding steps -- embed the document at the configured provider,
   create-or-get the collection (which resolves the returned collection id and
   carries the embedding, document, and id forward), and add the agent-supplied
   vector to Chroma -- before returning to the model for the next file. When the
@@ -43,7 +43,7 @@ states:
   - name: Parsing
     meaning: The model response is being parsed into one tool request.
   - name: Embedding
-    meaning: The document text is being embedded at Ollama.
+    meaning: The document text is being embedded at the configured provider.
   - name: ResolvingCollection
     meaning: The collection is being create-or-got and the embedding is carried forward.
   - name: Adding
@@ -93,7 +93,7 @@ signals:
   - name: DocumentResourceDenied
     trigger: The model-selected path was outside the configured corpus resource.
   - name: DocumentEmbedded
-    trigger: Ollama returned an embedding vector for the document.
+    trigger: The configured embedding provider returned a vector for the document.
   - name: CollectionReady
     trigger: The collection was create-or-got and its id resolved.
   - name: DocumentAdded

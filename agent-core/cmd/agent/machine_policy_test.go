@@ -12,7 +12,9 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
+	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
 func TestLoopParamsUsesMachineCommandTimeout(t *testing.T) {
@@ -30,6 +32,66 @@ func TestLoopParamsUsesMachineCommandTimeout(t *testing.T) {
 		Machine: machine, State: &agentState{}, Registry: core.NewRegistry(),
 	})
 	require.Zero(t, params.CommandTimeout)
+}
+
+func TestLoopParamsRunBudgetIgnoresRegisteredInvokeLimits(t *testing.T) {
+	t.Parallel()
+	type invokeLimits struct {
+		name      string
+		maxTime   int
+		maxTokens int
+	}
+	orders := []struct {
+		name   string
+		limits []invokeLimits
+	}{
+		{name: "fast then deep", limits: []invokeLimits{
+			{name: "fast", maxTime: 1, maxTokens: 100},
+			{name: "deep", maxTime: 600, maxTokens: 9000},
+		}},
+		{name: "deep then fast", limits: []invokeLimits{
+			{name: "deep", maxTime: 600, maxTokens: 9000},
+			{name: "fast", maxTime: 1, maxTokens: 100},
+		}},
+	}
+	for _, order := range orders {
+		order := order
+		t.Run(order.name, func(t *testing.T) {
+			t.Parallel()
+			state := &agentState{registry: core.NewRegistry(), tracer: tracing.NoopTracer{}}
+			builtins := toolregistry.NewBuiltinRegistry()
+			registerLLMFactories(state)(builtins)
+			factory, ok := builtins.Resolve(toollm.InitInvokeLLM)
+			require.True(t, ok)
+			for _, limits := range order.limits {
+				_, err := factory(catalog.ToolDef{
+					Name: limits.name, Type: "builtin", Init: toollm.InitInvokeLLM,
+					Config: map[string]interface{}{
+						"model": "test-model", "provider_url": "http://127.0.0.1:11434",
+						"manifest_state": "Calling", "max_time": limits.maxTime,
+						"max_tokens": limits.maxTokens,
+					},
+				}, nil)
+				require.NoError(t, err)
+			}
+
+			machine := core.MachineSpec{BudgetSpec: &core.BudgetSpec{
+				MaxIterations: 7, MaxTokens: 321, MaxDuration: "2h",
+			}}
+			params := loopParams(runtimeConfig{}, loopParamDeps{
+				Machine: machine, State: state, Registry: state.registry,
+			})
+			require.Equal(t, core.Budget{
+				MaxIterations: 7, MaxTokens: 321, MaxDuration: 2 * time.Hour,
+			}, params.Budget)
+
+			unbounded := loopParams(runtimeConfig{}, loopParamDeps{
+				Machine: core.MachineSpec{}, State: state, Registry: state.registry,
+			})
+			require.Zero(t, unbounded.Budget.MaxDuration)
+			require.Zero(t, unbounded.Budget.MaxTokens)
+		})
+	}
 }
 
 func TestMachineCommandTimeoutRoutesRecoveryAndContinues(t *testing.T) {

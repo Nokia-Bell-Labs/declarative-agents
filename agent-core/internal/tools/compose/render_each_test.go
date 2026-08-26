@@ -46,6 +46,26 @@ func TestRenderEachTraversesIteratorStructuredOutput(t *testing.T) {
 	require.Equal(t, "a,b", res.Output)
 }
 
+func TestRenderEachTraversesNumericItemPathComponents(t *testing.T) {
+	cmd := RenderEachBuilder{
+		ToolName: "render_each", Items: "$from(sources).items",
+		ItemTemplate: "{{ ids.0.1 }}:{{ documents.0.1 }}",
+		Separator:    ",", Signal: "Rendered",
+	}.Build(core.Result{})
+	cmd.(core.CommandStateAware).SetCommandState(viewFrom(core.Entry{
+		CommandName: "sources",
+		Result: core.ResultDigest{Output: `{"items":[{
+			"ids":[["doc-3","doc-7"]],
+			"documents":[["passage three","passage seven"]]
+		}]}`},
+	}))
+
+	res := cmd.Execute()
+
+	require.NoError(t, res.Err)
+	require.Equal(t, "doc-7:passage seven", res.Output)
+}
+
 func TestRenderEachEmptyArrayRendersEmpty(t *testing.T) {
 	cmd := RenderEachBuilder{
 		ToolName: "render_each", Items: "$from(selected).matched",

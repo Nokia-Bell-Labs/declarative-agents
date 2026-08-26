@@ -15,12 +15,14 @@ tools:
   requirements:
     input:
     - Trusted configuration selects the array, item template, separator, and signal.
+    - Template field paths traverse object keys and numeric array indexes within each item.
     output:
     - Output is the joined string, or an empty string for an empty array.
     errors:
     - Invalid selection, item shape, or field access emits CommandError.
   non_goals:
   - Does not add conditions, loops inside templates, or nested programs.
+  - Does not alter canonical command-state or REST selector syntax.
   parameters:
     type: object
     properties: {}
@@ -37,7 +39,7 @@ tools:
     description: Rendering reads prior state and changes no external state.
   errors:
   - signal: CommandError
-    condition: The array selector does not resolve, its value is not an array, or an item field is absent.
+    condition: The array selector does not resolve, its value is not an array, or an item field or numeric index is absent.
     message_shape: 'render_each: <error>'
     state_after_failure: No successful rendered output is published.
   relationships:

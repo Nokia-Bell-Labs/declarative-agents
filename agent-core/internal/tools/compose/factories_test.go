@@ -16,7 +16,7 @@ import (
 func TestRegisterFactoriesProbesExpectedInits(t *testing.T) {
 	t.Parallel()
 
-	want := []string{InitCompose, InitRenderEach}
+	want := []string{InitCompose, InitRenderEach, InitFlatMap, InitReorderByIndex}
 	br := toolregistry.NewBuiltinRegistry()
 	RegisterFactories(br)
 	require.ElementsMatch(t, want, br.Names())
@@ -48,6 +48,12 @@ func TestRegisterFactoriesRejectsMalformedConfig(t *testing.T) {
 		{Name: "render_each", Type: "builtin", Init: InitRenderEach, Config: map[string]interface{}{
 			"items": "$from(v).items", "item_template": "{{ bad path }}", "signal": "Rendered",
 		}},
+		{Name: "flat_map", Type: "builtin", Init: InitFlatMap, Config: map[string]interface{}{
+			"items": "$from(v).items", "element_fields": map[string]string{}, "signal": "Flattened",
+		}},
+		{Name: "reorder_by_index", Type: "builtin", Init: InitReorderByIndex, Config: map[string]interface{}{
+			"items": "$from(v).items", "order": "$from(v).order", "signal": "Reordered",
+		}},
 	}
 	for _, def := range tests {
 		t.Run(def.Name, func(t *testing.T) {
@@ -70,6 +76,14 @@ func TestRegisterFactoriesAcceptsValidConfig(t *testing.T) {
 		{Name: "compose", Type: "builtin", Init: InitCompose, Config: map[string]interface{}{
 			"template": "{{ value }}", "inputs": map[string]string{"value": "$from(v).value"},
 			"signal": "Composed",
+		}},
+		{Name: "flat_map", Type: "builtin", Init: InitFlatMap, Config: map[string]interface{}{
+			"items": "$from(v).items", "element_fields": map[string]string{"id": "ids.0"},
+			"carry_fields": map[string]string{"source": "name"}, "signal": "Flattened",
+		}},
+		{Name: "reorder_by_index", Type: "builtin", Init: InitReorderByIndex, Config: map[string]interface{}{
+			"items": "$from(v).items", "order": "$from(v).order",
+			"index_field": "index", "signal": "Reordered",
 		}},
 	}
 	for _, def := range tests {

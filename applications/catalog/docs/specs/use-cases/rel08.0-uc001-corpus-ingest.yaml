@@ -5,11 +5,12 @@ title: Corpus Ingest into Chroma
 
 summary: |
   The ingest profile loads a repository corpus into a local Chroma collection.
-  For each document it reads the file, computes an embedding at a local Ollama
+  For each document it reads the file, computes an embedding at the configured
   provider, and writes the document, id, and agent-supplied vector to Chroma,
-  then verifies the collection item count. Reusable machine, declarations, and
-  tool selection belong in applications/catalog. The mesh supplies its REST endpoints,
-  collection/model values, and corpus fixture through an application wrapper;
+  then verifies the collection item count. The canonical profile defaults to
+  Ollama. Reusable machine, declarations, and tool selection belong in
+  applications/catalog. A consuming wrapper supplies its REST endpoints,
+  provider binding, collection/model values, and corpus fixture;
   integration:chroma executes the canonical library program by reference.
 
   Chroma does not embed text server-side over its raw HTTP API, so the vector is
@@ -27,8 +28,9 @@ trigger: |
 
 preconditions:
   - A Chroma server is running against a persistence directory (chroma run --path <dir>), started by the harness or operator, not the agent.
-  - An Ollama server is reachable and has the configured embedding model pulled.
-  - agents/knowledge-manager/corpus-ingest profile validates and owns the Chroma and Ollama REST definitions and the corpus selection.
+  - The configured chat provider is reachable; the canonical profile uses Ollama and checks it through ollama_ready.
+  - The configured embedding provider is reachable and serves the selected model family; the canonical default is Ollama.
+  - agents/knowledge-manager/corpus-ingest profile validates and owns the Chroma and default Ollama REST definitions and the corpus selection.
 
 flow:
   - id: F1
@@ -36,7 +38,7 @@ flow:
   - id: F2
     text: For each corpus document the machine reads the file content and identity.
   - id: F3
-    text: embed_document calls Ollama with the configured model, maps the returned vector into its Result output, and carries the document text and id forward.
+    text: embed_document calls the configured REST client and globally unique document-embedding operation, maps the returned vector into its Result output, and carries the document text and id forward.
   - id: F4
     text: The create-or-get collection word (immediately before add) create-or-gets a plain collection with no server-side embedding function, resolves the returned collection id, and carries the embedding, document, and id forward so single-hop threading reaches the add body.
   - id: F5
@@ -50,7 +52,7 @@ touchpoints:
     reason: The ingest profile is a configured Chroma retrieval boundary machine, not a Go package.
   - id: T2
     target: srd012-chroma-corpus-agents AC2
-    reason: chroma_ready, ollama_ready, chroma_collection, embed_document, chroma_add, and chroma_count are the named REST vocabulary with create-or-get identity resolution.
+    reason: chroma_ready, ollama_ready, chroma_collection, configurable embed_document, chroma_add, and chroma_count are the named REST vocabulary with create-or-get identity resolution.
   - id: T3
     target: srd012-chroma-corpus-agents AC3
     reason: The embed-to-add vector step uses srd028 R12 body_source previous_result, input_mapping, carry_forward, and single-token reshape, with no model-authored vector.
@@ -76,6 +78,11 @@ success_criteria:
     traces:
       - srd012-chroma-corpus-agents R2.5
       - srd012-chroma-corpus-agents R6.1
+  - id: S4
+    criterion: A consuming wrapper selects a non-Ollama document-embedding client and operation without copying the machine or overriding the catalog ToolDef.
+    traces:
+      - srd012-chroma-corpus-agents R2.6
+      - srd012-chroma-corpus-agents R4.5
 
 out_of_scope:
   - Starting or stopping the Chroma or Ollama servers from the agent.
@@ -84,5 +91,5 @@ out_of_scope:
 
 test_evidence:
   target: applications/chatbot-mesh mage integration:chroma
-  conformance: go test ./conformance -run TestCorpusIngestListsTrustedCorpusBeforeModelControl
+  conformance: go test ./conformance -run 'TestCorpusIngest(ListsTrustedCorpusBeforeModelControl|SelectsConfiguredEmbeddingProvider)'
 status: implemented

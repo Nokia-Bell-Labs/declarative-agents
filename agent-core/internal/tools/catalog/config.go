@@ -55,6 +55,24 @@ type RenderEachConfig struct {
 	Signal       string `json:"signal"`
 }
 
+// FlatMapConfig holds one parent-array selector, parallel element-array fields,
+// parent fields copied onto each output row, and the success signal.
+type FlatMapConfig struct {
+	Items         string            `json:"items"`
+	ElementFields map[string]string `json:"element_fields"`
+	CarryFields   map[string]string `json:"carry_fields"`
+	Signal        string            `json:"signal"`
+}
+
+// ReorderByIndexConfig holds candidate and ordering-row selectors plus the
+// ordering row field that addresses each candidate.
+type ReorderByIndexConfig struct {
+	Items      string `json:"items"`
+	Order      string `json:"order"`
+	IndexField string `json:"index_field"`
+	Signal     string `json:"signal"`
+}
+
 // ValuePredicateConfig holds the value predicate word's operands, its
 // comparison, and the signal it emits for each outcome (srd041 R1.2, R1.4).
 // OperandType defaults to number when absent, because the ordering operators are

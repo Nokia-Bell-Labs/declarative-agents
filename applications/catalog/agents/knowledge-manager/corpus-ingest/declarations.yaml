@@ -112,11 +112,12 @@ tools:
     init: rest_client_invoke
     visibility: internal
     category: boundary
-    description: Embed a corpus document at Ollama and carry its text and id forward.
+    description: Embed a corpus document at the configured provider and carry its text and id forward.
     problem: Chroma does not embed server-side, so the agent must compute the vector at a provider.
     goals:
       - Select the document text and id from the previous read Result.
-      - Return the embedding vector mapped from the Ollama response.
+      - Dispatch through the configured REST client and uniquely named document-embedding operation.
+      - Return the embedding vector mapped from the provider response.
       - Carry the document text and id forward for the collection and add words.
     requirements:
       input:
@@ -135,7 +136,7 @@ tools:
         id: {type: string}
     emits: [DocumentEmbedded, CommandError]
     output:
-      description: Mapped Ollama embedding with carried document text and id.
+      description: Mapped provider embedding with carried document text and id.
       schema:
         type: object
         properties:
@@ -143,7 +144,7 @@ tools:
           carried: {type: object}
     side_effects:
       - kind: external_api
-        target: ollama.embeddings
+        target: embedding_provider.document
         state: read_only
     reversibility:
       classification: reversible
@@ -152,17 +153,17 @@ tools:
       description: Computing an embedding does not mutate state.
     errors:
       - signal: CommandError
-        condition: The Ollama embeddings call fails on network, timeout, schema, or mapping.
+        condition: The configured document-embedding operation is absent or fails on network, timeout, schema, or mapping.
         state_after_failure: No embedding is produced and no state changes.
     relationships:
       overlaps:
         - tool: rest_client_invoke
-          difference: This profile-specific word binds the Ollama document-embedding operation.
+          difference: This profile-specific word binds the configured provider's document-embedding operation.
       after: [read_resource]
       before: [resolve_collection]
     config:
-      rest_ref: ollama
-      operation: embed
+      rest_ref: "${CORPUS_INGEST_EMBEDDING_REST_REF:-ollama}"
+      operation: "${CORPUS_INGEST_EMBEDDING_OPERATION:-embed}"
 
   - name: resolve_collection
     type: builtin

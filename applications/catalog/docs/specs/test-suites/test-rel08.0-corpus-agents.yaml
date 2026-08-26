@@ -6,11 +6,12 @@ release: "08.0"
 status: implemented
 
 overview: |
-  This suite proves the canonical corpus-ingest trust ordering and executes the
-  shipped corpus-reader wrapper through its complete retrieval and answer path.
-  The reader cases use deterministic in-process Chroma and Ollama protocol
-  fixtures. They patch only transport addresses; the shipped profile, machine,
-  declarations, REST operations, prompt, and tool selection remain in control.
+  This suite proves the canonical corpus-ingest trust ordering and configurable
+  document-embedding provider binding, then executes the shipped corpus-reader
+  wrapper through its complete retrieval and answer path. The reader cases use
+  deterministic in-process Chroma and Ollama protocol fixtures. They patch only
+  transport addresses; the shipped profile, machine, declarations, REST
+  operations, prompt, and tool selection remain in control.
 
 traces:
   - rel08.0-uc001-corpus-ingest
@@ -33,6 +34,21 @@ test_cases:
     traces:
       - srd012-chroma-corpus-agents R1.2
       - srd012-chroma-corpus-agents R4.4
+
+  - use_case: rel08.0-uc001-corpus-ingest
+    name: Consuming wrapper selects its document-embedding provider
+    go_test: go test ./conformance -run TestCorpusIngestSelectsConfiguredEmbeddingProvider
+    status: implemented
+    expected:
+      ollama_embedding_operation_absent: true
+      configured_provider_operation_selected: true
+      provider_operation_names_globally_unique: true
+      query_and_document_input_types_independent: true
+      model_family_shared: true
+    traces:
+      - rel08.0-uc001-corpus-ingest S4
+      - srd012-chroma-corpus-agents R2.6
+      - srd012-chroma-corpus-agents R4.5
 
   - use_case: rel08.0-uc002-corpus-query
     name: Shipped reader embeds, retrieves, and answers from known chunks

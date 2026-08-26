@@ -4,6 +4,7 @@
 package conformance
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -282,6 +283,86 @@ func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
 		!strings.Contains(provider, "OLLAMA_URL") {
 		t.Fatalf("canonical model parameterization = model %q provider %q", model, provider)
 	}
+}
+
+func TestCorpusIngestSelectsConfiguredEmbeddingProvider(t *testing.T) {
+	t.Parallel()
+	ingestRoot := ProfilePath(filepath.Join("agents", "knowledge-manager", "corpus-ingest"))
+	restPath := ProfilePath(filepath.Join("agents", "knowledge-manager", "corpus-rest.yaml"))
+	restData, err := os.ReadFile(restPath)
+	if err != nil {
+		t.Fatalf("read corpus REST definition: %v", err)
+	}
+	var document map[string]any
+	if err := yaml.Unmarshal(restData, &document); err != nil {
+		t.Fatalf("parse corpus REST definition: %v", err)
+	}
+	rest := knowledgeMap(t, document["rest"], "rest")
+	clients := knowledgeMap(t, rest["clients"], "rest.clients")
+	ollama := knowledgeMap(t, clients["ollama"], "rest.clients.ollama")
+	ollamaOperations := knowledgeMap(t, ollama["operations"], "rest.clients.ollama.operations")
+	documentEmbed := knowledgeMap(t, ollamaOperations["embed"], "ollama.embed")
+	queryEmbed := knowledgeMap(t, ollamaOperations["embed_query"], "ollama.embed_query")
+	delete(ollamaOperations, "embed")
+	delete(ollamaOperations, "embed_query")
+
+	const sharedModel = "${COHERE_EMBEDDING_MODEL:-embed-v4.0}"
+	documentEmbed["path"] = "/v2/embed"
+	documentEmbed["body"] = map[string]any{
+		"model": sharedModel, "input_type": "search_document",
+		"texts": []string{"{{ params.input }}"},
+	}
+	queryEmbed["path"] = "/v2/embed"
+	queryEmbed["body"] = map[string]any{
+		"model": sharedModel, "input_type": "search_query",
+		"texts": []string{"What does this corpus describe?"},
+	}
+	clients["cohere"] = map[string]any{
+		"base_url":   "http://127.0.0.1:11434",
+		"auth_ref":   "none",
+		"limits_ref": "local_corpus",
+		"operations": map[string]any{
+			"embed_document_cohere": documentEmbed,
+			"embed_query_cohere":    queryEmbed,
+		},
+	}
+
+	providerREST, err := yaml.Marshal(document)
+	if err != nil {
+		t.Fatalf("marshal provider REST definition: %v", err)
+	}
+	dir := t.TempDir()
+	providerRESTPath := writeEphemeral(t, dir, "corpus-rest.yaml", string(providerREST))
+	profile := writeEphemeral(t, dir, "profile.yaml", fmt.Sprintf(`name: corpus-ingest-provider
+machine: %q
+tools: [%q]
+tool_declarations:
+  - /opt/agent-core/tools/builtin/llm/all.yaml
+  - %q
+rest_definitions: [%q]
+`, filepath.Join(ingestRoot, "machine.yaml"), filepath.Join(ingestRoot, "tools.yaml"),
+		filepath.Join(ingestRoot, "declarations.yaml"), providerRESTPath))
+
+	result := Run(t, RunConfig{
+		Profile: profile,
+		Args:    []string{"--validate-config"},
+		Env: []string{
+			"CORPUS_INGEST_EMBEDDING_REST_REF=cohere",
+			"CORPUS_INGEST_EMBEDDING_OPERATION=embed_document_cohere",
+		},
+	})
+	if result.ExitCode != 0 {
+		t.Fatalf("configured provider profile did not validate:\n%s", result.Output)
+	}
+}
+
+func knowledgeMap(t *testing.T, value any, path string) map[string]any {
+	t.Helper()
+	mapped, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("%s = %T, want map", path, value)
+	}
+	return mapped
 }
 
 func readKnowledgeYAML(t *testing.T, path string, target any) {

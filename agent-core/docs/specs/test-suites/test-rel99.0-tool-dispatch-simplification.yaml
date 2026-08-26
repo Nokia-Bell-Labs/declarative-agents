@@ -82,6 +82,28 @@ test_cases:
       - srd037-tool-dispatch-simplification AC4
 
   - use_case: rel99.0-uc001-tool-dispatch-simplification
+    name: Dynamic phase contradictions fail at startup
+    go_test: go test ./internal/tools/catalog -run 'Test(ValidateToolPhases(RejectsManifestStateDifferentFromDynamicTarget|AcceptsManifestStateMatchingDynamicTarget|RejectsWordScopedToNoState|RejectsDeclarationOrderDependentManifestStates)|PhaseScopedChapterExamplesLoadAndDeriveAvailability)'
+    status: done
+    description: |
+      Phase validation rejects a non-looping A --$tool--> B shape whose
+      invoke_llm manifest_state is A, rejects every cause that leaves an
+      external word scoped to no state, and accepts the matching target-state
+      shape and the loadable pattern chapter.
+    inputs:
+      manifest_states: [matching_target, mismatched_source, declaration_order_conflict]
+      zero_phase_causes: [empty_explicit_intersection, missing_emits, unroutable_emit]
+    expected:
+      mismatched_validating_state_rejected: true
+      zero_phase_word_rejected_with_cause: true
+      matching_target_state_accepted: true
+      chapter_examples_pass_complete_phase_validation: true
+    traces:
+      - srd037-tool-dispatch-simplification R4.6
+      - srd037-tool-dispatch-simplification R4.7
+      - srd037-tool-dispatch-simplification AC4
+
+  - use_case: rel99.0-uc001-tool-dispatch-simplification
     name: Code task boundaries exclude unrelated dispatch rewrites
     go_test: go test ./internal/runtime/core ./internal/tools/registry ./internal/tools/llm
     status: done

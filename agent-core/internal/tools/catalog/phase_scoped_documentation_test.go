@@ -30,6 +30,8 @@ func TestPhaseScopedChapterExamplesLoadAndDeriveAvailability(t *testing.T) {
 	require.NoError(t, err, "chapter machine example must load")
 	defs, err := LoadToolDefs(toolsPath)
 	require.NoError(t, err, "chapter ToolDef example must load")
+	require.NoError(t, ValidateToolPhases(machine, defs),
+		"chapter phases must name machine states and derive nonempty availability")
 	require.NoError(t, ValidateToolEmits(machine, defs),
 		"chapter examples must have routable emitted signals")
 
@@ -46,8 +48,8 @@ func TestPhaseScopedChapterExamplesLoadAndDeriveAvailability(t *testing.T) {
 
 	webSearchDef := byName["web_search"]
 	webSearch := webSearchDef.ToToolSpec()
-	require.False(t, webSearch.AvailableIn("Composing"),
-		"explicit Reviewing phase may narrow but not widen derived availability")
+	require.True(t, webSearch.AvailableIn("Composing"),
+		"explicit Composing phase preserves derived availability")
 
 	parseResponseDef := byName["parse_response"]
 	parseResponse := parseResponseDef.ToToolSpec()
