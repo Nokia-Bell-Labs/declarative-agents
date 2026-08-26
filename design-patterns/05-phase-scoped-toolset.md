@@ -58,6 +58,12 @@ Is the output sent to the model, containing only external tools available in the
 
 Before every LLM call, the catalog derives availability from the machine and ToolDefs. For each `$tool` transition it takes the transition's target state, considers external tools whose optional `phases` allow that state, and keeps only tools whose every declared emitted signal has a transition from that state (or whose target is terminal). The registry then builds the current-state manifest. Tools absent from the manifest are invisible.
 
+Startup rejects a selector whose `invoke_llm.manifest_state` differs from a
+`$tool` target, because parsing and dispatch would otherwise validate the same
+selection in different states. It also rejects an external word that derives no
+phase, naming an empty explicit-phase intersection, missing emitted signals, or
+unroutable emitted signals as the cause.
+
 ![](figures/fig-17-scoped-toolset-sequence.png)
 
 | **Figure 16.** Sequence diagram. Availability is derived from machine routes and tool outcomes, then the registry builds the current-state manifest. {wide} |
@@ -90,7 +96,10 @@ Machine authors define routable phases and outcomes; tool authors define visibil
 
 #### Configuration surface
 
-Availability depends on transition and emitted-signal completeness. A missing follow-up transition can remove a tool from the manifest, so diagnostics must name the unroutable signal.
+Availability depends on transition and emitted-signal completeness. A missing
+follow-up transition, an explicit phase that excludes every `$tool` target, or a
+selector state that differs from the target is a startup error rather than an
+empty manifest.
 
 #### Over-restriction
 
@@ -128,8 +137,7 @@ transitions:
 
 Tool declarations supply vocabulary metadata and may narrow derived availability
 with `phases`. In this loadable declaration, `write` derives `Composing`;
-`web_search` is unavailable because its explicit `Reviewing` phase does not
-admit `Composing`; `parse_response` is internal:
+`web_search` explicitly admits that same phase; `parse_response` is internal:
 
 ```yaml
 # phase-scoped-tools-example
@@ -143,7 +151,7 @@ tools:
     type: builtin
     init: web_search
     visibility: external
-    phases: [Reviewing]
+    phases: [Composing]
     emits: [ToolDone, ToolFailed]
   - name: parse_response
     type: builtin
@@ -155,7 +163,9 @@ tools:
 `ApplyDynamicToolPhases` derives phase metadata from the machine grammar and
 intersects it with explicit ToolDef phases. `Registry.Manifest`, parse-time
 validation, and dynamic dispatch all call the same
-`ResolveExternalTool`/`AvailableIn` rule.
+`ResolveExternalTool`/`AvailableIn` rule. `ValidateToolPhases` runs before
+registration and rejects an empty intersection or a mismatch between the
+selector's `manifest_state` and the `$tool` target.
 
 
 ## Relationships in the Pattern Language
@@ -167,6 +177,11 @@ Phase-Scoped Toolset sits within Agent-as-Data and requires Machine Interpreter,
 
 **Executor agent.** The shipped executor machine routes `$tool` results back into `Composing`. External tool outcomes that the `Composing` state handles remain model-visible there; internal parsing, validation, and lifecycle actions stay outside the manifest.
 
-**Explicit narrowing.** Tool-level `phases` can reduce a tool's derived set for compatibility or policy, but cannot make it available where the transition graph cannot route its emitted signals. Deployment scoping remains design intent until a shipped profile and test exercise it (Chapter 10).
+**Explicit narrowing.** Tool-level `phases` can reduce a tool's derived set for
+compatibility or policy when a machine has more than one `$tool` target, but
+cannot make it available where the transition graph cannot route its emitted
+signals. A declaration that excludes every target fails startup. Deployment
+scoping remains design intent until a shipped profile and test exercise it
+(Chapter 10).
 
 **Least privilege and capabilities.** The pattern is the **Principle of Least Privilege** [@saltzer-schroeder-1975] applied per machine state: a component holds only the authority its current task requires. It is realized in the manner of **capability-based security** [@dennis-vanhorn-1966], where authority is conferred by holding an unforgeable capability — a state's tool manifest is the set of capabilities held in that phase. **OAuth 2.0 scopes** [@hardt-oauth-2012] apply the same attenuation to access tokens, narrowing authority rather than granting it wholesale, exactly as state-derived scoping narrows which actions are exposed.

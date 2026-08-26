@@ -462,6 +462,12 @@ state_scoped_dynamic_dispatch:
     current-state availability set used for the manifest. Unknown tools,
     internal tools, and tools not valid in the current state are rejected before
     command execution.
+
+    Before registration, every selected invoke_llm manifest_state must equal
+    every `$tool` transition target when parse_response is selected. Every
+    external word must derive at least one target phase. A mismatch, empty
+    explicit-phase intersection, missing emitted-signal declaration, or
+    unroutable emitted signal rejects startup with the word and cause.
   rejection_signal: |
     A parsed tool call that names a registered external tool outside the
     current state's availability set emits ParseFailed. The diagnostic should
@@ -529,12 +535,15 @@ validation_rules: |
     and sequential forbids it; failure is fail_fast or collect_all
   - collect_all requires a partial join signal
 
-  Phase 2 — BuildTransitionTable():
+  Phase 2 — runtime tool wiring and BuildTransitionTable():
   - Named actions (not $tool, not empty) must resolve to a registered tool
   - $tool requires a non-nil ToolAction callback
   - Dynamic $tool availability is derived from the current state, the next
     $tool transition, and selected external ToolDef emits
   - Explicit ToolSpec phases may only narrow the transition-derived set
+  - A selected invoke_llm manifest_state must match each $tool target when
+    parse_response is selected
+  - Every selected external word must derive at least one dynamic phase
 
   Profile closure timeout inspection occurs after profile-owned paths,
   declaration includes and overrides, REST definitions, and environment
