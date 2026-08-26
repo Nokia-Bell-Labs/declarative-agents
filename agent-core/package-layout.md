@@ -51,6 +51,7 @@ Component-owned flags:
   `--telemetry-capture`, `--verbose-trace`
 - `internal/runtime/checkpoint`: `--dolt-dsn`, `--resume-checkpoint`,
   `--resume-signal`
+- `internal/tools/dolt`: `--dolt-connection`
 
 ## Builtin Factory Ownership
 

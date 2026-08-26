@@ -114,6 +114,7 @@ func init() {
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
 	telemetryCfg.RegisterFlags(f)
 	checkpointCfg.RegisterFlags(f)
+	doltCfg.RegisterFlags(f)
 
 	rootCmd.Version = version.String()
 }
@@ -126,9 +127,7 @@ type agentState struct {
 	resolved     *toollm.ResolvedModel
 	parseRetries *toollm.ParseErrorRetryTracker
 	validation   *validation.SpecState
-	// isolateConversations gives each invoke_llm word its own conversation instead
-	// of the shared one, so a request-scoped router word's tool call does not
-	// pollute the answer word's history. Set on request-local machine_request state.
+	// isolateConversations gives each invoke_llm its own conversation (request-local machine_request).
 	isolateConversations bool
 	captureLevel         toollm.CaptureLevel
 	ctx                  context.Context
@@ -138,6 +137,7 @@ type agentState struct {
 	childAgentBinary     string
 	runID                string
 	doltDSN              string
+	doltConnections      map[string]string
 	checkpoint           core.Checkpoint
 	// lifecycleCheckpoint is the backend the checkpoint_history/checkpoint_rollback
 	// tools read and revert through. For the history and rollback families it is
@@ -863,6 +863,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		childAgentBinary:    cfg.ChildAgentBinary,
 		runID:               deps.RunID,
 		doltDSN:             cfg.Checkpoint.DoltDSN,
+		doltConnections:     cfg.DoltConnections,
 		checkpoint:          checkpointOrNoop(deps.Checkpoint),
 		lifecycleCheckpoint: deps.LifecycleCheckpoint,
 		monitor:             deps.Monitor,

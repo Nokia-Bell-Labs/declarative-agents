@@ -42,6 +42,7 @@ type runtimeConfig struct {
 	// observability cannot import tools, so the typed LLM capture level lives here.
 	CaptureLevel     toollm.CaptureLevel
 	Checkpoint       checkpoint.Config
+	DoltConnections  map[string]string
 	ChildAgentBinary string
 }
 
@@ -81,6 +82,7 @@ func runtimeConfigFromProfile(p catalog.AgentProfile, captureLevel toollm.Captur
 		Telemetry:        telemetryCfg,
 		CaptureLevel:     captureLevel,
 		Checkpoint:       checkpointCfg,
+		DoltConnections:  doltCfg.Connections,
 		ChildAgentBinary: flagChildAgent,
 	}
 }

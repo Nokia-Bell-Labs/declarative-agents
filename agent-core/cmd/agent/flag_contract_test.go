@@ -27,10 +27,11 @@ func TestRootCommandExposesEveryRuntimeFlag(t *testing.T) {
 		"telemetry-capture",
 		"verbose-trace",
 		"dolt-dsn",
+		"dolt-connection",
 		"resume-checkpoint",
 		"resume-signal",
 	}
-	require.Len(t, flags, 17)
+	require.Len(t, flags, 18)
 	for _, name := range flags {
 		require.NotNil(t, rootCmd.PersistentFlags().Lookup(name), name)
 	}

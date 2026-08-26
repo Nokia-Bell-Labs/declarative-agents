@@ -274,7 +274,7 @@ func TestRootCommandHasNoLifecycleOnlyFlags(t *testing.T) {
 	} {
 		require.Nil(t, rootCmd.PersistentFlags().Lookup(flag), "flag %q must not be public", flag)
 	}
-	for _, flag := range []string{"profile", "dolt-dsn", "resume-checkpoint", "resume-signal", "directory", "request"} {
+	for _, flag := range []string{"profile", "dolt-dsn", "dolt-connection", "resume-checkpoint", "resume-signal", "directory", "request"} {
 		require.NotNil(t, rootCmd.PersistentFlags().Lookup(flag), "universal flag %q should remain", flag)
 	}
 	assertMainDeclsAbsent(t, map[string]bool{
@@ -302,7 +302,7 @@ func TestRootCommandHelpShowsProfileOnlyRuntimeFlags(t *testing.T) {
 	for _, text := range []string{"--machine", "--tools", "--tools-declaration", "--tool-config-dir", "--profiles-dir", "--input", "--validate-test-evidence", "--run-test-evidence"} {
 		require.NotContains(t, usage, text)
 	}
-	for _, text := range []string{"--profile", "--request", "--output", "--directory", "--dolt-dsn", "--resume-checkpoint", "--resume-signal"} {
+	for _, text := range []string{"--profile", "--request", "--output", "--directory", "--dolt-dsn", "--dolt-connection", "--resume-checkpoint", "--resume-signal"} {
 		require.Contains(t, usage, text)
 	}
 }

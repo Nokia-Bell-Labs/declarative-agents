@@ -39,7 +39,7 @@ requirements:
     title: Trusted configuration and parameter authority
     items:
       - R2.1: Trusted ToolDef configuration SHALL own a connection reference, literal database name, operation id, operation kind, SQL statement or schema statement list, parameter schema, result limits, timeout, and applicable commit-message template.
-      - R2.2: Connection credentials SHALL resolve from a named trusted secret or runtime reference. Callers and model output SHALL NOT supply or override DSNs, hosts, ports, users, passwords, TLS policy, database names, SQL text, schema text, operation kinds, or commit templates.
+      - R2.2: Connection credentials SHALL resolve from a named trusted runtime reference that cmd/agent supplies through FactoryDeps from --dolt-connection NAME=DSN. Process environment is not a resolution channel. Callers and model output SHALL NOT supply or override DSNs, hosts, ports, users, passwords, TLS policy, database names, SQL text, schema text, operation kinds, or commit templates.
       - R2.3: Runtime input SHALL contain only params whose keys and scalar or structured types are declared by the operation's parameter schema; unknown, missing, or invalid params SHALL fail before database execution.
       - R2.4: SQL SHALL use driver parameter binding for caller values. Runtime SHALL NOT construct SQL by concatenating, formatting, or template-evaluating caller strings.
       - R2.5: A runtime input containing statement, sql, query, dsn, connection, database, schema, commit_message, or another authority field SHALL be refused as schema-invalid rather than ignored.

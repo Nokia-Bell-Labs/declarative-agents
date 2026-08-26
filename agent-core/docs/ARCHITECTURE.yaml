@@ -262,8 +262,9 @@ overview:
           Dolt owns the general-purpose configured provision, query, and write
           boundary words, trusted operation validation, bound parameters,
           normalized server-and-database identity, bounded results, commit
-          receipts, and compensation metadata. MachineSpec owns sequencing
-          among the three words.
+          receipts, compensation metadata, and the --dolt-connection flag that
+          supplies named word DSNs independently of --dolt-dsn. MachineSpec
+          owns sequencing among the three words.
         dependencies:
           may_depend_on:
             - internal/runtime/core
@@ -273,6 +274,7 @@ overview:
             - internal/tools/undo
             - internal/doltsql for the shared SQL seam, identity, and DOLT_* statements
             - github.com/go-sql-driver/mysql for DSN formatting of word connections
+            - github.com/spf13/pflag for --dolt-connection
             - Go standard library database/sql
           must_not_depend_on:
             - cmd/agent

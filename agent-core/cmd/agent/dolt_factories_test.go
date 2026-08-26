@@ -40,7 +40,7 @@ func TestDoltSelectedInitRegistersWholeFactoryFamily(t *testing.T) {
 }
 
 func TestDoltFactoryRejectsCheckpointDatabaseCollision(t *testing.T) {
-	t.Setenv("DOLT_WORD_DSN", "word:secret@tcp(localhost:3306)/ignored")
+	t.Parallel()
 
 	err := registerDoltQueryForCheckpoint(t, "Runtime_State")
 
@@ -50,7 +50,7 @@ func TestDoltFactoryRejectsCheckpointDatabaseCollision(t *testing.T) {
 }
 
 func TestDoltFactoryAllowsSameServerDifferentDatabase(t *testing.T) {
-	t.Setenv("DOLT_WORD_DSN", "word:secret@tcp(localhost:3306)/ignored")
+	t.Parallel()
 
 	err := registerDoltQueryForCheckpoint(t, "domain_data")
 
@@ -103,6 +103,9 @@ func registerDoltQueryForCheckpoint(t *testing.T, database string) error {
 	builtins := toolregistry.NewBuiltinRegistry()
 	state := newAgentState(runtimeConfig{
 		Checkpoint: checkpoint.Config{DoltDSN: "checkpoint:secret@tcp(LOCALHOST:3306)/runtime_state"},
+		DoltConnections: map[string]string{
+			"DOLT_WORD_DSN": "word:secret@tcp(localhost:3306)/ignored",
+		},
 	}, agentStateDeps{})
 	registerBuiltinFactories(builtins, state, map[string]bool{tooldolt.InitQuery: true})
 	return toolregistry.RegisterSingleBuiltin(
