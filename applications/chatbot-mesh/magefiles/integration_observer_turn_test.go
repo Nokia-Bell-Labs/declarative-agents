@@ -89,6 +89,21 @@ func TestObserverEventAfterRejectsStaleAndWrongTuple(t *testing.T) {
 	}
 }
 
+func TestObserverTierDecisionAfterAcceptsDispatchAndFallback(t *testing.T) {
+	for _, signal := range []string{"ToolDone", "ParseFailed"} {
+		t.Run(signal, func(t *testing.T) {
+			item := observerFleetItem{Body: map[string]interface{}{
+				"recent_events": []interface{}{
+					observerEventFixture("2026-08-08T12:00:01Z", signal, "ParsingTier", "Answering"),
+				},
+			}}
+			if !observerTierDecisionAfter(item, "") {
+				t.Fatalf("tier decision signal %s was rejected", signal)
+			}
+		})
+	}
+}
+
 func observerTurnFixture(live bool) map[string]interface{} {
 	chatbot := observerPodFixture("chatbot-0", "10.0.0.1", "chatbot", "18082")
 	rag0 := observerPodFixture("rag0-0", "10.0.0.2", "rag-server", "18087")
@@ -139,7 +154,7 @@ func observerEventsFixture(live bool, component string) map[string]interface{} {
 	}
 	if live && component == "chatbot" {
 		events = append(events,
-			observerEventFixture("2026-08-08T12:00:03Z", "ParseFailed", "ParsingTier", "Answering"))
+			observerEventFixture("2026-08-08T12:00:03Z", "ToolDone", "ParsingTier", "Answering"))
 	}
 	if live && component == "rag0" {
 		events = append(events,

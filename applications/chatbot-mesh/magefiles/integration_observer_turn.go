@@ -88,9 +88,8 @@ func waitObserverLiveTurn(
 		if state == "" || state == baseline.ChatbotState {
 			return fmt.Errorf("chatbot state = %q, unchanged from baseline", state)
 		}
-		if !observerEventAfter(snapshot.ChatbotEvents,
-			baseline.ChatbotEventTime, "ParseFailed", "ParsingTier", "Answering") {
-			return fmt.Errorf("chatbot has no newer ParsingTier -> Answering event; recent=%s",
+		if !observerTierDecisionAfter(snapshot.ChatbotEvents, baseline.ChatbotEventTime) {
+			return fmt.Errorf("chatbot has no newer tier decision event; recent=%s",
 				observerEventSummary(snapshot.ChatbotEvents))
 		}
 		ragEvent := observerEventAfter(snapshot.RagEvents,
@@ -115,6 +114,11 @@ func waitObserverLiveTurn(
 			state, evidence, snapshot.EventsIteration)
 		return nil
 	})
+}
+
+func observerTierDecisionAfter(events observerFleetItem, baseline string) bool {
+	return observerEventAfter(events, baseline, "ToolDone", "ParsingTier", "Answering") ||
+		observerEventAfter(events, baseline, "ParseFailed", "ParsingTier", "Answering")
 }
 
 type observerTraceSummary struct {

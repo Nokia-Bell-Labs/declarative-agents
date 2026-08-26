@@ -28,10 +28,9 @@ const (
 // ResolvedModel carries what invoke_llm's build learns to the factories and
 // the composition root that need it.
 type ResolvedModel struct {
-	Parser        modelllm.ResponseParser
-	Model         string
-	ProviderName  string
-	ManifestState core.State
+	Parser       modelllm.ResponseParser
+	Model        string
+	ProviderName string
 }
 
 // ReferencePorts are checkpoint-backed conversation ports already resolved by
@@ -127,24 +126,28 @@ func applyResolved(resolved *ResolvedModel) func(InvokeLLMResolvedConfig) {
 		resolved.Parser = cfg.Parser
 		resolved.Model = cfg.Model
 		resolved.ProviderName = cfg.ProviderName
-		resolved.ManifestState = cfg.ManifestState
 	}
 }
 
 func parseResponseFactory(deps FactoryDeps) toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var cfg catalog.ParseResponseConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
 		var parser modelllm.ResponseParser
-		if deps.Resolved != nil {
+		if cfg.ResponseProfile != "" {
+			var err error
+			parser, err = resolveLLMParser(catalog.LLMToolConfig{ResponseProfile: cfg.ResponseProfile})
+			if err != nil {
+				return nil, err
+			}
+		} else if deps.Resolved != nil {
 			parser = deps.Resolved.Parser
 		}
 		return &ParseResponseBuilder{
 			ToolName: def.Name, Registry: deps.Registry, Parser: parser, Tracer: deps.Tracer,
-			StateFunc: func() core.State {
-				if deps.Resolved == nil {
-					return ""
-				}
-				return deps.Resolved.ManifestState
-			},
+			State:        core.State(cfg.ManifestState),
 			CaptureLevel: deps.CaptureLevel, Retry: deps.ParseRetries,
 		}, nil
 	}

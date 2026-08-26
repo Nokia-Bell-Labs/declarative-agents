@@ -421,13 +421,9 @@ tools:
       model: "${CHATBOT_TIER_MODEL:-qwen2.5:3b}"
       provider: ollama
       provider_url: "${OLLAMA_URL:-http://localhost:11434}"
-      # manifest_state is the tool manifest the tier selector selects over and the state
-      # parse_tier validates the chosen word against (parse_response's StateFunc
-      # tracks the most recent invoke_llm manifest state). It must be Answering,
-      # where the chat-LLM words invoke_llm_fast and invoke_llm_deep are the
-      # dynamic-dispatch vocabulary, even though the tier selector runs in machine
-      # state SelectingTier.
-      manifest_state: Answering
+      # The selector and parse_tier validate against Reporting, the target state
+      # where $tool resolves and executes the selected answer word.
+      manifest_state: Reporting
       response_profile: qwen
       # Select from the original user question, not the composed grounding prompt
       # (the grounding wrapper biases a small classifier toward the fast word).
@@ -491,7 +487,7 @@ tools:
       strategy: noop
       description: Parsing a response has no durable effect.
     config:
-      manifest_state: Answering
+      manifest_state: Reporting
       response_profile: qwen
 
   - name: invoke_llm_fast

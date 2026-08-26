@@ -110,34 +110,71 @@ func dynamicPhaseCause(
 
 func validateDynamicManifestStates(machine core.MachineSpec, defs []ToolDef) []string {
 	context := newDynamicPhaseContext(machine)
-	if len(context.transitions) == 0 || !hasToolInit(defs, "parse_response") {
+	if len(context.transitions) == 0 {
 		return nil
 	}
-	var failures []string
+	defsByName := make(map[string]ToolDef, len(defs))
 	for _, def := range defs {
-		if def.Init != "invoke_llm" {
+		defsByName[def.Name] = def
+	}
+	var failures []string
+	seen := make(map[string]bool)
+	for _, transition := range machine.Transitions {
+		parser, ok := defsByName[transition.Action]
+		if !ok || parser.Init != "parse_response" {
 			continue
 		}
-		manifestState, ok := def.Config["manifest_state"].(string)
-		if !ok || manifestState == "" {
-			continue
-		}
-		for _, transition := range context.transitions {
-			if manifestState != transition.Next {
-				failures = append(failures, fmt.Sprintf(
-					"invoke_llm tool %q manifest_state %q disagrees with $tool target %q after %s/%s",
-					def.Name, manifestState, transition.Next, transition.State, transition.Signal))
+		for _, dynamic := range context.transitions {
+			if dynamic.State != transition.Next || !stringIn(dynamic.Signal, parser.Emits) {
+				continue
+			}
+			failures = appendUniqueFailure(failures, seen,
+				validateManifestState(parser, "parse_response", dynamic))
+			for _, selector := range selectorDefsForParser(machine, defsByName, transition) {
+				failures = appendUniqueFailure(failures, seen,
+					validateManifestState(selector, "invoke_llm selector", dynamic))
 			}
 		}
 	}
 	return failures
 }
 
-func hasToolInit(defs []ToolDef, init string) bool {
-	for _, def := range defs {
-		if def.Init == init {
-			return true
+func selectorDefsForParser(
+	machine core.MachineSpec, defsByName map[string]ToolDef, parserTransition core.TransitionSpec,
+) []ToolDef {
+	var selectors []ToolDef
+	seen := make(map[string]bool)
+	for _, transition := range machine.Transitions {
+		selector, ok := defsByName[transition.Action]
+		if !ok || selector.Init != "invoke_llm" || transition.Next != parserTransition.State ||
+			!stringIn(parserTransition.Signal, selector.Emits) || seen[selector.Name] {
+			continue
 		}
+		seen[selector.Name] = true
+		selectors = append(selectors, selector)
 	}
-	return false
+	return selectors
+}
+
+func validateManifestState(def ToolDef, role string, dynamic core.TransitionSpec) string {
+	manifestState, _ := def.Config["manifest_state"].(string)
+	if manifestState == dynamic.Next {
+		return ""
+	}
+	if manifestState == "" {
+		return fmt.Sprintf(
+			"%s tool %q requires manifest_state %q for $tool target after %s/%s",
+			role, def.Name, dynamic.Next, dynamic.State, dynamic.Signal)
+	}
+	return fmt.Sprintf(
+		"%s tool %q manifest_state %q disagrees with $tool target %q after %s/%s",
+		role, def.Name, manifestState, dynamic.Next, dynamic.State, dynamic.Signal)
+}
+
+func appendUniqueFailure(failures []string, seen map[string]bool, failure string) []string {
+	if failure == "" || seen[failure] {
+		return failures
+	}
+	seen[failure] = true
+	return append(failures, failure)
 }

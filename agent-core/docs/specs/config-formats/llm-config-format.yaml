@@ -183,6 +183,26 @@ schema:
             Alias for provider_url. If both are set, provider_url
             takes precedence.
 
+parse_response_config:
+  purpose: |
+    Defines the validation state and parser profile owned by one parse_response
+    ToolDef. These values do not come from mutable invoke_llm registration
+    state.
+  fields:
+    - field: manifest_state
+      type: string
+      required: true when the parse word feeds $tool
+      description: |
+        The `$tool` target state whose external vocabulary validates the parsed
+        tool name. Startup links the actual selector, parser, and dynamic
+        transition and rejects a different value.
+    - field: response_profile
+      type: string
+      required: false
+      description: |
+        Explicit parser profile for this parse word. When omitted, the existing
+        resolved model parser remains the compatibility fallback.
+
 per_model_pattern: |
   Each file under an agent's llm/ directory configures a different
   model variant. The file name identifies the variant but has no semantic

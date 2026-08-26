@@ -56,7 +56,7 @@ requirements:
       - R4.3: parse_response SHALL use the resolver to reject unknown, internal, and state-unavailable tools while preserving user-facing parse error wording where tests depend on it.
       - R4.4: Dynamic $tool dispatch SHALL use the resolver before building the selected command, preserving existing failure signals and error wording where tests depend on them.
       - R4.5: Available-tool name lists SHALL derive from the same resolver-backed manifest rule so parse errors report the same vocabulary the model saw.
-      - R4.6: Startup SHALL reject a machine that selects through parse_response when any selected invoke_llm word declares a manifest_state different from a $tool transition target. The diagnostic SHALL name the invoke word, validating state, target state, and transition.
+      - R4.6: Each parse_response ToolDef SHALL own its manifest_state instead of reading process-wide state written by invoke_llm registration. Startup SHALL trace the machine's actual invoke_llm selector to parse_response to $tool path and reject only when that selector or parser declares a manifest_state different from the $tool target. The diagnostic SHALL name the participating word, validating state, target state, and transition; unrelated invoke words SHALL NOT participate.
       - R4.7: Startup SHALL reject an external word that derives no dynamic phase. The diagnostic SHALL name the word and distinguish explicit phases that exclude every target, missing emitted signals, and emitted signals with no route from the target.
 
   R5:

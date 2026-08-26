@@ -142,7 +142,7 @@ func TestParseFactoriesPreserveDeclarationNamesInReversers(t *testing.T) {
 	}
 }
 
-func TestParseResponseBeforeInvokeLLMKeepsZeroParserAndLiveManifestState(t *testing.T) {
+func TestParseResponseOwnsManifestStateIndependentOfInvokeRegistration(t *testing.T) {
 	t.Parallel()
 
 	resolved := &ResolvedModel{}
@@ -151,34 +151,38 @@ func TestParseResponseBeforeInvokeLLMKeepsZeroParserAndLiveManifestState(t *test
 
 	parseFactory, ok := br.Resolve(InitParseResponse)
 	require.True(t, ok)
-	builder, err := parseFactory(catalog.ToolDef{Name: "parse"}, nil)
-	require.NoError(t, err)
-	parseBuilder := builder.(*ParseResponseBuilder)
-	require.Nil(t, parseBuilder.Parser)
-	require.Empty(t, parseBuilder.StateFunc())
-
-	invokeFactory, ok := br.Resolve(InitInvokeLLM)
-	require.True(t, ok)
-	_, err = invokeFactory(catalog.ToolDef{
-		Name: "chat", Type: "builtin", Init: InitInvokeLLM,
-		Config: map[string]interface{}{
-			"model": "mock-model", "manifest_state": "Calling",
+	builder, err := parseFactory(catalog.ToolDef{
+		Name: "parse", Config: map[string]interface{}{
+			"manifest_state": "Reporting", "response_profile": "qwen",
 		},
 	}, nil)
 	require.NoError(t, err)
+	parseBuilder := builder.(*ParseResponseBuilder)
+	require.NotNil(t, parseBuilder.Parser)
+	require.Equal(t, core.State("Reporting"), parseBuilder.State)
+
+	invokeFactory, ok := br.Resolve(InitInvokeLLM)
+	require.True(t, ok)
+	for _, manifestState := range []string{"Calling", "Answering"} {
+		_, err = invokeFactory(catalog.ToolDef{
+			Name: "chat_" + manifestState, Type: "builtin", Init: InitInvokeLLM,
+			Config: map[string]interface{}{
+				"model": "mock-model", "manifest_state": manifestState,
+			},
+		}, nil)
+		require.NoError(t, err)
+		require.Equal(t, core.State("Reporting"), parseBuilder.State)
+	}
 
 	require.Equal(t, "mock-model", resolved.Model)
 	require.Equal(t, "ollama", resolved.ProviderName)
-	require.Equal(t, core.State("Calling"), resolved.ManifestState)
 	require.NotNil(t, resolved.Parser)
-	require.Nil(t, parseBuilder.Parser)
-	require.Equal(t, core.State("Calling"), parseBuilder.StateFunc())
 }
 
 func TestRequestLocalResolvedModelDoesNotShareHostParser(t *testing.T) {
 	t.Parallel()
 
-	host := &ResolvedModel{Model: "host-model", ManifestState: "Hosting"}
+	host := &ResolvedModel{Model: "host-model"}
 	local := &ResolvedModel{}
 	br := toolregistry.NewBuiltinRegistry()
 	RegisterFactories(br, FactoryDeps{Resolved: local, Registry: core.NewRegistry()})
@@ -187,6 +191,6 @@ func TestRequestLocalResolvedModelDoesNotShareHostParser(t *testing.T) {
 	require.True(t, ok)
 	builder, err := parseFactory(catalog.ToolDef{Name: "parse"}, nil)
 	require.NoError(t, err)
-	require.Empty(t, builder.(*ParseResponseBuilder).StateFunc())
+	require.Empty(t, builder.(*ParseResponseBuilder).State)
 	require.Equal(t, "host-model", host.Model)
 }

@@ -166,7 +166,6 @@ type ParseResponseBuilder struct {
 	Parser       modelllm.ResponseParser
 	Tracer       tracing.Tracer
 	State        core.State
-	StateFunc    func() core.State
 	CaptureLevel CaptureLevel
 	Retry        *ParseErrorRetryTracker
 }
@@ -191,11 +190,6 @@ func (b *ParseResponseBuilder) BuildReverser() core.Command {
 var _ core.Reverser = (*ParseResponseBuilder)(nil)
 
 func (b *ParseResponseBuilder) manifestState(res core.Result) core.State {
-	if b.StateFunc != nil {
-		if state := b.StateFunc(); state != "" {
-			return state
-		}
-	}
 	if b.State != "" {
 		return b.State
 	}

@@ -59,7 +59,7 @@ requirements:
       - R3.2: Required behavior-shaping config such as child profiles, nested machine paths, tool selection paths, artifact paths, or server addresses SHALL be explicit typed fields.
       - R3.3: Config decode errors SHALL include the tool name and type mismatch details.
       - R3.4: Defaults MAY exist for backwards compatibility, but defaults that change program behavior SHALL be documented.
-      - R3.5: Typed config structs SHALL exist for each config shape (ChildAgentConfig, LLMToolConfig, LoadSuiteConfig, RunPointConfig, EvaluationArtifactsConfig, PartitionConfig, SelectSubsetConfig, RenderEachConfig, FlatMapConfig, ReorderByIndexConfig, ParseStructuredConfig).
+      - R3.5: Typed config structs SHALL exist for each config shape (ChildAgentConfig, LLMToolConfig, ParseResponseConfig, LoadSuiteConfig, RunPointConfig, EvaluationArtifactsConfig, PartitionConfig, SelectSubsetConfig, RenderEachConfig, FlatMapConfig, ReorderByIndexConfig, ParseStructuredConfig).
       - R3.6: Metric declaration validation SHALL reject attributes sourced from raw prompts, full outputs, secrets, unbounded paths, arbitrary URLs, request IDs, timestamps, or user free text.
 
   R4:

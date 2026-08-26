@@ -83,18 +83,20 @@ test_cases:
 
   - use_case: rel99.0-uc001-tool-dispatch-simplification
     name: Dynamic phase contradictions fail at startup
-    go_test: go test ./internal/tools/catalog -run 'Test(ValidateToolPhases(RejectsManifestStateDifferentFromDynamicTarget|AcceptsManifestStateMatchingDynamicTarget|RejectsWordScopedToNoState|RejectsDeclarationOrderDependentManifestStates)|PhaseScopedChapterExamplesLoadAndDeriveAvailability)'
+    go_test: go test ./internal/tools/catalog ./internal/tools/llm -run 'Test(ValidateToolPhases(RejectsActualSelectorStateDifferentFromDynamicTarget|RejectsActualParserStateDifferentFromDynamicTarget|AcceptsManifestStateMatchingDynamicTarget|RejectsWordScopedToNoState|IgnoresUnrelatedInvokeManifestStatesAndOrder)|ParseResponseOwnsManifestStateIndependentOfInvokeRegistration|PhaseScopedChapterExamplesLoadAndDeriveAvailability)'
     status: done
     description: |
-      Phase validation rejects a non-looping A --$tool--> B shape whose
-      invoke_llm manifest_state is A, rejects every cause that leaves an
-      external word scoped to no state, and accepts the matching target-state
-      shape and the loadable pattern chapter.
+      Phase validation traces the actual invoke selector and parse word that
+      feed a $tool transition. It rejects their mismatches and every cause that
+      leaves an external word scoped to no state, while unrelated invoke words
+      and declaration order cannot change parse validation state.
     inputs:
-      manifest_states: [matching_target, mismatched_source, declaration_order_conflict]
+      manifest_states: [matching_target, mismatched_selector, mismatched_parser, unrelated_invoke]
       zero_phase_causes: [empty_explicit_intersection, missing_emits, unroutable_emit]
     expected:
       mismatched_validating_state_rejected: true
+      unrelated_invoke_ignored: true
+      declaration_order_independent: true
       zero_phase_word_rejected_with_cause: true
       matching_target_state_accepted: true
       chapter_examples_pass_complete_phase_validation: true

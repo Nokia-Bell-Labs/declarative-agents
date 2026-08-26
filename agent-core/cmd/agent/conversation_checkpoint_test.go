@@ -91,13 +91,10 @@ func TestRequestLocalStateGetsFreshResolvedModel(t *testing.T) {
 	t.Parallel()
 	host := checkpointAgentState(core.NoopCheckpoint{})
 	host.ensureResolved().Model = "host-model"
-	host.ensureResolved().ManifestState = "Hosting"
 	local := requestLocalState(host, core.NewRegistry())
 	require.NotSame(t, host.resolved, local.resolved)
 	require.Empty(t, local.ensureResolved().Model)
-	require.Empty(t, local.ensureResolved().ManifestState)
 	require.Equal(t, "host-model", host.ensureResolved().Model)
-	require.Equal(t, core.State("Hosting"), host.ensureResolved().ManifestState)
 }
 
 func resolveResetHistoryFactory(t *testing.T, st *agentState) toolregistry.BuiltinFactory {

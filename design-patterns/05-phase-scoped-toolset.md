@@ -58,11 +58,13 @@ Is the output sent to the model, containing only external tools available in the
 
 Before every LLM call, the catalog derives availability from the machine and ToolDefs. For each `$tool` transition it takes the transition's target state, considers external tools whose optional `phases` allow that state, and keeps only tools whose every declared emitted signal has a transition from that state (or whose target is terminal). The registry then builds the current-state manifest. Tools absent from the manifest are invisible.
 
-Startup rejects a selector whose `invoke_llm.manifest_state` differs from a
-`$tool` target, because parsing and dispatch would otherwise validate the same
-selection in different states. It also rejects an external word that derives no
-phase, naming an empty explicit-phase intersection, missing emitted signals, or
-unroutable emitted signals as the cause.
+Each `parse_response` word owns the `manifest_state` used to validate its model
+response. Startup traces the actual `invoke_llm` selector → `parse_response` →
+`$tool` path and rejects either participating word when its state differs from
+the `$tool` target. Unrelated invoke words do not participate. Startup also
+rejects an external word that derives no phase, naming an empty explicit-phase
+intersection, missing emitted signals, or unroutable emitted signals as the
+cause.
 
 ![](figures/fig-17-scoped-toolset-sequence.png)
 
@@ -158,14 +160,17 @@ tools:
     init: parse_response
     visibility: internal
     emits: [ToolDone, TaskCompleted, ParseFailed]
+    config:
+      manifest_state: Composing
 ```
 
 `ApplyDynamicToolPhases` derives phase metadata from the machine grammar and
 intersects it with explicit ToolDef phases. `Registry.Manifest`, parse-time
 validation, and dynamic dispatch all call the same
 `ResolveExternalTool`/`AvailableIn` rule. `ValidateToolPhases` runs before
-registration and rejects an empty intersection or a mismatch between the
-selector's `manifest_state` and the `$tool` target.
+registration and rejects an empty intersection or a mismatch on the linked
+selector/parser path. The parser reads its own ToolDef state; invoke
+registration order cannot change it.
 
 
 ## Relationships in the Pattern Language
