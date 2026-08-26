@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -104,6 +105,28 @@ func TestDecodeInvokeLLMConfigLeavesTemperatureAndSeedUnset(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, cfg.Temperature)
 	require.Nil(t, cfg.Seed)
+}
+
+func TestInvokeCallTimeoutUsesMaxTimeOnlyAsLegacyCallAlias(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		cfg  catalog.LLMToolConfig
+		want time.Duration
+	}{
+		{name: "unset", cfg: catalog.LLMToolConfig{}, want: 0},
+		{name: "legacy max time", cfg: catalog.LLMToolConfig{MaxTime: 2}, want: 2 * time.Second},
+		{name: "explicit llm timeout", cfg: catalog.LLMToolConfig{
+			MaxTime: 2, LLMTimeout: 3,
+		}, want: 3 * time.Second},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, invokeCallTimeout(tt.cfg))
+		})
+	}
 }
 
 func TestResolveTemperatureAndSeedApplyDeterministicDefaults(t *testing.T) {

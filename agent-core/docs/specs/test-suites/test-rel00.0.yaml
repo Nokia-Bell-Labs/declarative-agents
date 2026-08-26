@@ -162,6 +162,23 @@ test_cases:
       - srd005-agentic-loop AC5
 
   - use_case: rel00.0-uc001-domain-agent-integration
+    name: Registered invoke limits do not replace the machine run budget
+    go_test: go test ./cmd/agent ./internal/tools/llm -run 'Test(LoopParamsRunBudgetIgnoresRegisteredInvokeLimits|InvokeCallTimeoutUsesMaxTimeOnlyAsLegacyCallAlias)'
+    inputs:
+      machine_budget: {max_tokens: 321, max_duration: 2h}
+      invoke_orders: [fast_then_deep, deep_then_fast]
+      invoke_limits: [max_time, max_tokens, llm_timeout]
+    expected:
+      machine_budget_authoritative: true
+      declaration_order_independent: true
+      unbounded_machine_has_no_inherited_deadline: true
+      max_time_is_per_call_compatibility_alias: true
+      llm_timeout_takes_precedence: true
+    traces:
+      - srd005-agentic-loop R1.4
+      - srd005-agentic-loop AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
     name: Valid YAML parses into correct MachineSpec
     go_test: TestParseMachineSpec_Valid
     inputs:

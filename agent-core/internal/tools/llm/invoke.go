@@ -307,8 +307,6 @@ type InvokeLLMResolvedConfig struct {
 	ProviderName  string
 	Parser        modelllm.ResponseParser
 	ManifestState core.State
-	MaxTime       time.Duration
-	MaxTokens     int
 }
 
 // NewInvokeLLMBuilder creates the configured invoke_llm builder.
@@ -346,7 +344,7 @@ func invokeBuilder(
 		Model: cfg.Model, ProviderName: cfg.Provider, ServerAddr: serverAddr,
 		Tracer: tracerOrNoop(deps.Tracer), ContextLimit: cfg.ContextLimit, NumCtx: cfg.NumCtx,
 		Temperature: resolveTemperature(cfg), Seed: resolveSeed(cfg),
-		CallTimeout: durationSeconds(cfg.LLMTimeout),
+		CallTimeout: invokeCallTimeout(cfg),
 		Metrics:     def.Metrics, CaptureLevel: deps.CaptureLevel,
 		ConversationRefProvider: deps.ConversationRefProvider, Ctx: deps.Ctx,
 		ConversationRefResolver: deps.ConversationRefResolver,
@@ -455,16 +453,22 @@ func resolveLLMParser(cfg catalog.LLMToolConfig) (modelllm.ResponseParser, error
 func resolvedLLMConfig(cfg catalog.LLMToolConfig, parser modelllm.ResponseParser) InvokeLLMResolvedConfig {
 	return InvokeLLMResolvedConfig{
 		Model: cfg.Model, ProviderName: cfg.Provider, Parser: parser, ManifestState: core.State(cfg.ManifestState),
-		MaxTime: durationSeconds(cfg.MaxTime), MaxTokens: cfg.MaxTokens,
 	}
 }
 
 func httpTimeout(cfg catalog.LLMToolConfig) time.Duration {
 	timeout := 5 * time.Minute
-	if maxTime := durationSeconds(cfg.MaxTime); maxTime > timeout {
-		timeout = maxTime
+	if callTimeout := invokeCallTimeout(cfg); callTimeout > timeout {
+		timeout = callTimeout
 	}
 	return timeout
+}
+
+func invokeCallTimeout(cfg catalog.LLMToolConfig) time.Duration {
+	if timeout := durationSeconds(cfg.LLMTimeout); timeout > 0 {
+		return timeout
+	}
+	return durationSeconds(cfg.MaxTime)
 }
 
 func durationSeconds(seconds int) time.Duration {

@@ -112,7 +112,9 @@ schema:
     type: object
     required: true
     description: |
-      Resource limits that bound the agent's execution.
+      Resource limits that bound the agent's execution. MachineSpec is the sole
+      authority for run-level max_tokens and max_duration; invoke_llm word
+      configuration cannot replace either value.
     sub_fields:
       - field: max_iterations
         type: int

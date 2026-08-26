@@ -25,6 +25,7 @@ requirements:
       - R1.1: "Budget struct has three fields: MaxIterations (int), MaxTokens (int), MaxDuration (time.Duration)."
       - R1.2: Zero values mean unlimited for that dimension.
       - R1.3: Domain agents extend budget checking via LoopHooks.BudgetExceeded.
+      - R1.4: MachineSpec BudgetSpec SHALL be the sole configuration source for run-level MaxTokens and MaxDuration. Registering invoke_llm words SHALL NOT change the run budget, and declaration order SHALL NOT affect it.
 
   R2:
     title: RunStatus and RunResult
@@ -91,8 +92,8 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Budget has MaxIterations, MaxTokens, and MaxDuration. Zero values mean unlimited.
-    traces: [R1.1, R1.2, R1.3]
+    criterion: Budget has MaxIterations, MaxTokens, and MaxDuration; zero values mean unlimited; and machine configuration remains authoritative regardless of registered invoke_llm words.
+    traces: [R1.1, R1.2, R1.3, R1.4]
 
   - id: AC2
     criterion: RunStatus has five constants. RunResult carries status, iterations, tokens, duration, cost, events, and summary. Custom JSON marshaling.

@@ -912,7 +912,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		ModelName:            resolved.Model,
 		ProviderName:         resolved.ProviderName,
 		Trace:                deps.Tracer,
-		Budget:               runBudget(deps.Machine, deps.State),
+		Budget:               runBudget(deps.Machine),
 		CommandTimeout:       deps.Machine.BudgetSpec.CommandTimeoutDuration(),
 		ToolAction:           toolAction,
 		Registry:             deps.Registry,
@@ -935,16 +935,8 @@ func machineAgentName(machine core.MachineSpec) string {
 	return "agent"
 }
 
-func runBudget(machine core.MachineSpec, st *agentState) core.Budget {
-	budget := machine.BudgetSpec.ToBudget(defaultRunBudget())
-	resolved := st.ensureResolved()
-	if resolved.MaxDuration > 0 {
-		budget.MaxDuration = resolved.MaxDuration
-	}
-	if resolved.MaxTokens > 0 {
-		budget.MaxTokens = resolved.MaxTokens
-	}
-	return budget
+func runBudget(machine core.MachineSpec) core.Budget {
+	return machine.BudgetSpec.ToBudget(defaultRunBudget())
 }
 
 func defaultRunBudget() core.Budget {
