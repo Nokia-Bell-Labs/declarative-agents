@@ -4,7 +4,6 @@
 package spec
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -28,27 +27,30 @@ var goTestNameRE = regexp.MustCompile(`^Test[A-Za-z0-9_]*$`)
 // evidence). packages holds every resolvable import path, including those with
 // no test files, so package-only evidence resolves without matching a test name.
 type GoTestInventory struct {
-	modulePath string
-	packages   map[string]bool            // import path -> exists
-	byPackage  map[string]map[string]bool // import path -> test name -> exists
-	allTests   map[string]bool            // union of every top-level test name
+	modulePath        string
+	packages          map[string]bool            // import path -> exists
+	byPackage         map[string]map[string]bool // import path -> test name -> exists
+	allTests          map[string]bool            // union of every top-level test name
+	inventoryFindings []Finding
 }
 
 type goTestInventoryJSON struct {
-	ModulePath string                     `json:"module_path"`
-	Packages   map[string]bool            `json:"packages"`
-	ByPackage  map[string]map[string]bool `json:"by_package"`
-	AllTests   map[string]bool            `json:"all_tests"`
+	ModulePath        string                     `json:"module_path"`
+	Packages          map[string]bool            `json:"packages"`
+	ByPackage         map[string]map[string]bool `json:"by_package"`
+	AllTests          map[string]bool            `json:"all_tests"`
+	InventoryFindings []Finding                  `json:"inventory_findings,omitempty"`
 }
 
 // MarshalJSON exposes the inventory's logical indexes to domain checkpoint
 // codecs without making the mutable maps part of the package API.
 func (i GoTestInventory) MarshalJSON() ([]byte, error) {
 	return json.Marshal(goTestInventoryJSON{
-		ModulePath: i.modulePath,
-		Packages:   i.packages,
-		ByPackage:  i.byPackage,
-		AllTests:   i.allTests,
+		ModulePath:        i.modulePath,
+		Packages:          i.packages,
+		ByPackage:         i.byPackage,
+		AllTests:          i.allTests,
+		InventoryFindings: i.inventoryFindings,
 	})
 }
 
@@ -67,6 +69,7 @@ func (i *GoTestInventory) UnmarshalJSON(data []byte) error {
 	i.packages = decoded.Packages
 	i.byPackage = decoded.ByPackage
 	i.allTests = decoded.AllTests
+	i.inventoryFindings = append([]Finding{}, decoded.InventoryFindings...)
 	return nil
 }
 
@@ -83,15 +86,16 @@ func ParseGoTestInventory(moduleOutput, packagesOutput, testsOutput string) (*Go
 	if len(packages) == 0 {
 		return nil, fmt.Errorf("go list ./... returned no packages")
 	}
-	byPackage, allTests, err := parseGoListTests(strings.NewReader(testsOutput))
+	byPackage, allTests, inventoryFindings, err := parseGoListTests(strings.NewReader(testsOutput))
 	if err != nil {
 		return nil, err
 	}
 	return &GoTestInventory{
-		modulePath: modulePath,
-		packages:   packages,
-		byPackage:  byPackage,
-		allTests:   allTests,
+		modulePath:        modulePath,
+		packages:          packages,
+		byPackage:         byPackage,
+		allTests:          allTests,
+		inventoryFindings: inventoryFindings,
 	}, nil
 }
 
@@ -102,6 +106,9 @@ func ParseGoTestInventory(moduleOutput, packagesOutput, testsOutput string) (*Go
 // shell-pipeline evidence is skipped. Findings are sorted by suite then case so
 // the report is deterministic.
 func ValidateGoTestEvidence(inv *GoTestInventory, suites map[string]TestSuite) []Finding {
+	if len(inv.inventoryFindings) > 0 {
+		return append([]Finding(nil), inv.inventoryFindings...)
+	}
 	suiteIDs := make([]string, 0, len(suites))
 	for id := range suites {
 		suiteIDs = append(suiteIDs, id)
@@ -394,53 +401,4 @@ func stripQuotes(s string) string {
 		}
 	}
 	return s
-}
-
-func parseGoPackages(out string) map[string]bool {
-	packages := map[string]bool{}
-	for _, line := range strings.Split(out, "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			packages[line] = true
-		}
-	}
-	return packages
-}
-
-// goListEvent is the subset of the `go test -json` event shape the inventory
-// reads: the emitting package and one line of list output.
-type goListEvent struct {
-	Action  string
-	Package string
-	Output  string
-}
-
-// parseGoListTests keeps only top-level test names from a go test -json -list
-// stream, discarding package summaries and other output events.
-func parseGoListTests(stream *strings.Reader) (map[string]map[string]bool, map[string]bool, error) {
-	byPackage := map[string]map[string]bool{}
-	allTests := map[string]bool{}
-	scanner := bufio.NewScanner(stream)
-	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-	for scanner.Scan() {
-		var ev goListEvent
-		if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
-			continue
-		}
-		if ev.Action != "output" || ev.Package == "" {
-			continue
-		}
-		name := strings.TrimSpace(ev.Output)
-		if !goTestNameRE.MatchString(name) {
-			continue
-		}
-		if byPackage[ev.Package] == nil {
-			byPackage[ev.Package] = map[string]bool{}
-		}
-		byPackage[ev.Package][name] = true
-		allTests[name] = true
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, nil, fmt.Errorf("scan go test -list output: %w", err)
-	}
-	return byPackage, allTests, nil
 }

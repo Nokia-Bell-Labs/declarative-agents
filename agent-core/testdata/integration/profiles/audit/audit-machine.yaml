@@ -41,7 +41,7 @@ transitions:
   - {state: NormalizingPackages, signal: ToolFailed, next: Failed}
   - {state: NormalizingPackages, signal: CommandError, next: Failed}
   - {state: InventoryTests, signal: ToolDone, next: ResolvingClaims, action: resolve_test_evidence}
-  - {state: InventoryTests, signal: ToolFailed, next: Failed}
+  - {state: InventoryTests, signal: ToolFailed, next: ResolvingClaims, action: resolve_test_evidence}
   - {state: InventoryTests, signal: CommandError, next: Failed}
   - {state: ResolvingClaims, signal: ValidationPassed, next: RunningTests, action: go_test_run, label: go_test_run}
   - {state: ResolvingClaims, signal: ValidationFailed, next: Reporting, action: format_report}

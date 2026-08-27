@@ -82,16 +82,20 @@ tools:
     goals:
     - Resolve configured module, package, and test-inventory outputs as strings from command state.
     - Parse one Go test inventory and append a finding for every unresolved formal claim.
+    - Convert package setup or build failures in valid Go JSON inventory into diagnostic findings.
     - Emit aggregate validation status with a receipt that restores inventory and findings.
     requirements:
       input:
       - must consume module, package-list, and test-inventory strings from the three configured selectors after claims are loaded
       output:
       - must emit ValidationPassed or ValidationFailed with aggregate finding and error counts
+      - must append one error finding per failed inventory package, naming its package and available build diagnostic
+      - must not emit missing-claim findings when package inventory is incomplete
       errors:
       - must emit CommandError when a selector is unresolved or non-string, or inventory parsing fails
     non_goals:
     - Does not execute `go list` or `go test`.
+    - Does not download modules or otherwise prepare the target dependency cache.
     - Does not reduce pass, fail, or skip events from an actual test run.
     errors:
     - signal: CommandError

@@ -83,6 +83,9 @@ test_cases:
       inventory_steps: [go_module, go_packages_raw, go_packages, go_test_inventory]
       package_normalization_input: $from(go_packages_raw).output
       resolution_step: resolve_test_evidence
+      inventory_failure_reduction: resolve_test_evidence
+      inventory_failure_reported: true
+      implicit_module_download: false
       execution_step: go_test_run
       reduction_step: reduce_test_evidence_run
       report_step: format_report
