@@ -33,7 +33,6 @@ func TestLoadRejectsInvalidSchemaPathsDuplicatesAndCapabilities(t *testing.T) {
 	}{
 		{"schema", func(m *Manifest) { m.SchemaVersion = 99 }, "unsupported"},
 		{"application identity", func(m *Manifest) { m.Application = "Bad Name" }, "lower-kebab"},
-		{"application root identity", func(m *Manifest) { m.Application = "other-app" }, "does not match"},
 		{"missing ownership", func(m *Manifest) { m.Ownership = "" }, "unknown application ownership"},
 		{"unknown ownership", func(m *Manifest) { m.Ownership = "composition" }, "unknown application ownership"},
 		{"absolute source", func(m *Manifest) { m.Roots[0].Source = "/tmp/profile.yaml" }, "portable relative"},
@@ -149,6 +148,16 @@ func TestLoadValidatesTemplatedRESTUIBinding(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsApplicationRootWhoseBaseNameDiffersFromIdentity(t *testing.T) {
+	appRoot := newNamedApplicationRoot(t, "gh-160-worktree-application-root")
+	catalogRoot := t.TempDir()
+	populateManifestFixture(t, appRoot, catalogRoot)
+	if _, err := Load(writeManifest(t, appRoot, validManifest()),
+		Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot}); err != nil {
+		t.Fatalf("Load rejected a worktree-named application root: %v", err)
+	}
+}
+
 func TestLoadAllowsPlannedMissingRootOnlyForAuditOnlyModule(t *testing.T) {
 	appRoot, catalogRoot := manifestFixture(t)
 	manifest := validManifest()
@@ -207,6 +216,12 @@ func validManifest() Manifest {
 func manifestFixture(t *testing.T) (string, string) {
 	t.Helper()
 	appRoot, catalogRoot := newApplicationRoot(t), t.TempDir()
+	populateManifestFixture(t, appRoot, catalogRoot)
+	return appRoot, catalogRoot
+}
+
+func populateManifestFixture(t *testing.T, appRoot, catalogRoot string) {
+	t.Helper()
 	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/catalog/profile.yaml"), "name: catalog\n")
 	writeFixtureFile(t, filepath.Join(catalogRoot, "docs/index.yaml"), "title: fixture\n")
 	writeFixtureFile(t, filepath.Join(appRoot, "agents/local/profile.yaml"), "name: local\n")
@@ -219,12 +234,15 @@ func manifestFixture(t *testing.T) (string, string) {
           binding: static_assets
           static_assets: {root: agents/local/ui, index: index.html}
 `)
-	return appRoot, catalogRoot
 }
 
 func newApplicationRoot(t *testing.T) string {
+	return newNamedApplicationRoot(t, "fixture-app")
+}
+
+func newNamedApplicationRoot(t *testing.T, name string) string {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), "fixture-app")
+	root := filepath.Join(t.TempDir(), name)
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
