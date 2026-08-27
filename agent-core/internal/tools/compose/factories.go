@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	InitCompose        = "compose"
-	InitRenderEach     = "render_each"
-	InitProject        = "project"
-	InitFlatMap        = "flat_map"
-	InitReorderByIndex = "reorder_by_index"
+	InitCompose         = "compose"
+	InitRenderEach      = "render_each"
+	InitProject         = "project"
+	InitNormalizeVector = "normalize_vector"
+	InitFlatMap         = "flat_map"
+	InitReorderByIndex  = "reorder_by_index"
 )
 
 // RegisterFactories registers compose builtin factories.
@@ -22,6 +23,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry) {
 	br.Register(InitCompose, composeFactory)
 	br.Register(InitRenderEach, renderEachFactory)
 	br.Register(InitProject, projectFactory)
+	br.Register(InitNormalizeVector, normalizeVectorFactory)
 	br.Register(InitFlatMap, flatMapFactory)
 	br.Register(InitReorderByIndex, reorderByIndexFactory)
 }
@@ -64,6 +66,19 @@ func projectFactory(def catalog.ToolDef, _ map[string]string) (core.Builder, err
 	}
 	return ProjectBuilder{
 		ToolName: def.Name, Items: cfg.Items, Field: cfg.Field, Signal: core.Signal(cfg.Signal),
+	}, nil
+}
+
+func normalizeVectorFactory(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+	var cfg catalog.NormalizeVectorConfig
+	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+		return nil, err
+	}
+	if err := ValidateNormalizeVectorConfig(def.Name, cfg.Path, cfg.Signal); err != nil {
+		return nil, err
+	}
+	return NormalizeVectorBuilder{
+		ToolName: def.Name, Path: cfg.Path, Signal: core.Signal(cfg.Signal),
 	}, nil
 }
 

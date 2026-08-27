@@ -353,6 +353,25 @@ test_cases:
       - srd038-command-state-store AC2
 
   - use_case: rel00.0-uc001-domain-agent-integration
+    name: Normalize-vector collection word stabilizes adjacent vector shapes
+    status: implemented
+    go_test: go test ./internal/tools/compose -run 'Test(NormalizeVector|ValidateNormalizeVector|RegisterFactories)'
+    inputs:
+      word: normalize_vector
+      path: mapped.embedding
+      accepted_shapes: [flat_numeric_vector, single_numeric_row]
+      rejected_shapes: [empty_vector, empty_row, multiple_rows, mixed_nesting, non_numeric_member, missing_path, non_object]
+    expected:
+      flat_vector_preserved: true
+      single_row_unwrapped: true
+      surrounding_fields_preserved: true
+      output_redaction_preserved: true
+      invalid_shapes_emit_command_error: true
+      canonical_selector_grammar_unchanged: true
+    traces:
+      - srd022-builtin-tools AC7
+
+  - use_case: rel00.0-uc001-domain-agent-integration
     name: Profile closure inspection enforces finite operation authorities before dispatch
     go_test: go test ./pkg/profileaudit ./cmd/agent -run 'TestInspect|TestStartupEnforcesProfileTimeoutClosure'
     inputs:

@@ -62,6 +62,12 @@ type ProjectConfig struct {
 	Signal string `json:"signal"`
 }
 
+// NormalizeVectorConfig selects one local map-key path in the previous Result.
+type NormalizeVectorConfig struct {
+	Path   string `json:"path"`
+	Signal string `json:"signal"`
+}
+
 // FlatMapConfig holds one parent-array selector, parallel element-array fields,
 // parent fields copied onto each output row, and the success signal.
 type FlatMapConfig struct {

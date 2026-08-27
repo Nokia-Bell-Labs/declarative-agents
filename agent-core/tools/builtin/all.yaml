@@ -6,6 +6,7 @@ includes:
   - select-subset.yaml
   - render-each.yaml
   - project.yaml
+  - normalize-vector.yaml
   - flat-map.yaml
   - reorder-by-index.yaml
   - filesystem/all.yaml
