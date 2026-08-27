@@ -11,6 +11,7 @@ tools:
   - list_resource
   - read_resource
   - embed_document
+  - normalize_embedding
   - resolve_collection
   - chroma_add
   - count_collection

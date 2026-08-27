@@ -7,18 +7,18 @@ purpose: |-
   corpus once, then lets the model drive a per-document loop: the model chooses
   the next listed file to read (read_resource), or signals done. After each read the machine
   sequences the deterministic embedding steps -- embed the document at the configured provider,
-  create-or-get the collection (which resolves the returned collection id and
+  normalize a flat vector or one provider row, create-or-get the collection (which resolves the returned collection id and
   carries the embedding, document, and id forward), and add the agent-supplied
   vector to Chroma -- before returning to the model for the next file. When the
   model is done the machine re-resolves the collection and verifies the count.
 
-  Only file selection is model-driven; discovery and the embed-to-add vector step
+  Only file selection is model-driven; discovery and the embed-normalize-to-add vector step
   are machine-sequenced because a model cannot author a trusted path list or raw embedding vector. The
   vector rides between boundary words through the agent-core previous-Result
   parameter threading (srd028 R12).
 invariants:
   - REST authority lives in agents/knowledge-manager/corpus-rest.yaml.
-  - MachineSpec owns sequencing between read, embed, and Chroma words.
+  - MachineSpec owns sequencing between read, embed, vector normalization, and Chroma words.
   - The model chooses only which listed file to read, or when to stop; it never authors a path or embedding vector.
   - The model-visible manifest contains only read_resource and done.
   - The Chroma and Ollama servers are external preconditions, surfaced through chroma_ready and ollama_ready, not started by the agent.
@@ -44,6 +44,8 @@ states:
     meaning: The model response is being parsed into one tool request.
   - name: Embedding
     meaning: The document text is being embedded at the configured provider.
+  - name: NormalizingEmbedding
+    meaning: A flat provider vector is being preserved or exactly one provider row is being unwrapped.
   - name: ResolvingCollection
     meaning: The collection is being create-or-got and the embedding is carried forward.
   - name: Adding
@@ -57,7 +59,7 @@ states:
     meaning: Terminal. The corpus was ingested and the count verified.
   - name: Failed
     run_status: failed
-    meaning: Terminal. A REST, embedding, listing, or unrecoverable model-boundary word failed.
+    meaning: Terminal. A REST, embedding, vector-normalization, listing, or unrecoverable model-boundary word failed.
   - name: BudgetExceeded
     run_status: budget_exceeded
     meaning: Terminal. The loop exhausted its iteration or parse-error budget.
@@ -94,6 +96,8 @@ signals:
     trigger: The model-selected path was outside the configured corpus resource.
   - name: DocumentEmbedded
     trigger: The configured embedding provider returned a vector for the document.
+  - name: EmbeddingNormalized
+    trigger: The provider result contains one validated flat document vector.
   - name: CollectionReady
     trigger: The collection was create-or-got and its id resolved.
   - name: DocumentAdded
@@ -190,9 +194,16 @@ transitions:
     action: invoke_llm
   - state: Embedding
     signal: DocumentEmbedded
+    next: NormalizingEmbedding
+    action: normalize_embedding
+  - state: Embedding
+    signal: CommandError
+    next: Failed
+  - state: NormalizingEmbedding
+    signal: EmbeddingNormalized
     next: ResolvingCollection
     action: resolve_collection
-  - state: Embedding
+  - state: NormalizingEmbedding
     signal: CommandError
     next: Failed
   - state: ResolvingCollection

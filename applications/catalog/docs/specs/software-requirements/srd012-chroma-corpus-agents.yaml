@@ -16,7 +16,9 @@ context: |
   configured provider and thread the resulting vector into the Chroma add and
   query words using the REST client previous-Result parameter threading defined
   by agent-core srd028-rest-client-tools R12 (body_source previous_result,
-  input_mapping, and carry_forward). The canonical profile defaults to Ollama,
+  input_mapping, and carry_forward). The ingest machine normalizes either a
+  flat document vector or exactly one document-vector row before that threading
+  reaches Chroma. The canonical profile defaults to Ollama,
   while a consuming wrapper may select another declared REST client and a
   globally unique document-embedding operation. No embedding vector is authored
   by a model; the vector always rides between boundary words.
@@ -44,7 +46,7 @@ requirements:
     title: Behavior model
     items:
       - R1.1: The corpus family SHALL ship two profiles -- an ingest profile and a reader profile -- that model Chroma retrieval as explicit MachineSpec boundary steps.
-      - R1.2: The ingest machine SHALL sequence chroma_ready, ollama_ready, and an internal list_resource step before model control, then a per-document loop of model-selected read, embed_document, create-or-get collection (which resolves the returned collection id and carries the embedding forward), and chroma_add; when the corpus is exhausted it SHALL re-resolve the collection and run a terminal chroma_count verification state. The model SHALL receive listed paths but SHALL NOT invoke list_resource or author discovery paths.
+      - R1.2: The ingest machine SHALL sequence chroma_ready, ollama_ready, and an internal list_resource step before model control, then a per-document loop of model-selected read, embed_document, normalize_embedding, create-or-get collection (which resolves the returned collection id and carries the embedding forward), and chroma_add; when the corpus is exhausted it SHALL re-resolve the collection and run a terminal chroma_count verification state. The model SHALL receive listed paths but SHALL NOT invoke list_resource or author discovery paths.
       - R1.3: The reader machine SHALL sequence chroma_ready, ollama_ready, embed_query, create-or-get collection (which resolves the returned collection id and carries the query vector forward), chroma_query, then invoke_llm over the retrieved chunks.
       - R1.5: Because previous-Result threading is single-hop and read cannot carry the collection id across the loop, the create-or-get collection word SHALL sit immediately before chroma_add or chroma_query so the returned id and the carried vector thread together into the write or query body.
       - R1.4: The embed-to-Chroma vector step SHALL be machine-sequenced, because a model cannot author a raw embedding vector.
@@ -64,6 +66,7 @@ requirements:
       - R3.2: chroma_add and chroma_query SHALL declare body_source previous_result with an input_mapping that selects the embedding vector from the embed word's Result output and, for chroma_add, the document text and id from the carried inputs (srd028 R12.1, R12.2).
       - R3.3: The Chroma request bodies SHALL place each selected vector inside a single-token array element so the flat vector renders as the nested array Chroma expects (srd028 R12.5).
       - R3.4: No embedding vector SHALL be authored by a model or supplied as free runtime input; the vector SHALL only be threaded between boundary words.
+      - R3.5: normalize_embedding SHALL preserve a provider's non-empty flat numeric document vector or unwrap exactly one non-empty numeric document-vector row while preserving carried document text and identity. Invalid, empty, mixed, or multi-row shapes SHALL emit CommandError before collection resolution. This local collection operation SHALL NOT widen canonical command-state or REST selector syntax (srd022 R7.12).
   R4:
     title: Inputs, tools, and runtime dependencies
     items:
@@ -81,7 +84,7 @@ requirements:
     title: Outputs and outcomes
     items:
       - R6.1: Ingest outputs SHALL include the created-or-resolved collection, the added document count, and the verifying count read; reader outputs SHALL include the retrieved chunk identities and a grounded answer.
-      - R6.2: Corpus terminal outcomes SHALL be Succeeded or Failed, with REST or embedding boundary failures routed to Failed.
+      - R6.2: Corpus terminal outcomes SHALL be Succeeded or Failed, with REST, embedding, or vector-normalization failures routed to Failed.
 
 non_goals:
   - Define Go package APIs for the agent-core HTTP runtime or the previous-Result threading capability.
@@ -98,8 +101,8 @@ acceptance_criteria:
     criterion: The Chroma and provider REST vocabulary is named with each word's boundary behavior, configurable document-provider binding, and create-or-get collection identity resolution.
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
   - id: AC3
-    criterion: The provider-embedding threading contract is specified in terms of srd028 R12 body_source previous_result, input_mapping, carry_forward, and single-token vector reshape, with no model-authored vectors.
-    traces: [R3.1, R3.2, R3.3, R3.4]
+    criterion: The provider-embedding threading contract normalizes flat and single-row document vectors, preserves carried fields, and uses srd028 R12 body_source previous_result, input_mapping, carry_forward, and one Chroma-side wrap, with no model-authored vectors or widened selectors.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
   - id: AC4
     criterion: Corpus inputs, selected tool families, network policy, independent query/document input types, and profile-owned authority are named and separated from agent-core runtime capability.
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
@@ -117,6 +120,8 @@ depends_on:
     symbols_used: [R1, R2, R3]
   - srd_id: srd028-rest-client-tools
     symbols_used: [R12]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [R7.12]
 
 diagrams:
   requirements_trace: |

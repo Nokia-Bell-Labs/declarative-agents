@@ -1,0 +1,52 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+tools:
+- name: normalize_vector
+  type: builtin
+  init: normalize_vector
+  category: word
+  visibility: internal
+  emits: [VectorNormalized, CommandError]
+  description: Preserve a flat numeric vector or unwrap exactly one numeric matrix row.
+  problem: A provider may represent one vector as either a flat array or a one-row matrix while an adjacent consumer requires one stable shape.
+  goals:
+  - Normalize the two accepted shapes without widening selector syntax.
+  - Preserve every other field in the adjacent Result object.
+  requirements:
+    input:
+    - The adjacent previous Result is a JSON object and trusted configuration names one dotted map-key path.
+    - The selected value is a non-empty numeric vector or a matrix containing exactly one non-empty numeric row.
+    output:
+    - A flat vector remains unchanged and a one-row matrix becomes its row.
+    - Unselected fields and output-redaction metadata remain unchanged.
+    errors:
+    - Missing paths, invalid objects, empty values, non-numeric members, mixed nesting, and multiple rows emit CommandError.
+  non_goals:
+  - Does not flatten arbitrary arrays, choose among multiple rows, or coerce values.
+  - Does not widen command-state or REST selector syntax.
+  - Does not define provider, transport, embedding, or vector-store policy.
+  parameters:
+    type: object
+    properties: {}
+  output:
+    description: The previous JSON object with the selected vector normalized in place.
+    schema: {type: object}
+  side_effects:
+  - kind: none
+    description: Normalization changes no runtime or external state.
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Normalization changes no external state.
+  errors:
+  - signal: CommandError
+    condition: The previous output, configured path, vector shape, or vector member type is invalid.
+    message_shape: 'normalize_vector: <error>'
+    state_after_failure: No normalized output is published.
+  relationships:
+    before: [machine-selected successor]
+    after: [vector-producing predecessor]
+  config:
+    path: mapped.embedding
+    signal: VectorNormalized
