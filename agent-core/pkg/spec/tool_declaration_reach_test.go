@@ -101,6 +101,7 @@ func TestCorpusResolvesIncludes(t *testing.T) {
 	for _, entry := range loaded {
 		names[entry.decl.Name] = true
 	}
+	require.True(t, names["project"], "project.yaml include did not resolve")
 	require.True(t, names["list_resource"], "filesystem/all.yaml include did not resolve")
 	require.True(t, names["await_spans"], "otlp/all.yaml include did not resolve")
 }

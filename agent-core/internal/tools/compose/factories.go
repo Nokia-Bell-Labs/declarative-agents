@@ -12,6 +12,7 @@ import (
 const (
 	InitCompose        = "compose"
 	InitRenderEach     = "render_each"
+	InitProject        = "project"
 	InitFlatMap        = "flat_map"
 	InitReorderByIndex = "reorder_by_index"
 )
@@ -20,6 +21,7 @@ const (
 func RegisterFactories(br *toolregistry.BuiltinRegistry) {
 	br.Register(InitCompose, composeFactory)
 	br.Register(InitRenderEach, renderEachFactory)
+	br.Register(InitProject, projectFactory)
 	br.Register(InitFlatMap, flatMapFactory)
 	br.Register(InitReorderByIndex, reorderByIndexFactory)
 }
@@ -49,6 +51,19 @@ func renderEachFactory(def catalog.ToolDef, _ map[string]string) (core.Builder, 
 	return RenderEachBuilder{
 		ToolName: def.Name, Items: cfg.Items, ItemTemplate: cfg.ItemTemplate,
 		Separator: cfg.Separator, Signal: core.Signal(cfg.Signal),
+	}, nil
+}
+
+func projectFactory(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+	var cfg catalog.ProjectConfig
+	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+		return nil, err
+	}
+	if err := ValidateProjectConfig(def.Name, cfg.Items, cfg.Field, cfg.Signal); err != nil {
+		return nil, err
+	}
+	return ProjectBuilder{
+		ToolName: def.Name, Items: cfg.Items, Field: cfg.Field, Signal: core.Signal(cfg.Signal),
 	}, nil
 }
 

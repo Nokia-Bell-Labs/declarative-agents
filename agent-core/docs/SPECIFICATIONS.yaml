@@ -13,7 +13,7 @@ overview: |
   enforcement tests over core-owned synthetic fixtures. Replacing every
   application owner's inventory check remains the GH-1679 follow-up.
   Thirty-three use cases exercise the SRDs across sixteen releases. Eighteen
-  formal YAML test suites cover 337 acceptance test cases across releases 00.0
+  formal YAML test suites cover 339 acceptance test cases across releases 00.0
   through 14.0 and release 99.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -236,7 +236,7 @@ srd_index:
     path: docs/specs/software-requirements/srd021-agent-cli-exec-tool.yaml
   - id: srd022-builtin-tools
     title: Builtin Tool Declarations and Factories
-    summary: Requirements for builtin declarations, grouped builtin declaration paths, target catalog and registry package ownership, typed config validation, state-machine integration, and mode-local overrides.
+    summary: Requirements for builtin declarations, grouped builtin declaration paths, target catalog and registry package ownership, typed config validation, state-machine integration, mode-local overrides, and collection words including ordered field projection.
     path: docs/specs/software-requirements/srd022-builtin-tools.yaml
   - id: srd023-cli-exec-tools
     title: CLI and Exec Tool Declarations
@@ -632,7 +632,7 @@ test_suite_index:
     traces:
       - rel00.0-uc001-domain-agent-integration
       - rel00.0-uc002-spec-corpus-validation
-    formal_test_cases: 98
+    formal_test_cases: 99
     path: docs/specs/test-suites/test-rel00.0.yaml
   - id: test-rel01.0
     title: Test Suite for Release 01.0 Unified Agent Runtime
@@ -783,7 +783,7 @@ test_suite_index:
 go_test_coverage:
   note: >
     Go test functions across all packages provide coverage beyond the
-    formal YAML test suites. Release 00.0 YAML coverage (92 cases) covers
+    formal YAML test suites. Release 00.0 YAML coverage (99 cases) covers
     srd001-srd018 where Go tests already prove behavior. For release 01.0,
     the YAML suite (37 cases) indexes generator and evaluator integration
     evidence now lives with applications/coding-agent and applications/catalog. The suite

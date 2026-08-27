@@ -55,6 +55,13 @@ type RenderEachConfig struct {
 	Signal       string `json:"signal"`
 }
 
+// ProjectConfig selects one local item path from each member of an array.
+type ProjectConfig struct {
+	Items  string `json:"items"`
+	Field  string `json:"field"`
+	Signal string `json:"signal"`
+}
+
 // FlatMapConfig holds one parent-array selector, parallel element-array fields,
 // parent fields copied onto each output row, and the success signal.
 type FlatMapConfig struct {
