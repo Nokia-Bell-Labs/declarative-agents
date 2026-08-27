@@ -68,6 +68,10 @@ releases:
       - id: rel01.0-uc003-bench-visualization
         summary: Bench serves web UI for evaluation result exploration
         status: done
+    follow_up:
+      - id: gh-1867
+        summary: Add the project collection word for ordered field extraction from structured rows.
+        status: specified
 
   - version: "02.0"
     name: Rollback lifecycle and tool language documentation

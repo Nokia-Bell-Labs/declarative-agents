@@ -332,6 +332,28 @@ test_cases:
       - srd022-builtin-tools AC7
 
   - use_case: rel00.0-uc001-domain-agent-integration
+    name: Project collection word extracts one field from each structured row
+    status: planned
+    follow_up_issue: "#1870"
+    go_test: Planned project collection word coverage
+    inputs:
+      word: project
+      selector: $from(rows).items
+      item_paths: [id, metadata.source.id, embeddings.0]
+      outcomes: [ordered_projection, duplicate_values, non_string_projection, empty, missing_field, invalid_item_path, unresolved_selector]
+    expected:
+      one_field_projected_from_each_row: true
+      projected_duplicates_and_json_shapes_preserved: true
+      projected_string_values_feed_select_subset: true
+      empty_array_returns_empty_items_and_zero_count: true
+      missing_and_invalid_paths_rejected: true
+      selector_failures_preserve_typed_cause: true
+      canonical_selector_grammar_unchanged: true
+    traces:
+      - srd022-builtin-tools AC7
+      - srd038-command-state-store AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
     name: Profile closure inspection enforces finite operation authorities before dispatch
     go_test: go test ./pkg/profileaudit ./cmd/agent -run 'TestInspect|TestStartupEnforcesProfileTimeoutClosure'
     inputs:

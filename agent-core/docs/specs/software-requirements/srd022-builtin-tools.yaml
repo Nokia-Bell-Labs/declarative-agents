@@ -59,7 +59,7 @@ requirements:
       - R3.2: Required behavior-shaping config such as child profiles, nested machine paths, tool selection paths, artifact paths, or server addresses SHALL be explicit typed fields.
       - R3.3: Config decode errors SHALL include the tool name and type mismatch details.
       - R3.4: Defaults MAY exist for backwards compatibility, but defaults that change program behavior SHALL be documented.
-      - R3.5: Typed config structs SHALL exist for each config shape (ChildAgentConfig, LLMToolConfig, ParseResponseConfig, LoadSuiteConfig, RunPointConfig, EvaluationArtifactsConfig, PartitionConfig, SelectSubsetConfig, RenderEachConfig, FlatMapConfig, ReorderByIndexConfig, ParseStructuredConfig).
+      - R3.5: Typed config structs SHALL exist for each config shape (ChildAgentConfig, LLMToolConfig, ParseResponseConfig, LoadSuiteConfig, RunPointConfig, EvaluationArtifactsConfig, PartitionConfig, SelectSubsetConfig, RenderEachConfig, ProjectConfig, FlatMapConfig, ReorderByIndexConfig, ParseStructuredConfig).
       - R3.6: Metric declaration validation SHALL reject attributes sourced from raw prompts, full outputs, secrets, unbounded paths, arbitrary URLs, request IDs, timestamps, or user free text.
 
   R4:
@@ -100,13 +100,13 @@ requirements:
       - R7.2: select_subset SHALL emit only candidate names present in a selected declared vocabulary and SHALL return the corresponding trusted vocabulary values under selected in candidate order. Candidates SHALL be strings, so candidate-supplied payload cannot cross the boundary. Repeated candidates SHALL repeat the trusted selected value, and the first vocabulary value SHALL win when a name is declared more than once. The word SHALL distinguish full, partial, and empty outcomes; empty candidates, empty vocabulary, and both empty SHALL produce the empty outcome with an empty selected array.
       - R7.3: render_each SHALL apply one configured item template in input order and join the parts with a configured separator; an empty input array SHALL produce an empty string. compose SHALL retain its flat substitution contract.
       - R7.4: parse_structured SHALL parse selected output as JSON and validate it against a declared JSON Schema. Its source config SHALL accept $.output for the immediately previous Result.Output and $from(label).path for non-adjacent command-state output. Malformed or schema-invalid adjacent or selected output SHALL emit the configured unparsed signal without Result.Err; an unresolved $from selector SHALL emit CommandError. No other current-result path is valid.
-      - R7.5: Each collection word SHALL decode typed config and reject missing signals, malformed selectors, unsupported operators or operand types, malformed templates, and invalid schemas during registration.
+      - R7.5: Each collection word SHALL decode typed config and reject missing signals, malformed selectors or local item paths, unsupported operators or operand types, malformed templates, and invalid schemas during registration.
       - R7.6: The collection words SHALL be internal, side-effect-free, reversible with noop undo, registered by their standard factory families, and declared in the shared builtin bundle.
-      - R7.7: project SHALL remain omitted until a consuming program needs a separate field-plucking operation; select_subset exposes the consuming trusted entries directly under selected, while partition and render_each preserve values through their own operations.
+      - R7.7: project SHALL resolve one configured array through a $from selector, read one configured dotted item path from every array member, preserve input order, duplicates, and JSON value shape, and emit the projected values under items with their count. The local item path SHALL traverse object keys and numeric array indexes. Empty input SHALL emit an empty items array and zero count. An unresolved selector, non-array input, absent field, unreadable component, malformed local path, or missing signal SHALL produce CommandError or fail registration as appropriate. project SHALL NOT require projected values to be strings; a consuming word such as select_subset retains its own type and trust checks.
       - R7.8: partition and render_each SHALL traverse fields under for_each join outcome result.structured_output through their existing dotted-field behavior; render_each item paths SHALL additionally accept numeric array-index components. They SHALL NOT parse or bypass the compatibility result.output string themselves.
       - R7.9: flat_map SHALL resolve a selected parent array, map named element fields to dotted item paths, require those paths to resolve to equal-length arrays, zip them in parent and element order, and copy named carry fields onto every output row. Numeric item-path components SHALL address nested arrays. Empty element arrays SHALL produce no rows.
       - R7.10: reorder_by_index SHALL resolve candidate and ordering-row arrays, read one declared integer index field from each row, and emit candidates in ordering-row order together with aligned rows. Missing, fractional, negative, out-of-range, and duplicate indexes SHALL emit CommandError. An ordering array MAY select a strict subset of candidates.
-      - R7.11: flat_map, reorder_by_index, and render_each numeric item paths SHALL be local collection-word capabilities over values already selected through $from. They SHALL NOT widen canonical command-state selectors or REST input_mapping and response.output selectors, which remain map-key paths.
+      - R7.11: project, flat_map, reorder_by_index, and render_each numeric item paths SHALL be local collection-word capabilities over values already selected through $from. They SHALL NOT widen canonical command-state selectors or REST input_mapping and response.output selectors, which remain map-key paths.
 
 package_ownership:
   status: planned
@@ -179,7 +179,7 @@ acceptance_criteria:
     traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R6.8]
 
   - id: AC7
-    criterion: Generic collection words partition arrays, constrain candidate names, render ordered items, flatten parallel nested arrays, reorder candidates by result indexes, and validate structured model output through registered and load-time-validated builtin contracts.
+    criterion: Generic collection words partition arrays, constrain candidate names, render ordered items, project one field from ordered rows, flatten parallel nested arrays, reorder candidates by result indexes, and validate structured model output through registered and load-time-validated builtin contracts.
     traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7, R7.8, R7.9, R7.10, R7.11]
 
 depends_on:
@@ -213,7 +213,7 @@ implementation:
   - internal/tools/registry/ (planned BuiltinRegistry and factory catalog)
   - internal/tools/filesystem/ (planned file builtin tools)
   - internal/tools/llm/ (planned model-boundary builtin tools)
-  - internal/tools/compose/ (flat substitution, per-item rendering, nested-array flattening, and indexed reordering builtin tools)
+  - internal/tools/compose/ (flat substitution, per-item rendering, ordered field projection, nested-array flattening, and indexed reordering builtin tools)
   - internal/tools/lifecycle/ (planned lifecycle builtin tools)
   - internal/tools/validation/ (planned validation builtin tools)
   - internal/tools/undo/ (planned undo payload helpers)
