@@ -103,8 +103,11 @@ func ParseGoTestInventory(moduleOutput, packagesOutput, testsOutput string) (*Go
 // suites against inv and returns one error-level Finding per executable evidence
 // string that cannot be resolved. Only bare names, comma-separated names, and
 // "go test ... [-run ...]" commands are validated; Mage, descriptive, and
-// shell-pipeline evidence is skipped. Findings are sorted by suite then case so
-// the report is deterministic.
+// shell-pipeline evidence is skipped. A planned case withholds its claim
+// (withheldClaim): inventory resolution is skipped so the case can name a test
+// that does not exist yet, but malformed Test-prefixed names are still reported
+// (GH-1350). Findings are sorted by suite then case so the report is
+// deterministic.
 func ValidateGoTestEvidence(inv *GoTestInventory, suites map[string]TestSuite) []Finding {
 	if len(inv.inventoryFindings) > 0 {
 		return append([]Finding(nil), inv.inventoryFindings...)
@@ -119,7 +122,12 @@ func ValidateGoTestEvidence(inv *GoTestInventory, suites map[string]TestSuite) [
 	for _, id := range suiteIDs {
 		suite := suites[id]
 		for _, tc := range suite.TestCases {
-			problem := inv.checkEvidence(tc.GoTest)
+			var problem string
+			if withheldClaim(tc.Status) {
+				problem = malformedTestNameList(strings.TrimSpace(tc.GoTest))
+			} else {
+				problem = inv.checkEvidence(tc.GoTest)
+			}
 			if problem == "" {
 				continue
 			}
