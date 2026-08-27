@@ -147,6 +147,66 @@ func TestValidateGoTestEvidenceFindings(t *testing.T) {
 	}
 }
 
+// TestValidateGoTestEvidenceWithholdsPlannedClaims is the GH-1876 contract:
+// only "planned" skips inventory resolution, so a case can name the test it
+// intends before that test exists. Syntax (GH-1350 malformed names) still
+// reports. Any other status, including an absent field, stays a live claim.
+func TestValidateGoTestEvidenceWithholdsPlannedClaims(t *testing.T) {
+	inv := testInventory()
+	tests := []struct {
+		name    string
+		tc      TestCase
+		wantErr string
+	}{
+		{
+			name:    "planned nonexistent test is not a finding",
+			tc:      TestCase{Name: "future case", GoTest: "TestNotWrittenYet", Status: "planned"},
+			wantErr: "",
+		},
+		{
+			name:    "planned missing -run command is not a finding",
+			tc:      TestCase{Name: "future command", GoTest: "go test ./pkg/spec -run TestNotWrittenYet", Status: "planned"},
+			wantErr: "",
+		},
+		{
+			name:    "planned malformed name is still a finding",
+			tc:      TestCase{Name: "bad pointer", GoTest: "Test Clearance Filter", Status: "planned"},
+			wantErr: "malformed Go test name",
+		},
+		{
+			name:    "implemented nonexistent test is a finding",
+			tc:      TestCase{Name: "live case", GoTest: "TestGhost", Status: "implemented"},
+			wantErr: "no Go test named TestGhost",
+		},
+		{
+			name:    "absent status nonexistent test is a finding",
+			tc:      TestCase{Name: "implied live", GoTest: "TestGhost"},
+			wantErr: "no Go test named TestGhost",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			findings := ValidateGoTestEvidence(inv, map[string]TestSuite{
+				"test-rel99.0": {ID: "test-rel99.0", TestCases: []TestCase{tt.tc}},
+			})
+			switch {
+			case tt.wantErr == "" && len(findings) != 0:
+				t.Fatalf("findings = %+v, want none", findings)
+			case tt.wantErr != "":
+				if len(findings) != 1 {
+					t.Fatalf("findings = %+v, want one containing %q", findings, tt.wantErr)
+				}
+				if findings[0].Check != goTestEvidenceCheck || findings[0].Level != "error" {
+					t.Errorf("finding contract = %+v", findings[0])
+				}
+				if !strings.Contains(findings[0].Message, tt.wantErr) {
+					t.Errorf("finding message %q missing %q", findings[0].Message, tt.wantErr)
+				}
+			}
+		})
+	}
+}
+
 func TestParseGoTestInventoryReportsBuildFailure(t *testing.T) {
 	const (
 		modulePath  = "example.com/mod"

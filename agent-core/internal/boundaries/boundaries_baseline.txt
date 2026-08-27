@@ -63,4 +63,4 @@ pkg:internal/tools/undo files=1 loc=84
 pkg:internal/tools/validation files=5 loc=1488
 pkg:internal/version files=1 loc=40
 pkg:pkg/profileaudit files=4 loc=1049
-pkg:pkg/spec files=31 loc=6413
+pkg:pkg/spec files=31 loc=6422
