@@ -7,7 +7,9 @@ status: implemented
 
 overview: |
   This suite proves the canonical corpus-ingest trust ordering and configurable
-  document-embedding provider binding, then executes the shipped corpus-reader
+  document-embedding provider binding. Deterministic ingest fixtures prove that
+  flat and single-row provider responses both reach Chroma as one vector and
+  that invalid rows fail before a write. The suite then executes the shipped corpus-reader
   wrapper through its complete retrieval and answer path. The reader cases use
   deterministic in-process Chroma and Ollama protocol fixtures. They patch only
   transport addresses; the shipped profile, machine, declarations, REST
@@ -49,6 +51,22 @@ test_cases:
       - rel08.0-uc001-corpus-ingest S4
       - srd012-chroma-corpus-agents R2.6
       - srd012-chroma-corpus-agents R4.5
+
+  - use_case: rel08.0-uc001-corpus-ingest
+    name: Ingest normalizes flat and single-row provider vectors
+    go_test: go test ./conformance -run TestCorpusIngestNormalizesProviderEmbeddings
+    status: implemented
+    expected:
+      ollama_flat_vector_preserved: true
+      cohere_single_row_unwrapped: true
+      chroma_add_wraps_exactly_once: true
+      document_and_id_preserved: true
+      invalid_row_fails_before_chroma_add: true
+    traces:
+      - rel08.0-uc001-corpus-ingest S1
+      - rel08.0-uc001-corpus-ingest S4
+      - srd012-chroma-corpus-agents R3.5
+      - srd012-chroma-corpus-agents R6.2
 
   - use_case: rel08.0-uc002-corpus-query
     name: Shipped reader embeds, retrieves, and answers from known chunks

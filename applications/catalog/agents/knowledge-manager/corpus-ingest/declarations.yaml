@@ -160,10 +160,64 @@ tools:
         - tool: rest_client_invoke
           difference: This profile-specific word binds the configured provider's document-embedding operation.
       after: [read_resource]
-      before: [resolve_collection]
+      before: [normalize_embedding]
     config:
       rest_ref: "${CORPUS_INGEST_EMBEDDING_REST_REF:-ollama}"
       operation: "${CORPUS_INGEST_EMBEDDING_OPERATION:-embed}"
+
+  - name: normalize_embedding
+    type: builtin
+    init: normalize_vector
+    visibility: internal
+    category: word
+    description: Preserve a flat document vector or unwrap exactly one provider row.
+    problem: Embedding providers return either one flat vector or a one-row matrix while the Chroma add path requires the flat form.
+    goals:
+      - Normalize both accepted provider shapes before collection resolution.
+      - Preserve the mapped and carried fields used by the single-hop Chroma chain.
+    requirements:
+      input:
+        - The adjacent embed_document Result contains mapped.embedding and carried document text and id.
+      output:
+        - Output preserves the Result envelope with mapped.embedding normalized to one flat numeric vector.
+      errors:
+        - Missing, empty, non-numeric, mixed, or multi-row embeddings emit CommandError.
+    non_goals:
+      - Does not select a provider, alter REST selectors, choose among rows, or author vector values.
+      - Does not change document text or identity.
+    parameters:
+      type: object
+      properties: {}
+      additional_properties: false
+    emits: [EmbeddingNormalized, CommandError]
+    output:
+      description: Provider Result envelope with one flat embedding vector.
+      schema:
+        type: object
+        properties:
+          mapped: {type: object}
+          carried: {type: object}
+    side_effects:
+      - kind: none
+        description: Shape normalization changes no runtime or external state.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Shape normalization changes no external state.
+    errors:
+      - signal: CommandError
+        condition: The embedding path or vector shape is invalid.
+        state_after_failure: No normalized embedding is published and Chroma is not called.
+    relationships:
+      overlaps:
+        - tool: normalize_vector
+          difference: This profile-specific word binds the generic shape normalizer to the document embedding Result.
+      after: [embed_document]
+      before: [resolve_collection]
+    config:
+      path: mapped.embedding
+      signal: EmbeddingNormalized
 
   - name: resolve_collection
     type: builtin
@@ -175,10 +229,10 @@ tools:
     goals:
       - Create-or-get the plain collection with no server-side embedding function.
       - Resolve the returned collection id for the add path.
-      - Carry the embedding, document, and id forward from the embed Result.
+      - Carry the embedding, document, and id forward from the normalized Result.
     requirements:
       input:
-        - Embedding, document, and id are selected from the previous embed Result output.
+        - Embedding, document, and id are selected from the previous normalize_embedding Result output.
       output:
         - Output includes the mapped collection id and the carried embedding, document, and id.
       errors:
@@ -219,7 +273,7 @@ tools:
       overlaps:
         - tool: rest_client_invoke
           difference: This profile-specific word binds the Chroma create-or-get collection operation for the add path.
-      after: [embed_document]
+      after: [normalize_embedding]
       before: [chroma_add]
     config:
       rest_ref: chroma
