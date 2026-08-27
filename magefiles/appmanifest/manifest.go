@@ -34,6 +34,7 @@ var (
 
 // Options names the two ownership boundaries used by validation and closure.
 // ApplicationRoot defaults to the parent of the manifest's agents directory.
+// Identity comes from Manifest.Application, not the root directory's base name.
 // CatalogRoot is mandatory when the manifest declares a catalog-owned root.
 type Options struct {
 	ApplicationRoot   string
@@ -183,9 +184,6 @@ func (manifest *Manifest) validate(options Options) error {
 	appRoot, err := absoluteRoot(options.ApplicationRoot, "application")
 	if err != nil {
 		return err
-	}
-	if filepath.Base(appRoot) != manifest.Application {
-		return fmt.Errorf("application %q does not match application root %q", manifest.Application, filepath.Base(appRoot))
 	}
 	var catalogRoot string
 	if options.CatalogRoot != "" {

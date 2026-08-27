@@ -43,7 +43,8 @@ requirements:
           agents/application.yaml. It shall be the composition authority for
           direct profile roots and application capability claims.
         evidence: |
-          The file parses, its application identity matches the directory, and
+          The file parses, its application field is the declared identity
+          without requiring the checkout directory's base name to match, and
           local audit reads this path rather than reconstructing composition
           from prose, build code, or Helm templates.
       - id: R1.2
