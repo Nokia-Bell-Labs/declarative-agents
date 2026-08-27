@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -41,6 +42,52 @@ func (recorder *recordingEvidenceCommands) run(invocation evidenceCommand) error
 		return recorder.failErr
 	}
 	return nil
+}
+
+func TestMainModuleCommandSelectsCurrentWorkspaceModule(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skipf("go executable unavailable: %v", err)
+	}
+	if _, err := exec.LookPath("env"); err != nil {
+		t.Skipf("env executable unavailable: %v", err)
+	}
+	root := t.TempDir()
+	target := filepath.Join(root, "target")
+	sibling := filepath.Join(root, "sibling")
+	for _, dir := range []string{target, sibling} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write := func(path, body string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(target, "go.mod"), "module example.test/target\n\ngo 1.22\n")
+	write(filepath.Join(sibling, "go.mod"), "module example.test/sibling\n\ngo 1.22\n")
+	workspace := filepath.Join(root, "go.work")
+	write(workspace, "go 1.22\n\nuse (\n\t./target\n\t./sibling\n)\n")
+	moduleIdentityArgs := []string{"GOWORK=off", "go", "list", "-m"}
+
+	for name, gowork := range map[string]string{
+		"workspace active": workspace,
+		"workspace off":    "off",
+	} {
+		t.Run(name, func(t *testing.T) {
+			cmd := exec.Command("env", moduleIdentityArgs...)
+			cmd.Dir = target
+			cmd.Env = append(os.Environ(), "GOWORK="+gowork)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("env %s failed: %v\n%s", strings.Join(moduleIdentityArgs, " "), err, output)
+			}
+			if got, want := strings.TrimSpace(string(output)), "example.test/target"; got != want {
+				t.Errorf("main module = %q, want %q", got, want)
+			}
+		})
+	}
 }
 
 func newTestEvidenceRunner(t *testing.T, commands *recordingEvidenceCommands) evidenceRunner {

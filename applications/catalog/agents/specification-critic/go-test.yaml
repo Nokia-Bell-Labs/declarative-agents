@@ -3,8 +3,8 @@
 tools:
   - name: go_module
     type: exec
-    binary: go
-    args: [list, -m]
+    binary: env
+    args: [GOWORK=off, go, list, -m]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
     description: Read the target module path.

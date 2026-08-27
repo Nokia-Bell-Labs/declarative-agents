@@ -138,8 +138,8 @@ func TestStageCatalogTestEvidenceProfileOverridesGoBinaryLocally(t *testing.T) {
 	if strings.Contains(string(declaration), "binary: go") {
 		t.Error("staged declaration retained raw Go binary")
 	}
-	if got := strings.Count(string(declaration), strconv.Quote(helper)); got != 4 {
-		t.Errorf("staged helper references = %d, want 4", got)
+	if got := strings.Count(string(declaration), strconv.Quote(helper)); got != 3 {
+		t.Errorf("staged helper references = %d, want 3", got)
 	}
 	if err := cleanup(); err != nil {
 		t.Fatalf("cleanup returned error: %v", err)
@@ -167,6 +167,7 @@ func TestSpecificationCriticAuditProfileDeclaresEvidencePipeline(t *testing.T) {
 	profile := read("audit-profile.yaml")
 	machine := read("audit-machine.yaml")
 	tools := read("go-test.yaml")
+	moduleArgs := "args: [GOWORK=off, go, list, -m]"
 	for _, want := range []string{"audit-machine.yaml", "audit-tools.yaml", "go-test.yaml"} {
 		if !strings.Contains(profile, want) {
 			t.Errorf("audit profile missing %q", want)
@@ -181,10 +182,18 @@ func TestSpecificationCriticAuditProfileDeclaresEvidencePipeline(t *testing.T) {
 			t.Errorf("audit machine missing %q", want)
 		}
 	}
-	for _, want := range []string{"binary: go", "args: [list, -m]", "args: [list, ./...]", "stdin_source: $from(go_packages_raw).output", "args: [test, -json, -count=1, ./...]"} {
+	for _, want := range []string{"binary: env", "binary: go", moduleArgs, "args: [list, ./...]", "stdin_source: $from(go_packages_raw).output", "args: [test, -json, -count=1, ./...]"} {
 		if !strings.Contains(tools, want) {
 			t.Errorf("Go exec declarations missing %q", want)
 		}
+	}
+	coreFixture, err := os.ReadFile(filepath.Join(
+		"..", "..", "..", "agent-core", "testdata", "integration", "profiles", "audit", "go-test.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(coreFixture), moduleArgs) {
+		t.Errorf("agent-core audit fixture missing %q", moduleArgs)
 	}
 	if got := strings.Count(machine, "action: go_test_run"); got != 1 {
 		t.Errorf("audit machine go_test_run actions = %d, want one shared evidence run", got)
