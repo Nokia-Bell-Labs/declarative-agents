@@ -180,7 +180,7 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: One scenario runs end-to-end to a verdict
-    planned_go_test: go test ./internal/tools/service -run TestScenarioRig_EndToEndVerdict
+    go_test: go test ./internal/tools/service -run TestScenarioRig_EndToEndVerdict
     status: planned
     description: |
       A tracer over the full flow: mock from fixture, subject with dependency
