@@ -71,7 +71,7 @@ releases:
     follow_up:
       - id: gh-1867
         summary: Add the project collection word for ordered field extraction from structured rows.
-        status: specified
+        status: implemented
 
   - version: "02.0"
     name: Rollback lifecycle and tool language documentation

@@ -1,0 +1,58 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+tools:
+- name: project
+  type: builtin
+  init: project
+  category: word
+  visibility: internal
+  emits: [Projected, CommandError]
+  description: Extract one configured field from each member of an ordered array.
+  problem: Structured rows cannot feed words that consume one field as an array without rendering and reparsing JSON.
+  goals:
+  - Preserve input order, duplicates, and projected JSON value shapes.
+  - Traverse one trusted dotted item path with local numeric array indexes.
+  - Return an empty array and zero count for empty input.
+  requirements:
+    input:
+    - Trusted configuration selects an array through $from and names one local item path.
+    output:
+    - Output contains projected items in input order and their count.
+    - String, number, boolean, null, object, and array values remain unchanged.
+    errors:
+    - Unresolved selectors, non-array input, absent fields, and invalid item paths emit CommandError.
+  non_goals:
+  - Does not filter, sort, deduplicate, flatten, render, or infer fields.
+  - Does not widen command-state or REST selector syntax.
+  - Does not change the type or trust checks of consuming words.
+  parameters:
+    type: object
+    properties: {}
+  output:
+    description: Ordered projected values and their count.
+    schema:
+      type: object
+      properties:
+        items: {type: array}
+        count: {type: integer}
+      required: [items, count]
+  side_effects:
+  - kind: none
+    description: Reads command state and produces a Result without mutating runtime or external state.
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Projection reads prior state and changes no external state.
+  errors:
+  - signal: CommandError
+    condition: The selector does not resolve to an array or an item path cannot be read.
+    message_shape: 'project: <error>'
+    state_after_failure: No successful projected output is published.
+  relationships:
+    before: [select_subset, render_each, machine-selected successor]
+    after: [structured-row-producing predecessor]
+  config:
+    items: $from(rows).items
+    field: id
+    signal: Projected

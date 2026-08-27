@@ -5,6 +5,7 @@ includes:
   - partition.yaml
   - select-subset.yaml
   - render-each.yaml
+  - project.yaml
   - flat-map.yaml
   - reorder-by-index.yaml
   - filesystem/all.yaml

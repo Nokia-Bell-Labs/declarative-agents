@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/compose"
 )
 
 func runSelectSubset(t *testing.T, candidates, vocabulary string) core.Result {
@@ -93,6 +94,51 @@ func TestSelectSubsetRejectsCandidatePayloads(t *testing.T) {
 	require.ErrorContains(t, res.Err, "want string")
 	require.NotContains(t, res.Output, `"selected"`)
 	require.NotContains(t, res.Output, `"untrusted"`)
+}
+
+func TestProjectedStringsFeedSelectSubset(t *testing.T) {
+	project := compose.ProjectBuilder{
+		ToolName: "project_ids", Items: "$from(rows).items", Field: "id", Signal: "Projected",
+	}.Build(core.Result{})
+	project.(core.CommandStateAware).SetCommandState(stubView{
+		"rows": `{"items":[
+			{"id":"b","untrusted":"payload-b"},
+			{"id":"invented","untrusted":"payload-invented"},
+			{"id":"a","untrusted":"payload-a"}
+		]}`,
+	})
+	projected := project.Execute()
+	require.NoError(t, projected.Err)
+	require.JSONEq(t, `{"items":["b","invented","a"],"count":3}`, projected.Output)
+
+	selectCmd := SelectSubsetBuilder{
+		ToolName: "select_subset", Candidates: "$from(project_ids).items",
+		Vocabulary: "$from(declared).values", MatchField: "name",
+		AllMatched: "All", Partial: "Partial", Empty: "Empty",
+	}.Build(core.Result{})
+	selectCmd.(core.CommandStateAware).SetCommandState(stubView{
+		"project_ids": projected.Output,
+		"declared": `{"values":[
+			{"name":"a","trusted":"value-a"},
+			{"name":"b","trusted":"value-b"}
+		]}`,
+	})
+
+	selected := selectCmd.Execute()
+
+	require.NoError(t, selected.Err)
+	require.Equal(t, core.Signal("Partial"), selected.Signal)
+	require.JSONEq(t, `{
+		"matched":["b","a"],
+		"unmatched":["invented"],
+		"selected":[
+			{"name":"b","trusted":"value-b"},
+			{"name":"a","trusted":"value-a"}
+		],
+		"matched_count":2,
+		"unmatched_count":1
+	}`, selected.Output)
+	require.NotContains(t, selected.Output, "untrusted")
 }
 
 func TestValidateSelectSubsetConfigRejectsMalformedConfig(t *testing.T) {

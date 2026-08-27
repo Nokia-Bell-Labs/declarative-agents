@@ -333,9 +333,8 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Project collection word extracts one field from each structured row
-    status: planned
-    follow_up_issue: "#1870"
-    go_test: Planned project collection word coverage
+    status: implemented
+    go_test: go test ./internal/tools/catalog ./internal/tools/control ./internal/tools/compose -run 'Test(Project|ValidateProject|ProjectedStringsFeedSelectSubset|RegisterFactories)'
     inputs:
       word: project
       selector: $from(rows).items
