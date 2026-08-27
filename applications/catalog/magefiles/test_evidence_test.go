@@ -182,6 +182,16 @@ func TestSpecificationCriticAuditProfileDeclaresEvidencePipeline(t *testing.T) {
 			t.Errorf("audit machine missing %q", want)
 		}
 	}
+	failureRoute := "state: InventoryTests, signal: ToolFailed, next: ResolvingClaims, action: resolve_test_evidence"
+	for _, want := range []string{
+		failureRoute,
+		"state: ResolvingClaims, signal: ValidationFailed, next: Reporting, action: format_report",
+		"state: Reporting, signal: ToolFailed, next: Failed",
+	} {
+		if !strings.Contains(machine, want) {
+			t.Errorf("audit machine missing governed inventory failure route %q", want)
+		}
+	}
 	for _, want := range []string{"binary: env", "binary: go", moduleArgs, "args: [list, ./...]", "stdin_source: $from(go_packages_raw).output", "args: [test, -json, -count=1, ./...]"} {
 		if !strings.Contains(tools, want) {
 			t.Errorf("Go exec declarations missing %q", want)
@@ -194,6 +204,28 @@ func TestSpecificationCriticAuditProfileDeclaresEvidencePipeline(t *testing.T) {
 	}
 	if !strings.Contains(string(coreFixture), moduleArgs) {
 		t.Errorf("agent-core audit fixture missing %q", moduleArgs)
+	}
+	coreMachine, err := os.ReadFile(filepath.Join(
+		"..", "..", "..", "agent-core", "testdata", "integration", "profiles", "audit", "audit-machine.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(coreMachine), failureRoute) {
+		t.Errorf("agent-core audit fixture missing governed inventory failure route %q", failureRoute)
+	}
+	suite, err := os.ReadFile(filepath.Join(
+		"..", "docs", "specs", "test-suites", "test-rel07.1-profile-boundaries.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"inventory_failure_reduction: resolve_test_evidence",
+		"inventory_failure_reported: true",
+		"implicit_module_download: false",
+	} {
+		if !strings.Contains(string(suite), want) {
+			t.Errorf("formal evidence suite missing %q", want)
+		}
 	}
 	if got := strings.Count(machine, "action: go_test_run"); got != 1 {
 		t.Errorf("audit machine go_test_run actions = %d, want one shared evidence run", got)

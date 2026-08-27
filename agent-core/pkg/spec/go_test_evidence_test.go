@@ -4,6 +4,7 @@
 package spec
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -143,6 +144,61 @@ func TestValidateGoTestEvidenceFindings(t *testing.T) {
 	}
 	if !strings.Contains(findings[1].Message, "TestGhost") {
 		t.Errorf("finding message missing the unresolved name: %q", findings[1].Message)
+	}
+}
+
+func TestParseGoTestInventoryReportsBuildFailure(t *testing.T) {
+	const (
+		modulePath  = "example.com/mod"
+		packagePath = "example.com/mod/subject"
+	)
+	var stream strings.Builder
+	for _, event := range []goListEvent{
+		{Action: "start", Package: packagePath},
+		{Action: "build-output", ImportPath: packagePath, Output: "# " + packagePath + "\n"},
+		{Action: "build-output", ImportPath: packagePath, Output: "no required module provides package example.com/missing\n"},
+		{Action: "build-fail", ImportPath: packagePath},
+	} {
+		data, err := json.Marshal(event)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stream.Write(data)
+		stream.WriteByte('\n')
+	}
+
+	inventory, err := ParseGoTestInventory(modulePath, packagePath, stream.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	findings := ValidateGoTestEvidence(inventory, map[string]TestSuite{
+		"test-example": {
+			ID:        "test-example",
+			TestCases: []TestCase{{Name: "claimed test", GoTest: "TestClaimed"}},
+		},
+	})
+	if len(findings) != 1 {
+		t.Fatalf("findings = %+v, want one inventory failure without claim cascades", findings)
+	}
+	finding := findings[0]
+	if finding.Check != goTestInventoryCheck || finding.Level != "error" {
+		t.Errorf("finding contract = %+v", finding)
+	}
+	for _, want := range []string{packagePath, "no required module provides package example.com/missing"} {
+		if !strings.Contains(finding.Message, want) {
+			t.Errorf("finding message %q missing %q", finding.Message, want)
+		}
+	}
+}
+
+func TestParseGoTestInventoryRejectsNonGoFailureOutput(t *testing.T) {
+	_, err := ParseGoTestInventory(
+		"example.com/mod",
+		"example.com/mod/subject",
+		"fork/exec go: resource temporarily unavailable",
+	)
+	if err == nil || !strings.Contains(err.Error(), "no Go JSON package events") {
+		t.Fatalf("ParseGoTestInventory error = %v, want non-Go output error", err)
 	}
 }
 
