@@ -240,7 +240,7 @@ srd_index:
     path: docs/specs/software-requirements/srd022-builtin-tools.yaml
   - id: srd023-cli-exec-tools
     title: CLI and Exec Tool Declarations
-    summary: Requirements for declaring external CLIs as exec tools, grouped exec declaration paths, JSON-to-argv mapping, subprocess execution, output capture, declaration selection, and target exec package ownership.
+    summary: Requirements for declaring external CLIs as exec tools, grouped exec declaration paths, JSON-to-argv mapping, subprocess execution, command-state stdin and env overlay, output capture, declaration selection, and target exec package ownership.
     path: docs/specs/software-requirements/srd023-cli-exec-tools.yaml
   - id: srd024-blocking-input-tools
     title: Blocking Input Tools

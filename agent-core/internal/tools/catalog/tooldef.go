@@ -53,8 +53,10 @@ type ToolDef struct {
 	OutputCap      int                    `yaml:"output_cap,omitempty"`
 	StdinSource    string                 `yaml:"stdin_source,omitempty"`
 	StdinMaxBytes  int                    `yaml:"stdin_max_bytes,omitempty"`
+	Env            []string               `yaml:"env,omitempty"`
 	stdinSourceSet bool
 	stdinLimitSet  bool
+	envSet         bool
 	phaseScoped    bool
 }
 
@@ -69,6 +71,7 @@ func (td *ToolDef) UnmarshalYAML(value *yaml.Node) error {
 	*td = ToolDef(decoded)
 	td.stdinSourceSet = yamlFieldPresent(value, "stdin_source")
 	td.stdinLimitSet = yamlFieldPresent(value, "stdin_max_bytes")
+	td.envSet = yamlFieldPresent(value, "env")
 	if err := td.validateParamSources(); err != nil {
 		return err
 	}
@@ -142,14 +145,21 @@ func (td ToolDef) validateParamSources() error {
 
 func (td ToolDef) validateExecIO() error {
 	hasExecIO := td.stdinSourceSet || td.stdinLimitSet || td.Output.Mode != ""
+	hasEnv := td.envSet || len(td.Env) > 0
 	if td.Type == "builtin" {
 		if hasExecIO {
 			return fmt.Errorf("builtin tool %q cannot declare exec input or output mode", td.Name)
+		}
+		if hasEnv {
+			return fmt.Errorf("builtin tool %q cannot declare env", td.Name)
 		}
 		return nil
 	}
 	if hasExecIO && td.Binary == "" {
 		return fmt.Errorf("tool %q exec input or output mode requires binary", td.Name)
+	}
+	if hasEnv && td.Binary == "" {
+		return fmt.Errorf("tool %q env requires binary", td.Name)
 	}
 	if td.stdinSourceSet && td.StdinSource == "" {
 		return fmt.Errorf("tool %q stdin_source must not be empty", td.Name)
@@ -165,7 +175,7 @@ func (td ToolDef) validateExecIO() error {
 	if td.Output.Mode != "" && td.Output.Mode != "raw" && td.Output.Mode != "structured" {
 		return fmt.Errorf("tool %q output mode %q must be raw or structured", td.Name, td.Output.Mode)
 	}
-	return nil
+	return td.validateEnv()
 }
 
 // ToolRequirements groups observable behaviors a tool must satisfy.
