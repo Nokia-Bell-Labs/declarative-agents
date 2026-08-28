@@ -536,6 +536,18 @@ exec_fields:
       When omitted, the exec runtime applies its finite default limit. Oversized
       input is rejected before launch rather than truncated.
 
+  - field: env
+    type: "[]string"
+    required: false
+    description: |
+      KEY=VALUE entries overlaid on the inherited parent environment before
+      launch. KEY must match [A-Za-z_][A-Za-z0-9_]*. VALUE may contain
+      "{{ params.NAME }}" tokens expanded from resolved exec parameters after
+      command-state source mapping. Env is not a $from selector surface.
+      Omitted or empty env inherits the parent environment only. Builtin
+      declarations cannot set env. Resolved values are not written to traces,
+      metrics, or receipts.
+
   - field: includes
     type: "[]string"
     required: false
@@ -811,9 +823,11 @@ related_documents:
 
 implementation:
   - internal/tools/catalog/tooldef.go
+  - internal/tools/catalog/env.go
   - internal/tools/catalog/loading.go
   - internal/tools/catalog/contracts.go
   - internal/tools/catalog/emits.go
   - internal/tools/catalog/config.go
   - internal/tools/registry/builtin.go
   - internal/tools/exec/builder.go
+  - internal/tools/exec/env.go

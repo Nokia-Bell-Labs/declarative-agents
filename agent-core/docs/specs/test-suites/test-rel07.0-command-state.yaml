@@ -16,6 +16,7 @@ preconditions:
   - Epics GH-269 (persistence split) and GH-270 (core store and REST consumption) established the original executable evidence.
   - GH-781, GH-782, and GH-783 add authored-label capture, typed selector errors, and restart persistence evidence.
   - GH-787 specifies exec parameter sources and the reserved machine_request seed; GH-786 adds their executable evidence.
+  - GH-895 adds command-state stdin on exec ToolDefs; GH-1884 adds the env overlay expanded from resolved command parameters.
 
 test_cases:
   - use_case: rel07.0-uc001-command-state-threading
@@ -156,6 +157,36 @@ test_cases:
       - srd038-command-state-store AC1
       - srd038-command-state-store AC5
       - srd023-cli-exec-tools AC6
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Exec env overlays resolved parameters onto the inherited environment
+    go_test: go test ./internal/tools/catalog ./internal/tools/exec -run 'Test(ParseToolDefsExecEnv|ParseToolDefsRejectsInvalidExecEnv|ParseToolDefsRejectsEnvWithoutBinary|ExecEnv)'
+    status: implemented
+    owner: GH-1884
+    description: |
+      An exec word declares env KEY=VALUE entries whose values expand
+      "{{ params.NAME }}" tokens from resolved parameters, including values
+      sourced from a labelled command-state entry. Declared keys overlay the
+      inherited parent environment rather than replacing it. Companion cases
+      reject malformed entries, undeclared template names, builtin env, and
+      missing or empty expansions before launch, and they omit resolved env
+      values from traces, metrics, and receipts. Argv-only and stdin-only
+      declarations keep their prior behavior.
+    inputs:
+      env:
+        - GH1884_COLLECTION={{ params.collection }}
+      sourced_parameter: {name: collection, source: "$from(seed).parameters.collection"}
+      invalid: [malformed, undeclared_token, missing, empty, builtin]
+    expected:
+      child_inherits_parent_environment: true
+      declared_keys_overlay: true
+      invalid_input_launches: 0
+      env_in_telemetry_or_receipt: false
+    traces:
+      - rel07.0-uc001-command-state-threading S1
+      - rel07.0-uc001-command-state-threading S5
+      - srd023-cli-exec-tools AC1
+      - srd023-cli-exec-tools AC7
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Machine request seed stays safe and addressable after intervening words

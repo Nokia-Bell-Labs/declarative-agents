@@ -132,7 +132,7 @@ func (c *ExecCmd) Execute() core.Result {
 // ExecuteContext resolves all command-state input before launch, then runs one
 // binary whose process group is canceled and joined with the dispatch context.
 func (c *ExecCmd) ExecuteContext(ctx context.Context) core.Result {
-	stdin, err := c.resolveInputs()
+	stdin, env, err := c.resolveInputs()
 	if err != nil {
 		wrapped := fmt.Errorf("%s: resolve exec input: %w", c.Name(), err)
 		return core.Result{
@@ -150,6 +150,7 @@ func (c *ExecCmd) ExecuteContext(ctx context.Context) core.Result {
 		Binary:           c.def.Binary,
 		Args:             c.buildArgs(),
 		Dir:              dir,
+		Env:              env,
 		Stdin:            stdin,
 		CombinedOutput:   true,
 		NoDefaultTimeout: true,
@@ -166,11 +167,19 @@ func (c *ExecCmd) ExecuteContext(ctx context.Context) core.Result {
 	return res
 }
 
-func (c *ExecCmd) resolveInputs() (string, error) {
+func (c *ExecCmd) resolveInputs() (string, []string, error) {
 	if err := c.resolveSourceParams(); err != nil {
-		return "", fmt.Errorf("parameter source: %w", err)
+		return "", nil, fmt.Errorf("parameter source: %w", err)
 	}
-	return c.resolveStdin()
+	stdin, err := c.resolveStdin()
+	if err != nil {
+		return "", nil, err
+	}
+	env, err := c.resolveEnv()
+	if err != nil {
+		return "", nil, err
+	}
+	return stdin, env, nil
 }
 
 func (c *ExecCmd) resolveSourceParams() error {
