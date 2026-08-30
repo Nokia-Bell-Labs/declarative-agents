@@ -214,7 +214,7 @@ tools:
           # Nested one level to document the field, not the full values.yaml
           # shape: ragUnits is an array of {name, collection, embeddingModel,
           # replicas}; llm.externalURL; ollama.enabled/topology/models
-          # (embedding, chat, router); chatbot.embeddingModel;
+          # (embedding, chat, tier); chatbot.embeddingModel;
           # applier.params (nResults, chunkCap, tierDefault, chatModel).
           ragUnits: {type: array}
           llm: {type: object}

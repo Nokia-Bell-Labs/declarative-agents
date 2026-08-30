@@ -288,10 +288,3 @@ controlPlane:
     resources:
       requests: {cpu: 50m, memory: 64Mi}
       limits: {cpu: 500m, memory: 256Mi}
-    # Optional deployment-API bearer token, mounted from a Secret separate from the
-    # chat path (the #392 file-mount pattern). The applier's apply surface is
-    # network-authenticated (NetworkPolicy), so this is unused unless an operator
-    # fronts the applier with an auth proxy; set name to point at your own Secret.
-    deploymentApiTokenSecret:
-      name: ""
-      key: applyToken

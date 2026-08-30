@@ -93,7 +93,11 @@ rest:
               collection: $.collection
               embedding_model: $.embedding_model
               values: $.values
-            carry_forward: [rag_name, collection, embedding_model, values]
+            # rag_name is accepted on the intent and sent no further: which unit
+            # the ingest targets is deployment configuration on the creator, not
+            # a field of the request. It was carried too, and nothing ever read
+            # $.carried.rag_name.
+            carry_forward: [collection, embedding_model, values]
           body:
             directory: "{{ params.directory }}"
             collection: "{{ params.collection }}"
