@@ -248,7 +248,7 @@ func TestEachRolloutLegReadsItsOwnProvenance(t *testing.T) {
 		{"creator_rollout", "$.carried.values", "the ingest leg's document arrives via creator_ingest's carry_forward"},
 	} {
 		t.Run(tc.operation, func(t *testing.T) {
-			op := clientOperationNamed(t, "provisioning-workflow-orchestrator", "creator", tc.operation)
+			op := clientOperationNamed(t, "provisioning-workflow-orchestrator", "creator_provisioning", tc.operation)
 			if got := op.Response.Output; len(got) == 0 {
 				t.Errorf("%s maps no response output", tc.operation)
 			}
@@ -264,7 +264,7 @@ func TestEachRolloutLegReadsItsOwnProvenance(t *testing.T) {
 				} `yaml:"rest"`
 			}
 			readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "rest.yaml"), &rest)
-			got := rest.Rest.Clients["creator"].Operations[tc.operation].Params.InputMapping["values"]
+			got := rest.Rest.Clients["creator_provisioning"].Operations[tc.operation].Params.InputMapping["values"]
 			if got != tc.selector {
 				t.Errorf("%s maps values = %q, want %q: %s", tc.operation, got, tc.selector, tc.why)
 			}
