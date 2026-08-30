@@ -9,7 +9,7 @@ metadata:
     {{- include "chatbot-mesh.labels" . | nindent 4 }}
     app.kubernetes.io/component: profiles
 data:
-  {{- $cogen := list "agents__chatbot__rest.yaml" "agents__chatbot__ui__ui.yaml" "agents__chatbot__request-topology-declarations.yaml" }}
+  {{- $cogen := splitList " " (include "chatbot-mesh.cogeneratedProfileKeys" .) }}
   {{- range $path, $_ := .Files.Glob "profiles/**" }}
   {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
   {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) }}

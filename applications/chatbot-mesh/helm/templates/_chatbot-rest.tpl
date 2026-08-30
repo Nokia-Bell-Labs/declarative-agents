@@ -206,7 +206,11 @@ rest:
 {{- range $unit := .Values.ragUnits }}
               {{ $unit.name }}: http://{{ $fullname }}-{{ $unit.name }}:{{ $mon }}
 {{- end }}
-{{- if eq .Values.collector.implementation "agent" }}
+{{- /* enabled as well as implementation: with the collector off, the
+       implementation default still reads "agent", and gating on it alone
+       declared a monitor-proxy upstream at a Service the chart never renders.
+       chatbot-mesh.otlpEndpoint checks both (GH-220). */}}
+{{- if and .Values.collector.enabled (eq .Values.collector.implementation "agent") }}
               collector: http://{{ $fullname }}-collector:18193
 {{- end }}
           request:

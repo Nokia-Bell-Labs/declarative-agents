@@ -57,7 +57,9 @@ monitored_agents:
   - name: {{ $unit.name }}
     label: RAG server {{ $i }}
 {{- end }}
-{{- if eq .Values.collector.implementation "agent" }}
+{{- /* enabled as well as implementation, so a disabled collector does not
+       leave the UI naming a trace backend that is not deployed (GH-220). */}}
+{{- if and .Values.collector.enabled (eq .Values.collector.implementation "agent") }}
 trace_backend:
   name: collector
   query_path: /monitor-proxy/collector/query/traces/{trace_id}
