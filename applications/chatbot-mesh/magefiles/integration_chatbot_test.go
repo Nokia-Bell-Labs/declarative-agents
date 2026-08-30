@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -179,13 +180,13 @@ func TestAssertChatbotTierSelectionTraceAttributesAnswerDispatch(t *testing.T) {
 		chatbotSpanLine("machine_request chatbot/chat", "turn-fast", "", nil),
 		chatbotSpanLine("chat qwen-fast", "source-selector", "turn-fast", map[string]string{"gen_ai.request.model": "qwen-fast"}),
 		chatbotSpanLine("chat qwen-fast", "tier-selector", "turn-fast", map[string]string{"gen_ai.request.model": "qwen-fast"}),
-		chatbotSpanLine("execute_tool parse_tier", "fast-parse", "turn-fast", map[string]string{"command.name": "parse_tier"}),
+		chatbotSpanLine("execute_tool parse_tier", "fast-parse", "turn-fast", map[string]string{"command.name": "parse_tier", "command.signal": "ToolDone"}),
 		chatbotSpanLine("chat qwen-fast", "late-tier-selector", "turn-fast", map[string]string{"command.name": "select_tier", "gen_ai.request.model": "qwen-fast"}),
 		chatbotSpanLine("chat qwen-fast", "fast-answer", "turn-fast", map[string]string{"command.name": "invoke_llm_fast", "gen_ai.request.model": "qwen-fast"}),
 		chatbotSpanLine("execute_tool compose_response", "fast-compose", "turn-fast", map[string]string{"command.name": "compose_response"}),
 		chatbotSpanLine("machine_request chatbot/chat", "turn-deep", "", nil),
 		chatbotSpanLine("chat qwen-fast", "deep-selector", "turn-deep", map[string]string{"gen_ai.request.model": "qwen-fast"}),
-		chatbotSpanLine("execute_tool parse_tier", "deep-parse", "turn-deep", map[string]string{"command.name": "parse_tier"}),
+		chatbotSpanLine("execute_tool parse_tier", "deep-parse", "turn-deep", map[string]string{"command.name": "parse_tier", "command.signal": "ToolDone"}),
 		chatbotSpanLine("chat ornith-deep", "deep-answer", "turn-deep", map[string]string{"command.name": "invoke_llm_deep", "gen_ai.request.model": "ornith-deep"}),
 		chatbotSpanLine("execute_tool compose_response", "deep-compose", "turn-deep", map[string]string{"command.name": "compose_response"}),
 	})
@@ -197,11 +198,11 @@ func TestAssertChatbotTierSelectionTraceAttributesAnswerDispatch(t *testing.T) {
 func TestAssertChatbotTierSelectionTraceDoesNotRequireBothTiers(t *testing.T) {
 	trace := writeChromaTrace(t, []string{
 		chatbotSpanLine("machine_request chatbot/chat", "turn-1", "", nil),
-		chatbotSpanLine("execute_tool parse_tier", "parse-1", "turn-1", map[string]string{"command.name": "parse_tier"}),
+		chatbotSpanLine("execute_tool parse_tier", "parse-1", "turn-1", map[string]string{"command.name": "parse_tier", "command.signal": "ToolDone"}),
 		chatbotSpanLine("chat qwen-fast", "answer-1", "turn-1", map[string]string{"command.name": "invoke_llm_fast", "gen_ai.request.model": "qwen-fast"}),
 		chatbotSpanLine("execute_tool compose_response", "compose-1", "turn-1", map[string]string{"command.name": "compose_response"}),
 		chatbotSpanLine("machine_request chatbot/chat", "turn-2", "", nil),
-		chatbotSpanLine("execute_tool parse_tier", "parse-2", "turn-2", map[string]string{"command.name": "parse_tier"}),
+		chatbotSpanLine("execute_tool parse_tier", "parse-2", "turn-2", map[string]string{"command.name": "parse_tier", "command.signal": "ToolDone"}),
 		chatbotSpanLine("chat qwen-fast", "answer-2", "turn-2", map[string]string{"command.name": "invoke_llm_fast", "gen_ai.request.model": "qwen-fast"}),
 		chatbotSpanLine("execute_tool compose_response", "compose-2", "turn-2", map[string]string{"command.name": "compose_response"}),
 	})
@@ -221,7 +222,7 @@ func TestAssertChatbotTierSelectionTraceRejectsInvalidAttribution(t *testing.T) 
 			lines: []string{
 				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
 				chatbotSpanLine("chat qwen-fast", "selector", "turn", map[string]string{"gen_ai.request.model": "qwen-fast"}),
-				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier"}),
+				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier", "command.signal": "ToolDone"}),
 				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
 			},
 			wantErr: "0 answer-word dispatch spans",
@@ -230,7 +231,7 @@ func TestAssertChatbotTierSelectionTraceRejectsInvalidAttribution(t *testing.T) 
 			name: "undeclared answer model",
 			lines: []string{
 				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
-				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier"}),
+				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier", "command.signal": "ToolDone"}),
 				chatbotSpanLine("chat other", "answer", "turn", map[string]string{"command.name": "invoke_llm_fast", "gen_ai.request.model": "other"}),
 				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
 			},
@@ -240,7 +241,7 @@ func TestAssertChatbotTierSelectionTraceRejectsInvalidAttribution(t *testing.T) 
 			name: "two answer words",
 			lines: []string{
 				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
-				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier"}),
+				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier", "command.signal": "ToolDone"}),
 				chatbotSpanLine("chat qwen-fast", "fast", "turn", map[string]string{"command.name": "invoke_llm_fast", "gen_ai.request.model": "qwen-fast"}),
 				chatbotSpanLine("chat ornith-deep", "deep", "turn", map[string]string{"command.name": "invoke_llm_deep", "gen_ai.request.model": "ornith-deep"}),
 				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
@@ -251,7 +252,7 @@ func TestAssertChatbotTierSelectionTraceRejectsInvalidAttribution(t *testing.T) 
 			name: "answer dispatch without model",
 			lines: []string{
 				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
-				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier"}),
+				chatbotSpanLine("execute_tool parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier", "command.signal": "ToolDone"}),
 				chatbotSpanLine("chat unknown", "answer", "turn", map[string]string{"command.name": "invoke_llm_fast"}),
 				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
 			},
@@ -348,4 +349,105 @@ func unsetTestEnv(t *testing.T, name string) {
 			_ = os.Unsetenv(name)
 		}
 	})
+}
+
+// A fallback turn and a dispatched turn are nearly identical in the span log:
+// both run one declared answer word with a configured model, because the
+// fallback word is itself a declared answer word. That is why the old assertion
+// passed throughout the period the $tool selector never dispatched (GH-84).
+// These build both shapes and require the assertion to tell them apart.
+
+const (
+	tierTestFastModel = "qwen2.5:3b"
+	tierTestDeepModel = "ornith:9b"
+)
+
+func tierSpan(name, spanID, parentID string, attrs map[string]string) string {
+	var pairs []string
+	for key, value := range attrs {
+		pairs = append(pairs, fmt.Sprintf(
+			`{"Key":%q,"Value":{"Value":%q}}`, key, value))
+	}
+	return fmt.Sprintf(
+		`{"Name":%q,"StartTime":"2026-08-25T12:00:00Z","SpanContext":{"TraceID":"t","SpanID":%q},`+
+			`"Parent":{"TraceID":"t","SpanID":%q},"Attributes":[%s]}`,
+		name, spanID, parentID, strings.Join(pairs, ","))
+}
+
+// chatbotTurnTrace builds one turn: the machine_request span, a parse_tier span
+// carrying parseSignal, the answer word's chat span, and compose_response.
+func chatbotTurnTrace(parseSignal, answerModel string) string {
+	spans := []string{
+		tierSpan("machine_request chat", "turn", "", map[string]string{"command.name": "machine_request"}),
+		tierSpan("parse_response parse_tier", "parse", "turn", map[string]string{
+			"command.name": "parse_tier", "command.signal": parseSignal,
+		}),
+		tierSpan("chat "+answerModel, "answer", "turn", map[string]string{
+			"command.name": "invoke_llm_fast", "command.signal": "LLMResponded",
+			"gen_ai.request.model": answerModel,
+		}),
+		tierSpan("execute_tool compose_response", "compose", "turn", map[string]string{
+			"command.name": "compose_response", "command.signal": "Composed",
+		}),
+	}
+	return strings.Join(spans, "\n") + "\n"
+}
+
+func TestChatbotTierSelectionAcceptsADispatchedTurn(t *testing.T) {
+	trace := writeTrace(t, chatbotTurnTrace("ToolDone", tierTestFastModel))
+	if err := assertChatbotTierSelectionTrace(trace, tierTestFastModel, tierTestDeepModel); err != nil {
+		t.Fatalf("a dispatched turn was rejected: %v", err)
+	}
+}
+
+// The defect this issue records. Everything the old assertion checked is still
+// true here: one declared answer word, its configured model, one parse_tier and
+// one compose_response. Only parse_tier's signal says the selection never
+// resolved.
+func TestChatbotTierSelectionRejectsAFallbackTurn(t *testing.T) {
+	trace := writeTrace(t, chatbotTurnTrace("ParseFailed", tierTestFastModel))
+	err := assertChatbotTierSelectionTrace(trace, tierTestFastModel, tierTestDeepModel)
+	if err == nil {
+		t.Fatal("a turn that answered on the fallback was accepted")
+	}
+	for _, want := range []string{"answered on the fallback", "ParseFailed", "ToolDone"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to mention %q", err, want)
+		}
+	}
+}
+
+// TaskCompleted is parse_tier's other non-dispatch outcome, and it reaches the
+// same fallback transition.
+func TestChatbotTierSelectionRejectsATaskCompletedTurn(t *testing.T) {
+	trace := writeTrace(t, chatbotTurnTrace("TaskCompleted", tierTestFastModel))
+	if err := assertChatbotTierSelectionTrace(trace, tierTestFastModel, tierTestDeepModel); err == nil {
+		t.Fatal("a turn whose selection resolved to TaskCompleted was accepted")
+	}
+}
+
+// A span log with no command.signal at all -- an older trace, or a shape change
+// upstream -- must fail rather than read as dispatched.
+func TestChatbotTierSelectionRejectsATurnWithNoSignalRecorded(t *testing.T) {
+	spans := []string{
+		tierSpan("machine_request chat", "turn", "", map[string]string{"command.name": "machine_request"}),
+		tierSpan("parse_response parse_tier", "parse", "turn", map[string]string{"command.name": "parse_tier"}),
+		tierSpan("chat "+tierTestFastModel, "answer", "turn", map[string]string{
+			"command.name": "invoke_llm_fast", "gen_ai.request.model": tierTestFastModel,
+		}),
+		tierSpan("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
+	}
+	trace := writeTrace(t, strings.Join(spans, "\n")+"\n")
+	if err := assertChatbotTierSelectionTrace(trace, tierTestFastModel, tierTestDeepModel); err == nil {
+		t.Fatal("a turn with no recorded parse_tier signal was accepted as dispatched")
+	}
+}
+
+// The deep tier is the case the fallback masked in practice: the selector routed
+// to invoke_llm_deep and the fast model answered.
+func TestChatbotTierSelectionAcceptsADispatchedDeepTurn(t *testing.T) {
+	trace := writeTrace(t, chatbotTurnTrace("ToolDone", tierTestDeepModel))
+	if err := assertChatbotTierSelectionTrace(trace, tierTestFastModel, tierTestDeepModel); err != nil {
+		t.Fatalf("a dispatched deep turn was rejected: %v", err)
+	}
 }

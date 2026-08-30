@@ -1,5 +1,13 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+# The persistent agent's lifecycle words: launch the listeners, wait for a
+# lifecycle exit, stop them.
+#
+# The chat-LLM words belong in request-tools.yaml, not here. Adding an
+# invoke_llm word to this selection makes the persistent agent register it, and
+# that word's max_time becomes the agent's whole run budget, so the agent
+# cancels itself mid-wait (GH-1900). Nothing in the profile can override it: the
+# word's value wins over the machine's declared budget.
 tools:
   - launch_chat_requests
   - launch_chatbot_control

@@ -123,7 +123,7 @@ func TestCreatorApplyRESTPolicyMatchesIrreversibleTool(t *testing.T) {
 func TestRequestIngestRESTPolicyMatchesIrreversibleTool(t *testing.T) {
 	var config declaredRESTRollbackConfig
 	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "rest.yaml"), &config)
-	operation := config.Rest.Clients["creator"].Operations["creator_ingest"]
+	operation := config.Rest.Clients["creator_provisioning"].Operations["creator_ingest"]
 	if operation.Reversibility.Classification != "irreversible" ||
 		operation.Reversibility.Undo != "irreversible" ||
 		!operation.Reversibility.RequiresConfirmation {

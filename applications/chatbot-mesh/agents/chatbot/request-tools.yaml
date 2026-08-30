@@ -1,0 +1,19 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The chat-LLM vocabulary a $tool transition may dispatch in the request machine.
+#
+# This selection is separate from the persistent agent's tools.yaml, and the
+# separation is load-bearing rather than tidy. A request machine registers the
+# words its transitions name and adds the externally-visible words only if they
+# also appear in its profile's selection, so the words below have to be listed
+# somewhere for the tier selector's choice to resolve at all.
+#
+# Listing them in the persistent agent's selection instead makes that agent
+# register them, and an invoke_llm word's max_time becomes the whole run's
+# budget, so the persistent agent would cancel itself after an otherwise
+# healthy idle wait (GH-1900; the cohere-demo deployment hit exactly this as
+# its GH-86, and it reached a deployment before anything noticed, because
+# every gate drives a turn immediately and stops the agent seconds later).
+tools:
+  - invoke_llm_fast
+  - invoke_llm_deep

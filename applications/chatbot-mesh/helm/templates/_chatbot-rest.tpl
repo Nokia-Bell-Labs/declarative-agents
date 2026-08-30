@@ -175,7 +175,10 @@ rest:
                 message: {type: string}
                 history: {type: array}
           machine_request:
-            profile: profile.yaml
+            # request-profile.yaml, not profile.yaml: the chat machine needs the
+            # chat-LLM vocabulary in its tools selection, and the persistent
+            # agent's profile must not carry it (GH-1900).
+            profile: request-profile.yaml
             machine: request-machine.yaml
             timeout: 130s
             request:

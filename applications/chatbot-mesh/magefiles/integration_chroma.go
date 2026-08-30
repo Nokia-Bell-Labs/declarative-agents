@@ -659,20 +659,9 @@ func chromaCommandSet(spans []chromaSpan) map[string]bool {
 }
 
 func readChromaSpans(tracePath string) ([]chromaSpan, error) {
-	data, err := os.ReadFile(tracePath)
+	spans, err := decodeSpanStream[chromaSpan](tracePath)
 	if err != nil {
-		return nil, fmt.Errorf("read trace %s: %w", tracePath, err)
-	}
-	var spans []chromaSpan
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		var span chromaSpan
-		if err := json.Unmarshal([]byte(line), &span); err != nil {
-			continue
-		}
-		spans = append(spans, span)
+		return nil, err
 	}
 	sort.SliceStable(spans, func(i, j int) bool {
 		return spans[i].start().Before(spans[j].start())
