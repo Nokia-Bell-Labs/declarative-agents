@@ -99,6 +99,14 @@ rest:
           success: {status: [200], signal: IngestReported}
           failures:
             - {status: [422], signal: Rejected}
+            # 400 is the creator refusing this request against its own intake
+            # schema -- our body, not the operator's intent -- so it takes
+            # CommandError rather than Rejected: answering 422 would tell the
+            # panel its intent fell short when the fault is ours. Declared
+            # because an unmapped status fails the dispatch with "status 400 is
+            # not mapped" and buries the creator's own reason under a message
+            # about the mapping.
+            - {status: [400], signal: CommandError}
           response:
             # collection: the corpus-ingest profile owns its collection name and
             # agent-core exec tools pass no environment, so the child always
@@ -306,8 +314,15 @@ rest:
                   status: 422
                   content_type: application/json
                   body:
-                    error: ingest_rejected
-                    detail: the creator reported the ingest did not meet the requested source
+                    # The creator names why it refused with its own error code
+                    # (today ingest_shortfall), and the terminal word here is
+                    # the client operation that carried the 422, so its response
+                    # payload is its own output: $.body reads the creator's
+                    # body, not this agent's. A fixed ingest_rejected renamed
+                    # the creator's code and would misreport every code the
+                    # creator adds.
+                    error: $.body.error
+                    detail: the creator rejected the intent; error names which of its checks refused it
                 CommandError:
                   status: 500
                   content_type: application/json

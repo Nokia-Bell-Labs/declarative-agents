@@ -418,6 +418,26 @@ rest:
                     schema_version: "1"
                     status: ingest_failed
                     error: ingest_failed
+              # Every CommandError raised by a word on this branch reaches
+              # IngestFailed above. A CommandError arriving in AwaitingRequest --
+              # before any ingest word ran -- reaches Failed instead, which the
+              # state map deliberately does not name: the states above are this
+              # leg's outcomes and nothing else belongs among them.
+              #
+              # Left unmapped, that run answered "response_missing: neither
+              # terminal state nor terminal signal is mapped" rather than this
+              # endpoint's contract, because an unmapped terminal is a
+              # diagnostic, not a default. agent-core consults the state map
+              # first and the signal map second, so declaring the signal covers
+              # the pre-dispatch failure without widening the states.
+              terminal_signals:
+                CommandError:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    status: ingest_failed
+                    error: ingest_failed
         state:
           # The deployed mesh view the provisioning-workflow-orchestrator carries to the provisioning
           # panel's initial load (srd006 R1.5). Reached by the provisioning-workflow-orchestrator, not a
