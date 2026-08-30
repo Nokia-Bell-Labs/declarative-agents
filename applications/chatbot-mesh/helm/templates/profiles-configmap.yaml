@@ -12,7 +12,11 @@ data:
   {{- $cogen := splitList " " (include "chatbot-mesh.cogeneratedProfileKeys" .) }}
   {{- range $path, $_ := .Files.Glob "profiles/**" }}
   {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
-  {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) }}
+  {{- /* A served UI bundle belongs to the agent that serves it, in its own
+        ConfigMap, rather than to this object every agent pod mounts. The
+        chatbot bundle was a quarter of it (GH-131); the observer's was already
+        excluded on the same reasoning. */}}
+  {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) (not (hasPrefix "agents__chatbot__ui__app__dist__" $key)) }}
   {{ $key }}: |-
   {{- if eq $key "applications__chatbot-mesh__applier__exec-declarations.yaml" }}
     {{- /* Rewrite the applier exec args' placeholder coordinates to the installed
