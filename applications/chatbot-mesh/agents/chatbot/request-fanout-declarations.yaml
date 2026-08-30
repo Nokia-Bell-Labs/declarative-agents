@@ -191,6 +191,124 @@ tools:
         Answer the user's question using only these retrieved chunks. If the chunks
         do not contain the answer, say so plainly and do not speculate.
 
+  # The three source lists the response reports, each projected to the fields a
+  # reader needs before it leaves the mesh.
+  #
+  # A join entry is not a reportable shape. It carries `input`, the whole
+  # topology entry the fan-out iterated -- including base_url, the in-cluster
+  # address of the RAG unit -- alongside the query result. Composing the entries
+  # directly put those addresses in the browser's response, while
+  # compose_source_selection_prompt is careful to withhold exactly those fields
+  # from a classifier that only had to pick source names.
+  #
+  # Rendered rather than projected: the project word extracts one field per item
+  # and these need the source's name beside its outcome. Each renders its
+  # entries as JSON objects and compose_response wraps them in the brackets, so
+  # the pairing costs three words rather than six.
+  - name: render_composed_sources
+    type: builtin
+    init: render_each
+    visibility: internal
+    category: response
+    description: Render the composed sources as reportable entries.
+    problem: A composed join entry carries the topology entry it was fanned out to, which names an in-cluster address the browser has no use for.
+    goals:
+      - Report the source name, its query outcome, and the chunks it contributed.
+      - Leave the topology entry, and the address in it, inside the mesh.
+    requirements:
+      input:
+        - The composed entries are the model-compatible partition.
+      output:
+        - Output is the entries as JSON objects, comma separated.
+      errors:
+        - An entry missing the projected fields emits CommandError.
+    non_goals:
+      - Does not filter, reorder, or count the entries.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ComposedSourcesRendered, CommandError]
+    output: {description: Rendered composed source entries., schema: {type: string}}
+    side_effects: []
+    reversibility: {classification: reversible}
+    undo: {strategy: noop, description: Rendering changes no external state.}
+    config:
+      items: $from(partition_embedding_models).matched
+      # documents and ids stay. The interface reports how much each source
+      # contributed and the runtime has no length function to count it here
+      # instead, and the ids are the record identities the rag-server returned
+      # beside the chunks. Both are the reader's own corpus, already reachable
+      # through the answer they grounded -- which is not true of base_url.
+      item_template: '{"name": {{ json input.name }}, "signal": {{ json result.signal }}, "documents": {{ json result.structured_output.mapped.documents }}, "ids": {{ json result.structured_output.mapped.ids }}}'
+      separator: ","
+      signal: ComposedSourcesRendered
+
+  - name: render_model_excluded_sources
+    type: builtin
+    init: render_each
+    visibility: internal
+    category: response
+    description: Render the embedding-model-excluded sources as reportable entries.
+    problem: An excluded join entry carries the same topology entry, and the exclusion is reported to the browser.
+    goals:
+      - Name each source excluded by the srd002 R3.3 comparison and the identity it reported.
+      - Leave the topology entry inside the mesh.
+    requirements:
+      input:
+        - The excluded entries are the model-incompatible partition.
+      output:
+        - Output is the entries as JSON objects, comma separated.
+      errors:
+        - An entry missing the projected fields emits CommandError.
+    non_goals:
+      - Does not filter or reorder the entries.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ModelExcludedSourcesRendered, CommandError]
+    output: {description: Rendered excluded source entries., schema: {type: string}}
+    side_effects: []
+    reversibility: {classification: reversible}
+    undo: {strategy: noop, description: Rendering changes no external state.}
+    config:
+      items: $from(partition_embedding_models).unmatched
+      # The identity it reported is the whole reason it was excluded, so that is
+      # reported beside the name; the chunks it returned are not, because none
+      # of them reached the answer.
+      item_template: '{"name": {{ json input.name }}, "embedding_model": {{ json result.structured_output.mapped.embedding_model }}}'
+      separator: ","
+      signal: ModelExcludedSourcesRendered
+
+  - name: render_query_failed_sources
+    type: builtin
+    init: render_each
+    visibility: internal
+    category: response
+    description: Render the failed sources as reportable entries.
+    problem: A failed join entry carries the topology entry, and its signal is the only thing separating a refusal from a broken boundary.
+    goals:
+      - Name each source whose query did not answer, with the signal that says why.
+      - Leave the topology entry inside the mesh.
+    requirements:
+      input:
+        - The failed entries are the unmatched query-result partition.
+      output:
+        - Output is the entries as JSON objects, comma separated.
+      errors:
+        - An entry missing the projected fields emits CommandError.
+    non_goals:
+      - Does not retry, filter, or reorder the entries.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [QueryFailedSourcesRendered, CommandError]
+    output: {description: Rendered failed source entries., schema: {type: string}}
+    side_effects: []
+    reversibility: {classification: reversible}
+    undo: {strategy: noop, description: Rendering changes no external state.}
+    config:
+      items: $from(partition_query_results).unmatched
+      # QueryRejected is the rag-server refusing an incompatible vector and
+      # CommandError is the boundary failing. The response keeps them apart, so
+      # the signal is projected rather than flattened to "failed".
+      item_template: '{"name": {{ json input.name }}, "signal": {{ json result.signal }}}'
+      separator: ","
+      signal: QueryFailedSourcesRendered
+
   - name: compose_response
     type: builtin
     init: compose
@@ -223,9 +341,12 @@ tools:
         query_model: $from(declare_query_model).model
         succeeded: $from(partition_query_results).matched_count
         failed: $from(partition_query_results).unmatched_count
-        composed: $from(partition_embedding_models).matched
-        model_excluded: $from(partition_embedding_models).unmatched
-        query_failed: $from(partition_query_results).unmatched
+        # The rendered projections, not the join entries: the entries carry the
+        # topology the fan-out iterated, base_url included, and this template
+        # writes what the browser receives.
+        composed: $from(render_composed_sources).$
+        model_excluded: $from(render_model_excluded_sources).$
+        query_failed: $from(render_query_failed_sources).$
         not_selected: $from(source_selection_report).unmatched
       template: |
         {
@@ -235,9 +356,9 @@ tools:
             "query_counts": {"succeeded": {{ succeeded }}, "failed": {{ failed }}},
             "sources": {
               "not_selected": {{ json not_selected }},
-              "composed": {{ json composed }},
-              "embedding_model_excluded": {{ json model_excluded }},
-              "query_failed": {{ json query_failed }}
+              "composed": [{{ composed }}],
+              "embedding_model_excluded": [{{ model_excluded }}],
+              "query_failed": [{{ query_failed }}]
             }
           }
         }
