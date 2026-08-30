@@ -76,8 +76,8 @@ func TestAssertChatbotFanOutResponseRequiresDualRAGEvidence(t *testing.T) {
 			"sources":{
 				"not_selected":[],
 				"composed":[
-					{"input":{"name":"rag0"},"result":{"signal":"QueryResponded","structured_output":{"mapped":{"documents":[["Chroma Corpus Agents use a vector database."]]}}}},
-					{"input":{"name":"rag1"},"result":{"signal":"QueryResponded","structured_output":{"mapped":{"documents":[["Knowledge-base project inventory entry: Solar Ridge."]]}}}}
+					{"name":"rag0","signal":"QueryResponded","documents":[["Chroma Corpus Agents use a vector database."]]},
+					{"name":"rag1","signal":"QueryResponded","documents":[["Knowledge-base project inventory entry: Solar Ridge."]]}
 				],
 				"embedding_model_excluded":[],
 				"query_failed":[]
@@ -110,7 +110,7 @@ func TestAssertChatbotFanOutResponseRequiresDualRAGEvidence(t *testing.T) {
 		{
 			name: "rag1 retrieval evidence must contain Solar Ridge",
 			mutate: func(resp *chatResponse) {
-				resp.Metadata.Sources.Composed[1].Result.StructuredOutput.Mapped.Documents = [][]string{{"unrelated rag1 text"}}
+				resp.Metadata.Sources.Composed[1].Documents = [][]string{{"unrelated rag1 text"}}
 			},
 			wantErr: "rag1 evidence",
 		},
@@ -136,11 +136,11 @@ func TestAssertChatbotDegradedResponsePinsRag1DownContrast(t *testing.T) {
 			"sources":{
 				"not_selected":[],
 				"composed":[
-					{"input":{"name":"rag0"},"result":{"signal":"QueryResponded","structured_output":{"mapped":{"documents":[["Chroma Corpus Agents use a vector database."]]}}}}
+					{"name":"rag0","signal":"QueryResponded","documents":[["Chroma Corpus Agents use a vector database."]]}
 				],
 				"embedding_model_excluded":[],
 				"query_failed":[
-					{"input":{"name":"rag1"},"result":{"signal":"CommandError"}}
+					{"name":"rag1","signal":"CommandError"}
 				]
 			}
 		}

@@ -274,18 +274,19 @@ type chatResponse struct {
 	} `json:"metadata"`
 }
 
+// chatbotSourceOutcome is one entry of a metadata.sources list. The mesh
+// projects these before answering (GH-1896): the join entry they are rendered
+// from also carries the topology entry the fan-out iterated, base_url included,
+// which has no place in a browser response.
 type chatbotSourceOutcome struct {
-	Input struct {
-		Name string `json:"name"`
-	} `json:"input"`
-	Result struct {
-		Signal           string `json:"signal"`
-		StructuredOutput struct {
-			Mapped struct {
-				Documents [][]string `json:"documents"`
-			} `json:"mapped"`
-		} `json:"structured_output"`
-	} `json:"result"`
+	Name   string `json:"name"`
+	Signal string `json:"signal"`
+	// The chunks this source contributed, and the record ids beside them.
+	Documents [][]string `json:"documents"`
+	IDs       [][]string `json:"ids"`
+	// Reported on an excluded entry only: the identity that did not match the
+	// query embedding model, which is why it was excluded (srd002 R3.3).
+	EmbeddingModel string `json:"embedding_model"`
 }
 
 func postChatTurn(message string, history string) (chatResponse, int, error) {
@@ -333,7 +334,7 @@ func assertChatbotScopedSourceSelection() error {
 		return fmt.Errorf("scoped source turn failed: status=%d trace=%q error=%s", status, resp.Trace.Status, resp.Message+resp.Error)
 	}
 	if len(resp.Metadata.Sources.Composed) != 1 ||
-		resp.Metadata.Sources.Composed[0].Input.Name != "rag0" {
+		resp.Metadata.Sources.Composed[0].Name != "rag0" {
 		return fmt.Errorf("scoped source turn composed %+v, want only rag0", resp.Metadata.Sources.Composed)
 	}
 	if len(resp.Metadata.Sources.NotSelected) != 1 ||
@@ -391,10 +392,10 @@ func assertChatbotFanOutResponse(resp chatResponse, status int) error {
 
 func requireComposedSourceEvidence(outcomes []chatbotSourceOutcome, source, requiredText string) error {
 	for _, outcome := range outcomes {
-		if outcome.Input.Name != source {
+		if outcome.Name != source {
 			continue
 		}
-		for _, group := range outcome.Result.StructuredOutput.Mapped.Documents {
+		for _, group := range outcome.Documents {
 			for _, document := range group {
 				if strings.TrimSpace(document) != "" &&
 					(requiredText == "" || strings.Contains(strings.ToLower(document), requiredText)) {
@@ -454,8 +455,8 @@ func assertChatbotDegradedResponse(resp chatResponse, status int) error {
 		return fmt.Errorf("degraded turn embedding-model exclusions = %+v, want empty", resp.Metadata.Sources.EmbeddingModelExcluded)
 	}
 	if len(resp.Metadata.Sources.QueryFailed) != 1 ||
-		resp.Metadata.Sources.QueryFailed[0].Input.Name != "rag1" ||
-		resp.Metadata.Sources.QueryFailed[0].Result.Signal != "CommandError" {
+		resp.Metadata.Sources.QueryFailed[0].Name != "rag1" ||
+		resp.Metadata.Sources.QueryFailed[0].Signal != "CommandError" {
 		return fmt.Errorf("degraded query_failed = %+v, want rag1 CommandError", resp.Metadata.Sources.QueryFailed)
 	}
 	return nil
