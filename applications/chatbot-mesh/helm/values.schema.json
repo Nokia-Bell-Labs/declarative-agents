@@ -391,7 +391,29 @@
               ]
             },
             "networkPolicy": {"$ref": "#/definitions/networkPolicyToggle"},
-            "resources": {"$ref": "#/definitions/resources"}
+            "resources": {"$ref": "#/definitions/resources"},
+            "ingestRagUnit": {
+              "type": "string",
+              "description": "RAG unit whose Chroma the corpus-ingest child writes into; empty takes the first declared unit."
+            },
+            "ingestEmbedding": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Embedding identity the ingest child embeds with; empty follows the ingest unit's declared embeddingModel.",
+              "properties": {
+                "restRef": {"type": "string"},
+                "operation": {"type": "string"},
+                "model": {"type": "string"}
+              }
+            },
+            "ingestOllamaURL": {
+              "type": "string",
+              "description": "Ollama the ingest child reaches; empty leaves the loopback default."
+            },
+            "ingestChatModel": {
+              "type": "string",
+              "description": "Chat model the ingest child's file-selection word invokes; empty leaves the child's default."
+            }
           }
         }
       }

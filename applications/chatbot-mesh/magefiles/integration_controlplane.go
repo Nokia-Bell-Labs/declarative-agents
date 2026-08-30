@@ -38,13 +38,14 @@ const (
 // (srd004/srd005). It skips only if Go cannot build the agent; the live
 // grounded-turn tier rides on Integration.Chatbot and the deploy swap.
 //
-// What this does NOT drive is the provisioning-workflow-orchestrator's other intake,
-// POST /api/v1/provision, whose Seed leg ingests a directory before reconfiguring.
-// The creator now realizes srd005 R3.1 through its dedicated /api/v1/ingest
-// endpoint and SeedIngest leg, including pre/post collection-count checks. This
-// tracer remains scoped to the values-only path: it does not invoke that ingest
-// leg or prove one live lifecycle joining ingest, rollout, and a grounded turn
-// from the newly added source.
+// It also drives the creator's ingest endpoint far enough to prove the family
+// judge routes both ways (GH-205): a mismatched embedding family is refused
+// before the collection count is read, and the deployed one is admitted past it.
+// That is the whole of the ingest leg this tracer claims. It does not drive the
+// provisioning-workflow-orchestrator's POST /api/v1/provision intake, run a real
+// corpus-ingest child, or prove one live lifecycle joining ingest, rollout, and
+// a grounded turn from the newly added source; integration:controlPlaneLive
+// does that on a cluster.
 func (Integration) ControlPlane() error {
 	profilesRoot, err := os.Getwd()
 	if err != nil {
@@ -81,6 +82,19 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("controlPlane requires fake deployment API: %w", err)
 	}
 	defer stopAPI()
+
+	// The ingest leg's Chroma. Its client declares ports: [8000], so unlike the
+	// deployment API this fake cannot take an ephemeral port; a real Chroma left
+	// running by integration:chroma holds the address, and this target skips
+	// rather than reporting a refusal that never ran.
+	chroma := &chromaRecorder{}
+	stopChroma, err := startFakeChroma(chroma)
+	if err != nil {
+		fmt.Printf("SKIP controlPlane: %v; stop whatever holds %s and re-run\n", err, cpChromaAddr)
+		return nil
+	}
+	defer stopChroma()
+
 	_, deploymentAPIPort, err := net.SplitHostPort(
 		strings.TrimPrefix(deploymentAPIURL, "http://"))
 	if err != nil {
@@ -102,6 +116,10 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 		Env: []string{
 			"DEPLOYMENT_API_URL=" + deploymentAPIURL,
 			"DEPLOYMENT_API_PORT=" + deploymentAPIPort,
+			// Fixes the right operand of the family judge. The declaration
+			// expands this reference at load, so the creator has to be told
+			// before it starts, not at the drive.
+			"CORPUS_EMBEDDING_MODEL=" + cpIngestFamily,
 		},
 		GracefulWait: 15 * time.Second,
 	})
@@ -229,6 +247,14 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("the creator did not read the deployment-API state surface (state count %d)", got)
 	}
 
+	// The ingest leg's family judge, driven both ways against the same creator
+	// (srd005 R3.1, GH-205). This is the only ingest-leg assertion in this
+	// tracer: the leg's other half needs a real child and a real corpus, which
+	// integration:controlPlaneLive drives on a cluster.
+	if err := driveEmbeddingFamilyRefusal(chroma); err != nil {
+		return err
+	}
+
 	// Exit both agents gracefully so their span logs flush.
 	if _, s, err := requestHTTP(http.MethodPost, cpProvisioningWorkflowOrchestratorExit, `{"reason":"controlplane done"}`); err != nil || s/100 != 2 {
 		return fmt.Errorf("provisioning-workflow-orchestrator exit failed: status %d: %v", s, err)
@@ -245,7 +271,7 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	}
 	creatorStopped = true
 
-	fmt.Println("integration:controlPlane PASS - the panel's values apply flowed provisioning-workflow-orchestrator->creator->deployment API carrying the decided document, the creator applied and health-checked the reconfiguration, the panel's mesh view read back through both hops, and no endpoint or credential crossed the authority boundary")
+	fmt.Println("integration:controlPlane PASS - the panel's values apply flowed provisioning-workflow-orchestrator->creator->deployment API carrying the decided document, the creator applied and health-checked the reconfiguration, the panel's mesh view read back through both hops, no endpoint or credential crossed the authority boundary, and the ingest leg refused a mismatched embedding family before reading a count while admitting the deployed one")
 	return nil
 }
 

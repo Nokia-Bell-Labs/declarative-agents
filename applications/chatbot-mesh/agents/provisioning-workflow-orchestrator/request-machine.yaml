@@ -25,14 +25,20 @@ purpose: |-
   no carried intent and every panel apply failed in request rendering.
 initial_state: AwaitingRequest
 budget:
-  command_timeout: 3m
+  # One intent runs the ingest child and then waits on the rollout it
+  # triggered, so the budget covers both legs rather than a single hop.
+  # The outer envelope, not a second bound on the run: agent-core requires every
+  # authority an action uses -- the endpoint's own request timeout and each
+  # client's limits -- to sit strictly below it, so it is deliberately larger
+  # than the 600s intent endpoints and the 600s creator client.
+  command_timeout: 12m
   max_iterations: 8
 states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted intent endpoint with the provisioning intent body.}
   - {name: Ingesting, meaning: The creator is running the corpus-ingest for the requested directory and verifying the collection count.}
   - {name: Reconfiguring, meaning: The provisioning-workflow-orchestrator forwarded the desired values document and the creator is executing the request-draining rollout.}
   - {name: Reconfigured, meaning: Terminal. The rollout completed and the aggregated status is ready for the HTTP response., run_status: succeeded}
-  - {name: Rejected, meaning: Terminal. The creator reported the ingest did not meet the requested source., run_status: failed}
+  - {name: Rejected, meaning: Terminal. The creator refused the intent -- the ingest did not meet the requested source, or the applier rejected the desired values against the chart schema., run_status: failed}
   - {name: Failed, meaning: Terminal. A creator boundary word failed., run_status: failed}
 terminal_states:
   - Reconfigured
@@ -42,7 +48,7 @@ signals:
   - {name: Seed, trigger: The intent endpoint starts a request-scoped run that adds a knowledge source.}
   - {name: SeedValues, trigger: The apply endpoint starts a request-scoped run that only changes values.}
   - {name: IngestReported, trigger: The creator reported the ingest met the requested source and returned the collection count.}
-  - {name: Rejected, trigger: The creator reported the ingest did not meet the requested source.}
+  - {name: Rejected, trigger: The creator refused the intent, either because the ingest did not meet the requested source or because the applier rejected the desired values.}
   - {name: Reconfigured, trigger: The creator reported the rollout completed and returned the health.}
   - {name: CommandError, trigger: A creator boundary word failed.}
 transitions:
@@ -53,4 +59,5 @@ transitions:
   - {state: Ingesting,       signal: Rejected,       next: Rejected}
   - {state: Ingesting,       signal: CommandError,   next: Failed}
   - {state: Reconfiguring,   signal: Reconfigured,   next: Reconfigured}
+  - {state: Reconfiguring,   signal: Rejected,       next: Rejected}
   - {state: Reconfiguring,   signal: CommandError,   next: Failed}

@@ -6,6 +6,11 @@ rest:
     none:
       type: none
   limits:
+    # The Chroma and Ollama authorities are deployment-supplied and move together
+    # with their clients' base_url below. A developer host answers both on
+    # loopback, which is where the defaults come from; in a pod they are
+    # Services, and an allowlist still pinned to 127.0.0.1 would refuse the
+    # repointed base URL rather than reach it.
     local_corpus:
       timeout: 30s
       read_timeout: 30s
@@ -15,11 +20,17 @@ rest:
         mode: none
       network:
         schemes: [http]
-        hosts: [127.0.0.1]
-        ports: [8000, 11434]
+        # Block sequences, unquoted: a ${...} reference inside [ ] is not valid
+        # YAML, and this file is read unexpanded by the declaration checks.
+        hosts:
+          - ${CHROMA_HOST:-127.0.0.1}
+          - ${CORPUS_INGEST_OLLAMA_HOST:-127.0.0.1}
+        ports:
+          - ${CHROMA_PORT:-8000}
+          - ${CORPUS_INGEST_OLLAMA_PORT:-11434}
   clients:
     ollama:
-      base_url: http://127.0.0.1:11434
+      base_url: ${CORPUS_INGEST_OLLAMA_URL:-http://127.0.0.1:11434}
       auth_ref: none
       limits_ref: local_corpus
       operations:
@@ -69,7 +80,10 @@ rest:
             classification: reversible
             undo: noop
     chroma:
-      base_url: http://127.0.0.1:8000
+      # The same reference the creator's own count words read
+      # (agents/creator/rest.yaml), so the collection the child writes and the
+      # collection the creator counts are addressed through one value.
+      base_url: ${CHROMA_URL:-http://127.0.0.1:8000}
       auth_ref: none
       limits_ref: local_corpus
       operations:
@@ -104,7 +118,11 @@ rest:
               ids: $.carried.id
             carry_forward: [embeddings, documents, ids]
           body:
-            name: corpus
+            # The same reference the creator's resolve_ingest_collection reads,
+            # so the collection this child writes and the collection the creator
+            # counts before and after it are one value. Two literals that agreed
+            # by coincidence let a count delta pass over the wrong collection.
+            name: ${CORPUS_INGEST_COLLECTION:-corpus}
             get_or_create: true
           success: {status: [200, 201], signal: CollectionReady}
           response:
@@ -124,7 +142,11 @@ rest:
             body_source: previous_result
             input_mapping: {}
           body:
-            name: corpus
+            # The same reference the creator's resolve_ingest_collection reads,
+            # so the collection this child writes and the collection the creator
+            # counts before and after it are one value. Two literals that agreed
+            # by coincidence let a count delta pass over the wrong collection.
+            name: ${CORPUS_INGEST_COLLECTION:-corpus}
             get_or_create: true
           success: {status: [200, 201], signal: CollectionReady}
           response:

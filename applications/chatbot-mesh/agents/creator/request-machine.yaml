@@ -25,9 +25,27 @@ purpose: |-
   view (RAG topology, LLM configuration, parameters).
 
   The ingest enters on SeedIngest and runs the child-run leg (srd005 R3.1,
-  GH-762): the creator resolves the collection, reads its count, runs a
-  corpus-ingest child agent over the requested directory (run_corpus_ingest,
-  agent-core srd021), and reads the count again. The two reads measure the run's
+  GH-762): the creator resolves the collection the caller named, reads its count,
+  runs a corpus-ingest child agent over the requested directory
+  (run_corpus_ingest, agent-core srd021), and reads the count again. The child is
+  told which collection to write through its declared environment
+  (agent-core GH-1884, pinned at v0.20260828.0), so the collection resolved, the
+  collection counted, and the collection written are one value the request chose.
+  Until that field existed the child could only inherit the creator's own
+  collection, and an intent naming another was refused rather than honoured
+  (GH-192, GH-195).
+
+  The embedding family goes the other way: it is judged rather than honoured
+  (requested_family_matches, GH-205). A collection is free for a request to
+  choose, because any collection is coherent on its own. A family is not,
+  because a source embedded at one the serving rag-server does not report is
+  excluded from every turn that follows (srd002 R3.3), so the only value a
+  caller could supply other than the deployment's own is one that makes its own
+  ingest unretrievable. The intent therefore declares the family it expects, a
+  mismatch reaches FamilyRefused before any child runs, and the field stops
+  being one this agent accepted and read nowhere.
+
+  The two reads measure the run's
   contribution rather than the collection's accumulated total (GH-772). They are
   not redundant with the child's exit code -- corpus-ingest reaches its own
   Succeeded terminal on CountReady whatever the count, so a run that ingested
@@ -52,23 +70,29 @@ states:
   - {name: Applying, meaning: The creator is realizing the operation by driving the deployment API.}
   - {name: Verifying, meaning: The creator is reading the rollout status to verify the instance's health.}
   - {name: ReadingState, meaning: The creator is reading the deployed mesh view from the applier.}
-  - {name: ResolvingIngested, meaning: The ingested collection is being resolved to its id.}
+  - {name: ResolvingIngested, meaning: The collection the caller named is being resolved to its id.}
+  - {name: JudgingFamily, meaning: The embedding family the caller expects is being tested against the one this deployment ingests at.}
   - {name: CountingBeforeIngest, meaning: The collection's document count before the child run is being read.}
   - {name: Ingesting, meaning: The corpus-ingest child agent is running over the requested directory.}
   - {name: CountingAfterIngest, meaning: The collection's document count after the child run is being read.}
   - {name: HealthReported, meaning: Terminal. The instance is healthy and the reported health is ready for the HTTP response., run_status: succeeded}
   - {name: StateReported, meaning: Terminal. The applier reported the deployed mesh view., run_status: succeeded}
   - {name: JudgingIngest, meaning: The post-run count is being tested against the pre-run count to decide whether the run added documents.}
+  - {name: ReportingIngestOutcome, meaning: The judged count and the collection the child wrote are being put into one command-state value for the response.}
   - {name: Ingested, meaning: Terminal. The child run increased the collection's document count., run_status: succeeded}
+  - {name: FamilyRefused, meaning: Terminal. The caller expects an embedding family this deployment does not ingest at, so no child ran., run_status: failed}
   - {name: IngestRejected, meaning: Terminal. The child run completed but wrote no documents, so it did not meet the requested source., run_status: failed}
   - {name: IngestFailed, meaning: Terminal. The child run failed, or the collection could not be read., run_status: failed}
+  - {name: ApplyRejected, meaning: Terminal. The deployment API rejected the values document against the chart schema, so nothing was applied., run_status: failed}
   - {name: Failed, meaning: Terminal. A deployment-API boundary word failed., run_status: failed}
 terminal_states:
   - HealthReported
   - StateReported
   - Ingested
+  - FamilyRefused
   - IngestRejected
   - IngestFailed
+  - ApplyRejected
   - Failed
 signals:
   - {name: Seed, trigger: The instance endpoint starts a request-scoped run.}
@@ -76,13 +100,22 @@ signals:
   - {name: SeedState, trigger: The state endpoint starts a request-scoped read of the deployed mesh view.}
   - {name: SeedIngest, trigger: The ingest endpoint starts a request-scoped corpus-ingest child run.}
   - {name: InstanceApplied, trigger: The deployment API accepted the operation and started the rollout.}
+  # Distinct from CommandError: the applier answers 400 only when its dry-run
+  # rejected the document against the chart's own values.schema.json, which is a
+  # fault in what the caller decided rather than in the boundary. Without this
+  # the status was unmapped, and a rejected values document surfaced as
+  # command_error with the reason only in the applier's monitor (GH-196).
+  - {name: InstanceRejected, trigger: The deployment API rejected the values document against the chart schema.}
   - {name: HealthReported, trigger: The rollout read reported the instance healthy.}
   - {name: StateReported, trigger: The state read reported the deployed mesh view.}
   - {name: ToolDone, trigger: The corpus-ingest child agent reached a success terminal.}
   - {name: ToolFailed, trigger: The corpus-ingest child agent reached a failure terminal or could not run.}
-  - {name: CollectionResolved, trigger: The ingested collection resolved to its id.}
+  - {name: CollectionResolved, trigger: The collection the caller named resolved to its id.}
+  - {name: FamilyMatched, trigger: The caller expects the embedding family this deployment ingests at.}
+  - {name: FamilyMismatched, trigger: The caller expects an embedding family this deployment does not ingest at.}
   - {name: DocumentsCounted, trigger: The ingested collection's document count was read.}
   - {name: DocumentsWritten, trigger: The post-run count exceeds the pre-run count.}
+  - {name: IngestOutcomeReported, trigger: The judged count and the resolved collection were rendered as one value the response can select.}
   - {name: NoDocumentsWritten, trigger: The child run did not increase the collection count.}
   - {name: CommandError, trigger: A deployment-API or Chroma boundary word failed.}
 transitions:
@@ -91,20 +124,26 @@ transitions:
   - {state: AwaitingRequest, signal: SeedState,       next: ReadingState, action: read_state}
   - {state: AwaitingRequest, signal: CommandError,    next: Failed}
   - {state: Applying,        signal: InstanceApplied, next: Verifying,    action: verify_health}
+  - {state: Applying,        signal: InstanceRejected, next: ApplyRejected}
   - {state: Applying,        signal: CommandError,    next: Failed}
   - {state: Verifying,       signal: HealthReported,  next: HealthReported}
   - {state: Verifying,       signal: CommandError,    next: Failed}
   - {state: ReadingState,    signal: StateReported,   next: StateReported}
   - {state: ReadingState,    signal: CommandError,    next: Failed}
   - {state: AwaitingRequest,     signal: SeedIngest,         next: ResolvingIngested,   action: resolve_ingest_collection}
-  - {state: ResolvingIngested,   signal: CollectionResolved, next: CountingBeforeIngest, action: count_before_ingest}
+  - {state: ResolvingIngested,   signal: CollectionResolved, next: JudgingFamily,        action: requested_family_matches}
   - {state: ResolvingIngested,   signal: CommandError,       next: IngestFailed}
+  - {state: JudgingFamily,       signal: FamilyMatched,      next: CountingBeforeIngest, action: count_before_ingest}
+  - {state: JudgingFamily,       signal: FamilyMismatched,   next: FamilyRefused}
+  - {state: JudgingFamily,       signal: CommandError,       next: IngestFailed}
   - {state: CountingBeforeIngest, signal: DocumentsCounted,  next: Ingesting,           action: run_corpus_ingest}
   - {state: CountingBeforeIngest, signal: CommandError,      next: IngestFailed}
   - {state: Ingesting,           signal: ToolDone,           next: CountingAfterIngest, action: count_after_ingest}
   - {state: Ingesting,           signal: ToolFailed,         next: IngestFailed}
   - {state: CountingAfterIngest, signal: DocumentsCounted,   next: JudgingIngest,       action: ingest_wrote_documents}
   - {state: CountingAfterIngest, signal: CommandError,       next: IngestFailed}
-  - {state: JudgingIngest,       signal: DocumentsWritten,   next: Ingested}
+  - {state: JudgingIngest,       signal: DocumentsWritten,   next: ReportingIngestOutcome, action: report_ingest_outcome}
+  - {state: ReportingIngestOutcome, signal: IngestOutcomeReported, next: Ingested}
+  - {state: ReportingIngestOutcome, signal: CommandError,          next: IngestFailed}
   - {state: JudgingIngest,       signal: NoDocumentsWritten, next: IngestRejected}
   - {state: JudgingIngest,       signal: CommandError,       next: IngestFailed}

@@ -7,8 +7,13 @@ rest:
       type: none
   limits:
     local_applier_apply:
-      timeout: 130s
-      read_timeout: 130s
+      # The rollout leg waits on helm upgrade --atomic --wait against the whole
+      # mesh, which outlasts the 130s every hop on this path used to allow: the
+      # applier's helm_upgrade was cancelled mid-flight at ~127s and the intent
+      # answered machine_timeout (GH-196). Every hop that waits on the apply
+      # carries the same budget, because the shortest one decides.
+      timeout: 600s
+      read_timeout: 600s
       max_request_bytes: 1048576
       max_response_bytes: 1048576
       redirect:
@@ -119,7 +124,9 @@ rest:
                 content: {type: string}
           machine_request:
             profile: apply-profile.yaml
-            timeout: 130s
+            # Bounds one helm validate -> apply -> verify -> rollback cycle against
+            # the whole mesh; --atomic --wait outlasts the 130s this used to allow.
+            timeout: 600s
             request:
               body:
                 content: $.content
