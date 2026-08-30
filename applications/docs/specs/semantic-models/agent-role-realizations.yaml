@@ -398,6 +398,11 @@ bindings:
           - applications/chatbot-mesh/agents/chatbot/request-machine.yaml
           - applications/chatbot-mesh/docs/specs/software-requirements/srd002-chatbot-agent.yaml
         migration_impact: None; role bindings remain separate from the actor and Helm workload name.
+    - actor: chatbot-chat-request
+      profile: applications/chatbot-mesh/agents/chatbot/request-profile.yaml
+      classification: configuration_variant
+      inherits: chatbot
+      execution_scope: request
     - actor: rag-server
       profile: applications/chatbot-mesh/agents/rag-server/profile.yaml
       classification: role_realization
