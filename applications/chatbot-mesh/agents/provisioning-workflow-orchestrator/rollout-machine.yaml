@@ -18,6 +18,9 @@ purpose: |-
   (GH-684).
 initial_state: AwaitingRequest
 budget:
+  # The outer envelope: it has to exceed the creator client's 130s limits, which
+  # is the authority read_creator_rollout dispatches under, not merely the poll
+  # endpoint's own 40s bound.
   command_timeout: 3m
   max_iterations: 3
 states:

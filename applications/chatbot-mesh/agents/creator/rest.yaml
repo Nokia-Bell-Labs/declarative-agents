@@ -324,7 +324,11 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
-            timeout: 15s
+            # Contains the applier rollout endpoint this hop calls, which allows
+            # 30s because two real kubectl reads can exceed ten seconds on a
+            # healthy cluster. At 15s that allowance was unusable: a healthy
+            # 16-29s read died here, one hop above the budget written for it.
+            timeout: 35s
             # SeedHealth runs the verify leg alone. A poll is a read: it applies
             # nothing and mutates no instance state.
             initial_signal: SeedHealth
@@ -448,7 +452,10 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
-            timeout: 15s
+            # Contains the applier state endpoint this hop calls, which allows
+            # 15s. Equal budgets left no margin for the hop itself, so a read
+            # finishing at the far side's limit still failed here.
+            timeout: 20s
             # SeedState runs the read_state leg alone. A read: it applies nothing
             # and mutates no instance state.
             initial_signal: SeedState

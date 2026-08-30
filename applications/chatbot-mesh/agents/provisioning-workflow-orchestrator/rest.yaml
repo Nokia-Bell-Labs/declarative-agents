@@ -397,7 +397,9 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: rollout-machine.yaml
-            timeout: 20s
+            # Contains the rollout-machine budget below and the creator rollout
+            # hop it calls at 35s, which itself contains the applier's 30s read.
+            timeout: 40s
             request:
               body: {}
             response:
@@ -436,7 +438,9 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: state-machine.yaml
-            timeout: 20s
+            # Contains the state-machine budget below and the creator state hop
+            # it calls at 20s, so a slow read is reported rather than cut off.
+            timeout: 25s
             request:
               body: {}
             response:

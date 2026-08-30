@@ -164,7 +164,11 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
-            timeout: 10s
+            # Contains the machine budget below, which in turn contains the two
+            # sequential chroma operations the query leg runs at 10s each. At 10s
+            # this endpoint expired first, so a slow Chroma surfaced as a request
+            # timeout carrying none of the machine's own account of the failure.
+            timeout: 30s
             request:
               body:
                 query_embeddings: $.query_embeddings
