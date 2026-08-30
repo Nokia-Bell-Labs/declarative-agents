@@ -4,21 +4,10 @@
 package main
 
 import (
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 )
-
-func readAgentFile(t *testing.T, agent, name string) string {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join(agentDir(t, agent), name))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
-}
 
 // TestProvisioningPanelAndItsRouteRenderTogether keeps the panel from being
 // offered without the intake it posts to.

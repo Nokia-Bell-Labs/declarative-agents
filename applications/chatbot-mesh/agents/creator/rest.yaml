@@ -7,8 +7,13 @@ rest:
       type: none
   limits:
     local_deployment_client:
-      timeout: 130s
-      read_timeout: 130s
+      # The rollout leg waits on helm upgrade --atomic --wait against the whole
+      # mesh, which outlasts the 130s every hop on this path used to allow: the
+      # applier's helm_upgrade was cancelled mid-flight at ~127s and the intent
+      # answered machine_timeout (GH-196). Every hop that waits on the apply
+      # carries the same budget, because the shortest one decides.
+      timeout: 600s
+      read_timeout: 600s
       max_request_bytes: 1048576
       max_response_bytes: 1048576
       redirect:
@@ -40,8 +45,13 @@ rest:
           - ${CHROMA_HOST:-127.0.0.1}
         ports: [8000]
     local_creator_instance:
-      timeout: 130s
-      read_timeout: 130s
+      # The rollout leg waits on helm upgrade --atomic --wait against the whole
+      # mesh, which outlasts the 130s every hop on this path used to allow: the
+      # applier's helm_upgrade was cancelled mid-flight at ~127s and the intent
+      # answered machine_timeout (GH-196). Every hop that waits on the apply
+      # carries the same budget, because the shortest one decides.
+      timeout: 600s
+      read_timeout: 600s
       max_request_bytes: 1048576
       max_response_bytes: 1048576
       redirect:
@@ -101,13 +111,34 @@ rest:
               type: object
               properties:
                 content: {type: string}
+                operation: {type: string}
             body_source: previous_result
             input_mapping:
               content: $.content
+              # Read but not sent: the applier decides nothing from the caller's
+              # operation name, and carrying it is what puts it in this word's
+              # own output, where the rejection body below can reach it with a
+              # plain $. selector (the idiom the ingest leg uses for the count).
+              operation: $.operation
+            carry_forward: [operation]
           body:
             schema_version: "1"
             content: "{{ params.content }}"
           success: {status: [200], signal: InstanceApplied}
+          failures:
+            # The applier answers 400 when its dry-run rejected the document
+            # against the chart's values.schema.json (srd006 R2.1). Unmapped, that
+            # status died as "status 400 is not mapped" and the intent answered
+            # command_error, which reads as a broken boundary rather than as the
+            # caller having decided values the chart refuses.
+            - {status: [400], signal: InstanceRejected}
+            # 500 is an apply that ran and failed or rolled itself back; 502 is an
+            # applier whose machine could not run at all. Both are boundary
+            # failures rather than faults in the document, so both take
+            # CommandError -- but declared, because an unmapped status fails the
+            # dispatch with "status 502 is not mapped" and buries the applier's own
+            # reason under a message about the mapping.
+            - {status: [500, 502], signal: CommandError}
           response:
             output: {}
           side_effects:
@@ -190,28 +221,61 @@ rest:
       limits_ref: local_chroma_client
       operations:
         resolve_ingest_collection:
-          # Resolve the collection the child ingested into, to its id. get_or_create
-          # keeps the read total: a collection the child never created resolves to an
-          # empty one and counts zero, rather than failing as a missing resource.
+          # Resolve the collection the child will ingest into, to its id.
+          # get_or_create keeps the read total: a collection the child never
+          # created resolves to an empty one and counts zero rather than failing
+          # as a missing resource, and it is also what lets a caller's first
+          # ingest into a new collection succeed.
           #
-          # The name is the corpus-ingest profile's own configured collection, which
-          # that profile hardcodes (agents/corpus-ingest/corpus-rest.yaml). It is not
-          # per-request: agent-core exec tools pass no environment, so the child
-          # cannot be told a different collection at invocation. Ingesting into a
-          # caller-named collection needs the child profile parameterized first, and
-          # is tracked separately.
+          # The name is one value shared with the corpus-ingest child, which reads
+          # the same reference (agents/corpus-ingest/corpus-rest.yaml). Both were
+          # the literal `corpus` and agreed only by coincidence, which is what let
+          # a count delta be measured over a collection the child never wrote.
+          #
+          # The request chooses it. run_corpus_ingest overlays the requested name
+          # on the child's environment (agent-core GH-1884), so the collection
+          # resolved here, counted on either side of the child, and written by the
+          # child is one value. It was deployment configuration until
+          # v0.20260828.0, when an exec declaration could carry no environment and
+          # the agent binary takes no collection flag; an intent naming another
+          # collection was refused rather than honoured (GH-192, GH-195).
           method: POST
           path: /api/v2/tenants/default_tenant/databases/default_database/collections
           params:
+            body_schema:
+              type: object
+              properties:
+                collection: {type: string}
+                directory: {type: string}
+                embedding_model: {type: string}
             body_source: previous_result
-            input_mapping: {}
+            # This is the leg's first word, so the previous result is the seeded
+            # request and $.collection is what the caller asked for. It is both
+            # sent -- the body below resolves the collection the caller named --
+            # and carried, so the child run downstream is given the same one.
+            input_mapping:
+              collection: $.collection
+              directory: $.directory
+              embedding_model: $.embedding_model
+            # All three ride through. The collection and directory are for the
+            # child, whose exec word is three words downstream by the time it is
+            # dispatched -- an exec parameter without a declared source is read
+            # from the adjacent previous result, which by then is a document
+            # count. The embedding family is for the judge immediately after
+            # this word: a predicate reads only the previous result, so the
+            # seeded request is already out of reach there.
+            carry_forward: [collection, directory, embedding_model]
           body:
-            name: corpus
+            name: "{{ params.collection }}"
             get_or_create: true
           success: {status: [200, 201], signal: CollectionResolved}
           response:
             output:
               collection_id: $.id
+              # Chroma echoes the name it resolved. The success response reports
+              # this rather than the requested name, so the caller reads where its
+              # documents actually went rather than what it asked for.
+              collection_name: $.name
           side_effects:
             - kind: external_api
               target: chroma.collection
@@ -294,7 +358,9 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
-            timeout: 130s
+            # The apply leg waits on the applier\'s full rollout, so this tracks the
+            # applier\'s own apply budget rather than a request-response round trip.
+            timeout: 600s
             request:
               body:
                 operation: $.operation
@@ -308,11 +374,37 @@ rest:
                   body:
                     status: healthy
                     health: $.mapped.health
+                # A rejected values document is the caller's fault and retrying it
+                # unchanged will not help, so it answers 422 rather than the 500
+                # a failed boundary answers. The provisioning-workflow-orchestrator
+                # maps this to its own Rejected terminal, the same shape the ingest
+                # leg uses for a run that wrote no documents.
+                InstanceRejected:
+                  status: 422
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    status: rejected
+                    error: values_rejected
+                    # The operation the caller asked for, carried by
+                    # apply_instance. A plain $.operation resolves here -- a
+                    # REST client word's output always carries one -- but to
+                    # agent-core's own operation name, "apply_instance", so
+                    # this field answered with an internal word name where the
+                    # caller's operation belonged. Not the GH-198 shape, which
+                    # ships selector text: this resolved, to the wrong thing.
+                    operation: $.carried.operation
                 CommandError:
                   status: 500
                   content_type: application/json
                   body:
                     error: command_error
+                    # All three come from the failure result agent-core builds
+                    # for a client CommandError, which carries failure_stage,
+                    # message, signal, rest_ref, resource, and operation. Here
+                    # operation is the client operation that broke, which is
+                    # what an operator reading a 500 needs -- unlike the 422
+                    # above, where the caller's own operation is the answer.
                     stage: $.failure_stage
                     message: $.message
                     operation: $.operation
@@ -370,10 +462,28 @@ rest:
           request:
             body_schema:
               type: object
-              required: [directory]
+              # collection is required because it is the collection the run
+              # resolves, counts, and writes into. The env overlay that carries it
+              # to the child fails dispatch on an empty value rather than falling
+              # back to the creator's own, so an omitted collection must be a 400
+              # here rather than a boundary failure three words later.
+              #
+              # embedding_model is required for the same shape of reason, arrived
+              # at differently: it is compared against the family this deployment
+              # ingests at, and a predicate operand that does not resolve is a
+              # CommandError rather than a false comparison (agent-core srd041
+              # R4.2). An omitted family could therefore only 500 or read as a
+              # mismatch, so intake is where it has to be caught. It was accepted
+              # and read by nothing until GH-205.
+              #
+              # The provisioning-workflow-orchestrator, this endpoint's only
+              # caller, requires both on the intent too, so nothing that reaches
+              # here omits either.
+              required: [directory, collection, embedding_model]
               properties:
                 directory: {type: string}
                 collection: {type: string}
+                embedding_model: {type: string}
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
@@ -382,12 +492,23 @@ rest:
             request:
               body:
                 # The directory becomes the child's workspace; the corpus-ingest
-                # profile roots its document resource there. collection is accepted
-                # so the provisioning-workflow-orchestrator's declared intent stays whole, but it does not
-                # reach the child: agent-core exec tools pass no environment, and
-                # the child profile hardcodes its collection name. Ingesting into a
-                # caller-named collection needs that profile parameterized first.
+                # profile roots its document resource there.
+                #
+                # collection reaches the child as a per-request value, overlaid on
+                # its environment by run_corpus_ingest (agent-core GH-1884).
+                #
+                # embedding_model does not, and stays deployment configuration: an
+                # ingest embedded at a family the serving RAG unit does not report
+                # leaves every document it wrote unreachable to every turn
+                # (srd002 R3.3), so the family is a property of the deployment the
+                # collection is served by rather than of the request. It is
+                # threaded here to be checked against that deployment value rather
+                # than to be applied -- the caller declares the family it expects,
+                # and a request expecting another one is refused before the child
+                # runs instead of writing documents no turn can retrieve.
                 directory: $.directory
+                collection: $.collection
+                embedding_model: $.embedding_model
             response:
               # Keyed by terminal state. The child-run and Chroma words emit a fixed
               # signal vocabulary, so signal keying could not separate a failed child
@@ -406,10 +527,38 @@ rest:
                   body:
                     schema_version: "1"
                     status: ingested
-                    # The predicate's left operand is the post-run collection
-                    # count it judged, kept raw and selectable by srd041 R4.4.
-                    count: $.left
+                    # Both come from report_ingest_outcome, the terminal word on
+                    # this branch, which is what makes them plain $. selectors.
+                    # They were the judge's own output until GH-198: a predicate
+                    # emits only left/op/operand_type/held/right, so the collection
+                    # had to be reached with $from(...) -- which a terminal body
+                    # does not resolve and returns verbatim, so the response
+                    # carried the selector text where the collection name belonged.
+                    count: $.count
+                    # The collection the run actually ingested into, echoed so the
+                    # caller reads where its documents went rather than assuming
+                    # the collection it named was honoured.
+                    collection: $.collection
                     status_detail: documents were written
+                FamilyRefused:
+                  status: 422
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    status: rejected
+                    # Distinct from ingest_shortfall: a run that wrote nothing and
+                    # a request expecting an embedding family this deployment does
+                    # not ingest at are different faults, and one error code for
+                    # both would tell an operator reading a trace nothing -- the
+                    # argument srd009 R1.6 already makes for provider failures.
+                    error: embedding_family_mismatch
+                    # requested_family_matches is the terminal word here, and its
+                    # operands are the two families: left is what the caller
+                    # expected, right is the family this deployment ingests at.
+                    # The deployment's is the answer to "what would this ingest
+                    # have embedded at", and it is already in the word's output.
+                    embedding_model: $.right
+                    count: "0"
                 IngestRejected:
                   status: 422
                   content_type: application/json
@@ -428,8 +577,8 @@ rest:
               # Every CommandError raised by a word on this branch reaches
               # IngestFailed above. A CommandError arriving in AwaitingRequest --
               # before any ingest word ran -- reaches Failed instead, which the
-              # state map deliberately does not name: the states above are this
-              # leg's outcomes and nothing else belongs among them.
+              # state map deliberately does not name: the four states above are
+              # this leg's outcomes and nothing else belongs among them.
               #
               # Left unmapped, that run answered "response_missing: neither
               # terminal state nor terminal signal is mapped" rather than this

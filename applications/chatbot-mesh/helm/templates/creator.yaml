@@ -62,6 +62,88 @@ spec:
             # reaches its apply Service.
             - {name: DEPLOYMENT_API_URL, value: "http://{{ $fullname }}-applier:{{ .Values.applier.ports.apply }}"}
             - {name: PROVISIONER_HOST, value: "{{ $fullname }}-applier"}
+            {{- /*
+            The corpus-ingest child runs as a subprocess of this container and
+            inherits its environment, so the ingest's Chroma and its embedding
+            provider reach the child from here. Without these the child falls
+            back to the loopback addresses a developer host answers, which in a
+            pod resolve to nothing.
+
+            The creator's own count words read CHROMA_URL and CHROMA_HOST too, so
+            the collection the child writes and the collection the creator counts
+            are one authority rather than two that happen to agree.
+            */}}
+            {{- $ingestUnit := "" }}
+            {{- with .Values.controlPlane.creator.ingestRagUnit }}
+            {{- $ingestUnit = . }}
+            {{- else }}
+            {{- with (first .Values.ragUnits) }}{{ $ingestUnit = .name }}{{ end }}
+            {{- end }}
+            {{- $ingestCollection := "" }}
+            {{- $unitEmbedding := "" }}
+            {{- range $unit := .Values.ragUnits }}
+            {{- if eq $unit.name $ingestUnit }}
+            {{- $ingestCollection = $unit.collection }}
+            {{- $unitEmbedding = $unit.embeddingModel }}
+            {{- end }}
+            {{- end }}
+            {{- if $ingestUnit }}
+            {{- $ingestChroma := printf "%s-%s-chroma" $fullname $ingestUnit }}
+            - {name: CHROMA_URL, value: "http://{{ $ingestChroma }}:{{ .Values.chroma.port }}"}
+            - {name: CHROMA_HOST, value: {{ $ingestChroma | quote }}}
+            - {name: CHROMA_PORT, value: {{ .Values.chroma.port | quote }}}
+            {{- end }}
+            {{- /*
+            The collection is the one that unit's rag-server serves, so documents
+            this ingest writes are documents a turn can retrieve.
+
+            An ingest request names its own collection, and run_corpus_ingest
+            overlays that name on the child's environment for the run, so this
+            value is what the creator's own tooling reaches for outside a request
+            rather than a ceiling on where a request may write. A caller that
+            names a collection no rag-server serves gets an ingest that succeeds
+            and documents no turn retrieves; the collection a unit serves is
+            declared here, and it is the provisioning-workflow-orchestrator's
+            intent that has to agree with it.
+            */}}
+            {{- with $ingestCollection }}
+            - {name: CORPUS_INGEST_COLLECTION, value: {{ . | quote }}}
+            {{- end }}
+            {{- $embedding := .Values.controlPlane.creator.ingestEmbedding }}
+            {{- /*
+            The model is the identity that unit's rag-server reports for its
+            collection (RAG_EMBEDDING_MODEL on rag-units.yaml), which srd002 R3.3
+            compares against the query vector's. Taking it from anywhere else
+            would diverge the moment an operator repointed one unit.
+            */}}
+            {{- $model := $embedding.model }}
+            {{- if not $model }}
+            {{- $model = $unitEmbedding }}
+            {{- end }}
+            {{- with $embedding.restRef }}
+            - {name: CORPUS_INGEST_EMBEDDING_REST_REF, value: {{ . | quote }}}
+            {{- end }}
+            {{- with $embedding.operation }}
+            - {name: CORPUS_INGEST_EMBEDDING_OPERATION, value: {{ . | quote }}}
+            {{- end }}
+            {{- with $model }}
+            - {name: CORPUS_EMBEDDING_MODEL, value: {{ . | quote }}}
+            {{- end }}
+            {{- /*
+            The child needs an Ollama for two things besides its embedding: a
+            readiness probe it opens every run with, and the invoke_llm word that
+            drives its file selection. The probe reads the corpus-ingest REST
+            client's own base URL; invoke_llm reads OLLAMA_URL, the same variable
+            the chatbot takes.
+            */}}
+            {{- with .Values.controlPlane.creator.ingestOllamaURL }}
+            - {name: CORPUS_INGEST_OLLAMA_URL, value: {{ . | quote }}}
+            - {name: CORPUS_INGEST_OLLAMA_HOST, value: {{ regexReplaceAll "^https?://([^:/]+).*$" . "${1}" | quote }}}
+            - {name: OLLAMA_URL, value: {{ . | quote }}}
+            {{- end }}
+            {{- with .Values.controlPlane.creator.ingestChatModel }}
+            - {name: CORPUS_CHAT_MODEL, value: {{ . | quote }}}
+            {{- end }}
           ports:
             - {name: instance, containerPort: {{ .Values.controlPlane.creator.ports.instance }}}
             - {name: control, containerPort: {{ .Values.controlPlane.creator.ports.control }}}
