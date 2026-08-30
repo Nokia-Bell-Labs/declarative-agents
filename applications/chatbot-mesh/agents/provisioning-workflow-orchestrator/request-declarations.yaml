@@ -13,11 +13,11 @@ tools:
       - Route a creator-reported count shortfall to a distinct rejection rather than a failure.
     requirements:
       input:
-        - The directory and collection are selected from the seeded intent body.
+        - The directory, collection, and embedding family are selected from the seeded intent body.
       output:
         - Output includes the creator-reported post-run count, with the intent fields carried forward.
       errors:
-        - Network, timeout, schema, and mapping failures emit CommandError; a creator 422 emits IngestRejected.
+        - Network, timeout, schema, and mapping failures emit CommandError, as does a creator 400 refusing this request against its own intake schema; a creator 422 emits Rejected.
     non_goals:
       - Does not run the ingest itself; the creator materializes the corpus-ingest instance.
       - Does not accept a runtime method, URL, host, or credential for the creator.
@@ -26,6 +26,9 @@ tools:
       properties:
         directory: {type: string}
         collection: {type: string}
+        # Mapped and carried by the client operation, so it is named here
+        # rather than reaching the operation undeclared.
+        embedding_model: {type: string}
     emits: [IngestReported, Rejected, CommandError]
     output:
       description: Creator-reported post-run count with the carried intent.

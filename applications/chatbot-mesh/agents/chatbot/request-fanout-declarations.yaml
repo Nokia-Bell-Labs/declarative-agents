@@ -167,7 +167,7 @@ tools:
     non_goals:
       - Does not call a model or choose sources.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [Composed]
+    emits: [Composed, CommandError]
     output: {description: Grounded answer prompt., schema: {type: string}}
     side_effects: []
     reversibility: {classification: reversible}
@@ -211,7 +211,7 @@ tools:
     non_goals:
       - Does not infer outcomes or merge collections.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [ResponseComposed]
+    emits: [ResponseComposed, CommandError]
     output: {description: Answer and source outcome metadata., schema: {type: object}}
     side_effects: []
     reversibility: {classification: reversible}

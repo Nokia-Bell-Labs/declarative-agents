@@ -381,7 +381,7 @@
         "creator": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["replicas", "ports", "networkPolicy", "resources", "deploymentApiTokenSecret"],
+          "required": ["replicas", "ports", "networkPolicy", "resources"],
           "properties": {
             "replicas": {"$ref": "#/definitions/replicas"},
             "ports": {
@@ -391,16 +391,7 @@
               ]
             },
             "networkPolicy": {"$ref": "#/definitions/networkPolicyToggle"},
-            "resources": {"$ref": "#/definitions/resources"},
-            "deploymentApiTokenSecret": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["name", "key"],
-              "properties": {
-                "name": {"type": "string"},
-                "key": {"$ref": "#/definitions/nonEmptyString"}
-              }
-            }
+            "resources": {"$ref": "#/definitions/resources"}
           }
         }
       }

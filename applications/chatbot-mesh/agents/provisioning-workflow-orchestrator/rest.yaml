@@ -17,7 +17,8 @@ rest:
         schemes: [http]
         # The creator host is the egress allowlist entry; a values-driven deploy sets
         # CREATOR_HOST to the creator Service DNS name, defaulting to loopback locally.
-        hosts: [${CREATOR_HOST:-127.0.0.1}]
+        hosts:
+          - ${CREATOR_HOST:-127.0.0.1}
         ports: [18110]
     local_provisioning_workflow_orchestrator_intent:
       timeout: 130s
@@ -92,13 +93,25 @@ rest:
               collection: $.collection
               embedding_model: $.embedding_model
               values: $.values
-            carry_forward: [rag_name, collection, embedding_model, values]
+            # rag_name is accepted on the intent and sent no further: which unit
+            # the ingest targets is deployment configuration on the creator, not
+            # a field of the request. It was carried too, and nothing ever read
+            # $.carried.rag_name.
+            carry_forward: [collection, embedding_model, values]
           body:
             directory: "{{ params.directory }}"
             collection: "{{ params.collection }}"
           success: {status: [200], signal: IngestReported}
           failures:
             - {status: [422], signal: Rejected}
+            # 400 is the creator refusing this request against its own intake
+            # schema -- our body, not the operator's intent -- so it takes
+            # CommandError rather than Rejected: answering 422 would tell the
+            # panel its intent fell short when the fault is ours. Declared
+            # because an unmapped status fails the dispatch with "status 400 is
+            # not mapped" and buries the creator's own reason under a message
+            # about the mapping.
+            - {status: [400], signal: CommandError}
           response:
             # collection: the corpus-ingest profile owns its collection name and
             # agent-core exec tools pass no environment, so the child always
@@ -306,8 +319,15 @@ rest:
                   status: 422
                   content_type: application/json
                   body:
-                    error: ingest_rejected
-                    detail: the creator reported the ingest did not meet the requested source
+                    # The creator names why it refused with its own error code
+                    # (today ingest_shortfall), and the terminal word here is
+                    # the client operation that carried the 422, so its response
+                    # payload is its own output: $.body reads the creator's
+                    # body, not this agent's. A fixed ingest_rejected renamed
+                    # the creator's code and would misreport every code the
+                    # creator adds.
+                    error: $.body.error
+                    detail: the creator rejected the intent; error names which of its checks refused it
                 CommandError:
                   status: 500
                   content_type: application/json
@@ -347,9 +367,14 @@ rest:
               body:
                 values: $.values
             response:
-              # Keyed by terminal state. The creator boundary words emit a fixed
-              # signal vocabulary, so signal keying could not separate a rejected
-              # reconfiguration from a failed one (agent-core srd030 R4.6, GH-615).
+              # Keyed by terminal state, where the provision endpoint above keys
+              # by signal. Both separate this machine's three outcomes, so the
+              # difference is which fact is named rather than which one works: a
+              # state is the more specific one, since many signals may reach it,
+              # and agent-core consults the state map first. The older note here
+              # said signal keying could not separate a rejected reconfiguration
+              # from a failed one, which the provision endpoint disproves by
+              # doing exactly that (agent-core srd030 R4.6, GH-615).
               terminal_states:
                 Reconfigured:
                   status: 200
@@ -382,7 +407,9 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: rollout-machine.yaml
-            timeout: 20s
+            # Contains the rollout-machine budget below and the creator rollout
+            # hop it calls at 35s, which itself contains the applier's 30s read.
+            timeout: 40s
             request:
               body: {}
             response:
@@ -421,7 +448,9 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: state-machine.yaml
-            timeout: 20s
+            # Contains the state-machine budget below and the creator state hop
+            # it calls at 20s, so a slow read is reported rather than cut off.
+            timeout: 25s
             request:
               body: {}
             response:

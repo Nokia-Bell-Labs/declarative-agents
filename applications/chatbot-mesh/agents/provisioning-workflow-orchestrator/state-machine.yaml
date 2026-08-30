@@ -18,6 +18,8 @@ purpose: |-
   and no LLM configuration (GH-686's rule, applied here).
 initial_state: AwaitingRequest
 budget:
+  # The outer envelope, exceeding the creator client's 130s limits that
+  # read_creator_state dispatches under.
   command_timeout: 3m
   max_iterations: 3
 states:

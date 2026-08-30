@@ -18,10 +18,12 @@ rest:
         # The deployment-API host is the egress allowlist entry; a values-driven deploy
         # sets PROVISIONER_HOST to the provisioner Service DNS name, defaulting to
         # loopback locally.
-        hosts: [${PROVISIONER_HOST:-127.0.0.1}]
+        hosts:
+          - ${PROVISIONER_HOST:-127.0.0.1}
         # The production chart leaves this at 18090. Integrations may allocate an
         # isolated fake API port through the same declared child contract.
-        ports: [${DEPLOYMENT_API_PORT:-18090}]
+        ports:
+          - ${DEPLOYMENT_API_PORT:-18090}
     local_chroma_client:
       # The creator reads the collection count before and after the child to report
       # that run's contribution (srd005 R3.1). Read-only: the corpus-ingest child
@@ -34,7 +36,8 @@ rest:
         mode: none
       network:
         schemes: [http]
-        hosts: [${CHROMA_HOST:-127.0.0.1}]
+        hosts:
+          - ${CHROMA_HOST:-127.0.0.1}
         ports: [8000]
     local_creator_instance:
       timeout: 130s
@@ -282,9 +285,11 @@ rest:
               required: [operation, content]
               properties:
                 operation: {type: string}
+                # Accepted and not read: the applier decides nothing from the
+                # role, and its only caller sends a fixed one. operation above is
+                # read -- apply_instance carries it so a rejection can name what
+                # was rejected.
                 role: {type: string}
-                directory: {type: string}
-                collection: {type: string}
                 content: {type: string}
           machine_request:
             profile: profile.yaml
@@ -294,8 +299,6 @@ rest:
               body:
                 operation: $.operation
                 role: $.role
-                directory: $.directory
-                collection: $.collection
                 content: $.content
             response:
               terminal_signals:
@@ -324,7 +327,11 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
-            timeout: 15s
+            # Contains the applier rollout endpoint this hop calls, which allows
+            # 30s because two real kubectl reads can exceed ten seconds on a
+            # healthy cluster. At 15s that allowance was unusable: a healthy
+            # 16-29s read died here, one hop above the budget written for it.
+            timeout: 35s
             # SeedHealth runs the verify leg alone. A poll is a read: it applies
             # nothing and mutates no instance state.
             initial_signal: SeedHealth
@@ -418,6 +425,26 @@ rest:
                     schema_version: "1"
                     status: ingest_failed
                     error: ingest_failed
+              # Every CommandError raised by a word on this branch reaches
+              # IngestFailed above. A CommandError arriving in AwaitingRequest --
+              # before any ingest word ran -- reaches Failed instead, which the
+              # state map deliberately does not name: the states above are this
+              # leg's outcomes and nothing else belongs among them.
+              #
+              # Left unmapped, that run answered "response_missing: neither
+              # terminal state nor terminal signal is mapped" rather than this
+              # endpoint's contract, because an unmapped terminal is a
+              # diagnostic, not a default. agent-core consults the state map
+              # first and the signal map second, so declaring the signal covers
+              # the pre-dispatch failure without widening the states.
+              terminal_signals:
+                CommandError:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    status: ingest_failed
+                    error: ingest_failed
         state:
           # The deployed mesh view the provisioning-workflow-orchestrator carries to the provisioning
           # panel's initial load (srd006 R1.5). Reached by the provisioning-workflow-orchestrator, not a
@@ -428,7 +455,10 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
-            timeout: 15s
+            # Contains the applier state endpoint this hop calls, which allows
+            # 15s. Equal budgets left no margin for the hop itself, so a read
+            # finishing at the far side's limit still failed here.
+            timeout: 20s
             # SeedState runs the read_state leg alone. A read: it applies nothing
             # and mutates no instance state.
             initial_signal: SeedState

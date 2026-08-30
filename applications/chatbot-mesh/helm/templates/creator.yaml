@@ -2,11 +2,9 @@
 {{/* SPDX-License-Identifier: BSD-3-Clause */}}
 {{- if .Values.controlPlane.enabled }}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
-{{- $tokenSecret := .Values.controlPlane.creator.deploymentApiTokenSecret.name | default (printf "%s-applier" $fullname) -}}
 # --- Creator: the control plane's agent lifecycle manager (srd005). It reaches the
 # applier deployment API (srd006), which is authenticated apart from chat by a
-# NetworkPolicy; the optional token mount below supports an operator-supplied auth
-# proxy in front of the applier. ---
+# NetworkPolicy. ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -64,7 +62,6 @@ spec:
             # reaches its apply Service.
             - {name: DEPLOYMENT_API_URL, value: "http://{{ $fullname }}-applier:{{ .Values.applier.ports.apply }}"}
             - {name: PROVISIONER_HOST, value: "{{ $fullname }}-applier"}
-            - {name: DEPLOYMENT_API_TOKEN_FILE, value: "/etc/creator-tokens/deployment-api"}
           ports:
             - {name: instance, containerPort: {{ .Values.controlPlane.creator.ports.instance }}}
             - {name: control, containerPort: {{ .Values.controlPlane.creator.ports.control }}}
@@ -78,18 +75,10 @@ spec:
           volumeMounts:
             - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
             - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
-            - {name: deployment-api-token, mountPath: /etc/creator-tokens, readOnly: true}
       volumes:
         {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
         - name: work
           emptyDir: {}
-        - name: deployment-api-token
-          secret:
-            secretName: {{ $tokenSecret }}
-            optional: true
-            items:
-              - key: {{ .Values.controlPlane.creator.deploymentApiTokenSecret.key }}
-                path: deployment-api
 ---
 apiVersion: v1
 kind: Service

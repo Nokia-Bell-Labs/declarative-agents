@@ -382,7 +382,7 @@ tools:
         - must read the original question from embed_query through command state
         - must use the configured small model against local Ollama
       output:
-        - must emit LLMResponded with a tool call selecting invoke_llm_fast or invoke_llm_deep
+        - must emit LLMResponded with a tool call selecting invoke_llm_fast, invoke_llm_deep, or invoke_command
         - must emit CommandError for provider setup, model discovery, or chat failures
       side_effects:
         - must call local Ollama POST /api/chat

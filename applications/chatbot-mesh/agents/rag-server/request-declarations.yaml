@@ -25,6 +25,10 @@ tools:
       type: object
       properties:
         query_embeddings: {type: array}
+        # Carried through this word to the query that follows it. The operation
+        # maps and requires it, so leaving it undeclared here described a word
+        # that takes less than it is given.
+        n_results: {type: integer}
     emits: [CollectionReady, CommandError]
     output:
       description: Mapped Chroma collection id with the carried query vector.
@@ -37,6 +41,12 @@ tools:
       - kind: external_api
         target: chroma.collection
         state: collection_upserted
+    # Irreversible, and deliberately stronger than the transport-level
+    # reversible/noop the operation declares: the two describe different things.
+    # The operation says the HTTP call needs no compensating request; this says
+    # the effect cannot be undone, for the reason the undo block gives -- a
+    # create-or-get may have created the collection, and deleting it to unwind
+    # would destroy a pre-existing one carrying the same trusted name.
     reversibility:
       classification: irreversible
       requires_confirmation: true
@@ -71,15 +81,21 @@ tools:
       properties:
         collection: {type: string}
         query_embeddings: {type: array}
+        # Required and mapped by the operation, so it belongs in the word's own
+        # parameter set rather than arriving undeclared.
+        n_results: {type: integer}
     emits: [QueryResponded, QueryRejected, CommandError]
     output:
       description: Mapped Chroma query result.
       schema:
         type: object
+        # The REST client's result shape, the same one rag_resolve declares: the
+        # mapped response sits under mapped, and the terminal body reads it as
+        # $.mapped.ids. Declaring the three at the top level described a shape
+        # no reader selects.
         properties:
-          ids: {type: array}
-          documents: {type: array}
-          distances: {type: array}
+          mapped: {type: object}
+          carried: {type: object}
     side_effects:
       - kind: external_api
         target: chroma.query
