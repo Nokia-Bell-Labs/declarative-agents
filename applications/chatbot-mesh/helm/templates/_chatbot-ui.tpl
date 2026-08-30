@@ -62,7 +62,15 @@ trace_backend:
   name: collector
   query_path: /monitor-proxy/collector/query/traces/{trace_id}
 {{- end }}
-{{- if .Values.applier.enabled }}
+{{- /* Gated on controlPlane, not applier, because that is what decides whether
+       the panel has anywhere to post. The panel submits same-origin to
+       /provisioning, an ingress route the chart renders only with the control
+       plane on (chatbot.yaml), and the orchestrator behind it is a control-plane
+       workload. The applier is a different question -- the deployment API the
+       creator calls, not the intake the browser reaches -- and gating on it
+       rendered an enabled panel whose route was absent at the chart's own
+       defaults, which is the shape GH-502 fixed once already (GH-214). */}}
+{{- if .Values.controlPlane.enabled }}
 deployment_api:
   base_path: /provisioning/api
   auth: none
@@ -74,5 +82,5 @@ presentation:
   observability_per_agent_sse: true
   observability_turn_correlation: time-window
   observability_trace_waterfall: true
-  provisioning_panel: {{ .Values.applier.enabled }}
+  provisioning_panel: {{ .Values.controlPlane.enabled }}
 {{- end -}}
