@@ -136,14 +136,15 @@ tools:
       schema:
         type: object
         properties:
+          # Whole Kubernetes Pod objects, mapped straight from $.items rather
+          # than reshaped: the fan-out addresses $from(pod).status.podIP and
+          # $from(pod).metadata.labels.monitorPort, which are paths into the API
+          # object. The schema described a {name, ip, labels} projection nothing
+          # produces and nothing reads.
           pods:
             type: array
             items:
               type: object
-              properties:
-                name: {type: string}
-                ip: {type: string}
-                labels: {type: object}
     side_effects:
       - kind: external_api
         target: kubernetes.pods.list

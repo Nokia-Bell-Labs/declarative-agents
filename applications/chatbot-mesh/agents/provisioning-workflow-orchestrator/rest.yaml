@@ -367,9 +367,14 @@ rest:
               body:
                 values: $.values
             response:
-              # Keyed by terminal state. The creator boundary words emit a fixed
-              # signal vocabulary, so signal keying could not separate a rejected
-              # reconfiguration from a failed one (agent-core srd030 R4.6, GH-615).
+              # Keyed by terminal state, where the provision endpoint above keys
+              # by signal. Both separate this machine's three outcomes, so the
+              # difference is which fact is named rather than which one works: a
+              # state is the more specific one, since many signals may reach it,
+              # and agent-core consults the state map first. The older note here
+              # said signal keying could not separate a rejected reconfiguration
+              # from a failed one, which the provision endpoint disproves by
+              # doing exactly that (agent-core srd030 R4.6, GH-615).
               terminal_states:
                 Reconfigured:
                   status: 200

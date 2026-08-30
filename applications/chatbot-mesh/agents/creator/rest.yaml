@@ -285,9 +285,11 @@ rest:
               required: [operation, content]
               properties:
                 operation: {type: string}
+                # Accepted and not read: the applier decides nothing from the
+                # role, and its only caller sends a fixed one. operation above is
+                # read -- apply_instance carries it so a rejection can name what
+                # was rejected.
                 role: {type: string}
-                directory: {type: string}
-                collection: {type: string}
                 content: {type: string}
           machine_request:
             profile: profile.yaml
@@ -297,8 +299,6 @@ rest:
               body:
                 operation: $.operation
                 role: $.role
-                directory: $.directory
-                collection: $.collection
                 content: $.content
             response:
               terminal_signals:
