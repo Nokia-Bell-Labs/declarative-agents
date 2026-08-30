@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The profile the chat endpoint's machine_request binding loads, distinct from
+# the agent's own profile.yaml in exactly one respect: its tools selection is
+# the chat-LLM vocabulary rather than the lifecycle words.
+#
+# Two machines share these declarations and this REST definition, and they must
+# not share a tools selection: what a request machine needs to register is the
+# vocabulary a $tool transition dispatches, and what a persistent agent needs is
+# the lifecycle words that launch and stop its listeners. Registering the first
+# set in the second machine gives that agent an invoke_llm word's max_time as
+# its own run budget (GH-1900).
+name: chatbot-request
+machine: request-machine.yaml
+tools:
+  - request-tools.yaml
+tool_declarations:
+  - declarations.yaml
+  - request-declarations.yaml
+  - request-topology-declarations.yaml
+  - request-fanout-declarations.yaml
+  - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
+rest_definitions:
+  - rest.yaml
