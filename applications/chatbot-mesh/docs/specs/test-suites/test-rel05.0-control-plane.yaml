@@ -77,3 +77,43 @@ test_cases:
       - srd005-creator AC4
       - srd005-creator AC5
       - srd003-chatbot-deployment AC4
+
+  - use_case: rel05.0-uc001-control-plane-provisioning
+    name: A mismatched embedding family is refused before the ingest leg reads a count
+    integration_target: mage integration:controlPlane
+    status: implemented
+    description: |
+      Drives the creator's ingest endpoint twice against a fake Chroma, with the
+      family this deployment ingests at fixed for the run. An intent expecting
+      another family answers 422 embedding_family_mismatch and reports the
+      deployment's family rather than the one it asked for; an intent expecting
+      the deployed family is admitted past the judge.
+
+      The claim is routing, and the collection count read is what makes it
+      observable. The count sits between the family judge and the child run, so
+      a refused intent that never reads it is a refused intent that never
+      reached the child -- which is what the refusal exists to guarantee, since
+      a family the serving rag unit does not report yields documents excluded
+      from every turn (srd002 R3.3). Asserting the status alone would pass on a
+      refusal that arrived after the leg had started toward the child.
+
+      The admitted half stops at that same observation rather than asserting a
+      200. Past the judge the leg runs a real corpus-ingest child, which this
+      tracer does not stage, so the run ends IngestFailed. Driving only the
+      refusal would pass against a judge that refused everything, which is why
+      both halves are here.
+    inputs:
+      deployed_family: the family fixed in the creator's environment for the run
+      mismatched_intent: an ingest intent expecting a different family
+      matched_intent: an ingest intent expecting the deployed family
+    expected:
+      mismatched_intent_answers_422_embedding_family_mismatch: true
+      refusal_reports_the_deployed_family_not_the_requested_one: true
+      refused_intent_never_reads_a_collection_count: true
+      matched_intent_is_admitted_past_the_judge: true
+      # Not proven here: a corpus-ingest child running, documents written, or a
+      # turn over them.
+    traces:
+      - rel05.0-uc001-control-plane-provisioning S2
+      - srd004-provisioning-workflow-orchestrator AC2
+      - srd005-creator AC3
