@@ -18,10 +18,12 @@ rest:
         # The deployment-API host is the egress allowlist entry; a values-driven deploy
         # sets PROVISIONER_HOST to the provisioner Service DNS name, defaulting to
         # loopback locally.
-        hosts: [${PROVISIONER_HOST:-127.0.0.1}]
+        hosts:
+          - ${PROVISIONER_HOST:-127.0.0.1}
         # The production chart leaves this at 18090. Integrations may allocate an
         # isolated fake API port through the same declared child contract.
-        ports: [${DEPLOYMENT_API_PORT:-18090}]
+        ports:
+          - ${DEPLOYMENT_API_PORT:-18090}
     local_chroma_client:
       # The creator reads the collection count before and after the child to report
       # that run's contribution (srd005 R3.1). Read-only: the corpus-ingest child
@@ -34,7 +36,8 @@ rest:
         mode: none
       network:
         schemes: [http]
-        hosts: [${CHROMA_HOST:-127.0.0.1}]
+        hosts:
+          - ${CHROMA_HOST:-127.0.0.1}
         ports: [8000]
     local_creator_instance:
       timeout: 130s

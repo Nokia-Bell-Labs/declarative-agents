@@ -18,8 +18,14 @@ rest:
         # The Chroma host is the egress allowlist entry; a values-driven deploy
         # sets CHROMA_HOST to the Chroma Service DNS name (srd003 R2), defaulting
         # to loopback for a local run.
-        hosts: [${CHROMA_HOST:-127.0.0.1}]
-        ports: [8000]
+        hosts:
+          - ${CHROMA_HOST:-127.0.0.1}
+        # Env-driven with the host it belongs to. Pinned at 8000 the allowlist
+        # contradicted the base URL it guards: a CHROMA_URL repointed to another
+        # port passed the corpus side, which reads CHROMA_PORT, and was refused
+        # here. The two sides address one Chroma.
+        ports:
+          - ${CHROMA_PORT:-8000}
     local_rag_requests:
       timeout: 10s
       read_timeout: 5s
@@ -65,20 +71,6 @@ rest:
       auth_ref: none
       limits_ref: local_rag_client
       operations:
-        heartbeat:
-          method: GET
-          path: /api/v2/heartbeat
-          params:
-            body_source: none
-          success: {status: [200], signal: ChromaReady}
-          side_effects:
-            - kind: external_api
-              target: chroma.heartbeat
-              state: read_only
-          reversibility:
-            classification: irreversible
-            undo: irreversible
-            requires_confirmation: true
         rag_resolve_collection:
           method: POST
           path: /api/v2/tenants/default_tenant/databases/default_database/collections

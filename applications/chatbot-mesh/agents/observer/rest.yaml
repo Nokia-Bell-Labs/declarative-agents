@@ -18,7 +18,8 @@ rest:
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
-        ports: [${OBSERVER_CONTROL_PORT:-18201}]
+        ports:
+          - ${OBSERVER_CONTROL_PORT:-18201}
         allow_public_listener: true
     monitor:
       timeout: 5s
@@ -29,7 +30,8 @@ rest:
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
-        ports: [${OBSERVER_MONITOR_PORT:-18202}]
+        ports:
+          - ${OBSERVER_MONITOR_PORT:-18202}
         allow_public_listener: true
     kube_client:
       timeout: ${OBSERVER_KUBE_TIMEOUT:-5s}

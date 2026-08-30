@@ -17,7 +17,8 @@ rest:
         schemes: [http]
         # The creator host is the egress allowlist entry; a values-driven deploy sets
         # CREATOR_HOST to the creator Service DNS name, defaulting to loopback locally.
-        hosts: [${CREATOR_HOST:-127.0.0.1}]
+        hosts:
+          - ${CREATOR_HOST:-127.0.0.1}
         ports: [18110]
     local_provisioning_workflow_orchestrator_intent:
       timeout: 130s
