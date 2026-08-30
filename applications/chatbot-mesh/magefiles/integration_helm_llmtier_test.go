@@ -92,7 +92,11 @@ func TestKindLLMModelsReachDeployedDeclarations(t *testing.T) {
 		`name: CHATBOT_FAST_MODEL`,
 		`name: CHATBOT_DEEP_MODEL`,
 		`name: CHATBOT_UI_ROOT`,
-		`value: "/profiles/agents/chatbot/ui/app/dist"`,
+		// The bundle moved to its own ConfigMap mounted beside the profiles
+		// projection (GH-131), so the pod's root is that mount. The profile
+		// default asserted below is unchanged, because a local run still
+		// resolves the bundle from the checkout.
+		`value: "/chatbot-ui"`,
 		`value: "qwen2.5:0.5b"`,
 		`model: "${CHATBOT_TIER_MODEL:-qwen2.5:3b}"`,
 		`model: "${CHATBOT_FAST_MODEL:-qwen2.5:3b}"`,

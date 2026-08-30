@@ -156,7 +156,10 @@ mount. GH-314 co-generates the chatbot rest.yaml into this subtree before packag
     {{- $cogen := splitList " " (include "chatbot-mesh.cogeneratedProfileKeys" .) }}
     {{- range $path, $_ := .Files.Glob "profiles/**" }}
       {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
-      {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) }}
+      {{- /* Served UI bundles are projected from their own ConfigMaps by the
+            agents that serve them, so they are not items of this shared
+            projection (GH-131). */}}
+      {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) (not (hasPrefix "agents__chatbot__ui__app__dist__" $key)) }}
       - key: {{ $key }}
         path: {{ $path | trimPrefix "profiles/" }}
       {{- end }}

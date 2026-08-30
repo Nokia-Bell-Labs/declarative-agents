@@ -169,6 +169,75 @@ func TestObserverUIUsesDedicatedConfigMapAtPreservedPath(t *testing.T) {
 	}
 }
 
+// TestChatbotUIUsesDedicatedConfigMapAtPreservedPath is the observer test's twin
+// for the chatbot bundle (GH-131), and it asserts the move end to end rather
+// than only its effect on the shared object's size.
+//
+// Removing the bundle from the shared ConfigMap shrinks that object whether or
+// not anything still serves the panel, so a size assertion alone passes on a
+// broken deployment. These checks pair the removal with the ConfigMap that now
+// carries the bytes, the mount that delivers them, the root that points at it,
+// and the items mapping that restores the real file layout. Each can be wrong
+// while every size check stays green and the panel 404s.
+func TestChatbotUIUsesDedicatedConfigMapAtPreservedPath(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chartDir := findChartDir(t)
+	staged, cleanup, err := stageSmokeChart(chartDir, filepath.Dir(chartDir))
+	if err != nil {
+		t.Fatalf("stage chart: %v", err)
+	}
+	defer cleanup()
+	out, err := exec.Command("helm", "template", "relx", staged, "--namespace", "nsy").CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template: %v\n%s", err, out)
+	}
+	var shared, chatbotUI, chatbotDeployment string
+	for _, doc := range strings.Split(string(out), "\n---") {
+		switch {
+		case strings.Contains(doc, "kind: Deployment") &&
+			strings.Contains(doc, "name: relx-chatbot-mesh-chatbot"):
+			chatbotDeployment = doc
+		case strings.Contains(doc, "name: relx-chatbot-mesh-profiles"):
+			shared = doc
+		case strings.Contains(doc, "name: relx-chatbot-mesh-chatbot-ui"):
+			chatbotUI = doc
+		}
+	}
+	if strings.Contains(shared, "agents__chatbot__ui__app__dist__") {
+		t.Error("shared profiles ConfigMap still carries the chatbot SPA bundle")
+	}
+	if !strings.Contains(chatbotUI, "agents__chatbot__ui__app__dist__index.html") {
+		t.Error("chatbot-only ConfigMap is missing the SPA index")
+	}
+	for _, contract := range []string{
+		"name: chatbot-ui",
+		"mountPath: \"/chatbot-ui\"",
+		"name: relx-chatbot-mesh-chatbot-ui",
+		"name: CHATBOT_UI_ROOT",
+		"value: \"/chatbot-ui\"",
+		// The items mapping restores the real layout from the flattened keys.
+		// Without it every file lands under its double-underscore key name and
+		// the panel 404s while the ConfigMap still looks correct.
+		"path: index.html",
+	} {
+		if !strings.Contains(chatbotDeployment, contract) {
+			t.Errorf("chatbot Deployment missing dedicated UI mount contract %q", contract)
+		}
+	}
+	// CHATBOT_UI_ROOT already pointed at this path before the bundle moved, so
+	// the move needs no new env entry -- and adding one renders a Deployment the
+	// API server rejects with "duplicate entries for key". A Contains check
+	// cannot see that, because the string it looks for is present either way.
+	// The first attempt at GH-131 declared the duplicate and every static check
+	// passed; the helm upgrade failed. Count instead.
+	if occurrences := strings.Count(chatbotDeployment, "name: CHATBOT_UI_ROOT"); occurrences != 1 {
+		t.Errorf("chatbot Deployment declares CHATBOT_UI_ROOT %d times, want exactly 1; "+
+			"a duplicate env key renders a Deployment the API server refuses to apply", occurrences)
+	}
+}
+
 // TestStagedProfilesFitTheConfigMapLimit proves the rendered shared profiles
 // ConfigMap stays inside Kubernetes' 1 MiB limit. UI bundles mounted only into
 // their serving actors use dedicated ConfigMaps and must not be charged to this
@@ -210,7 +279,15 @@ func TestStagedProfilesFitTheConfigMapLimit(t *testing.T) {
 	// capacity than the entire shipped UI bundle and failed while the rendered
 	// object still had roughly 50% headroom; three quarters remains a meaningful
 	// early warning without treating useful ConfigMap capacity as unavailable.
+	// The chatbot SPA bundle is no longer charged to this object: GH-1898 moved
+	// it into its own ConfigMap that only the chatbot mounts, the way the
+	// observer UI already was, so what remains is what every agent pod
+	// genuinely reads. The measurement is logged on every run rather than only
+	// on failure, so the composition is a recorded number rather than one
+	// reconstructed after a threshold moves.
 	const safetyThreshold = configMapLimit * 3 / 4
+	t.Logf("rendered profiles ConfigMap: %d bytes, %.1f%% of the %d-byte limit (threshold %d)",
+		total, float64(total)*100/float64(configMapLimit), configMapLimit, safetyThreshold)
 	if total > safetyThreshold {
 		t.Errorf("rendered profiles ConfigMap is %d bytes, over the %d-byte safety threshold for a %d-byte ConfigMap",
 			total, safetyThreshold, configMapLimit)
