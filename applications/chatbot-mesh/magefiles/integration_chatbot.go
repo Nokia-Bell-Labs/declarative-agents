@@ -478,6 +478,19 @@ func assertChatbotMonitorReachable() error {
 // that the dispatch carries the word's configured model. The answer phase starts
 // after the alias-preserving parse_tier span, so earlier model spans from
 // select_sources and select_tier cannot count.
+//
+// It also proves the dispatch happened at all. One declared answer word with a
+// configured model is true of the ParseFailed fallback as well, because the
+// fallback word is itself a declared answer word -- so that check passed
+// throughout the period the $tool selector never dispatched anything (GH-84).
+// The discriminator is parse_tier's own outcome: agent-core stamps
+// command.signal on every dispatch span, so a turn whose selection resolved
+// carries ToolDone and a turn that fell back carries ParseFailed.
+// chatbotTierDispatchedSignal is what parse_tier emits when the tier selection
+// resolved to a registered, in-manifest word. Any other signal means the turn
+// took the fallback.
+const chatbotTierDispatchedSignal = "ToolDone"
+
 func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) error {
 	spans, err := readChromaSpans(tracePath)
 	if err != nil {
@@ -512,6 +525,7 @@ func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) err
 		parseTierSeen := false
 		parseTierCount := 0
 		composeResponseCount := 0
+		parseTierSignal := ""
 		for _, s := range spans {
 			if !chatbotSpanNestedUnder(s, turn.SpanContext.SpanID, parentByID) {
 				continue
@@ -520,6 +534,7 @@ func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) err
 			case "parse_tier":
 				parseTierCount++
 				parseTierSeen = true
+				parseTierSignal, _ = s.stringAttr("command.signal")
 			case "compose_response":
 				composeResponseCount++
 				parseTierSeen = false
@@ -532,6 +547,13 @@ func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) err
 		if parseTierCount != 1 || composeResponseCount != 1 {
 			return fmt.Errorf("chatbot turn %s has parse_tier/compose_response span counts %d/%d, want 1/1",
 				turn.SpanContext.SpanID, parseTierCount, composeResponseCount)
+		}
+		if parseTierSignal != chatbotTierDispatchedSignal {
+			return fmt.Errorf(
+				"chatbot turn %s answered on the fallback: parse_tier emitted %q rather than %q,"+
+					" so the tier selection never dispatched and the turn was answered by the"+
+					" default chat word instead of the selected one",
+				turn.SpanContext.SpanID, parseTierSignal, chatbotTierDispatchedSignal)
 		}
 		if len(answerSpans) != 1 {
 			return fmt.Errorf("chatbot turn %s has %d answer-word dispatch spans after parse_tier, want exactly one",

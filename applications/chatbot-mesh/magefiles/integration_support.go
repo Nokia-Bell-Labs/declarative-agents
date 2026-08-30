@@ -5,6 +5,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -19,6 +21,50 @@ import (
 	"github.com/magefile/mage/mg"
 	"gopkg.in/yaml.v3"
 )
+
+// decodeSpanStream reads an OTel span log into values of T.
+//
+// It decodes the file as a stream of JSON values rather than splitting it into
+// lines: json.Decoder consumes one value at a time whatever whitespace lies
+// between them, so it reads the exporter's output whether spans are written one
+// per line or indented across several. A line-splitting reader that skips the
+// lines it cannot parse turns an indented log into an empty slice and reports
+// no error, and an empty span list is indistinguishable from a turn that never
+// ran the word being asserted (GH-85).
+//
+// Zero spans is an error rather than an empty slice for that same reason. An
+// assertion of the form "the trace must contain X" fails correctly on an empty
+// slice, but one scanning for a violation finds none and passes, and the
+// difference is invisible at the call site.
+//
+// A malformed value ends the read with an error rather than truncating
+// silently. These traces are read after the agent exits, so a value that does
+// not decode means a corrupt log, not one still being written.
+func decodeSpanStream[T any](tracePath string) ([]T, error) {
+	file, err := os.Open(tracePath)
+	if err != nil {
+		return nil, fmt.Errorf("read trace %s: %w", tracePath, err)
+	}
+	defer func() { _ = file.Close() }()
+	var spans []T
+	decoder := json.NewDecoder(file)
+	for {
+		var span T
+		if decodeErr := decoder.Decode(&span); decodeErr != nil {
+			if errors.Is(decodeErr, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("decode trace %s after %d span(s): %w",
+				tracePath, len(spans), decodeErr)
+		}
+		spans = append(spans, span)
+	}
+	if len(spans) == 0 {
+		return nil, fmt.Errorf(
+			"trace %s decoded no spans; every assertion over it would read as absent", tracePath)
+	}
+	return spans, nil
+}
 
 // integrationHTTPRequestTimeout bounds a probe: "is this service up?", a
 // question a reachable service answers immediately and an unreachable one must
