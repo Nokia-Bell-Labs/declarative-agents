@@ -13,6 +13,10 @@ function AgentSubPanel({ agent }: { agent: MonitoredAgent }) {
   const { turns, selectedId } = useTurns();
   const selectedTurn = turns.find((t) => t.id === selectedId);
 
+  // The agent list is a superset of the deployment; an agent the release does
+  // not deploy answers 404 through the proxy and gets no panel at all.
+  if (monitor.status === "absent") return null;
+
   return (
     <div className="agent-panel">
       <div className="agent-head">

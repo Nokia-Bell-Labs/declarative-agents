@@ -48,7 +48,9 @@ actions:
 # its monitor state and SSE stream through the chatbot's same-origin monitor_proxy
 # (/monitor-proxy/<name>/...). This list is the monitored-agents surface srd003
 # co-generates; keep it in sync with the rest.yaml monitor_proxy upstreams and the
-# SPA agent list in app/src/monitorApi.ts.
+# SPA agent list in app/src/monitorApi.ts. The list is a superset of any one
+# deployment: the proxy answers 404 for an agent the release declares no
+# upstream for, and the SPA reads that as "not deployed" and renders no panel.
 monitored_agents:
   - name: chatbot
     label: Chatbot
