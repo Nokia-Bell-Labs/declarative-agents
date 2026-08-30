@@ -1,12 +1,19 @@
 import { useRef, useState } from "react";
-import { sendChat, type Answer, type Turn } from "./api";
+import {
+  sendChat,
+  type Answer,
+  type Attribution,
+  type AttributionReason,
+  type ComposedSource,
+  type Turn,
+} from "./api";
 import { useTurns } from "./turns";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
-  sources?: string[];
-  grounded?: boolean;
+  attribution?: Attribution;
+  citations?: string[];
   error?: boolean;
 }
 
@@ -16,14 +23,75 @@ function historyFor(messages: Message[]): Turn[] {
     .map((m) => ({ role: m.role, content: m.content }));
 }
 
-function Sources({ sources }: { sources: string[] }) {
+// Composed sources are what the server retrieved and fed to the answer prompt,
+// reported per source with the number of chunks it contributed. A source that
+// composed zero documents is shown too: it took part in the turn and
+// contributed nothing, which is worth seeing rather than hiding.
+function ComposedSources({ sources }: { sources: ComposedSource[] }) {
   return (
     <div className="sources">
-      {sources.map((s) => (
-        <span className="source-chip" key={s} title="Retrieved record id">
-          {s}
+      {sources.map((source) => (
+        <span
+          className="source-chip"
+          key={source.name}
+          title="RAG source that took part in composing this answer"
+        >
+          {source.name} · {source.documents} {source.documents === 1 ? "document" : "documents"}
         </span>
       ))}
+    </div>
+  );
+}
+
+// Inline citations are what the model wrote in its answer text. They are not
+// evidence of retrieval -- small chat models omit them from answers that did
+// compose from retrieved chunks -- so they render as their own row, distinct
+// from the composed sources above.
+function Citations({ citations }: { citations: string[] }) {
+  return (
+    <div className="citations">
+      {citations.map((citation) => (
+        <span
+          className="citation-chip"
+          key={citation}
+          title="Citation the model wrote inline in its answer"
+        >
+          {citation}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function describeReason(reason: AttributionReason): string {
+  const named = "sources" in reason ? reason.sources.join(", ") : "";
+  switch (reason.kind) {
+    case "none-composed":
+      return "no source took part in composing this answer";
+    case "no-documents":
+      return `${named} composed but retrieved no documents, which is what an unseeded corpus looks like`;
+    case "query-failed":
+      return `query failed: ${named}`;
+    case "embedding-model-excluded":
+      return `excluded for an embedding-model mismatch: ${named}`;
+    case "not-selected":
+      return `not selected by the source router: ${named}`;
+  }
+}
+
+// An unattributed turn says which source outcome explains it. Collapsing every
+// cause into one sentence is what made the panel disagree with the mesh.
+function Unattributed({ reasons }: { reasons: AttributionReason[] }) {
+  return (
+    <div className="unattributed">
+      <span className="degraded" title="No retrieved document reached this answer">
+        unattributed answer
+      </span>
+      <ul className="reason-list">
+        {reasons.map((reason) => (
+          <li key={reason.kind}>{describeReason(reason)}</li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -40,13 +108,12 @@ function MessageBubble({ msg }: { msg: Message }) {
         <div className="bubble-text">{msg.content}</div>
         {msg.role === "assistant" && !msg.error && (
           <div className="bubble-meta">
-            {msg.sources && msg.sources.length > 0 ? (
-              <Sources sources={msg.sources} />
+            {msg.attribution?.attributed ? (
+              <ComposedSources sources={msg.attribution.composed} />
             ) : (
-              <span className="degraded" title="No corpus chunks were cited in this answer">
-                no sources — ungrounded answer
-              </span>
+              <Unattributed reasons={msg.attribution?.reasons ?? [{ kind: "none-composed" }]} />
             )}
+            {msg.citations && msg.citations.length > 0 && <Citations citations={msg.citations} />}
           </div>
         )}
       </div>
@@ -87,7 +154,12 @@ export default function ChatPanel() {
       traceId = answer.traceId;
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: answer.text, sources: answer.sources, grounded: answer.grounded },
+        {
+          role: "assistant",
+          content: answer.text,
+          attribution: answer.attribution,
+          citations: answer.citations,
+        },
       ]);
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
@@ -114,8 +186,8 @@ export default function ChatPanel() {
       <div className="chat-list" ref={listRef}>
         {messages.length === 0 ? (
           <div className="empty">
-            Ask a question. The agent embeds it, queries the RAG server, and answers grounded in the
-            retrieved corpus chunks, citing the record ids.
+            Ask a question. The agent embeds it, queries the RAG server, and composes the answer
+            from the retrieved corpus chunks. Each answer reports the sources it composed from.
           </div>
         ) : (
           messages.map((m, i) => <MessageBubble msg={m} key={i} />)
