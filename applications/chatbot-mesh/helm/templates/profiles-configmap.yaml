@@ -19,11 +19,16 @@ data:
           release so an applier installed under any release name targets its own
           release, namespace, and chatbot Deployment rather than a baked
           chatbot-mesh/default (GH-484). The deployment token is replaced before
-          the bare release token because it contains it. */}}
+          the bare release token because it contains it. Each helm subcommand
+          carrying the release is listed separately, so an exec word added with
+          a subcommand absent here keeps the placeholder and reads another
+          release; TestApplierExecArgsCarryNoBakedReleaseCoordinate scans every
+          rendered argv for that (GH-217). */}}
     {{- $exec := $.Files.Get $path }}
     {{- $exec = $exec | replace "deployment/chatbot-mesh-chatbot" (printf "deployment/%s-chatbot" $fullname) }}
     {{- $exec = $exec | replace "upgrade, chatbot-mesh," (printf "upgrade, %s," $.Release.Name) }}
     {{- $exec = $exec | replace "rollback, chatbot-mesh]" (printf "rollback, %s]" $.Release.Name) }}
+    {{- $exec = $exec | replace "get, values, chatbot-mesh," (printf "get, values, %s," $.Release.Name) }}
     {{- $exec = $exec | replace "--namespace, default," (printf "--namespace, %s," $.Release.Namespace) }}
     {{- $exec | nindent 4 }}
   {{- else }}
