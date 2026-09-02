@@ -29,6 +29,29 @@ func TestExecEnvOverlaysResolvedParamsOntoInheritedEnvironment(t *testing.T) {
 	require.Equal(t, "from-parent|wiki", res.Output)
 }
 
+func TestExecEnvOnlyParamDoesNotReachArgv(t *testing.T) {
+	cmd := &ExecCmd{
+		def: catalog.ToolDef{
+			Name:   "run_corpus_ingest",
+			Binary: "sh",
+			Args:   []string{"-c", `printf '%s|%s' "$#" "$GH1884_CHILD"`},
+			Env:    []string{"GH1884_CHILD={{ params.collection }}"},
+			Parameters: map[string]interface{}{
+				"properties": map[string]interface{}{
+					"collection": map[string]interface{}{"type": "string"},
+				},
+			},
+		},
+		params: map[string]string{"collection": "wiki"},
+	}
+
+	require.Equal(t, cmd.def.Args, cmd.buildArgs())
+	res := cmd.Execute()
+
+	require.Equal(t, core.ToolDone, res.Signal, res.Output)
+	require.Equal(t, "0|wiki", res.Output)
+}
+
 func TestExecEnvDeclaredKeyOverlaysParent(t *testing.T) {
 	t.Setenv("GH1884_PARENT", "from-parent")
 	t.Setenv("GH1884_CHILD", "parent-child")

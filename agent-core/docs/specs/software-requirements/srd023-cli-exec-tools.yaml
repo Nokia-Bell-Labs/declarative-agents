@@ -59,6 +59,7 @@ requirements:
       - R2.8: A parameter property MAY declare source as one canonical $from(<label>).<dotted-path> selector (srd038 R2). When source is absent, ExecBuilder SHALL continue to read parameters.<name> from the immediately previous Result.
       - R2.9: The source extension SHALL be stripped from the ToolSpec schema sent to LLMs with the other CLI mapping extensions.
       - R2.10: Integer parameters mapped to argv SHALL retain their decimal representation so exec declarations such as list_files can enforce numeric CLI limits without changing the public JSON Schema type.
+      - R2.11: A resolved parameter that declares no flag, positional, or bool_flag extension SHALL contribute no argv entry. Its value SHALL remain available to non-argv consumers such as env expansion.
 
   R3:
     title: Subprocess execution
@@ -150,7 +151,7 @@ acceptance_criteria:
 
   - id: AC2
     criterion: Parameter mapping converts JSON string and integer tool parameters into deterministic argv using flag, positional, bool_flag, default, position, and optional command-state source extensions while stripping those extensions from the LLM-visible schema. Omitting source preserves immediately previous Result mapping.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10]
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11]
 
   - id: AC3
     criterion: Exec tools run subprocesses in the correct directory, capture output/exit/duration, honor output caps and cancellation, map outcomes to ToolDone, ToolFailed, or CommandError, and can declare those signals in emits. A command-state source resolves after view injection and a broken source prevents subprocess launch with CommandError.

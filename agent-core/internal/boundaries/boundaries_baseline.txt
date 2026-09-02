@@ -42,7 +42,7 @@ pkg:internal/tools/catalog files=13 loc=2776
 pkg:internal/tools/compose files=6 loc=997
 pkg:internal/tools/control files=7 loc=1291
 pkg:internal/tools/dolt files=6 loc=1357
-pkg:internal/tools/exec files=7 loc=662
+pkg:internal/tools/exec files=7 loc=664
 pkg:internal/tools/filesystem files=10 loc=1396
 pkg:internal/tools/lifecycle files=7 loc=1781
 pkg:internal/tools/llm files=14 loc=1774

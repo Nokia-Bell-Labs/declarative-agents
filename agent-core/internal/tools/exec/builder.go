@@ -240,6 +240,8 @@ func (c *ExecCmd) buildArgs() []string {
 
 func appendMappedArg(args []string, pm catalog.ParamMapping, val string) []string {
 	switch {
+	case pm.Flag == "" && !pm.Positional && !pm.BoolFlag:
+		return args
 	case pm.BoolFlag:
 		return append(args, pm.Flag)
 	case pm.Positional:
