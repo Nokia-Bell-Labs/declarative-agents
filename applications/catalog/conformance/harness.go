@@ -5,8 +5,8 @@ package conformance
 
 import (
 	"bytes"
-	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -247,10 +247,7 @@ func Run(t *testing.T, cfg RunConfig) RunResult {
 	if timeout <= 0 {
 		timeout = defaultRunTimeout
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd := exec.Command(binary, args...)
 	cmd.Dir = cfg.WorkDir
 	if cmd.Dir == "" {
 		cmd.Dir = ProfilesRoot()
@@ -259,11 +256,16 @@ func Run(t *testing.T, cfg RunConfig) RunResult {
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
-	runErr := cmd.Run()
-
-	if ctx.Err() == context.DeadlineExceeded {
-		t.Fatalf("agent run timed out after %s\nargs: %v\noutput:\n%s", timeout, args, out.String())
+	process, err := startManagedProcess(cmd)
+	if err != nil {
+		t.Fatalf("agent run failed to start: %v\nargs: %v\noutput:\n%s", err, args, out.String())
 	}
+	if !process.waitFor(timeout) {
+		outcome := process.terminate(defaultProcessGrace)
+		t.Fatalf("agent run timed out after %s (%s)\nargs: %v\n%s\noutput:\n%s",
+			timeout, outcome, args, timeoutTraceEvidence(logFile), out.String())
+	}
+	runErr := process.err()
 
 	exitCode := 0
 	if runErr != nil {
@@ -271,7 +273,7 @@ func Run(t *testing.T, cfg RunConfig) RunResult {
 		if errors.As(runErr, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		} else {
-			t.Fatalf("agent run failed to start: %v\nargs: %v\noutput:\n%s", runErr, args, out.String())
+			t.Fatalf("agent run failed: %v\nargs: %v\noutput:\n%s", runErr, args, out.String())
 		}
 	}
 
@@ -281,4 +283,28 @@ func Run(t *testing.T, cfg RunConfig) RunResult {
 	}
 
 	return RunResult{Spans: spans, ExitCode: exitCode, Output: out.String(), LogFile: logFile}
+}
+
+func timeoutTraceEvidence(path string) string {
+	spans, err := ParseSpansFile(path)
+	if err != nil {
+		return fmt.Sprintf("trace evidence unavailable: %v", err)
+	}
+	stage := RootSpanName
+	for _, span := range spans {
+		for _, event := range span.Events {
+			if event.Name == "init.registry_frozen" && stage == RootSpanName {
+				stage = event.Name
+			}
+		}
+		if strings.HasPrefix(span.Name, "execute_tool ") {
+			stage = span.Name
+		}
+	}
+	names := spans.Names()
+	const maxNames = 12
+	if len(names) > maxNames {
+		names = names[len(names)-maxNames:]
+	}
+	return fmt.Sprintf("trace evidence: last_stage=%s span_count=%d names=%v", stage, len(spans), names)
 }
