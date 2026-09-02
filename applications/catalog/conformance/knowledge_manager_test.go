@@ -378,18 +378,19 @@ func TestCorpusIngestNormalizesProviderEmbeddings(t *testing.T) {
 		cohere, wantAdded       bool
 		wantExit                int
 		wantTerminal            string
+		wantChatCalls           int32
 	}{
 		{
 			name: "Ollama flat vector", embeddingResponse: `{"embedding":[0.25,0.75]}`,
-			wantAdded: true, wantExit: 0, wantTerminal: "Succeeded",
+			wantAdded: true, wantExit: 0, wantTerminal: "Succeeded", wantChatCalls: 2,
 		},
 		{
 			name: "Cohere single row", embeddingResponse: `{"embeddings":{"float":[[0.25,0.75]]}}`,
-			cohere: true, wantAdded: true, wantExit: 0, wantTerminal: "Succeeded",
+			cohere: true, wantAdded: true, wantExit: 0, wantTerminal: "Succeeded", wantChatCalls: 2,
 		},
 		{
 			name: "multiple rows fail before add", embeddingResponse: `{"embeddings":{"float":[[0.25],[0.75]]}}`,
-			cohere: true, wantExit: 2, wantTerminal: "Failed",
+			cohere: true, wantExit: 2, wantTerminal: "Failed", wantChatCalls: 1,
 		},
 	} {
 		tc := tc
@@ -450,7 +451,7 @@ func TestCorpusIngestNormalizesProviderEmbeddings(t *testing.T) {
 				t.Fatal(err)
 			}
 			profile := corpusIngestProviderProfile(t, fixture.URL, tc.cohere)
-			env := []string{"CORPUS_CHAT_MODEL=ornith:9b"}
+			env := []string{"CORPUS_CHAT_MODEL=ornith:9b", "OLLAMA_URL=" + fixture.URL}
 			if tc.cohere {
 				env = append(env,
 					"CORPUS_INGEST_EMBEDDING_REST_REF=cohere",
@@ -461,6 +462,9 @@ func TestCorpusIngestNormalizesProviderEmbeddings(t *testing.T) {
 				Profile: profile, Directory: workspace, Env: env, Timeout: 30 * time.Second,
 			})
 
+			if got := chatCalls.Load(); got != tc.wantChatCalls {
+				t.Fatalf("fixture /api/chat calls = %d, want %d", got, tc.wantChatCalls)
+			}
 			result.RequireExit(t, tc.wantExit)
 			result.RootRequired(t)
 			result.RequireTerminalState(t, tc.wantTerminal)

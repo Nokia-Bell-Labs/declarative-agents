@@ -62,6 +62,8 @@ test_cases:
       chroma_add_wraps_exactly_once: true
       document_and_id_preserved: true
       invalid_row_fails_before_chroma_add: true
+      chat_inference_uses_protocol_fixture: true
+      live_ollama_required: false
     traces:
       - rel08.0-uc001-corpus-ingest S1
       - rel08.0-uc001-corpus-ingest S4
