@@ -241,26 +241,12 @@ type exclusionResponse struct {
 	Metadata struct {
 		QueryEmbeddingModel string `json:"query_embedding_model"`
 		Sources             struct {
-			NotSelected            []string              `json:"not_selected"`
-			Composed               []joinedSourceOutcome `json:"composed"`
-			EmbeddingModelExcluded []joinedSourceOutcome `json:"embedding_model_excluded"`
-			QueryFailed            []joinedSourceOutcome `json:"query_failed"`
+			NotSelected            []string               `json:"not_selected"`
+			Composed               []chatbotSourceOutcome `json:"composed"`
+			EmbeddingModelExcluded []chatbotSourceOutcome `json:"embedding_model_excluded"`
+			QueryFailed            []chatbotSourceOutcome `json:"query_failed"`
 		} `json:"sources"`
 	} `json:"metadata"`
-}
-
-type joinedSourceOutcome struct {
-	Input struct {
-		Name string `json:"name"`
-	} `json:"input"`
-	Result struct {
-		Signal           string `json:"signal"`
-		StructuredOutput struct {
-			Mapped struct {
-				EmbeddingModel string `json:"embedding_model"`
-			} `json:"mapped"`
-		} `json:"structured_output"`
-	} `json:"result"`
 }
 
 // postExclusionChatTurn posts one turn to the port-shifted chatbot. It does not
@@ -302,16 +288,13 @@ func assertExclusionMetadata(resp exclusionResponse) error {
 		return fmt.Errorf("embedding_model_excluded has %d entries, want 1", len(sources.EmbeddingModelExcluded))
 	}
 	rag0 := sources.EmbeddingModelExcluded[0]
-	if rag0.Input.Name != "rag0" {
-		return fmt.Errorf("embedding-model exclusion names %q, want rag0", rag0.Input.Name)
+	if rag0.Name != "rag0" {
+		return fmt.Errorf("embedding-model exclusion names %q, want rag0", rag0.Name)
 	}
-	if rag0.Result.Signal != "QueryResponded" {
-		return fmt.Errorf("rag0 exclusion signal = %q, want QueryResponded; vector rejection and query failure remain in query_failed", rag0.Result.Signal)
+	if rag0.EmbeddingModel != exclusionForeignModel {
+		return fmt.Errorf("rag0 reported embedding model = %q, want %q", rag0.EmbeddingModel, exclusionForeignModel)
 	}
-	if rag0.Result.StructuredOutput.Mapped.EmbeddingModel != exclusionForeignModel {
-		return fmt.Errorf("rag0 reported embedding model = %q, want %q", rag0.Result.StructuredOutput.Mapped.EmbeddingModel, exclusionForeignModel)
-	}
-	if len(sources.Composed) != 1 || sources.Composed[0].Input.Name != "rag1" {
+	if len(sources.Composed) != 1 || sources.Composed[0].Name != "rag1" {
 		return fmt.Errorf("composed sources = %+v, want only rag1", sources.Composed)
 	}
 	if len(sources.QueryFailed) != 0 {
