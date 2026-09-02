@@ -337,7 +337,7 @@ tools:
     config:
       signal: ResponseComposed
       inputs:
-        answer: $.
+        answer: $from(answer).$
         query_model: $from(declare_query_model).model
         succeeded: $from(partition_query_results).matched_count
         failed: $from(partition_query_results).unmatched_count
