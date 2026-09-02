@@ -9,10 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -203,6 +205,8 @@ func run(cmd *cobra.Command, args []string) error {
 }
 
 func runPrepared(prepared preparedRun) (err error) {
+	stopSignals := bindRuntimeSignals(&prepared)
+	defer stopSignals()
 	defer func() {
 		err = errors.Join(err, prepared.Close())
 	}()
@@ -225,6 +229,22 @@ func runPrepared(prepared preparedRun) (err error) {
 	runExitCode = exitCodeForStatus(result.Status)
 	prepared.Shutdown.Apply()
 	return nil
+}
+
+// bindRuntimeSignals begins cooperative process termination only after startup
+// has produced a fully closeable run. Earlier SIGINT/SIGTERM keep their OS
+// behavior instead of being swallowed by a blocked pre-run setup step.
+func bindRuntimeSignals(prepared *preparedRun) context.CancelFunc {
+	parent := prepared.Ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+	prepared.Ctx = ctx
+	if prepared.State != nil {
+		prepared.State.ctx = ctx
+	}
+	return stop
 }
 
 type boundSignalSourceRunner struct {
