@@ -180,6 +180,7 @@ test_cases:
     expected:
       child_inherits_parent_environment: true
       declared_keys_overlay: true
+      env_only_parameter_argv_entries: 0
       invalid_input_launches: 0
       env_in_telemetry_or_receipt: false
     traces:
