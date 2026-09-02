@@ -133,21 +133,21 @@ transitions:
   - {state: SelectingTier, signal: Composed, next: ParsingTier, action: select_tier}
   - {state: SelectingTier, signal: CommandError, next: Failed}
   - {state: ParsingTier, signal: LLMResponded, next: Answering, action: parse_tier}
-  - {state: ParsingTier, signal: CommandError, next: Reporting, action: invoke_llm_fast}
+  - {state: ParsingTier, signal: CommandError, next: Reporting, action: invoke_llm_fast, label: answer}
   # The dispatch is a self-loop: agent-core scopes a $tool manifest to the
   # transition's target state and parse_tier validates the selection against
   # manifest_state Answering, so the two must name the same state. Targeting
   # Reporting scoped the vocabulary where the selection is never checked, every
   # selection resolved as unavailable, and each turn silently answered on the
   # fallback (GH-1900).
-  - {state: Answering, signal: ToolDone, next: Answering, action: $tool}
+  - {state: Answering, signal: ToolDone, next: Answering, action: $tool, label: answer}
   - {state: Answering, signal: LLMResponded, next: RenderingComposedSources, action: render_composed_sources}
   # A selected deep word may fail at its provider boundary. Retry through the
   # fast word once in Reporting; its CommandError route below then fails the
   # turn instead of creating an Answering retry loop.
-  - {state: Answering, signal: CommandError, next: Reporting, action: invoke_llm_fast}
-  - {state: Answering, signal: ParseFailed, next: Reporting, action: invoke_llm_fast}
-  - {state: Answering, signal: TaskCompleted, next: Reporting, action: invoke_llm_fast}
+  - {state: Answering, signal: CommandError, next: Reporting, action: invoke_llm_fast, label: answer}
+  - {state: Answering, signal: ParseFailed, next: Reporting, action: invoke_llm_fast, label: answer}
+  - {state: Answering, signal: TaskCompleted, next: Reporting, action: invoke_llm_fast, label: answer}
   # Each source list is projected to its reportable fields before the response
   # is composed. The join entries carry the topology the fan-out iterated, and
   # composing them put every RAG unit's in-cluster address in the browser's

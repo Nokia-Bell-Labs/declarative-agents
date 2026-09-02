@@ -29,7 +29,7 @@ test_cases:
     # TestChatbotComposeReadsEachRagSource, which lives in applications/catalog and not
     # in this module; the surviving TestChatbotFanOut branch matched an unrelated
     # co-generation test, so the missing proof went unreported (GH-592).
-    go_test: go test ./magefiles -run '^(TestChatbotFanOutCoGeneratedForNRags|TestTierDispatch.*|TestAssertChatbotTierSelectionTrace.*)$'
+    go_test: go test ./magefiles -run '^(TestChatbotFanOutCoGeneratedForNRags|TestTierDispatch.*|TestResponseCompositionReadsLabelledAnswer|TestAssertChatbotTierSelectionTrace.*)$'
     status: implemented
     description: |
       Integration.Chatbot starts one Chroma container with two disjoint collections
@@ -65,6 +65,7 @@ test_cases:
       each_live_turn_dispatches_one_declared_answer_word: true
       each_live_turn_parse_tier_signal: ToolDone
       answer_word_command_error_route: fast_fallback_then_failed
+      answer_survives_source_projection: true
       fallback_answered_turn_fails_the_target: true
       live_prompt_pair_selects_both_tiers: model-dependent
       deterministic_fixtures_dispatch_both_answer_words: true

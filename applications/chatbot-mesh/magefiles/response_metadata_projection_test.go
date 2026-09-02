@@ -75,6 +75,38 @@ func TestReportedSourcesAreProjectedNotWholeJoinEntries(t *testing.T) {
 	}
 }
 
+// TestResponseCompositionReadsLabelledAnswer proves the model result survives
+// the three source renderers that execute before compose_response.
+func TestResponseCompositionReadsLabelledAnswer(t *testing.T) {
+	declarations := readAgentFile(t, "chatbot", "request-fanout-declarations.yaml")
+	if strings.Contains(declarations, "answer: $.") {
+		t.Error("compose_response reads the adjacent source renderer instead of the model answer")
+	}
+	if !strings.Contains(declarations, "answer: $from(answer).$") {
+		t.Error("compose_response does not read the labelled model answer")
+	}
+
+	var machine chatbotMachine
+	readChatbotYAML(t, chatbotAgentPath(t, chatbotRequestMachine), &machine)
+	producers := 0
+	for _, transition := range machine.Transitions {
+		isDynamicAnswer := transition.Action == chatbotDispatchAction
+		isFallbackAnswer := transition.Action == "invoke_llm_fast" &&
+			(transition.State == "ParsingTier" || transition.State == "Answering")
+		if !isDynamicAnswer && !isFallbackAnswer {
+			continue
+		}
+		producers++
+		if transition.Label != "answer" {
+			t.Errorf("answer-producing transition (%s,%s,%s) has label %q, want answer",
+				transition.State, transition.Signal, transition.Action, transition.Label)
+		}
+	}
+	if producers != 5 {
+		t.Errorf("answer-producing transitions = %d, want dynamic dispatch plus four fallbacks", producers)
+	}
+}
+
 // wordItemTemplate returns the item_template line of one render_each word.
 func wordItemTemplate(t *testing.T, body, word string) string {
 	t.Helper()
