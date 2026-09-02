@@ -17,7 +17,7 @@ traces:
 preconditions:
   - agent-core is available as core_root in demo.yaml or a sibling ../agent-core checkout.
   - A Chroma server and an Ollama are reachable with the configured embedding, tier-selector, and two chat-LLM models.
-  - This application owns the chatbot profile, separate source-router and tier-selector prompts, and fan-out declarations, under applications/chatbot-mesh/agents/.
+  - This application owns the chatbot profile, inline source-router and tier-selector prompts, and fan-out declarations, under applications/chatbot-mesh/agents/.
 
 test_cases:
   - use_case: rel01.0-uc001-routed-fanout
@@ -29,7 +29,7 @@ test_cases:
     # TestChatbotComposeReadsEachRagSource, which lives in applications/catalog and not
     # in this module; the surviving TestChatbotFanOut branch matched an unrelated
     # co-generation test, so the missing proof went unreported (GH-592).
-    go_test: go test ./magefiles -run '^(TestChatbotFanOutCoGeneratedForNRags|TestAssertChatbotTierSelectionTrace.*)$'
+    go_test: go test ./magefiles -run '^(TestChatbotFanOutCoGeneratedForNRags|TestTierDispatch.*|TestAssertChatbotTierSelectionTrace.*)$'
     status: implemented
     description: |
       Integration.Chatbot starts one Chroma container with two disjoint collections
@@ -64,6 +64,7 @@ test_cases:
     expected:
       each_live_turn_dispatches_one_declared_answer_word: true
       each_live_turn_parse_tier_signal: ToolDone
+      answer_word_command_error_route: fast_fallback_then_failed
       fallback_answered_turn_fails_the_target: true
       live_prompt_pair_selects_both_tiers: model-dependent
       deterministic_fixtures_dispatch_both_answer_words: true
@@ -87,7 +88,7 @@ test_cases:
 
   - use_case: rel01.0-uc001-routed-fanout
     name: Source-selection trust boundary and full-set fallback matrix
-    go_test: cd ../catalog && go test ./magefiles -run '^TestChatbot(SourceSelectionUsesTrustedTopologyAndFallback|SourceRouterPromptMatchesDeclaration)$'
+    go_test: cd ../catalog && go test ./magefiles -run '^TestChatbot(SourceSelectionUsesTrustedTopologyAndFallback|SourceRouterPromptIsInlineAndNamesOnly)$'
     status: implemented
     description: |
       Profile wiring proves generic compose captures and JSON-escapes the adjacent
@@ -114,7 +115,7 @@ test_cases:
       empty_queries_all_declared: true
       only_undeclared_queries_all_declared: true
       not_selected_distinct_from_queried_outcomes: true
-      prompt_matches_declaration: true
+      prompt_is_inline_and_names_only: true
     traces:
       - rel01.0-uc001-routed-fanout S1
       - rel01.0-uc001-routed-fanout S2

@@ -142,6 +142,10 @@ transitions:
   # fallback (GH-1900).
   - {state: Answering, signal: ToolDone, next: Answering, action: $tool}
   - {state: Answering, signal: LLMResponded, next: RenderingComposedSources, action: render_composed_sources}
+  # A selected deep word may fail at its provider boundary. Retry through the
+  # fast word once in Reporting; its CommandError route below then fails the
+  # turn instead of creating an Answering retry loop.
+  - {state: Answering, signal: CommandError, next: Reporting, action: invoke_llm_fast}
   - {state: Answering, signal: ParseFailed, next: Reporting, action: invoke_llm_fast}
   - {state: Answering, signal: TaskCompleted, next: Reporting, action: invoke_llm_fast}
   # Each source list is projected to its reportable fields before the response
