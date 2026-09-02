@@ -87,6 +87,7 @@ test_cases:
       inventory_failure_reported: true
       implicit_module_download: false
       execution_step: go_test_run
+      conformance_tmpdir: private_staged_directory
       reduction_step: reduce_test_evidence_run
       report_step: format_report
       special_cli_mode: false

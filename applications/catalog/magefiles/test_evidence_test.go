@@ -222,6 +222,7 @@ func TestSpecificationCriticAuditProfileDeclaresEvidencePipeline(t *testing.T) {
 		"inventory_failure_reduction: resolve_test_evidence",
 		"inventory_failure_reported: true",
 		"implicit_module_download: false",
+		"conformance_tmpdir: private_staged_directory",
 	} {
 		if !strings.Contains(string(suite), want) {
 			t.Errorf("formal evidence suite missing %q", want)
