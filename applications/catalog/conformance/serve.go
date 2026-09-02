@@ -5,7 +5,6 @@ package conformance
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -76,12 +75,9 @@ type ServeConfig struct {
 // Server is a running serving profile plus its trace destination.
 type Server struct {
 	t       *testing.T
-	cmd     *exec.Cmd
-	cancel  context.CancelFunc
+	process *managedProcess
 	out     *bytes.Buffer
 	logFile string
-	done    chan struct{}
-	exitErr error
 }
 
 // Serve builds the agent binary and launches a serving profile asynchronously
@@ -103,8 +99,7 @@ func Serve(t *testing.T, cfg ServeConfig) *Server {
 	}
 	args = append(args, cfg.Args...)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd := exec.Command(binary, args...)
 	cmd.Dir = cfg.WorkDir
 	if cmd.Dir == "" {
 		cmd.Dir = ProfilesRoot()
@@ -114,15 +109,11 @@ func Serve(t *testing.T, cfg ServeConfig) *Server {
 	cmd.Stdout = out
 	cmd.Stderr = out
 
-	if err := cmd.Start(); err != nil {
-		cancel()
+	process, err := startManagedProcess(cmd)
+	if err != nil {
 		t.Fatalf("start serving profile: %v\nargs: %v", err, args)
 	}
-	s := &Server{t: t, cmd: cmd, cancel: cancel, out: out, logFile: logFile, done: make(chan struct{})}
-	go func() {
-		s.exitErr = cmd.Wait()
-		close(s.done)
-	}()
+	s := &Server{t: t, process: process, out: out, logFile: logFile}
 	t.Cleanup(s.Stop)
 	return s
 }
@@ -138,8 +129,9 @@ func (s *Server) WaitHealthy(url string, timeout time.Duration) {
 	var last error
 	for time.Now().Before(deadline) {
 		select {
-		case <-s.done:
-			s.t.Fatalf("server exited before healthy at %s: %v\noutput:\n%s", url, s.exitErr, s.out.String())
+		case <-s.process.done:
+			s.t.Fatalf("server exited before healthy at %s: %v\noutput:\n%s",
+				url, s.process.err(), s.out.String())
 		default:
 		}
 		resp, err := http.Get(url)
@@ -154,7 +146,9 @@ func (s *Server) WaitHealthy(url string, timeout time.Duration) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	s.t.Fatalf("server not healthy at %s within %s: %v\noutput:\n%s", url, timeout, last, s.out.String())
+	outcome := s.process.terminate(defaultProcessGrace)
+	s.t.Fatalf("server not healthy at %s within %s: %v (%s)\n%s\noutput:\n%s",
+		url, timeout, last, outcome, timeoutTraceEvidence(s.logFile), s.out.String())
 }
 
 // Post sends a JSON POST to url and returns the response status code.
@@ -182,17 +176,20 @@ func (s *Server) WaitExit(timeout time.Duration) RunResult {
 		timeout = defaultExitTimeout
 	}
 	select {
-	case <-s.done:
+	case <-s.process.done:
 	case <-time.After(timeout):
-		s.t.Fatalf("serving profile did not exit within %s\noutput:\n%s", timeout, s.out.String())
+		outcome := s.process.terminate(defaultProcessGrace)
+		s.t.Fatalf("serving profile did not exit within %s (%s)\n%s\noutput:\n%s",
+			timeout, outcome, timeoutTraceEvidence(s.logFile), s.out.String())
 	}
+	waitErr := s.process.err()
 	exitCode := 0
-	if s.exitErr != nil {
-		var exitErr *exec.ExitError
-		if errors.As(s.exitErr, &exitErr) {
-			exitCode = exitErr.ExitCode()
+	if waitErr != nil {
+		var processExitErr *exec.ExitError
+		if errors.As(waitErr, &processExitErr) {
+			exitCode = processExitErr.ExitCode()
 		} else {
-			s.t.Fatalf("serving profile wait failed: %v\noutput:\n%s", s.exitErr, s.out.String())
+			s.t.Fatalf("serving profile wait failed: %v\noutput:\n%s", waitErr, s.out.String())
 		}
 	}
 	spans, err := ParseSpansFile(s.logFile)
@@ -202,15 +199,10 @@ func (s *Server) WaitExit(timeout time.Duration) RunResult {
 	return RunResult{Spans: spans, ExitCode: exitCode, Output: s.out.String(), LogFile: s.logFile}
 }
 
-// Stop cancels the process context and waits briefly for it to exit. Safe to
-// call more than once.
+// Stop terminates and fully reaps the process group. Safe to call more than once.
 func (s *Server) Stop() {
-	if s.cancel != nil {
-		s.cancel()
-	}
-	select {
-	case <-s.done:
-	case <-time.After(2 * time.Second):
+	if s.process != nil {
+		s.process.terminate(defaultProcessGrace)
 	}
 }
 

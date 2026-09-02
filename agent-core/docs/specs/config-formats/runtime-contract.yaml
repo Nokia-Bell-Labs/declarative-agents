@@ -166,6 +166,25 @@ process_result_contract: |
   the labeled lines and process exit status rather than treating stderr as a
   two-line protocol.
 
+termination_contract: |
+  Before a prepared run starts, SIGINT and SIGTERM retain the operating
+  system's default behavior. A blocked profile load, validation, checkpoint
+  open, or tool-registration step therefore cannot swallow process
+  termination indefinitely.
+
+  Once runPrepared begins, SIGINT and SIGTERM cancel the runtime context.
+  Context-aware dispatch and request serving unwind through preparedRun.Close,
+  which reaps owned services, closes checkpoint resources, force-flushes
+  telemetry providers, ends the root span, and atomically publishes the file
+  exporter destination. A supervising caller may send SIGKILL after its own
+  bounded grace period when a command does not honor cancellation.
+
+  Cooperative termination uses the existing trace stages. The
+  init.registry_frozen event distinguishes completed registry initialization,
+  and execute_tool spans identify a dispatch that was active at cancellation.
+  The runtime does not print prompts, request bodies, environment values,
+  provider URLs, or tool output as signal-handling diagnostics.
+
 startup_sequence:
   - step: 1
     name: Apply profile
