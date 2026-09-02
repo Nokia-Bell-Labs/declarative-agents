@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -24,6 +25,7 @@ type recordingEvidenceCommands struct {
 
 func (recorder *recordingEvidenceCommands) run(invocation evidenceCommand) error {
 	invocation.args = append([]string(nil), invocation.args...)
+	invocation.env = append([]string(nil), invocation.env...)
 	recorder.calls = append(recorder.calls, invocation)
 	switch {
 	case reflect.DeepEqual(invocation.args, []string{"list", "-m"}):
@@ -102,6 +104,25 @@ func newTestEvidenceRunner(t *testing.T, commands *recordingEvidenceCommands) ev
 	}
 }
 
+func TestExecuteEvidenceCommandOverlaysPrivateTempDir(t *testing.T) {
+	privateTemp := t.TempDir()
+	var stdout bytes.Buffer
+
+	err := executeEvidenceCommand(evidenceCommand{
+		name:   "sh",
+		args:   []string{"-c", `printf %s "$TMPDIR"`},
+		env:    []string{"TMPDIR=" + privateTemp},
+		stdout: &stdout,
+	})
+
+	if err != nil {
+		t.Fatalf("execute evidence command: %v", err)
+	}
+	if got := stdout.String(); got != privateTemp {
+		t.Fatalf("child TMPDIR = %q, want %q", got, privateTemp)
+	}
+}
+
 func TestEvidenceRunnerInventoriesCompleteRosterWithStableConformance(t *testing.T) {
 	commands := &recordingEvidenceCommands{}
 	runner := newTestEvidenceRunner(t, commands)
@@ -133,6 +154,8 @@ func TestEvidenceRunnerInventoriesCompleteRosterWithStableConformance(t *testing
 	if commands.calls[4].dir != filepath.Join(runner.root, "conformance") {
 		t.Errorf("stable inventory cwd = %q", commands.calls[4].dir)
 	}
+	assertStableTempEnv(t, commands.calls[3], binary)
+	assertStableTempEnv(t, commands.calls[4], binary)
 	assertEvidenceTempRemoved(t, binary)
 }
 
@@ -155,6 +178,8 @@ func TestEvidenceRunnerExecutesCompleteRosterWithStableConformance(t *testing.T)
 	if !reflect.DeepEqual(commands.calls[4].args, wantStable) {
 		t.Errorf("stable execution args = %#v, want %#v", commands.calls[4].args, wantStable)
 	}
+	assertStableTempEnv(t, commands.calls[3], binary)
+	assertStableTempEnv(t, commands.calls[4], binary)
 	assertEvidenceTempRemoved(t, binary)
 }
 
@@ -209,6 +234,14 @@ func compileOutput(t *testing.T, invocation evidenceCommand) string {
 	}
 	t.Fatalf("compile command %#v has no output", invocation.args)
 	return ""
+}
+
+func assertStableTempEnv(t *testing.T, invocation evidenceCommand, binary string) {
+	t.Helper()
+	want := []string{"TMPDIR=" + filepath.Dir(binary)}
+	if !reflect.DeepEqual(invocation.env, want) {
+		t.Errorf("stable conformance environment = %#v, want %#v", invocation.env, want)
+	}
 }
 
 func assertEvidenceTempRemoved(t *testing.T, binary string) {

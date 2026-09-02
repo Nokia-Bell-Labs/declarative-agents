@@ -31,6 +31,7 @@ type evidenceCommand struct {
 	name           string
 	args           []string
 	dir            string
+	env            []string
 	stdout, stderr io.Writer
 }
 
@@ -57,6 +58,9 @@ func newEvidenceRunner() evidenceRunner {
 func executeEvidenceCommand(invocation evidenceCommand) error {
 	cmd := exec.Command(invocation.name, invocation.args...)
 	cmd.Dir = invocation.dir
+	if len(invocation.env) > 0 {
+		cmd.Env = append(os.Environ(), invocation.env...)
+	}
 	cmd.Stdout = invocation.stdout
 	cmd.Stderr = invocation.stderr
 	return cmd.Run()
@@ -167,10 +171,12 @@ func (runner evidenceRunner) runStableConformance(packagePath string, mode evide
 	}()
 
 	binary := filepath.Join(tempDir, "conformance.test")
+	tempEnv := []string{"TMPDIR=" + tempDir}
 	if err := runner.runForwarded("compile conformance evidence binary", evidenceCommand{
 		name: "go",
 		args: []string{"test", "-c", "-o", binary, "./conformance"},
 		dir:  runner.root,
+		env:  tempEnv,
 	}); err != nil {
 		return err
 	}
@@ -187,6 +193,7 @@ func (runner evidenceRunner) runStableConformance(packagePath string, mode evide
 			"tool", "test2json", "-t", "-p", packagePath, binary,
 		}, testArgs...),
 		dir: filepath.Join(runner.root, "conformance"),
+		env: tempEnv,
 	})
 }
 
