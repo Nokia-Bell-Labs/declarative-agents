@@ -171,15 +171,36 @@ implementation_status:
       because a broken read is not an empty corpus. GH-790 carried the judged
       post-run count from the terminal predicate's raw left operand into the
       creator success response and through the provisioning-workflow-orchestrator client mapping.
-  planned:
     - >-
-      Ingesting into a caller-named collection. The provisioning-workflow-orchestrator sends a collection
-      with its intent, but it does not reach the child: agent-core exec tools pass
-      no environment (srd021) and the corpus-ingest profile hardcodes its
-      collection name, so the child always writes that profile's own collection,
-      which is also the one the creator reads back. The endpoint accepts the field
-      so the declared intent stays whole; honouring it needs the child profile
-      parameterized first.
+      Ingesting into a caller-named collection shipped with GH-1894, once
+      agent-core gave exec declarations an environment seam (GH-1884). The
+      creator resolves the collection the intent names, counts it, and hands the
+      child the same name by overlaying CORPUS_INGEST_COLLECTION on the
+      environment the child inherits, so the collection resolved, counted, and
+      written is one value the request chose. get_or_create makes a caller's
+      first ingest into a new collection a create rather than a missing
+      resource. Until that seam existed the child could only inherit the
+      creator's own collection: exec tools passed no environment and the
+      corpus-ingest profile hardcoded its collection name, so the field was
+      accepted for intent wholeness and silently ignored.
+    - >-
+      The embedding family goes the other way, and GH-1894 made it a judged
+      field rather than an honoured or an ignored one. It stays deployment
+      configuration, because a source embedded at a family the serving RAG unit
+      does not report is excluded from every turn (srd002 R3.3): the only value
+      a caller could supply other than the deployment's own is one that makes
+      its own ingest unretrievable. Until then the field was accepted by the
+      orchestrator's intent, sent on the wire, accepted by the creator's ingest
+      schema, seeded into its machine request, and read by no word at all, so an
+      intent expecting another family was answered 200 over documents no turn
+      could retrieve. The creator now compares the expected family against the
+      one it ingests at (requested_family_matches) and answers 422
+      embedding_family_mismatch before any child runs, distinct from the
+      ingest_shortfall a run that wrote nothing earns. The field is required on
+      both the intent and the ingest endpoint: a predicate operand that does not
+      resolve is a CommandError rather than a false comparison (agent-core
+      srd041 R4.2), so an omitted family could only fail late or read as a
+      mismatch, and intake is where it is caught.
 
 diagrams:
   requirements_trace: |

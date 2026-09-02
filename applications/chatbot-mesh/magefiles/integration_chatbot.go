@@ -274,18 +274,19 @@ type chatResponse struct {
 	} `json:"metadata"`
 }
 
+// chatbotSourceOutcome is one entry of a metadata.sources list. The mesh
+// projects these before answering (GH-1896): the join entry they are rendered
+// from also carries the topology entry the fan-out iterated, base_url included,
+// which has no place in a browser response.
 type chatbotSourceOutcome struct {
-	Input struct {
-		Name string `json:"name"`
-	} `json:"input"`
-	Result struct {
-		Signal           string `json:"signal"`
-		StructuredOutput struct {
-			Mapped struct {
-				Documents [][]string `json:"documents"`
-			} `json:"mapped"`
-		} `json:"structured_output"`
-	} `json:"result"`
+	Name   string `json:"name"`
+	Signal string `json:"signal"`
+	// The chunks this source contributed, and the record ids beside them.
+	Documents [][]string `json:"documents"`
+	IDs       [][]string `json:"ids"`
+	// Reported on an excluded entry only: the identity that did not match the
+	// query embedding model, which is why it was excluded (srd002 R3.3).
+	EmbeddingModel string `json:"embedding_model"`
 }
 
 func postChatTurn(message string, history string) (chatResponse, int, error) {
@@ -333,7 +334,7 @@ func assertChatbotScopedSourceSelection() error {
 		return fmt.Errorf("scoped source turn failed: status=%d trace=%q error=%s", status, resp.Trace.Status, resp.Message+resp.Error)
 	}
 	if len(resp.Metadata.Sources.Composed) != 1 ||
-		resp.Metadata.Sources.Composed[0].Input.Name != "rag0" {
+		resp.Metadata.Sources.Composed[0].Name != "rag0" {
 		return fmt.Errorf("scoped source turn composed %+v, want only rag0", resp.Metadata.Sources.Composed)
 	}
 	if len(resp.Metadata.Sources.NotSelected) != 1 ||
@@ -391,10 +392,10 @@ func assertChatbotFanOutResponse(resp chatResponse, status int) error {
 
 func requireComposedSourceEvidence(outcomes []chatbotSourceOutcome, source, requiredText string) error {
 	for _, outcome := range outcomes {
-		if outcome.Input.Name != source {
+		if outcome.Name != source {
 			continue
 		}
-		for _, group := range outcome.Result.StructuredOutput.Mapped.Documents {
+		for _, group := range outcome.Documents {
 			for _, document := range group {
 				if strings.TrimSpace(document) != "" &&
 					(requiredText == "" || strings.Contains(strings.ToLower(document), requiredText)) {
@@ -454,8 +455,8 @@ func assertChatbotDegradedResponse(resp chatResponse, status int) error {
 		return fmt.Errorf("degraded turn embedding-model exclusions = %+v, want empty", resp.Metadata.Sources.EmbeddingModelExcluded)
 	}
 	if len(resp.Metadata.Sources.QueryFailed) != 1 ||
-		resp.Metadata.Sources.QueryFailed[0].Input.Name != "rag1" ||
-		resp.Metadata.Sources.QueryFailed[0].Result.Signal != "CommandError" {
+		resp.Metadata.Sources.QueryFailed[0].Name != "rag1" ||
+		resp.Metadata.Sources.QueryFailed[0].Signal != "CommandError" {
 		return fmt.Errorf("degraded query_failed = %+v, want rag1 CommandError", resp.Metadata.Sources.QueryFailed)
 	}
 	return nil
@@ -477,6 +478,19 @@ func assertChatbotMonitorReachable() error {
 // that the dispatch carries the word's configured model. The answer phase starts
 // after the alias-preserving parse_tier span, so earlier model spans from
 // select_sources and select_tier cannot count.
+//
+// It also proves the dispatch happened at all. One declared answer word with a
+// configured model is true of the ParseFailed fallback as well, because the
+// fallback word is itself a declared answer word -- so that check passed
+// throughout the period the $tool selector never dispatched anything (GH-84).
+// The discriminator is parse_tier's own outcome: agent-core stamps
+// command.signal on every dispatch span, so a turn whose selection resolved
+// carries ToolDone and a turn that fell back carries ParseFailed.
+// chatbotTierDispatchedSignal is what parse_tier emits when the tier selection
+// resolved to a registered, in-manifest word. Any other signal means the turn
+// took the fallback.
+const chatbotTierDispatchedSignal = "ToolDone"
+
 func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) error {
 	spans, err := readChromaSpans(tracePath)
 	if err != nil {
@@ -511,6 +525,7 @@ func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) err
 		parseTierSeen := false
 		parseTierCount := 0
 		composeResponseCount := 0
+		parseTierSignal := ""
 		for _, s := range spans {
 			if !chatbotSpanNestedUnder(s, turn.SpanContext.SpanID, parentByID) {
 				continue
@@ -519,6 +534,7 @@ func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) err
 			case "parse_tier":
 				parseTierCount++
 				parseTierSeen = true
+				parseTierSignal, _ = s.stringAttr("command.signal")
 			case "compose_response":
 				composeResponseCount++
 				parseTierSeen = false
@@ -531,6 +547,13 @@ func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) err
 		if parseTierCount != 1 || composeResponseCount != 1 {
 			return fmt.Errorf("chatbot turn %s has parse_tier/compose_response span counts %d/%d, want 1/1",
 				turn.SpanContext.SpanID, parseTierCount, composeResponseCount)
+		}
+		if parseTierSignal != chatbotTierDispatchedSignal {
+			return fmt.Errorf(
+				"chatbot turn %s answered on the fallback: parse_tier emitted %q rather than %q,"+
+					" so the tier selection never dispatched and the turn was answered by the"+
+					" default chat word instead of the selected one",
+				turn.SpanContext.SpanID, parseTierSignal, chatbotTierDispatchedSignal)
 		}
 		if len(answerSpans) != 1 {
 			return fmt.Errorf("chatbot turn %s has %d answer-word dispatch spans after parse_tier, want exactly one",

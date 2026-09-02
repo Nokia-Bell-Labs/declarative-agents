@@ -62,7 +62,12 @@ func TestCreatorIngestLegMeasuresChildDelta(t *testing.T) {
 
 	want := []struct{ state, signal, action, next string }{
 		{"AwaitingRequest", "SeedIngest", "resolve_ingest_collection", "ResolvingIngested"},
-		{"ResolvingIngested", "CollectionResolved", "count_before_ingest", "CountingBeforeIngest"},
+		// The collection the caller named is resolved first, and the child is
+		// handed the same one, so the counts bracket the collection written.
+		// The family the caller expects is judged before anything is counted or
+		// run, so an ingest that would be unretrievable writes nothing (GH-205).
+		{"ResolvingIngested", "CollectionResolved", "requested_family_matches", "JudgingFamily"},
+		{"JudgingFamily", "FamilyMatched", "count_before_ingest", "CountingBeforeIngest"},
 		{"CountingBeforeIngest", "DocumentsCounted", "run_corpus_ingest", "Ingesting"},
 		{"Ingesting", "ToolDone", "count_after_ingest", "CountingAfterIngest"},
 		{"CountingAfterIngest", "DocumentsCounted", "ingest_wrote_documents", "JudgingIngest"},
@@ -88,7 +93,10 @@ func TestCreatorIngestLegMeasuresChildDelta(t *testing.T) {
 
 	// A failed child and an unreadable collection both have to land somewhere;
 	// an unmapped terminal answers response_missing at runtime.
-	for _, state := range []string{"ResolvingIngested", "CountingBeforeIngest", "Ingesting", "CountingAfterIngest"} {
+	for _, state := range []string{
+		"ResolvingIngested", "JudgingFamily",
+		"CountingBeforeIngest", "Ingesting", "CountingAfterIngest",
+	} {
 		var reaches bool
 		for _, tr := range machine.Transitions {
 			if tr.State == state && tr.Next == "IngestFailed" {
@@ -116,11 +124,16 @@ func TestCreatorIngestMapsItsTerminals(t *testing.T) {
 	if ingested.Status != 200 {
 		t.Errorf("Ingested status = %d, want 200", ingested.Status)
 	}
-	// ingest_wrote_documents is the terminal word. Its raw left operand is the
-	// post-run count, so the response must select that field rather than losing
-	// the judged value at the terminal boundary (agent-core srd041 R4.4).
-	if got := ingested.Body["count"]; got != "$.left" {
-		t.Errorf("Ingested count = %q, want terminal predicate left operand $.left", got)
+	// report_ingest_outcome is the terminal word, and it renders the judged count
+	// alongside the collection the child wrote. The count was the judge's own left
+	// operand until GH-198, when the collection needed somewhere to ride: a value
+	// predicate emits only left/op/operand_type/held/right, and a terminal
+	// response body resolves nothing but $. against the terminal word.
+	if got := ingested.Body["count"]; got != "$.count" {
+		t.Errorf("Ingested count = %q, want $.count from report_ingest_outcome", got)
+	}
+	if got := ingested.Body["collection"]; got != "$.collection" {
+		t.Errorf("Ingested collection = %q, want $.collection from report_ingest_outcome", got)
 	}
 
 	failed, ok := states["IngestFailed"]
@@ -134,7 +147,10 @@ func TestCreatorIngestMapsItsTerminals(t *testing.T) {
 	// Every terminal the machine declares must be mapped, and nothing else.
 	var machine intakeMachine
 	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "request-machine.yaml"), &machine)
-	ingestTerminals := map[string]bool{"Ingested": true, "IngestRejected": true, "IngestFailed": true}
+	ingestTerminals := map[string]bool{
+		"Ingested": true, "FamilyRefused": true,
+		"IngestRejected": true, "IngestFailed": true,
+	}
 	for state := range states {
 		if !ingestTerminals[state] {
 			t.Errorf("ingest maps unexpected terminal %q", state)
@@ -201,7 +217,12 @@ func TestCreatorIngestJudgesTheCountBeforeReporting(t *testing.T) {
 
 	want := []struct{ state, signal, action, next string }{
 		{"CountingAfterIngest", "DocumentsCounted", "ingest_wrote_documents", "JudgingIngest"},
-		{"JudgingIngest", "DocumentsWritten", "", "Ingested"},
+		// The judge still decides before anything is reported; the reporting word
+		// runs only on the satisfied branch and cannot turn a shortfall into a
+		// success (GH-198).
+		{"JudgingIngest", "DocumentsWritten", "report_ingest_outcome", "ReportingIngestOutcome"},
+		{"ReportingIngestOutcome", "IngestOutcomeReported", "", "Ingested"},
+		{"ReportingIngestOutcome", "CommandError", "", "IngestFailed"},
 		{"JudgingIngest", "NoDocumentsWritten", "", "IngestRejected"},
 		// A count that will not resolve is a fault, not an empty corpus. Routing
 		// it to IngestRejected would tell the provisioning-workflow-orchestrator a directory held no
@@ -332,7 +353,7 @@ func TestCreatorIngestShortfallIsAClientError(t *testing.T) {
 // It posted at /api/v1/instance until GH-763, where every operation took the
 // values-apply leg whatever it named, so this hop ran no ingest at all.
 func TestProvisioningWorkflowOrchestratorIngestReachesEndpointAndMapsCount(t *testing.T) {
-	op := clientOperationNamed(t, "provisioning-workflow-orchestrator", "creator", "creator_ingest")
+	op := clientOperationNamed(t, "provisioning-workflow-orchestrator", "creator_provisioning", "creator_ingest")
 	if op.Path != "/api/v1/ingest" {
 		t.Errorf("creator_ingest path = %q, want /api/v1/ingest", op.Path)
 	}
@@ -358,7 +379,7 @@ func TestProvisioningWorkflowOrchestratorIngestReachesEndpointAndMapsCount(t *te
 		} `yaml:"rest"`
 	}
 	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "rest.yaml"), &rest)
-	for _, f := range rest.Rest.Clients["creator"].Operations["creator_ingest"].Failures {
+	for _, f := range rest.Rest.Clients["creator_provisioning"].Operations["creator_ingest"].Failures {
 		for _, s := range f.Status {
 			if s == 422 && f.Signal == "Rejected" {
 				rejects = true

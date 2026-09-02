@@ -10,6 +10,8 @@ purpose: |-
   here; the caller supplies the vector and composes any answer.
 initial_state: AwaitingRequest
 budget:
+  # The outer envelope: agent-core requires the query endpoint's 30s request
+  # bound and the chroma client's 10s limits to sit strictly below it.
   command_timeout: 1m
   max_iterations: 6
 states:

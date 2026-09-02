@@ -10,7 +10,7 @@ purpose: |-
   reflects the last submitted patch rather than the deployed release.
 
   helm's -o json guarantees the read's output is one JSON object, so the response
-  mapping can select individual fields (ragUnits, ollama, chatbot, applier.params)
+  mapping can select individual fields (ragUnits, ollama, chatbot, llm, applier.params)
   rather than embedding one opaque blob (agent-core srd030 R4.3). A release the
   cluster cannot read -- absent, or a kubeconfig/RBAC/API-server failure -- lands
   in Unavailable so the endpoint answers 502 rather than a stale or empty view.

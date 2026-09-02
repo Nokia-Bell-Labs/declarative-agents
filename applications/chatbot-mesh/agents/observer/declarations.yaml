@@ -136,14 +136,15 @@ tools:
       schema:
         type: object
         properties:
+          # Whole Kubernetes Pod objects, mapped straight from $.items rather
+          # than reshaped: the fan-out addresses $from(pod).status.podIP and
+          # $from(pod).metadata.labels.monitorPort, which are paths into the API
+          # object. The schema described a {name, ip, labels} projection nothing
+          # produces and nothing reads.
           pods:
             type: array
             items:
               type: object
-              properties:
-                name: {type: string}
-                ip: {type: string}
-                labels: {type: object}
     side_effects:
       - kind: external_api
         target: kubernetes.pods.list
@@ -313,8 +314,11 @@ tools:
   # and the machine's for_each expands it over the pod set, so a REST dispatch
   # stays at one request (srd028 R5.8) and the iteration stays visible in
   # MachineSpec rather than hidden inside a compound word (srd028 R1.5). The
-  # for_each join aggregates the per-pod outcomes and its succeeded and failed
-  # counts are the reachable and unreachable counts the fleet view reports.
+  # for_each join aggregates the per-pod outcomes. Its succeeded and failed
+  # counts are not the reachable split: the poll continues past an unreachable
+  # pod, so the join counts every dispatched item as succeeded. Reachability is
+  # each item's own recorded result signal, which the join keeps per item, and
+  # that is what the fleet view reads (machine.yaml says the same).
   - name: read_agent_machine
     type: builtin
     init: rest_client_get

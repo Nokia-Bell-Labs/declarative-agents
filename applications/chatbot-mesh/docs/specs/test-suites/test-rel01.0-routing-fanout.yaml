@@ -39,7 +39,13 @@ test_cases:
       $tool tier selector; because live semantic classification is model-dependent,
       each turn's chatbot span log is asserted to show exactly one declared answer-word
       dispatch carrying the configured model, rather than requiring this
-      fixed prompt pair to select both tiers. The hermetic single-turn and degraded-RAG
+      fixed prompt pair to select both tiers. That alone does not prove the
+      dispatch happened: the fallback word is itself a declared answer word with
+      a configured model, so the assertion held throughout the period the
+      selector never dispatched (GH-84). Each turn's parse_tier span must
+      therefore carry command.signal ToolDone, which agent-core stamps when the
+      selection resolved to a registered word; ParseFailed or TaskCompleted
+      means the turn answered on the fallback and fails the target. The hermetic single-turn and degraded-RAG
       fixtures select the fast and deep words respectively, providing deterministic
       both-branch evidence through integration:rig. A spanning turn draws the disjoint
       rag1 corpus into the answer (one sequential for_each;
@@ -57,6 +63,8 @@ test_cases:
       fault: rag1 stopped before the degraded turn
     expected:
       each_live_turn_dispatches_one_declared_answer_word: true
+      each_live_turn_parse_tier_signal: ToolDone
+      fallback_answered_turn_fails_the_target: true
       live_prompt_pair_selects_both_tiers: model-dependent
       deterministic_fixtures_dispatch_both_answer_words: true
       selector_model_spans_count_as_answer_dispatch: false

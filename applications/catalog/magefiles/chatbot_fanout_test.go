@@ -170,7 +170,7 @@ func TestChatbotSourceSelectionUsesTrustedTopologyAndFallback(t *testing.T) {
 	}
 }
 
-func TestChatbotSourceRouterPromptMatchesDeclaration(t *testing.T) {
+func TestChatbotSourceRouterPromptIsInlineAndNamesOnly(t *testing.T) {
 	var declarations struct {
 		Tools []struct {
 			Name   string `yaml:"name"`
@@ -190,12 +190,19 @@ func TestChatbotSourceRouterPromptMatchesDeclaration(t *testing.T) {
 			break
 		}
 	}
-	prompt := strings.TrimPrefix(
-		string(readRequiredChatbotAsset(t, chatbotAssetPath("source-router-prompt.md"))),
-		"<!-- Copyright (c) 2026 Nokia -->\n<!-- SPDX-License-Identifier: BSD-3-Clause -->\n\n",
-	)
-	if strings.TrimSuffix(declared, "\n") != strings.TrimSuffix(prompt, "\n") {
-		t.Error("source-router-prompt.md body must be identical to select_sources system_prompt")
+	for _, required := range []string{
+		`Return exactly one JSON object with one field named "names"`,
+		"Use only names shown in the catalog.",
+		"Do not emit markdown, commentary, tool calls,",
+		"endpoints, URLs, collections, or configuration.",
+		`{"names":["rag0"]}`,
+	} {
+		if !strings.Contains(declared, required) {
+			t.Errorf("inline select_sources system_prompt is missing %q", required)
+		}
+	}
+	if _, err := os.Stat(chatbotAssetPath("source-router-prompt.md")); !os.IsNotExist(err) {
+		t.Errorf("unloaded source-router-prompt.md copy still exists: %v", err)
 	}
 }
 
@@ -214,10 +221,14 @@ func TestChatbotComposeReadsEachRagSource(t *testing.T) {
 		"result.structured_output.mapped.embedding_model",
 		"$from(partition_embedding_models).matched",
 		"result.structured_output.mapped.documents",
-		"query_failed: $from(partition_query_results).unmatched",
+		"items: $from(partition_query_results).unmatched",
+		"items: $from(partition_embedding_models).unmatched",
+		"query_failed: $from(render_query_failed_sources).$",
+		"model_excluded: $from(render_model_excluded_sources).$",
 		"not_selected: $from(source_selection_report).unmatched",
 		"\"not_selected\": {{ json not_selected }}",
-		"\"embedding_model_excluded\": {{ json model_excluded }}",
+		"\"embedding_model_excluded\": [{{ model_excluded }}]",
+		"\"query_failed\": [{{ query_failed }}]",
 	} {
 		if !strings.Contains(text, sel) {
 			t.Errorf("source-count-independent fan-out is missing %s", sel)

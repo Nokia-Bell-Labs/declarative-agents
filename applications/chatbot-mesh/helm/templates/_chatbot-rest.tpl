@@ -151,47 +151,6 @@ rest:
           reversibility:
             classification: reversible
             undo: noop
-{{- if .Values.controlPlane.enabled }}
-    # The declared client the provisioning panel uses to delegate a provisioning
-    # intent to the provisioning-workflow-orchestrator (srd002 R5.1, srd004 R1). Fixed authority: the
-    # chatbot edits no deployment config itself and feeds no runtime endpoint here.
-    provisioning-workflow-orchestrator:
-      base_url: http://{{ $fullname }}-provisioning-workflow-orchestrator:{{ .Values.controlPlane.provisioningWorkflowOrchestrator.ports.intent }}
-      auth_ref: none
-      limits_ref: local_provider
-      operations:
-        delegate_provision:
-          method: POST
-          path: /api/v1/provision
-          params:
-            body_schema:
-              type: object
-              required: [rag_name, collection]
-              properties:
-                rag_name: {type: string}
-                collection: {type: string}
-                embedding_model: {type: string}
-                directory: {type: string}
-            body_source: previous_result
-            input_mapping:
-              rag_name: $.rag_name
-              collection: $.collection
-              embedding_model: $.embedding_model
-              directory: $.directory
-          body:
-            rag_name: "{{`{{ params.rag_name }}`}}"
-            collection: "{{`{{ params.collection }}`}}"
-            embedding_model: "{{`{{ params.embedding_model }}`}}"
-            directory: "{{`{{ params.directory }}`}}"
-          success: {status: [200], signal: ProvisionDelegated}
-          side_effects:
-            - kind: external_api
-              target: provisioning-workflow-orchestrator.provision
-              state: intent_delegated
-          reversibility:
-            classification: reversible
-            undo: noop
-{{- end }}
 
   servers:
     chatbot_chat:
@@ -216,7 +175,10 @@ rest:
                 message: {type: string}
                 history: {type: array}
           machine_request:
-            profile: profile.yaml
+            # request-profile.yaml, not profile.yaml: the chat machine needs the
+            # chat-LLM vocabulary in its tools selection, and the persistent
+            # agent's profile must not carry it (GH-1900).
+            profile: request-profile.yaml
             machine: request-machine.yaml
             timeout: 130s
             request:
@@ -247,7 +209,11 @@ rest:
 {{- range $unit := .Values.ragUnits }}
               {{ $unit.name }}: http://{{ $fullname }}-{{ $unit.name }}:{{ $mon }}
 {{- end }}
-{{- if eq .Values.collector.implementation "agent" }}
+{{- /* enabled as well as implementation: with the collector off, the
+       implementation default still reads "agent", and gating on it alone
+       declared a monitor-proxy upstream at a Service the chart never renders.
+       chatbot-mesh.otlpEndpoint checks both (GH-220). */}}
+{{- if and .Values.collector.enabled (eq .Values.collector.implementation "agent") }}
               collector: http://{{ $fullname }}-collector:18193
 {{- end }}
           request:

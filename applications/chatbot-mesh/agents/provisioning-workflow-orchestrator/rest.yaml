@@ -6,6 +6,28 @@ rest:
     none:
       type: none
   limits:
+    local_creator_provisioning:
+      # The rollout leg waits on helm upgrade --atomic --wait against the whole
+      # mesh, which outlasts the 130s every hop on this path used to allow: the
+      # applier's helm_upgrade was cancelled mid-flight at ~127s and the intent
+      # answered machine_timeout (GH-196). Every hop that waits on the apply
+      # carries the same budget, because the shortest one decides.
+      #
+      # Separate from local_creator_client because limits are per client: the
+      # rollout poll and the state read share that one, and their machines carry
+      # a short command budget that a ten-minute operation cannot sit inside
+      # (TestChatbotMeshProfileTimeoutEnvelopes).
+      timeout: 600s
+      read_timeout: 600s
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts:
+          - ${CREATOR_HOST:-127.0.0.1}
+        ports: [18110]
     local_creator_client:
       timeout: 130s
       read_timeout: 130s
@@ -17,11 +39,17 @@ rest:
         schemes: [http]
         # The creator host is the egress allowlist entry; a values-driven deploy sets
         # CREATOR_HOST to the creator Service DNS name, defaulting to loopback locally.
-        hosts: [${CREATOR_HOST:-127.0.0.1}]
+        hosts:
+          - ${CREATOR_HOST:-127.0.0.1}
         ports: [18110]
     local_provisioning_workflow_orchestrator_intent:
-      timeout: 130s
-      read_timeout: 130s
+      # The rollout leg waits on helm upgrade --atomic --wait against the whole
+      # mesh, which outlasts the 130s every hop on this path used to allow: the
+      # applier's helm_upgrade was cancelled mid-flight at ~127s and the intent
+      # answered machine_timeout (GH-196). Every hop that waits on the apply
+      # carries the same budget, because the shortest one decides.
+      timeout: 600s
+      read_timeout: 600s
       max_request_bytes: 1048576
       max_response_bytes: 1048576
       redirect:
@@ -57,10 +85,12 @@ rest:
         allow_public_listener: true
 
   clients:
-    creator:
+    # The intent's own legs: an ingest child run and the rollout it triggers,
+    # both of which wait on real work rather than on a request round trip.
+    creator_provisioning:
       base_url: ${CREATOR_URL:-http://127.0.0.1:18110}
       auth_ref: none
-      limits_ref: local_creator_client
+      limits_ref: local_creator_provisioning
       operations:
         creator_ingest:
           # Delegate a corpus-ingest run for the requested directory to the creator
@@ -78,7 +108,13 @@ rest:
           params:
             body_schema:
               type: object
-              required: [directory, collection]
+              # The three the creator's /api/v1/ingest requires, stated as this
+              # client's own requirement so a request missing one is refused
+              # here rather than at the far side. embedding_model was omitted
+              # while the body below sends it unconditionally, so the schema
+              # understated the callee and only this agent's own intake kept an
+              # intent without a family from reaching the creator as a 400.
+              required: [directory, collection, embedding_model]
               properties:
                 rag_name: {type: string}
                 directory: {type: string}
@@ -92,19 +128,43 @@ rest:
               collection: $.collection
               embedding_model: $.embedding_model
               values: $.values
-            carry_forward: [rag_name, collection, embedding_model, values]
+            # rag_name is accepted on the intent and sent no further: which unit
+            # the ingest targets is deployment configuration on the creator, not
+            # a field of the request. It was carried too, and nothing ever read
+            # $.carried.rag_name.
+            carry_forward: [collection, embedding_model, values]
           body:
             directory: "{{ params.directory }}"
             collection: "{{ params.collection }}"
+            # The family the intent expects. It reaches the creator's schema and,
+            # since GH-205, a word that reads it: the creator compares it against
+            # the family it ingests at and answers 422 on a mismatch. Until then
+            # it stopped at the creator's machine params and nothing that embeds
+            # ever saw it, so an intent expecting the other family got a 200 and
+            # documents srd002 R3.3 excludes from every turn.
+            embedding_model: "{{ params.embedding_model }}"
           success: {status: [200], signal: IngestReported}
           failures:
+            # 422 covers both of the creator's rejections -- a run that wrote no
+            # documents, and an expected embedding family this deployment does
+            # not ingest at. Both are the caller's intent falling short rather
+            # than a boundary failing, and both reach Rejected here; the creator's
+            # distinct error codes are what separate them in a trace.
             - {status: [422], signal: Rejected}
+            # 400 is the creator refusing this request against its own intake
+            # schema -- our body, not the operator's intent -- so it takes
+            # CommandError rather than Rejected: answering 422 would tell the
+            # panel its intent fell short when the fault is ours. Declared for
+            # the reason the creator declares the applier's 500/502: an unmapped
+            # status fails the dispatch with "status 400 is not mapped" and
+            # buries the creator's own reason under a message about the mapping.
+            - {status: [400], signal: CommandError}
           response:
-            # collection: the corpus-ingest profile owns its collection name and
-            # agent-core exec tools pass no environment, so the child always
-            # writes that profile's collection whatever the intent named. The
-            # provisioning-workflow-orchestrator already carries the requested one in its own params
-            # (carry_forward below).
+            # collection: the creator ingests into the collection this intent
+            # names, handing it to the child as environment (GH-203), and echoes
+            # the name Chroma resolved rather than the one it was asked for.
+            # Carry that back so the caller reads where its documents actually
+            # went rather than assuming its request was honoured verbatim.
             #
             # The creator returns the post-run count selected from the terminal
             # predicate's raw left operand (agent-core srd041 R4.4). Carry that
@@ -112,6 +172,7 @@ rest:
             # the branch: 200 advances to rollout and 422 lands in Rejected.
             output:
               count: $.count
+              collection: $.collection
           side_effects:
             - kind: external_api
               target: creator.instance
@@ -140,15 +201,35 @@ rest:
               required: [values]
               properties:
                 values: {type: string}
+                count: {type: string}
+                collection: {type: string}
             body_source: previous_result
             input_mapping:
               values: $.carried.values
+              # The ingest leg's judged count and the collection the creator wrote,
+              # read off creator_ingest's mapped output. They are carried rather
+              # than sent: the body below does not include them, and the creator
+              # has no use for what it just told us.
+              count: $.mapped.count
+              collection: $.mapped.collection
+            # Carrying them is what puts them in this word's own output, and this
+            # word is the terminal one on the ingest leg. A terminal response body
+            # resolves only $. selectors against the terminal word, so without the
+            # carry the count the creator judged could not reach the caller at all
+            # -- the intent answered with the rollout's health alone (GH-198).
+            carry_forward: [count, collection]
           body:
             operation: restart
             role: chatbot
             schema_version: "1"
             content: "{{ params.values }}"
           success: {status: [200], signal: Reconfigured}
+          failures:
+            # The creator answers 422 when the applier rejected the values document
+            # against the chart's values.schema.json. Mapping it to Rejected keeps a
+            # decided-values fault distinct from a creator that could not be
+            # reached, which is the separation the ingest leg above already makes.
+            - {status: [422], signal: Rejected}
           response:
             output:
               health: $.health
@@ -189,6 +270,8 @@ rest:
             schema_version: "1"
             content: "{{ params.values }}"
           success: {status: [200], signal: Reconfigured}
+          failures:
+            - {status: [422], signal: Rejected}
           response:
             output:
               health: $.health
@@ -200,6 +283,12 @@ rest:
             classification: irreversible
             undo: irreversible
             requires_confirmation: true
+    # The panel's reads. A poll that could hang for ten minutes is not a poll.
+    creator:
+      base_url: ${CREATOR_URL:-http://127.0.0.1:18110}
+      auth_ref: none
+      limits_ref: local_creator_client
+      operations:
         creator_rollout_status:
           # Read the rollout status the creator reads from the deployment API, so
           # the provisioning-workflow-orchestrator can aggregate progress for the panel (srd004 R1.3). A
@@ -274,9 +363,16 @@ rest:
             # ragUnits list, params, and LLM config) that the provisioning-workflow-orchestrator forwards to
             # the creator and applier (srd004 R3.1). rag_name, directory, and
             # collection name the new source to ingest before the rollout.
+            #
+            # embedding_model is required because the creator compares it against
+            # the family it ingests at and refuses a mismatch (GH-205). An intent
+            # omitting it could not be compared -- a predicate operand that does
+            # not resolve is a CommandError, not a false comparison -- so the
+            # field is stated here rather than defaulted somewhere the caller
+            # cannot see.
             body_schema:
               type: object
-              required: [values, collection, directory]
+              required: [values, collection, directory, embedding_model]
               properties:
                 values: {type: string}
                 rag_name: {type: string}
@@ -286,7 +382,15 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
-            timeout: 130s
+            # The run this bounds waits on the creator's ingest child and then on
+            # the rollout that child triggers. At 130s it cancelled the whole
+            # chain mid-upgrade -- the creator's apply_instance and the applier's
+            # helm_upgrade both died on a context this endpoint closed (GH-196).
+            # The run this bounds waits on the creator's ingest child and then on
+            # the rollout that child triggers. At 130s it cancelled the whole
+            # chain mid-upgrade -- the creator's apply_instance and the applier's
+            # helm_upgrade both died on a context this endpoint closed (GH-196).
+            timeout: 600s
             request:
               body:
                 values: $.values
@@ -302,12 +406,32 @@ rest:
                   body:
                     status: reconfigured
                     health: $.mapped.health
+                    # The ingest leg's judged count and the collection the creator
+                    # wrote, carried this far by creator_rollout so they sit in the
+                    # terminal word's own output and resolve with a plain $.
+                    # selector. The values-only leg runs no ingest, so both are
+                    # absent there rather than wrong.
+                    count: $.carried.count
+                    collection: $.carried.collection
                 Rejected:
                   status: 422
                   content_type: application/json
                   body:
-                    error: ingest_rejected
-                    detail: the creator reported the ingest did not meet the requested source
+                    # Rejected is reached from two states by two words: the
+                    # ingest leg's creator_ingest (a run that wrote nothing, or
+                    # an embedding family this deployment does not ingest at)
+                    # and the rollout leg's creator_rollout (the applier
+                    # refusing the values document). A fixed ingest_rejected
+                    # named one of the three and misreported the other two.
+                    #
+                    # The creator already separates them with distinct codes --
+                    # ingest_shortfall, embedding_family_mismatch,
+                    # values_rejected -- and the terminal word here is the
+                    # client operation that carried the 422, so its response
+                    # payload is its own output: $.body reads the creator's
+                    # body, not this agent's.
+                    error: $.body.error
+                    detail: the creator rejected the intent; error names which of its checks refused it
                 CommandError:
                   status: 500
                   content_type: application/json
@@ -338,7 +462,11 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
-            timeout: 130s
+            # The run this bounds waits on the creator's ingest child and then on
+            # the rollout that child triggers. At 130s it cancelled the whole
+            # chain mid-upgrade -- the creator's apply_instance and the applier's
+            # helm_upgrade both died on a context this endpoint closed (GH-196).
+            timeout: 600s
             # Seeding on SeedValues skips the ingest leg. The same machine serves
             # both intents; the endpoint picks which leg by the seed it sends, so
             # the branch stays visible in the machine rather than inside a word.
@@ -347,9 +475,14 @@ rest:
               body:
                 values: $.values
             response:
-              # Keyed by terminal state. The creator boundary words emit a fixed
-              # signal vocabulary, so signal keying could not separate a rejected
-              # reconfiguration from a failed one (agent-core srd030 R4.6, GH-615).
+              # Keyed by terminal state, where the provision endpoint above keys
+              # by signal. Both separate this machine's three outcomes, so the
+              # difference is which fact is named rather than which one works: a
+              # state is the more specific one, since many signals may reach it,
+              # and agent-core consults the state map first. The older note here
+              # said signal keying could not separate a rejected reconfiguration
+              # from a failed one, which the provision endpoint disproves by
+              # doing exactly that (agent-core srd030 R4.6, GH-615).
               terminal_states:
                 Reconfigured:
                   status: 200
@@ -382,7 +515,9 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: rollout-machine.yaml
-            timeout: 20s
+            # Contains the rollout-machine budget below and the creator rollout
+            # hop it calls at 35s, which itself contains the applier's 30s read.
+            timeout: 40s
             request:
               body: {}
             response:
@@ -421,7 +556,9 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: state-machine.yaml
-            timeout: 20s
+            # Contains the state-machine budget below and the creator state hop
+            # it calls at 20s, so a slow read is reported rather than cut off.
+            timeout: 25s
             request:
               body: {}
             response:

@@ -381,7 +381,7 @@
         "creator": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["replicas", "ports", "networkPolicy", "resources", "deploymentApiTokenSecret"],
+          "required": ["replicas", "ports", "networkPolicy", "resources"],
           "properties": {
             "replicas": {"$ref": "#/definitions/replicas"},
             "ports": {
@@ -392,14 +392,27 @@
             },
             "networkPolicy": {"$ref": "#/definitions/networkPolicyToggle"},
             "resources": {"$ref": "#/definitions/resources"},
-            "deploymentApiTokenSecret": {
+            "ingestRagUnit": {
+              "type": "string",
+              "description": "RAG unit whose Chroma the corpus-ingest child writes into; empty takes the first declared unit."
+            },
+            "ingestEmbedding": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["name", "key"],
+              "description": "Embedding identity the ingest child embeds with; empty follows the ingest unit's declared embeddingModel.",
               "properties": {
-                "name": {"type": "string"},
-                "key": {"$ref": "#/definitions/nonEmptyString"}
+                "restRef": {"type": "string"},
+                "operation": {"type": "string"},
+                "model": {"type": "string"}
               }
+            },
+            "ingestOllamaURL": {
+              "type": "string",
+              "description": "Ollama the ingest child reaches; empty leaves the loopback default."
+            },
+            "ingestChatModel": {
+              "type": "string",
+              "description": "Chat model the ingest child's file-selection word invokes; empty leaves the child's default."
             }
           }
         }

@@ -5,10 +5,12 @@
 # The applier's request-machine binds these words to realize a decided values
 # patch as a validate -> apply -> verify -> rollback rollout.
 #
-# The args are fully static: agent-core exec tools take no environment and map
-# params only from the previous result by name (ExecBuilder.Build ->
-# ExtractStringParam), so a per-field parameter would be order-nondeterministic
-# (properties is a Go map) and unsourced. The only dynamic input is the values
+# The args are fully static. These words map params only from the previous result
+# by name (ExecBuilder.Build -> ExtractStringParam), so a per-field parameter
+# would be order-nondeterministic (properties is a Go map) and unsourced. An exec
+# declaration may carry environment as of agent-core v0.20260828.0, but nothing
+# here needs a per-invocation value: helm and kubectl read their configuration
+# from the pod. The only dynamic input is the values
 # file content, which the write_overrides word writes from the request seed to
 # the agent's workspace; helm reads the same ${APPLIER_WORK_DIR:-/work} path,
 # so one mounted profile follows the workspace mount per pod (srd013 R5.6). The chatbot-mesh release,
@@ -214,7 +216,7 @@ tools:
           # Nested one level to document the field, not the full values.yaml
           # shape: ragUnits is an array of {name, collection, embeddingModel,
           # replicas}; llm.externalURL; ollama.enabled/topology/models
-          # (embedding, chat, router); chatbot.embeddingModel;
+          # (embedding, chat, tier); chatbot.embeddingModel;
           # applier.params (nResults, chunkCap, tierDefault, chatModel).
           ragUnits: {type: array}
           llm: {type: object}

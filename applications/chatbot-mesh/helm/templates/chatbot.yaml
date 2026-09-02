@@ -1,6 +1,28 @@
 {{/* Copyright (c) 2026 Nokia */}}
 {{/* SPDX-License-Identifier: BSD-3-Clause */}}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
+{{/*
+The single-page application ships in its own ConfigMap rather than in the shared
+profiles object every agent pod mounts. The bundle was a quarter of that object
+on its own -- more than the three largest declaration files combined -- and only
+the chatbot serves it, so charging it to a shared mount pushed every other agent
+toward the 1 MiB limit for bytes none of them read (GH-131). The observer UI was
+already arranged this way; this repeats it for the chatbot.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-chatbot-ui
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chatbot
+data:
+  {{- range $path, $_ := .Files.Glob "profiles/agents/chatbot/ui/app/dist/**" }}
+  {{- $relative := $path | trimPrefix "profiles/agents/chatbot/ui/app/dist/" }}
+  {{ printf "agents__chatbot__ui__app__dist__%s" ($relative | replace "/" "__") }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -112,10 +134,11 @@ spec:
             # pod never does (srd013 R5.7, GH-728).
             - name: OLLAMA_URL
               value: {{ include "chatbot-mesh.llmURL" . | quote }}
-            # The local profile resolves agents/chatbot/ui/app/dist from the checkout. Packaged
-            # assets are mounted under the profiles ConfigMap instead.
+            # The local profile resolves agents/chatbot/ui/app/dist from the
+            # checkout. In a pod the bundle arrives on its own ConfigMap mounted
+            # beside the profiles projection (GH-131), so the root moves with it.
             - name: CHATBOT_UI_ROOT
-              value: {{ printf "%s/agents/chatbot/ui/app/dist" .Values.profiles.mountPath | quote }}
+              value: "/chatbot-ui"
             # declare_query_model puts the query embedding model identity into
             # command state for the per-RAG comparison, and it lives in the
             # verbatim-mounted request declarations. Without this its packaged
@@ -164,9 +187,31 @@ spec:
             {{- toYaml .Values.chatbot.resources | nindent 12 }}
           volumeMounts:
             - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
+            # Mounted beside the profiles projection rather than inside it.
+            # Nesting the bundle under the profiles mount needs kubelet to create
+            # a mountpoint within a read-only projection, and the parent
+            # agents/chatbot/ui/app/ no longer exists there once the dist keys are
+            # excluded, so the pod fails to start. CHATBOT_UI_ROOT points here.
+            - {name: chatbot-ui, mountPath: "/chatbot-ui", readOnly: true}
             - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
       volumes:
         {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
+        # The ConfigMap keys carry their path flattened with double underscores,
+        # so the items mapping restores the real layout the SPA is served from --
+        # index.html at the root and its bundle under assets/. Without it every
+        # file lands under its flattened key name and the panel 404s.
+        - name: chatbot-ui
+          projected:
+            defaultMode: 0444
+            sources:
+              - configMap:
+                  name: {{ $fullname }}-chatbot-ui
+                  items:
+                    {{- range $path, $_ := .Files.Glob "profiles/agents/chatbot/ui/app/dist/**" }}
+                    {{- $relative := $path | trimPrefix "profiles/agents/chatbot/ui/app/dist/" }}
+                    - key: {{ printf "agents__chatbot__ui__app__dist__%s" ($relative | replace "/" "__") }}
+                      path: {{ $relative }}
+                    {{- end }}
         - name: work
           emptyDir: {}
 ---

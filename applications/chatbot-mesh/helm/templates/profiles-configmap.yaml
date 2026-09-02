@@ -9,21 +9,30 @@ metadata:
     {{- include "chatbot-mesh.labels" . | nindent 4 }}
     app.kubernetes.io/component: profiles
 data:
-  {{- $cogen := list "agents__chatbot__rest.yaml" "agents__chatbot__ui__ui.yaml" "agents__chatbot__request-topology-declarations.yaml" }}
+  {{- $cogen := splitList " " (include "chatbot-mesh.cogeneratedProfileKeys" .) }}
   {{- range $path, $_ := .Files.Glob "profiles/**" }}
   {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
-  {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) }}
+  {{- /* A served UI bundle belongs to the agent that serves it, in its own
+        ConfigMap, rather than to this object every agent pod mounts. The
+        chatbot bundle was a quarter of it (GH-131); the observer's was already
+        excluded on the same reasoning. */}}
+  {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) (not (hasPrefix "agents__chatbot__ui__app__dist__" $key)) }}
   {{ $key }}: |-
   {{- if eq $key "applications__chatbot-mesh__applier__exec-declarations.yaml" }}
     {{- /* Rewrite the applier exec args' placeholder coordinates to the installed
           release so an applier installed under any release name targets its own
           release, namespace, and chatbot Deployment rather than a baked
           chatbot-mesh/default (GH-484). The deployment token is replaced before
-          the bare release token because it contains it. */}}
+          the bare release token because it contains it. Each helm subcommand
+          carrying the release is listed separately, so an exec word added with
+          a subcommand absent here keeps the placeholder and reads another
+          release; TestApplierExecArgsCarryNoBakedReleaseCoordinate scans every
+          rendered argv for that (GH-217). */}}
     {{- $exec := $.Files.Get $path }}
     {{- $exec = $exec | replace "deployment/chatbot-mesh-chatbot" (printf "deployment/%s-chatbot" $fullname) }}
     {{- $exec = $exec | replace "upgrade, chatbot-mesh," (printf "upgrade, %s," $.Release.Name) }}
     {{- $exec = $exec | replace "rollback, chatbot-mesh]" (printf "rollback, %s]" $.Release.Name) }}
+    {{- $exec = $exec | replace "get, values, chatbot-mesh," (printf "get, values, %s," $.Release.Name) }}
     {{- $exec = $exec | replace "--namespace, default," (printf "--namespace, %s," $.Release.Namespace) }}
     {{- $exec | nindent 4 }}
   {{- else }}

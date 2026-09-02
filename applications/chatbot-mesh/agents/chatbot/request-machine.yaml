@@ -40,6 +40,9 @@ states:
   - {name: ParsingTier, meaning: The tier-selection response is being parsed.}
   - {name: Answering, meaning: The chosen chat-LLM word is answering over the composed grounding prompt.}
   - {name: Reporting, meaning: The answer and fixed-selector source metadata are being composed.}
+  - {name: RenderingComposedSources, meaning: The composed sources are being projected to their reportable fields.}
+  - {name: RenderingModelExcludedSources, meaning: The embedding-model-excluded sources are being projected to their reportable fields.}
+  - {name: RenderingQueryFailedSources, meaning: The failed sources are being projected to their reportable fields.}
   - {name: Finalizing, meaning: The composed response is being mapped to the terminal HTTP result.}
   - {name: LLMResponded, meaning: Terminal. A mapped chat response is ready., run_status: succeeded}
   - {name: Failed, meaning: Terminal. A non-degradable boundary or collection operation failed., run_status: failed}
@@ -67,6 +70,9 @@ signals:
   - {name: ToolDone, trigger: The tier selector selected a declared chat-LLM word.}
   - {name: ParseFailed, trigger: The tier-selector output was malformed or out of vocabulary.}
   - {name: TaskCompleted, trigger: The tier selector emitted the done tool.}
+  - {name: ComposedSourcesRendered, trigger: The composed sources were projected for the response.}
+  - {name: ModelExcludedSourcesRendered, trigger: The excluded sources were projected for the response.}
+  - {name: QueryFailedSourcesRendered, trigger: The failed sources were projected for the response.}
   - {name: ResponseComposed, trigger: The answer and source metadata were composed.}
   - {name: CommandError, trigger: A boundary or collection operation failed.}
 transitions:
@@ -128,10 +134,28 @@ transitions:
   - {state: SelectingTier, signal: CommandError, next: Failed}
   - {state: ParsingTier, signal: LLMResponded, next: Answering, action: parse_tier}
   - {state: ParsingTier, signal: CommandError, next: Reporting, action: invoke_llm_fast}
-  - {state: Answering, signal: ToolDone, next: Reporting, action: $tool}
+  # The dispatch is a self-loop: agent-core scopes a $tool manifest to the
+  # transition's target state and parse_tier validates the selection against
+  # manifest_state Answering, so the two must name the same state. Targeting
+  # Reporting scoped the vocabulary where the selection is never checked, every
+  # selection resolved as unavailable, and each turn silently answered on the
+  # fallback (GH-1900).
+  - {state: Answering, signal: ToolDone, next: Answering, action: $tool}
+  - {state: Answering, signal: LLMResponded, next: RenderingComposedSources, action: render_composed_sources}
   - {state: Answering, signal: ParseFailed, next: Reporting, action: invoke_llm_fast}
   - {state: Answering, signal: TaskCompleted, next: Reporting, action: invoke_llm_fast}
-  - {state: Reporting, signal: LLMResponded, next: Finalizing, action: compose_response}
+  # Each source list is projected to its reportable fields before the response
+  # is composed. The join entries carry the topology the fan-out iterated, and
+  # composing them put every RAG unit's in-cluster address in the browser's
+  # answer; these three render what a reader needs and leave the rest inside
+  # the mesh.
+  - {state: Reporting, signal: LLMResponded, next: RenderingComposedSources, action: render_composed_sources}
   - {state: Reporting, signal: CommandError, next: Failed}
+  - {state: RenderingComposedSources, signal: ComposedSourcesRendered, next: RenderingModelExcludedSources, action: render_model_excluded_sources}
+  - {state: RenderingComposedSources, signal: CommandError, next: Failed}
+  - {state: RenderingModelExcludedSources, signal: ModelExcludedSourcesRendered, next: RenderingQueryFailedSources, action: render_query_failed_sources}
+  - {state: RenderingModelExcludedSources, signal: CommandError, next: Failed}
+  - {state: RenderingQueryFailedSources, signal: QueryFailedSourcesRendered, next: Finalizing, action: compose_response}
+  - {state: RenderingQueryFailedSources, signal: CommandError, next: Failed}
   - {state: Finalizing, signal: ResponseComposed, next: LLMResponded}
   - {state: Finalizing, signal: CommandError, next: Failed}

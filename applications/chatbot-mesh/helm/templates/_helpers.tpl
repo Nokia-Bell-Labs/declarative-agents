@@ -1,6 +1,9 @@
-{{/* Chart name, optionally overridden. */}}
+{{/* Chart name. Not overridable: values.schema.json closes the root with
+     additionalProperties false and declares no nameOverride, so any values file
+     setting one is refused before a template runs. The branch that read it could
+     never be reached (GH-220). */}}
 {{- define "chatbot-mesh.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- .Chart.Name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{/* Fully qualified release name. */}}
@@ -112,22 +115,18 @@ test.repository={{ .Values.collector.integrationResource.repository }},test.modu
 {{- end -}}
 
 {{/*
-The mesh view (srd003 R4) the applier serves on its read path, projected as
-JSON from the same values that render the topology, so what the panel reads is
-what the chart deploys. Values-plane only: RAG list, LLM endpoint, parameters. No
-per-agent runtime endpoint appears, so the read state carries no agent authority.
+chatbot-mesh.cogeneratedProfileKeys names the profile ConfigMap keys rendered
+from values rather than packaged from disk, as a space-separated list.
+
+One definition, because the two readers disagreed and the disagreement was
+invisible: the ConfigMap excluded these keys from its file glob so the rendered
+versions win, while the volume projection listed a different set -- naming two
+files that are packaged verbatim and omitting the topology, which is actually
+co-generated. The topology key reached the pod only because a packaging step had
+left the staged file on disk for the glob to find (cohere-demo GH-220).
 */}}
-{{- define "chatbot-mesh.meshView" -}}
-{{- $rags := list -}}
-{{- range .Values.ragUnits -}}
-{{- $rags = append $rags (dict "name" .name "collection" .collection "embeddingModel" .embeddingModel "replicas" (int (default 1 .replicas))) -}}
-{{- end -}}
-{{- $view := dict
-  "rags" $rags
-  "llm" (dict "inCluster" .Values.ollama.enabled "externalURL" .Values.llm.externalURL "chatModel" (default "" .Values.applier.params.chatModel) "embedModel" .Values.chatbot.embeddingModel "chatModels" .Values.ollama.models.chat "tierModel" .Values.ollama.models.tier "topology" .Values.ollama.topology)
-  "params" (dict "nResults" (int .Values.applier.params.nResults) "chunkCap" (int .Values.applier.params.chunkCap) "tierDefault" .Values.applier.params.tierDefault)
--}}
-{{- $view | toJson -}}
+{{- define "chatbot-mesh.cogeneratedProfileKeys" -}}
+agents__chatbot__rest.yaml agents__chatbot__ui__ui.yaml agents__chatbot__request-topology-declarations.yaml
 {{- end -}}
 
 {{/*
@@ -154,17 +153,19 @@ mount. GH-314 co-generates the chatbot rest.yaml into this subtree before packag
   configMap:
     name: {{ include "chatbot-mesh.fullname" . }}-profiles
     items:
-    {{- $cogen := list "agents__chatbot__rest.yaml" "agents__chatbot__ui__ui.yaml" "agents__chatbot__request-machine.yaml" "agents__chatbot__request-fanout-declarations.yaml" }}
+    {{- $cogen := splitList " " (include "chatbot-mesh.cogeneratedProfileKeys" .) }}
     {{- range $path, $_ := .Files.Glob "profiles/**" }}
       {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
-      {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) }}
+      {{- /* Served UI bundles are projected from their own ConfigMaps by the
+            agents that serve them, so they are not items of this shared
+            projection (GH-131). */}}
+      {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) (not (hasPrefix "agents__chatbot__ui__app__dist__" $key)) }}
       - key: {{ $key }}
         path: {{ $path | trimPrefix "profiles/" }}
       {{- end }}
     {{- end }}
       {{- /* The co-generated keys, projected whether or not a packaging step placed the file on disk. */}}
-      - {key: agents__chatbot__rest.yaml, path: agents/chatbot/rest.yaml}
-      - {key: agents__chatbot__ui__ui.yaml, path: agents/chatbot/ui/ui.yaml}
-      - {key: agents__chatbot__request-machine.yaml, path: agents/chatbot/request-machine.yaml}
-      - {key: agents__chatbot__request-fanout-declarations.yaml, path: agents/chatbot/request-fanout-declarations.yaml}
+      {{- range $key := splitList " " (include "chatbot-mesh.cogeneratedProfileKeys" $) }}
+      - {key: {{ $key }}, path: {{ $key | replace "__" "/" }}}
+      {{- end }}
 {{- end -}}
