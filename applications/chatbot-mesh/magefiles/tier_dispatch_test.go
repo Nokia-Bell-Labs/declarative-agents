@@ -195,6 +195,47 @@ func TestTierDispatchTransitionAgreesWithTheParseState(t *testing.T) {
 	}
 }
 
+// TestTierDispatchTargetHandlesEveryWordSignal keeps dynamic-dispatch
+// validation closed over the selected vocabulary. The $tool action runs after
+// its transition reaches the target state, so every signal an answer word may
+// emit needs a route from that target.
+func TestTierDispatchTargetHandlesEveryWordSignal(t *testing.T) {
+	declarations := requestDeclarations(t)
+	words := make(map[string]bool)
+	for _, name := range dispatchableWords(declarations) {
+		words[name] = true
+	}
+	var machine chatbotMachine
+	readChatbotYAML(t, chatbotAgentPath(t, chatbotRequestMachine), &machine)
+
+	target := ""
+	routes := make(map[string]bool)
+	for _, transition := range machine.Transitions {
+		if transition.Action == chatbotDispatchAction {
+			target = transition.Next
+		}
+	}
+	if target == "" {
+		t.Fatalf("%s declares no %s transition", chatbotRequestMachine, chatbotDispatchAction)
+	}
+	for _, transition := range machine.Transitions {
+		if transition.State == target {
+			routes[transition.Signal] = true
+		}
+	}
+	for _, declaration := range declarations {
+		if !words[declaration.Name] {
+			continue
+		}
+		for _, signal := range declaration.Emits {
+			if !routes[signal] {
+				t.Errorf("dynamic word %s emits %s, but dispatch target %s has no %s route",
+					declaration.Name, signal, target, signal)
+			}
+		}
+	}
+}
+
 // The vocabulary is derived, not listed, so this pins that the derivation finds
 // the words a reader would expect. A change here is a real change to what the
 // selector can dispatch.
