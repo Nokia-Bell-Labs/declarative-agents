@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -56,8 +57,38 @@ func requireCIDRAllowlistPolicy(t *testing.T) {
 	setNetworkPolicy(blocked, NetworkPolicy{CIDRs: []string{"10.0.0.0/8"}})
 	result := clientCommand(t, blocked, InitClientGet, "get", params("1")).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
-	require.Contains(t, result.Output, "request_rendering")
+	require.Contains(t, result.Output, `"failure_stage":"network_policy"`)
 	require.Equal(t, 1, requests)
+
+	targetRequests := 0
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		targetRequests++
+		writeJSON(w, http.StatusOK, map[string]interface{}{"title": "redirected"})
+	}))
+	defer target.Close()
+	redirectRequests := 0
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		redirectRequests++
+		http.Redirect(w, req, target.URL+"/repos/acme/agent-core/issues/1", http.StatusFound)
+	}))
+	defer redirect.Close()
+	redirectURL, err := http.NewRequest(http.MethodGet, redirect.URL, nil)
+	require.NoError(t, err)
+	redirectPort, err := strconv.Atoi(redirectURL.URL.Port())
+	require.NoError(t, err)
+
+	redirectBlocked := clientDefinition(t, redirect.URL, issueClient())
+	setNetworkPolicy(redirectBlocked, NetworkPolicy{
+		CIDRs: []string{allowedCIDR}, Ports: []int{redirectPort},
+	})
+	setRedirectPolicy(redirectBlocked, RedirectPolicy{
+		Mode: redirectAllowlist, AllowHosts: []string{targetURLHost(target)},
+	})
+	result = clientCommand(t, redirectBlocked, InitClientGet, "get", params("1")).Execute()
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, `"failure_stage":"network_policy"`)
+	require.Equal(t, 1, redirectRequests)
+	require.Zero(t, targetRequests, "redirect-time policy refusal must happen before target I/O")
 }
 
 func requireResponseSchemaAndDomainErrorOutput(t *testing.T) {

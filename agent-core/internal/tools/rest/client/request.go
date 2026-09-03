@@ -209,7 +209,7 @@ func renderURL(def ClientOperationDefinition, params map[string]interface{}, vie
 			return "", targetResolutionError{err: err}
 		}
 	}
-	return endpoint.String(), validateNetwork(endpoint, def.Limits.Network)
+	return endpoint.String(), wrapNetworkPolicyError(validateNetwork(endpoint, def.Limits.Network))
 }
 
 func renderPath(path string, params map[string]interface{}) string {
@@ -384,10 +384,10 @@ func validateCIDR(host string, policy NetworkPolicy) error {
 	}
 	ips, err := hostIPs(host)
 	if err != nil {
-		return err
+		return networkIOError{error: err}
 	}
 	if len(ips) == 0 {
-		return fmt.Errorf("host %q resolved to no addresses", host)
+		return networkIOError{error: fmt.Errorf("host %q resolved to no addresses", host)}
 	}
 	for _, ip := range ips {
 		if !ipAllowedByCIDR(ip, policy.CIDRs) {

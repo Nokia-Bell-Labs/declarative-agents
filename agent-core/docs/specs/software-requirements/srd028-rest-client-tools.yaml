@@ -137,11 +137,12 @@ requirements:
   R11:
     title: Errors and recovery
     items:
-      - R11.1: REST client errors SHALL distinguish config_decode, operation_lookup, schema_invalid, request_rendering, auth_resolution, network_io, timeout, status_mapping, response_mapping, async_state_missing, and compensation_missing stages.
+      - R11.1: REST client errors SHALL distinguish config_decode, operation_lookup, schema_invalid, request_rendering, auth_resolution, network_policy, network_io, timeout, status_mapping, response_mapping, async_state_missing, and compensation_missing stages.
       - R11.2: Error output SHALL include operation ID, resource name when known, failure stage, status code when present, redacted diagnostic text, and resulting signal.
       - R11.3: Domain failure status codes SHALL map to RESTDomainFailed or RESTMissing when declared by the operation.
       - R11.4: Infrastructure failures SHALL map to CommandError and SHALL not be confused with service-domain failures.
       - R11.5: Cancellation after a non-idempotent request may have reached the remote service SHALL report outcome indeterminate rather than claiming the mutation failed.
+      - R11.6: A configured scheme, host, CIDR, or port policy refusal SHALL report failure_stage network_policy during initial request construction and redirect-time revalidation. Selector and credential-scope failures remain target_resolution, malformed request templates remain request_rendering, and DNS or dial failures remain network_io.
 
   R12:
     title: Previous-Result parameter threading
@@ -266,7 +267,7 @@ acceptance_criteria:
 
   - id: AC9
     criterion: Error and recovery requirements distinguish domain failures from infrastructure failures and report operation identity, failure stage, status, diagnostics, and resulting signal.
-    traces: [R11.1, R11.2, R11.3, R11.4, R11.5]
+    traces: [R11.1, R11.2, R11.3, R11.4, R11.5, R11.6]
 
   - id: AC10
     criterion: Each planned client tool word lists inputs, outputs, signals, side effects, errors, and undo strategy expectations.

@@ -135,7 +135,9 @@ func cidrPolicyDialer(
 		}
 		for _, ip := range ips {
 			if !ipAllowedByCIDR(ip, policy.CIDRs) {
-				return nil, fmt.Errorf("host %q resolves outside CIDR policy: %s", host, ip)
+				return nil, networkPolicyError{
+					error: fmt.Errorf("host %q resolves outside CIDR policy: %s", host, ip),
+				}
 			}
 		}
 		var dialErr error
@@ -175,7 +177,7 @@ func redirectPolicy(limits LimitProfile) func(*http.Request, []*http.Request) er
 			return http.ErrUseLastResponse
 		}
 		if err := validateNetwork(req.URL, limits.Network); err != nil {
-			return err
+			return wrapNetworkPolicyError(err)
 		}
 		if policy.Mode == redirectSameHost && len(via) > 0 && req.URL.Host != via[0].URL.Host {
 			return http.ErrUseLastResponse
