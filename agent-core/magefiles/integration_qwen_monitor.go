@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -48,15 +49,15 @@ func (Integration) OllamaMonitor() error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	cmd, output, resultCh := startMonitoredQwen(ctx, binary, rootDir, run.profilePath)
+	cmd, output, resultCh := startMonitoredQwen(ctx, binary, rootDir, run.profilePath, run.requestPath)
 	defer func() {
 		cancel()
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
 	}()
-	if err := waitMonitorHTTP(run.baseURL + "/monitor/state"); err != nil {
-		return fmt.Errorf("ollamaMonitor: monitor did not become ready: %w\n%s", err, output.String())
+	if err := waitMonitoredQwenHTTP(run.baseURL+"/monitor/state", resultCh, output); err != nil {
+		return fmt.Errorf("ollamaMonitor: monitor did not become ready: %w", err)
 	}
 	if err := waitForTokenMetricIncrease(run.baseURL+"/monitor/metrics", resultCh, output); err != nil {
 		return err
@@ -73,6 +74,7 @@ func (Integration) OllamaMonitor() error {
 
 type monitoredQwenRun struct {
 	profilePath string
+	requestPath string
 	baseURL     string
 }
 
@@ -91,8 +93,14 @@ func prepareMonitoredQwenRun(rootDir, model string) (monitoredQwenRun, func(), e
 		cleanup()
 		return monitoredQwenRun{}, nil, err
 	}
+	requestPath := filepath.Join(tmpDir, "request.txt")
+	if err := os.WriteFile(requestPath, []byte(monitoredQwenPrompt), 0o644); err != nil {
+		cleanup()
+		return monitoredQwenRun{}, nil, err
+	}
 	return monitoredQwenRun{
 		profilePath: filepath.Join(tmpDir, "profile.yaml"),
+		requestPath: requestPath,
 		baseURL:     "http://" + addr,
 	}, cleanup, nil
 }
@@ -157,8 +165,9 @@ func startMonitoredQwen(
 	binary string,
 	rootDir string,
 	profilePath string,
+	requestPath string,
 ) (*exec.Cmd, *bytes.Buffer, <-chan error) {
-	args := []string{"--profile", profilePath, "--request", monitoredQwenPrompt}
+	args := monitoredQwenArgs(profilePath, requestPath)
 	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.Dir = rootDir
 	var output bytes.Buffer
@@ -175,8 +184,34 @@ func startMonitoredQwen(
 	return cmd, &output, resultCh
 }
 
+func monitoredQwenArgs(profilePath, requestPath string) []string {
+	return []string{"--profile", profilePath, "--request", requestPath}
+}
+
 func waitMonitorHTTP(url string) error {
 	return waitHTTPStatus(url, http.StatusOK, 10*time.Second)
+}
+
+func waitMonitoredQwenHTTP(url string, resultCh <-chan error, output *bytes.Buffer) error {
+	deadline := time.Now().Add(10 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-resultCh:
+			if err == nil {
+				err = errors.New("agent exited without an error")
+			}
+			return fmt.Errorf("agent exited before monitor readiness: %w\n%s", err, output.String())
+		default:
+		}
+		remaining := time.Until(deadline)
+		if err := waitHTTPStatus(url, http.StatusOK, min(250*time.Millisecond, remaining)); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+	}
+	return fmt.Errorf("%w\n%s", lastErr, output.String())
 }
 
 func waitForTokenMetricIncrease(url string, resultCh <-chan error, output *bytes.Buffer) error {

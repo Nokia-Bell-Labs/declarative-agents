@@ -37,6 +37,8 @@ test_cases:
         - llm.completion_tokens
       binding: isolated_loopback_address
     expected:
+      request_prompt_passed_as_file: true
+      startup_exit_preempts_readiness_timeout: true
       monitor_launch_non_blocking: true
       qwen_flow_continues_after_server_launched: true
       token_metric_present: true
