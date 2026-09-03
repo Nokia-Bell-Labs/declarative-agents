@@ -21,6 +21,19 @@ import (
 
 const restCompensationDescription = "execute the configured REST compensation action"
 
+type networkPolicyError struct{ error }
+type networkIOError struct{ error }
+
+func (e networkPolicyError) Unwrap() error { return e.error }
+func (e networkIOError) Unwrap() error     { return e.error }
+
+func wrapNetworkPolicyError(err error) error {
+	if err != nil {
+		return networkPolicyError{error: err}
+	}
+	return nil
+}
+
 // ClientBuilder constructs synchronous REST client commands.
 type ClientBuilder struct {
 	ToolName    string
@@ -136,7 +149,19 @@ func requestBuildFailureStage(err error) string {
 	if errors.As(err, &targetErr) {
 		return "target_resolution"
 	}
-	return "request_rendering"
+	return networkFailureStage(err, "request_rendering")
+}
+
+func networkFailureStage(err error, fallback string) string {
+	var networkErr networkIOError
+	if errors.As(err, &networkErr) {
+		return "network_io"
+	}
+	var policyErr networkPolicyError
+	if errors.As(err, &policyErr) {
+		return "network_policy"
+	}
+	return fallback
 }
 
 func (c *clientCmd) Undo(_ core.Result) core.Result {
@@ -229,7 +254,8 @@ func (c *clientCmd) executeRequest(request *http.Request) core.Result {
 	duration := time.Since(start)
 	if err != nil {
 		result := clientOperationError(
-			c.toolName, "network_io", redactError(err, c.operation, c.credentials), c.operation,
+			c.toolName, networkFailureStage(err, "network_io"),
+			redactError(err, c.operation, c.credentials), c.operation,
 		)
 		if cancellationIsIndeterminate(request, err) {
 			output := decodeRESTResultOutput(result.Output)
