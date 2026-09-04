@@ -241,3 +241,42 @@ func TestStaticAssets_metadataIncludesEndpointNames(t *testing.T) {
 	require.Contains(t, meta, "health")
 	require.Contains(t, meta, "metadata")
 }
+
+// The cache policy (GH-1939): every static response forces revalidation, so a
+// SPA's users run the deployed page after a redeploy on a normal reload
+// rather than a heuristically cached one. ServeContent answers the
+// revalidation with 304s, so hashed assets pay one conditional request
+// instead of going stale.
+func TestStaticAssets_responsesForceRevalidation(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "assets"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("<html/>"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "assets", "app-abc123.js"), []byte("js"), 0o644))
+
+	srv := restdef.Server{
+		Address: "127.0.0.1:0",
+		Queue:   restdef.QueueConfig{Name: "static_cache", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
+			"ui": {
+				Method: "GET", Path: "/ui/{path...}",
+				Binding: bindingStaticAssets,
+				StaticAssets: &restdef.StaticAssetsConfig{Root: root, SPA: true},
+				Request: restdef.RequestBinding{Path: map[string]interface{}{
+					"path": map[string]interface{}{"type": "string"},
+				}},
+			},
+		},
+	}
+	state, baseURL := launchRESTServer(t, srv, restdef.LimitProfile{})
+	defer stopRESTServer(t, state, "static_cache")
+
+	for _, path := range []string{"/ui/", "/ui/assets/app-abc123.js"} {
+		resp, err := http.Get(baseURL + path)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, "no-cache", resp.Header.Get("Cache-Control"), path)
+		require.NoError(t, resp.Body.Close())
+	}
+}
