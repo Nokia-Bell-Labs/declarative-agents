@@ -261,7 +261,7 @@ func TestStaticAssets_responsesForceRevalidation(t *testing.T) {
 		Endpoints: map[string]restdef.Endpoint{
 			"ui": {
 				Method: "GET", Path: "/ui/{path...}",
-				Binding: bindingStaticAssets,
+				Binding:      bindingStaticAssets,
 				StaticAssets: &restdef.StaticAssetsConfig{Root: root, SPA: true},
 				Request: restdef.RequestBinding{Path: map[string]interface{}{
 					"path": map[string]interface{}{"type": "string"},

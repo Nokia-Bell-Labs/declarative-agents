@@ -74,7 +74,7 @@ var allowedUndeclaredHeaders = map[string]bool{
 	"cache-control": true, "connection": true,
 	"content-length": true, "content-type": true,
 	"cookie": true, "dnt": true,
-	"sec-gpc": true,
+	"sec-gpc":           true,
 	"host":              true,
 	"if-modified-since": true, "if-none-match": true,
 	"origin": true,
