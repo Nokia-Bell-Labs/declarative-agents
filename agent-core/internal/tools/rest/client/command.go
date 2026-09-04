@@ -9,11 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry/genai"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
@@ -102,6 +105,39 @@ var _ core.CommandStateAware = (*clientCmd)(nil)
 func (c *clientCmd) SetTraceContext(sc oteltrace.SpanContext) { c.traceCtx = sc }
 
 var _ core.TraceContextAware = (*clientCmd)(nil)
+
+// SpanName keeps the dispatch span's execute_tool identity; the override
+// exists only so the span can carry the peer attribute below.
+func (c *clientCmd) SpanName() string { return genai.ToolSpanName(c.Name()) }
+
+// SpanCreationAttrs adds server.address to the dispatch span's tool
+// attributes, from the declared client base URL's host. An LLM invoke's span
+// carries its peer (genai.InferenceAttrs) while a REST invoke's did not, so
+// trace-derived topology could see Ollama egress and not a Cohere call
+// (GH-1937). A runtime-selected base URL (base_url_source) resolves after
+// span creation and leaves the span unstamped rather than guessing.
+func (c *clientCmd) SpanCreationAttrs() []attribute.KeyValue {
+	attrs := genai.ToolAttrs(c.Name(), genai.ToolTypeFunction)
+	if host := declaredPeerHost(c.operation.Client.BaseURL); host != "" {
+		attrs = append(attrs, genai.AttrServerAddress.String(host))
+	}
+	return attrs
+}
+
+var _ core.SpanOverride = (*clientCmd)(nil)
+
+// declaredPeerHost extracts host:port from a declared base URL; empty in and
+// unparseable in are empty out.
+func declaredPeerHost(baseURL string) string {
+	if baseURL == "" {
+		return ""
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Host == "" {
+		return ""
+	}
+	return parsed.Host
+}
 
 type restUndoMetadata struct {
 	ResourceID       string
