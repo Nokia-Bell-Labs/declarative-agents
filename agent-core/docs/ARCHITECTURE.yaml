@@ -1539,7 +1539,7 @@ project_structure:
     - path: internal/model/llm/ollama/
       role: Ollama client implementation used by model boundary tools
     - path: internal/model/llm/cohere/
-      role: Planned Cohere v2 Chat client implementation used by model boundary tools
+      role: Cohere v2 Chat client implementation used by model boundary tools
     - path: internal/model/prompt/
       role: Prompt struct, YAML loading, system prompt template, and manifest serialization
     - path: internal/tools/catalog/
@@ -1647,7 +1647,7 @@ implementation_status:
     - done: GenAI semconv (internal/observability/telemetry/genai) — constants, span builders, attribute helpers
     - done: Model boundary support (internal/model/llm) — Client, Conversation, profiles, parseutil, interfaces
     - done: Ollama client implementation (internal/model/llm/ollama) — Chat, model validation, tracing
-    - planned: Cohere client implementation (internal/model/llm/cohere) — v2 Chat, lazy bearer credentials, content-block normalization, and tracing
+    - done: Cohere client implementation (internal/model/llm/cohere) — v2 Chat, lazy bearer credentials, content-block normalization, and tracing
     - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
     - done: Standard tool library behavior — file, build, model boundary, lifecycle adapters, config loading
     - done: Standard tool library package split — internal/tools/catalog, registry, exec, filesystem, llm, rest, service, otlp, lifecycle, control, compose, validation, and undo

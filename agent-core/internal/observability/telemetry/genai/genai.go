@@ -95,6 +95,7 @@ const (
 
 const (
 	ProviderOllama    = "ollama"
+	ProviderCohere    = "cohere"
 	ProviderOpenAI    = "openai"
 	ProviderAnthropic = "anthropic"
 	ProviderDeepSeek  = "deepseek"

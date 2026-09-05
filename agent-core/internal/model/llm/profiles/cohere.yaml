@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: cohere
+match_prefixes: ["command-"]
+
+envelope:
+  open: "[tool_call]"
+  close: "[/tool_call]"
+strict_format: false
+
+extraction_pipeline:
+  - extract_envelope:
+      open: "[tool_call]"
+      close: "[/tool_call]"
+  - extract_braces

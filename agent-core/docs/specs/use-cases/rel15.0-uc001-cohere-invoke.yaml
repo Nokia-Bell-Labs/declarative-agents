@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: rel15.0-uc001-cohere-invoke
 title: A profile selects Cohere for an invoke_llm classifier
-status: specified
+status: implemented
 
 summary: |
   A profile changes an invoke_llm ToolDef from Ollama to Cohere by selecting

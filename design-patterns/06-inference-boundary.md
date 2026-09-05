@@ -76,7 +76,7 @@ Running the same machine and tools against different models is a config change, 
 
 #### Provider portability
 
-Changing models within one provider is configuration. Supporting a new provider requires adapter code, but the machine and tool boundary remain stable. Ollama is the shipped provider adapter; srd048 specifies Cohere v2 as the second adapter.
+Changing models within one provider is configuration. Supporting a new provider requires adapter code, but the machine and tool boundary remain stable. Ollama and Cohere v2 are the shipped provider adapters.
 
 #### Single instrumentation point
 

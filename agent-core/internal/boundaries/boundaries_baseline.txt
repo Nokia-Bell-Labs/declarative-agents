@@ -15,13 +15,14 @@ pkg:internal/evaluation files=23 loc=3860
 pkg:internal/gostyle files=1 loc=9
 pkg:internal/model files=1 loc=7
 pkg:internal/model/llm files=8 loc=967
+pkg:internal/model/llm/cohere files=2 loc=376
 pkg:internal/model/llm/ollama files=2 loc=249
 pkg:internal/model/prompt files=4 loc=140
 pkg:internal/observability files=1 loc=7
 pkg:internal/observability/monitor files=5 loc=1104
 pkg:internal/observability/monitor/runtimeconfig files=1 loc=219
 pkg:internal/observability/telemetry files=4 loc=643
-pkg:internal/observability/telemetry/genai files=2 loc=221
+pkg:internal/observability/telemetry/genai files=2 loc=222
 pkg:internal/observability/tracing files=3 loc=218
 pkg:internal/planning files=1 loc=7
 pkg:internal/planning/extract files=1 loc=121
@@ -45,7 +46,7 @@ pkg:internal/tools/dolt files=6 loc=1357
 pkg:internal/tools/exec files=7 loc=664
 pkg:internal/tools/filesystem files=10 loc=1396
 pkg:internal/tools/lifecycle files=7 loc=1781
-pkg:internal/tools/llm files=14 loc=1774
+pkg:internal/tools/llm files=14 loc=1782
 pkg:internal/tools/otlp files=14 loc=3877
 pkg:internal/tools/registry files=3 loc=320
 pkg:internal/tools/rest files=24 loc=4505

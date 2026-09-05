@@ -149,8 +149,8 @@ tool_language:
     streaming responses, per-request model options (options.go), and provider-specific
     request and response shapes -- that the declarative rest tool (fixed operations,
     no streaming, no dynamic options) does not model. internal/model/llm/ is a
-    deliberate pluggable-provider abstraction (Ollama shipped, Cohere specified by
-    srd048, and further providers behind the same interfaces). invoke_llm''s response parsing is already a separate tool, the
+    deliberate pluggable-provider abstraction (Ollama and Cohere shipped, with
+    further providers behind the same interfaces). invoke_llm''s response parsing is already a separate tool, the
     right shape; only the inference transport lives in the adapter. The recurring
     declarative-decomposition audit cites this instead of re-flagging invoke.go and the
     ollama adapter.'

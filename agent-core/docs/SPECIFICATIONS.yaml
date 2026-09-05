@@ -138,9 +138,9 @@ roadmap_summary:
     status: in_progress
   - version: "15.0"
     name: Cohere invoke_llm provider adapter
-    use_cases_done: 0
+    use_cases_done: 1
     use_cases_total: 1
-    status: in_progress
+    status: done
   - version: "99.0"
     name: Architectural migrations and cleanup
     use_cases_done: 2
@@ -367,7 +367,7 @@ srd_index:
   - id: srd048-cohere-adapter
     title: Cohere v2 LLM Adapter
     summary: Cohere v2 Chat adapter behind llm.Client with lazy bearer credentials, ordered content-block and token normalization, declarative invoke_llm provider selection, parser profile, safe errors, and GenAI telemetry.
-    status: specified
+    status: implemented
     path: docs/specs/software-requirements/srd048-cohere-adapter.yaml
 
 config_format_index:
@@ -628,7 +628,7 @@ use_case_index:
   - id: rel15.0-uc001-cohere-invoke
     title: A profile selects Cohere for an invoke_llm classifier
     release: "15.0"
-    status: specified
+    status: implemented
     test_suite: test-rel15.0-cohere-invoke
     path: docs/specs/use-cases/rel15.0-uc001-cohere-invoke.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
@@ -788,7 +788,7 @@ test_suite_index:
     traces:
       - rel15.0-uc001-cohere-invoke
     formal_test_cases: 8
-    status: planned
+    status: implemented
     path: docs/specs/test-suites/test-rel15.0-cohere-invoke.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
@@ -869,11 +869,10 @@ srd_to_use_case_mapping:
     coverage: Full. Covers AC1 through AC9 via SC8 and telemetry initialization.
 
 coverage_gaps: |
-  Release 15.0 specifies srd048 and rel15.0-uc001. Seven Cohere-specific cases
-  in test-rel15.0-cohere-invoke remain planned for GH-1952; the eighth case is
-  the implemented Ollama compatibility suite. No live Cohere credential is a
-  release prerequisite because the provider wire and tracing proof is
-  hermetic.
+  Release 15.0 implements srd048 and rel15.0-uc001. Seven Cohere-specific cases
+  and the existing Ollama compatibility case in test-rel15.0-cohere-invoke are
+  implemented. No live Cohere credential is a release prerequisite because
+  the provider wire and tracing proof is hermetic.
 
   Release 14.0 implements srd046 request-driven signal admission and srd047
   configured Dolt boundary words. rel14.0-uc001 and rel14.0-uc002 trace every

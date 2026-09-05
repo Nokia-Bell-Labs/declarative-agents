@@ -16,7 +16,7 @@ test_cases:
   - use_case: rel15.0-uc001-cohere-invoke
     name: Cohere constructor is inert and configuration selects the adapter
     go_test: go test ./internal/tools/llm ./internal/model/llm/cohere -run 'Test(NewInvokeLLMBuilder_CohereNoProbe|NewAdapter_NoIO)'
-    status: planned
+    status: implemented
     description: |
       Build provider cohere against an unreachable URL without supplying an
       API key. Construction succeeds and performs no network or credential
@@ -30,7 +30,7 @@ test_cases:
   - use_case: rel15.0-uc001-cohere-invoke
     name: Cohere Chat sends the declared v2 request
     go_test: go test ./internal/model/llm/cohere -run TestChat_Request
-    status: planned
+    status: implemented
     description: |
       Execute Chat against httptest with an injected key. Inspect method, path,
       bearer header, model, chronological messages, temperature, and seed.
@@ -45,7 +45,7 @@ test_cases:
   - use_case: rel15.0-uc001-cohere-invoke
     name: Cohere response joins text and maps usage
     go_test: go test ./internal/model/llm/cohere -run TestChat_Response
-    status: planned
+    status: implemented
     description: |
       Return multiple text blocks, a non-text block, and usage.tokens. The
       adapter preserves text order, excludes non-text data, and maps usage.
@@ -59,7 +59,7 @@ test_cases:
   - use_case: rel15.0-uc001-cohere-invoke
     name: Credential and provider failures remain safe and single-attempt
     go_test: go test ./internal/model/llm/cohere ./internal/tools/llm -run 'Test(Chat_Errors|InvokeLLM_CohereCommandError)'
-    status: planned
+    status: implemented
     description: |
       Exercise missing key, cancellation, connection failure, non-2xx,
       malformed JSON, missing text, and an unreachable invoke_llm dispatch.
@@ -73,7 +73,7 @@ test_cases:
   - use_case: rel15.0-uc001-cohere-invoke
     name: Provider validation preserves Ollama defaults
     go_test: go test ./internal/tools/llm -run TestInvokeLLMProviderSelection
-    status: planned
+    status: implemented
     description: |
       Table-drive omitted, ollama, cohere, and unknown providers plus missing
       URLs. Omitted provider remains Ollama; Cohere requires its own URL.
@@ -87,7 +87,7 @@ test_cases:
   - use_case: rel15.0-uc001-cohere-invoke
     name: Cohere parser profile handles joined classifier output
     go_test: go test ./internal/model/llm -run TestCohereResponseProfile
-    status: planned
+    status: implemented
     description: |
       Resolve the profile by name and command- prefix, then extract both a
       tool_call envelope and bare JSON. Existing profile resolutions remain
@@ -101,7 +101,7 @@ test_cases:
   - use_case: rel15.0-uc001-cohere-invoke
     name: Cohere transport emits GenAI attributes with caller parenting
     go_test: go test ./internal/model/llm/cohere ./internal/observability/telemetry/genai -run 'Test(Chat_Tracing|ProviderCohere)'
-    status: planned
+    status: implemented
     description: |
       Execute success and error calls under a caller span and inspect the
       transport child and dispatch attributes.

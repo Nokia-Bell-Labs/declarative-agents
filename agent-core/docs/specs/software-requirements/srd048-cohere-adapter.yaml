@@ -114,12 +114,11 @@ depends_on:
 
 implementation_status:
   current: |
-    llm.Client is provider-neutral, but internal/tools/llm.newLLMClient accepts
-    only ollama. No Cohere adapter or Cohere response parser profile ships.
-  planned: |
-    GH-1948 adds internal/model/llm/cohere, provider selection in invoke_llm,
-    the embedded cohere response profile, hermetic HTTP and tracing tests, and
-    the P5.1 provider-import evidence.
+    internal/model/llm/cohere implements Cohere v2 Chat behind llm.Client.
+    internal/tools/llm selects ollama or cohere, the embedded cohere response
+    profile handles command- models, and hermetic tests cover the wire,
+    credential, normalization, failure, and tracing contracts. P5.1 includes
+    the Cohere adapter import boundary.
 
 related_documents:
   - cfg-llm-config-format
