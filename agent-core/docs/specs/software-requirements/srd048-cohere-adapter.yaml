@@ -1,0 +1,147 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd048-cohere-adapter
+title: Cohere v2 LLM Adapter
+
+problem: |
+  invoke_llm supports only Ollama, so a profile that otherwise uses Cohere
+  still sends builtin classifier calls to a local Ollama model. The generic
+  llm.Client port already separates inference transport from MachineSpec,
+  prompt assembly, conversation history, capture, and response parsing. A
+  Cohere adapter can implement that port without changing those owners.
+
+  Cohere v2 Chat differs from Ollama on endpoint, authentication, request
+  options, response content, and usage fields. The adapter must normalize those
+  differences without putting a bearer credential in ToolDef configuration or
+  treating provider HTTP JSON as model output.
+
+goals:
+  - G1: Implement Cohere v2 Chat behind the existing llm.Client port.
+  - G2: Make provider selection declarative through invoke_llm configuration.
+  - G3: Keep credentials outside profile YAML and resolve them only for a Chat call.
+  - G4: Emit the same GenAI identity and usage attributes as other invoke_llm providers.
+
+requirements:
+  R1:
+    title: Adapter boundary
+    items:
+      - R1.1: The Cohere adapter SHALL implement llm.Client without changing Client, Message, ChatOptions, ChatResponse, Conversation, or PromptAssembler.
+      - R1.2: NewAdapter SHALL accept a base URL, model, and testable options without performing network I/O or credential lookup.
+      - R1.3: The adapter SHALL use an injected HTTP client and tracing port when supplied and safe defaults otherwise.
+      - R1.4: Adapter.Model SHALL return the configured model.
+      - R1.5: The adapter SHALL NOT implement retries, streaming, readiness probes, model discovery, embeddings, reranking, or REST-declared provider words.
+
+  R2:
+    title: Cohere v2 request
+    items:
+      - R2.1: Chat SHALL send one non-streaming POST to the normalized provider URL plus /v2/chat.
+      - R2.2: The request SHALL contain model and chronological messages whose role and content come from the provider-neutral llm.Message values.
+      - R2.3: Temperature and seed SHALL be top-level request fields derived from ChatOptions.
+      - R2.4: The request SHALL NOT send Ollama options, num_ctx, /api/chat fields, or /api/tags probes.
+      - R2.5: Context cancellation and deadlines SHALL propagate through the HTTP request.
+
+  R3:
+    title: Credential boundary
+    items:
+      - R3.1: Chat SHALL resolve the fixed process credential COHERE_API_KEY through an injectable lookup immediately before request construction.
+      - R3.2: A missing or empty credential SHALL fail Chat before network I/O.
+      - R3.3: A present credential SHALL be sent only as Authorization Bearer on the Cohere request.
+      - R3.4: ToolDef config, command output, traces, logs, and errors SHALL NOT contain the credential or a credential-valued config field.
+      - R3.5: The adapter's process-environment lookup is the narrow srd048 exception to the go-style environment ban; tests SHALL replace it through an option.
+
+  R4:
+    title: Response normalization
+    items:
+      - R4.1: Chat SHALL decode the Cohere v2 assistant message and concatenate text from message.content blocks in authored order.
+      - R4.2: Non-text content blocks SHALL NOT become model text; a response with no usable text SHALL return a distinct error.
+      - R4.3: Chat SHALL map usage.tokens.input_tokens and usage.tokens.output_tokens to ChatResponse TokensIn and TokensOut.
+      - R4.4: Missing token counts SHALL map to zero.
+      - R4.5: The joined text SHALL become ChatResponse.Content and the existing invoke_llm command SHALL append it to conversation history and emit LLMResponded.
+      - R4.6: The embedded cohere response_profile SHALL parse joined model text, not Cohere HTTP response JSON, using the [tool_call] envelope with bare-JSON fallback.
+
+  R5:
+    title: Provider selection and defaults
+    items:
+      - R5.1: invoke_llm SHALL accept provider values ollama and cohere and SHALL reject unknown providers during builder construction.
+      - R5.2: An omitted provider SHALL retain the Ollama compatibility default and its localhost provider URL.
+      - R5.3: provider cohere SHALL require provider_url and SHALL NOT inherit the Ollama localhost default.
+      - R5.4: A Cohere builder SHALL be constructible without contacting the provider or resolving COHERE_API_KEY.
+      - R5.5: Missing credentials, unreachable service, and provider response failures SHALL become invoke_llm CommandError at dispatch.
+      - R5.6: response_profile cohere SHALL resolve by name, and command- model prefixes SHALL select it when response_profile is omitted.
+
+  R6:
+    title: Errors and observability
+    items:
+      - R6.1: Missing credential, request encoding, request creation, connection, non-2xx status, body read, malformed JSON, and missing text SHALL produce distinct safe errors.
+      - R6.2: A non-2xx error MAY include a bounded response diagnostic but SHALL NOT include the Authorization value.
+      - R6.3: Each Cohere transport span SHALL carry gen_ai.operation.name chat, gen_ai.provider.name cohere, gen_ai.request.model, and server.address with server.port when present.
+      - R6.4: A successful span SHALL record gen_ai.response.model and gen_ai.usage.input_tokens and gen_ai.usage.output_tokens.
+      - R6.5: HTTP and decoding failures SHALL record error.type and the error on the transport span.
+      - R6.6: A caller-context span SHALL parent the Cohere transport span; an adapter tracer SHALL remain a safe fallback.
+      - R6.7: The invoke_llm dispatch span and monitor metrics SHALL continue to derive provider and model from the selected ToolDef config.
+
+non_goals:
+  - Change chatbot-mesh classifier, answer-model, Helm, or REST configuration.
+  - Change REST-declared Cohere command, embedding, or rerank words.
+  - Add Cohere streaming, tool-call APIs, response_format, safety modes, citations, or billing.
+  - Refactor or widen the Ollama-specific srd009 contract.
+  - Add provider failover, retries, rate-limit policy, or live Cohere CI credentials.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A Cohere adapter implements llm.Client, performs no constructor I/O, sends exactly one v2 Chat request with provider-neutral messages and supported decoding options, and propagates cancellation.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R2.4, R2.5]
+  - id: AC2
+    criterion: COHERE_API_KEY is resolved only at Chat time, sent only as bearer authentication, replaceable in tests, absent from YAML and diagnostics, and required before network I/O.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+  - id: AC3
+    criterion: Ordered Cohere text blocks and usage tokens normalize into ChatResponse, while the cohere response profile parses only the joined raw model text.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6]
+  - id: AC4
+    criterion: invoke_llm selects Ollama or Cohere from ToolDef config, preserves omitted-provider compatibility, requires an explicit Cohere URL, resolves the Cohere parser profile, rejects unknown providers, and routes Chat-time failures as CommandError.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6]
+  - id: AC5
+    criterion: Cohere spans expose provider, request and response model, server authority, usage, parenting, and safe typed failures equivalent to the existing inference boundary.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7]
+
+depends_on:
+  - srd_id: srd009-ollama-adapter
+    symbols_used: [llm.Client compatibility, no-constructor-I/O precedent]
+  - srd_id: srd015-genai-semconv
+    symbols_used: [ProviderCohere, InferenceAttrs, UsageAttrs, ErrorAttrs]
+  - srd_id: srd017-llm-extensions
+    symbols_used: [ResponseParser, ProfileRegistry, response_profile]
+
+implementation_status:
+  current: |
+    llm.Client is provider-neutral, but internal/tools/llm.newLLMClient accepts
+    only ollama. No Cohere adapter or Cohere response parser profile ships.
+  planned: |
+    GH-1948 adds internal/model/llm/cohere, provider selection in invoke_llm,
+    the embedded cohere response profile, hermetic HTTP and tracing tests, and
+    the P5.1 provider-import evidence.
+
+related_documents:
+  - cfg-llm-config-format
+  - cfg-runtime-contract
+  - rel15.0-uc001-cohere-invoke
+  - test-rel15.0-cohere-invoke
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      P[Ollama-only invoke_llm] --> G[Cohere adapter goals]
+      G --> R1[Adapter boundary]
+      G --> R2[v2 request]
+      G --> R3[Credential boundary]
+      G --> R4[Response normalization]
+      G --> R5[Provider selection]
+      G --> R6[Errors and observability]
+      R1 --> AC1
+      R2 --> AC1
+      R3 --> AC2
+      R4 --> AC3
+      R5 --> AC4
+      R6 --> AC5
+    ```

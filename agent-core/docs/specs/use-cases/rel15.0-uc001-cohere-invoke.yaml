@@ -1,0 +1,81 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel15.0-uc001-cohere-invoke
+title: A profile selects Cohere for an invoke_llm classifier
+status: specified
+
+summary: |
+  A profile changes an invoke_llm ToolDef from Ollama to Cohere by selecting
+  provider cohere, a Cohere model, provider_url, and response_profile cohere.
+  MachineSpec, prompt assembly, conversation, capture, and parse words remain
+  unchanged. The adapter sends the assembled messages to Cohere v2 Chat,
+  normalizes ordered text blocks and usage, and returns LLMResponded.
+
+  The bearer credential remains process-owned. Registration does not read it
+  or contact Cohere. Chat resolves COHERE_API_KEY immediately before one HTTP
+  request, and a missing credential or provider failure becomes CommandError.
+
+actor: A profile author selecting a Cohere-backed builtin classifier
+
+trigger: |
+  An invoke_llm transition reaches a ToolDef configured with provider cohere
+  and a trusted Cohere provider URL.
+
+flow:
+  - F1: The profile loads an invoke_llm ToolDef whose config names provider cohere, model command-r7b-12-2024, provider_url, manifest_state, and response_profile cohere.
+  - F2: Builder construction resolves the Cohere adapter and parser profile without network I/O or credential lookup.
+  - F3: invoke_llm assembles provider-neutral chronological messages from its prompt, conversation, and state-scoped manifest.
+  - F4: Chat resolves COHERE_API_KEY and creates one bearer-authenticated POST to provider_url/v2/chat with model, messages, temperature, and seed.
+  - F5: The Cohere adapter joins ordered text blocks, maps usage tokens, and returns one llm.ChatResponse.
+  - F6: invoke_llm appends the normalized assistant text, emits LLMResponded, and records provider, model, server, usage, and response-model trace attributes.
+  - F7: The existing capture and parse words consume joined model text through response_profile cohere without seeing Cohere HTTP JSON.
+  - F8: Missing credential, cancellation, transport, status, decoding, or content failure produces a safe CommandError and no retry.
+
+touchpoints:
+  - T1: "srd048-cohere-adapter R1 -- adapter behind the unchanged llm.Client boundary"
+  - T2: "srd048-cohere-adapter R2 -- Cohere v2 request and cancellation"
+  - T3: "srd048-cohere-adapter R3 -- lazy process credential and secret boundary"
+  - T4: "srd048-cohere-adapter R4 -- content-block and usage normalization"
+  - T5: "srd048-cohere-adapter R5 -- declarative provider and response-profile selection"
+  - T6: "srd048-cohere-adapter R6 -- errors and GenAI telemetry"
+  - T7: "srd017-llm-extensions R2 -- supported provider and parser-profile selection"
+  - T8: "srd015-genai-semconv R3 -- Cohere provider identity"
+  - T9: "srd015-genai-semconv R5 -- inference and usage attributes"
+
+success_criteria:
+  - id: S1
+    criterion: A synthetic provider cohere ToolDef builds without contacting the provider or reading COHERE_API_KEY.
+    traces: [srd048-cohere-adapter AC1, srd048-cohere-adapter AC4]
+  - id: S2
+    criterion: One authenticated v2 request carries chronological messages and supported decoding options but no Ollama-specific fields.
+    traces: [srd048-cohere-adapter AC1, srd048-cohere-adapter AC2]
+  - id: S3
+    criterion: Ordered text blocks and usage tokens become the same ChatResponse and LLMResponded path used by Ollama.
+    traces: [srd048-cohere-adapter AC3]
+  - id: S4
+    criterion: The Cohere response profile extracts envelope-wrapped or bare JSON from joined model text without parsing provider response JSON.
+    traces: [srd048-cohere-adapter AC3, srd048-cohere-adapter AC4]
+  - id: S5
+    criterion: Cohere transport and dispatch spans identify Cohere, model, server, usage, response model, and errors without exposing the credential.
+    traces: [srd048-cohere-adapter AC2, srd048-cohere-adapter AC5]
+  - id: S6
+    criterion: Missing credentials and provider failures emit CommandError at dispatch, while unknown providers and missing Cohere URLs fail builder construction.
+    traces: [srd048-cohere-adapter AC4, srd048-cohere-adapter AC5]
+
+failure_scenarios:
+  - id: E1
+    scenario: COHERE_API_KEY is missing when Chat begins.
+    expected: Chat fails before network I/O and invoke_llm emits CommandError without naming a secret value.
+  - id: E2
+    scenario: Cohere returns non-2xx, malformed JSON, or no text blocks.
+    expected: The adapter returns a distinct bounded error, records error.type, and does not retry.
+  - id: E3
+    scenario: A ToolDef selects cohere without provider_url or names an unknown provider.
+    expected: Builder construction rejects the configuration before dispatch.
+
+out_of_scope:
+  - Chatbot-mesh declaration, model-default, Helm, or REST-word changes.
+  - Cohere embeddings, reranking, native tool calls, streaming, or live-service CI.
+  - Provider failover and retry policy.
+
+test_suite_trace: test-rel15.0-cohere-invoke

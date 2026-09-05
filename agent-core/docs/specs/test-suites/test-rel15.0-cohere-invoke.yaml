@@ -1,0 +1,125 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel15.0-cohere-invoke
+title: Test Suite for Release 15.0 Cohere invoke_llm
+release: "15.0"
+
+traces:
+  - rel15.0-uc001-cohere-invoke
+
+preconditions:
+  - srd048-cohere-adapter defines the Cohere v2 wire, credential, normalization, provider-selection, error, and telemetry contracts.
+  - Tests use httptest and an injected API-key lookup; no live Cohere credential or service is required.
+  - The existing Ollama adapter tests remain the compatibility baseline.
+
+test_cases:
+  - use_case: rel15.0-uc001-cohere-invoke
+    name: Cohere constructor is inert and configuration selects the adapter
+    go_test: go test ./internal/tools/llm ./internal/model/llm/cohere -run 'Test(NewInvokeLLMBuilder_CohereNoProbe|NewAdapter_NoIO)'
+    status: planned
+    description: |
+      Build provider cohere against an unreachable URL without supplying an
+      API key. Construction succeeds and performs no network or credential
+      lookup.
+    expected:
+      builder_created: true
+      network_requests: 0
+      credential_lookups: 0
+    traces: [rel15.0-uc001-cohere-invoke S1, srd048-cohere-adapter AC1, srd048-cohere-adapter AC4]
+
+  - use_case: rel15.0-uc001-cohere-invoke
+    name: Cohere Chat sends the declared v2 request
+    go_test: go test ./internal/model/llm/cohere -run TestChat_Request
+    status: planned
+    description: |
+      Execute Chat against httptest with an injected key. Inspect method, path,
+      bearer header, model, chronological messages, temperature, and seed.
+    expected:
+      method_path: POST /v2/chat
+      bearer_present: true
+      request_fields: [model, messages, temperature, seed]
+      forbidden_fields: [options, num_ctx]
+      request_count: 1
+    traces: [rel15.0-uc001-cohere-invoke S2, srd048-cohere-adapter AC1, srd048-cohere-adapter AC2]
+
+  - use_case: rel15.0-uc001-cohere-invoke
+    name: Cohere response joins text and maps usage
+    go_test: go test ./internal/model/llm/cohere -run TestChat_Response
+    status: planned
+    description: |
+      Return multiple text blocks, a non-text block, and usage.tokens. The
+      adapter preserves text order, excludes non-text data, and maps usage.
+    expected:
+      content: joined ordered text blocks
+      non_text_exposed: false
+      token_fields: [TokensIn, TokensOut]
+      missing_tokens_default_zero: true
+    traces: [rel15.0-uc001-cohere-invoke S3, srd048-cohere-adapter AC3]
+
+  - use_case: rel15.0-uc001-cohere-invoke
+    name: Credential and provider failures remain safe and single-attempt
+    go_test: go test ./internal/model/llm/cohere ./internal/tools/llm -run 'Test(Chat_Errors|InvokeLLM_CohereCommandError)'
+    status: planned
+    description: |
+      Exercise missing key, cancellation, connection failure, non-2xx,
+      malformed JSON, missing text, and an unreachable invoke_llm dispatch.
+    expected:
+      errors_distinct: true
+      credential_value_exposed: false
+      retries: 0
+      invoke_signal: CommandError
+    traces: [rel15.0-uc001-cohere-invoke S5, rel15.0-uc001-cohere-invoke S6, srd048-cohere-adapter AC2, srd048-cohere-adapter AC4, srd048-cohere-adapter AC5]
+
+  - use_case: rel15.0-uc001-cohere-invoke
+    name: Provider validation preserves Ollama defaults
+    go_test: go test ./internal/tools/llm -run TestInvokeLLMProviderSelection
+    status: planned
+    description: |
+      Table-drive omitted, ollama, cohere, and unknown providers plus missing
+      URLs. Omitted provider remains Ollama; Cohere requires its own URL.
+    expected:
+      omitted_provider: ollama
+      omitted_provider_url: http://localhost:11434
+      cohere_without_url_rejected: true
+      unknown_provider_rejected: true
+    traces: [rel15.0-uc001-cohere-invoke S1, rel15.0-uc001-cohere-invoke S6, srd048-cohere-adapter AC4]
+
+  - use_case: rel15.0-uc001-cohere-invoke
+    name: Cohere parser profile handles joined classifier output
+    go_test: go test ./internal/model/llm -run TestCohereResponseProfile
+    status: planned
+    description: |
+      Resolve the profile by name and command- prefix, then extract both a
+      tool_call envelope and bare JSON. Existing profile resolutions remain
+      unchanged.
+    expected:
+      named_resolution: cohere
+      prefix_resolution: command-r7b-12-2024
+      envelope_and_bare_json_extracted: true
+    traces: [rel15.0-uc001-cohere-invoke S4, srd048-cohere-adapter AC3, srd048-cohere-adapter AC4]
+
+  - use_case: rel15.0-uc001-cohere-invoke
+    name: Cohere transport emits GenAI attributes with caller parenting
+    go_test: go test ./internal/model/llm/cohere ./internal/observability/telemetry/genai -run 'Test(Chat_Tracing|ProviderCohere)'
+    status: planned
+    description: |
+      Execute success and error calls under a caller span and inspect the
+      transport child and dispatch attributes.
+    expected:
+      provider: cohere
+      attributes: [gen_ai.request.model, gen_ai.response.model, server.address, server.port, gen_ai.usage.input_tokens, gen_ai.usage.output_tokens]
+      caller_parent_preserved: true
+      error_type_recorded: true
+    traces: [rel15.0-uc001-cohere-invoke S5, srd048-cohere-adapter AC5]
+
+  - use_case: rel15.0-uc001-cohere-invoke
+    name: Existing Ollama provider behavior remains compatible
+    go_test: go test ./internal/model/llm/ollama ./internal/tools/llm
+    status: implemented
+    description: |
+      Run the existing Ollama adapter and invoke_llm tests unchanged after the
+      provider switch is added.
+    expected:
+      existing_tests_pass: true
+      ollama_wire_unchanged: true
+    traces: [rel15.0-uc001-cohere-invoke S1, srd048-cohere-adapter AC4]

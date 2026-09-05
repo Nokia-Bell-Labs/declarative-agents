@@ -4,7 +4,7 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Forty-seven SRDs define the
+  Specification index for the agent-core framework. Forty-eight SRDs define the
   generic agentic loop engine and its supporting packages.
   Releases 00.0 through 08.0 have implemented proof in their indexed use cases
   and test suites. Release 03.0 includes named executable REST conformance
@@ -12,9 +12,9 @@ overview: |
   executable AC6 profile-closure timeout inspection and cmd/agent startup
   enforcement tests over core-owned synthetic fixtures. Replacing every
   application owner's inventory check remains the GH-1679 follow-up.
-  Thirty-three use cases exercise the SRDs across sixteen releases. Eighteen
-  formal YAML test suites cover 339 acceptance test cases across releases 00.0
-  through 14.0 and release 99.0; additional
+  Thirty-four use cases exercise the SRDs across seventeen releases. Nineteen
+  formal YAML test suites cover 347 acceptance test cases across releases 00.0
+  through 15.0 and release 99.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
 
@@ -40,6 +40,9 @@ overview: |
   configured Dolt provision, query, and write boundary words. Their formal
   suite specifies the GH-1732 real-Dolt integration obligation and the GH-1733
   model-free and model-path compatibility obligations.
+  Release 15.0 covers srd048 for Cohere v2 Chat behind invoke_llm, including
+  lazy process credentials, content-block normalization, response-profile
+  parsing, safe errors, and GenAI provider identity.
   Release 99.0 covers srd037 dispatch planning and srd043
   application/catalog source-layout migration.
 
@@ -132,6 +135,11 @@ roadmap_summary:
     name: Request-driven signals and configured Dolt words
     use_cases_done: 0
     use_cases_total: 2
+    status: in_progress
+  - version: "15.0"
+    name: Cohere invoke_llm provider adapter
+    use_cases_done: 0
+    use_cases_total: 1
     status: in_progress
   - version: "99.0"
     name: Architectural migrations and cleanup
@@ -356,6 +364,11 @@ srd_index:
     summary: General-purpose provision, query, and write words whose trusted configuration owns connection, database, SQL, parameter schemas, schema lifecycle, and commit messages, with bound caller params, commit-per-write, checkpoint-database separation, and real-Dolt integration proof.
     status: implemented
     path: docs/specs/software-requirements/srd047-dolt-boundary-word.yaml
+  - id: srd048-cohere-adapter
+    title: Cohere v2 LLM Adapter
+    summary: Cohere v2 Chat adapter behind llm.Client with lazy bearer credentials, ordered content-block and token normalization, declarative invoke_llm provider selection, parser profile, safe errors, and GenAI telemetry.
+    status: specified
+    path: docs/specs/software-requirements/srd048-cohere-adapter.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -612,6 +625,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel14.0-agent-input-and-dolt
     path: docs/specs/use-cases/rel14.0-uc002-dolt-boundary-word.yaml
+  - id: rel15.0-uc001-cohere-invoke
+    title: A profile selects Cohere for an invoke_llm classifier
+    release: "15.0"
+    status: specified
+    test_suite: test-rel15.0-cohere-invoke
+    path: docs/specs/use-cases/rel15.0-uc001-cohere-invoke.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -763,6 +782,14 @@ test_suite_index:
     formal_test_cases: 13
     status: implemented
     path: docs/specs/test-suites/test-rel14.0-agent-input-and-dolt.yaml
+  - id: test-rel15.0-cohere-invoke
+    title: Test Suite for Release 15.0 Cohere invoke_llm
+    release: "15.0"
+    traces:
+      - rel15.0-uc001-cohere-invoke
+    formal_test_cases: 8
+    status: planned
+    path: docs/specs/test-suites/test-rel15.0-cohere-invoke.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"
@@ -842,6 +869,12 @@ srd_to_use_case_mapping:
     coverage: Full. Covers AC1 through AC9 via SC8 and telemetry initialization.
 
 coverage_gaps: |
+  Release 15.0 specifies srd048 and rel15.0-uc001. Seven Cohere-specific cases
+  in test-rel15.0-cohere-invoke remain planned for GH-1952; the eighth case is
+  the implemented Ollama compatibility suite. No live Cohere credential is a
+  release prerequisite because the provider wire and tracing proof is
+  hermetic.
+
   Release 14.0 implements srd046 request-driven signal admission and srd047
   configured Dolt boundary words. rel14.0-uc001 and rel14.0-uc002 trace every
   acceptance criterion into implemented cases in

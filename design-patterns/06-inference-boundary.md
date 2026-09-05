@@ -76,7 +76,7 @@ Running the same machine and tools against different models is a config change, 
 
 #### Provider portability
 
-Changing models within one provider is configuration. Supporting a new provider requires adapter code, but the machine and tool boundary remain stable. Ollama is the only shipped provider adapter.
+Changing models within one provider is configuration. Supporting a new provider requires adapter code, but the machine and tool boundary remain stable. Ollama is the shipped provider adapter; srd048 specifies Cohere v2 as the second adapter.
 
 #### Single instrumentation point
 
@@ -114,6 +114,17 @@ max_tokens: 16384
 
 Switching among models served by Ollama is one configuration edit. Switching to an unimplemented provider is not: it requires a new adapter behind the existing interface, plus provider-specific options, while leaving machine, tools, and harness untouched. The adapter hides endpoint, authentication, serialization, retry, and rate-limit behavior.
 
+The Cohere configuration keeps the same boundary:
+
+```yaml
+provider: cohere
+model: command-r7b-12-2024
+provider_url: "${COHERE_API_URL:-https://api.cohere.com}"
+response_profile: cohere
+```
+
+The adapter resolves `COHERE_API_KEY` only when Chat executes and sends it only as bearer authentication. It converts the provider's ordered content blocks into the raw text that the existing capture and parse words consume. The response profile parses that text; it does not parse the Cohere HTTP response object.
+
 The parser handles three output shapes, all yielding one `ParsedResult` type: **structured** tool calls (OpenAI, Anthropic) map directly; **embedded** tool calls (markdown or XML in open-weight output) are extracted by regex or schema, with malformed output raising `ParseFailed` rather than failing silently; and **completion-only** responses become the task output. Conversation history accrues between calls and is truncated to the context window by the assembler (sliding window, summarization, or priority pruning), so the adapter always receives a ready-to-send prompt. Inference telemetry attaches here too: `SpanOverride` labels the `invoke_llm` span `gen_ai.chat` and records GenAI attributes (model, token counts, temperature), one span per dispatch.
 
 
@@ -126,6 +137,6 @@ Inference Boundary sits within Agent-as-Data and requires Machine Interpreter, A
 
 **Executor profile variants.** `profile.yaml`, `profile-qwen35b.yaml`, and `profile-qwen27b.yaml` are loadable profile entry points. They share `machine.yaml`, `tools.yaml`, and the same tool roots. The default and qwen35b wrappers bind `llm/default.yaml` (`qwen3.6:35b-mlx`); qwen27b binds `llm/qwen27b.yaml` (`qwen3.6:27b-mlx`). The grid therefore has three shipped wrappers and two model configurations over one harness, all through Ollama.
 
-**Evaluation harness isolation.** In the bench/critic/executor stack, changing the executor's Ollama model declaration leaves machine, tools, oracle checks, and metrics unchanged. Multi-provider failover remains design intent until another provider adapter and a focused cross-provider test ship.
+**Evaluation harness isolation.** In the bench/critic/executor stack, changing the executor's Ollama model declaration leaves machine, tools, oracle checks, and metrics unchanged. Cohere support follows the same adapter boundary under srd048. Multi-provider failover remains design intent.
 
 **Adapter and Ports-and-Adapters.** The structure is the GoF **Adapter** [@gamma-gof-1994] — convert one interface into the one a client expects — instantiated once per provider behind a single interface. At the architectural scale it is **Hexagonal Architecture** [@cockburn-hexagonal-2005]: the engine core depends on a port and each model provider plugs in as an adapter, exactly how the harness reaches any provider without change. The **Model Context Protocol** [@anthropic-mcp-2024] generalizes the same idea to a uniform boundary between an agent and heterogeneous external capabilities, models included.
