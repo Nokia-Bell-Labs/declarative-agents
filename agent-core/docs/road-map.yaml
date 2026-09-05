@@ -615,6 +615,40 @@ releases:
       - go test ./internal/model/llm/cohere ./internal/tools/llm ./internal/model/llm ./internal/observability/telemetry/genai
       - mage audit
 
+  - version: "16.0"
+    name: Pipeline word for marshalling blocks
+    description: |
+      Release 16.0 adds the pipeline builtin (srd049): one word that runs an
+      ordered sequence of pure data-transform stages -- the existing compose,
+      render_each, project, normalize_vector, flat_map, reorder_by_index,
+      parse_structured, and select_subset inits with their standalone configs
+      -- and emits one declared signal. Stages chain through the
+      previous-Result contract, the current-value selector inside a stage
+      means the previous stage's output, and $from selectors resolve against
+      the injected command-state view. The machine keeps every state that
+      decides a path; the word absorbs the states that only reshape. A
+      pipeline declaration co-selects its stage factory families, and
+      render_each accepts the current-value items selector under the srd041
+      both-forms precedent.
+    status: done
+    planned_work:
+      - id: gh-1957
+        summary: Specify and ship the pipeline word, stage co-selection, and the render_each current-value items selector.
+        status: implemented
+    srds:
+      - srd049-pipeline-word
+    use_cases:
+      - id: rel16.0-uc001-pipeline-word
+        summary: A profile folds a render/compose marshalling block into one pipeline word.
+        status: implemented
+    test_suites:
+      - id: test-rel16.0-pipeline-word
+        summary: Hermetic chaining, selector, registration-failure, failure-separation, and co-selection tests.
+        status: implemented
+    proof:
+      - go test ./internal/tools/pipeline ./internal/tools/compose ./internal/tools/registry
+      - mage audit
+
   - version: "99.0"
     name: Architectural migrations and cleanup
     description: |

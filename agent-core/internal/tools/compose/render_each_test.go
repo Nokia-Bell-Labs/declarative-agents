@@ -93,7 +93,11 @@ func TestRenderEachUnresolvedSelectorIsCommandError(t *testing.T) {
 }
 
 func TestValidateRenderEachConfigRejectsMalformedConfig(t *testing.T) {
-	require.Error(t, ValidateRenderEachConfig("r", "$.items", "{{ name }}", "Done"))
+	// A current-value $. selector is accepted since srd049 R3.1: inside a
+	// pipeline stage it addresses the previous stage's output, following the
+	// both-forms precedent srd041 R1.3 set for predicate operands.
+	require.NoError(t, ValidateRenderEachConfig("r", "$.items", "{{ name }}", "Done"))
+	require.Error(t, ValidateRenderEachConfig("r", "$from(", "{{ name }}", "Done"))
 	require.Error(t, ValidateRenderEachConfig("r", "$from(x).items", "", "Done"))
 	require.Error(t, ValidateRenderEachConfig("r", "$from(x).items", "{{ bad path }}", "Done"))
 	require.Error(t, ValidateRenderEachConfig("r", "$from(x).items", "{{ name }}", ""))

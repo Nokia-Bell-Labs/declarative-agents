@@ -115,11 +115,16 @@ func registerExec(reg *core.Registry, root string, td catalog.ToolDef, execBuild
 }
 
 // SelectedBuiltinInits returns builtin init keys present in selected defs.
+// A pipeline declaration also selects its stage inits, so the stage factory
+// families register without a standalone word (srd049 R2.3).
 func SelectedBuiltinInits(defs []catalog.ToolDef) map[string]bool {
 	selected := make(map[string]bool)
 	for _, def := range defs {
 		if def.Type == "builtin" && def.Init != "" {
 			selected[def.Init] = true
+			for _, init := range catalog.PipelineStageInits(def) {
+				selected[init] = true
+			}
 		}
 	}
 	return selected

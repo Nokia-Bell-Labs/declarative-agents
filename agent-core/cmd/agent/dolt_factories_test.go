@@ -19,7 +19,7 @@ func TestDoltSelectedInitRegistersWholeFactoryFamily(t *testing.T) {
 	t.Parallel()
 
 	families := standardCatalog(&agentState{})
-	require.Len(t, families, 12)
+	require.Len(t, families, 13)
 	var doltFamily toolregistry.StandardFactoryCatalogEntry
 	for _, family := range families {
 		if family.Name == "dolt" {
