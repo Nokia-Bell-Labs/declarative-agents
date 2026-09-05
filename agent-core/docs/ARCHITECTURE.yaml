@@ -867,6 +867,14 @@ overview:
       JSON responses use lower_snake_case API field names instead of Go
       struct field names.
 
+      The srd033 declared_machines read view also receives the trusted
+      profile closure at startup. It projects the root MachineSpec plus each
+      distinct machine_request MachineSpec as declarations, with the root first
+      and the remaining machines ordered by name. Authored view_tags and
+      per-state tags remain presentation metadata. This path does not read the
+      monitor store and does not represent request machines as live runs;
+      request-run spans remain the execution evidence.
+
       One opt-in read view reaches past the metric store into the
       command-state store of srd038. A read_state endpoint that declares
       monitor_view command_state and a labels allowlist exposes the
@@ -900,6 +908,7 @@ overview:
         R --> S[In-memory monitor store]
         S --> M[OpenTelemetry metric exporter]
         S --> API[REST and OpenAPI read handlers]
+        P[Loaded profile MachineSpecs] -->|declared view| API
         API --> UI[Monitor UI or supervisor]
       ```
     responsibilities:
@@ -920,7 +929,9 @@ overview:
       rest_openapi_reads: |
         REST handlers expose cached monitor state through configured routes and
         OpenAPI descriptions. Read handlers return snapshots, time windows, and
-        known metric schemas from trusted monitor state.
+        known metric schemas from trusted monitor state. The
+        declared_machines handler instead returns the loaded root and
+        machine_request declarations without live request-machine state.
       response_shape: |
         Stable monitor payloads expose lower_snake_case field names. API
         readers should not depend on Go struct field names such as RunID,

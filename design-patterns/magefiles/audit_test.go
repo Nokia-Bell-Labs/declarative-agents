@@ -389,6 +389,7 @@ func TestOperatorPortChapterUsesShippedRoutesAndDiscovery(t *testing.T) {
 	chapter := string(chapterData)
 	for _, required := range []string{
 		"/monitor/machine",
+		"/monitor/machines",
 		"/monitor/state",
 		"/monitor/tools",
 		"/monitor/metrics",

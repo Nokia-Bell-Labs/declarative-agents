@@ -94,6 +94,7 @@ func TestMonitorReleaseProfileProof(t *testing.T) {
 	metrics := proofRequestBody(t, baseURL+"/monitor/metrics")
 	require.Contains(t, metrics, "dispatch_count")
 	require.Contains(t, metrics, "route_group")
+	requireDeclaredMachineNames(t, proofRequestBody(t, baseURL+"/monitor/machines"), "monitor-rest-profile")
 	require.Contains(t, proofRequestBody(t, baseURL+"/monitor/openapi"), "/monitor/metrics")
 	require.Contains(t, proofRequestBody(t, baseURL+"/monitor/events/stream"), "event: metric_sample")
 }
@@ -111,6 +112,7 @@ func TestMonitorCLIProfileServesUntilControlExit(t *testing.T) {
 	require.Contains(t, stateBody, `"run_id"`)
 	require.NotContains(t, stateBody, `"State"`)
 	require.NotContains(t, stateBody, `"RunID"`)
+	requireDeclaredMachineNames(t, proofRequestBody(t, baseURL+"/monitor/machines"), "monitor-rest-profile")
 	require.Contains(t, proofRequestBody(t, baseURL+"/monitor/metrics"), "dispatch_count")
 	requireProcessStillRunning(t, resultCh)
 	postProofMonitorExit(t, baseURL+"/monitor/control/exit")

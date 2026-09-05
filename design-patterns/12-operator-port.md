@@ -11,7 +11,7 @@ Attach a control-plane server to the running engine so observers can query execu
 
 ## Reference implementation status
 
-The shipped `applications/catalog/agents/runtime-state-reader` infrastructure adapter owns read routes for machine, state, tools, metrics, recent events, event SSE, and OpenAPI. It declares no control route of its own: agent-core injects the canonical `POST /api/lifecycle/exit` lifecycle-control endpoint into every served agent (GH-1264), which emits `ExitRequested`, and the profile's control await selects that injected route. The listener binds `127.0.0.1:0`; supervisors discover the selected address from the REST launch output.
+The shipped `applications/catalog/agents/runtime-state-reader` infrastructure adapter owns read routes for the running root machine, all declared machines, state, tools, metrics, recent events, event SSE, and OpenAPI. It declares no control route of its own: agent-core injects the canonical `POST /api/lifecycle/exit` lifecycle-control endpoint into every served agent (GH-1264), which emits `ExitRequested`, and the profile's control await selects that injected route. The listener binds `127.0.0.1:0`; supervisors discover the selected address from the REST launch output.
 
 The REST runtime has conformance-tested `lifecycle_control` and `inject_signal` bindings, but no production profile selects them. Arbitrary signal injection, pause/resume/rollback control, PID-file discovery, coding-agent rollback, multi-agent polling, and checkpoint restoration by a lifecycle agent remain design intent.
 
@@ -73,6 +73,7 @@ The shipped monitor profile declares these observability routes:
 | Method and path | Binding and view |
 |---|---|
 | `GET /monitor/machine` | `read_state`: machine specification |
+| `GET /monitor/machines` | `read_state`: root and request-machine declarations |
 | `GET /monitor/state` | `read_state`: current state |
 | `GET /monitor/tools` | `read_state`: tool inventory |
 | `GET /monitor/metrics` | `read_state`: metric snapshot |
@@ -147,7 +148,7 @@ servers:
 
 `launch_rest_server` returns structured output containing the bound `address`. Supervisors, including the CLI proof, construct the base URL from that output rather than using a PID/profile discovery file or a fixed port.
 
-Monitor reads use the live in-memory store and do not provide durable history. Checkpointing is a separate runtime concern through the typed checkpoint port. The monitor is also distinct from the bench UI: monitor routes observe a live run, while bench evaluates completed trace artifacts (Chapter 11).
+Monitor state reads use the live in-memory store and do not provide durable history. The declared-machines read instead serves the trusted profile closure: the root plus distinct `machine_request` MachineSpecs, without claiming those request machines are running. Checkpointing is a separate runtime concern through the typed checkpoint port. The monitor is also distinct from the bench UI: monitor routes observe a live run or its declarations, while bench evaluates completed trace artifacts (Chapter 11).
 
 
 ## Relationships in the Pattern Language
@@ -157,7 +158,7 @@ Operator Port sits within Machine Interpreter and requires Machine Interpreter, 
 
 ## Known Uses
 
-**Shipped runtime-state-reader profile.** `agents/runtime-state-reader` serves profile-owned monitor state, metrics, event, SSE, and OpenAPI routes; its shutdown control is the agent-core-injected `/api/lifecycle/exit`. Its CLI proof discovers the ephemeral loopback address from launch output, reads live state and metrics, posts `/api/lifecycle/exit`, and observes a successful terminal state.
+**Shipped runtime-state-reader profile.** `agents/runtime-state-reader` serves profile-owned root-machine, declared-machines, state, metrics, event, SSE, and OpenAPI routes; its shutdown control is the agent-core-injected `/api/lifecycle/exit`. Its CLI proof discovers the ephemeral loopback address from launch output, reads declarations, live state, and metrics, posts `/api/lifecycle/exit`, and observes a successful terminal state.
 
 **Long-running coding-agent intervention (design intent).** Watching coding transitions, detecting cycles, and injecting `RollbackRequested` is not implemented by a shipped profile.
 

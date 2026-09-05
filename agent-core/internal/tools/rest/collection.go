@@ -46,10 +46,11 @@ type ServerDefinition struct {
 
 // MonitorState provides read-only state for monitor REST endpoints.
 type MonitorState struct {
-	Store    *monitor.Store
-	Recorder monitor.RuntimeRecorder
-	Machine  *core.MachineSpec
-	Tools    []catalog.ToolDef
+	Store            *monitor.Store
+	Recorder         monitor.RuntimeRecorder
+	Machine          *core.MachineSpec
+	DeclaredMachines []core.MachineSpec
+	Tools            []catalog.ToolDef
 	// CommandState backs the opt-in command_state view. It exposes the
 	// redaction-cleared declared output of profile-named steps and is nil when no
 	// live source is wired (srd033-monitor-rest-api R7).

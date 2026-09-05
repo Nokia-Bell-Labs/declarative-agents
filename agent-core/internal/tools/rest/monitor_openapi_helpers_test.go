@@ -4,6 +4,8 @@
 package rest
 
 import (
+	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,7 +25,7 @@ func requireMonitorOpenAPIPaths(t *testing.T, doc map[string]interface{}) {
 	t.Helper()
 	paths, _ := doc["paths"].(map[string]interface{})
 	for _, path := range []string{
-		"/monitor/machine", "/monitor/state", "/monitor/tools", "/monitor/metrics",
+		"/monitor/machine", "/monitor/machines", "/monitor/state", "/monitor/tools", "/monitor/metrics",
 		"/monitor/events", "/monitor/events/stream", "/monitor/control/exit",
 	} {
 		require.Contains(t, paths, path)
@@ -37,6 +39,7 @@ func requireMonitorOpenAPISchemaTypes(
 ) {
 	t.Helper()
 	requireMonitorStateOpenAPISchema(t, doc)
+	requireMonitorDeclaredMachinesOpenAPISchema(t, doc)
 	requireMonitorMetricsOpenAPISchema(t, doc)
 	requireMonitorEventsOpenAPISchema(t, doc)
 	requireMonitorStreamOpenAPIContent(t, doc)
@@ -49,6 +52,11 @@ func requireMonitorOpenAPIMatchesRuntimeViews(t *testing.T, doc map[string]inter
 		schema := monitorOpenAPIResponseSchema(t, doc, path, "get", "200")
 		requireSchemaCoversRuntimeValue(t, schema, getJSON(t, baseURL+path))
 	}
+	schema := monitorOpenAPIResponseSchema(t, doc, "/monitor/machines", "get", "200")
+	body := requestBody(t, http.MethodGet, baseURL+"/monitor/machines", "", http.StatusOK)
+	var machines []interface{}
+	require.NoError(t, json.Unmarshal([]byte(body), &machines))
+	requireSchemaCoversRuntimeValue(t, schema, machines)
 }
 
 func requireSchemaCoversRuntimeValue(t *testing.T, schema map[string]interface{}, value interface{}) {
@@ -81,6 +89,24 @@ func requireMonitorStateOpenAPISchema(t *testing.T, doc map[string]interface{}) 
 	requireSchemaType(t, schemaProperty(t, stateSchema, "run", "iteration"), "integer")
 	requireSchemaFormat(t, schemaProperty(t, stateSchema, "run", "updated_at"), "date-time")
 	requireSchemaType(t, schemaProperty(t, stateSchema, "diagnostics"), "array")
+}
+
+func requireMonitorDeclaredMachinesOpenAPISchema(t *testing.T, doc map[string]interface{}) {
+	t.Helper()
+	schema := monitorOpenAPIResponseSchema(t, doc, "/monitor/machines", "get", "200")
+	requireSchemaType(t, schema, "array")
+	machine := schemaItems(t, schema)
+	requireSchemaType(t, schemaProperty(t, machine, "name"), "string")
+	requireSchemaType(t, schemaProperty(t, machine, "initial_state"), "string")
+	requireSchemaType(t, schemaProperty(t, machine, "signals"), "array")
+	requireSchemaType(t, schemaProperty(t, machine, "terminal_states"), "array")
+	requireSchemaType(t, schemaProperty(t, machine, "transitions"), "array")
+	state := schemaItems(t, schemaProperty(t, machine, "states"))
+	requireSchemaType(t, schemaProperty(t, state, "name"), "string")
+	requireSchemaType(t, schemaProperty(t, state, "tags"), "array")
+	viewTag := schemaItems(t, schemaProperty(t, machine, "view_tags"))
+	requireSchemaType(t, schemaProperty(t, viewTag, "tag"), "string")
+	requireSchemaType(t, schemaProperty(t, viewTag, "label"), "string")
 }
 
 func requireMonitorMetricsOpenAPISchema(t *testing.T, doc map[string]interface{}) {

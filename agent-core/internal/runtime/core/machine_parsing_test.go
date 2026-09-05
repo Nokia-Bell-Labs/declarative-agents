@@ -199,6 +199,58 @@ transitions:
 	}
 }
 
+func TestParseMachineSpec_PreservesPresentationMetadata(t *testing.T) {
+	t.Parallel()
+
+	spec, err := ParseMachineSpec([]byte(`
+name: presented
+view_tags:
+  - {tag: intake, label: Intake}
+  - {tag: answer, label: Answer composition}
+ignored_top_level: not-retained
+initial_state: AwaitingRequest
+states:
+  - name: AwaitingRequest
+    tags: [intake]
+    ignored_state_field: not-retained
+  - name: Composing
+    tags: [answer, intake]
+  - name: Done
+    run_status: succeeded
+    tags: [answer]
+terminal_states: [Done]
+signals: [Seed, ToolDone]
+transitions:
+  - {state: AwaitingRequest, signal: Seed, next: Composing, action: compose}
+  - {state: Composing, signal: ToolDone, next: Done}
+`))
+	require.NoError(t, err)
+	require.Equal(t, []ViewTag{
+		{Tag: "intake", Label: "Intake"},
+		{Tag: "answer", Label: "Answer composition"},
+	}, spec.ViewTags)
+	require.Equal(t, []string{"intake"}, spec.States[0].Tags)
+	require.Equal(t, []string{"answer", "intake"}, spec.States[1].Tags)
+
+	encoded, err := yamlv3.Marshal(spec)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "ignored_top_level")
+	require.NotContains(t, string(encoded), "ignored_state_field")
+	reparsed, err := ParseMachineSpec(encoded)
+	require.NoError(t, err)
+	require.Equal(t, spec.ViewTags, reparsed.ViewTags)
+	require.Equal(t, spec.States, reparsed.States)
+
+	registry := NewRegistry()
+	registry.Register(ToolSpec{Name: "compose"}, &dummyBuilder{name: "compose"})
+	original, _, err := BuildTransitionTable(spec, registry, nil)
+	require.NoError(t, err)
+	roundTrip, _, err := BuildTransitionTable(reparsed, registry, nil)
+	require.NoError(t, err)
+	require.Equal(t, original[TransitionInput{State: "AwaitingRequest", Signal: "Seed"}].NextState,
+		roundTrip[TransitionInput{State: "AwaitingRequest", Signal: "Seed"}].NextState)
+}
+
 func TestParseMachineSpecValidatesDeclaredRunStatus(t *testing.T) {
 	t.Parallel()
 	base := `

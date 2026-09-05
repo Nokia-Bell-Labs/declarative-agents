@@ -40,6 +40,7 @@ test_cases:
       openapi_output_present: true
       otel_metrics_exported: true
       workflow_labels_present: true
+      declared_machines_root_count: 1
       bound_address_discovered_from_launch_output: true
       external_runtime_state_reader_path_used: true
     traces:
@@ -80,6 +81,7 @@ test_cases:
       query_routes:
         - /monitor/state
         - /monitor/metrics
+        - /monitor/machines
       control_route: /monitor/control/exit
       binding: isolated_loopback_address
       discovery: rest_server_launch_output_address
@@ -87,6 +89,7 @@ test_cases:
       process_running_after_server_launch: true
       monitor_state_query_succeeds: true
       monitor_metrics_query_succeeds: true
+      declared_machines_root_count: 1
       control_exit_stops_listener: true
       terminal_status_succeeded: true
       avoids_shared_fixed_port: true
@@ -307,6 +310,75 @@ test_cases:
     traces:
       - rel04.0-uc002-monitor-rest-api S3
       - srd033-monitor-rest-api AC3
+
+  - use_case: rel04.0-uc002-monitor-rest-api
+    name: MachineSpec retains declared presentation metadata
+    go_test: TestParseMachineSpec_PreservesPresentationMetadata
+    status: implemented
+    description: |
+      Parse a MachineSpec containing an ordered view_tags list and rich states
+      with ordered tags. The named presentation fields should survive parsing
+      without changing validation, transition lookup, or execution semantics.
+      An unknown field should not become part of the named presentation
+      contract.
+    inputs:
+      view_tags:
+        - {tag: intake, label: Intake}
+        - {tag: answer, label: Answer composition}
+      state_tags:
+        AwaitingRequest: [intake]
+        Composing: [answer]
+    expected:
+      view_tag_order_preserved: true
+      state_tag_order_preserved: true
+      transition_semantics_unchanged: true
+      generic_unknown_field_bag_absent: true
+    traces:
+      - rel04.0-uc002-monitor-rest-api S7
+      - srd033-monitor-rest-api AC8
+
+  - use_case: rel04.0-uc002-monitor-rest-api
+    name: Monitor declared_machines view returns the profile machine collection
+    go_test: TestMonitorREST_DeclaredMachines
+    status: implemented
+    description: |
+      Serve GET /monitor/machines through a read_state endpoint with
+      monitor_view declared_machines. Build the declaration set from one root,
+      two references to one request machine, and one reference to another
+      request machine. The response should deduplicate by resolved path, place
+      the root first, sort the remaining machines by name, preserve view_tags
+      and per-state tags, and contain no request-machine run state. A profile
+      without machine_request references should return only its root.
+      /monitor/machine should retain its existing root projection, and OpenAPI
+      should describe the declared_machines array and nested fields with exact
+      scalar, array, and object types.
+    inputs:
+      endpoint:
+        method: GET
+        path: /monitor/machines
+        binding: read_state
+        monitor_view: declared_machines
+      profile_declarations:
+        root: supervisor
+        machine_request_references: [chatbot-turn, rag-query, chatbot-turn]
+    expected:
+      machine_names: [supervisor, chatbot-turn, rag-query]
+      duplicate_resolved_paths_collapsed: true
+      root_only_profile_count: 1
+      response_fields: [name, initial_state, states, signals, terminal_states, transitions]
+      optional_presentation_fields: [view_tags, states.tags]
+      request_machine_run_state_absent: true
+      machine_spec_root_projection_unchanged: true
+      openapi_type_accurate: true
+      tools_executed: false
+      machine_actions_dispatched: false
+    traces:
+      - rel04.0-uc002-monitor-rest-api S1
+      - rel04.0-uc002-monitor-rest-api S2
+      - rel04.0-uc002-monitor-rest-api S7
+      - srd033-monitor-rest-api AC1
+      - srd033-monitor-rest-api AC2
+      - srd033-monitor-rest-api AC8
 
   - use_case: rel04.0-uc002-monitor-rest-api
     name: Monitor event stream reads cached updates

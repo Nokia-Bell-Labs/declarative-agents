@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -161,17 +162,34 @@ func monitorState(
 	machine *core.MachineSpec,
 	defs []catalog.ToolDef,
 	commandState core.CommandStateSource,
+	declaredMachines ...core.MachineSpec,
 ) toolrest.MonitorState {
 	if store == nil {
 		return toolrest.MonitorState{}
 	}
-	return toolrest.MonitorState{
-		Store:        store,
-		Recorder:     recorder,
-		Machine:      machine,
-		Tools:        defs,
-		CommandState: commandState,
+	if len(declaredMachines) == 0 && machine != nil {
+		declaredMachines = []core.MachineSpec{*machine}
 	}
+	return toolrest.MonitorState{
+		Store:            store,
+		Recorder:         recorder,
+		Machine:          machine,
+		DeclaredMachines: declaredMachines,
+		Tools:            defs,
+		CommandState:     commandState,
+	}
+}
+
+func loadDeclaredMonitorMachines(
+	store *monitor.Store,
+	machine core.MachineSpec,
+	cfg runtimeConfig,
+	restDefs toolrest.Collection,
+) ([]core.MachineSpec, error) {
+	if store == nil {
+		return nil, nil
+	}
+	return toolrest.LoadDeclaredMachines(machine, cfg.Machine, filepath.Dir(cfg.Profile), restDefs)
 }
 
 func monitorConfigured(machine core.MachineSpec, defs []catalog.ToolDef, restDefs toolrest.Collection) bool {

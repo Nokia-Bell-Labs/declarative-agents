@@ -257,6 +257,16 @@ func proofRequestBody(t *testing.T, url string) string {
 	return body.String()
 }
 
+func requireDeclaredMachineNames(t *testing.T, body string, want ...string) {
+	t.Helper()
+	var machines []map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(body), &machines))
+	require.Len(t, machines, len(want))
+	for i, name := range want {
+		require.Equal(t, name, machines[i]["name"])
+	}
+}
+
 func waitForProofMonitorRoute(t *testing.T, url string) {
 	t.Helper()
 	client := http.Client{Timeout: 100 * time.Millisecond}

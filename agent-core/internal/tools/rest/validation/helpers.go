@@ -30,12 +30,13 @@ const (
 )
 
 const (
-	monitorViewMachine      = restmonitor.ViewMachine
-	monitorViewState        = restmonitor.ViewState
-	monitorViewTools        = restmonitor.ViewTools
-	monitorViewMetrics      = restmonitor.ViewMetrics
-	monitorViewEvents       = restmonitor.ViewEvents
-	monitorViewCommandState = restmonitor.ViewCommandState
+	monitorViewMachine          = restmonitor.ViewMachine
+	monitorViewDeclaredMachines = restmonitor.ViewDeclaredMachines
+	monitorViewState            = restmonitor.ViewState
+	monitorViewTools            = restmonitor.ViewTools
+	monitorViewMetrics          = restmonitor.ViewMetrics
+	monitorViewEvents           = restmonitor.ViewEvents
+	monitorViewCommandState     = restmonitor.ViewCommandState
 )
 
 var forbiddenRuntimeAuthorityFields = map[string]bool{

@@ -78,6 +78,63 @@ func TestMonitorREST_SnapshotEndpoints(t *testing.T) {
 	requireJSONOmitsGoMonitorFields(t, body)
 }
 
+func TestMonitorREST_DeclaredMachines(t *testing.T) {
+	t.Parallel()
+
+	monitorState := seededMonitorState()
+	root := *monitorState.Machine
+	child := core.MachineSpec{
+		Name:         "chatbot-turn",
+		InitialState: "AwaitingRequest",
+		ViewTags: []core.ViewTag{
+			{Tag: "intake", Label: "Intake"},
+			{Tag: "answer", Label: "Answer composition"},
+		},
+		States: core.StateSpecs{
+			{Name: "AwaitingRequest", Tags: []string{"intake"}},
+			{Name: "Done", RunStatus: core.StatusSucceeded, Tags: []string{"answer"}},
+		},
+		Signals:        core.SignalSpecsFromNames("Seed"),
+		TerminalStates: []string{"Done"},
+		Transitions: []core.TransitionSpec{{
+			State: "AwaitingRequest", Signal: "Seed", Next: "Done",
+		}},
+	}
+	monitorState.DeclaredMachines = []core.MachineSpec{root, child}
+	beforeStore := monitorState.Store.Snapshot()
+	beforeMachines, err := json.Marshal(monitorState.DeclaredMachines)
+	require.NoError(t, err)
+
+	state, baseURL := launchMonitorRESTServer(t, "monitor_declared", monitorState)
+	defer stopRESTServer(t, state, "monitor_declared")
+
+	body := requestBody(t, http.MethodGet, baseURL+"/monitor/machines", "", http.StatusOK)
+	var machines []map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(body), &machines))
+	require.Len(t, machines, 2)
+	require.Equal(t, "monitor-machine", machines[0]["name"])
+	require.Equal(t, "chatbot-turn", machines[1]["name"])
+	require.Equal(t, "AwaitingRequest", machines[1]["initial_state"])
+	require.NotContains(t, machines[1], "run")
+	require.NotContains(t, machines[1], "current_state")
+	viewTags := machines[1]["view_tags"].([]interface{})
+	require.Equal(t, "intake", viewTags[0].(map[string]interface{})["tag"])
+	states := machines[1]["states"].([]interface{})
+	require.Equal(t, []interface{}{"intake"}, states[0].(map[string]interface{})["tags"])
+
+	rootView := getJSON(t, baseURL+"/monitor/machine")
+	require.Equal(t, "monitor-machine", rootView["name"])
+	require.Equal(t, []interface{}{"Serving", "Stopped"}, rootView["states"])
+	require.NotContains(t, rootView, "initial_state")
+	require.NotContains(t, rootView, "view_tags")
+
+	require.Equal(t, beforeStore, monitorState.Store.Snapshot())
+	afterMachines, err := json.Marshal(monitorState.DeclaredMachines)
+	require.NoError(t, err)
+	require.JSONEq(t, string(beforeMachines), string(afterMachines))
+	requireQueueEmpty(t, state, "monitor_declared")
+}
+
 func TestMonitorREST_EventStreamCachedUpdates(t *testing.T) {
 	t.Parallel()
 
@@ -285,13 +342,14 @@ func monitorServer(name string) restdef.Server {
 		Address: "127.0.0.1:0",
 		Queue:   restdef.QueueConfig{Name: name, Capacity: 8, Timeout: "20ms"},
 		Endpoints: map[string]restdef.Endpoint{
-			"monitor_machine": {Method: "GET", Path: "/monitor/machine", Binding: bindingReadState, MonitorView: monitorViewMachine},
-			"monitor_state":   {Method: "GET", Path: "/monitor/state", Binding: bindingReadState, MonitorView: monitorViewState},
-			"monitor_tools":   {Method: "GET", Path: "/monitor/tools", Binding: bindingReadState, MonitorView: monitorViewTools},
-			"monitor_metrics": {Method: "GET", Path: "/monitor/metrics", Binding: bindingReadState, MonitorView: monitorViewMetrics},
-			"monitor_events":  {Method: "GET", Path: "/monitor/events", Binding: bindingReadState, MonitorView: monitorViewEvents},
-			"monitor_stream":  {Method: "GET", Path: "/monitor/events/stream", Binding: bindingStreamEvents, MonitorView: monitorViewEvents},
-			"monitor_openapi": {Method: "GET", Path: "/monitor/openapi", Binding: bindingStaticMetadata, MonitorView: "openapi"},
+			"monitor_machine":  {Method: "GET", Path: "/monitor/machine", Binding: bindingReadState, MonitorView: monitorViewMachine},
+			"monitor_machines": {Method: "GET", Path: "/monitor/machines", Binding: bindingReadState, MonitorView: monitorViewDeclaredMachines},
+			"monitor_state":    {Method: "GET", Path: "/monitor/state", Binding: bindingReadState, MonitorView: monitorViewState},
+			"monitor_tools":    {Method: "GET", Path: "/monitor/tools", Binding: bindingReadState, MonitorView: monitorViewTools},
+			"monitor_metrics":  {Method: "GET", Path: "/monitor/metrics", Binding: bindingReadState, MonitorView: monitorViewMetrics},
+			"monitor_events":   {Method: "GET", Path: "/monitor/events", Binding: bindingReadState, MonitorView: monitorViewEvents},
+			"monitor_stream":   {Method: "GET", Path: "/monitor/events/stream", Binding: bindingStreamEvents, MonitorView: monitorViewEvents},
+			"monitor_openapi":  {Method: "GET", Path: "/monitor/openapi", Binding: bindingStaticMetadata, MonitorView: "openapi"},
 			"control_exit": {
 				Method: "POST", Path: "/monitor/control/exit",
 				Binding: bindingEmitSignal, Signal: "ExitRequested",
