@@ -4,6 +4,7 @@
 package compose
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -23,8 +24,8 @@ type RenderEachBuilder struct {
 }
 
 func ValidateRenderEachConfig(toolName, items, itemTemplate, signal string) error {
-	if _, _, ok := core.ParseFromSelector(items); !ok {
-		return fmt.Errorf("tool %q: config items must be a $from(label).path selector", toolName)
+	if !validItemsSelector(items) {
+		return fmt.Errorf("tool %q: config items must be a $from(label).path or current-value $. selector", toolName)
 	}
 	if itemTemplate == "" {
 		return fmt.Errorf("tool %q: config requires item_template", toolName)
@@ -46,16 +47,17 @@ func ValidateRenderEachConfig(toolName, items, itemTemplate, signal string) erro
 	return nil
 }
 
-func (b RenderEachBuilder) Build(_ core.Result) core.Command {
+func (b RenderEachBuilder) Build(prev core.Result) core.Command {
 	return &renderEachCmd{
 		name: b.ToolName, items: b.Items, itemTemplate: b.ItemTemplate,
-		separator: b.Separator, signal: b.Signal,
+		separator: b.Separator, signal: b.Signal, prev: prev,
 	}
 }
 
 type renderEachCmd struct {
 	name, items, itemTemplate, separator string
 	signal                               core.Signal
+	prev                                 core.Result
 	view                                 core.CommandStateView
 }
 
@@ -66,7 +68,7 @@ func (c *renderEachCmd) Undo(_ core.Result) core.Result          { return core.N
 var _ core.CommandStateAware = (*renderEachCmd)(nil)
 
 func (c *renderEachCmd) Execute() core.Result {
-	value, err := core.ResolveFromSelector(c.view, c.items)
+	value, err := resolveItemsSelector(c.view, c.prev, c.items)
 	if err != nil {
 		return c.fault(err)
 	}
@@ -118,4 +120,46 @@ func itemFieldValue(item interface{}, field string) (interface{}, error) {
 func (c *renderEachCmd) fault(err error) core.Result {
 	wrapped := fmt.Errorf("%s: %w", c.Name(), err)
 	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: wrapped.Error(), Err: wrapped}
+}
+
+// validItemsSelector accepts the two operand forms srd041 R1.3 established
+// for predicates: a $from(label).path selector against command state, or a
+// current-value $. selector against the previous Result -- which inside a
+// pipeline word means the previous stage (srd049 R3.1).
+func validItemsSelector(items string) bool {
+	if _, _, ok := core.ParseFromSelector(items); ok {
+		return true
+	}
+	if items == "$." {
+		return true
+	}
+	parsed, ok := core.ParseSelector(items)
+	return ok && parsed.Label == ""
+}
+
+// resolveItemsSelector resolves an items selector under either form.
+func resolveItemsSelector(view core.CommandStateView, prev core.Result, items string) (interface{}, error) {
+	if _, _, ok := core.ParseFromSelector(items); ok {
+		return core.ResolveFromSelector(view, items)
+	}
+	if items == "$." {
+		var decoded interface{}
+		if err := json.Unmarshal([]byte(prev.Output), &decoded); err != nil {
+			return nil, fmt.Errorf("selector %q: the previous step's output is not JSON", items)
+		}
+		return decoded, nil
+	}
+	parsed, ok := core.ParseSelector(items)
+	if !ok || parsed.Label != "" {
+		return nil, fmt.Errorf("selector %q is not a $from(label).path or current-value $. selector", items)
+	}
+	var decoded map[string]interface{}
+	if err := json.Unmarshal([]byte(prev.Output), &decoded); err != nil {
+		return nil, fmt.Errorf("selector %q: the previous step's output is not a JSON object", items)
+	}
+	value, found := parsed.Resolve(decoded)
+	if !found {
+		return nil, fmt.Errorf("selector %q: path not found in the previous step's output", items)
+	}
+	return value, nil
 }

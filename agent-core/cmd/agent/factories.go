@@ -19,6 +19,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/lifecycle"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolotlp "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/otlp"
+	toolpipeline "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/pipeline"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
@@ -54,9 +55,10 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 				CheckpointIdentityErr: identityErr,
 			})
 		},
-		RegisterCompose: compose.RegisterFactories,
-		RegisterOTLP:    registerOTLPFactories(),
-		RegisterService: registerServiceFactories(st),
+		RegisterCompose:  compose.RegisterFactories,
+		RegisterOTLP:     registerOTLPFactories(),
+		RegisterService:  registerServiceFactories(st),
+		RegisterPipeline: toolpipeline.RegisterFactories,
 	}
 }
 
