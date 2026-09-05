@@ -14,12 +14,13 @@ import (
 )
 
 const (
-	monitorViewMachine      = restmonitor.ViewMachine
-	monitorViewState        = restmonitor.ViewState
-	monitorViewTools        = restmonitor.ViewTools
-	monitorViewMetrics      = restmonitor.ViewMetrics
-	monitorViewEvents       = restmonitor.ViewEvents
-	monitorViewCommandState = restmonitor.ViewCommandState
+	monitorViewMachine          = restmonitor.ViewMachine
+	monitorViewDeclaredMachines = restmonitor.ViewDeclaredMachines
+	monitorViewState            = restmonitor.ViewState
+	monitorViewTools            = restmonitor.ViewTools
+	monitorViewMetrics          = restmonitor.ViewMetrics
+	monitorViewEvents           = restmonitor.ViewEvents
+	monitorViewCommandState     = restmonitor.ViewCommandState
 )
 
 func (r *serverRuntime) writeReadState(w http.ResponseWriter, name string, endpoint restdef.Endpoint) {
@@ -42,6 +43,12 @@ func (r *serverRuntime) monitorSurface() restmonitor.Surface {
 		Snapshot:       r.monitorSnapshot,
 		Machine: func() *core.MachineSpec {
 			return r.def.Monitor.Machine
+		},
+		DeclaredMachines: func() []core.MachineSpec {
+			if len(r.def.Monitor.DeclaredMachines) == 0 && r.def.Monitor.Machine != nil {
+				return []core.MachineSpec{*r.def.Monitor.Machine}
+			}
+			return r.def.Monitor.DeclaredMachines
 		},
 		Tools: func() []catalog.ToolDef {
 			return r.def.Monitor.Tools

@@ -15,12 +15,13 @@ import (
 )
 
 const (
-	ViewMachine      = "machine_spec"
-	ViewState        = "current_state"
-	ViewTools        = "tools"
-	ViewMetrics      = "metrics"
-	ViewEvents       = "events"
-	ViewCommandState = "command_state"
+	ViewMachine          = "machine_spec"
+	ViewDeclaredMachines = "declared_machines"
+	ViewState            = "current_state"
+	ViewTools            = "tools"
+	ViewMetrics          = "metrics"
+	ViewEvents           = "events"
+	ViewCommandState     = "command_state"
 )
 
 type monitorField[T any] struct {
@@ -53,10 +54,12 @@ func monitorObjectMapView[T any](items map[string]T, fields []monitorField[T]) m
 	return out
 }
 
-func monitorView(s Surface, route, view string) (map[string]interface{}, error) {
+func monitorView(s Surface, route, view string) (interface{}, error) {
 	switch view {
 	case ViewMachine:
 		return monitorMachineView(s.Machine()), nil
+	case ViewDeclaredMachines:
+		return monitorDeclaredMachinesView(s.DeclaredMachines()), nil
 	case ViewState:
 		return monitorStateView(s.Snapshot()), nil
 	case ViewTools:
@@ -160,6 +163,41 @@ func monitorMachineView(machine *core.MachineSpec) map[string]interface{} {
 		return map[string]interface{}{"machine": nil}
 	}
 	return monitorObjectView(monitorMachineFields(), machine)
+}
+
+func monitorDeclaredMachinesView(machines []core.MachineSpec) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(machines))
+	for i := range machines {
+		out = append(out, monitorDeclaredMachineView(&machines[i]))
+	}
+	return out
+}
+
+func monitorDeclaredMachineView(machine *core.MachineSpec) map[string]interface{} {
+	out := map[string]interface{}{
+		"name":            machine.Name,
+		"initial_state":   machine.InitialState,
+		"states":          monitorDeclaredStates(machine.States),
+		"signals":         machine.Signals.Names(),
+		"terminal_states": machine.TerminalStates,
+		"transitions":     monitorTransitions(machine.Transitions),
+	}
+	if len(machine.ViewTags) > 0 {
+		out["view_tags"] = monitorObjectListView(machine.ViewTags, viewTagFields())
+	}
+	return out
+}
+
+func monitorDeclaredStates(states core.StateSpecs) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(states))
+	for _, state := range states {
+		item := map[string]interface{}{"name": state.Name}
+		if len(state.Tags) > 0 {
+			item["tags"] = state.Tags
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func monitorTransitions(transitions []core.TransitionSpec) []map[string]interface{} {
@@ -275,6 +313,13 @@ func monitorMachineFields() []monitorField[*core.MachineSpec] {
 		{"terminal_states", monitorSchemaArray(monitorSchemaString()), func(m *core.MachineSpec) interface{} { return m.TerminalStates }},
 		{"metric_labels", monitorSchemaMap(monitorSchemaString()), func(m *core.MachineSpec) interface{} { return safeLabels(m.MetricLabels) }},
 		{"transitions", monitorSchemaArray(transitionSchema()), func(m *core.MachineSpec) interface{} { return monitorTransitions(m.Transitions) }},
+	}
+}
+
+func viewTagFields() []monitorField[core.ViewTag] {
+	return []monitorField[core.ViewTag]{
+		{"tag", monitorSchemaString(), func(tag core.ViewTag) interface{} { return tag.Tag }},
+		{"label", monitorSchemaString(), func(tag core.ViewTag) interface{} { return tag.Label }},
 	}
 }
 

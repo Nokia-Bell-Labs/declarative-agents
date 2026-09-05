@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -144,6 +145,88 @@ func requestMachinePath(cfg restdef.MachineRequest, profile catalog.AgentProfile
 		return profile.Machine
 	}
 	return configuredPath(profileDir, cfg.Machine)
+}
+
+type declaredMachine struct {
+	path    string
+	machine core.MachineSpec
+}
+
+// LoadDeclaredMachines loads the root and each distinct machine_request
+// declaration from one trusted profile closure. The root remains first; request
+// machines are ordered by name so REST definition map iteration cannot affect
+// the monitor response (srd033 R8).
+func LoadDeclaredMachines(
+	root core.MachineSpec,
+	rootPath string,
+	profileDir string,
+	defs Collection,
+) ([]core.MachineSpec, error) {
+	seen := map[string]bool{canonicalMachinePath(rootPath): true}
+	var declarations []declaredMachine
+	for _, server := range defs.Servers {
+		for _, endpoint := range server.Endpoints {
+			if endpoint.Binding != bindingMachineRequest {
+				continue
+			}
+			declaration, err := loadDeclaredMachine(endpoint.MachineRequest, profileDir)
+			if err != nil {
+				return nil, err
+			}
+			if seen[declaration.path] {
+				continue
+			}
+			seen[declaration.path] = true
+			declarations = append(declarations, declaration)
+		}
+	}
+	sortDeclaredMachines(declarations)
+	return prependRootMachine(root, declarations), nil
+}
+
+func loadDeclaredMachine(cfg restdef.MachineRequest, profileDir string) (declaredMachine, error) {
+	if cfg.MachineSpec != nil {
+		return declaredMachine{
+			path: fmt.Sprintf("programmatic:%p", cfg.MachineSpec), machine: *cfg.MachineSpec,
+		}, nil
+	}
+	profilePath := configuredPath(profileDir, cfg.Profile)
+	profile, err := catalog.LoadProfile(profilePath)
+	if err != nil {
+		return declaredMachine{}, fmt.Errorf("load declared machine profile %s: %w", profilePath, err)
+	}
+	machinePath := canonicalMachinePath(requestMachinePath(cfg, profile, filepath.Dir(profilePath)))
+	machine, err := core.LoadMachineSpec(machinePath)
+	if err != nil {
+		return declaredMachine{}, fmt.Errorf("load declared machine %s: %w", machinePath, err)
+	}
+	return declaredMachine{path: machinePath, machine: machine}, nil
+}
+
+func sortDeclaredMachines(declarations []declaredMachine) {
+	sort.Slice(declarations, func(i, j int) bool {
+		if declarations[i].machine.Name == declarations[j].machine.Name {
+			return declarations[i].path < declarations[j].path
+		}
+		return declarations[i].machine.Name < declarations[j].machine.Name
+	})
+}
+
+func prependRootMachine(root core.MachineSpec, declarations []declaredMachine) []core.MachineSpec {
+	machines := make([]core.MachineSpec, 1, len(declarations)+1)
+	machines[0] = root
+	for _, declaration := range declarations {
+		machines = append(machines, declaration.machine)
+	}
+	return machines
+}
+
+func canonicalMachinePath(path string) string {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	return filepath.Clean(absolute)
 }
 
 func (r *ProfileMachineRequestRunner) requestRegistry(

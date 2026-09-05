@@ -10,6 +10,7 @@ type StateSpec struct {
 	Name      string    `yaml:"name"`
 	Meaning   string    `yaml:"meaning,omitempty"`
 	RunStatus RunStatus `yaml:"run_status,omitempty"`
+	Tags      []string  `yaml:"tags,omitempty"`
 }
 
 // StateSpecs accepts both legacy scalar state lists and rich state objects.

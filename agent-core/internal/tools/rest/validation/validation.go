@@ -949,6 +949,14 @@ func validateMonitorView(name string, endpoint Endpoint) error {
 			return fmt.Errorf("endpoint %q monitor_view command_state requires a non-empty labels allowlist", name)
 		}
 		return nil
+	case monitorViewDeclaredMachines:
+		if endpoint.Binding != bindingReadState {
+			return fmt.Errorf("endpoint %q monitor_view declared_machines requires read_state binding", name)
+		}
+		if len(endpoint.Labels) > 0 {
+			return fmt.Errorf("endpoint %q labels is only valid with monitor_view command_state", name)
+		}
+		return nil
 	case monitorViewMachine, monitorViewState, monitorViewTools, monitorViewMetrics, monitorViewEvents, "openapi":
 		if len(endpoint.Labels) > 0 {
 			return fmt.Errorf("endpoint %q labels is only valid with monitor_view command_state", name)

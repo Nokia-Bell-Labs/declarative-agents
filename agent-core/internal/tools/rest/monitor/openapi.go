@@ -44,9 +44,13 @@ func monitorReadOperation(name string, endpoint Route) map[string]interface{} {
 	if endpoint.Binding == bindingStreamEvents {
 		return monitorStreamOperation(name)
 	}
+	description := "Cached monitor state"
+	if endpoint.MonitorView == ViewDeclaredMachines {
+		description = "Declared machine metadata"
+	}
 	return map[string]interface{}{
 		"operationId": monitorOperationID(name),
-		"responses":   monitorResponses("200", "Cached monitor state", monitorResponseSchema(endpoint.MonitorView)),
+		"responses":   monitorResponses("200", description, monitorResponseSchema(endpoint.MonitorView)),
 	}
 }
 
@@ -139,6 +143,8 @@ func monitorResponseSchema(view string) map[string]interface{} {
 	switch view {
 	case ViewMachine:
 		return monitorMachineSchema()
+	case ViewDeclaredMachines:
+		return monitorDeclaredMachinesSchema()
 	case ViewState:
 		return monitorStateSchema()
 	case ViewTools:
@@ -176,6 +182,24 @@ func monitorCommandStateSchema() map[string]interface{} {
 
 func monitorMachineSchema() map[string]interface{} {
 	return monitorSchemaObjectFromFields(monitorMachineFields())
+}
+
+func monitorDeclaredMachinesSchema() map[string]interface{} {
+	state := monitorSchemaObject(map[string]map[string]interface{}{
+		"name": monitorSchemaString(),
+		"tags": monitorSchemaArray(monitorSchemaString()),
+	})
+	viewTag := monitorSchemaObjectFromFields(viewTagFields())
+	machine := monitorSchemaObject(map[string]map[string]interface{}{
+		"name":            monitorSchemaString(),
+		"initial_state":   monitorSchemaString(),
+		"states":          monitorSchemaArray(state),
+		"signals":         monitorSchemaArray(monitorSchemaString()),
+		"terminal_states": monitorSchemaArray(monitorSchemaString()),
+		"transitions":     monitorSchemaArray(transitionSchema()),
+		"view_tags":       monitorSchemaArray(viewTag),
+	})
+	return monitorSchemaArray(machine)
 }
 
 func monitorStateSchema() map[string]interface{} {

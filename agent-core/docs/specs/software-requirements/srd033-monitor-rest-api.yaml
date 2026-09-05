@@ -174,10 +174,10 @@ implementation_status:
     steps through the srd038 CommandStateView. The fleet observer of
     GH-1270 is its first consumer.
 
-    The declared_machines view (R8) is specified and pending implementation
-    under GH-1944. It will retain named presentation metadata and collect the
-    root plus the distinct machine_request machines from the trusted profile
-    closure without exposing live request-machine state.
+    The declared_machines runtime view (R8) retains named presentation
+    metadata and collects the root plus the distinct machine_request machines
+    from the trusted profile closure without exposing live request-machine
+    state. Shipped profile route declarations remain under GH-1944.
 
 non_goals:
   - Writing monitor state through REST.

@@ -311,7 +311,7 @@ test_cases:
   - use_case: rel04.0-uc002-monitor-rest-api
     name: MachineSpec retains declared presentation metadata
     go_test: TestParseMachineSpec_PreservesPresentationMetadata
-    status: planned
+    status: implemented
     description: |
       Parse a MachineSpec containing an ordered view_tags list and rich states
       with ordered tags. The named presentation fields should survive parsing
@@ -337,7 +337,7 @@ test_cases:
   - use_case: rel04.0-uc002-monitor-rest-api
     name: Monitor declared_machines view returns the profile machine collection
     go_test: TestMonitorREST_DeclaredMachines
-    status: planned
+    status: implemented
     description: |
       Serve GET /monitor/machines through a read_state endpoint with
       monitor_view declared_machines. Build the declaration set from one root,

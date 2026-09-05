@@ -108,6 +108,12 @@ func TestMonitorCommandStateView_ValidationRejectsMisuse(t *testing.T) {
 		{
 			"command_state on stream binding", restdef.Endpoint{Binding: bindingStreamEvents, MonitorView: monitorViewCommandState, Labels: []string{"x"}}, "requires read_state binding",
 		},
+		{
+			"declared_machines on stream binding", restdef.Endpoint{Binding: bindingStreamEvents, MonitorView: monitorViewDeclaredMachines}, "requires read_state binding",
+		},
+		{
+			"labels on declared_machines", restdef.Endpoint{Binding: bindingReadState, MonitorView: monitorViewDeclaredMachines, Labels: []string{"x"}}, "only valid with monitor_view command_state",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -119,6 +125,9 @@ func TestMonitorCommandStateView_ValidationRejectsMisuse(t *testing.T) {
 
 	valid := restdef.Endpoint{Binding: bindingReadState, MonitorView: monitorViewCommandState, Labels: []string{"polled_step"}}
 	require.NoError(t, validateMonitorView("endpoint", valid))
+	require.NoError(t, validateMonitorView("endpoint", restdef.Endpoint{
+		Binding: bindingReadState, MonitorView: monitorViewDeclaredMachines,
+	}))
 }
 
 func TestMonitorREST_CommandStateRedaction(t *testing.T) {

@@ -85,7 +85,7 @@ schema:
   - field: view_tags
     type: "[]object"
     required: false
-    status: planned
+    status: implemented
     description: |
       Ordered presentation metadata for renderers that divide one large
       machine into named views. The monitor declared_machines view preserves
@@ -550,7 +550,7 @@ workflow_metric_labels:
           phase: monitor_read
 
 machine_presentation_views:
-  status: planned
+  status: implemented
   purpose: |
     view_tags and StateSpec.tags let a renderer present named subgraphs from
     one authored machine declaration. They do not create nested machines,

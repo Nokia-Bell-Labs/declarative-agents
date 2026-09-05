@@ -15,11 +15,12 @@ import (
 // funcs so the leaf does not import rest (a parent->leaf import would otherwise
 // cycle) and so the surface stays wider than a 1-3 method interface.
 type Surface struct {
-	WriteJSON        func(http.ResponseWriter, int, map[string]interface{})
+	WriteJSON        func(http.ResponseWriter, int, interface{})
 	StateOutput      func() map[string]interface{}
 	MetadataOutput   func() map[string]interface{}
 	Snapshot         func() obsmonitor.Snapshot
 	Machine          func() *core.MachineSpec
+	DeclaredMachines func() []core.MachineSpec
 	Tools            func() []catalog.ToolDef
 	CommandState     func() core.CommandStateSource
 	MaxResponseBytes func() int

@@ -717,6 +717,12 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	if err != nil {
 		return preparedRun{}, closeBuildFailure(err, loopCancel, &checkpoints, resources.shutdownTelemetry)
 	}
+	declaredMachines, err := loadDeclaredMonitorMachines(
+		monitorRuntime.Store, resources.Machine, cfg, resources.RestDefinitions,
+	)
+	if err != nil {
+		return preparedRun{}, closeBuildFailure(err, loopCancel, &checkpoints, resources.shutdownTelemetry)
+	}
 	selectedInits := selectedBuiltinInits(resources.Definitions)
 	reg := core.NewRegistry()
 	builtins := toolregistry.NewBuiltinRegistry()
@@ -734,7 +740,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		Ctx:                 loopCtx,
 		Monitor: monitorState(
 			monitorRuntime.Store, monitorRuntime.Recorder, &resources.Machine, resources.Definitions,
-			commandStateSource,
+			commandStateSource, declaredMachines...,
 		),
 		RestDefs:           resources.RestDefinitions,
 		SignalSourceRunner: signalSourceRunner,

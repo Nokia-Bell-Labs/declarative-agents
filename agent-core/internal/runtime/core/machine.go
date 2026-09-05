@@ -21,6 +21,7 @@ type MachineSpec struct {
 	Configuration   map[string]any   `yaml:"configuration,omitempty"`
 	MetricLabels    MetricLabels     `yaml:"metric_labels,omitempty"`
 	PipelineDiagram string           `yaml:"pipeline_diagram,omitempty"`
+	ViewTags        []ViewTag        `yaml:"view_tags,omitempty"`
 	InitialState    string           `yaml:"initial_state"`
 	SummarySignal   string           `yaml:"summary_signal,omitempty"`
 	ResumeSignal    string           `yaml:"resume_signal,omitempty"`
@@ -29,6 +30,12 @@ type MachineSpec struct {
 	Signals         SignalSpecs      `yaml:"signals"`
 	Transitions     []TransitionSpec `yaml:"transitions"`
 	BudgetSpec      *BudgetSpec      `yaml:"budget,omitempty"`
+}
+
+// ViewTag names one presentation-only machine sub-view.
+type ViewTag struct {
+	Tag   string `yaml:"tag"`
+	Label string `yaml:"label"`
 }
 
 // SignalSpec describes a signal and optional semantic metadata.
