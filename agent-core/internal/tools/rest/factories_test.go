@@ -104,3 +104,72 @@ tools: [tools.yaml]
 	require.Len(t, rootOnly, 1)
 	require.Equal(t, "supervisor", rootOnly[0].Name)
 }
+
+func TestLoadDeclaredTools_ClosureAsAuthoredDedupedAndSorted(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	write := func(file, content string) string {
+		t.Helper()
+		path := filepath.Join(dir, file)
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		return path
+	}
+	write("shared.yaml", `
+tools:
+  - name: read
+    type: builtin
+    description: Read a file.
+  - name: zeta_tool
+    type: builtin
+    custom_note: authored field the runtime never interprets
+`)
+	write("request-tools.yaml", `
+tools:
+  - name: invoke_llm
+    type: builtin
+    provider: cohere
+  - name: read
+    type: builtin
+    description: shadowed duplicate, first declaration wins
+`)
+	rootProfile := write("root-profile.yaml", `
+name: root
+machine: root.yaml
+tools: [tools.yaml]
+tool_declarations: [shared.yaml]
+`)
+	write("request-profile.yaml", `
+name: request
+machine: alpha.yaml
+tools: [tools.yaml]
+tool_declarations: [request-tools.yaml, shared.yaml]
+`)
+
+	defs := NewCollection()
+	defs.Servers["requests"] = restdef.Server{Endpoints: map[string]restdef.Endpoint{
+		"turn": {
+			Binding: bindingMachineRequest,
+			MachineRequest: restdef.MachineRequest{
+				Profile: "request-profile.yaml",
+				Machine: "alpha.yaml",
+			},
+		},
+	}}
+
+	declarations, err := LoadDeclaredTools(rootProfile, dir, defs)
+	require.NoError(t, err)
+	require.Len(t, declarations, 3)
+	require.Equal(t, "invoke_llm", declarations[0]["name"])
+	require.Equal(t, "cohere", declarations[0]["provider"])
+	require.Equal(t, "read", declarations[1]["name"])
+	require.Equal(t, "Read a file.", declarations[1]["description"])
+	require.Equal(t, "zeta_tool", declarations[2]["name"])
+	require.Equal(t, "authored field the runtime never interprets", declarations[2]["custom_note"])
+
+	rootOnly, err := LoadDeclaredTools(rootProfile, dir, NewCollection())
+	require.NoError(t, err)
+	require.Len(t, rootOnly, 2)
+	require.Equal(t, "read", rootOnly[0]["name"])
+	require.Equal(t, "zeta_tool", rootOnly[1]["name"])
+}

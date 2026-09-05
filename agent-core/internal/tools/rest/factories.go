@@ -6,9 +6,12 @@ package rest
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
@@ -657,4 +660,107 @@ func stoppedSourceBehavior(toolName, value string) (StoppedSourceBehavior, error
 	default:
 		return "", fmt.Errorf("tool %q config has unsupported stopped_behavior %q", toolName, value)
 	}
+}
+
+// LoadDeclaredTools loads every tool declaration of the trusted profile
+// closure as authored (srd033 R9): the root profile's tool_declarations files
+// and those of every profile a machine_request endpoint references. Entries
+// are the raw declaration mappings -- fields the runtime does not interpret
+// ride through -- ordered by word name; a file shared across profiles
+// contributes each word once, and a name declared twice keeps the first in
+// file-resolution order.
+func LoadDeclaredTools(rootProfilePath, profileDir string, defs Collection) ([]map[string]interface{}, error) {
+	paths, err := declaredToolPaths(rootProfilePath, profileDir, defs)
+	if err != nil {
+		return nil, err
+	}
+	seenWords := map[string]bool{}
+	var declarations []map[string]interface{}
+	for _, path := range paths {
+		words, err := readDeclaredToolWords(path)
+		if err != nil {
+			return nil, err
+		}
+		for _, word := range words {
+			name, _ := word["name"].(string)
+			if name == "" || seenWords[name] {
+				continue
+			}
+			seenWords[name] = true
+			declarations = append(declarations, word)
+		}
+	}
+	sort.Slice(declarations, func(i, j int) bool {
+		left, _ := declarations[i]["name"].(string)
+		right, _ := declarations[j]["name"].(string)
+		return left < right
+	})
+	return declarations, nil
+}
+
+// declaredToolPaths resolves the closure's tool_declarations files: the root
+// profile first, then each machine_request profile, each file once.
+func declaredToolPaths(rootProfilePath, profileDir string, defs Collection) ([]string, error) {
+	paths := []string{}
+	seenFiles := map[string]bool{}
+	appendProfileDeclarations := func(profilePath string) error {
+		profile, err := catalog.LoadProfile(profilePath)
+		if err != nil {
+			return fmt.Errorf("load declared tools profile %s: %w", profilePath, err)
+		}
+		for _, declarationPath := range profile.ToolDeclarations {
+			resolved := filepath.Clean(declarationPath)
+			if seenFiles[resolved] {
+				continue
+			}
+			seenFiles[resolved] = true
+			paths = append(paths, resolved)
+		}
+		return nil
+	}
+	if err := appendProfileDeclarations(rootProfilePath); err != nil {
+		return nil, err
+	}
+	for _, server := range defs.Servers {
+		for _, endpoint := range server.Endpoints {
+			if endpoint.Binding != bindingMachineRequest || endpoint.MachineRequest.Profile == "" {
+				continue
+			}
+			if err := appendProfileDeclarations(configuredPath(profileDir, endpoint.MachineRequest.Profile)); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return paths, nil
+}
+
+// readDeclaredToolWords parses one declarations file as raw mappings and
+// returns every list entry carrying a name, in file order.
+func readDeclaredToolWords(path string) ([]map[string]interface{}, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read declared tools %s: %w", path, err)
+	}
+	var doc map[string]interface{}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("parse declared tools %s: %w", path, err)
+	}
+	keys := make([]string, 0, len(doc))
+	for key := range doc {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var words []map[string]interface{}
+	for _, key := range keys {
+		list, ok := doc[key].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, entry := range list {
+			if word, ok := entry.(map[string]interface{}); ok {
+				words = append(words, word)
+			}
+		}
+	}
+	return words, nil
 }

@@ -50,6 +50,10 @@ type MonitorState struct {
 	Recorder         monitor.RuntimeRecorder
 	Machine          *core.MachineSpec
 	DeclaredMachines []core.MachineSpec
+	// DeclaredTools is the closure's tool declarations as authored (srd033
+	// R9), served by monitor_view declared_tools and never consulted for
+	// registration or dispatch.
+	DeclaredTools []map[string]interface{}
 	Tools            []catalog.ToolDef
 	// CommandState backs the opt-in command_state view. It exposes the
 	// redaction-cleared declared output of profile-named steps and is nil when no

@@ -32,6 +32,7 @@ const (
 const (
 	monitorViewMachine          = restmonitor.ViewMachine
 	monitorViewDeclaredMachines = restmonitor.ViewDeclaredMachines
+	monitorViewDeclaredTools    = restmonitor.ViewDeclaredTools
 	monitorViewState            = restmonitor.ViewState
 	monitorViewTools            = restmonitor.ViewTools
 	monitorViewMetrics          = restmonitor.ViewMetrics

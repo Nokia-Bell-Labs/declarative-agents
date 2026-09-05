@@ -40,6 +40,7 @@ func requireMonitorOpenAPISchemaTypes(
 	t.Helper()
 	requireMonitorStateOpenAPISchema(t, doc)
 	requireMonitorDeclaredMachinesOpenAPISchema(t, doc)
+	requireMonitorDeclaredToolsOpenAPISchema(t, doc)
 	requireMonitorMetricsOpenAPISchema(t, doc)
 	requireMonitorEventsOpenAPISchema(t, doc)
 	requireMonitorStreamOpenAPIContent(t, doc)
@@ -107,6 +108,16 @@ func requireMonitorDeclaredMachinesOpenAPISchema(t *testing.T, doc map[string]in
 	viewTag := schemaItems(t, schemaProperty(t, machine, "view_tags"))
 	requireSchemaType(t, schemaProperty(t, viewTag, "tag"), "string")
 	requireSchemaType(t, schemaProperty(t, viewTag, "label"), "string")
+}
+
+func requireMonitorDeclaredToolsOpenAPISchema(t *testing.T, doc map[string]interface{}) {
+	t.Helper()
+	schema := monitorOpenAPIResponseSchema(t, doc, "/monitor/tools/declared", "get", "200")
+	requireSchemaType(t, schema, "array")
+	word := schemaItems(t, schema)
+	requireSchemaType(t, schemaProperty(t, word, "name"), "string")
+	requireSchemaType(t, schemaProperty(t, word, "description"), "string")
+	require.Equal(t, true, word["additionalProperties"])
 }
 
 func requireMonitorMetricsOpenAPISchema(t *testing.T, doc map[string]interface{}) {

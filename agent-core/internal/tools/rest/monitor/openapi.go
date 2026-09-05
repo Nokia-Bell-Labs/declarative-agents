@@ -48,6 +48,9 @@ func monitorReadOperation(name string, endpoint Route) map[string]interface{} {
 	if endpoint.MonitorView == ViewDeclaredMachines {
 		description = "Declared machine metadata"
 	}
+	if endpoint.MonitorView == ViewDeclaredTools {
+		description = "Declared tool records as authored"
+	}
 	return map[string]interface{}{
 		"operationId": monitorOperationID(name),
 		"responses":   monitorResponses("200", description, monitorResponseSchema(endpoint.MonitorView)),
@@ -145,6 +148,8 @@ func monitorResponseSchema(view string) map[string]interface{} {
 		return monitorMachineSchema()
 	case ViewDeclaredMachines:
 		return monitorDeclaredMachinesSchema()
+	case ViewDeclaredTools:
+		return monitorDeclaredToolsSchema()
 	case ViewState:
 		return monitorStateSchema()
 	case ViewTools:
@@ -200,6 +205,18 @@ func monitorDeclaredMachinesSchema() map[string]interface{} {
 		"view_tags":       monitorSchemaArray(viewTag),
 	})
 	return monitorSchemaArray(machine)
+}
+
+// monitorDeclaredToolsSchema describes declared_tools as an array of authored
+// declaration mappings: a required name, everything else authored and open
+// (srd033 R9.7) -- the fields are the profile author's, not this schema's.
+func monitorDeclaredToolsSchema() map[string]interface{} {
+	word := monitorSchemaObject(map[string]map[string]interface{}{
+		"name":        monitorSchemaString(),
+		"description": monitorSchemaString(),
+	})
+	word["additionalProperties"] = true
+	return monitorSchemaArray(word)
 }
 
 func monitorStateSchema() map[string]interface{} {

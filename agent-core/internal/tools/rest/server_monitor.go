@@ -16,6 +16,7 @@ import (
 const (
 	monitorViewMachine          = restmonitor.ViewMachine
 	monitorViewDeclaredMachines = restmonitor.ViewDeclaredMachines
+	monitorViewDeclaredTools    = restmonitor.ViewDeclaredTools
 	monitorViewState            = restmonitor.ViewState
 	monitorViewTools            = restmonitor.ViewTools
 	monitorViewMetrics          = restmonitor.ViewMetrics
@@ -52,6 +53,9 @@ func (r *serverRuntime) monitorSurface() restmonitor.Surface {
 		},
 		Tools: func() []catalog.ToolDef {
 			return r.def.Monitor.Tools
+		},
+		DeclaredTools: func() []map[string]interface{} {
+			return r.def.Monitor.DeclaredTools
 		},
 		CommandState: func() core.CommandStateSource {
 			return r.def.Monitor.CommandState

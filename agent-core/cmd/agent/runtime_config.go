@@ -162,6 +162,7 @@ func monitorState(
 	machine *core.MachineSpec,
 	defs []catalog.ToolDef,
 	commandState core.CommandStateSource,
+	declaredTools []map[string]interface{},
 	declaredMachines ...core.MachineSpec,
 ) toolrest.MonitorState {
 	if store == nil {
@@ -175,6 +176,7 @@ func monitorState(
 		Recorder:         recorder,
 		Machine:          machine,
 		DeclaredMachines: declaredMachines,
+		DeclaredTools:    declaredTools,
 		Tools:            defs,
 		CommandState:     commandState,
 	}
@@ -190,6 +192,19 @@ func loadDeclaredMonitorMachines(
 		return nil, nil
 	}
 	return toolrest.LoadDeclaredMachines(machine, cfg.Machine, filepath.Dir(cfg.Profile), restDefs)
+}
+
+// loadDeclaredMonitorTools loads the closure's tool declarations as authored
+// (srd033 R9), beside the declared machines and under the same monitor gate.
+func loadDeclaredMonitorTools(
+	store *monitor.Store,
+	cfg runtimeConfig,
+	restDefs toolrest.Collection,
+) ([]map[string]interface{}, error) {
+	if store == nil {
+		return nil, nil
+	}
+	return toolrest.LoadDeclaredTools(cfg.Profile, filepath.Dir(cfg.Profile), restDefs)
 }
 
 func monitorConfigured(machine core.MachineSpec, defs []catalog.ToolDef, restDefs toolrest.Collection) bool {
