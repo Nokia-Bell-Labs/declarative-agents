@@ -562,7 +562,7 @@ func TestInferenceBoundaryUsesLoadableProfilesAndSeparatesProviderChanges(t *tes
 		"`profile.yaml`, `profile-qwen35b.yaml`, and `profile-qwen27b.yaml`",
 		"`qwen3.6:35b-mlx`",
 		"`qwen3.6:27b-mlx`",
-		"Ollama is the only shipped provider adapter",
+		"Ollama and Cohere v2 are the shipped provider adapters",
 		"requires a new adapter",
 	} {
 		if !strings.Contains(chapter, required) {

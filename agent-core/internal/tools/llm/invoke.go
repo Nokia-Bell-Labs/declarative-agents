@@ -16,6 +16,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/cohere"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/ollama"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/prompt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
@@ -412,7 +413,7 @@ func newLLMAssembler(cfg catalog.LLMToolConfig, parser modelllm.ResponseParser) 
 }
 
 func newLLMClient(cfg catalog.LLMToolConfig, tracer tracing.Tracer) (modelllm.Client, string, error) {
-	if cfg.Provider != "ollama" {
+	if cfg.Provider != "ollama" && cfg.Provider != "cohere" {
 		return nil, "", fmt.Errorf("unsupported invoke_llm provider %q", cfg.Provider)
 	}
 	if cfg.ProviderURL == "" {
@@ -420,10 +421,20 @@ func newLLMClient(cfg catalog.LLMToolConfig, tracer tracing.Tracer) (modelllm.Cl
 	}
 	// Profiles that need preflight readiness declare a REST transition; adapter
 	// construction performs no hidden network probe.
-	client, err := ollama.NewAdapter(cfg.ProviderURL, cfg.Model,
-		ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
-		ollama.WithTracer(tracerOrNoop(tracer)),
-	)
+	var client modelllm.Client
+	var err error
+	switch cfg.Provider {
+	case "ollama":
+		client, err = ollama.NewAdapter(cfg.ProviderURL, cfg.Model,
+			ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
+			ollama.WithTracer(tracerOrNoop(tracer)),
+		)
+	case "cohere":
+		client, err = cohere.NewAdapter(cfg.ProviderURL, cfg.Model,
+			cohere.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
+			cohere.WithTracer(tracerOrNoop(tracer)),
+		)
+	}
 	return client, serverAddr(cfg.ProviderURL), err
 }
 

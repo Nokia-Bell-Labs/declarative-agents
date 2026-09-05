@@ -583,6 +583,38 @@ releases:
       - mage integration:doltWord against a real Dolt server for GH-1732
       - mage audit
 
+  - version: "15.0"
+    name: Cohere invoke_llm provider adapter
+    description: |
+      Release 15.0 adds Cohere v2 Chat behind the existing llm.Client and
+      invoke_llm boundary. ToolDef configuration selects provider, model, URL,
+      and response profile. The provider adapter resolves COHERE_API_KEY only
+      when Chat executes, normalizes ordered content blocks and usage tokens,
+      and emits the same GenAI identity as the Ollama path. MachineSpec, prompt
+      assembly, conversation, capture, parse words, and REST-declared Cohere
+      words remain unchanged.
+    status: done
+    planned_work:
+      - id: gh-1951
+        summary: Specify the Cohere v2 adapter, provider configuration, parser profile, and formal proof.
+        status: done
+      - id: gh-1952
+        summary: Implement the Cohere adapter, invoke_llm provider selection, parser profile, and hermetic tests.
+        status: implemented
+    srds:
+      - srd048-cohere-adapter
+    use_cases:
+      - id: rel15.0-uc001-cohere-invoke
+        summary: A profile selects Cohere for an invoke_llm classifier without changing its machine or parse words.
+        status: implemented
+    test_suites:
+      - id: test-rel15.0-cohere-invoke
+        summary: Hermetic adapter, credential, provider-selection, parser, error, and GenAI tracing tests.
+        status: implemented
+    proof:
+      - go test ./internal/model/llm/cohere ./internal/tools/llm ./internal/model/llm ./internal/observability/telemetry/genai
+      - mage audit
+
   - version: "99.0"
     name: Architectural migrations and cleanup
     description: |

@@ -38,7 +38,7 @@ requirements:
       - R2.4: "Extraction pipeline steps: strip_code_fences, strip_thinking_blocks, extract_envelope, extract_native_token, extract_braces."
       - R2.5: DefaultProfile creates a fallback ResponseParser with envelope-based extraction.
       - R2.6: "A response-parser profile carrying a machine key SHALL be rejected because MachineSpec owns program selection."
-      - R2.7: invoke_llm tool config SHALL declare provider, provider URL, and manifest_state; startup SHALL reject unsupported providers and missing required runtime fields.
+      - R2.7: invoke_llm tool config SHALL declare provider, provider URL, and manifest_state; supported providers are ollama and cohere, while startup SHALL reject unknown providers and missing required runtime fields. Omitted provider retains the Ollama compatibility default, but explicit Cohere SHALL NOT inherit the Ollama localhost URL.
       - R2.8: invoke_llm tool config SHALL own response parser selection through a response_profile field that names an embedded model parser profile. When response_profile is absent, runtime parser resolution SHALL fall back to model-prefix matching and then the default parser profile.
       - R2.9: The runtime CLI SHALL NOT expose --profiles-dir as the supported parser selection mechanism. Custom parser behavior SHALL be modeled as a parser profile YAML referenced by invoke_llm config.
 

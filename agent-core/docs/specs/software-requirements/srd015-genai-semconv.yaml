@@ -37,7 +37,7 @@ requirements:
   R3:
     title: Provider, tool type, and output type constants
     items:
-      - R3.1: "Define provider names: ollama, openai, anthropic, deepseek."
+      - R3.1: "Define provider names: ollama, cohere, openai, anthropic, deepseek."
       - R3.2: "Define tool types: function, extension, datastore."
       - R3.3: "Define output type constants: text, json, image."
 

@@ -61,17 +61,19 @@ schema:
           type: string
           required: true
           description: |
-            LLM provider backend. Currently "ollama" is the primary
-            provider. Determines which client implementation is used
-            to make API calls.
+            LLM provider backend. Supported values are ollama and cohere.
+            Determines which client implementation makes the inference call.
+            Omission remains an Ollama compatibility path.
 
         - field: provider_url
           type: string
           required: true
           description: |
-            Endpoint URL for the provider API. For local Ollama, this is
-            usually "http://localhost:11434". Used by the provider client to
-            route requests.
+            Base URL for the provider API. Local Ollama usually uses
+            "http://localhost:11434"; Cohere commonly uses
+            "${COHERE_API_URL:-https://api.cohere.com}". Ollama keeps its
+            localhost default when provider is omitted. Explicit provider
+            cohere requires this field and never inherits the Ollama default.
 
         - field: manifest_state
           type: string
@@ -136,8 +138,9 @@ schema:
           type: int
           required: false
           description: |
-            Context window size passed to the Ollama provider.
+            Context window size passed only to the Ollama provider.
             Controls how many tokens the model can consider.
+            The Cohere adapter omits this field from its request.
 
         - field: temperature
           type: float
@@ -181,7 +184,30 @@ schema:
           required: false
           description: |
             Alias for provider_url. If both are set, provider_url
-            takes precedence.
+            takes precedence. Valid only for the Ollama compatibility path.
+
+provider_behavior:
+  status: implemented
+  ollama: |
+    invoke_llm sends non-streaming POST /api/chat. Request decoding options
+    live under the Ollama options object, including num_ctx. No credential is
+    required. An omitted provider selects this compatibility path and defaults
+    provider_url to http://localhost:11434.
+  cohere: |
+    invoke_llm sends non-streaming POST /v2/chat. model, messages,
+    temperature, and seed are top-level request fields. The adapter joins
+    ordered text blocks from message.content and maps usage.tokens into the
+    provider-neutral ChatResponse. num_ctx and Ollama request fields are not
+    sent.
+  credential: |
+    Cohere Chat resolves COHERE_API_KEY from the process environment only when
+    Chat executes and sends it as Authorization Bearer. No API key or
+    credential-valued field is valid in this YAML format. Registration performs
+    no credential lookup.
+  response_profile_boundary: |
+    response_profile operates after provider HTTP normalization. The cohere
+    profile extracts a [tool_call] envelope or bare JSON from the joined model
+    text; it does not parse the Cohere HTTP response object.
 
 parse_response_config:
   purpose: |
@@ -262,5 +288,8 @@ config_files:
 related_documents:
   - cfg-tool-declaration-format
   - srd017
+  - srd048-cohere-adapter
 
-implementation: internal/model/llm/ollama
+implementation:
+  - internal/model/llm/ollama
+  - internal/model/llm/cohere

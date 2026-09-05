@@ -118,7 +118,10 @@ configuration:
     declarations; applications/chatbot-mesh/magefiles/integration_chroma.go mirrors
     that expansion in its preflight; applications/catalog/conformance/ollama.go
     mirrors ${OLLAMA_URL:-...} so a live gate probes the endpoint the profile
-    resolves rather than one a flag chose. A third-party convention:
+    resolves rather than one a flag chose. The srd048 provider credential:
+    internal/model/llm/cohere resolves COHERE_API_KEY only when Chat executes,
+    behind an injectable lookup, because the credential must never enter
+    ToolDef configuration. A third-party convention:
     applications/chatbot-mesh/magefiles/integration_helm.go reads SSL_CERT_FILE, the
     OS and Go name for the host CA bundle. Values a parent sets on a child it owns:
     magefiles/uidist.go reads the release-gate variable magefiles/tag.go sets on the
@@ -146,8 +149,8 @@ tool_language:
     streaming responses, per-request model options (options.go), and provider-specific
     request and response shapes -- that the declarative rest tool (fixed operations,
     no streaming, no dynamic options) does not model. internal/model/llm/ is a
-    deliberate pluggable-provider abstraction (ollama today, other providers behind the
-    same interfaces). invoke_llm''s response parsing is already a separate tool, the
+    deliberate pluggable-provider abstraction (Ollama and Cohere shipped, with
+    further providers behind the same interfaces). invoke_llm''s response parsing is already a separate tool, the
     right shape; only the inference transport lives in the adapter. The recurring
     declarative-decomposition audit cites this instead of re-flagging invoke.go and the
     ollama adapter.'

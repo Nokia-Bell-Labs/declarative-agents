@@ -47,6 +47,15 @@ func TestInferenceAttrsMinimal(t *testing.T) {
 	assert.False(t, hasModel, "model should be omitted when empty")
 }
 
+func TestProviderCohere(t *testing.T) {
+	attrs := InferenceAttrs(ProviderCohere, "command-r7b-12-2024", "api.cohere.com")
+
+	values := attrMap(attrs)
+	assert.Equal(t, "cohere", values["gen_ai.provider.name"])
+	assert.Equal(t, "command-r7b-12-2024", values["gen_ai.request.model"])
+	assert.Equal(t, "api.cohere.com", values["server.address"])
+}
+
 func TestAgentAttrs(t *testing.T) {
 	attrs := AgentAttrs("generator", "v0.20260605.0", "ollama", "qwen2.5-coder:14b")
 

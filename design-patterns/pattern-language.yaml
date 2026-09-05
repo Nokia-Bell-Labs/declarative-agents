@@ -868,6 +868,7 @@ patterns:
             - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm
           provider_imports:
             - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/ollama
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/cohere
     consequences:
       benefits:
         - Model-agnostic evaluation and provider changes isolated to adapters.
@@ -917,10 +918,10 @@ patterns:
               artifact: go_test
               assertion: go_test
               test: TestExecutorShippedProfileWiring
-      - system: Reference implementation — Ollama provider adapter
+      - system: Reference implementation — model provider adapters
         cite: reference-implementation
         kind: internal
-        note: Ollama is the only shipped model provider adapter; it emits the normalized chat result and GenAI tracing required by invoke_llm.
+        note: Ollama and Cohere v2 are shipped model provider adapters behind the same invoke_llm boundary; both emit normalized chat results and GenAI tracing.
         evidence:
           classification: shipped
           checks:
@@ -928,10 +929,14 @@ patterns:
               artifact: go_test
               assertion: go_test
               test: TestChat_EmitsSemconvInferenceSpan
-      - system: Design intent — additional provider adapters
+            - path: agent-core/internal/model/llm/cohere/tracing_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestChat_Tracing
+      - system: Design intent — further provider adapters
         cite: reference-implementation
         kind: internal
-        note: Provider portability beyond Ollama is design intent; adding OpenAI, Anthropic, or failover behavior requires new adapter code and focused cross-provider tests.
+        note: Provider portability beyond Ollama and Cohere is design intent; adding OpenAI, Anthropic, or failover behavior requires new adapter code and focused cross-provider tests.
         evidence:
           classification: design_intent
     provenance: [reference-implementation, external-corroboration]
