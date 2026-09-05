@@ -135,6 +135,41 @@ func TestMonitorREST_DeclaredMachines(t *testing.T) {
 	requireQueueEmpty(t, state, "monitor_declared")
 }
 
+func TestMonitorREST_DeclaredTools(t *testing.T) {
+	t.Parallel()
+
+	monitorState := seededMonitorState()
+	monitorState.DeclaredTools = []map[string]interface{}{
+		{
+			"name":        "invoke_llm",
+			"type":        "builtin",
+			"description": "Invoke the configured language model.",
+			"provider":    "cohere",
+			"custom_note": "unknown fields ride through as authored",
+		},
+		{"name": "read", "type": "builtin"},
+	}
+	beforeStore := monitorState.Store.Snapshot()
+
+	state, baseURL := launchMonitorRESTServer(t, "monitor_declared_tools", monitorState)
+	defer stopRESTServer(t, state, "monitor_declared_tools")
+
+	body := requestBody(t, http.MethodGet, baseURL+"/monitor/tools/declared", "", http.StatusOK)
+	var declarations []map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(body), &declarations))
+	require.Len(t, declarations, 2)
+	require.Equal(t, "invoke_llm", declarations[0]["name"])
+	require.Equal(t, "cohere", declarations[0]["provider"])
+	require.Equal(t, "unknown fields ride through as authored", declarations[0]["custom_note"])
+	require.Equal(t, "read", declarations[1]["name"])
+
+	registered := getJSON(t, baseURL+"/monitor/tools")
+	require.Len(t, registered["tools"], 1)
+
+	require.Equal(t, beforeStore, monitorState.Store.Snapshot())
+	requireQueueEmpty(t, state, "monitor_declared_tools")
+}
+
 func TestMonitorREST_EventStreamCachedUpdates(t *testing.T) {
 	t.Parallel()
 
@@ -344,6 +379,7 @@ func monitorServer(name string) restdef.Server {
 		Endpoints: map[string]restdef.Endpoint{
 			"monitor_machine":  {Method: "GET", Path: "/monitor/machine", Binding: bindingReadState, MonitorView: monitorViewMachine},
 			"monitor_machines": {Method: "GET", Path: "/monitor/machines", Binding: bindingReadState, MonitorView: monitorViewDeclaredMachines},
+			"monitor_tools_declared": {Method: "GET", Path: "/monitor/tools/declared", Binding: bindingReadState, MonitorView: monitorViewDeclaredTools},
 			"monitor_state":    {Method: "GET", Path: "/monitor/state", Binding: bindingReadState, MonitorView: monitorViewState},
 			"monitor_tools":    {Method: "GET", Path: "/monitor/tools", Binding: bindingReadState, MonitorView: monitorViewTools},
 			"monitor_metrics":  {Method: "GET", Path: "/monitor/metrics", Binding: bindingReadState, MonitorView: monitorViewMetrics},

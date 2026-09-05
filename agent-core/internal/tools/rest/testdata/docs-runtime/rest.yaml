@@ -644,6 +644,11 @@ rest:
           path: /monitor/machines
           binding: read_state
           monitor_view: declared_machines
+        declared_tools:
+          method: GET
+          path: /monitor/tools/declared
+          binding: read_state
+          monitor_view: declared_tools
         current_state:
           method: GET
           path: /monitor/state

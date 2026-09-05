@@ -104,6 +104,7 @@ rest:
       endpoints:
         machine_spec: {method: GET, path: /monitor/machine, binding: read_state, monitor_view: machine_spec}
         declared_machines: {method: GET, path: /monitor/machines, binding: read_state, monitor_view: declared_machines}
+        declared_tools: {method: GET, path: /monitor/tools/declared, binding: read_state, monitor_view: declared_tools}
         current_state: {method: GET, path: /monitor/state, binding: read_state, monitor_view: current_state}
         tools: {method: GET, path: /monitor/tools, binding: read_state, monitor_view: tools}
         metrics: {method: GET, path: /monitor/metrics, binding: read_state, monitor_view: metrics}

@@ -135,7 +135,7 @@ func monitorReleaseProof(t *testing.T) monitorProof {
 			MonitorRecorder: mon.Recorder,
 		},
 		monitor:        mon,
-		monitorState:   monitorState(mon.Store, mon.Recorder, &machine, defs, nil),
+		monitorState:   monitorState(mon.Store, mon.Recorder, &machine, defs, nil, nil),
 		restDefs:       restDefs,
 		launchDef:      requireToolDef(t, defs, "launch_monitor_rest"),
 		metricReader:   reader,
@@ -157,7 +157,7 @@ func monitorProofAgentState(
 		ctx:       context.Background(),
 		directory: cfg.Directory,
 		request:   cfg.Request,
-		monitor:   monitorState(mon.Store, mon.Recorder, machine, defs, nil),
+		monitor:   monitorState(mon.Store, mon.Recorder, machine, defs, nil, nil),
 		restDefs:  restDefs,
 		shutdown:  func() {},
 	}

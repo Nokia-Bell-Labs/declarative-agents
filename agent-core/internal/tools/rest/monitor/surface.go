@@ -21,6 +21,10 @@ type Surface struct {
 	Snapshot         func() obsmonitor.Snapshot
 	Machine          func() *core.MachineSpec
 	DeclaredMachines func() []core.MachineSpec
+	// DeclaredTools serves the closure's tool declarations as authored
+	// (srd033 R9): raw mappings, name-ordered, loaded once beside the
+	// declared machines.
+	DeclaredTools func() []map[string]interface{}
 	Tools            func() []catalog.ToolDef
 	CommandState     func() core.CommandStateSource
 	MaxResponseBytes func() int

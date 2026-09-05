@@ -17,6 +17,7 @@ import (
 const (
 	ViewMachine          = "machine_spec"
 	ViewDeclaredMachines = "declared_machines"
+	ViewDeclaredTools    = "declared_tools"
 	ViewState            = "current_state"
 	ViewTools            = "tools"
 	ViewMetrics          = "metrics"
@@ -60,6 +61,8 @@ func monitorView(s Surface, route, view string) (interface{}, error) {
 		return monitorMachineView(s.Machine()), nil
 	case ViewDeclaredMachines:
 		return monitorDeclaredMachinesView(s.DeclaredMachines()), nil
+	case ViewDeclaredTools:
+		return s.DeclaredTools(), nil
 	case ViewState:
 		return monitorStateView(s.Snapshot()), nil
 	case ViewTools:
