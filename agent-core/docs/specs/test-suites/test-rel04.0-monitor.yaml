@@ -381,6 +381,45 @@ test_cases:
       - srd033-monitor-rest-api AC8
 
   - use_case: rel04.0-uc002-monitor-rest-api
+    name: Monitor declared_tools view returns the closure declarations as authored
+    go_test: TestMonitorREST_DeclaredTools
+    status: implemented
+    description: |
+      Serve GET /monitor/tools/declared through a read_state endpoint with
+      monitor_view declared_tools. Build the declaration set from a root
+      profile and one machine_request profile that share a declarations file.
+      The response should contain every declared word as its authored mapping
+      with fields the runtime does not interpret riding through, ordered by
+      word name, contributing each shared file's words once and keeping the
+      first declaration when two files declare the same name. The response
+      should expose no registration or run state and no resolved credential
+      value, and the registered-tools view at /monitor/tools should be
+      unchanged. Loader-level closure collection, deduplication, and ordering
+      are covered by TestLoadDeclaredTools_ClosureAsAuthoredDedupedAndSorted.
+    inputs:
+      endpoint:
+        method: GET
+        path: /monitor/tools/declared
+        binding: read_state
+        monitor_view: declared_tools
+      profile_declarations:
+        root_files: [shared.yaml]
+        machine_request_files: [request-tools.yaml, shared.yaml]
+    expected:
+      word_names: [invoke_llm, read, zeta_tool]
+      unknown_fields_preserved: true
+      shared_file_words_contributed_once: true
+      duplicate_word_name_keeps_first: true
+      registration_state_absent: true
+      resolved_credentials_absent: true
+      registered_tools_view_unchanged: true
+      tools_executed: false
+    traces:
+      - rel04.0-uc002-monitor-rest-api S1
+      - rel04.0-uc002-monitor-rest-api S2
+      - srd033-monitor-rest-api AC9
+
+  - use_case: rel04.0-uc002-monitor-rest-api
     name: Monitor event stream reads cached updates
     go_test: TestMonitorREST_EventStreamCachedUpdates
     status: implemented

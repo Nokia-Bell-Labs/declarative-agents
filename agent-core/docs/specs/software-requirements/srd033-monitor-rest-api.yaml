@@ -140,6 +140,17 @@ requirements:
       - R8.9: GET /monitor/machine and monitor_view machine_spec SHALL remain the running-root projection defined by R3.1.
       - R8.10: OpenAPI SHALL describe declared_machines as an array of machine objects with typed scalar, array, object, and map fields under R2.7 through R2.10.
 
+  R9:
+    title: Declared tool records
+    items:
+      - R9.1: A read_state endpoint MAY declare monitor_view declared_tools to expose the tool declarations of the trusted profile closure as authored; the conventional profile-owned route SHALL be GET /monitor/tools/declared.
+      - R9.2: The declared tool collection SHALL contain every word declared by the root profile's tool_declarations files and by the tool_declarations files of every profile a REST server machine_request endpoint references in the same closure.
+      - R9.3: Each entry SHALL be the declaration mapping as authored -- name, description, config, emits, and every other authored field -- rather than a registration-time projection, so a consumer reads the contract the executor loads. Fields the runtime does not interpret SHALL ride through.
+      - R9.4: The collection SHALL be ordered by word name; a declarations file referenced by more than one profile SHALL contribute each word once, and two files declaring the same word name SHALL keep the first in file-resolution order.
+      - R9.5: The declared_tools view SHALL expose declarations only. It SHALL NOT report registration, run state, or metrics for any word; monitor_view tools remains the registered-tool projection of R3.
+      - R9.6: The view SHALL serve no secret material; a declaration references credentials by environment or auth_ref and the served mapping is the authored reference, never a resolved value.
+      - R9.7: OpenAPI SHALL describe declared_tools as an array of objects with a required name and additional authored properties under R2.7 through R2.10.
+
 implementation_status:
   current: |
     internal/tools/rest supports monitor_view on read_state, static_metadata,
@@ -179,6 +190,13 @@ implementation_status:
     from the trusted profile closure without exposing live request-machine
     state. Shipped monitor profiles declare the conventional
     GET /monitor/machines route.
+
+    The declared_tools runtime view (R9) serves the closure's tool
+    declarations as authored, loaded once beside the declared machines, so a
+    fleet surface renders a request machine's words -- description and
+    configuration -- from the pod that runs them rather than from a shipped
+    copy. Shipped monitor profiles declare the conventional
+    GET /monitor/tools/declared route.
 
 non_goals:
   - Writing monitor state through REST.
@@ -246,6 +264,12 @@ acceptance_criteria:
       - "test-rel04.0-monitor: MachineSpec retains declared presentation metadata"
       - "test-rel04.0-monitor: Monitor declared_machines view returns the profile machine collection"
 
+  - id: AC9
+    criterion: The declared_tools view returns every word the profile closure declares, as authored with unknown fields riding through, name-ordered and deduplicated across shared declaration files, exposing no registration state and no resolved credential, with the registered-tools view unchanged.
+    traces: [R9.1, R9.2, R9.3, R9.4, R9.5, R9.6, R9.7]
+    tests:
+      - "test-rel04.0-monitor: Monitor declared_tools view returns the closure declarations as authored"
+
 depends_on:
   - srd_id: srd029-rest-server-tools
     symbols_used: [read_state, stream_events, health, static_metadata]
@@ -288,4 +312,6 @@ diagrams:
       R7 --> AC7
       AC8["AC8: Declared machines preserve the profile collection and pre..."]
       R8 --> AC8
+      AC9["AC9: Declared tools serve the closure's words as authored"]
+      R9 --> AC9
     ```
