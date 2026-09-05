@@ -177,7 +177,8 @@ implementation_status:
     The declared_machines runtime view (R8) retains named presentation
     metadata and collects the root plus the distinct machine_request machines
     from the trusted profile closure without exposing live request-machine
-    state. Shipped profile route declarations remain under GH-1944.
+    state. Shipped monitor profiles declare the conventional
+    GET /monitor/machines route.
 
 non_goals:
   - Writing monitor state through REST.

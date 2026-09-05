@@ -1690,6 +1690,16 @@ patterns:
             - path: applications/catalog/agents/runtime-state-reader/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
+              field: rest.servers.monitor.endpoints.declared_machines.path
+              equals: /monitor/machines
+            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
+              artifact: rest_definition
+              assertion: yaml_value
+              field: rest.servers.monitor.endpoints.declared_machines.monitor_view
+              equals: declared_machines
+            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
+              artifact: rest_definition
+              assertion: yaml_value
               field: rest.servers.monitor.endpoints.current_state.path
               equals: /monitor/state
             - path: applications/catalog/agents/runtime-state-reader/rest.yaml

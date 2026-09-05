@@ -40,6 +40,7 @@ test_cases:
       openapi_output_present: true
       otel_metrics_exported: true
       workflow_labels_present: true
+      declared_machines_root_count: 1
       bound_address_discovered_from_launch_output: true
       external_runtime_state_reader_path_used: true
     traces:
@@ -80,6 +81,7 @@ test_cases:
       query_routes:
         - /monitor/state
         - /monitor/metrics
+        - /monitor/machines
       control_route: /monitor/control/exit
       binding: isolated_loopback_address
       discovery: rest_server_launch_output_address
@@ -87,6 +89,7 @@ test_cases:
       process_running_after_server_launch: true
       monitor_state_query_succeeds: true
       monitor_metrics_query_succeeds: true
+      declared_machines_root_count: 1
       control_exit_stops_listener: true
       terminal_status_succeeded: true
       avoids_shared_fixed_port: true

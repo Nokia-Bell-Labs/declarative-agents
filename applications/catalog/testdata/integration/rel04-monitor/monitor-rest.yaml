@@ -8,6 +8,7 @@ go_tests:
   - TestMonitorREST_FactoryUsesLiveMonitorState
 expected_routes:
   - /monitor/machine
+  - /monitor/machines
   - /monitor/state
   - /monitor/tools
   - /monitor/metrics
