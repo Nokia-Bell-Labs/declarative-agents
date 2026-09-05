@@ -39,6 +39,12 @@ summary: |
   metric_sample event names with JSON data payloads that match cached monitor
   event and sample shapes.
 
+  A separate declared_machines read view exposes the profile's root
+  MachineSpec and every distinct machine referenced by its machine_request
+  endpoints. The collection is declaration-only: it preserves authored
+  view_tags and per-state tags for renderers but reports no live state for
+  request-scoped runs.
+
 actor: Supervisor reading a running agent
 
 trigger: |
@@ -62,6 +68,8 @@ flow:
   - F14: Handlers read cached monitor snapshots and apply redaction rules.
   - F15: A configured control exit request stops the owned listener and routes the machine to Done or Succeeded.
   - F16: Handler failure returns a structured REST error and does not change command or machine state.
+  - F17: The supervisor requests a profile-owned GET /monitor/machines endpoint whose read_state binding selects monitor_view declared_machines.
+  - F18: The supervisor receives the root machine first, followed by each distinct machine_request MachineSpec ordered by name, with authored presentation tags and no request-machine run state.
 
 touchpoints:
   - T1: "srd033-monitor-rest-api R1.1, R1.2, R1.3, R1.4, R1.5 -- read-only API scope and profile-owned REST authority"
@@ -73,6 +81,7 @@ touchpoints:
   - T7: "srd032-tool-metrics-monitor-store R1.4, R2.6, R4.4 -- cached snapshots, recorder boundaries, and export diagnostics"
   - T8: "cfg-rest-tool-format rest_server -- profile-owned server routes, limits, auth, and OpenAPI binding"
   - T9: "srd033-monitor-rest-api R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R6.8, R6.9 -- serving lifecycle, isolated binding, bound-address discovery, and real profile proof"
+  - T10: "srd033-monitor-rest-api R8.1, R8.2, R8.3, R8.4, R8.5, R8.6, R8.7, R8.8, R8.9, R8.10 -- profile declaration collection, presentation metadata, stable ordering, OpenAPI, and no request-machine run state"
 
 success_criteria:
   - id: S1
@@ -99,11 +108,16 @@ success_criteria:
     criterion: The real cmd/agent runtime-state-reader profile stays running while the monitor REST API is queried, discovers the bound listener address from profile-owned launch output, uses isolated listener binding for automated proof, and exits successfully after a configured control request.
     traces:
       - srd033-monitor-rest-api AC6
+  - id: S7
+    criterion: A profile-owned declared_machines endpoint returns the root first and each distinct machine_request declaration by name, preserves authored view_tags and per-state tags in a typed response, leaves machine_spec unchanged, and reports no request-machine run state.
+    traces:
+      - srd033-monitor-rest-api AC8
 
 out_of_scope:
   - Writing monitor state through REST.
   - Dispatching tools from monitor HTTP handlers.
   - Defining durable metric history.
+  - Reporting live, recent, or historical request-machine runs through declared_machines; spans remain the run-observation surface.
 
 semantic_model: sm-tool-metrics-monitoring
 config_format: cfg-rest-tool-format

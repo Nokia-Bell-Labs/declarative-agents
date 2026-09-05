@@ -38,12 +38,13 @@ goals:
   - G4: Define endpoint coverage for machine, tool, metric, event, and stream reads.
   - G5: Define redaction, caching, and failure behavior for monitor readers.
   - G6: Define an opt-in command-state view that exposes the redaction-cleared declared output of profile-named steps from srd038-command-state-store.
+  - G7: Expose every MachineSpec declared by a profile without implying that request-scoped machines are running.
 
 requirements:
   R1:
     title: API scope and authority
     items:
-      - R1.1: The monitor REST API SHALL expose read-only endpoints over cached monitor store snapshots from srd032-tool-metrics-monitor-store.
+      - R1.1: The monitor REST API SHALL expose read-only endpoints over cached monitor store snapshots from srd032-tool-metrics-monitor-store and loaded MachineSpec declarations from the trusted profile closure.
       - R1.2: Monitor REST handlers SHALL NOT execute tools, dispatch MachineSpec actions, inspect prompts, scrape workspace files, or call external collectors.
       - R1.3: Profile-owned REST configuration SHALL define server address, route paths, endpoint bindings, auth references, limits, and OpenAPI exposure.
       - R1.4: Runtime input SHALL NOT choose arbitrary monitor routes, methods, authentication, OpenAPI documents, or network destinations.
@@ -54,7 +55,7 @@ requirements:
     items:
       - R2.1: The monitor API SHALL provide an OpenAPI description for every configured monitor endpoint.
       - R2.2: OpenAPI operation IDs SHALL be stable and derived from configured monitor endpoint names.
-      - R2.3: Response schemas SHALL describe machine spec metadata, current state, selected tools, per-tool metrics, aggregate metrics, recent events, event stream frames, errors, and diagnostics.
+      - R2.3: Response schemas SHALL describe root machine spec metadata, declared machine collections, current state, selected tools, per-tool metrics, aggregate metrics, recent events, event stream frames, errors, and diagnostics.
       - R2.4: OpenAPI output SHALL omit secrets, raw prompts, full tool output, arbitrary workspace paths, and unbounded labels. A command_state endpoint (R7) is the one bounded exception, and its schema SHALL describe a map of the endpoint's declared labels to entry objects carrying the redaction-cleared declared output and run envelope, and SHALL NOT describe receipts or undeclared step output.
       - R2.5: OpenAPI generation SHALL NOT generate Go server code in the first implementation.
       - R2.6: OpenAPI output SHALL include profile-owned lifecycle control endpoints configured for the monitor server, including POST /monitor/control/exit when that route exists.
@@ -125,6 +126,20 @@ requirements:
       - R7.6: The labels allowlist SHALL be required and non-empty when monitor_view is command_state and SHALL NOT be accepted on any other monitor_view; configuration validation SHALL reject a command_state endpoint that declares no labels and any non-command_state endpoint that declares labels.
       - R7.7: The command_state view SHALL remain read-only under R1.2; it SHALL NOT execute tools, dispatch MachineSpec actions, inspect prompts, or scrape workspace files, and its exposure SHALL be limited to the opt-in, profile-declared labels of the endpoint.
 
+  R8:
+    title: Declared machine collection
+    items:
+      - R8.1: A read_state endpoint MAY declare monitor_view declared_machines to expose MachineSpec declarations loaded from the trusted profile closure; the conventional profile-owned route SHALL be GET /monitor/machines.
+      - R8.2: The declared machine collection SHALL contain the running root MachineSpec followed by every distinct MachineSpec referenced by a REST server machine_request endpoint in the same profile closure.
+      - R8.3: The collection SHALL place the root first and order the remaining machines by machine name; repeated references to the same resolved machine path SHALL produce one entry.
+      - R8.4: A profile with no machine_request references SHALL return a one-element collection containing its root MachineSpec.
+      - R8.5: Each entry SHALL contain name, initial_state, states, signals, terminal_states, and transitions, and MAY contain view_tags when authored.
+      - R8.6: Each state in the declared_machines response SHALL be an object containing name and MAY contain authored tags; the response SHALL NOT collapse states to the names-only projection used by monitor_view machine_spec.
+      - R8.7: view_tags SHALL preserve the authored ordered list of tag and label objects, and state tags SHALL preserve the authored ordered string list. Both fields are presentation metadata that SHALL NOT affect transition validation, dispatch, or run state.
+      - R8.8: The declared_machines view SHALL expose declarations only. It SHALL NOT report or imply live state for request-scoped machines; request runs remain observable through their spans.
+      - R8.9: GET /monitor/machine and monitor_view machine_spec SHALL remain the running-root projection defined by R3.1.
+      - R8.10: OpenAPI SHALL describe declared_machines as an array of machine objects with typed scalar, array, object, and map fields under R2.7 through R2.10.
+
 implementation_status:
   current: |
     internal/tools/rest supports monitor_view on read_state, static_metadata,
@@ -159,6 +174,11 @@ implementation_status:
     steps through the srd038 CommandStateView. The fleet observer of
     GH-1270 is its first consumer.
 
+    The declared_machines view (R8) is specified and pending implementation
+    under GH-1944. It will retain named presentation metadata and collect the
+    root plus the distinct machine_request machines from the trusted profile
+    closure without exposing live request-machine state.
+
 non_goals:
   - Writing monitor state through REST.
   - Creating workflow signals from monitor REST read endpoints.
@@ -166,6 +186,7 @@ non_goals:
   - Replacing REST server tool contracts in srd029-rest-server-tools.
   - Exposing raw prompts, full outputs, secrets, or arbitrary workspace files. The command_state view is bounded to redaction-cleared declared output of profile-named labels and does not weaken this boundary.
   - Defining durable metric history.
+  - Exposing current, recent, or historical run state for request-scoped machines through the declared_machines view.
   - Defining the command-state store, its label grammar, or its redaction boundary; that belongs to srd038-command-state-store, which the command_state view reads.
 
 acceptance_criteria:
@@ -217,6 +238,13 @@ acceptance_criteria:
       - "test-rel04.0-monitor: Monitor command_state view rejects misuse of labels"
       - "test-rel04.0-monitor: Monitor command_state view redacts omitted and legacy output"
 
+  - id: AC8
+    criterion: The declared_machines view returns the root first and each distinct machine_request MachineSpec by name, preserves authored view_tags and per-state tags in a typed OpenAPI-described declaration shape, leaves the existing machine_spec root projection unchanged, and exposes no request-machine run state.
+    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6, R8.7, R8.8, R8.9, R8.10]
+    tests:
+      - "test-rel04.0-monitor: MachineSpec retains declared presentation metadata"
+      - "test-rel04.0-monitor: Monitor declared_machines view returns the profile machine collection"
+
 depends_on:
   - srd_id: srd029-rest-server-tools
     symbols_used: [read_state, stream_events, health, static_metadata]
@@ -242,6 +270,7 @@ diagrams:
       Goals --> R5["R5: Redaction and failure behavior"]
       Goals --> R6["R6: Serving lifecycle"]
       Goals --> R7["R7: Command-state view"]
+      Goals --> R8["R8: Declared machine collection"]
       AC1["AC1: API scope requirements define read-only cached monitor en..."]
       R1 --> AC1
       AC2["AC2: OpenAPI requirements cover configured endpoint descriptio..."]
@@ -256,4 +285,6 @@ diagrams:
       R6 --> AC6
       AC7["AC7: Command-state view exposes redaction-cleared declared out..."]
       R7 --> AC7
+      AC8["AC8: Declared machines preserve the profile collection and pre..."]
+      R8 --> AC8
     ```

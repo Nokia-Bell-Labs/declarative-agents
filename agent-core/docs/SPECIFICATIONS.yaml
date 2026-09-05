@@ -293,7 +293,7 @@ srd_index:
     path: docs/specs/software-requirements/srd032-tool-metrics-monitor-store.yaml
   - id: srd033-monitor-rest-api
     title: Monitor REST API
-    summary: Requirements for read-only REST and OpenAPI monitor endpoints over cached monitor state, including machine, tool, metric, event, stream views, and live-store wiring.
+    summary: Requirements for read-only REST and OpenAPI monitor endpoints over cached monitor state and trusted profile declarations, including root and declared-machine, tool, metric, event, stream views, presentation metadata, and live-store wiring.
     status: done
     path: docs/specs/software-requirements/srd033-monitor-rest-api.yaml
   - id: srd034-external-agent-profiles

@@ -82,6 +82,25 @@ schema:
       flow. Embedded in the YAML as a multi-line string. Renderers
       that support Mermaid can display it as a visual graph.
 
+  - field: view_tags
+    type: "[]object"
+    required: false
+    status: planned
+    description: |
+      Ordered presentation metadata for renderers that divide one large
+      machine into named views. The monitor declared_machines view preserves
+      this list as authored. The engine does not interpret it during
+      validation, transition lookup, dispatch, or run-state tracking.
+    sub_fields:
+      - field: tag
+        type: string
+        required: true
+        description: Stable tag referenced by StateSpec.tags.
+      - field: label
+        type: string
+        required: true
+        description: Human-facing label for the tagged view.
+
   - field: initial_state
     type: string
     required: true
@@ -190,16 +209,23 @@ schema:
 
       Rich object form: a list of objects with name and optional meaning
       metadata. The meaning field documents the state's semantic purpose.
+      The optional tags field is an ordered string list of presentation tags
+      declared by top-level view_tags. Renderers may use tags to select a
+      subgraph, but the engine does not interpret tags when validating or
+      executing the machine.
       Every terminal state must declare run_status as succeeded, failed,
       budget_exceeded, cancelled, or suspended.
         states:
         - name: Idle
           meaning: Initial state before any work begins.
+          tags: [intake]
         - name: Running
           meaning: The main working state where tools execute.
+          tags: [work]
         - name: Done
           meaning: Terminal. All work completed.
           run_status: succeeded
+          tags: [work]
 
       Both forms may be mixed in the same list. The parser
       (StateSpecs.UnmarshalYAML) detects scalars vs mappings
@@ -209,6 +235,9 @@ schema:
       terminal_states must appear here.
       run_status is valid only on terminal states and is required for each name
       listed by terminal_states.
+
+      StateSpec fields are name, meaning, run_status, and tags. tags is
+      presentation-only metadata. Scalar states have no tags.
 
   - field: terminal_states
     type: "[]string"
@@ -519,6 +548,30 @@ workflow_metric_labels:
         action: monitor_snapshot
         metric_labels:
           phase: monitor_read
+
+machine_presentation_views:
+  status: planned
+  purpose: |
+    view_tags and StateSpec.tags let a renderer present named subgraphs from
+    one authored machine declaration. They do not create nested machines,
+    alter state membership, or constrain transitions.
+  monitor_contract: |
+    The srd033 declared_machines view preserves top-level view_tags and each
+    state's tags. The existing machine_spec view remains a names-only root
+    projection and does not define this presentation contract.
+  authored_shape: |
+    view_tags:
+      - {tag: intake, label: Intake}
+      - {tag: answer, label: Answer composition}
+    states:
+      - {name: AwaitingRequest, meaning: Waiting for input., tags: [intake]}
+      - {name: Composing, meaning: Building the response., tags: [answer]}
+      - {name: Done, run_status: succeeded, tags: [answer]}
+  ownership_rules:
+    - Machine authors own view tag names, labels, ordering, and state membership.
+    - Renderers decide how to draw a tagged view.
+    - The engine preserves these named fields but does not interpret them.
+    - Unknown MachineSpec fields remain outside this named presentation contract.
 
 validation_rules: |
   Validation occurs in two phases at startup:

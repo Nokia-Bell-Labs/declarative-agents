@@ -537,9 +537,12 @@ schema:
         required: false
         description: >-
           Selects a cached monitor view for read_state, static_metadata, and
-          stream_events endpoints. One of machine_spec, current_state, tools,
-          metrics, events, openapi, or command_state (srd033-monitor-rest-api
-          R3, R7). command_state additionally requires labels.
+          stream_events endpoints, or a loaded declaration view for read_state.
+          One of machine_spec, declared_machines, current_state, tools, metrics,
+          events, openapi, or command_state (srd033-monitor-rest-api R3, R7,
+          R8). declared_machines returns the root plus distinct machine_request
+          machines from the trusted profile closure. command_state additionally
+          requires labels.
       - field: labels
         type: "[]string"
         required: when_monitor_view_command_state
@@ -1730,6 +1733,8 @@ validation_rules:
     rule: signal_source sensitive entries MUST name payload mapping keys and become typed one-segment Result output-redaction paths before the injected host runner is called.
   - id: V41
     rule: signal_source validates and maps the complete request before invoking its injected SignalSource runner; unknown discriminators and invalid requests do not invoke the runner, enter emit_signal queues, or use machine_request.
+  - id: V42
+    rule: monitor_view declared_machines is valid only on read_state and exposes the root plus distinct machine_request declarations from the trusted profile closure without request-machine run state.
 
 invalid_examples:
   ambiguous_resource_operation: |
