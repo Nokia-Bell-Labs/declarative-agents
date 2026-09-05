@@ -1,0 +1,156 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd049-pipeline-word
+title: Pipeline Word
+
+problem: |
+  A boundary call's marshalling costs one machine state per reshape. The pure
+  words are deliberately tiny -- compose has no logic, selectors are map-only
+  -- and a word emits exactly one signal, so rendering candidates to text
+  lines, composing the request envelope, parsing the response, and applying
+  the returned ordering must each be a state with a transition. The cost is
+  measurable in a deployed mesh: one rerank call carries ten states, the same
+  block repeats three times under different prefixes, and a request machine
+  reaches 126 states for fifteen conceptual steps and six external calls.
+
+  The states add nothing to control flow. A render that feeds a compose that
+  feeds a parse has one entry, one exit, and no decision; the machine records
+  it as geometry because the vocabulary has no way to say "these reshapes are
+  one step". The observability the states provide -- one span per reshape --
+  does not require them to be states, because a command already owns a span
+  under which child work can record.
+
+goals:
+  - G1: Declare a builtin word that runs an ordered sequence of pure data-transform stages and emits one machine-declared signal.
+  - G2: Reuse the existing pure inits as the stage vocabulary rather than introducing a parallel one, so a stage config is the same config the standalone word takes.
+  - G3: Chain stages through the existing previous-Result semantics, so the current-value selector in a stage means the previous stage's output and no new selector grammar appears.
+  - G4: Keep decisions in the machine; a stage cannot branch, so any state that chooses a path stays a state.
+  - G5: Fail registration on a misconfigured stage, so a broken pipeline never reaches a run.
+
+requirements:
+  R0:
+    title: Tool authoring standard
+    items:
+      - R0.1: The declaration SHALL follow cfg-tool-authoring-standard for category, problem, goals, requirements, non_goals, output, side effects, reversibility, undo, errors, and relationships (srd022 R0.1).
+      - R0.2: The word SHALL be category word and visibility internal; a pipeline is machine data flow, not a model-callable capability.
+
+  R1:
+    title: Declaration and configuration
+    items:
+      - R1.1: The declaration SHALL set type builtin and init pipeline, resolved through BuiltinRegistry (srd022 R1.1, R1.3, R2.1).
+      - R1.2: Configuration SHALL name the emitted signal and an ordered non-empty list of stages; each stage SHALL name its init and carry the config that init's standalone word takes.
+      - R1.3: A stage MAY carry a name for spans and errors; an unnamed stage SHALL be addressed as its position and init, so a failure always names which reshape broke.
+      - R1.4: Configuration SHALL be decoded into typed structs by DecodeToolConfig at registration time, and a decode failure SHALL name the tool (srd022 R3.1, R3.3).
+      - R1.5: Each stage SHALL be built through the init's registered factory at registration time, so a stage config the standalone word would refuse is refused here at the same moment, with the pipeline word and the stage named.
+      - R1.6: No stage init, order, or config SHALL be supplied by runtime input; the pipeline is declared, not chosen by a model or a request body.
+
+  R2:
+    title: Stage vocabulary
+    items:
+      - R2.1: The stage init set SHALL be closed and SHALL comprise compose, render_each, project, normalize_vector, flat_map, reorder_by_index, parse_structured, and select_subset -- the pure data transforms.
+      - R2.2: A stage init outside the set SHALL fail registration. Boundary inits, lifecycle inits, and branching inits (value_predicate, partition) are excluded by construction; a word that leaves the process, changes run state, or chooses a path is a state the machine must own.
+      - R2.3: Selecting a profile whose declarations use pipeline SHALL select the stage inits' factory families as well, so a profile need not declare a standalone word it never dispatches just to load a family.
+      - R2.4: Extending the set SHALL amend this requirement rather than adding an escape hatch, so the vocabulary a pipeline may run stays enumerable from the specification.
+
+  R3:
+    title: Execution and chaining
+    items:
+      - R3.1: Stages SHALL execute in declared order; the first stage's previous Result SHALL be the pipeline word's own previous Result, and each later stage's previous Result SHALL be the preceding stage's Result. The current-value selector inside a stage config therefore means "the previous stage's output" with its existing semantics (srd038), and the first stage reads what the standalone word in that machine position would have read.
+      - R3.2: A stage SHALL resolve $from(label).path selectors against the same command-state view the pipeline word received, so a stage can read any prior machine step exactly as the standalone word could (srd038 R1, R2).
+      - R3.3: The pipeline's Result output SHALL be the final stage's output, and its signal SHALL be the configured signal regardless of the signals the stage words would emit standalone; interior signals do not exist to the machine.
+      - R3.4: The command-state view, tracer, and monitor recorder injected into the pipeline command SHALL be propagated to each stage command that accepts them, so a stage records under the pipeline's dispatch span rather than escaping observability.
+
+  R4:
+    title: Failure separation
+    items:
+      - R4.1: A stage whose Result carries CommandError or an error SHALL end the pipeline; the pipeline SHALL emit CommandError naming the pipeline word and the failed stage, and later stages SHALL NOT run.
+      - R4.2: The declaration's emits SHALL list the configured signal and CommandError, and nothing else; a pipeline has exactly one success arc.
+      - R4.3: A stage's degraded-but-successful behavior (for example a compose selector that resolves empty, srd038 R1.5) SHALL be preserved, not converted to failure; the pipeline is transparent to each stage's own contract.
+
+  R5:
+    title: Purity
+    items:
+      - R5.1: The word SHALL have no side effects beyond its stages', and every admissible stage is pure; reversibility SHALL be reversible and undo SHALL be noop.
+      - R5.2: The word SHALL NOT mutate command state, workspace, or history; its only product is its Result.
+
+non_goals:
+  - Branching inside a pipeline; a decision is a machine state (G4).
+  - Boundary calls inside a pipeline; rest_client_invoke and invoke_llm stay machine states, and inlining their marshalling onto the boundary words themselves is a separate proposal this word makes mostly unnecessary.
+  - Defining the stage words' own semantics; each stage runs the standalone word's implementation unchanged.
+  - Parallel stages; the sequence is the point.
+  - Defining the selector grammar (srd038) or the BuiltinRegistry mechanism (srd022 R2).
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A three-stage render/compose/parse marshalling block that today occupies three machine states runs as one declared pipeline word emitting one configured signal, with the final stage's output as the word's output and each stage reading the previous stage through the current-value selector.
+    traces: [R0.1, R0.2, R1.1, R1.2, R3.1, R3.3]
+
+  - id: AC2
+    criterion: A stage reads a non-adjacent prior machine step through $from exactly as the standalone word would.
+    traces: [R3.2]
+
+  - id: AC3
+    criterion: A stage init outside the closed set, a stage config its own factory refuses, an empty stage list, and a missing signal each fail registration with the pipeline word and stage named, before any run.
+    traces: [R1.3, R1.4, R1.5, R1.6, R2.1, R2.2, R2.4]
+
+  - id: AC4
+    criterion: A failing stage emits CommandError naming the stage, later stages do not run, and a degraded-but-successful stage (an empty compose selector) flows through unconverted.
+    traces: [R4.1, R4.2, R4.3]
+
+  - id: AC5
+    criterion: A profile whose declarations use pipeline with a parse_structured stage registers without declaring any standalone llm-family word.
+    traces: [R2.3]
+
+  - id: AC6
+    criterion: The word records no side effect, reverses as a noop, and mutates nothing; injected view, tracer, and recorder reach stages that accept them.
+    traces: [R3.4, R5.1, R5.2]
+
+depends_on:
+  - srd_id: srd003-command-dispatch
+    symbols_used: [Command, Result, Signal, CommandError]
+  - srd_id: srd013-standard-tool-library
+    symbols_used: [ToolDef]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [BuiltinRegistry, DecodeToolConfig]
+  - srd_id: srd038-command-state-store
+    symbols_used: [CommandStateView]
+
+related_documents:
+  - cfg-tool-authoring-standard
+
+implementation_status:
+  implemented:
+    - >-
+      The pipeline word (internal/tools/pipeline), its factory registration as
+      a standard family gated on the pipeline init, and stage-family
+      co-selection in SelectedBuiltinInits shipped with GH-1957. Stages build
+      eagerly at registration through their own factories, chain through the
+      previous-Result contract, and propagate the injected command-state view,
+      tracer, and monitor recorder.
+  planned:
+    - >-
+      Adopting the word in chatbot-mesh's request machines, where the three
+      rerank marshalling blocks and the source-selection block are the
+      motivating geometry.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: every reshape around a boundary call must be a machine state"] --> Goals["Goals: Pipeline Word"]
+      Goals --> R0["R0: Tool authoring standard"]
+      Goals --> R1["R1: Declaration and configuration"]
+      Goals --> R2["R2: Stage vocabulary"]
+      Goals --> R3["R3: Execution and chaining"]
+      Goals --> R4["R4: Failure separation"]
+      Goals --> R5["R5: Purity"]
+      R1 --> AC1["AC1: a marshalling block runs as one word"]
+      R3 --> AC1
+      R3 --> AC2["AC2: stages read prior steps through $from"]
+      R1 --> AC3["AC3: misconfiguration fails registration"]
+      R2 --> AC3
+      R4 --> AC4["AC4: a failing stage is a named fault"]
+      R2 --> AC5["AC5: stage families co-select"]
+      R3 --> AC6["AC6: purity and propagation"]
+      R5 --> AC6
+    ```

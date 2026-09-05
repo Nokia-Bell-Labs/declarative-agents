@@ -1,0 +1,54 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel16.0-uc001-pipeline-word
+title: A profile folds a marshalling block into one pipeline word
+status: implemented
+
+summary: |
+  A profile replaces a render/compose/parse chain of machine states -- the
+  marshalling around one boundary call -- with a single pipeline word. The
+  word declares its stages from the existing pure-init vocabulary, each stage
+  carrying the config its standalone word takes. Stages chain through the
+  previous-Result contract, the current-value selector inside a stage means
+  the previous stage's output, and a stage still reads any prior machine step
+  through $from. The machine emits one declared signal for the whole block
+  and keeps every state that decides a path.
+
+actor: A profile author collapsing marshalling geometry around a boundary call
+
+trigger: |
+  A transition reaches a ToolDef with init pipeline whose config names a
+  signal and an ordered stage list.
+
+flow:
+  - F1: The profile loads a pipeline ToolDef whose stages name pure inits (render_each, compose) with their standalone configs.
+  - F2: Selection sees the pipeline declaration and co-selects the stage inits' factory families.
+  - F3: Registration builds every stage through its own factory; a stage config the standalone word would refuse fails registration naming the pipeline and the stage.
+  - F4: Dispatch builds the pipeline command; the engine injects the command-state view, tracer, and monitor recorder once.
+  - F5: The first stage reads the pipeline's previous Result; each later stage reads its predecessor through the current-value selector; $from selectors resolve against the injected view.
+  - F6: The final stage's output becomes the word's output under the configured signal; interior signals never reach the machine.
+  - F7: A failing stage ends the run as CommandError naming the stage; later stages do not run.
+
+touchpoints:
+  - T1: "srd049-pipeline-word R1 -- declaration, stage config, eager registration"
+  - T2: "srd049-pipeline-word R2 -- closed stage vocabulary and family co-selection"
+  - T3: "srd049-pipeline-word R3 -- chaining, selectors, and injected dependencies"
+  - T4: "srd049-pipeline-word R4 -- failure separation"
+  - T5: "srd038-command-state-store R1, R2 -- selector semantics inside stages"
+
+success_criteria:
+  - id: S1
+    criterion: A two-stage render/compose pipeline emits its configured signal with the final stage's output, chaining through the current-value selector.
+    traces: [srd049-pipeline-word AC1]
+  - id: S2
+    criterion: A stage resolves a $from selector against the same view the standalone word would see.
+    traces: [srd049-pipeline-word AC2]
+  - id: S3
+    criterion: A stage init outside the closed set, a refused stage config, an empty stage list, and a missing signal each fail registration naming the fault.
+    traces: [srd049-pipeline-word AC3]
+  - id: S4
+    criterion: A failing stage yields CommandError naming the stage while a degraded compose flows through under the configured signal.
+    traces: [srd049-pipeline-word AC4]
+  - id: S5
+    criterion: A pipeline declaration alone selects its stage families.
+    traces: [srd049-pipeline-word AC5]
