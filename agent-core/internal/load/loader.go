@@ -138,7 +138,7 @@ func loadMachine(path string, visit catalog.FileVisitor) (core.MachineSpec, erro
 	}
 	machine, err := core.ParseMachineSpec(data)
 	if err != nil {
-		return core.MachineSpec{}, fmt.Errorf("load machine spec: %w", err)
+		return core.MachineSpec{}, fmt.Errorf("load machine spec %s: %w", path, err)
 	}
 	return machine, nil
 }

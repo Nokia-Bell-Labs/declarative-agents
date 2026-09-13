@@ -215,10 +215,9 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 		},
 		"jurist": {
 			Name: "jurist", Machine: "../specification-critic/machine.yaml",
-			Tools:          []string{"../specification-critic/tools.yaml"},
-			ToolConfigDirs: []string{"/opt/agent-core/tools/builtin/spec-validation"},
+			Tools: []string{"../specification-critic/tools.yaml"},
 			ToolDeclarations: []string{
-				"/opt/agent-core/tools/builtin/load-corpus.yaml",
+				"/opt/agent-core/tools/builtin/spec-validation/all.yaml",
 				"../specification-critic/ripgrep.yaml",
 				"../specification-critic/ref-scan.yaml",
 				"../specification-critic/consistency-scan.yaml",

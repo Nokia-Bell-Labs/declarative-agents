@@ -10,10 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/envexpand"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 )
 
 // FileVisitor observes one declaration file after it is read and before it is
@@ -38,7 +37,7 @@ func LoadToolSelectionWithVisitor(path string, visit FileVisitor) ([]string, err
 		}
 	}
 	var sel ToolSelectionFile
-	if err := yaml.Unmarshal(data, &sel); err != nil {
+	if err := yamlstrict.Unmarshal(data, &sel); err != nil {
 		return nil, fmt.Errorf("parse tool selection %s: %w", path, err)
 	}
 	return sel.Tools, nil
@@ -229,7 +228,7 @@ func readToolDefsFile(
 	// is an environment reference rather than a literal the deployment cannot
 	// reach (srd013 R5.6).
 	var file ToolDefsFile
-	if err := yaml.Unmarshal(envexpand.Expand(data), &file); err != nil {
+	if err := yamlstrict.Unmarshal(envexpand.Expand(data), &file); err != nil {
 		return ToolDefsFile{}, fmt.Errorf("parse tool defs %s: %w", path, err)
 	}
 	cache[path] = file
@@ -266,7 +265,7 @@ func loadIncludedToolDefs(
 // ParseToolDefs parses YAML bytes into tool definitions without resolving includes.
 func ParseToolDefs(data []byte) ([]ToolDef, error) {
 	var file ToolDefsFile
-	if err := yaml.Unmarshal(data, &file); err != nil {
+	if err := yamlstrict.Unmarshal(data, &file); err != nil {
 		return nil, fmt.Errorf("parse tool defs: %w", err)
 	}
 	return file.Tools, validateToolDefs(file.Tools)

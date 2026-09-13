@@ -4,10 +4,8 @@ name: specification-critic
 machine: machine.yaml
 tools:
   - tools.yaml
-tool_config_dirs:
-  - /opt/agent-core/tools/builtin/spec-validation
 tool_declarations:
-  - /opt/agent-core/tools/builtin/load-corpus.yaml
+  - /opt/agent-core/tools/builtin/spec-validation/all.yaml
   - ripgrep.yaml
   - ref-scan.yaml
   - consistency-scan.yaml

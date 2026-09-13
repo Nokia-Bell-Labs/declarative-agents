@@ -9,7 +9,7 @@ states:
   - {name: Relaying, meaning: Select the decoded batch for the shared relay boundary.}
   - {name: Exporting, meaning: Await the single OTLP export result.}
   - {name: Done, meaning: Relay accepted the complete batch., run_status: succeeded}
-  - {name: Failed, meaning: File, decode, or export failed., run_status: failed}
+  - {name: Failed, meaning: "File, decode, or export failed.", run_status: failed}
 terminal_states: [Done, Failed]
 signals: [Seed, BatchLoaded, SpansRelayed, CommandError]
 transitions:

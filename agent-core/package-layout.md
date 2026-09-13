@@ -124,6 +124,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/support/envexpand`
 - `internal/support/execute`
 - `internal/support/subprocess`
+- `internal/support/yamlstrict`
 - `internal/tools`
 - `internal/tools/catalog`
 - `internal/tools/compose`

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
-	"gopkg.in/yaml.v3"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 )
 
 // AgentProfile bundles all configuration an agent needs into a single file.
@@ -50,7 +50,7 @@ func LoadProfileWithVisitor(path string, visit FileVisitor) (AgentProfile, error
 
 func parseProfile(path string, data []byte) (AgentProfile, error) {
 	var p AgentProfile
-	if err := yaml.Unmarshal(data, &p); err != nil {
+	if err := yamlstrict.Unmarshal(data, &p); err != nil {
 		return AgentProfile{}, fmt.Errorf("parse profile %s: %w", path, err)
 	}
 	if p.Machine == "" {

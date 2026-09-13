@@ -324,8 +324,8 @@ func TestWriteSpecificationCriticCharterDemoProfileFiles(t *testing.T) {
 	if !strings.Contains(profile, filepath.Join(root, specificationCriticProfileDir, "machine.yaml")) {
 		t.Fatalf("profile = %q, want specification-critic machine path", profile)
 	}
-	if !strings.Contains(profile, filepath.Join(coreRoot, "tools", "builtin", "spec-validation")) {
-		t.Fatalf("profile = %q, want core spec-validation dir", profile)
+	if !strings.Contains(profile, filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "all.yaml")) {
+		t.Fatalf("profile = %q, want core spec-validation declaration aggregate", profile)
 	}
 	if !strings.Contains(profile, filepath.Join(root, specificationCriticProfileDir, "ripgrep.yaml")) {
 		t.Fatalf("profile = %q, want specification-critic ripgrep declaration", profile)

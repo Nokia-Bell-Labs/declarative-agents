@@ -5,6 +5,8 @@ package core
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -77,6 +79,45 @@ func TestParseMachineSpecRejectsDuplicateGrammarEntries(t *testing.T) {
 			_, err := ParseMachineSpec([]byte(tt.input))
 			require.ErrorContains(t, err, tt.wantErr)
 			assert.ErrorContains(t, err, "first declared at")
+		})
+	}
+}
+
+func TestParseMachineSpecRejectsUnknownTransitionField(t *testing.T) {
+	t.Parallel()
+	for _, field := range []string{"acton", "itms"} {
+		field := field
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+			addition := "    acton: typo"
+			if field == "itms" {
+				addition = "    for_each:\n      itms: typo"
+			}
+			input := strings.Replace(validYAML, "    action: do_work", "    action: do_work\n"+addition, 1)
+			_, err := ParseMachineSpec([]byte(input))
+			require.ErrorContains(t, err, field)
+			require.ErrorContains(t, err, "transition")
+		})
+	}
+}
+
+func TestParseMachineSpecRejectsUnknownNamedSpecFields(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		old     string
+		rewrite string
+		field   string
+	}{
+		{"state", "  - Idle", "  - {name: Idle, meanng: typo}", "meanng"},
+		{"signal", "signals: [Start, Finished, Failed]", "signals: [{name: Start, triggr: typo}, Finished, Failed]", "triggr"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			input := strings.Replace(validYAML, test.old, test.rewrite, 1)
+			_, err := ParseMachineSpec([]byte(input))
+			require.ErrorContains(t, err, test.field)
 		})
 	}
 }
@@ -207,12 +248,10 @@ name: presented
 view_tags:
   - {tag: intake, label: Intake}
   - {tag: answer, label: Answer composition}
-ignored_top_level: not-retained
 initial_state: AwaitingRequest
 states:
   - name: AwaitingRequest
     tags: [intake]
-    ignored_state_field: not-retained
   - name: Composing
     tags: [answer, intake]
   - name: Done
@@ -234,8 +273,6 @@ transitions:
 
 	encoded, err := yamlv3.Marshal(spec)
 	require.NoError(t, err)
-	require.NotContains(t, string(encoded), "ignored_top_level")
-	require.NotContains(t, string(encoded), "ignored_state_field")
 	reparsed, err := ParseMachineSpec(encoded)
 	require.NoError(t, err)
 	require.Equal(t, spec.ViewTags, reparsed.ViewTags)
@@ -435,4 +472,13 @@ func TestLoadMachineSpec_FileNotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}
+}
+
+func TestLoadMachineSpec_ParseErrorNamesPath(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "machine.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("unknown: true\n"), 0o600))
+	_, err := LoadMachineSpec(path)
+	require.ErrorContains(t, err, path)
+	require.ErrorContains(t, err, "unknown")
 }

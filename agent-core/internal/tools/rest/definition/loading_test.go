@@ -53,6 +53,12 @@ paths:
 	}
 }
 
+func TestParseDefinitionRejectsMultipleDocuments(t *testing.T) {
+	t.Parallel()
+	_, err := ParseDefinition([]byte("rest: {version: v1}\n---\nrest: {version: v1}\n"))
+	require.ErrorContains(t, err, "multiple YAML documents")
+}
+
 func writeDefinitionFixture(t *testing.T, root, name, content string) string {
 	t.Helper()
 	path := filepath.Join(root, name)

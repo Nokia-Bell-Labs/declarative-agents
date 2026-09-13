@@ -22,7 +22,7 @@ machine:
       meaning: Relay accepted the complete batch.
       run_status: succeeded
     - name: Failed
-      meaning: File
+      meaning: File, decode, or export failed.
       run_status: failed
   terminal_states:
     - Done
@@ -130,7 +130,7 @@ files:
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/declarations.yaml
     sha256: 75e61fc9a89adc0099d216c1c579bd2cde257e13c006ba37131256e4733b601b
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/machine.yaml
-    sha256: b100270b5fe8135eaf4cf5ee215a650370bc1de48cba09d73add5140e223ea6f
+    sha256: b84a930d1e764db0889db7a8c0e075d79202a1f446f497cd60173bcb5a786793
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/profile.yaml
     sha256: 0f086b8e0c799a7de4c91e678d946cba4b8006b04b8a40f5ce1a22a93b96ef15
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/tools.yaml

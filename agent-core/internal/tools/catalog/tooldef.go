@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 )
 
 var cliExtensionKeys = map[string]bool{
@@ -64,14 +65,20 @@ type ToolDef struct {
 // before an exec tool can be registered or dispatched (srd023 R4.5).
 func (td *ToolDef) UnmarshalYAML(value *yaml.Node) error {
 	type rawToolDef ToolDef
+	if err := yamlstrict.CheckFields(value, yamlstrict.TagsOf(rawToolDef{})...); err != nil {
+		return fmt.Errorf("tool definition: %w", err)
+	}
+	if err := yamlstrict.CheckKnownFields(value, rawToolDef{}); err != nil {
+		return fmt.Errorf("tool definition: %w", err)
+	}
 	var decoded rawToolDef
 	if err := value.Decode(&decoded); err != nil {
 		return err
 	}
 	*td = ToolDef(decoded)
-	td.stdinSourceSet = yamlFieldPresent(value, "stdin_source")
-	td.stdinLimitSet = yamlFieldPresent(value, "stdin_max_bytes")
-	td.envSet = yamlFieldPresent(value, "env")
+	td.stdinSourceSet = yamlstrict.FieldPresent(value, "stdin_source")
+	td.stdinLimitSet = yamlstrict.FieldPresent(value, "stdin_max_bytes")
+	td.envSet = yamlstrict.FieldPresent(value, "env")
 	if err := td.validateParamSources(); err != nil {
 		return err
 	}
@@ -107,18 +114,6 @@ func (td ToolDef) validateParameterExtensions() error {
 		}
 	}
 	return nil
-}
-
-func yamlFieldPresent(value *yaml.Node, field string) bool {
-	if value.Kind != yaml.MappingNode {
-		return false
-	}
-	for i := 0; i+1 < len(value.Content); i += 2 {
-		if value.Content[i].Value == field {
-			return true
-		}
-	}
-	return false
 }
 
 func (td ToolDef) validateParamSources() error {
@@ -219,6 +214,11 @@ func (se *ToolSideEffects) UnmarshalYAML(value *yaml.Node) error {
 		se.LegacyText = text
 		return nil
 	case yaml.SequenceNode:
+		for _, item := range value.Content {
+			if err := yamlstrict.CheckKnownFields(item, ToolSideEffect{}); err != nil {
+				return fmt.Errorf("side_effects: %w", err)
+			}
+		}
 		var items []ToolSideEffect
 		if err := value.Decode(&items); err != nil {
 			return err

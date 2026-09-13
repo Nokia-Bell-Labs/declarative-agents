@@ -80,10 +80,10 @@ states:
   - {name: JudgingIngest, meaning: The post-run count is being tested against the pre-run count to decide whether the run added documents.}
   - {name: ReportingIngestOutcome, meaning: The judged count and the collection the child wrote are being put into one command-state value for the response.}
   - {name: Ingested, meaning: Terminal. The child run increased the collection's document count., run_status: succeeded}
-  - {name: FamilyRefused, meaning: Terminal. The caller expects an embedding family this deployment does not ingest at, so no child ran., run_status: failed}
-  - {name: IngestRejected, meaning: Terminal. The child run completed but wrote no documents, so it did not meet the requested source., run_status: failed}
-  - {name: IngestFailed, meaning: Terminal. The child run failed, or the collection could not be read., run_status: failed}
-  - {name: ApplyRejected, meaning: Terminal. The deployment API rejected the values document against the chart schema, so nothing was applied., run_status: failed}
+  - {name: FamilyRefused, meaning: "Terminal. The caller expects an embedding family this deployment does not ingest at, so no child ran.", run_status: failed}
+  - {name: IngestRejected, meaning: "Terminal. The child run completed but wrote no documents, so it did not meet the requested source.", run_status: failed}
+  - {name: IngestFailed, meaning: "Terminal. The child run failed, or the collection could not be read.", run_status: failed}
+  - {name: ApplyRejected, meaning: "Terminal. The deployment API rejected the values document against the chart schema, so nothing was applied.", run_status: failed}
   - {name: Failed, meaning: Terminal. A deployment-API boundary word failed., run_status: failed}
 terminal_states:
   - HealthReported

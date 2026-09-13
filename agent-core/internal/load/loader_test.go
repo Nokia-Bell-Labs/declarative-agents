@@ -99,6 +99,93 @@ tool_declarations: [declarations.yaml]
 	require.Equal(t, snapshot, catalog.BuildProgramRefFromAssets(closure.ProfilePath, closure.Assets))
 }
 
+func TestLoadClosureReportsStrictFieldWithSourcePath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		file     string
+		contents string
+		field    string
+	}{
+		{
+			name: "profile", file: "profile.yaml", field: "profiel",
+			contents: `name: strict
+machine: machine.yaml
+tools: [tools.yaml]
+tool_declarations: [declarations.yaml]
+profiel: typo
+`,
+		},
+		{
+			name: "machine", file: "machine.yaml", field: "initial_stat",
+			contents: `name: strict
+initial_state: Idle
+initial_stat: Idle
+states: [Idle, {name: Done, run_status: succeeded}]
+terminal_states: [Done]
+signals: [Seed]
+transitions: [{state: Idle, signal: Seed, next: Done}]
+`,
+		},
+		{
+			name: "declaration", file: "declarations.yaml", field: "descrption",
+			contents: "tools:\n- {name: noop, binary: \"true\", descrption: typo}\n",
+		},
+		{
+			name: "selection", file: "tools.yaml", field: "toolz",
+			contents: "tools: [noop]\ntoolz: [noop]\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			root := writeStrictClosureFixture(t)
+			path := writeLoadFixture(t, root, test.file, test.contents)
+			_, err := LoadClosure(filepath.Join(root, "profile.yaml"), Options{})
+			require.ErrorContains(t, err, path)
+			require.ErrorContains(t, err, test.field)
+		})
+	}
+}
+
+func TestLoadClosureRejectsMultipleDocumentsAtEveryYAMLLoader(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"profile.yaml", "machine.yaml", "declarations.yaml", "tools.yaml"} {
+		name := name
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := writeStrictClosureFixture(t)
+			path := filepath.Join(root, name)
+			data, err := os.ReadFile(path)
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(path, append(data, []byte("---\n{}\n")...), 0o644))
+			_, err = LoadClosure(filepath.Join(root, "profile.yaml"), Options{})
+			require.ErrorContains(t, err, path)
+			require.ErrorContains(t, err, "multiple YAML documents")
+		})
+	}
+}
+
+func writeStrictClosureFixture(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	writeLoadFixture(t, root, "machine.yaml", `name: strict
+initial_state: Idle
+states: [Idle, {name: Done, run_status: succeeded}]
+terminal_states: [Done]
+signals: [Seed]
+transitions: [{state: Idle, signal: Seed, next: Done}]
+`)
+	writeLoadFixture(t, root, "tools.yaml", "tools: [noop]\n")
+	writeLoadFixture(t, root, "declarations.yaml", "tools:\n- {name: noop, binary: \"true\"}\n")
+	writeLoadFixture(t, root, "profile.yaml", `name: strict
+machine: machine.yaml
+tools: [tools.yaml]
+tool_declarations: [declarations.yaml]
+`)
+	return root
+}
+
 func writeLoadFixture(t *testing.T, root, name, content string) string {
 	t.Helper()
 	path := filepath.Join(root, name)

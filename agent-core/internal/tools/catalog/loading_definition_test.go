@@ -70,6 +70,27 @@ func TestParseToolDefsRejectsReversibilityUndo(t *testing.T) {
 	require.ErrorContains(t, err, `reversibility has unknown field "undo"`)
 }
 
+func TestParseToolDefsRejectsNestedUnknownFields(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		field string
+		body  string
+	}{
+		{"output", "descrption", "output: {descrption: typo}"},
+		{"undo", "stratgey", "undo: {stratgey: noop}"},
+		{"side effect", "taget", "side_effects: [{kind: none, taget: typo}]"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			input := "tools:\n- name: sample\n  binary: \"true\"\n  " + test.body + "\n"
+			_, err := ParseToolDefs([]byte(input))
+			require.ErrorContains(t, err, test.field)
+		})
+	}
+}
+
 func TestParseToolDefs_Errors(t *testing.T) {
 	t.Parallel()
 
