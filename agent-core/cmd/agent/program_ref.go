@@ -62,7 +62,7 @@ func buildProgramRef(cfg runtimeConfig) (core.ProgramRef, error) {
 }
 
 func buildClosureProgramRef(closure *internalload.Closure) (core.ProgramRef, error) {
-	return catalog.BuildProgramRefFromFiles(closure.ProfilePath, closure.Files)
+	return catalog.BuildProgramRefFromAssets(closure.ProfilePath, closure.Assets), nil
 }
 
 func catalogProgramPaths(cfg runtimeConfig) catalog.ProgramPaths {

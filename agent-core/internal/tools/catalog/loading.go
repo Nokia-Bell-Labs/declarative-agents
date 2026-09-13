@@ -76,9 +76,15 @@ func LoadToolDeclarations(paths []string) ([]ToolDef, error) {
 // LoadToolDeclarationsWithVisitor loads declarations and reports every source,
 // including transitively included files.
 func LoadToolDeclarationsWithVisitor(paths []string, visit FileVisitor) ([]ToolDef, error) {
+	return loadToolDeclarations(paths, visit, make(map[string]ToolDefsFile))
+}
+
+func loadToolDeclarations(
+	paths []string, visit FileVisitor, cache map[string]ToolDefsFile,
+) ([]ToolDef, error) {
 	var all []ToolDef
 	for _, p := range paths {
-		defs, err := loadToolDefsRecursive(p, nil, nil, visit)
+		defs, err := loadToolDefsRecursive(p, nil, nil, cache, visit)
 		if err != nil {
 			return nil, err
 		}
@@ -95,6 +101,35 @@ func LoadToolDeclarationsFromDirs(dirs []string) ([]ToolDef, error) {
 // LoadToolDeclarationsFromDirsWithVisitor scans declaration directories and
 // reports every source, including transitively included files.
 func LoadToolDeclarationsFromDirsWithVisitor(dirs []string, visit FileVisitor) ([]ToolDef, error) {
+	paths, err := toolDeclarationPaths(dirs)
+	if err != nil {
+		return nil, err
+	}
+	return loadToolDeclarations(paths, visit, make(map[string]ToolDefsFile))
+}
+
+// LoadToolDeclarationClosure loads directory and explicit declarations with
+// one source cache while preserving their separate merge precedence.
+func LoadToolDeclarationClosure(
+	dirs, explicit []string, visit FileVisitor,
+) ([]ToolDef, []ToolDef, error) {
+	paths, err := toolDeclarationPaths(dirs)
+	if err != nil {
+		return nil, nil, err
+	}
+	cache := make(map[string]ToolDefsFile)
+	fromDirs, err := loadToolDeclarations(paths, visit, cache)
+	if err != nil {
+		return nil, nil, err
+	}
+	local, err := loadToolDeclarations(explicit, visit, cache)
+	if err != nil {
+		return nil, nil, err
+	}
+	return fromDirs, local, nil
+}
+
+func toolDeclarationPaths(dirs []string) ([]string, error) {
 	var paths []string
 	for _, dir := range dirs {
 		entries, err := os.ReadDir(dir)
@@ -111,7 +146,7 @@ func LoadToolDeclarationsFromDirsWithVisitor(dirs []string, visit FileVisitor) (
 		sort.Strings(dirPaths)
 		paths = append(paths, dirPaths...)
 	}
-	return LoadToolDeclarationsWithVisitor(paths, visit)
+	return paths, nil
 }
 
 // SelectTools filters declarations to selected names.
@@ -133,13 +168,14 @@ func SelectTools(declarations []ToolDef, selection []string) ([]ToolDef, error) 
 
 // LoadToolDefs reads one declaration file and resolves includes.
 func LoadToolDefs(path string) ([]ToolDef, error) {
-	return loadToolDefsRecursive(path, nil, nil, nil)
+	return loadToolDefsRecursive(path, nil, nil, make(map[string]ToolDefsFile), nil)
 }
 
 func loadToolDefsRecursive(
 	path string,
 	stack map[string]bool,
 	chain []string,
+	cache map[string]ToolDefsFile,
 	visit FileVisitor,
 ) ([]ToolDef, error) {
 	abs, err := filepath.Abs(path)
@@ -159,11 +195,11 @@ func loadToolDefsRecursive(
 	defer delete(stack, abs)
 	chain = append(chain, abs)
 
-	file, err := readToolDefsFile(abs, visit)
+	file, err := readToolDefsFile(abs, cache, visit)
 	if err != nil {
 		return nil, err
 	}
-	base, err := loadIncludedToolDefs(file.Includes, abs, stack, chain, visit)
+	base, err := loadIncludedToolDefs(file.Includes, abs, stack, chain, cache, visit)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +209,12 @@ func loadToolDefsRecursive(
 	return MergeToolDefs(base, file.Tools), nil
 }
 
-func readToolDefsFile(path string, visit FileVisitor) (ToolDefsFile, error) {
+func readToolDefsFile(
+	path string, cache map[string]ToolDefsFile, visit FileVisitor,
+) (ToolDefsFile, error) {
+	if file, ok := cache[path]; ok {
+		return file, nil
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ToolDefsFile{}, fmt.Errorf("load tool defs %s: %w", path, err)
@@ -191,6 +232,7 @@ func readToolDefsFile(path string, visit FileVisitor) (ToolDefsFile, error) {
 	if err := yaml.Unmarshal(envexpand.Expand(data), &file); err != nil {
 		return ToolDefsFile{}, fmt.Errorf("parse tool defs %s: %w", path, err)
 	}
+	cache[path] = file
 	return file, nil
 }
 
@@ -202,6 +244,7 @@ func loadIncludedToolDefs(
 	from string,
 	stack map[string]bool,
 	chain []string,
+	cache map[string]ToolDefsFile,
 	visit FileVisitor,
 ) ([]ToolDef, error) {
 	var base []ToolDef
@@ -211,7 +254,7 @@ func loadIncludedToolDefs(
 		if !filepath.IsAbs(incPath) {
 			incPath = filepath.Join(dir, incPath)
 		}
-		incDefs, err := loadToolDefsRecursive(incPath, stack, chain, visit)
+		incDefs, err := loadToolDefsRecursive(incPath, stack, chain, cache, visit)
 		if err != nil {
 			return nil, fmt.Errorf("include %s from %s: %w", inc, from, err)
 		}

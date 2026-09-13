@@ -42,6 +42,30 @@ func TestLoadToolDefsReportsTrueIncludeChain(t *testing.T) {
 	require.Contains(t, err.Error(), " -> ")
 }
 
+func TestLoadToolDeclarationClosureReadsEachSourceOnce(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	leaf := writeDeclarationFixture(t, dir, "leaf.yaml", "tools:\n- {name: shared, binary: echo}\n")
+	writeDeclarationFixture(t, dir, "all.yaml", "includes: [leaf.yaml]\ntools: []\n")
+	visits := map[string]int{}
+
+	fromDirs, explicit, err := LoadToolDeclarationClosure(
+		[]string{dir}, []string{leaf},
+		func(path string, _ []byte) error {
+			visits[canonicalProgramPath(path)]++
+			return nil
+		},
+	)
+
+	require.NoError(t, err)
+	require.NotEmpty(t, fromDirs)
+	require.NotEmpty(t, explicit)
+	require.Equal(t, 1, visits[canonicalProgramPath(leaf)])
+	for path, count := range visits {
+		require.Equal(t, 1, count, path)
+	}
+}
+
 func writeDeclarationFixture(t *testing.T, dir, name, content string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)

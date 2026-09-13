@@ -63,27 +63,22 @@ func (i *inspector) inspectClosure(closure *internalload.Closure) error {
 
 func loadProfileClosure(profilePath, machineOverride string) (loadedClosure, string, error) {
 	profilePath = resolveReference("", profilePath)
-	resolved, err := internalload.LoadClosure(profilePath, internalload.Options{})
+	options := internalload.Options{}
+	if machineOverride != "" {
+		options.MachineOverride = resolveReference(filepath.Dir(profilePath), machineOverride)
+		options.ResolveSelection = requestActionNames
+	}
+	resolved, err := internalload.LoadClosure(profilePath, options)
 	if err != nil {
 		return loadedClosure{}, "", fmt.Errorf("inspect profile %s: %w", profilePath, err)
 	}
 	machinePath := resolved.Profile.Machine
-	machine := resolved.Machine
-	defs := resolved.Selected
-	if machineOverride != "" {
-		machinePath = resolveReference(filepath.Dir(profilePath), machineOverride)
-		machine, err = core.LoadMachineSpec(machinePath)
-		if err != nil {
-			return loadedClosure{}, "", fmt.Errorf("inspect profile %s machine: %w", profilePath, err)
-		}
-		defs, err = loadRequestTools(resolved.Profile, resolved.ToolUniverse, machine)
-		if err != nil {
-			return loadedClosure{}, "", fmt.Errorf("inspect profile %s tools: %w", profilePath, err)
-		}
+	if options.MachineOverride != "" {
+		machinePath = options.MachineOverride
 	}
 	closure := loadedClosure{
 		profilePath: canonical(profilePath), machinePath: canonical(machinePath),
-		defs: defs, rest: resolved.Rest, machine: machine,
+		defs: resolved.Selected, rest: resolved.Rest, machine: resolved.Machine,
 	}
 	return closure, closure.profilePath + "|" + closure.machinePath, nil
 }
@@ -115,21 +110,11 @@ func loadPointTools(dirs, declarations, selections []string) ([]catalog.ToolDef,
 	return catalog.SelectTools(catalog.MergeToolDefs(fromDirs, explicit), names)
 }
 
-// loadRequestTools mirrors ProfileMachineRequestRunner: a machine override
-// selects its literal actions from all profile declarations, while dynamic
-// vocabulary remains restricted by the profile's ordinary selection.
-func loadRequestTools(
-	profile catalog.AgentProfile, universe []catalog.ToolDef, machine core.MachineSpec,
-) ([]catalog.ToolDef, error) {
-	names, err := requestActionNames(machine, profile.Tools, universe)
-	if err != nil {
-		return nil, err
-	}
-	return catalog.SelectTools(universe, names)
-}
-
 func requestActionNames(
-	machine core.MachineSpec, selections []string, defs []catalog.ToolDef,
+	profile catalog.AgentProfile,
+	machine core.MachineSpec,
+	defs []catalog.ToolDef,
+	visit catalog.FileVisitor,
 ) ([]string, error) {
 	selected := make(map[string]bool)
 	for _, transition := range machine.Transitions {
@@ -138,7 +123,7 @@ func requestActionNames(
 		}
 	}
 	if machineUsesDynamicAction(machine) {
-		names, err := catalog.LoadToolSelections(selections)
+		names, err := catalog.LoadToolSelectionsWithVisitor(profile.Tools, visit)
 		if err != nil {
 			return nil, err
 		}

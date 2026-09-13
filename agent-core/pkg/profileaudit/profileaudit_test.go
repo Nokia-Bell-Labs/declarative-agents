@@ -212,6 +212,24 @@ rest:
 	require.Equal(t, report.Diagnostics, again.Diagnostics)
 }
 
+func TestMachineOverrideSkipsUnusedDefaultMachineAndSelection(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "request-machine.yaml", oneActionMachine("1m", "request_wait"))
+	write(t, root, "declarations.yaml",
+		declarations(tool("request_wait", "custom_await", "10s", "internal")))
+	profile := writeProfile(
+		t, root, "profile.yaml", "missing-default-machine.yaml",
+		"missing-default-tools.yaml", "declarations.yaml", "",
+	)
+
+	closure, _, err := loadProfileClosure(profile, "request-machine.yaml")
+
+	require.NoError(t, err)
+	require.Equal(t, canonical(filepath.Join(root, "request-machine.yaml")), closure.machinePath)
+	require.Len(t, closure.defs, 1)
+	require.Equal(t, "request_wait", closure.defs[0].Name)
+}
+
 func TestInspectFollowsCompatibilityChildAndEvaluatorPointWrappers(t *testing.T) {
 	root := t.TempDir()
 	child := filepath.Join(root, "child")

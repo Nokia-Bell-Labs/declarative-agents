@@ -41,21 +41,41 @@ func BuildProgramRef(paths ProgramPaths) (core.ProgramRef, error) {
 // resolved declaration closure.
 func BuildProgramRefFromFiles(profile string, files []string) (core.ProgramRef, error) {
 	files = canonicalProgramFiles(files)
-	hash := sha256.New()
+	assets := make(map[string][]byte, len(files))
 	for _, path := range files {
 		data, readErr := os.ReadFile(path)
 		if readErr != nil {
 			return core.ProgramRef{}, fmt.Errorf("read program asset %s: %w", path, readErr)
 		}
+		assets[path] = data
+	}
+	return BuildProgramRefFromAssets(profile, assets), nil
+}
+
+// BuildProgramRefFromAssets hashes the immutable bytes captured while loading
+// a declaration closure.
+func BuildProgramRefFromAssets(profile string, assets map[string][]byte) core.ProgramRef {
+	canonical := make(map[string][]byte, len(assets))
+	for path, data := range assets {
+		path = canonicalProgramPath(path)
+		canonical[path] = data
+	}
+	files := make([]string, 0, len(canonical))
+	for path := range canonical {
+		files = append(files, path)
+	}
+	sort.Strings(files)
+	hash := sha256.New()
+	for _, path := range files {
 		_, _ = hash.Write([]byte(path))
 		_, _ = hash.Write([]byte{0})
-		_, _ = hash.Write(data)
+		_, _ = hash.Write(canonical[path])
 		_, _ = hash.Write([]byte{0})
 	}
 	return core.ProgramRef{
 		Profile: canonicalProgramPath(profile),
 		Digest:  hex.EncodeToString(hash.Sum(nil)),
-	}, nil
+	}
 }
 
 // ProgramAssetFiles returns the sorted declaration closure hashed by
@@ -71,7 +91,7 @@ func ProgramAssetFiles(paths ProgramPaths) ([]string, error) {
 	addProgramPaths(files, paths.RESTDefinitions)
 	for _, declaration := range paths.ToolDeclarations {
 		if _, err := loadToolDefsRecursive(
-			declaration, nil, nil,
+			declaration, nil, nil, make(map[string]ToolDefsFile),
 			func(path string, _ []byte) error {
 				files[path] = true
 				return nil

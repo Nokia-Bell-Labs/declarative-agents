@@ -6,6 +6,7 @@ package load
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -16,8 +17,12 @@ import (
 // Options reserves caller-owned path configuration. The caller applies
 // CoreRoot through the process-scoped core path mapper before loading.
 type Options struct {
-	CoreRoot      string
-	ProfileLoaded func(string, catalog.AgentProfile) error
+	CoreRoot         string
+	ProfileLoaded    func(string, catalog.AgentProfile) error
+	MachineOverride  string
+	ResolveSelection func(
+		catalog.AgentProfile, core.MachineSpec, []catalog.ToolDef, catalog.FileVisitor,
+	) ([]string, error)
 }
 
 // Closure is the resolved configuration consumed by one agent start.
@@ -30,12 +35,21 @@ type Closure struct {
 	Rest         toolrest.Collection
 	Machine      core.MachineSpec
 	Files        []string
+	Assets       map[string][]byte
 }
 
 // LoadClosure loads and validates the complete declaration closure once.
 func LoadClosure(profilePath string, options Options) (*Closure, error) {
 	profilePath = canonicalPath(profilePath)
-	profile, err := catalog.LoadProfile(profilePath)
+	var visited []string
+	assets := make(map[string][]byte)
+	visit := func(path string, data []byte) error {
+		path = canonicalPath(path)
+		visited = append(visited, path)
+		assets[path] = append([]byte(nil), data...)
+		return nil
+	}
+	profile, err := catalog.LoadProfileWithVisitor(profilePath, visit)
 	if err != nil {
 		return nil, fmt.Errorf("load profile: %w", err)
 	}
@@ -45,68 +59,131 @@ func LoadClosure(profilePath string, options Options) (*Closure, error) {
 		}
 	}
 
-	var visited []string
-	visit := func(path string, _ []byte) error {
-		visited = append(visited, path)
-		return nil
-	}
-	tools, err := loadTools(profile, visit)
+	resolved, err := loadResolvedConfig(profile, options, visit)
 	if err != nil {
 		return nil, err
 	}
-	rest, err := toolrest.LoadDefinitionsWithVisitor(profile.RestDefinitions, profile.RestConfigDirs, visit)
+	files, err := programFiles(
+		profilePath, resolved.machinePath, profile, visited, options.ResolveSelection == nil,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("load REST definitions: %w", err)
+		return nil, err
 	}
-	machine, err := core.LoadMachineSpec(profile.Machine)
-	if err != nil {
-		return nil, fmt.Errorf("load machine spec: %w", err)
-	}
-	files, err := programFiles(profilePath, profile, visited)
-	if err != nil {
+	if err := readMissingAssets(files, assets); err != nil {
 		return nil, err
 	}
 	return &Closure{
 		ProfilePath: profilePath, Profile: profile,
-		ToolUniverse: tools.universe, Selection: tools.selection, Selected: tools.selected,
-		Rest: rest, Machine: machine, Files: files,
+		ToolUniverse: resolved.universe, Selection: resolved.selection, Selected: resolved.selected,
+		Rest: resolved.rest, Machine: resolved.machine, Files: files, Assets: assets,
 	}, nil
 }
 
-type loadedTools struct {
-	universe  []catalog.ToolDef
-	selection []string
-	selected  []catalog.ToolDef
+type resolvedConfig struct {
+	universe    []catalog.ToolDef
+	selection   []string
+	selected    []catalog.ToolDef
+	rest        toolrest.Collection
+	machine     core.MachineSpec
+	machinePath string
 }
 
-func loadTools(profile catalog.AgentProfile, visit catalog.FileVisitor) (loadedTools, error) {
-	fromDirs, err := catalog.LoadToolDeclarationsFromDirsWithVisitor(profile.ToolConfigDirs, visit)
+func loadResolvedConfig(
+	profile catalog.AgentProfile, options Options, visit catalog.FileVisitor,
+) (resolvedConfig, error) {
+	universe, err := loadToolUniverse(profile, visit)
 	if err != nil {
-		return loadedTools{}, fmt.Errorf("load tool config dirs: %w", err)
+		return resolvedConfig{}, err
 	}
-	explicit, err := catalog.LoadToolDeclarationsWithVisitor(profile.ToolDeclarations, visit)
+	rest, err := toolrest.LoadDefinitionsWithVisitor(
+		profile.RestDefinitions, profile.RestConfigDirs, toolrest.FileVisitor(visit),
+	)
 	if err != nil {
-		return loadedTools{}, fmt.Errorf("load tool declarations: %w", err)
+		return resolvedConfig{}, fmt.Errorf("load REST definitions: %w", err)
 	}
-	universe := catalog.MergeToolDefs(fromDirs, explicit)
-	selection, err := catalog.LoadToolSelectionsWithVisitor(profile.Tools, visit)
+	machinePath := profile.Machine
+	if options.MachineOverride != "" {
+		machinePath = options.MachineOverride
+	}
+	machine, err := loadMachine(machinePath, visit)
 	if err != nil {
-		return loadedTools{}, fmt.Errorf("load tool selection: %w", err)
+		return resolvedConfig{}, err
+	}
+	selection := []string(nil)
+	if options.ResolveSelection != nil {
+		selection, err = options.ResolveSelection(profile, machine, universe, visit)
+	} else {
+		selection, err = catalog.LoadToolSelectionsWithVisitor(profile.Tools, visit)
+	}
+	if err != nil {
+		return resolvedConfig{}, fmt.Errorf("load tool selection: %w", err)
 	}
 	selected, err := catalog.SelectTools(universe, selection)
 	if err != nil {
-		return loadedTools{}, fmt.Errorf("select tools: %w", err)
+		return resolvedConfig{}, fmt.Errorf("select tools: %w", err)
 	}
-	return loadedTools{universe: universe, selection: selection, selected: selected}, nil
+	return resolvedConfig{
+		universe: universe, selection: selection, selected: selected,
+		rest: rest, machine: machine, machinePath: machinePath,
+	}, nil
+}
+
+func loadMachine(path string, visit catalog.FileVisitor) (core.MachineSpec, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return core.MachineSpec{}, fmt.Errorf("read machine spec %s: %w", path, err)
+	}
+	if err := visit(path, data); err != nil {
+		return core.MachineSpec{}, err
+	}
+	machine, err := core.ParseMachineSpec(data)
+	if err != nil {
+		return core.MachineSpec{}, fmt.Errorf("load machine spec: %w", err)
+	}
+	return machine, nil
+}
+
+func readMissingAssets(files []string, assets map[string][]byte) error {
+	for _, path := range files {
+		path = canonicalPath(path)
+		if _, ok := assets[path]; ok {
+			continue
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read program asset %s: %w", path, err)
+		}
+		assets[path] = data
+	}
+	return nil
+}
+
+func loadToolUniverse(
+	profile catalog.AgentProfile, visit catalog.FileVisitor,
+) ([]catalog.ToolDef, error) {
+	fromDirs, explicit, err := catalog.LoadToolDeclarationClosure(
+		profile.ToolConfigDirs, profile.ToolDeclarations, visit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load tool declarations: %w", err)
+	}
+	return catalog.MergeToolDefs(fromDirs, explicit), nil
 }
 
 func programFiles(
-	profilePath string, profile catalog.AgentProfile, visited []string,
+	profilePath, machinePath string,
+	profile catalog.AgentProfile,
+	visited []string,
+	includeProfileSelections bool,
 ) ([]string, error) {
+	selections := profile.Tools
+	if !includeProfileSelections {
+		selections = nil
+	}
 	paths := catalog.ProgramPaths{
 		Profile:          profilePath,
-		Machine:          profile.Machine,
-		ToolSelections:   profile.Tools,
+		Machine:          machinePath,
+		ToolSelections:   selections,
 		ToolDeclarations: profile.ToolDeclarations,
 		ToolConfigDirs:   profile.ToolConfigDirs,
 		RESTDefinitions:  profile.RestDefinitions,

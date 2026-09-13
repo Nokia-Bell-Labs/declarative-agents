@@ -4,6 +4,7 @@
 package load
 
 import (
+	"os"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
 func TestLoadClosureLoadsControlProfileDeterministically(t *testing.T) {
@@ -56,4 +58,50 @@ func TestLoadClosureLoadsControlProfileDeterministically(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, ollama.Files,
 		canonicalPath(filepath.Join(filepath.Dir(ollamaProfile), "openapi.yaml")))
+}
+
+func TestClosureAssetsKeepDigestBoundToLoadedBytes(t *testing.T) {
+	root := t.TempDir()
+	writeLoadFixture(t, root, "machine.yaml", `name: snapshot
+initial_state: Idle
+states: [Idle, {name: Done, run_status: succeeded}]
+terminal_states: [Done]
+signals: [Seed]
+transitions: [{state: Idle, signal: Seed, next: Done}]
+`)
+	writeLoadFixture(t, root, "tools.yaml", "tools: [noop]\n")
+	declaration := writeLoadFixture(t, root, "declarations.yaml", "tools:\n- {name: noop, binary: \"true\"}\n")
+	profilePath := writeLoadFixture(t, root, "profile.yaml", `name: snapshot
+machine: machine.yaml
+tools: [tools.yaml]
+tool_declarations: [declarations.yaml]
+`)
+	closure, err := LoadClosure(profilePath, Options{})
+	require.NoError(t, err)
+	snapshot := catalog.BuildProgramRefFromAssets(closure.ProfilePath, closure.Assets)
+	paths := catalog.ProgramPaths{
+		Profile: closure.ProfilePath, Machine: closure.Profile.Machine,
+		ToolSelections: closure.Profile.Tools, ToolDeclarations: closure.Profile.ToolDeclarations,
+		ToolConfigDirs: closure.Profile.ToolConfigDirs, RESTDefinitions: closure.Profile.RestDefinitions,
+		RESTConfigDirs: closure.Profile.RestConfigDirs,
+	}
+	current, err := catalog.BuildProgramRef(paths)
+	require.NoError(t, err)
+	require.Equal(t, current, snapshot)
+
+	original, err := os.ReadFile(declaration)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, os.WriteFile(declaration, original, 0o644)) })
+	require.NoError(t, os.WriteFile(declaration, append(original, []byte("\n# changed after load\n")...), 0o644))
+	changed, err := catalog.BuildProgramRef(paths)
+	require.NoError(t, err)
+	require.NotEqual(t, changed, snapshot)
+	require.Equal(t, snapshot, catalog.BuildProgramRefFromAssets(closure.ProfilePath, closure.Assets))
+}
+
+func writeLoadFixture(t *testing.T, root, name, content string) string {
+	t.Helper()
+	path := filepath.Join(root, name)
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	return path
 }

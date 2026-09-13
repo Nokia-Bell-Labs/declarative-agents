@@ -109,6 +109,8 @@ func InspectClosure(closure *internalload.Closure) (Report, error) {
 	if closure == nil {
 		return Report{}, fmt.Errorf("profile closure is nil")
 	}
+	inspectMu.Lock()
+	defer inspectMu.Unlock()
 	i := inspector{visiting: make(map[string]bool), visited: make(map[string]bool)}
 	if err := i.inspectClosure(closure); err != nil {
 		return Report{}, err

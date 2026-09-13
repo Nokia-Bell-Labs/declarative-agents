@@ -75,6 +75,20 @@ func loadOpenAPIOperations(
 func loadOpenAPIDocument(imp OpenAPIImport, baseDir string, visit FileVisitor) (*openapi3.T, error) {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
+	if visit != nil {
+		loader.ReadFromURIFunc = func(loader *openapi3.Loader, location *url.URL) ([]byte, error) {
+			data, err := openapi3.DefaultReadFromURI(loader, location)
+			if err != nil {
+				return nil, err
+			}
+			if !isHTTPURL(location) {
+				if err := visit(filepath.FromSlash(location.Path), data); err != nil {
+					return nil, err
+				}
+			}
+			return data, nil
+		}
+	}
 	parsed, err := url.Parse(imp.Path)
 	if err == nil && isHTTPURL(parsed) {
 		return loader.LoadFromURI(parsed)
