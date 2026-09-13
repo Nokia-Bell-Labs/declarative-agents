@@ -105,7 +105,7 @@ func newMixedFamilyRollbackFixture(
 
 	dir := t.TempDir()
 	declarations := mixedFamilyDeclarations()
-	writeTestFile(t, filepath.Join(dir, "machine.yaml"), "name: mixed-origin\n")
+	writeTestFile(t, filepath.Join(dir, "machine.yaml"), rollbackOriginMachineYAML)
 	writeTestFile(t, filepath.Join(dir, "tools.yaml"), `tools:
   - decode_response
   - load_validation
@@ -361,7 +361,7 @@ func executeRollbackFixtureWrite(t *testing.T, workspace string) core.Result {
 func writeFileRollbackProgram(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	writeTestFile(t, filepath.Join(dir, "machine.yaml"), "name: origin\n")
+	writeTestFile(t, filepath.Join(dir, "machine.yaml"), rollbackOriginMachineYAML)
 	writeTestFile(t, filepath.Join(dir, "tools.yaml"), "tools: [write]\n")
 	writeTestFile(t, filepath.Join(dir, "declarations.yaml"), `tools:
   - name: write
@@ -383,7 +383,7 @@ tool_declarations: [declarations.yaml]
 func selfInvokeRollbackProgram(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	writeTestFile(t, filepath.Join(dir, "machine.yaml"), "name: origin\n")
+	writeTestFile(t, filepath.Join(dir, "machine.yaml"), rollbackOriginMachineYAML)
 	writeTestFile(t, filepath.Join(dir, "tools.yaml"), "tools: [invoke_executor]\n")
 	writeTestFile(t, filepath.Join(dir, "declarations.yaml"), `tools:
   - name: invoke_executor

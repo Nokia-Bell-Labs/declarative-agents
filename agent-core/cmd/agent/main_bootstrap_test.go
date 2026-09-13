@@ -335,7 +335,7 @@ func TestProfileStartupLoadsCoreRuntimeFixtures(t *testing.T) {
 
 			cfg, err := loadRuntimeConfig()
 			require.NoError(t, err)
-			defs, err := loadProfileToolDefs(cfg)
+			defs, _, err := loadRuntimeDefinitions(cfg)
 			require.NoError(t, err)
 			spec, err := core.LoadMachineSpec(cfg.Machine)
 			require.NoError(t, err)

@@ -49,6 +49,27 @@ func TestProgramAssetFilesIncludesSortedClosurePaths(t *testing.T) {
 	}
 }
 
+func TestProgramAssetFilesFromVisitedPreservesProgramDigest(t *testing.T) {
+	paths, _ := writeProgramRefFixture(t)
+	var visited []string
+	visit := func(path string, _ []byte) error {
+		visited = append(visited, path)
+		return nil
+	}
+	_, err := LoadToolDeclarationsFromDirsWithVisitor(paths.ToolConfigDirs, visit)
+	require.NoError(t, err)
+	_, err = LoadToolDeclarationsWithVisitor(paths.ToolDeclarations, visit)
+	require.NoError(t, err)
+
+	files, err := ProgramAssetFilesFromVisited(paths, visited)
+	require.NoError(t, err)
+	fromFiles, err := BuildProgramRefFromFiles(paths.Profile, files)
+	require.NoError(t, err)
+	legacy, err := BuildProgramRef(paths)
+	require.NoError(t, err)
+	require.Equal(t, legacy, fromFiles)
+}
+
 func TestBuildProgramRefRejectsDeclarationIncludeCycle(t *testing.T) {
 	dir := t.TempDir()
 	first := filepath.Join(dir, "first.yaml")

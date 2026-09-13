@@ -14,9 +14,18 @@ import (
 	restvalidation "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/validation"
 )
 
+// FileVisitor observes one REST declaration source after it is read.
+type FileVisitor = restdef.FileVisitor
+
 // LoadDefinition reads and validates a REST definition YAML file.
 func LoadDefinition(path string) (restdef.Definition, error) {
-	def, err := restdef.LoadDefinition(path)
+	return LoadDefinitionWithVisitor(path, nil)
+}
+
+// LoadDefinitionWithVisitor reads and validates a REST definition while
+// reporting its local REST and OpenAPI sources.
+func LoadDefinitionWithVisitor(path string, visit FileVisitor) (restdef.Definition, error) {
+	def, err := restdef.LoadDefinitionWithVisitor(path, visit)
 	if err != nil {
 		return restdef.Definition{}, err
 	}
@@ -62,13 +71,19 @@ func ValidateRuntimeInput(input map[string]interface{}) error {
 
 // LoadDefinitions reads REST definition files and directories.
 func LoadDefinitions(paths, dirs []string) (Collection, error) {
+	return LoadDefinitionsWithVisitor(paths, dirs, nil)
+}
+
+// LoadDefinitionsWithVisitor reads a REST closure and reports every local
+// source used to compile it.
+func LoadDefinitionsWithVisitor(paths, dirs []string, visit FileVisitor) (Collection, error) {
 	files, err := definitionFiles(paths, dirs)
 	if err != nil {
 		return Collection{}, err
 	}
 	collection := NewCollection()
 	for _, path := range files {
-		def, err := LoadDefinition(path)
+		def, err := LoadDefinitionWithVisitor(path, visit)
 		if err != nil {
 			return Collection{}, err
 		}

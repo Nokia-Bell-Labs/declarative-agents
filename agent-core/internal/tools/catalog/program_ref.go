@@ -34,6 +34,13 @@ func BuildProgramRef(paths ProgramPaths) (core.ProgramRef, error) {
 	if err != nil {
 		return core.ProgramRef{}, err
 	}
+	return BuildProgramRefFromFiles(paths.Profile, files)
+}
+
+// BuildProgramRefFromFiles returns the immutable identity of an already
+// resolved declaration closure.
+func BuildProgramRefFromFiles(profile string, files []string) (core.ProgramRef, error) {
+	files = canonicalProgramFiles(files)
 	hash := sha256.New()
 	for _, path := range files {
 		data, readErr := os.ReadFile(path)
@@ -46,7 +53,7 @@ func BuildProgramRef(paths ProgramPaths) (core.ProgramRef, error) {
 		_, _ = hash.Write([]byte{0})
 	}
 	return core.ProgramRef{
-		Profile: canonicalProgramPath(paths.Profile),
+		Profile: canonicalProgramPath(profile),
 		Digest:  hex.EncodeToString(hash.Sum(nil)),
 	}, nil
 }
@@ -86,6 +93,46 @@ func ProgramAssetFiles(paths ProgramPaths) ([]string, error) {
 	}
 	sort.Strings(result)
 	return result, nil
+}
+
+// ProgramAssetFilesFromVisited returns the program assets after declaration
+// includes have already been resolved by the loader. It avoids parsing those
+// declarations a second time while preserving the legacy digest file set.
+func ProgramAssetFilesFromVisited(paths ProgramPaths, visited []string) ([]string, error) {
+	files := make(map[string]bool)
+	addProgramPaths(files, []string{paths.Profile, paths.Machine})
+	addProgramPaths(files, paths.ToolSelections)
+	addProgramPaths(files, paths.ToolDeclarations)
+	addProgramPaths(files, paths.RESTDefinitions)
+	addProgramPaths(files, visited)
+	for _, dir := range append(
+		append([]string(nil), paths.ToolConfigDirs...), paths.RESTConfigDirs...,
+	) {
+		if err := addProgramDirectory(files, dir); err != nil {
+			return nil, err
+		}
+	}
+	result := make([]string, 0, len(files))
+	for path := range files {
+		result = append(result, path)
+	}
+	sort.Strings(result)
+	return result, nil
+}
+
+func canonicalProgramFiles(files []string) []string {
+	unique := make(map[string]bool, len(files))
+	for _, path := range files {
+		if path != "" {
+			unique[canonicalProgramPath(path)] = true
+		}
+	}
+	result := make([]string, 0, len(unique))
+	for path := range unique {
+		result = append(result, path)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func addProgramPaths(files map[string]bool, paths []string) {

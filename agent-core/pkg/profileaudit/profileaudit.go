@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	internalload "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/load"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 )
 
@@ -99,13 +100,30 @@ func InspectWithOptions(profilePath string, options Options) (Report, error) {
 	if err := i.inspectProfile(profilePath, ""); err != nil {
 		return Report{}, err
 	}
+	return i.report(), nil
+}
+
+// InspectClosure checks an already loaded root closure. Child profiles remain
+// independently loaded because they are separate declarative programs.
+func InspectClosure(closure *internalload.Closure) (Report, error) {
+	if closure == nil {
+		return Report{}, fmt.Errorf("profile closure is nil")
+	}
+	i := inspector{visiting: make(map[string]bool), visited: make(map[string]bool)}
+	if err := i.inspectClosure(closure); err != nil {
+		return Report{}, err
+	}
+	return i.report(), nil
+}
+
+func (i *inspector) report() Report {
 	sort.Slice(i.operations, func(a, b int) bool {
 		return operationKey(i.operations[a]) < operationKey(i.operations[b])
 	})
 	sort.Slice(i.diagnostics, func(a, b int) bool {
 		return diagnosticKey(i.diagnostics[a]) < diagnosticKey(i.diagnostics[b])
 	})
-	return Report{Operations: i.operations, Diagnostics: i.diagnostics}, nil
+	return Report{Operations: i.operations, Diagnostics: i.diagnostics}
 }
 
 // InspectProfile is a descriptive alias for Inspect.
@@ -119,6 +137,19 @@ func Validate(profilePath string) error {
 // ValidateWithOptions enforces the timeout closure with scoped caller options.
 func ValidateWithOptions(profilePath string, options Options) error {
 	report, err := InspectWithOptions(profilePath, options)
+	if err != nil {
+		return err
+	}
+	if len(report.Diagnostics) > 0 {
+		return &ValidationError{Diagnostics: report.Diagnostics}
+	}
+	return nil
+}
+
+// ValidateClosure enforces the timeout policy without reloading the root
+// profile closure.
+func ValidateClosure(closure *internalload.Closure) error {
+	report, err := InspectClosure(closure)
 	if err != nil {
 		return err
 	}

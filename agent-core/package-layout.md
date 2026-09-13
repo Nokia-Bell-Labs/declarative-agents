@@ -20,7 +20,8 @@ public Go APIs. Placement rules are defined in
   planning and audit flows.
 - `pkg/profileaudit` is a public package for profile-startup audit used by
   `cmd/agent` and catalog gates. It currently imports internal catalog, REST,
-  runtime, and support surfaces listed in `internal/boundaries/boundaries_baseline.txt`.
+  runtime, load, and support surfaces listed in
+  `internal/boundaries/boundaries_baseline.txt`.
 - `agents/`, `tools/`, `docs/`, and `testdata/` remain configuration,
   specification, and fixture directories rather than Go package domains.
 - Each migration should preserve behavior first. Rename symbols or redesign APIs
@@ -66,6 +67,8 @@ apart from `br.Register` calls.
 - `internal/runtime`: agent loop runtime, state machines, dispatch,
   checkpoints (`internal/runtime/checkpoint` owns Dolt DSN and resume flags),
   rollback, and workspace refs.
+- `internal/load`: the single profile declaration-closure loader shared by
+  runtime startup and profile audit.
 - `internal/tools`: standard tool library behavior split across focused packages
   for catalog loading, registration, file, exec, lifecycle, validation, control,
   undo, REST, and LLM tool implementations.
@@ -94,6 +97,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/doltsql`
 - `internal/evaluation`
 - `internal/gostyle`
+- `internal/load`
 - `internal/model`
 - `internal/model/llm`
 - `internal/model/llm/cohere`

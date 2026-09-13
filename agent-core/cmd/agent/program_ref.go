@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	internalload "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/load"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toollifecycle "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/lifecycle"
@@ -60,6 +61,10 @@ func buildProgramRef(cfg runtimeConfig) (core.ProgramRef, error) {
 	return catalog.BuildProgramRef(catalogProgramPaths(cfg))
 }
 
+func buildClosureProgramRef(closure *internalload.Closure) (core.ProgramRef, error) {
+	return catalog.BuildProgramRefFromFiles(closure.ProfilePath, closure.Files)
+}
+
 func catalogProgramPaths(cfg runtimeConfig) catalog.ProgramPaths {
 	return catalog.ProgramPaths{
 		Profile:          cfg.Profile,
@@ -74,23 +79,19 @@ func catalogProgramPaths(cfg runtimeConfig) catalog.ProgramPaths {
 
 func loadReferencedProgram(
 	ref core.ProgramRef,
-	runtime runtimeConfig,
+	_ runtimeConfig,
 ) (toollifecycle.ReferencedProgram, error) {
-	cfg, err := runtimeConfigForProfile(ref.Profile, runtime)
+	closure, err := internalload.LoadClosure(ref.Profile, internalload.Options{})
 	if err != nil {
 		return toollifecycle.ReferencedProgram{}, err
 	}
-	actual, err := buildProgramRef(cfg)
+	actual, err := buildClosureProgramRef(closure)
 	if err != nil {
 		return toollifecycle.ReferencedProgram{}, err
-	}
-	defs, restDefs, err := loadRuntimeDefinitions(cfg)
-	if err != nil {
-		return toollifecycle.ReferencedProgram{}, fmt.Errorf("load target program %s: %w", ref.Profile, err)
 	}
 	return toollifecycle.ReferencedProgram{
 		ProgramResources: toollifecycle.ProgramResources{
-			Definitions: defs, RestDefinitions: restDefs,
+			Definitions: closure.Selected, RestDefinitions: closure.Rest,
 		},
 		Ref: actual,
 	}, nil

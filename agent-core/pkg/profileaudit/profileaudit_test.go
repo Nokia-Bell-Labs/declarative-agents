@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	internalload "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/load"
 )
 
 func TestInspectProfileResolvesIncludesOverridesSelectionAndEnvironment(t *testing.T) {
@@ -43,6 +45,13 @@ tools:
 	require.Equal(t, 10*time.Second, report.Operations[0].Duration)
 	require.Equal(t, 20*time.Second, report.Operations[1].Duration,
 		"profile-local declaration must override the included 2m authority")
+
+	closure, err := internalload.LoadClosure(profile, internalload.Options{})
+	require.NoError(t, err)
+	fromClosure, err := InspectClosure(closure)
+	require.NoError(t, err)
+	require.Equal(t, report, fromClosure)
+	require.NoError(t, ValidateClosure(closure))
 }
 
 func TestResolveReferencePrefersDeclaringPackageOverCWD(t *testing.T) {

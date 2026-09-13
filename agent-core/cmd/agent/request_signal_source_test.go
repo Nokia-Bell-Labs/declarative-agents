@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
+	internalload "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/load"
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
@@ -225,24 +226,22 @@ func TestRequestSignalSource_ModelRunOrResumeRegression(t *testing.T) {
 func prepareRequestSignalFixture(t *testing.T, doltDSN string) preparedRun {
 	t.Helper()
 	profilePath := profilePathFromTest(t, "request-signal/profile.yaml")
-	profile, err := catalog.LoadProfile(profilePath)
+	closure, err := internalload.LoadClosure(profilePath, internalload.Options{})
 	require.NoError(t, err)
 	cfg := runtimeConfig{
-		Profile: canonicalPath(profilePath), Machine: profile.Machine,
-		Tools: profile.Tools, ToolDeclarations: profile.ToolDeclarations,
-		ToolConfigDirs: profile.ToolConfigDirs, RestDefinitions: profile.RestDefinitions,
-		RestConfigDirs: profile.RestConfigDirs, Directory: profile.Directory,
+		Profile: closure.ProfilePath, Machine: closure.Profile.Machine,
+		Tools: closure.Profile.Tools, ToolDeclarations: closure.Profile.ToolDeclarations,
+		ToolConfigDirs: closure.Profile.ToolConfigDirs, RestDefinitions: closure.Profile.RestDefinitions,
+		RestConfigDirs: closure.Profile.RestConfigDirs, Directory: closure.Profile.Directory,
 		Checkpoint: checkpoint.Config{DoltDSN: doltDSN},
 	}
-	defs, restDefs, err := loadRuntimeDefinitions(cfg)
+	machine, err := loadValidatedRuntimeMachine(closure)
 	require.NoError(t, err)
-	machine, err := loadValidatedRuntimeMachine(cfg, defs)
-	require.NoError(t, err)
-	program, err := buildProgramRef(cfg)
+	program, err := buildClosureProgramRef(closure)
 	require.NoError(t, err)
 	prepared, err := buildPreparedRun(&cobra.Command{}, runResources{
-		Config: cfg, Tracer: tracing.NoopTracer{}, Definitions: defs,
-		RestDefinitions: restDefs, Machine: machine, Program: program,
+		Config: cfg, Tracer: tracing.NoopTracer{}, Definitions: closure.Selected,
+		RestDefinitions: closure.Rest, Machine: machine, Program: program,
 		shutdownTelemetry: func() {},
 	})
 	require.NoError(t, err)

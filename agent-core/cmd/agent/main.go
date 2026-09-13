@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/otel/metric"
 
+	internalload "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/load"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
@@ -557,6 +558,14 @@ type runResources struct {
 	shutdownTelemetry func()
 }
 
+type runtimeClosure struct {
+	closure           *internalload.Closure
+	config            runtimeConfig
+	tracer            tracing.Tracer
+	meter             metric.Meter
+	shutdownTelemetry func()
+}
+
 type checkpointResources struct {
 	opened []openedCheckpoint
 }
@@ -607,50 +616,66 @@ func prepareRun(cmd *cobra.Command) (preparedRun, error) {
 }
 
 func loadRunResources() (runResources, error) {
-	cfg, err := loadRuntimeConfig()
+	captureLevel, err := resolveRuntimeCapture()
 	if err != nil {
 		return runResources{}, err
 	}
-	tracer, meter, shutdownTelemetry, err := initRunTelemetry(cfg)
+	loaded, err := loadRuntimeClosure(captureLevel)
 	if err != nil {
 		return runResources{}, err
 	}
-	defs, restDefs, err := loadRuntimeDefinitions(cfg)
+	closure := loaded.closure
+	machineSpec, err := loadValidatedRuntimeMachine(closure)
 	if err != nil {
-		shutdownTelemetry()
+		loaded.shutdownTelemetry()
 		return runResources{}, err
 	}
-	machineSpec, err := loadValidatedRuntimeMachine(cfg, defs)
+	program, err := buildClosureProgramRef(closure)
 	if err != nil {
-		shutdownTelemetry()
-		return runResources{}, err
-	}
-	program, err := buildProgramRef(cfg)
-	if err != nil {
-		shutdownTelemetry()
+		loaded.shutdownTelemetry()
 		return runResources{}, fmt.Errorf("build declarative program reference: %w", err)
 	}
 	return runResources{
-		Config: cfg, Tracer: tracer, Meter: meter, Definitions: defs,
-		RestDefinitions: restDefs, Machine: machineSpec, Program: program,
-		shutdownTelemetry: shutdownTelemetry,
+		Config: loaded.config, Tracer: loaded.tracer, Meter: loaded.meter, Definitions: closure.Selected,
+		RestDefinitions: closure.Rest, Machine: machineSpec, Program: program,
+		shutdownTelemetry: loaded.shutdownTelemetry,
 	}, nil
 }
 
-func loadValidatedRuntimeMachine(
-	cfg runtimeConfig, defs []catalog.ToolDef,
-) (core.MachineSpec, error) {
-	machineSpec, err := core.LoadMachineSpec(cfg.Machine)
-	if err != nil {
-		return core.MachineSpec{}, fmt.Errorf("load machine spec for budget: %w", err)
+func loadRuntimeClosure(captureLevel toollm.CaptureLevel) (runtimeClosure, error) {
+	if flagProfile == "" {
+		return runtimeClosure{}, fmt.Errorf("--profile is required")
 	}
+	var loaded runtimeClosure
+	closure, err := internalload.LoadClosure(flagProfile, internalload.Options{
+		ProfileLoaded: func(profilePath string, profile catalog.AgentProfile) error {
+			loaded.config = runtimeConfigFromProfile(profile, captureLevel)
+			loaded.config.Profile = profilePath
+			var loadErr error
+			loaded.tracer, loaded.meter, loaded.shutdownTelemetry, loadErr =
+				initRunTelemetry(loaded.config)
+			return loadErr
+		},
+	})
+	if err != nil {
+		if loaded.shutdownTelemetry != nil {
+			loaded.shutdownTelemetry()
+		}
+		return runtimeClosure{}, err
+	}
+	loaded.closure = closure
+	return loaded, nil
+}
+
+func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpec, error) {
+	machineSpec := closure.Machine
 	if err := core.ValidateRequiredMachinePolicy(machineSpec); err != nil {
 		return core.MachineSpec{}, fmt.Errorf("load machine runtime policy: %w", err)
 	}
-	if err := validateRuntimeToolWiring(machineSpec, defs); err != nil {
+	if err := validateRuntimeToolWiring(machineSpec, closure.Selected); err != nil {
 		return core.MachineSpec{}, err
 	}
-	if err := profileaudit.Validate(cfg.Profile); err != nil {
+	if err := profileaudit.ValidateClosure(closure); err != nil {
 		return core.MachineSpec{}, fmt.Errorf("inspect profile timeout closure: %w", err)
 	}
 	return machineSpec, nil
@@ -828,15 +853,11 @@ func initRunTelemetry(cfg runtimeConfig) (tracing.Tracer, metric.Meter, func(), 
 }
 
 func loadRuntimeDefinitions(cfg runtimeConfig) ([]catalog.ToolDef, toolrest.Collection, error) {
-	defs, err := loadProfileToolDefs(cfg)
+	closure, err := internalload.LoadClosure(cfg.Profile, internalload.Options{})
 	if err != nil {
 		return nil, toolrest.Collection{}, err
 	}
-	restDefs, err := toolrest.LoadDefinitions(cfg.RestDefinitions, cfg.RestConfigDirs)
-	if err != nil {
-		return nil, toolrest.Collection{}, fmt.Errorf("load REST definitions: %w", err)
-	}
-	return defs, restDefs, nil
+	return closure.Selected, closure.Rest, nil
 }
 
 func parseErrorRetryTracker(machine core.MachineSpec) *toollm.ParseErrorRetryTracker {

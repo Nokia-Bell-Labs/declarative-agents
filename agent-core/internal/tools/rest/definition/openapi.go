@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -31,12 +32,16 @@ type openAPIHTTPBinding struct {
 
 // CompileOpenAPIImports loads OpenAPI imports into the internal REST model.
 func CompileOpenAPIImports(def *Definition, baseDir string) error {
+	return compileOpenAPIImports(def, baseDir, nil)
+}
+
+func compileOpenAPIImports(def *Definition, baseDir string, visit FileVisitor) error {
 	if len(def.OpenAPI) == 0 {
 		return nil
 	}
 	imports := def.OpenAPI
 	for name, imp := range imports {
-		operations, err := loadOpenAPIOperations(name, imp, baseDir)
+		operations, err := loadOpenAPIOperations(name, imp, baseDir, visit)
 		if err != nil {
 			return err
 		}
@@ -54,8 +59,10 @@ func CompileOpenAPIImports(def *Definition, baseDir string) error {
 	return nil
 }
 
-func loadOpenAPIOperations(name string, imp OpenAPIImport, baseDir string) (map[string]openAPIOperation, error) {
-	doc, err := loadOpenAPIDocument(imp, baseDir)
+func loadOpenAPIOperations(
+	name string, imp OpenAPIImport, baseDir string, visit FileVisitor,
+) (map[string]openAPIOperation, error) {
+	doc, err := loadOpenAPIDocument(imp, baseDir, visit)
 	if err != nil {
 		return nil, fmt.Errorf("openapi %q source %q: %w", name, imp.Path, err)
 	}
@@ -65,17 +72,27 @@ func loadOpenAPIOperations(name string, imp OpenAPIImport, baseDir string) (map[
 	return indexOpenAPIOperations(name, imp.Path, doc)
 }
 
-func loadOpenAPIDocument(imp OpenAPIImport, baseDir string) (*openapi3.T, error) {
+func loadOpenAPIDocument(imp OpenAPIImport, baseDir string, visit FileVisitor) (*openapi3.T, error) {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
 	parsed, err := url.Parse(imp.Path)
 	if err == nil && isHTTPURL(parsed) {
 		return loader.LoadFromURI(parsed)
 	}
-	if filepath.IsAbs(imp.Path) {
-		return loader.LoadFromFile(imp.Path)
+	path := imp.Path
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(baseDir, path)
 	}
-	return loader.LoadFromFile(filepath.Join(baseDir, imp.Path))
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if visit != nil {
+		if err := visit(path, data); err != nil {
+			return nil, err
+		}
+	}
+	return loader.LoadFromDataWithPath(data, &url.URL{Path: filepath.ToSlash(path)})
 }
 
 func isHTTPURL(parsed *url.URL) bool {

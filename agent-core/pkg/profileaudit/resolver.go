@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	internalload "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/load"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
@@ -21,6 +22,7 @@ type loadedClosure struct {
 	machinePath string
 	defs        []catalog.ToolDef
 	rest        toolrest.Collection
+	machine     core.MachineSpec
 }
 
 func (i *inspector) inspectProfile(profilePath, machineOverride string) error {
@@ -39,38 +41,51 @@ func (i *inspector) inspectProfile(profilePath, machineOverride string) error {
 	return nil
 }
 
+func (i *inspector) inspectClosure(closure *internalload.Closure) error {
+	loaded := loadedClosure{
+		profilePath: closure.ProfilePath,
+		machinePath: canonical(closure.Profile.Machine),
+		defs:        closure.Selected,
+		rest:        closure.Rest,
+		machine:     closure.Machine,
+	}
+	key := loaded.profilePath + "|" + loaded.machinePath
+	if done, err := i.beginVisit(key); done || err != nil {
+		return err
+	}
+	defer delete(i.visiting, key)
+	if err := i.inspectLoaded(loaded); err != nil {
+		return err
+	}
+	i.visited[key] = true
+	return nil
+}
+
 func loadProfileClosure(profilePath, machineOverride string) (loadedClosure, string, error) {
 	profilePath = resolveReference("", profilePath)
-	profile, err := catalog.LoadProfile(profilePath)
+	resolved, err := internalload.LoadClosure(profilePath, internalload.Options{})
 	if err != nil {
 		return loadedClosure{}, "", fmt.Errorf("inspect profile %s: %w", profilePath, err)
 	}
-	machinePath := profile.Machine
+	machinePath := resolved.Profile.Machine
+	machine := resolved.Machine
+	defs := resolved.Selected
 	if machineOverride != "" {
 		machinePath = resolveReference(filepath.Dir(profilePath), machineOverride)
-	}
-	defs, err := loadProfileTools(profile, machinePath, machineOverride != "")
-	if err != nil {
-		return loadedClosure{}, "", fmt.Errorf("inspect profile %s tools: %w", profilePath, err)
-	}
-	restDefs, err := toolrest.LoadDefinitions(profile.RestDefinitions, profile.RestConfigDirs)
-	if err != nil {
-		return loadedClosure{}, "", fmt.Errorf("inspect profile %s REST definitions: %w", profilePath, err)
+		machine, err = core.LoadMachineSpec(machinePath)
+		if err != nil {
+			return loadedClosure{}, "", fmt.Errorf("inspect profile %s machine: %w", profilePath, err)
+		}
+		defs, err = loadRequestTools(resolved.Profile, resolved.ToolUniverse, machine)
+		if err != nil {
+			return loadedClosure{}, "", fmt.Errorf("inspect profile %s tools: %w", profilePath, err)
+		}
 	}
 	closure := loadedClosure{
 		profilePath: canonical(profilePath), machinePath: canonical(machinePath),
-		defs: defs, rest: restDefs,
+		defs: defs, rest: resolved.Rest, machine: machine,
 	}
 	return closure, closure.profilePath + "|" + closure.machinePath, nil
-}
-
-func loadProfileTools(
-	profile catalog.AgentProfile, machinePath string, requestOverride bool,
-) ([]catalog.ToolDef, error) {
-	if requestOverride {
-		return loadRequestTools(profile, machinePath)
-	}
-	return loadSelectedTools(profile.ToolConfigDirs, profile.ToolDeclarations, profile.Tools)
 }
 
 func (i *inspector) beginVisit(key string) (bool, error) {
@@ -84,7 +99,7 @@ func (i *inspector) beginVisit(key string) (bool, error) {
 	return false, nil
 }
 
-func loadSelectedTools(dirs, declarations, selections []string) ([]catalog.ToolDef, error) {
+func loadPointTools(dirs, declarations, selections []string) ([]catalog.ToolDef, error) {
 	fromDirs, err := catalog.LoadToolDeclarationsFromDirs(dirs)
 	if err != nil {
 		return nil, err
@@ -103,32 +118,14 @@ func loadSelectedTools(dirs, declarations, selections []string) ([]catalog.ToolD
 // loadRequestTools mirrors ProfileMachineRequestRunner: a machine override
 // selects its literal actions from all profile declarations, while dynamic
 // vocabulary remains restricted by the profile's ordinary selection.
-func loadRequestTools(profile catalog.AgentProfile, machinePath string) ([]catalog.ToolDef, error) {
-	machine, err := core.LoadMachineSpec(machinePath)
+func loadRequestTools(
+	profile catalog.AgentProfile, universe []catalog.ToolDef, machine core.MachineSpec,
+) ([]catalog.ToolDef, error) {
+	names, err := requestActionNames(machine, profile.Tools, universe)
 	if err != nil {
 		return nil, err
 	}
-	merged, err := loadAllProfileTools(profile)
-	if err != nil {
-		return nil, err
-	}
-	names, err := requestActionNames(machine, profile.Tools, merged)
-	if err != nil {
-		return nil, err
-	}
-	return catalog.SelectTools(merged, names)
-}
-
-func loadAllProfileTools(profile catalog.AgentProfile) ([]catalog.ToolDef, error) {
-	fromDirs, err := catalog.LoadToolDeclarationsFromDirs(profile.ToolConfigDirs)
-	if err != nil {
-		return nil, err
-	}
-	explicit, err := catalog.LoadToolDeclarations(profile.ToolDeclarations)
-	if err != nil {
-		return nil, err
-	}
-	return catalog.MergeToolDefs(fromDirs, explicit), nil
+	return catalog.SelectTools(universe, names)
 }
 
 func requestActionNames(
@@ -181,10 +178,7 @@ func machineUsesDynamicAction(machine core.MachineSpec) bool {
 }
 
 func (i *inspector) inspectLoaded(closure loadedClosure) error {
-	machine, err := core.LoadMachineSpec(closure.machinePath)
-	if err != nil {
-		return fmt.Errorf("inspect profile %s machine %s: %w", closure.profilePath, closure.machinePath, err)
-	}
+	machine := closure.machine
 	commandRaw := ""
 	if machine.BudgetSpec != nil {
 		commandRaw = machine.BudgetSpec.CommandTimeout
@@ -280,26 +274,9 @@ func (i *inspector) inspectChildProfile(closure loadedClosure, def catalog.ToolD
 }
 
 func (i *inspector) inspectPointMachine(closure loadedClosure, def catalog.ToolDef) error {
-	machineRef, machineOK := configString(def.Config, "point_machine")
-	toolsRef, toolsOK := configString(def.Config, "point_tools")
-	declarationValues, declarationsOK := configStrings(def.Config["point_tool_declarations"])
-	if !machineOK || !toolsOK || !declarationsOK {
-		return fmt.Errorf("profile %s action %q has incomplete evaluator point configuration", closure.profilePath, def.Name)
-	}
-	base := filepath.Dir(closure.profilePath)
-	declarations := make([]string, len(declarationValues))
-	for n, path := range declarationValues {
-		declarations[n] = resolveReference(base, path)
-	}
-	defs, err := loadSelectedTools(nil, declarations, []string{resolveReference(base, toolsRef)})
+	point, err := loadPointClosure(closure, def)
 	if err != nil {
-		return fmt.Errorf("inspect evaluator point action %q: %w", def.Name, err)
-	}
-	point := loadedClosure{
-		profilePath: closure.profilePath,
-		machinePath: resolveReference(base, machineRef),
-		defs:        defs,
-		rest:        closure.rest,
+		return err
 	}
 	key := point.profilePath + "|" + canonical(point.machinePath)
 	if i.visited[key] {
@@ -315,6 +292,38 @@ func (i *inspector) inspectPointMachine(closure loadedClosure, def catalog.ToolD
 	}
 	i.visited[key] = true
 	return nil
+}
+
+func loadPointClosure(closure loadedClosure, def catalog.ToolDef) (loadedClosure, error) {
+	machineRef, machineOK := configString(def.Config, "point_machine")
+	toolsRef, toolsOK := configString(def.Config, "point_tools")
+	declarationValues, declarationsOK := configStrings(def.Config["point_tool_declarations"])
+	if !machineOK || !toolsOK || !declarationsOK {
+		return loadedClosure{}, fmt.Errorf(
+			"profile %s action %q has incomplete evaluator point configuration",
+			closure.profilePath, def.Name,
+		)
+	}
+	base := filepath.Dir(closure.profilePath)
+	declarations := make([]string, len(declarationValues))
+	for n, path := range declarationValues {
+		declarations[n] = resolveReference(base, path)
+	}
+	defs, err := loadPointTools(nil, declarations, []string{resolveReference(base, toolsRef)})
+	if err != nil {
+		return loadedClosure{}, fmt.Errorf("inspect evaluator point action %q: %w", def.Name, err)
+	}
+	point := loadedClosure{
+		profilePath: closure.profilePath,
+		machinePath: resolveReference(base, machineRef),
+		defs:        defs,
+		rest:        closure.rest,
+	}
+	point.machine, err = core.LoadMachineSpec(point.machinePath)
+	if err != nil {
+		return loadedClosure{}, fmt.Errorf("inspect evaluator point action %q machine: %w", def.Name, err)
+	}
+	return point, nil
 }
 
 func resolveReference(base, path string) string {

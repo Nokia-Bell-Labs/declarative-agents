@@ -85,12 +85,22 @@ const originOverrideYAML = `tools:
     undo: {strategy: workspace_restore}
 `
 
+const rollbackOriginMachineYAML = `name: origin
+initial_state: Idle
+budget: {command_timeout: 1m}
+states: [Idle, {name: Done, run_status: succeeded}]
+terminal_states: [Done]
+signals: [Seed]
+transitions:
+  - {state: Idle, signal: Seed, next: Done}
+`
+
 func writeRollbackOriginProgram(t *testing.T) (profilePath, overridePath string) {
 	t.Helper()
 	dir := t.TempDir()
 	shared := filepath.Join(dir, "shared")
 	require.NoError(t, os.MkdirAll(shared, 0o755))
-	writeTestFile(t, filepath.Join(dir, "machine.yaml"), "name: origin\n")
+	writeTestFile(t, filepath.Join(dir, "machine.yaml"), rollbackOriginMachineYAML)
 	writeTestFile(t, filepath.Join(dir, "tools.yaml"), "tools: [origin_write]\n")
 	writeTestFile(t, filepath.Join(shared, "origin.yaml"), `tools:
   - name: origin_write

@@ -13,19 +13,33 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// FileVisitor observes a REST or OpenAPI declaration after it is read.
+type FileVisitor func(string, []byte) error
+
 // LoadDefinition reads a REST definition YAML file and compiles OpenAPI
 // imports. It does not validate; rest.LoadDefinition composes this with
 // validation.ValidateDefinition.
 func LoadDefinition(path string) (Definition, error) {
+	return LoadDefinitionWithVisitor(path, nil)
+}
+
+// LoadDefinitionWithVisitor reads a REST definition and reports every local
+// source used to compile it.
+func LoadDefinitionWithVisitor(path string, visit FileVisitor) (Definition, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Definition{}, fmt.Errorf("load REST definition %s: %w", path, err)
+	}
+	if visit != nil {
+		if err := visit(path, data); err != nil {
+			return Definition{}, fmt.Errorf("visit REST definition %s: %w", path, err)
+		}
 	}
 	def, err := parseDefinitionRaw(data)
 	if err != nil {
 		return Definition{}, fmt.Errorf("parse REST definition %s: %w", path, err)
 	}
-	if err := CompileOpenAPIImports(&def, filepath.Dir(path)); err != nil {
+	if err := compileOpenAPIImports(&def, filepath.Dir(path), visit); err != nil {
 		return Definition{}, fmt.Errorf("compile OpenAPI imports %s: %w", path, err)
 	}
 	return def, nil
