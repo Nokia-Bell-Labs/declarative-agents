@@ -44,6 +44,7 @@ Flags whose resolution spans the whole binary stay in `cmd/agent`:
 - `--output`
 - `--child-agent-binary`
 - `--validate-config`
+- `--dump-config`
 
 Component-owned flags:
 

@@ -114,6 +114,7 @@ type agentFlagSnapshot struct {
 	request        string
 	output         string
 	validateConfig bool
+	dumpConfig     bool
 }
 
 func snapshotAgentFlags() agentFlagSnapshot {
@@ -128,6 +129,7 @@ func snapshotAgentFlags() agentFlagSnapshot {
 		request:        flagRequest,
 		output:         flagOutput,
 		validateConfig: flagValidateConfig,
+		dumpConfig:     flagDumpConfig,
 	}
 }
 
@@ -142,6 +144,7 @@ func restoreAgentFlags(s agentFlagSnapshot) {
 	flagRequest = s.request
 	flagOutput = s.output
 	flagValidateConfig = s.validateConfig
+	flagDumpConfig = s.dumpConfig
 }
 
 func clearAgentFlags() {

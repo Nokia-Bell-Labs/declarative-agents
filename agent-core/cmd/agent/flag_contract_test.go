@@ -19,6 +19,7 @@ func TestRootCommandExposesEveryRuntimeFlag(t *testing.T) {
 		"output",
 		"child-agent-binary",
 		"validate-config",
+		"dump-config",
 		"otel-log-file",
 		"otel-otlp-endpoint",
 		"otel-metric-otlp-endpoint",
@@ -31,7 +32,7 @@ func TestRootCommandExposesEveryRuntimeFlag(t *testing.T) {
 		"resume-checkpoint",
 		"resume-signal",
 	}
-	require.Len(t, flags, 18)
+	require.Len(t, flags, 19)
 	for _, name := range flags {
 		require.NotNil(t, rootCmd.PersistentFlags().Lookup(name), name)
 	}

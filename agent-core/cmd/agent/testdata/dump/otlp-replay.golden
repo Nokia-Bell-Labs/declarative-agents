@@ -1,0 +1,139 @@
+dump_version: 1
+profile:
+  name: otlp-replay
+  machine: <agent-core>/testdata/integration/profiles/otlp-replay/machine.yaml
+  tools:
+    - <agent-core>/testdata/integration/profiles/otlp-replay/tools.yaml
+  tool_declarations:
+    - <agent-core>/tools/builtin/otlp/all.yaml
+    - <agent-core>/testdata/integration/profiles/otlp-replay/declarations.yaml
+machine:
+  name: otlp-replay
+  purpose: Load one trusted OTLP protobuf-JSON batch and relay it through declared words.
+  initial_state: ReadingBatch
+  states:
+    - name: ReadingBatch
+      meaning: Decode the configured offline batch.
+    - name: Relaying
+      meaning: Select the decoded batch for the shared relay boundary.
+    - name: Exporting
+      meaning: Await the single OTLP export result.
+    - name: Done
+      meaning: Relay accepted the complete batch.
+      run_status: succeeded
+    - name: Failed
+      meaning: File
+      run_status: failed
+  terminal_states:
+    - Done
+    - Failed
+  signals:
+    - name: Seed
+    - name: BatchLoaded
+    - name: SpansRelayed
+    - name: CommandError
+  transitions:
+    - state: ReadingBatch
+      signal: Seed
+      next: Relaying
+      action: load_replay_batch
+      label: loaded_batch
+    - state: ReadingBatch
+      signal: CommandError
+      next: Failed
+    - state: Relaying
+      signal: BatchLoaded
+      next: Exporting
+      action: relay_replay_batch
+    - state: Relaying
+      signal: CommandError
+      next: Failed
+    - state: Exporting
+      signal: SpansRelayed
+      next: Done
+    - state: Exporting
+      signal: CommandError
+      next: Failed
+  budget:
+    max_iterations: 2
+    command_timeout: 1m
+tools:
+  - name: load_replay_batch
+    type: builtin
+    category: boundary
+    description: ""
+    output:
+      description: Decoded OTLP protobuf-JSON batch
+      schema:
+        type: object
+    side_effects:
+      - kind: filesystem_read
+        target: configured replay file
+        state: read_only
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Loading changes nothing.
+    init: load_otlp_batch
+    config:
+      path: traces/replay.otlp.json
+    emits:
+      - BatchLoaded
+      - CommandError
+    parameters:
+      additionalProperties: false
+      properties: {}
+      type: object
+    visibility: internal
+  - name: relay_replay_batch
+    type: builtin
+    category: boundary
+    description: ""
+    output:
+      description: Completely accepted relay endpoint and span count.
+      schema:
+        properties:
+          endpoint:
+            type: string
+          span_count:
+            type: integer
+        required:
+          - endpoint
+          - span_count
+        type: object
+    side_effects:
+      - kind: external_api
+        target: configured OTLP endpoint
+        state: batch accepted
+    reversibility:
+      classification: irreversible
+      requires_confirmation: true
+    undo:
+      strategy: irreversible
+      description: OTLP has no retraction operation.
+    init: relay_spans
+    config:
+      batch_source: $from(loaded_batch).batch
+      endpoint: 127.0.0.1:4317
+      timeout: 10s
+    emits:
+      - SpansRelayed
+      - CommandError
+    parameters:
+      additionalProperties: false
+      properties: {}
+      type: object
+    visibility: internal
+rest: {}
+files:
+  - path: <agent-core>/testdata/integration/profiles/otlp-replay/declarations.yaml
+    sha256: 75e61fc9a89adc0099d216c1c579bd2cde257e13c006ba37131256e4733b601b
+  - path: <agent-core>/testdata/integration/profiles/otlp-replay/machine.yaml
+    sha256: b100270b5fe8135eaf4cf5ee215a650370bc1de48cba09d73add5140e223ea6f
+  - path: <agent-core>/testdata/integration/profiles/otlp-replay/profile.yaml
+    sha256: 0f086b8e0c799a7de4c91e678d946cba4b8006b04b8a40f5ce1a22a93b96ef15
+  - path: <agent-core>/testdata/integration/profiles/otlp-replay/tools.yaml
+    sha256: 356f28070da55b76a0f0951d7445750f2390f6bf36be02fb79787929b21c00f9
+  - path: <agent-core>/tools/builtin/otlp/all.yaml
+    sha256: e9aed2f85ae8701d1cc4dfb488ae185c25490b991ad2aff5251d029e980bd683

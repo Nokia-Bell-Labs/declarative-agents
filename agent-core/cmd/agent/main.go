@@ -48,6 +48,7 @@ var (
 	flagOutput         string
 	flagChildAgent     string
 	flagValidateConfig bool
+	flagDumpConfig     bool
 	telemetryCfg       telemetry.Config
 	telemetryFlags     *pflag.FlagSet
 	checkpointCfg      checkpoint.Config
@@ -115,6 +116,7 @@ func init() {
 	f.StringVar(&flagOutput, "output", "", "output directory for runtime artifacts")
 	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary used by child-process words (default: agent, resolved from PATH)")
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
+	f.BoolVar(&flagDumpConfig, "dump-config", false, "print canonical resolved profile YAML and exit; output contains environment-expanded values and may contain secrets")
 	telemetryCfg.RegisterFlags(f)
 	checkpointCfg.RegisterFlags(f)
 	doltCfg.RegisterFlags(f)
@@ -197,6 +199,9 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	if flagValidateConfig {
 		return validateConfig()
+	}
+	if flagDumpConfig {
+		return dumpConfiguredProfile(cmd.OutOrStdout())
 	}
 	prepared, err := prepareRun(cmd)
 	if err != nil {

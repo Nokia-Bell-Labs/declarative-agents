@@ -1,0 +1,393 @@
+dump_version: 1
+profile:
+  name: ollama-rest
+  machine: <agent-core>/testdata/integration/profiles/ollama-rest/machine.yaml
+  tools:
+    - <agent-core>/testdata/integration/profiles/ollama-rest/tools.yaml
+  tool_declarations:
+    - <agent-core>/tools/builtin/llm/all.yaml
+    - <agent-core>/testdata/integration/profiles/ollama-rest/llm.yaml
+    - <agent-core>/testdata/integration/profiles/ollama-rest/declarations.yaml
+  rest_definitions:
+    - <agent-core>/testdata/integration/profiles/ollama-rest/rest.yaml
+machine:
+  name: ollama-rest-model-listing
+  purpose: List live local Ollama models through the configured REST tool.
+  initial_state: Idle
+  states:
+    - name: Idle
+    - name: Composing
+    - name: Parsing
+    - name: Succeeded
+      run_status: succeeded
+    - name: Failed
+      run_status: failed
+    - name: BudgetExceeded
+      run_status: budget_exceeded
+  terminal_states:
+    - Succeeded
+    - Failed
+    - BudgetExceeded
+  signals:
+    - name: Seed
+    - name: LLMResponded
+    - name: ToolDone
+    - name: ParseFailed
+    - name: TaskCompleted
+    - name: RESTResponded
+    - name: RESTDomainFailed
+    - name: CommandError
+    - name: BudgetExhausted
+  transitions:
+    - state: Idle
+      signal: Seed
+      next: Composing
+      action: invoke_llm
+    - state: Composing
+      signal: LLMResponded
+      next: Parsing
+      action: parse_response
+    - state: Parsing
+      signal: ToolDone
+      next: Composing
+      action: $tool
+    - state: Parsing
+      signal: TaskCompleted
+      next: Succeeded
+    - state: Parsing
+      signal: ParseFailed
+      next: Composing
+      action: report_parse_error
+    - state: Composing
+      signal: ToolDone
+      next: Composing
+      action: invoke_llm
+    - state: Composing
+      signal: RESTResponded
+      next: Composing
+      action: invoke_llm
+    - state: Composing
+      signal: RESTDomainFailed
+      next: Composing
+      action: invoke_llm
+    - state: Composing
+      signal: CommandError
+      next: Failed
+    - state: Parsing
+      signal: CommandError
+      next: Failed
+    - state: Composing
+      signal: BudgetExhausted
+      next: BudgetExceeded
+  budget:
+    max_iterations: 8
+    command_timeout: 3m
+    max_consecutive_parse_errors: 2
+tools:
+  - name: done
+    type: builtin
+    category: word
+    description: Signal that the generation task is complete.
+    problem: The machine needs a declared word for declaring task completion without embedding that workflow step in Go control flow.
+    goals:
+      - Perform the done action as one machine-selected word.
+      - Return an explicit signal that lets the MachineSpec choose the next state.
+      - Keep sequencing outside the tool implementation and in machine.yaml.
+    requirements:
+      input:
+        - must consume parameters from tool input, prior Result, or configured command/domain state
+      output:
+        - must emit one declared signal and return machine-readable output when available
+      errors:
+        - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+    non_goals:
+      - Does not choose the next workflow step; machine.yaml owns sequencing.
+      - Does not hide unrelated tool execution behind this word.
+    output:
+      description: done command result summary.
+      schema:
+        properties:
+          message:
+            type: string
+          signal:
+            type: string
+        required:
+          - message
+        type: object
+    side_effects:
+      - kind: none
+        description: Emits TaskCompleted and does not mutate state.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Completion signaling has no effects to reverse.
+    errors:
+      - signal: CommandError
+        condition: required input, configuration, or runtime state is invalid
+        message_shape: 'done: <error>'
+        state_after_failure: no additional workflow step is executed by this tool
+    relationships:
+      before:
+        - machine-selected predecessor
+      after:
+        - machine-selected successor
+    init: done
+    emits:
+      - TaskCompleted
+    visibility: internal
+  - name: invoke_llm
+    type: builtin
+    description: Invoke the configured Ollama model for the live REST proof.
+    output:
+      description: Raw plain-text model response.
+      schema:
+        type: string
+    init: invoke_llm
+    config:
+      llm_timeout: 120
+      manifest_state: Composing
+      max_time: 120
+      model: gemma4:31b-cloud
+      provider: ollama
+      provider_url: http://localhost:11434
+      response_profile: gemma
+      system_prompt: |
+        You list local Ollama models by using the provided REST tool.
+
+        Rules:
+        - First call ollama_list_models. Do not answer from memory.
+        - After the REST result returns, call done with a concise answer.
+        - The final answer must include at least one exact model name from the REST body models array.
+        - Do not mention model names that are not present in the REST result.
+        - Use only these tools: ollama_list_models, done.
+
+        Tool call format:
+        [tool_call]
+        {"tool":"ollama_list_models","parameters":{}}
+        [/tool_call]
+
+        Final answer format:
+        [tool_call]
+        {"tool":"done","parameters":{"summary":"Local Ollama models include: <names from REST result>."}}
+        [/tool_call]
+    emits:
+      - LLMResponded
+      - CommandError
+    visibility: internal
+  - name: ollama_list_models
+    type: builtin
+    category: boundary
+    description: List local Ollama models through the configured REST client.
+    init: rest_client_invoke
+    config:
+      operation: listOllamaModels
+      rest_ref: ollama
+    emits:
+      - RESTResponded
+      - RESTDomainFailed
+      - CommandError
+    parameters:
+      additional_properties: false
+      properties: {}
+      type: object
+  - name: parse_response
+    type: builtin
+    category: word
+    contract: legacy
+    description: Parse raw LLM output into a tool call or task-completed signal.
+    problem: The machine needs a declared word for parsing the previous LLM response into a tool request without embedding that workflow step in Go control flow.
+    goals:
+      - Perform the parse_response action as one machine-selected word.
+      - Return an explicit signal that lets the MachineSpec choose the next state.
+      - Keep sequencing outside the tool implementation and in machine.yaml.
+    requirements:
+      input:
+        - must consume parameters from tool input, prior Result, or configured command/domain state
+      output:
+        - must emit one declared signal and return machine-readable output when available
+      errors:
+        - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+    non_goals:
+      - Does not choose the next workflow step; machine.yaml owns sequencing.
+      - Does not hide unrelated tool execution behind this word.
+    output:
+      description: Parsed tool-request JSON or a plain completion summary.
+      schema:
+        type: string
+    side_effects:
+      - kind: command_state
+        description: Parses the prior command output and may reset the parse retry counter after a non-ParseFailed result.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: parse_retry_counter_restore
+      description: Restores the parse retry counter snapshot captured before parsing.
+    errors:
+      - signal: CommandError
+        condition: required input, configuration, or runtime state is invalid
+        message_shape: 'parse_response: <error>'
+        state_after_failure: no additional workflow step is executed by this tool
+    relationships:
+      before:
+        - machine-selected predecessor
+      after:
+        - machine-selected successor
+    init: parse_response
+    config:
+      manifest_state: Composing
+    emits:
+      - ToolDone
+      - TaskCompleted
+      - ParseFailed
+      - CommandError
+    visibility: internal
+  - name: report_parse_error
+    type: builtin
+    category: word
+    description: Report a parse error back to the LLM for correction.
+    problem: The machine needs a declared word for feeding parse failure context back to the model conversation without embedding that workflow step in Go control flow.
+    goals:
+      - Perform the report_parse_error action as one machine-selected word.
+      - Return an explicit signal that lets the MachineSpec choose the next state.
+      - Keep sequencing outside the tool implementation and in machine.yaml.
+    requirements:
+      input:
+        - must consume parameters from tool input, prior Result, or configured command/domain state
+      output:
+        - must emit one declared signal and return machine-readable output when available
+      errors:
+        - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+    non_goals:
+      - Does not choose the next workflow step; machine.yaml owns sequencing.
+      - Does not hide unrelated tool execution behind this word.
+    output:
+      description: Plain-text feedback requesting a corrected model response.
+      schema:
+        type: string
+    side_effects:
+      - kind: command_state
+        description: Increments the parse retry counter and emits BudgetExhausted when the configured retry limit is reached.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: parse_retry_counter_restore
+      description: Restores the parse retry counter snapshot captured before reporting the parse error.
+    errors:
+      - signal: CommandError
+        condition: required input, configuration, or runtime state is invalid
+        message_shape: 'report_parse_error: <error>'
+        state_after_failure: no additional workflow step is executed by this tool
+    relationships:
+      before:
+        - machine-selected predecessor
+      after:
+        - machine-selected successor
+    init: report_parse_error
+    config:
+      feedback_template: |-
+        Your previous response was invalid. {{error}}
+
+        Please respond with a single JSON object: {"tool": "<tool_name>", "parameters": {<params>}}
+    emits:
+      - ToolDone
+      - BudgetExhausted
+    visibility: internal
+rest:
+  clients:
+    ollama:
+      base_url: http://127.0.0.1:11434
+      auth_ref: none
+      limits_ref: local_ollama
+      operations:
+        listOllamaModels:
+          openapi_operation_id: listOllamaModels
+          method: GET
+          path: /api/tags
+          success:
+            status:
+              - 200
+              - 201
+              - 202
+              - 204
+            signal: RESTResponded
+          response:
+            schema:
+              properties:
+                models:
+                  items:
+                    properties:
+                      details:
+                        type: object
+                      digest:
+                        type: string
+                      model:
+                        type: string
+                      modified_at:
+                        type: string
+                      name:
+                        type: string
+                      size:
+                        format: int64
+                        type: integer
+                    required:
+                      - name
+                    type: object
+                  type: array
+              required:
+                - models
+              type: object
+          side_effects:
+            - kind: external_api
+              target: ollama.models
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+  auth:
+    none:
+      type: none
+  limits:
+    local_ollama:
+      timeout: 30s
+      read_timeout: 30s
+      max_request_bytes: 1024
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes:
+          - http
+        hosts:
+          - 127.0.0.1
+        ports:
+          - 11434
+files:
+  - path: <agent-core>/testdata/integration/profiles/ollama-rest/declarations.yaml
+    sha256: 15b0aae339194f8e57ce5673ca5cd9a75d8759a62dc74ae8a02964f60cca8227
+  - path: <agent-core>/testdata/integration/profiles/ollama-rest/llm.yaml
+    sha256: 6d2a11c130b51061ff0d9f02186574476caa8c0d9813b80253f5606ed45c8938
+  - path: <agent-core>/testdata/integration/profiles/ollama-rest/machine.yaml
+    sha256: 0f6156846b83c4dcfb4a37675f09aca960c9341282885df831d3a0fdf1241226
+  - path: <agent-core>/testdata/integration/profiles/ollama-rest/openapi.yaml
+    sha256: 4fd398a63267be22bba1387ebf94b0a0d0d6cdcb02ff37b8aefa2fee4856b055
+  - path: <agent-core>/testdata/integration/profiles/ollama-rest/profile.yaml
+    sha256: 9b2c981878ca25eb3571445aba3d9d8107c827b4a937d2c4fe60cda13b23faf8
+  - path: <agent-core>/testdata/integration/profiles/ollama-rest/rest.yaml
+    sha256: d287d1da6ee2f7b76287c690a93e6ce19df72ddb795b9df07f919ca5b8ecf891
+  - path: <agent-core>/testdata/integration/profiles/ollama-rest/tools.yaml
+    sha256: 2f9d1b5d42f1a3cddf18ca157c3c07b9411e8c0d14c2ae0b264f253418688dc9
+  - path: <agent-core>/tools/builtin/done.yaml
+    sha256: 5fb63008cabb0b4ee0e3c196046af58291d8a91146e07399943b99edf62931a7
+  - path: <agent-core>/tools/builtin/llm/all.yaml
+    sha256: 2b323d89df64acde868987bd04b82a48408f250769f27a18eee7c57d2c20e17a
+  - path: <agent-core>/tools/builtin/nudge-reread.yaml
+    sha256: 1b02746026bf3cc6d00d952f8b36166410f6560040fd809595d362a8710fe765
+  - path: <agent-core>/tools/builtin/parse-response.yaml
+    sha256: d5909f7fafcb770ca5defc425995057643594bcb36e2b0768f9e49594db0eb67
+  - path: <agent-core>/tools/builtin/parse-structured.yaml
+    sha256: 10a39dfe608918302ab58d853ef5eb739fd40ca4704e8d41ecc91a5166daaec3
+  - path: <agent-core>/tools/builtin/report-parse-error.yaml
+    sha256: 71e0516b5e44affbea2302e34dbfeb0f3e3b1fff649edb0f3921d76d9f4a7a25
+  - path: <agent-core>/tools/builtin/reset-history.yaml
+    sha256: 773bfaaffc2fe93e683eef4ac7860369e8c6778ea0b3d01855604dbdde5df691

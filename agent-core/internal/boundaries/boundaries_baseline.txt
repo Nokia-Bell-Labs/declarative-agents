@@ -10,11 +10,11 @@ import:pkg/profileaudit -> internal/load
 import:pkg/profileaudit -> internal/support/corepath
 import:pkg/profileaudit -> internal/tools/catalog
 import:pkg/profileaudit -> internal/tools/rest
-pkg:cmd/agent files=5 loc=1819
+pkg:cmd/agent files=6 loc=1851
 pkg:internal/doltsql files=4 loc=274
 pkg:internal/evaluation files=23 loc=3860
 pkg:internal/gostyle files=1 loc=9
-pkg:internal/load files=1 loc=206
+pkg:internal/load files=2 loc=306
 pkg:internal/model files=1 loc=7
 pkg:internal/model/llm files=8 loc=967
 pkg:internal/model/llm/cohere files=2 loc=376
