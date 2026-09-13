@@ -649,6 +649,46 @@ releases:
       - go test ./internal/tools/pipeline ./internal/tools/compose ./internal/tools/registry
       - mage audit
 
+  - version: "17.0"
+    name: Named declaration units and explicit imports
+    description: |
+      Release 17.0 treats profile loading as declaration compilation. Tool and
+      REST files expose named units and import explicit relative paths. The
+      closure loader resolves one deterministic dependency graph, rejects
+      duplicate names, cycles, invalid overrides, and unused imports, and
+      preserves source provenance in the canonical config dump.
+
+      Legacy tool includes remain operational with deprecation diagnostics
+      until the follow-on type-system migration removes them. No flattened or
+      generated declaration output is committed.
+    status: in_progress
+    planned_work:
+      - id: gh-1975
+        summary: Specify named declaration units, imports, merge semantics, and usedness.
+        status: implemented
+      - id: gh-1977
+        summary: Implement tool declaration units and explicit imports.
+        status: planned
+      - id: gh-1976
+        summary: Implement REST declaration units and explicit imports.
+        status: planned
+      - id: gh-1978
+        summary: Enforce unused imports and add the control-imports closure proof.
+        status: planned
+    srds:
+      - srd050-declaration-imports
+    use_cases:
+      - id: rel17.0-uc001-declaration-imports
+        summary: A profile composes named tool and REST units through one explicit, validated closure.
+        status: specified
+    test_suites:
+      - id: test-rel17.0-declaration-imports
+        summary: Formal tests for graph resolution, merge semantics, usedness, compatibility, diagnostics, and the control-imports proof.
+        status: specified
+    proof:
+      - go test ./internal/tools/catalog ./internal/tools/rest/definition ./internal/load
+      - mage audit
+
   - version: "99.0"
     name: Architectural migrations and cleanup
     description: |
