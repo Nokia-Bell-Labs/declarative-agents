@@ -183,6 +183,7 @@ tools:
       - CommandError
     visibility: internal
 rest:
+  version: v1
   servers:
     request_signals:
       address: 127.0.0.1:0

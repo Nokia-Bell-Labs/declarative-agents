@@ -29,6 +29,7 @@ type dumpDocument struct {
 }
 
 type restDump struct {
+	Version          string                             `yaml:"version,omitempty"`
 	Clients          map[string]restdef.Client          `yaml:"clients,omitempty"`
 	Servers          map[string]restdef.Server          `yaml:"servers,omitempty"`
 	Auth             map[string]restdef.AuthProfile     `yaml:"auth,omitempty"`
@@ -81,7 +82,7 @@ func dumpFiles(closure *Closure) ([]dumpFile, error) {
 
 func newRestDump(collection toolrest.Collection) restDump {
 	return restDump{
-		Clients: collection.Clients, Servers: collection.Servers,
+		Version: collection.Version, Clients: collection.Clients, Servers: collection.Servers,
 		Auth: collection.Auth, Limits: collection.Limits,
 		RetryPolicies:    collection.RetryPolicies,
 		ResponseMappings: collection.ResponseMappings,

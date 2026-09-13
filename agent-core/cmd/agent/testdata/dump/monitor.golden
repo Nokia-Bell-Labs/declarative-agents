@@ -133,6 +133,7 @@ tools:
       type: object
     visibility: internal
 rest:
+  version: v1
   servers:
     monitor:
       address: 127.0.0.1:0

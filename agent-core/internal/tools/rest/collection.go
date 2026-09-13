@@ -17,6 +17,7 @@ import (
 
 // Collection indexes REST definitions loaded for one profile.
 type Collection struct {
+	Version          string
 	Clients          map[string]restdef.Client
 	Servers          map[string]restdef.Server
 	Auth             map[string]restdef.AuthProfile
@@ -111,7 +112,14 @@ func NewCollection() Collection {
 }
 
 // Add merges a validated REST definition into the collection.
-func (c Collection) Add(def restdef.Definition) error {
+func (c *Collection) Add(def restdef.Definition) error {
+	if err := c.addVersion(def.Version); err != nil {
+		return err
+	}
+	return c.addDefinitionMaps(def)
+}
+
+func (c *Collection) addDefinitionMaps(def restdef.Definition) error {
 	for name, profile := range def.Auth {
 		if _, exists := c.Auth[name]; exists {
 			return fmt.Errorf("duplicate REST auth %q", name)
@@ -148,6 +156,17 @@ func (c Collection) Add(def restdef.Definition) error {
 		}
 		c.Servers[name] = server
 	}
+	return nil
+}
+
+func (c *Collection) addVersion(version string) error {
+	if version == "" {
+		return nil
+	}
+	if c.Version != "" && c.Version != version {
+		return fmt.Errorf("conflicting REST versions %q and %q", c.Version, version)
+	}
+	c.Version = version
 	return nil
 }
 

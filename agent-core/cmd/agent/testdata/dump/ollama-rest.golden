@@ -294,6 +294,7 @@ tools:
       - BudgetExhausted
     visibility: internal
 rest:
+  version: v1
   clients:
     ollama:
       base_url: http://127.0.0.1:11434

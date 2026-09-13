@@ -200,6 +200,7 @@ tools:
       - CommandError
     visibility: internal
 rest:
+  version: v1
   servers:
     agent_control:
       address: 127.0.0.1:0

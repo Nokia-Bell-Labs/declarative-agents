@@ -83,6 +83,13 @@ func TestDumpConfigRunPath(t *testing.T) {
 
 	flagProfile = filepath.Join(t.TempDir(), "missing.yaml")
 	require.ErrorContains(t, run(cmd, nil), "load profile")
+
+	flagProfile = profilePathFromTest(t, "control/profile.yaml")
+	flagValidateConfig = true
+	require.ErrorContains(t, run(cmd, nil), "cannot be used together")
+	usage := rootCmd.PersistentFlags().Lookup("dump-config").Usage
+	require.Contains(t, usage, "environment-expanded")
+	require.Contains(t, usage, "secrets")
 }
 
 func regularTestFile(path string) bool {
@@ -91,5 +98,12 @@ func regularTestFile(path string) bool {
 }
 
 func normalizeDumpGolden(data []byte, root string) []byte {
-	return []byte(strings.ReplaceAll(string(data), filepath.Clean(root), "<agent-core>"))
+	text := strings.ReplaceAll(string(data), filepath.Clean(root), "<agent-core>")
+	lines := strings.Split(text, "\n")
+	for index, line := range lines {
+		if strings.Contains(line, "<agent-core>") {
+			lines[index] = strings.ReplaceAll(line, `\`, "/")
+		}
+	}
+	return []byte(strings.Join(lines, "\n"))
 }

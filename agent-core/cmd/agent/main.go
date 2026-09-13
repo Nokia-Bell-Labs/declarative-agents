@@ -197,6 +197,9 @@ func run(cmd *cobra.Command, args []string) error {
 	if f := cmd.Flags().Lookup("core-root"); f != nil && f.Changed && strings.TrimSpace(flagCoreRoot) != "" {
 		spec.SetAgentCoreInstallRoot(strings.TrimSpace(flagCoreRoot))
 	}
+	if flagValidateConfig && flagDumpConfig {
+		return fmt.Errorf("--validate-config and --dump-config cannot be used together")
+	}
 	if flagValidateConfig {
 		return validateConfig()
 	}
