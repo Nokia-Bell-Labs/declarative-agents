@@ -356,7 +356,7 @@ releases:
       documentation and runtime contracts through the mock binding from
       GH-666 and the service-child tools from GH-667. The full end-to-end
       scenario tracer remains planned.
-    status: in_progress
+    status: done
     planned_work:
       - id: gh-664
         summary: Specify the mock REST binding and service-child tools (this release's documentation).
@@ -668,23 +668,23 @@ releases:
         status: implemented
       - id: gh-1977
         summary: Implement tool declaration units and explicit imports.
-        status: planned
+        status: implemented
       - id: gh-1976
         summary: Implement REST declaration units and explicit imports.
-        status: planned
+        status: implemented
       - id: gh-1978
         summary: Enforce unused imports and add the control-imports closure proof.
-        status: planned
+        status: implemented
     srds:
       - srd050-declaration-imports
     use_cases:
       - id: rel17.0-uc001-declaration-imports
         summary: A profile composes named tool and REST units through one explicit, validated closure.
-        status: specified
+        status: implemented
     test_suites:
       - id: test-rel17.0-declaration-imports
         summary: Formal tests for graph resolution, merge semantics, usedness, compatibility, diagnostics, and the control-imports proof.
-        status: specified
+        status: implemented
     proof:
       - go test ./internal/tools/catalog ./internal/tools/rest/definition ./internal/load
       - mage audit
