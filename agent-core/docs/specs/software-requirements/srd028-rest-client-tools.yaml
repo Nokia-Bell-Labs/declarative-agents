@@ -121,6 +121,9 @@ requirements:
       - R9.2: ToolMetrics SHOULD include status code, retry count, response size, operation ID, and domain outcome when available.
       - R9.3: REST client tools SHALL redact configured headers, query fields, body fields, credentials, and tokens from traces, metrics, errors, and Result output.
       - R9.4: Verbose request or response body capture SHALL require explicit configuration and redaction rules.
+      - R9.5: At telemetry capture full, REST client dispatch spans SHALL carry the rendered request body under http.request.body and the response body under http.response.body. At capture off and capture delta they SHALL carry neither.
+      - R9.6: Captured bodies SHALL pass the operation's declared redaction selectors before reaching the span, so R9.3 holds for captured content and the redaction rules R9.4 requires are the operation's own. A body that does not parse as JSON SHALL NOT be captured, because field-wise redaction cannot apply to it.
+      - R9.7: Each captured body SHALL be capped at 16384 bytes, and a capped body SHALL set http.request.body.truncated or http.response.body.truncated to true. These four keys are repository-owned attributes, not OpenTelemetry semantic-convention keys, per srd015 R6.7.
 
   R10:
     title: Undo and compensation
@@ -263,7 +266,7 @@ acceptance_criteria:
 
   - id: AC8
     criterion: Idempotency, retry, metrics, tracing, and redaction requirements are explicit for external API calls.
-    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6, R8.7, R8.8, R9.1, R9.2, R9.3, R9.4, R10.8]
+    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6, R8.7, R8.8, R9.1, R9.2, R9.3, R9.4, R9.5, R9.6, R9.7, R10.8]
 
   - id: AC9
     criterion: Error and recovery requirements distinguish domain failures from infrastructure failures and report operation identity, failure stage, status, diagnostics, and resulting signal.
