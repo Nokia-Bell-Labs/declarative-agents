@@ -101,6 +101,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/boundaries`
 - `internal/doltsql`
 - `internal/evaluation`
+- `internal/declstyle`
 - `internal/gostyle`
 - `internal/load`
 - `internal/model`

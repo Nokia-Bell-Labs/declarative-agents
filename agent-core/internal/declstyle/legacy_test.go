@@ -1,0 +1,213 @@
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
+
+package declstyle
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"sort"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+)
+
+// Entry classes. Adding a class is one line here plus its emitter.
+const (
+	classIncludes       = "includes"
+	classUntypedTool    = "untyped-tool"
+	classProseDefaulted = "prose-defaulted"
+)
+
+// typedCategories are the categories a signature is expected to cover.
+// Boundary is absent: srd051 R6.9 keeps its contract blocks explicit, so an
+// unsigned boundary word is not a legacy form to retire here.
+var typedCategories = map[string]bool{"word": true, "response": true}
+
+// TestDeclarationLegacyBaseline holds the line on declaration form while the
+// type system migration runs. Every legacy usage in the repository is listed in
+// legacy_baseline.txt; the gate fails on any usage not in it, and on any entry
+// no longer present, so the baseline shrinks and never grows.
+func TestDeclarationLegacyBaseline(t *testing.T) {
+	found := collectLegacyEntries(t)
+	baseline := loadBaseline(t, filepath.Join(thisDir(t), "legacy_baseline.txt"))
+
+	var added []string
+	for _, entry := range found {
+		if !baseline[entry] {
+			added = append(added, entry)
+		}
+	}
+	seen := make(map[string]bool, len(found))
+	for _, entry := range found {
+		seen[entry] = true
+	}
+	var stale []string
+	for entry := range baseline {
+		if !seen[entry] {
+			stale = append(stale, entry)
+		}
+	}
+	sort.Strings(stale)
+
+	if len(added) > 0 {
+		t.Errorf("new legacy declaration forms (convert them, or add these lines "+
+			"to legacy_baseline.txt with a reason):\n  %s", strings.Join(added, "\n  "))
+	}
+	if len(stale) > 0 {
+		t.Errorf("stale legacy_baseline.txt entries (these forms are gone; delete "+
+			"the lines):\n  %s", strings.Join(stale, "\n  "))
+	}
+}
+
+// declarationFile is the subset of a tool declaration this gate reads. It
+// decodes with plain yaml.v3 rather than importing catalog, so the gate stays
+// test-only and cannot drift into depending on the production loader.
+type declarationFile struct {
+	Includes []string `yaml:"includes"`
+	Tools    []struct {
+		Name      string `yaml:"name"`
+		Category  string `yaml:"category"`
+		Signature *struct {
+			Input  string   `yaml:"input"`
+			Output string   `yaml:"output"`
+			Emits  []string `yaml:"emits"`
+		} `yaml:"signature"`
+		SideEffects   []map[string]any `yaml:"side_effects"`
+		Reversibility struct {
+			Classification string `yaml:"classification"`
+		} `yaml:"reversibility"`
+		Undo struct {
+			Strategy string `yaml:"strategy"`
+		} `yaml:"undo"`
+	} `yaml:"tools"`
+}
+
+func collectLegacyEntries(t *testing.T) []string {
+	t.Helper()
+	var entries []string
+	for _, root := range declarationRoots(t) {
+		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || !isYAML(path) {
+				return nil
+			}
+			entries = append(entries, fileEntries(t, path)...)
+			return nil
+		})
+	}
+	sort.Strings(entries)
+	return entries
+}
+
+func fileEntries(t *testing.T, path string) []string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var file declarationFile
+	// A file that is not a tool declaration decodes to nothing and contributes
+	// nothing; this walks far more YAML than it classifies.
+	if yaml.Unmarshal(data, &file) != nil {
+		return nil
+	}
+	rel := repoRelative(t, path)
+	var entries []string
+	if len(file.Includes) > 0 {
+		entries = append(entries, classIncludes+":"+rel)
+	}
+	for _, tool := range file.Tools {
+		if tool.Name == "" {
+			continue
+		}
+		switch {
+		case tool.Signature == nil:
+			if typedCategories[tool.Category] {
+				entries = append(entries, fmt.Sprintf("%s:%s:%s", classUntypedTool, rel, tool.Name))
+			}
+		case retainsDefaultedProse(tool.SideEffects, tool.Reversibility.Classification, tool.Undo.Strategy):
+			entries = append(entries, fmt.Sprintf("%s:%s:%s", classProseDefaulted, rel, tool.Name))
+		}
+	}
+	return entries
+}
+
+// retainsDefaultedProse reports a signed tool still carrying a block whose value
+// is exactly what its category would default it to, so deleting it changes
+// nothing. A block that differs is an authored override and is left alone
+// (srd051 R6.10).
+func retainsDefaultedProse(sideEffects []map[string]any, reversibility, undo string) bool {
+	if reversibility == "reversible" || undo == "noop" {
+		return true
+	}
+	return len(sideEffects) == 1 && fmt.Sprint(sideEffects[0]["kind"]) == "none"
+}
+
+// declarationRoots are the trees this gate classifies: the agent-core fixtures
+// and every application. The shipped builtin words under agent-core/tools are
+// included because GH-1971 converts them too.
+func declarationRoots(t *testing.T) []string {
+	t.Helper()
+	module := moduleRoot(t)
+	repo := filepath.Dir(module)
+	return []string{
+		filepath.Join(module, "testdata"),
+		filepath.Join(module, "tools"),
+		filepath.Join(repo, "applications"),
+	}
+}
+
+func isYAML(path string) bool {
+	ext := filepath.Ext(path)
+	return ext == ".yaml" || ext == ".yml"
+}
+
+func repoRelative(t *testing.T, path string) string {
+	t.Helper()
+	repo := filepath.Dir(moduleRoot(t))
+	rel, err := filepath.Rel(repo, path)
+	require.NoError(t, err)
+	return filepath.ToSlash(rel)
+}
+
+func thisDir(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	return filepath.Dir(file)
+}
+
+func moduleRoot(t *testing.T) string {
+	t.Helper()
+	dir := thisDir(t)
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		require.NotEqual(t, parent, dir, "go.mod not found above the test directory")
+		dir = parent
+	}
+}
+
+func loadBaseline(t *testing.T, path string) map[string]bool {
+	t.Helper()
+	file, err := os.Open(path)
+	require.NoError(t, err, "regenerate with: go test ./internal/declstyle -update")
+	defer func() { _ = file.Close() }()
+	baseline := map[string]bool{}
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		baseline[line] = true
+	}
+	require.NoError(t, scanner.Err())
+	return baseline
+}
