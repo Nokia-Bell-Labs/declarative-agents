@@ -1,0 +1,18 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: control-types-program
+imports:
+  - ../../units/control-tools.yaml
+  - ../../units/control-types.yaml
+  - ../../../../tools/builtin/lifecycle/exit-agent.yaml
+tools:
+  - name: exit_agent
+    override: true
+    type: builtin
+    init: exit_agent
+    category: lifecycle
+    visibility: internal
+    emits: [AgentExited, CommandError]
+    output:
+      description: The outcome of the exit request.
+      schema: {$type: control-types.ExitReport}

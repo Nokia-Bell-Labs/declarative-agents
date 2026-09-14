@@ -1,0 +1,232 @@
+dump_version: 1
+profile:
+  name: core-control-types
+  machine: <agent-core>/testdata/integration/profiles/control-types/machine.yaml
+  tools:
+    - <agent-core>/testdata/integration/profiles/control-types/tools.yaml
+  tool_declarations:
+    - <agent-core>/testdata/integration/profiles/control-types/declarations.yaml
+  rest_definitions:
+    - <agent-core>/testdata/integration/profiles/control-types/rest.yaml
+machine:
+  name: core-control
+  purpose: Prove generic REST control and deferred shutdown in Agent Core.
+  initial_state: Idle
+  states:
+    - name: Idle
+      meaning: Initial state.
+    - name: Launching
+      meaning: Starting the control server.
+    - name: Awaiting
+      meaning: Waiting for an exit request.
+    - name: Exiting
+      meaning: Dispatching exit_agent.
+    - name: Succeeded
+      meaning: Terminal success.
+      run_status: succeeded
+    - name: Failed
+      meaning: Terminal failure.
+      run_status: failed
+  terminal_states:
+    - Succeeded
+    - Failed
+  signals:
+    - name: Seed
+      trigger: Loop initialization.
+    - name: ServerLaunched
+      trigger: Control server started.
+    - name: ExitRequested
+      trigger: Operator requested exit.
+    - name: AwaitTimedOut
+      trigger: No event arrived.
+    - name: ServerStopped
+      trigger: Server stopped.
+    - name: AgentExited
+      trigger: exit_agent requested shutdown.
+    - name: CommandError
+      trigger: Runtime failure.
+  transitions:
+    - state: Idle
+      signal: Seed
+      next: Launching
+      action: launch_agent_control
+    - state: Launching
+      signal: ServerLaunched
+      next: Awaiting
+      action: await_agent_control
+    - state: Launching
+      signal: CommandError
+      next: Failed
+    - state: Awaiting
+      signal: ExitRequested
+      next: Exiting
+      action: exit_agent
+    - state: Awaiting
+      signal: AwaitTimedOut
+      next: Failed
+    - state: Awaiting
+      signal: ServerStopped
+      next: Failed
+    - state: Awaiting
+      signal: CommandError
+      next: Failed
+    - state: Exiting
+      signal: AgentExited
+      next: Succeeded
+    - state: Exiting
+      signal: CommandError
+      next: Failed
+  budget:
+    max_iterations: 5
+    command_timeout: 1m
+types:
+  - ref: control-types.ExitOutcome
+    description: The outcome an exiting control agent reports.
+    schema:
+      properties:
+        detail:
+          type: string
+        status:
+          enum:
+            - exited
+            - refused
+          type: string
+      required:
+        - status
+      type: object
+  - ref: control-types.ExitReport
+    description: An exit outcome with the request that produced it.
+    schema:
+      properties:
+        outcome:
+          $type: control-types.ExitOutcome
+        requests:
+          items:
+            type: integer
+          type: array
+      type: object
+tools:
+  - name: await_agent_control
+    type: builtin
+    category: boundary
+    description: ""
+    init: rest_await_event
+    config:
+      sources:
+        - routes:
+            - exit
+          server: agent_control
+          signals:
+            - ExitRequested
+      stopped_behavior: emit_server_stopped
+      timeout: 30s
+    emits:
+      - ExitRequested
+      - AwaitTimedOut
+      - ServerStopped
+      - CommandError
+    visibility: internal
+  - name: exit_agent
+    type: builtin
+    category: lifecycle
+    description: ""
+    output:
+      description: The outcome of the exit request.
+      schema:
+        properties:
+          outcome:
+            properties:
+              detail:
+                type: string
+              status:
+                enum:
+                  - exited
+                  - refused
+                type: string
+            required:
+              - status
+            type: object
+          requests:
+            items:
+              type: integer
+            type: array
+        type: object
+    init: exit_agent
+    emits:
+      - AgentExited
+      - CommandError
+    visibility: internal
+    override: true
+  - name: launch_agent_control
+    type: builtin
+    category: boundary
+    description: ""
+    init: rest_server_launch
+    config:
+      rest_ref: agent_control
+    emits:
+      - ServerLaunched
+      - CommandError
+    visibility: internal
+rest:
+  version: v1
+  servers:
+    agent_control:
+      address: 127.0.0.1:0
+      limits_ref: local
+      queue:
+        name: agent_control
+        capacity: 8
+        timeout: 30s
+      endpoints:
+        exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              properties:
+                reason:
+                  type: string
+              type: object
+          response:
+            output:
+              accepted: "true"
+          machine_request: {}
+      shutdown:
+        timeout: 5s
+        drain_policy: drain_then_stop
+  limits:
+    local:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        hosts:
+          - 127.0.0.1
+          - localhost
+        ports:
+          - 0
+files:
+  - path: <agent-core>/testdata/integration/profiles/control-types/declarations.yaml
+    sha256: 56a5579fcba94bf428ff973014be2cfecea3a7fd6ac946ca810de4df7dee7bb9
+  - path: <agent-core>/testdata/integration/profiles/control-types/machine.yaml
+    sha256: f0a81710ab6abdee8e98211a7f0aa8376c1e78424774843c431add797f224554
+  - path: <agent-core>/testdata/integration/profiles/control-types/profile.yaml
+    sha256: 4216fc046f36dbf8babd7c67885b8c2961e76cd5723fba6a7786f1687f636f6e
+  - path: <agent-core>/testdata/integration/profiles/control-types/rest.yaml
+    sha256: fd72094564d5b16b608fb5109f1fa99fbe47202f00c113ce1fd2e64c0105d3c0
+  - path: <agent-core>/testdata/integration/profiles/control-types/tools.yaml
+    sha256: eea1c18fd35061524edeed0fd8f6d647838784c5ae598c76f15ed00b4a42517d
+  - path: <agent-core>/testdata/integration/units/control-rest.yaml
+    sha256: e332735889a88387c408e3cf3d646dccddb10d3ee841f84b55e3c00b745cdd3f
+  - path: <agent-core>/testdata/integration/units/control-tools.yaml
+    sha256: 10fbd112582fc4f2f4bce55fc92a45d50733352f5b78bd2432e7d5332b807967
+  - path: <agent-core>/testdata/integration/units/control-types.yaml
+    sha256: ed6608b6e81df7eac4ba4d67308236026a7a25cc7130091f01bc9996731a4362
+  - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
+    sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25
