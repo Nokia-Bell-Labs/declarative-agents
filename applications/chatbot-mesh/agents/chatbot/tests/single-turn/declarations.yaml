@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: mesh-chatbot-tests-single-turn-declarations
 tools:
   - name: drive_chat_turn
     type: builtin
