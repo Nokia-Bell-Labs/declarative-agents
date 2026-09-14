@@ -54,6 +54,10 @@ rest:
 	for _, path := range []string{top, middle, leaf} {
 		require.Equal(t, 1, visits[path], path)
 	}
+	require.Len(t, def.DeclarationImports(), 2)
+	source, ok := def.DeclarationSource("limits", "shared-limits")
+	require.True(t, ok)
+	require.Equal(t, DeclarationSource{Unit: "shared-leaf", Path: leaf}, source)
 }
 
 func TestLoadDefinitionClosureReusesDiamondSourceOnce(t *testing.T) {
@@ -101,6 +105,10 @@ rest:
 	require.Nil(t, def.OpenAPI)
 	require.Equal(t, "GET", def.Clients["shared"].Operations["listItems"].Method)
 	require.Equal(t, "/items", def.Clients["shared"].Operations["listItems"].Path)
+	require.Equal(t,
+		[]DeclarationSource{{Unit: "shared-api", Path: filepath.Join(root, "shared", "rest.yaml")}},
+		def.OpenAPISourcesFor("client", "shared"),
+	)
 }
 
 func TestLoadDefinitionClosureRejectsEveryMapFamilyCollision(t *testing.T) {

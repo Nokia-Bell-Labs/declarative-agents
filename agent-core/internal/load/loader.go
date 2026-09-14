@@ -91,7 +91,7 @@ type resolvedConfig struct {
 func loadResolvedConfig(
 	profile catalog.AgentProfile, options Options, visit catalog.FileVisitor,
 ) (resolvedConfig, error) {
-	universe, err := loadToolUniverse(profile, visit)
+	universe, toolImports, err := loadToolUniverse(profile, visit)
 	if err != nil {
 		return resolvedConfig{}, err
 	}
@@ -109,23 +109,41 @@ func loadResolvedConfig(
 	if err != nil {
 		return resolvedConfig{}, err
 	}
-	selection := []string(nil)
+	selection, selected, err := resolveSelectedTools(profile, machine, universe, options, visit)
+	if err != nil {
+		return resolvedConfig{}, err
+	}
+	if err := validateImportUsedness(selected, rest, toolImports); err != nil {
+		return resolvedConfig{}, err
+	}
+	return resolvedConfig{
+		universe: universe, selection: selection, selected: selected,
+		rest: rest, machine: machine, machinePath: machinePath,
+	}, nil
+}
+
+func resolveSelectedTools(
+	profile catalog.AgentProfile,
+	machine core.MachineSpec,
+	universe []catalog.ToolDef,
+	options Options,
+	visit catalog.FileVisitor,
+) ([]string, []catalog.ToolDef, error) {
+	var selection []string
+	var err error
 	if options.ResolveSelection != nil {
 		selection, err = options.ResolveSelection(profile, machine, universe, visit)
 	} else {
 		selection, err = catalog.LoadToolSelectionsWithVisitor(profile.Tools, visit)
 	}
 	if err != nil {
-		return resolvedConfig{}, fmt.Errorf("load tool selection: %w", err)
+		return nil, nil, fmt.Errorf("load tool selection: %w", err)
 	}
 	selected, err := catalog.SelectTools(universe, selection)
 	if err != nil {
-		return resolvedConfig{}, fmt.Errorf("select tools: %w", err)
+		return nil, nil, fmt.Errorf("select tools: %w", err)
 	}
-	return resolvedConfig{
-		universe: universe, selection: selection, selected: selected,
-		rest: rest, machine: machine, machinePath: machinePath,
-	}, nil
+	return selection, selected, nil
 }
 
 func loadMachine(path string, visit catalog.FileVisitor) (core.MachineSpec, error) {
@@ -160,14 +178,14 @@ func readMissingAssets(files []string, assets map[string][]byte) error {
 
 func loadToolUniverse(
 	profile catalog.AgentProfile, visit catalog.FileVisitor,
-) ([]catalog.ToolDef, error) {
-	fromDirs, explicit, err := catalog.LoadToolDeclarationClosure(
+) ([]catalog.ToolDef, []catalog.ToolImport, error) {
+	fromDirs, explicit, imports, err := catalog.LoadToolDeclarationClosureWithImports(
 		profile.ToolConfigDirs, profile.ToolDeclarations, visit,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("load tool declarations: %w", err)
+		return nil, nil, fmt.Errorf("load tool declarations: %w", err)
 	}
-	return catalog.MergeToolDefs(fromDirs, explicit), nil
+	return catalog.MergeToolDefs(fromDirs, explicit), imports, nil
 }
 
 func programFiles(

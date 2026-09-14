@@ -51,7 +51,7 @@ func compileOpenAPIImportsFromSources(
 ) error {
 	bases := make(map[string]string, len(sources))
 	for name, source := range sources {
-		bases[name] = filepath.Dir(source.path)
+		bases[name] = filepath.Dir(source.Path)
 	}
 	return compileOpenAPIImportsWithBases(def, bases, visit)
 }
@@ -85,6 +85,7 @@ func compileOpenAPIImportsWithBases(
 		if err := applyOpenAPIRefs(def, name, operations); err != nil {
 			return err
 		}
+		recordOpenAPIConsumers(def, name, operations)
 	}
 	def.OpenAPI = nil
 	return nil

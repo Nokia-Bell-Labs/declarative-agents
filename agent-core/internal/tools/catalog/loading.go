@@ -99,20 +99,29 @@ func LoadToolDeclarationsFromDirsWithVisitor(dirs []string, visit FileVisitor) (
 func LoadToolDeclarationClosure(
 	dirs, explicit []string, visit FileVisitor,
 ) ([]ToolDef, []ToolDef, error) {
+	fromDirs, local, _, err := LoadToolDeclarationClosureWithImports(dirs, explicit, visit)
+	return fromDirs, local, err
+}
+
+// LoadToolDeclarationClosureWithImports also returns authored import edges for
+// closure-level usedness validation.
+func LoadToolDeclarationClosureWithImports(
+	dirs, explicit []string, visit FileVisitor,
+) ([]ToolDef, []ToolDef, []ToolImport, error) {
 	paths, err := toolDeclarationPaths(dirs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	resolver := productionToolImportResolver(visit)
 	fromDirs, err := resolver.loadRoots(paths)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	local, err := resolver.loadRoots(explicit)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return fromDirs, local, nil
+	return fromDirs, local, resolver.importEdges(), nil
 }
 
 func toolDeclarationPaths(dirs []string) ([]string, error) {

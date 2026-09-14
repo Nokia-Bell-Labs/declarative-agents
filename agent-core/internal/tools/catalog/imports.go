@@ -31,6 +31,12 @@ type ToolSource struct {
 	Path string
 }
 
+// ToolImport is one authored dependency between declaration units.
+type ToolImport struct {
+	Importer ToolSource
+	Imported ToolSource
+}
+
 // DeclarationSource returns the tool's loader-assigned provenance.
 func (td ToolDef) DeclarationSource() ToolSource {
 	return ToolSource{Unit: td.sourceUnit, Path: td.sourcePath}
@@ -50,6 +56,7 @@ type toolImportResolver struct {
 	visiting        map[string]int
 	stack           []string
 	warned          map[string]bool
+	imports         []ToolImport
 	hasImportEdges  bool
 	hasIncludeEdges bool
 }
@@ -135,10 +142,19 @@ func (r *toolImportResolver) resolveFile(file ToolDefsFile, path string) ([]Tool
 func (r *toolImportResolver) resolveImports(file ToolDefsFile, path string) ([]ToolDef, error) {
 	var merged []ToolDef
 	for _, importPath := range file.Imports {
-		defs, err := r.resolve(filepath.Join(filepath.Dir(path), importPath), true, "import")
+		target, err := canonicalToolDeclarationPath(filepath.Join(filepath.Dir(path), importPath))
+		if err != nil {
+			return nil, err
+		}
+		defs, err := r.resolve(target, true, "import")
 		if err != nil {
 			return nil, fmt.Errorf("tool unit %q at %s imports %q: %w", file.Unit, path, importPath, err)
 		}
+		importedFile := r.files[target]
+		r.imports = append(r.imports, ToolImport{
+			Importer: ToolSource{Unit: file.Unit, Path: path},
+			Imported: ToolSource{Unit: importedFile.Unit, Path: target},
+		})
 		merged, err = mergeImportedTools(merged, defs)
 		if err != nil {
 			return nil, fmt.Errorf("tool unit %q at %s: %w", file.Unit, path, err)
@@ -344,4 +360,8 @@ func formatToolSource(source ToolSource) string {
 
 func productionToolImportResolver(visit FileVisitor) *toolImportResolver {
 	return newToolImportResolver(visit, os.Stderr)
+}
+
+func (r *toolImportResolver) importEdges() []ToolImport {
+	return append([]ToolImport(nil), r.imports...)
 }

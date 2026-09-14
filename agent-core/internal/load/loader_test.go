@@ -4,9 +4,11 @@
 package load
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -58,6 +60,39 @@ func TestLoadClosureLoadsControlProfileDeterministically(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, ollama.Files,
 		canonicalPath(filepath.Join(filepath.Dir(ollamaProfile), "openapi.yaml")))
+}
+
+func TestControlImportsMatchesResolvedControlProgram(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	require.NoError(t, err)
+	previous := corepath.InstallRoot()
+	corepath.SetInstallRoot(root)
+	t.Cleanup(func() { corepath.SetInstallRoot(previous) })
+	profiles := filepath.Join(root, "testdata", "integration", "profiles")
+
+	control, err := LoadClosure(filepath.Join(profiles, "control", "profile.yaml"), Options{})
+	require.NoError(t, err)
+	imported, err := LoadClosure(filepath.Join(profiles, "control-imports", "profile.yaml"), Options{})
+	require.NoError(t, err)
+
+	require.Equal(t, normalizedResolvedDump(t, control), normalizedResolvedDump(t, imported))
+	for _, name := range []string{
+		"declarations.yaml", "control-tools.yaml", "lifecycle-tools.yaml",
+		"rest.yaml", "control-rest.yaml",
+	} {
+		require.Contains(t, imported.Files,
+			canonicalPath(filepath.Join(profiles, "control-imports", name)))
+	}
+}
+
+func normalizedResolvedDump(t *testing.T, closure *Closure) string {
+	t.Helper()
+	view := *closure
+	view.Profile = catalog.AgentProfile{}
+	view.Files = nil
+	var output bytes.Buffer
+	require.NoError(t, DumpConfig(&view, &output))
+	return output.String()
 }
 
 func TestClosureAssetsKeepDigestBoundToLoadedBytes(t *testing.T) {
@@ -164,6 +199,145 @@ func TestLoadClosureRejectsMultipleDocumentsAtEveryYAMLLoader(t *testing.T) {
 			require.ErrorContains(t, err, "multiple YAML documents")
 		})
 	}
+}
+
+func TestLoadClosureRejectsUnusedToolImportsDeterministically(t *testing.T) {
+	root := writeUsednessClosureFixture(t, "selected")
+	writeLoadFixture(t, root, "a.yaml", "unit: alpha\ntools:\n- {name: unused-a, binary: echo}\n")
+	writeLoadFixture(t, root, "z.yaml", "unit: zulu\ntools:\n- {name: unused-z, binary: echo}\n")
+	writeLoadFixture(t, root, "declarations.yaml", `unit: root
+imports: [z.yaml, a.yaml]
+tools:
+  - {name: selected, binary: echo}
+`)
+
+	_, err := LoadClosure(filepath.Join(root, "profile.yaml"), Options{})
+
+	require.ErrorContains(t, err, "unused declaration imports")
+	require.ErrorContains(t, err, `tool unit "alpha"`)
+	require.ErrorContains(t, err, filepath.Join(root, "a.yaml"))
+	require.ErrorContains(t, err, `tool unit "zulu"`)
+	require.Less(t, strings.Index(err.Error(), `unit "alpha"`), strings.Index(err.Error(), `unit "zulu"`))
+}
+
+func TestLoadClosureAcceptsUsedToolImportAndDiamondReexports(t *testing.T) {
+	root := writeUsednessClosureFixture(t, "shared")
+	writeLoadFixture(t, root, "leaf.yaml", "unit: leaf\ntools:\n- {name: shared, binary: echo}\n")
+	writeLoadFixture(t, root, "left.yaml", "unit: left\nimports: [leaf.yaml]\ntools: []\n")
+	writeLoadFixture(t, root, "right.yaml", "unit: right\nimports: [leaf.yaml]\ntools: []\n")
+	writeLoadFixture(t, root, "declarations.yaml", "unit: root\nimports: [left.yaml, right.yaml]\ntools: []\n")
+
+	closure, err := LoadClosure(filepath.Join(root, "profile.yaml"), Options{})
+
+	require.NoError(t, err)
+	require.Len(t, closure.Selected, 1)
+	require.Equal(t, "leaf", closure.Selected[0].DeclarationSource().Unit)
+}
+
+func TestLoadClosureTreatsSelectedOverrideTargetAsUsed(t *testing.T) {
+	root := writeUsednessClosureFixture(t, "shared")
+	writeLoadFixture(t, root, "base.yaml", "unit: base\ntools:\n- {name: shared, binary: old}\n")
+	writeLoadFixture(t, root, "declarations.yaml", `unit: root
+imports: [base.yaml]
+tools:
+  - {name: shared, binary: new, override: true}
+`)
+
+	closure, err := LoadClosure(filepath.Join(root, "profile.yaml"), Options{})
+
+	require.NoError(t, err)
+	require.Equal(t, "new", closure.Selected[0].Binary)
+	require.Equal(t, "base", closure.Selected[0].OverrideTarget().Unit)
+}
+
+func TestLoadClosureRejectsUnusedRESTImport(t *testing.T) {
+	root := writeUsednessClosureFixture(t, "selected")
+	writeLoadFixture(t, root, "declarations.yaml", "tools:\n- {name: selected, binary: echo}\n")
+	imported := writeLoadFixture(t, root, "rest-unused.yaml", `unit: unused-rest
+rest:
+  version: v1
+  limits: {unused: {}}
+`)
+	writeLoadFixture(t, root, "rest.yaml", "unit: rest-root\nimports: [rest-unused.yaml]\nrest: {}\n")
+	writeUsednessProfile(t, root, true)
+
+	_, err := LoadClosure(filepath.Join(root, "profile.yaml"), Options{})
+
+	require.ErrorContains(t, err, `REST unit "unused-rest"`)
+	require.ErrorContains(t, err, imported)
+}
+
+func TestLoadClosureAcceptsReferencedRESTImportsAndDependencies(t *testing.T) {
+	root := writeUsednessClosureFixture(t, "launch")
+	writeLoadFixture(t, root, "declarations.yaml", `tools:
+  - name: launch
+    type: builtin
+    init: rest_server_launch
+    config: {rest_ref: control}
+`)
+	writeLoadFixture(t, root, "limits.yaml", `unit: shared-limits
+rest:
+  version: v1
+  limits:
+    local:
+      timeout: 30s
+      max_request_bytes: 1024
+      max_response_bytes: 1024
+      redirect: {mode: none}
+      network: {hosts: [127.0.0.1], ports: [0]}
+`)
+	writeLoadFixture(t, root, "server.yaml", `unit: control-server
+rest:
+  servers:
+    control:
+      address: 127.0.0.1:0
+      limits_ref: local
+      endpoints:
+        exit:
+          method: POST
+          path: /exit
+          binding: emit_signal
+          signal: ExitRequested
+`)
+	writeLoadFixture(t, root, "rest.yaml", `unit: rest-root
+imports: [server.yaml, limits.yaml]
+rest: {}
+`)
+	writeUsednessProfile(t, root, true)
+
+	closure, err := LoadClosure(filepath.Join(root, "profile.yaml"), Options{})
+
+	require.NoError(t, err)
+	require.Contains(t, closure.Rest.Servers, "control")
+	require.Contains(t, closure.Rest.Limits, "local")
+}
+
+func writeUsednessClosureFixture(t *testing.T, selected string) string {
+	t.Helper()
+	root := t.TempDir()
+	writeLoadFixture(t, root, "machine.yaml", `name: usedness
+initial_state: Idle
+states: [Idle, {name: Done, run_status: succeeded}]
+terminal_states: [Done]
+signals: [Seed]
+transitions: [{state: Idle, signal: Seed, next: Done}]
+`)
+	writeLoadFixture(t, root, "tools.yaml", "tools: ["+selected+"]\n")
+	writeUsednessProfile(t, root, false)
+	return root
+}
+
+func writeUsednessProfile(t *testing.T, root string, withREST bool) {
+	t.Helper()
+	rest := ""
+	if withREST {
+		rest = "rest_definitions: [rest.yaml]\n"
+	}
+	writeLoadFixture(t, root, "profile.yaml", `name: usedness
+machine: machine.yaml
+tools: [tools.yaml]
+tool_declarations: [declarations.yaml]
+`+rest)
 }
 
 func writeStrictClosureFixture(t *testing.T) string {

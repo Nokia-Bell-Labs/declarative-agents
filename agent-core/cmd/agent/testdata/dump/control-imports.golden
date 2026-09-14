@@ -1,0 +1,258 @@
+dump_version: 1
+profile:
+  name: core-control-imports
+  machine: <agent-core>/testdata/integration/profiles/control-imports/machine.yaml
+  tools:
+    - <agent-core>/testdata/integration/profiles/control-imports/tools.yaml
+  tool_declarations:
+    - <agent-core>/testdata/integration/profiles/control-imports/declarations.yaml
+  rest_definitions:
+    - <agent-core>/testdata/integration/profiles/control-imports/rest.yaml
+machine:
+  name: core-control
+  purpose: Prove generic REST control and deferred shutdown in Agent Core.
+  initial_state: Idle
+  states:
+    - name: Idle
+      meaning: Initial state.
+    - name: Launching
+      meaning: Starting the control server.
+    - name: Awaiting
+      meaning: Waiting for an exit request.
+    - name: Exiting
+      meaning: Dispatching exit_agent.
+    - name: Succeeded
+      meaning: Terminal success.
+      run_status: succeeded
+    - name: Failed
+      meaning: Terminal failure.
+      run_status: failed
+  terminal_states:
+    - Succeeded
+    - Failed
+  signals:
+    - name: Seed
+      trigger: Loop initialization.
+    - name: ServerLaunched
+      trigger: Control server started.
+    - name: ExitRequested
+      trigger: Operator requested exit.
+    - name: AwaitTimedOut
+      trigger: No event arrived.
+    - name: ServerStopped
+      trigger: Server stopped.
+    - name: AgentExited
+      trigger: exit_agent requested shutdown.
+    - name: CommandError
+      trigger: Runtime failure.
+  transitions:
+    - state: Idle
+      signal: Seed
+      next: Launching
+      action: launch_agent_control
+    - state: Launching
+      signal: ServerLaunched
+      next: Awaiting
+      action: await_agent_control
+    - state: Launching
+      signal: CommandError
+      next: Failed
+    - state: Awaiting
+      signal: ExitRequested
+      next: Exiting
+      action: exit_agent
+    - state: Awaiting
+      signal: AwaitTimedOut
+      next: Failed
+    - state: Awaiting
+      signal: ServerStopped
+      next: Failed
+    - state: Awaiting
+      signal: CommandError
+      next: Failed
+    - state: Exiting
+      signal: AgentExited
+      next: Succeeded
+    - state: Exiting
+      signal: CommandError
+      next: Failed
+  budget:
+    max_iterations: 5
+    command_timeout: 1m
+tools:
+  - name: await_agent_control
+    type: builtin
+    category: boundary
+    description: ""
+    init: rest_await_event
+    config:
+      sources:
+        - routes:
+            - exit
+          server: agent_control
+          signals:
+            - ExitRequested
+      stopped_behavior: emit_server_stopped
+      timeout: 30s
+    emits:
+      - ExitRequested
+      - AwaitTimedOut
+      - ServerStopped
+      - CommandError
+    visibility: internal
+  - name: exit_agent
+    type: builtin
+    category: boundary
+    contract: migrated
+    description: Request a controlled agent exit through lifecycle vocabulary.
+    problem: |
+      Profiles need an explicit lifecycle word for operator-requested exit,
+      instead of hidden process handlers or REST handlers that terminate the run.
+    goals:
+      - Report AgentExited after the configured runtime shutdown hook is invoked.
+      - Return CommandError when no shutdown hook is wired.
+      - Keep exit routing visible in MachineSpec transitions.
+      - Preserve the selected declaration alias in command results and diagnostics.
+    requirements:
+      input:
+        - must receive reason, status, and drain policy from ToolDef config or validated event context.
+        - must prefer validated runtime event payload fields over ToolDef defaults.
+      output:
+        - must report requested status, reason, drain policy, resulting signal, and optional drain or checkpoint result fields as structured JSON.
+        - must emit no rollback receipt after successful shutdown because the effect is irreversible.
+      side_effects:
+        - must mutate lifecycle run state through the injected shutdown dependency.
+      undo:
+        - must classify a completed shutdown as irreversible and let rollback skip it explicitly.
+      errors:
+        - must fail when the shutdown dependency is missing.
+        - must emit no receipt when shutdown or input validation fails.
+    non_goals:
+      - Does not call os.Exit.
+      - Does not bypass MachineSpec routing.
+    output:
+      description: Agent exit request summary.
+      schema:
+        properties:
+          checkpoint_id:
+            type: string
+          drain_policy:
+            type: string
+          drain_result:
+            type: string
+          reason:
+            type: string
+          signal:
+            type: string
+          status:
+            type: string
+        type: object
+    side_effects:
+      - kind: state_mutation
+        target: lifecycle_state
+        state: exited
+        description: Completes controlled shutdown through an injected runtime dependency.
+    reversibility:
+      classification: irreversible
+      requires_confirmation: true
+    undo:
+      strategy: irreversible
+      description: A completed process shutdown cannot be automatically reversed; rollback reports an explicit irreversible skip.
+    errors:
+      - signal: CommandError
+        condition: shutdown dependency is missing
+        message_shape: exit_agent requires shutdown dependency
+        state_after_failure: run continues until MachineSpec handles CommandError
+      - signal: CommandError
+        condition: previous Result output is malformed or contains non-string lifecycle payload fields
+        message_shape: 'decode exit_agent previous result: <error>'
+        state_after_failure: run continues until MachineSpec handles CommandError
+    relationships:
+      after:
+        - rest_await_event
+      overlaps:
+        - tool: suspend
+          difference: suspend pauses for later resume; exit_agent requests terminal shutdown.
+    init: exit_agent
+    config:
+      drain_policy: stop_servers
+      reason: operator requested shutdown
+      status: success
+    emits:
+      - AgentExited
+      - CommandError
+    parameters:
+      properties: {}
+      type: object
+    visibility: internal
+  - name: launch_agent_control
+    type: builtin
+    category: boundary
+    description: ""
+    init: rest_server_launch
+    config:
+      rest_ref: agent_control
+    emits:
+      - ServerLaunched
+      - CommandError
+    visibility: internal
+rest:
+  version: v1
+  servers:
+    agent_control:
+      address: 127.0.0.1:0
+      limits_ref: local
+      queue:
+        name: agent_control
+        capacity: 8
+        timeout: 30s
+      endpoints:
+        exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              properties:
+                reason:
+                  type: string
+              type: object
+          response:
+            output:
+              accepted: "true"
+          machine_request: {}
+      shutdown:
+        timeout: 5s
+        drain_policy: drain_then_stop
+  limits:
+    local:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        hosts:
+          - 127.0.0.1
+          - localhost
+        ports:
+          - 0
+files:
+  - path: <agent-core>/testdata/integration/profiles/control-imports/control-rest.yaml
+    sha256: e332735889a88387c408e3cf3d646dccddb10d3ee841f84b55e3c00b745cdd3f
+  - path: <agent-core>/testdata/integration/profiles/control-imports/control-tools.yaml
+    sha256: 10fbd112582fc4f2f4bce55fc92a45d50733352f5b78bd2432e7d5332b807967
+  - path: <agent-core>/testdata/integration/profiles/control-imports/declarations.yaml
+    sha256: 3daef91a8e31f246b3db8f53f0443212dbbb92396043a4360df3821cb5a84c48
+  - path: <agent-core>/testdata/integration/profiles/control-imports/lifecycle-tools.yaml
+    sha256: aec6c80f3aa7e94702bbcdb5e9fd58a27c79f9b6a51837e82b0295e02252c066
+  - path: <agent-core>/testdata/integration/profiles/control-imports/machine.yaml
+    sha256: f0a81710ab6abdee8e98211a7f0aa8376c1e78424774843c431add797f224554
+  - path: <agent-core>/testdata/integration/profiles/control-imports/profile.yaml
+    sha256: eb670d531fb0bc868a005bcde47e388e82c8c5512ca1d00e01cc093595ba365a
+  - path: <agent-core>/testdata/integration/profiles/control-imports/rest.yaml
+    sha256: c820f79f34fbaa600965472017b108d06e68091eddd585d918be9a1881b207e5
+  - path: <agent-core>/testdata/integration/profiles/control-imports/tools.yaml
+    sha256: eea1c18fd35061524edeed0fd8f6d647838784c5ae598c76f15ed00b4a42517d

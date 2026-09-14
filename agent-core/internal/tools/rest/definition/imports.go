@@ -13,9 +13,18 @@ import (
 
 var declarationUnitName = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 
-type declarationSource struct {
-	unit string
-	path string
+// DeclarationSource identifies one named REST declaration unit.
+type DeclarationSource struct {
+	Unit string
+	Path string
+}
+
+type declarationSource = DeclarationSource
+
+// DeclarationImport is one authored dependency between REST units.
+type DeclarationImport struct {
+	Importer DeclarationSource
+	Imported DeclarationSource
 }
 
 type declarationUnit struct {
@@ -28,8 +37,10 @@ type importResolver struct {
 	loaded   map[string]bool
 	visiting map[string]int
 	units    map[string]declarationSource
+	sources  map[string]declarationSource
 	stack    []string
 	order    []declarationUnit
+	imports  []DeclarationImport
 }
 
 // LoadDefinitionClosure resolves and compiles REST roots and their imports as
@@ -37,7 +48,7 @@ type importResolver struct {
 func LoadDefinitionClosure(paths []string, visit FileVisitor) (Definition, error) {
 	resolver := &importResolver{
 		visit: visit, loaded: map[string]bool{}, visiting: map[string]int{},
-		units: map[string]declarationSource{},
+		units: map[string]declarationSource{}, sources: map[string]declarationSource{},
 	}
 	for _, path := range paths {
 		if err := resolver.load(path, false); err != nil {
@@ -51,6 +62,7 @@ func LoadDefinitionClosure(paths []string, visit FileVisitor) (Definition, error
 	if err := compileOpenAPIImportsFromSources(&merged, openAPISources, visit); err != nil {
 		return Definition{}, err
 	}
+	merged.declarationImports = append([]DeclarationImport(nil), resolver.imports...)
 	return merged, nil
 }
 
@@ -92,15 +104,16 @@ func (r *importResolver) readUnit(
 	if err := validateDeclarationUnit(file, path, imported); err != nil {
 		return DefinitionFile{}, declarationSource{}, err
 	}
-	source := declarationSource{unit: file.Unit, path: path}
-	if previous, exists := r.units[file.Unit]; file.Unit != "" && exists && previous.path != path {
+	source := declarationSource{Unit: file.Unit, Path: path}
+	if previous, exists := r.units[file.Unit]; file.Unit != "" && exists && previous.Path != path {
 		return DefinitionFile{}, declarationSource{}, fmt.Errorf(
-			"duplicate REST unit %q: %s and %s", file.Unit, previous.path, path,
+			"duplicate REST unit %q: %s and %s", file.Unit, previous.Path, path,
 		)
 	}
 	if file.Unit != "" {
 		r.units[file.Unit] = source
 	}
+	r.sources[path] = source
 	return file, source, nil
 }
 
@@ -109,9 +122,17 @@ func (r *importResolver) loadImports(file DefinitionFile, path string) error {
 		if filepath.IsAbs(importedPath) {
 			return fmt.Errorf("REST unit %q at %s imports absolute path %q", file.Unit, path, importedPath)
 		}
-		if err := r.load(filepath.Join(filepath.Dir(path), importedPath), true); err != nil {
+		target, err := canonicalDeclarationPath(filepath.Join(filepath.Dir(path), importedPath))
+		if err != nil {
+			return err
+		}
+		if err := r.load(target, true); err != nil {
 			return fmt.Errorf("REST unit %q at %s imports %q: %w", file.Unit, path, importedPath, err)
 		}
+		r.imports = append(r.imports, DeclarationImport{
+			Importer: r.sources[path],
+			Imported: r.sources[target],
+		})
 	}
 	return nil
 }
@@ -159,6 +180,7 @@ func mergeDeclarationUnits(
 			openAPISources[name] = unit.source
 		}
 	}
+	merged.declarationSources = exportDeclarationSources(sources)
 	return merged, openAPISources, nil
 }
 
@@ -281,5 +303,77 @@ func mergeRESTFamily(
 }
 
 func formatDeclarationSource(source declarationSource) string {
-	return fmt.Sprintf("unit %q at %s", source.unit, source.path)
+	return fmt.Sprintf("unit %q at %s", source.Unit, source.Path)
+}
+
+func exportDeclarationSources(
+	sources map[string]map[string]declarationSource,
+) map[string]map[string]DeclarationSource {
+	result := make(map[string]map[string]DeclarationSource, len(sources))
+	for family, entries := range sources {
+		result[family] = make(map[string]DeclarationSource, len(entries))
+		for name, source := range entries {
+			result[family][name] = source
+		}
+	}
+	return result
+}
+
+// DeclarationImports returns the authored import edges in traversal order.
+func (d Definition) DeclarationImports() []DeclarationImport {
+	return append([]DeclarationImport(nil), d.declarationImports...)
+}
+
+// DeclarationSource returns the owner of one top-level REST declaration.
+func (d Definition) DeclarationSource(family, name string) (DeclarationSource, bool) {
+	source, ok := d.declarationSources[family][name]
+	return source, ok
+}
+
+// OpenAPISourcesFor returns OpenAPI units compiled into one client or server.
+func (d Definition) OpenAPISourcesFor(kind, name string) []DeclarationSource {
+	consumer := kind + ":" + name
+	var sources []DeclarationSource
+	for openAPIName, consumers := range d.openAPIConsumers {
+		if !consumers[consumer] {
+			continue
+		}
+		if source, ok := d.DeclarationSource("openapi", openAPIName); ok {
+			sources = append(sources, source)
+		}
+	}
+	return sources
+}
+
+func recordOpenAPIConsumers(
+	def *Definition,
+	name string,
+	operations map[string]openAPIOperation,
+) {
+	if def.openAPIConsumers == nil {
+		def.openAPIConsumers = map[string]map[string]bool{}
+	}
+	consumers := map[string]bool{}
+	for clientName, client := range def.Clients {
+		for _, operation := range client.Operations {
+			if _, ok := operations[operation.OpenAPIOperationID]; ok {
+				consumers["client:"+clientName] = true
+			}
+		}
+		for _, resource := range client.Resources {
+			for _, operation := range resource.Operations {
+				if _, ok := operations[operation.OpenAPIOperationID]; ok {
+					consumers["client:"+clientName] = true
+				}
+			}
+		}
+	}
+	for serverName, server := range def.Servers {
+		for _, endpoint := range server.Endpoints {
+			if _, ok := operations[endpoint.OpenAPIOperationID]; ok {
+				consumers["server:"+serverName] = true
+			}
+		}
+	}
+	def.openAPIConsumers[name] = consumers
 }

@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: control-program
+imports:
+  - control-tools.yaml
+  - lifecycle-tools.yaml
+tools: []
