@@ -35,6 +35,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/service"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/typesys"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/version"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profileaudit"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
@@ -680,7 +681,7 @@ func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpe
 	if err := core.ValidateRequiredMachinePolicy(machineSpec); err != nil {
 		return core.MachineSpec{}, fmt.Errorf("load machine runtime policy: %w", err)
 	}
-	if err := validateRuntimeToolWiring(machineSpec, closure.Selected); err != nil {
+	if err := validateRuntimeToolWiring(machineSpec, closure.Selected, closure.Types); err != nil {
 		return core.MachineSpec{}, err
 	}
 	if err := profileaudit.ValidateClosure(closure); err != nil {
@@ -694,7 +695,9 @@ func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpe
 // parse-retry routes, and reversible effects without receipt-consuming undo.
 // Full six-section contract completeness remains an authoring and
 // specification-audit concern.
-func validateRuntimeToolWiring(machine core.MachineSpec, defs []catalog.ToolDef) error {
+func validateRuntimeToolWiring(
+	machine core.MachineSpec, defs []catalog.ToolDef, types *typesys.Registry,
+) error {
 	if err := catalog.ValidateMachineActions(machine, defs); err != nil {
 		return err
 	}
@@ -708,6 +711,9 @@ func validateRuntimeToolWiring(machine core.MachineSpec, defs []catalog.ToolDef)
 		return err
 	}
 	if err := catalog.ValidateSelectorLabelsStrict(machine, defs); err != nil {
+		return err
+	}
+	if err := catalog.ValidateSelectorPathsStrict(machine, defs, types); err != nil {
 		return err
 	}
 	return catalog.ValidateReceiptContracts(defs)

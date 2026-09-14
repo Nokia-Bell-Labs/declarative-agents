@@ -26,7 +26,7 @@ func labelMachine() core.MachineSpec {
 func TestMachineLabelsCollectsEveryPublisher(t *testing.T) {
 	t.Parallel()
 	spec := labelMachine()
-	spec.ExternalLabels = []string{"seeded_request"}
+	spec.ExternalLabels = []core.ExternalLabel{{Name: "seeded_request"}}
 	spec.Transitions = append(spec.Transitions, core.TransitionSpec{
 		State: "Fetched", Signal: "Each", Next: "Joined", Action: "step",
 		ForEach: &core.ForEachSpec{
@@ -139,7 +139,7 @@ func TestValidateSelectorLabelsCountsExternalLabels(t *testing.T) {
 	require.Len(t, catalog.ValidateSelectorLabels(spec, defs), 1,
 		"an unseeded label is unresolved")
 
-	spec.ExternalLabels = []string{"seeded_request"}
+	spec.ExternalLabels = []core.ExternalLabel{{Name: "seeded_request"}}
 	require.Empty(t, catalog.ValidateSelectorLabels(spec, defs),
 		"declaring the runtime-seeded label resolves it")
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/typesys"
 )
 
 // Load-time resolution of $from(label) selectors against the labels a machine
@@ -31,7 +32,7 @@ func MachineLabels(spec core.MachineSpec) map[string]struct{} {
 		}
 	}
 	for _, label := range spec.ExternalLabels {
-		add(label)
+		add(label.Name)
 	}
 	for _, transition := range spec.Transitions {
 		add(transition.Label)
@@ -217,7 +218,7 @@ func nearestLabel(label string, labels map[string]struct{}) string {
 	}
 	sort.Strings(candidates)
 	for _, candidate := range candidates {
-		if distance := editDistance(label, candidate); distance < bestDistance {
+		if distance := typesys.EditDistance(label, candidate); distance < bestDistance {
 			best, bestDistance = candidate, distance
 		}
 	}
@@ -232,34 +233,6 @@ func editDistanceLimit(label string) int {
 		return 1
 	}
 	return limit
-}
-
-func editDistance(a, b string) int {
-	ar, br := []rune(a), []rune(b)
-	previous := make([]int, len(br)+1)
-	current := make([]int, len(br)+1)
-	for j := range previous {
-		previous[j] = j
-	}
-	for i := 1; i <= len(ar); i++ {
-		current[0] = i
-		for j := 1; j <= len(br); j++ {
-			cost := 1
-			if ar[i-1] == br[j-1] {
-				cost = 0
-			}
-			current[j] = minInt(minInt(current[j-1]+1, previous[j]+1), previous[j-1]+cost)
-		}
-		previous, current = current, previous
-	}
-	return previous[len(br)]
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // ValidateSelectorLabelsStrict is the load-time gate: it turns the selector

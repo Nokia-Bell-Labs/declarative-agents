@@ -29,7 +29,7 @@ func TestRuntimeStartupValidatesWiringNotFullContractCompleteness(t *testing.T) 
 		Emits: []string{"ToolDone"},
 	}
 
-	require.NoError(t, validateRuntimeToolWiring(machine, []catalog.ToolDef{incomplete}),
+	require.NoError(t, validateRuntimeToolWiring(machine, []catalog.ToolDef{incomplete}, nil),
 		"ordinary startup accepts incomplete descriptive metadata when wiring is safe")
 	require.NotEmpty(t,
 		catalog.ValidateToolContracts([]catalog.ToolDef{incomplete},
@@ -39,7 +39,7 @@ func TestRuntimeStartupValidatesWiringNotFullContractCompleteness(t *testing.T) 
 	badWiring := incomplete
 	badWiring.Emits = []string{"UndeclaredSignal"}
 	require.ErrorContains(t,
-		validateRuntimeToolWiring(machine, []catalog.ToolDef{badWiring}),
+		validateRuntimeToolWiring(machine, []catalog.ToolDef{badWiring}, nil),
 		"tool emits validation",
 		"ordinary startup rejects emitted signals the machine cannot route")
 }
@@ -64,19 +64,19 @@ func TestRuntimeStartupRejectsUnresolvedSelectorLabel(t *testing.T) {
 		Config: map[string]interface{}{"source": "$from(fetched).body"},
 	}
 
-	require.NoError(t, validateRuntimeToolWiring(machine, []catalog.ToolDef{read, report}),
+	require.NoError(t, validateRuntimeToolWiring(machine, []catalog.ToolDef{read, report}, nil),
 		"a selector naming a published label loads")
 
 	typo := report
 	typo.Config = map[string]interface{}{"source": "$from(fetchedd).body"}
-	err := validateRuntimeToolWiring(machine, []catalog.ToolDef{read, typo})
+	err := validateRuntimeToolWiring(machine, []catalog.ToolDef{read, typo}, nil)
 	require.ErrorContains(t, err, "unresolved selector labels")
 	require.ErrorContains(t, err, `tool "report"`)
 	require.ErrorContains(t, err, `$from(fetchedd).body`)
 	require.ErrorContains(t, err, `closest declared label is "fetched"`)
 
 	seeded := machine
-	seeded.ExternalLabels = []string{"fetchedd"}
-	require.NoError(t, validateRuntimeToolWiring(seeded, []catalog.ToolDef{read, typo}),
+	seeded.ExternalLabels = []core.ExternalLabel{{Name: "fetchedd"}}
+	require.NoError(t, validateRuntimeToolWiring(seeded, []catalog.ToolDef{read, typo}, nil),
 		"declaring the label as runtime-seeded resolves the same selector")
 }
