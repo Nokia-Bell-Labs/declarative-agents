@@ -5,7 +5,10 @@ package main
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/reusestats"
 )
 
 // TestSumAgentsTotals proves the repo-wide agents total sums the per-module
@@ -112,5 +115,43 @@ func TestSumAgentsTotalsBadJSON(t *testing.T) {
 	}
 	if _, err := sumAgentsTotals(results); err == nil {
 		t.Fatal("sumAgentsTotals = nil error, want parse failure")
+	}
+}
+
+func TestSumReuseResultsAggregatesAndRanksDeterministically(t *testing.T) {
+	t.Parallel()
+	results := map[string]reusestats.Result{
+		"module-b": {
+			TotalLines: 80, DuplicatedLines: 20, CeremonyLines: 6, BehaviorLines: 3,
+			DistinctToolDefs: 4, ToolRefs: 7,
+			TopBlocks: []reusestats.DuplicateBlock{{
+				Hash: "shared", Lines: 5, Count: 2, Files: []string{"b.yaml"},
+			}},
+		},
+		"module-a": {
+			TotalLines: 20, DuplicatedLines: 5, CeremonyLines: 2, BehaviorLines: 1,
+			DistinctToolDefs: 2, ToolRefs: 3,
+			TopBlocks: []reusestats.DuplicateBlock{{
+				Hash: "shared", Lines: 5, Count: 3, Files: []string{"a.yaml"},
+			}},
+		},
+	}
+
+	got := sumReuseResults(results)
+
+	if got.TotalLines != 100 || got.DuplicatedLines != 25 ||
+		got.DuplicationRatio != 0.25 || got.CeremonyRatio != 2 {
+		t.Fatalf("scalar reuse total = %#v", got)
+	}
+	if got.CeremonyLines != 8 || got.BehaviorLines != 4 ||
+		got.DistinctToolDefs != 6 || got.ToolRefs != 10 {
+		t.Fatalf("count reuse total = %#v", got)
+	}
+	wantBlock := reusestats.DuplicateBlock{
+		Hash: "shared", Lines: 5, Count: 5,
+		Files: []string{"module-a/a.yaml", "module-b/b.yaml"},
+	}
+	if len(got.TopBlocks) != 1 || !reflect.DeepEqual(got.TopBlocks[0], wantBlock) {
+		t.Fatalf("TopBlocks = %#v, want %#v", got.TopBlocks, wantBlock)
 	}
 }

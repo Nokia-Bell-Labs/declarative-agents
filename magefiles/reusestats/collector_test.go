@@ -18,9 +18,9 @@ func TestCollectPinsFixtureMetrics(t *testing.T) {
 		t.Fatalf("TopBlocks = %#v, want one", first.TopBlocks)
 	}
 	want := Result{
-		TotalLines:       39,
+		TotalLines:       45,
 		DuplicatedLines:  3,
-		DuplicationRatio: 3.0 / 39.0,
+		DuplicationRatio: 3.0 / 45.0,
 		CeremonyLines:    6,
 		BehaviorLines:    8,
 		CeremonyRatio:    6.0 / 8.0,

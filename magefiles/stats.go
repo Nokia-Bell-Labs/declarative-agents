@@ -10,6 +10,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/reusestats"
 )
 
 // Stats runs mage stats in each sub-module and participating application module,
@@ -31,6 +34,127 @@ func Stats() error {
 	}
 	_, err = os.Stdout.Write(formatted)
 	return err
+}
+
+func writeReuseStats() error {
+	raw, err := collectReuseStats()
+	if err != nil {
+		return err
+	}
+	formatted, err := formatJSON(raw)
+	if err != nil {
+		return err
+	}
+	_, err = os.Stdout.Write(formatted)
+	return err
+}
+
+func collectReuseStats() ([]byte, error) {
+	results := make(map[string]reusestats.Result)
+	for _, mod := range statsParticipants() {
+		mageDir := filepath.Join(mod, "magefiles")
+		if _, err := os.Stat(mageDir); os.IsNotExist(err) {
+			continue
+		}
+		result, err := runMageReuse(mod)
+		if err != nil {
+			return nil, fmt.Errorf("reuse stats in %s: %w", mod, err)
+		}
+		results[filepath.ToSlash(filepath.Clean(mod))] = result
+	}
+	results[reuseTotalKey] = sumReuseResults(results)
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(results); err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
+}
+
+const reuseTotalKey = "reuse_total"
+
+func runMageReuse(dir string) (reusestats.Result, error) {
+	cmd := exec.Command("mage", "stats:reuse")
+	cmd.Dir = dir
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return reusestats.Result{}, err
+	}
+	var result reusestats.Result
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		return result, fmt.Errorf("parse reuse stats from %s: %w", dir, err)
+	}
+	return result, nil
+}
+
+func sumReuseResults(results map[string]reusestats.Result) reusestats.Result {
+	var total reusestats.Result
+	groups := map[string]reusestats.DuplicateBlock{}
+	for module, result := range results {
+		if module == reuseTotalKey {
+			continue
+		}
+		total.TotalLines += result.TotalLines
+		total.DuplicatedLines += result.DuplicatedLines
+		total.CeremonyLines += result.CeremonyLines
+		total.BehaviorLines += result.BehaviorLines
+		total.DistinctToolDefs += result.DistinctToolDefs
+		total.ToolRefs += result.ToolRefs
+		addModuleBlocks(groups, module, result.TopBlocks)
+	}
+	total.DuplicationRatio = statsRatio(total.DuplicatedLines, total.TotalLines)
+	total.CeremonyRatio = statsRatio(total.CeremonyLines, total.BehaviorLines)
+	total.TopBlocks = rankedReuseBlocks(groups)
+	return total
+}
+
+func addModuleBlocks(
+	groups map[string]reusestats.DuplicateBlock,
+	module string,
+	blocks []reusestats.DuplicateBlock,
+) {
+	for _, block := range blocks {
+		group := groups[block.Hash]
+		group.Hash = block.Hash
+		if block.Lines > group.Lines {
+			group.Lines = block.Lines
+		}
+		group.Count += block.Count
+		for _, file := range block.Files {
+			group.Files = append(group.Files, filepath.ToSlash(filepath.Join(module, file)))
+		}
+		groups[block.Hash] = group
+	}
+}
+
+func rankedReuseBlocks(groups map[string]reusestats.DuplicateBlock) []reusestats.DuplicateBlock {
+	blocks := make([]reusestats.DuplicateBlock, 0, len(groups))
+	for _, block := range groups {
+		sort.Strings(block.Files)
+		blocks = append(blocks, block)
+	}
+	sort.Slice(blocks, func(i, j int) bool {
+		left := blocks[i].Lines * (blocks[i].Count - 1)
+		right := blocks[j].Lines * (blocks[j].Count - 1)
+		if left != right {
+			return left > right
+		}
+		return blocks[i].Hash < blocks[j].Hash
+	})
+	if len(blocks) > 10 {
+		blocks = blocks[:10]
+	}
+	return blocks
+}
+
+func statsRatio(numerator, denominator int) float64 {
+	if denominator == 0 {
+		return 0
+	}
+	return float64(numerator) / float64(denominator)
 }
 
 // collectStats dispatches mage stats to every participating module and returns

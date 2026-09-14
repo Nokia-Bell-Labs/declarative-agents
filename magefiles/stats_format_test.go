@@ -207,6 +207,32 @@ func TestFormatJSONBadInput(t *testing.T) {
 	}
 }
 
+func TestFormatJSONPreservesReuseRatiosAndRankedBlocks(t *testing.T) {
+	t.Parallel()
+	input := `{"reuse_total":{"total_lines":100,"duplicated_lines":25,
+		"duplication_ratio":0.25,"ceremony_lines":8,"behavior_lines":4,
+		"ceremony_ratio":2,"distinct_tool_defs":6,"tool_refs":10,
+		"top_blocks":[{"hash":"abc","lines":5,"count":5,
+		"files":["module-a/a.yaml","module-b/b.yaml"]}]}}`
+	output := formatFixture(t, input)
+
+	var before, after any
+	if err := json.Unmarshal([]byte(input), &before); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(output), &after); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(before, after) {
+		t.Fatalf("reuse formatting changed values:\n%s", output)
+	}
+	for _, want := range []string{`"duplication_ratio": 0.25`, `"hash": "abc"`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("formatted reuse output missing %s:\n%s", want, output)
+		}
+	}
+}
+
 // TestDecodeOrderedPreservesKeyOrder pins the ordering guarantee the formatter
 // depends on.
 func TestDecodeOrderedPreservesKeyOrder(t *testing.T) {

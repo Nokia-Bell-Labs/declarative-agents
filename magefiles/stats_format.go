@@ -96,7 +96,7 @@ func decodeOrderedValue(dec *json.Decoder) (any, error) {
 // fits within formatWidth stays on one line, and only larger values expand.
 // The result is the same document encoding the same values: leaf objects such
 // as {"files": 4, "lines": 145} read as single facts instead of sprawling
-// over four lines each.
+// over four lines each, while ranked reuse-block arrays expand when needed.
 func formatJSON(raw []byte) ([]byte, error) {
 	v, err := decodeOrdered(raw)
 	if err != nil {

@@ -1,0 +1,648 @@
+{
+  "agent-core": {
+    "total_lines": 8335,
+    "duplicated_lines": 743,
+    "duplication_ratio": 0.08914217156568686,
+    "ceremony_lines": 3477,
+    "behavior_lines": 1952,
+    "ceremony_ratio": 1.78125,
+    "distinct_tool_defs": 127,
+    "tool_refs": 89,
+    "top_blocks": [
+      {
+        "hash": "e523b94a08676ed489a32cb15382110bd2acefa58dc9cca39e4f956e4a99f972",
+        "lines": 6,
+        "count": 25,
+        "files": [
+          "tools/builtin/assemble-prompt.yaml",
+          "tools/builtin/check-agent-version.yaml",
+          "tools/builtin/collect-metrics.yaml",
+          "tools/builtin/collect-trace-tokens.yaml",
+          "tools/builtin/discover-suite-samples.yaml",
+          "tools/builtin/done.yaml",
+          "tools/builtin/dump-config.yaml",
+          "tools/builtin/edit.yaml",
+          "tools/builtin/expand-eval-grid.yaml",
+          "tools/builtin/extract-all.yaml",
+          "tools/builtin/find.yaml",
+          "tools/builtin/init-eval-session.yaml",
+          "tools/builtin/load-corpus.yaml",
+          "tools/builtin/nudge-reread.yaml",
+          "tools/builtin/parse-plan.yaml",
+          "tools/builtin/parse-response.yaml",
+          "tools/builtin/read.yaml",
+          "tools/builtin/report-parse-error.yaml",
+          "tools/builtin/report-session.yaml",
+          "tools/builtin/report-suite-summary.yaml",
+          "tools/builtin/reset-history.yaml",
+          "tools/builtin/run-agent.yaml",
+          "tools/builtin/summarize-point-results.yaml",
+          "tools/builtin/validate-specs.yaml",
+          "tools/builtin/write.yaml"
+        ]
+      },
+      {
+        "hash": "3aba4cd7d3a6ca7c0b6f5a573fe8c0f4a9c9d8e1da4d5eed0c439611af5be7bb",
+        "lines": 4,
+        "count": 28,
+        "files": [
+          "tools/builtin/assemble-prompt.yaml",
+          "tools/builtin/check-agent-version.yaml",
+          "tools/builtin/collect-metrics.yaml",
+          "tools/builtin/collect-trace-tokens.yaml",
+          "tools/builtin/discover-suite-samples.yaml",
+          "tools/builtin/done.yaml",
+          "tools/builtin/dump-config.yaml",
+          "tools/builtin/edit.yaml",
+          "tools/builtin/expand-eval-grid.yaml",
+          "tools/builtin/extract-all.yaml",
+          "tools/builtin/extract-task.yaml",
+          "tools/builtin/find.yaml",
+          "tools/builtin/format-report.yaml",
+          "tools/builtin/init-eval-session.yaml",
+          "tools/builtin/list-files.yaml",
+          "tools/builtin/load-corpus.yaml",
+          "tools/builtin/nudge-reread.yaml",
+          "tools/builtin/parse-plan.yaml",
+          "tools/builtin/parse-response.yaml",
+          "tools/builtin/read.yaml",
+          "tools/builtin/report-parse-error.yaml",
+          "tools/builtin/report-session.yaml",
+          "tools/builtin/report-suite-summary.yaml",
+          "tools/builtin/reset-history.yaml",
+          "tools/builtin/run-agent.yaml",
+          "tools/builtin/summarize-point-results.yaml",
+          "tools/builtin/validate-specs.yaml",
+          "tools/builtin/write.yaml"
+        ]
+      },
+      {
+        "hash": "40e7f5c3c376427f1923de7e4d3143f69231200ac39b1359f88d5b129f35defd",
+        "lines": 8,
+        "count": 13,
+        "files": [
+          "tools/builtin/check-agent-version.yaml",
+          "tools/builtin/collect-metrics.yaml",
+          "tools/builtin/collect-trace-tokens.yaml",
+          "tools/builtin/discover-suite-samples.yaml",
+          "tools/builtin/done.yaml",
+          "tools/builtin/dump-config.yaml",
+          "tools/builtin/expand-eval-grid.yaml",
+          "tools/builtin/extract-all.yaml",
+          "tools/builtin/init-eval-session.yaml",
+          "tools/builtin/parse-plan.yaml",
+          "tools/builtin/report-session.yaml",
+          "tools/builtin/report-suite-summary.yaml",
+          "tools/builtin/summarize-point-results.yaml"
+        ]
+      },
+      {
+        "hash": "797e01d09935f69e35321d859efaf01e260b50a1642ebad47f077fa95e161a8c",
+        "lines": 4,
+        "count": 13,
+        "files": [
+          "tools/builtin/check-agent-version.yaml",
+          "tools/builtin/collect-metrics.yaml",
+          "tools/builtin/collect-trace-tokens.yaml",
+          "tools/builtin/discover-suite-samples.yaml",
+          "tools/builtin/done.yaml",
+          "tools/builtin/dump-config.yaml",
+          "tools/builtin/expand-eval-grid.yaml",
+          "tools/builtin/extract-all.yaml",
+          "tools/builtin/init-eval-session.yaml",
+          "tools/builtin/parse-plan.yaml",
+          "tools/builtin/report-session.yaml",
+          "tools/builtin/report-suite-summary.yaml",
+          "tools/builtin/summarize-point-results.yaml"
+        ]
+      },
+      {
+        "hash": "283431c73416c81cd10e34d8261d0c7e862b824eef9a66ea0e553e56e5772b83",
+        "lines": 12,
+        "count": 4,
+        "files": ["tools/exec/build.yaml", "tools/exec/lint.yaml", "tools/exec/test.yaml", "tools/exec/vet.yaml"]
+      },
+      {
+        "hash": "40da57a6399aac98e5958d23ead784b5975cae295bcb2627798dcb4c04340678",
+        "lines": 7,
+        "count": 4,
+        "files": ["tools/exec/build.yaml", "tools/exec/lint.yaml", "tools/exec/test.yaml", "tools/exec/vet.yaml"]
+      },
+      {
+        "hash": "512b2126038e31a00ea44b7a8601bfa56cb41ced71ad8e36c12e1aa436b90628",
+        "lines": 4,
+        "count": 6,
+        "files": [
+          "tools/builtin/extract-all.yaml",
+          "tools/builtin/mark-task-failed.yaml",
+          "tools/builtin/spec-validation/test-evidence.yaml"
+        ]
+      },
+      {
+        "hash": "2e58fd7dd6d3a8dcd98d71a5bc048a7af9e27372160c6bb409e36cd70b05e721",
+        "lines": 6,
+        "count": 4,
+        "files": [
+          "tools/exec/diff-stat.yaml",
+          "tools/exec/log-oneline.yaml",
+          "tools/exec/rev-parse.yaml",
+          "tools/exec/workspace-status.yaml"
+        ]
+      },
+      {
+        "hash": "40c0787d7eec8c173422209620415986620f6b5f2bd36a24336cda1ef750a62b",
+        "lines": 6,
+        "count": 4,
+        "files": ["tools/builtin/rest/all.yaml"]
+      },
+      {
+        "hash": "d554ad82762b0c9698a2f68b1565737655528ab9aadf0b42b83a872167629e9f",
+        "lines": 4,
+        "count": 5,
+        "files": [
+          "tools/builtin/check-agent-version.yaml",
+          "tools/builtin/collect-trace-tokens.yaml",
+          "tools/builtin/record-agent-commit.yaml",
+          "tools/builtin/record-oracle-result.yaml",
+          "tools/builtin/record-point-failure.yaml"
+        ]
+      }
+    ]
+  },
+  "applications/agent-architecture": {
+    "total_lines": 756,
+    "duplicated_lines": 27,
+    "duplication_ratio": 0.03571428571428571,
+    "ceremony_lines": 176,
+    "behavior_lines": 55,
+    "ceremony_ratio": 3.2,
+    "distinct_tool_defs": 6,
+    "tool_refs": 0,
+    "top_blocks": [
+      {
+        "hash": "ad01bc2c7a8978336ca3089405c715860260d2c84c814261b5cd23ceee43a0da",
+        "lines": 5,
+        "count": 5,
+        "files": ["agents/applier/exec-declarations.yaml"]
+      },
+      {
+        "hash": "38b0a5edf0e3be825a384f8fe2043f937f078a3a75c6112214f5f094ba6d4f91",
+        "lines": 7,
+        "count": 2,
+        "files": ["agents/applier/exec-declarations.yaml"]
+      }
+    ]
+  },
+  "applications/catalog": {
+    "total_lines": 17086,
+    "duplicated_lines": 2904,
+    "duplication_ratio": 0.16996371298138827,
+    "ceremony_lines": 3437,
+    "behavior_lines": 2844,
+    "ceremony_ratio": 1.208509142053446,
+    "distinct_tool_defs": 179,
+    "tool_refs": 609,
+    "top_blocks": [
+      {
+        "hash": "c6f3febe713d545c18096e590d8c94fb6f9ae3beeedf32032836ee1e373486be",
+        "lines": 47,
+        "count": 3,
+        "files": [
+          "testdata/conformance/rig-subject/tests/broken/declarations.yaml",
+          "testdata/conformance/rig-subject/tests/dep-failure/declarations.yaml",
+          "testdata/conformance/rig-subject/tests/happy-path/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "3a81c8a4c6a91a3277bd2c64feb25425e4b7cd3c7d18d573245e128f563f3772",
+        "lines": 46,
+        "count": 3,
+        "files": [
+          "testdata/conformance/rig-subject/tests/broken/declarations.yaml",
+          "testdata/conformance/rig-subject/tests/dep-failure/declarations.yaml",
+          "testdata/conformance/rig-subject/tests/happy-path/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "6a816a6b953e52aeb2f8127243ac088f0dbf21a9545d666eadda9fc5dec38d93",
+        "lines": 38,
+        "count": 3,
+        "files": [
+          "testdata/conformance/rig-subject/tests/broken/rest.yaml",
+          "testdata/conformance/rig-subject/tests/dep-failure/rest.yaml",
+          "testdata/conformance/rig-subject/tests/happy-path/rest.yaml"
+        ]
+      },
+      {
+        "hash": "f203089aa3c65e5dba55cbaa6899b457625e7dadad7595ed7af80d0f09063f1c",
+        "lines": 37,
+        "count": 3,
+        "files": [
+          "testdata/conformance/rig-subject/tests/broken/rest.yaml",
+          "testdata/conformance/rig-subject/tests/dep-failure/rest.yaml",
+          "testdata/conformance/rig-subject/tests/happy-path/rest.yaml"
+        ]
+      },
+      {
+        "hash": "2a453014d16ec866b75cb56bd2b70eefb075a8d8d4d402ec8a1a331a99a2adba",
+        "lines": 55,
+        "count": 2,
+        "files": [
+          "agents/knowledge-manager/documentation-curator/declarations.yaml",
+          "agents/runtime-state-reader/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "98eacddd341982a4445a3cbfbba9c8e189a903aba379e69011ef985b7bcce8d2",
+        "lines": 23,
+        "count": 3,
+        "files": [
+          "testdata/conformance/rig-subject/tests/broken/rest.yaml",
+          "testdata/conformance/rig-subject/tests/dep-failure/rest.yaml",
+          "testdata/conformance/rig-subject/tests/happy-path/rest.yaml"
+        ]
+      },
+      {
+        "hash": "09da55ba8418b97b6d531c6942dc8cef28ef4362814511060e6bfbc90e7d3b70",
+        "lines": 21,
+        "count": 3,
+        "files": [
+          "testdata/conformance/rig-subject/tests/broken/rest.yaml",
+          "testdata/conformance/rig-subject/tests/dep-failure/rest.yaml",
+          "testdata/conformance/rig-subject/tests/happy-path/rest.yaml"
+        ]
+      },
+      {
+        "hash": "0b5483643325e22074595b84b3ee04ea62d1e7465cfe67697868a9a5f1272645",
+        "lines": 37,
+        "count": 2,
+        "files": ["agents/critic/llm/mistral-small.yaml", "agents/executor/llm/mistral-small.yaml"]
+      },
+      {
+        "hash": "569f088337ed631f831bef2a3fcd2238586949442183e0470fdd5dc9a5966131",
+        "lines": 37,
+        "count": 2,
+        "files": ["agents/critic/llm/glm.yaml", "agents/executor/llm/glm.yaml"]
+      },
+      {
+        "hash": "5b97331d87877f913e034eaf5dcaac51144048200ee77267d9c6bf0c83bf2f6b",
+        "lines": 37,
+        "count": 2,
+        "files": ["agents/critic/llm/deepseek-16b.yaml", "agents/executor/llm/deepseek.yaml"]
+      }
+    ]
+  },
+  "applications/chatbot-mesh": {
+    "total_lines": 10539,
+    "duplicated_lines": 1468,
+    "duplication_ratio": 0.1392921529556884,
+    "ceremony_lines": 2655,
+    "behavior_lines": 1647,
+    "ceremony_ratio": 1.6120218579234973,
+    "distinct_tool_defs": 95,
+    "tool_refs": 204,
+    "top_blocks": [
+      {
+        "hash": "e824d14b8f899ea6e4ecc6b50c6114bbe00330c2e8cda37d5f8eed0a5de8f3b4",
+        "lines": 5,
+        "count": 12,
+        "files": [
+          "agents/chatbot/declarations.yaml",
+          "agents/creator/declarations.yaml",
+          "agents/provisioning-workflow-orchestrator/declarations.yaml",
+          "agents/rag-server/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "2dfdf7a6716987cbf3ed0b76b67f407766e9a482c45eab9f35d48c17eb994abf",
+        "lines": 46,
+        "count": 2,
+        "files": [
+          "agents/chatbot/tests/degraded-rag/declarations.yaml",
+          "agents/chatbot/tests/single-turn/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "2f7da5a8238c7797ee1dea28de803be727bc5512d16be4d1d3c3467d8c7b087e",
+        "lines": 45,
+        "count": 2,
+        "files": [
+          "agents/chatbot/tests/degraded-rag/declarations.yaml",
+          "agents/chatbot/tests/single-turn/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "755762f3bb9bd4a81c1382dad207552a76d93295c49d6d170497cc093bfc02d2",
+        "lines": 44,
+        "count": 2,
+        "files": ["agents/chatbot/tests/degraded-rag/rest.yaml", "agents/chatbot/tests/single-turn/rest.yaml"]
+      },
+      {
+        "hash": "ec6d08d02871039ff92502bd73f63757a6747e5ac25bd5206f6eb446ac282dc1",
+        "lines": 43,
+        "count": 2,
+        "files": ["agents/chatbot/tests/degraded-rag/rest.yaml", "agents/chatbot/tests/single-turn/rest.yaml"]
+      },
+      {
+        "hash": "f22b7d37cca2827663d0315d942a051024caf617644a2c9076f05c1ad4696625",
+        "lines": 3,
+        "count": 12,
+        "files": [
+          "agents/chatbot/declarations.yaml",
+          "agents/creator/declarations.yaml",
+          "agents/provisioning-workflow-orchestrator/declarations.yaml",
+          "agents/rag-server/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "48bca75a8ec43c2f91a132ef49b8df53bdd2d35d9ff1ab9a18cc3260fa3d6d72",
+        "lines": 8,
+        "count": 5,
+        "files": [
+          "agents/applier/rest.yaml",
+          "agents/chatbot/rest.yaml",
+          "agents/creator/rest.yaml",
+          "agents/provisioning-workflow-orchestrator/rest.yaml",
+          "agents/rag-server/rest.yaml"
+        ]
+      },
+      {
+        "hash": "e54606ac4dc30a1820af62a94398d8088dd6fe8b6468ac6774b0d13efd116607",
+        "lines": 29,
+        "count": 2,
+        "files": ["agents/chatbot/tests/degraded-rag/rest.yaml", "agents/chatbot/tests/single-turn/rest.yaml"]
+      },
+      {
+        "hash": "6b2ffa7d9e6c84cfffed006206abeef1a00538273685e2d3748f72f580d30397",
+        "lines": 4,
+        "count": 8,
+        "files": [
+          "agents/chatbot/declarations.yaml",
+          "agents/creator/declarations.yaml",
+          "agents/provisioning-workflow-orchestrator/declarations.yaml",
+          "agents/rag-server/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "22d9afe6bc6734d2bf37aa85954b603d244e13c9b7c4067173a20f26acced3f7",
+        "lines": 27,
+        "count": 2,
+        "files": ["agents/chatbot/tests/degraded-rag/rest.yaml", "agents/chatbot/tests/single-turn/rest.yaml"]
+      }
+    ]
+  },
+  "applications/coding-agent": {
+    "total_lines": 1405,
+    "duplicated_lines": 62,
+    "duplication_ratio": 0.04412811387900356,
+    "ceremony_lines": 202,
+    "behavior_lines": 80,
+    "ceremony_ratio": 2.525,
+    "distinct_tool_defs": 12,
+    "tool_refs": 19,
+    "top_blocks": [
+      {
+        "hash": "ad01bc2c7a8978336ca3089405c715860260d2c84c814261b5cd23ceee43a0da",
+        "lines": 5,
+        "count": 5,
+        "files": ["agents/applier/exec-declarations.yaml"]
+      },
+      {
+        "hash": "12370cb382471963b979013fed7d54776eea79876624a20d725c06dfb0084c55",
+        "lines": 4,
+        "count": 4,
+        "files": [
+          "agents/applier/rest.yaml",
+          "agents/critic/rest.yaml",
+          "agents/executor/rest.yaml",
+          "agents/planner/rest.yaml"
+        ]
+      },
+      {
+        "hash": "ea0724239c9679949834ff454faa2c782c43fec99237b0af387447a5f6aa4c72",
+        "lines": 3,
+        "count": 4,
+        "files": [
+          "agents/applier/rest.yaml",
+          "agents/critic/rest.yaml",
+          "agents/executor/rest.yaml",
+          "agents/planner/rest.yaml"
+        ]
+      },
+      {
+        "hash": "38b0a5edf0e3be825a384f8fe2043f937f078a3a75c6112214f5f094ba6d4f91",
+        "lines": 7,
+        "count": 2,
+        "files": ["agents/applier/exec-declarations.yaml"]
+      },
+      {
+        "hash": "08e2b48e7adff3a2ffbe434c41ce3dc4346b12419832afc5b29cd53f84eae1f4",
+        "lines": 6,
+        "count": 2,
+        "files": ["agents/executor/rest.yaml", "agents/planner/rest.yaml"]
+      },
+      {
+        "hash": "0cb31389c09c6dc6d98d463105a0db311d93f62733dac44fadc8b546e412bc3c",
+        "lines": 5,
+        "count": 2,
+        "files": ["agents/executor/rest.yaml", "agents/planner/rest.yaml"]
+      },
+      {
+        "hash": "9323adad1f749f5207aedfc26cfde5736b131e144d8e868d090174b8882ce390",
+        "lines": 3,
+        "count": 2,
+        "files": ["agents/executor/rest.yaml", "agents/planner/rest.yaml"]
+      }
+    ]
+  },
+  "design-patterns": {
+    "total_lines": 0,
+    "duplicated_lines": 0,
+    "duplication_ratio": 0,
+    "ceremony_lines": 0,
+    "behavior_lines": 0,
+    "ceremony_ratio": 0,
+    "distinct_tool_defs": 0,
+    "tool_refs": 0,
+    "top_blocks": []
+  },
+  "reuse_total": {
+    "total_lines": 38121,
+    "duplicated_lines": 5204,
+    "duplication_ratio": 0.13651268329791977,
+    "ceremony_lines": 9947,
+    "behavior_lines": 6578,
+    "ceremony_ratio": 1.512161751292186,
+    "distinct_tool_defs": 419,
+    "tool_refs": 921,
+    "top_blocks": [
+      {
+        "hash": "e523b94a08676ed489a32cb15382110bd2acefa58dc9cca39e4f956e4a99f972",
+        "lines": 6,
+        "count": 25,
+        "files": [
+          "agent-core/tools/builtin/assemble-prompt.yaml",
+          "agent-core/tools/builtin/check-agent-version.yaml",
+          "agent-core/tools/builtin/collect-metrics.yaml",
+          "agent-core/tools/builtin/collect-trace-tokens.yaml",
+          "agent-core/tools/builtin/discover-suite-samples.yaml",
+          "agent-core/tools/builtin/done.yaml",
+          "agent-core/tools/builtin/dump-config.yaml",
+          "agent-core/tools/builtin/edit.yaml",
+          "agent-core/tools/builtin/expand-eval-grid.yaml",
+          "agent-core/tools/builtin/extract-all.yaml",
+          "agent-core/tools/builtin/find.yaml",
+          "agent-core/tools/builtin/init-eval-session.yaml",
+          "agent-core/tools/builtin/load-corpus.yaml",
+          "agent-core/tools/builtin/nudge-reread.yaml",
+          "agent-core/tools/builtin/parse-plan.yaml",
+          "agent-core/tools/builtin/parse-response.yaml",
+          "agent-core/tools/builtin/read.yaml",
+          "agent-core/tools/builtin/report-parse-error.yaml",
+          "agent-core/tools/builtin/report-session.yaml",
+          "agent-core/tools/builtin/report-suite-summary.yaml",
+          "agent-core/tools/builtin/reset-history.yaml",
+          "agent-core/tools/builtin/run-agent.yaml",
+          "agent-core/tools/builtin/summarize-point-results.yaml",
+          "agent-core/tools/builtin/validate-specs.yaml",
+          "agent-core/tools/builtin/write.yaml"
+        ]
+      },
+      {
+        "hash": "3aba4cd7d3a6ca7c0b6f5a573fe8c0f4a9c9d8e1da4d5eed0c439611af5be7bb",
+        "lines": 4,
+        "count": 28,
+        "files": [
+          "agent-core/tools/builtin/assemble-prompt.yaml",
+          "agent-core/tools/builtin/check-agent-version.yaml",
+          "agent-core/tools/builtin/collect-metrics.yaml",
+          "agent-core/tools/builtin/collect-trace-tokens.yaml",
+          "agent-core/tools/builtin/discover-suite-samples.yaml",
+          "agent-core/tools/builtin/done.yaml",
+          "agent-core/tools/builtin/dump-config.yaml",
+          "agent-core/tools/builtin/edit.yaml",
+          "agent-core/tools/builtin/expand-eval-grid.yaml",
+          "agent-core/tools/builtin/extract-all.yaml",
+          "agent-core/tools/builtin/extract-task.yaml",
+          "agent-core/tools/builtin/find.yaml",
+          "agent-core/tools/builtin/format-report.yaml",
+          "agent-core/tools/builtin/init-eval-session.yaml",
+          "agent-core/tools/builtin/list-files.yaml",
+          "agent-core/tools/builtin/load-corpus.yaml",
+          "agent-core/tools/builtin/nudge-reread.yaml",
+          "agent-core/tools/builtin/parse-plan.yaml",
+          "agent-core/tools/builtin/parse-response.yaml",
+          "agent-core/tools/builtin/read.yaml",
+          "agent-core/tools/builtin/report-parse-error.yaml",
+          "agent-core/tools/builtin/report-session.yaml",
+          "agent-core/tools/builtin/report-suite-summary.yaml",
+          "agent-core/tools/builtin/reset-history.yaml",
+          "agent-core/tools/builtin/run-agent.yaml",
+          "agent-core/tools/builtin/summarize-point-results.yaml",
+          "agent-core/tools/builtin/validate-specs.yaml",
+          "agent-core/tools/builtin/write.yaml"
+        ]
+      },
+      {
+        "hash": "40e7f5c3c376427f1923de7e4d3143f69231200ac39b1359f88d5b129f35defd",
+        "lines": 8,
+        "count": 13,
+        "files": [
+          "agent-core/tools/builtin/check-agent-version.yaml",
+          "agent-core/tools/builtin/collect-metrics.yaml",
+          "agent-core/tools/builtin/collect-trace-tokens.yaml",
+          "agent-core/tools/builtin/discover-suite-samples.yaml",
+          "agent-core/tools/builtin/done.yaml",
+          "agent-core/tools/builtin/dump-config.yaml",
+          "agent-core/tools/builtin/expand-eval-grid.yaml",
+          "agent-core/tools/builtin/extract-all.yaml",
+          "agent-core/tools/builtin/init-eval-session.yaml",
+          "agent-core/tools/builtin/parse-plan.yaml",
+          "agent-core/tools/builtin/report-session.yaml",
+          "agent-core/tools/builtin/report-suite-summary.yaml",
+          "agent-core/tools/builtin/summarize-point-results.yaml"
+        ]
+      },
+      {
+        "hash": "c6f3febe713d545c18096e590d8c94fb6f9ae3beeedf32032836ee1e373486be",
+        "lines": 47,
+        "count": 3,
+        "files": [
+          "applications/catalog/testdata/conformance/rig-subject/tests/broken/declarations.yaml",
+          "applications/catalog/testdata/conformance/rig-subject/tests/dep-failure/declarations.yaml",
+          "applications/catalog/testdata/conformance/rig-subject/tests/happy-path/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "3a81c8a4c6a91a3277bd2c64feb25425e4b7cd3c7d18d573245e128f563f3772",
+        "lines": 46,
+        "count": 3,
+        "files": [
+          "applications/catalog/testdata/conformance/rig-subject/tests/broken/declarations.yaml",
+          "applications/catalog/testdata/conformance/rig-subject/tests/dep-failure/declarations.yaml",
+          "applications/catalog/testdata/conformance/rig-subject/tests/happy-path/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "6a816a6b953e52aeb2f8127243ac088f0dbf21a9545d666eadda9fc5dec38d93",
+        "lines": 38,
+        "count": 3,
+        "files": [
+          "applications/catalog/testdata/conformance/rig-subject/tests/broken/rest.yaml",
+          "applications/catalog/testdata/conformance/rig-subject/tests/dep-failure/rest.yaml",
+          "applications/catalog/testdata/conformance/rig-subject/tests/happy-path/rest.yaml"
+        ]
+      },
+      {
+        "hash": "f203089aa3c65e5dba55cbaa6899b457625e7dadad7595ed7af80d0f09063f1c",
+        "lines": 37,
+        "count": 3,
+        "files": [
+          "applications/catalog/testdata/conformance/rig-subject/tests/broken/rest.yaml",
+          "applications/catalog/testdata/conformance/rig-subject/tests/dep-failure/rest.yaml",
+          "applications/catalog/testdata/conformance/rig-subject/tests/happy-path/rest.yaml"
+        ]
+      },
+      {
+        "hash": "2a453014d16ec866b75cb56bd2b70eefb075a8d8d4d402ec8a1a331a99a2adba",
+        "lines": 55,
+        "count": 2,
+        "files": [
+          "applications/catalog/agents/knowledge-manager/documentation-curator/declarations.yaml",
+          "applications/catalog/agents/runtime-state-reader/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "e824d14b8f899ea6e4ecc6b50c6114bbe00330c2e8cda37d5f8eed0a5de8f3b4",
+        "lines": 5,
+        "count": 12,
+        "files": [
+          "applications/chatbot-mesh/agents/chatbot/declarations.yaml",
+          "applications/chatbot-mesh/agents/creator/declarations.yaml",
+          "applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/declarations.yaml",
+          "applications/chatbot-mesh/agents/rag-server/declarations.yaml"
+        ]
+      },
+      {
+        "hash": "797e01d09935f69e35321d859efaf01e260b50a1642ebad47f077fa95e161a8c",
+        "lines": 4,
+        "count": 13,
+        "files": [
+          "agent-core/tools/builtin/check-agent-version.yaml",
+          "agent-core/tools/builtin/collect-metrics.yaml",
+          "agent-core/tools/builtin/collect-trace-tokens.yaml",
+          "agent-core/tools/builtin/discover-suite-samples.yaml",
+          "agent-core/tools/builtin/done.yaml",
+          "agent-core/tools/builtin/dump-config.yaml",
+          "agent-core/tools/builtin/expand-eval-grid.yaml",
+          "agent-core/tools/builtin/extract-all.yaml",
+          "agent-core/tools/builtin/init-eval-session.yaml",
+          "agent-core/tools/builtin/parse-plan.yaml",
+          "agent-core/tools/builtin/report-session.yaml",
+          "agent-core/tools/builtin/report-suite-summary.yaml",
+          "agent-core/tools/builtin/summarize-point-results.yaml"
+        ]
+      }
+    ]
+  }
+}
