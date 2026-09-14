@@ -13,6 +13,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/envexpand"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/typesys"
 	"gopkg.in/yaml.v3"
 )
 
@@ -107,29 +108,43 @@ func LoadToolDeclarationsFromDirsWithVisitor(dirs []string, visit FileVisitor) (
 func LoadToolDeclarationClosure(
 	dirs, explicit []string, visit FileVisitor,
 ) ([]ToolDef, []ToolDef, error) {
-	fromDirs, local, _, err := LoadToolDeclarationClosureWithImports(dirs, explicit, visit)
-	return fromDirs, local, err
+	closure, err := LoadToolDeclarationClosureWithImports(dirs, explicit, visit)
+	return closure.FromDirs, closure.Local, err
+}
+
+// ToolClosure is the resolved tool declaration closure: the tools from config
+// directories and from explicit declarations, the authored import edges
+// closure-level usedness validates, and the type units reached along the way
+// (srd051 R5.1).
+type ToolClosure struct {
+	FromDirs  []ToolDef
+	Local     []ToolDef
+	Imports   []ToolImport
+	TypeUnits []typesys.TypeUnitFile
 }
 
 // LoadToolDeclarationClosureWithImports also returns authored import edges for
-// closure-level usedness validation.
+// closure-level usedness validation and every type unit the closure reaches.
 func LoadToolDeclarationClosureWithImports(
 	dirs, explicit []string, visit FileVisitor,
-) ([]ToolDef, []ToolDef, []ToolImport, error) {
+) (ToolClosure, error) {
 	paths, err := toolDeclarationPaths(dirs)
 	if err != nil {
-		return nil, nil, nil, err
+		return ToolClosure{}, err
 	}
 	resolver := productionToolImportResolver(visit)
 	fromDirs, err := resolver.loadRoots(paths)
 	if err != nil {
-		return nil, nil, nil, err
+		return ToolClosure{}, err
 	}
 	local, err := resolver.loadRoots(explicit)
 	if err != nil {
-		return nil, nil, nil, err
+		return ToolClosure{}, err
 	}
-	return fromDirs, local, resolver.importEdges(), nil
+	return ToolClosure{
+		FromDirs: fromDirs, Local: local,
+		Imports: resolver.importEdges(), TypeUnits: resolver.typeUnitFiles(),
+	}, nil
 }
 
 func toolDeclarationPaths(dirs []string) ([]string, error) {
@@ -218,7 +233,8 @@ func parseToolDefsFileRaw(
 		return ToolDefsFile{}, err
 	}
 	hasTools := yamlstrict.FieldPresent(root, "tools")
-	if !hasTools && tolerateNonTool {
+	hasTypes := yamlstrict.FieldPresent(root, "types")
+	if !hasTools && !hasTypes && tolerateNonTool {
 		return ToolDefsFile{}, nil
 	}
 	var file ToolDefsFile
@@ -226,9 +242,10 @@ func parseToolDefsFileRaw(
 		return ToolDefsFile{}, err
 	}
 	file.hasTools = hasTools
+	file.hasTypes = hasTypes
 	file.hasImports = yamlstrict.FieldPresent(root, "imports")
 	file.hasIncludes = yamlstrict.FieldPresent(root, "includes")
-	if !file.hasTools {
+	if !file.hasTools && !file.hasTypes {
 		return ToolDefsFile{}, fmt.Errorf("top-level tools field is required")
 	}
 	return file, nil

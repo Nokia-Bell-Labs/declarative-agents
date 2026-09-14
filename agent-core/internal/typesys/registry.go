@@ -13,6 +13,7 @@ import (
 type Registry struct {
 	types map[string]TypeDecl
 	units map[string]string
+	paths map[string]string
 }
 
 // Build indexes the types of every unit, rejecting a schema outside the closed
@@ -20,7 +21,9 @@ type Registry struct {
 // across the closure, not only within a unit, so a reader never has to know
 // which unit a name came from to know which type it is (srd051 R4.3).
 func Build(units ...TypeUnitFile) (*Registry, error) {
-	registry := &Registry{types: map[string]TypeDecl{}, units: map[string]string{}}
+	registry := &Registry{
+		types: map[string]TypeDecl{}, units: map[string]string{}, paths: map[string]string{},
+	}
 	for _, unit := range sortedUnits(units) {
 		for _, declared := range unit.Types {
 			if err := registry.add(unit, declared); err != nil {
@@ -44,6 +47,7 @@ func (r *Registry) add(unit TypeUnitFile, declared TypeDecl) error {
 	}
 	r.units[declared.Name] = unit.Unit
 	r.types[unit.Ref(declared.Name)] = declared
+	r.paths[unit.Ref(declared.Name)] = unit.Path
 	return nil
 }
 
@@ -75,19 +79,49 @@ func (r *Registry) Refs() []string {
 // declaration stays readable after resolution and repeated resolution yields
 // the same result (srd051 R4.1, R4.5).
 func (r *Registry) ResolveSchema(schema map[string]any) (map[string]any, error) {
-	return r.resolveSchema(schema, nil)
+	resolved, _, err := r.ResolveSchemaRefs(schema)
+	return resolved, err
 }
 
-func (r *Registry) resolveSchema(schema map[string]any, expanding []string) (map[string]any, error) {
+// ResolveSchemaRefs resolves a schema and reports every type it referenced,
+// transitively and in sorted order. Closure usedness needs that set: a type
+// unit contributes no tools, so the only evidence its import earns its place
+// is a schema that reached one of its types.
+func (r *Registry) ResolveSchemaRefs(schema map[string]any) (map[string]any, []string, error) {
+	referenced := map[string]struct{}{}
+	resolved, err := r.resolveSchemaTracking(schema, nil, referenced)
+	if err != nil {
+		return nil, nil, err
+	}
+	refs := make([]string, 0, len(referenced))
+	for ref := range referenced {
+		refs = append(refs, ref)
+	}
+	sort.Strings(refs)
+	return resolved, refs, nil
+}
+
+// PathOf returns the declaration file a type came from, empty when unknown.
+func (r *Registry) PathOf(ref string) string {
+	if r == nil {
+		return ""
+	}
+	return r.paths[ref]
+}
+
+func (r *Registry) resolveSchemaTracking(
+	schema map[string]any, expanding []string, seen map[string]struct{},
+) (map[string]any, error) {
 	if schema == nil {
 		return nil, nil
 	}
 	if ref, isRef := referenceOf(schema); isRef {
-		return r.expandReference(ref, expanding)
+		seen[ref] = struct{}{}
+		return r.expandReference(ref, expanding, seen)
 	}
 	resolved := make(map[string]any, len(schema))
 	for key, value := range schema {
-		converted, err := r.resolveValue(key, value, expanding)
+		converted, err := r.resolveValue(key, value, expanding, seen)
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +130,9 @@ func (r *Registry) resolveSchema(schema map[string]any, expanding []string) (map
 	return resolved, nil
 }
 
-func (r *Registry) resolveValue(key string, value any, expanding []string) (any, error) {
+func (r *Registry) resolveValue(
+	key string, value any, expanding []string, seen map[string]struct{},
+) (any, error) {
 	switch key {
 	case "properties":
 		properties, ok := asSchema(value)
@@ -105,7 +141,7 @@ func (r *Registry) resolveValue(key string, value any, expanding []string) (any,
 		}
 		resolved := make(map[string]any, len(properties))
 		for name, nested := range properties {
-			converted, err := r.resolveNested(nested, expanding)
+			converted, err := r.resolveNested(nested, expanding, seen)
 			if err != nil {
 				return nil, fmt.Errorf("properties.%s: %w", name, err)
 			}
@@ -113,7 +149,7 @@ func (r *Registry) resolveValue(key string, value any, expanding []string) (any,
 		}
 		return resolved, nil
 	case "items":
-		converted, err := r.resolveNested(value, expanding)
+		converted, err := r.resolveNested(value, expanding, seen)
 		if err != nil {
 			return nil, fmt.Errorf("items: %w", err)
 		}
@@ -123,18 +159,22 @@ func (r *Registry) resolveValue(key string, value any, expanding []string) (any,
 	}
 }
 
-func (r *Registry) resolveNested(value any, expanding []string) (any, error) {
+func (r *Registry) resolveNested(
+	value any, expanding []string, seen map[string]struct{},
+) (any, error) {
 	nested, ok := asSchema(value)
 	if !ok {
 		return cloneValue(value), nil
 	}
-	return r.resolveSchema(nested, expanding)
+	return r.resolveSchemaTracking(nested, expanding, seen)
 }
 
 // expandReference resolves one reference, refusing a chain that re-enters a
 // reference it is already expanding. A type referring to itself is such a
 // chain (srd051 R4.4).
-func (r *Registry) expandReference(ref string, expanding []string) (map[string]any, error) {
+func (r *Registry) expandReference(
+	ref string, expanding []string, seen map[string]struct{},
+) (map[string]any, error) {
 	for _, active := range expanding {
 		if active == ref {
 			return nil, fmt.Errorf("type reference cycle: %s",
@@ -146,7 +186,7 @@ func (r *Registry) expandReference(ref string, expanding []string) (map[string]a
 		unit, name := splitRef(ref)
 		return nil, fmt.Errorf("unknown type reference %q: no type %q in unit %q", ref, name, unit)
 	}
-	return r.resolveSchema(declared.Schema, append(append([]string{}, expanding...), ref))
+	return r.resolveSchemaTracking(declared.Schema, append(append([]string{}, expanding...), ref), seen)
 }
 
 func referenceOf(schema map[string]any) (string, bool) {

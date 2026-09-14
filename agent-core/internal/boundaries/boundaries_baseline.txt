@@ -15,7 +15,7 @@ pkg:cmd/agent files=6 loc=1869
 pkg:internal/doltsql files=4 loc=274
 pkg:internal/evaluation files=23 loc=3860
 pkg:internal/gostyle files=1 loc=9
-pkg:internal/load files=3 loc=572
+pkg:internal/load files=3 loc=657
 pkg:internal/model files=1 loc=7
 pkg:internal/model/llm files=8 loc=967
 pkg:internal/model/llm/cohere files=2 loc=376
@@ -43,7 +43,7 @@ pkg:internal/support/execute files=1 loc=110
 pkg:internal/support/subprocess files=1 loc=254
 pkg:internal/support/yamlstrict files=1 loc=246
 pkg:internal/tools files=1 loc=14
-pkg:internal/tools/catalog files=16 loc=3617
+pkg:internal/tools/catalog files=17 loc=3718
 pkg:internal/tools/compose files=6 loc=1041
 pkg:internal/tools/control files=7 loc=1291
 pkg:internal/tools/dolt files=6 loc=1357
@@ -67,7 +67,7 @@ pkg:internal/tools/rest/validation files=6 loc=1800
 pkg:internal/tools/service files=6 loc=1637
 pkg:internal/tools/undo files=1 loc=84
 pkg:internal/tools/validation files=5 loc=1488
-pkg:internal/typesys files=3 loc=356
+pkg:internal/typesys files=3 loc=399
 pkg:internal/version files=1 loc=40
 pkg:pkg/profileaudit files=4 loc=1089
 pkg:pkg/spec files=31 loc=6422

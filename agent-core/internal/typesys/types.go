@@ -17,6 +17,9 @@ type TypeDecl struct {
 // Imports follow the srd050 grammar shared with tool and REST units
 // (srd051 R1.1, R1.2).
 type TypeUnitFile struct {
+	// Path is the declaring file, carried so closure usedness can attribute a
+	// referenced type back to the import that brought it in.
+	Path    string     `yaml:"-" json:"-"`
 	Unit    string     `yaml:"unit" json:"unit"`
 	Imports []string   `yaml:"imports,omitempty" json:"imports,omitempty"`
 	Types   []TypeDecl `yaml:"types" json:"types"`
