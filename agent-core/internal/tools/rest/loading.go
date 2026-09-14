@@ -82,14 +82,18 @@ func LoadDefinitionsWithVisitor(paths, dirs []string, visit FileVisitor) (Collec
 		return Collection{}, err
 	}
 	collection := NewCollection()
-	for _, path := range files {
-		def, err := LoadDefinitionWithVisitor(path, visit)
-		if err != nil {
-			return Collection{}, err
-		}
-		if err := collection.Add(def); err != nil {
-			return Collection{}, fmt.Errorf("merge REST definition %s: %w", path, err)
-		}
+	if len(files) == 0 {
+		return collection, nil
+	}
+	def, err := restdef.LoadDefinitionClosure(files, visit)
+	if err != nil {
+		return Collection{}, err
+	}
+	if err := restvalidation.ValidateDefinition(def); err != nil {
+		return Collection{}, err
+	}
+	if err := collection.Add(def); err != nil {
+		return Collection{}, fmt.Errorf("merge REST definitions: %w", err)
 	}
 	return collection, nil
 }

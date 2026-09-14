@@ -5,7 +5,11 @@ package definition
 
 // DefinitionFile is the top-level YAML document for REST config files.
 type DefinitionFile struct {
-	Rest Definition `yaml:"rest"`
+	Unit       string     `yaml:"unit,omitempty"`
+	Imports    []string   `yaml:"imports,omitempty"`
+	Rest       Definition `yaml:"rest"`
+	hasRest    bool
+	hasImports bool
 }
 
 // Definition is the shared REST model used by hand-authored YAML and imports.

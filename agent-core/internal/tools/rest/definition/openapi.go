@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -36,12 +37,42 @@ func CompileOpenAPIImports(def *Definition, baseDir string) error {
 }
 
 func compileOpenAPIImports(def *Definition, baseDir string, visit FileVisitor) error {
+	bases := make(map[string]string, len(def.OpenAPI))
+	for name := range def.OpenAPI {
+		bases[name] = baseDir
+	}
+	return compileOpenAPIImportsWithBases(def, bases, visit)
+}
+
+func compileOpenAPIImportsFromSources(
+	def *Definition,
+	sources map[string]declarationSource,
+	visit FileVisitor,
+) error {
+	bases := make(map[string]string, len(sources))
+	for name, source := range sources {
+		bases[name] = filepath.Dir(source.path)
+	}
+	return compileOpenAPIImportsWithBases(def, bases, visit)
+}
+
+func compileOpenAPIImportsWithBases(
+	def *Definition,
+	bases map[string]string,
+	visit FileVisitor,
+) error {
 	if len(def.OpenAPI) == 0 {
 		return nil
 	}
 	imports := def.OpenAPI
-	for name, imp := range imports {
-		operations, err := loadOpenAPIOperations(name, imp, baseDir, visit)
+	names := make([]string, 0, len(imports))
+	for name := range imports {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		imp := imports[name]
+		operations, err := loadOpenAPIOperations(name, imp, bases[name], visit)
 		if err != nil {
 			return err
 		}
