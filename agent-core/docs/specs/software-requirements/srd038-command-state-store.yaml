@@ -64,6 +64,7 @@ requirements:
       - R2.11: A declared input site MAY adopt canonical $from(<label>).<dotted-path> selectors when its subsystem specifies that extension. The consumer SHALL opt in through CommandStateAware and ResolveFromSelector; support SHALL NOT be inferred for every input site. An unresolved selector SHALL be an infrastructure fault such as CommandError, not a domain miss or an empty value.
       - R2.12: partition, select_subset, render_each, project, flat_map, and reorder_by_index SHALL resolve configured collection selectors through CommandStateAware and ResolveFromSelector. parse_structured SHALL do so for $from(label).path and SHALL additionally accept $.output as the immediately previous Result.Output without a command-state lookup. An unresolved $from selector SHALL preserve the typed command-state cause and emit CommandError; an empty array that resolves successfully remains a valid value. Numeric item paths inside render_each, project, flat_map, and reorder_by_index are local to those words and SHALL NOT widen the command-state selector grammar.
       - R2.13: A declared input site that needs the complete prior output MAY use $from(label).$; resolution SHALL return only the versioned, redaction-applied output string and SHALL remain receipt-blind.
+      - R2.14: "Every $from(label) selector a machine can reach SHALL resolve its label at load rather than at dispatch. The label universe SHALL be the transition labels, for_each join and item labels, and the machine's declared external_labels, which name labels the runtime seeds. Selectors SHALL be collected from the machine's for_each items and from the config of every tool a transition names as an action. An unresolved label SHALL fail the load, naming the selector, the unknown label, its carrier, and the nearest declared label; the runtime UnresolvedLabelError SHALL remain only for labels that cannot be known statically."
   R3:
     title: Authority boundary
     items:
@@ -106,7 +107,7 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9]
   - id: AC2
     criterion: Authors optionally label a transition and select an earlier step by command name or label through a canonical $from(<label>).<dotted-path> grammar. One newest-to-oldest rule resolves duplicate labels and label/command-name collisions. Unlabeled, legacy, and programmatic steps retain command-name addressing; labeled $tool steps retain both addresses; absolute indices and metric_labels are excluded from the authoring surface. Machine requests reserve one seed address, and each declared input subsystem adopts selectors explicitly with infrastructure-fault semantics.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R2.12, R2.13]
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R2.12, R2.13, R2.14]
   - id: AC3
     criterion: A consumer receives only the fields it selects into declared params, selectors can never name transport authority and are rejected when they try, receipts are structurally unaddressable via the srd036 split, and undeclared targets are rejected.
     traces: [R3.1, R3.2, R3.3, R3.4]

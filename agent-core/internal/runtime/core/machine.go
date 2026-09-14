@@ -32,6 +32,11 @@ type MachineSpec struct {
 	Signals         SignalSpecs      `yaml:"signals"`
 	Transitions     []TransitionSpec `yaml:"transitions"`
 	BudgetSpec      *BudgetSpec      `yaml:"budget,omitempty"`
+	// ExternalLabels names command-state labels the runtime seeds rather than
+	// any transition publishing them, so selector validation counts them in
+	// the machine's label universe. The REST machine_request seed label is the
+	// first user (srd006).
+	ExternalLabels []string `yaml:"external_labels,omitempty"`
 }
 
 // ViewTag names one presentation-only machine sub-view.
@@ -196,12 +201,36 @@ func ParseMachineSpec(data []byte) (MachineSpec, error) {
 	return spec, nil
 }
 
+// validateExternalLabels rejects malformed or duplicated runtime-seeded label
+// names. A name here widens the machine's label universe, so it must satisfy
+// the same grammar a transition label does.
+func validateExternalLabels(spec MachineSpec) []string {
+	var errs []string
+	seen := make(map[string]int, len(spec.ExternalLabels))
+	for i, label := range spec.ExternalLabels {
+		if !validSelectorLabel(label) {
+			errs = append(errs, fmt.Sprintf(
+				"external_labels[%d]: %q is not a valid command-state label", i, label))
+			continue
+		}
+		if first, exists := seen[label]; exists {
+			errs = append(errs, fmt.Sprintf(
+				"external_labels[%d]: duplicate label %q (first declared at external_labels[%d])",
+				i, label, first))
+			continue
+		}
+		seen[label] = i
+	}
+	return errs
+}
+
 func validateSpec(spec MachineSpec) error {
 	var errs []string
 
 	if spec.InitialState == "" {
 		errs = append(errs, "initial_state is required")
 	}
+	errs = append(errs, validateExternalLabels(spec)...)
 	if len(spec.States) == 0 {
 		errs = append(errs, "at least one state is required")
 	}

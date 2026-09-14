@@ -10,15 +10,16 @@ type MachineDiagnosticSeverity string
 const MachineDiagnosticWarning MachineDiagnosticSeverity = "warning"
 
 const (
-	DiagnosticUnreachableState       = "unreachable_state"
-	DiagnosticUnreachableTransition  = "unreachable_transition"
-	DiagnosticTerminalTransition     = "terminal_transition"
-	DiagnosticUnusedSignal           = "unused_signal"
-	DiagnosticImplicitSummarySignal  = "implicit_summary_signal"
-	DiagnosticImplicitResumeSignal   = "implicit_resume_signal"
-	DiagnosticImplicitCommandTimeout = "implicit_command_timeout"
-	DiagnosticImplicitMaxIterations  = "implicit_max_iterations"
-	DiagnosticMissingTerminalStatus  = "undeclared_terminal_status"
+	DiagnosticUnreachableState        = "unreachable_state"
+	DiagnosticUnreachableTransition   = "unreachable_transition"
+	DiagnosticTerminalTransition      = "terminal_transition"
+	DiagnosticUnusedSignal            = "unused_signal"
+	DiagnosticImplicitSummarySignal   = "implicit_summary_signal"
+	DiagnosticImplicitResumeSignal    = "implicit_resume_signal"
+	DiagnosticImplicitCommandTimeout  = "implicit_command_timeout"
+	DiagnosticImplicitMaxIterations   = "implicit_max_iterations"
+	DiagnosticMissingTerminalStatus   = "undeclared_terminal_status"
+	DiagnosticUnresolvedSelectorLabel = "unresolved_selector_label"
 )
 
 func MachineDiagnosticCodes() []string {
@@ -27,7 +28,7 @@ func MachineDiagnosticCodes() []string {
 		DiagnosticTerminalTransition, DiagnosticUnusedSignal,
 		DiagnosticImplicitSummarySignal, DiagnosticImplicitResumeSignal,
 		DiagnosticImplicitCommandTimeout, DiagnosticImplicitMaxIterations,
-		DiagnosticMissingTerminalStatus,
+		DiagnosticMissingTerminalStatus, DiagnosticUnresolvedSelectorLabel,
 	}
 }
 
@@ -38,6 +39,9 @@ type MachineDiagnostic struct {
 	State           string
 	Signal          string
 	TransitionIndex int
+	// Tool names the tool whose config raised the diagnostic, empty when the
+	// machine itself did.
+	Tool string
 }
 
 // DiagnoseMachineSpec reports non-fatal policy and dead-grammar diagnostics.

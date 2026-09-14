@@ -707,6 +707,9 @@ func validateRuntimeToolWiring(machine core.MachineSpec, defs []catalog.ToolDef)
 	if err := catalog.ValidateToolEmits(machine, defs); err != nil {
 		return err
 	}
+	if err := catalog.ValidateSelectorLabelsStrict(machine, defs); err != nil {
+		return err
+	}
 	return catalog.ValidateReceiptContracts(defs)
 }
 
