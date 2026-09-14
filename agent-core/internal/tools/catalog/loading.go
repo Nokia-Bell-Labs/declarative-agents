@@ -282,6 +282,9 @@ func validateToolDefs(defs []ToolDef) error {
 		if err := validateToolVocabulary(td); err != nil {
 			return err
 		}
+		if err := validateToolSignature(td); err != nil {
+			return err
+		}
 		if !validPreconditions[td.Precondition] {
 			return fmt.Errorf("tool %q: unknown precondition %q", td.Name, td.Precondition)
 		}

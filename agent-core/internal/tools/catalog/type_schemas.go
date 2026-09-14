@@ -34,6 +34,10 @@ func ResolveToolSchemas(
 }
 
 func resolveToolSchemas(def ToolDef, registry *typesys.Registry) (ToolDef, []string, error) {
+	def, signatureRefs, err := applySignatureTypes(def, registry)
+	if err != nil {
+		return ToolDef{}, nil, err
+	}
 	output, outputRefs, err := registry.ResolveSchemaRefs(def.Output.Schema)
 	if err != nil {
 		return ToolDef{}, nil, fmt.Errorf("tool %q output schema: %w", def.Name, err)
@@ -48,5 +52,35 @@ func resolveToolSchemas(def ToolDef, registry *typesys.Registry) (ToolDef, []str
 	if parameters != nil {
 		def.Parameters = parameters
 	}
-	return def, append(outputRefs, paramRefs...), nil
+	return def, append(append(signatureRefs, outputRefs...), paramRefs...), nil
+}
+
+// applySignatureTypes turns a signature's input and output type references into
+// the schemas the legacy fields carry, so ToToolSpec and every other reader
+// sees one shape whichever form the author used (srd051 R6.3, R6.4). The
+// references resolve under the ordinary rules, so an unknown one fails with
+// R4.2's error rather than one of its own (R6.5).
+func applySignatureTypes(def ToolDef, registry *typesys.Registry) (ToolDef, []string, error) {
+	if def.Signature == nil {
+		return def, nil, nil
+	}
+	def = applySignatureEmits(def)
+	var refs []string
+	if ref := def.Signature.Output; ref != "" {
+		schema, used, err := registry.ResolveSchemaRefs(map[string]any{typesys.TypeRefKey: ref})
+		if err != nil {
+			return ToolDef{}, nil, fmt.Errorf("tool %q signature output: %w", def.Name, err)
+		}
+		def.Output.Schema = schema
+		refs = append(refs, used...)
+	}
+	if ref := def.Signature.Input; ref != "" {
+		schema, used, err := registry.ResolveSchemaRefs(map[string]any{typesys.TypeRefKey: ref})
+		if err != nil {
+			return ToolDef{}, nil, fmt.Errorf("tool %q signature input: %w", def.Name, err)
+		}
+		def.Parameters = schema
+		refs = append(refs, used...)
+	}
+	return def, refs, nil
 }
