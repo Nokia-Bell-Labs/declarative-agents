@@ -57,6 +57,30 @@ func statsParticipants() []string {
 	return append(participants, auditOnlyApplicationModules...)
 }
 
+// reuseExcludedModules lists stats participants that own no agent YAML roots,
+// so the reuse collector has nothing to measure there. design-patterns holds
+// the paper's prose, figures, and templates rather than agent declarations, and
+// dispatching to it forced a cross-module import that broke every target in
+// that directory whenever the Go workspace was disabled (GH-1989).
+var reuseExcludedModules = []string{"design-patterns"}
+
+// reuseParticipants lists every module the root reuse-metrics target dispatches
+// to: the stats participants minus the modules that own no agent YAML.
+func reuseParticipants() []string {
+	excluded := make(map[string]bool, len(reuseExcludedModules))
+	for _, mod := range reuseExcludedModules {
+		excluded[mod] = true
+	}
+	participants := []string{}
+	for _, mod := range statsParticipants() {
+		if excluded[mod] {
+			continue
+		}
+		participants = append(participants, mod)
+	}
+	return participants
+}
+
 type buildRunner func(string) error
 
 // All runs the default mage target in each sub-module (default target).

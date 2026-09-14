@@ -161,6 +161,32 @@ func TestStatsParticipantsIncludeApplicationModules(t *testing.T) {
 	}
 }
 
+// TestReuseParticipantsExcludeModulesWithoutAgentYAML proves the reuse-metrics
+// gate skips modules that own no agent declarations, and otherwise dispatches
+// exactly where stats does. design-patterns owns prose and figures, and
+// dispatching reuse there forced a cross-module import that broke every mage
+// target in that directory whenever the Go workspace was disabled (GH-1989).
+func TestReuseParticipantsExcludeModulesWithoutAgentYAML(t *testing.T) {
+	participants := reuseParticipants()
+	for _, mod := range reuseExcludedModules {
+		if contains(participants, mod) {
+			t.Fatalf("reuseParticipants() = %#v, must exclude %q", participants, mod)
+		}
+	}
+	for _, mod := range statsParticipants() {
+		if contains(reuseExcludedModules, mod) {
+			continue
+		}
+		if !contains(participants, mod) {
+			t.Fatalf("reuseParticipants() = %#v, missing stats participant %q", participants, mod)
+		}
+	}
+	if len(participants) != len(statsParticipants())-len(reuseExcludedModules) {
+		t.Fatalf("reuseParticipants() = %#v, expected stats participants minus %#v",
+			participants, reuseExcludedModules)
+	}
+}
+
 // TestTestSubModulesDispatchesApplicationModules proves the go-test dispatch path
 // visits every application module that owns Go tests.
 func TestTestSubModulesDispatchesApplicationModules(t *testing.T) {

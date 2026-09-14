@@ -455,17 +455,6 @@
       }
     ]
   },
-  "design-patterns": {
-    "total_lines": 0,
-    "duplicated_lines": 0,
-    "duplication_ratio": 0,
-    "ceremony_lines": 0,
-    "behavior_lines": 0,
-    "ceremony_ratio": 0,
-    "distinct_tool_defs": 0,
-    "tool_refs": 0,
-    "top_blocks": []
-  },
   "reuse_total": {
     "total_lines": 38121,
     "duplicated_lines": 5204,
