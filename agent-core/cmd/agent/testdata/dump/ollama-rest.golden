@@ -365,9 +365,9 @@ rest:
           - 11434
 files:
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/declarations.yaml
-    sha256: 15b0aae339194f8e57ce5673ca5cd9a75d8759a62dc74ae8a02964f60cca8227
+    sha256: ef9f4388170296a3f14a190d621e1c715f90b8354c056a7b148a234873ebc34f
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/llm.yaml
-    sha256: 6d2a11c130b51061ff0d9f02186574476caa8c0d9813b80253f5606ed45c8938
+    sha256: 2cfb17199ba2ac43d7072360869091977d487cdf43aeef421f100b1f347c2bcd
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/machine.yaml
     sha256: 0f6156846b83c4dcfb4a37675f09aca960c9341282885df831d3a0fdf1241226
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/openapi.yaml
@@ -375,7 +375,7 @@ files:
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/profile.yaml
     sha256: 9b2c981878ca25eb3571445aba3d9d8107c827b4a937d2c4fe60cda13b23faf8
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/rest.yaml
-    sha256: d287d1da6ee2f7b76287c690a93e6ce19df72ddb795b9df07f919ca5b8ecf891
+    sha256: f6f1c61fd61eaf2afc3c7c8267ed47641039796e92c7d3b39fb929d8bc4eded9
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/tools.yaml
     sha256: 2f9d1b5d42f1a3cddf18ca157c3c07b9411e8c0d14c2ae0b264f253418688dc9
   - path: <agent-core>/tools/builtin/done.yaml

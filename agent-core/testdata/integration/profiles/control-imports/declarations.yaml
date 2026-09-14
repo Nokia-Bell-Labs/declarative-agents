@@ -2,6 +2,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: control-program
 imports:
-  - control-tools.yaml
-  - lifecycle-tools.yaml
+  - ../../units/control-tools.yaml
+  - ../../../../tools/builtin/lifecycle/exit-agent.yaml
 tools: []

@@ -49,7 +49,8 @@ func TestLoadClosureLoadsControlProfileDeterministically(t *testing.T) {
 		filepath.Join(filepath.Dir(profile), "tools.yaml"),
 		filepath.Join(filepath.Dir(profile), "declarations.yaml"),
 		filepath.Join(filepath.Dir(profile), "rest.yaml"),
-		filepath.Join(root, "tools", "builtin", "lifecycle", "all.yaml"),
+		filepath.Join(root, "testdata", "integration", "units", "control-tools.yaml"),
+		filepath.Join(root, "testdata", "integration", "units", "control-rest.yaml"),
 		filepath.Join(root, "tools", "builtin", "lifecycle", "exit-agent.yaml"),
 	} {
 		require.True(t, seen[canonicalPath(path)], "closure is missing %s", path)
@@ -76,12 +77,14 @@ func TestControlImportsMatchesResolvedControlProgram(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, normalizedResolvedDump(t, control), normalizedResolvedDump(t, imported))
-	for _, name := range []string{
-		"declarations.yaml", "control-tools.yaml", "lifecycle-tools.yaml",
-		"rest.yaml", "control-rest.yaml",
+	for _, path := range []string{
+		filepath.Join(profiles, "control-imports", "declarations.yaml"),
+		filepath.Join(profiles, "control-imports", "rest.yaml"),
+		filepath.Join(root, "testdata", "integration", "units", "control-tools.yaml"),
+		filepath.Join(root, "testdata", "integration", "units", "control-rest.yaml"),
+		filepath.Join(root, "tools", "builtin", "lifecycle", "exit-agent.yaml"),
 	} {
-		require.Contains(t, imported.Files,
-			canonicalPath(filepath.Join(profiles, "control-imports", name)))
+		require.Contains(t, imported.Files, canonicalPath(path))
 	}
 }
 

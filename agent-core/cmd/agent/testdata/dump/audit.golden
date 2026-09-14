@@ -423,7 +423,7 @@ files:
   - path: <agent-core>/testdata/integration/profiles/audit/profile.yaml
     sha256: eccb9eaf323e9edbd468281e24db5317901ae5346a130bffedeabf1fce581379
   - path: <agent-core>/testdata/integration/profiles/audit/ripgrep.yaml
-    sha256: ae479c63d892cd0f41729fc5602c8288923c5b8e175e9f2b4083984349e0d6ad
+    sha256: 16a85cda76aecdcb118959cc3366059b4b6dce3041fb7b42ed819a529a8e6656
   - path: <agent-core>/testdata/integration/profiles/audit/tools.yaml
     sha256: 8c0b951612e211648d44a1c451ee610710dd2ca5fa86e7a63cda5175a2b833ee
   - path: <agent-core>/tools/builtin/format-report.yaml

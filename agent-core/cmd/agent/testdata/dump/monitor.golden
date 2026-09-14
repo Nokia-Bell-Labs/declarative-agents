@@ -230,12 +230,12 @@ rest:
           - localhost
 files:
   - path: <agent-core>/testdata/integration/profiles/monitor/declarations.yaml
-    sha256: f76cd676d4a4e9ec0799803d226cb623c084ec71a247d2af4caaf2fd36803f1f
+    sha256: 7f0c82900e6d4fcfc712193258bd21a4e571cab53aebc1178e5d97679f6328af
   - path: <agent-core>/testdata/integration/profiles/monitor/machine.yaml
     sha256: 8c2b6a1562dd4ac561341733fe8ca8ca79bc23c3978ce7ce66588a03f619bead
   - path: <agent-core>/testdata/integration/profiles/monitor/profile.yaml
     sha256: 3084e376fc7740cdb41e4ff80bd2d74c5d4e5abf1471630ffc595e9009ced05f
   - path: <agent-core>/testdata/integration/profiles/monitor/rest.yaml
-    sha256: 8d1b536c0c4ba0401c4f0690bee9e4de18265dbd5bd7c19ef802a4cbbd4f2067
+    sha256: 053c00421f3abc63da89fd59fffaf7acca3040bdb279090d293a3ea4ba1a1799
   - path: <agent-core>/testdata/integration/profiles/monitor/tools.yaml
     sha256: 8978c7ba3ef4bc7e17a2330e20237640ad2349436fdb45406836a8b8550cecc5

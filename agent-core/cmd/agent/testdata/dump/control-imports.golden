@@ -240,19 +240,19 @@ rest:
         ports:
           - 0
 files:
-  - path: <agent-core>/testdata/integration/profiles/control-imports/control-rest.yaml
-    sha256: e332735889a88387c408e3cf3d646dccddb10d3ee841f84b55e3c00b745cdd3f
-  - path: <agent-core>/testdata/integration/profiles/control-imports/control-tools.yaml
-    sha256: 10fbd112582fc4f2f4bce55fc92a45d50733352f5b78bd2432e7d5332b807967
   - path: <agent-core>/testdata/integration/profiles/control-imports/declarations.yaml
-    sha256: 3daef91a8e31f246b3db8f53f0443212dbbb92396043a4360df3821cb5a84c48
-  - path: <agent-core>/testdata/integration/profiles/control-imports/lifecycle-tools.yaml
-    sha256: aec6c80f3aa7e94702bbcdb5e9fd58a27c79f9b6a51837e82b0295e02252c066
+    sha256: 94c8c779bc457f35e9b2ca500c82074ea8cff210faaa60df79a7e909358ea97f
   - path: <agent-core>/testdata/integration/profiles/control-imports/machine.yaml
     sha256: f0a81710ab6abdee8e98211a7f0aa8376c1e78424774843c431add797f224554
   - path: <agent-core>/testdata/integration/profiles/control-imports/profile.yaml
     sha256: eb670d531fb0bc868a005bcde47e388e82c8c5512ca1d00e01cc093595ba365a
   - path: <agent-core>/testdata/integration/profiles/control-imports/rest.yaml
-    sha256: c820f79f34fbaa600965472017b108d06e68091eddd585d918be9a1881b207e5
+    sha256: fd72094564d5b16b608fb5109f1fa99fbe47202f00c113ce1fd2e64c0105d3c0
   - path: <agent-core>/testdata/integration/profiles/control-imports/tools.yaml
     sha256: eea1c18fd35061524edeed0fd8f6d647838784c5ae598c76f15ed00b4a42517d
+  - path: <agent-core>/testdata/integration/units/control-rest.yaml
+    sha256: e332735889a88387c408e3cf3d646dccddb10d3ee841f84b55e3c00b745cdd3f
+  - path: <agent-core>/testdata/integration/units/control-tools.yaml
+    sha256: 10fbd112582fc4f2f4bce55fc92a45d50733352f5b78bd2432e7d5332b807967
+  - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
+    sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25

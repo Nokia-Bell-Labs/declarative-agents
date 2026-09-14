@@ -248,12 +248,12 @@ rest:
         disabled: true
 files:
   - path: <agent-core>/testdata/integration/profiles/request-signal/declarations.yaml
-    sha256: d7b475c70c0a48d3efbd5a7056a48bbd578457d9ba832c0354a7489cb3c6a713
+    sha256: de7894cac21342b4a1e2f9d1cca87067fb06787983658b61f7df73b229fe1506
   - path: <agent-core>/testdata/integration/profiles/request-signal/machine.yaml
     sha256: cfa3e3a8746dbe49722e1b68871517e8012fb3b582a5ecb31fa796a37bf42c1d
   - path: <agent-core>/testdata/integration/profiles/request-signal/profile.yaml
     sha256: 8733b123bdcfb6eb67b246362ae722f5aa177a89937770015114e4c615c3d6ff
   - path: <agent-core>/testdata/integration/profiles/request-signal/rest.yaml
-    sha256: 4cbbe11273062a93171fc1aba605268ef159add80086f66795c023991b70a45e
+    sha256: 13fe4e821a62a807685d28a0a8954dea3c879f7cb17bc8d385607cbb0142b200
   - path: <agent-core>/testdata/integration/profiles/request-signal/tools.yaml
     sha256: 712b144fa00d50c9ba6b1ff64aaa90f737202aa6a148e1389985174da08bcf62

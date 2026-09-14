@@ -5,10 +5,7 @@ profile:
   tools:
     - <agent-core>/testdata/integration/profiles/control/tools.yaml
   tool_declarations:
-    - <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
     - <agent-core>/testdata/integration/profiles/control/declarations.yaml
-  tool_config_dirs:
-    - <agent-core>/tools/builtin/lifecycle
   rest_definitions:
     - <agent-core>/testdata/integration/profiles/control/rest.yaml
 machine:
@@ -244,22 +241,18 @@ rest:
           - 0
 files:
   - path: <agent-core>/testdata/integration/profiles/control/declarations.yaml
-    sha256: e406a5ea57bdb364425e40c73a1502ac0df15bc6ef63855a4aa36a593e20e1a8
+    sha256: 94c8c779bc457f35e9b2ca500c82074ea8cff210faaa60df79a7e909358ea97f
   - path: <agent-core>/testdata/integration/profiles/control/machine.yaml
     sha256: f0a81710ab6abdee8e98211a7f0aa8376c1e78424774843c431add797f224554
   - path: <agent-core>/testdata/integration/profiles/control/profile.yaml
-    sha256: 77b5149834a128ce54579f08b9e4891500b810a9c838a2b43a8f5e86c4374c63
+    sha256: 59fff236abc8af702c1b85a120f200122de796b51662f05e5301e52b32b3080e
   - path: <agent-core>/testdata/integration/profiles/control/rest.yaml
-    sha256: 99a7939ffddf3647c16a36c1afbcc6458e4fc09c6c5aaddd233e766f364781d9
+    sha256: fd72094564d5b16b608fb5109f1fa99fbe47202f00c113ce1fd2e64c0105d3c0
   - path: <agent-core>/testdata/integration/profiles/control/tools.yaml
     sha256: eea1c18fd35061524edeed0fd8f6d647838784c5ae598c76f15ed00b4a42517d
-  - path: <agent-core>/tools/builtin/checkpoint-history.yaml
-    sha256: b785e62a2994848219d72c47761b7985228e5d98ab1a5da51bf4b4f8120e2578
-  - path: <agent-core>/tools/builtin/checkpoint-rollback.yaml
-    sha256: 709b9e4d290fafbabb02f7dbdad147d6f36c426ebb6235d75c26edb0816957c0
-  - path: <agent-core>/tools/builtin/lifecycle/all.yaml
-    sha256: 4b1aa21da53a0e38c8263f952296eb53e8d55f8d0f73f220667279e137702a44
+  - path: <agent-core>/testdata/integration/units/control-rest.yaml
+    sha256: e332735889a88387c408e3cf3d646dccddb10d3ee841f84b55e3c00b745cdd3f
+  - path: <agent-core>/testdata/integration/units/control-tools.yaml
+    sha256: 10fbd112582fc4f2f4bce55fc92a45d50733352f5b78bd2432e7d5332b807967
   - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
-    sha256: 998de7e4edbb30bca86f6f9fa84d930b932a3f20e76cd6a2727aa52176aaedcc
-  - path: <agent-core>/tools/builtin/suspend.yaml
-    sha256: e82b60cb1f450d3c9493fa03dc38e40379710d7561b3c8a3fb0c5fde3c43b858
+    sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25

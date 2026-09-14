@@ -209,7 +209,7 @@ files:
   - path: <agent-core>/tools/builtin/lifecycle/all.yaml
     sha256: 4b1aa21da53a0e38c8263f952296eb53e8d55f8d0f73f220667279e137702a44
   - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
-    sha256: 998de7e4edbb30bca86f6f9fa84d930b932a3f20e76cd6a2727aa52176aaedcc
+    sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25
   - path: <agent-core>/tools/builtin/llm/all.yaml
     sha256: 2b323d89df64acde868987bd04b82a48408f250769f27a18eee7c57d2c20e17a
   - path: <agent-core>/tools/builtin/nudge-reread.yaml
