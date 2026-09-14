@@ -17,6 +17,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry/genai"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
@@ -46,6 +47,10 @@ type ClientBuilder struct {
 	AsyncState  *AsyncState
 	Credentials CredentialResolver
 	Metrics     core.MetricConfig
+	// CaptureContent records redacted request and response bodies on the
+	// dispatch span, from the composition root's --telemetry-capture=full
+	// (srd028 R9.5).
+	CaptureContent bool
 }
 
 // CompensationExecutor executes REST compensation from rollback mementos.
@@ -61,6 +66,7 @@ func (b ClientBuilder) Build(res core.Result) core.Command {
 		toolName: b.ToolName, init: b.Init, operation: b.Operation,
 		params: params, asyncState: b.AsyncState, credentials: b.Credentials, buildErr: err,
 		metrics: b.Metrics, definitions: b.Definitions,
+		capture: newBodyCapture(b.CaptureContent),
 	}
 }
 
@@ -89,6 +95,7 @@ type clientCmd struct {
 	undoMeta     restUndoMetadata
 	commandState core.CommandStateView
 	traceCtx     oteltrace.SpanContext
+	capture      bodyCapture
 }
 
 // SetCommandState receives the read-only command-state view the engine injects
@@ -98,6 +105,13 @@ type clientCmd struct {
 func (c *clientCmd) SetCommandState(view core.CommandStateView) { c.commandState = view }
 
 var _ core.CommandStateAware = (*clientCmd)(nil)
+
+// SetTracer receives the dispatch child tracer the engine injects before
+// dispatch, so a capture-enabled command records its bodies on its own span
+// (srd028 R9.5, core TracerAware).
+func (c *clientCmd) SetTracer(tracer tracing.Tracer) { c.capture.setTracer(tracer) }
+
+var _ core.TracerAware = (*clientCmd)(nil)
 
 // SetTraceContext receives the active dispatch span the engine injects before
 // dispatch, so outbound requests carry its W3C trace context (srd016 R4, core
@@ -285,6 +299,7 @@ func stringOutputField(output map[string]interface{}, key string) string {
 }
 
 func (c *clientCmd) executeRequest(request *http.Request) core.Result {
+	c.capture.recordRequest(request, clientRedactionSelectors(c.operation, c.operation.Operation.Success))
 	start := time.Now()
 	response, attempts, err := c.doWithRetry(request)
 	duration := time.Since(start)
@@ -301,7 +316,9 @@ func (c *clientCmd) executeRequest(request *http.Request) core.Result {
 		return result
 	}
 	defer func() { _ = response.Body.Close() }()
-	result, err := mapClientResponse(c.toolName, c.operation, response, attempts, duration, c.params)
+	result, err := mapClientResponse(
+		c.toolName, c.operation, response, attempts, duration, c.params, c.capture,
+	)
 	if err != nil {
 		return result
 	}
