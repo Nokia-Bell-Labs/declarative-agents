@@ -1,0 +1,25 @@
+tools:
+  - name: alpha
+    problem: alpha problem
+    goals:
+      - alpha goal
+    config:
+      mode: fast
+    emits:
+      - Done
+  - name: beta
+    problem: beta problem
+    goals:
+      - beta goal
+    config:
+      mode: safe
+    emits:
+      - Done
+shared_a:
+  limits:
+    timeout: 1s
+    retries: 2
+shared_b:
+  limits:
+    timeout: 1s
+    retries: 2
