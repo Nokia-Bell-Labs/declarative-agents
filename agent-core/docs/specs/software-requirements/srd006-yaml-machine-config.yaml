@@ -41,6 +41,20 @@ requirements:
       - R2.7: "A non-empty transition label must satisfy the canonical $from(label).path label grammar: no dots, parentheses, whitespace, or control characters. The error identifies the transition index and label field."
       - R2.8: Duplicate transition labels are valid because command-state lookup resolves the most recent matching completed step.
       - R2.9: "Every $from(label) selector reachable from the machine resolves its label against the machine's label universe at load: transition labels, for_each join and item labels, and external_labels. Selectors are taken from the machine's for_each items and from the config of every tool a transition names as an action. An unresolved label is a load error naming the selector, the unknown label, the tool or state carrying it, and the nearest declared label."
+      - R2.10: >-
+          Every transition waits on a signal something entering its state can
+          produce. The producible set is what the actions entering that state
+          emit, the signals a for_each join publishes into its own next state,
+          the runtime seed, the machine's declared resume_signal and
+          summary_signal, and the signals a request signal source can inject. A
+          transition outside that set can never fire. It is reported as a
+          startup diagnostic until the declarations it flags are corrected, and
+          a load error after that.
+      - R2.11: >-
+          An action declaring no emitted signals contributes nothing to the
+          producible set rather than being read as emitting nothing, so a
+          machine whose tools have not been converted to signatures raises no
+          liveness error.
 
   R3:
     title: BuildTransitionTable
@@ -102,7 +116,7 @@ acceptance_criteria:
 
   - id: AC2
     criterion: Validation checks referential integrity for initial_state, terminal_states, transitions, minimum counts, and transition-label grammar. Duplicate valid labels remain legal. Errors are collected together.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9]
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11]
 
   - id: AC3
     criterion: BuildTransitionTable resolves named actions from Registry, uses toolAction for "$tool", nil for empty. Returns TransitionTable, TerminalFunc, and error.

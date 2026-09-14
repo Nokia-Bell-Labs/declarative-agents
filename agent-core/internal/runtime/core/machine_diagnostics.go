@@ -21,6 +21,7 @@ const (
 	DiagnosticMissingTerminalStatus   = "undeclared_terminal_status"
 	DiagnosticUnresolvedSelectorLabel = "unresolved_selector_label"
 	DiagnosticSelectorPathMismatch    = "selector_path_mismatch"
+	DiagnosticDeadTransition          = "dead_transition"
 )
 
 func MachineDiagnosticCodes() []string {
@@ -30,7 +31,7 @@ func MachineDiagnosticCodes() []string {
 		DiagnosticImplicitSummarySignal, DiagnosticImplicitResumeSignal,
 		DiagnosticImplicitCommandTimeout, DiagnosticImplicitMaxIterations,
 		DiagnosticMissingTerminalStatus, DiagnosticUnresolvedSelectorLabel,
-		DiagnosticSelectorPathMismatch,
+		DiagnosticSelectorPathMismatch, DiagnosticDeadTransition,
 	}
 }
 

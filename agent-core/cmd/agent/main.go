@@ -529,9 +529,40 @@ func validateConfig() error {
 		return err
 	}
 	reportMachineDiagnostics(resources.Machine)
+	reportExhaustivenessDiagnostics(resources.Machine, resources.Definitions, resources.RestDefinitions)
 	fmt.Fprintf(os.Stderr, "config valid: profile %s (%d REST client(s), %d server(s))\n",
 		flagProfile, len(resources.RestDefinitions.Clients), len(resources.RestDefinitions.Servers))
 	return nil
+}
+
+// requestSourceSignals collects the signals a request signal source can inject,
+// which reach the machine without any transition producing them (srd046).
+func requestSourceSignals(defs toolrest.Collection) []string {
+	var signals []string
+	for _, server := range defs.Servers {
+		for _, endpoint := range server.Endpoints {
+			signals = append(signals, endpoint.Signal)
+			signals = append(signals, endpoint.AllowedSignals...)
+			for _, signal := range endpoint.SignalSource.SignalMapping {
+				signals = append(signals, signal)
+			}
+		}
+	}
+	return signals
+}
+
+// reportExhaustivenessDiagnostics warns about transitions nothing can trigger
+// (GH-1970). It reports rather than fails: two in-repo machines still route a
+// ToolFailed their action does not declare, and this epic does not promote a
+// check that errors on declarations the repository still contains.
+func reportExhaustivenessDiagnostics(
+	machine core.MachineSpec, defs []catalog.ToolDef, rest toolrest.Collection,
+) {
+	inputs := catalog.ExhaustivenessInputs{External: requestSourceSignals(rest)}
+	for _, diagnostic := range catalog.ValidateMachineExhaustiveness(machine, defs, inputs) {
+		fmt.Fprintf(os.Stderr, "warning: machine-diagnostic-%s: %s\n",
+			diagnostic.Code, diagnostic.Message)
+	}
 }
 
 func reportMachineDiagnostics(machine core.MachineSpec) {
