@@ -27,6 +27,7 @@ type ToolDeclaration struct {
 	Requirements  ToolDeclRequirements
 	NonGoals      []string
 	Emits         []string
+	Signature     *ToolDeclSignature
 	Output        ToolDeclOutput
 	Metrics       core.MetricConfig
 	Visibility    string
@@ -44,6 +45,14 @@ type ToolDeclRequirements struct {
 	Input  []string
 	Output []string
 	Errors []string
+}
+
+// ToolDeclSignature mirrors the signature a tool may declare in place of the
+// prose contract blocks (srd051 R6).
+type ToolDeclSignature struct {
+	Input  string   `yaml:"input,omitempty"`
+	Output string   `yaml:"output,omitempty"`
+	Emits  []string `yaml:"emits,omitempty"`
 }
 
 // ToolDeclOutput captures the declared machine-readable result shape.

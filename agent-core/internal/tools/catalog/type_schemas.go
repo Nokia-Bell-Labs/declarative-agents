@@ -64,7 +64,7 @@ func applySignatureTypes(def ToolDef, registry *typesys.Registry) (ToolDef, []st
 	if def.Signature == nil {
 		return def, nil, nil
 	}
-	def = applySignatureEmits(def)
+	def = applyContractDefaults(applySignatureEmits(def))
 	var refs []string
 	if ref := def.Signature.Output; ref != "" {
 		schema, used, err := registry.ResolveSchemaRefs(map[string]any{typesys.TypeRefKey: ref})
