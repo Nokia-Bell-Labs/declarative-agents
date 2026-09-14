@@ -51,6 +51,10 @@ type FactoryDeps struct {
 	Monitor            MonitorState
 	RunID              string
 	CredentialResolver credentials.Resolver
+	// CaptureContent turns on request and response body recording on client
+	// dispatch spans, from the composition root's --telemetry-capture=full
+	// (srd028 R9.5).
+	CaptureContent bool
 }
 
 // BuiltinRegistrar registers builtin factories for a selected tool set. The
@@ -465,6 +469,7 @@ func newClientBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.
 	return ClientBuilder{
 		ToolName: def.Name, Init: init, Operation: operation, Definitions: deps.Definitions,
 		AsyncState: deps.AsyncState, Credentials: deps.CredentialResolver, Metrics: def.Metrics,
+		CaptureContent: deps.CaptureContent,
 	}, nil
 }
 

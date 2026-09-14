@@ -161,6 +161,7 @@ func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
 			Monitor:            st.monitor,
 			RunID:              st.runID,
 			CredentialResolver: credentials.Environment{},
+			CaptureContent:     st.captureLevel.CapturesFullContent(),
 		})
 	}
 }

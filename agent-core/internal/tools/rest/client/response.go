@@ -28,6 +28,7 @@ func mapClientResponse(
 	attempts int,
 	duration time.Duration,
 	params map[string]interface{},
+	capture bodyCapture,
 ) (core.Result, error) {
 	body, err := readResponseBody(response, def.Limits.MaxResponseBytes)
 	if err != nil {
@@ -47,9 +48,7 @@ func mapClientResponse(
 	if carried := carriedInputs(def.Operation.Params, params); carried != nil {
 		output["carried"] = carried
 	}
-	redactionSelectors := clientRedactionSelectors(def, mapping)
-	redactClientOutput(output, redactionSelectors)
-	redactClientDerivedOutput(output, responseMap, redactionSelectors)
+	redactionSelectors := redactAndCapture(def, mapping, responseMap, output, body, capture)
 	return core.Result{
 		Signal: core.Signal(signal), CommandName: commandName,
 		Output: jsonOutput(output),
@@ -60,6 +59,25 @@ func mapClientResponse(
 		),
 		Metrics: clientMetrics(response.StatusCode, attempts, duration, signal, responseBytes),
 	}, nil
+}
+
+// redactAndCapture applies the operation's declared redaction to the mapped
+// output and records the response body on the dispatch span under the same
+// selectors, so captured content cannot carry what the output redacts
+// (srd028 R9.3, R9.6). It returns the selectors for the Result's redaction.
+func redactAndCapture(
+	def ClientOperationDefinition,
+	mapping StatusMapping,
+	responseMap ResponseMapping,
+	output map[string]interface{},
+	body []byte,
+	capture bodyCapture,
+) []string {
+	selectors := clientRedactionSelectors(def, mapping)
+	capture.recordResponse(body, selectors)
+	redactClientOutput(output, selectors)
+	redactClientDerivedOutput(output, responseMap, selectors)
+	return selectors
 }
 
 func validateResponsePayload(mapping ResponseMapping, payload map[string]interface{}) error {
