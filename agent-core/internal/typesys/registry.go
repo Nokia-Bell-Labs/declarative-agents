@@ -1,0 +1,194 @@
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
+
+package typesys
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
+
+// Registry holds every declared type addressed as unit.Name (srd051 R1.4).
+type Registry struct {
+	types map[string]TypeDecl
+	units map[string]string
+}
+
+// Build indexes the types of every unit, rejecting a schema outside the closed
+// subset and a name declared by more than one unit. Type names are unique
+// across the closure, not only within a unit, so a reader never has to know
+// which unit a name came from to know which type it is (srd051 R4.3).
+func Build(units ...TypeUnitFile) (*Registry, error) {
+	registry := &Registry{types: map[string]TypeDecl{}, units: map[string]string{}}
+	for _, unit := range sortedUnits(units) {
+		for _, declared := range unit.Types {
+			if err := registry.add(unit, declared); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return registry, nil
+}
+
+func (r *Registry) add(unit TypeUnitFile, declared TypeDecl) error {
+	if declared.Name == "" {
+		return fmt.Errorf("unit %q declares a type with no name", unit.Unit)
+	}
+	if first, exists := r.units[declared.Name]; exists {
+		return fmt.Errorf("type %q is declared by unit %q and unit %q",
+			declared.Name, first, unit.Unit)
+	}
+	if err := ValidateSubset(declared.Schema); err != nil {
+		return fmt.Errorf("unit %q type %q: %w", unit.Unit, declared.Name, err)
+	}
+	r.units[declared.Name] = unit.Unit
+	r.types[unit.Ref(declared.Name)] = declared
+	return nil
+}
+
+// Resolve returns the type a unit.Name reference addresses.
+func (r *Registry) Resolve(ref string) (TypeDecl, bool) {
+	if r == nil {
+		return TypeDecl{}, false
+	}
+	declared, ok := r.types[ref]
+	return declared, ok
+}
+
+// Refs lists every declared type address in sorted order, which is the order
+// the canonical dump renders them in (srd051 R5.3).
+func (r *Registry) Refs() []string {
+	if r == nil {
+		return nil
+	}
+	refs := make([]string, 0, len(r.types))
+	for ref := range r.types {
+		refs = append(refs, ref)
+	}
+	sort.Strings(refs)
+	return refs
+}
+
+// ResolveSchema expands every reference in a schema, recursively and at any
+// depth. It returns a new schema and leaves its input untouched, so a
+// declaration stays readable after resolution and repeated resolution yields
+// the same result (srd051 R4.1, R4.5).
+func (r *Registry) ResolveSchema(schema map[string]any) (map[string]any, error) {
+	return r.resolveSchema(schema, nil)
+}
+
+func (r *Registry) resolveSchema(schema map[string]any, expanding []string) (map[string]any, error) {
+	if schema == nil {
+		return nil, nil
+	}
+	if ref, isRef := referenceOf(schema); isRef {
+		return r.expandReference(ref, expanding)
+	}
+	resolved := make(map[string]any, len(schema))
+	for key, value := range schema {
+		converted, err := r.resolveValue(key, value, expanding)
+		if err != nil {
+			return nil, err
+		}
+		resolved[key] = converted
+	}
+	return resolved, nil
+}
+
+func (r *Registry) resolveValue(key string, value any, expanding []string) (any, error) {
+	switch key {
+	case "properties":
+		properties, ok := asSchema(value)
+		if !ok {
+			return value, nil
+		}
+		resolved := make(map[string]any, len(properties))
+		for name, nested := range properties {
+			converted, err := r.resolveNested(nested, expanding)
+			if err != nil {
+				return nil, fmt.Errorf("properties.%s: %w", name, err)
+			}
+			resolved[name] = converted
+		}
+		return resolved, nil
+	case "items":
+		converted, err := r.resolveNested(value, expanding)
+		if err != nil {
+			return nil, fmt.Errorf("items: %w", err)
+		}
+		return converted, nil
+	default:
+		return cloneValue(value), nil
+	}
+}
+
+func (r *Registry) resolveNested(value any, expanding []string) (any, error) {
+	nested, ok := asSchema(value)
+	if !ok {
+		return cloneValue(value), nil
+	}
+	return r.resolveSchema(nested, expanding)
+}
+
+// expandReference resolves one reference, refusing a chain that re-enters a
+// reference it is already expanding. A type referring to itself is such a
+// chain (srd051 R4.4).
+func (r *Registry) expandReference(ref string, expanding []string) (map[string]any, error) {
+	for _, active := range expanding {
+		if active == ref {
+			return nil, fmt.Errorf("type reference cycle: %s",
+				strings.Join(append(append([]string{}, expanding...), ref), " -> "))
+		}
+	}
+	declared, ok := r.Resolve(ref)
+	if !ok {
+		unit, name := splitRef(ref)
+		return nil, fmt.Errorf("unknown type reference %q: no type %q in unit %q", ref, name, unit)
+	}
+	return r.resolveSchema(declared.Schema, append(append([]string{}, expanding...), ref))
+}
+
+func referenceOf(schema map[string]any) (string, bool) {
+	raw, present := schema[TypeRefKey]
+	if !present {
+		return "", false
+	}
+	ref, ok := raw.(string)
+	return ref, ok
+}
+
+func splitRef(ref string) (unit, name string) {
+	index := strings.LastIndex(ref, ".")
+	if index <= 0 || index == len(ref)-1 {
+		return ref, ref
+	}
+	return ref[:index], ref[index+1:]
+}
+
+// cloneValue deep-copies the parts of a schema resolution does not rewrite, so
+// a resolved schema shares no map or slice with the declaration it came from.
+func cloneValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		cloned := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			cloned[key] = cloneValue(nested)
+		}
+		return cloned
+	case []any:
+		cloned := make([]any, len(typed))
+		for i, nested := range typed {
+			cloned[i] = cloneValue(nested)
+		}
+		return cloned
+	default:
+		return value
+	}
+}
+
+func sortedUnits(units []TypeUnitFile) []TypeUnitFile {
+	sorted := append([]TypeUnitFile{}, units...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Unit < sorted[j].Unit })
+	return sorted
+}
