@@ -4,6 +4,7 @@ go 1.26.3
 
 require (
 	github.com/Nokia-Bell-Labs/declarative-agents/agent-core v0.0.0
+	github.com/Nokia-Bell-Labs/declarative-agents/magefiles v0.0.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -45,3 +46,5 @@ require (
 )
 
 replace github.com/Nokia-Bell-Labs/declarative-agents/agent-core v0.0.0 => ../../agent-core
+
+replace github.com/Nokia-Bell-Labs/declarative-agents/magefiles v0.0.0 => ../../magefiles

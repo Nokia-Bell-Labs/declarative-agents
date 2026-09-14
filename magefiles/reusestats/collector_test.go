@@ -81,6 +81,22 @@ func TestCollectCanonicalMappingsIgnoreCommentsButPreserveKeyOrder(t *testing.T)
 	}
 }
 
+func TestCollectParsesUnquotedEnvironmentReferencesDeterministically(t *testing.T) {
+	root := t.TempDir()
+	writeReuseFixture(t, root, "rest.yaml", `rest:
+  limits:
+    network:
+      ports: [${SERVICE_PORT:-8080}]
+  address: ${SERVICE_HOST:-127.0.0.1}:${SERVICE_PORT:-8080}
+`)
+
+	first := mustCollect(t, root, ".")
+	second := mustCollect(t, root, ".")
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("environment-reference collection differs:\n%#v\n%#v", first, second)
+	}
+}
+
 func writeReuseFixture(t *testing.T, root, name, contents string) {
 	t.Helper()
 	path := filepath.Join(root, name)

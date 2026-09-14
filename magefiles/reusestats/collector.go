@@ -9,10 +9,12 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -62,6 +64,19 @@ var ceremonyFields = map[string]bool{
 var behaviorFields = map[string]bool{
 	"config": true, "signature": true, "emits": true,
 	"parameters": true, "output": true,
+}
+
+var environmentReference = regexp.MustCompile(`\$\{[^}\n]+\}`)
+
+// Reuse emits reuse metrics for the conventional agent-owned YAML roots.
+func Reuse() error {
+	result, err := Collect(".", "agents", "tools", "testdata")
+	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(result)
 }
 
 // Collect measures all YAML files under roots. Relative roots resolve from
@@ -152,7 +167,7 @@ func (c *collector) collectFile(path string) error {
 	}
 	c.result.TotalLines += physicalLines(data)
 	var document yaml.Node
-	if err := yaml.Unmarshal(data, &document); err != nil {
+	if err := yaml.Unmarshal(normalizeEnvironmentReferences(data), &document); err != nil {
 		return fmt.Errorf("parse reuse YAML %s: %w", path, err)
 	}
 	root := documentRoot(&document)
@@ -167,6 +182,13 @@ func (c *collector) collectFile(path string) error {
 	c.collectTools(root)
 	c.collectMachineActions(root)
 	return nil
+}
+
+func normalizeEnvironmentReferences(data []byte) []byte {
+	return environmentReference.ReplaceAllFunc(data, func(reference []byte) []byte {
+		sum := sha256.Sum256(reference)
+		return []byte("envref_" + hex.EncodeToString(sum[:8]))
+	})
 }
 
 func physicalLines(data []byte) int {
