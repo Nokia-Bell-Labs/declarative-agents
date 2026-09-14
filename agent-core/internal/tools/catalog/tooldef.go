@@ -55,10 +55,14 @@ type ToolDef struct {
 	StdinSource    string                 `yaml:"stdin_source,omitempty"`
 	StdinMaxBytes  int                    `yaml:"stdin_max_bytes,omitempty"`
 	Env            []string               `yaml:"env,omitempty"`
+	Override       bool                   `yaml:"override,omitempty"`
 	stdinSourceSet bool
 	stdinLimitSet  bool
 	envSet         bool
 	phaseScoped    bool
+	sourceUnit     string
+	sourcePath     string
+	overrideTarget ToolSource
 }
 
 // UnmarshalYAML validates command-state selectors while declarations are loaded,
@@ -323,12 +327,6 @@ type ParamMapping struct {
 	Source     string
 	Required   bool
 	Position   int
-}
-
-// ToolDefsFile is the top-level YAML structure for declaration files.
-type ToolDefsFile struct {
-	Includes []string  `yaml:"includes,omitempty"`
-	Tools    []ToolDef `yaml:"tools"`
 }
 
 // ToolSelectionFile is the YAML structure for a tool selection file.

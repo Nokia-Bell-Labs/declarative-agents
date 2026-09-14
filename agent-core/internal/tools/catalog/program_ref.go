@@ -89,16 +89,14 @@ func ProgramAssetFiles(paths ProgramPaths) ([]string, error) {
 	addProgramPaths(files, paths.ToolSelections)
 	addProgramPaths(files, paths.ToolDeclarations)
 	addProgramPaths(files, paths.RESTDefinitions)
-	for _, declaration := range paths.ToolDeclarations {
-		if _, err := loadToolDefsRecursive(
-			declaration, nil, nil, make(map[string]ToolDefsFile),
-			func(path string, _ []byte) error {
-				files[path] = true
-				return nil
-			},
-		); err != nil {
-			return nil, err
-		}
+	if _, err := LoadToolDeclarationsWithVisitor(
+		paths.ToolDeclarations,
+		func(path string, _ []byte) error {
+			files[path] = true
+			return nil
+		},
+	); err != nil {
+		return nil, err
 	}
 	for _, dir := range append(
 		append([]string(nil), paths.ToolConfigDirs...), paths.RESTConfigDirs...,

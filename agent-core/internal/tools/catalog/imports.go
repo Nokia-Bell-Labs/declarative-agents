@@ -1,0 +1,347 @@
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
+
+package catalog
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+)
+
+var toolUnitName = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
+
+// ToolDefsFile is the top-level YAML structure for declaration files.
+type ToolDefsFile struct {
+	Includes    []string  `yaml:"includes,omitempty"`
+	Unit        string    `yaml:"unit,omitempty"`
+	Imports     []string  `yaml:"imports,omitempty"`
+	Tools       []ToolDef `yaml:"tools"`
+	hasTools    bool
+	hasImports  bool
+	hasIncludes bool
+}
+
+// ToolSource identifies the declaration unit and file that owns one tool.
+type ToolSource struct {
+	Unit string
+	Path string
+}
+
+// DeclarationSource returns the tool's loader-assigned provenance.
+func (td ToolDef) DeclarationSource() ToolSource {
+	return ToolSource{Unit: td.sourceUnit, Path: td.sourcePath}
+}
+
+// OverrideTarget returns the imported source replaced by this local tool.
+func (td ToolDef) OverrideTarget() ToolSource {
+	return td.overrideTarget
+}
+
+type toolImportResolver struct {
+	visit           FileVisitor
+	warnings        io.Writer
+	files           map[string]ToolDefsFile
+	resolved        map[string][]ToolDef
+	units           map[string]ToolSource
+	visiting        map[string]int
+	stack           []string
+	warned          map[string]bool
+	hasImportEdges  bool
+	hasIncludeEdges bool
+}
+
+func newToolImportResolver(visit FileVisitor, warnings io.Writer) *toolImportResolver {
+	return &toolImportResolver{
+		visit: visit, warnings: warnings,
+		files: map[string]ToolDefsFile{}, resolved: map[string][]ToolDef{},
+		units: map[string]ToolSource{}, visiting: map[string]int{}, warned: map[string]bool{},
+	}
+}
+
+func (r *toolImportResolver) loadRoots(paths []string) ([]ToolDef, error) {
+	var all []ToolDef
+	for _, path := range paths {
+		defs, err := r.resolve(path, false, "")
+		if err != nil {
+			return nil, err
+		}
+		all = MergeToolDefs(all, defs)
+	}
+	return all, nil
+}
+
+func (r *toolImportResolver) resolve(
+	path string, imported bool, edgeKind string,
+) ([]ToolDef, error) {
+	path, err := canonicalToolDeclarationPath(path)
+	if err != nil {
+		return nil, err
+	}
+	if index, ok := r.visiting[path]; ok {
+		return nil, r.cycleError(edgeKind, index, path)
+	}
+	file, err := r.readFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.validateFile(file, path, imported); err != nil {
+		return nil, err
+	}
+	if defs, ok := r.resolved[path]; ok {
+		return defs, nil
+	}
+	if err := r.registerEdges(file, path); err != nil {
+		return nil, err
+	}
+	r.visiting[path] = len(r.stack)
+	r.stack = append(r.stack, path)
+	defs, err := r.resolveFile(file, path)
+	r.stack = r.stack[:len(r.stack)-1]
+	delete(r.visiting, path)
+	if err != nil {
+		return nil, err
+	}
+	r.resolved[path] = defs
+	return defs, nil
+}
+
+func (r *toolImportResolver) resolveFile(file ToolDefsFile, path string) ([]ToolDef, error) {
+	source := ToolSource{Unit: file.Unit, Path: path}
+	local := annotateToolSources(file.Tools, source)
+	if err := validateToolDefs(local); err != nil {
+		return nil, fmt.Errorf("tool unit %q at %s: %w", file.Unit, path, err)
+	}
+	if len(file.Imports) > 0 {
+		imported, err := r.resolveImports(file, path)
+		if err != nil {
+			return nil, err
+		}
+		return applyLocalTools(imported, local, source)
+	}
+	if hasToolOverride(local) {
+		return nil, fmt.Errorf("tool unit %q at %s declares override without an imported target", file.Unit, path)
+	}
+	included, err := r.resolveIncludes(file, path)
+	if err != nil {
+		return nil, err
+	}
+	return MergeToolDefs(included, local), nil
+}
+
+func (r *toolImportResolver) resolveImports(file ToolDefsFile, path string) ([]ToolDef, error) {
+	var merged []ToolDef
+	for _, importPath := range file.Imports {
+		defs, err := r.resolve(filepath.Join(filepath.Dir(path), importPath), true, "import")
+		if err != nil {
+			return nil, fmt.Errorf("tool unit %q at %s imports %q: %w", file.Unit, path, importPath, err)
+		}
+		merged, err = mergeImportedTools(merged, defs)
+		if err != nil {
+			return nil, fmt.Errorf("tool unit %q at %s: %w", file.Unit, path, err)
+		}
+	}
+	return merged, nil
+}
+
+func (r *toolImportResolver) resolveIncludes(file ToolDefsFile, path string) ([]ToolDef, error) {
+	var merged []ToolDef
+	for _, includePath := range file.Includes {
+		target := includePath
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(filepath.Dir(path), target)
+		}
+		defs, err := r.resolve(target, false, "include")
+		if err != nil {
+			return nil, fmt.Errorf("include %s from %s: %w", includePath, path, err)
+		}
+		merged = MergeToolDefs(merged, defs)
+	}
+	return merged, nil
+}
+
+func (r *toolImportResolver) readFile(path string) (ToolDefsFile, error) {
+	if file, ok := r.files[path]; ok {
+		return file, nil
+	}
+	file, err := readToolDefsFile(path, r.visit)
+	if err != nil {
+		return ToolDefsFile{}, err
+	}
+	r.files[path] = file
+	return file, nil
+}
+
+func (r *toolImportResolver) validateFile(
+	file ToolDefsFile, path string, imported bool,
+) error {
+	if !file.hasTools {
+		return fmt.Errorf("tool declaration %s: top-level tools field is required", path)
+	}
+	if file.Unit != "" && !toolUnitName.MatchString(file.Unit) {
+		return fmt.Errorf("tool declaration %s has invalid unit %q", path, file.Unit)
+	}
+	if (imported || file.hasImports) && file.Unit == "" {
+		return fmt.Errorf("tool declaration %s must declare unit", path)
+	}
+	if err := validateToolImportPaths(file, path); err != nil {
+		return err
+	}
+	if file.Unit != "" || len(file.Imports) > 0 {
+		if err := rejectLocalToolDuplicates(file.Tools, ToolSource{Unit: file.Unit, Path: path}); err != nil {
+			return err
+		}
+	}
+	return r.registerUnit(file.Unit, path)
+}
+
+func validateToolImportPaths(file ToolDefsFile, path string) error {
+	for _, importPath := range file.Imports {
+		if strings.TrimSpace(importPath) == "" {
+			return fmt.Errorf("tool unit %q at %s has an empty import path", file.Unit, path)
+		}
+		if filepath.IsAbs(importPath) {
+			return fmt.Errorf("tool unit %q at %s imports absolute path %q", file.Unit, path, importPath)
+		}
+	}
+	return nil
+}
+
+func (r *toolImportResolver) registerUnit(unit, path string) error {
+	if unit == "" {
+		return nil
+	}
+	if previous, exists := r.units[unit]; exists && previous.Path != path {
+		return fmt.Errorf("duplicate tool unit %q: %s and %s", unit, previous.Path, path)
+	}
+	r.units[unit] = ToolSource{Unit: unit, Path: path}
+	return nil
+}
+
+func (r *toolImportResolver) registerEdges(file ToolDefsFile, path string) error {
+	if file.hasIncludes && !r.warned[path] {
+		r.warned[path] = true
+		fmt.Fprintf(r.warnings, "warning: tool declaration includes are deprecated: %s\n", path)
+	}
+	if len(file.Imports) > 0 {
+		r.hasImportEdges = true
+	}
+	if len(file.Includes) > 0 {
+		r.hasIncludeEdges = true
+	}
+	if r.hasImportEdges && r.hasIncludeEdges {
+		return fmt.Errorf("tool declaration closure mixes imports and includes at %s", path)
+	}
+	return nil
+}
+
+func (r *toolImportResolver) cycleError(edgeKind string, index int, path string) error {
+	chain := append(append([]string(nil), r.stack[index:]...), path)
+	if edgeKind == "include" {
+		return fmt.Errorf("circular include detected: %s", strings.Join(chain, " -> "))
+	}
+	return fmt.Errorf("tool import cycle: %s", strings.Join(chain, " -> "))
+}
+
+func canonicalToolDeclarationPath(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve path %s: %w", path, err)
+	}
+	return filepath.Clean(absolute), nil
+}
+
+func annotateToolSources(tools []ToolDef, source ToolSource) []ToolDef {
+	annotated := make([]ToolDef, len(tools))
+	for index, tool := range tools {
+		tool.sourceUnit = source.Unit
+		tool.sourcePath = source.Path
+		annotated[index] = tool
+	}
+	return annotated
+}
+
+func rejectLocalToolDuplicates(tools []ToolDef, source ToolSource) error {
+	seen := map[string]bool{}
+	for _, tool := range tools {
+		if seen[tool.Name] {
+			return fmt.Errorf(
+				"duplicate local tool %q in unit %q at %s", tool.Name, source.Unit, source.Path,
+			)
+		}
+		seen[tool.Name] = true
+	}
+	return nil
+}
+
+func mergeImportedTools(base, incoming []ToolDef) ([]ToolDef, error) {
+	result := append([]ToolDef(nil), base...)
+	index := toolIndexes(result)
+	for _, tool := range incoming {
+		if position, exists := index[tool.Name]; exists {
+			previous := result[position]
+			if previous.sourcePath == tool.sourcePath {
+				continue
+			}
+			return nil, fmt.Errorf(
+				"duplicate imported tool %q: %s and %s",
+				tool.Name, formatToolSource(previous.DeclarationSource()), formatToolSource(tool.DeclarationSource()),
+			)
+		}
+		index[tool.Name] = len(result)
+		result = append(result, tool)
+	}
+	return result, nil
+}
+
+func applyLocalTools(imported, local []ToolDef, source ToolSource) ([]ToolDef, error) {
+	result := append([]ToolDef(nil), imported...)
+	index := toolIndexes(result)
+	for _, tool := range local {
+		position, exists := index[tool.Name]
+		switch {
+		case exists && !tool.Override:
+			return nil, fmt.Errorf(
+				"local tool %q in %s collides with imported %s without override",
+				tool.Name, formatToolSource(source), formatToolSource(result[position].DeclarationSource()),
+			)
+		case !exists && tool.Override:
+			return nil, fmt.Errorf("tool %q in %s overrides no imported target", tool.Name, formatToolSource(source))
+		case exists:
+			tool.overrideTarget = result[position].DeclarationSource()
+			result[position] = tool
+		default:
+			index[tool.Name] = len(result)
+			result = append(result, tool)
+		}
+	}
+	return result, nil
+}
+
+func toolIndexes(tools []ToolDef) map[string]int {
+	index := make(map[string]int, len(tools))
+	for position, tool := range tools {
+		index[tool.Name] = position
+	}
+	return index
+}
+
+func hasToolOverride(tools []ToolDef) bool {
+	for _, tool := range tools {
+		if tool.Override {
+			return true
+		}
+	}
+	return false
+}
+
+func formatToolSource(source ToolSource) string {
+	return fmt.Sprintf("unit %q at %s", source.Unit, source.Path)
+}
+
+func productionToolImportResolver(visit FileVisitor) *toolImportResolver {
+	return newToolImportResolver(visit, os.Stderr)
+}
