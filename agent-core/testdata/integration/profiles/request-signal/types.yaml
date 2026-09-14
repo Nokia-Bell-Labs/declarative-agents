@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: request-signal-types
+types:
+  - name: RenderedValue
+    description: The trusted request value a compose word renders forward.
+    schema:
+      type: object
+      required: [value]
+      properties:
+        value:
+          type: object

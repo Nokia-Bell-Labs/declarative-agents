@@ -103,19 +103,50 @@ machine:
   budget:
     max_iterations: 4
     command_timeout: 5s
+types:
+  - ref: request-signal-types.RenderedValue
+    description: The trusted request value a compose word renders forward.
+    schema:
+      properties:
+        value:
+          type: object
+      required:
+        - value
+      type: object
 tools:
   - name: echo_request
     type: builtin
     category: word
-    description: ""
+    description: Render trusted request data forward as the completed value.
+    problem: Render trusted request data forward as the completed value.
+    goals:
+      - Render trusted request data forward as the completed value.
+    requirements:
+      input:
+        - echo_request declares no input type
+      output:
+        - echo_request takes its output as request-signal-types.RenderedValue
+      errors:
+        - echo_request emits CommandError when it cannot produce its declared output
+    non_goals:
+      - Behavior outside echo_request, which its signature states in full
+    output:
+      schema:
+        properties:
+          value:
+            type: object
+        required:
+          - value
+        type: object
     side_effects:
       - kind: none
-        description: Renders trusted request data without external effects.
+        state: read_only
+        description: echo_request computes a value and mutates nothing
     reversibility:
       classification: reversible
     undo:
       strategy: noop
-      description: Rendering has no effects to reverse.
+      description: echo_request mutates nothing, so undo does nothing
     init: compose
     config:
       inputs:
@@ -124,19 +155,44 @@ tools:
       template: '{"value":{{ json value }}}'
     emits:
       - WorkCompleted
+    signature:
+      output: request-signal-types.RenderedValue
+      emits:
+        - WorkCompleted
     visibility: internal
   - name: fail_request
     type: builtin
     category: word
-    description: ""
+    description: Render the configured failure proof forward.
+    problem: Render the configured failure proof forward.
+    goals:
+      - Render the configured failure proof forward.
+    requirements:
+      input:
+        - fail_request declares no input type
+      output:
+        - fail_request takes its output as request-signal-types.RenderedValue
+      errors:
+        - fail_request emits CommandError when it cannot produce its declared output
+    non_goals:
+      - Behavior outside fail_request, which its signature states in full
+    output:
+      schema:
+        properties:
+          value:
+            type: object
+        required:
+          - value
+        type: object
     side_effects:
       - kind: none
-        description: Renders the configured failure proof without external effects.
+        state: read_only
+        description: fail_request computes a value and mutates nothing
     reversibility:
       classification: reversible
     undo:
       strategy: noop
-      description: Rendering has no effects to reverse.
+      description: fail_request mutates nothing, so undo does nothing
     init: compose
     config:
       inputs:
@@ -145,6 +201,10 @@ tools:
       template: '{"value":{{ json value }}}'
     emits:
       - WorkFailed
+    signature:
+      output: request-signal-types.RenderedValue
+      emits:
+        - WorkFailed
     visibility: internal
   - name: suspend
     type: builtin
@@ -248,7 +308,7 @@ rest:
         disabled: true
 files:
   - path: <agent-core>/testdata/integration/profiles/request-signal/declarations.yaml
-    sha256: de7894cac21342b4a1e2f9d1cca87067fb06787983658b61f7df73b229fe1506
+    sha256: f01693d282639a6360414e9bab1bb2efbadc638503b1f530aac05328cf6f6305
   - path: <agent-core>/testdata/integration/profiles/request-signal/machine.yaml
     sha256: cfa3e3a8746dbe49722e1b68871517e8012fb3b582a5ecb31fa796a37bf42c1d
   - path: <agent-core>/testdata/integration/profiles/request-signal/profile.yaml
@@ -257,3 +317,5 @@ files:
     sha256: 13fe4e821a62a807685d28a0a8954dea3c879f7cb17bc8d385607cbb0142b200
   - path: <agent-core>/testdata/integration/profiles/request-signal/tools.yaml
     sha256: 712b144fa00d50c9ba6b1ff64aaa90f737202aa6a148e1389985174da08bcf62
+  - path: <agent-core>/testdata/integration/profiles/request-signal/types.yaml
+    sha256: 9927bfaa0da96f4dcaf95e6bbea185f6132649ccafa57cf4ede1a60add0983ae

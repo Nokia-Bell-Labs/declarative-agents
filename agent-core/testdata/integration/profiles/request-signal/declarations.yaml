@@ -1,22 +1,23 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: request-signal-tools
+imports:
+  - types.yaml
 tools:
   - name: echo_request
     type: builtin
     init: compose
     category: word
+    description: Render trusted request data forward as the completed value.
     visibility: internal
-    emits: [WorkCompleted]
+    signature:
+      output: request-signal-types.RenderedValue
+      emits: [WorkCompleted]
     config:
       template: '{"value":{{ json value }}}'
       inputs:
         value: $.data
       signal: WorkCompleted
-    side_effects:
-      - {kind: none, description: Renders trusted request data without external effects.}
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Rendering has no effects to reverse.}
   - name: suspend
     type: builtin
     init: suspend
@@ -41,14 +42,13 @@ tools:
     type: builtin
     init: compose
     category: word
+    description: Render the configured failure proof forward.
     visibility: internal
-    emits: [WorkFailed]
+    signature:
+      output: request-signal-types.RenderedValue
+      emits: [WorkFailed]
     config:
       template: '{"value":{{ json value }}}'
       inputs:
         value: $.data
       signal: WorkFailed
-    side_effects:
-      - {kind: none, description: Renders the configured failure proof without external effects.}
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Rendering has no effects to reverse.}
