@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-applier-standalone-declarations
 # Safe standalone defaults used only by the catalog profile's chart-independent
 # conformance surface. Application wrappers replace every word in this file with
 # chart-, release-, namespace-, and Deployment-specific declarations.

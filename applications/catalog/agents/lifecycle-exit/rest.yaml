@@ -1,10 +1,9 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-lifecycle-exit-rest
+imports: [../../tools/rest-auth-none.yaml]
 rest:
   version: v1
-  auth:
-    none:
-      type: none
   limits:
     local_control_api:
       timeout: 10s

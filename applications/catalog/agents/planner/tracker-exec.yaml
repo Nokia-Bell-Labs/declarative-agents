@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-planner-tracker-exec
 tools:
 - name: create_tracker_issue
   type: exec
