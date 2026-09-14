@@ -261,6 +261,26 @@ func TestLegacyIncludesKeepOverridesAndWarnOncePerIncludingSource(t *testing.T) 
 	require.Equal(t, 1, strings.Count(warnings.String(), shared))
 }
 
+func TestToolLoadOptionsKeepAuditDivergencesInSingleLoader(t *testing.T) {
+	root := t.TempDir()
+	declaration := writeToolImportFixture(t, root, "tools.yaml", `includes: [missing.yaml]
+tools:
+  - {name: configured, binary: "${AUDIT_BINARY}"}
+`)
+	t.Setenv("AUDIT_BINARY", "expanded")
+
+	audit, err := LoadToolDeclarationsWithOptions(
+		[]string{declaration},
+		LoadOptions{TolerateMissingIncludes: true, ExpandEnv: false},
+		nil,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, "${AUDIT_BINARY}", audit[0].Binary)
+	_, err = LoadToolDefs(declaration)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
 func toolUnit(unit, fields string, tools ...string) string {
 	var output strings.Builder
 	fmt.Fprintf(&output, "unit: %s\n%s", unit, fields)

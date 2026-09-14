@@ -12,19 +12,22 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
 func TestToolDeclSideEffectsParsesLegacyOrRejectsInvalidShape(t *testing.T) {
 	t.Parallel()
-	var legacy ToolDeclaration
-	require.NoError(t, yaml.Unmarshal([]byte(
-		"name: read\nside_effects: reads one file\n",
-	), &legacy))
+	legacyDefs, err := catalog.ParseToolDefs([]byte(
+		"tools:\n- {name: read, binary: cat, side_effects: reads one file}\n",
+	))
+	require.NoError(t, err)
+	legacy := toolDeclarationFromDef(legacyDefs[0])
 	require.Equal(t, "reads one file", legacy.SideEffects.LegacyText)
 	require.NotContains(t, missingToolContractFields(legacy), "side_effects")
 
-	var invalid ToolDeclaration
-	err := yaml.Unmarshal([]byte("name: read\nside_effects: {kind: filesystem_read}\n"), &invalid)
+	_, err = catalog.ParseToolDefs([]byte(
+		"tools:\n- {name: read, binary: cat, side_effects: {kind: filesystem_read}}\n",
+	))
 	require.ErrorContains(t, err, "side_effects must be a string or list")
 }
 

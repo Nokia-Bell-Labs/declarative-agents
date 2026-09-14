@@ -4,6 +4,7 @@
 package catalog
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -37,6 +38,13 @@ type ToolImport struct {
 	Imported ToolSource
 }
 
+// LoadOptions selects the documented runtime or audit-side declaration policy.
+type LoadOptions struct {
+	TolerateMissingIncludes bool
+	TolerateNonToolFiles    bool
+	ExpandEnv               bool
+}
+
 // DeclarationSource returns the tool's loader-assigned provenance.
 func (td ToolDef) DeclarationSource() ToolSource {
 	return ToolSource{Unit: td.sourceUnit, Path: td.sourcePath}
@@ -59,14 +67,28 @@ type toolImportResolver struct {
 	imports         []ToolImport
 	hasImportEdges  bool
 	hasIncludeEdges bool
+	options         LoadOptions
 }
 
 func newToolImportResolver(visit FileVisitor, warnings io.Writer) *toolImportResolver {
+	return newToolImportResolverWithOptions(visit, warnings, runtimeLoadOptions())
+}
+
+func newToolImportResolverWithOptions(
+	visit FileVisitor,
+	warnings io.Writer,
+	options LoadOptions,
+) *toolImportResolver {
 	return &toolImportResolver{
 		visit: visit, warnings: warnings,
 		files: map[string]ToolDefsFile{}, resolved: map[string][]ToolDef{},
 		units: map[string]ToolSource{}, visiting: map[string]int{}, warned: map[string]bool{},
+		options: options,
 	}
+}
+
+func runtimeLoadOptions() LoadOptions {
+	return LoadOptions{ExpandEnv: true}
 }
 
 func (r *toolImportResolver) loadRoots(paths []string) ([]ToolDef, error) {
@@ -94,6 +116,10 @@ func (r *toolImportResolver) resolve(
 	file, err := r.readFile(path)
 	if err != nil {
 		return nil, err
+	}
+	if !file.hasTools && r.options.TolerateNonToolFiles {
+		r.resolved[path] = nil
+		return nil, nil
 	}
 	if err := r.validateFile(file, path, imported); err != nil {
 		return nil, err
@@ -172,6 +198,9 @@ func (r *toolImportResolver) resolveIncludes(file ToolDefsFile, path string) ([]
 		}
 		defs, err := r.resolve(target, false, "include")
 		if err != nil {
+			if r.options.TolerateMissingIncludes && errors.Is(err, os.ErrNotExist) {
+				continue
+			}
 			return nil, fmt.Errorf("include %s from %s: %w", includePath, path, err)
 		}
 		merged = MergeToolDefs(merged, defs)
@@ -183,7 +212,7 @@ func (r *toolImportResolver) readFile(path string) (ToolDefsFile, error) {
 	if file, ok := r.files[path]; ok {
 		return file, nil
 	}
-	file, err := readToolDefsFile(path, r.visit)
+	file, err := readToolDefsFile(path, r.options, r.visit)
 	if err != nil {
 		return ToolDefsFile{}, err
 	}

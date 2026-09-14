@@ -79,6 +79,14 @@ func LoadToolDeclarationsWithVisitor(paths []string, visit FileVisitor) ([]ToolD
 	return productionToolImportResolver(visit).loadRoots(paths)
 }
 
+// LoadToolDeclarationsWithOptions loads declarations under an explicit
+// runtime or audit-side parsing policy.
+func LoadToolDeclarationsWithOptions(
+	paths []string, options LoadOptions, visit FileVisitor,
+) ([]ToolDef, error) {
+	return newToolImportResolverWithOptions(visit, os.Stderr, options).loadRoots(paths)
+}
+
 // LoadToolDeclarationsFromDirs scans directories for sorted *.yaml files.
 func LoadToolDeclarationsFromDirs(dirs []string) ([]ToolDef, error) {
 	return LoadToolDeclarationsFromDirsWithVisitor(dirs, nil)
@@ -166,7 +174,9 @@ func LoadToolDefs(path string) ([]ToolDef, error) {
 	return productionToolImportResolver(nil).loadRoots([]string{path})
 }
 
-func readToolDefsFile(path string, visit FileVisitor) (ToolDefsFile, error) {
+func readToolDefsFile(
+	path string, options LoadOptions, visit FileVisitor,
+) (ToolDefsFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ToolDefsFile{}, fmt.Errorf("load tool defs %s: %w", path, err)
@@ -180,7 +190,7 @@ func readToolDefsFile(path string, visit FileVisitor) (ToolDefsFile, error) {
 	// applies, so an address that differs between a local run and a deployment
 	// is an environment reference rather than a literal the deployment cannot
 	// reach (srd013 R5.6).
-	file, err := parseToolDefsFileRaw(data)
+	file, err := parseToolDefsFileRaw(data, options.ExpandEnv, options.TolerateNonToolFiles)
 	if err != nil {
 		return ToolDefsFile{}, fmt.Errorf("parse tool defs %s: %w", path, err)
 	}
@@ -189,34 +199,50 @@ func readToolDefsFile(path string, visit FileVisitor) (ToolDefsFile, error) {
 
 // ParseToolDefs parses YAML bytes into tool definitions without resolving includes.
 func ParseToolDefs(data []byte) ([]ToolDef, error) {
-	file, err := parseToolDefsFileRaw(data)
+	file, err := parseToolDefsFileRaw(data, true, false)
 	if err != nil {
 		return nil, fmt.Errorf("parse tool defs: %w", err)
 	}
 	return file.Tools, validateToolDefs(file.Tools)
 }
 
-func parseToolDefsFileRaw(data []byte) (ToolDefsFile, error) {
-	expanded := envexpand.Expand(data)
+func parseToolDefsFileRaw(
+	data []byte, expandEnv, tolerateNonTool bool,
+) (ToolDefsFile, error) {
+	expanded := data
+	if expandEnv {
+		expanded = envexpand.Expand(data)
+	}
+	root, err := toolDocumentRoot(expanded)
+	if err != nil {
+		return ToolDefsFile{}, err
+	}
+	hasTools := yamlstrict.FieldPresent(root, "tools")
+	if !hasTools && tolerateNonTool {
+		return ToolDefsFile{}, nil
+	}
 	var file ToolDefsFile
 	if err := yamlstrict.Unmarshal(expanded, &file); err != nil {
 		return ToolDefsFile{}, err
 	}
-	var document yaml.Node
-	if err := yaml.Unmarshal(expanded, &document); err != nil {
-		return ToolDefsFile{}, err
-	}
-	root := &document
-	if document.Kind == yaml.DocumentNode && len(document.Content) > 0 {
-		root = document.Content[0]
-	}
-	file.hasTools = yamlstrict.FieldPresent(root, "tools")
+	file.hasTools = hasTools
 	file.hasImports = yamlstrict.FieldPresent(root, "imports")
 	file.hasIncludes = yamlstrict.FieldPresent(root, "includes")
 	if !file.hasTools {
 		return ToolDefsFile{}, fmt.Errorf("top-level tools field is required")
 	}
 	return file, nil
+}
+
+func toolDocumentRoot(data []byte) (*yaml.Node, error) {
+	var document yaml.Node
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		return nil, err
+	}
+	if document.Kind == yaml.DocumentNode && len(document.Content) > 0 {
+		return document.Content[0], nil
+	}
+	return &document, nil
 }
 
 func validateToolDefs(defs []ToolDef) error {

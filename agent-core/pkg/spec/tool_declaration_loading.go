@@ -4,14 +4,12 @@
 package spec
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
 func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaration, []string, error) {
@@ -26,19 +24,29 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 
 	decls := make(map[string]ToolDeclaration)
 	var unresolved []string
+	var readable []string
 	for _, path := range declFiles {
-		loaded, loadErr := loadToolDeclarationsRecursive(path, nil)
-		if loadErr != nil {
-			if errors.Is(loadErr, os.ErrNotExist) {
-				if requiredSet[path] {
-					unresolved = append(unresolved, path)
-				}
-				continue
+		if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
+			if requiredSet[path] {
+				unresolved = append(unresolved, path)
 			}
-			return nil, nil, loadErr
+			continue
 		}
-		mergeToolDeclarations(decls, loaded, absRoot)
+		readable = append(readable, path)
 	}
+	loaded, err := catalog.LoadToolDeclarationsWithOptions(
+		readable,
+		catalog.LoadOptions{
+			TolerateMissingIncludes: true,
+			TolerateNonToolFiles:    true,
+			ExpandEnv:               false,
+		},
+		nil,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	mergeToolDeclarations(decls, loaded, absRoot)
 
 	sort.Strings(unresolved)
 	return decls, unresolved, nil
@@ -77,94 +85,22 @@ func toolDeclarationFiles(rootDir string) ([]string, map[string]bool) {
 
 // mergeToolDeclarations folds loaded declarations into decls, recording each
 // word's own source file relative to the corpus root.
-func mergeToolDeclarations(decls map[string]ToolDeclaration, loaded []loadedToolDeclaration, absRoot string) {
-	for _, entry := range loaded {
-		relPath, relErr := filepath.Rel(absRoot, entry.sourceFile)
+func mergeToolDeclarations(
+	decls map[string]ToolDeclaration, loaded []catalog.ToolDef, absRoot string,
+) {
+	for _, def := range loaded {
+		source := def.DeclarationSource().Path
+		relPath, relErr := filepath.Rel(absRoot, source)
 		if relErr != nil || relPath == "" || strings.HasPrefix(relPath, "..") {
-			relPath = entry.sourceFile
+			relPath = source
 		}
-		td := entry.decl
+		td := toolDeclarationFromDef(def)
 		td.SourceFile = relPath
 		if existing, ok := decls[td.Name]; ok && keepExistingToolDeclaration(existing, td) {
 			continue
 		}
 		decls[td.Name] = td
 	}
-}
-
-// loadedToolDeclaration pairs a declaration with the file it was actually read
-// from, so an included word reports its own file rather than the includer's.
-type loadedToolDeclaration struct {
-	decl       ToolDeclaration
-	sourceFile string
-}
-
-// loadToolDeclarationsRecursive resolves a declaration file and its includes,
-// mirroring internal/tools/catalog's loadToolDefsRecursive. Includes resolve
-// against the including file's directory.
-//
-// stack holds the current ancestor chain, not every file seen. Two includes
-// reaching the same file by different routes is a diamond, which is legal and
-// common here -- tools/builtin/all.yaml reaches write.yaml through more than one
-// branch -- while a file that includes an ancestor of itself is a cycle.
-func loadToolDeclarationsRecursive(path string, stack map[string]bool) ([]loadedToolDeclaration, error) {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return nil, fmt.Errorf("resolve tool declarations %s: %w", path, err)
-	}
-	if stack == nil {
-		stack = make(map[string]bool)
-	}
-	if stack[abs] {
-		return nil, fmt.Errorf("circular tool declaration include: %s", abs)
-	}
-	stack[abs] = true
-	defer delete(stack, abs)
-
-	data, err := os.ReadFile(abs)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("read tool declarations %s: %w", path, os.ErrNotExist)
-		}
-		return nil, fmt.Errorf("read tool declarations %s: %w", path, err)
-	}
-	var file ToolDeclFile
-	if err := yaml.Unmarshal(data, &file); err != nil {
-		return nil, fmt.Errorf("parse tool declarations %s: %w", path, err)
-	}
-
-	loaded, err := resolveDeclarationIncludes(file.Includes, abs, stack)
-	if err != nil {
-		return nil, err
-	}
-	for _, td := range file.Tools {
-		loaded = append(loaded, loadedToolDeclaration{decl: td, sourceFile: abs})
-	}
-	return loaded, nil
-}
-
-// resolveDeclarationIncludes loads a file's includes against its own directory,
-// in declaration order. An include that does not exist is skipped: unlike a path
-// a profile named, an include is an internal reference and a missing one is
-// reported by the file that owns it.
-func resolveDeclarationIncludes(includes []string, from string, stack map[string]bool) ([]loadedToolDeclaration, error) {
-	var loaded []loadedToolDeclaration
-	dir := filepath.Dir(from)
-	for _, inc := range includes {
-		incPath := inc
-		if !filepath.IsAbs(incPath) {
-			incPath = filepath.Join(dir, incPath)
-		}
-		included, err := loadToolDeclarationsRecursive(incPath, stack)
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return nil, fmt.Errorf("include %s from %s: %w", inc, from, err)
-		}
-		loaded = append(loaded, included...)
-	}
-	return loaded, nil
 }
 
 func keepExistingToolDeclaration(existing, candidate ToolDeclaration) bool {

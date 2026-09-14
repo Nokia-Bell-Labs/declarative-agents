@@ -17,7 +17,9 @@ public Go APIs. Placement rules are defined in
 - `pkg/spec` is intentionally retained as a public package for the current
   restructuring. It provides typed specification artifacts, parsing, corpus
   loading, graph construction, validation, and formatted findings used by both
-  planning and audit flows.
+  planning and audit flows. Its tool-corpus view is converted from
+  `internal/tools/catalog.ToolDef`, so runtime and audit share one recursive
+  declaration loader.
 - `pkg/profileaudit` is a public package for profile-startup audit used by
   `cmd/agent` and catalog gates. It currently imports internal catalog, REST,
   runtime, load, and support surfaces listed in

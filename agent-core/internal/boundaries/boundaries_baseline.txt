@@ -5,6 +5,7 @@ import:internal/observability/monitor/runtimeconfig -> internal/runtime/core
 import:internal/observability/monitor/runtimeconfig -> internal/tools/catalog
 import:pkg/spec -> internal/runtime/core
 import:pkg/spec -> internal/support/corepath
+import:pkg/spec -> internal/tools/catalog
 import:pkg/profileaudit -> internal/runtime/core
 import:pkg/profileaudit -> internal/load
 import:pkg/profileaudit -> internal/support/corepath
@@ -42,7 +43,7 @@ pkg:internal/support/execute files=1 loc=110
 pkg:internal/support/subprocess files=1 loc=254
 pkg:internal/support/yamlstrict files=1 loc=246
 pkg:internal/tools files=1 loc=14
-pkg:internal/tools/catalog files=15 loc=3282
+pkg:internal/tools/catalog files=15 loc=3337
 pkg:internal/tools/compose files=6 loc=1041
 pkg:internal/tools/control files=7 loc=1291
 pkg:internal/tools/dolt files=6 loc=1357
