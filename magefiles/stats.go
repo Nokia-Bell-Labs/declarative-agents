@@ -51,7 +51,7 @@ func writeReuseStats() error {
 
 func collectReuseStats() ([]byte, error) {
 	results := make(map[string]reusestats.Result)
-	for _, mod := range statsParticipants() {
+	for _, mod := range reuseParticipants() {
 		mageDir := filepath.Join(mod, "magefiles")
 		if _, err := os.Stat(mageDir); os.IsNotExist(err) {
 			continue
