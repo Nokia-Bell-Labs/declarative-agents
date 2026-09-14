@@ -1,0 +1,59 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel17.0-uc001-declaration-imports
+title: A profile composes named tool and REST declaration units
+status: specified
+
+summary: |
+  A profile author extracts shared tool and REST declarations into named units
+  and imports them by relative path. The closure loader resolves one explicit
+  dependency graph, preserves source provenance, rejects ambiguous or unused
+  edges, selects imported tools, compiles merged REST bindings, and exposes the
+  resolved result through validation and the canonical dump.
+
+actor: A profile author extracting reusable declaration units
+
+trigger: |
+  A profile declaration root names a unit whose imports reference shared tool
+  or REST declaration files.
+
+flow:
+  - F1: The loader strictly decodes the root and each imported source and validates unit names and relative import paths.
+  - F2: It resolves canonical sources in first-discovery depth-first postorder, reusing one source across diamond paths and rejecting cycles or unit-name collisions.
+  - F3: Tool imports reject duplicate names before applying an explicit local override, then tools.yaml selects the merged vocabulary.
+  - F4: REST imports merge raw map families with provenance, reject collisions, resolve declaration-relative OpenAPI sources, and compile the merged definition.
+  - F5: Closure validation traverses selected-tool and REST reference roots, marks every contributing import edge, and rejects unused edges deterministically.
+  - F6: Validation, dump, startup, and profile audit consume the same closure; the dump lists every imported source once.
+  - F7: A legacy-only profile continues to load includes with one warning per including file, while a closure mixing imports and includes fails.
+
+touchpoints:
+  - T1: "srd050-declaration-imports R1, R2 -- syntax, graph resolution, provenance"
+  - T2: "srd050-declaration-imports R3 -- tool merge and override"
+  - T3: "srd050-declaration-imports R4 -- REST merge and OpenAPI compilation"
+  - T4: "srd050-declaration-imports R5 -- import-edge usedness"
+  - T5: "srd050-declaration-imports R6 -- compatibility and shared diagnostics"
+
+success_criteria:
+  - id: S1
+    criterion: Two-level tool and REST imports resolve deterministically and every source appears once in repeated canonical dumps.
+    traces: [srd050-declaration-imports AC1]
+  - id: S2
+    criterion: Duplicate units, declarations, cycles, and invalid tool overrides fail with complete unit/path evidence.
+    traces: [srd050-declaration-imports AC2, srd050-declaration-imports AC3]
+  - id: S3
+    criterion: REST map families and OpenAPI bindings merge with declaring-source path semantics and duplicate/version checks.
+    traces: [srd050-declaration-imports AC4]
+  - id: S4
+    criterion: Used transitive and diamond edges pass while unused tool and REST edges fail in deterministic order.
+    traces: [srd050-declaration-imports AC5]
+  - id: S5
+    criterion: Legacy includes remain compatible but cannot coexist with imports in one closure.
+    traces: [srd050-declaration-imports AC6]
+  - id: S6
+    criterion: Every entry path reports the same import error and the control-imports proof matches control except identity and files.
+    traces: [srd050-declaration-imports AC7, srd050-declaration-imports AC8]
+
+out_of_scope:
+  - Named types, signatures, typed labels, and machine exhaustiveness.
+  - Conditional, versioned, remote, or generated imports.
+  - Removal of legacy includes.

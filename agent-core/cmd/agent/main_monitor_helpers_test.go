@@ -102,9 +102,7 @@ func monitorReleaseProof(t *testing.T) monitorProof {
 
 	cfg, err := loadRuntimeConfig()
 	require.NoError(t, err)
-	defs, err := loadProfileToolDefs(cfg)
-	require.NoError(t, err)
-	restDefs, err := toolrest.LoadDefinitions(cfg.RestDefinitions, cfg.RestConfigDirs)
+	defs, restDefs, err := loadRuntimeDefinitions(cfg)
 	require.NoError(t, err)
 	machine, err := core.LoadMachineSpec(cfg.Machine)
 	require.NoError(t, err)

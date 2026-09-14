@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	internalload "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/load"
 )
 
 func TestInspectProfileResolvesIncludesOverridesSelectionAndEnvironment(t *testing.T) {
@@ -43,6 +45,13 @@ tools:
 	require.Equal(t, 10*time.Second, report.Operations[0].Duration)
 	require.Equal(t, 20*time.Second, report.Operations[1].Duration,
 		"profile-local declaration must override the included 2m authority")
+
+	closure, err := internalload.LoadClosure(profile, internalload.Options{})
+	require.NoError(t, err)
+	fromClosure, err := InspectClosure(closure)
+	require.NoError(t, err)
+	require.Equal(t, report, fromClosure)
+	require.NoError(t, ValidateClosure(closure))
 }
 
 func TestResolveReferencePrefersDeclaringPackageOverCWD(t *testing.T) {
@@ -201,6 +210,24 @@ rest:
 	again, err := Inspect(profile)
 	require.NoError(t, err)
 	require.Equal(t, report.Diagnostics, again.Diagnostics)
+}
+
+func TestMachineOverrideSkipsUnusedDefaultMachineAndSelection(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "request-machine.yaml", oneActionMachine("1m", "request_wait"))
+	write(t, root, "declarations.yaml",
+		declarations(tool("request_wait", "custom_await", "10s", "internal")))
+	profile := writeProfile(
+		t, root, "profile.yaml", "missing-default-machine.yaml",
+		"missing-default-tools.yaml", "declarations.yaml", "",
+	)
+
+	closure, _, err := loadProfileClosure(profile, "request-machine.yaml")
+
+	require.NoError(t, err)
+	require.Equal(t, canonical(filepath.Join(root, "request-machine.yaml")), closure.machinePath)
+	require.Len(t, closure.defs, 1)
+	require.Equal(t, "request_wait", closure.defs[0].Name)
 }
 
 func TestInspectFollowsCompatibilityChildAndEvaluatorPointWrappers(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
@@ -87,19 +88,26 @@ func TestCorpusResolvesIncludes(t *testing.T) {
 
 	data, err := os.ReadFile(allPath)
 	require.NoError(t, err)
-	var file ToolDeclFile
+	var file struct {
+		Includes []string `yaml:"includes"`
+		Tools    []any    `yaml:"tools"`
+	}
 	require.NoError(t, yaml.Unmarshal(data, &file))
 	require.Empty(t, file.Tools, "all.yaml is expected to declare no tools directly")
 	require.NotEmpty(t, file.Includes, "all.yaml is expected to be an includes bundle")
 
-	loaded, err := loadToolDeclarationsRecursive(allPath, nil)
+	loaded, err := catalog.LoadToolDeclarationsWithOptions(
+		[]string{allPath},
+		catalog.LoadOptions{TolerateMissingIncludes: true, ExpandEnv: false},
+		nil,
+	)
 	require.NoError(t, err)
 	require.NotEmpty(t, loaded, "includes must contribute declarations")
 
 	// A word only reachable through a nested include must be present.
 	names := make(map[string]bool, len(loaded))
 	for _, entry := range loaded {
-		names[entry.decl.Name] = true
+		names[entry.Name] = true
 	}
 	require.True(t, names["project"], "project.yaml include did not resolve")
 	require.True(t, names["list_resource"], "filesystem/all.yaml include did not resolve")
@@ -116,12 +124,16 @@ func TestCorpusIncludeDiamondIsNotACycle(t *testing.T) {
 		require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
 		return path
 	}
-	write("leaf.yaml", "tools:\n  - name: leaf_word\n")
+	write("leaf.yaml", "tools:\n  - {name: leaf_word, binary: echo}\n")
 	write("left.yaml", "includes: [leaf.yaml]\ntools: []\n")
 	write("right.yaml", "includes: [leaf.yaml]\ntools: []\n")
 	top := write("top.yaml", "includes: [left.yaml, right.yaml]\ntools: []\n")
 
-	loaded, err := loadToolDeclarationsRecursive(top, nil)
+	loaded, err := catalog.LoadToolDeclarationsWithOptions(
+		[]string{top},
+		catalog.LoadOptions{TolerateMissingIncludes: true, ExpandEnv: false},
+		nil,
+	)
 	require.NoError(t, err, "a diamond include must not be reported as a cycle")
 	require.NotEmpty(t, loaded)
 }
@@ -133,9 +145,21 @@ func TestCorpusIncludeCycleIsRejected(t *testing.T) {
 	require.NoError(t, os.WriteFile(aPath, []byte("includes: [b.yaml]\ntools: []\n"), 0o600))
 	require.NoError(t, os.WriteFile(bPath, []byte("includes: [a.yaml]\ntools: []\n"), 0o600))
 
-	_, err := loadToolDeclarationsRecursive(aPath, nil)
+	_, err := catalog.LoadToolDeclarationsWithOptions(
+		[]string{aPath},
+		catalog.LoadOptions{TolerateMissingIncludes: true, ExpandEnv: false},
+		nil,
+	)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "circular tool declaration include")
+	require.Contains(t, err.Error(), "circular include detected")
+}
+
+func TestCorpusToolLoadingHasNoSecondYAMLParser(t *testing.T) {
+	source, err := os.ReadFile("tool_declaration_loading.go")
+	require.NoError(t, err)
+	require.NotContains(t, string(source), "yaml.Unmarshal")
+	require.NotContains(t, string(source), "loadToolDeclarationsRecursive")
+	require.Contains(t, string(source), "catalog.LoadToolDeclarationsWithOptions")
 }
 
 // TestUnresolvedProfileDeclarationIsReported covers GH-1525 AC3: a declaration

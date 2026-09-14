@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-critic-llm-qwen3-35b
 # LLM variation for evaluation — Qwen 3.6 35B.
 # The evaluator iterates over llm/*.yaml files to benchmark each model.
 #

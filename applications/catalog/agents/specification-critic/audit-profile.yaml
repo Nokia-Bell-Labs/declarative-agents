@@ -4,7 +4,6 @@ name: specification-critic-audit
 machine: audit-machine.yaml
 tools:
   - audit-tools.yaml
-tool_config_dirs:
-  - /opt/agent-core/tools/builtin/spec-validation
 tool_declarations:
+  - /opt/agent-core/tools/builtin/spec-validation/all.yaml
   - go-test.yaml

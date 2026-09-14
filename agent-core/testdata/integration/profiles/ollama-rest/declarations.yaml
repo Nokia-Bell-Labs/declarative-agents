@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: ollama-rest-tools
 tools:
   - name: ollama_list_models
     type: builtin

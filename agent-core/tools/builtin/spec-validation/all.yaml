@@ -6,6 +6,8 @@ includes:
   - ../validate-specs.yaml
   - ../format-report.yaml
   - reduce-grep-checks.yaml
+  - reduce-ref-checks.yaml
+  - reduce-consistency-checks.yaml
   - test-evidence.yaml
 
 tools: []

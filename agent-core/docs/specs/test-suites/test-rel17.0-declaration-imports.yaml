@@ -1,0 +1,83 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel17.0-declaration-imports
+title: Test Suite for Release 17.0 Declaration Imports
+release: "17.0"
+
+traces:
+  - rel17.0-uc001-declaration-imports
+
+preconditions:
+  - srd050-declaration-imports defines unit syntax, graph order, merge rules, usedness, and legacy compatibility.
+  - The single closure loader, strict YAML decoder, and canonical dump are available.
+
+test_cases:
+  - use_case: rel17.0-uc001-declaration-imports
+    name: Tool and REST import chains resolve once in deterministic order
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run TestDeclarationImportChain
+    status: planned
+    description: Resolve two-level and diamond imports from their declaring files and compare two closure inventories and dumps byte for byte.
+    expected:
+      canonical_sources_read_once: true
+      traversal: first-discovery depth-first postorder
+    traces: [rel17.0-uc001-declaration-imports S1, srd050-declaration-imports AC1]
+
+  - use_case: rel17.0-uc001-declaration-imports
+    name: Tool unit collisions cycles and invalid overrides fail with provenance
+    go_test: go test ./internal/tools/catalog -run TestToolDeclarationImportFailures
+    status: planned
+    description: Exercise duplicate unit names, duplicate imported and local tools, cycles, unmarked collisions, missing override targets, and imported override markers.
+    expected:
+      every_error_names_unit_and_path: true
+      imported_collision_precedes_override: true
+    traces: [rel17.0-uc001-declaration-imports S2, srd050-declaration-imports AC2]
+
+  - use_case: rel17.0-uc001-declaration-imports
+    name: One local tool override replaces one imported target in place
+    go_test: go test ./internal/tools/catalog -run TestToolDeclarationLocalOverride
+    status: planned
+    description: Apply one marked local override and verify value, provenance, and deterministic position.
+    expected:
+      target_count: 1
+      provenance: local unit
+    traces: [rel17.0-uc001-declaration-imports S2, srd050-declaration-imports AC3]
+
+  - use_case: rel17.0-uc001-declaration-imports
+    name: REST imports merge every family and compile source-relative OpenAPI
+    go_test: go test ./internal/tools/rest/definition -run TestRESTDeclarationImports
+    status: planned
+    description: Merge every REST family, retain entry provenance, compile imported OpenAPI into a local binding, and reject duplicate names and conflicting versions.
+    expected:
+      all_families_merged: true
+      openapi_base: declaring source
+    traces: [rel17.0-uc001-declaration-imports S3, srd050-declaration-imports AC4]
+
+  - use_case: rel17.0-uc001-declaration-imports
+    name: Closure usedness accepts contributing edges and rejects unused edges
+    go_test: go test ./internal/load -run TestDeclarationImportUsedness
+    status: planned
+    description: Traverse selected-tool and fully qualified REST nodes, including override and OpenAPI attribution and both arms of a used diamond.
+    expected:
+      used_edges_accepted: true
+      unused_error_order: importer then imported unit then path
+    traces: [rel17.0-uc001-declaration-imports S4, srd050-declaration-imports AC5]
+
+  - use_case: rel17.0-uc001-declaration-imports
+    name: Legacy includes warn once and mixed closures fail
+    go_test: go test ./internal/tools/catalog ./internal/load -run TestLegacyIncludesCompatibility
+    status: planned
+    description: Load a legacy-only include diamond and a closure containing both import and include edges.
+    expected:
+      warnings_per_canonical_includer: 1
+      mixed_closure_rejected: true
+    traces: [rel17.0-uc001-declaration-imports S5, srd050-declaration-imports AC6]
+
+  - use_case: rel17.0-uc001-declaration-imports
+    name: Every entry path shares one import failure and control proof
+    go_test: go test ./cmd/agent ./internal/load -run 'TestDeclarationImportEntryPaths|TestControlImportsDump'
+    status: planned
+    description: Compare validation, dump, startup, and profile-audit diagnostics, then compare control-imports with control after removing identity and files.
+    expected:
+      diagnostic_implementations: 1
+      normalized_control_dump_equal: true
+    traces: [rel17.0-uc001-declaration-imports S6, srd050-declaration-imports AC7, srd050-declaration-imports AC8]

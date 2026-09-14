@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: mesh-applier-exec-declarations
 # Exec tool declarations for the applier agent (srd006): the helm and kubectl
 # CLIs its container carries, bound as agent-core exec tools (agent-core srd021).
 # The applier's request-machine binds these words to realize a decided values

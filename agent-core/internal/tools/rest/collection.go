@@ -17,12 +17,14 @@ import (
 
 // Collection indexes REST definitions loaded for one profile.
 type Collection struct {
+	Version          string
 	Clients          map[string]restdef.Client
 	Servers          map[string]restdef.Server
 	Auth             map[string]restdef.AuthProfile
 	Limits           map[string]restdef.LimitProfile
 	RetryPolicies    map[string]restdef.RetryPolicy
 	ResponseMappings map[string]restdef.ResponseMapping
+	declarations     []restdef.Definition
 }
 
 // ClientOperationResolver resolves trusted REST client operations.
@@ -111,7 +113,48 @@ func NewCollection() Collection {
 }
 
 // Add merges a validated REST definition into the collection.
-func (c Collection) Add(def restdef.Definition) error {
+func (c *Collection) Add(def restdef.Definition) error {
+	if err := c.addVersion(def.Version); err != nil {
+		return err
+	}
+	if err := c.addDefinitionMaps(def); err != nil {
+		return err
+	}
+	c.declarations = append(c.declarations, def)
+	return nil
+}
+
+// DeclarationImports returns every authored REST import edge.
+func (c Collection) DeclarationImports() []restdef.DeclarationImport {
+	var imports []restdef.DeclarationImport
+	for _, declaration := range c.declarations {
+		imports = append(imports, declaration.DeclarationImports()...)
+	}
+	return imports
+}
+
+// DeclarationSource returns the owner of one top-level REST declaration.
+func (c Collection) DeclarationSource(
+	family, name string,
+) (restdef.DeclarationSource, bool) {
+	for _, declaration := range c.declarations {
+		if source, ok := declaration.DeclarationSource(family, name); ok {
+			return source, true
+		}
+	}
+	return restdef.DeclarationSource{}, false
+}
+
+// OpenAPISourcesFor returns OpenAPI units compiled into one client or server.
+func (c Collection) OpenAPISourcesFor(kind, name string) []restdef.DeclarationSource {
+	var sources []restdef.DeclarationSource
+	for _, declaration := range c.declarations {
+		sources = append(sources, declaration.OpenAPISourcesFor(kind, name)...)
+	}
+	return sources
+}
+
+func (c *Collection) addDefinitionMaps(def restdef.Definition) error {
 	for name, profile := range def.Auth {
 		if _, exists := c.Auth[name]; exists {
 			return fmt.Errorf("duplicate REST auth %q", name)
@@ -148,6 +191,17 @@ func (c Collection) Add(def restdef.Definition) error {
 		}
 		c.Servers[name] = server
 	}
+	return nil
+}
+
+func (c *Collection) addVersion(version string) error {
+	if version == "" {
+		return nil
+	}
+	if c.Version != "" && c.Version != version {
+		return fmt.Errorf("conflicting REST versions %q and %q", c.Version, version)
+	}
+	c.Version = version
 	return nil
 }
 

@@ -34,6 +34,7 @@ func TestResolveCompleteClosureAndProvenance(t *testing.T) {
 		"agents/root/profile.yaml",
 		"agents/root/request-machine.yaml",
 		"agents/root/request-profile.yaml",
+		"agents/root/rest-imported.yaml",
 		"agents/root/rest.yaml",
 		"agents/root/tools.yaml",
 		"applications/fixture-app/common/machine.yaml",
@@ -312,6 +313,7 @@ rest_definitions: [rest.yaml]
 		"point-declarations.yaml": "tools: []\n",
 		"request-profile.yaml":    "name: request\nmachine: request-machine.yaml\ntools: [tools.yaml]\n",
 		"request-machine.yaml":    "name: request-machine\n",
+		"rest-imported.yaml":      "unit: shared-rest\nrest: {auth: {none: {type: none}}}\n",
 		"openapi.yaml":            "openapi: 3.1.0\ninfo: {title: fixture, version: v1}\npaths: {}\n",
 	} {
 		writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root", name), content)
@@ -325,7 +327,9 @@ tools:
       point_tools: point-tools.yaml
       point_tool_declarations: [point-declarations.yaml, /opt/agent-core/tools/exec/all.yaml]
 `)
-	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/rest.yaml"), `rest:
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/rest.yaml"), `unit: root-rest
+imports: [rest-imported.yaml]
+rest:
   openapi:
     fixture: {path: openapi.yaml}
   servers:

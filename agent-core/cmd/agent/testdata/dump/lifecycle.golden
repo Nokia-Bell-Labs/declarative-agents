@@ -1,0 +1,226 @@
+dump_version: 1
+profile:
+  name: core-lifecycle-approval
+  machine: <agent-core>/testdata/integration/profiles/lifecycle/machine.yaml
+  tools:
+    - <agent-core>/testdata/integration/profiles/lifecycle/tools.yaml
+  tool_declarations: []
+  tool_config_dirs:
+    - <agent-core>/tools/builtin/lifecycle
+    - <agent-core>/tools/builtin/llm
+machine:
+  name: core-lifecycle-approval
+  purpose: Prove suspend and resume through Agent Core lifecycle ports.
+  initial_state: Idle
+  resume_signal: Approved
+  states:
+    - name: Idle
+      meaning: Initial state.
+    - name: AwaitingApproval
+      meaning: Suspended for approval.
+    - name: ApplyingApproval
+      meaning: Completing approved work.
+    - name: Succeeded
+      meaning: Terminal success.
+      run_status: succeeded
+    - name: Rejected
+      meaning: Terminal rejection.
+      run_status: failed
+    - name: Failed
+      meaning: Terminal failure.
+      run_status: failed
+  terminal_states:
+    - Succeeded
+    - Rejected
+    - Failed
+  signals:
+    - name: Seed
+      trigger: Loop initialization.
+    - name: AwaitApproval
+      trigger: suspend requested approval.
+    - name: Approved
+      trigger: Operator approved.
+    - name: Rejected
+      trigger: Operator rejected.
+    - name: TaskCompleted
+      trigger: done completed.
+    - name: CommandError
+      trigger: Runtime failure.
+  transitions:
+    - state: Idle
+      signal: Seed
+      next: AwaitingApproval
+      action: suspend
+    - state: AwaitingApproval
+      signal: AwaitApproval
+      next: AwaitingApproval
+    - state: AwaitingApproval
+      signal: Approved
+      next: ApplyingApproval
+      action: done
+    - state: AwaitingApproval
+      signal: Rejected
+      next: Rejected
+    - state: AwaitingApproval
+      signal: CommandError
+      next: Failed
+    - state: ApplyingApproval
+      signal: TaskCompleted
+      next: Succeeded
+  budget:
+    max_iterations: 5
+    command_timeout: 1m
+tools:
+  - name: done
+    type: builtin
+    category: word
+    description: Signal that the generation task is complete.
+    problem: The machine needs a declared word for declaring task completion without embedding that workflow step in Go control flow.
+    goals:
+      - Perform the done action as one machine-selected word.
+      - Return an explicit signal that lets the MachineSpec choose the next state.
+      - Keep sequencing outside the tool implementation and in machine.yaml.
+    requirements:
+      input:
+        - must consume parameters from tool input, prior Result, or configured command/domain state
+      output:
+        - must emit one declared signal and return machine-readable output when available
+      errors:
+        - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+    non_goals:
+      - Does not choose the next workflow step; machine.yaml owns sequencing.
+      - Does not hide unrelated tool execution behind this word.
+    output:
+      description: done command result summary.
+      schema:
+        properties:
+          message:
+            type: string
+          signal:
+            type: string
+        required:
+          - message
+        type: object
+    side_effects:
+      - kind: none
+        description: Emits TaskCompleted and does not mutate state.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Completion signaling has no effects to reverse.
+    errors:
+      - signal: CommandError
+        condition: required input, configuration, or runtime state is invalid
+        message_shape: 'done: <error>'
+        state_after_failure: no additional workflow step is executed by this tool
+    relationships:
+      before:
+        - machine-selected predecessor
+      after:
+        - machine-selected successor
+    init: done
+    emits:
+      - TaskCompleted
+    visibility: internal
+  - name: suspend
+    type: builtin
+    category: boundary
+    contract: migrated
+    description: Suspend the run at an approval gate. The loop persists a checkpoint through the Checkpoint port when a persistent backend (--dolt-dsn) is configured.
+    problem: A machine needs an explicit human approval boundary that stops automatic dispatch and optionally requires durable checkpoint support before yielding control.
+    goals:
+      - Emit AwaitApproval with the configured reason, or the default `awaiting approval` reason.
+      - Refuse suspension when require_checkpoint is true and no persistent checkpoint backend is configured.
+      - Preserve declaration alias, label, resolved reason, checkpoint requirement/reference context, and compensation intent in a strict receipt for rollback.
+    requirements:
+      input:
+        - must take label, reason, and require_checkpoint only from trusted tool configuration
+      output:
+        - must emit AwaitApproval with the resolved reason when the gate is valid
+        - must emit a strict receipt that a fresh receipt-only reverser can validate and report as pending resume, rejection, or rollback compensation
+      errors:
+        - must emit CommandError before suspension when a required persistent checkpoint backend is unavailable
+        - must emit no receipt when suspension fails
+    non_goals:
+      - Does not approve or reject the run on the operator's behalf.
+      - Does not itself persist a checkpoint; the loop owns persistence through the Checkpoint port.
+    output:
+      description: The configured or default reason presented at the approval boundary; the opaque receipt carries rollback compensation context.
+      schema:
+        type: string
+    side_effects:
+      - kind: state_mutation
+        target: lifecycle_checkpoint
+        state: suspended
+        description: Requests suspension; the loop persists a checkpoint through the Checkpoint port when a persistent backend is configured.
+      - kind: human_boundary
+        target: operator_approval
+        description: Hands control to an operator approval decision before resume.
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Resume with Approved, reject with Rejected, or roll back to an earlier checkpoint.
+      payload: suspend_receipt
+      captures:
+        - label
+        - reason
+        - checkpoint_required
+        - checkpoint_configured
+        - checkpoint_reference_context
+      requires:
+        - operator_decision
+        - resume_signal_or_rollback_target
+    errors:
+      - signal: CommandError
+        condition: require_checkpoint is true but the Checkpoint port is nil or the no-op backend
+        message_shape: suspend requires a persistent checkpoint backend for checkpoint persistence
+        state_after_failure: the run is not suspended and no approval handoff occurs
+    relationships:
+      before:
+        - machine-selected operation requiring approval
+      after:
+        - resume approval signal
+        - checkpoint_rollback
+    init: suspend
+    config:
+      label: approval
+      reason: awaiting approval
+      require_checkpoint: false
+    emits:
+      - AwaitApproval
+      - CommandError
+    visibility: internal
+rest: {}
+files:
+  - path: <agent-core>/testdata/integration/profiles/lifecycle/machine.yaml
+    sha256: 4a0eb71a3489108416150f53ea49e8d85b91c0dea22af8b4163dfadff215d4e0
+  - path: <agent-core>/testdata/integration/profiles/lifecycle/profile.yaml
+    sha256: 40f16017d1c2a1b0b3a46a18b4800d8e6e77a5912ab6b86e51dd371103a1c906
+  - path: <agent-core>/testdata/integration/profiles/lifecycle/tools.yaml
+    sha256: a3be02c2c7c96a9b5fca8dcea06f9f782f77ec97d80ffc74fc6281295904d7d2
+  - path: <agent-core>/tools/builtin/checkpoint-history.yaml
+    sha256: b785e62a2994848219d72c47761b7985228e5d98ab1a5da51bf4b4f8120e2578
+  - path: <agent-core>/tools/builtin/checkpoint-rollback.yaml
+    sha256: 709b9e4d290fafbabb02f7dbdad147d6f36c426ebb6235d75c26edb0816957c0
+  - path: <agent-core>/tools/builtin/done.yaml
+    sha256: 5fb63008cabb0b4ee0e3c196046af58291d8a91146e07399943b99edf62931a7
+  - path: <agent-core>/tools/builtin/lifecycle/all.yaml
+    sha256: 4b1aa21da53a0e38c8263f952296eb53e8d55f8d0f73f220667279e137702a44
+  - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
+    sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25
+  - path: <agent-core>/tools/builtin/llm/all.yaml
+    sha256: 2b323d89df64acde868987bd04b82a48408f250769f27a18eee7c57d2c20e17a
+  - path: <agent-core>/tools/builtin/nudge-reread.yaml
+    sha256: 1b02746026bf3cc6d00d952f8b36166410f6560040fd809595d362a8710fe765
+  - path: <agent-core>/tools/builtin/parse-response.yaml
+    sha256: d5909f7fafcb770ca5defc425995057643594bcb36e2b0768f9e49594db0eb67
+  - path: <agent-core>/tools/builtin/parse-structured.yaml
+    sha256: 10a39dfe608918302ab58d853ef5eb739fd40ca4704e8d41ecc91a5166daaec3
+  - path: <agent-core>/tools/builtin/report-parse-error.yaml
+    sha256: 71e0516b5e44affbea2302e34dbfeb0f3e3b1fff649edb0f3921d76d9f4a7a25
+  - path: <agent-core>/tools/builtin/reset-history.yaml
+    sha256: 773bfaaffc2fe93e683eef4ac7860369e8c6778ea0b3d01855604dbdde5df691
+  - path: <agent-core>/tools/builtin/suspend.yaml
+    sha256: e82b60cb1f450d3c9493fa03dc38e40379710d7561b3c8a3fb0c5fde3c43b858

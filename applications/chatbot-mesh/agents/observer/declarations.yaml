@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: mesh-observer-declarations
 tools:
   - name: launch_observer_control
     type: builtin

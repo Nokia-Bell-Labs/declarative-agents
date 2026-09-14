@@ -29,7 +29,7 @@ states:
   - {name: CapturingSourceSelection, meaning: The adjacent raw classifier reply is being shaped into addressable JSON.}
   - {name: ParsingSources, meaning: The source classifier JSON is being schema-validated.}
   - {name: ConstrainingSources, meaning: Model names are being constrained to trusted topology entries.}
-  - {name: SelectingAllSources, meaning: A classifier, parse, or empty-selection failure is selecting all trusted entries.}
+  - {name: SelectingAllSources, meaning: "A classifier, parse, or empty-selection failure is selecting all trusted entries."}
   - {name: ReportingSourceSelection, meaning: Declared but not selected source names are being derived.}
   - {name: Retrieving, meaning: One sequential for_each is querying only trusted selected RAG sources.}
   - {name: PartitioningQueries, meaning: The for_each join is being divided into answered and failed queries.}
@@ -61,7 +61,7 @@ signals:
   - {name: SourceSelectionReported, trigger: Declared but not selected source names were derived.}
   - {name: QueryResponded, trigger: One RAG returned chunks.}
   - {name: QueryRejected, trigger: One RAG rejected the query vector with mapped HTTP 400.}
-  - {name: RagQueriesCollected, trigger: The iterator joined all handled query outcomes, including an empty topology.}
+  - {name: RagQueriesCollected, trigger: "The iterator joined all handled query outcomes, including an empty topology."}
   - {name: QueryResultsPartitioned, trigger: Answered and failed query outcomes were separated.}
   - {name: EmbeddingModelsPartitioned, trigger: Compatible and model-excluded answers were separated.}
   - {name: GroundingRendered, trigger: Compatible chunks were rendered in topology order.}

@@ -17,10 +17,13 @@ public Go APIs. Placement rules are defined in
 - `pkg/spec` is intentionally retained as a public package for the current
   restructuring. It provides typed specification artifacts, parsing, corpus
   loading, graph construction, validation, and formatted findings used by both
-  planning and audit flows.
+  planning and audit flows. Its tool-corpus view is converted from
+  `internal/tools/catalog.ToolDef`, so runtime and audit share one recursive
+  declaration loader.
 - `pkg/profileaudit` is a public package for profile-startup audit used by
   `cmd/agent` and catalog gates. It currently imports internal catalog, REST,
-  runtime, and support surfaces listed in `internal/boundaries/boundaries_baseline.txt`.
+  runtime, load, and support surfaces listed in
+  `internal/boundaries/boundaries_baseline.txt`.
 - `agents/`, `tools/`, `docs/`, and `testdata/` remain configuration,
   specification, and fixture directories rather than Go package domains.
 - Each migration should preserve behavior first. Rename symbols or redesign APIs
@@ -43,6 +46,7 @@ Flags whose resolution spans the whole binary stay in `cmd/agent`:
 - `--output`
 - `--child-agent-binary`
 - `--validate-config`
+- `--dump-config`
 
 Component-owned flags:
 
@@ -66,6 +70,8 @@ apart from `br.Register` calls.
 - `internal/runtime`: agent loop runtime, state machines, dispatch,
   checkpoints (`internal/runtime/checkpoint` owns Dolt DSN and resume flags),
   rollback, and workspace refs.
+- `internal/load`: the single profile declaration-closure loader shared by
+  runtime startup and profile audit.
 - `internal/tools`: standard tool library behavior split across focused packages
   for catalog loading, registration, file, exec, lifecycle, validation, control,
   undo, REST, and LLM tool implementations.
@@ -94,6 +100,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/doltsql`
 - `internal/evaluation`
 - `internal/gostyle`
+- `internal/load`
 - `internal/model`
 - `internal/model/llm`
 - `internal/model/llm/cohere`
@@ -119,6 +126,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/support/envexpand`
 - `internal/support/execute`
 - `internal/support/subprocess`
+- `internal/support/yamlstrict`
 - `internal/tools`
 - `internal/tools/catalog`
 - `internal/tools/compose`

@@ -7,22 +7,38 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/envexpand"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
+	"gopkg.in/yaml.v3"
 )
+
+// FileVisitor observes one declaration file after it is read and before it is
+// decoded. Loaders use it to build the resolved profile closure without
+// walking the same declarations again.
+type FileVisitor func(string, []byte) error
 
 // LoadToolSelection reads a YAML file listing tool names.
 func LoadToolSelection(path string) ([]string, error) {
+	return LoadToolSelectionWithVisitor(path, nil)
+}
+
+// LoadToolSelectionWithVisitor reads one selection and reports its source.
+func LoadToolSelectionWithVisitor(path string, visit FileVisitor) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("load tool selection %s: %w", path, err)
 	}
+	if visit != nil {
+		if err := visit(path, data); err != nil {
+			return nil, fmt.Errorf("visit tool selection %s: %w", path, err)
+		}
+	}
 	var sel ToolSelectionFile
-	if err := yaml.Unmarshal(data, &sel); err != nil {
+	if err := yamlstrict.Unmarshal(data, &sel); err != nil {
 		return nil, fmt.Errorf("parse tool selection %s: %w", path, err)
 	}
 	return sel.Tools, nil
@@ -30,10 +46,15 @@ func LoadToolSelection(path string) ([]string, error) {
 
 // LoadToolSelections reads multiple selection files and deduplicates names.
 func LoadToolSelections(paths []string) ([]string, error) {
+	return LoadToolSelectionsWithVisitor(paths, nil)
+}
+
+// LoadToolSelectionsWithVisitor reads selections and reports every source.
+func LoadToolSelectionsWithVisitor(paths []string, visit FileVisitor) ([]string, error) {
 	seen := map[string]bool{}
 	var merged []string
 	for _, p := range paths {
-		names, err := LoadToolSelection(p)
+		names, err := LoadToolSelectionWithVisitor(p, visit)
 		if err != nil {
 			return nil, err
 		}
@@ -49,33 +70,86 @@ func LoadToolSelections(paths []string) ([]string, error) {
 
 // LoadToolDeclarations loads multiple declaration files and merges them.
 func LoadToolDeclarations(paths []string) ([]ToolDef, error) {
-	var all []ToolDef
-	for _, p := range paths {
-		defs, err := LoadToolDefs(p)
-		if err != nil {
-			return nil, err
-		}
-		all = MergeToolDefs(all, defs)
-	}
-	return all, nil
+	return LoadToolDeclarationsWithVisitor(paths, nil)
+}
+
+// LoadToolDeclarationsWithVisitor loads declarations and reports every source,
+// including transitively included files.
+func LoadToolDeclarationsWithVisitor(paths []string, visit FileVisitor) ([]ToolDef, error) {
+	return productionToolImportResolver(visit).loadRoots(paths)
+}
+
+// LoadToolDeclarationsWithOptions loads declarations under an explicit
+// runtime or audit-side parsing policy.
+func LoadToolDeclarationsWithOptions(
+	paths []string, options LoadOptions, visit FileVisitor,
+) ([]ToolDef, error) {
+	return newToolImportResolverWithOptions(visit, os.Stderr, options).loadRoots(paths)
 }
 
 // LoadToolDeclarationsFromDirs scans directories for sorted *.yaml files.
 func LoadToolDeclarationsFromDirs(dirs []string) ([]ToolDef, error) {
+	return LoadToolDeclarationsFromDirsWithVisitor(dirs, nil)
+}
+
+// LoadToolDeclarationsFromDirsWithVisitor scans declaration directories and
+// reports every source, including transitively included files.
+func LoadToolDeclarationsFromDirsWithVisitor(dirs []string, visit FileVisitor) ([]ToolDef, error) {
+	paths, err := toolDeclarationPaths(dirs)
+	if err != nil {
+		return nil, err
+	}
+	return productionToolImportResolver(visit).loadRoots(paths)
+}
+
+// LoadToolDeclarationClosure loads directory and explicit declarations with
+// one source cache while preserving their separate merge precedence.
+func LoadToolDeclarationClosure(
+	dirs, explicit []string, visit FileVisitor,
+) ([]ToolDef, []ToolDef, error) {
+	fromDirs, local, _, err := LoadToolDeclarationClosureWithImports(dirs, explicit, visit)
+	return fromDirs, local, err
+}
+
+// LoadToolDeclarationClosureWithImports also returns authored import edges for
+// closure-level usedness validation.
+func LoadToolDeclarationClosureWithImports(
+	dirs, explicit []string, visit FileVisitor,
+) ([]ToolDef, []ToolDef, []ToolImport, error) {
+	paths, err := toolDeclarationPaths(dirs)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	resolver := productionToolImportResolver(visit)
+	fromDirs, err := resolver.loadRoots(paths)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	local, err := resolver.loadRoots(explicit)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return fromDirs, local, resolver.importEdges(), nil
+}
+
+func toolDeclarationPaths(dirs []string) ([]string, error) {
 	var paths []string
 	for _, dir := range dirs {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			return nil, fmt.Errorf("scan tool config dir %s: %w", dir, err)
 		}
+		var dirPaths []string
 		for _, e := range entries {
 			if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
 				continue
 			}
-			paths = append(paths, filepath.Join(dir, e.Name()))
+			dirPaths = append(dirPaths, filepath.Join(dir, e.Name()))
 		}
+		sort.Strings(dirPaths)
+		paths = append(paths, dirPaths...)
 	}
-	return LoadToolDeclarations(paths)
+	return paths, nil
 }
 
 // SelectTools filters declarations to selected names.
@@ -97,49 +171,12 @@ func SelectTools(declarations []ToolDef, selection []string) ([]ToolDef, error) 
 
 // LoadToolDefs reads one declaration file and resolves includes.
 func LoadToolDefs(path string) ([]ToolDef, error) {
-	return loadToolDefsRecursive(path, nil, nil, nil)
+	return productionToolImportResolver(nil).loadRoots([]string{path})
 }
 
-type toolDefFileVisitor func(string, []byte) error
-
-func loadToolDefsRecursive(
-	path string,
-	stack map[string]bool,
-	chain []string,
-	visit toolDefFileVisitor,
-) ([]ToolDef, error) {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return nil, fmt.Errorf("resolve path %s: %w", path, err)
-	}
-	if stack == nil {
-		stack = make(map[string]bool)
-	}
-	if stack[abs] {
-		return nil, fmt.Errorf(
-			"circular include detected: %s",
-			strings.Join(append(chain, abs), " -> "),
-		)
-	}
-	stack[abs] = true
-	defer delete(stack, abs)
-	chain = append(chain, abs)
-
-	file, err := readToolDefsFile(abs, visit)
-	if err != nil {
-		return nil, err
-	}
-	base, err := loadIncludedToolDefs(file.Includes, abs, stack, chain, visit)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateToolDefs(file.Tools); err != nil {
-		return nil, err
-	}
-	return MergeToolDefs(base, file.Tools), nil
-}
-
-func readToolDefsFile(path string, visit toolDefFileVisitor) (ToolDefsFile, error) {
+func readToolDefsFile(
+	path string, options LoadOptions, visit FileVisitor,
+) (ToolDefsFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ToolDefsFile{}, fmt.Errorf("load tool defs %s: %w", path, err)
@@ -153,46 +190,59 @@ func readToolDefsFile(path string, visit toolDefFileVisitor) (ToolDefsFile, erro
 	// applies, so an address that differs between a local run and a deployment
 	// is an environment reference rather than a literal the deployment cannot
 	// reach (srd013 R5.6).
-	var file ToolDefsFile
-	if err := yaml.Unmarshal(envexpand.Expand(data), &file); err != nil {
+	file, err := parseToolDefsFileRaw(data, options.ExpandEnv, options.TolerateNonToolFiles)
+	if err != nil {
 		return ToolDefsFile{}, fmt.Errorf("parse tool defs %s: %w", path, err)
 	}
 	return file, nil
 }
 
-// loadIncludedToolDefs resolves a file's includes against its own directory and
-// merges them in declaration order. from names the including file, so a failure
-// deep in an include chain reports which file pulled it in.
-func loadIncludedToolDefs(
-	includes []string,
-	from string,
-	stack map[string]bool,
-	chain []string,
-	visit toolDefFileVisitor,
-) ([]ToolDef, error) {
-	var base []ToolDef
-	dir := filepath.Dir(from)
-	for _, inc := range includes {
-		incPath := inc
-		if !filepath.IsAbs(incPath) {
-			incPath = filepath.Join(dir, incPath)
-		}
-		incDefs, err := loadToolDefsRecursive(incPath, stack, chain, visit)
-		if err != nil {
-			return nil, fmt.Errorf("include %s from %s: %w", inc, from, err)
-		}
-		base = MergeToolDefs(base, incDefs)
-	}
-	return base, nil
-}
-
 // ParseToolDefs parses YAML bytes into tool definitions without resolving includes.
 func ParseToolDefs(data []byte) ([]ToolDef, error) {
-	var file ToolDefsFile
-	if err := yaml.Unmarshal(data, &file); err != nil {
+	file, err := parseToolDefsFileRaw(data, true, false)
+	if err != nil {
 		return nil, fmt.Errorf("parse tool defs: %w", err)
 	}
 	return file.Tools, validateToolDefs(file.Tools)
+}
+
+func parseToolDefsFileRaw(
+	data []byte, expandEnv, tolerateNonTool bool,
+) (ToolDefsFile, error) {
+	expanded := data
+	if expandEnv {
+		expanded = envexpand.Expand(data)
+	}
+	root, err := toolDocumentRoot(expanded)
+	if err != nil {
+		return ToolDefsFile{}, err
+	}
+	hasTools := yamlstrict.FieldPresent(root, "tools")
+	if !hasTools && tolerateNonTool {
+		return ToolDefsFile{}, nil
+	}
+	var file ToolDefsFile
+	if err := yamlstrict.Unmarshal(expanded, &file); err != nil {
+		return ToolDefsFile{}, err
+	}
+	file.hasTools = hasTools
+	file.hasImports = yamlstrict.FieldPresent(root, "imports")
+	file.hasIncludes = yamlstrict.FieldPresent(root, "includes")
+	if !file.hasTools {
+		return ToolDefsFile{}, fmt.Errorf("top-level tools field is required")
+	}
+	return file, nil
+}
+
+func toolDocumentRoot(data []byte) (*yaml.Node, error) {
+	var document yaml.Node
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		return nil, err
+	}
+	if document.Kind == yaml.DocumentNode && len(document.Content) > 0 {
+		return document.Content[0], nil
+	}
+	return &document, nil
 }
 
 func validateToolDefs(defs []ToolDef) error {

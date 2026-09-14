@@ -1,10 +1,9 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-scenario-critic-rest
+imports: [../../tools/rest-auth-none.yaml]
 rest:
   version: v1
-  auth:
-    none:
-      type: none
   limits:
     health_probe:
       timeout: 400ms

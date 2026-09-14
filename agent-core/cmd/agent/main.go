@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/otel/metric"
 
+	internalload "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/load"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
@@ -47,6 +48,7 @@ var (
 	flagOutput         string
 	flagChildAgent     string
 	flagValidateConfig bool
+	flagDumpConfig     bool
 	telemetryCfg       telemetry.Config
 	telemetryFlags     *pflag.FlagSet
 	checkpointCfg      checkpoint.Config
@@ -114,6 +116,7 @@ func init() {
 	f.StringVar(&flagOutput, "output", "", "output directory for runtime artifacts")
 	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary used by child-process words (default: agent, resolved from PATH)")
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
+	f.BoolVar(&flagDumpConfig, "dump-config", false, "print canonical resolved profile YAML and exit; output contains environment-expanded values and may contain secrets")
 	telemetryCfg.RegisterFlags(f)
 	checkpointCfg.RegisterFlags(f)
 	doltCfg.RegisterFlags(f)
@@ -194,8 +197,14 @@ func run(cmd *cobra.Command, args []string) error {
 	if f := cmd.Flags().Lookup("core-root"); f != nil && f.Changed && strings.TrimSpace(flagCoreRoot) != "" {
 		spec.SetAgentCoreInstallRoot(strings.TrimSpace(flagCoreRoot))
 	}
+	if flagValidateConfig && flagDumpConfig {
+		return fmt.Errorf("--validate-config and --dump-config cannot be used together")
+	}
 	if flagValidateConfig {
 		return validateConfig()
+	}
+	if flagDumpConfig {
+		return dumpConfiguredProfile(cmd.OutOrStdout())
 	}
 	prepared, err := prepareRun(cmd)
 	if err != nil {
@@ -557,6 +566,14 @@ type runResources struct {
 	shutdownTelemetry func()
 }
 
+type runtimeClosure struct {
+	closure           *internalload.Closure
+	config            runtimeConfig
+	tracer            tracing.Tracer
+	meter             metric.Meter
+	shutdownTelemetry func()
+}
+
 type checkpointResources struct {
 	opened []openedCheckpoint
 }
@@ -607,50 +624,66 @@ func prepareRun(cmd *cobra.Command) (preparedRun, error) {
 }
 
 func loadRunResources() (runResources, error) {
-	cfg, err := loadRuntimeConfig()
+	captureLevel, err := resolveRuntimeCapture()
 	if err != nil {
 		return runResources{}, err
 	}
-	tracer, meter, shutdownTelemetry, err := initRunTelemetry(cfg)
+	loaded, err := loadRuntimeClosure(captureLevel)
 	if err != nil {
 		return runResources{}, err
 	}
-	defs, restDefs, err := loadRuntimeDefinitions(cfg)
+	closure := loaded.closure
+	machineSpec, err := loadValidatedRuntimeMachine(closure)
 	if err != nil {
-		shutdownTelemetry()
+		loaded.shutdownTelemetry()
 		return runResources{}, err
 	}
-	machineSpec, err := loadValidatedRuntimeMachine(cfg, defs)
+	program, err := buildClosureProgramRef(closure)
 	if err != nil {
-		shutdownTelemetry()
-		return runResources{}, err
-	}
-	program, err := buildProgramRef(cfg)
-	if err != nil {
-		shutdownTelemetry()
+		loaded.shutdownTelemetry()
 		return runResources{}, fmt.Errorf("build declarative program reference: %w", err)
 	}
 	return runResources{
-		Config: cfg, Tracer: tracer, Meter: meter, Definitions: defs,
-		RestDefinitions: restDefs, Machine: machineSpec, Program: program,
-		shutdownTelemetry: shutdownTelemetry,
+		Config: loaded.config, Tracer: loaded.tracer, Meter: loaded.meter, Definitions: closure.Selected,
+		RestDefinitions: closure.Rest, Machine: machineSpec, Program: program,
+		shutdownTelemetry: loaded.shutdownTelemetry,
 	}, nil
 }
 
-func loadValidatedRuntimeMachine(
-	cfg runtimeConfig, defs []catalog.ToolDef,
-) (core.MachineSpec, error) {
-	machineSpec, err := core.LoadMachineSpec(cfg.Machine)
-	if err != nil {
-		return core.MachineSpec{}, fmt.Errorf("load machine spec for budget: %w", err)
+func loadRuntimeClosure(captureLevel toollm.CaptureLevel) (runtimeClosure, error) {
+	if flagProfile == "" {
+		return runtimeClosure{}, fmt.Errorf("--profile is required")
 	}
+	var loaded runtimeClosure
+	closure, err := internalload.LoadClosure(flagProfile, internalload.Options{
+		ProfileLoaded: func(profilePath string, profile catalog.AgentProfile) error {
+			loaded.config = runtimeConfigFromProfile(profile, captureLevel)
+			loaded.config.Profile = profilePath
+			var loadErr error
+			loaded.tracer, loaded.meter, loaded.shutdownTelemetry, loadErr =
+				initRunTelemetry(loaded.config)
+			return loadErr
+		},
+	})
+	if err != nil {
+		if loaded.shutdownTelemetry != nil {
+			loaded.shutdownTelemetry()
+		}
+		return runtimeClosure{}, err
+	}
+	loaded.closure = closure
+	return loaded, nil
+}
+
+func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpec, error) {
+	machineSpec := closure.Machine
 	if err := core.ValidateRequiredMachinePolicy(machineSpec); err != nil {
 		return core.MachineSpec{}, fmt.Errorf("load machine runtime policy: %w", err)
 	}
-	if err := validateRuntimeToolWiring(machineSpec, defs); err != nil {
+	if err := validateRuntimeToolWiring(machineSpec, closure.Selected); err != nil {
 		return core.MachineSpec{}, err
 	}
-	if err := profileaudit.Validate(cfg.Profile); err != nil {
+	if err := profileaudit.ValidateClosure(closure); err != nil {
 		return core.MachineSpec{}, fmt.Errorf("inspect profile timeout closure: %w", err)
 	}
 	return machineSpec, nil
@@ -828,15 +861,11 @@ func initRunTelemetry(cfg runtimeConfig) (tracing.Tracer, metric.Meter, func(), 
 }
 
 func loadRuntimeDefinitions(cfg runtimeConfig) ([]catalog.ToolDef, toolrest.Collection, error) {
-	defs, err := loadProfileToolDefs(cfg)
+	closure, err := internalload.LoadClosure(cfg.Profile, internalload.Options{})
 	if err != nil {
 		return nil, toolrest.Collection{}, err
 	}
-	restDefs, err := toolrest.LoadDefinitions(cfg.RestDefinitions, cfg.RestConfigDirs)
-	if err != nil {
-		return nil, toolrest.Collection{}, fmt.Errorf("load REST definitions: %w", err)
-	}
-	return defs, restDefs, nil
+	return closure.Selected, closure.Rest, nil
 }
 
 func parseErrorRetryTracker(machine core.MachineSpec) *toollm.ParseErrorRetryTracker {

@@ -470,7 +470,7 @@ func yamlReferences(document *yaml.Node) []string {
 					"rest_definitions", "rest_config_dirs")[key]
 				pathField := topLevelField ||
 					stringSet("profile", "subject_profile", "point_machine",
-						"point_tools", "point_tool_declarations", "includes")[key] ||
+						"point_tools", "point_tool_declarations", "includes", "imports")[key] ||
 					(key == "machine" && contains(ancestors, "machine_request")) ||
 					(key == "path" && contains(ancestors, "openapi"))
 				if pathField {

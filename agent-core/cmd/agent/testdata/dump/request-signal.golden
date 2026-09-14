@@ -1,0 +1,259 @@
+dump_version: 1
+profile:
+  name: core-request-signal
+  machine: <agent-core>/testdata/integration/profiles/request-signal/machine.yaml
+  tools:
+    - <agent-core>/testdata/integration/profiles/request-signal/tools.yaml
+  tool_declarations:
+    - <agent-core>/testdata/integration/profiles/request-signal/declarations.yaml
+  rest_definitions:
+    - <agent-core>/testdata/integration/profiles/request-signal/rest.yaml
+machine:
+  name: core-request-signal
+  purpose: Prove model-free HTTP signal admission, ordinary dispatch, and continuation.
+  initial_state: Ready
+  resume_signal: ContinueRequested
+  states:
+    - name: Ready
+      meaning: Awaiting a trusted request signal.
+    - name: Processing
+      meaning: Running deterministic request work.
+    - name: Suspending
+      meaning: Persisting an approval suspension.
+    - name: AwaitingApproval
+      meaning: Declarative destination for the suspended signal.
+    - name: Continuing
+      meaning: Running deterministic continuation work.
+    - name: Failing
+      meaning: Producing an ordinary failed terminal result.
+    - name: Succeeded
+      meaning: Terminal success.
+      run_status: succeeded
+    - name: Failed
+      meaning: Terminal failure.
+      run_status: failed
+  terminal_states:
+    - Succeeded
+    - Failed
+  signals:
+    - name: StartRequested
+      trigger: Trusted source requested ordinary work.
+    - name: SuspendRequested
+      trigger: Trusted source requested suspended work.
+    - name: ContinueRequested
+      trigger: Trusted source continued a suspended run.
+    - name: FailRequested
+      trigger: Trusted source requested the failure proof.
+    - name: WorkCompleted
+      trigger: Deterministic request work completed.
+    - name: WorkFailed
+      trigger: Deterministic request work reached domain failure.
+    - name: AwaitApproval
+      trigger: Suspend handed control back to the caller.
+    - name: CommandError
+      trigger: Runtime or persistence failed.
+  transitions:
+    - state: Ready
+      signal: StartRequested
+      next: Processing
+      action: echo_request
+      label: request
+      summary: true
+    - state: Processing
+      signal: WorkCompleted
+      next: Succeeded
+    - state: Ready
+      signal: SuspendRequested
+      next: Suspending
+      action: suspend
+      label: suspension
+    - state: Suspending
+      signal: AwaitApproval
+      next: AwaitingApproval
+    - state: Suspending
+      signal: ContinueRequested
+      next: Continuing
+      action: echo_request
+      label: continuation
+      summary: true
+    - state: Continuing
+      signal: WorkCompleted
+      next: Succeeded
+    - state: Ready
+      signal: FailRequested
+      next: Failing
+      action: fail_request
+      label: failure
+      summary: true
+    - state: Failing
+      signal: WorkFailed
+      next: Failed
+    - state: Processing
+      signal: CommandError
+      next: Failed
+    - state: Suspending
+      signal: CommandError
+      next: Failed
+    - state: Continuing
+      signal: CommandError
+      next: Failed
+    - state: Failing
+      signal: CommandError
+      next: Failed
+  budget:
+    max_iterations: 4
+    command_timeout: 5s
+tools:
+  - name: echo_request
+    type: builtin
+    category: word
+    description: ""
+    side_effects:
+      - kind: none
+        description: Renders trusted request data without external effects.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Rendering has no effects to reverse.
+    init: compose
+    config:
+      inputs:
+        value: $.data
+      signal: WorkCompleted
+      template: '{"value":{{ json value }}}'
+    emits:
+      - WorkCompleted
+    visibility: internal
+  - name: fail_request
+    type: builtin
+    category: word
+    description: ""
+    side_effects:
+      - kind: none
+        description: Renders the configured failure proof without external effects.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Rendering has no effects to reverse.
+    init: compose
+    config:
+      inputs:
+        value: $.data
+      signal: WorkFailed
+      template: '{"value":{{ json value }}}'
+    emits:
+      - WorkFailed
+    visibility: internal
+  - name: suspend
+    type: builtin
+    category: boundary
+    description: ""
+    side_effects:
+      - kind: state_mutation
+        target: lifecycle_checkpoint
+        state: suspended
+        description: Requests a checkpointed continuation boundary.
+      - kind: human_boundary
+        target: request_caller
+        description: Returns control until the next mapped request.
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Continue, reject, or roll back the suspended request.
+      payload: suspend_receipt
+      captures:
+        - label
+        - reason
+        - checkpoint_required
+        - checkpoint_configured
+        - checkpoint_reference_context
+      requires:
+        - operator_decision
+        - resume_signal_or_rollback_target
+    init: suspend
+    config:
+      label: request-signal-approval
+      reason: awaiting continuation request
+      require_checkpoint: true
+    emits:
+      - AwaitApproval
+      - CommandError
+    visibility: internal
+rest:
+  version: v1
+  servers:
+    request_signals:
+      address: 127.0.0.1:0
+      endpoints:
+        request:
+          method: POST
+          path: /signals
+          binding: signal_source
+          request:
+            body_schema:
+              properties:
+                data:
+                  type: string
+                expected_state:
+                  type: string
+                kind:
+                  type: string
+                run_id:
+                  type: string
+                secret:
+                  type: string
+              required:
+                - kind
+                - run_id
+                - expected_state
+                - data
+                - secret
+              type: object
+          machine_request: {}
+          signal_source:
+            source: core_request_fixture
+            discriminator_field: $.body.kind
+            signal_mapping:
+              continue: ContinueRequested
+              fail: FailRequested
+              start: StartRequested
+              suspend: SuspendRequested
+            run_id_field: $.body.run_id
+            expected_state_field: $.body.expected_state
+            payload:
+              data: $.body.data
+              secret: $.body.secret
+            sensitive:
+              - secret
+            timeout: 5s
+            responses:
+              accepted:
+                status: 202
+                include_output: true
+              refused_undeclared:
+                status: 422
+              refused_conflict:
+                status: 409
+              source_validation:
+                status: 400
+              machine_run_failed:
+                status: 502
+                include_diagnostic: true
+      shutdown:
+        timeout: 1s
+      lifecycle_exit:
+        disabled: true
+files:
+  - path: <agent-core>/testdata/integration/profiles/request-signal/declarations.yaml
+    sha256: de7894cac21342b4a1e2f9d1cca87067fb06787983658b61f7df73b229fe1506
+  - path: <agent-core>/testdata/integration/profiles/request-signal/machine.yaml
+    sha256: cfa3e3a8746dbe49722e1b68871517e8012fb3b582a5ecb31fa796a37bf42c1d
+  - path: <agent-core>/testdata/integration/profiles/request-signal/profile.yaml
+    sha256: 8733b123bdcfb6eb67b246362ae722f5aa177a89937770015114e4c615c3d6ff
+  - path: <agent-core>/testdata/integration/profiles/request-signal/rest.yaml
+    sha256: 13fe4e821a62a807685d28a0a8954dea3c879f7cb17bc8d385607cbb0142b200
+  - path: <agent-core>/testdata/integration/profiles/request-signal/tools.yaml
+    sha256: 712b144fa00d50c9ba6b1ff64aaa90f737202aa6a148e1389985174da08bcf62

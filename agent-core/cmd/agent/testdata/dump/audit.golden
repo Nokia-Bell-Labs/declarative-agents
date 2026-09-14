@@ -1,0 +1,444 @@
+dump_version: 1
+profile:
+  name: core-spec-audit
+  machine: <agent-core>/testdata/integration/profiles/audit/machine.yaml
+  tools:
+    - <agent-core>/testdata/integration/profiles/audit/tools.yaml
+  tool_declarations:
+    - <agent-core>/tools/builtin/spec-validation/all.yaml
+    - <agent-core>/testdata/integration/profiles/audit/ripgrep.yaml
+machine:
+  name: core-spec-audit
+  purpose: Validate Agent Core specifications without a catalog checkout.
+  initial_state: Idle
+  states:
+    - name: Idle
+      meaning: Initial state.
+    - name: Loading
+      meaning: Loading the specification corpus.
+    - name: Validating
+      meaning: Validating references and structure.
+    - name: Searching
+      meaning: Running declared grep checks.
+    - name: Reducing
+      meaning: Reducing grep evidence.
+    - name: Reporting
+      meaning: Formatting findings.
+    - name: Passed
+      meaning: Terminal success.
+      run_status: succeeded
+    - name: Failed
+      meaning: Terminal failure.
+      run_status: failed
+  terminal_states:
+    - Passed
+    - Failed
+  signals:
+    - name: Seed
+      trigger: Loop initialization.
+    - name: ToolDone
+      trigger: Tool succeeded.
+    - name: ToolFailed
+      trigger: Tool found failures.
+    - name: CommandError
+      trigger: Infrastructure failed.
+    - name: ValidationPassed
+      trigger: Validation passed.
+    - name: ValidationFailed
+      trigger: Validation found errors.
+    - name: GrepSearched
+      trigger: Grep checks completed.
+  transitions:
+    - state: Idle
+      signal: Seed
+      next: Loading
+      action: load_corpus
+      label: loaded_corpus
+    - state: Loading
+      signal: ToolDone
+      next: Validating
+      action: validate_specs
+    - state: Loading
+      signal: CommandError
+      next: Failed
+    - state: Validating
+      signal: ValidationPassed
+      next: Searching
+      action: jurist_rg
+      label: grep_result
+      for_each:
+        items: $from(loaded_corpus).grep_checks
+        as: grep_check
+        mode: sequential
+        failure: collect_all
+        continue_on:
+          - ToolDone
+          - ToolFailed
+        abort_on:
+          - CommandError
+        join:
+          next: Searching
+          signals:
+            all_success: GrepSearched
+            partial: CommandError
+            failed: CommandError
+            empty: GrepSearched
+          label: grep_results
+    - state: Validating
+      signal: ValidationFailed
+      next: Searching
+      action: jurist_rg
+      label: grep_result
+      for_each:
+        items: $from(loaded_corpus).grep_checks
+        as: grep_check
+        mode: sequential
+        failure: collect_all
+        continue_on:
+          - ToolDone
+          - ToolFailed
+        abort_on:
+          - CommandError
+        join:
+          next: Searching
+          signals:
+            all_success: GrepSearched
+            partial: CommandError
+            failed: CommandError
+            empty: GrepSearched
+          label: grep_results
+    - state: Validating
+      signal: CommandError
+      next: Failed
+    - state: Searching
+      signal: GrepSearched
+      next: Reducing
+      action: reduce_grep_checks
+    - state: Searching
+      signal: CommandError
+      next: Failed
+    - state: Reducing
+      signal: ValidationPassed
+      next: Reporting
+      action: format_report
+    - state: Reducing
+      signal: ValidationFailed
+      next: Reporting
+      action: format_report
+    - state: Reducing
+      signal: CommandError
+      next: Failed
+    - state: Reporting
+      signal: ToolDone
+      next: Passed
+    - state: Reporting
+      signal: ToolFailed
+      next: Failed
+    - state: Reporting
+      signal: CommandError
+      next: Failed
+  budget:
+    max_iterations: 100
+    command_timeout: 15m
+tools:
+  - name: format_report
+    type: builtin
+    category: word
+    description: Format the validation results as a human-readable report.
+    problem: The machine needs a declared word for formatting validation findings without embedding that workflow step in Go control flow.
+    goals:
+      - Perform the format_report action as one machine-selected word.
+      - Return an explicit signal that lets the MachineSpec choose the next state.
+      - Keep sequencing outside the tool implementation and in machine.yaml.
+    requirements:
+      input:
+        - must consume parameters from tool input, prior Result, or configured command/domain state
+      output:
+        - must emit one declared signal and return machine-readable output when available
+      errors:
+        - must emit ToolFailed when the validation state contains errors
+    non_goals:
+      - Does not choose the next workflow step; machine.yaml owns sequencing.
+      - Does not hide unrelated tool execution behind this word.
+    output:
+      description: Plain-text human-readable validation report.
+      schema:
+        type: string
+    side_effects:
+      - kind: stderr_write
+        target: process_stderr
+        description: Prints the human-readable validation report to stderr.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Report formatting has no effects to reverse.
+    errors:
+      - signal: ToolFailed
+        condition: the validation finding set contains one or more error-level findings
+        message_shape: <human-readable validation report>
+        state_after_failure: the complete report is printed and returned
+    relationships:
+      before:
+        - machine-selected predecessor
+      after:
+        - machine-selected successor
+    init: format_report
+    emits:
+      - ToolDone
+      - ToolFailed
+    visibility: internal
+  - name: jurist_rg
+    type: exec
+    description: ""
+    output:
+      schema:
+        properties:
+          exit_code:
+            type: integer
+          output:
+            type: string
+        required:
+          - output
+          - exit_code
+        type: object
+      mode: structured
+    binary: rg
+    args:
+      - --json
+      - --line-number
+      - --no-ignore
+      - --hidden
+      - --text
+      - --threads
+      - "1"
+      - --sort
+      - path
+    emits:
+      - ToolDone
+      - ToolFailed
+      - CommandError
+    parameters:
+      properties:
+        exclude_glob:
+          flag: --glob
+          position: 2
+          source: $from(grep_check).exclude_glob
+          type: string
+        include_glob:
+          flag: --glob
+          position: 1
+          source: $from(grep_check).include_glob
+          type: string
+        path:
+          position: 4
+          positional: true
+          source: $from(grep_check).path
+          type: string
+        query:
+          position: 3
+          positional: true
+          source: $from(grep_check).query
+          type: string
+      required:
+        - query
+        - path
+      type: object
+    visibility: internal
+    output_cap: 1048576
+  - name: load_corpus
+    type: builtin
+    category: stateful_internal
+    description: Load the specification corpus from the project directory.
+    problem: The machine needs a declared word for loading the specification corpus without embedding that workflow step in Go control flow.
+    goals:
+      - Perform the load_corpus action as one machine-selected word.
+      - Return an explicit signal that lets the MachineSpec choose the next state.
+      - Keep sequencing outside the tool implementation and in machine.yaml.
+    requirements:
+      input:
+        - must consume parameters from tool input, prior Result, or configured command/domain state
+      output:
+        - must emit one declared signal and return machine-readable output when available
+      errors:
+        - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+    non_goals:
+      - Does not choose the next workflow step; machine.yaml owns sequencing.
+      - Does not hide unrelated tool execution behind this word.
+    output:
+      description: Loaded corpus summary and the declared search plans consumed by the specification-critic machine.
+      schema:
+        properties:
+          consistency_checks:
+            items:
+              type: object
+            type: array
+          grep_checks:
+            items:
+              type: object
+            type: array
+          ref_checks:
+            items:
+              type: object
+            type: array
+          summary:
+            type: string
+        required:
+          - summary
+          - grep_checks
+          - ref_checks
+          - consistency_checks
+        type: object
+    side_effects:
+      - kind: state_mutation
+        target: validation_state
+        state: corpus_loaded
+        description: Loads specification documents into validation state.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: session_state_restore
+      description: Restore validation state to the snapshot before loading the corpus.
+    errors:
+      - signal: CommandError
+        condition: required input, configuration, or runtime state is invalid
+        message_shape: 'load_corpus: <error>'
+        state_after_failure: no additional workflow step is executed by this tool
+    relationships:
+      before:
+        - machine-selected predecessor
+      after:
+        - machine-selected successor
+    init: load_corpus
+    config:
+      suite_paths:
+        - /opt/agent-core/tools/builtin/spec-validation/spec-corpus-charter.yaml
+    emits:
+      - ToolDone
+      - CommandError
+    visibility: internal
+  - name: reduce_grep_checks
+    type: builtin
+    category: stateful_internal
+    description: Shape joined ripgrep events into deterministic jurist findings.
+    problem: grep_check match policy and finding provenance need a visible reduction step after external search.
+    goals:
+      - Map rg match and missing outcomes to charter findings.
+      - Preserve suite, check, severity, path, and line provenance.
+    requirements:
+      input:
+        - must consume the joined structured outputs of declared jurist_rg executions
+      output:
+        - must emit ValidationPassed or ValidationFailed from the complete finding set
+      errors:
+        - must reject malformed rg events and rg exit codes above one as CommandError
+    non_goals:
+      - Does not read or scan target files.
+      - Does not execute search subprocesses.
+    output:
+      description: Plain-text aggregate jurist finding and error count.
+      schema:
+        type: string
+    side_effects:
+      - kind: state_mutation
+        target: validation_state
+        state: grep_findings_recorded
+        description: Appends reduced grep findings to validation state.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: session_state_restore
+      description: Restore validation state to the snapshot before grep reduction.
+    errors:
+      - signal: CommandError
+        condition: Joined rg output is malformed or reports an exit code above one.
+        message_shape: 'reduce grep checks failed: <error>'
+        state_after_failure: No additional workflow step is executed.
+    relationships:
+      before:
+        - jurist_rg
+      after:
+        - format_report
+    init: reduce_grep_checks
+    config:
+      results_from: $from(grep_results).items
+    emits:
+      - ValidationPassed
+      - ValidationFailed
+      - CommandError
+    visibility: internal
+  - name: validate_specs
+    type: builtin
+    category: stateful_internal
+    description: Run consistency checks on the loaded specification corpus.
+    problem: The machine needs a declared word for validating specification graph consistency without embedding that workflow step in Go control flow.
+    goals:
+      - Perform the validate_specs action as one machine-selected word.
+      - Return an explicit signal that lets the MachineSpec choose the next state.
+      - Keep sequencing outside the tool implementation and in machine.yaml.
+    requirements:
+      input:
+        - must consume parameters from tool input, prior Result, or configured command/domain state
+      output:
+        - must emit one declared signal and return machine-readable output when available
+      errors:
+        - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+    non_goals:
+      - Does not choose the next workflow step; machine.yaml owns sequencing.
+      - Does not hide unrelated tool execution behind this word.
+    output:
+      description: Plain-text finding and error count summary.
+      schema:
+        type: string
+    side_effects:
+      - kind: state_mutation
+        target: validation_state
+        state: validation_results_recorded
+        description: Records validation findings in validation state.
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: session_state_restore
+      description: Restore validation state to the snapshot before running checks.
+    errors:
+      - signal: CommandError
+        condition: required input, configuration, or runtime state is invalid
+        message_shape: 'validate_specs: <error>'
+        state_after_failure: no additional workflow step is executed by this tool
+    relationships:
+      before:
+        - machine-selected predecessor
+      after:
+        - machine-selected successor
+    init: validate_specs
+    emits:
+      - ValidationPassed
+      - ValidationFailed
+      - CommandError
+    visibility: internal
+rest: {}
+files:
+  - path: <agent-core>/testdata/integration/profiles/audit/machine.yaml
+    sha256: b3f5f984d181b1b1e56a698f2684ef65acaf6110af21b6708b6789fc3f76655d
+  - path: <agent-core>/testdata/integration/profiles/audit/profile.yaml
+    sha256: eccb9eaf323e9edbd468281e24db5317901ae5346a130bffedeabf1fce581379
+  - path: <agent-core>/testdata/integration/profiles/audit/ripgrep.yaml
+    sha256: 16a85cda76aecdcb118959cc3366059b4b6dce3041fb7b42ed819a529a8e6656
+  - path: <agent-core>/testdata/integration/profiles/audit/tools.yaml
+    sha256: 8c0b951612e211648d44a1c451ee610710dd2ca5fa86e7a63cda5175a2b833ee
+  - path: <agent-core>/tools/builtin/format-report.yaml
+    sha256: 2915cf310ebbcfba7f5967ff2199cc225fa44c426b0cba33a917d74b9ae169ed
+  - path: <agent-core>/tools/builtin/load-corpus.yaml
+    sha256: 334bc23fb89aa46e03db5ab3214c2098555046c4343992e8fae7ce14020d4284
+  - path: <agent-core>/tools/builtin/spec-validation/all.yaml
+    sha256: 4fa266a223c6ad5bc6c2d4f16756f2abf20fa5d987451c235bacdf73bd4c54a5
+  - path: <agent-core>/tools/builtin/spec-validation/reduce-consistency-checks.yaml
+    sha256: e667f929f7114050dc0b3e2825bebd48c4379bf2506f2cc2ea7fc5fb5e3ee547
+  - path: <agent-core>/tools/builtin/spec-validation/reduce-grep-checks.yaml
+    sha256: c09aab470bc9997d62f487a9c8454320de3bcca4c627558835fb6ef222e2da19
+  - path: <agent-core>/tools/builtin/spec-validation/reduce-ref-checks.yaml
+    sha256: 81c25ba1e218b005279ffea5d90b388f7132024e145a0f9fc638bf27e77cfc9c
+  - path: <agent-core>/tools/builtin/spec-validation/test-evidence.yaml
+    sha256: 0a4d7a76bb6ea5b9fd7a6d9b067cc67ab57d75f2c5b2a1a0bfa76da2c7cbb3f1
+  - path: <agent-core>/tools/builtin/validate-specs.yaml
+    sha256: 2125815c949e2fe2960933cbdc844b50626c0ba1eb7054a75c26cf215367e5e9

@@ -38,7 +38,7 @@ states:
   - {name: Ingesting, meaning: The creator is running the corpus-ingest for the requested directory and verifying the collection count.}
   - {name: Reconfiguring, meaning: The provisioning-workflow-orchestrator forwarded the desired values document and the creator is executing the request-draining rollout.}
   - {name: Reconfigured, meaning: Terminal. The rollout completed and the aggregated status is ready for the HTTP response., run_status: succeeded}
-  - {name: Rejected, meaning: Terminal. The creator refused the intent -- the ingest did not meet the requested source, or the applier rejected the desired values against the chart schema., run_status: failed}
+  - {name: Rejected, meaning: "Terminal. The creator refused the intent -- the ingest did not meet the requested source, or the applier rejected the desired values against the chart schema.", run_status: failed}
   - {name: Failed, meaning: Terminal. A creator boundary word failed., run_status: failed}
 terminal_states:
   - Reconfigured
@@ -48,7 +48,7 @@ signals:
   - {name: Seed, trigger: The intent endpoint starts a request-scoped run that adds a knowledge source.}
   - {name: SeedValues, trigger: The apply endpoint starts a request-scoped run that only changes values.}
   - {name: IngestReported, trigger: The creator reported the ingest met the requested source and returned the collection count.}
-  - {name: Rejected, trigger: The creator refused the intent, either because the ingest did not meet the requested source or because the applier rejected the desired values.}
+  - {name: Rejected, trigger: "The creator refused the intent, either because the ingest did not meet the requested source or because the applier rejected the desired values."}
   - {name: Reconfigured, trigger: The creator reported the rollout completed and returned the health.}
   - {name: CommandError, trigger: A creator boundary word failed.}
 transitions:

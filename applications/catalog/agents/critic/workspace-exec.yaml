@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-critic-workspace-exec
 tools:
   - name: evaluate_candidate
     type: exec

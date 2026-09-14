@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: mesh-rag-server-tests-query-declarations
 tools:
   - name: drive_rag_query
     type: builtin

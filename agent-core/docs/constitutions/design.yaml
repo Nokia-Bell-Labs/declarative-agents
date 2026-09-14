@@ -262,6 +262,11 @@ document_types:
     format: markdown
     required_fields: []
     purpose: Provides prose-heavy operator or developer guidance.
+  stats_baseline:
+    location: docs/stats/name.json
+    format: json
+    required_fields: []
+    purpose: Records deterministic generated metrics before a measured migration.
 manual_invariant_schema:
   purpose: |
     A judge may adjudicate a manual pattern invariant only after the invariant

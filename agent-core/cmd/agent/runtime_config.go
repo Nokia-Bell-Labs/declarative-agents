@@ -48,11 +48,10 @@ type runtimeConfig struct {
 }
 
 func loadRuntimeConfig() (runtimeConfig, error) {
-	resolved, err := telemetryCfg.ResolveCapture(telemetryFlags)
+	captureLevel, err := resolveRuntimeCapture()
 	if err != nil {
 		return runtimeConfig{}, err
 	}
-	captureLevel := toollm.CaptureLevel(resolved)
 	if flagProfile == "" {
 		return runtimeConfig{}, fmt.Errorf("--profile is required")
 	}
@@ -61,6 +60,14 @@ func loadRuntimeConfig() (runtimeConfig, error) {
 		return runtimeConfig{}, fmt.Errorf("load profile: %w", err)
 	}
 	return runtimeConfigFromProfile(p, captureLevel), nil
+}
+
+func resolveRuntimeCapture() (toollm.CaptureLevel, error) {
+	resolved, err := telemetryCfg.ResolveCapture(telemetryFlags)
+	if err != nil {
+		return "", err
+	}
+	return toollm.CaptureLevel(resolved), nil
 }
 
 func runtimeConfigFromProfile(p catalog.AgentProfile, captureLevel toollm.CaptureLevel) runtimeConfig {
@@ -86,26 +93,6 @@ func runtimeConfigFromProfile(p catalog.AgentProfile, captureLevel toollm.Captur
 		DoltConnections:  doltCfg.Connections,
 		ChildAgentBinary: flagChildAgent,
 	}
-}
-
-func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {
-	declarations, err := catalog.LoadToolDeclarationsFromDirs(cfg.ToolConfigDirs)
-	if err != nil {
-		return nil, fmt.Errorf("load tool config dirs: %w", err)
-	}
-	explicit, err := catalog.LoadToolDeclarations(cfg.ToolDeclarations)
-	if err != nil {
-		return nil, fmt.Errorf("load tool declarations: %w", err)
-	}
-	selection, err := catalog.LoadToolSelections(cfg.Tools)
-	if err != nil {
-		return nil, fmt.Errorf("load tool selection: %w", err)
-	}
-	defs, err := catalog.SelectTools(catalog.MergeToolDefs(declarations, explicit), selection)
-	if err != nil {
-		return nil, fmt.Errorf("select tools: %w", err)
-	}
-	return defs, nil
 }
 
 // resolveRunID returns the stable identity shared by checkpoint, monitor, and

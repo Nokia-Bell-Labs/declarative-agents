@@ -126,16 +126,15 @@ func writeSpecificationCriticCharterDemoProfileFiles(profilesRoot, coreRoot, tmp
 machine: %q
 tools:
   - %q
-tool_config_dirs:
-  - %q
 tool_declarations:
+  - %q
   - %q
   - %q
   - %q
   - %q
 `, filepath.Join(profilesRoot, specificationCriticProfileDir, "machine.yaml"),
 		filepath.Join(profilesRoot, specificationCriticProfileDir, "tools.yaml"),
-		filepath.Join(coreRoot, "tools", "builtin", "spec-validation"),
+		filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "all.yaml"),
 		toolDeclPath,
 		filepath.Join(profilesRoot, specificationCriticProfileDir, "ripgrep.yaml"),
 		filepath.Join(profilesRoot, specificationCriticProfileDir, "ref-scan.yaml"),

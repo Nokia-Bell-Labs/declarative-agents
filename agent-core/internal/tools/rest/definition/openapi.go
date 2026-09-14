@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -31,12 +33,46 @@ type openAPIHTTPBinding struct {
 
 // CompileOpenAPIImports loads OpenAPI imports into the internal REST model.
 func CompileOpenAPIImports(def *Definition, baseDir string) error {
+	return compileOpenAPIImports(def, baseDir, nil)
+}
+
+func compileOpenAPIImports(def *Definition, baseDir string, visit FileVisitor) error {
+	bases := make(map[string]string, len(def.OpenAPI))
+	for name := range def.OpenAPI {
+		bases[name] = baseDir
+	}
+	return compileOpenAPIImportsWithBases(def, bases, visit)
+}
+
+func compileOpenAPIImportsFromSources(
+	def *Definition,
+	sources map[string]declarationSource,
+	visit FileVisitor,
+) error {
+	bases := make(map[string]string, len(sources))
+	for name, source := range sources {
+		bases[name] = filepath.Dir(source.Path)
+	}
+	return compileOpenAPIImportsWithBases(def, bases, visit)
+}
+
+func compileOpenAPIImportsWithBases(
+	def *Definition,
+	bases map[string]string,
+	visit FileVisitor,
+) error {
 	if len(def.OpenAPI) == 0 {
 		return nil
 	}
 	imports := def.OpenAPI
-	for name, imp := range imports {
-		operations, err := loadOpenAPIOperations(name, imp, baseDir)
+	names := make([]string, 0, len(imports))
+	for name := range imports {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		imp := imports[name]
+		operations, err := loadOpenAPIOperations(name, imp, bases[name], visit)
 		if err != nil {
 			return err
 		}
@@ -49,13 +85,16 @@ func CompileOpenAPIImports(def *Definition, baseDir string) error {
 		if err := applyOpenAPIRefs(def, name, operations); err != nil {
 			return err
 		}
+		recordOpenAPIConsumers(def, name, operations)
 	}
 	def.OpenAPI = nil
 	return nil
 }
 
-func loadOpenAPIOperations(name string, imp OpenAPIImport, baseDir string) (map[string]openAPIOperation, error) {
-	doc, err := loadOpenAPIDocument(imp, baseDir)
+func loadOpenAPIOperations(
+	name string, imp OpenAPIImport, baseDir string, visit FileVisitor,
+) (map[string]openAPIOperation, error) {
+	doc, err := loadOpenAPIDocument(imp, baseDir, visit)
 	if err != nil {
 		return nil, fmt.Errorf("openapi %q source %q: %w", name, imp.Path, err)
 	}
@@ -65,17 +104,41 @@ func loadOpenAPIOperations(name string, imp OpenAPIImport, baseDir string) (map[
 	return indexOpenAPIOperations(name, imp.Path, doc)
 }
 
-func loadOpenAPIDocument(imp OpenAPIImport, baseDir string) (*openapi3.T, error) {
+func loadOpenAPIDocument(imp OpenAPIImport, baseDir string, visit FileVisitor) (*openapi3.T, error) {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
+	if visit != nil {
+		loader.ReadFromURIFunc = func(loader *openapi3.Loader, location *url.URL) ([]byte, error) {
+			data, err := openapi3.DefaultReadFromURI(loader, location)
+			if err != nil {
+				return nil, err
+			}
+			if !isHTTPURL(location) {
+				if err := visit(filepath.FromSlash(location.Path), data); err != nil {
+					return nil, err
+				}
+			}
+			return data, nil
+		}
+	}
 	parsed, err := url.Parse(imp.Path)
 	if err == nil && isHTTPURL(parsed) {
 		return loader.LoadFromURI(parsed)
 	}
-	if filepath.IsAbs(imp.Path) {
-		return loader.LoadFromFile(imp.Path)
+	path := imp.Path
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(baseDir, path)
 	}
-	return loader.LoadFromFile(filepath.Join(baseDir, imp.Path))
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if visit != nil {
+		if err := visit(path, data); err != nil {
+			return nil, err
+		}
+	}
+	return loader.LoadFromDataWithPath(data, &url.URL{Path: filepath.ToSlash(path)})
 }
 
 func isHTTPURL(parsed *url.URL) bool {

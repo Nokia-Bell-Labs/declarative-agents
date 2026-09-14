@@ -34,21 +34,48 @@ func BuildProgramRef(paths ProgramPaths) (core.ProgramRef, error) {
 	if err != nil {
 		return core.ProgramRef{}, err
 	}
-	hash := sha256.New()
+	return BuildProgramRefFromFiles(paths.Profile, files)
+}
+
+// BuildProgramRefFromFiles returns the immutable identity of an already
+// resolved declaration closure.
+func BuildProgramRefFromFiles(profile string, files []string) (core.ProgramRef, error) {
+	files = canonicalProgramFiles(files)
+	assets := make(map[string][]byte, len(files))
 	for _, path := range files {
 		data, readErr := os.ReadFile(path)
 		if readErr != nil {
 			return core.ProgramRef{}, fmt.Errorf("read program asset %s: %w", path, readErr)
 		}
+		assets[path] = data
+	}
+	return BuildProgramRefFromAssets(profile, assets), nil
+}
+
+// BuildProgramRefFromAssets hashes the immutable bytes captured while loading
+// a declaration closure.
+func BuildProgramRefFromAssets(profile string, assets map[string][]byte) core.ProgramRef {
+	canonical := make(map[string][]byte, len(assets))
+	for path, data := range assets {
+		path = canonicalProgramPath(path)
+		canonical[path] = data
+	}
+	files := make([]string, 0, len(canonical))
+	for path := range canonical {
+		files = append(files, path)
+	}
+	sort.Strings(files)
+	hash := sha256.New()
+	for _, path := range files {
 		_, _ = hash.Write([]byte(path))
 		_, _ = hash.Write([]byte{0})
-		_, _ = hash.Write(data)
+		_, _ = hash.Write(canonical[path])
 		_, _ = hash.Write([]byte{0})
 	}
 	return core.ProgramRef{
-		Profile: canonicalProgramPath(paths.Profile),
+		Profile: canonicalProgramPath(profile),
 		Digest:  hex.EncodeToString(hash.Sum(nil)),
-	}, nil
+	}
 }
 
 // ProgramAssetFiles returns the sorted declaration closure hashed by
@@ -62,16 +89,14 @@ func ProgramAssetFiles(paths ProgramPaths) ([]string, error) {
 	addProgramPaths(files, paths.ToolSelections)
 	addProgramPaths(files, paths.ToolDeclarations)
 	addProgramPaths(files, paths.RESTDefinitions)
-	for _, declaration := range paths.ToolDeclarations {
-		if _, err := loadToolDefsRecursive(
-			declaration, nil, nil,
-			func(path string, _ []byte) error {
-				files[path] = true
-				return nil
-			},
-		); err != nil {
-			return nil, err
-		}
+	if _, err := LoadToolDeclarationsWithVisitor(
+		paths.ToolDeclarations,
+		func(path string, _ []byte) error {
+			files[path] = true
+			return nil
+		},
+	); err != nil {
+		return nil, err
 	}
 	for _, dir := range append(
 		append([]string(nil), paths.ToolConfigDirs...), paths.RESTConfigDirs...,
@@ -86,6 +111,46 @@ func ProgramAssetFiles(paths ProgramPaths) ([]string, error) {
 	}
 	sort.Strings(result)
 	return result, nil
+}
+
+// ProgramAssetFilesFromVisited returns the program assets after declaration
+// includes have already been resolved by the loader. It avoids parsing those
+// declarations a second time while preserving the legacy digest file set.
+func ProgramAssetFilesFromVisited(paths ProgramPaths, visited []string) ([]string, error) {
+	files := make(map[string]bool)
+	addProgramPaths(files, []string{paths.Profile, paths.Machine})
+	addProgramPaths(files, paths.ToolSelections)
+	addProgramPaths(files, paths.ToolDeclarations)
+	addProgramPaths(files, paths.RESTDefinitions)
+	addProgramPaths(files, visited)
+	for _, dir := range append(
+		append([]string(nil), paths.ToolConfigDirs...), paths.RESTConfigDirs...,
+	) {
+		if err := addProgramDirectory(files, dir); err != nil {
+			return nil, err
+		}
+	}
+	result := make([]string, 0, len(files))
+	for path := range files {
+		result = append(result, path)
+	}
+	sort.Strings(result)
+	return result, nil
+}
+
+func canonicalProgramFiles(files []string) []string {
+	unique := make(map[string]bool, len(files))
+	for _, path := range files {
+		if path != "" {
+			unique[canonicalProgramPath(path)] = true
+		}
+	}
+	result := make([]string, 0, len(unique))
+	for path := range unique {
+		result = append(result, path)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func addProgramPaths(files map[string]bool, paths []string) {

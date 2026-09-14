@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-planner-builtin
 # Planner-local builtin overrides.
 # Adds mode-specific config to tools declared in tools/builtin.yaml.
 # Loaded through agents/planner/profile.yaml tool_declarations.

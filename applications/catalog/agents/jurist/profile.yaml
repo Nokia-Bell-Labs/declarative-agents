@@ -9,10 +9,8 @@ name: jurist
 machine: ../specification-critic/machine.yaml
 tools:
   - ../specification-critic/tools.yaml
-tool_config_dirs:
-  - /opt/agent-core/tools/builtin/spec-validation
 tool_declarations:
-  - /opt/agent-core/tools/builtin/load-corpus.yaml
+  - /opt/agent-core/tools/builtin/spec-validation/all.yaml
   - ../specification-critic/ripgrep.yaml
   - ../specification-critic/ref-scan.yaml
   - ../specification-critic/consistency-scan.yaml

@@ -323,6 +323,7 @@ func TestProfileStartupLoadsCoreRuntimeFixtures(t *testing.T) {
 	profileRoot := profileRootFromTest(t)
 	profiles := []string{
 		"control/profile.yaml",
+		"control-imports/profile.yaml",
 		"lifecycle/profile.yaml",
 		"monitor/profile.yaml",
 		"audit/profile.yaml",
@@ -335,7 +336,7 @@ func TestProfileStartupLoadsCoreRuntimeFixtures(t *testing.T) {
 
 			cfg, err := loadRuntimeConfig()
 			require.NoError(t, err)
-			defs, err := loadProfileToolDefs(cfg)
+			defs, _, err := loadRuntimeDefinitions(cfg)
 			require.NoError(t, err)
 			spec, err := core.LoadMachineSpec(cfg.Machine)
 			require.NoError(t, err)
@@ -348,17 +349,21 @@ func TestValidateConfigValidProfileExitsZero(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
-	clearAgentFlags()
-	flagProfile = profilePathFromTest(t, "monitor/profile.yaml")
-	flagValidateConfig = true
+	for _, profile := range []string{"monitor/profile.yaml", "control-imports/profile.yaml"} {
+		t.Run(profile, func(t *testing.T) {
+			clearAgentFlags()
+			flagProfile = profilePathFromTest(t, profile)
+			flagValidateConfig = true
 
-	stderr, err := captureStderr(t, func() error {
-		return run(rootCmd, nil)
-	})
-	require.NoError(t, err)
-	require.Contains(t, stderr, "config valid")
-	// Validate mode must not enter the run loop or bind servers.
-	require.NotContains(t, stderr, "\nterminal state:")
+			stderr, err := captureStderr(t, func() error {
+				return run(rootCmd, nil)
+			})
+			require.NoError(t, err)
+			require.Contains(t, stderr, "config valid")
+			// Validate mode must not enter the run loop or bind servers.
+			require.NotContains(t, stderr, "\nterminal state:")
+		})
+	}
 }
 
 func TestValidateConfigInvalidRestExitsNonZero(t *testing.T) {

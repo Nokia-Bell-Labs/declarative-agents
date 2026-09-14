@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
-	"gopkg.in/yaml.v3"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 )
 
 // AgentProfile bundles all configuration an agent needs into a single file.
@@ -26,12 +26,31 @@ type AgentProfile struct {
 
 // LoadProfile reads a profile YAML file and resolves relative paths.
 func LoadProfile(path string) (AgentProfile, error) {
+	return LoadProfileWithVisitor(path, nil)
+}
+
+// LoadProfileWithVisitor reads a profile and reports its immutable source.
+func LoadProfileWithVisitor(path string, visit FileVisitor) (AgentProfile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return AgentProfile{}, fmt.Errorf("load profile %s: %w", path, err)
 	}
+	if visit != nil {
+		if err := visit(path, data); err != nil {
+			return AgentProfile{}, fmt.Errorf("visit profile %s: %w", path, err)
+		}
+	}
+	p, err := parseProfile(path, data)
+	if err != nil {
+		return AgentProfile{}, err
+	}
+	resolveProfilePaths(&p, filepath.Dir(path))
+	return p, nil
+}
+
+func parseProfile(path string, data []byte) (AgentProfile, error) {
 	var p AgentProfile
-	if err := yaml.Unmarshal(data, &p); err != nil {
+	if err := yamlstrict.Unmarshal(data, &p); err != nil {
 		return AgentProfile{}, fmt.Errorf("parse profile %s: %w", path, err)
 	}
 	if p.Machine == "" {
@@ -40,8 +59,10 @@ func LoadProfile(path string) (AgentProfile, error) {
 	if len(p.Tools) == 0 {
 		return AgentProfile{}, fmt.Errorf("profile %s: at least one tools entry is required", path)
 	}
+	return p, nil
+}
 
-	base := filepath.Dir(path)
+func resolveProfilePaths(p *AgentProfile, base string) {
 	p.Machine = resolveProfilePath(base, p.Machine)
 	for i, t := range p.Tools {
 		p.Tools[i] = resolveProfilePath(base, t)
@@ -61,7 +82,6 @@ func LoadProfile(path string) (AgentProfile, error) {
 	if p.Directory != "" {
 		p.Directory = resolveProfilePath(base, p.Directory)
 	}
-	return p, nil
 }
 
 func resolveProfilePath(base, p string) string {

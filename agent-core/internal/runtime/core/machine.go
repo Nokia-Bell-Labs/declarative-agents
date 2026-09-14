@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 )
 
 // MachineSpec is the YAML schema for a declarative state machine.
@@ -89,6 +91,9 @@ func unmarshalNamedSpecs[T interface{ StateSpec | SignalSpec }](value *yaml.Node
 				p.Name = name
 			}
 		case yaml.MappingNode:
+			if err := yamlstrict.CheckKnownFields(item, spec); err != nil {
+				return nil, fmt.Errorf("%s[%d]: %w", label, i, err)
+			}
 			if err := item.Decode(&spec); err != nil {
 				return nil, fmt.Errorf("%s[%d]: %w", label, i, err)
 			}
@@ -151,17 +156,18 @@ type TransitionSpec struct {
 // an omitted label from an explicitly empty one (srd006 R1.5, R2.7).
 func (t *TransitionSpec) UnmarshalYAML(value *yaml.Node) error {
 	type transitionSpec TransitionSpec
+	if err := yamlstrict.CheckFields(value, yamlstrict.TagsOf(transitionSpec{})...); err != nil {
+		return fmt.Errorf("transition: %w", err)
+	}
+	if err := yamlstrict.CheckKnownFields(value, transitionSpec{}); err != nil {
+		return fmt.Errorf("transition: %w", err)
+	}
 	var decoded transitionSpec
 	if err := value.Decode(&decoded); err != nil {
 		return err
 	}
 	*t = TransitionSpec(decoded)
-	for i := 0; i+1 < len(value.Content); i += 2 {
-		if value.Content[i].Value == "label" {
-			t.labelSet = true
-			break
-		}
-	}
+	t.labelSet = yamlstrict.FieldPresent(value, "label")
 	return nil
 }
 
@@ -171,13 +177,17 @@ func LoadMachineSpec(path string) (MachineSpec, error) {
 	if err != nil {
 		return MachineSpec{}, fmt.Errorf("read machine spec %s: %w", path, err)
 	}
-	return ParseMachineSpec(data)
+	spec, err := ParseMachineSpec(data)
+	if err != nil {
+		return MachineSpec{}, fmt.Errorf("parse machine spec %s: %w", path, err)
+	}
+	return spec, nil
 }
 
 // ParseMachineSpec parses machine YAML from bytes.
 func ParseMachineSpec(data []byte) (MachineSpec, error) {
 	var spec MachineSpec
-	if err := yaml.Unmarshal(data, &spec); err != nil {
+	if err := yamlstrict.Unmarshal(data, &spec); err != nil {
 		return MachineSpec{}, fmt.Errorf("parse machine YAML: %w", err)
 	}
 	if err := validateSpec(spec); err != nil {

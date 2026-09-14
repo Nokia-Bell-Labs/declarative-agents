@@ -21,7 +21,7 @@ states:
   - {name: Done, meaning: Terminal. The rollout applied and verified., run_status: succeeded}
   - {name: Rejected, meaning: Terminal. Validation rejected the patch before apply., run_status: failed}
   - {name: RolledBack, meaning: Terminal. Verification failed and compensation succeeded., run_status: failed}
-  - {name: Failed, meaning: Terminal. Write, apply, or compensation failed., run_status: failed}
+  - {name: Failed, meaning: "Terminal. Write, apply, or compensation failed.", run_status: failed}
 terminal_states:
   - Done
   - Rejected
