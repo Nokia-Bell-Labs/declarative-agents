@@ -52,3 +52,7 @@ success_criteria:
   - id: S5
     criterion: A pipeline declaration alone selects its stage families.
     traces: [srd049-pipeline-word AC5]
+
+out_of_scope:
+  - Branching, boundary calls, and parallel execution inside a pipeline.
+  - Changes to the standalone stage words or selector grammar.

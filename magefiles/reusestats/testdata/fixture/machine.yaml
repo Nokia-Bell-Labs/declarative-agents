@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: fixture
+transitions:
+  - state: Idle
+    signal: Seed
+    action: alpha
+  - state: Running
+    signal: Done
+    action: beta
+  - state: Dynamic
+    signal: Again
+    action: $tool
