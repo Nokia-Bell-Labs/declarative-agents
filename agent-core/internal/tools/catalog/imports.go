@@ -269,7 +269,7 @@ func (r *toolImportResolver) registerUnit(unit, path string) error {
 func (r *toolImportResolver) registerEdges(file ToolDefsFile, path string) error {
 	if file.hasIncludes && !r.warned[path] {
 		r.warned[path] = true
-		fmt.Fprintf(r.warnings, "warning: tool declaration includes are deprecated: %s\n", path)
+		_, _ = fmt.Fprintf(r.warnings, "warning: tool declaration includes are deprecated: %s\n", path)
 	}
 	if len(file.Imports) > 0 {
 		r.hasImportEdges = true

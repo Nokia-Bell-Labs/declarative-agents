@@ -17,6 +17,7 @@ type strictFixture struct {
 	Nested struct {
 		Enabled bool `yaml:"enabled"`
 	} `yaml:"nested,omitempty"`
+	//nolint:unused // negative fixture for TestTagsOfReturnsExportedYAMLNames: TagsOf and structFields skip unexported fields, and only reflection reads this one.
 	ignored string
 }
 
@@ -105,4 +106,10 @@ func TestTagsOfReturnsExportedYAMLNames(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, []string{"name", "nested"}, TagsOf(strictFixture{}))
 	require.Nil(t, TagsOf("not a struct"))
+}
+
+func TestUnmarshalRejectsUnexportedFieldName(t *testing.T) {
+	t.Parallel()
+	var value strictFixture
+	require.ErrorContains(t, Unmarshal([]byte("ignored: x\n"), &value), "ignored")
 }
