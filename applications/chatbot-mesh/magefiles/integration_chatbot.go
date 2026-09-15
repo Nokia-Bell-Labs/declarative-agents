@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
@@ -15,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profilestage"
 )
 
 const (
@@ -718,20 +721,32 @@ func generateRag1Variant(profilesRoot string) (string, func(), error) {
 		return "", nil, fmt.Errorf("create rag1 variant dir: %w", err)
 	}
 	cleanup := func() { _ = os.RemoveAll(dstDir) }
-	entries, err := os.ReadDir(srcDir)
-	if err != nil {
+	// Staged before rewriting so anything the profile imports arrives too and
+	// is rewritten with it (GH-2041).
+	if err := profilestage.Stage(profilestage.Tree{
+		Source: srcDir, Destination: dstDir,
+	}); err != nil {
 		cleanup()
-		return "", nil, fmt.Errorf("read rag-server profile: %w", err)
+		return "", nil, fmt.Errorf("stage rag-server profile: %w", err)
 	}
+	if err := rewriteRag1Variant(dstDir); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	return filepath.Join(dstDir, "profile.yaml"), cleanup, nil
+}
+
+// rewriteRag1Variant shifts the staged ports and the served collection so rag1
+// answers from the disjoint corpus without a second committed profile.
+func rewriteRag1Variant(root string) error {
 	replacer := strings.NewReplacer("18085", "18095", "18086", "18096", "18087", "18097")
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() {
+			return walkErr
 		}
-		content, err := os.ReadFile(filepath.Join(srcDir, entry.Name()))
+		content, err := os.ReadFile(path)
 		if err != nil {
-			cleanup()
-			return "", nil, err
+			return err
 		}
 		out := replacer.Replace(string(content))
 		if entry.Name() == "rest.yaml" {
@@ -739,12 +754,8 @@ func generateRag1Variant(profilesRoot string) (string, func(), error) {
 			// rag1 variant serves the disjoint corpus under a local run.
 			out = strings.Replace(out, "name: ${RAG_COLLECTION:-corpus}\n", "name: ${RAG_COLLECTION:-"+chromaCorpus2+"}\n", 1)
 		}
-		if err := os.WriteFile(filepath.Join(dstDir, entry.Name()), []byte(out), 0o644); err != nil {
-			cleanup()
-			return "", nil, err
-		}
-	}
-	return filepath.Join(dstDir, "profile.yaml"), cleanup, nil
+		return os.WriteFile(path, []byte(out), 0o644)
+	})
 }
 
 // chatbotOllamaSkipReason returns a non-empty reason when Ollama is unreachable or

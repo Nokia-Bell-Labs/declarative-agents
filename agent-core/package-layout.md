@@ -24,6 +24,10 @@ public Go APIs. Placement rules are defined in
   `cmd/agent` and catalog gates. It currently imports internal catalog, REST,
   runtime, load, and support surfaces listed in
   `internal/boundaries/boundaries_baseline.txt`.
+- `pkg/profilestage` is a public package the application build lanes use to
+  copy a declaration tree into a staged profile and prove the copy resolves. It
+  follows the import edges a declaration carries rather than enumerating the
+  sibling directories those edges reach.
 - `agents/`, `tools/`, `docs/`, and `testdata/` remain configuration,
   specification, and fixture directories rather than Go package domains.
 - Each migration should preserve behavior first. Rename symbols or redesign APIs
@@ -158,6 +162,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/typesys`
 - `internal/version`
 - `pkg/profileaudit`
+- `pkg/profilestage`
 - `pkg/spec`
 
 REST subpackages layer as definition (model and loading) under validation; the
