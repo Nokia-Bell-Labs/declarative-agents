@@ -703,10 +703,29 @@ func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpe
 	); err != nil {
 		return core.MachineSpec{}, err
 	}
-	if err := profileaudit.ValidateClosure(closure); err != nil {
+	// Every machine the profile reaches is wired-checked, not the profile's own
+	// alone: a profile that serves machine_request routes runs most of its words
+	// in a request machine, and those were never checked (GH-2027).
+	if err := profileaudit.ValidateClosureWithOptions(closure, profileaudit.Options{
+		OnMachine: validateReachedMachine,
+	}); err != nil {
 		return core.MachineSpec{}, fmt.Errorf("inspect profile timeout closure: %w", err)
 	}
 	return machineSpec, nil
+}
+
+// validateReachedMachine applies the startup boundary to one machine the
+// profile reaches, naming the machine so a failure in a request machine reads
+// as that machine's rather than the profile's.
+func validateReachedMachine(reached profileaudit.ReachedMachine) error {
+	err := validateRuntimeToolWiring(
+		reached.Machine, reached.Selected, reached.Types,
+		catalog.ExhaustivenessInputs{External: requestSourceSignals(reached.Rest)},
+	)
+	if err != nil {
+		return fmt.Errorf("machine %s: %w", reached.MachinePath, err)
+	}
+	return nil
 }
 
 // validateRuntimeToolWiring is the ordinary startup boundary. It rejects

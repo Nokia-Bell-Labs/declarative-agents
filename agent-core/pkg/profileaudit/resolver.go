@@ -15,6 +15,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/typesys"
 )
 
 type loadedClosure struct {
@@ -23,6 +24,16 @@ type loadedClosure struct {
 	defs        []catalog.ToolDef
 	rest        toolrest.Collection
 	machine     core.MachineSpec
+	types       *typesys.Registry
+}
+
+// reached reports this closure to a caller that asked to see every machine the
+// walk resolves (srd006 R2.9, srd038 R2.14).
+func (c loadedClosure) reached() ReachedMachine {
+	return ReachedMachine{
+		ProfilePath: c.profilePath, MachinePath: c.machinePath,
+		Machine: c.machine, Selected: c.defs, Rest: c.rest, Types: c.types,
+	}
 }
 
 func (i *inspector) inspectProfile(profilePath, machineOverride string) error {
@@ -34,11 +45,24 @@ func (i *inspector) inspectProfile(profilePath, machineOverride string) error {
 		return err
 	}
 	defer delete(i.visiting, key)
+	if err := i.reportReached(closure); err != nil {
+		return err
+	}
 	if err := i.inspectLoaded(closure); err != nil {
 		return err
 	}
 	i.visited[key] = true
 	return nil
+}
+
+// reportReached hands one resolved machine to the caller's OnMachine before the
+// timeout audit runs, so a caller checking machine wiring sees the request
+// machines this walk resolves and not only the profile's own.
+func (i *inspector) reportReached(closure loadedClosure) error {
+	if i.onMachine == nil {
+		return nil
+	}
+	return i.onMachine(closure.reached())
 }
 
 func (i *inspector) inspectClosure(closure *internalload.Closure) error {
@@ -48,12 +72,16 @@ func (i *inspector) inspectClosure(closure *internalload.Closure) error {
 		defs:        closure.Selected,
 		rest:        closure.Rest,
 		machine:     closure.Machine,
+		types:       closure.Types,
 	}
 	key := loaded.profilePath + "|" + loaded.machinePath
 	if done, err := i.beginVisit(key); done || err != nil {
 		return err
 	}
 	defer delete(i.visiting, key)
+	if err := i.reportReached(loaded); err != nil {
+		return err
+	}
 	if err := i.inspectLoaded(loaded); err != nil {
 		return err
 	}
@@ -79,6 +107,7 @@ func loadProfileClosure(profilePath, machineOverride string) (loadedClosure, str
 	closure := loadedClosure{
 		profilePath: canonical(profilePath), machinePath: canonical(machinePath),
 		defs: resolved.Selected, rest: resolved.Rest, machine: resolved.Machine,
+		types: resolved.Types,
 	}
 	return closure, closure.profilePath + "|" + closure.machinePath, nil
 }
