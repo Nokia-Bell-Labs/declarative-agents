@@ -6,6 +6,7 @@ package declstyle
 import (
 	"bufio"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -91,17 +92,106 @@ type declarationFile struct {
 func collectLegacyEntries(t *testing.T) []string {
 	t.Helper()
 	var entries []string
-	for _, root := range declarationRoots(t) {
-		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() || !isYAML(path) {
-				return nil
-			}
-			entries = append(entries, fileEntries(t, path)...)
-			return nil
-		})
+	paths, err := discoverLegacyDeclarationFiles(declarationRoots(t))
+	require.NoError(t, err)
+	for _, path := range paths {
+		entries = append(entries, fileEntries(t, path)...)
 	}
 	sort.Strings(entries)
 	return entries
+}
+
+func discoverLegacyDeclarationFiles(roots []string) ([]string, error) {
+	var paths []string
+	for _, root := range roots {
+		if err := filepath.WalkDir(root, visitLegacyDeclarationPath(root, &paths)); err != nil {
+			return nil, err
+		}
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func visitLegacyDeclarationPath(root string, paths *[]string) fs.WalkDirFunc {
+	return func(path string, entry fs.DirEntry, walkErr error) error {
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if walkErr != nil {
+			// Generated package trees can disappear while concurrent audit
+			// lanes replace them. They never contain authored declarations.
+			if isGeneratedDeclarationTree(rel) {
+				return nil
+			}
+			return walkErr
+		}
+		if entry.IsDir() {
+			if isGeneratedDeclarationTree(rel) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if isYAML(path) {
+			*paths = append(*paths, path)
+		}
+		return nil
+	}
+}
+
+func isGeneratedDeclarationTree(rel string) bool {
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	for index, part := range parts {
+		switch part {
+		case ".git", "build", "generated-files", "node_modules":
+			return true
+		case "helm":
+			if index+1 < len(parts) &&
+				(parts[index+1] == "dist" || parts[index+1] == "profiles") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestDiscoverLegacyDeclarationFilesExcludesGeneratedTrees(t *testing.T) {
+	root := t.TempDir()
+	canonical := filepath.Join(root, "agents", "example", "declarations.yaml")
+	for _, path := range append([]string{canonical},
+		filepath.Join(root, "build", "profiles", "declarations.yaml"),
+		filepath.Join(root, "helm", "profiles", "declarations.yaml"),
+		filepath.Join(root, "helm", "dist", "declarations.yaml"),
+		filepath.Join(root, "generated-files", "declarations.yaml"),
+		filepath.Join(root, "node_modules", "package", "declarations.yaml"),
+	) {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte("tools: []\n"), 0o644))
+	}
+
+	paths, err := discoverLegacyDeclarationFiles([]string{root})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{canonical}, paths)
+}
+
+func TestVisitLegacyDeclarationPathIgnoresGeneratedChurn(t *testing.T) {
+	root := t.TempDir()
+	var paths []string
+	visit := visitLegacyDeclarationPath(root, &paths)
+	for _, rel := range []string{
+		"build/profiles",
+		"helm/profiles",
+		"helm/dist",
+		"generated-files",
+		"node_modules/package",
+	} {
+		err := visit(filepath.Join(root, filepath.FromSlash(rel)), nil, os.ErrNotExist)
+		require.NoError(t, err, rel)
+	}
+
+	err := visit(filepath.Join(root, "agents", "missing"), nil, os.ErrNotExist)
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func fileEntries(t *testing.T, path string) []string {
