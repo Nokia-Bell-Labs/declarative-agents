@@ -170,6 +170,8 @@ tool_declarations:
   - %q
   - %q
   - %q
+  - %q
+  - %q
 rest_definitions:
   - %q
 `, filepath.Join(profileDir, "machine.yaml"),
@@ -178,7 +180,9 @@ rest_definitions:
 		filepath.Join(profileDir, "declarations.yaml"),
 		filepath.Join(profileDir, "request-declarations.yaml"),
 		filepath.Join(coreRoot, "tools", "builtin", "lifecycle", "exit-agent.yaml"),
-		filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "all.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "validate-specs.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "format-report.yaml"),
 		filepath.Join(tmpDir, "rest.yaml"))
 	return os.WriteFile(filepath.Join(tmpDir, "profile.yaml"), []byte(profile), 0o644)
 }
