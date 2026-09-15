@@ -161,3 +161,46 @@ func TestStageIgnoresNonDeclarationYAML(t *testing.T) {
 	require.FileExists(t, filepath.Join(destination, "agents", "plain", "machine.yaml"))
 	require.FileExists(t, filepath.Join(destination, "agents", "plain", "notes.txt"))
 }
+
+func TestImportedReturnsWhatTheDirectoryDoesNotContain(t *testing.T) {
+	t.Parallel()
+	source := agentImportingAUnit(t)
+
+	imported, err := profilestage.Imported(filepath.Join(source, "agents", "collector"))
+
+	require.NoError(t, err)
+	require.Equal(t,
+		[]string{filepath.Join(source, "agents", "units", "types-core.yaml")}, imported,
+		"a walk of the agent directory never reaches the unit beside it")
+}
+
+func TestImportedOmitsWhatTheDirectoryAlreadyHolds(t *testing.T) {
+	t.Parallel()
+	source := t.TempDir()
+	writeDeclaration(t, source, "agents/collector/declarations.yaml",
+		"unit: collector\nimports:\n- local-unit.yaml\ntools: []\n")
+	writeDeclaration(t, source, "agents/collector/local-unit.yaml", "unit: local\ntypes: []\n")
+
+	imported, err := profilestage.Imported(filepath.Join(source, "agents", "collector"))
+
+	require.NoError(t, err)
+	require.Empty(t, imported, "a caller walking the directory already sees a sibling inside it")
+}
+
+func TestImportedFollowsTheChainOutOfTheDirectory(t *testing.T) {
+	t.Parallel()
+	source := t.TempDir()
+	writeDeclaration(t, source, "agents/collector/declarations.yaml",
+		"unit: collector\nimports:\n- ../units/types-core.yaml\ntools: []\n")
+	writeDeclaration(t, source, "agents/units/types-core.yaml",
+		"unit: types-core\nimports:\n- ../../shared/types-shared.yaml\ntypes: []\n")
+	writeDeclaration(t, source, "shared/types-shared.yaml", "unit: types-shared\ntypes: []\n")
+
+	imported, err := profilestage.Imported(filepath.Join(source, "agents", "collector"))
+
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		filepath.Join(source, "agents", "units", "types-core.yaml"),
+		filepath.Join(source, "shared", "types-shared.yaml"),
+	}, imported, "the chain is followed past the first hop and returned in a stable order")
+}

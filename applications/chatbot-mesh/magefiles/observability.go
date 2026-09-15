@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/magefile/mage/mg"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profilestage"
 )
 
 // The persistent integration telemetry ingress is the canonical collector agent
@@ -800,51 +802,36 @@ func collectorSourceDescription(process collectorProcess) string {
 // collectorSourceFingerprint hashes the production runtime source plus the
 // collector's catalog closure. A healthy process may be reused only when this
 // identity matches what was recorded at launch (GH-1492).
+//
+// The closure is not the agent directory. A declaration imports its type units
+// and its REST units by a path relative to the declaring file, and those
+// targets sit beside the directory rather than inside it, so a walk of the
+// directory alone hashed less than the collector loads: editing a type left
+// the fingerprint identical and a running process was reused against
+// declarations it was not launched with (GH-2040).
 func collectorSourceFingerprint() (string, error) {
 	root, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
-	coreRoot := demoCoreRoot(root)
 	catalogRoot, err := resolveCatalogRoot("observability fingerprint", root)
 	if err != nil {
 		return "", err
 	}
-	paths := []struct {
-		name string
-		path string
-	}{
-		{"agent-core", coreRoot},
-		{"collector", filepath.Join(catalogRoot, "agents", "collector")},
-	}
-	type sourceFile struct{ logical, path string }
-	var files []sourceFile
-	for _, root := range paths {
-		path := root.path
-		if err := filepath.WalkDir(path, func(file string, entry fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if entry.IsDir() {
-				if file != path && skipCollectorFingerprintDir(entry.Name()) {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if collectorFingerprintFile(entry.Name()) {
-				relative, err := filepath.Rel(path, file)
-				if err != nil {
-					return err
-				}
-				files = append(files, sourceFile{
-					logical: filepath.ToSlash(filepath.Join(root.name, relative)),
-					path:    file,
-				})
-			}
-			return nil
-		}); err != nil {
-			return "", err
-		}
+	return collectorFingerprintOf(demoCoreRoot(root), catalogRoot)
+}
+
+// collectorFingerprintSource is one file the fingerprint covers, under the
+// logical name that keeps the digest stable across checkout locations.
+type collectorFingerprintSource struct{ logical, path string }
+
+// collectorFingerprintOf hashes the runtime source and the collector closure
+// rooted at the given checkouts, so the identity can be exercised against a
+// synthetic catalog.
+func collectorFingerprintOf(coreRoot, catalogRoot string) (string, error) {
+	files, err := collectorFingerprintSources(coreRoot, catalogRoot)
+	if err != nil {
+		return "", err
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].logical < files[j].logical })
 	hash := sha256.New()
@@ -857,6 +844,70 @@ func collectorSourceFingerprint() (string, error) {
 		_, _ = hash.Write(data)
 	}
 	return fmt.Sprintf("sha256:%x", hash.Sum(nil)), nil
+}
+
+// collectorFingerprintSources is the runtime tree, the collector directory, and
+// whatever the collector's declarations import from outside it.
+func collectorFingerprintSources(
+	coreRoot, catalogRoot string,
+) ([]collectorFingerprintSource, error) {
+	collectorRoot := filepath.Join(catalogRoot, "agents", "collector")
+	var files []collectorFingerprintSource
+	imported, err := profilestage.Imported(collectorRoot)
+	if err != nil {
+		return nil, fmt.Errorf("resolve collector declaration closure: %w", err)
+	}
+	for _, path := range imported {
+		relative, err := filepath.Rel(catalogRoot, path)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, collectorFingerprintSource{
+			logical: filepath.ToSlash(filepath.Join("collector-imports", relative)),
+			path:    path,
+		})
+	}
+	for _, root := range []collectorFingerprintSource{
+		{logical: "agent-core", path: coreRoot},
+		{logical: "collector", path: collectorRoot},
+	} {
+		walked, err := collectorFingerprintTree(root)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, walked...)
+	}
+	return files, nil
+}
+
+func collectorFingerprintTree(
+	root collectorFingerprintSource,
+) ([]collectorFingerprintSource, error) {
+	var files []collectorFingerprintSource
+	err := filepath.WalkDir(root.path, func(file string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if file != root.path && skipCollectorFingerprintDir(entry.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !collectorFingerprintFile(entry.Name()) {
+			return nil
+		}
+		relative, err := filepath.Rel(root.path, file)
+		if err != nil {
+			return err
+		}
+		files = append(files, collectorFingerprintSource{
+			logical: filepath.ToSlash(filepath.Join(root.logical, relative)),
+			path:    file,
+		})
+		return nil
+	})
+	return files, err
 }
 
 func skipCollectorFingerprintDir(name string) bool {

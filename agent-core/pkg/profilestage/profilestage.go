@@ -18,6 +18,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -58,6 +59,69 @@ func Validate(profilePath, coreRoot string) error {
 		return fmt.Errorf("staged profile %s does not resolve: %w", profilePath, err)
 	}
 	return nil
+}
+
+// Imported returns every file the declarations under root import from outside
+// it, transitively and in a stable order. A caller that walks a directory --
+// to copy it, or to hash it -- uses this to reach what those declarations
+// depend on and the directory does not contain.
+func Imported(root string) ([]string, error) {
+	root = filepath.Clean(root)
+	seen := map[string]bool{}
+	pending, err := declarationsUnder(root, seen)
+	if err != nil {
+		return nil, err
+	}
+	var outside []string
+	for len(pending) > 0 {
+		file := pending[0]
+		pending = pending[1:]
+		imports, err := declaredImports(file)
+		if err != nil {
+			return nil, err
+		}
+		for _, imported := range imports {
+			target := filepath.Clean(filepath.Join(filepath.Dir(file), imported))
+			if seen[target] {
+				continue
+			}
+			seen[target] = true
+			if _, err := os.Stat(target); err != nil {
+				return nil, fmt.Errorf("import %q of %s: %w", imported, file, err)
+			}
+			if !within(root, target) {
+				outside = append(outside, target)
+			}
+			pending = append(pending, target)
+		}
+	}
+	sort.Strings(outside)
+	return outside, nil
+}
+
+func declarationsUnder(root string, seen map[string]bool) ([]string, error) {
+	var found []string
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !isYAML(path) {
+			return nil
+		}
+		path = filepath.Clean(path)
+		seen[path] = true
+		found = append(found, path)
+		return nil
+	})
+	return found, err
+}
+
+func within(root, path string) bool {
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 // stagedClosure records where each staged file came from, because an import is
