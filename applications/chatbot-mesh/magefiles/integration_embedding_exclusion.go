@@ -6,11 +6,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profilestage"
 )
 
 // The two RAG mocks answer with the same vector shape and differ only in the
@@ -58,60 +61,31 @@ func exclusionURL(shipped string) string { return "http://" + exclusionAddr(ship
 func generateShiftedChatbotProfile(applicationRoot, work string) (string, error) {
 	srcDir := filepath.Join(applicationRoot, "agents", "chatbot")
 	dstDir := filepath.Join(work, "chatbot-shifted")
-	if err := os.MkdirAll(dstDir, 0o755); err != nil {
-		return "", err
-	}
-	entries, err := os.ReadDir(srcDir)
-	if err != nil {
-		return "", fmt.Errorf("read chatbot profile: %w", err)
+	// Staged before the port rewrite so the units the declarations import
+	// arrive at the position the shifted profile resolves them to (GH-2041).
+	if err := profilestage.Stage(profilestage.Tree{
+		Source: srcDir, Destination: dstDir,
+	}); err != nil {
+		return "", fmt.Errorf("stage shifted chatbot profile: %w", err)
 	}
 	pairs := []string{}
 	for _, p := range []string{portEmbedding, portRag0, portRag1, portChat, portControl, portMonitor} {
 		pairs = append(pairs, p, exclusionPort(p))
 	}
 	replacer := strings.NewReplacer(pairs...)
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+	if err := filepath.WalkDir(work, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() {
+			return walkErr
 		}
-		content, err := os.ReadFile(filepath.Join(srcDir, entry.Name()))
+		content, err := os.ReadFile(path)
 		if err != nil {
-			return "", err
+			return err
 		}
-		if err := os.WriteFile(filepath.Join(dstDir, entry.Name()), []byte(replacer.Replace(string(content))), 0o644); err != nil {
-			return "", err
-		}
-	}
-	if err := stageExclusionTypeUnits(
-		filepath.Join(applicationRoot, "agents", "units"),
-		filepath.Join(work, "units"),
-	); err != nil {
-		return "", err
+		return os.WriteFile(path, []byte(replacer.Replace(string(content))), 0o644)
+	}); err != nil {
+		return "", fmt.Errorf("shift chatbot ports: %w", err)
 	}
 	return filepath.Join(dstDir, "profile.yaml"), nil
-}
-
-func stageExclusionTypeUnits(source, destination string) error {
-	entries, err := os.ReadDir(source)
-	if err != nil {
-		return fmt.Errorf("read chatbot declaration units: %w", err)
-	}
-	if err := os.MkdirAll(destination, 0o755); err != nil {
-		return fmt.Errorf("create shifted declaration units: %w", err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(source, entry.Name()))
-		if err != nil {
-			return fmt.Errorf("read chatbot declaration unit %s: %w", entry.Name(), err)
-		}
-		if err := os.WriteFile(filepath.Join(destination, entry.Name()), data, 0o644); err != nil {
-			return fmt.Errorf("stage chatbot declaration unit %s: %w", entry.Name(), err)
-		}
-	}
-	return nil
 }
 
 // EmbeddingExclusion proves the exclusion the mapped-400 path cannot catch: two

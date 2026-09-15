@@ -21,6 +21,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profilestage"
 )
 
 const rigProfile = "testdata/rig/profile.yaml"
@@ -102,10 +104,16 @@ func (Integration) Rig() error {
 		return err
 	}
 	defer cleanupRig()
+	stagedProfile := filepath.Join(stagedRigRoot, filepath.FromSlash(rigProfile))
+	// Proving the staged profile resolves reports the missing declaration
+	// itself rather than the readiness timeout it would become (GH-2041).
+	if err := profilestage.Validate(stagedProfile, coreRoot); err != nil {
+		return err
+	}
 
 	trace := filepath.Join(binDir, "rig.otel.json")
 	args := []string{
-		"--profile", filepath.Join(stagedRigRoot, filepath.FromSlash(rigProfile)),
+		"--profile", stagedProfile,
 		"--core-root", coreRoot,
 		"--otel-log-file", trace,
 	}
@@ -182,19 +190,21 @@ func stageRigRuntime(applicationRoot, catalogRoot, validatorOTLPEndpoint string)
 		return "", nil, err
 	}
 	cleanup := func() { _ = os.RemoveAll(stage) }
-	if err := copyDirContents(
-		filepath.Join(applicationRoot, "testdata", "rig"),
-		filepath.Join(stage, "testdata", "rig"),
+	// Staged through profilestage so each tree arrives with what its
+	// declarations import: the scenario critic's rest.yaml reaches two
+	// directories up for its REST unit (GH-2041).
+	if err := profilestage.Stage(
+		profilestage.Tree{
+			Source:      filepath.Join(applicationRoot, "testdata", "rig"),
+			Destination: filepath.Join(stage, "testdata", "rig"),
+		},
+		profilestage.Tree{
+			Source:      filepath.Join(catalogRoot, "agents", "scenario-critic"),
+			Destination: filepath.Join(stage, "agents", "scenario-critic"),
+		},
 	); err != nil {
 		cleanup()
-		return "", nil, err
-	}
-	if err := copyDirContents(
-		filepath.Join(catalogRoot, "agents", "scenario-critic"),
-		filepath.Join(stage, "agents", "scenario-critic"),
-	); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("stage catalog scenario critic: %w", err)
+		return "", nil, fmt.Errorf("stage rig runtime: %w", err)
 	}
 	declarations := filepath.Join(stage, "testdata", "rig", "declarations.yaml")
 	data, err := os.ReadFile(declarations)

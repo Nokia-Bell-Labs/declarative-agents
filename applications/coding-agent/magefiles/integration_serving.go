@@ -18,6 +18,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profilestage"
 )
 
 const (
@@ -206,24 +208,20 @@ func stageServingProfileTree(roots integrationRoots) (string, func(), error) {
 		cleanup()
 		return "", nil, fmt.Errorf("assemble #847 profile closure: %w", err)
 	}
-	if err := copyTree(
-		filepath.Join(roots.Profiles, "agents", "applier"),
-		filepath.Join(root, "applications", "catalog", "applier"),
+	// The applier projection drops the agents/ segment, so its imports are
+	// staged where the projected declaration resolves them (GH-2041).
+	if err := profilestage.Stage(
+		profilestage.Tree{
+			Source:      filepath.Join(roots.Profiles, "agents", "applier"),
+			Destination: filepath.Join(root, "applications", "catalog", "applier"),
+		},
+		profilestage.Tree{
+			Source:      filepath.Join(roots.Application, "agents"),
+			Destination: filepath.Join(root, "applications", "coding-agent"),
+		},
 	); err != nil {
 		cleanup()
-		return "", nil, fmt.Errorf("stage canonical applier runtime projection: %w", err)
-	}
-	if err := copyTree(
-		filepath.Join(roots.Profiles, "agents", "units"),
-		filepath.Join(root, "applications", "catalog", "units"),
-	); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("stage canonical declaration type units: %w", err)
-	}
-	destination := filepath.Join(root, "applications", "coding-agent")
-	if err := copyTree(filepath.Join(roots.Application, "agents"), destination); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("stage application actor profiles: %w", err)
+		return "", nil, fmt.Errorf("stage serving profile tree: %w", err)
 	}
 	return root, cleanup, nil
 }

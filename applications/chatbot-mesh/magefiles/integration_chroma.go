@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profilestage"
 )
 
 const (
@@ -442,30 +444,25 @@ func stageCorpusIngestRuntime(meshRoot string) (string, func(), error) {
 		return "", nil, err
 	}
 	cleanup := func() { _ = os.RemoveAll(stage) }
-	if err := copyDirContents(
-		filepath.Join(meshRoot, "agents", "corpus-ingest"),
-		filepath.Join(stage, "agents", "corpus-ingest")); err != nil {
-		cleanup()
-		return "", nil, err
-	}
 	libraryRoot, err := corpusIngestLibraryRoot(meshRoot)
 	if err != nil {
 		cleanup()
 		return "", nil, err
 	}
-	if err := copyDirContents(
-		filepath.Join(libraryRoot, "agents", "knowledge-manager", "corpus-ingest"),
-		filepath.Join(stage, "agents", "knowledge-manager", "corpus-ingest")); err != nil {
+	// Each tree arrives with what its declarations import, so the type units
+	// travel with the profiles that reach them (GH-2041).
+	if err := profilestage.Stage(
+		profilestage.Tree{
+			Source:      filepath.Join(meshRoot, "agents", "corpus-ingest"),
+			Destination: filepath.Join(stage, "agents", "corpus-ingest"),
+		},
+		profilestage.Tree{
+			Source:      filepath.Join(libraryRoot, "agents", "knowledge-manager", "corpus-ingest"),
+			Destination: filepath.Join(stage, "agents", "knowledge-manager", "corpus-ingest"),
+		},
+	); err != nil {
 		cleanup()
-		return "", nil, fmt.Errorf("stage canonical corpus-ingest profile: %w", err)
-	}
-	// The declarations import their type units by a path relative to the agent
-	// directory, so the units travel with them (srd050 R1.2, srd051 R5.1).
-	if err := copyDirContents(
-		filepath.Join(libraryRoot, "agents", "units"),
-		filepath.Join(stage, "agents", "units")); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("stage canonical declaration type units: %w", err)
+		return "", nil, fmt.Errorf("stage corpus-ingest runtime: %w", err)
 	}
 	return stage, cleanup, nil
 }

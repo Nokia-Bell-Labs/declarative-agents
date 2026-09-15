@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profilestage"
 )
 
 const configMapPayloadLimit = 900 * 1024
@@ -239,36 +241,24 @@ func stageDeploymentSource(appRoot, profilesRoot string) (string, func(), error)
 		return "", nil, err
 	}
 	cleanup := func() { _ = os.RemoveAll(stage) }
-	if err := copySourceTreeStrict(
-		filepath.Join(profilesRoot, "agents"),
-		filepath.Join(stage, "agents"),
+	// The applier projection drops the agents/ segment, so its imports are
+	// staged where the projected declaration resolves them (GH-2041).
+	if err := profilestage.Stage(
+		profilestage.Tree{
+			Source:      filepath.Join(profilesRoot, "agents"),
+			Destination: filepath.Join(stage, "agents"),
+		},
+		profilestage.Tree{
+			Source:      filepath.Join(profilesRoot, "agents", "applier"),
+			Destination: filepath.Join(stage, "applications", "catalog", "applier"),
+		},
+		profilestage.Tree{
+			Source:      filepath.Join(appRoot, "agents"),
+			Destination: filepath.Join(stage, "applications", "coding-agent"),
+		},
 	); err != nil {
 		cleanup()
-		return "", nil, fmt.Errorf("stage canonical agent sources: %w", err)
-	}
-	if err := copySourceTreeStrict(
-		filepath.Join(profilesRoot, "agents", "applier"),
-		filepath.Join(stage, "applications", "catalog", "applier"),
-	); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("stage canonical applier runtime projection: %w", err)
-	}
-	// The applier projection drops the agents/ segment, so the type units its
-	// declarations import by a path relative to the agent directory have to be
-	// projected the same way or the import resolves above the shard.
-	if err := copySourceTreeStrict(
-		filepath.Join(profilesRoot, "agents", "units"),
-		filepath.Join(stage, "applications", "catalog", "units"),
-	); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("stage canonical declaration type units: %w", err)
-	}
-	if err := copySourceTreeStrict(
-		filepath.Join(appRoot, "agents"),
-		filepath.Join(stage, "applications", "coding-agent"),
-	); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("stage application actor sources: %w", err)
+		return "", nil, fmt.Errorf("stage deployment source: %w", err)
 	}
 	return stage, cleanup, nil
 }
