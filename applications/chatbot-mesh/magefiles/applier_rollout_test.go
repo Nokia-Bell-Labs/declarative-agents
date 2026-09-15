@@ -64,11 +64,23 @@ type rolloutMachine struct {
 	} `yaml:"transitions"`
 }
 
+// declaredEmits returns the signals a word declares whichever form states them;
+// a signature states them once and leaves the legacy list empty (srd051 R6.1).
+func (d execDeclaration) declaredEmits() []string {
+	if len(d.Emits) > 0 {
+		return d.Emits
+	}
+	return d.Signature.Emits
+}
+
 type execDeclaration struct {
-	Name   string   `yaml:"name"`
-	Binary string   `yaml:"binary"`
-	Args   []string `yaml:"args"`
-	Emits  []string `yaml:"emits"`
+	Name      string   `yaml:"name"`
+	Binary    string   `yaml:"binary"`
+	Args      []string `yaml:"args"`
+	Emits     []string `yaml:"emits"`
+	Signature struct {
+		Emits []string `yaml:"emits"`
+	} `yaml:"signature"`
 	Output struct {
 		Schema struct {
 			Properties map[string]map[string]string `yaml:"properties"`
@@ -283,8 +295,8 @@ func TestApplierRolloutCountsWordContract(t *testing.T) {
 	}
 
 	for _, signal := range []string{"ToolDone", "ToolFailed"} {
-		if !containsString(word.Emits, signal) {
-			t.Errorf("emits %v missing %s", word.Emits, signal)
+		if !containsString(word.declaredEmits(), signal) {
+			t.Errorf("emits %v missing %s", word.declaredEmits(), signal)
 		}
 	}
 	for _, field := range []string{"ready", "desired", "revision"} {

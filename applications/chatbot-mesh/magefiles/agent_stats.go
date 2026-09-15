@@ -87,6 +87,10 @@ func scanAgents(agentsDir string, countLines func(string) (int, error)) (agentsS
 	return ownership.Agents, err
 }
 
+// declarationUnitsDir is the directory beside the agents that holds their
+// shared declaration type units. It carries no profile and is not an agent.
+const declarationUnitsDir = "units"
+
 func scanAgentOwnership(
 	agentsDir string,
 	countLines func(string) (int, error),
@@ -107,6 +111,10 @@ func scanAgentOwnership(
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
+			continue
+		}
+		// units/ holds declaration type units, not an agent (srd051 R1.1).
+		if entry.Name() == declarationUnitsDir {
 			continue
 		}
 		stats, err := scanAgentDir(filepath.Join(agentsDir, entry.Name()), countLines)

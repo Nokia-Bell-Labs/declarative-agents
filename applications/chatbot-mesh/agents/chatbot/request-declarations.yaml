@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: mesh-chatbot-request-declarations
+imports:
+- ../units/types-chatbot.yaml
 tools:
   - name: embed_query
     type: builtin
@@ -53,43 +55,15 @@ tools:
     visibility: internal
     category: response
     description: Put the query embedding model identity into command state.
-    problem: |
-      srd002 R3.3 excludes a RAG whose reported embedding model does not match the
-      query embedding's model, so the comparison needs the query's model identity as
-      an addressable command-state value. The embedding provider's legacy
-      /api/embeddings response carries only the vector, so the identity is the model
-      this agent asks the provider for, declared here from the same environment
-      reference the embed_query request body uses.
-    goals:
-      - Render the configured query embedding model identity as a command-state value.
-      - Keep the identity addressable as $from(declare_query_model).model for each per-RAG comparison.
-    requirements:
-      input:
-        - The identity is configuration, not runtime input; no selector is read.
-      output:
-        - Output is a JSON object whose model field names the query embedding model.
-      errors:
-        - Rendering a configured constant does not fail.
-    non_goals:
-      - Does not call the embedding provider or read the vector.
-      - Does not choose the model the request body sends; both read one environment reference.
     parameters:
       type: object
       properties: {}
       additionalProperties: false
-    emits: [QueryModelDeclared]
+    signature:
+      output: mesh-types-chatbot.QueryModel
+      emits: [QueryModelDeclared]
     output:
       description: The query embedding model identity.
-      schema:
-        type: object
-        properties:
-          model: {type: string}
-    side_effects: []
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Rendering a configured constant has no durable effect.
     config:
       signal: QueryModelDeclared
       inputs: {}
@@ -102,25 +76,11 @@ tools:
     visibility: internal
     category: response
     description: Compose the original question and the human-readable declared source catalog.
-    problem: Source selection must reason over per-turn intent and topology descriptions without exposing trusted targets.
-    goals:
-      - Read the original question and the catalog rendered by the trusted topology declaration.
-      - Expose source names and descriptions to the classifier, but no REST authority or target configuration.
-    requirements:
-      input:
-        - The question comes from embed_query and the catalog comes from declare_rag_topology.
-      output:
-        - Output contains the original question and every declared source name and description.
-      errors:
-        - Selector failures emit CommandError.
-    non_goals:
-      - Does not select sources or expose base URLs, collections, or embedding configuration.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [SourceSelectionComposed, CommandError]
-    output: {description: Source-classifier input., schema: {type: string}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Prompt composition changes no external state.}
+    signature:
+      output: mesh-types-chatbot.RenderedText
+      emits: [SourceSelectionComposed, CommandError]
+    output: {description: Source-classifier input.}
     config:
       signal: SourceSelectionComposed
       inputs:
@@ -200,35 +160,13 @@ tools:
     init: compose
     visibility: internal
     category: response
-    emits: [SourceSelectionCaptured, CommandError]
+    signature:
+      output: mesh-types-chatbot.CapturedResponse
+      emits: [SourceSelectionCaptured, CommandError]
     description: Shape the adjacent raw source-selector reply into an addressable JSON response field.
-    problem: parse_structured reads a command-state object path, while invoke_llm intentionally emits raw model text.
-    goals:
-      - Capture only the adjacent current Result through the generic compose current-result input.
-      - JSON-escape model text so it remains data and cannot author structure, selectors, or target fields.
-      - Publish one fixed response field for parse_source_selection.
-    requirements:
-      input:
-        - response must be the immediately preceding select_sources raw Result output selected as $.
-      output:
-        - Output is exactly one JSON object whose response field is the escaped raw model string.
-      errors:
-        - Compose or serialization failures emit CommandError for full-set fallback.
-    non_goals:
-      - Does not parse, repair, trust, or execute model text.
-      - Does not read topology targets or REST configuration.
     parameters: {type: object, properties: {}, additionalProperties: false}
     output:
       description: Addressable raw source-selector response.
-      schema:
-        type: object
-        properties:
-          response: {type: string}
-        required: [response]
-        additionalProperties: false
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Shaping model text changes no external state.}
     config:
       signal: SourceSelectionCaptured
       inputs:
@@ -241,24 +179,12 @@ tools:
     init: parse_structured
     visibility: internal
     category: word
-    emits: [SourcesParsed, ParseFailed, CommandError]
+    signature:
+      output: mesh-types-chatbot.SourceNames
+      emits: [SourcesParsed, ParseFailed, CommandError]
     description: Parse source-classifier output as a names-only JSON object.
-    problem: Model text must be structurally valid before any declared-vocabulary lookup.
-    goals:
-      - Validate exactly the shape used by source selection.
-      - Route malformed or schema-invalid content to full-set fallback.
-    requirements:
-      input:
-        - Source is the captured response string from capture_source_selection.
-      output:
-        - Valid output contains names as an array of strings.
-    non_goals:
-      - Does not repair JSON, trust names, or inspect target data.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: Validated source names., schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Parsing changes no external state.}
+    output: {description: Validated source names.}
     config:
       source: $from(capture_source_selection).response
       schema:
@@ -277,25 +203,12 @@ tools:
     init: select_subset
     visibility: internal
     category: word
-    emits: [SourcesSelected, SourcesPartiallySelected, SourcesEmpty, CommandError]
+    signature:
+      output: mesh-types-chatbot.SourceSubset
+      emits: [SourcesSelected, SourcesPartiallySelected, SourcesEmpty, CommandError]
     description: Resolve model-selected names only to matching trusted topology entries.
-    problem: Untrusted names must never provide or influence a REST target.
-    goals:
-      - Drop undeclared names.
-      - Return selected entries copied only from the trusted topology vocabulary.
-    requirements:
-      input:
-        - Candidate names are schema-validated model output.
-        - Vocabulary entries are the trusted declared topology.
-      output:
-        - selected contains only trusted topology objects.
-    non_goals:
-      - Does not copy any field from model output except names used for membership checks.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: Trusted selected topology entries., schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Set selection changes no external state.}
+    output: {description: Trusted selected topology entries.}
     config:
       candidates: $from(parse_source_selection).names
       vocabulary: $from(declare_rag_topology).items
@@ -309,24 +222,12 @@ tools:
     init: select_subset
     visibility: internal
     category: word
-    emits: [SourcesSelected, CommandError]
+    signature:
+      output: mesh-types-chatbot.SourceSubset
+      emits: [SourcesSelected, CommandError]
     description: Select every trusted topology entry as the safe source-router fallback.
-    problem: Classifier, parse, empty, and only-undeclared outcomes must preserve prior full fan-out behavior.
-    goals:
-      - Resolve every trusted declared name back to its trusted topology entry.
-      - Produce the same selected shape as constrain_source_selection.
-    requirements:
-      input:
-        - Both names and topology entries come from declare_rag_topology.
-      output:
-        - selected equals the complete declared topology in declaration order.
-    non_goals:
-      - Does not read model output or synthesize target data.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: Complete trusted topology selection., schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Set selection changes no external state.}
+    output: {description: Complete trusted topology selection.}
     config:
       candidates: $from(declare_rag_topology).names
       vocabulary: $from(declare_rag_topology).items
@@ -340,24 +241,12 @@ tools:
     init: select_subset
     visibility: internal
     category: response
-    emits: [SourceSelectionReported, CommandError]
+    signature:
+      output: mesh-types-chatbot.SourceSubset
+      emits: [SourceSelectionReported, CommandError]
     description: Derive declared source names absent from the trusted selected set.
-    problem: Not-selected sources must be distinct from queried sources later excluded or degraded.
-    goals:
-      - Compare all declared names with the constrained matched-name set.
-      - Report only names; do not expose topology target fields.
-    requirements:
-      input:
-        - Candidates are all trusted declared names and vocabulary is the constrained matched-name set.
-      output:
-        - unmatched is the ordered declared-but-not-selected name array.
-    non_goals:
-      - Does not influence retrieval or resolve a target.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: Declared selected and not-selected names., schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Reporting changes no external state.}
+    output: {description: Declared selected and not-selected names.}
     config:
       candidates: $from(declare_rag_topology).names
       vocabulary: $from(selected_sources).matched
@@ -465,33 +354,12 @@ tools:
     init: parse_response
     visibility: internal
     category: word
-    emits: [ToolDone, ParseFailed, TaskCompleted]
+    signature:
+      output: mesh-types-chatbot.RenderedText
+      emits: [ToolDone, ParseFailed, TaskCompleted]
     description: Parse the tier-selector response into one chat-LLM tool call.
-    problem: The $tool dispatch needs one validated chat-LLM word parsed from the tier-selector response.
-    goals:
-      - Extract the single tool call the tier selector emitted.
-      - Emit ToolDone with the chosen chat-LLM word, or ParseFailed on a misparse or out-of-vocabulary pick.
-    requirements:
-      input:
-        - must read the tier-selector response from the previous Result
-        - must validate the chosen tool against the chat-LLM vocabulary available in the Answering manifest state
-      output:
-        - must emit ToolDone with the parsed chat-LLM tool call
-        - must emit ParseFailed when the response is malformed or names an unavailable word
-      errors:
-        - A malformed or out-of-vocabulary response emits ParseFailed so the turn falls back to the default word.
-    non_goals:
-      - Does not call any provider.
-      - Does not answer the user.
     output:
       description: Plain-text parsed chat-LLM tool call or completion summary.
-      schema: {type: string}
-    side_effects: []
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Parsing a response has no durable effect.
     config:
       manifest_state: Answering
       response_profile: qwen

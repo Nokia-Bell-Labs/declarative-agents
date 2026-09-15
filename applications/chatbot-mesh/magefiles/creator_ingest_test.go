@@ -201,8 +201,8 @@ func TestCorpusIngestChildRunFollowsSrd021(t *testing.T) {
 		}
 	}
 	for _, signal := range []string{"ToolDone", "ToolFailed"} {
-		if !containsString(word.Emits, signal) {
-			t.Errorf("emits %v missing %s", word.Emits, signal)
+		if !containsString(word.declaredEmits(), signal) {
+			t.Errorf("emits %v missing %s", word.declaredEmits(), signal)
 		}
 	}
 }

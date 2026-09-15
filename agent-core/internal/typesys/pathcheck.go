@@ -17,6 +17,11 @@ import (
 // CheckPath walks a dotted selector path through a resolved schema. A nil or
 // empty schema is untyped: nothing is known about it, so nothing is reported.
 func CheckPath(schema map[string]any, path []string) error {
+	// A lone "$" is srd038's whole-output selector: it reads the value itself
+	// rather than a field of it, so every type satisfies it.
+	if len(path) == 1 && path[0] == "$" {
+		return nil
+	}
 	return checkPathAt(schema, path, nil)
 }
 

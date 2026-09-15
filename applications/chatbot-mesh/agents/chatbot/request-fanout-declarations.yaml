@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: mesh-chatbot-request-fanout-declarations
+imports:
+- ../units/types-chatbot.yaml
 # Source-count-independent multi-RAG fan-out. request-topology-declarations.yaml
 # declares the ordered topology; one sequential MachineSpec for_each dispatches
 # rag_query over it. The join retains each item and its structured REST output,
@@ -51,27 +53,12 @@ tools:
     visibility: internal
     category: response
     description: Separate answered RAG queries from rejected or degraded queries.
-    problem: Only successful REST results contain structured chunks and a reported embedding model.
-    goals:
-      - Preserve topology order in answered and failed sets.
-      - Keep QueryRejected distinguishable from CommandError in the unmatched entries.
-    requirements:
-      input:
-        - The for_each join items are selected through one fixed command-state selector.
-      output:
-        - matched contains QueryResponded items; unmatched contains rejected and degraded items.
-      errors:
-        - An unresolved or malformed join emits CommandError.
-    non_goals:
-      - Does not interpret embedding model identity.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [QueryResultsPartitioned, CommandError]
+    signature:
+      output: mesh-types-chatbot.ResultPartition
+      emits: [QueryResultsPartitioned, CommandError]
     output:
       description: Ordered answered and failed query outcomes.
-      schema: {type: object}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Partitioning changes no external state.}
     config:
       items: $from(rag_queries).items
       field: result.signal
@@ -86,27 +73,12 @@ tools:
     visibility: internal
     category: response
     description: Keep answered sources whose reported embedding model matches the query model.
-    problem: A same-width foreign embedding can return 200, so vector acceptance alone does not prove model compatibility.
-    goals:
-      - Exclude model-mismatched sources from grounding.
-      - Preserve the mismatched entries for explicit response metadata.
-    requirements:
-      input:
-        - Answered join entries expose redacted JSON at result.structured_output.
-      output:
-        - matched sources may ground the answer; unmatched sources are embedding-model exclusions.
-      errors:
-        - Missing structured output or model fields emit CommandError.
-    non_goals:
-      - Does not merge, rank, or rewrite chunks.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [EmbeddingModelsPartitioned, CommandError]
+    signature:
+      output: mesh-types-chatbot.ResultPartition
+      emits: [EmbeddingModelsPartitioned, CommandError]
     output:
       description: Ordered model-compatible and model-excluded query results.
-      schema: {type: object}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Partitioning changes no external state.}
     config:
       items: $from(partition_query_results).matched
       field: result.structured_output.mapped.embedding_model
@@ -121,25 +93,11 @@ tools:
     visibility: internal
     category: response
     description: Render model-compatible RAG chunks under their topology names.
-    problem: Grounding must scale with topology size without indexed compose inputs.
-    goals:
-      - Render compatible sources in declared order.
-      - Produce an empty string when no source survives.
-    requirements:
-      input:
-        - The model-compatible partition is selected through one fixed selector.
-      output:
-        - Output is the joined per-source grounding text.
-      errors:
-        - Missing source names or documents emit CommandError.
-    non_goals:
-      - Does not filter, rank, or merge source arrays.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [GroundingRendered, CommandError]
-    output: {description: Joined grounding sections., schema: {type: string}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Rendering changes no external state.}
+    signature:
+      output: mesh-types-chatbot.RenderedText
+      emits: [GroundingRendered, CommandError]
+    output: {description: Joined grounding sections.}
     config:
       items: $from(partition_embedding_models).matched
       item_template: |-
@@ -154,25 +112,11 @@ tools:
     visibility: internal
     category: response
     description: Compose the question and rendered compatible grounding sections.
-    problem: The answer model needs one fixed prompt independent of the RAG source count.
-    goals:
-      - Preserve the original question.
-      - Include only model-compatible rendered sources.
-    requirements:
-      input:
-        - The question and rendered grounding are selected from command state.
-      output:
-        - Output is the complete grounding prompt.
-      errors:
-        - Selector failures emit CommandError.
-    non_goals:
-      - Does not call a model or choose sources.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [Composed, CommandError]
-    output: {description: Grounded answer prompt., schema: {type: string}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Prompt composition changes no external state.}
+    signature:
+      output: mesh-types-chatbot.RenderedText
+      emits: [Composed, CommandError]
+    output: {description: Grounded answer prompt.}
     config:
       signal: Composed
       inputs:
@@ -212,25 +156,11 @@ tools:
     visibility: internal
     category: response
     description: Render the composed sources as reportable entries.
-    problem: A composed join entry carries the topology entry it was fanned out to, which names an in-cluster address the browser has no use for.
-    goals:
-      - Report the source name, its query outcome, and the chunks it contributed.
-      - Leave the topology entry, and the address in it, inside the mesh.
-    requirements:
-      input:
-        - The composed entries are the model-compatible partition.
-      output:
-        - Output is the entries as JSON objects, comma separated.
-      errors:
-        - An entry missing the projected fields emits CommandError.
-    non_goals:
-      - Does not filter, reorder, or count the entries.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [ComposedSourcesRendered, CommandError]
-    output: {description: Rendered composed source entries., schema: {type: string}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Rendering changes no external state.}
+    signature:
+      output: mesh-types-chatbot.RenderedText
+      emits: [ComposedSourcesRendered, CommandError]
+    output: {description: Rendered composed source entries.}
     config:
       items: $from(partition_embedding_models).matched
       # documents and ids stay. The interface reports how much each source
@@ -248,25 +178,11 @@ tools:
     visibility: internal
     category: response
     description: Render the embedding-model-excluded sources as reportable entries.
-    problem: An excluded join entry carries the same topology entry, and the exclusion is reported to the browser.
-    goals:
-      - Name each source excluded by the srd002 R3.3 comparison and the identity it reported.
-      - Leave the topology entry inside the mesh.
-    requirements:
-      input:
-        - The excluded entries are the model-incompatible partition.
-      output:
-        - Output is the entries as JSON objects, comma separated.
-      errors:
-        - An entry missing the projected fields emits CommandError.
-    non_goals:
-      - Does not filter or reorder the entries.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [ModelExcludedSourcesRendered, CommandError]
-    output: {description: Rendered excluded source entries., schema: {type: string}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Rendering changes no external state.}
+    signature:
+      output: mesh-types-chatbot.RenderedText
+      emits: [ModelExcludedSourcesRendered, CommandError]
+    output: {description: Rendered excluded source entries.}
     config:
       items: $from(partition_embedding_models).unmatched
       # The identity it reported is the whole reason it was excluded, so that is
@@ -282,25 +198,11 @@ tools:
     visibility: internal
     category: response
     description: Render the failed sources as reportable entries.
-    problem: A failed join entry carries the topology entry, and its signal is the only thing separating a refusal from a broken boundary.
-    goals:
-      - Name each source whose query did not answer, with the signal that says why.
-      - Leave the topology entry inside the mesh.
-    requirements:
-      input:
-        - The failed entries are the unmatched query-result partition.
-      output:
-        - Output is the entries as JSON objects, comma separated.
-      errors:
-        - An entry missing the projected fields emits CommandError.
-    non_goals:
-      - Does not retry, filter, or reorder the entries.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [QueryFailedSourcesRendered, CommandError]
-    output: {description: Rendered failed source entries., schema: {type: string}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Rendering changes no external state.}
+    signature:
+      output: mesh-types-chatbot.RenderedText
+      emits: [QueryFailedSourcesRendered, CommandError]
+    output: {description: Rendered failed source entries.}
     config:
       items: $from(partition_query_results).unmatched
       # QueryRejected is the rag-server refusing an incompatible vector and
@@ -316,25 +218,11 @@ tools:
     visibility: internal
     category: response
     description: Compose the answer with complete source selection and query outcome metadata.
-    problem: Every declared source must remain reportable without rebuilding an indexed metadata array.
-    goals:
-      - Report not-selected, compatible, model-excluded, and query-failed sources as distinct ordered sets.
-      - Preserve QueryRejected versus CommandError in each failed join entry.
-    requirements:
-      input:
-        - Fixed selectors read the query partition counts and both generic partitions.
-      output:
-        - Output carries answer, query model, and all per-source outcomes.
-      errors:
-        - Missing fixed pipeline outputs emit CommandError.
-    non_goals:
-      - Does not infer outcomes or merge collections.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [ResponseComposed, CommandError]
-    output: {description: Answer and source outcome metadata., schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Response composition changes no external state.}
+    signature:
+      output: mesh-types-chatbot.ChatResponse
+      emits: [ResponseComposed, CommandError]
+    output: {description: Answer and source outcome metadata.}
     config:
       signal: ResponseComposed
       inputs:

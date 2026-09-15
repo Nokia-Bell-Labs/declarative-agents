@@ -38,6 +38,19 @@ type chatbotToolDeclaration struct {
 	Name       string   `yaml:"name"`
 	Visibility string   `yaml:"visibility"`
 	Emits      []string `yaml:"emits"`
+	Signature  struct {
+		Emits []string `yaml:"emits"`
+	} `yaml:"signature"`
+}
+
+// declaredEmits returns the signals a word declares whichever form states them.
+// A signature states them once and leaves the legacy list empty (srd051 R6.1),
+// so reading only the legacy list sees a signed word emitting nothing.
+func (d chatbotToolDeclaration) declaredEmits() []string {
+	if len(d.Emits) > 0 {
+		return d.Emits
+	}
+	return d.Signature.Emits
 }
 
 type chatbotDeclarationFile struct {
@@ -162,7 +175,7 @@ func TestTierDispatchTransitionAgreesWithTheParseState(t *testing.T) {
 
 	parseWord := ""
 	for _, declaration := range requestDeclarations(t) {
-		for _, signal := range declaration.Emits {
+		for _, signal := range declaration.declaredEmits() {
 			if signal == chatbotDispatchSignal {
 				parseWord = declaration.Name
 			}
@@ -227,7 +240,7 @@ func TestTierDispatchTargetHandlesEveryWordSignal(t *testing.T) {
 		if !words[declaration.Name] {
 			continue
 		}
-		for _, signal := range declaration.Emits {
+		for _, signal := range declaration.declaredEmits() {
 			if !routes[signal] {
 				t.Errorf("dynamic word %s emits %s, but dispatch target %s has no %s route",
 					declaration.Name, signal, target, signal)

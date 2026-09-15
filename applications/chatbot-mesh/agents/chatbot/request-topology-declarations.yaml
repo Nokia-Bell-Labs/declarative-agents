@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: mesh-chatbot-request-topology-declarations
+imports:
+- ../units/types-chatbot.yaml
 # Local two-source topology. The Helm chart co-generates this declaration from
 # ragUnits; changing the list changes only trusted data, never the number of
 # words or machine states. catalog intentionally contains only names and
@@ -12,34 +14,12 @@ tools:
     visibility: internal
     category: response
     description: Declare the ordered trusted RAG topology for this chatbot instance.
-    problem: MachineSpec for_each needs one runtime array whose size may change without changing the program.
-    goals:
-      - Keep source identity and selected REST authority together.
-      - Render a classifier catalog without exposing authority or configuration.
-      - Preserve declaration order for sequential fan-out and reporting.
-    requirements:
-      input:
-        - Topology is trusted profile configuration, not model or request input.
-      output:
-        - Output contains names, a human-readable catalog, and trusted items with source descriptions, configuration, and absolute base URLs.
-      errors:
-        - Rendering configured JSON is deterministic.
-    non_goals:
-      - Does not select a subset of sources or accept credentials.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [RagTopologyDeclared]
+    signature:
+      output: mesh-types-chatbot.RagTopology
+      emits: [RagTopologyDeclared]
     output:
       description: Ordered RAG topology.
-      schema:
-        type: object
-        properties:
-          items: {type: array}
-          names: {type: array}
-          catalog: {type: string}
-        required: [items, names, catalog]
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Declaring topology changes no external state.}
     config:
       signal: RagTopologyDeclared
       inputs: {}

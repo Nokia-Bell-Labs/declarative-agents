@@ -16,23 +16,3 @@
 # legacy form to retire.
 #
 # GH-2009 flips the type system strict once this file has no entries.
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:capture_source_selection
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:compose_source_selection_prompt
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:constrain_source_selection
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:declare_query_model
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:parse_source_selection
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:parse_tier
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:report_source_selection
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:select_all_sources
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:compose_prompt
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:compose_response
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:partition_embedding_models
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:partition_query_results
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:render_composed_sources
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:render_grounding
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:render_model_excluded_sources
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:render_query_failed_sources
-untyped-tool:applications/chatbot-mesh/agents/chatbot/request-topology-declarations.yaml:declare_rag_topology
-untyped-tool:applications/chatbot-mesh/agents/creator/request-declarations.yaml:ingest_wrote_documents
-untyped-tool:applications/chatbot-mesh/agents/creator/request-declarations.yaml:report_ingest_outcome
-untyped-tool:applications/chatbot-mesh/agents/creator/request-declarations.yaml:requested_family_matches
