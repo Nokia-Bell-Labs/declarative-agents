@@ -5,5 +5,6 @@ machine: audit-machine.yaml
 tools:
   - audit-tools.yaml
 tool_declarations:
-  - /opt/agent-core/tools/builtin/spec-validation/all.yaml
+  - /opt/agent-core/tools/builtin/format-report.yaml
+  - /opt/agent-core/tools/builtin/spec-validation/test-evidence.yaml
   - go-test.yaml

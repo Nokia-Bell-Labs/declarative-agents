@@ -5,7 +5,9 @@ profile:
   tools:
     - <agent-core>/testdata/integration/profiles/ollama-rest/tools.yaml
   tool_declarations:
-    - <agent-core>/tools/builtin/llm/all.yaml
+    - <agent-core>/tools/builtin/parse-response.yaml
+    - <agent-core>/tools/builtin/report-parse-error.yaml
+    - <agent-core>/tools/builtin/done.yaml
     - <agent-core>/testdata/integration/profiles/ollama-rest/llm.yaml
     - <agent-core>/testdata/integration/profiles/ollama-rest/declarations.yaml
   rest_definitions:
@@ -373,22 +375,14 @@ files:
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/openapi.yaml
     sha256: 4fd398a63267be22bba1387ebf94b0a0d0d6cdcb02ff37b8aefa2fee4856b055
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/profile.yaml
-    sha256: 9b2c981878ca25eb3571445aba3d9d8107c827b4a937d2c4fe60cda13b23faf8
+    sha256: bfe4ea3580753e0fff5d8a84da1246bb0a3cbf101acf5c65c1c87ab4066ebdaa
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/rest.yaml
     sha256: f6f1c61fd61eaf2afc3c7c8267ed47641039796e92c7d3b39fb929d8bc4eded9
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/tools.yaml
     sha256: 2f9d1b5d42f1a3cddf18ca157c3c07b9411e8c0d14c2ae0b264f253418688dc9
   - path: <agent-core>/tools/builtin/done.yaml
-    sha256: 5fb63008cabb0b4ee0e3c196046af58291d8a91146e07399943b99edf62931a7
-  - path: <agent-core>/tools/builtin/llm/all.yaml
-    sha256: 2b323d89df64acde868987bd04b82a48408f250769f27a18eee7c57d2c20e17a
-  - path: <agent-core>/tools/builtin/nudge-reread.yaml
-    sha256: 1b02746026bf3cc6d00d952f8b36166410f6560040fd809595d362a8710fe765
+    sha256: 8980b6319e71b384508387ef49c7a144702c03368e4bb0dd68abd7f25025dadc
   - path: <agent-core>/tools/builtin/parse-response.yaml
-    sha256: d5909f7fafcb770ca5defc425995057643594bcb36e2b0768f9e49594db0eb67
-  - path: <agent-core>/tools/builtin/parse-structured.yaml
-    sha256: 10a39dfe608918302ab58d853ef5eb739fd40ca4704e8d41ecc91a5166daaec3
+    sha256: 44d136b3e21265e529ea05e7bd2d480f4a4ec667f1cf1602193f422265fe5f9a
   - path: <agent-core>/tools/builtin/report-parse-error.yaml
-    sha256: 71e0516b5e44affbea2302e34dbfeb0f3e3b1fff649edb0f3921d76d9f4a7a25
-  - path: <agent-core>/tools/builtin/reset-history.yaml
-    sha256: 773bfaaffc2fe93e683eef4ac7860369e8c6778ea0b3d01855604dbdde5df691
+    sha256: ca731b4f5e3ac0a589f9d0f8cfdabf9e3e95d53b55eed4a1edaa4fa60e2be669

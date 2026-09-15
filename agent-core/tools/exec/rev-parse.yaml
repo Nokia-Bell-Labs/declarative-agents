@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: exec-rev-parse
 tools:
 - name: rev_parse
   binary: git

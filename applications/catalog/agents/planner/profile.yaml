@@ -6,9 +6,12 @@ tools:
   - tools.yaml
 tool_config_dirs:
   - /opt/agent-core/tools/builtin/planner
-  - /opt/agent-core/tools/builtin/llm
-  - /opt/agent-core/tools/exec/go
 tool_declarations:
   - builtin.yaml
   - llm/default.yaml
   - tracker-exec.yaml
+  - /opt/agent-core/tools/builtin/report-parse-error.yaml
+  - /opt/agent-core/tools/builtin/reset-history.yaml
+  - /opt/agent-core/tools/exec/build.yaml
+  - /opt/agent-core/tools/exec/vet.yaml
+  - /opt/agent-core/tools/exec/test.yaml

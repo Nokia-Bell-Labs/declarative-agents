@@ -5,7 +5,11 @@ profile:
   tools:
     - <agent-core>/testdata/integration/profiles/audit/tools.yaml
   tool_declarations:
-    - <agent-core>/tools/builtin/spec-validation/all.yaml
+    - <agent-core>/tools/builtin/load-corpus.yaml
+    - <agent-core>/tools/builtin/validate-specs.yaml
+    - <agent-core>/tools/builtin/format-report.yaml
+    - <agent-core>/tools/builtin/spec-validation/reduce-grep-checks.yaml
+    - <agent-core>/tools/builtin/spec-validation/test-evidence.yaml
     - <agent-core>/testdata/integration/profiles/audit/ripgrep.yaml
 machine:
   name: core-spec-audit
@@ -421,24 +425,18 @@ files:
   - path: <agent-core>/testdata/integration/profiles/audit/machine.yaml
     sha256: b3f5f984d181b1b1e56a698f2684ef65acaf6110af21b6708b6789fc3f76655d
   - path: <agent-core>/testdata/integration/profiles/audit/profile.yaml
-    sha256: eccb9eaf323e9edbd468281e24db5317901ae5346a130bffedeabf1fce581379
+    sha256: 5f768ac09173a742653c01e974825ed3a302036b09828900674009996e848faa
   - path: <agent-core>/testdata/integration/profiles/audit/ripgrep.yaml
     sha256: 16a85cda76aecdcb118959cc3366059b4b6dce3041fb7b42ed819a529a8e6656
   - path: <agent-core>/testdata/integration/profiles/audit/tools.yaml
     sha256: 8c0b951612e211648d44a1c451ee610710dd2ca5fa86e7a63cda5175a2b833ee
   - path: <agent-core>/tools/builtin/format-report.yaml
-    sha256: 2915cf310ebbcfba7f5967ff2199cc225fa44c426b0cba33a917d74b9ae169ed
+    sha256: 87f57f588bdf25e71d0b2b19d54ea262074c3bab09b31106452eec85db54ef73
   - path: <agent-core>/tools/builtin/load-corpus.yaml
-    sha256: 334bc23fb89aa46e03db5ab3214c2098555046c4343992e8fae7ce14020d4284
-  - path: <agent-core>/tools/builtin/spec-validation/all.yaml
-    sha256: 4fa266a223c6ad5bc6c2d4f16756f2abf20fa5d987451c235bacdf73bd4c54a5
-  - path: <agent-core>/tools/builtin/spec-validation/reduce-consistency-checks.yaml
-    sha256: e667f929f7114050dc0b3e2825bebd48c4379bf2506f2cc2ea7fc5fb5e3ee547
+    sha256: c59b336c72f712aed9eaebfe5d9448bc8600a8e39b746b90293def58662bc795
   - path: <agent-core>/tools/builtin/spec-validation/reduce-grep-checks.yaml
-    sha256: c09aab470bc9997d62f487a9c8454320de3bcca4c627558835fb6ef222e2da19
-  - path: <agent-core>/tools/builtin/spec-validation/reduce-ref-checks.yaml
-    sha256: 81c25ba1e218b005279ffea5d90b388f7132024e145a0f9fc638bf27e77cfc9c
+    sha256: 8a5431c6200ace0a74ea2a689bb81562cf1c14cfe25a7cf65c8b60a1769831d9
   - path: <agent-core>/tools/builtin/spec-validation/test-evidence.yaml
-    sha256: 0a4d7a76bb6ea5b9fd7a6d9b067cc67ab57d75f2c5b2a1a0bfa76da2c7cbb3f1
+    sha256: 0c358c4b7eefeaed7db4244b4d7e2cfc9f01c7d8d566419255e4fca039d06ba6
   - path: <agent-core>/tools/builtin/validate-specs.yaml
-    sha256: 2125815c949e2fe2960933cbdc844b50626c0ba1eb7054a75c26cf215367e5e9
+    sha256: 1dc29406dc6248e1c3a4a9dfa97191e76ea65f1497f02a92c515f26cc48e5e27

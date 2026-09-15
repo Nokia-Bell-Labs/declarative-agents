@@ -217,7 +217,16 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 			Name: "jurist", Machine: "../specification-critic/machine.yaml",
 			Tools: []string{"../specification-critic/tools.yaml"},
 			ToolDeclarations: []string{
-				"/opt/agent-core/tools/builtin/spec-validation/all.yaml",
+				// The spec-validation family became a named unit in GH-2012, so
+				// the wrapper names the leaves the shared closure selects. It
+				// still mirrors specification-critic exactly, which is the fork
+				// this guards against.
+				"/opt/agent-core/tools/builtin/load-corpus.yaml",
+				"/opt/agent-core/tools/builtin/validate-specs.yaml",
+				"/opt/agent-core/tools/builtin/format-report.yaml",
+				"/opt/agent-core/tools/builtin/spec-validation/reduce-grep-checks.yaml",
+				"/opt/agent-core/tools/builtin/spec-validation/reduce-ref-checks.yaml",
+				"/opt/agent-core/tools/builtin/spec-validation/reduce-consistency-checks.yaml",
 				"../specification-critic/ripgrep.yaml",
 				"../specification-critic/ref-scan.yaml",
 				"../specification-critic/consistency-scan.yaml",

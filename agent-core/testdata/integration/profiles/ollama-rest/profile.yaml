@@ -5,7 +5,9 @@ machine: machine.yaml
 tools:
   - tools.yaml
 tool_declarations:
-  - ../../../../tools/builtin/llm/all.yaml
+  - ../../../../tools/builtin/parse-response.yaml
+  - ../../../../tools/builtin/report-parse-error.yaml
+  - ../../../../tools/builtin/done.yaml
   - llm.yaml
   - declarations.yaml
 rest_definitions:

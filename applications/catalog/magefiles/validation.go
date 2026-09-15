@@ -122,6 +122,9 @@ func writeSpecificationCriticCharterDemoProfileFiles(profilesRoot, coreRoot, tmp
 	profilePath := filepath.Join(tmpDir, "profile.yaml")
 	toolDeclPath := filepath.Join(tmpDir, "load-corpus-demo.yaml")
 	suitePath := filepath.Join(profilesRoot, specificationCriticProfileDir, "suites", "demo-charter.yaml")
+	// The spec-validation family became a named unit in GH-2012, so the demo
+	// roots on the leaves the shared selection uses. load_corpus is absent
+	// here: load-corpus-demo.yaml below declares the suite-bound one.
 	profile := fmt.Sprintf(`name: specification-critic-demo
 machine: %q
 tools:
@@ -132,9 +135,17 @@ tool_declarations:
   - %q
   - %q
   - %q
+  - %q
+  - %q
+  - %q
+  - %q
 `, filepath.Join(profilesRoot, specificationCriticProfileDir, "machine.yaml"),
 		filepath.Join(profilesRoot, specificationCriticProfileDir, "tools.yaml"),
-		filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "all.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "validate-specs.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "format-report.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "reduce-grep-checks.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "reduce-ref-checks.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "reduce-consistency-checks.yaml"),
 		toolDeclPath,
 		filepath.Join(profilesRoot, specificationCriticProfileDir, "ripgrep.yaml"),
 		filepath.Join(profilesRoot, specificationCriticProfileDir, "ref-scan.yaml"),
@@ -142,8 +153,10 @@ tool_declarations:
 	if err := os.WriteFile(profilePath, []byte(profile), 0o644); err != nil {
 		return "", fmt.Errorf("write specification-critic demo profile: %w", err)
 	}
-	toolDecl := fmt.Sprintf(`includes:
-  - %q
+	// The demo's load_corpus is bound to this suite, so it is declared here in
+	// full rather than imported and overridden: the profile above does not
+	// root on the shared load-corpus.yaml, leaving this the only source.
+	toolDecl := fmt.Sprintf(`unit: specification-critic-demo-tools
 tools:
   - name: load_corpus
     type: builtin
@@ -155,7 +168,7 @@ tools:
     emits:
       - ToolDone
       - CommandError
-`, filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml"), suitePath)
+`, suitePath)
 	if err := os.WriteFile(toolDeclPath, []byte(toolDecl), 0o644); err != nil {
 		return "", fmt.Errorf("write specification-critic demo tool declaration: %w", err)
 	}

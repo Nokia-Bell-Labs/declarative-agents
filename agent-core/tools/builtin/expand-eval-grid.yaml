@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-expand-eval-grid
 tools:
 - name: expand_eval_grid
   type: builtin

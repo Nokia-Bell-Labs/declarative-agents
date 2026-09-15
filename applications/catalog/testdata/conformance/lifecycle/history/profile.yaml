@@ -4,5 +4,7 @@ name: lifecycle-history
 machine: ../history.yaml
 tools:
   - ../tools.yaml
-tool_config_dirs:
-  - /opt/agent-core/tools/builtin/lifecycle
+tool_declarations:
+  - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
+  - /opt/agent-core/tools/builtin/checkpoint-history.yaml
+  - /opt/agent-core/tools/builtin/checkpoint-rollback.yaml

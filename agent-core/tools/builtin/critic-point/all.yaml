@@ -1,7 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # Evaluator point builtin declarations.
-includes:
+unit: builtin-critic-point-all
+imports:
   - ../create-point-dir.yaml
   - ../sample-docs.yaml
   - ../dump-config.yaml
