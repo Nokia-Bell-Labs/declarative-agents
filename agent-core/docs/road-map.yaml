@@ -658,9 +658,9 @@ releases:
       duplicate names, cycles, invalid overrides, and unused imports, and
       preserves source provenance in the canonical config dump.
 
-      Legacy tool includes remain operational with deprecation diagnostics
-      until the follow-on type-system migration removes them. No flattened or
-      generated declaration output is committed.
+      Legacy tool includes are gone; GH-2012 converted the closure to units and
+      imports and GH-2010 deleted the mechanism. No flattened or generated
+      declaration output is committed.
     status: in_progress
     planned_work:
       - id: gh-1975
