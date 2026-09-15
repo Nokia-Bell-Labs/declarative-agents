@@ -47,9 +47,8 @@ requirements:
           emit, the signals a for_each join publishes into its own next state,
           the runtime seed, the machine's declared resume_signal and
           summary_signal, and the signals a request signal source can inject. A
-          transition outside that set can never fire. It is reported as a
-          startup diagnostic until the declarations it flags are corrected, and
-          a load error after that.
+          transition outside that set is a load error naming the transition and
+          its state, because it can never fire.
       - R2.11: >-
           An action declaring no emitted signals contributes nothing to the
           producible set rather than being read as emitting nothing, so a

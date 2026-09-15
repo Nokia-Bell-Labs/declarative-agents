@@ -15,7 +15,7 @@ invariants:
 lifecycle: |-
   1. Idle -> RollingBack (Seed): run checkpoint_rollback.
   2. RollingBack -> Done (ToolDone): rollback completed.
-  3. RollingBack -> Failed (ToolFailed or CommandError): rollback failed.
+  3. RollingBack -> Failed (CommandError): rollback failed.
 initial_state: Idle
 budget:
   command_timeout: 1m
@@ -39,8 +39,6 @@ signals:
   trigger: Loop initialization.
 - name: ToolDone
   trigger: checkpoint_rollback completed successfully.
-- name: ToolFailed
-  trigger: checkpoint_rollback exited non-zero.
 - name: CommandError
   trigger: Runtime or command infrastructure failed.
 transitions:
@@ -51,9 +49,6 @@ transitions:
 - state: RollingBack
   signal: ToolDone
   next: Done
-- state: RollingBack
-  signal: ToolFailed
-  next: Failed
 - state: RollingBack
   signal: CommandError
   next: Failed

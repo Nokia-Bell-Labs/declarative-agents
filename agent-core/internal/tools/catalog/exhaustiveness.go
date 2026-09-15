@@ -195,10 +195,10 @@ func toolPhaseAllows(def ToolDef, state string) bool {
 	return false
 }
 
-// ValidateMachineExhaustivenessStrict turns the diagnostics into one error.
-// It is not yet wired into startup: two in-repo machines still route a
-// ToolFailed their action does not declare, and this epic promotes a check
-// only once the declarations it errors on are fixed (GH-2005).
+// ValidateMachineExhaustivenessStrict is the load-time gate, reported as one
+// error naming every violation. Promoted in GH-2005, once the two conformance
+// machines routing a ToolFailed that checkpoint_history and
+// checkpoint_rollback cannot emit had those dead routes removed.
 func ValidateMachineExhaustivenessStrict(
 	spec core.MachineSpec, defs []ToolDef, inputs ExhaustivenessInputs,
 ) error {

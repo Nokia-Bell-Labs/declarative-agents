@@ -529,7 +529,6 @@ func validateConfig() error {
 		return err
 	}
 	reportMachineDiagnostics(resources.Machine)
-	reportExhaustivenessDiagnostics(resources.Machine, resources.Definitions, resources.RestDefinitions)
 	fmt.Fprintf(os.Stderr, "config valid: profile %s (%d REST client(s), %d server(s))\n",
 		flagProfile, len(resources.RestDefinitions.Clients), len(resources.RestDefinitions.Servers))
 	return nil
@@ -549,20 +548,6 @@ func requestSourceSignals(defs toolrest.Collection) []string {
 		}
 	}
 	return signals
-}
-
-// reportExhaustivenessDiagnostics warns about transitions nothing can trigger
-// (GH-1970). It reports rather than fails: two in-repo machines still route a
-// ToolFailed their action does not declare, and this epic does not promote a
-// check that errors on declarations the repository still contains.
-func reportExhaustivenessDiagnostics(
-	machine core.MachineSpec, defs []catalog.ToolDef, rest toolrest.Collection,
-) {
-	inputs := catalog.ExhaustivenessInputs{External: requestSourceSignals(rest)}
-	for _, diagnostic := range catalog.ValidateMachineExhaustiveness(machine, defs, inputs) {
-		fmt.Fprintf(os.Stderr, "warning: machine-diagnostic-%s: %s\n",
-			diagnostic.Code, diagnostic.Message)
-	}
 }
 
 func reportMachineDiagnostics(machine core.MachineSpec) {
@@ -712,7 +697,10 @@ func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpe
 	if err := core.ValidateRequiredMachinePolicy(machineSpec); err != nil {
 		return core.MachineSpec{}, fmt.Errorf("load machine runtime policy: %w", err)
 	}
-	if err := validateRuntimeToolWiring(machineSpec, closure.Selected, closure.Types); err != nil {
+	if err := validateRuntimeToolWiring(
+		machineSpec, closure.Selected, closure.Types,
+		catalog.ExhaustivenessInputs{External: requestSourceSignals(closure.Rest)},
+	); err != nil {
 		return core.MachineSpec{}, err
 	}
 	if err := profileaudit.ValidateClosure(closure); err != nil {
@@ -728,6 +716,7 @@ func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpe
 // specification-audit concern.
 func validateRuntimeToolWiring(
 	machine core.MachineSpec, defs []catalog.ToolDef, types *typesys.Registry,
+	exhaustiveness catalog.ExhaustivenessInputs,
 ) error {
 	if err := catalog.ValidateMachineActions(machine, defs); err != nil {
 		return err
@@ -745,6 +734,9 @@ func validateRuntimeToolWiring(
 		return err
 	}
 	if err := catalog.ValidateSelectorPathsStrict(machine, defs, types); err != nil {
+		return err
+	}
+	if err := catalog.ValidateMachineExhaustivenessStrict(machine, defs, exhaustiveness); err != nil {
 		return err
 	}
 	return catalog.ValidateReceiptContracts(defs)
