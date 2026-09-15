@@ -64,10 +64,16 @@ const DynamicActionSentinel = "$tool"
 // Resolving a label does not depend on which field holds the selector, so
 // shape is enough here; checking a selector's path against a declared output
 // type is not, and belongs with the tool signatures of GH-1968.
+//
+// Parameters are walked for the same reason config is. A request binding
+// declares a word's arguments there, each with a source selector, and the
+// documentation curator carries four words whose only selectors sit in that
+// block (GH-2057).
 func (td ToolDef) SelectorRefs() []string {
 	refs := map[string]struct{}{}
 	collectSelector(refs, td.StdinSource)
 	collectSelectorsFrom(refs, td.Config)
+	collectSelectorsFrom(refs, td.Parameters)
 	out := make([]string, 0, len(refs))
 	for ref := range refs {
 		out = append(out, ref)

@@ -14,11 +14,7 @@ import (
 	"time"
 
 	internalload "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/load"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
-	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/typesys"
 )
 
 var inspectMu sync.Mutex
@@ -27,23 +23,6 @@ var inspectMu sync.Mutex
 type Options struct {
 	// CoreRoot maps references under /opt/agent-core for this inspection only.
 	CoreRoot string
-	// OnMachine, when set, receives every machine the profile reaches: its own,
-	// and the request machine behind each machine_request endpoint. A caller
-	// that checks machine wiring runs it here rather than on the profile's own
-	// machine alone, which is all it can see from outside this walk.
-	OnMachine func(ReachedMachine) error
-}
-
-// ReachedMachine is one machine a profile reaches, with what that machine
-// selects. A request machine selects the actions its own transitions name, so
-// its tools and its type registry are not the profile's.
-type ReachedMachine struct {
-	ProfilePath string
-	MachinePath string
-	Machine     core.MachineSpec
-	Selected    []catalog.ToolDef
-	Rest        toolrest.Collection
-	Types       *typesys.Registry
 }
 
 // Operation is one finite authority resolved from a reachable selected action.
@@ -96,7 +75,6 @@ func (e *ValidationError) Error() string {
 type inspector struct {
 	visiting    map[string]bool
 	visited     map[string]bool
-	onMachine   func(ReachedMachine) error
 	operations  []Operation
 	diagnostics []Diagnostic
 }
@@ -118,10 +96,7 @@ func InspectWithOptions(profilePath string, options Options) (Report, error) {
 		defer corepath.SetInstallRoot(previousRoot)
 	}
 
-	i := inspector{
-		visiting: make(map[string]bool), visited: make(map[string]bool),
-		onMachine: options.OnMachine,
-	}
+	i := inspector{visiting: make(map[string]bool), visited: make(map[string]bool)}
 	if err := i.inspectProfile(profilePath, ""); err != nil {
 		return Report{}, err
 	}
@@ -131,21 +106,12 @@ func InspectWithOptions(profilePath string, options Options) (Report, error) {
 // InspectClosure checks an already loaded root closure. Child profiles remain
 // independently loaded because they are separate declarative programs.
 func InspectClosure(closure *internalload.Closure) (Report, error) {
-	return InspectClosureWithOptions(closure, Options{})
-}
-
-// InspectClosureWithOptions checks a loaded root closure with caller options,
-// so a caller can see every machine the walk reaches.
-func InspectClosureWithOptions(closure *internalload.Closure, options Options) (Report, error) {
 	if closure == nil {
 		return Report{}, fmt.Errorf("profile closure is nil")
 	}
 	inspectMu.Lock()
 	defer inspectMu.Unlock()
-	i := inspector{
-		visiting: make(map[string]bool), visited: make(map[string]bool),
-		onMachine: options.OnMachine,
-	}
+	i := inspector{visiting: make(map[string]bool), visited: make(map[string]bool)}
 	if err := i.inspectClosure(closure); err != nil {
 		return Report{}, err
 	}
@@ -185,12 +151,7 @@ func ValidateWithOptions(profilePath string, options Options) error {
 // ValidateClosure enforces the timeout policy without reloading the root
 // profile closure.
 func ValidateClosure(closure *internalload.Closure) error {
-	return ValidateClosureWithOptions(closure, Options{})
-}
-
-// ValidateClosureWithOptions enforces the timeout policy with caller options.
-func ValidateClosureWithOptions(closure *internalload.Closure, options Options) error {
-	report, err := InspectClosureWithOptions(closure, options)
+	report, err := InspectClosure(closure)
 	if err != nil {
 		return err
 	}

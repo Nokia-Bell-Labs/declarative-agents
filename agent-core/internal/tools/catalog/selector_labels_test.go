@@ -248,3 +248,58 @@ func TestValidateSelectorLabelsReportsRepeatedSelectorOnce(t *testing.T) {
 	require.Len(t, catalog.ValidateSelectorLabels(spec, nil), 1,
 		"one selector repeated across transitions is one finding")
 }
+
+// requestBoundParameters is the shape a request binding declares: the word's
+// arguments, each taking its value from a command-state selector. Four
+// documentation-curator words carry their only selectors here (GH-2057).
+func requestBoundParameters(selector string) map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"query": map[string]interface{}{
+				"type": "string", "positional": true, "position": 1, "source": selector,
+			},
+		},
+		"required": []interface{}{"query"},
+	}
+}
+
+func TestValidateSelectorLabelsAcceptsADeclaredParameterSource(t *testing.T) {
+	t.Parallel()
+	defs := []catalog.ToolDef{{
+		Name: "report", Parameters: requestBoundParameters("$from(fetched).body"),
+	}}
+	require.Empty(t, catalog.ValidateSelectorLabels(labelMachine(), defs))
+}
+
+// TestValidateSelectorLabelsReportsAnUnknownParameterSourceLabel is the
+// GH-2057 regression: a selector reachable only through parameters was never
+// collected, so the check passed on a label nothing publishes.
+func TestValidateSelectorLabelsReportsAnUnknownParameterSourceLabel(t *testing.T) {
+	t.Parallel()
+	defs := []catalog.ToolDef{{
+		Name: "report", Parameters: requestBoundParameters("$from(fetchedd).body"),
+	}}
+
+	diagnostics := catalog.ValidateSelectorLabels(labelMachine(), defs)
+
+	require.Len(t, diagnostics, 1)
+	require.Equal(t, core.DiagnosticUnresolvedSelectorLabel, diagnostics[0].Code)
+	require.Equal(t, "report", diagnostics[0].Tool)
+	require.Contains(t, diagnostics[0].Message, `"fetchedd"`)
+}
+
+// TestSelectorRefsReadsEveryCarrier keeps the doc comment honest: it named the
+// parameter sources before the walk reached them.
+func TestSelectorRefsReadsEveryCarrier(t *testing.T) {
+	t.Parallel()
+	def := catalog.ToolDef{
+		StdinSource: "$from(wrapped).payload",
+		Config:      map[string]interface{}{"items": "$from(rows).items"},
+		Parameters:  requestBoundParameters("$from(request).query"),
+	}
+
+	require.Equal(t, []string{
+		"$from(request).query", "$from(rows).items", "$from(wrapped).payload",
+	}, def.SelectorRefs())
+}

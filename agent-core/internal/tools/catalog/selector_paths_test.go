@@ -186,3 +186,39 @@ func TestValidateSelectorPathsStrictNamesEveryMismatch(t *testing.T) {
 	require.ErrorContains(t, err, "selector path mismatches")
 	require.ErrorContains(t, err, `$from(fetched).txet`)
 }
+
+// reportBindingParameter is the request-binding shape: the word takes its
+// argument from a command-state selector rather than from config.
+func reportBindingParameter(selector string) ToolDef {
+	return ToolDef{Name: "report", Parameters: map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"text": map[string]interface{}{
+				"type": "string", "positional": true, "position": 1, "source": selector,
+			},
+		},
+	}}
+}
+
+func TestValidateSelectorPathsAcceptsAResolvableParameterSource(t *testing.T) {
+	t.Parallel()
+	registry := pathRegistry(t)
+	defs := []ToolDef{fetchTool(t, registry), reportBindingParameter("$from(fetched).text")}
+	require.Empty(t, ValidateSelectorPaths(pathMachine(), defs, registry))
+}
+
+// TestValidateSelectorPathsRejectsABadParameterSource is the GH-2057
+// regression for the path half: the selector was never collected, so a field
+// the type does not have went unreported.
+func TestValidateSelectorPathsRejectsABadParameterSource(t *testing.T) {
+	t.Parallel()
+	registry := pathRegistry(t)
+	defs := []ToolDef{fetchTool(t, registry), reportBindingParameter("$from(fetched).txet")}
+
+	diagnostics := ValidateSelectorPaths(pathMachine(), defs, registry)
+
+	require.Len(t, diagnostics, 1)
+	require.Equal(t, core.DiagnosticSelectorPathMismatch, diagnostics[0].Code)
+	require.Equal(t, "report", diagnostics[0].Tool)
+	require.Contains(t, diagnostics[0].Message, `has no field "txet"`)
+}
