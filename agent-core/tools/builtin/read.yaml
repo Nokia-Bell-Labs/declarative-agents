@@ -1,19 +1,21 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-read
+imports:
+- ../units/types-core.yaml
+- ../units/types-filesystem.yaml
 tools:
 - name: read
   type: builtin
   category: word
   init: file_read
-  emits:
-  - ToolDone
-  - ToolFailed
   description: Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths first.
+  signature:
+    input: builtin-types-filesystem.ReadRequest
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed]
   output:
     description: Line-numbered text content from the requested file range.
-    schema:
-      type: string
   metrics:
     instruments:
     - name: filesystem.bytes_read
@@ -28,58 +30,10 @@ tools:
       source: tool_name
       cardinality: low
       redaction: none
-  parameters:
-    type: object
-    properties:
-      path:
-        type: string
-        description: File path relative to workspace root (must be a file, not a directory)
-      start_line:
-        type: integer
-        description: Start line (1-indexed, inclusive)
-      end_line:
-        type: integer
-        description: End line (1-indexed, inclusive)
-      raw:
-        type: boolean
-        description: Return exact file bytes without line-number prefixes.
-    required:
-    - path
   side_effects:
   - kind: filesystem_read
     target: workspace_file
     description: Reads file contents from the configured workspace without mutating state.
-  reversibility:
-    classification: reversible
-  undo:
-    strategy: noop
-    description: Read-only command has no effects to reverse.
-  problem: The machine needs a declared word for reading one workspace file without embedding that workflow step in Go control flow.
-  goals:
-  - Perform the read action as one machine-selected word.
-  - Return an explicit signal that lets the MachineSpec choose the next state.
-  - Keep sequencing outside the tool implementation and in machine.yaml.
-  requirements:
-    input:
-    - must consume parameters from tool input, prior Result, or configured command/domain state
-    output:
-    - must emit one declared signal and return machine-readable output when available
-    errors:
-    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
-  non_goals:
-  - Does not choose the next workflow step; machine.yaml owns sequencing.
-  - Does not hide unrelated tool execution behind this word.
-  # Recorded exception to externalize-to-CLI-tools (GH-1392). read stays an
-  # in-process builtin even though its siblings were externalized (find -> rg,
-  # list_files -> a find-based exec word) and an exec equivalent exists
-  # (sed -n plus nl, with file --mime-encoding for the binary sniff). read is
-  # the highest-frequency word in a coding-agent loop, so it pays any per-call
-  # cost on every iteration. Measured on Apple M4 Max via
-  # internal/tools/filesystem/read_bench_test.go: the in-process path is
-  # ~0.13 ms/op; a single sed fork+exec (the exec floor, before nl and file)
-  # is ~2.1 ms/op, ~15x slower. rg's binding pays that fork+exec once per
-  # search; read would pay it per read. Verdict: do not externalize.
-  - Does not fork a CLI per read; the fork+exec cost is not tolerable at loop frequency (GH-1392).
   errors:
   - signal: ToolFailed
     condition: the path is invalid, unreadable, a directory, binary, or the requested range is invalid

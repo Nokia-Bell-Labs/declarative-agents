@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: exec-make-dir
+imports:
+- ../units/types-core.yaml
 tools:
 - name: make_dir
   type: exec
@@ -8,13 +10,14 @@ tools:
   args:
   - -p
   description: Create a directory and any missing parent directories.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed, CommandError]
   category: word
   side_effects:
   - kind: filesystem_write
     target: workspace_directory
     description: Creates a directory and any missing parent directories.
-  reversibility:
-    classification: reversible
   undo:
     strategy: workspace_restore
     description: Restore the workspace ref captured before directory creation.
@@ -29,24 +32,8 @@ tools:
         positional: true
     required:
     - path
-  problem: A machine needs one explicit filesystem operation to ensure a directory path and its missing parents exist.
-  goals:
-  - Invoke `mkdir -p` once with the required path.
-  - Succeed when the directory already exists and is compatible with `mkdir -p`.
-  - Make newly created directories recoverable through workspace restore.
-  requirements:
-    input:
-    - must require one path positional parameter
-    output:
-    - must return combined `mkdir` output as a string
-    errors:
-    - must emit CommandError when the path or process cannot be resolved and ToolFailed when `mkdir` exits non-zero
-  non_goals:
-  - Does not write file content, remove directories, or choose directory layout.
-  emits: [ToolDone, ToolFailed, CommandError]
   output:
     description: Combined stdout and stderr from `mkdir -p`.
-    schema: {type: string}
   errors:
   - signal: CommandError
     condition: the required path is absent or the mkdir process cannot be started

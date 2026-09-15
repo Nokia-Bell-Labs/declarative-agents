@@ -1,48 +1,22 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-partition
+imports:
+- ../units/types-collections.yaml
+- ../units/types-core.yaml
 tools:
 - name: partition
   type: builtin
   init: partition
   category: word
   visibility: internal
-  emits: [Partitioned, CommandError]
   description: Split an ordered array into matched and unmatched values using one declared field comparison.
-  problem: A machine needs a reusable way to divide an array without expanding one state per index.
-  goals:
-  - Preserve input order in both output arrays.
-  - Apply the same closed comparisons and operand typing as value_predicate.
-  requirements:
-    input:
-    - Trusted configuration selects the array, item field, comparison, and outcome signal.
-    output:
-    - Output contains matched, unmatched, matched_count, and unmatched_count.
-    errors:
-    - Invalid selection, item shape, field access, or coercion emits CommandError.
-  non_goals:
-  - Does not sort, rank, mutate, or evaluate expressions.
-  parameters:
-    type: object
-    properties: {}
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-collections.Partition
+    emits: [Partitioned, CommandError]
   output:
     description: Ordered matched and unmatched values with their counts.
-    schema:
-      type: object
-      properties:
-        matched: {type: array}
-        unmatched: {type: array}
-        matched_count: {type: integer}
-        unmatched_count: {type: integer}
-      required: [matched, unmatched, matched_count, unmatched_count]
-  side_effects:
-  - kind: none
-    description: Reads command state and produces a Result without mutating runtime or external state.
-  reversibility:
-    classification: reversible
-  undo:
-    strategy: noop
-    description: Partitioning reads prior state and changes no external state.
   errors:
   - signal: CommandError
     condition: A selector does not resolve, the selected value is not an array, a field is absent, or coercion fails.

@@ -1,43 +1,21 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-render-each
+imports:
+- ../units/types-core.yaml
 tools:
 - name: render_each
   type: builtin
   init: render_each
   category: word
   visibility: internal
-  emits: [Rendered, CommandError]
   description: Render each value in an ordered array with one item template and join the parts.
-  problem: Repeating a fixed item format over a runtime array should not require one authored state per index.
-  goals:
-  - Preserve array order while rendering and joining values.
-  - Keep flat compose substitution separate from array rendering.
-  requirements:
-    input:
-    - Trusted configuration selects the array, item template, separator, and signal.
-    - Template field paths traverse object keys and numeric array indexes within each item.
-    output:
-    - Output is the joined string, or an empty string for an empty array.
-    errors:
-    - Invalid selection, item shape, or field access emits CommandError.
-  non_goals:
-  - Does not add conditions, loops inside templates, or nested programs.
-  - Does not alter canonical command-state or REST selector syntax.
-  parameters:
-    type: object
-    properties: {}
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-core.Text
+    emits: [Rendered, CommandError]
   output:
     description: Joined rendered text.
-    schema: {type: string}
-  side_effects:
-  - kind: none
-    description: Reads command state and produces a Result without mutating runtime or external state.
-  reversibility:
-    classification: reversible
-  undo:
-    strategy: noop
-    description: Rendering reads prior state and changes no external state.
   errors:
   - signal: CommandError
     condition: The array selector does not resolve, its value is not an array, or an item field or numeric index is absent.

@@ -1,0 +1,113 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes the collection words publish: the array transforms and the comparison
+# they share.
+unit: builtin-types-collections
+types:
+- name: Partition
+  description: Ordered matched and unmatched values with their counts.
+  schema:
+    type: object
+    properties:
+      matched:
+        type: array
+      unmatched:
+        type: array
+      matched_count:
+        type: integer
+      unmatched_count:
+        type: integer
+    required:
+    - matched
+    - unmatched
+    - matched_count
+    - unmatched_count
+- name: Projection
+  description: Ordered projected values and their count.
+  schema:
+    type: object
+    properties:
+      items:
+        type: array
+      count:
+        type: integer
+    required:
+    - items
+    - count
+- name: FlattenedObjects
+  description: Ordered flattened objects and their count.
+  schema:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          type: object
+      count:
+        type: integer
+    required:
+    - items
+    - count
+- name: ReorderedCandidates
+  description: Candidates in result-row order with the aligned provider rows and their count.
+  schema:
+    type: object
+    properties:
+      items:
+        type: array
+      rows:
+        type: array
+        items:
+          type: object
+      count:
+        type: integer
+    required:
+    - items
+    - rows
+    - count
+- name: SubsetSelection
+  description: Candidate names divided by declared membership with the corresponding trusted values.
+  schema:
+    type: object
+    properties:
+      matched:
+        type: array
+        items:
+          type: string
+      unmatched:
+        type: array
+        items:
+          type: string
+      selected:
+        description: Trusted vocabulary values corresponding to matched names, in candidate order.
+        type: array
+      matched_count:
+        type: integer
+      unmatched_count:
+        type: integer
+    required:
+    - matched
+    - unmatched
+    - selected
+    - matched_count
+    - unmatched_count
+- name: Comparison
+  description: The comparison as selectable fields; right is absent for unary empty and non_empty operations.
+  schema:
+    type: object
+    properties:
+      left:
+        description: The raw resolved left operand, before comparison coercion.
+      op:
+        type: string
+      right:
+        description: The raw resolved right operand, before comparison coercion; absent for unary operations.
+      operand_type:
+        type: string
+      held:
+        type: boolean
+    required:
+    - left
+    - op
+    - operand_type
+    - held

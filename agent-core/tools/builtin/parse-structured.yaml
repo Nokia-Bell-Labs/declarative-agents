@@ -1,42 +1,21 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-parse-structured
+imports:
+- ../units/types-core.yaml
 tools:
 - name: parse_structured
   type: builtin
   init: parse_structured
   category: word
   visibility: internal
-  emits: [Parsed, ParseFailed, CommandError]
   description: Parse selected model output as JSON and validate it against a declared JSON Schema.
-  problem: A machine needs validated structured output without adding a specialized parser for each value shape.
-  goals:
-  - Compile the declared schema before a run starts.
-  - Route malformed or schema-invalid output through a configured failure signal.
-  requirements:
-    input:
-    - Trusted configuration selects the source, schema, and outcome signals.
-    output:
-    - Valid output is normalized JSON preserving the parsed value.
-    errors:
-    - Unresolved command-state selection emits CommandError; content failures emit the configured unparsed signal.
-  non_goals:
-  - Does not repair malformed JSON or infer a schema.
-  parameters:
-    type: object
-    properties: {}
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-core.AnyValue
+    emits: [Parsed, ParseFailed, CommandError]
   output:
     description: Normalized JSON when parsing and schema validation succeed, otherwise a failure explanation.
-    schema:
-      $comment: The runtime value is any JSON value accepted by the configured schema.
-  side_effects:
-  - kind: none
-    description: Parses and validates selected command output without mutating runtime or external state.
-  reversibility:
-    classification: reversible
-  undo:
-    strategy: noop
-    description: Parsing reads prior state and changes no external state.
   errors:
   - signal: ParseFailed
     condition: The selected model output is malformed JSON or does not satisfy the declared schema.

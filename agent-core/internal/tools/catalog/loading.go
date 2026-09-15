@@ -218,7 +218,7 @@ func ParseToolDefs(data []byte) ([]ToolDef, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse tool defs: %w", err)
 	}
-	return file.Tools, validateToolDefs(file.Tools)
+	return file.Tools, validateAndDefaultToolDefs(file.Tools)
 }
 
 func parseToolDefsFileRaw(
@@ -261,7 +261,11 @@ func toolDocumentRoot(data []byte) (*yaml.Node, error) {
 	return &document, nil
 }
 
-func validateToolDefs(defs []ToolDef) error {
+// validateAndDefaultToolDefs checks each declaration and then fills the
+// contract blocks its signature discharges, so every load path yields the
+// effective contract rather than only the paths that also resolve schemas
+// (srd051 R6.6 to R6.11).
+func validateAndDefaultToolDefs(defs []ToolDef) error {
 	for i, td := range defs {
 		if td.Name == "" {
 			return fmt.Errorf("tool at index %d has no name", i)
@@ -293,6 +297,7 @@ func validateToolDefs(defs []ToolDef) error {
 		if err := core.ValidateMetricConfig(td.Name, td.Metrics); err != nil {
 			return fmt.Errorf("tool %q: %w", td.Name, err)
 		}
+		defs[i] = applyContractDefaults(td)
 	}
 	return nil
 }

@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: exec-copy-dir
+imports:
+- ../units/types-core.yaml
 tools:
 - name: copy_dir
   type: exec
@@ -8,13 +10,14 @@ tools:
   args:
   - -a
   description: Copy a directory tree. Provide source and destination paths.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed, CommandError]
   category: word
   side_effects:
   - kind: filesystem_write
     target: workspace_directory
     description: Creates or overwrites files in the destination directory.
-  reversibility:
-    classification: reversible
   undo:
     strategy: workspace_restore
     description: Restore the workspace ref captured before the copy.
@@ -36,25 +39,8 @@ tools:
     required:
     - source
     - destination
-  problem: A machine needs to copy one declared directory tree into a destination without embedding that filesystem operation in a larger workflow word.
-  goals:
-  - Invoke `cp -a` once with the required source and destination paths.
-  - Preserve the source tree's archive-mode metadata and return the process output.
-  - Make the destination mutation recoverable through the captured workspace checkpoint.
-  requirements:
-    input:
-    - must require source and destination paths and pass them as ordered positional arguments
-    output:
-    - must return combined `cp` output as a string and emit ToolDone only on exit code zero
-    errors:
-    - must emit CommandError when parameters or process launch fail, and ToolFailed when `cp` exits non-zero
-  non_goals:
-  - Does not select which tree to copy or create a workflow around the copy.
-  - Does not delete source files or synchronize later changes.
-  emits: [ToolDone, ToolFailed, CommandError]
   output:
     description: Combined stdout and stderr from `cp -a`.
-    schema: {type: string}
   errors:
   - signal: CommandError
     condition: a required path is absent or the cp process cannot be started

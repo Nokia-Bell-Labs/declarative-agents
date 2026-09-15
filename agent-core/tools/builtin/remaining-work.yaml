@@ -1,36 +1,20 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-remaining-work
+imports:
+- ../units/types-core.yaml
 tools:
 - name: remaining_work
   type: builtin
   init: remaining_work
   description: Query ready, completed, or blocked planner graph state.
+  signature:
+    output: builtin-types-core.Text
+    emits: [WorkRemaining, AllDone, Blocked, CommandError]
   visibility: internal
-  emits: [WorkRemaining, AllDone, Blocked, CommandError]
   category: word
-  side_effects:
-  - kind: none
-    description: Reads graph status without mutating graph or planner state.
-  reversibility:
-    classification: reversible
-  undo:
-    strategy: noop
-    description: The graph query changes nothing.
-  problem: Remaining-work routing belongs in the planner machine, not a graph-mutating word.
-  goals:
-  - Report ready work separately from a fully done or blocked graph.
-  requirements:
-    input: [A loaded graph must exist in planner pipeline state.]
-    output: [WorkRemaining, AllDone, or Blocked describes the graph.]
-    errors: [CommandError is emitted when no graph is loaded.]
-  non_goals:
-  - Does not extract tasks or mutate graph state.
-  - Does not decide where the planner routes next.
   output:
     description: Human-readable ready, complete, or blocked graph summary.
-    schema:
-      type: string
   errors:
   - signal: CommandError
     condition: No planner graph is loaded.

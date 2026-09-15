@@ -32,7 +32,7 @@ func validateImportUsedness(
 ) error {
 	toolUsed := selectedToolSources(selected)
 	// A type unit contributes no tools, so its import earns its place through a
-	// selected tool's schema reaching one of its types (srd051 R5.1).
+	// declared tool's schema reaching one of its types (srd051 R5.1).
 	for path := range typeUsed {
 		toolUsed[path] = true
 	}

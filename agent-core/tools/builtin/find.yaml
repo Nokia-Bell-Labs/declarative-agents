@@ -1,51 +1,24 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-find
+imports:
+- ../units/types-core.yaml
+- ../units/types-filesystem.yaml
 tools:
 - name: find
   type: builtin
   category: word
   init: file_find
   output_cap: 200
-  emits:
-  - ToolDone
-  - ToolFailed
   description: "Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob \u2014 use \\.go$ to find Go files, not *.go. Returns matching lines with file paths and line numbers."
-  parameters:
-    type: object
-    properties:
-      query:
-        type: string
-        description: 'Regex pattern (ripgrep syntax, not glob). Example: \.go$ for Go files, func main for function search'
-      path:
-        type: string
-        description: Subdirectory to scope the search (optional)
-    required:
-    - query
+  signature:
+    input: builtin-types-filesystem.FindRequest
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed]
   side_effects:
   - kind: filesystem_read
     target: workspace_tree
     description: Reads matching file paths and lines from the workspace without mutating state.
-  reversibility:
-    classification: reversible
-  undo:
-    strategy: noop
-    description: Search is read-only and has no effects to reverse.
-  problem: The machine needs a declared word for searching workspace files without embedding that workflow step in Go control flow.
-  goals:
-  - Perform the find action as one machine-selected word.
-  - Return an explicit signal that lets the MachineSpec choose the next state.
-  - Keep sequencing outside the tool implementation and in machine.yaml.
-  requirements:
-    input:
-    - must consume parameters from tool input, prior Result, or configured command/domain state
-    output:
-    - must emit one declared signal and return machine-readable output when available
-    errors:
-    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
-  non_goals:
-  - Does not choose the next workflow step; machine.yaml owns sequencing.
-  - Does not hide unrelated tool execution behind this word.
   errors:
   - signal: CommandError
     condition: required input, configuration, or runtime state is invalid
@@ -58,5 +31,3 @@ tools:
     - machine-selected successor
   output:
     description: Plain-text ripgrep matches with paths and line numbers.
-    schema:
-      type: string

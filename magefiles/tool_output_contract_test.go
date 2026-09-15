@@ -24,15 +24,34 @@ var plainTextToolInits = map[string]bool{
 }
 
 type outputContractBundle struct {
+	Unit  string `yaml:"unit"`
+	Types []struct {
+		Name   string         `yaml:"name"`
+		Schema map[string]any `yaml:"schema"`
+	} `yaml:"types"`
 	Tools []struct {
-		Name   string `yaml:"name"`
-		Type   string `yaml:"type"`
-		Init   string `yaml:"init"`
+		Name      string `yaml:"name"`
+		Type      string `yaml:"type"`
+		Init      string `yaml:"init"`
+		Signature struct {
+			Output string `yaml:"output"`
+		} `yaml:"signature"`
 		Output struct {
 			Schema map[string]any `yaml:"schema"`
 		} `yaml:"output"`
 		Config map[string]any `yaml:"config"`
 	} `yaml:"tools"`
+}
+
+// declarationTypes maps a type unit's <unit>.<Name> address to the schema it
+// declares, so a word that states its output as a type reference is checked
+// against the same shape an inline schema would have stated (srd051 R6.1).
+type declarationTypes map[string]map[string]any
+
+func (index declarationTypes) add(bundle outputContractBundle) {
+	for _, declared := range bundle.Types {
+		index[bundle.Unit+"."+declared.Name] = declared.Schema
+	}
 }
 
 // TestShippedToolOutputKindsMatchRuntimeFamilies is the repository-wide
@@ -44,8 +63,14 @@ func TestShippedToolOutputKindsMatchRuntimeFamilies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	bundles := make(map[string]outputContractBundle, len(paths))
+	types := declarationTypes{}
 	for _, path := range paths {
-		checkOutputContractBundle(t, path, readOutputContractBundle(t, path))
+		bundles[path] = readOutputContractBundle(t, path)
+		types.add(bundles[path])
+	}
+	for _, path := range paths {
+		checkOutputContractBundle(t, path, bundles[path], types)
 	}
 }
 
@@ -102,27 +127,32 @@ func checkOutputContractBundle(
 	t outputContractReporter,
 	path string,
 	bundle outputContractBundle,
+	types declarationTypes,
 ) {
 	t.Helper()
 	for _, tool := range bundle.Tools {
+		schema := tool.Output.Schema
+		if ref := tool.Signature.Output; ref != "" {
+			schema = types[ref]
+		}
 		if plainTextToolInits[tool.Init] ||
 			(tool.Type == "exec" && plainTextExecWords[tool.Name]) {
-			if got := tool.Output.Schema["type"]; got != "string" {
+			if got := schema["type"]; got != "string" {
 				t.Errorf("%s tool %s init %s output type = %v, want string",
 					path, tool.Name, tool.Init, got)
 			}
 		}
 		if tool.Init == "load_corpus" {
-			requireLoadCorpusOutput(t, path, tool.Name, tool.Output.Schema)
+			requireLoadCorpusOutput(t, path, tool.Name, schema)
 		}
 		if tool.Init == "spool_get_metric" {
-			requireMetricPageOutput(t, path, tool.Name, tool.Output.Schema, tool.Config)
+			requireMetricPageOutput(t, path, tool.Name, schema, tool.Config)
 		}
 		if tool.Init == "otlp_receiver_stop" {
-			requireReceiverStopOutput(t, path, tool.Name, tool.Output.Schema)
+			requireReceiverStopOutput(t, path, tool.Name, schema)
 		}
 		if tool.Init == "relay_spans" {
-			requireRelayOutput(t, path, tool.Name, tool.Output.Schema)
+			requireRelayOutput(t, path, tool.Name, schema)
 		}
 	}
 }
@@ -298,7 +328,7 @@ func TestCanonicalToolOutputMismatchRetainsExactDiagnostic(t *testing.T) {
 		t.TempDir(), "applications", "catalog", "agents", "example", "declarations.yaml")
 	writeToolContractFixture(t, path, "object")
 	reporter := &outputContractRecorder{}
-	checkOutputContractBundle(reporter, path, readOutputContractBundle(t, path))
+	checkOutputContractBundle(reporter, path, readOutputContractBundle(t, path), nil)
 	want := fmt.Sprintf(
 		"%s tool write init file_write output type = object, want string", path)
 	if len(reporter.messages) != 1 || reporter.messages[0] != want {

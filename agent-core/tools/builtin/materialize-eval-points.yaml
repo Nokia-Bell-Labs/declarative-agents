@@ -1,53 +1,24 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-materialize-eval-points
+imports:
+- ../units/types-eval.yaml
 tools:
 - name: materialize_eval_points
   type: builtin
   init: materialize_eval_points
   visibility: internal
-  emits:
-  - EvalPointsMaterialized
-  - CommandError
   description: Materialize deterministic profile, grid, sample, and repetition combinations for declared iteration.
+  signature:
+    output: builtin-types-eval.EvalPoints
+    emits: [EvalPointsMaterialized, CommandError]
   category: word
-  problem: MachineSpec for_each needs one command-state collection containing every resolved evaluation point.
-  goals:
-  - Preserve profile, grid, sample, and repetition ordering.
-  - Return serializable inputs for independent run_point dispatches.
-  - Keep iteration and join policy in the session machine.
-  requirements:
-    input:
-    - must read initialized suite dimensions and runtime defaults
-    output:
-    - must emit EvalPointsMaterialized with a points array
-    errors:
-    - must emit CommandError when evaluation state is unavailable or output encoding fails
-    side_effects:
-    - must not mutate evaluator session state
-  non_goals:
-  - Does not advance an iterator cursor.
-  - Does not execute evaluation points.
   side_effects:
   - kind: state_read
     target: eval_session_state
     description: Reads resolved suite dimensions without mutating them.
-  reversibility:
-    classification: reversible
-  undo:
-    strategy: noop
-    description: Read-only materialization has no effects to reverse.
   output:
     description: Ordered evaluation point inputs.
-    schema:
-      type: object
-      properties:
-        points:
-          type: array
-          items:
-            type: object
-      required:
-      - points
   errors:
   - signal: CommandError
     condition: evaluation session state is unavailable or the points result cannot be encoded

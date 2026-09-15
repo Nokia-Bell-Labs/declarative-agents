@@ -1,19 +1,21 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-edit
+imports:
+- ../units/types-core.yaml
+- ../units/types-filesystem.yaml
 tools:
 - name: edit
   type: builtin
   category: word
   init: file_edit
-  emits:
-  - EditDone
-  - ToolFailed
   description: Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match.
+  signature:
+    input: builtin-types-filesystem.EditRequest
+    output: builtin-types-core.Text
+    emits: [EditDone, ToolFailed]
   output:
     description: Plain-text edit confirmation.
-    schema:
-      type: string
   metrics:
     instruments:
     - name: filesystem.bytes_changed
@@ -28,48 +30,15 @@ tools:
       source: tool_name
       cardinality: low
       redaction: none
-  parameters:
-    type: object
-    properties:
-      path:
-        type: string
-        description: File path relative to workspace root
-      old_string:
-        type: string
-        description: Exact text to find
-      new_string:
-        type: string
-        description: Replacement text
-    required:
-    - path
-    - old_string
-    - new_string
   side_effects:
   - kind: filesystem_write
     target: workspace_file
     description: Replaces text in one workspace file.
-  reversibility:
-    classification: reversible
   undo:
     strategy: file_snapshot_restore
     description: Restore the prior file bytes and mode captured in the edit receipt.
     requires:
     - Receipt
-  problem: The machine needs a declared word for editing one workspace file without embedding that workflow step in Go control flow.
-  goals:
-  - Perform the edit action as one machine-selected word.
-  - Return an explicit signal that lets the MachineSpec choose the next state.
-  - Keep sequencing outside the tool implementation and in machine.yaml.
-  requirements:
-    input:
-    - must consume parameters from tool input, prior Result, or configured command/domain state
-    output:
-    - must emit one declared signal and return machine-readable output when available
-    errors:
-    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
-  non_goals:
-  - Does not choose the next workflow step; machine.yaml owns sequencing.
-  - Does not hide unrelated tool execution behind this word.
   errors:
   - signal: CommandError
     condition: required input, configuration, or runtime state is invalid

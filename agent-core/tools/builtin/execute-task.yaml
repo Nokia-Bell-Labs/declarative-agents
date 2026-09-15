@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-execute-task
+imports:
+- ../units/types-planner.yaml
 tools:
 - name: mark_nodes_executing
   type: builtin
@@ -35,17 +37,12 @@ tools:
   type: builtin
   init: format_task_file
   description: Project the current plan into one profile-configured write request.
+  signature:
+    output: builtin-types-planner.TaskFileWriteRequest
+    emits: [TaskFileFormatted, CommandError]
   visibility: internal
-  emits: [TaskFileFormatted, CommandError]
   category: word
-  side_effects: [{kind: none, description: Serializes plan state without writing a file.}]
-  reversibility: {classification: reversible}
-  undo: {strategy: noop, description: Projection changes no state.}
-  problem: The generic write word needs declared path and YAML content without hidden filesystem work.
-  goals: [Produce path and content parameters consumed by write.]
-  requirements: {input: [A current implementation plan and configured path are required.], output: [TaskFileFormatted carries write parameters.], errors: [Serialization failures emit CommandError.]}
-  non_goals: [Does not write the task file or invoke a child agent.]
   errors: [{signal: CommandError, condition: Current plan is absent or cannot serialize, state_after_failure: No state or file changes.}]
   relationships: {before: [mark_nodes_executing], after: [write]}
-  output: {description: Write parameters for the configured task path, schema: {type: object}}
+  output: {description: Write parameters for the configured task path}
   config: {path: doc/task.yaml}

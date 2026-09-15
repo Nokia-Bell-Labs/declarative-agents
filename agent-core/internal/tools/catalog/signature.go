@@ -58,14 +58,3 @@ func equalSignalLists(left, right []string) bool {
 	}
 	return true
 }
-
-// applySignatureEmits folds a signature's emitted signals into the legacy field
-// so every existing reader of Emits sees them without knowing about
-// signatures. Nothing downstream distinguishes the two forms.
-func applySignatureEmits(def ToolDef) ToolDef {
-	if def.Signature == nil || len(def.Signature.Emits) == 0 || len(def.Emits) > 0 {
-		return def
-	}
-	def.Emits = append([]string(nil), def.Signature.Emits...)
-	return def
-}

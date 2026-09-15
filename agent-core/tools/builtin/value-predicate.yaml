@@ -1,63 +1,22 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-value-predicate
+imports:
+- ../units/types-collections.yaml
+- ../units/types-core.yaml
 tools:
 - name: value_predicate
   type: builtin
   init: value_predicate
   category: word
   visibility: internal
-  emits:
-  - Satisfied
-  - Unsatisfied
-  - CommandError
   description: Compare two operands and emit one of two declared signals, so a machine can branch on a value rather than only on a call's success.
-  problem: A machine branches on signals and signals come from words, so branching on a value needs a word that emits one from a comparison; without it a decision the machine should own lives in a bespoke Go tool or in an unrelated agent's exit code.
-  goals:
-  - Resolve two operands against the previous Result and compare them under a declared operator.
-  - Emit the machine-declared signal for each outcome, so the word composes into any grammar.
-  - Emit CommandError for an operand that will not resolve or coerce, so a fault is never read as a negative.
-  requirements:
-    input:
-    - Operands, operator, operand type, and both outcome signal names come from tool config; no runtime input supplies them.
-    output:
-    - Output is a JSON object exposing the raw resolved operands, operator, operand type, and comparison outcome as selectable fields.
-    errors:
-    - An unresolvable operand selector or a failed coercion emits CommandError rather than either outcome signal.
-  non_goals:
-  - Does not transform operands; it compares them and does nothing else.
-  - Does not combine several comparisons; a machine composes predicate words across states so each branch stays a visible transition.
-  - Does not record or label steps itself; it reads what command state already holds, so reaching an earlier step needs that step to carry a label.
-  parameters:
-    type: object
-    properties: {}
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-collections.Comparison
+    emits: [Satisfied, Unsatisfied, CommandError]
   output:
     description: The comparison as selectable fields; right is absent for unary empty and non_empty operations.
-    schema:
-      type: object
-      properties:
-        left:
-          description: The raw resolved left operand, before comparison coercion.
-        right:
-          description: The raw resolved right operand, before comparison coercion; absent for unary operations.
-        op:
-          type: string
-        operand_type:
-          type: string
-        held:
-          type: boolean
-      required:
-      - left
-      - op
-      - operand_type
-      - held
-  side_effects:
-  - kind: none
-    description: Reads command state and produces a Result without mutating runtime or external state.
-  reversibility:
-    classification: reversible
-  undo:
-    strategy: noop
-    description: Comparing two values changes nothing.
   errors:
   - signal: CommandError
     condition: an operand selector does not resolve against the previous Result, or an operand does not coerce under the declared operand type

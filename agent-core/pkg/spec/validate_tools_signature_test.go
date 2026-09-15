@@ -7,12 +7,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
 func signedDeclaration(category string) ToolDeclaration {
 	return ToolDeclaration{
 		Name: "word_tool", Type: "builtin", Category: category,
-		Signature: &ToolDeclSignature{
+		Signature: &catalog.ToolSignature{
 			Input: "chat-types.Sources", Output: "chat-types.Rows",
 			Emits: []string{"Done", "CommandError"},
 		},
@@ -73,4 +75,21 @@ func TestUnsignedDeclarationStillNeedsEveryBlock(t *testing.T) {
 	} {
 		require.Containsf(t, missing, field, "unsigned declarations are unchanged: %s", field)
 	}
+}
+
+// TestToolDeclarationCarriesTheSignature guards the mapping the completeness
+// check reads. A signature that stops at the audit model's door leaves a signed
+// word looking like one with no contract at all.
+func TestToolDeclarationCarriesTheSignature(t *testing.T) {
+	t.Parallel()
+	declaration := toolDeclarationFromDef(catalog.ToolDef{
+		Name: "word_tool", Type: "builtin", Category: "word",
+		Description: "Flatten retrieved chunks into rows.",
+		Signature: &catalog.ToolSignature{
+			Output: "chat-types.Rows", Emits: []string{"Flattened"},
+		},
+	})
+
+	require.NotNil(t, declaration.Signature)
+	require.Empty(t, missingToolContractFields(declaration))
 }

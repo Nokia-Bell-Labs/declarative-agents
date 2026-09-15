@@ -1,16 +1,17 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-check-agent-version
+imports:
+- ../units/types-core.yaml
 tools:
 - name: check_agent_version
   type: builtin
   init: check_agent_version
   visibility: internal
-  emits:
-  - AgentVersionChecked
-  - AgentVersionMismatch
-  - CommandError
   description: Compare the configured harness agent version with the version reported in the point trace.
+  signature:
+    output: builtin-types-core.CommandSummary
+    emits: [AgentVersionChecked, AgentVersionMismatch, CommandError]
   category: word
   side_effects:
   - kind: state_mutation
@@ -20,28 +21,11 @@ tools:
   - kind: stderr_write
     target: evaluator_output
     description: Writes a warning when the configured and traced agent versions differ.
-  reversibility:
-    classification: reversible
   undo:
     strategy: point_context_restore
     description: Restore PointContext from the persisted pre-command receipt.
     payload: point_context_snapshot
     captures: [point_context]
-  problem: The machine needs a declared word for checking traced agent version metadata without embedding that workflow step in Go control flow.
-  goals:
-  - Perform the check_agent_version action as one machine-selected word.
-  - Return an explicit signal that lets the MachineSpec choose the next state.
-  - Keep sequencing outside the tool implementation and in machine.yaml.
-  requirements:
-    input:
-    - must consume parameters from tool input, prior Result, or configured command/domain state
-    output:
-    - must emit one declared signal and return machine-readable output when available
-    errors:
-    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
-  non_goals:
-  - Does not choose the next workflow step; machine.yaml owns sequencing.
-  - Does not hide unrelated tool execution behind this word.
   errors:
   - signal: CommandError
     condition: required input, configuration, or runtime state is invalid
@@ -54,12 +38,3 @@ tools:
     - machine-selected successor
   output:
     description: check_agent_version command result summary.
-    schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
