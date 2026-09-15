@@ -1,0 +1,307 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The request-scoped shapes the documentation curator passes between its words.
+# A property carrying only a description is one whose contents the producing
+# transform decides, so a selector into it stays undecided.
+unit: catalog-types-curator
+types:
+- name: DocumentIndex
+  description: The document index the curator returns for the index route.
+  schema:
+    type: object
+    properties:
+      data:
+        description: The indexed documents, whose entries the list resource decides.
+      documents:
+        description: The same entries under the name the UI reads.
+      count:
+        type: integer
+    required:
+    - data
+    - documents
+    - count
+- name: DocumentDetail
+  description: One document with its parsed content beside the bytes it was read from.
+  schema:
+    type: object
+    properties:
+      data:
+        description: The parsed document, whose shape the document decides.
+      path:
+        type: string
+      content:
+        description: The parsed document, repeated under the name the UI reads.
+      raw:
+        type: string
+      content_type:
+        type: string
+    required:
+    - data
+    - path
+    - content
+    - raw
+    - content_type
+- name: ConfigDocument
+  description: One configuration document, parsed and raw.
+  schema:
+    type: object
+    properties:
+      data:
+        type: object
+        properties:
+          path:
+            type: string
+          content:
+            description: The parsed configuration, whose shape the document decides.
+          raw:
+            type: string
+        required:
+        - path
+        - content
+        - raw
+      path:
+        type: string
+      content:
+        description: The parsed configuration, repeated outside the data envelope.
+      raw:
+        type: string
+    required:
+    - data
+    - path
+    - content
+    - raw
+- name: SourceDocument
+  description: One source file with the presentation fields the UI reads.
+  schema:
+    type: object
+    properties:
+      data:
+        type: object
+        properties:
+          path:
+            type: string
+          content:
+            type: string
+          language:
+            type: string
+          mimeType:
+            type: string
+          size:
+            type: integer
+        required:
+        - path
+        - content
+        - language
+        - mimeType
+        - size
+      path:
+        type: string
+      content:
+        type: string
+      language:
+        type: string
+      mimeType:
+        type: string
+      size:
+        type: integer
+    required:
+    - data
+    - path
+    - content
+    - language
+    - mimeType
+    - size
+- name: SearchRequest
+  description: The captured search request the shaping word reads its arguments from.
+  schema:
+    type: object
+    properties:
+      query:
+        type: string
+      category:
+        type: string
+      limit:
+        type: string
+    required:
+    - query
+    - category
+    - limit
+- name: SearchResponse
+  description: The search matches the curator returns, empty when the search found none.
+  schema:
+    type: object
+    properties:
+      query:
+        type: string
+      matches:
+        type: array
+      count:
+        type: integer
+    required:
+    - query
+    - matches
+    - count
+- name: ValidationRequest
+  description: The captured validation request naming the paths to check.
+  schema:
+    type: object
+    properties:
+      paths:
+        description: The requested paths, as the request supplied them.
+      strict:
+        description: The requested strictness, as the request supplied it.
+    required:
+    - paths
+    - strict
+- name: ValidationResponse
+  description: The validation outcome with the findings the report carried.
+  schema:
+    type: object
+    properties:
+      status:
+        type: string
+      findings:
+        type: array
+      checked_paths:
+        description: The paths the request named, carried through unchanged.
+      report:
+        description: The validator's own report, carried through unchanged.
+    required:
+    - status
+    - findings
+    - checked_paths
+    - report
+- name: SuggestionRequest
+  description: The captured suggestion request and the document path it names.
+  schema:
+    type: object
+    properties:
+      parameters:
+        type: object
+        properties:
+          path:
+            type: string
+        required:
+        - path
+      path:
+        type: string
+      instruction:
+        type: string
+      context:
+        type: string
+    required:
+    - parameters
+    - path
+    - instruction
+    - context
+- name: SuggestionRecord
+  description: One proposed documentation patch awaiting review.
+  schema:
+    type: object
+    properties:
+      patch_id:
+        type: string
+      path:
+        type: string
+      status:
+        type: string
+      suggestions:
+        type: array
+        items:
+          type: string
+      proposed_patch:
+        type: string
+      context:
+        type: string
+      source_sha256:
+        type: string
+      created_at:
+        type: string
+      applied:
+        type: boolean
+    required:
+    - patch_id
+    - path
+    - status
+    - suggestions
+    - proposed_patch
+    - context
+    - source_sha256
+    - created_at
+    - applied
+- name: DecisionRequest
+  description: The captured review decision and the status it expects the patch to be in.
+  schema:
+    type: object
+    properties:
+      parameters:
+        type: object
+        properties:
+          path:
+            type: string
+        required:
+        - path
+      patch_id:
+        type: string
+      expected_status:
+        type: string
+      status:
+        type: string
+      decided_by:
+        type: string
+      note:
+        type: string
+      reason:
+        type: string
+    required:
+    - parameters
+    - patch_id
+    - expected_status
+    - status
+    - decided_by
+    - note
+    - reason
+- name: DecisionRecord
+  description: One recorded review decision.
+  schema:
+    type: object
+    properties:
+      patch_id:
+        type: string
+      status:
+        type: string
+      decided_by:
+        type: string
+      note:
+        type: string
+      reason:
+        type: string
+      applied:
+        type: boolean
+    required:
+    - patch_id
+    - status
+    - decided_by
+    - note
+    - reason
+    - applied
+- name: PatchWriteRequest
+  description: The write parameters for one patch file beside the record the response returns.
+  schema:
+    type: object
+    properties:
+      parameters:
+        type: object
+        properties:
+          path:
+            type: string
+          content:
+            type: string
+        required:
+        - path
+        - content
+      response:
+        description: The record the shaping word publishes, whose fields the building word decides.
+    required:
+    - parameters
+    - response

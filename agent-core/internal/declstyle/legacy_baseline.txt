@@ -16,28 +16,6 @@
 # legacy form to retire.
 #
 # GH-2009 flips the type system strict once this file has no entries.
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:build_approval
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:build_suggestion
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_approval
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_rejection
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_reopen
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_search
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_suggestion
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_validation
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:config_response
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:decision_response
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:doc_detail_response
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:doc_index_input
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:doc_index_jq
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:empty_search
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:invalid_response
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:review_pending
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:shape_search
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:source_response
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:suggestion_hash_material
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:suggestion_response
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:suggestion_sha256
-untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:valid_response
 untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:capture_source_selection
 untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:compose_source_selection_prompt
 untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:constrain_source_selection
