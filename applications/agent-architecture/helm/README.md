@@ -33,9 +33,10 @@ plus helm and kubectl, built from `agent-core/applier.Dockerfile`; GH-1368) rath
 than the profile-free runtime image the curator and collector use, so every other
 cluster test installs the mesh without it. The image bakes no chart; the chart it
 runs `helm upgrade agent-architecture /chart` against is delivered to the pod at
-`/chart` as a mounted volume (`applier.chartArchive`, unpacked by an init
-container), so the bytes travel with the Helm release. Enable it with the live-tier
-overlay:
+`/chart` from the ConfigMap named by `applier.chartArchiveConfigMap`, unpacked
+by an init container. Provision that ConfigMap outside the Helm release so its
+archive does not make the release Secret exceed the API server's 1 MiB limit.
+The live integration performs this provisioning before enabling the tier:
 
 ```sh
 helm install my-release helm/dist/agent-architecture-*.tgz \

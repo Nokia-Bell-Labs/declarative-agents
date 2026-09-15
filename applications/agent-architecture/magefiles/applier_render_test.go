@@ -70,3 +70,25 @@ func TestApplierExecDeclarationsRenderReleaseCoordinates(t *testing.T) {
 		}
 	}
 }
+
+func TestApplierChartMountReferencesOutOfReleaseConfigMap(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chart := preparedApplierChart(t)
+	out, err := exec.Command("helm", "template", "relx", chart,
+		"--namespace", "nsy",
+		"--set", "applier.enabled=true",
+		"--set", "applier.chartArchiveConfigMap=external-applier-chart",
+	).CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template: %v\n%s", err, out)
+	}
+	rendered := string(out)
+	if !strings.Contains(rendered, "name: external-applier-chart") {
+		t.Fatalf("applier chart volume does not reference the external ConfigMap:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "name: relx-agent-architecture-applier-chart") {
+		t.Fatal("chart still renders an in-release ConfigMap carrying the chart archive")
+	}
+}
