@@ -20,7 +20,6 @@ import (
 
 // Entry classes. Adding a class is one line here plus its emitter.
 const (
-	classIncludes       = "includes"
 	classUntypedTool    = "untyped-tool"
 	classProseDefaulted = "prose-defaulted"
 )
@@ -70,8 +69,7 @@ func TestDeclarationLegacyBaseline(t *testing.T) {
 // decodes with plain yaml.v3 rather than importing catalog, so the gate stays
 // test-only and cannot drift into depending on the production loader.
 type declarationFile struct {
-	Includes []string `yaml:"includes"`
-	Tools    []struct {
+	Tools []struct {
 		Name      string `yaml:"name"`
 		Category  string `yaml:"category"`
 		Signature *struct {
@@ -206,9 +204,6 @@ func fileEntries(t *testing.T, path string) []string {
 	}
 	rel := repoRelative(t, path)
 	var entries []string
-	if len(file.Includes) > 0 {
-		entries = append(entries, classIncludes+":"+rel)
-	}
 	for _, tool := range file.Tools {
 		if tool.Name == "" {
 			continue

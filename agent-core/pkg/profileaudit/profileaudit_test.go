@@ -24,9 +24,11 @@ func TestInspectProfileResolvesIncludesOverridesSelectionAndEnvironment(t *testi
 			tool("included_only", "custom_await", "10s", "external"),
 	))
 	write(t, root, "declarations.yaml", `
-includes: [base.yaml]
+unit: declarations
+imports: [base.yaml]
 tools:
   - name: wait
+    override: true
     type: builtin
     init: custom_await
     category: boundary
@@ -336,7 +338,7 @@ transitions:
 `
 }
 
-func declarations(tools string) string { return "tools:\n" + tools }
+func declarations(tools string) string { return "unit: base\ntools:\n" + tools }
 
 func tool(name, init, timeout, visibility string) string {
 	return `

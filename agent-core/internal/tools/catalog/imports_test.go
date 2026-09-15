@@ -4,9 +4,7 @@
 package catalog
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,7 +28,7 @@ func TestToolImportsResolveTwoLevelsInPostorder(t *testing.T) {
 	resolver := newToolImportResolver(func(path string, _ []byte) error {
 		visits[filepath.Clean(path)]++
 		return nil
-	}, io.Discard)
+	})
 
 	defs, err := resolver.loadRoots([]string{top})
 
@@ -56,7 +54,7 @@ func TestToolImportsReuseDiamondUnitOnce(t *testing.T) {
 	resolver := newToolImportResolver(func(path string, _ []byte) error {
 		visits[filepath.Clean(path)]++
 		return nil
-	}, io.Discard)
+	})
 
 	defs, err := resolver.loadRoots([]string{top})
 
@@ -74,7 +72,7 @@ func TestToolImportsRejectSiblingDuplicateWithSources(t *testing.T) {
 		toolUnit("top", "imports: [left.yaml, right.yaml]\n", "top"),
 	)
 
-	_, err := newToolImportResolver(nil, io.Discard).loadRoots([]string{top})
+	_, err := newToolImportResolver(nil).loadRoots([]string{top})
 
 	require.ErrorContains(t, err, `duplicate imported tool "shared"`)
 	require.ErrorContains(t, err, `unit "left"`)
@@ -89,7 +87,7 @@ func TestToolImportsRejectCycleAndUnitCollision(t *testing.T) {
 		first := writeToolImportFixture(t, root, "first.yaml", toolUnit("first", "imports: [second.yaml]\n"))
 		second := writeToolImportFixture(t, root, "second.yaml", toolUnit("second", "imports: [first.yaml]\n"))
 
-		_, err := newToolImportResolver(nil, io.Discard).loadRoots([]string{first})
+		_, err := newToolImportResolver(nil).loadRoots([]string{first})
 
 		require.ErrorContains(t, err, "tool import cycle")
 		require.ErrorContains(t, err, first+" -> "+second+" -> "+first)
@@ -104,7 +102,7 @@ func TestToolImportsRejectCycleAndUnitCollision(t *testing.T) {
 			toolUnit("top", "imports: [first.yaml, second.yaml]\n", "top"),
 		)
 
-		_, err := newToolImportResolver(nil, io.Discard).loadRoots([]string{top})
+		_, err := newToolImportResolver(nil).loadRoots([]string{top})
 
 		require.ErrorContains(t, err, `duplicate tool unit "duplicate"`)
 		require.ErrorContains(t, err, first)
@@ -127,7 +125,7 @@ tools:
   - {name: local, binary: local}
 `)
 
-	defs, err := newToolImportResolver(nil, io.Discard).loadRoots([]string{top})
+	defs, err := newToolImportResolver(nil).loadRoots([]string{top})
 
 	require.NoError(t, err)
 	require.Equal(t, []string{"before", "shared", "after", "local"}, toolNames(defs))
@@ -173,7 +171,7 @@ tools:
 			writeToolImportFixture(t, root, "base.yaml", toolUnit("base", "", "shared"))
 			top := writeToolImportFixture(t, root, "top.yaml", test.top)
 
-			_, err := newToolImportResolver(nil, io.Discard).loadRoots([]string{top})
+			_, err := newToolImportResolver(nil).loadRoots([]string{top})
 
 			require.ErrorContains(t, err, test.want)
 			require.ErrorContains(t, err, top)
@@ -199,14 +197,14 @@ func TestToolImportsRejectInvalidSyntaxAndContracts(t *testing.T) {
 			writeToolImportFixture(t, root, "child.yaml", toolUnit("child", "", "child"))
 			top := writeToolImportFixture(t, root, "top.yaml", test.body)
 
-			_, err := newToolImportResolver(nil, io.Discard).loadRoots([]string{top})
+			_, err := newToolImportResolver(nil).loadRoots([]string{top})
 
 			require.ErrorContains(t, err, test.want)
 		})
 	}
 }
 
-func TestToolImportsRejectAbsolutePathAndMixedIncludes(t *testing.T) {
+func TestToolImportsRejectAbsolutePath(t *testing.T) {
 	t.Run("absolute import", func(t *testing.T) {
 		root := t.TempDir()
 		child := writeToolImportFixture(t, root, "child.yaml", toolUnit("child", "", "child"))
@@ -215,70 +213,33 @@ func TestToolImportsRejectAbsolutePathAndMixedIncludes(t *testing.T) {
 			fmt.Sprintf("unit: top\nimports: [%q]\ntools: []\n", child),
 		)
 
-		_, err := newToolImportResolver(nil, io.Discard).loadRoots([]string{top})
+		_, err := newToolImportResolver(nil).loadRoots([]string{top})
 
 		require.ErrorContains(t, err, "imports absolute path")
 	})
 
-	t.Run("mixed graph", func(t *testing.T) {
-		root := t.TempDir()
-		writeToolImportFixture(t, root, "leaf.yaml", "tools: []\n")
-		writeToolImportFixture(
-			t, root, "child.yaml",
-			"unit: child\nincludes: [leaf.yaml]\ntools: []\n",
-		)
-		top := writeToolImportFixture(
-			t, root, "top.yaml",
-			"unit: top\nimports: [child.yaml]\ntools: []\n",
-		)
-
-		_, err := newToolImportResolver(nil, io.Discard).loadRoots([]string{top})
-
-		require.ErrorContains(t, err, "mixes imports and includes")
-	})
 }
 
-func TestLegacyIncludesKeepOverridesAndWarnOncePerIncludingSource(t *testing.T) {
-	root := t.TempDir()
-	writeToolImportFixture(t, root, "leaf.yaml", "tools:\n- {name: shared, binary: old}\n")
-	shared := writeToolImportFixture(
-		t, root, "shared.yaml",
-		"includes: [leaf.yaml]\ntools: []\n",
-	)
-	writeToolImportFixture(t, root, "left.yaml", "includes: [shared.yaml]\ntools: []\n")
-	writeToolImportFixture(t, root, "right.yaml", "includes: [shared.yaml]\ntools: []\n")
-	top := writeToolImportFixture(
-		t, root, "top.yaml",
-		"includes: [left.yaml, right.yaml]\ntools:\n- {name: shared, binary: new}\n",
-	)
-	var warnings bytes.Buffer
-
-	defs, err := newToolImportResolver(nil, &warnings).loadRoots([]string{top})
-
-	require.NoError(t, err)
-	require.Len(t, defs, 1)
-	require.Equal(t, "new", defs[0].Binary)
-	require.Equal(t, 1, strings.Count(warnings.String(), shared))
-}
-
+// The audit and runtime load policies still diverge on environment expansion:
+// the audit reads declarations as authored, the runtime expands them.
 func TestToolLoadOptionsKeepAuditDivergencesInSingleLoader(t *testing.T) {
 	root := t.TempDir()
-	declaration := writeToolImportFixture(t, root, "tools.yaml", `includes: [missing.yaml]
-tools:
+	declaration := writeToolImportFixture(t, root, "tools.yaml", `tools:
   - {name: configured, binary: "${AUDIT_BINARY}"}
 `)
 	t.Setenv("AUDIT_BINARY", "expanded")
 
 	audit, err := LoadToolDeclarationsWithOptions(
 		[]string{declaration},
-		LoadOptions{TolerateMissingIncludes: true, ExpandEnv: false},
+		LoadOptions{ExpandEnv: false},
 		nil,
 	)
-
 	require.NoError(t, err)
 	require.Equal(t, "${AUDIT_BINARY}", audit[0].Binary)
-	_, err = LoadToolDefs(declaration)
-	require.ErrorIs(t, err, os.ErrNotExist)
+
+	runtime, err := LoadToolDefs(declaration)
+	require.NoError(t, err)
+	require.Equal(t, "expanded", runtime[0].Binary)
 }
 
 func toolUnit(unit, fields string, tools ...string) string {

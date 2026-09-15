@@ -6,7 +6,6 @@
 # fails as stale. Converting a file means deleting its lines in the same change.
 #
 # Classes:
-#   includes:<file>                file still uses includes: rather than imports:
 #   untyped-tool:<file>:<tool>     word or response tool with no signature:
 #   prose-defaulted:<file>:<tool>  signed tool still carrying a block equal to
 #                                  its category default, so deleting it changes
@@ -16,7 +15,7 @@
 # reversibility, and undo blocks explicit, so an unsigned boundary word is not a
 # legacy form to retire.
 #
-# GH-1971 flips the type system strict once this file has no entries.
+# GH-2009 flips the type system strict once this file has no entries.
 untyped-tool:agent-core/tools/builtin/assemble-prompt.yaml:capture_planner_failure
 untyped-tool:agent-core/tools/builtin/assemble-prompt.yaml:project_planner_context
 untyped-tool:agent-core/tools/builtin/check-agent-version.yaml:check_agent_version

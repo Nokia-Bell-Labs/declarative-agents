@@ -20,7 +20,6 @@ goals:
   - G2: Reject ambiguous declaration graphs before registration or execution.
   - G3: Preserve declaring-file provenance for diagnostics and for import and OpenAPI source-path resolution without changing existing operational path bases.
   - G4: Reject imports that contribute nothing to the resolved profile program.
-  - G5: Keep legacy tool includes operational until the type-system migration removes them.
 
 requirements:
   R1:
@@ -44,7 +43,6 @@ requirements:
           Every file declaring `imports` and every target named by `imports`
           SHALL declare `unit`. A root file MAY omit `unit` only when it
           declares no imports.
-      - R1.5: One profile closure SHALL NOT contain both explicit import edges and legacy includes edges; the loader SHALL reject the mixed graph rather than assign implicit precedence.
       - R1.6: Import expansion SHALL remain runtime loader behavior. No expanded or generated declaration file SHALL be committed.
 
   R2:
@@ -152,29 +150,17 @@ requirements:
           even when the client or endpoint receiving the binding is local.
 
   R6:
-    title: Legacy includes and diagnostics
+    title: Import error reporting and reach
     items:
-      - R6.1: >-
-          Tool `includes` SHALL retain its existing authored-order, local-last
-          merge behavior until the type-system final migration removes it.
-      - R6.2: >-
-          Each closure load SHALL emit at most one deprecation line to stderr
-          for each canonical file that declares `includes`, even when a diamond
-          reaches that file more than once.
       - R6.3: Import duplicate, cycle, override, and unused errors SHALL name the responsible unit and canonical source path; an error involving two sources SHALL name both.
       - R6.4: >-
           Import errors SHALL occur under `--validate-config`, `--dump-config`,
           ordinary startup, and profile audit through the same closure loader.
       - R6.5: Import support SHALL not make directory contents ambient imports. Profile declaration directories retain their existing explicit role as closure roots.
-      - R6.6: >-
-          A profile closure that contains any import edge SHALL reject any
-          reachable legacy `includes` edge. A legacy-only closure SHALL keep the
-          existing includes behavior.
 
 non_goals:
   - Named data types, tool signatures, typed labels, or machine exhaustiveness.
   - Parameterized fragments, conditional imports, version constraints, remote declaration-unit imports, or package registries; existing trusted remote OpenAPI sources remain governed by the REST format.
-  - Removing legacy includes in this release.
   - Changing tools.yaml selection semantics.
   - Generating or committing flattened declarations.
 
@@ -194,9 +180,6 @@ acceptance_criteria:
   - id: AC5
     criterion: Closure validation accepts every transitively used tool and REST import edge, including both arms of a used diamond, and rejects unused edges in deterministic source/target/path order.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8]
-  - id: AC6
-    criterion: Legacy includes retain existing merge behavior, emit one warning per including source, and cannot be mixed with imports.
-    traces: [R1.5, R6.1, R6.2, R6.6]
   - id: AC7
     criterion: The same invalid import closure fails through validation, dump, startup, and profile audit without a second import implementation.
     traces: [R6.4, R6.5]

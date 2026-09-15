@@ -37,9 +37,8 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 	loaded, err := catalog.LoadToolDeclarationsWithOptions(
 		readable,
 		catalog.LoadOptions{
-			TolerateMissingIncludes: true,
-			TolerateNonToolFiles:    true,
-			ExpandEnv:               false,
+			TolerateNonToolFiles: true,
+			ExpandEnv:            false,
 		},
 		nil,
 	)
