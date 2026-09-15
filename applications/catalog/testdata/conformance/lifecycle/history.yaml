@@ -15,7 +15,7 @@ invariants:
 lifecycle: |-
   1. Idle -> ReadingHistory (Seed): run checkpoint_history.
   2. ReadingHistory -> Done (ToolDone): history was printed.
-  3. ReadingHistory -> Failed (ToolFailed or CommandError): history failed.
+  3. ReadingHistory -> Failed (CommandError): history failed.
 initial_state: Idle
 budget:
   command_timeout: 1m
@@ -39,8 +39,6 @@ signals:
   trigger: Loop initialization.
 - name: ToolDone
   trigger: checkpoint_history completed successfully.
-- name: ToolFailed
-  trigger: checkpoint_history exited non-zero.
 - name: CommandError
   trigger: Runtime or command infrastructure failed.
 transitions:
@@ -51,9 +49,6 @@ transitions:
 - state: ReadingHistory
   signal: ToolDone
   next: Done
-- state: ReadingHistory
-  signal: ToolFailed
-  next: Failed
 - state: ReadingHistory
   signal: CommandError
   next: Failed
