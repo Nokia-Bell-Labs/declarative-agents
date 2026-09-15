@@ -116,6 +116,7 @@ rest:
                     schema_version: "1"
                     status: failed
                     error: apply_failed
+                    detail: $.output
         rollout:
           # Read the collector Deployment's rollout status (srd002-applier R3.3).
           # The collector is the stable read target; the bounded curator holds no

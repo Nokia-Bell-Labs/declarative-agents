@@ -100,6 +100,16 @@ func applierRolloutEndpoint(t *testing.T) rolloutEndpoint {
 	return endpoint
 }
 
+func TestApplierFailedResponseSurfacesExecOutput(t *testing.T) {
+	var rest rolloutRest
+	readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), "rest.yaml"), &rest)
+	apply := rest.Rest.Servers["applier_apply"].Endpoints["apply"]
+
+	if got := apply.MachineRequest.Response.TerminalStates["Failed"].Body["detail"]; got != "$.output" {
+		t.Fatalf("Failed response detail = %q, want $.output", got)
+	}
+}
+
 func applierRolloutMachine(t *testing.T) rolloutMachine {
 	t.Helper()
 	endpoint := applierRolloutEndpoint(t)

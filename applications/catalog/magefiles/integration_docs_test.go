@@ -17,7 +17,9 @@ func TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile(t *testing
 	coreRoot := t.TempDir()
 	writeDocumentationCuratorFixture(t, profilesRoot)
 	writeFile(t, filepath.Join(coreRoot, "tools", "builtin", "lifecycle", "exit-agent.yaml"), "tools: []\n")
-	writeFile(t, filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "all.yaml"), "tools: []\n")
+	for _, name := range []string{"load-corpus.yaml", "validate-specs.yaml", "format-report.yaml"} {
+		writeFile(t, filepath.Join(coreRoot, "tools", "builtin", name), "tools: []\n")
+	}
 	writeFile(t, filepath.Join(coreRoot, "docs", "SPECIFICATIONS.yaml"), "id: specs\n")
 	writeFile(t, filepath.Join(coreRoot, "configs", "sample.yaml"), "id: sample\n")
 	writeFile(t, filepath.Join(coreRoot, "unrelated-dirty-file"), "preserve me\n")
@@ -33,11 +35,16 @@ func TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile(t *testing
 		filepath.Join(tmpDir, "builtin.yaml"),
 		filepath.Join(tmpDir, "rest.yaml"),
 		filepath.Join(coreRoot, "tools", "builtin", "lifecycle", "exit-agent.yaml"),
-		filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "all.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "validate-specs.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "format-report.yaml"),
 	} {
 		if !strings.Contains(profile, want) {
 			t.Fatalf("profile missing %q:\n%s", want, profile)
 		}
+	}
+	if strings.Contains(profile, "spec-validation/all.yaml") {
+		t.Fatalf("profile still selects the aggregate declaration unit:\n%s", profile)
 	}
 
 	rest := readTestFile(t, filepath.Join(tmpDir, "rest.yaml"))

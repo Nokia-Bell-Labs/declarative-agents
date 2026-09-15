@@ -213,6 +213,13 @@ func stageServingProfileTree(roots integrationRoots) (string, func(), error) {
 		cleanup()
 		return "", nil, fmt.Errorf("stage canonical applier runtime projection: %w", err)
 	}
+	if err := copyTree(
+		filepath.Join(roots.Profiles, "agents", "units"),
+		filepath.Join(root, "applications", "catalog", "units"),
+	); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("stage canonical declaration type units: %w", err)
+	}
 	destination := filepath.Join(root, "applications", "coding-agent")
 	if err := copyTree(filepath.Join(roots.Application, "agents"), destination); err != nil {
 		cleanup()

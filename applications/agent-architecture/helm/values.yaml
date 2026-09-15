@@ -69,7 +69,7 @@ collector:
 # divergence from the profile-free runtime image, srd001 R1.2; GH-1368), which is
 # not the runtime image the curator and collector smoke tests kind-load, so the
 # live tier enables it explicitly (ci/kind-applier-values.yaml) and supplies the
-# chart it mounts at /chart via applier.chartArchive.
+# chart it mounts at /chart via applier.chartArchiveConfigMap.
 applier:
   enabled: false
   # The shared applier image carries the agent-core runtime plus helm and kubectl
@@ -78,15 +78,13 @@ applier:
     repository: ghcr.io/nokia-bell-labs/declarative-agents/applier
     tag: "0.1.0"
     pullPolicy: IfNotPresent
-  # The packaged chart the applier's `helm upgrade agent-architecture /chart` word
-  # installs, base64-encoded, delivered to the applier pod at /chart as a mounted
-  # volume rather than baked into the image (GH-1368). Empty by default; whoever
-  # enables the applier supplies it, e.g. the release tooling passes
-  #   --set-file applier.chartArchive=<packaged-chart.tgz.b64>
-  # so the chart bytes travel with the Helm release. With it empty the applier
-  # renders without the chart mount (fine for render-only checks; a live applier
-  # needs the chart).
-  chartArchive: ""
+  # Name of a ConfigMap carrying the packaged chart as a `chart.tgz` binaryData
+  # key. The applier mounts and unpacks it at /chart rather than baking it into
+  # the shared image (GH-1368). Deployment tooling provisions the ConfigMap
+  # outside the Helm release so the release Secret does not store the archive
+  # twice and exceed the API server's 1 MiB object limit. Empty keeps the chart
+  # mount disabled for render-only checks.
+  chartArchiveConfigMap: ""
   # apply/request server, control server, monitor server. Chosen apart from the
   # curator ports (18081/18082/18084) and the collector ports (4317/18191-18193)
   # so no listener collides.

@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -42,6 +41,7 @@ const (
 	applierLiveReadyTimeout   = 3 * time.Minute
 	applierLiveClusterTimeout = 3 * time.Minute
 	applierLiveInstallTimeout = 5 * time.Minute
+	applierLiveChartConfigMap = smokeRelease + "-agent-architecture-applier-chart"
 )
 
 // ApplierLive proves the applier against a real cluster, which the fake-CLI tracer
@@ -80,8 +80,9 @@ func runApplierLive(resolved roots) (result error) {
 	// One instrumented chart directory serves both the host-side install and the
 	// applier's mounted /chart, so Helm records and rolls back one coherent chart.
 	// The chart is delivered to the applier pod as a volume, not baked into the
-	// image (GH-1368): it is packaged to a tarball, base64-encoded, and passed as
-	// applier.chartArchive so the chart bytes travel with the Helm release.
+	// image (GH-1368): it is packaged to a tarball and provisioned in a ConfigMap
+	// outside the Helm release so the release Secret does not store the archive
+	// twice and exceed the API server's 1 MiB object limit.
 	chartDir, cleanupChart, err := stageApplierLiveChart(resolved)
 	if err != nil {
 		return err
@@ -128,7 +129,8 @@ func runApplierLive(resolved roots) (result error) {
 	// agent-core image the collector runs on. EnsureApplierImage layers helm and
 	// kubectl onto it under a tag-keyed lock so concurrent live-applier lanes
 	// cannot retag declarative-agents/applier:<rev> out from under inspect
-	// (GH-1764). The chart reaches the pod through the mounted applier.chartArchive.
+	// (GH-1764). The chart reaches the pod through the externally provisioned
+	// ConfigMap named by applier.chartArchiveConfigMap.
 	if _, err := kindrig.EnsureApplierImage(resolved.Core, smokeCollectorImage, applierImage); err != nil {
 		return fmt.Errorf("applier image build: %w", err)
 	}
@@ -183,9 +185,9 @@ func stageApplierLiveChart(resolved roots) (string, func(), error) {
 		cleanup()
 		return "", nil, err
 	}
-	// No curator UI shards here: the applier mounts this chart as a base64
-	// applier.chartArchive ConfigMap, so carrying the ~1.2 MiB gzipped UI would
-	// blow the 3 MiB release limit (GH-1402). applierLive does not exercise the
+	// No curator UI shards here: the applier mounts this chart from an external
+	// ConfigMap, and carrying the ~1.2 MiB gzipped UI would exceed that object's
+	// limit (GH-1402). applierLive does not exercise the
 	// curator UI (only the collector and applier are awaited), so the curator
 	// renders without it (curatorUI.shards defaults empty).
 	if err := validatePreparedProfiles(filepath.Join(chart, "profiles")); err != nil {
@@ -244,10 +246,10 @@ func assertApplierImageHelmMajor(image string) error {
 
 // packageApplierChart packages the staged chart directory into a gzipped tarball
 // and returns its path. This is the chart the applier's `helm upgrade
-// agent-architecture /chart` word installs, delivered to the pod as data through
-// the applier.chartArchive value rather than baked into the image (GH-1368). It is
-// the same instrumented chart the host installs, so an in-cluster upgrade
-// re-renders one coherent chart.
+// agent-architecture /chart` word installs, delivered through an out-of-release
+// ConfigMap rather than baked into the image (GH-1368). It is the same
+// instrumented chart the host installs, so an in-cluster upgrade re-renders one
+// coherent chart.
 func packageApplierChart(chartDir string) (string, func(), error) {
 	dest, err := os.MkdirTemp("", "agent-architecture-applier-chart-tgz-*")
 	if err != nil {
@@ -265,28 +267,6 @@ func packageApplierChart(chartDir string) (string, func(), error) {
 		return "", nil, fmt.Errorf("packaged applier chart %s: %w", archive, err)
 	}
 	return archive, cleanup, nil
-}
-
-// applierChartArchiveB64 base64-encodes the packaged chart into a temporary file so
-// it can be passed to helm as `--set-file applier.chartArchive=<file>`; the chart
-// template puts the value straight into the applier-chart ConfigMap's binaryData,
-// which the kubelet decodes to the raw tarball the init container unpacks at /chart.
-func applierChartArchiveB64(archive string) (string, func(), error) {
-	raw, err := os.ReadFile(archive)
-	if err != nil {
-		return "", nil, fmt.Errorf("read packaged applier chart: %w", err)
-	}
-	dir, err := os.MkdirTemp("", "agent-architecture-applier-chart-b64-*")
-	if err != nil {
-		return "", nil, err
-	}
-	cleanup := func() { _ = os.RemoveAll(dir) }
-	path := filepath.Join(dir, "chart.tgz.b64")
-	if err := os.WriteFile(path, []byte(base64.StdEncoding.EncodeToString(raw)), 0o600); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("write applier chart archive base64: %w", err)
-	}
-	return path, cleanup, nil
 }
 
 // assertApplierChartArchiveCarriesProfiles renders the packaged chart the applier
@@ -331,40 +311,72 @@ func loadApplierImage(cluster, image string) error {
 // installApplierLiveChart installs the instrumented chart directory with the applier
 // enabled. It layers the kind footprint every cluster test shares, then the applier
 // the others deliberately disable, and pins the locally built and loaded images. The
-// chart the applier mounts at /chart is delivered as data: applier.chartArchive
-// carries the base64 tarball the init container unpacks (GH-1368), so the shared
-// applier image bakes no chart.
+// chart the applier mounts at /chart is delivered through a ConfigMap provisioned
+// outside the release, so the shared applier image bakes no chart and Helm does
+// not duplicate the archive in its release Secret.
 func installApplierLiveChart(
 	environment smokeEnvironment, chartDir, chartArchive, applicationRoot, runtimeImage, applierImage string,
 ) error {
 	repository, tag := splitImageRef(runtimeImage)
 	collectorRepository, collectorTag := splitImageRef(smokeCollectorImage)
 	applierRepository, applierTag := splitImageRef(applierImage)
-	archiveB64, cleanupB64, err := applierChartArchiveB64(chartArchive)
-	if err != nil {
+	if err := provisionApplierChartConfigMap(environment.run, chartArchive); err != nil {
 		return err
 	}
-	defer cleanupB64()
+	valueArgs := applierLiveValueArgs(
+		applicationRoot, repository, tag,
+		collectorRepository, collectorTag, applierRepository, applierTag,
+	)
 	ctx, cancel := context.WithTimeout(context.Background(), applierLiveInstallTimeout)
 	defer cancel()
-	output, err := environment.run(ctx, "helm",
-		"install", smokeRelease, chartDir,
-		"--set-file", "applier.chartArchive="+archiveB64,
-		"--namespace", smokeNamespace,
-		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
-		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-applier-values.yaml"),
-		"--set", "image.repository="+repository,
-		"--set-string", "image.tag="+tag,
-		"--set", "collector.image.repository="+collectorRepository,
-		"--set-string", "collector.image.tag="+collectorTag,
-		"--set", "applier.image.repository="+applierRepository,
-		"--set-string", "applier.image.tag="+applierTag,
+	args := append([]string{"install", smokeRelease, chartDir}, valueArgs...)
+	args = append(args,
 		// No --wait: the bounded curator never stays ready, so waiting on the whole
 		// release would always time out. Readiness is asserted per workload below.
 		"--timeout", applierLiveInstallTimeout.String(),
 	)
+	output, err := environment.run(ctx, "helm", args...)
 	if err != nil {
 		return fmt.Errorf("helm install: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func applierLiveValueArgs(
+	applicationRoot, repository, tag,
+	collectorRepository, collectorTag, applierRepository, applierTag string,
+) []string {
+	return []string{
+		"--set", "applier.chartArchiveConfigMap=" + applierLiveChartConfigMap,
+		"--namespace", smokeNamespace,
+		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
+		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-applier-values.yaml"),
+		"--set", "image.repository=" + repository,
+		"--set-string", "image.tag=" + tag,
+		"--set", "collector.image.repository=" + collectorRepository,
+		"--set-string", "collector.image.tag=" + collectorTag,
+		"--set", "applier.image.repository=" + applierRepository,
+		"--set-string", "applier.image.tag=" + applierTag,
+	}
+}
+
+func provisionApplierChartConfigMap(run applierLiveRunner, chartArchive string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), applierLiveInstallTimeout)
+	defer cancel()
+	if output, err := run(ctx, "kubectl",
+		"delete", "configmap", applierLiveChartConfigMap,
+		"--namespace", smokeNamespace, "--ignore-not-found",
+	); err != nil {
+		return fmt.Errorf("clear stale applier chart ConfigMap: %w: %s",
+			err, strings.TrimSpace(string(output)))
+	}
+	output, err := run(ctx, "kubectl",
+		"create", "configmap", applierLiveChartConfigMap,
+		"--namespace", smokeNamespace, "--from-file=chart.tgz="+chartArchive,
+	)
+	if err != nil {
+		return fmt.Errorf("create applier chart ConfigMap: %w: %s",
+			err, strings.TrimSpace(string(output)))
 	}
 	return nil
 }

@@ -178,6 +178,62 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 	}
 }
 
+func stopPlannerAfterIssueFormatting(t *testing.T, profile string) {
+	t.Helper()
+	machinePath := filepath.Join(filepath.Dir(profile), "machine.yaml")
+	data, err := os.ReadFile(machinePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var machine map[string]interface{}
+	if err := yaml.Unmarshal(data, &machine); err != nil {
+		t.Fatal(err)
+	}
+	transitions, ok := machine["transitions"].([]interface{})
+	if !ok {
+		t.Fatal("planner fixture has no transitions")
+	}
+	var replaced bool
+	for _, raw := range transitions {
+		transition := raw.(map[string]interface{})
+		if transition["state"] == "IssueFormatting" && transition["signal"] == "IssueFormatted" {
+			transition["next"] = "Completed"
+			delete(transition, "action")
+			replaced = true
+		}
+	}
+	if !replaced {
+		t.Fatal("planner fixture cannot find IssueFormatted transition")
+	}
+
+	reachable := map[string]bool{machine["initial_state"].(string): true}
+	for changed := true; changed; {
+		changed = false
+		for _, raw := range transitions {
+			transition := raw.(map[string]interface{})
+			state, next := transition["state"].(string), transition["next"].(string)
+			if reachable[state] && !reachable[next] {
+				reachable[next] = true
+				changed = true
+			}
+		}
+	}
+	filtered := make([]interface{}, 0, len(transitions))
+	for _, raw := range transitions {
+		if reachable[raw.(map[string]interface{})["state"].(string)] {
+			filtered = append(filtered, raw)
+		}
+	}
+	machine["transitions"] = filtered
+	encoded, err := yaml.Marshal(machine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(machinePath, encoded, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestPlannerCanonicalPlanFirstResponse serves one deterministic response with
 // the complete profile-owned ImplementationPlan schema. The shipped load,
 // extraction, prompt composition, model boundary, and parse_plan word remain in
@@ -232,14 +288,8 @@ func TestPlannerCanonicalPlanFirstResponse(t *testing.T) {
 
 	profile := CopyShippedProfile(t, filepath.Join("agents", "planner", "profile.yaml"), map[string]string{
 		"http://localhost:11434": ollama.URL,
-		`- state: PlanParsing
-  signal: PlanReady
-  next: IssueFormatting
-  action: format_issue
-  label: issue_input`: `- state: PlanParsing
-  signal: PlanReady
-  next: Completed`,
 	})
+	stopPlannerAfterIssueFormatting(t, profile)
 	coreRoot := RequireCoreRoot(t)
 	workspace := filepath.Join(coreRoot, "pkg", "spec", "testdata", "valid")
 	result := Run(t, RunConfig{Profile: profile, Directory: workspace})
@@ -318,14 +368,8 @@ func TestPlannerInvalidThenCanonicalPlan(t *testing.T) {
 
 	profile := CopyShippedProfile(t, filepath.Join("agents", "planner", "profile.yaml"), map[string]string{
 		"http://localhost:11434": ollama.URL,
-		`- state: PlanParsing
-  signal: PlanReady
-  next: IssueFormatting
-  action: format_issue
-  label: issue_input`: `- state: PlanParsing
-  signal: PlanReady
-  next: Completed`,
 	})
+	stopPlannerAfterIssueFormatting(t, profile)
 	coreRoot := RequireCoreRoot(t)
 	workspace := filepath.Join(coreRoot, "pkg", "spec", "testdata", "valid")
 	result := Run(t, RunConfig{Profile: profile, Directory: workspace})

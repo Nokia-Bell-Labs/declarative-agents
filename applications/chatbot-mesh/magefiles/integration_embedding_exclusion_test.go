@@ -4,9 +4,39 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 )
+
+func TestGenerateShiftedChatbotProfileStagesImportedTypeUnits(t *testing.T) {
+	applicationRoot := filepath.Clean("..")
+	work := t.TempDir()
+
+	profile, err := generateShiftedChatbotProfile(applicationRoot, work)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile != filepath.Join(work, "chatbot-shifted", "profile.yaml") {
+		t.Fatalf("profile = %s, want shifted profile under work root", profile)
+	}
+
+	source := filepath.Join(applicationRoot, "agents", "units", "types-chatbot.yaml")
+	staged := filepath.Join(work, "units", "types-chatbot.yaml")
+	want, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(staged)
+	if err != nil {
+		t.Fatalf("read staged type unit: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Error("staged types-chatbot.yaml differs from its source")
+	}
+}
 
 func TestAssertExclusionMetadataReadsProjectedSources(t *testing.T) {
 	raw := `{

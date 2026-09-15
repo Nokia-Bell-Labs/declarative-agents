@@ -50,6 +50,49 @@ func TestApplierLiveUsesSharedEnsurePath(t *testing.T) {
 	}
 }
 
+func TestApplierLiveChartArchiveStaysOutOfReleaseValues(t *testing.T) {
+	args := applierLiveValueArgs(
+		"/application", "runtime", "revision",
+		"collector", "revision", "applier", "revision",
+	)
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined,
+		"--set applier.chartArchiveConfigMap="+applierLiveChartConfigMap) {
+		t.Fatalf("value args omit external chart ConfigMap: %s", joined)
+	}
+	for _, forbidden := range []string{"--set-file", "applier.chartArchive="} {
+		if strings.Contains(joined, forbidden) {
+			t.Fatalf("value args still put chart bytes in the Helm release via %q: %s",
+				forbidden, joined)
+		}
+	}
+}
+
+func TestProvisionApplierChartConfigMapReplacesExternalArchive(t *testing.T) {
+	var calls []string
+	run := func(_ context.Context, name string, args ...string) ([]byte, error) {
+		calls = append(calls, name+" "+strings.Join(args, " "))
+		return nil, nil
+	}
+
+	if err := provisionApplierChartConfigMap(run, "/tmp/chart.tgz"); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("calls = %v, want delete then create", calls)
+	}
+	for index, want := range []string{
+		"kubectl delete configmap " + applierLiveChartConfigMap +
+			" --namespace " + smokeNamespace + " --ignore-not-found",
+		"kubectl create configmap " + applierLiveChartConfigMap +
+			" --namespace " + smokeNamespace + " --from-file=chart.tgz=/tmp/chart.tgz",
+	} {
+		if calls[index] != want {
+			t.Errorf("call %d = %q, want %q", index, calls[index], want)
+		}
+	}
+}
+
 func TestApplierLiveInfrastructureHealthy(t *testing.T) {
 	var calls []string
 	run := func(_ context.Context, name string, args ...string) ([]byte, error) {
