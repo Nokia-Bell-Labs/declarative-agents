@@ -16,21 +16,6 @@
 # legacy form to retire.
 #
 # GH-2009 flips the type system strict once this file has no entries.
-untyped-tool:applications/catalog/agents/applier/apply-declarations.yaml:write_overrides
-untyped-tool:applications/catalog/agents/bench/builtin.yaml:validate_eval_suite
-untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:capture_experiment_path
-untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:list_bench_profiles
-untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:shape_bench_config
-untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:shape_bench_configs
-untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:shape_bench_experiment
-untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:shape_bench_source
-untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:wrap_bench_input
-untyped-tool:applications/catalog/agents/collector/declarations.yaml:decide_collector_relay
-untyped-tool:applications/catalog/agents/collector/declarations.yaml:filter_collector_batch
-untyped-tool:applications/catalog/agents/collector/query-declarations.yaml:compose_span_heatmap
-untyped-tool:applications/catalog/agents/collector/query-declarations.yaml:compose_span_stats
-untyped-tool:applications/catalog/agents/collector/query-declarations.yaml:span_group_by_requested
-untyped-tool:applications/catalog/agents/knowledge-manager/corpus-ingest/declarations.yaml:normalize_embedding
 untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:build_approval
 untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:build_suggestion
 untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_approval
@@ -53,12 +38,6 @@ untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator
 untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:suggestion_response
 untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:suggestion_sha256
 untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:valid_response
-untyped-tool:applications/catalog/agents/planner/builtin.yaml:check_retry_limit
-untyped-tool:applications/catalog/agents/planner/builtin.yaml:compose_planner_prompt
-untyped-tool:applications/catalog/agents/planner/builtin.yaml:increment_retry
-untyped-tool:applications/catalog/agents/planner/builtin.yaml:report_parse_error
-untyped-tool:applications/catalog/agents/planner/builtin.yaml:reset_failure_context
-untyped-tool:applications/catalog/agents/planner/builtin.yaml:reset_retry_count
 untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:capture_source_selection
 untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:compose_source_selection_prompt
 untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:constrain_source_selection

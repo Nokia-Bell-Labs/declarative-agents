@@ -253,6 +253,16 @@ func stageDeploymentSource(appRoot, profilesRoot string) (string, func(), error)
 		cleanup()
 		return "", nil, fmt.Errorf("stage canonical applier runtime projection: %w", err)
 	}
+	// The applier projection drops the agents/ segment, so the type units its
+	// declarations import by a path relative to the agent directory have to be
+	// projected the same way or the import resolves above the shard.
+	if err := copySourceTreeStrict(
+		filepath.Join(profilesRoot, "agents", "units"),
+		filepath.Join(stage, "applications", "catalog", "units"),
+	); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("stage canonical declaration type units: %w", err)
+	}
 	if err := copySourceTreeStrict(
 		filepath.Join(appRoot, "agents"),
 		filepath.Join(stage, "applications", "coding-agent"),

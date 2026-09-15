@@ -1,6 +1,9 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-collector-query-declarations
+imports:
+- ../units/types-collector.yaml
+- ../units/types-core.yaml
 tools:
   - name: query_list_traces
     type: builtin
@@ -253,20 +256,12 @@ tools:
     init: value_predicate
     category: word
     visibility: internal
-    emits: [SpanGroupByRequested, SpanHeatmapOnly, CommandError]
+    signature:
+      output: catalog-types-core.PredicateResult
+      emits: [SpanGroupByRequested, SpanHeatmapOnly, CommandError]
     description: Branch on whether the stats request selected a group-by key.
-    problem: The query machine must declare whether it dispatches one analysis or both.
-    goals: [Keep optional group-by execution as a visible machine branch.]
-    requirements:
-      input: [Read group_by from the labeled request seed.]
-      output: [Emit distinct signals for requested and omitted grouping.]
-      errors: [A broken selector emits CommandError.]
-    non_goals: [Does not compute or mutate analytics.]
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: Group-by selection predicate, schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Comparison changes nothing.}
+    output: {description: Group-by selection predicate}
     errors: [{signal: CommandError, condition: selector cannot resolve, state_after_failure: No analytics are dispatched.}]
     config:
       left: $from(seed).parameters.group_by
@@ -280,20 +275,12 @@ tools:
     init: compose
     category: response
     visibility: internal
-    emits: [SpanStatsReady]
+    signature:
+      output: catalog-types-collector.SpanStatsResponse
+      emits: [SpanStatsReady]
     description: Compose independent heatmap and group-by results into the stable HTTP response.
-    problem: The existing Explore endpoint returns both declared analyses in one response.
-    goals: [Preserve the response schema while keeping each analysis independently dispatchable.]
-    requirements:
-      input: [Heatmap and group-by steps are available by authored labels.]
-      output: [Output contains both analysis payloads without recomputation.]
-      errors: [Missing selectors are reported as diagnostics.]
-    non_goals: [Does not read the spool or compute analytics.]
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: Combined Explore statistics response, schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Composition changes nothing.}
+    output: {description: Combined Explore statistics response}
     errors: [{signal: CommandError, condition: Composition fails, state_after_failure: No state changes.}]
     config:
       signal: SpanStatsReady
@@ -313,20 +300,12 @@ tools:
     init: compose
     category: response
     visibility: internal
-    emits: [SpanStatsReady]
+    signature:
+      output: catalog-types-collector.SpanStatsResponse
+      emits: [SpanStatsReady]
     description: Compose a heatmap-only analysis into the stable HTTP response.
-    problem: Requests without group_by must not dispatch categorical aggregation.
-    goals: [Preserve the response schema with an explicit empty group result.]
-    requirements:
-      input: [The heatmap step is available by its authored label.]
-      output: [Group fields are explicit empty values.]
-      errors: [Missing selectors are reported as diagnostics.]
-    non_goals: [Does not read the spool or compute group counts.]
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: Heatmap-only Explore statistics response, schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Composition changes nothing.}
+    output: {description: Heatmap-only Explore statistics response}
     errors: [{signal: CommandError, condition: Composition fails, state_after_failure: No state changes.}]
     config:
       signal: SpanStatsReady

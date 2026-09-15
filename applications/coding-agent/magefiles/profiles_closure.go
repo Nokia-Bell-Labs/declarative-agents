@@ -392,7 +392,7 @@ func runtimeYAMLReferences(document *yaml.Node) ([]string, error) {
 	}
 	nestedKeys := map[string]bool{
 		"profile": true, "point_machine": true, "point_tools": true,
-		"point_tool_declarations": true, "includes": true,
+		"point_tool_declarations": true, "imports": true,
 	}
 	var visit func(*yaml.Node, int, []string) error
 	visit = func(node *yaml.Node, depth int, ancestors []string) error {

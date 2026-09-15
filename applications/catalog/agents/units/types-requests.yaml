@@ -1,0 +1,44 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Envelopes the request-scoped words pass between one another. Each carries one
+# field whose contents the producing transform decides, so a selector into that
+# field stays undecided rather than being checked against a shape no
+# declaration states.
+unit: catalog-types-requests
+types:
+- name: WrappedPayload
+  description: A prior result wrapped as one bounded transform input.
+  schema:
+    type: object
+    properties:
+      payload:
+        description: The complete prior output, whose shape the producing word decides.
+    required:
+    - payload
+- name: ResourcePath
+  description: One allowlisted relative resource path joined from declared route components.
+  schema:
+    type: object
+    properties:
+      path:
+        type: string
+    required:
+    - path
+- name: DataEnvelope
+  description: The data envelope the bench UI routes return.
+  schema:
+    type: object
+    properties:
+      data:
+        description: The response body, whose shape the producing transform decides.
+    required:
+    - data
+- name: ProviderEnvelope
+  description: A provider Result envelope carrying the response mapping beside the fields the request carried through.
+  schema:
+    type: object
+    properties:
+      mapped:
+        description: The provider response mapping, whose fields the REST word's response mapping decides.
+      carried:
+        description: The fields carried through from the request, whose shape the caller decides.

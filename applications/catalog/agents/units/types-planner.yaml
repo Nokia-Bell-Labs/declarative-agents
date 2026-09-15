@@ -1,0 +1,23 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes the planner publishes under its command-state labels.
+unit: catalog-types-planner
+types:
+- name: RetryCount
+  description: The visible retry count, addressable through the retry_count label.
+  schema:
+    type: object
+    properties:
+      output:
+        type: string
+    required:
+    - output
+- name: FailureContext
+  description: The newest validation failure, addressable through the failure_context label; empty until one is captured.
+  schema:
+    type: object
+    properties:
+      output:
+        type: string
+    required:
+    - output

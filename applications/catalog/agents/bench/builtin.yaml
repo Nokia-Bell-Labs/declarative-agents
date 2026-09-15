@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-bench-builtin
+imports:
+- ../units/types-core.yaml
 tools:
 - name: launch_bench_http
   type: builtin
@@ -56,18 +58,14 @@ tools:
   type: builtin
   init: value_predicate
   visibility: internal
-  emits: [SuiteSelected, SuiteMissing, CommandError]
+  signature:
+    output: catalog-types-core.PredicateResult
+    emits: [SuiteSelected, SuiteMissing, CommandError]
   description: Require a non-empty suite path before child dispatch.
   category: response
-  problem: Child launch input must be guarded by profile-visible policy.
-  goals: [Reject empty suite paths without starting a child.]
-  requirements: {input: [Operator action payload.], output: [Branch signal.], errors: [Missing selectors emit CommandError.]}
-  non_goals: [Does not inspect or open the suite.]
   parameters: {type: object, properties: {}, additionalProperties: false}
-  output: {description: Suite predicate result, schema: {type: object}}
+  output: {description: Suite predicate result}
   side_effects: [{kind: state_read, target: bench_operator_event, state: read_only}]
-  reversibility: {classification: reversible}
-  undo: {strategy: noop, description: Comparison changes nothing.}
   errors: [{signal: CommandError, condition: Suite selector cannot resolve, state_after_failure: No child started.}]
   relationships: {before: [await_bench_action], after: [launch_evaluator]}
   config:

@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-collector-declarations
+imports:
+- ../units/types-core.yaml
 tools:
   - name: launch_collector_control
     type: builtin
@@ -143,21 +145,12 @@ tools:
     init: value_predicate
     category: word
     visibility: internal
-    emits: [Satisfied, Unsatisfied, CommandError]
+    signature:
+      output: catalog-types-core.PredicateResult
+      emits: [Satisfied, Unsatisfied, CommandError]
     description: Accept only a received batch whose span count is positive.
-    problem: Empty transport batches must not create spool or relay evidence.
-    goals: [Keep acceptance as a visible machine branch]
-    requirements:
-      input: [Read span_count from the preceding await result]
-      output: [Report the declared comparison]
-      errors: [A broken selector emits CommandError]
-    non_goals: [Does not mutate or sample spans]
     parameters: {type: object, properties: {}}
-    output: {description: Predicate result, schema: {type: object}}
-    side_effects:
-      - {kind: none, target: batch metadata, state: unchanged}
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Comparison changes nothing.}
+    output: {description: Predicate result}
     errors:
       - {signal: CommandError, condition: selector or coercion failure, state_after_failure: no branch outcome is emitted}
     relationships: {after: [await_spans], before: [spool_collector_spans]}
@@ -259,21 +252,12 @@ tools:
     init: value_predicate
     category: word
     visibility: internal
-    emits: [Satisfied, Unsatisfied, CommandError]
+    signature:
+      output: catalog-types-core.PredicateResult
+      emits: [Satisfied, Unsatisfied, CommandError]
     description: Branch to relay only when the declared collector mode is relay.
-    problem: Spool and relay modes must share one profile without hiding the branch in Go.
-    goals: [Keep mode selection visible]
-    requirements:
-      input: [Compare the deployment-expanded mode literal]
-      output: [Report the comparison]
-      errors: [Malformed config emits CommandError]
-    non_goals: [Does not inspect or mutate spans]
     parameters: {type: object, properties: {}}
-    output: {description: Mode predicate result, schema: {type: object}}
-    side_effects:
-      - {kind: none, target: mode literal, state: unchanged}
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Comparison changes nothing.}
+    output: {description: Mode predicate result}
     errors:
       - {signal: CommandError, condition: malformed mode predicate, state_after_failure: relay is not invoked}
     relationships: {after: [spool_collector_spans], before: [relay_collector_spans]}

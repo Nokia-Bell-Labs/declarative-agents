@@ -1,6 +1,9 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-planner-builtin
+imports:
+- ../units/types-core.yaml
+- ../units/types-planner.yaml
 # Planner-local builtin overrides.
 # Adds mode-specific config to tools declared in tools/builtin.yaml.
 # Loaded through agents/planner/profile.yaml tool_declarations.
@@ -10,30 +13,16 @@ tools:
     type: builtin
     init: report_parse_error
     visibility: internal
-    emits: [ToolDone, BudgetExhausted]
+    signature:
+      output: catalog-types-core.PlainText
+      emits: [ToolDone, BudgetExhausted]
     description: "Report an invalid implementation plan back to the LLM for correction."
     category: word
-    problem: "The planner retry loop must request the YAML document that parse_plan consumes."
-    goals:
-      - "Request one canonical ImplementationPlan YAML mapping after a parse failure."
-      - "Keep response-shape policy declarative and separate from planner identity."
-    requirements:
-      input:
-        - "must consume the parse_plan failure from the prior result"
-      output:
-        - "must emit ToolDone with exact ImplementationPlan YAML correction feedback"
-      errors:
-        - "must emit BudgetExhausted when the declared parse retry limit is reached"
-    non_goals:
-      - "Does not parse the corrected response or choose the next workflow state."
     output:
       description: "Plain-text feedback requesting corrected ImplementationPlan YAML."
-      schema: {type: string}
     side_effects:
       - kind: command_state
         description: "Increments the parse retry counter and emits BudgetExhausted at the configured limit."
-    reversibility:
-      classification: reversible
     undo:
       strategy: parse_retry_counter_restore
       description: "Restores the parse retry counter snapshot captured before reporting the parse error."
@@ -162,36 +151,14 @@ tools:
     type: builtin
     init: compose
     description: "Seed the visible retry count for a newly extracted task."
-    problem: "Each extracted task needs a retry baseline that remains visible to the machine instead of hidden in planner session state."
-    goals:
-      - "Publish retry count zero under a stable command-state label."
-      - "Let later increments replace the label by normal newest-entry semantics."
-    requirements:
-      input:
-        - "must require no model or request input"
-      output:
-        - "must emit RetryCountInitialized with a JSON object whose output field is the string zero"
-      errors:
-        - "must report CommandError if the declared composition cannot be rendered"
-    non_goals:
-      - "Does not increment or compare the retry count."
-      - "Does not mutate graph or planner session state."
     visibility: internal
-    emits: [RetryCountInitialized, CommandError]
+    signature:
+      output: catalog-types-planner.RetryCount
+      emits: [RetryCountInitialized, CommandError]
     category: word
     parameters: {type: object, properties: {}, additionalProperties: false}
     output:
       description: "Initial retry count addressable through the retry_count label."
-      schema:
-        type: object
-        properties:
-          output: {type: string}
-        required: [output]
-    side_effects:
-      - kind: none
-        description: "Produces command output without mutating domain state."
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: "The retry count lives only in command history."}
     errors:
       - signal: CommandError
         condition: "the declared retry-count composition cannot be rendered"
@@ -210,17 +177,12 @@ tools:
     init: compose
     description: "Seed empty retry context for a newly extracted planner task."
     visibility: internal
-    emits: [FailureContextInitialized, CommandError]
+    signature:
+      output: catalog-types-planner.FailureContext
+      emits: [FailureContextInitialized, CommandError]
     category: word
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: "Empty failure context.", schema: {type: object}}
-    side_effects: [{kind: none, description: "Publishes command-state output only."}]
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: "History truncation removes the label."}
-    problem: "Initial prompt construction needs the same stable failure-context selector as retries."
-    goals: ["Publish one empty failure_context label per extracted task."]
-    requirements: {input: ["No input required."], output: ["FailureContextInitialized wraps an empty output."], errors: ["Rendering failures emit CommandError."]}
-    non_goals: ["Does not capture validator failures or format prompts."]
+    output: {description: Empty failure context.}
     errors: [{signal: CommandError, condition: "Composition cannot render.", state_after_failure: "No domain state changes."}]
     relationships: {before: [extract_task], after: [project_planner_context]}
     config:
@@ -233,17 +195,12 @@ tools:
     init: compose
     description: "Render the planner user prompt from labelled structured context."
     visibility: internal
-    emits: [PromptReady, CommandError]
+    signature:
+      output: catalog-types-core.PlainText
+      emits: [PromptReady, CommandError]
     category: word
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: "Profile-owned planner user prompt.", schema: {type: string}}
-    side_effects: [{kind: none, description: "Renders text without domain mutation."}]
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: "Prompt rendering changes no domain state."}
-    problem: "Planner sections and output instructions belong to the profile rather than embedded Go templates."
-    goals: ["Render initial and retry prompts from the same declared template.", "Include the newest labelled validation failure."]
-    requirements: {input: ["Planner context and failure context labels must resolve."], output: ["PromptReady carries the full user prompt."], errors: ["Missing selectors emit CommandError."]}
-    non_goals: ["Does not call the model or parse its response."]
+    output: {description: Profile-owned planner user prompt.}
     errors: [{signal: CommandError, condition: "A labelled context selector is missing.", state_after_failure: "No domain state changes."}]
     relationships: {before: [project_planner_context, capture_planner_failure], after: [invoke_llm]}
     config:
@@ -294,39 +251,15 @@ tools:
     stdin_source: $from(retry_count).output
     stdin_max_bytes: 32
     description: "Increment the latest command-state retry count."
-    problem: "A retry attempt must advance a visible count without moving policy into planner Go state."
-    goals:
-      - "Read the newest retry_count output and add exactly one."
-      - "Republish structured output that the next loop iteration and predicate can address."
-    requirements:
-      input:
-        - "must read a numeric string from $from(retry_count).output through bounded stdin"
-      output:
-        - "must emit ToolDone with the incremented count in structured output"
-      errors:
-        - "must emit CommandError when command-state input cannot resolve"
-        - "must emit ToolFailed when jq cannot increment the supplied value"
-    non_goals:
-      - "Does not compare the count with a retry limit."
-      - "Does not choose retry or exhaustion routing."
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      output: catalog-types-core.ExecStep
+      emits: [ToolDone, ToolFailed, CommandError]
     category: word
     parameters: {type: object, properties: {}, additionalProperties: false}
     output:
       description: "Incremented retry count wrapped for the next loop iteration."
       mode: structured
-      schema:
-        type: object
-        properties:
-          output: {type: string}
-          exit_code: {type: integer}
-        required: [output, exit_code]
-    side_effects:
-      - kind: none
-        description: "Runs a deterministic transform and changes no domain state."
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: "Rollback removes the command-history entry."}
     errors:
       - signal: CommandError
         condition: "retry_count input is absent, malformed, empty, or exceeds the declared stdin bound"
@@ -344,40 +277,14 @@ tools:
     type: builtin
     init: value_predicate
     description: "Compare the visible retry count with the declared two-attempt limit."
-    problem: "Retry availability must be a machine-visible comparison rather than a branch hidden inside a state-mutating tool."
-    goals:
-      - "Compare the newest retry count numerically with the declared limit."
-      - "Emit distinct signals for retry availability and exhaustion."
-    requirements:
-      input:
-        - "must resolve the latest retry_count output from command state"
-      output:
-        - "must emit RetryAvailable when the count is below two and RetriesExhausted otherwise"
-      errors:
-        - "must emit CommandError when the count cannot resolve or coerce to a number"
-    non_goals:
-      - "Does not increment retries."
-      - "Does not mutate graph state or select the next machine state."
     visibility: internal
-    emits: [RetryAvailable, RetriesExhausted, CommandError]
+    signature:
+      output: catalog-types-core.PredicateResult
+      emits: [RetryAvailable, RetriesExhausted, CommandError]
     category: word
     parameters: {type: object, properties: {}, additionalProperties: false}
     output:
       description: "Resolved retry comparison and whether the declared limit predicate held."
-      schema:
-        type: object
-        properties:
-          left: {}
-          right: {}
-          op: {type: string}
-          operand_type: {type: string}
-          held: {type: boolean}
-        required: [left, right, op, operand_type, held]
-    side_effects:
-      - kind: none
-        description: "Compares command-state values without mutation."
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: "Comparison changes nothing."}
     errors:
       - signal: CommandError
         condition: "retry_count output cannot resolve or cannot coerce to a number"

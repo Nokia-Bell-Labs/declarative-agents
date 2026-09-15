@@ -1,0 +1,37 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The stable Explore response the collector query machine composes.
+unit: catalog-types-collector
+types:
+- name: SpanStatsResponse
+  description: The heatmap and group-by analyses the Explore statistics route returns together.
+  schema:
+    type: object
+    properties:
+      heatmap:
+        description: The heatmap analysis, whose buckets the heatmap word decides.
+      matched:
+        type: integer
+      exemplar_trace_ids:
+        type: array
+        items:
+          type: string
+      skipped_lines:
+        type: integer
+      group_by:
+        type: string
+      groups:
+        type: array
+      dropped_groups:
+        type: integer
+      dropped_span_total:
+        type: integer
+    required:
+    - heatmap
+    - matched
+    - exemplar_trace_ids
+    - skipped_lines
+    - group_by
+    - groups
+    - dropped_groups
+    - dropped_span_total

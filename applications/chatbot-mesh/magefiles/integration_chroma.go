@@ -459,6 +459,14 @@ func stageCorpusIngestRuntime(meshRoot string) (string, func(), error) {
 		cleanup()
 		return "", nil, fmt.Errorf("stage canonical corpus-ingest profile: %w", err)
 	}
+	// The declarations import their type units by a path relative to the agent
+	// directory, so the units travel with them (srd050 R1.2, srd051 R5.1).
+	if err := copyDirContents(
+		filepath.Join(libraryRoot, "agents", "units"),
+		filepath.Join(stage, "agents", "units")); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("stage canonical declaration type units: %w", err)
+	}
 	return stage, cleanup, nil
 }
 
