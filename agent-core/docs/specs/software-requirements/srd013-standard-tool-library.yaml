@@ -158,7 +158,7 @@ target_declaration_layout:
     - Builtin declarations move from flat tools/builtin/ files into grouped shared families under tools/builtin/filesystem, llm, lifecycle, control, validation, planner, critic-session, critic-point, bench, and spec-validation.
     - Exec declarations move from flat tools/exec/ files into grouped shared families under tools/exec/go, workspace, git, and issues.
     - tools/builtin.yaml and tools/exec.yaml remain compatibility bundles during migration.
-    - Planned all.yaml and agent-family bundles may include grouped files for profiles, direct CLI startup, and tests.
+    - all.yaml and agent-family bundles import grouped units for profiles, direct CLI startup, and tests.
     - Agent-local overrides remain under agents/<agent>/builtin.yaml and agents/<agent>/llm/*.yaml.
     - Agent tools.yaml files remain name-only selections.
 

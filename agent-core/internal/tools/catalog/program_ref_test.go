@@ -70,19 +70,19 @@ func TestProgramAssetFilesFromVisitedPreservesProgramDigest(t *testing.T) {
 	require.Equal(t, legacy, fromFiles)
 }
 
-func TestBuildProgramRefRejectsDeclarationIncludeCycle(t *testing.T) {
+func TestBuildProgramRefRejectsDeclarationImportCycle(t *testing.T) {
 	dir := t.TempDir()
 	first := filepath.Join(dir, "first.yaml")
 	second := filepath.Join(dir, "second.yaml")
-	writeProgramRefFile(t, first, "includes: [second.yaml]\ntools: []\n")
-	writeProgramRefFile(t, second, "includes: [first.yaml]\ntools: []\n")
+	writeProgramRefFile(t, first, "unit: first\nimports: [second.yaml]\ntools: []\n")
+	writeProgramRefFile(t, second, "unit: second\nimports: [first.yaml]\ntools: []\n")
 
 	_, err := BuildProgramRef(ProgramPaths{
 		Profile:          writeProgramRefFile(t, filepath.Join(dir, "profile.yaml"), "name: cycle\n"),
 		Machine:          writeProgramRefFile(t, filepath.Join(dir, "machine.yaml"), "name: cycle\n"),
 		ToolDeclarations: []string{first},
 	})
-	require.ErrorContains(t, err, "circular include detected")
+	require.ErrorContains(t, err, "tool import cycle")
 }
 
 func TestBuildProgramRefReportsMissingAsset(t *testing.T) {
@@ -102,10 +102,12 @@ func writeProgramRefFixture(t *testing.T) (ProgramPaths, map[string]string) {
 	restDir := filepath.Join(dir, "rest-config")
 	require.NoError(t, os.MkdirAll(toolDir, 0o755))
 	require.NoError(t, os.MkdirAll(restDir, 0o755))
-	included := writeProgramRefFile(t, filepath.Join(dir, "included.yaml"), `tools:
+	included := writeProgramRefFile(t, filepath.Join(dir, "included.yaml"), `unit: included
+tools:
   - {name: included, type: exec, binary: "true"}
 `)
-	declaration := writeProgramRefFile(t, filepath.Join(dir, "declarations.yaml"), `includes: [included.yaml]
+	declaration := writeProgramRefFile(t, filepath.Join(dir, "declarations.yaml"), `unit: declarations
+imports: [included.yaml]
 tools: []
 `)
 	toolConfig := writeProgramRefFile(t, filepath.Join(toolDir, "tool.yaml"), "tools: []\n")

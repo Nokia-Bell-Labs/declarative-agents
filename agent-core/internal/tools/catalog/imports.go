@@ -4,10 +4,7 @@
 package catalog
 
 import (
-	"errors"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -19,15 +16,13 @@ var toolUnitName = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 
 // ToolDefsFile is the top-level YAML structure for declaration files.
 type ToolDefsFile struct {
-	Includes    []string           `yaml:"includes,omitempty"`
-	Unit        string             `yaml:"unit,omitempty"`
-	Imports     []string           `yaml:"imports,omitempty"`
-	Tools       []ToolDef          `yaml:"tools,omitempty"`
-	Types       []typesys.TypeDecl `yaml:"types,omitempty"`
-	hasTools    bool
-	hasTypes    bool
-	hasImports  bool
-	hasIncludes bool
+	Unit       string             `yaml:"unit,omitempty"`
+	Imports    []string           `yaml:"imports,omitempty"`
+	Tools      []ToolDef          `yaml:"tools,omitempty"`
+	Types      []typesys.TypeDecl `yaml:"types,omitempty"`
+	hasTools   bool
+	hasTypes   bool
+	hasImports bool
 }
 
 // IsTypeUnit reports a declaration file that carries types instead of tools
@@ -49,9 +44,8 @@ type ToolImport struct {
 
 // LoadOptions selects the documented runtime or audit-side declaration policy.
 type LoadOptions struct {
-	TolerateMissingIncludes bool
-	TolerateNonToolFiles    bool
-	ExpandEnv               bool
+	TolerateNonToolFiles bool
+	ExpandEnv            bool
 }
 
 // DeclarationSource returns the tool's loader-assigned provenance.
@@ -65,34 +59,30 @@ func (td ToolDef) OverrideTarget() ToolSource {
 }
 
 type toolImportResolver struct {
-	visit           FileVisitor
-	warnings        io.Writer
-	files           map[string]ToolDefsFile
-	resolved        map[string][]ToolDef
-	units           map[string]ToolSource
-	visiting        map[string]int
-	stack           []string
-	warned          map[string]bool
-	imports         []ToolImport
-	typeUnits       []typesys.TypeUnitFile
-	hasImportEdges  bool
-	hasIncludeEdges bool
-	options         LoadOptions
+	visit          FileVisitor
+	files          map[string]ToolDefsFile
+	resolved       map[string][]ToolDef
+	units          map[string]ToolSource
+	visiting       map[string]int
+	stack          []string
+	imports        []ToolImport
+	typeUnits      []typesys.TypeUnitFile
+	hasImportEdges bool
+	options        LoadOptions
 }
 
-func newToolImportResolver(visit FileVisitor, warnings io.Writer) *toolImportResolver {
-	return newToolImportResolverWithOptions(visit, warnings, runtimeLoadOptions())
+func newToolImportResolver(visit FileVisitor) *toolImportResolver {
+	return newToolImportResolverWithOptions(visit, runtimeLoadOptions())
 }
 
 func newToolImportResolverWithOptions(
 	visit FileVisitor,
-	warnings io.Writer,
 	options LoadOptions,
 ) *toolImportResolver {
 	return &toolImportResolver{
-		visit: visit, warnings: warnings,
+		visit: visit,
 		files: map[string]ToolDefsFile{}, resolved: map[string][]ToolDef{},
-		units: map[string]ToolSource{}, visiting: map[string]int{}, warned: map[string]bool{},
+		units: map[string]ToolSource{}, visiting: map[string]int{},
 		options: options,
 	}
 }
@@ -104,7 +94,7 @@ func runtimeLoadOptions() LoadOptions {
 func (r *toolImportResolver) loadRoots(paths []string) ([]ToolDef, error) {
 	var all []ToolDef
 	for _, path := range paths {
-		defs, err := r.resolve(path, false, "")
+		defs, err := r.resolve(path, false)
 		if err != nil {
 			return nil, err
 		}
@@ -114,14 +104,14 @@ func (r *toolImportResolver) loadRoots(paths []string) ([]ToolDef, error) {
 }
 
 func (r *toolImportResolver) resolve(
-	path string, imported bool, edgeKind string,
+	path string, imported bool,
 ) ([]ToolDef, error) {
 	path, err := canonicalToolDeclarationPath(path)
 	if err != nil {
 		return nil, err
 	}
 	if index, ok := r.visiting[path]; ok {
-		return nil, r.cycleError(edgeKind, index, path)
+		return nil, r.cycleError(index, path)
 	}
 	file, err := r.readFile(path)
 	if err != nil {
@@ -137,9 +127,7 @@ func (r *toolImportResolver) resolve(
 	if defs, ok := r.resolved[path]; ok {
 		return defs, nil
 	}
-	if err := r.registerEdges(file, path); err != nil {
-		return nil, err
-	}
+	r.registerEdges(file, path)
 	r.visiting[path] = len(r.stack)
 	r.stack = append(r.stack, path)
 	defs, err := r.resolveFile(file, path)
@@ -177,11 +165,7 @@ func (r *toolImportResolver) resolveFile(file ToolDefsFile, path string) ([]Tool
 	if hasToolOverride(local) {
 		return nil, fmt.Errorf("tool unit %q at %s declares override without an imported target", file.Unit, path)
 	}
-	included, err := r.resolveIncludes(file, path)
-	if err != nil {
-		return nil, err
-	}
-	return MergeToolDefs(included, local), nil
+	return local, nil
 }
 
 func (r *toolImportResolver) resolveImports(file ToolDefsFile, path string) ([]ToolDef, error) {
@@ -191,7 +175,7 @@ func (r *toolImportResolver) resolveImports(file ToolDefsFile, path string) ([]T
 		if err != nil {
 			return nil, err
 		}
-		defs, err := r.resolve(target, true, "import")
+		defs, err := r.resolve(target, true)
 		if err != nil {
 			return nil, fmt.Errorf("tool unit %q at %s imports %q: %w", file.Unit, path, importPath, err)
 		}
@@ -204,25 +188,6 @@ func (r *toolImportResolver) resolveImports(file ToolDefsFile, path string) ([]T
 		if err != nil {
 			return nil, fmt.Errorf("tool unit %q at %s: %w", file.Unit, path, err)
 		}
-	}
-	return merged, nil
-}
-
-func (r *toolImportResolver) resolveIncludes(file ToolDefsFile, path string) ([]ToolDef, error) {
-	var merged []ToolDef
-	for _, includePath := range file.Includes {
-		target := includePath
-		if !filepath.IsAbs(target) {
-			target = filepath.Join(filepath.Dir(path), target)
-		}
-		defs, err := r.resolve(target, false, "include")
-		if err != nil {
-			if r.options.TolerateMissingIncludes && errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return nil, fmt.Errorf("include %s from %s: %w", includePath, path, err)
-		}
-		merged = MergeToolDefs(merged, defs)
 	}
 	return merged, nil
 }
@@ -291,28 +256,14 @@ func (r *toolImportResolver) registerUnit(unit, path string) error {
 	return nil
 }
 
-func (r *toolImportResolver) registerEdges(file ToolDefsFile, path string) error {
-	if file.hasIncludes && !r.warned[path] {
-		r.warned[path] = true
-		_, _ = fmt.Fprintf(r.warnings, "warning: tool declaration includes are deprecated: %s\n", path)
-	}
+func (r *toolImportResolver) registerEdges(file ToolDefsFile, path string) {
 	if len(file.Imports) > 0 {
 		r.hasImportEdges = true
 	}
-	if len(file.Includes) > 0 {
-		r.hasIncludeEdges = true
-	}
-	if r.hasImportEdges && r.hasIncludeEdges {
-		return fmt.Errorf("tool declaration closure mixes imports and includes at %s", path)
-	}
-	return nil
 }
 
-func (r *toolImportResolver) cycleError(edgeKind string, index int, path string) error {
+func (r *toolImportResolver) cycleError(index int, path string) error {
 	chain := append(append([]string(nil), r.stack[index:]...), path)
-	if edgeKind == "include" {
-		return fmt.Errorf("circular include detected: %s", strings.Join(chain, " -> "))
-	}
 	return fmt.Errorf("tool import cycle: %s", strings.Join(chain, " -> "))
 }
 
@@ -413,7 +364,7 @@ func formatToolSource(source ToolSource) string {
 }
 
 func productionToolImportResolver(visit FileVisitor) *toolImportResolver {
-	return newToolImportResolver(visit, os.Stderr)
+	return newToolImportResolver(visit)
 }
 
 // typeUnitFiles returns the type units reached through the closure, in visit

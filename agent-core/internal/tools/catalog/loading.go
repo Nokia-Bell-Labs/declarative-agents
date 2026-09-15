@@ -85,7 +85,7 @@ func LoadToolDeclarationsWithVisitor(paths []string, visit FileVisitor) ([]ToolD
 func LoadToolDeclarationsWithOptions(
 	paths []string, options LoadOptions, visit FileVisitor,
 ) ([]ToolDef, error) {
-	return newToolImportResolverWithOptions(visit, os.Stderr, options).loadRoots(paths)
+	return newToolImportResolverWithOptions(visit, options).loadRoots(paths)
 }
 
 // LoadToolDeclarationsFromDirs scans directories for sorted *.yaml files.
@@ -244,7 +244,6 @@ func parseToolDefsFileRaw(
 	file.hasTools = hasTools
 	file.hasTypes = hasTypes
 	file.hasImports = yamlstrict.FieldPresent(root, "imports")
-	file.hasIncludes = yamlstrict.FieldPresent(root, "includes")
 	if !file.hasTools && !file.hasTypes {
 		return ToolDefsFile{}, fmt.Errorf("top-level tools field is required")
 	}
