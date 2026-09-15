@@ -7,10 +7,10 @@ tools:
 tool_config_dirs:
   - /opt/agent-core/tools/builtin/planner
 tool_declarations:
+  - /opt/agent-core/tools/builtin/report-parse-error.yaml
   - builtin.yaml
   - llm/default.yaml
   - tracker-exec.yaml
-  - /opt/agent-core/tools/builtin/report-parse-error.yaml
   - /opt/agent-core/tools/builtin/reset-history.yaml
   - /opt/agent-core/tools/exec/build.yaml
   - /opt/agent-core/tools/exec/vet.yaml
