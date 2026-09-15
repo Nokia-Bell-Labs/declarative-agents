@@ -12,6 +12,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/typesys"
 )
 
 // Options reserves caller-owned path configuration. The caller applies
@@ -36,6 +37,11 @@ type Closure struct {
 	Machine      core.MachineSpec
 	Files        []string
 	Assets       map[string][]byte
+	// Types indexes every named type the closure reached. Tool schemas are
+	// already resolved against it by the time a consumer sees them, so the
+	// registry is here for the dump and for later typed checks rather than
+	// for resolution (srd051 R4.1).
+	Types *typesys.Registry
 }
 
 // LoadClosure loads and validates the complete declaration closure once.
@@ -76,6 +82,7 @@ func LoadClosure(profilePath string, options Options) (*Closure, error) {
 		ProfilePath: profilePath, Profile: profile,
 		ToolUniverse: resolved.universe, Selection: resolved.selection, Selected: resolved.selected,
 		Rest: resolved.rest, Machine: resolved.machine, Files: files, Assets: assets,
+		Types: resolved.types,
 	}, nil
 }
 
@@ -86,12 +93,13 @@ type resolvedConfig struct {
 	rest        toolrest.Collection
 	machine     core.MachineSpec
 	machinePath string
+	types       *typesys.Registry
 }
 
 func loadResolvedConfig(
 	profile catalog.AgentProfile, options Options, visit catalog.FileVisitor,
 ) (resolvedConfig, error) {
-	universe, toolImports, err := loadToolUniverse(profile, visit)
+	universe, toolImports, toolTypeIndex, err := loadToolUniverse(profile, visit)
 	if err != nil {
 		return resolvedConfig{}, err
 	}
@@ -113,12 +121,15 @@ func loadResolvedConfig(
 	if err != nil {
 		return resolvedConfig{}, err
 	}
-	if err := validateImportUsedness(selected, rest, toolImports); err != nil {
+	if err := validateImportUsedness(
+		selected, rest, toolImports, toolTypeIndex.usedPaths(selected),
+	); err != nil {
 		return resolvedConfig{}, err
 	}
 	return resolvedConfig{
 		universe: universe, selection: selection, selected: selected,
 		rest: rest, machine: machine, machinePath: machinePath,
+		types: toolTypeIndex.registry,
 	}, nil
 }
 
@@ -178,14 +189,49 @@ func readMissingAssets(files []string, assets map[string][]byte) error {
 
 func loadToolUniverse(
 	profile catalog.AgentProfile, visit catalog.FileVisitor,
-) ([]catalog.ToolDef, []catalog.ToolImport, error) {
-	fromDirs, explicit, imports, err := catalog.LoadToolDeclarationClosureWithImports(
+) ([]catalog.ToolDef, []catalog.ToolImport, *toolTypes, error) {
+	closure, err := catalog.LoadToolDeclarationClosureWithImports(
 		profile.ToolConfigDirs, profile.ToolDeclarations, visit,
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load tool declarations: %w", err)
+		return nil, nil, nil, fmt.Errorf("load tool declarations: %w", err)
 	}
-	return catalog.MergeToolDefs(fromDirs, explicit), imports, nil
+	registry, err := typesys.Build(closure.TypeUnits...)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("load declaration types: %w", err)
+	}
+	universe, referenced, err := catalog.ResolveToolSchemas(
+		catalog.MergeToolDefs(closure.FromDirs, closure.Local), registry,
+	)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return universe, closure.Imports, &toolTypes{registry: registry, referenced: referenced}, nil
+}
+
+// toolTypes pairs the registry with the types each tool referenced, so
+// usedness can credit a type unit's import once a selected tool reaches one of
+// its types.
+type toolTypes struct {
+	registry   *typesys.Registry
+	referenced map[string][]string
+}
+
+// usedPaths returns the declaration files that supplied a type some selected
+// tool referenced.
+func (t *toolTypes) usedPaths(selected []catalog.ToolDef) map[string]bool {
+	used := map[string]bool{}
+	if t == nil {
+		return used
+	}
+	for _, tool := range selected {
+		for _, ref := range t.referenced[tool.Name] {
+			if path := t.registry.PathOf(ref); path != "" {
+				used[path] = true
+			}
+		}
+	}
+	return used
 }
 
 func programFiles(

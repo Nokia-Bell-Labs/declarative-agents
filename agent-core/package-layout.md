@@ -72,6 +72,8 @@ apart from `br.Register` calls.
   rollback, and workspace refs.
 - `internal/load`: the single profile declaration-closure loader shared by
   runtime startup and profile audit.
+- `internal/typesys`: named declaration types, the closed schema subset, and
+  reference resolution; a leaf the loader builds a registry from.
 - `internal/tools`: standard tool library behavior split across focused packages
   for catalog loading, registration, file, exec, lifecycle, validation, control,
   undo, REST, and LLM tool implementations.
@@ -99,6 +101,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/boundaries`
 - `internal/doltsql`
 - `internal/evaluation`
+- `internal/declstyle`
 - `internal/gostyle`
 - `internal/load`
 - `internal/model`
@@ -152,6 +155,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/tools/service`
 - `internal/tools/undo`
 - `internal/tools/validation`
+- `internal/typesys`
 - `internal/version`
 - `pkg/profileaudit`
 - `pkg/spec`

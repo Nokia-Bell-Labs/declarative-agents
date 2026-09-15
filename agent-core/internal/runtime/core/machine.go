@@ -32,6 +32,50 @@ type MachineSpec struct {
 	Signals         SignalSpecs      `yaml:"signals"`
 	Transitions     []TransitionSpec `yaml:"transitions"`
 	BudgetSpec      *BudgetSpec      `yaml:"budget,omitempty"`
+	// ExternalLabels names command-state labels the runtime seeds rather than
+	// any transition publishing them, so selector validation counts them in
+	// the machine's label universe. The REST machine_request seed label is the
+	// first user (srd006).
+	ExternalLabels []ExternalLabel `yaml:"external_labels,omitempty"`
+}
+
+// ExternalLabel is one runtime-seeded command-state label. It authors either
+// as a bare name or as a name with a declared type, so an existing machine
+// keeps its list form while a typed one lets selector paths be checked
+// (srd006 R1.8, srd051 R6).
+type ExternalLabel struct {
+	Name string `yaml:"name"`
+	Type string `yaml:"type,omitempty"`
+}
+
+func (e *ExternalLabel) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		return value.Decode(&e.Name)
+	case yaml.MappingNode:
+		if err := yamlstrict.CheckFields(value, "name", "type"); err != nil {
+			return fmt.Errorf("external_labels: %w", err)
+		}
+		type external ExternalLabel
+		var decoded external
+		if err := value.Decode(&decoded); err != nil {
+			return err
+		}
+		*e = ExternalLabel(decoded)
+		return nil
+	default:
+		return fmt.Errorf("external_labels entry must be a name or a name and type mapping")
+	}
+}
+
+// MarshalYAML keeps the canonical dump in the form the machine authored, so
+// adding a type to one label does not rewrite every other entry.
+func (e ExternalLabel) MarshalYAML() (interface{}, error) {
+	if e.Type == "" {
+		return e.Name, nil
+	}
+	type external ExternalLabel
+	return external(e), nil
 }
 
 // ViewTag names one presentation-only machine sub-view.
@@ -196,12 +240,36 @@ func ParseMachineSpec(data []byte) (MachineSpec, error) {
 	return spec, nil
 }
 
+// validateExternalLabels rejects malformed or duplicated runtime-seeded label
+// names. A name here widens the machine's label universe, so it must satisfy
+// the same grammar a transition label does.
+func validateExternalLabels(spec MachineSpec) []string {
+	var errs []string
+	seen := make(map[string]int, len(spec.ExternalLabels))
+	for i, label := range spec.ExternalLabels {
+		if !validSelectorLabel(label.Name) {
+			errs = append(errs, fmt.Sprintf(
+				"external_labels[%d]: %q is not a valid command-state label", i, label.Name))
+			continue
+		}
+		if first, exists := seen[label.Name]; exists {
+			errs = append(errs, fmt.Sprintf(
+				"external_labels[%d]: duplicate label %q (first declared at external_labels[%d])",
+				i, label.Name, first))
+			continue
+		}
+		seen[label.Name] = i
+	}
+	return errs
+}
+
 func validateSpec(spec MachineSpec) error {
 	var errs []string
 
 	if spec.InitialState == "" {
 		errs = append(errs, "initial_state is required")
 	}
+	errs = append(errs, validateExternalLabels(spec)...)
 	if len(spec.States) == 0 {
 		errs = append(errs, "at least one state is required")
 	}

@@ -1,0 +1,211 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd051-declaration-types
+title: Declaration Type Units
+
+problem: |
+  Output schemas and parameter shapes are copied wherever a shape recurs. A
+  retrieved chunk, a scored candidate, a rollout outcome: each is written out
+  again in every tool that produces or consumes it, and the copies drift
+  because nothing relates them.
+
+  The checks this epic adds need shapes that have names. A tool signature
+  states the type it returns, and a typed label carries that type to the
+  selectors that read it, so both rest on a shape being nameable and
+  resolvable before anything downstream sees it.
+
+  Declarations already compile through one loader that decodes strictly,
+  imports units by explicit path, and produces a canonical dump. We make types
+  another kind of declaration unit rather than a second mechanism beside that
+  one.
+
+goals:
+  - G1: Let a declaration file expose named reusable types and import them by explicit path.
+  - G2: Fix a closed schema subset so shapes stay checkable by path.
+  - G3: Resolve type references before any consumer sees a schema.
+  - G4: Report every malformed, unknown, duplicated, or cyclic type with the evidence needed to find it.
+
+requirements:
+  R1:
+    title: Type unit format
+    items:
+      - R1.1: >-
+          A declaration file whose top level carries `types` SHALL be a type
+          unit. `types` SHALL be a top-level sibling of `unit` and `imports`,
+          and a file SHALL NOT carry `types` alongside `tools` or `rest`.
+      - R1.2: >-
+          A type unit SHALL declare `unit` under the same lowercase-kebab
+          grammar srd050 R1.1 fixes for tool and REST units, and MAY declare
+          `imports` under the same relative-path rules as srd050 R1.2.
+      - R1.3: >-
+          Each entry of `types` SHALL carry `name` and `schema`, and MAY carry
+          `description`. A type name SHALL be a non-empty identifier that is
+          unique within its unit.
+      - R1.4: >-
+          A type SHALL be addressed as `<unit>.<Name>`. The unit segment is the
+          declaring file's `unit` value, not its path.
+
+  R2:
+    title: Closed schema subset
+    items:
+      - R2.1: >-
+          A schema SHALL use only these keywords: `type`, `properties`,
+          `required`, `items`, `description`, and `enum`.
+      - R2.2: >-
+          `type` SHALL be one of object, array, string, number, integer, or
+          boolean.
+      - R2.3: >-
+          A keyword outside R2.1 SHALL be a load error naming the keyword, the
+          declaring unit, and the type it appears in. The check SHALL descend
+          `properties` and `items`, so a violation nested at any depth is
+          reported rather than ignored.
+      - R2.4: >-
+          The subset is closed so that a selector path can be decided against a
+          shape. Widening it is a later decision and SHALL NOT be inferred from
+          a keyword happening to parse.
+
+  R3:
+    title: Type references
+    items:
+      - R3.1: >-
+          `{$type: <unit>.<Name>}` SHALL be accepted anywhere a schema is
+          expected, including nested inside `properties` and `items`.
+      - R3.2: >-
+          A reference object SHALL carry `$type` and no other field; mixing
+          `$type` with sibling schema keywords SHALL be a load error.
+      - R3.3: >-
+          A tool declaration file SHALL be able to use a reference in a tool's
+          output schema and in its parameters once it imports the declaring
+          type unit.
+
+  R4:
+    title: Resolution and errors
+    items:
+      - R4.1: >-
+          References SHALL expand recursively before any consumer sees a
+          schema, so every downstream reader receives a plain schema and needs
+          no knowledge of the type registry.
+      - R4.2: >-
+          A reference to an unknown unit or an unknown name SHALL be a load
+          error naming both the unit and the name that could not be found.
+      - R4.3: >-
+          The same type name declared in two units SHALL be a load error naming
+          both declaring units.
+      - R4.4: >-
+          A reference cycle SHALL be a load error naming the references that
+          form it, rather than exhausting the stack. A type referring to itself
+          is a cycle.
+      - R4.5: >-
+          Resolution SHALL NOT mutate the declared schema. The registry stays
+          readable after resolution so repeated resolution yields the same
+          result.
+
+  R5:
+    title: Reachability and dump
+    items:
+      - R5.1: >-
+          A type unit SHALL be reachable only through `imports` from a tool
+          declaration file or from another type unit.
+      - R5.2: >-
+          A type unit in a configuration directory that nothing imports SHALL
+          produce the existing unused-unit error of srd050 R5, not a new error
+          of its own.
+      - R5.3: >-
+          The canonical dump SHALL carry a `types` section sorted by
+          `<unit>.<Name>`, and SHALL render tool schemas resolved rather than
+          as references.
+
+  R6:
+    title: Tool signatures and contract defaults
+    items:
+      - R6.1: >-
+          A tool MAY declare `signature` carrying `input` and `output` as type
+          references and `emits` as a list of signal names. The signature
+          states the checked part of a tool's contract: what it consumes, what
+          it returns, and what it can emit.
+      - R6.2: >-
+          `signature.emits` and a legacy `emits` list that differ SHALL be a
+          load error naming the tool and both lists. Identical lists SHALL be
+          accepted, so a migration can convert one file at a time.
+      - R6.3: >-
+          `signature.output` together with a non-empty `output.schema` SHALL be
+          a load error naming the tool. The signature is the single statement
+          of what a tool returns.
+      - R6.4: >-
+          `signature.input` together with `parameters` SHALL be a load error
+          naming the tool. When `parameters` is absent, `signature.input`
+          SHALL generate it.
+      - R6.5: >-
+          A signature type reference SHALL resolve under the same rules as any
+          other reference, and SHALL fail with the unknown-reference error of
+          R4.2 rather than an error of its own.
+      - R6.6: >-
+          A tool that declares a signature SHALL default its problem, goals,
+          requirements, and non_goals from its description, whatever its
+          category.
+      - R6.7: >-
+          A tool of category word or response SHALL default side_effects to
+          none, reversibility to reversible, and undo to noop.
+      - R6.8: >-
+          A tool of category stateful_internal SHALL default reversibility to
+          reversible and undo to noop, and SHALL declare side_effects
+          explicitly.
+      - R6.9: >-
+          A tool of category boundary SHALL declare side_effects,
+          reversibility, and undo explicitly. A signature SHALL NOT waive
+          those obligations: a tool that writes to the world states what it
+          writes, what that costs to reverse, and how.
+      - R6.10: >-
+          An explicitly declared block SHALL override its default. Defaulting
+          fills what an author omitted; it never replaces what an author
+          stated.
+      - R6.11: >-
+          The canonical dump SHALL render a tool's effective contract, so a
+          reader sees the defaulted values without knowing the table.
+
+non_goals:
+  - Parameterized types, generics over declarations, or conditional schemas.
+  - Removing the legacy prose blocks; they stay authorable and stay authoritative wherever declared.
+  - Validating runtime values against a declared type; these types constrain declarations, not payloads.
+  - Tool signatures, typed labels, and machine exhaustiveness, which build on this and are specified separately.
+  - Widening the schema subset toward complete JSON Schema.
+  - Remote or registry-hosted type units; imports stay relative paths as srd050 fixes them.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A type unit declares named types, imports another type unit, and its types are addressable as unit.Name.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+  - id: AC2
+    criterion: Every keyword outside the closed subset fails the load naming the keyword, the unit, and the type, including a violation nested inside properties and one inside items.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+  - id: AC3
+    criterion: A tool declaration that imports a type unit uses a reference in its output schema and its parameters, including a reference nested inside properties, and mixing $type with sibling keywords fails.
+    traces: [R3.1, R3.2, R3.3]
+  - id: AC4
+    criterion: Unknown references, duplicate names across units, and reference cycles each fail the load with the stated evidence, and repeated resolution of one schema yields the same result without mutating the declaration.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+  - id: AC5
+    criterion: An unimported type unit produces the existing unused-unit error, and the canonical dump carries a sorted types section with tool schemas rendered resolved.
+    traces: [R5.1, R5.2, R5.3]
+  - id: AC6
+    criterion: A tool declaring a signature loads, each consistency rule rejects its conflicting form while identical emits lists are accepted, and a signature type resolves under the ordinary reference rules.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+  - id: AC7
+    criterion: A word tool declaring only name, description, category, init, signature, and config satisfies every contract check, a boundary tool omitting side_effects, reversibility, or undo still fails, an explicit block overrides its default, and the dump shows the effective contract.
+    traces: [R6.6, R6.7, R6.8, R6.9, R6.10, R6.11]
+
+depends_on:
+  - srd_id: srd050-declaration-imports
+    symbols_used: [unit, imports]
+  - srd_id: srd013-standard-tool-library
+    symbols_used: [ToolDef, ToolDefsFile]
+
+related_documents:
+  - cfg-tool-declaration-format
+  - srd006-yaml-machine-config
+  - srd038-command-state-store
+
+implementation_status:
+  planned:
+    - GH-2000 implements the type registry, the closed-subset check, and reference resolution.
+    - GH-2001 loads type units into the closure, accepts references in tool schemas, and adds the dump types section.

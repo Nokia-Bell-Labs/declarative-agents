@@ -28,8 +28,14 @@ func validateImportUsedness(
 	selected []catalog.ToolDef,
 	rest toolrest.Collection,
 	toolImports []catalog.ToolImport,
+	typeUsed map[string]bool,
 ) error {
 	toolUsed := selectedToolSources(selected)
+	// A type unit contributes no tools, so its import earns its place through a
+	// selected tool's schema reaching one of its types (srd051 R5.1).
+	for path := range typeUsed {
+		toolUsed[path] = true
+	}
 	restUsed := selectedRESTSources(selected, rest)
 	edges := append(toolDeclarationEdges(toolImports), restDeclarationEdges(rest.DeclarationImports())...)
 	var diagnostics []string

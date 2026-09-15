@@ -11,20 +11,29 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/typesys"
 )
 
 var toolUnitName = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 
 // ToolDefsFile is the top-level YAML structure for declaration files.
 type ToolDefsFile struct {
-	Includes    []string  `yaml:"includes,omitempty"`
-	Unit        string    `yaml:"unit,omitempty"`
-	Imports     []string  `yaml:"imports,omitempty"`
-	Tools       []ToolDef `yaml:"tools"`
+	Includes    []string           `yaml:"includes,omitempty"`
+	Unit        string             `yaml:"unit,omitempty"`
+	Imports     []string           `yaml:"imports,omitempty"`
+	Tools       []ToolDef          `yaml:"tools,omitempty"`
+	Types       []typesys.TypeDecl `yaml:"types,omitempty"`
 	hasTools    bool
+	hasTypes    bool
 	hasImports  bool
 	hasIncludes bool
 }
+
+// IsTypeUnit reports a declaration file that carries types instead of tools
+// (srd051 R1.1). A type unit contributes no tools; it contributes named types
+// and may import further units of either kind.
+func (f ToolDefsFile) IsTypeUnit() bool { return f.hasTypes && !f.hasTools }
 
 // ToolSource identifies the declaration unit and file that owns one tool.
 type ToolSource struct {
@@ -65,6 +74,7 @@ type toolImportResolver struct {
 	stack           []string
 	warned          map[string]bool
 	imports         []ToolImport
+	typeUnits       []typesys.TypeUnitFile
 	hasImportEdges  bool
 	hasIncludeEdges bool
 	options         LoadOptions
@@ -143,6 +153,15 @@ func (r *toolImportResolver) resolve(
 }
 
 func (r *toolImportResolver) resolveFile(file ToolDefsFile, path string) ([]ToolDef, error) {
+	if file.IsTypeUnit() {
+		r.typeUnits = append(r.typeUnits, typesys.TypeUnitFile{
+			Path: path, Unit: file.Unit, Imports: file.Imports, Types: file.Types,
+		})
+		if len(file.Imports) == 0 {
+			return nil, nil
+		}
+		return r.resolveImports(file, path)
+	}
 	source := ToolSource{Unit: file.Unit, Path: path}
 	local := annotateToolSources(file.Tools, source)
 	if err := validateToolDefs(local); err != nil {
@@ -223,8 +242,14 @@ func (r *toolImportResolver) readFile(path string) (ToolDefsFile, error) {
 func (r *toolImportResolver) validateFile(
 	file ToolDefsFile, path string, imported bool,
 ) error {
-	if !file.hasTools {
+	if !file.hasTools && !file.hasTypes {
 		return fmt.Errorf("tool declaration %s: top-level tools field is required", path)
+	}
+	if file.hasTypes && file.hasTools {
+		return fmt.Errorf("declaration %s cannot carry both tools and types", path)
+	}
+	if file.IsTypeUnit() && file.Unit == "" {
+		return fmt.Errorf("type declaration %s must declare unit", path)
 	}
 	if file.Unit != "" && !toolUnitName.MatchString(file.Unit) {
 		return fmt.Errorf("tool declaration %s has invalid unit %q", path, file.Unit)
@@ -389,6 +414,12 @@ func formatToolSource(source ToolSource) string {
 
 func productionToolImportResolver(visit FileVisitor) *toolImportResolver {
 	return newToolImportResolver(visit, os.Stderr)
+}
+
+// typeUnitFiles returns the type units reached through the closure, in visit
+// order. Build sorts them, so ordering here only has to be deterministic.
+func (r *toolImportResolver) typeUnitFiles() []typesys.TypeUnitFile {
+	return r.typeUnits
 }
 
 func (r *toolImportResolver) importEdges() []ToolImport {

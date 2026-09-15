@@ -46,6 +46,7 @@ type ToolDef struct {
 	Init           string                 `yaml:"init,omitempty"`
 	Config         map[string]interface{} `yaml:"config,omitempty"`
 	Emits          []string               `yaml:"emits,omitempty"`
+	Signature      *ToolSignature         `yaml:"signature,omitempty"`
 	Parameters     map[string]interface{} `yaml:"parameters,omitempty"`
 	Dir            string                 `yaml:"dir,omitempty"`
 	Precondition   string                 `yaml:"precondition,omitempty"`
@@ -184,6 +185,15 @@ type ToolRequirements struct {
 	SideEffects []string `yaml:"side_effects,omitempty"`
 	Undo        []string `yaml:"undo,omitempty"`
 	Errors      []string `yaml:"errors,omitempty"`
+}
+
+// ToolSignature states the checked part of a tool's contract: the type it
+// consumes, the type it returns, and the signals it can emit. Its presence
+// defaults the prose contract blocks by category (srd051 R6).
+type ToolSignature struct {
+	Input  string   `yaml:"input,omitempty" json:"input,omitempty"`
+	Output string   `yaml:"output,omitempty" json:"output,omitempty"`
+	Emits  []string `yaml:"emits,omitempty" json:"emits,omitempty"`
 }
 
 // ToolOutputContract describes the structured output shape produced by a tool.

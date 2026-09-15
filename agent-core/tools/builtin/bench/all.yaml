@@ -1,8 +1,0 @@
-# Copyright (c) 2026 Nokia
-# SPDX-License-Identifier: BSD-3-Clause
-# Bench builtin declarations.
-includes:
-  - ../serve-ui.yaml
-  - ../launch-eval.yaml
-
-tools: []

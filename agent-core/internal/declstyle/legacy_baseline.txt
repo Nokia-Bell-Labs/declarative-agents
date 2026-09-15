@@ -1,0 +1,136 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Declaration forms that predate the type system (GH-1974). This baseline only
+# shrinks: a form not listed here fails as new, and a line whose form is gone
+# fails as stale. Converting a file means deleting its lines in the same change.
+#
+# Classes:
+#   includes:<file>                file still uses includes: rather than imports:
+#   untyped-tool:<file>:<tool>     word or response tool with no signature:
+#   prose-defaulted:<file>:<tool>  signed tool still carrying a block equal to
+#                                  its category default, so deleting it changes
+#                                  nothing
+#
+# Boundary words are absent by design: srd051 R6.9 keeps their side-effect,
+# reversibility, and undo blocks explicit, so an unsigned boundary word is not a
+# legacy form to retire.
+#
+# GH-1971 flips the type system strict once this file has no entries.
+includes:agent-core/tools/builtin.yaml
+includes:agent-core/tools/builtin/all.yaml
+includes:agent-core/tools/builtin/critic-point/all.yaml
+includes:agent-core/tools/builtin/critic-session/all.yaml
+includes:agent-core/tools/builtin/filesystem/all.yaml
+includes:agent-core/tools/builtin/lifecycle/all.yaml
+includes:agent-core/tools/builtin/llm/all.yaml
+includes:agent-core/tools/builtin/planner/all.yaml
+includes:agent-core/tools/builtin/spec-validation/all.yaml
+includes:agent-core/tools/exec.yaml
+includes:agent-core/tools/exec/all.yaml
+includes:agent-core/tools/exec/git/all.yaml
+includes:agent-core/tools/exec/go/all.yaml
+includes:agent-core/tools/exec/workspace/all.yaml
+untyped-tool:agent-core/tools/builtin/assemble-prompt.yaml:capture_planner_failure
+untyped-tool:agent-core/tools/builtin/assemble-prompt.yaml:project_planner_context
+untyped-tool:agent-core/tools/builtin/check-agent-version.yaml:check_agent_version
+untyped-tool:agent-core/tools/builtin/collect-metrics.yaml:collect_metrics
+untyped-tool:agent-core/tools/builtin/collect-trace-tokens.yaml:collect_trace_tokens
+untyped-tool:agent-core/tools/builtin/create-point-dir.yaml:create_point_dir
+untyped-tool:agent-core/tools/builtin/discover-suite-samples.yaml:discover_suite_samples
+untyped-tool:agent-core/tools/builtin/done.yaml:done
+untyped-tool:agent-core/tools/builtin/dump-config.yaml:dump_config
+untyped-tool:agent-core/tools/builtin/edit.yaml:edit
+untyped-tool:agent-core/tools/builtin/execute-task.yaml:format_task_file
+untyped-tool:agent-core/tools/builtin/expand-eval-grid.yaml:expand_eval_grid
+untyped-tool:agent-core/tools/builtin/find.yaml:find
+untyped-tool:agent-core/tools/builtin/flat-map.yaml:flat_map
+untyped-tool:agent-core/tools/builtin/format-report.yaml:format_report
+untyped-tool:agent-core/tools/builtin/init-eval-session.yaml:init_eval_session
+untyped-tool:agent-core/tools/builtin/materialize-eval-points.yaml:materialize_eval_points
+untyped-tool:agent-core/tools/builtin/normalize-vector.yaml:normalize_vector
+untyped-tool:agent-core/tools/builtin/nudge-reread.yaml:nudge_reread
+untyped-tool:agent-core/tools/builtin/parse-response.yaml:parse_response
+untyped-tool:agent-core/tools/builtin/parse-structured.yaml:parse_structured
+untyped-tool:agent-core/tools/builtin/parse-suite-config.yaml:parse_suite_config
+untyped-tool:agent-core/tools/builtin/partition.yaml:partition
+untyped-tool:agent-core/tools/builtin/project.yaml:project
+untyped-tool:agent-core/tools/builtin/read.yaml:read
+untyped-tool:agent-core/tools/builtin/remaining-work.yaml:remaining_work
+untyped-tool:agent-core/tools/builtin/render-each.yaml:render_each
+untyped-tool:agent-core/tools/builtin/reorder-by-index.yaml:reorder_by_index
+untyped-tool:agent-core/tools/builtin/report-parse-error.yaml:report_parse_error
+untyped-tool:agent-core/tools/builtin/report-session.yaml:report_session
+untyped-tool:agent-core/tools/builtin/report-suite-summary.yaml:report_suite_summary
+untyped-tool:agent-core/tools/builtin/sample-docs.yaml:sample_docs
+untyped-tool:agent-core/tools/builtin/select-subset.yaml:select_subset
+untyped-tool:agent-core/tools/builtin/summarize-point-results.yaml:summarize_point_results
+untyped-tool:agent-core/tools/builtin/value-predicate.yaml:value_predicate
+untyped-tool:agent-core/tools/builtin/write.yaml:write
+untyped-tool:agent-core/tools/exec/copy-dir.yaml:copy_dir
+untyped-tool:agent-core/tools/exec/git-init.yaml:git_init
+untyped-tool:agent-core/tools/exec/make-dir.yaml:make_dir
+untyped-tool:agent-core/tools/exec/stage-all.yaml:stage_all
+untyped-tool:applications/catalog/agents/applier/apply-declarations.yaml:write_overrides
+untyped-tool:applications/catalog/agents/bench/builtin.yaml:validate_eval_suite
+untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:capture_experiment_path
+untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:list_bench_profiles
+untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:shape_bench_config
+untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:shape_bench_configs
+untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:shape_bench_experiment
+untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:shape_bench_source
+untyped-tool:applications/catalog/agents/bench/request-declarations.yaml:wrap_bench_input
+untyped-tool:applications/catalog/agents/collector/declarations.yaml:decide_collector_relay
+untyped-tool:applications/catalog/agents/collector/declarations.yaml:filter_collector_batch
+untyped-tool:applications/catalog/agents/collector/query-declarations.yaml:compose_span_heatmap
+untyped-tool:applications/catalog/agents/collector/query-declarations.yaml:compose_span_stats
+untyped-tool:applications/catalog/agents/collector/query-declarations.yaml:span_group_by_requested
+untyped-tool:applications/catalog/agents/knowledge-manager/corpus-ingest/declarations.yaml:normalize_embedding
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:build_approval
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:build_suggestion
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_approval
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_rejection
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_reopen
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_search
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_suggestion
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:capture_validation
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:config_response
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:decision_response
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:doc_detail_response
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:doc_index_input
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:doc_index_jq
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:empty_search
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:invalid_response
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:review_pending
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:shape_search
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:source_response
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:suggestion_hash_material
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:suggestion_response
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:suggestion_sha256
+untyped-tool:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml:valid_response
+untyped-tool:applications/catalog/agents/planner/builtin.yaml:check_retry_limit
+untyped-tool:applications/catalog/agents/planner/builtin.yaml:compose_planner_prompt
+untyped-tool:applications/catalog/agents/planner/builtin.yaml:increment_retry
+untyped-tool:applications/catalog/agents/planner/builtin.yaml:report_parse_error
+untyped-tool:applications/catalog/agents/planner/builtin.yaml:reset_failure_context
+untyped-tool:applications/catalog/agents/planner/builtin.yaml:reset_retry_count
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:capture_source_selection
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:compose_source_selection_prompt
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:constrain_source_selection
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:declare_query_model
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:parse_source_selection
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:parse_tier
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:report_source_selection
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml:select_all_sources
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:compose_prompt
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:compose_response
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:partition_embedding_models
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:partition_query_results
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:render_composed_sources
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:render_grounding
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:render_model_excluded_sources
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-fanout-declarations.yaml:render_query_failed_sources
+untyped-tool:applications/chatbot-mesh/agents/chatbot/request-topology-declarations.yaml:declare_rag_topology
+untyped-tool:applications/chatbot-mesh/agents/creator/request-declarations.yaml:ingest_wrote_documents
+untyped-tool:applications/chatbot-mesh/agents/creator/request-declarations.yaml:report_ingest_outcome
+untyped-tool:applications/chatbot-mesh/agents/creator/request-declarations.yaml:requested_family_matches

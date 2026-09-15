@@ -49,6 +49,18 @@ requirements:
     items:
       - R5.1: Registry satisfies the CommandResolver interface.
 
+  R6:
+    title: Signature-derived contracts
+    items:
+      - R6.1: >-
+          A tool that declares a signature satisfies the contract blocks that
+          default from its category, per srd051 R6.6 through R6.10. Registry
+          consumers read the effective contract and SHALL NOT distinguish a
+          defaulted block from an authored one.
+      - R6.2: >-
+          A boundary tool SHALL carry explicit side_effects, reversibility, and
+          undo whether or not it declares a signature (srd051 R6.9).
+
 non_goals:
   - Tool implementation (domain agent responsibility).
   - Dynamic registration during the loop (prevented by freeze).
@@ -74,6 +86,10 @@ acceptance_criteria:
   - id: AC5
     criterion: Registry satisfies CommandResolver interface.
     traces: [R5.1]
+
+  - id: AC6
+    criterion: A tool declaring a signature presents an effective contract to registry consumers, and a boundary tool still carries explicit side_effects, reversibility, and undo.
+    traces: [R6.1, R6.2]
 
 depends_on:
   - srd_id: srd001-core-types

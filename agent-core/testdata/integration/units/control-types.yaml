@@ -1,0 +1,19 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: control-types
+types:
+  - name: ExitOutcome
+    description: The outcome an exiting control agent reports.
+    schema:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [exited, refused]}
+        detail: {type: string}
+  - name: ExitReport
+    description: An exit outcome with the request that produced it.
+    schema:
+      type: object
+      properties:
+        outcome: {$type: control-types.ExitOutcome}
+        requests: {type: array, items: {type: integer}}

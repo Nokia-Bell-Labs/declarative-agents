@@ -5,6 +5,7 @@ package spec
 
 import (
 	"fmt"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"sort"
 	"strings"
 
@@ -137,24 +138,35 @@ func selectedToolConsumers(corpus *Corpus) map[string][]string {
 }
 
 func missingToolContractFields(td ToolDeclaration) []string {
+	signed := td.Signature != nil
+	// A signature discharges the descriptive blocks for every category, and the
+	// side-effect, reversibility, and undo blocks only for the categories the
+	// table names. catalog owns that table; reading it here rather than
+	// restating it keeps this check and the runtime one from drifting apart
+	// (srd051 R6.6 to R6.9).
+	prose := signed && catalog.SignatureDischargesProse()
+	sideEffects, reversibility, undo := false, false, false
+	if signed {
+		sideEffects, reversibility, undo = catalog.SignatureDischarges(td.Category)
+	}
 	checks := []struct {
 		field   string
 		present bool
 	}{
 		{"category", td.Category != ""},
-		{"problem", td.Problem != ""},
-		{"goals", len(td.Goals) > 0},
-		{"requirements.input", len(td.Requirements.Input) > 0},
-		{"requirements.output", len(td.Requirements.Output) > 0},
-		{"requirements.errors", len(td.Requirements.Errors) > 0},
-		{"non_goals", len(td.NonGoals) > 0},
-		{"emits", len(td.Emits) > 0},
-		{"output.schema", len(td.Output.Schema) > 0},
-		{"side_effects", td.SideEffects.LegacyText != "" || len(td.SideEffects.Items) > 0},
-		{"reversibility.classification", td.Reversibility.Classification != ""},
-		{"undo.strategy", td.Undo.Strategy != ""},
-		{"errors", len(td.Errors) > 0},
-		{"relationships", len(td.Relationships.Before) > 0 || len(td.Relationships.After) > 0 || len(td.Relationships.Overlaps) > 0},
+		{"problem", prose || td.Problem != ""},
+		{"goals", prose || len(td.Goals) > 0},
+		{"requirements.input", prose || len(td.Requirements.Input) > 0},
+		{"requirements.output", prose || len(td.Requirements.Output) > 0},
+		{"requirements.errors", prose || len(td.Requirements.Errors) > 0},
+		{"non_goals", prose || len(td.NonGoals) > 0},
+		{"emits", len(td.Emits) > 0 || (signed && len(td.Signature.Emits) > 0)},
+		{"output.schema", len(td.Output.Schema) > 0 || (signed && td.Signature.Output != "")},
+		{"side_effects", sideEffects || td.SideEffects.LegacyText != "" || len(td.SideEffects.Items) > 0},
+		{"reversibility.classification", reversibility || td.Reversibility.Classification != ""},
+		{"undo.strategy", undo || td.Undo.Strategy != ""},
+		{"errors", prose || len(td.Errors) > 0},
+		{"relationships", prose || len(td.Relationships.Before) > 0 || len(td.Relationships.After) > 0 || len(td.Relationships.Overlaps) > 0},
 	}
 	missing := make([]string, 0, len(checks))
 	for _, check := range checks {
