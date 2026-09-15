@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: mesh-creator-request-declarations
+imports:
+- ../units/types-creator.yaml
 tools:
   - name: apply_instance
     type: builtin
@@ -334,46 +336,14 @@ tools:
     category: word
     visibility: internal
     description: Decide whether the embedding family the caller expects is the family this deployment ingests at.
-    problem: |
-      The child embeds at the family the creator's own environment names, and the
-      intent's embedding_model reached this agent and was read by nothing. A
-      caller expecting another family got a 200 and documents written, and every
-      one of them unreachable: srd002 R3.3 excludes a source whose reported
-      identity differs from the query vector's, so nothing told the caller its
-      field had been ignored (GH-205).
-    goals:
-      - Compare the family the caller expects against the one this deployment ingests at, and route a mismatch to its own terminal.
-      - Refuse before the child runs, so an ingest that would be unretrievable writes nothing at all.
-    requirements:
-      input:
-        - The expected family rides resolve_ingest_collection's carry set; the deployment's own is the same reference the child reads.
-      output:
-        - Output reports the comparison that was made and its outcome.
-      errors:
-        - An unresolvable family emits CommandError rather than a mismatch, so a broken read is never reported as the caller having expected the wrong family.
-    non_goals:
-      - Does not choose or change the family; it compares two names and routes. The family the child embeds at stays deployment configuration.
-      - Does not judge the documents; whether the run wrote any is the count delta's question.
     parameters:
       type: object
       properties: {}
-    emits: [FamilyMatched, FamilyMismatched, CommandError]
+    signature:
+      output: mesh-types-creator.ComparisonOutcome
+      emits: [FamilyMatched, FamilyMismatched, CommandError]
     output:
       description: The expected and deployed families, the comparison type and operator, and the outcome.
-      schema:
-        type: object
-        properties:
-          left: {type: string}
-          op: {type: string}
-          right: {type: string}
-          operand_type: {type: string}
-          held: {type: boolean}
-    side_effects: []
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Comparing two names has no durable effect.
     relationships:
       after: [resolve_ingest_collection]
       before: [count_before_ingest]
@@ -401,40 +371,14 @@ tools:
     category: word
     visibility: internal
     description: Decide whether the child run met the requested source, by testing whether the post-run count exceeds the pre-run count.
-    problem: A corpus-ingest child reaches its own Succeeded terminal on CountReady whatever the count, and an existing collection can remain non-zero when the child adds nothing; the creator must measure this run rather than the collection total.
-    goals:
-      - Compare the post-run count against the pre-run baseline and route the two outcomes to distinct terminals.
-      - Keep the shortfall decision in the machine, where the branch is readable, rather than in the child's contract.
-    requirements:
-      input:
-        - The post-run count is selected from the previous Result and the pre-run count from count_before_ingest through command state.
-      output:
-        - Output reports the comparison that was made and its outcome.
-      errors:
-        - An unresolvable count emits CommandError rather than a shortfall, so a broken read is never reported as an empty corpus.
-    non_goals:
-      - Does not read or write documents; it compares a number the previous word produced.
-      - Does not judge relevance or content; "met the requested source" means documents were written.
     parameters:
       type: object
       properties: {}
-    emits: [DocumentsWritten, NoDocumentsWritten, CommandError]
+    signature:
+      output: mesh-types-creator.ComparisonOutcome
+      emits: [DocumentsWritten, NoDocumentsWritten, CommandError]
     output:
       description: The raw pre-run and post-run counts, numeric comparison type and operator, and outcome.
-      schema:
-        type: object
-        properties:
-          left: {type: string}
-          op: {type: string}
-          right: {type: string}
-          operand_type: {type: string}
-          held: {type: boolean}
-    side_effects: []
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Comparing a count changes nothing.
     errors:
       - signal: CommandError
         condition: Either count cannot be resolved or coerced to a number.
@@ -459,46 +403,15 @@ tools:
     visibility: internal
     category: response
     description: Put the judged count and the collection the child wrote into one command-state value, so the ingest response can select both.
-    problem: |
-      A machine_request terminal response body resolves only $. selectors, and
-      only against the terminal word's own output. The terminal word for a
-      successful ingest is the count judge, and a value predicate emits exactly
-      left, op, operand_type, held, and right -- so the collection the child
-      actually wrote cannot ride it. Selecting it with $from(resolve_ingest_collection)
-      is not an error either: an unresolvable selector is returned verbatim, so
-      the response carried its own selector text as the collection name (GH-198).
-    goals:
-      - Render the judged post-run count and the resolved collection name as one JSON object.
-      - Be the terminal word for a successful ingest, so both fields are plain $. selectors in the response body.
-    requirements:
-      input:
-        - The count is the post-run count the judge compared; the collection is the name resolve_ingest_collection read back from Chroma.
-      output:
-        - Output is a JSON object carrying count and collection.
-      errors:
-        - An input that does not resolve emits CommandError rather than an empty field, so a missing collection is never reported as a successful ingest into nowhere.
-    non_goals:
-      - Does not judge the ingest; ingest_wrote_documents already did, and this word runs only on the satisfied branch.
-      - Does not read Chroma again; both values are already in command state.
     parameters:
       type: object
       properties: {}
       additionalProperties: false
-    emits: [IngestOutcomeReported]
+    signature:
+      output: mesh-types-creator.IngestOutcome
+      emits: [IngestOutcomeReported]
     output:
       description: The judged count and the collection the run ingested into.
-      schema:
-        type: object
-        properties:
-          count: {type: string}
-          collection: {type: string}
-        required: [count, collection]
-    side_effects: []
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Rendering values already in command state has no durable effect.
     errors:
       - signal: CommandError
         condition: Either input selector does not resolve.

@@ -1,0 +1,39 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes the creator publishes while it provisions and ingests a corpus. The
+# names avoid agent-core's and the catalog's because srd051 R4.3 makes a type
+# name unique across the whole closure, not within its declaring unit.
+unit: mesh-types-creator
+types:
+- name: ComparisonOutcome
+  description: The resolved comparison a value_predicate word publishes; right is absent for unary operations.
+  schema:
+    type: object
+    properties:
+      left:
+        type: string
+      op:
+        type: string
+      right:
+        type: string
+      operand_type:
+        type: string
+      held:
+        type: boolean
+    required:
+    - left
+    - op
+    - operand_type
+    - held
+- name: IngestOutcome
+  description: The judged document count and the collection the run ingested into.
+  schema:
+    type: object
+    properties:
+      count:
+        type: string
+      collection:
+        type: string
+    required:
+    - count
+    - collection

@@ -1,38 +1,18 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-assemble-prompt
+imports:
+- ../units/types-planner.yaml
 tools:
 - name: project_planner_context
   type: builtin
   init: project_planner_context
   description: Project task and SRD data without owning planner prompt wording.
+  signature:
+    output: builtin-types-planner.PlannerContext
+    emits: [PlannerContextProjected, CommandError]
   visibility: internal
-  emits:
-  - PlannerContextProjected
-  - CommandError
   category: word
-  side_effects:
-  - kind: none
-    description: Projects structured planner context without mutating state.
-  reversibility:
-    classification: reversible
-  undo:
-    strategy: noop
-    description: Prompt assembly has no effects to reverse.
-  problem: Profile prompt composition needs structured task and SRD values without compiled prompt policy.
-  goals:
-  - Publish task identity, requirement items, problem, goals, and acceptance criteria.
-  - Leave persona, sections, and output instructions to profile-owned compose configuration.
-  requirements:
-    input:
-    - must consume parameters from tool input, prior Result, or configured command/domain state
-    output:
-    - must emit one declared signal and return machine-readable output when available
-    errors:
-    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
-  non_goals:
-  - Does not choose the next workflow step; machine.yaml owns sequencing.
-  - Does not hide unrelated tool execution behind this word.
   errors:
   - signal: CommandError
     condition: required input, configuration, or runtime state is invalid
@@ -45,37 +25,16 @@ tools:
     - machine-selected successor
   output:
     description: Structured planner context fields.
-    schema:
-      type: object
-      properties:
-        task_id: {type: string}
-        srd_id: {type: string}
-        problem: {type: string}
-        goals: {type: string}
-        acceptance_criteria: {type: string}
-        items: {type: string}
-      required:
-      - task_id
-      - srd_id
-      - problem
-      - goals
-      - acceptance_criteria
-      - items
 
 - name: capture_planner_failure
   type: builtin
   init: capture_planner_failure
   description: Publish the preceding validation failure under a stable command-state label.
+  signature:
+    output: builtin-types-planner.CapturedFailure
+    emits: [FailureCaptured, CommandError]
   visibility: internal
-  emits: [FailureCaptured, CommandError]
   category: word
-  side_effects: [{kind: none, description: Wraps prior output without domain mutation.}]
-  reversibility: {classification: reversible}
-  undo: {strategy: noop, description: History truncation removes captured context.}
-  problem: Retry prompt composition needs the prior validation failure rather than a compiled nil context.
-  goals: [Publish prior failure output as a command-state-addressable object.]
-  requirements: {input: [Consumes the preceding validator Result.], output: [FailureCaptured contains an output field.], errors: [Encoding failures emit CommandError.]}
-  non_goals: [Does not format the prompt or choose retry policy.]
   errors: [{signal: CommandError, condition: Failure context cannot encode, state_after_failure: No domain state changes.}]
   relationships: {before: [vet, build, test], after: [increment_retry, compose_planner_prompt]}
-  output: {description: Labelled prior failure context, schema: {type: object}}
+  output: {description: Labelled prior failure context}

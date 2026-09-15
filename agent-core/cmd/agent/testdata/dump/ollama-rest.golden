@@ -85,26 +85,48 @@ machine:
     max_iterations: 8
     command_timeout: 3m
     max_consecutive_parse_errors: 2
+types:
+  - ref: builtin-types-core.AnyValue
+    description: Any JSON value accepted by the schema configured on the word.
+    schema:
+      description: The runtime value is any JSON value accepted by the configured schema.
+  - ref: builtin-types-core.CommandSummary
+    description: The message and outcome signal a command word publishes.
+    schema:
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+        - message
+      type: object
+  - ref: builtin-types-core.NoParameters
+    description: The empty parameter object of a word whose input arrives through config selectors.
+    schema:
+      properties: {}
+      type: object
+  - ref: builtin-types-core.Text
+    description: Plain text a word publishes as its whole result.
+    schema:
+      type: string
 tools:
   - name: done
     type: builtin
     category: word
     description: Signal that the generation task is complete.
-    problem: The machine needs a declared word for declaring task completion without embedding that workflow step in Go control flow.
+    problem: Signal that the generation task is complete.
     goals:
-      - Perform the done action as one machine-selected word.
-      - Return an explicit signal that lets the MachineSpec choose the next state.
-      - Keep sequencing outside the tool implementation and in machine.yaml.
+      - Signal that the generation task is complete.
     requirements:
       input:
-        - must consume parameters from tool input, prior Result, or configured command/domain state
+        - done declares no input type
       output:
-        - must emit one declared signal and return machine-readable output when available
+        - done takes its output as builtin-types-core.CommandSummary
       errors:
-        - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+        - done emits CommandError when it cannot produce its declared output
     non_goals:
-      - Does not choose the next workflow step; machine.yaml owns sequencing.
-      - Does not hide unrelated tool execution behind this word.
+      - Behavior outside done, which its signature states in full
     output:
       description: done command result summary.
       schema:
@@ -118,12 +140,13 @@ tools:
         type: object
     side_effects:
       - kind: none
-        description: Emits TaskCompleted and does not mutate state.
+        state: read_only
+        description: done computes a value and mutates nothing
     reversibility:
       classification: reversible
     undo:
       strategy: noop
-      description: Completion signaling has no effects to reverse.
+      description: done mutates nothing, so undo does nothing
     errors:
       - signal: CommandError
         condition: required input, configuration, or runtime state is invalid
@@ -137,6 +160,10 @@ tools:
     init: done
     emits:
       - TaskCompleted
+    signature:
+      output: builtin-types-core.CommandSummary
+      emits:
+        - TaskCompleted
     visibility: internal
   - name: invoke_llm
     type: builtin
@@ -198,21 +225,18 @@ tools:
     category: word
     contract: legacy
     description: Parse raw LLM output into a tool call or task-completed signal.
-    problem: The machine needs a declared word for parsing the previous LLM response into a tool request without embedding that workflow step in Go control flow.
+    problem: Parse raw LLM output into a tool call or task-completed signal.
     goals:
-      - Perform the parse_response action as one machine-selected word.
-      - Return an explicit signal that lets the MachineSpec choose the next state.
-      - Keep sequencing outside the tool implementation and in machine.yaml.
+      - Parse raw LLM output into a tool call or task-completed signal.
     requirements:
       input:
-        - must consume parameters from tool input, prior Result, or configured command/domain state
+        - parse_response declares no input type
       output:
-        - must emit one declared signal and return machine-readable output when available
+        - parse_response takes its output as builtin-types-core.Text
       errors:
-        - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+        - parse_response emits CommandError when it cannot produce its declared output
     non_goals:
-      - Does not choose the next workflow step; machine.yaml owns sequencing.
-      - Does not hide unrelated tool execution behind this word.
+      - Behavior outside parse_response, which its signature states in full
     output:
       description: Parsed tool-request JSON or a plain completion summary.
       schema:
@@ -243,26 +267,30 @@ tools:
       - TaskCompleted
       - ParseFailed
       - CommandError
+    signature:
+      output: builtin-types-core.Text
+      emits:
+        - ToolDone
+        - TaskCompleted
+        - ParseFailed
+        - CommandError
     visibility: internal
   - name: report_parse_error
     type: builtin
     category: word
     description: Report a parse error back to the LLM for correction.
-    problem: The machine needs a declared word for feeding parse failure context back to the model conversation without embedding that workflow step in Go control flow.
+    problem: Report a parse error back to the LLM for correction.
     goals:
-      - Perform the report_parse_error action as one machine-selected word.
-      - Return an explicit signal that lets the MachineSpec choose the next state.
-      - Keep sequencing outside the tool implementation and in machine.yaml.
+      - Report a parse error back to the LLM for correction.
     requirements:
       input:
-        - must consume parameters from tool input, prior Result, or configured command/domain state
+        - report_parse_error declares no input type
       output:
-        - must emit one declared signal and return machine-readable output when available
+        - report_parse_error takes its output as builtin-types-core.Text
       errors:
-        - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+        - report_parse_error emits CommandError when it cannot produce its declared output
     non_goals:
-      - Does not choose the next workflow step; machine.yaml owns sequencing.
-      - Does not hide unrelated tool execution behind this word.
+      - Behavior outside report_parse_error, which its signature states in full
     output:
       description: Plain-text feedback requesting a corrected model response.
       schema:
@@ -294,6 +322,11 @@ tools:
     emits:
       - ToolDone
       - BudgetExhausted
+    signature:
+      output: builtin-types-core.Text
+      emits:
+        - ToolDone
+        - BudgetExhausted
     visibility: internal
 rest:
   version: v1
@@ -381,8 +414,10 @@ files:
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/tools.yaml
     sha256: 2f9d1b5d42f1a3cddf18ca157c3c07b9411e8c0d14c2ae0b264f253418688dc9
   - path: <agent-core>/tools/builtin/done.yaml
-    sha256: 8980b6319e71b384508387ef49c7a144702c03368e4bb0dd68abd7f25025dadc
+    sha256: 73bd50e42d9508b44d7c06e145c09deb3148ed8eea955d99bde0e7b76c00f435
   - path: <agent-core>/tools/builtin/parse-response.yaml
-    sha256: 44d136b3e21265e529ea05e7bd2d480f4a4ec667f1cf1602193f422265fe5f9a
+    sha256: 8cd7d31bbe4a96a879a2ca193a859a3759cd9636b73c196ddc874fab9eb7601d
   - path: <agent-core>/tools/builtin/report-parse-error.yaml
-    sha256: ca731b4f5e3ac0a589f9d0f8cfdabf9e3e95d53b55eed4a1edaa4fa60e2be669
+    sha256: 443690cef033a5ae7a7a5c26f4ed5a0d5b50d52565e0a0203941bb4cc8c28a28
+  - path: <agent-core>/tools/units/types-core.yaml
+    sha256: 23b9182ef09b4feb01cf6c9438cdea033e526ea6bbee4012d0fce7a10163329b

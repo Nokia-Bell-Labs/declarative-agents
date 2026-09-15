@@ -162,6 +162,13 @@ requirements:
       - R6.11: >-
           The canonical dump SHALL render a tool's effective contract, so a
           reader sees the defaulted values without knowing the table.
+      - R6.12: >-
+          A tool of category word or response SHALL declare a signature. Its
+          contract is exactly what a signature states, so an unsigned one
+          defaults nothing and publishes an untyped label. A tool of category
+          boundary or stateful_internal MAY declare one; the corpus audit
+          SHALL NOT require it while the envelope a boundary label publishes
+          has no declared type.
 
 non_goals:
   - Parameterized types, generics over declarations, or conditional schemas.
@@ -191,8 +198,8 @@ acceptance_criteria:
     criterion: A tool declaring a signature loads, each consistency rule rejects its conflicting form while identical emits lists are accepted, and a signature type resolves under the ordinary reference rules.
     traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
   - id: AC7
-    criterion: A word tool declaring only name, description, category, init, signature, and config satisfies every contract check, a boundary tool omitting side_effects, reversibility, or undo still fails, an explicit block overrides its default, and the dump shows the effective contract.
-    traces: [R6.6, R6.7, R6.8, R6.9, R6.10, R6.11]
+    criterion: A word tool declaring only name, description, category, init, signature, and config satisfies every contract check, a boundary tool omitting side_effects, reversibility, or undo still fails, an explicit block overrides its default, the dump shows the effective contract, and a word whose prose contract is complete but which declares no signature fails the corpus audit while a boundary tool without one passes.
+    traces: [R6.6, R6.7, R6.8, R6.9, R6.10, R6.11, R6.12]
 
 depends_on:
   - srd_id: srd050-declaration-imports
@@ -206,6 +213,8 @@ related_documents:
   - srd038-command-state-store
 
 implementation_status:
-  planned:
+  complete:
     - GH-2000 implements the type registry, the closed-subset check, and reference resolution.
     - GH-2001 loads type units into the closure, accepts references in tool schemas, and adds the dump types section.
+    - GH-2006 through GH-2025 sign every word and response declaration in the repository.
+    - GH-2009 promotes R6.12, so an unsigned word fails the corpus audit.

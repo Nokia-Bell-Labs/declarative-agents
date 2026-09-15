@@ -1,0 +1,49 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes the evaluation-harness words publish while they prepare a suite run.
+unit: builtin-types-eval
+types:
+- name: EvalPoints
+  description: Ordered evaluation point inputs.
+  schema:
+    type: object
+    properties:
+      points:
+        type: array
+        items:
+          type: object
+    required:
+    - points
+- name: PointDirRequest
+  description: Shared copy_dir parameters for the point directory.
+  schema:
+    type: object
+    properties:
+      parameters:
+        type: object
+        properties:
+          source:
+            type: string
+          destination:
+            type: string
+        required:
+        - source
+        - destination
+    required:
+    - parameters
+- name: SampleDocsPresence
+  description: Optional-docs presence and the shared copy_dir parameters that follow it.
+  schema:
+    type: object
+    properties:
+      present:
+        type: boolean
+      parameters:
+        type: object
+        properties:
+          source:
+            type: string
+          destination:
+            type: string
+    required:
+    - present

@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes the shipped builtin words share regardless of what they compute:
+# plain text, an opaque object, and the message/signal summary every command
+# word publishes.
+unit: builtin-types-core
+types:
+- name: Text
+  description: Plain text a word publishes as its whole result.
+  schema:
+    type: string
+- name: AnyValue
+  description: Any JSON value accepted by the schema configured on the word.
+  schema:
+    description: The runtime value is any JSON value accepted by the configured schema.
+- name: CommandSummary
+  description: The message and outcome signal a command word publishes.
+  schema:
+    type: object
+    properties:
+      message:
+        type: string
+      signal:
+        type: string
+    required:
+    - message
+- name: NoParameters
+  description: The empty parameter object of a word whose input arrives through config selectors.
+  schema:
+    type: object
+    properties: {}

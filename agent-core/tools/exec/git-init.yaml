@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: exec-git-init
+imports:
+- ../units/types-core.yaml
 tools:
 - name: git_init
   type: exec
@@ -8,6 +10,9 @@ tools:
   args:
   - init
   description: Initialize a new git repository in the current directory.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed, CommandError]
   category: word
   side_effects:
   - kind: filesystem_write
@@ -15,31 +20,13 @@ tools:
     paths:
     - .git
     description: Creates .git metadata in the workspace.
-  reversibility:
-    classification: reversible
   undo:
     strategy: workspace_restore
     description: Restore the workspace ref captured before git init.
     requires:
     - Workspace
-  problem: A workspace preparation machine needs an explicit operation that creates Git metadata before later staging and commit words run.
-  goals:
-  - Invoke `git init` once in the configured workspace.
-  - Emit ToolDone only when Git initializes or reinitializes the repository successfully.
-  - Make created or changed Git metadata recoverable through workspace restore.
-  requirements:
-    input:
-    - must run in the configured workspace and accept no runtime parameters
-    output:
-    - must return combined `git init` output as a string
-    errors:
-    - must emit CommandError when the process cannot start and ToolFailed when Git exits non-zero
-  non_goals:
-  - Does not add files, create a commit, configure identity, or create a remote.
-  emits: [ToolDone, ToolFailed, CommandError]
   output:
     description: Combined stdout and stderr from `git init`.
-    schema: {type: string}
   errors:
   - signal: CommandError
     condition: the git process cannot be started

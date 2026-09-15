@@ -144,26 +144,48 @@ machine:
   budget:
     max_iterations: 100
     command_timeout: 15m
+types:
+  - ref: builtin-types-core.AnyValue
+    description: Any JSON value accepted by the schema configured on the word.
+    schema:
+      description: The runtime value is any JSON value accepted by the configured schema.
+  - ref: builtin-types-core.CommandSummary
+    description: The message and outcome signal a command word publishes.
+    schema:
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+        - message
+      type: object
+  - ref: builtin-types-core.NoParameters
+    description: The empty parameter object of a word whose input arrives through config selectors.
+    schema:
+      properties: {}
+      type: object
+  - ref: builtin-types-core.Text
+    description: Plain text a word publishes as its whole result.
+    schema:
+      type: string
 tools:
   - name: format_report
     type: builtin
     category: word
     description: Format the validation results as a human-readable report.
-    problem: The machine needs a declared word for formatting validation findings without embedding that workflow step in Go control flow.
+    problem: Format the validation results as a human-readable report.
     goals:
-      - Perform the format_report action as one machine-selected word.
-      - Return an explicit signal that lets the MachineSpec choose the next state.
-      - Keep sequencing outside the tool implementation and in machine.yaml.
+      - Format the validation results as a human-readable report.
     requirements:
       input:
-        - must consume parameters from tool input, prior Result, or configured command/domain state
+        - format_report declares no input type
       output:
-        - must emit one declared signal and return machine-readable output when available
+        - format_report takes its output as builtin-types-core.Text
       errors:
-        - must emit ToolFailed when the validation state contains errors
+        - format_report emits CommandError when it cannot produce its declared output
     non_goals:
-      - Does not choose the next workflow step; machine.yaml owns sequencing.
-      - Does not hide unrelated tool execution behind this word.
+      - Behavior outside format_report, which its signature states in full
     output:
       description: Plain-text human-readable validation report.
       schema:
@@ -176,7 +198,7 @@ tools:
       classification: reversible
     undo:
       strategy: noop
-      description: Report formatting has no effects to reverse.
+      description: format_report mutates nothing, so undo does nothing
     errors:
       - signal: ToolFailed
         condition: the validation finding set contains one or more error-level findings
@@ -191,6 +213,11 @@ tools:
     emits:
       - ToolDone
       - ToolFailed
+    signature:
+      output: builtin-types-core.Text
+      emits:
+        - ToolDone
+        - ToolFailed
     visibility: internal
   - name: jurist_rg
     type: exec
@@ -431,7 +458,7 @@ files:
   - path: <agent-core>/testdata/integration/profiles/audit/tools.yaml
     sha256: 8c0b951612e211648d44a1c451ee610710dd2ca5fa86e7a63cda5175a2b833ee
   - path: <agent-core>/tools/builtin/format-report.yaml
-    sha256: 87f57f588bdf25e71d0b2b19d54ea262074c3bab09b31106452eec85db54ef73
+    sha256: ca6f7a278a792ceea6d92ac331ed643f14ca3146ec94c5d112bf7e758f079df1
   - path: <agent-core>/tools/builtin/load-corpus.yaml
     sha256: c59b336c72f712aed9eaebfe5d9448bc8600a8e39b746b90293def58662bc795
   - path: <agent-core>/tools/builtin/spec-validation/reduce-grep-checks.yaml
@@ -440,3 +467,5 @@ files:
     sha256: 0c358c4b7eefeaed7db4244b4d7e2cfc9f01c7d8d566419255e4fca039d06ba6
   - path: <agent-core>/tools/builtin/validate-specs.yaml
     sha256: 1dc29406dc6248e1c3a4a9dfa97191e76ea65f1497f02a92c515f26cc48e5e27
+  - path: <agent-core>/tools/units/types-core.yaml
+    sha256: 23b9182ef09b4feb01cf6c9438cdea033e526ea6bbee4012d0fce7a10163329b

@@ -1,0 +1,147 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes the chatbot request machines pass between their words, and the
+# runtime shapes its words publish. The names avoid agent-core's and the
+# catalog's because srd051 R4.3 makes a type name unique across the whole
+# closure, not within its declaring unit.
+unit: mesh-types-chatbot
+types:
+- name: RenderedText
+  description: Rendered text a word publishes as its whole result.
+  schema:
+    type: string
+- name: ResultPartition
+  description: Ordered matched and unmatched fan-out outcomes with their counts.
+  schema:
+    type: object
+    properties:
+      matched:
+        type: array
+      unmatched:
+        type: array
+      matched_count:
+        type: integer
+      unmatched_count:
+        type: integer
+    required:
+    - matched
+    - unmatched
+    - matched_count
+    - unmatched_count
+- name: SourceSubset
+  description: Source names divided by declared membership with the corresponding topology entries.
+  schema:
+    type: object
+    properties:
+      matched:
+        type: array
+        items:
+          type: string
+      unmatched:
+        type: array
+        items:
+          type: string
+      selected:
+        description: Topology entries corresponding to matched names, in candidate order.
+        type: array
+      matched_count:
+        type: integer
+      unmatched_count:
+        type: integer
+    required:
+    - matched
+    - unmatched
+    - selected
+    - matched_count
+    - unmatched_count
+- name: QueryModel
+  description: The embedding model identity a query is answered under.
+  schema:
+    type: object
+    properties:
+      model:
+        type: string
+    required:
+    - model
+- name: RagTopology
+  description: The declared RAG sources, as names, prose catalog, and trusted entries.
+  schema:
+    type: object
+    properties:
+      names:
+        type: array
+        items:
+          type: string
+      catalog:
+        type: string
+      items:
+        type: array
+    required:
+    - names
+    - catalog
+    - items
+- name: CapturedResponse
+  description: One model response captured under an addressable label.
+  schema:
+    type: object
+    properties:
+      response:
+        type: string
+    required:
+    - response
+- name: SourceNames
+  description: The source names the classifier returned, before the trusted vocabulary constrains them.
+  schema:
+    type: object
+    properties:
+      names:
+        type: array
+        items:
+          type: string
+    required:
+    - names
+- name: ChatResponse
+  description: The grounded answer with the per-source outcomes behind it.
+  schema:
+    type: object
+    properties:
+      answer:
+        type: string
+      metadata:
+        type: object
+        properties:
+          query_embedding_model:
+            type: string
+          query_counts:
+            type: object
+            properties:
+              succeeded:
+                type: integer
+              failed:
+                type: integer
+            required:
+            - succeeded
+            - failed
+          sources:
+            type: object
+            properties:
+              not_selected:
+                type: array
+              composed:
+                type: array
+              embedding_model_excluded:
+                type: array
+              query_failed:
+                type: array
+            required:
+            - not_selected
+            - composed
+            - embedding_model_excluded
+            - query_failed
+        required:
+        - query_embedding_model
+        - query_counts
+        - sources
+    required:
+    - answer
+    - metadata

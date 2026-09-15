@@ -73,16 +73,16 @@ func TestSignatureRejectsConflictingEmits(t *testing.T) {
 	_, _, err := ResolveToolSchemas([]ToolDef{def}, signatureRegistry(t))
 	require.NoError(t, err, "resolution itself does not police the conflict")
 
-	require.ErrorContains(t, validateToolDefs([]ToolDef{def}),
+	require.ErrorContains(t, validateAndDefaultToolDefs([]ToolDef{def}),
 		"declares signature.emits")
-	require.ErrorContains(t, validateToolDefs([]ToolDef{def}), "which differ")
+	require.ErrorContains(t, validateAndDefaultToolDefs([]ToolDef{def}), "which differ")
 }
 
 func TestSignatureAcceptsIdenticalLegacyEmits(t *testing.T) {
 	t.Parallel()
 	def := signedTool()
 	def.Emits = []string{"ChunksFlattened", "CommandError"}
-	require.NoError(t, validateToolDefs([]ToolDef{def}),
+	require.NoError(t, validateAndDefaultToolDefs([]ToolDef{def}),
 		"an identical legacy list lets the migration convert one file at a time")
 }
 
@@ -90,7 +90,7 @@ func TestSignatureRejectsOutputDeclaredTwice(t *testing.T) {
 	t.Parallel()
 	def := signedTool()
 	def.Output.Schema = map[string]any{"type": "object"}
-	require.ErrorContains(t, validateToolDefs([]ToolDef{def}),
+	require.ErrorContains(t, validateAndDefaultToolDefs([]ToolDef{def}),
 		"declares both signature.output and output.schema")
 }
 
@@ -98,7 +98,7 @@ func TestSignatureRejectsInputDeclaredTwice(t *testing.T) {
 	t.Parallel()
 	def := signedTool()
 	def.Parameters = map[string]any{"type": "object"}
-	require.ErrorContains(t, validateToolDefs([]ToolDef{def}),
+	require.ErrorContains(t, validateAndDefaultToolDefs([]ToolDef{def}),
 		"declares both signature.input and parameters")
 }
 
@@ -125,4 +125,25 @@ func TestToolWithoutSignatureIsUnchanged(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"Done"}, resolved[0].Emits)
 	require.Equal(t, "object", resolved[0].Parameters["type"])
+}
+
+// TestLoadingFillsTheContractASignatureDischarges covers the load path that
+// resolves no schemas. Applying the defaults only in ResolveToolSchemas left
+// every reader that loaded declarations without a type registry seeing a signed
+// word as one carrying no contract at all.
+func TestLoadingFillsTheContractASignatureDischarges(t *testing.T) {
+	t.Parallel()
+	defs := []ToolDef{{
+		Name: "flatten_chunks", Type: "builtin", Init: "flatten_chunks",
+		Category: "word", Description: "Flatten retrieved chunks into rows.",
+		Signature: &ToolSignature{Output: "chat-types.Rows", Emits: []string{"Flattened"}},
+	}}
+
+	require.NoError(t, validateAndDefaultToolDefs(defs))
+
+	require.Equal(t, []string{"Flattened"}, defs[0].Emits)
+	require.Equal(t, "reversible", defs[0].Reversibility.Classification)
+	require.Equal(t, "noop", defs[0].Undo.Strategy)
+	require.Len(t, defs[0].SideEffects.Items, 1)
+	require.NotEmpty(t, defs[0].Problem)
 }

@@ -39,6 +39,11 @@ func applyContractDefaults(def ToolDef) ToolDef {
 	if def.Signature == nil {
 		return def
 	}
+	// Folding the signature's signals into the legacy field lets every existing
+	// reader of Emits see them without knowing about signatures.
+	if len(def.Signature.Emits) > 0 && len(def.Emits) == 0 {
+		def.Emits = append([]string(nil), def.Signature.Emits...)
+	}
 	def = applyProseDefaults(def)
 	allowed, ok := defaultingCategories[contractCategory(def)]
 	if !ok {

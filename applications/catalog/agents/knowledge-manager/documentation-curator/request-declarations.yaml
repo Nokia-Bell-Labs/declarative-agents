@@ -1,6 +1,10 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-knowledge-manager-documentation-curator-request-declarations
+imports:
+- ../../units/types-core.yaml
+- ../../units/types-curator.yaml
+- ../../units/types-requests.yaml
 tools:
   - name: doc_list_paths
     type: exec
@@ -198,17 +202,12 @@ tools:
     init: compose
     visibility: internal
     category: response
-    emits: [IndexInputReady]
+    signature:
+      output: catalog-types-requests.WrappedPayload
+      emits: [IndexInputReady]
     description: Wrap list output as bounded jq stdin.
-    problem: The generic list word returns an array while the HTTP contract also needs count.
-    goals: [Preserve the complete list as a string for one atomic jq transform.]
-    requirements: {input: [Previous output is the resource array.], output: [Payload contains that JSON text.], errors: [Invalid selectors are reported.]}
-    non_goals: [Does not inspect list entries.]
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: Wrapped index input, schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Composition changes nothing.}
+    output: {description: Wrapped index input}
     errors: [{signal: CommandError, condition: Composition fails, state_after_failure: No state changes.}]
     config:
       signal: IndexInputReady
@@ -222,26 +221,22 @@ tools:
     stdin_source: $from(index_input).payload
     stdin_max_bytes: 1048576
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      output: catalog-types-curator.DocumentIndex
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Shape a document list into the stable index response.
     category: response
-    problem: Index count is a data transform, not interpreter policy.
-    goals: [Return data, documents, and count from one array.]
-    requirements: {input: [Bounded JSON list on stdin.], output: [Stable JSON response fields.], errors: [Malformed JSON emits ToolFailed.]}
-    non_goals: [Does not read the filesystem.]
     parameters: {type: object, properties: {}}
-    output: {description: Document index response, mode: raw, schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: jq changes nothing.}
+    output: {description: Document index response, mode: raw}
     errors: [{signal: ToolFailed, condition: Input is invalid JSON, state_after_failure: No state changes.}]
 
   - name: doc_detail_response
     <<: *compose_base
-    emits: [DocumentDetailReady]
+    signature:
+      output: catalog-types-curator.DocumentDetail
+      emits: [DocumentDetailReady]
     description: Shape one resource detail for the browser.
-    problem: HTTP response shape belongs in profile configuration.
-    goals: [Preserve parsed content, raw content, path, and content type.]
+    output: {description: One document with its parsed content}
     config:
       signal: DocumentDetailReady
       inputs:
@@ -253,10 +248,11 @@ tools:
 
   - name: config_response
     <<: *compose_base
-    emits: [ConfigReady]
+    signature:
+      output: catalog-types-curator.ConfigDocument
+      emits: [ConfigReady]
     description: Shape one config resource for the browser.
-    problem: Config response composition belongs in the request profile.
-    goals: [Return parsed and raw config content.]
+    output: {description: "One configuration document, parsed and raw"}
     config:
       signal: ConfigReady
       inputs: {path: $.path, content: $.parsed, raw: $.raw}
@@ -264,10 +260,11 @@ tools:
 
   - name: source_response
     <<: *compose_base
-    emits: [SourceReady]
+    signature:
+      output: catalog-types-curator.SourceDocument
+      emits: [SourceReady]
     description: Shape one source resource for the browser.
-    problem: Source response composition belongs in the request profile.
-    goals: [Return content and display metadata.]
+    output: {description: One source file with its display metadata}
     config:
       signal: SourceReady
       inputs: {path: $.path, content: $.raw, language: $.extension, mime: $.content_type, size: $.size}
@@ -275,10 +272,11 @@ tools:
 
   - name: capture_search
     <<: *compose_base
-    emits: [SearchCaptured]
+    signature:
+      output: catalog-types-curator.SearchRequest
+      emits: [SearchCaptured]
     description: Capture declared search request fields.
-    problem: Later rg and jq words need stable command-state inputs.
-    goals: [Retain query, category, and limit without transport authority.]
+    output: {description: Captured search request fields}
     config:
       signal: SearchCaptured
       inputs: {query: $.parameters.query, category: $.parameters.category, limit: $.parameters.limit}
@@ -326,13 +324,11 @@ tools:
     stdin_source: $from(search_matches).output
     stdin_max_bytes: 1048576
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      output: catalog-types-curator.SearchResponse
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Convert rg JSON events into the browser search contract.
     category: response
-    problem: Search response policy should be declared as an atomic jq transform.
-    goals: [Apply category and limit and return stable match fields.]
-    requirements: {input: [Bounded rg output and captured request fields.], output: [Query, matches, and count JSON.], errors: [Malformed events emit ToolFailed.]}
-    non_goals: [Does not search or read files.]
     parameters:
       type: object
       properties:
@@ -340,18 +336,16 @@ tools:
         category: {type: string, positional: true, position: 2, source: $from(search_request).category, default: ""}
         limit: {type: string, positional: true, position: 3, source: $from(search_request).limit, default: "50"}
       required: [query]
-    output: {description: Search response JSON, mode: raw, schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Response shaping changes nothing.}
+    output: {description: Search response JSON, mode: raw}
     errors: [{signal: ToolFailed, condition: jq cannot shape rg output, state_after_failure: No state changes.}]
 
   - name: empty_search
     <<: *compose_base
-    emits: [SearchEmpty]
+    signature:
+      output: catalog-types-curator.SearchResponse
+      emits: [SearchEmpty]
     description: Return a stable empty search response.
-    problem: rg uses exit one for no matches, which is a domain result rather than infrastructure failure.
-    goals: [Preserve query and return an empty array.]
+    output: {description: Empty search response}
     config:
       signal: SearchEmpty
       inputs: {query: $from(search_request).query}
@@ -359,10 +353,11 @@ tools:
 
   - name: capture_validation
     <<: *compose_base
-    emits: [ValidationCaptured]
+    signature:
+      output: catalog-types-curator.ValidationRequest
+      emits: [ValidationCaptured]
     description: Capture requested validation scope before the jurist pipeline.
-    problem: The report response needs request scope after multiple validation words.
-    goals: [Retain paths and strict mode in command state.]
+    output: {description: Captured validation request}
     config:
       signal: ValidationCaptured
       inputs: {paths: $.parameters.paths, strict: $.parameters.strict}
@@ -370,10 +365,11 @@ tools:
 
   - name: valid_response
     <<: *compose_base
-    emits: [ValidationReady]
+    signature:
+      output: catalog-types-curator.ValidationResponse
+      emits: [ValidationReady]
     description: Shape a successful jurist report for HTTP.
-    problem: Browser validation output needs a stable structured envelope.
-    goals: [Return valid status, no findings, requested paths, and report text.]
+    output: {description: Validation response with no findings}
     config:
       signal: ValidationReady
       inputs: {paths: $from(validation_request).paths, report: "$."}
@@ -381,10 +377,11 @@ tools:
 
   - name: invalid_response
     <<: *compose_base
-    emits: [ValidationReady]
+    signature:
+      output: catalog-types-curator.ValidationResponse
+      emits: [ValidationReady]
     description: Shape jurist findings for HTTP.
-    problem: Domain validation failure must remain distinct from infrastructure failure.
-    goals: [Return findings status and report provenance.]
+    output: {description: Validation response carrying the report as one finding}
     config:
       signal: ValidationReady
       inputs: {paths: $from(validation_request).paths, report: "$."}
@@ -392,10 +389,11 @@ tools:
 
   - name: capture_suggestion
     <<: *compose_base
-    emits: [SuggestionCaptured]
+    signature:
+      output: catalog-types-curator.SuggestionRequest
+      emits: [SuggestionCaptured]
     description: Capture a suggestion request before reading its document.
-    problem: Stable hashing and artifact creation need the original declared fields.
-    goals: [Retain path, instruction, and context.]
+    output: {description: Captured suggestion request}
     config:
       signal: SuggestionCaptured
       inputs: {path: $.parameters.path, instruction: $.parameters.instruction, context: $.parameters.context}
@@ -408,13 +406,11 @@ tools:
     stdin_source: $from(suggestion_document).raw
     stdin_max_bytes: 1048576
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      output: catalog-types-core.ExecStep
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Compose stable scalar suggestion hash material.
     category: response
-    problem: Hash input composition must stay profile-visible.
-    goals: [Combine request fields and the document content hash deterministically.]
-    requirements: {input: [Captured request fields and bounded document content.], output: [Stable textual hash material.], errors: [Unresolved inputs emit CommandError.]}
-    non_goals: [Does not hash or persist state.]
     parameters:
       type: object
       properties:
@@ -422,10 +418,7 @@ tools:
         instruction: {type: string, positional: true, position: 2, source: $from(suggestion_request).instruction}
         context: {type: string, positional: true, position: 3, source: $from(suggestion_request).context, default: ""}
       required: [path, instruction]
-    output: {description: Hash material, mode: structured, schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Composition changes nothing.}
+    output: {description: Hash material, mode: structured}
     errors: [{signal: CommandError, condition: A command-state source is unresolved, state_after_failure: No artifact exists.}]
 
   - name: suggestion_sha256
@@ -434,18 +427,13 @@ tools:
     stdin_source: $from(hash_material).output
     stdin_max_bytes: 1048576
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      output: catalog-types-core.ExecStep
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Hash stable suggestion material.
     category: response
-    problem: Review identifiers should use a standard atomic hashing utility.
-    goals: [Return a deterministic SHA-256 identifier source.]
-    requirements: {input: [Bounded hash material on stdin.], output: [SHA-256 text.], errors: [Utility failures emit ToolFailed.]}
-    non_goals: [Does not create review state.]
     parameters: {type: object, properties: {}}
-    output: {description: SHA-256 output, mode: structured, schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Hashing changes nothing.}
+    output: {description: SHA-256 output, mode: structured}
     errors: [{signal: ToolFailed, condition: sha256sum fails, state_after_failure: No artifact exists.}]
 
   - name: build_suggestion
@@ -471,13 +459,11 @@ tools:
     stdin_source: $from(suggestion_document).raw
     stdin_max_bytes: 1048576
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      output: catalog-types-curator.PatchWriteRequest
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Build one persistent pending review and write request.
     category: response
-    problem: Suggestion policy and artifact shape belong in YAML, not a Go controller.
-    goals: [Create deterministic patch metadata without applying documentation writes.]
-    requirements: {input: [Captured request fields, hash, and bounded document content.], output: [A file_write request plus HTTP response.], errors: [jq failures emit ToolFailed.]}
-    non_goals: [Does not write or apply the proposed patch.]
     parameters:
       type: object
       properties:
@@ -486,10 +472,7 @@ tools:
         context: {type: string, positional: true, position: 3, source: $from(suggestion_request).context, default: ""}
         hash: {type: string, positional: true, position: 4, source: $from(suggestion_hash).output}
       required: [path, instruction, hash]
-    output: {description: Review write request, mode: raw, schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Building output changes nothing.}
+    output: {description: Review write request, mode: raw}
     errors: [{signal: ToolFailed, condition: jq cannot build the artifact, state_after_failure: No artifact exists.}]
 
   - name: write_review
@@ -515,10 +498,11 @@ tools:
 
   - name: suggestion_response
     <<: *compose_base
-    emits: [SuggestionReady]
+    signature:
+      output: catalog-types-curator.SuggestionRecord
+      emits: [SuggestionReady]
     description: Return the persisted suggestion response.
-    problem: The write result should not replace the browser response body.
-    goals: [Republish the profile-built review response from command state.]
+    output: {description: The proposed patch record}
     config:
       signal: SuggestionReady
       inputs: {response: $from(suggestion_write_request).response}
@@ -526,10 +510,11 @@ tools:
 
   - name: capture_approval
     <<: *compose_base
-    emits: [DecisionCaptured]
+    signature:
+      output: catalog-types-curator.DecisionRequest
+      emits: [DecisionCaptured]
     description: Capture an approval request and derive its persistent review path.
-    problem: Patch identity and target status must remain visible request data.
-    goals: [Retain approval metadata and derive only the declared state path.]
+    output: {description: Captured approval decision}
     config:
       signal: DecisionCaptured
       inputs: {patch_id: $.parameters.patch_id, decided_by: $.parameters.decided_by, note: $.parameters.note}
@@ -537,10 +522,11 @@ tools:
 
   - name: capture_rejection
     <<: *compose_base
-    emits: [DecisionCaptured]
+    signature:
+      output: catalog-types-curator.DecisionRequest
+      emits: [DecisionCaptured]
     description: Capture a rejection request and derive its persistent review path.
-    problem: Patch identity and target status must remain visible request data.
-    goals: [Retain rejection metadata and derive only the declared state path.]
+    output: {description: Captured rejection decision}
     config:
       signal: DecisionCaptured
       inputs: {patch_id: $.parameters.patch_id, decided_by: $.parameters.decided_by, reason: $.parameters.reason}
@@ -548,10 +534,11 @@ tools:
 
   - name: capture_reopen
     <<: *compose_base
-    emits: [DecisionCaptured]
+    signature:
+      output: catalog-types-curator.DecisionRequest
+      emits: [DecisionCaptured]
     description: Capture a reopen request and derive its persistent review path.
-    problem: Reopen compensation must validate the current rejected state.
-    goals: [Retain reviewer metadata and expected and target statuses.]
+    output: {description: Captured reopen decision}
     config:
       signal: DecisionCaptured
       inputs: {patch_id: $.parameters.patch_id, decided_by: $.parameters.decided_by, reason: $.parameters.reason}
@@ -562,17 +549,12 @@ tools:
     init: value_predicate
     visibility: internal
     category: response
-    emits: [ReviewPending, ReviewClosed, CommandError]
+    signature:
+      output: catalog-types-core.PredicateResult
+      emits: [ReviewPending, ReviewClosed, CommandError]
     description: Permit decisions only for pending reviews.
-    problem: Review transitions need a profile-visible state guard.
-    goals: [Distinguish pending from already decided artifacts.]
-    requirements: {input: [Parsed review status from command state.], output: [A distinct branch signal.], errors: [Missing status emits CommandError.]}
-    non_goals: [Does not mutate the review.]
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: Review status predicate, schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Comparison changes nothing.}
+    output: {description: Review status predicate}
     errors: [{signal: CommandError, condition: Review status cannot resolve, state_after_failure: Review remains unchanged.}]
     config:
       left: $from(review).parsed.status
@@ -598,13 +580,11 @@ tools:
     stdin_source: $from(review).raw
     stdin_max_bytes: 1048576
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      output: catalog-types-curator.PatchWriteRequest
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Build one guarded review decision and write request.
     category: response
-    problem: Decision mutation belongs in an atomic profile jq transform.
-    goals: [Update status and reviewer metadata without applying documentation.]
-    requirements: {input: [Pending review JSON and captured decision fields.], output: [A file_write request plus HTTP response.], errors: [Malformed JSON emits ToolFailed.]}
-    non_goals: [Does not write or apply documentation.]
     parameters:
       type: object
       properties:
@@ -613,18 +593,16 @@ tools:
         note: {type: string, positional: true, position: 3, source: $from(decision_request).note, default: ""}
         reason: {type: string, positional: true, position: 4, source: $from(decision_request).reason, default: ""}
       required: [status, decided_by]
-    output: {description: Decision write request, mode: raw, schema: {type: object}}
-    side_effects: []
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: Building output changes nothing.}
+    output: {description: Decision write request, mode: raw}
     errors: [{signal: ToolFailed, condition: jq cannot build the decision, state_after_failure: Review remains unchanged.}]
 
   - name: decision_response
     <<: *compose_base
-    emits: [DecisionReady]
+    signature:
+      output: catalog-types-curator.DecisionRecord
+      emits: [DecisionReady]
     description: Return the persisted decision response.
-    problem: The write result should not replace review decision fields.
-    goals: [Republish the profile-built response after persistence.]
+    output: {description: The recorded review decision}
     config:
       signal: DecisionReady
       inputs: {response: $from(decision_write_request).response}

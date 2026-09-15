@@ -152,7 +152,7 @@ func (r *toolImportResolver) resolveFile(file ToolDefsFile, path string) ([]Tool
 	}
 	source := ToolSource{Unit: file.Unit, Path: path}
 	local := annotateToolSources(file.Tools, source)
-	if err := validateToolDefs(local); err != nil {
+	if err := validateAndDefaultToolDefs(local); err != nil {
 		return nil, fmt.Errorf("tool unit %q at %s: %w", file.Unit, path, err)
 	}
 	if len(file.Imports) > 0 {

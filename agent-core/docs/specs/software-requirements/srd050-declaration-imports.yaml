@@ -142,7 +142,7 @@ requirements:
           The loader SHALL reject every unused import edge in one
           deterministic diagnostic ordered by importing unit, imported unit,
           then canonical target path.
-      - R5.7: Root files and legacy includes SHALL not be subject to import usedness because they were not imported units.
+      - R5.7: Root files SHALL not be subject to import usedness because they were not imported units.
       - R5.8: >-
           A successful local override SHALL mark the import edge that
           supplied its target as used. A binding compiled from an imported

@@ -51,9 +51,9 @@ requirements:
           its state, because it can never fire.
       - R2.11: >-
           An action declaring no emitted signals contributes nothing to the
-          producible set rather than being read as emitting nothing, so a
-          machine whose tools have not been converted to signatures raises no
-          liveness error.
+          producible set rather than being read as emitting nothing. The
+          producible set is therefore what the declarations state, never what
+          their absence implies.
 
   R3:
     title: BuildTransitionTable

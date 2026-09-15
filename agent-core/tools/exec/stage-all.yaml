@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: exec-stage-all
+imports:
+- ../units/types-core.yaml
 tools:
 - name: stage_all
   type: exec
@@ -9,37 +11,22 @@ tools:
   - add
   - -A
   description: Stage all changes including untracked files (git add -A).
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed, CommandError]
   precondition: git_repo
   category: word
   side_effects:
   - kind: filesystem_write
     target: git_index
     description: Moves working tree changes into the Git index.
-  reversibility:
-    classification: reversible
   undo:
     strategy: workspace_restore
     description: Restore the workspace ref and index captured before staging.
     requires:
     - Workspace
-  problem: A Git workflow machine needs a distinct operation that stages the complete working-tree delta before a later commit operation.
-  goals:
-  - Invoke `git add -A` once in the configured repository.
-  - Stage tracked changes, deletions, and untracked files exactly as Git defines `-A`.
-  - Make index changes recoverable through workspace restore.
-  requirements:
-    input:
-    - must run in the configured Git workspace and accept no runtime parameters
-    output:
-    - must return combined `git add -A` output as a string
-    errors:
-    - must emit CommandError when the process cannot start and ToolFailed when the Git precondition or command fails
-  non_goals:
-  - Does not create a commit, choose a subset of paths, or modify working-tree file content.
-  emits: [ToolDone, ToolFailed, CommandError]
   output:
     description: Combined stdout and stderr from `git add -A`.
-    schema: {type: string}
   errors:
   - signal: CommandError
     condition: the git process cannot be started

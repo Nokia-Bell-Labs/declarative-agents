@@ -112,3 +112,20 @@ func TestCheckPathAcceptsAnEmptyPath(t *testing.T) {
 	t.Parallel()
 	require.NoError(t, typesys.CheckPath(rowsSchema(), nil))
 }
+
+// TestCheckPathAcceptsTheWholeOutputSelector covers srd038's $from(label).$,
+// which reads the step's output itself. ResolveFromSelector returns the output
+// without decoding it, so no type can fail the path, and a string-typed label
+// read that way is correct authoring rather than a missing field.
+func TestCheckPathAcceptsTheWholeOutputSelector(t *testing.T) {
+	t.Parallel()
+	for name, schema := range map[string]map[string]any{
+		"string": {"type": "string"},
+		"object": {"type": "object", "properties": map[string]any{"a": map[string]any{"type": "string"}}},
+		"array":  {"type": "array"},
+	} {
+		require.NoError(t, typesys.CheckPath(schema, []string{"$"}), name)
+	}
+	require.Error(t, typesys.CheckPath(map[string]any{"type": "string"}, []string{"$", "a"}),
+		"only a lone $ is the whole output; a longer path names a field")
+}

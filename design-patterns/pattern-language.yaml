@@ -686,7 +686,7 @@ patterns:
               artifact: go_test
               assertion: go_test
               test: TestValidateToolContractsReportsMissingFields
-            - path: agent-core/pkg/spec/validate_tools_test.go
+            - path: agent-core/pkg/spec/validate_tool_contracts_test.go
               artifact: go_test
               assertion: go_test
               test: TestValidate_SelectedToolContractCompletenessErrorsForActiveMigratedTool

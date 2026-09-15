@@ -1,42 +1,25 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-parse-response
+imports:
+- ../units/types-core.yaml
 tools:
 - name: parse_response
   type: builtin
   contract: legacy
   init: parse_response
   visibility: internal
-  emits:
-  - ToolDone
-  - TaskCompleted
-  - ParseFailed
-  - CommandError
   description: Parse raw LLM output into a tool call or task-completed signal.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, TaskCompleted, ParseFailed, CommandError]
   category: word
   side_effects:
   - kind: command_state
     description: Parses the prior command output and may reset the parse retry counter after a non-ParseFailed result.
-  reversibility:
-    classification: reversible
   undo:
     strategy: parse_retry_counter_restore
     description: Restores the parse retry counter snapshot captured before parsing.
-  problem: The machine needs a declared word for parsing the previous LLM response into a tool request without embedding that workflow step in Go control flow.
-  goals:
-  - Perform the parse_response action as one machine-selected word.
-  - Return an explicit signal that lets the MachineSpec choose the next state.
-  - Keep sequencing outside the tool implementation and in machine.yaml.
-  requirements:
-    input:
-    - must consume parameters from tool input, prior Result, or configured command/domain state
-    output:
-    - must emit one declared signal and return machine-readable output when available
-    errors:
-    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
-  non_goals:
-  - Does not choose the next workflow step; machine.yaml owns sequencing.
-  - Does not hide unrelated tool execution behind this word.
   errors:
   - signal: CommandError
     condition: required input, configuration, or runtime state is invalid
@@ -49,7 +32,5 @@ tools:
     - machine-selected successor
   output:
     description: Parsed tool-request JSON or a plain completion summary.
-    schema:
-      type: string
   config:
     manifest_state: Composing

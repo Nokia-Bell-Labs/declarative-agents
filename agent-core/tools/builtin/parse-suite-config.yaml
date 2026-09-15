@@ -1,46 +1,30 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-parse-suite-config
+imports:
+- ../units/types-core.yaml
 tools:
 - name: parse_suite_config
   type: builtin
   init: parse_suite_config
   visibility: internal
-  emits:
-  - SuiteConfigParsed
-  - CommandError
   description: Read and validate evaluator suite YAML metadata without discovering samples or creating session artifacts.
+  signature:
+    output: builtin-types-core.Text
+    emits: [SuiteConfigParsed, CommandError]
   category: word
   side_effects:
   - kind: state_mutation
     target: eval_session_state
     state: suite_config_parsed
     description: Sets EvalSessionState.Suite with suite metadata and resolved samples directory.
-  reversibility:
-    classification: reversible
   undo:
     strategy: evaluator_session_restore
     description: Restore evaluator session state from the persisted pre-command receipt.
     payload: evaluator_session_snapshot
     captures: [suite, session_dir, result, point_context, iterator_state]
-  problem: Evaluator setup needs suite metadata validated and stored before sample discovery, grid expansion, and session initialization can run.
-  goals:
-  - Read exactly the configured suite YAML file and validate it with ParseSuiteConfig.
-  - Resolve suite-relative paths and apply the configured child-agent binary override to every profile.
-  - Store the parsed Suite only after the complete file has been read and validated.
-  requirements:
-    input:
-    - must require a configured suite path and read that file relative to its containing directory
-    output:
-    - must emit SuiteConfigParsed with a message naming the parsed suite
-    errors:
-    - must emit CommandError for a missing path, read failure, or invalid suite configuration
-  non_goals:
-  - Does not discover sample directories, expand the evaluation grid, or create session artifacts.
-  - Does not run profiles or evaluation points.
   output:
     description: Human-readable confirmation naming the parsed suite.
-    schema: {type: string}
   errors:
   - signal: CommandError
     condition: no suite path is configured, the file cannot be read, or ParseSuiteConfig rejects its content

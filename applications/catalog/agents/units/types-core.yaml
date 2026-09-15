@@ -1,0 +1,44 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes the runtime produces for catalog words, independent of which agent
+# declares them. The names avoid agent-core's Text and Comparison because
+# srd051 R4.3 makes a type name unique across the whole closure, not within
+# its declaring unit.
+unit: catalog-types-core
+types:
+- name: PlainText
+  description: Plain text a catalog word publishes as its whole result.
+  schema:
+    type: string
+- name: PredicateResult
+  description: The resolved comparison a value_predicate word publishes; right is absent for unary operations.
+  schema:
+    type: object
+    properties:
+      left:
+        description: The raw resolved left operand, before comparison coercion.
+      op:
+        type: string
+      right:
+        description: The raw resolved right operand, before comparison coercion; absent for unary operations.
+      operand_type:
+        type: string
+      held:
+        type: boolean
+    required:
+    - left
+    - op
+    - operand_type
+    - held
+- name: ExecStep
+  description: The structured envelope an exec word publishes under output mode structured.
+  schema:
+    type: object
+    properties:
+      output:
+        type: string
+      exit_code:
+        type: integer
+    required:
+    - output
+    - exit_code

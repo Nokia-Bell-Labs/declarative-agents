@@ -89,8 +89,10 @@ requirements:
           past a scalar, and a negative array index SHALL each be a load error
           naming the field and the nearest declared one. An array component
           SHALL accept a non-negative index or a path applied to the element
-          type. The runtime UnresolvedPathError SHALL remain only for paths
-          under untyped labels.
+          type. The whole-output selector of R2.13 SHALL resolve against every
+          type, because it reads the output itself rather than a field of it.
+          The runtime UnresolvedPathError SHALL remain only for paths under
+          untyped labels.
   R3:
     title: Authority boundary
     items:

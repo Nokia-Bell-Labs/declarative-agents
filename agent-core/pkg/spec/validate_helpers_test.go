@@ -4,9 +4,12 @@
 package spec
 
 import (
-	"github.com/stretchr/testify/require"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
 func loadTestGraphAndCorpus(t *testing.T) (*Graph, *Corpus) {
@@ -22,8 +25,11 @@ func completeToolDeclaration(name string) ToolDeclaration {
 	return ToolDeclaration{
 		Name:     name,
 		Category: "word",
-		Problem:  "The machine needs a complete word contract for audit validation.",
-		Goals:    []string{"Run as a declared machine word."},
+		// A word states its checkable contract in a signature (srd051 R6.12);
+		// the prose blocks below are the authored overrides R6.10 keeps.
+		Signature: &catalog.ToolSignature{Output: "audit-types.Result"},
+		Problem:   "The machine needs a complete word contract for audit validation.",
+		Goals:     []string{"Run as a declared machine word."},
 		Requirements: ToolDeclRequirements{
 			Input:  []string{"must accept declared input"},
 			Output: []string{"must return declared output"},

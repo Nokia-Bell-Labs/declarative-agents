@@ -30,6 +30,8 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 			"agents/collector/ui/dist/assets/index-5A82fh-G.js",
 			"agents/collector/ui/dist/assets/index-lOxaVWl8.css",
 			"agents/collector/ui/dist/index.html",
+			"agents/units/types-collector.yaml",
+			"agents/units/types-core.yaml",
 		},
 		"applier": {
 			"applications/catalog/applier/apply-declarations.yaml",
@@ -40,6 +42,7 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 			"applications/catalog/applier/rollout-machine.yaml",
 			"applications/catalog/applier/rollout-tools.yaml",
 			"applications/catalog/applier/tools.yaml",
+			"applications/catalog/units/types-core.yaml",
 			"applications/coding-agent/applier/apply-profile.yaml",
 			"applications/coding-agent/applier/exec-declarations.yaml",
 			"applications/coding-agent/applier/profile.yaml",

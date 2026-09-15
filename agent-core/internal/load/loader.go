@@ -122,7 +122,7 @@ func loadResolvedConfig(
 		return resolvedConfig{}, err
 	}
 	if err := validateImportUsedness(
-		selected, rest, toolImports, toolTypeIndex.usedPaths(selected),
+		selected, rest, toolImports, toolTypeIndex.usedPaths(universe),
 	); err != nil {
 		return resolvedConfig{}, err
 	}
@@ -217,14 +217,15 @@ type toolTypes struct {
 	referenced map[string][]string
 }
 
-// usedPaths returns the declaration files that supplied a type some selected
-// tool referenced.
-func (t *toolTypes) usedPaths(selected []catalog.ToolDef) map[string]bool {
+// usedPaths returns the declaration files that supplied a type the closure
+// references. Selection is the wrong scope here: a root declaration escapes
+// selection-based usedness (srd050 R5.7) while its own imports do not.
+func (t *toolTypes) usedPaths(universe []catalog.ToolDef) map[string]bool {
 	used := map[string]bool{}
 	if t == nil {
 		return used
 	}
-	for _, tool := range selected {
+	for _, tool := range universe {
 		for _, ref := range t.referenced[tool.Name] {
 			if path := t.registry.PathOf(ref); path != "" {
 				used[path] = true

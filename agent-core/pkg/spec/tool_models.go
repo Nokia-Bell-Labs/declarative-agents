@@ -27,7 +27,7 @@ type ToolDeclaration struct {
 	Requirements  ToolDeclRequirements
 	NonGoals      []string
 	Emits         []string
-	Signature     *ToolDeclSignature
+	Signature     *catalog.ToolSignature
 	Output        ToolDeclOutput
 	Metrics       core.MetricConfig
 	Visibility    string
@@ -45,14 +45,6 @@ type ToolDeclRequirements struct {
 	Input  []string
 	Output []string
 	Errors []string
-}
-
-// ToolDeclSignature mirrors the signature a tool may declare in place of the
-// prose contract blocks (srd051 R6).
-type ToolDeclSignature struct {
-	Input  string   `yaml:"input,omitempty"`
-	Output string   `yaml:"output,omitempty"`
-	Emits  []string `yaml:"emits,omitempty"`
 }
 
 // ToolDeclOutput captures the declared machine-readable result shape.
@@ -107,6 +99,7 @@ func toolDeclarationFromDef(def catalog.ToolDef) ToolDeclaration {
 		Name: def.Name, Type: def.Type, Category: def.Category, Contract: def.Contract,
 		Init: def.Init, Problem: def.Problem, Goals: def.Goals, NonGoals: def.NonGoals,
 		Emits: def.Emits, Metrics: def.Metrics, Visibility: def.Visibility,
+		Signature: def.Signature,
 		Requirements: ToolDeclRequirements{
 			Input: def.Requirements.Input, Output: def.Requirements.Output, Errors: def.Requirements.Errors,
 		},

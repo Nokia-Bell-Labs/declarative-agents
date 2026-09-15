@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-knowledge-manager-corpus-ingest-declarations
+imports:
+- ../../units/types-requests.yaml
 tools:
   - name: chroma_ready
     type: builtin
@@ -172,40 +174,15 @@ tools:
     visibility: internal
     category: word
     description: Preserve a flat document vector or unwrap exactly one provider row.
-    problem: Embedding providers return either one flat vector or a one-row matrix while the Chroma add path requires the flat form.
-    goals:
-      - Normalize both accepted provider shapes before collection resolution.
-      - Preserve the mapped and carried fields used by the single-hop Chroma chain.
-    requirements:
-      input:
-        - The adjacent embed_document Result contains mapped.embedding and carried document text and id.
-      output:
-        - Output preserves the Result envelope with mapped.embedding normalized to one flat numeric vector.
-      errors:
-        - Missing, empty, non-numeric, mixed, or multi-row embeddings emit CommandError.
-    non_goals:
-      - Does not select a provider, alter REST selectors, choose among rows, or author vector values.
-      - Does not change document text or identity.
     parameters:
       type: object
       properties: {}
       additional_properties: false
-    emits: [EmbeddingNormalized, CommandError]
+    signature:
+      output: catalog-types-requests.ProviderEnvelope
+      emits: [EmbeddingNormalized, CommandError]
     output:
       description: Provider Result envelope with one flat embedding vector.
-      schema:
-        type: object
-        properties:
-          mapped: {type: object}
-          carried: {type: object}
-    side_effects:
-      - kind: none
-        description: Shape normalization changes no runtime or external state.
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Shape normalization changes no external state.
     errors:
       - signal: CommandError
         condition: The embedding path or vector shape is invalid.
