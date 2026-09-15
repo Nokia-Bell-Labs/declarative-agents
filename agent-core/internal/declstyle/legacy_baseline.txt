@@ -19,7 +19,6 @@
 # GH-1971 flips the type system strict once this file has no entries.
 includes:agent-core/tools/builtin.yaml
 includes:agent-core/tools/builtin/all.yaml
-includes:agent-core/tools/builtin/bench/all.yaml
 includes:agent-core/tools/builtin/critic-point/all.yaml
 includes:agent-core/tools/builtin/critic-session/all.yaml
 includes:agent-core/tools/builtin/filesystem/all.yaml
