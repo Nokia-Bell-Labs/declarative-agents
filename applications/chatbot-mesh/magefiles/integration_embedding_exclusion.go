@@ -82,7 +82,36 @@ func generateShiftedChatbotProfile(applicationRoot, work string) (string, error)
 			return "", err
 		}
 	}
+	if err := stageExclusionTypeUnits(
+		filepath.Join(applicationRoot, "agents", "units"),
+		filepath.Join(work, "units"),
+	); err != nil {
+		return "", err
+	}
 	return filepath.Join(dstDir, "profile.yaml"), nil
+}
+
+func stageExclusionTypeUnits(source, destination string) error {
+	entries, err := os.ReadDir(source)
+	if err != nil {
+		return fmt.Errorf("read chatbot declaration units: %w", err)
+	}
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		return fmt.Errorf("create shifted declaration units: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(source, entry.Name()))
+		if err != nil {
+			return fmt.Errorf("read chatbot declaration unit %s: %w", entry.Name(), err)
+		}
+		if err := os.WriteFile(filepath.Join(destination, entry.Name()), data, 0o644); err != nil {
+			return fmt.Errorf("stage chatbot declaration unit %s: %w", entry.Name(), err)
+		}
+	}
+	return nil
 }
 
 // EmbeddingExclusion proves the exclusion the mapped-400 path cannot catch: two
