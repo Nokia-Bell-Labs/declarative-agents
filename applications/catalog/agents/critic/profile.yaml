@@ -4,8 +4,11 @@ name: critic
 machine: machine.yaml
 tools:
   - tools.yaml
-tool_config_dirs:
-  - /opt/agent-core/tools/builtin/critic-session
-  - /opt/agent-core/tools/builtin/critic-point
 tool_declarations:
   - builtin.yaml
+  - /opt/agent-core/tools/builtin/discover-suite-samples.yaml
+  - /opt/agent-core/tools/builtin/expand-eval-grid.yaml
+  - /opt/agent-core/tools/builtin/init-eval-session.yaml
+  - /opt/agent-core/tools/builtin/report-suite-summary.yaml
+  - /opt/agent-core/tools/builtin/materialize-eval-points.yaml
+  - /opt/agent-core/tools/builtin/report-session.yaml

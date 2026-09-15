@@ -17,20 +17,6 @@
 # legacy form to retire.
 #
 # GH-1971 flips the type system strict once this file has no entries.
-includes:agent-core/tools/builtin.yaml
-includes:agent-core/tools/builtin/all.yaml
-includes:agent-core/tools/builtin/critic-point/all.yaml
-includes:agent-core/tools/builtin/critic-session/all.yaml
-includes:agent-core/tools/builtin/filesystem/all.yaml
-includes:agent-core/tools/builtin/lifecycle/all.yaml
-includes:agent-core/tools/builtin/llm/all.yaml
-includes:agent-core/tools/builtin/planner/all.yaml
-includes:agent-core/tools/builtin/spec-validation/all.yaml
-includes:agent-core/tools/exec.yaml
-includes:agent-core/tools/exec/all.yaml
-includes:agent-core/tools/exec/git/all.yaml
-includes:agent-core/tools/exec/go/all.yaml
-includes:agent-core/tools/exec/workspace/all.yaml
 untyped-tool:agent-core/tools/builtin/assemble-prompt.yaml:capture_planner_failure
 untyped-tool:agent-core/tools/builtin/assemble-prompt.yaml:project_planner_context
 untyped-tool:agent-core/tools/builtin/check-agent-version.yaml:check_agent_version

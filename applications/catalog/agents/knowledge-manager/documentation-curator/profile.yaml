@@ -9,6 +9,8 @@ tool_declarations:
   - declarations.yaml
   - request-declarations.yaml
   - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
-  - /opt/agent-core/tools/builtin/spec-validation/all.yaml
+  - /opt/agent-core/tools/builtin/load-corpus.yaml
+  - /opt/agent-core/tools/builtin/validate-specs.yaml
+  - /opt/agent-core/tools/builtin/format-report.yaml
 rest_definitions:
   - rest.yaml

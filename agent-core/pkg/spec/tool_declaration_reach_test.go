@@ -89,12 +89,12 @@ func TestCorpusResolvesIncludes(t *testing.T) {
 	data, err := os.ReadFile(allPath)
 	require.NoError(t, err)
 	var file struct {
-		Includes []string `yaml:"includes"`
-		Tools    []any    `yaml:"tools"`
+		Imports []string `yaml:"imports"`
+		Tools   []any    `yaml:"tools"`
 	}
 	require.NoError(t, yaml.Unmarshal(data, &file))
 	require.Empty(t, file.Tools, "all.yaml is expected to declare no tools directly")
-	require.NotEmpty(t, file.Includes, "all.yaml is expected to be an includes bundle")
+	require.NotEmpty(t, file.Imports, "all.yaml is expected to be an imports bundle")
 
 	loaded, err := catalog.LoadToolDeclarationsWithOptions(
 		[]string{allPath},

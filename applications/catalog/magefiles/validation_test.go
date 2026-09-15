@@ -324,14 +324,27 @@ func TestWriteSpecificationCriticCharterDemoProfileFiles(t *testing.T) {
 	if !strings.Contains(profile, filepath.Join(root, specificationCriticProfileDir, "machine.yaml")) {
 		t.Fatalf("profile = %q, want specification-critic machine path", profile)
 	}
-	if !strings.Contains(profile, filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "all.yaml")) {
-		t.Fatalf("profile = %q, want core spec-validation declaration aggregate", profile)
+	// GH-2012 made the spec-validation family a named unit, so the demo roots
+	// on the leaves the shared selection uses rather than the aggregate.
+	for _, leaf := range []string{
+		filepath.Join(coreRoot, "tools", "builtin", "validate-specs.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "reduce-grep-checks.yaml"),
+	} {
+		if !strings.Contains(profile, leaf) {
+			t.Fatalf("profile = %q, want core spec-validation leaf %q", profile, leaf)
+		}
 	}
 	if !strings.Contains(profile, filepath.Join(root, specificationCriticProfileDir, "ripgrep.yaml")) {
 		t.Fatalf("profile = %q, want specification-critic ripgrep declaration", profile)
 	}
-	if !strings.Contains(toolDecl, filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml")) {
-		t.Fatalf("tool declaration = %q, want core load_corpus include", toolDecl)
+	// The demo's load_corpus is suite-bound and declared in full here, so the
+	// profile does not also root on the shared load-corpus.yaml: one source,
+	// no same-name collision across roots.
+	if !strings.Contains(toolDecl, "name: load_corpus") {
+		t.Fatalf("tool declaration = %q, want the demo load_corpus declaration", toolDecl)
+	}
+	if strings.Contains(profile, filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml")) {
+		t.Fatalf("profile = %q, must not also root on the shared load-corpus declaration", profile)
 	}
 	if !strings.Contains(toolDecl, filepath.Join(root, specificationCriticProfileDir, "suites", "demo-charter.yaml")) {
 		t.Fatalf("tool declaration = %q, want demo charter suite path", toolDecl)

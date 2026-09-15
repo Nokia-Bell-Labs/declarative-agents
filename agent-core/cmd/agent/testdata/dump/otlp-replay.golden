@@ -136,4 +136,4 @@ files:
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/tools.yaml
     sha256: 356f28070da55b76a0f0951d7445750f2390f6bf36be02fb79787929b21c00f9
   - path: <agent-core>/tools/builtin/otlp/all.yaml
-    sha256: e9aed2f85ae8701d1cc4dfb488ae185c25490b991ad2aff5251d029e980bd683
+    sha256: 00b517317e275d0cf45b31b7b183653b3e51b30e3a2af4c44ba239c2f41fbec6

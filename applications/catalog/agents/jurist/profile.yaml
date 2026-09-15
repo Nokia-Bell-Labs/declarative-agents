@@ -10,7 +10,12 @@ machine: ../specification-critic/machine.yaml
 tools:
   - ../specification-critic/tools.yaml
 tool_declarations:
-  - /opt/agent-core/tools/builtin/spec-validation/all.yaml
+  - /opt/agent-core/tools/builtin/load-corpus.yaml
+  - /opt/agent-core/tools/builtin/validate-specs.yaml
+  - /opt/agent-core/tools/builtin/format-report.yaml
+  - /opt/agent-core/tools/builtin/spec-validation/reduce-grep-checks.yaml
+  - /opt/agent-core/tools/builtin/spec-validation/reduce-ref-checks.yaml
+  - /opt/agent-core/tools/builtin/spec-validation/reduce-consistency-checks.yaml
   - ../specification-critic/ripgrep.yaml
   - ../specification-critic/ref-scan.yaml
   - ../specification-critic/consistency-scan.yaml

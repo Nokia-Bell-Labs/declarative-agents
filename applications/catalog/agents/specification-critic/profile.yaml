@@ -5,7 +5,12 @@ machine: machine.yaml
 tools:
   - tools.yaml
 tool_declarations:
-  - /opt/agent-core/tools/builtin/spec-validation/all.yaml
+  - /opt/agent-core/tools/builtin/load-corpus.yaml
+  - /opt/agent-core/tools/builtin/validate-specs.yaml
+  - /opt/agent-core/tools/builtin/format-report.yaml
+  - /opt/agent-core/tools/builtin/spec-validation/reduce-grep-checks.yaml
+  - /opt/agent-core/tools/builtin/spec-validation/reduce-ref-checks.yaml
+  - /opt/agent-core/tools/builtin/spec-validation/reduce-consistency-checks.yaml
   - ripgrep.yaml
   - ref-scan.yaml
   - consistency-scan.yaml

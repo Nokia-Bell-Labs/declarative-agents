@@ -73,9 +73,13 @@ func TestServingProfilesUseRealLifecycleAndCanonicalRoleProfiles(t *testing.T) {
 		t.Error("critic server does not run the canonical changed-workspace profile")
 	}
 	planner := readServingFile(t, root, "planner", "request-profile.yaml")
+	// The planner request profile roots on the canonical shared declarations
+	// rather than copying them. The planner family bundle became a named unit
+	// in GH-2012, so the profile names the leaf it selects instead of the
+	// directory; the asset is still agent-core's, which is what this guards.
 	for _, want := range []string{
 		"agents/planner/llm/default.yaml",
-		"/opt/agent-core/tools/builtin/planner",
+		"/opt/agent-core/tools/builtin/parse-plan.yaml",
 	} {
 		if !strings.Contains(planner, want) {
 			t.Errorf("planner request profile does not reuse canonical asset %q", want)

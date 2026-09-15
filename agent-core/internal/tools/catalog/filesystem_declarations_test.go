@@ -22,7 +22,7 @@ func TestBuiltinCompatibilityBundleIncludesFullLeafBundle(t *testing.T) {
 	var raw ToolDefsFile
 	require.NoError(t, yaml.Unmarshal(data, &raw))
 	require.Empty(t, raw.Tools, "compatibility bundle must not inline tool contracts")
-	require.Equal(t, []string{"builtin/all.yaml"}, raw.Includes)
+	require.Equal(t, []string{"builtin/all.yaml"}, raw.Imports)
 
 	defs, err := LoadToolDeclarations([]string{path})
 	require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestExecCompatibilityBundleIncludesFullLeafBundle(t *testing.T) {
 	var raw ToolDefsFile
 	require.NoError(t, yaml.Unmarshal(data, &raw))
 	require.Empty(t, raw.Tools, "compatibility bundle must not inline tool contracts")
-	require.Equal(t, []string{"exec/all.yaml"}, raw.Includes)
+	require.Equal(t, []string{"exec/all.yaml"}, raw.Imports)
 
 	defs, err := LoadToolDeclarations([]string{path})
 	require.NoError(t, err)

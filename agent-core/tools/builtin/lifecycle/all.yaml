@@ -1,7 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # Lifecycle builtin declarations.
-includes:
+unit: builtin-lifecycle-all
+imports:
   - ../suspend.yaml
   - ../checkpoint-history.yaml
   - ../checkpoint-rollback.yaml

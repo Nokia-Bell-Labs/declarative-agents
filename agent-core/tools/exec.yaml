@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Compatibility entry point for the full shared exec declaration bundle.
 # Pass via: agent --tools-declaration tools/exec.yaml
-includes:
+unit: exec
+imports:
   - exec/all.yaml
 
 tools: []

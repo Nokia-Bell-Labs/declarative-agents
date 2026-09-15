@@ -352,7 +352,9 @@ func TestCorpusIngestSelectsConfiguredEmbeddingProvider(t *testing.T) {
 machine: %q
 tools: [%q]
 tool_declarations:
-  - /opt/agent-core/tools/builtin/llm/all.yaml
+  - /opt/agent-core/tools/builtin/parse-response.yaml
+  - /opt/agent-core/tools/builtin/report-parse-error.yaml
+  - /opt/agent-core/tools/builtin/done.yaml
   - %q
 rest_definitions: [%q]
 `, filepath.Join(ingestRoot, "machine.yaml"), filepath.Join(ingestRoot, "tools.yaml"),
@@ -568,7 +570,9 @@ func corpusIngestProviderProfile(t *testing.T, fixtureURL string, cohere bool) s
 machine: %q
 tools: [%q]
 tool_declarations:
-  - /opt/agent-core/tools/builtin/llm/all.yaml
+  - /opt/agent-core/tools/builtin/parse-response.yaml
+  - /opt/agent-core/tools/builtin/report-parse-error.yaml
+  - /opt/agent-core/tools/builtin/done.yaml
   - %q
 rest_definitions: [%q]
 `, filepath.Join(ingestRoot, "machine.yaml"), filepath.Join(ingestRoot, "tools.yaml"),

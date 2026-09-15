@@ -6,7 +6,11 @@ tools:
   - tools.yaml
 tool_config_dirs:
   - /opt/agent-core/tools/builtin/filesystem
-  - /opt/agent-core/tools/builtin/llm
   - /opt/agent-core/tools/exec/go
 tool_declarations:
   - llm/qwen27b.yaml
+  - /opt/agent-core/tools/builtin/parse-response.yaml
+  - /opt/agent-core/tools/builtin/report-parse-error.yaml
+  - /opt/agent-core/tools/builtin/reset-history.yaml
+  - /opt/agent-core/tools/builtin/nudge-reread.yaml
+  - /opt/agent-core/tools/builtin/done.yaml

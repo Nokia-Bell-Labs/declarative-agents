@@ -73,7 +73,7 @@ func TestDoltDeclarationsRemainOptIn(t *testing.T) {
 	require.NoError(t, err)
 	var all ToolDefsFile
 	require.NoError(t, yaml.Unmarshal(data, &all))
-	require.NotContains(t, all.Includes, "dolt/all.yaml")
+	require.NotContains(t, all.Imports, "dolt/all.yaml")
 
 	defs, err := LoadToolDeclarations([]string{builtinBundlePath(t)})
 	require.NoError(t, err)
