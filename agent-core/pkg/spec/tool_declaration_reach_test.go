@@ -248,8 +248,10 @@ func TestContractBaselineRatchet(t *testing.T) {
 
 	t.Run("a word whose missing fields changed is an error", func(t *testing.T) {
 		if len(gaps) == 0 {
+			// Dropping the signature is what changes a signed word's missing
+			// set: the prose blocks it discharges stay defaulted either way.
 			partial := completeToolDeclaration("changed_word")
-			partial.NonGoals = nil
+			partial.Signature = nil
 			finding, produced := compareContractToBaseline(
 				"changed_word", partial, []string{"goals"}, true,
 			)
@@ -260,7 +262,7 @@ func TestContractBaselineRatchet(t *testing.T) {
 		scoped := cloneCorpusForBaselineTest(corpus)
 		changed := gaps[0].Tool
 		partial := completeToolDeclaration(changed)
-		partial.NonGoals = nil
+		partial.Signature = nil
 		scoped.ToolDeclarations[changed] = partial
 
 		require.Contains(t, baselineCheckNames(scoped), "tool-contract-baseline-drift")
