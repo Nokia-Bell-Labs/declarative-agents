@@ -5,10 +5,14 @@ package main
 
 import (
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func yamlDocument(data []byte) string {
@@ -63,14 +67,51 @@ func TestCollectorLifecycleRebindAndTerminalState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.MonitorReachable {
-		t.Error("monitor was not reachable while collector was running")
-	}
 	if result.TerminalState != "succeeded" {
 		t.Errorf("terminal state = %q, want %q", result.TerminalState, "succeeded")
 	}
 	if !result.AllAddrsRebind {
 		t.Error("not all listener addresses could rebind after exit")
+	}
+}
+
+func TestWaitCollectorLifecycleSurfacesWaitsForMonitor(t *testing.T) {
+	control := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer control.Close()
+
+	var monitorRequests atomic.Int32
+	monitor := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if monitorRequests.Add(1) < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer monitor.Close()
+
+	if err := waitCollectorLifecycleSurfaces(control.URL, monitor.URL, time.Second); err != nil {
+		t.Fatalf("waitCollectorLifecycleSurfaces() error: %v", err)
+	}
+	if got := monitorRequests.Load(); got < 3 {
+		t.Fatalf("monitor requests = %d, want at least 3", got)
+	}
+}
+
+func TestWaitCollectorLifecycleSurfacesFailsWhenMonitorDoesNotStart(t *testing.T) {
+	control := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer control.Close()
+	monitor := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer monitor.Close()
+
+	err := waitCollectorLifecycleSurfaces(control.URL, monitor.URL, 150*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "collector monitor") {
+		t.Fatalf("waitCollectorLifecycleSurfaces() error = %v, want collector monitor failure", err)
 	}
 }
 

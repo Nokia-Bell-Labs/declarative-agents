@@ -25,6 +25,8 @@ import (
 
 const rigProfile = "testdata/rig/profile.yaml"
 
+const collectorLifecycleReadyTimeout = 20 * time.Second
+
 // rigVerdictPattern matches the scenario critic's per-scenario verdict signals in
 // trace output order. Discovery sorts scenarios by subject directory then
 // name, so the catalog reference subject's three scenarios come first
@@ -338,9 +340,23 @@ func runCollectorIntakeScenario(binary, coreRoot, catalogRoot, workDir string) e
 
 // collectorLifecycleResult holds the evidence from a collector lifecycle scenario.
 type collectorLifecycleResult struct {
-	TerminalState    string
-	AllAddrsRebind   bool
-	MonitorReachable bool
+	TerminalState  string
+	AllAddrsRebind bool
+}
+
+func waitCollectorLifecycleSurfaces(controlURL, monitorURL string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	if err := waitHTTPStatus(controlURL+"/api/lifecycle/health", http.StatusOK, timeout); err != nil {
+		return fmt.Errorf("collector health: %w", err)
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return fmt.Errorf("collector monitor: readiness deadline exceeded")
+	}
+	if err := waitHTTPStatus(monitorURL+"/monitor/state", http.StatusOK, remaining); err != nil {
+		return fmt.Errorf("collector monitor: %w", err)
+	}
+	return nil
 }
 
 // runCollectorLifecycleScenario launches the collector, issues an exit, waits
@@ -405,16 +421,10 @@ func runCollectorLifecycleScenario(binary, coreRoot, catalogRoot, workDir string
 	}()
 	controlURL := "http://" + control
 	monitorURL := "http://" + monitor
-	if err := waitHTTPStatus(controlURL+"/api/lifecycle/health", http.StatusOK, 20*time.Second); err != nil {
-		return nil, fmt.Errorf("collector health: %w\n%s", err, output.String())
-	}
-
-	// Verify monitor is reachable while running.
-	monitorReachable := false
-	resp, err := http.Get(monitorURL + "/monitor/state")
-	if err == nil {
-		_ = resp.Body.Close()
-		monitorReachable = resp.StatusCode == http.StatusOK
+	if err := waitCollectorLifecycleSurfaces(
+		controlURL, monitorURL, collectorLifecycleReadyTimeout,
+	); err != nil {
+		return nil, fmt.Errorf("%w\n%s", err, output.String())
 	}
 
 	// Issue exit.
@@ -445,9 +455,8 @@ func runCollectorLifecycleScenario(binary, coreRoot, catalogRoot, workDir string
 	}
 
 	return &collectorLifecycleResult{
-		TerminalState:    terminalState,
-		AllAddrsRebind:   allRebind,
-		MonitorReachable: monitorReachable,
+		TerminalState:  terminalState,
+		AllAddrsRebind: allRebind,
 	}, nil
 }
 
