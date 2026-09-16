@@ -39,9 +39,19 @@ type Tree struct {
 // relative path resolves, so a re-rooted tree carries its imports to the
 // position it re-rooted them to. Resolution is transitive: a unit importing
 // another unit brings that one too.
-func Stage(trees ...Tree) error {
-	closure := &stagedClosure{staged: map[string]bool{}}
+//
+// root is the directory the stager owns, and everything Stage writes must land
+// inside it. Imports are placed outside the tree that declares them by design
+// -- a unit beside an agent directory lands beside its copy -- so a tree's
+// destination is not the boundary. The directory the stager mounts, packages,
+// and removes is, and only the stager knows which directory that is (GH-2075).
+func Stage(root string, trees ...Tree) error {
+	closure := &stagedClosure{root: filepath.Clean(root), staged: map[string]bool{}}
 	for _, tree := range trees {
+		if !within(closure.root, filepath.Clean(tree.Destination)) {
+			return fmt.Errorf("stage %s: destination %s is outside the staged root %s",
+				tree.Source, tree.Destination, closure.root)
+		}
 		if err := closure.copyTree(tree); err != nil {
 			return err
 		}
@@ -127,6 +137,7 @@ func within(root, path string) bool {
 // stagedClosure records where each staged file came from, because an import is
 // read from the source beside the declaring file and written beside its copy.
 type stagedClosure struct {
+	root    string
 	staged  map[string]bool
 	pending []stagedFile
 }
@@ -183,6 +194,12 @@ func (c *stagedClosure) followImports() error {
 
 func (c *stagedClosure) stageImport(file stagedFile, imported string) error {
 	destination := filepath.Clean(filepath.Join(filepath.Dir(file.destination), imported))
+	if !within(c.root, destination) {
+		return fmt.Errorf(
+			"stage import %q of %s: resolves to %s, outside the staged root %s",
+			imported, file.source, destination, c.root,
+		)
+	}
 	if c.staged[destination] {
 		return nil
 	}

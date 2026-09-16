@@ -723,7 +723,7 @@ func generateRag1Variant(profilesRoot string) (string, func(), error) {
 	cleanup := func() { _ = os.RemoveAll(dstDir) }
 	// Staged before rewriting so anything the profile imports arrives too and
 	// is rewritten with it (GH-2041).
-	if err := profilestage.Stage(profilestage.Tree{
+	if err := profilestage.Stage(dstDir, profilestage.Tree{
 		Source: srcDir, Destination: dstDir,
 	}); err != nil {
 		cleanup()

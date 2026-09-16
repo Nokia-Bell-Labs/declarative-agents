@@ -39,7 +39,7 @@ func TestStageCarriesASiblingImport(t *testing.T) {
 	source := agentImportingAUnit(t)
 	destination := t.TempDir()
 
-	require.NoError(t, profilestage.Stage(profilestage.Tree{
+	require.NoError(t, profilestage.Stage(destination, profilestage.Tree{
 		Source:      filepath.Join(source, "agents", "collector"),
 		Destination: filepath.Join(destination, "agents", "collector"),
 	}))
@@ -78,7 +78,7 @@ func TestStageFollowsAReRootedImportToItsStagedPosition(t *testing.T) {
 		"unit: types-core\ntypes: []\n")
 	destination := t.TempDir()
 
-	require.NoError(t, profilestage.Stage(profilestage.Tree{
+	require.NoError(t, profilestage.Stage(destination, profilestage.Tree{
 		Source:      filepath.Join(source, "agents", "applier"),
 		Destination: filepath.Join(destination, "applications", "catalog", "applier"),
 	}))
@@ -100,7 +100,7 @@ func TestStageResolvesImportsTransitively(t *testing.T) {
 	writeDeclaration(t, source, "shared/types-shared.yaml", "unit: types-shared\ntypes: []\n")
 	destination := t.TempDir()
 
-	require.NoError(t, profilestage.Stage(profilestage.Tree{
+	require.NoError(t, profilestage.Stage(destination, profilestage.Tree{
 		Source:      filepath.Join(source, "agents", "chatbot"),
 		Destination: filepath.Join(destination, "agents", "chatbot"),
 	}))
@@ -119,7 +119,7 @@ func TestStageAcceptsTheFlowImportForm(t *testing.T) {
 	writeDeclaration(t, source, "tools/rest-auth-none.yaml", "unit: rest-auth-none\nrest:\n  version: v1\n")
 	destination := t.TempDir()
 
-	require.NoError(t, profilestage.Stage(profilestage.Tree{
+	require.NoError(t, profilestage.Stage(destination, profilestage.Tree{
 		Source:      filepath.Join(source, "agents", "scenario-critic"),
 		Destination: filepath.Join(destination, "agents", "scenario-critic"),
 	}))
@@ -134,9 +134,10 @@ func TestStageReportsAnImportWithNoTarget(t *testing.T) {
 	writeDeclaration(t, source, "agents/broken/declarations.yaml",
 		"unit: broken\nimports:\n- ../units/absent.yaml\ntools: []\n")
 
-	err := profilestage.Stage(profilestage.Tree{
+	stageRoot := t.TempDir()
+	err := profilestage.Stage(stageRoot, profilestage.Tree{
 		Source:      filepath.Join(source, "agents", "broken"),
-		Destination: filepath.Join(t.TempDir(), "agents", "broken"),
+		Destination: filepath.Join(stageRoot, "agents", "broken"),
 	})
 
 	require.ErrorContains(t, err, "../units/absent.yaml")
@@ -153,7 +154,7 @@ func TestStageIgnoresNonDeclarationYAML(t *testing.T) {
 	writeDeclaration(t, source, "agents/plain/notes.txt", "not yaml at all\n")
 	destination := t.TempDir()
 
-	require.NoError(t, profilestage.Stage(profilestage.Tree{
+	require.NoError(t, profilestage.Stage(destination, profilestage.Tree{
 		Source:      filepath.Join(source, "agents", "plain"),
 		Destination: filepath.Join(destination, "agents", "plain"),
 	}))
@@ -203,4 +204,59 @@ func TestImportedFollowsTheChainOutOfTheDirectory(t *testing.T) {
 		filepath.Join(source, "agents", "units", "types-core.yaml"),
 		filepath.Join(source, "shared", "types-shared.yaml"),
 	}, imported, "the chain is followed past the first hop and returned in a stable order")
+}
+
+// TestStageRefusesAnImportThatLeavesTheRoot is GH-2075. An import deep enough
+// to climb out of the staged root used to land beside it and report success,
+// and Validate could not tell, because the copy sat exactly where the staged
+// declaration resolved it. The tree loaded on the machine that staged it and
+// failed only once the root was used on its own.
+func TestStageRefusesAnImportThatLeavesTheRoot(t *testing.T) {
+	t.Parallel()
+	source := t.TempDir()
+	writeDeclaration(t, source, "agents/probe/declarations.yaml",
+		"unit: probe\nimports:\n- ../../shared/types.yaml\ntools: []\n")
+	writeDeclaration(t, source, "shared/types.yaml", "unit: shared-types\ntypes: []\n")
+	parent := t.TempDir()
+	root := filepath.Join(parent, "stage")
+
+	err := profilestage.Stage(root, profilestage.Tree{
+		Source:      filepath.Join(source, "agents", "probe"),
+		Destination: filepath.Join(root, "agents"),
+	})
+
+	require.ErrorContains(t, err, "../../shared/types.yaml")
+	require.ErrorContains(t, err, "outside the staged root")
+	require.NoFileExists(t, filepath.Join(parent, "shared", "types.yaml"),
+		"nothing is written beside the root")
+}
+
+// TestStagePlacesAnImportOutsideItsTreeButInsideTheRoot keeps what GH-2041
+// designed: a unit beside an agent directory lands beside its copy, outside the
+// tree that declares it. The chatbot-mesh embedding-exclusion stager depends on
+// exactly this, staging agents/chatbot as one tree and walking the root for the
+// units it imports.
+func TestStagePlacesAnImportOutsideItsTreeButInsideTheRoot(t *testing.T) {
+	t.Parallel()
+	source := agentImportingAUnit(t)
+	root := t.TempDir()
+
+	require.NoError(t, profilestage.Stage(root, profilestage.Tree{
+		Source:      filepath.Join(source, "agents", "collector"),
+		Destination: filepath.Join(root, "collector-shifted"),
+	}))
+
+	require.FileExists(t, filepath.Join(root, "units", "types-core.yaml"))
+}
+
+func TestStageRefusesATreeDestinationOutsideTheRoot(t *testing.T) {
+	t.Parallel()
+	source := agentImportingAUnit(t)
+
+	err := profilestage.Stage(t.TempDir(), profilestage.Tree{
+		Source:      filepath.Join(source, "agents", "collector"),
+		Destination: filepath.Join(t.TempDir(), "collector"),
+	})
+
+	require.ErrorContains(t, err, "outside the staged root")
 }

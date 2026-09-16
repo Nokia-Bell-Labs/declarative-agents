@@ -72,5 +72,5 @@ pkg:internal/tools/validation files=5 loc=1488
 pkg:internal/typesys files=4 loc=554
 pkg:internal/version files=1 loc=40
 pkg:pkg/profileaudit files=4 loc=1214
-pkg:pkg/profilestage files=1 loc=245
+pkg:pkg/profilestage files=1 loc=262
 pkg:pkg/spec files=31 loc=6395

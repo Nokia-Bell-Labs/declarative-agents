@@ -211,6 +211,7 @@ func stageServingProfileTree(roots integrationRoots) (string, func(), error) {
 	// The applier projection drops the agents/ segment, so its imports are
 	// staged where the projected declaration resolves them (GH-2041).
 	if err := profilestage.Stage(
+		root,
 		profilestage.Tree{
 			Source:      filepath.Join(roots.Profiles, "agents", "applier"),
 			Destination: filepath.Join(root, "applications", "catalog", "applier"),
