@@ -9,10 +9,10 @@ import "fmt"
 // (srd051 R6.6 through R6.10).
 //
 // Defaults are applied once, at load, so the ToolDef every consumer sees
-// already carries its effective contract. ValidateToolContracts and the
-// corpus audit in pkg/spec therefore need no knowledge of this table and
-// cannot disagree about it: they read the same populated fields they always
-// read. The dump renders the effective contract for the same reason (R6.11).
+// already carries its effective contract. The corpus audit in pkg/spec reads
+// the populated fields and the discharge table below, and is the one check of
+// contract completeness (GH-2071). The dump renders the effective contract
+// for the same reason (R6.11).
 
 // defaultingCategories lists the categories whose side-effect, reversibility,
 // and undo obligations a signature discharges. Boundary is absent by design:

@@ -666,26 +666,26 @@ patterns:
       - system: Reference implementation — contract authoring and specification audit
         cite: reference-implementation
         kind: internal
-        note: Shipped validators report full completeness during authoring, and the public specification audit enforces it for selected tools; ordinary startup does not invoke that check.
+        note: The public specification audit is the one check of contract completeness, enforced for selected tools and reading the load-time discharge table so a signature and the check cannot disagree; ordinary startup does not invoke it.
         evidence:
           classification: shipped
           checks:
-            - path: agent-core/internal/tools/catalog/contracts.go
-              artifact: go_source
-              assertion: go_symbol
-              symbol: ValidateToolContracts
-            - path: agent-core/internal/tools/catalog/contracts.go
-              artifact: go_source
-              assertion: go_symbol
-              symbol: ReviewToolAuthoring
             - path: agent-core/pkg/spec/validate_tools.go
               artifact: go_source
               assertion: go_symbol
               symbol: checkSelectedToolContractCompleteness
-            - path: agent-core/internal/tools/catalog/contracts_test.go
+            - path: agent-core/pkg/spec/validate_tools.go
+              artifact: go_source
+              assertion: go_symbol
+              symbol: missingToolContractFields
+            - path: agent-core/internal/tools/catalog/contract_defaults.go
+              artifact: go_source
+              assertion: go_symbol
+              symbol: SignatureDischarges
+            - path: agent-core/pkg/spec/validate_tool_contracts_test.go
               artifact: go_test
               assertion: go_test
-              test: TestValidateToolContractsReportsMissingFields
+              test: TestValidate_SelectedToolContractCompletenessPassesCompleteTool
             - path: agent-core/pkg/spec/validate_tool_contracts_test.go
               artifact: go_test
               assertion: go_test

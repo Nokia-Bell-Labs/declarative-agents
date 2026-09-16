@@ -31,11 +31,6 @@ func TestRuntimeStartupValidatesWiringNotFullContractCompleteness(t *testing.T) 
 
 	require.NoError(t, validateRuntimeToolWiring(machine, []catalog.ToolDef{incomplete}, nil, nil, catalog.ExhaustivenessInputs{}),
 		"ordinary startup accepts incomplete descriptive metadata when wiring is safe")
-	require.NotEmpty(t,
-		catalog.ValidateToolContracts([]catalog.ToolDef{incomplete},
-			catalog.ContractValidationOptions{}),
-		"authoring/audit validation still reports the incomplete contract")
-
 	badWiring := incomplete
 	badWiring.Emits = []string{"UndeclaredSignal"}
 	require.ErrorContains(t,

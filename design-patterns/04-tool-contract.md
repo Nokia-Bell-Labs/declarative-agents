@@ -112,7 +112,7 @@ Each tool needs a full contract, not a docstring. The payoff is that the contrac
 
 ### Validation boundaries
 
-The complete contract is an authoring and audit standard, not an unconditional runtime-startup gate. `ReviewToolAuthoring` and `ValidateToolContracts` report missing problem, goals, requirements, non-goals, schemas, reversibility, undo, relationships, and legacy metadata while a tool is designed. The public specification audit applies the corresponding completeness check to selected declarations and treats incomplete migrated contracts as errors.
+The complete contract is an audit standard, not an unconditional runtime-startup gate. The public specification audit checks every selected declaration for problem, goals, requirements, non-goals, schemas, reversibility, undo, and relationships, and treats an incomplete migrated contract as an error. It is the one statement of that check: a signature discharges the blocks the load-time defaults fill, the audit reads the same discharge table the loader applies, and there is no second authoring-time checker to hold in agreement with it.
 
 Ordinary agent startup enforces the subset needed for safe execution: parse-retry budgets must have retry and exhaustion routes, every declared emitted signal must be routable by the loaded machine, and state-mutating reversible or compensatable tools must declare receipt-consuming undo. Startup does not reject a declaration solely because descriptive contract sections are incomplete. CI and profile audits must run the broader checks before release.
 

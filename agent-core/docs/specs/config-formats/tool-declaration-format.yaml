@@ -680,14 +680,15 @@ inline_pattern: |
   keeping active profiles on individual declaration files.
 
 contract_validation: |
-  Tool vocabulary contract fields are validated incrementally. During
-  migration, ValidateToolContracts can run in warn-only mode over selected
-  tools and return structured findings with tool name, field, severity,
-  category, message, and remediation. Strict mode escalates missing required
-  contract fields to errors for tests or future startup enforcement. Internal
-  tools are excluded by default unless IncludeInternal is set. When category
-  is declared, validation reports that explicit category (for example,
-  boundary) instead of falling back to internal, external_builtin, or exec.
+  Contract completeness is checked once, by the corpus audit in pkg/spec,
+  over every tool a profile selects. A declaration with contract: legacy
+  draws a warning; a migrated or strict one draws an error for each missing
+  field, named with the tool, its source file, and the selections that use
+  it. A signature discharges the blocks the load-time defaults fill, and the
+  audit reads the same discharge table the loader applies (srd051 R6), so the
+  two cannot disagree about what a signature covers. Runtime startup checks
+  wiring only: emitted signals the machine can route, selector labels that
+  resolve, and receipt-consuming undo where a tool mutates state.
 
 structured_output_strategy: |
   Tool output has two compatible runtime forms:

@@ -38,18 +38,12 @@ func TestDoltDeclarationsExposeCompleteDistinctWords(t *testing.T) {
 	}
 }
 
-func TestDoltDeclarationsPassContractAndReceiptValidation(t *testing.T) {
+func TestDoltDeclarationsPassReceiptValidation(t *testing.T) {
 	t.Parallel()
 
 	defs, err := LoadToolDeclarations([]string{doltDeclarationPath(t)})
 	require.NoError(t, err)
 
-	findings := ValidateToolContracts(defs, ContractValidationOptions{
-		Strict:                       true,
-		MinimumLevel:                 ContractSeverityError,
-		RequireStructuredSideEffects: true,
-	})
-	require.Empty(t, findings)
 	require.NoError(t, ValidateReceiptContracts(defs))
 
 	for _, name := range []string{"dolt_provision", "dolt_write"} {
