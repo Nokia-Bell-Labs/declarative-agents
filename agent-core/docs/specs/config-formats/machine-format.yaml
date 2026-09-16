@@ -685,7 +685,21 @@ examples:
       report. No LLM calls. Rich state/signal metadata with purpose,
       invariants, and lifecycle narrative.
 
+stage_fragments: |
+  A machine MAY instantiate a stage fragment (srd052-declaration-fragments
+  R4): a unit whose body is `stage` rather than a whole machine, declaring
+  states, signals, transitions, and labels that splice into the importing
+  machine under a prefix. The stage's entry signal and exit signals are
+  parameters, so the importing machine decides how the stage is reached and
+  left. The spliced result is validated as one machine by the label checks
+  (srd038) and the exhaustiveness checks (srd006), so an instantiated stage
+  is held to exactly what a hand-written one is held to. The `params` and
+  `instantiate` fields follow cfg-tool-declaration-format. This arrives with
+  GH-2083, after the tool and REST fragments; until then a machine file
+  carrying `instantiate` fails strict decoding as an unknown field.
+
 related_documents:
   - srd006
+  - srd052-declaration-fragments
 
 implementation: internal/runtime/core/machine.go

@@ -1,0 +1,56 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel18.0-uc001-declaration-fragments
+title: A profile instantiates parameterized declaration fragments
+status: specified
+
+summary: |
+  A profile author finds one block written out once per provider, test case,
+  or agent with two or three values changed, extracts it into a fragment with
+  declared, typed parameters, and instantiates the fragment with arguments
+  where each copy stood. The loader substitutes the arguments into scalar
+  values before strict decoding, validates the result exactly as it would a
+  hand-written unit, and records each instantiation in the canonical dump.
+
+actor: A profile author replacing hand-copied declaration blocks with one template
+
+trigger: |
+  A declaration file lists an `instantiate` entry naming a fragment, a set of
+  arguments, and optionally a name prefix.
+
+flow:
+  - F1: The loader reads the fragment, checks it carries `params` and exactly one body kind, and rejects a fragment that instantiates another fragment.
+  - F2: It checks the arguments against the declared parameters, rejecting a missing required argument, an unknown argument, and a value outside the parameter's type or enum, naming importer, fragment, and parameter.
+  - F3: It substitutes `$param(name)` inside scalar values only, rejects any reference that survives, and prefixes every produced name with `<as>_` when a prefix is given.
+  - F4: It decodes and validates the instantiated document through the same path as a hand-written unit, so duplicate names, strict decoding, and per-tool hooks apply unchanged.
+  - F5: Closure usedness treats an instantiation none of whose definitions is selected as an unused import, and the dump lists every instantiation with fragment, arguments, and produced names.
+  - F6: For a stage fragment, the loader splices states, signals, transitions, and labels into the importing machine under a prefix and validates the result as one machine.
+
+touchpoints:
+  - T1: "srd052-declaration-fragments R1 -- fragment unit format"
+  - T2: "srd052-declaration-fragments R2 -- instantiation, hygienic substitution, and validation"
+  - T3: "srd052-declaration-fragments R3 -- usedness and provenance"
+  - T4: "srd052-declaration-fragments R4 -- machine stage fragments"
+
+success_criteria:
+  - id: S1
+    criterion: A fragment with params and one body loads; a half-declared fragment and a nesting fragment each fail naming the file.
+    traces: [srd052-declaration-fragments AC1]
+  - id: S2
+    criterion: Each argument fault fails naming importer, fragment, and parameter, and a reference in a mapping name is left alone and then rejected.
+    traces: [srd052-declaration-fragments AC2]
+  - id: S3
+    criterion: Two instantiations of one fragment with distinct prefixes coexist; two without fail as duplicates; a fragment under imports fails.
+    traces: [srd052-declaration-fragments AC2]
+  - id: S4
+    criterion: An unselected instantiation fails as an unused import and the dump lists every instantiation with its arguments and produced names.
+    traces: [srd052-declaration-fragments AC3]
+  - id: S5
+    criterion: A spliced stage passes or fails the label and exhaustiveness checks exactly as the equivalent hand-written machine does.
+    traces: [srd052-declaration-fragments AC4]
+
+out_of_scope:
+  - Fragments instantiating other fragments.
+  - Conditional or computed structure inside a fragment.
+  - Loader words and machines as tools for other machines.
+  - Committing instantiated output.

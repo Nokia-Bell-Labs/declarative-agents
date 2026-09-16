@@ -689,6 +689,55 @@ releases:
       - go test ./internal/tools/catalog ./internal/tools/rest/definition ./internal/load
       - mage audit
 
+  - version: "18.0"
+    name: Parameterized declaration fragments
+    description: |
+      Release 18.0 gives declarations function templates. A fragment is a
+      unit with declared, typed parameters; an importer instantiates it with
+      arguments, the loader substitutes them into scalar values before strict
+      decoding, and the result is validated exactly as a hand-written unit.
+      Three fragment kinds land in order of cost: tool declarations, REST
+      definitions, and machine stages. Nothing generated is committed; the
+      canonical dump lists every instantiation.
+
+      The metric that judges the release landed first: stats:reuse counts
+      imported, shared, and single-importer units and instantiations, and a
+      unit earns its place with two importers or one instantiation.
+    status: planned
+    planned_work:
+      - id: gh-2084
+        summary: Count imported, shared, single-importer units and instantiations in stats:reuse.
+        status: implemented
+      - id: gh-2080
+        summary: Specify fragments -- srd052, use case, test suite, and the config-format fields.
+        status: implemented
+      - id: gh-2081
+        summary: Tool-declaration fragments and the hygienic substitution engine.
+        status: planned
+      - id: gh-2082
+        summary: REST-definition fragments through the REST import resolver.
+        status: planned
+      - id: gh-2083
+        summary: Machine stage fragments spliced under a prefix and validated as one machine.
+        status: planned
+      - id: gh-2085
+        summary: Factor the top duplicated blocks into fragments and shared units, reporting stats:reuse before and after.
+        status: planned
+    srds:
+      - srd052-declaration-fragments
+    use_cases:
+      - id: rel18.0-uc001-declaration-fragments
+        summary: A profile instantiates parameterized fragments in place of hand-copied blocks.
+        status: planned
+    test_suites:
+      - id: test-rel18.0-declaration-fragments
+        summary: Formal tests for the fragment format, instantiation and substitution, usedness and provenance, and stage splicing.
+        status: planned
+    proof:
+      - go test ./internal/tools/catalog ./internal/tools/rest/definition ./internal/load ./internal/runtime/core
+      - mage stats:reuse
+      - mage audit
+
   - version: "99.0"
     name: Architectural migrations and cleanup
     description: |

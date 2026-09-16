@@ -1,0 +1,161 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd052-declaration-fragments
+title: Parameterized Declaration Fragments
+
+problem: |
+  Imports (srd050) gave declarations headers, and type units with signatures
+  (srd051) gave them named shapes and defaulted contract blocks. Neither can
+  express the shape that produces most of the duplication that remains: one
+  block written out once per provider, per test case, or per agent, with two
+  or three values changed each time. Measured by `mage stats:reuse`, eighty-five
+  of ninety imported units have exactly one importer, which is an include by
+  another name, and the largest duplicated blocks are all instances of one
+  shape with different values.
+
+  In the terms of a programming language, the declarations have `#include`
+  and default members but no function templates. A fragment is that template:
+  a declaration unit with declared, typed parameters that an importer
+  instantiates with arguments. The loader performs the instantiation before
+  strict decoding, so every existing validation runs on the instantiated
+  result and nothing generated is ever committed.
+
+goals:
+  - G1: Let a declaration unit declare typed parameters and be instantiated by an importer with arguments.
+  - G2: Keep substitution hygienic, so an argument fills a hole in a shape and can never add structure to it.
+  - G3: Validate an instantiation the way a constrained generic is validated, naming the fragment, the parameter, and the importer on failure.
+  - G4: Validate the instantiated result through the same path as a hand-written unit, so a fragment can produce nothing a hand-written file could not.
+  - G5: Record provenance, so the dump and the usedness rule see instantiations as they see imports.
+
+requirements:
+  R1:
+    title: Fragment unit format
+    items:
+      - R1.1: >-
+          A fragment is a declaration file with `unit`, `params`, and exactly
+          one body kind: `tools`, `rest`, or `stage`. `params` SHALL be a list
+          of entries carrying `name` and `type`, and optionally `enum`,
+          `default`, and `description`. `type` SHALL be one of string, integer,
+          number, or boolean.
+      - R1.2: >-
+          A fragment file MAY import type units and other non-fragment units
+          under srd050 R1.2, and SHALL NOT instantiate other fragments. Nesting
+          is outside this release.
+      - R1.3: >-
+          A file carrying `params` and no body, or a body and no `params`,
+          SHALL be a load error naming the file. A unit is a fragment or it is
+          not; a file that is half of one declares nothing.
+
+  R2:
+    title: Instantiation
+    items:
+      - R2.1: >-
+          An importing file SHALL list instantiations under `instantiate`,
+          beside `imports`, each carrying `fragment` (a path relative to the
+          importing file under the same rules as an import), `args` (a mapping
+          from parameter name to value), and optionally `as` (a name prefix).
+      - R2.2: >-
+          Every declared parameter without a `default` MUST be supplied. An
+          argument naming no declared parameter SHALL be an error, and an
+          argument whose value violates the parameter's `type` or `enum` SHALL
+          be an error. Each error SHALL name the importing file, the fragment
+          path, and the parameter.
+      - R2.3: >-
+          A parameter is referenced as `$param(name)`. Substitution SHALL
+          replace references only inside scalar values, never inside mapping
+          names or list structure, so an argument cannot add a mapping, a list
+          entry, or a second tool. A `$param(` remaining after substitution,
+          or one naming an undeclared parameter, SHALL be a load error naming
+          the fragment path and the line. The form cannot collide with
+          environment expansion, whose pattern is `${NAME}`, nor with
+          selectors, which begin `$.` or `$from(`.
+      - R2.4: >-
+          Instantiation SHALL happen in the loader before strict decoding, and
+          the instantiated document SHALL then be decoded and validated by the
+          same path as a hand-written unit: strict decode, per-tool hooks,
+          tool validation, REST definition validation. No instantiated output
+          SHALL be committed to the repository.
+      - R2.5: >-
+          Instantiated names MUST be unique in the closure under the existing
+          duplicate rules. When `as` is given, every name the instantiation
+          produces SHALL be prefixed `<as>_`, so one fragment can be
+          instantiated more than once in one closure.
+      - R2.6: >-
+          A fragment SHALL only be instantiated. Listing a fragment under
+          `imports` SHALL be a load error naming the importing file and the
+          fragment, because a fragment's body holds unfilled references and
+          is not a declaration until its arguments arrive.
+      - R2.7: >-
+          Instantiating one fragment twice with the same arguments and no
+          distinguishing `as` SHALL fail with the existing duplicate-name error
+          of srd050 R3, not one of its own.
+
+  R3:
+    title: Usedness and provenance
+    items:
+      - R3.1: >-
+          An instantiation whose produced definitions are all unselected SHALL
+          be an unused import under srd050 R5, reported with the same evidence:
+          the importing file, the fragment path, and the arguments.
+      - R3.2: >-
+          Every produced definition SHALL record the fragment path and the
+          arguments that produced it, and the canonical dump SHALL carry an
+          `instantiations` section listing, for each instantiation, the
+          fragment, the arguments, and the names produced.
+
+  R4:
+    title: Machine stage fragments
+    items:
+      - R4.1: >-
+          A `stage` body SHALL declare states, signals, transitions, and labels
+          that splice into an importing machine under a prefix. The entry
+          signal and the exit signals SHALL be parameters, so the importing
+          machine decides how the stage is reached and left.
+      - R4.2: >-
+          The spliced machine SHALL be validated as one machine by the label
+          and exhaustiveness checks of srd038 and srd006, so an instantiated
+          stage is held to what a hand-written one is held to.
+
+non_goals:
+  - Fragments instantiating other fragments; nesting waits for a release that needs it.
+  - Conditional or computed structure. A fragment is a fixed shape; arguments fill scalar holes in it.
+  - Loader words that resolve, typecheck, instantiate, or dump as builtin tools, and machines as tools for other machines. Both build on this and are specified separately.
+  - Committing any instantiated or generated declaration.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A fragment declaring params and one body loads, a fragment with params and no body fails naming the file, and a fragment instantiating another fragment fails.
+    traces: [R1.1, R1.2, R1.3]
+  - id: AC2
+    criterion: An instantiation supplying every required argument produces definitions under the same validation as a hand-written unit; a missing argument, an unknown argument, a wrong type, and a value outside an enum each fail naming importer, fragment, and parameter; a `$param(` in a mapping name is not substituted and fails; a leftover reference fails naming the fragment and line; two instantiations with distinct `as` coexist and two without fail as duplicates; a fragment listed under imports fails.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
+  - id: AC3
+    criterion: An instantiation none of whose definitions is selected fails as an unused import with the fragment and arguments named, and the dump lists every instantiation with fragment, arguments, and produced names.
+    traces: [R3.1, R3.2]
+  - id: AC4
+    criterion: A stage fragment splices into a machine under a prefix with parameterized entry and exit signals, and the result passes or fails the label and exhaustiveness checks exactly as the equivalent hand-written machine does.
+    traces: [R4.1, R4.2]
+
+depends_on:
+  - srd_id: srd050-declaration-imports
+    symbols_used: [unit, imports, closure usedness, duplicate-name error]
+  - srd_id: srd051-declaration-types
+    symbols_used: [schema subset, type references, signature]
+  - srd_id: srd038-command-state-store
+    symbols_used: [typed labels, selector path checks]
+  - srd_id: srd006-yaml-machine-config
+    symbols_used: [MachineSpec, exhaustiveness]
+
+related_documents:
+  - cfg-tool-declaration-format
+  - cfg-rest-tool-format
+  - cfg-machine-format
+  - srd050-declaration-imports
+  - srd051-declaration-types
+
+implementation_status:
+  planned:
+    - GH-2081 implements tool-declaration fragments and the substitution engine (R1, R2, R3).
+    - GH-2082 implements REST-definition fragments through the REST import resolver (R1, R2, R3 for the rest body).
+    - GH-2083 implements machine stage fragments (R4), after the label and exhaustiveness checks it validates against.
+    - GH-2085 factors the top duplicated blocks into fragments and shared units, reporting mage stats:reuse before and after.
