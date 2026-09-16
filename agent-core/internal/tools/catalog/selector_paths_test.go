@@ -129,24 +129,68 @@ func TestValidateSelectorPathsLeavesBareExternalLabelsUntyped(t *testing.T) {
 		"the bare form stays untyped so existing machines are unaffected")
 }
 
-func TestValidateSelectorPathsTypesForEachItemLabel(t *testing.T) {
-	t.Parallel()
-	registry := pathRegistry(t)
+// eachMachine iterates items with a per-item action, labelling each element row.
+func eachMachine(items, action string) core.MachineSpec {
 	spec := pathMachine()
 	spec.Transitions = append(spec.Transitions, core.TransitionSpec{
-		State: "Fetched", Signal: "Each", Next: "Joined", Action: "fetch",
+		State: "Fetched", Signal: "Each", Next: "Joined", Action: action,
 		ForEach: &core.ForEachSpec{
-			Items: "$from(fetched).text", As: "row",
+			Items: items, As: "row",
 			Join: core.JoinSpec{Next: "Joined", Label: "joined"},
 		},
 	})
-	defs := []ToolDef{fetchTool(t, registry), reportReading("$from(row).txet")}
+	return spec
+}
+
+// TestValidateSelectorPathsTypesForEachItemLabel is srd038 R2.16: the item
+// takes the element type of the array for_each.items reaches. The per-item
+// action here is untyped, so a type on row can only have come from the array.
+func TestValidateSelectorPathsTypesForEachItemLabel(t *testing.T) {
+	t.Parallel()
+	registry := pathRegistry(t)
+	spec := eachMachine("$from(fetched).$", "process")
+	defs := []ToolDef{fetchTool(t, registry), reportReading("$from(row).txet"), {Name: "process"}}
 
 	diagnostics := ValidateSelectorPaths(spec, defs, registry, nil)
 
 	require.Len(t, diagnostics, 1)
 	require.Contains(t, diagnostics[0].Message, `has no field "txet"`,
 		"an item label takes the element type of the array it iterates")
+}
+
+// TestItemLabelIgnoresThePerItemActionOutput is GH-2067. The item label used to
+// take the element type of the per-item action's output, so an action that
+// happened to return an array typed every element as one of its own elements,
+// and a correct selector into the real element could fail the load.
+func TestItemLabelIgnoresThePerItemActionOutput(t *testing.T) {
+	t.Parallel()
+	registry := pathRegistry(t)
+	spec := eachMachine("$from(elsewhere).things", "fetch")
+	spec.ExternalLabels = []core.ExternalLabel{{Name: "elsewhere"}}
+	defs := []ToolDef{fetchTool(t, registry), reportReading("$from(row).anything")}
+
+	require.Empty(t, ValidateSelectorPaths(spec, defs, registry, nil),
+		"an untyped iterated array publishes an untyped item, whatever the action returns")
+}
+
+// TestItemOverARESTMappedArrayIsUntyped records the decision on GH-2067: a REST
+// client's mapped fields are undecided under srd038 R2.19, so iterating one
+// publishes an untyped item. The mesh observer's $from(pod).status.podIP is this.
+func TestItemOverARESTMappedArrayIsUntyped(t *testing.T) {
+	t.Parallel()
+	spec := core.MachineSpec{Transitions: []core.TransitionSpec{
+		{State: "S0", Signal: "Seed", Next: "S1", Action: "discover", Label: "pods_result"},
+		{State: "S1", Signal: "ToolDone", Next: "Done", Action: "process", ForEach: &core.ForEachSpec{
+			Items: "$from(pods_result).mapped.pods", As: "pod",
+			Join: core.JoinSpec{Next: "Done", Label: "joined"},
+		}},
+		{State: "Done", Signal: "ToolDone", Next: "End", Action: "report"},
+	}}
+	defs := []ToolDef{discoverPodsTool(), {Name: "process"}, reportReading("$from(pod).status.podIP")}
+
+	require.Empty(t, ValidateSelectorPaths(spec, defs, nil, listPods()))
+	_, typed := LabelTypes(spec, defs, nil, listPods())["pod"]
+	require.False(t, typed)
 }
 
 func TestValidateSelectorPathsTypesTheJoinEnvelope(t *testing.T) {

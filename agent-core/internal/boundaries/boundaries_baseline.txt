@@ -45,7 +45,7 @@ pkg:internal/support/execute files=1 loc=110
 pkg:internal/support/subprocess files=1 loc=254
 pkg:internal/support/yamlstrict files=1 loc=246
 pkg:internal/tools files=1 loc=14
-pkg:internal/tools/catalog files=22 loc=4564
+pkg:internal/tools/catalog files=22 loc=4595
 pkg:internal/tools/compose files=6 loc=1041
 pkg:internal/tools/control files=7 loc=1291
 pkg:internal/tools/dolt files=6 loc=1357
@@ -69,7 +69,7 @@ pkg:internal/tools/rest/validation files=6 loc=1800
 pkg:internal/tools/service files=6 loc=1637
 pkg:internal/tools/undo files=1 loc=84
 pkg:internal/tools/validation files=5 loc=1488
-pkg:internal/typesys files=4 loc=554
+pkg:internal/typesys files=4 loc=593
 pkg:internal/version files=1 loc=40
 pkg:pkg/profileaudit files=4 loc=1214
 pkg:pkg/profilestage files=1 loc=262

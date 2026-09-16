@@ -25,6 +25,45 @@ func CheckPath(schema map[string]any, path []string) error {
 	return checkPathAt(schema, path, nil)
 }
 
+// SchemaAt returns the schema a selector path reaches, and false wherever the
+// type does not decide it: an untyped or undeclared value, a field the type
+// lacks, a scalar walked past, or a field name applied to an array. The last
+// is a path CheckPath accepts, but which value it yields depends on how the
+// runtime spreads a field across elements, and a guessed shape is worse than
+// none for a label a selector will be checked against.
+func SchemaAt(schema map[string]any, path []string) (map[string]any, bool) {
+	if len(path) == 1 && path[0] == "$" {
+		path = nil
+	}
+	for _, component := range path {
+		switch schemaType(schema) {
+		case "object":
+			properties, _ := schema["properties"].(map[string]any)
+			next, ok := properties[component].(map[string]any)
+			if !ok {
+				return nil, false
+			}
+			schema = next
+		case "array":
+			index, err := strconv.Atoi(component)
+			if err != nil || index < 0 {
+				return nil, false
+			}
+			items, ok := schema["items"].(map[string]any)
+			if !ok {
+				return nil, false
+			}
+			schema = items
+		default:
+			return nil, false
+		}
+	}
+	if len(schema) == 0 {
+		return nil, false
+	}
+	return schema, true
+}
+
 func checkPathAt(schema map[string]any, path, walked []string) error {
 	if len(schema) == 0 || len(path) == 0 {
 		return nil

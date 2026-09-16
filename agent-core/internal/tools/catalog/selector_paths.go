@@ -38,7 +38,43 @@ func LabelTypes(
 	for _, transition := range spec.Transitions {
 		addTransitionLabelTypes(types, transition, byName, registry, operations)
 	}
+	// Item labels come second: for_each.items names a label that any
+	// transition may publish, earlier or later in the list.
+	for _, transition := range spec.Transitions {
+		addItemLabelType(types, transition)
+	}
 	return types
+}
+
+// addItemLabelType gives a for_each item label the element type of the array
+// its items selector reaches (srd038 R2.16). The array is the one named by
+// for_each.items, not the per-item action's output: the action runs once per
+// element and returns whatever it returns, which says nothing about the
+// elements it was handed (GH-2067).
+//
+// An items selector reaching an undecided value leaves the item untyped. A
+// REST client's mapped fields are undecided under R2.19, so iterating one
+// publishes an untyped item.
+func addItemLabelType(types map[string]map[string]any, transition core.TransitionSpec) {
+	forEach := transition.ForEach
+	if forEach == nil || forEach.As == "" {
+		return
+	}
+	parsed, ok := core.ParseSelector(forEach.Items)
+	if !ok || parsed.Label == "" {
+		return
+	}
+	collection, typed := types[parsed.Label]
+	if !typed {
+		return
+	}
+	array, decided := typesys.SchemaAt(collection, parsed.Path)
+	if !decided {
+		return
+	}
+	if items, isArray := arrayItems(array); isArray {
+		types[forEach.As] = items
+	}
 }
 
 func addTransitionLabelTypes(
@@ -64,11 +100,6 @@ func addTransitionLabelTypes(
 	}
 	if transition.ForEach == nil {
 		return
-	}
-	// An item label takes the element type of the array it iterates, which is
-	// the action's own output only when that output is the array.
-	if items, isArray := arrayItems(output); isArray && transition.ForEach.As != "" {
-		types[transition.ForEach.As] = items
 	}
 	if transition.ForEach.Join.Label != "" {
 		types[transition.ForEach.Join.Label] = joinEnvelope(output)
