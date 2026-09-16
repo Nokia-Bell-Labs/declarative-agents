@@ -52,7 +52,10 @@ overview: |
   Release 20.0 covers srd054 for machine templates, whole machines declared
   once as fragments and instantiated by machine files, and srd055 for agent
   blueprints, whole profiles instantiated per agent with their machine
-  templates and units resolved relative to the blueprint.
+  templates and units resolved relative to the blueprint. It also covers
+  srd056 for unit libraries: imports under the agent-core install root or a
+  root the profile declares, read-only libraries, and rooted staging, which
+  amends srd050 R1.2 and srd051 R1.5.
   Release 99.0 covers srd037 dispatch planning and srd043
   application/catalog source-layout migration.
 
@@ -414,6 +417,11 @@ srd_index:
     summary: Whole agent profiles as fragments with a profile body, instantiated per agent with wholesale field overrides; blueprint-relative path resolution, direct machine template instantiation, the instance as program identity with blueprint and templates in its digest, and dump, staging, and audit provenance.
     status: specified
     path: docs/specs/software-requirements/srd055-agent-blueprints.yaml
+  - id: srd056-unit-libraries
+    title: Unit Libraries
+    summary: Import paths relative to the declaring file or absolute under a library root -- the implicit /opt/agent-core root or a root the profile declares under libraries -- with a --library override, closure-scoped roots, read-only libraries, closure, digest, and dump provenance, rooted staging, and the service-library convention.
+    status: specified
+    path: docs/specs/software-requirements/srd056-unit-libraries.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -710,6 +718,12 @@ use_case_index:
     status: specified
     test_suite: test-rel20.0-machine-templates
     path: docs/specs/use-cases/rel20.0-uc002-agent-blueprints.yaml
+  - id: rel20.0-uc003-unit-libraries
+    title: A unit imports from a library root
+    release: "20.0"
+    status: specified
+    test_suite: test-rel20.0-unit-libraries
+    path: docs/specs/use-cases/rel20.0-uc003-unit-libraries.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -902,6 +916,14 @@ test_suite_index:
     formal_test_cases: 23
     status: specified
     path: docs/specs/test-suites/test-rel20.0-machine-templates.yaml
+  - id: test-rel20.0-unit-libraries
+    title: Test Suite for Release 20.0 Unit Libraries
+    release: "20.0"
+    traces:
+      - rel20.0-uc003-unit-libraries
+    formal_test_cases: 12
+    status: specified
+    path: docs/specs/test-suites/test-rel20.0-unit-libraries.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"

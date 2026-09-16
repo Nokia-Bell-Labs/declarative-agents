@@ -1202,6 +1202,33 @@ fragment_files:
     # produces clients metrics_metrics_api and traces_traces_api, each with
     # its own limits profile metrics_default and traces_default
 
+library_imports: |
+  REST `imports` and `instantiate` fragment paths follow the import path forms
+  of cfg-tool-declaration-format `library_imports` (srd056-unit-libraries R1):
+  relative to the declaring file, or absolute under `/opt/agent-core` or a root
+  the profile declares. An `openapi.path` keeps its existing base, the REST file
+  that declares it (srd050 R4.5); a library-rooted REST unit's OpenAPI document
+  therefore travels with the unit. A REST file under a library root cannot
+  import outside its root except by another root's prefix.
+
+service_libraries: |
+  An agent that serves a REST surface MAY publish a service library
+  (srd056-unit-libraries R4): a directory in its application, beside the
+  agents, holding
+
+    lib/<service>/
+      rest.yaml     # unit with the client operations for the served surface
+      types.yaml    # type unit for the request and response shapes
+      words.yaml    # the client words consumers share
+
+  Consumers declare the application's library directory as a root on their
+  profile and import `/opt/<root>/<service>/rest.yaml`, and none of them
+  redeclares the client. Per-consumer values such as base URLs stay in the
+  consumer, because a library is read-only. A service library earns its place
+  with two or more importing profiles; with one, the client stays in its only
+  consumer. The first candidate, rag-server's query client, has one consumer
+  and waits for a second (GH-2121).
+
 format_examples:
   hand_authored: |
     rest:
@@ -1892,6 +1919,7 @@ invalid_examples:
 
 related_documents:
   - srd052-declaration-fragments
+  - srd056-unit-libraries
   - cfg-tool-declaration-format
   - cfg-tool-authoring-standard
   - sm-rest-tool-language

@@ -16,7 +16,7 @@ problem: |
   YAML; the repository commits no generated expansion.
 
 goals:
-  - G1: Let tool and REST declaration files expose named reusable units and import them by explicit relative path.
+  - G1: Let tool and REST declaration files expose named reusable units and import them by explicit relative path, or by an explicit library-root path (srd056).
   - G2: Reject ambiguous declaration graphs before registration or execution.
   - G3: Preserve declaring-file provenance for diagnostics and for import and OpenAPI source-path resolution without changing existing operational path bases.
   - G4: Reject imports that contribute nothing to the resolved profile program.
@@ -30,10 +30,13 @@ requirements:
           non-empty lowercase-kebab name matching
           `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`.
       - R1.2: >-
-          A declaration file MAY declare `imports` as an ordered list of paths
-          relative to that file's directory; an import path SHALL NOT be
-          absolute and SHALL NOT use a search path, package registry, directory
-          convention, or process working directory.
+          A declaration file MAY declare `imports` as an ordered list of paths.
+          Each path SHALL be relative to that file's directory, or absolute
+          under a library root, `/opt/<root>/...`, which is either the
+          implicit agent-core root or a root the profile declares
+          (srd056-unit-libraries R1, R2). Any other absolute path SHALL fail,
+          and no import SHALL use a search path, package registry, directory
+          convention, or process working directory. Amended by srd056.
       - R1.3: >-
           Fields `unit` and `imports` SHALL be top-level siblings of the fields
           named `tools` and `rest`. One declaration file SHALL contain exactly
@@ -200,6 +203,7 @@ related_documents:
   - cfg-rest-tool-format
   - cfg-runtime-contract
   - rel17.0-uc001-declaration-imports
+  - srd056-unit-libraries
   - test-rel17.0-declaration-imports
 
 implementation_status:

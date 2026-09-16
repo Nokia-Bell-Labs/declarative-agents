@@ -712,6 +712,28 @@ fragment_files:
     tools: []
     # produces cohere_embed_query and openai_embed_query
 
+library_imports: |
+  An import path, and a fragment path under `instantiate`, is relative to the
+  declaring file or absolute under a library root (srd056-unit-libraries R1).
+  `/opt/agent-core/...` names agent-core's library: the Standard Tool Library,
+  its type units, and its machine templates. It maps through `--core-root` in
+  a checkout and is used as written in the runtime image, so one path works in
+  both:
+
+    unit: catalog-collector-declarations
+    imports:
+    - /opt/agent-core/tools/units/types-core.yaml
+    - ../units/types-collector.yaml
+
+  `/opt/<name>/...` names a root the profile declares under `libraries`
+  (cfg-agent-profile-format); an undeclared name is a load error naming the
+  prefix and the profile. Any other absolute path fails as srd050 R1.2 states.
+  A library is read-only: a tool in a file under a root cannot carry
+  `override: true`, and a relative import inside a root cannot leave it,
+  though it may import another root by prefix. Rooted files are closure files
+  and program identity assets, and the dump marks each with its root. Arriving
+  with GH-2118 (agent-core root) and GH-2119 (declared roots).
+
 boundary_compensation_example: |
   Boundary tools that cross process, issue, or human boundaries declare
   payload: boundary_compensation in their undo section. At runtime, the
@@ -880,6 +902,7 @@ target_grouped_layout:
     - Do not move invoke_llm into a shared group; keep model-boundary declarations agent-local.
 
 related_documents:
+  - srd056-unit-libraries
   - srd052-declaration-fragments
   - cfg-tool-authoring-standard
   - srd013

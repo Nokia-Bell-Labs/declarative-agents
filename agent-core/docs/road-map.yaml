@@ -762,7 +762,7 @@ releases:
         status: implemented
       - id: gh-2117
         summary: Specify unit libraries (srd056) -- prefix imports, declared library roots, staging, and the service-library convention.
-        status: planned
+        status: implemented
       - id: gh-2118
         summary: Prefix imports for the agent-core root; delete the application copies of agent-core types.
         status: planned
@@ -781,6 +781,7 @@ releases:
     srds:
       - srd054-machine-templates
       - srd055-agent-blueprints
+      - srd056-unit-libraries
     use_cases:
       - id: rel20.0-uc001-machine-templates
         summary: A machine file instantiates a whole-machine template.
@@ -788,9 +789,15 @@ releases:
       - id: rel20.0-uc002-agent-blueprints
         summary: A profile instantiates an agent blueprint.
         status: planned
+      - id: rel20.0-uc003-unit-libraries
+        summary: A unit imports from the agent-core root or a declared library root.
+        status: planned
     test_suites:
       - id: test-rel20.0-machine-templates
         summary: Formal tests for template and blueprint formats, instantiation and path resolution, validation, and closure, identity, dump, staging, and audit provenance.
+        status: planned
+      - id: test-rel20.0-unit-libraries
+        summary: Formal tests for import path forms, declared roots, read-only libraries, rooted closure and dump provenance, staging, and the service-library convention.
         status: planned
     proof:
       - go test ./internal/runtime/core ./internal/tools/catalog ./internal/load ./pkg/profilestage ./pkg/profileaudit

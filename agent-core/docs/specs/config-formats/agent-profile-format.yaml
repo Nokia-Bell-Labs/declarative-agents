@@ -55,6 +55,16 @@ schema:
     type: string
     required: false
     description: Default workspace directory; `--directory` overrides it.
+  - field: libraries
+    type: "map[string]string"
+    required: false
+    description: |
+      Named library roots (srd056-unit-libraries R2). Each name is a lowercase
+      kebab root name other than `agent-core`; each value is a directory,
+      resolved against this file's directory. An import under `/opt/<name>/`
+      anywhere in this profile's closure maps to that directory, and
+      `--library <name>=<path>` overrides it for one run. Roots are scoped to
+      this profile's closure; a child-agent profile declares its own.
   - field: unit
     type: string
     required: false
@@ -85,7 +95,9 @@ path_resolution: |
   install root that `--core-root` sets. For a blueprint instance, paths in the
   blueprint body resolve against the blueprint's directory, and paths in
   fields present on the instance resolve against the instance's directory
-  (srd055 R2.2).
+  (srd055 R2.2). Paths under `/opt/<name>` map to the directory the profile
+  declares for that root under `libraries` (srd056 R2.1), and any other
+  absolute path is used as written.
 
 blueprints: |
   A blueprint declares an agent once with typed parameters:
@@ -132,6 +144,7 @@ related_documents:
   - srd052-declaration-fragments
   - srd054-machine-templates
   - srd055-agent-blueprints
+  - srd056-unit-libraries
 
 implementation:
   - internal/tools/catalog/profile.go
