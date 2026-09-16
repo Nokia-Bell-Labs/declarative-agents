@@ -703,38 +703,43 @@ func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpe
 	); err != nil {
 		return core.MachineSpec{}, err
 	}
-	// Request machines are checked here and not above: the profile's own
-	// machine is the one loadValidatedRuntimeMachine already holds, and the
-	// machines its machine_request endpoints dispatch are only reachable
-	// through this walk (GH-2059).
+	// Every machine this walk reaches is checked here and not above: the
+	// profile's own machine is the one loadValidatedRuntimeMachine already
+	// holds, and the machines its endpoints dispatch, its child profiles run,
+	// and its evaluator points loop over are reachable only through the walk
+	// (GH-2059, GH-2060).
 	if err := profileaudit.ValidateClosureWithOptions(closure, profileaudit.Options{
-		OnMachine: validateReachedRequestMachine,
+		OnMachine: validateReachedMachine,
 	}); err != nil {
 		return core.MachineSpec{}, fmt.Errorf("inspect profile timeout closure: %w", err)
 	}
 	return machineSpec, nil
 }
 
-// validateReachedRequestMachine applies the startup boundary to one machine an
-// endpoint dispatches. Such a machine is seeded by the request rather than by
-// its own transitions: the runtime publishes the machine_request entry under
-// the seed label, and the dispatching endpoint injects the signal it starts
-// on, so both are stated here rather than read from the machine.
+// validateReachedMachine applies the startup boundary to one machine the walk
+// reaches, which is every machine a profile runs beyond its own: the machines
+// its endpoints dispatch, the profiles its self_invoke words start, and the
+// machines its evaluator points loop over.
 //
-// A child agent profile and an evaluator point machine are separate programs
-// that validate when they load, so this reports on neither.
-func validateReachedRequestMachine(reached profileaudit.ReachedMachine) error {
-	if !reached.RequestScoped {
-		return nil
+// Only a request machine takes extra context. It is seeded by the request
+// rather than by its own transitions, so the machine_request entry under the
+// seed label and the signals the dispatching endpoints inject are stated here
+// rather than read from the machine. A child profile and a point machine start
+// on the ordinary runtime seed, which the exhaustiveness check already knows.
+func validateReachedMachine(reached profileaudit.ReachedMachine) error {
+	inputs := catalog.ExhaustivenessInputs{External: requestSourceSignals(reached.Rest)}
+	var runtimeLabels []string
+	kind := "machine"
+	if reached.RequestScoped {
+		inputs.External = append(inputs.External, reached.InitialSignals...)
+		runtimeLabels = []string{catalog.RequestSeedLabel}
+		kind = "request machine"
 	}
-	external := append(requestSourceSignals(reached.Rest), reached.InitialSignals...)
 	err := validateRuntimeToolWiring(
-		reached.Machine, reached.Selected, reached.Types,
-		catalog.ExhaustivenessInputs{External: external},
-		catalog.RequestSeedLabel,
+		reached.Machine, reached.Selected, reached.Types, inputs, runtimeLabels...,
 	)
 	if err != nil {
-		return fmt.Errorf("request machine %s: %w", reached.MachinePath, err)
+		return fmt.Errorf("%s %s: %w", kind, reached.MachinePath, err)
 	}
 	return nil
 }

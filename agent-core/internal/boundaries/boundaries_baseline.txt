@@ -12,7 +12,7 @@ import:pkg/profileaudit -> internal/support/corepath
 import:pkg/profileaudit -> internal/tools/catalog
 import:pkg/profileaudit -> internal/typesys
 import:pkg/profileaudit -> internal/tools/rest
-pkg:cmd/agent files=6 loc=1917
+pkg:cmd/agent files=6 loc=1922
 pkg:internal/doltsql files=4 loc=274
 pkg:internal/evaluation files=23 loc=3860
 pkg:internal/declstyle files=1 loc=14
@@ -71,6 +71,6 @@ pkg:internal/tools/undo files=1 loc=84
 pkg:internal/tools/validation files=5 loc=1488
 pkg:internal/typesys files=4 loc=539
 pkg:internal/version files=1 loc=40
-pkg:pkg/profileaudit files=4 loc=1210
+pkg:pkg/profileaudit files=4 loc=1214
 pkg:pkg/profilestage files=1 loc=245
 pkg:pkg/spec files=31 loc=6395

@@ -348,6 +348,10 @@ func (i *inspector) inspectPointMachine(closure loadedClosure, def catalog.ToolD
 	}
 	i.visiting[key] = true
 	defer delete(i.visiting, key)
+	// Reported like any other reached machine. A point machine runs in the
+	// evaluator's own process through core.Loop, so nothing else applies the
+	// startup boundary to it (GH-2060).
+	i.recordReached(point)
 	if err := i.inspectLoaded(point); err != nil {
 		return err
 	}
