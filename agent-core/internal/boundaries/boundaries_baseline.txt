@@ -69,7 +69,7 @@ pkg:internal/tools/rest/validation files=6 loc=1800
 pkg:internal/tools/service files=6 loc=1637
 pkg:internal/tools/undo files=1 loc=84
 pkg:internal/tools/validation files=5 loc=1488
-pkg:internal/typesys files=4 loc=544
+pkg:internal/typesys files=4 loc=554
 pkg:internal/version files=1 loc=40
 pkg:pkg/profileaudit files=4 loc=1214
 pkg:pkg/profilestage files=1 loc=245

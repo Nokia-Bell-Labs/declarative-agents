@@ -51,18 +51,59 @@ func TestBuildIndexesTypesByQualifiedName(t *testing.T) {
 	require.Equal(t, []string{"chat-types.ChunkRow", "chat-types.ScoredChunk"}, registry.Refs())
 }
 
-func TestBuildRejectsDuplicateNameAcrossUnits(t *testing.T) {
+// TestBuildAcceptsTheSameNameInTwoUnits is the namespace rule: an application
+// declares the obvious name for its own shape without dodging every name
+// agent-core has taken, because a reference names the unit it means.
+func TestBuildAcceptsTheSameNameInTwoUnits(t *testing.T) {
 	t.Parallel()
 	other := typesys.TypeUnitFile{
 		Unit:  "rollout-types",
 		Types: []typesys.TypeDecl{{Name: "ChunkRow", Schema: map[string]any{"type": "string"}}},
 	}
 
-	_, err := typesys.Build(chatTypes(), other)
+	registry, err := typesys.Build(chatTypes(), other)
+	require.NoError(t, err)
 
-	require.ErrorContains(t, err, `type "ChunkRow" is declared by unit`)
-	require.ErrorContains(t, err, "chat-types")
-	require.ErrorContains(t, err, "rollout-types")
+	chat, ok := registry.Resolve("chat-types.ChunkRow")
+	require.True(t, ok)
+	require.Equal(t, "object", chat.Schema["type"])
+	rollout, ok := registry.Resolve("rollout-types.ChunkRow")
+	require.True(t, ok)
+	require.Equal(t, "string", rollout.Schema["type"])
+}
+
+func TestBuildRejectsDuplicateNameWithinOneUnit(t *testing.T) {
+	t.Parallel()
+	unit := typesys.TypeUnitFile{
+		Unit: "chat-types",
+		Types: []typesys.TypeDecl{
+			{Name: "ChunkRow", Schema: map[string]any{"type": "string"}},
+			{Name: "ChunkRow", Schema: map[string]any{"type": "object"}},
+		},
+	}
+
+	_, err := typesys.Build(unit)
+
+	require.ErrorContains(t, err, `unit "chat-types" declares type "ChunkRow" twice`)
+}
+
+// TestDuplicateAcrossFilesOfOneUnitNamesBothFiles covers a unit spanning two
+// files, where the unit name alone does not say where the first one was.
+func TestDuplicateAcrossFilesOfOneUnitNamesBothFiles(t *testing.T) {
+	t.Parallel()
+	first := typesys.TypeUnitFile{
+		Unit: "chat-types", Path: "units/a.yaml",
+		Types: []typesys.TypeDecl{{Name: "ChunkRow", Schema: map[string]any{"type": "string"}}},
+	}
+	second := typesys.TypeUnitFile{
+		Unit: "chat-types", Path: "units/b.yaml",
+		Types: []typesys.TypeDecl{{Name: "ChunkRow", Schema: map[string]any{"type": "string"}}},
+	}
+
+	_, err := typesys.Build(first, second)
+
+	require.ErrorContains(t, err, "units/a.yaml")
+	require.ErrorContains(t, err, "units/b.yaml")
 }
 
 func TestBuildRejectsSchemaOutsideSubsetNamingUnitAndType(t *testing.T) {

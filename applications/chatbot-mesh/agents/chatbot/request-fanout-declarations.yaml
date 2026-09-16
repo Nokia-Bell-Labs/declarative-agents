@@ -55,7 +55,7 @@ tools:
     description: Separate answered RAG queries from rejected or degraded queries.
     parameters: {type: object, properties: {}, additionalProperties: false}
     signature:
-      output: mesh-types-chatbot.ResultPartition
+      output: mesh-types-chatbot.Partition
       emits: [QueryResultsPartitioned, CommandError]
     output:
       description: Ordered answered and failed query outcomes.
@@ -75,7 +75,7 @@ tools:
     description: Keep answered sources whose reported embedding model matches the query model.
     parameters: {type: object, properties: {}, additionalProperties: false}
     signature:
-      output: mesh-types-chatbot.ResultPartition
+      output: mesh-types-chatbot.Partition
       emits: [EmbeddingModelsPartitioned, CommandError]
     output:
       description: Ordered model-compatible and model-excluded query results.
@@ -95,7 +95,7 @@ tools:
     description: Render model-compatible RAG chunks under their topology names.
     parameters: {type: object, properties: {}, additionalProperties: false}
     signature:
-      output: mesh-types-chatbot.RenderedText
+      output: mesh-types-chatbot.Text
       emits: [GroundingRendered, CommandError]
     output: {description: Joined grounding sections.}
     config:
@@ -114,7 +114,7 @@ tools:
     description: Compose the question and rendered compatible grounding sections.
     parameters: {type: object, properties: {}, additionalProperties: false}
     signature:
-      output: mesh-types-chatbot.RenderedText
+      output: mesh-types-chatbot.Text
       emits: [Composed, CommandError]
     output: {description: Grounded answer prompt.}
     config:
@@ -158,7 +158,7 @@ tools:
     description: Render the composed sources as reportable entries.
     parameters: {type: object, properties: {}, additionalProperties: false}
     signature:
-      output: mesh-types-chatbot.RenderedText
+      output: mesh-types-chatbot.Text
       emits: [ComposedSourcesRendered, CommandError]
     output: {description: Rendered composed source entries.}
     config:
@@ -180,7 +180,7 @@ tools:
     description: Render the embedding-model-excluded sources as reportable entries.
     parameters: {type: object, properties: {}, additionalProperties: false}
     signature:
-      output: mesh-types-chatbot.RenderedText
+      output: mesh-types-chatbot.Text
       emits: [ModelExcludedSourcesRendered, CommandError]
     output: {description: Rendered excluded source entries.}
     config:
@@ -200,7 +200,7 @@ tools:
     description: Render the failed sources as reportable entries.
     parameters: {type: object, properties: {}, additionalProperties: false}
     signature:
-      output: mesh-types-chatbot.RenderedText
+      output: mesh-types-chatbot.Text
       emits: [QueryFailedSourcesRendered, CommandError]
     output: {description: Rendered failed source entries.}
     config:

@@ -146,7 +146,7 @@ tools:
     category: word
     visibility: internal
     signature:
-      output: catalog-types-core.PredicateResult
+      output: catalog-types-core.Comparison
       emits: [Satisfied, Unsatisfied, CommandError]
     description: Accept only a received batch whose span count is positive.
     parameters: {type: object, properties: {}}
@@ -253,7 +253,7 @@ tools:
     category: word
     visibility: internal
     signature:
-      output: catalog-types-core.PredicateResult
+      output: catalog-types-core.Comparison
       emits: [Satisfied, Unsatisfied, CommandError]
     description: Branch to relay only when the declared collector mode is relay.
     parameters: {type: object, properties: {}}

@@ -257,7 +257,7 @@ tools:
     category: word
     visibility: internal
     signature:
-      output: catalog-types-core.PredicateResult
+      output: catalog-types-core.Comparison
       emits: [SpanGroupByRequested, SpanHeatmapOnly, CommandError]
     description: Branch on whether the stats request selected a group-by key.
     parameters: {type: object, properties: {}, additionalProperties: false}
