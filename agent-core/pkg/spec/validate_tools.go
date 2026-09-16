@@ -53,6 +53,15 @@ func checkToolDeclarationVocabulary(corpus *Corpus) []Finding {
 					Message: fmt.Sprintf("tool %q has an overlap with no tool name", name),
 				})
 			}
+			// An overlap exists to tell an agent which of two similar words to
+			// pick; one that names the neighbor and not the difference says
+			// nothing it can act on.
+			if strings.TrimSpace(overlap.Difference) == "" {
+				findings = append(findings, Finding{
+					Check: "tool-declaration-invalid", Level: "error",
+					Message: fmt.Sprintf("tool %q overlaps %q without stating the difference", name, overlap.Tool),
+				})
+			}
 		}
 	}
 	return findings

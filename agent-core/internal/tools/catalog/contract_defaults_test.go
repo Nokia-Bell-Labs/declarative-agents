@@ -25,23 +25,10 @@ func signedToolIn(category string) ToolDef {
 	}
 }
 
-func contractFields(t *testing.T, def ToolDef) map[string]bool {
-	t.Helper()
-	missing := map[string]bool{}
-	for _, finding := range ValidateToolContracts(
-		[]ToolDef{def}, ContractValidationOptions{IncludeInternal: true},
-	) {
-		missing[finding.Field] = true
-	}
-	return missing
-}
-
 func TestSignatureDefaultsDischargeWordContract(t *testing.T) {
 	t.Parallel()
 	def := applyContractDefaults(signedToolIn("word"))
 
-	require.Empty(t, contractFields(t, def),
-		"a word tool with a signature satisfies every contract check")
 	require.Equal(t, "reversible", def.Reversibility.Classification)
 	require.Equal(t, "noop", def.Undo.Strategy)
 	require.Len(t, def.SideEffects.Items, 1)
@@ -55,24 +42,24 @@ func TestSignatureDefaultsDischargeWordContract(t *testing.T) {
 func TestSignatureDefaultsDischargeResponseContract(t *testing.T) {
 	t.Parallel()
 	def := applyContractDefaults(signedToolIn("response"))
-	require.Empty(t, contractFields(t, def))
+
+	require.Equal(t, "reversible", def.Reversibility.Classification)
+	require.Equal(t, "noop", def.Undo.Strategy)
+	require.Len(t, def.SideEffects.Items, 1)
+	require.NotEmpty(t, def.Problem)
 }
 
 // srd051 R6.9: a boundary tool states what it writes, what that costs to
-// reverse, and how, signature or not.
+// reverse, and how, signature or not. The defaults fill the descriptive blocks
+// and leave those three empty; the corpus audit in pkg/spec is what then
+// reports them missing.
 func TestSignatureNeverWaivesBoundaryObligations(t *testing.T) {
 	t.Parallel()
 	def := applyContractDefaults(signedToolIn("boundary"))
 
-	missing := contractFields(t, def)
-
-	// ValidateToolContracts does not check side_effects presence; that
-	// obligation is the corpus audit's, covered in pkg/spec. What this checker
-	// owns is reversibility and undo, and a signature does not discharge them
-	// for boundary.
-	require.True(t, missing["reversibility.classification"])
-	require.True(t, missing["undo"])
-	require.False(t, missing["problem"], "the descriptive blocks still default")
+	require.Empty(t, def.Reversibility.Classification)
+	require.Empty(t, def.Undo.Strategy)
+	require.NotEmpty(t, def.Problem, "the descriptive blocks still default")
 
 	sideEffects, reversibility, undo := SignatureDischarges("boundary")
 	require.False(t, sideEffects, "the shared table discharges nothing for boundary")
@@ -84,10 +71,8 @@ func TestSignatureDefaultsLeaveStatefulInternalSideEffectsRequired(t *testing.T)
 	t.Parallel()
 	def := applyContractDefaults(signedToolIn("stateful_internal"))
 
-	missing := contractFields(t, def)
-
-	require.False(t, missing["reversibility.classification"])
-	require.False(t, missing["undo"])
+	require.Equal(t, "reversible", def.Reversibility.Classification)
+	require.Equal(t, "noop", def.Undo.Strategy)
 
 	sideEffects, _, _ := SignatureDischarges("stateful_internal")
 	require.False(t, sideEffects,
@@ -144,56 +129,4 @@ func TestSignatureDischargesMatchesTheTable(t *testing.T) {
 		require.Equalf(t, row.reversibility, reversibility, "%s reversibility", row.category)
 		require.Equalf(t, row.undo, undo, "%s undo", row.category)
 	}
-}
-
-// loadedSignedTool is srd051 AC7's word as the loader leaves it: name,
-// description, category, init, signature, and config, with the contract
-// defaults applied and the signature's types resolved into Output.Schema and
-// Parameters the way applySignatureTypes does.
-func loadedSignedTool() ToolDef {
-	def := applyContractDefaults(ToolDef{
-		Name: "word_tool", Type: "builtin", Init: "array_transform", Category: "word",
-		Description: "Flatten compatible sources one row per chunk.",
-		Signature: &ToolSignature{
-			Input: "chat-types.Sources", Output: "chat-types.Rows",
-			Emits: []string{"Done", "CommandError"},
-		},
-	})
-	def.Output.Schema = map[string]interface{}{"type": "array"}
-	def.Parameters = map[string]interface{}{"type": "object"}
-	return def
-}
-
-// TestSignatureDischargesRelationships is srd051 R6.13, and the one block the
-// defaults leave empty: which tools sit either side of this one is a machine's
-// statement, so there is nothing a signed tool could fill in. Before this, a
-// word that satisfied the corpus audit in pkg/spec still reported a missing
-// block here and audited partial forever.
-func TestSignatureDischargesRelationships(t *testing.T) {
-	t.Parallel()
-	require.NotContains(t, contractFields(t, loadedSignedTool()), "relationships")
-	require.NotContains(t, missingAuditFields(loadedSignedTool(), "word"), "relationships")
-}
-
-// TestUnsignedToolStillDocumentsRelationships keeps the advice where it earns
-// its place: a tool with no signature states its own neighbors or hears about
-// it.
-func TestUnsignedToolStillDocumentsRelationships(t *testing.T) {
-	t.Parallel()
-	unsigned := signedToolIn("word")
-	unsigned.Signature = nil
-	unsigned.Relationships = ToolRelationships{}
-
-	require.Contains(t, contractFields(t, unsigned), "relationships")
-	require.Contains(t, missingAuditFields(unsigned, "word"), "relationships")
-}
-
-// TestLoadedSignedToolAuditsComplete is the migration report agreeing with the
-// corpus audit: a word pkg/spec accepts reports complete here too.
-func TestLoadedSignedToolAuditsComplete(t *testing.T) {
-	t.Parallel()
-	missing := missingAuditFields(loadedSignedTool(), "word")
-
-	require.Empty(t, missing)
-	require.Equal(t, ContractAuditComplete, contractAuditStatus(len(missing)))
 }

@@ -64,7 +64,7 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Tool definition includes all required contract sections
-    go_test: TestValidateToolContractsReportsMissingFields, TestAuditToolContractsClassifiesCoverage
+    go_test: TestValidate_SelectedToolContractCompletenessErrorsForActiveMigratedTool, TestValidate_SelectedToolContractCompletenessPassesCompleteTool
     status: done
     description: |
       Load a new builtin ToolDef and verify it includes every required
@@ -89,12 +89,15 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: One-verb rule rejects workflow-shaped ordinary tools
-    go_test: TestToolAuthoringOneVerbRule
-    status: done
+    status: planned
     description: |
       Review a proposed ordinary word whose description performs multiple
       observable verbs. The authoring check should reject it unless it is split
       into separate words or classified as an explicit boundary.
+
+      No live test. The authoring reviewer that held this check had no caller
+      and was removed with GH-2071; the expectation stands for whatever
+      surfaces authoring review next.
     inputs:
       proposed_tool: "load config and discover samples and initialize session"
       category: word
@@ -148,7 +151,7 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Side effects and undo strategy are required for mutating tools
-    go_test: TestValidateToolContractsSideEffectModes, TestValidate_ToolUndoConsistency
+    go_test: TestSignatureNeverWaivesBoundarySideEffects, TestValidate_ToolUndoConsistency
     status: done
     description: |
       Check a filesystem-mutating tool and a command/domain-state-mutating
@@ -167,12 +170,15 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Irreversible tools require confirmation or compensation
-    go_test: TestToolAuthoringIrreversibleConfirmation
-    status: done
+    status: planned
     description: |
       Assess a boundary tool that affects external user data. If its effects
       are irreversible or compensatable, the ToolDef must declare confirmation
       or a compensating action before it is selected by a user-facing machine.
+
+      No live test. The authoring reviewer that held this check had no caller
+      and was removed with GH-2071; the expectation stands for whatever
+      surfaces authoring review next.
     inputs:
       tool_category: boundary
       reversibility: irreversible
@@ -186,12 +192,15 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Relationships distinguish overlapping vocabulary words
-    go_test: TestToolAuthoringRelationshipReview
-    status: done
+    status: planned
     description: |
       Review a new tool that overlaps with existing words. The ToolDef must
       document likely before/after neighbors and overlap differences so agents
       can choose the correct word.
+
+      No live test. The authoring reviewer that held this check had no caller
+      and was removed with GH-2071; the expectation stands for whatever
+      surfaces authoring review next.
     inputs:
       new_tool: collect_artifact_metadata
       overlaps_with: [collect_metrics, dump_config]
@@ -325,7 +334,7 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Lifecycle builtin declarations expose full adapter contracts
-    go_test: TestBuiltinFactoryCatalogSelectsEntriesByInit, TestValidateToolContractsStrictAndLegacyModes
+    go_test: TestBuiltinFactoryCatalogSelectsEntriesByInit, TestValidate_SelectedToolContractCompletenessKeepsLegacyWarningOnly
     status: planned
     description: |
       Inspect the checkpoint_history and checkpoint_rollback ToolDefs. Both
@@ -334,8 +343,8 @@ test_cases:
 
       Partial proof only. TestBuiltinFactoryCatalogSelectsEntriesByInit asserts
       the tools are builtin adapters selected by their init (type_builtin,
-      init_present); TestValidateToolContractsStrictAndLegacyModes holds a
-      migrated contract to error level. No current test asserts the full
+      init_present); TestValidate_SelectedToolContractCompletenessKeepsLegacyWarningOnly
+      holds a legacy contract to warning level while a migrated one errors. No current test asserts the full
       nine-field adapter contract set for these ToolDefs, so the remaining
       field-presence checks are listed under planned rather than expected.
     inputs:

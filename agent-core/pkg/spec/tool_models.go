@@ -88,9 +88,11 @@ type ToolDeclRelationships struct {
 	Overlaps []ToolDeclRelationshipRef
 }
 
-// ToolDeclRelationshipRef captures one related tool reference.
+// ToolDeclRelationshipRef captures one related tool reference and how the
+// declaring tool differs from it.
 type ToolDeclRelationshipRef struct {
-	Tool string
+	Tool       string
+	Difference string
 }
 
 func toolDeclarationFromDef(def catalog.ToolDef) ToolDeclaration {
@@ -137,7 +139,7 @@ func toolErrorsFromDefs(items []catalog.ToolErrorContract) []ToolDeclError {
 func toolRelationshipsFromDef(value catalog.ToolRelationships) ToolDeclRelationships {
 	overlaps := make([]ToolDeclRelationshipRef, len(value.Overlaps))
 	for index, overlap := range value.Overlaps {
-		overlaps[index] = ToolDeclRelationshipRef{Tool: overlap.Tool}
+		overlaps[index] = ToolDeclRelationshipRef{Tool: overlap.Tool, Difference: overlap.Difference}
 	}
 	return ToolDeclRelationships{Before: value.Before, After: value.After, Overlaps: overlaps}
 }
