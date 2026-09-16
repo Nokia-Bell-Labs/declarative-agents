@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: mesh-chatbot-declarations
+imports:
+  - ../units/types-server.yaml
 instantiate:
   - fragment: ../units/mesh-monitor-fragment.yaml
     args: {agent: "chatbot", control_await: await_chatbot_control, requests_stop: stop_chat_requests}
@@ -25,18 +27,13 @@ tools:
     non_goals:
       - Does not run the request machine itself; the binding runner does.
       - Does not accept runtime transport authority.
-    parameters:
-      type: object
-      properties: {}
     emits: [ServerLaunched, CommandError]
+    signature:
+      input: mesh-types-server.NoParameters
+      output: mesh-types-server.ServerLaunch
+      emits: [ServerLaunched, CommandError]
     output:
       description: Query REST server launch result.
-      schema:
-        type: object
-        properties:
-          server: {type: string}
-          address: {type: string}
-          route_count: {type: integer}
     side_effects:
       - kind: network_listen
         target: chatbot_chat
@@ -78,18 +75,13 @@ tools:
     non_goals:
       - Does not execute lifecycle behavior inside HTTP handlers.
       - Does not accept runtime transport authority.
-    parameters:
-      type: object
-      properties: {}
     emits: [ServerLaunched, CommandError]
+    signature:
+      input: mesh-types-server.NoParameters
+      output: mesh-types-server.ServerLaunch
+      emits: [ServerLaunched, CommandError]
     output:
       description: Control REST server launch result.
-      schema:
-        type: object
-        properties:
-          server: {type: string}
-          address: {type: string}
-          route_count: {type: integer}
     side_effects:
       - kind: network_listen
         target: chatbot_control
@@ -132,20 +124,13 @@ tools:
     non_goals:
       - Does not read or mutate monitor snapshots.
       - Does not execute lifecycle behavior inside HTTP handlers.
-    parameters:
-      type: object
-      properties: {}
     emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    signature:
+      input: mesh-types-server.NoParameters
+      output: mesh-types-server.ControlEvent
+      emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
     output:
       description: Selected lifecycle control event.
-      schema:
-        type: object
-        properties:
-          source: {type: string}
-          route: {type: string}
-          signal: {type: string}
-          payload: {type: object}
-          request_id: {type: string}
     side_effects:
       - kind: state_mutation
         target: rest_server_queue
@@ -198,17 +183,13 @@ tools:
     non_goals:
       - Does not write query results.
       - Does not relaunch the chat server.
-    parameters:
-      type: object
-      properties: {}
     emits: [ServerStopped, CommandError]
+    signature:
+      input: mesh-types-server.NoParameters
+      output: mesh-types-server.ServerStop
+      emits: [ServerStopped, CommandError]
     output:
       description: Query REST server stop result.
-      schema:
-        type: object
-        properties:
-          server: {type: string}
-          status: {type: string}
     side_effects:
       - kind: network_listener_shutdown
         target: chatbot_chat

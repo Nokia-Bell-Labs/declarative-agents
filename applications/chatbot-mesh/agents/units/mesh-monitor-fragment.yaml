@@ -6,6 +6,8 @@
 # relationships point at, so each instantiates this once, under the words'
 # own names.
 unit: mesh-monitor-fragment
+imports:
+  - types-server.yaml
 params:
   - name: agent
     type: string
@@ -37,18 +39,13 @@ tools:
     non_goals:
       - Does not execute monitor reads as MachineSpec workflow actions.
       - Does not require a sidecar, collector, or external database.
-    parameters:
-      type: object
-      properties: {}
     emits: [ServerLaunched, CommandError]
+    signature:
+      input: mesh-types-server.NoParameters
+      output: mesh-types-server.ServerLaunch
+      emits: [ServerLaunched, CommandError]
     output:
       description: Monitor REST server launch result.
-      schema:
-        type: object
-        properties:
-          server: {type: string}
-          address: {type: string}
-          route_count: {type: integer}
     side_effects:
       - kind: network_listen
         target: monitor_rest_server
@@ -89,17 +86,13 @@ tools:
     non_goals:
       - Does not write monitor metrics or snapshots.
       - Does not relaunch the monitor server.
-    parameters:
-      type: object
-      properties: {}
     emits: [ServerStopped, CommandError]
+    signature:
+      input: mesh-types-server.NoParameters
+      output: mesh-types-server.ServerStop
+      emits: [ServerStopped, CommandError]
     output:
       description: Monitor REST server stop result.
-      schema:
-        type: object
-        properties:
-          server: {type: string}
-          status: {type: string}
     side_effects:
       - kind: network_listener_shutdown
         target: monitor_rest_server
