@@ -47,6 +47,9 @@ type dumpType struct {
 // dumpInstantiation renders one application of a fragment: where it came
 // from, what filled it, and what it produced (srd052 R3.2).
 type dumpInstantiation struct {
+	// Kind is what the fragment's body is: tool, rest, stage, or machine
+	// (srd054 R3.2).
+	Kind     string            `yaml:"kind"`
 	Fragment string            `yaml:"fragment"`
 	As       string            `yaml:"as,omitempty"`
 	Args     map[string]string `yaml:"args,omitempty"`
@@ -122,25 +125,27 @@ func newInstantiationDump(
 	universe []catalog.ToolDef, rest toolrest.Collection, machine core.MachineSpec,
 ) []dumpInstantiation {
 	byKey := map[string]*dumpInstantiation{}
-	record := func(fragment, as string, args map[string]string, produced ...string) {
+	record := func(kind, fragment, as string, args map[string]string, produced ...string) {
 		key := fragment + "\x00" + as
 		entry, exists := byKey[key]
 		if !exists {
-			entry = &dumpInstantiation{Fragment: fragment, As: as, Args: args}
+			entry = &dumpInstantiation{Kind: kind, Fragment: fragment, As: as, Args: args}
 			byKey[key] = entry
 		}
 		entry.Produces = append(entry.Produces, produced...)
 	}
 	for _, tool := range universe {
 		if instantiation, ok := tool.Instantiation(); ok {
-			record(instantiation.Fragment, instantiation.As, instantiation.Args, tool.Name)
+			record(instantiationKindTool, instantiation.Fragment, instantiation.As, instantiation.Args, tool.Name)
 		}
 	}
 	for _, instantiation := range rest.DeclarationInstantiations() {
-		record(instantiation.Fragment, instantiation.As, instantiation.Args, instantiation.Produces...)
+		record(instantiationKindREST, instantiation.Fragment, instantiation.As, instantiation.Args,
+			instantiation.Produces...)
 	}
 	for _, instantiation := range machine.Instantiations() {
-		record(instantiation.Fragment, instantiation.As, instantiation.Args, instantiation.Produces...)
+		record(instantiation.Kind, instantiation.Fragment, instantiation.As, instantiation.Args,
+			instantiation.Produces...)
 	}
 	if len(byKey) == 0 {
 		return nil
@@ -194,6 +199,11 @@ func within(dir, path string) bool {
 	relative, err := filepath.Rel(dir, path)
 	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
+
+const (
+	instantiationKindTool = "tool"
+	instantiationKindREST = "rest"
+)
 
 const (
 	agentCoreRoot       = "agent-core"

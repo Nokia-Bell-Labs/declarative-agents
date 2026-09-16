@@ -17,7 +17,7 @@ pkg:internal/doltsql files=4 loc=274
 pkg:internal/evaluation files=23 loc=3860
 pkg:internal/declstyle files=1 loc=14
 pkg:internal/gostyle files=1 loc=9
-pkg:internal/load files=3 loc=760
+pkg:internal/load files=3 loc=770
 pkg:internal/model files=1 loc=7
 pkg:internal/model/llm files=8 loc=967
 pkg:internal/model/llm/cohere files=2 loc=376
@@ -37,7 +37,7 @@ pkg:internal/planning/plan files=3 loc=140
 pkg:internal/runtime files=1 loc=7
 pkg:internal/runtime/checkpoint files=2 loc=132
 pkg:internal/runtime/checkpoint/dolt files=2 loc=1216
-pkg:internal/runtime/core files=34 loc=5946
+pkg:internal/runtime/core files=34 loc=5954
 pkg:internal/support files=1 loc=7
 pkg:internal/support/corepath files=1 loc=78
 pkg:internal/support/envexpand files=1 loc=37

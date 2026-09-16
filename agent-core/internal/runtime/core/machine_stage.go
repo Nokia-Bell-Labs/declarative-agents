@@ -33,14 +33,21 @@ type StageSpec struct {
 	Transitions []TransitionSpec `yaml:"transitions"`
 }
 
-// MachineInstantiation records one stage fragment a machine instantiated,
-// for the dump (srd052 R3.2).
+// MachineInstantiation records one fragment a machine instantiated, for the
+// dump (srd052 R3.2): a stage spliced into it, or the template it instantiates.
 type MachineInstantiation struct {
+	Kind     string
 	Fragment string
 	As       string
 	Args     map[string]string
 	Produces []string
 }
+
+// Instantiation kinds a machine records (srd054 R3.2).
+const (
+	InstantiationKindStage   = "stage"
+	InstantiationKindMachine = "machine"
+)
 
 // Instantiations returns the stage fragments spliced into the machine.
 func (m MachineSpec) Instantiations() []MachineInstantiation {
@@ -137,7 +144,8 @@ func spliceStageFragment(
 	spec.Signals = append(spec.Signals, stage.Stage.Signals...)
 	spec.Transitions = append(spec.Transitions, stage.Stage.Transitions...)
 	spec.instantiations = append(spec.instantiations, MachineInstantiation{
-		Fragment: target, As: instantiation.As, Args: values, Produces: stageProduces(stage.Stage),
+		Kind: InstantiationKindStage, Fragment: target, As: instantiation.As, Args: values,
+		Produces: stageProduces(stage.Stage),
 	})
 	return nil
 }
