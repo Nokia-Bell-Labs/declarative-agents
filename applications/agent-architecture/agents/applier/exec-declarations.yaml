@@ -50,6 +50,9 @@
 # forces kubectl to skip in-cluster config resolution and dial localhost:8080,
 # which never reaches the API server from inside the pod. --timeout bounds the
 # rollout-status wait without disturbing in-cluster config.
+unit: agent-architecture-applier-exec-declarations
+imports:
+  - ../units/types-core.yaml
 tools:
   - name: helm_dry_run
     type: exec
@@ -73,14 +76,11 @@ tools:
       - Does not apply the patch; it only renders and validates.
       - Does not decide the values; the operator or CI caller does.
     emits: [ToolDone, ToolFailed]
+    signature:
+      output: architecture-types-core.ExecResult
+      emits: [ToolDone, ToolFailed]
     output:
       description: helm upgrade --dry-run process result.
-      schema:
-        type: object
-        properties:
-          exit_code: {type: integer}
-          output: {type: string}
-        required: [exit_code, output]
     side_effects:
       - kind: child_process
         state: read_only
@@ -125,14 +125,11 @@ tools:
       - Does not construct per-field --set arguments; the patch flows as a values file.
       - Does not submit any endpoint or credential to a running agent.
     emits: [ToolDone, ToolFailed]
+    signature:
+      output: architecture-types-core.ExecResult
+      emits: [ToolDone, ToolFailed]
     output:
       description: helm upgrade process result.
-      schema:
-        type: object
-        properties:
-          exit_code: {type: integer}
-          output: {type: string}
-        required: [exit_code, output]
     side_effects:
       - kind: child_process
         target: helm
@@ -176,14 +173,11 @@ tools:
     non_goals:
       - Does not decide when to roll back; the request machine does.
     emits: [ToolDone, ToolFailed]
+    signature:
+      output: architecture-types-core.ExecResult
+      emits: [ToolDone, ToolFailed]
     output:
       description: helm rollback process result.
-      schema:
-        type: object
-        properties:
-          exit_code: {type: integer}
-          output: {type: string}
-        required: [exit_code, output]
     side_effects:
       - kind: child_process
         target: helm
@@ -224,14 +218,11 @@ tools:
       - Does not mutate cluster state; it reads rollout status only.
       - Does not compute the phase in the mapping layer; kubectl computes it.
     emits: [ToolDone, ToolFailed]
+    signature:
+      output: architecture-types-core.ExecResult
+      emits: [ToolDone, ToolFailed]
     output:
       description: kubectl rollout status process result.
-      schema:
-        type: object
-        properties:
-          exit_code: {type: integer}
-          output: {type: string}
-        required: [exit_code, output]
     side_effects:
       - kind: child_process
         state: read_only
@@ -274,14 +265,11 @@ tools:
       - Does not mutate cluster state.
       - Does not itself distinguish a cluster error from a still-progressing rollout (exec emits one failure signal); kubectl_get_rollout_counts runs next and fails cleanly when the Deployment cannot be read, so the machine reaches Unavailable rather than reporting progress.
     emits: [ToolDone, ToolFailed]
+    signature:
+      output: architecture-types-core.ExecResult
+      emits: [ToolDone, ToolFailed]
     output:
       description: kubectl rollout status process result.
-      schema:
-        type: object
-        properties:
-          exit_code: {type: integer}
-          output: {type: string}
-        required: [exit_code, output]
     side_effects:
       - kind: child_process
         state: read_only
