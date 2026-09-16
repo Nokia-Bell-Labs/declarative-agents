@@ -40,3 +40,29 @@ func TestMapWithoutInstallRoot(t *testing.T) {
 
 	require.Empty(t, Map(InstallPrefix+"/tools"))
 }
+
+func TestImportTargetResolvesRelativeAndLibraryRootedPaths(t *testing.T) {
+	importer := filepath.Join(string(filepath.Separator), "profiles", "agents", "units", "types.yaml")
+	root := t.TempDir()
+
+	SetInstallRoot("")
+	t.Cleanup(func() { SetInstallRoot("") })
+	got, err := ImportTarget(importer, "../shared/words.yaml")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(string(filepath.Separator), "profiles", "agents", "shared", "words.yaml"), got)
+
+	got, err = ImportTarget(importer, InstallPrefix+"/tools/units/types-core.yaml")
+	require.NoError(t, err)
+	require.Equal(t, InstallPrefix+"/tools/units/types-core.yaml", filepath.ToSlash(got),
+		"without an install root the image path is used as written")
+
+	SetInstallRoot(root)
+	got, err = ImportTarget(importer, InstallPrefix+"/tools/units/types-core.yaml")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(root, "tools", "units", "types-core.yaml"), got)
+
+	_, err = ImportTarget(importer, "/home/user/types.yaml")
+	require.ErrorIs(t, err, ErrOutsideLibraryRoot)
+	_, err = ImportTarget(importer, InstallPrefix+"-backup/types.yaml")
+	require.ErrorIs(t, err, ErrOutsideLibraryRoot)
+}

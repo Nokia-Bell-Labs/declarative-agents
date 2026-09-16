@@ -34,7 +34,6 @@ func TestStageServingProfileTreeCombinesClosureAndApplicationProfiles(t *testing
 		"applications/coding-agent/executor/profile.yaml",
 		"applications/coding-agent/critic/profile.yaml",
 		"applications/catalog/applier/apply-declarations.yaml",
-		"applications/catalog/units/types-core.yaml",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); err != nil {
 			t.Errorf("staged serving tree missing %s: %v", rel, err)

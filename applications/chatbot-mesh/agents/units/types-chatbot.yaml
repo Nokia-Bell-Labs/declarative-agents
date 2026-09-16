@@ -1,35 +1,11 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # Shapes the chatbot request machines pass between their words, and the
-# runtime shapes its words publish. Text and Partition restate shapes
-# agent-core declares under the same names, because an application cannot
-# import another tree's units (srd051 R1.5). The unit segment of an address is
-# a namespace, so the restatement keeps the name the shape deserves
-# (srd051 R1.4, R4.3).
+# runtime shapes its words publish. Shapes agent-core already declares, such
+# as Text and Partition, are imported from /opt/agent-core/tools/units instead
+# (srd051 R1.5, srd056).
 unit: mesh-types-chatbot
 types:
-- name: Text
-  description: Rendered text a word publishes as its whole result.
-  schema:
-    type: string
-- name: Partition
-  description: Ordered matched and unmatched fan-out outcomes with their counts.
-  schema:
-    type: object
-    properties:
-      matched:
-        type: array
-      unmatched:
-        type: array
-      matched_count:
-        type: integer
-      unmatched_count:
-        type: integer
-    required:
-    - matched
-    - unmatched
-    - matched_count
-    - unmatched_count
 - name: SourceSubset
   description: Source names divided by declared membership with the corresponding topology entries.
   schema:

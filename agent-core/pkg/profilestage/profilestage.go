@@ -238,13 +238,24 @@ func declaredImports(path string) ([]string, error) {
 	if yaml.Unmarshal(data, &file) != nil {
 		return nil, nil
 	}
-	edges := append([]string(nil), file.Imports...)
+	var edges []string
+	for _, edge := range file.Imports {
+		edges = appendStagedEdge(edges, edge)
+	}
 	for _, instantiation := range file.Instantiate {
-		if instantiation.Fragment != "" {
-			edges = append(edges, instantiation.Fragment)
-		}
+		edges = appendStagedEdge(edges, instantiation.Fragment)
 	}
 	return edges, nil
+}
+
+// appendStagedEdge keeps the edges a stager copies. An absolute edge is
+// library-rooted (srd056 R1.1), and the runtime image supplies agent-core's
+// library, so staging copies none of it (R3.3).
+func appendStagedEdge(edges []string, edge string) []string {
+	if edge == "" || filepath.IsAbs(edge) {
+		return edges
+	}
+	return append(edges, edge)
 }
 
 func copyFile(source, destination string) error {

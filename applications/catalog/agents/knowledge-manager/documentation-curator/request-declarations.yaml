@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-knowledge-manager-documentation-curator-request-declarations
 imports:
+- /opt/agent-core/tools/units/types-collections.yaml
 - ../../units/types-core.yaml
 - ../../units/types-curator.yaml
 - ../../units/types-requests.yaml
@@ -550,7 +551,7 @@ tools:
     visibility: internal
     category: response
     signature:
-      output: catalog-types-core.Comparison
+      output: builtin-types-collections.Comparison
       emits: [ReviewPending, ReviewClosed, CommandError]
     description: Permit decisions only for pending reviews.
     parameters: {type: object, properties: {}, additionalProperties: false}

@@ -1,32 +1,9 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # Shapes the creator publishes while it provisions and ingests a corpus.
-# Comparison restates the shape agent-core declares under the same name,
-# because an application cannot import another tree's units (srd051 R1.5).
-# The unit segment of an address is a namespace, so the restatement keeps the
-# name the shape deserves (srd051 R1.4, R4.3).
+# Comparison is imported from agent-core's library (srd051 R1.5, srd056).
 unit: mesh-types-creator
 types:
-- name: Comparison
-  description: The resolved comparison a value_predicate word publishes; right is absent for unary operations.
-  schema:
-    type: object
-    properties:
-      left:
-        type: string
-      op:
-        type: string
-      right:
-        type: string
-      operand_type:
-        type: string
-      held:
-        type: boolean
-    required:
-    - left
-    - op
-    - operand_type
-    - held
 - name: IngestOutcome
   description: The judged document count and the collection the run ingested into.
   schema:

@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 )
 
@@ -108,10 +109,14 @@ func spliceStageFragment(
 	spec *MachineSpec, machinePath string, instantiation fragments.Instantiation,
 	visit func(string, []byte) error,
 ) error {
-	if strings.TrimSpace(instantiation.Fragment) == "" || filepath.IsAbs(instantiation.Fragment) {
-		return fmt.Errorf("fragment path must be a non-empty relative path")
+	if strings.TrimSpace(instantiation.Fragment) == "" {
+		return fmt.Errorf("fragment path must be non-empty")
 	}
-	target := filepath.Clean(filepath.Join(filepath.Dir(machinePath), instantiation.Fragment))
+	resolved, err := corepath.ImportTarget(machinePath, instantiation.Fragment)
+	if err != nil {
+		return fmt.Errorf("fragment path %q: %w", instantiation.Fragment, err)
+	}
+	target := filepath.Clean(resolved)
 	header, data, err := readStageHeader(target, visit)
 	if err != nil {
 		return err

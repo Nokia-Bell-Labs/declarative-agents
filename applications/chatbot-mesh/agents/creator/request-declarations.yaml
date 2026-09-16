@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: mesh-creator-request-declarations
 imports:
+- /opt/agent-core/tools/units/types-collections.yaml
 - ../units/types-creator.yaml
 tools:
   - name: apply_instance
@@ -340,7 +341,7 @@ tools:
       type: object
       properties: {}
     signature:
-      output: mesh-types-creator.Comparison
+      output: builtin-types-collections.Comparison
       emits: [FamilyMatched, FamilyMismatched, CommandError]
     output:
       description: The expected and deployed families, the comparison type and operator, and the outcome.
@@ -375,7 +376,7 @@ tools:
       type: object
       properties: {}
     signature:
-      output: mesh-types-creator.Comparison
+      output: builtin-types-collections.Comparison
       emits: [DocumentsWritten, NoDocumentsWritten, CommandError]
     output:
       description: The raw pre-run and post-run counts, numeric comparison type and operator, and outcome.

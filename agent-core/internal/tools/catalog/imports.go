@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/typesys"
 )
 
@@ -203,7 +204,7 @@ func (r *toolImportResolver) resolveDependencies(file ToolDefsFile, path string)
 func (r *toolImportResolver) resolveImports(file ToolDefsFile, path string) ([]ToolDef, error) {
 	var merged []ToolDef
 	for _, importPath := range file.Imports {
-		target, err := canonicalToolDeclarationPath(filepath.Join(filepath.Dir(path), importPath))
+		target, err := toolImportTarget(path, importPath)
 		if err != nil {
 			return nil, err
 		}
@@ -274,8 +275,9 @@ func validateToolImportPaths(file ToolDefsFile, path string) error {
 		if strings.TrimSpace(importPath) == "" {
 			return fmt.Errorf("tool unit %q at %s has an empty import path", file.Unit, path)
 		}
-		if filepath.IsAbs(importPath) {
-			return fmt.Errorf("tool unit %q at %s imports absolute path %q", file.Unit, path, importPath)
+		if filepath.IsAbs(importPath) && !corepath.UnderInstallPrefix(importPath) {
+			return fmt.Errorf("tool unit %q at %s imports absolute path %q: %w",
+				file.Unit, path, importPath, corepath.ErrOutsideLibraryRoot)
 		}
 	}
 	return nil
@@ -301,6 +303,16 @@ func (r *toolImportResolver) registerEdges(file ToolDefsFile, path string) {
 func (r *toolImportResolver) cycleError(index int, path string) error {
 	chain := append(append([]string(nil), r.stack[index:]...), path)
 	return fmt.Errorf("tool import cycle: %s", strings.Join(chain, " -> "))
+}
+
+// toolImportTarget resolves an import or fragment path under srd056 R1: relative
+// to the importing file, or under the agent-core library root.
+func toolImportTarget(importer, importPath string) (string, error) {
+	target, err := corepath.ImportTarget(importer, importPath)
+	if err != nil {
+		return "", err
+	}
+	return canonicalToolDeclarationPath(target)
 }
 
 func canonicalToolDeclarationPath(path string) (string, error) {

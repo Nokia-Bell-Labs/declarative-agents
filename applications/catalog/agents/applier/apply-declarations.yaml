@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-applier-apply-declarations
 imports:
-- ../units/types-core.yaml
+- /opt/agent-core/tools/units/types-core.yaml
 tools:
   - name: write_overrides
     type: builtin
@@ -17,7 +17,7 @@ tools:
         content: {type: string, description: Decided values content supplied by the caller.}
       required: [path, content]
     signature:
-      output: catalog-types-core.Text
+      output: builtin-types-core.Text
       emits: [ToolDone, ToolFailed]
     output:
       description: Plain-text values-file write confirmation.

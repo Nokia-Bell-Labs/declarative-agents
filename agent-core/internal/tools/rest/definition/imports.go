@@ -4,11 +4,14 @@
 package definition
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 )
 
 var declarationUnitName = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
@@ -134,10 +137,10 @@ func (r *importResolver) readUnit(
 
 func (r *importResolver) loadImports(file DefinitionFile, path string) error {
 	for _, importedPath := range file.Imports {
-		if filepath.IsAbs(importedPath) {
-			return fmt.Errorf("REST unit %q at %s imports absolute path %q", file.Unit, path, importedPath)
+		target, err := declarationImportTarget(path, importedPath)
+		if errors.Is(err, corepath.ErrOutsideLibraryRoot) {
+			return fmt.Errorf("REST unit %q at %s imports absolute path %q: %w", file.Unit, path, importedPath, err)
 		}
-		target, err := canonicalDeclarationPath(filepath.Join(filepath.Dir(path), importedPath))
 		if err != nil {
 			return err
 		}
@@ -150,6 +153,16 @@ func (r *importResolver) loadImports(file DefinitionFile, path string) error {
 		})
 	}
 	return nil
+}
+
+// declarationImportTarget resolves an import or fragment path under srd056 R1:
+// relative to the importing file, or under the agent-core library root.
+func declarationImportTarget(importer, importPath string) (string, error) {
+	target, err := corepath.ImportTarget(importer, importPath)
+	if err != nil {
+		return "", err
+	}
+	return canonicalDeclarationPath(target)
 }
 
 func canonicalDeclarationPath(path string) (string, error) {

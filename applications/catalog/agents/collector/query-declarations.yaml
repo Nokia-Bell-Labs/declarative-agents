@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-collector-query-declarations
 imports:
+- /opt/agent-core/tools/units/types-collections.yaml
 - ../units/types-collector.yaml
-- ../units/types-core.yaml
 tools:
   - name: query_list_traces
     type: builtin
@@ -257,7 +257,7 @@ tools:
     category: word
     visibility: internal
     signature:
-      output: catalog-types-core.Comparison
+      output: builtin-types-collections.Comparison
       emits: [SpanGroupByRequested, SpanHeatmapOnly, CommandError]
     description: Branch on whether the stats request selected a group-by key.
     parameters: {type: object, properties: {}, additionalProperties: false}

@@ -6,7 +6,6 @@ package catalog
 import (
 	"bytes"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -79,12 +78,12 @@ func (r *toolImportResolver) resolveInstantiations(file ToolDefsFile, path strin
 func (r *toolImportResolver) instantiate(
 	importer ToolSource, instantiation fragments.Instantiation,
 ) ([]ToolDef, error) {
-	if strings.TrimSpace(instantiation.Fragment) == "" || filepath.IsAbs(instantiation.Fragment) {
-		return nil, fmt.Errorf("fragment path must be a non-empty relative path")
+	if strings.TrimSpace(instantiation.Fragment) == "" {
+		return nil, fmt.Errorf("fragment path must be non-empty")
 	}
-	target, err := canonicalToolDeclarationPath(filepath.Join(filepath.Dir(importer.Path), instantiation.Fragment))
+	target, err := toolImportTarget(importer.Path, instantiation.Fragment)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fragment path %q: %w", instantiation.Fragment, err)
 	}
 	fragment, err := r.readFile(target)
 	if err != nil {
