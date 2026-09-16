@@ -1,0 +1,35 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The control server's launch and await pair as a fragment: one shape, filled
+# per instantiation with the server it controls and how long it waits.
+unit: control-tool-fragment
+params:
+  - name: server
+    type: string
+    description: The REST server reference the pair launches and awaits.
+  - name: timeout
+    type: string
+    default: 30s
+    description: How long the await waits for an exit request.
+tools:
+  - name: launch_agent_control
+    type: builtin
+    init: rest_server_launch
+    category: boundary
+    visibility: internal
+    emits: [ServerLaunched, CommandError]
+    config:
+      rest_ref: $param(server)
+  - name: await_agent_control
+    type: builtin
+    init: rest_await_event
+    category: boundary
+    visibility: internal
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    config:
+      sources:
+        - server: $param(server)
+          routes: [exit]
+          signals: [ExitRequested]
+      timeout: $param(timeout)
+      stopped_behavior: emit_server_stopped

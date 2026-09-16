@@ -15,9 +15,9 @@ preconditions:
 test_cases:
   - use_case: rel18.0-uc001-declaration-fragments
     name: A fragment with params and one body loads
-    go_test: go test ./internal/tools/catalog -run TestFragmentDeclaresParamsAndOneBody
-    status: planned
-    description: Load a fragment carrying unit, params of every allowed type, and a tools body; then one with a rest body.
+    go_test: go test ./internal/tools/catalog -run 'TestInstantiateProducesPrefixedTypedTools'
+    status: implemented
+    description: Load a fragment carrying unit, params of every allowed type, and a tools body. The rest body form is exercised when GH-2082 lands.
     expected:
       loads: true
       param_types: string, integer, number, boolean
@@ -25,8 +25,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: A fragment may import units but may not instantiate a fragment
-    go_test: go test ./internal/tools/catalog -run TestFragmentImportsUnitsButDoesNotNest
-    status: planned
+    go_test: go test ./internal/tools/catalog -run 'TestFragmentImportsResolveFromTheFragment|TestFragmentCannotNest'
+    status: implemented
     description: Load a fragment importing a type unit, then one whose instantiate list names another fragment.
     expected:
       type_import_accepted: true
@@ -35,8 +35,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: Half a fragment is a load error naming the file
-    go_test: go test ./internal/tools/catalog -run TestFragmentHalfDeclaredFails
-    status: planned
+    go_test: go test ./internal/tools/catalog -run 'TestHalfDeclaredFragmentFails'
+    status: implemented
     description: Load a file with params and no body, then a file with a body and no params but a $param reference.
     expected:
       error_names_file: true
@@ -44,8 +44,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: An instantiate entry names fragment, args, and an optional prefix
-    go_test: go test ./internal/tools/catalog -run TestInstantiateEntryShape
-    status: planned
+    go_test: go test ./internal/tools/catalog -run 'TestInstantiateProducesPrefixedTypedTools|TestPlainUnitCannotBeInstantiated'
+    status: implemented
     description: Instantiate with and without as; resolve fragment relative to the importing file, including from a re-rooted directory.
     expected:
       fragment_resolved_relative_to_importer: true
@@ -54,8 +54,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: Argument faults name importer, fragment, and parameter
-    go_test: go test ./internal/tools/catalog -run TestInstantiateArgumentFaults
-    status: planned
+    go_test: go test ./internal/tools/catalog -run 'TestInstantiateArgumentFaultsNameImporterFragmentAndParameter'
+    status: implemented
     description: Omit a required argument, supply an unknown one, pass a string for an integer, and pass a value outside an enum; a parameter with a default may be omitted.
     expected:
       every_error_names_importer_fragment_parameter: true
@@ -64,8 +64,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: Substitution is hygienic and leaves no reference behind
-    go_test: go test ./internal/tools/catalog -run TestParamSubstitutionIsHygienic
-    status: planned
+    go_test: go test ./internal/fragments ./internal/tools/catalog -run 'TestSubstitute|TestReferenceInMappingNameIsLeftAndReported'
+    status: implemented
     description: Reference a parameter inside a scalar, inside a mapping name, and inside a list; reference an undeclared parameter.
     expected:
       scalar_substituted: true
@@ -76,8 +76,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: The instantiated document takes the hand-written validation path
-    go_test: go test ./internal/tools/catalog -run TestInstantiatedUnitValidatesLikeHandWritten
-    status: planned
+    go_test: go test ./internal/tools/catalog -run 'TestInstantiatedUnitTakesTheHandWrittenPath'
+    status: implemented
     description: Instantiate a fragment producing a tool with a misspelled field, then one whose per-tool hook rejects its config.
     expected:
       strict_decode_applies: true
@@ -87,8 +87,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: A prefix makes repeated instantiation possible
-    go_test: go test ./internal/tools/catalog -run TestInstantiatePrefixMakesNamesUnique
-    status: planned
+    go_test: go test ./internal/tools/catalog -run 'TestInstantiateProducesPrefixedTypedTools'
+    status: implemented
     description: "Instantiate one fragment twice with as: cohere and as: openai, then read both produced names."
     expected:
       names_prefixed: "<as>_<name>"
@@ -97,8 +97,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: A fragment under imports is rejected
-    go_test: go test ./internal/tools/catalog -run TestFragmentCannotBeImportedPlainly
-    status: planned
+    go_test: go test ./internal/tools/catalog -run 'TestFragmentUnderImportsIsRejected'
+    status: implemented
     description: List a fragment file under imports rather than instantiate.
     expected:
       error_names_importer_and_fragment: true
@@ -106,8 +106,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: Repeated instantiation without a prefix is the existing duplicate error
-    go_test: go test ./internal/tools/catalog -run TestRepeatedInstantiationIsDuplicateName
-    status: planned
+    go_test: go test ./internal/tools/catalog -run 'TestRepeatedInstantiationWithoutPrefixIsADuplicate'
+    status: implemented
     description: Instantiate one fragment twice with identical args and no as.
     expected:
       error: srd050 duplicate-name error, not a fragment-specific one
@@ -115,8 +115,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: An unselected instantiation is an unused import
-    go_test: go test ./internal/load -run TestInstantiationUsedness
-    status: planned
+    go_test: go test ./internal/load -run 'TestLoadClosureReportsAnUnselectedInstantiationAsUnused'
+    status: implemented
     description: Instantiate a fragment whose produced tools tools.yaml never selects; then select one of them.
     expected:
       unselected_fails_as_unused_import: true
@@ -126,8 +126,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: The dump lists every instantiation
-    go_test: go test ./internal/load -run TestDumpInstantiationsSection
-    status: planned
+    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsEveryInstantiation|TestDumpGolden'
+    status: implemented
     description: Dump a profile with two instantiations and compare the instantiations section across two runs.
     expected:
       section: instantiations

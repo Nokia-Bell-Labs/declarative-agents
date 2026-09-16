@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
@@ -17,6 +18,9 @@ type declarationEdge struct {
 	kind     string
 	importer declarationOwner
 	imported declarationOwner
+	// args names the arguments when the edge is an instantiation, so the
+	// diagnostic says which application of a fragment went unused (srd052 R3.1).
+	args string
 }
 
 type declarationOwner struct {
@@ -205,6 +209,9 @@ func toolDeclarationEdges(imports []catalog.ToolImport) []declarationEdge {
 			importer: declarationOwner{unit: edge.Importer.Unit, path: edge.Importer.Path},
 			imported: declarationOwner{unit: edge.Imported.Unit, path: edge.Imported.Path},
 		}
+		if edge.Args != nil {
+			edges[index].args = fragments.FormatArgs(edge.Args)
+		}
 	}
 	return edges
 }
@@ -228,14 +235,21 @@ func unusedImportDiagnostics(
 	var diagnostics []string
 	for _, edge := range edges {
 		if edge.kind == kind && !used[edge.imported.path] {
-			diagnostics = append(diagnostics, fmt.Sprintf(
-				"%s unit %q at %s imported by unit %q at %s",
-				kind, edge.imported.unit, edge.imported.path,
-				edge.importer.unit, edge.importer.path,
-			))
+			diagnostics = append(diagnostics, unusedEdgeDiagnostic(kind, edge))
 		}
 	}
 	return diagnostics
+}
+
+func unusedEdgeDiagnostic(kind string, edge declarationEdge) string {
+	if edge.args != "" {
+		return fmt.Sprintf("%s fragment %q at %s instantiated with (%s) by unit %q at %s",
+			kind, edge.imported.unit, edge.imported.path, edge.args,
+			edge.importer.unit, edge.importer.path)
+	}
+	return fmt.Sprintf("%s unit %q at %s imported by unit %q at %s",
+		kind, edge.imported.unit, edge.imported.path,
+		edge.importer.unit, edge.importer.path)
 }
 
 func propagateImportUsedness(edges []declarationEdge, kind string, used map[string]bool) {

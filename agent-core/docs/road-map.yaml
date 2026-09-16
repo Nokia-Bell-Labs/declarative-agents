@@ -713,7 +713,7 @@ releases:
         status: implemented
       - id: gh-2081
         summary: Tool-declaration fragments and the hygienic substitution engine.
-        status: planned
+        status: implemented
       - id: gh-2082
         summary: REST-definition fragments through the REST import resolver.
         status: planned

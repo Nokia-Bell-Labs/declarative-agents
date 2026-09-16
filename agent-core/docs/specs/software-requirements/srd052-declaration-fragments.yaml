@@ -154,8 +154,9 @@ related_documents:
   - srd051-declaration-types
 
 implementation_status:
+  complete:
+    - GH-2081 implements tool-declaration fragments and the substitution engine (R1, R2, R3 for the tools body), with the control-fragments profile instantiating one fragment twice and dumping deterministically.
   planned:
-    - GH-2081 implements tool-declaration fragments and the substitution engine (R1, R2, R3).
     - GH-2082 implements REST-definition fragments through the REST import resolver (R1, R2, R3 for the rest body).
     - GH-2083 implements machine stage fragments (R4), after the label and exhaustiveness checks it validates against.
     - GH-2085 factors the top duplicated blocks into fragments and shared units, reporting mage stats:reuse before and after.

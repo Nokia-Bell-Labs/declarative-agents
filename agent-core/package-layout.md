@@ -74,6 +74,11 @@ apart from `br.Register` calls.
 - `internal/runtime`: agent loop runtime, state machines, dispatch,
   checkpoints (`internal/runtime/checkpoint` owns Dolt DSN and resume flags),
   rollback, and workspace refs.
+- `internal/fragments`: the parameter and substitution rules of a
+  parameterized declaration fragment (srd052): typed parameters, argument
+  checking, and hygienic `$param(name)` substitution over scalar values only.
+  The catalog resolver owns where instantiation runs; this package owns what
+  an argument may be and where it may land.
 - `internal/load`: the single profile declaration-closure loader shared by
   runtime startup and profile audit.
 - `internal/typesys`: named declaration types, the closed schema subset, and
@@ -106,6 +111,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/doltsql`
 - `internal/evaluation`
 - `internal/declstyle`
+- `internal/fragments`
 - `internal/gostyle`
 - `internal/load`
 - `internal/model`

@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: control-fragments-program
+imports:
+  - ../../units/control-types.yaml
+  - ../../../../tools/builtin/lifecycle/exit-agent.yaml
+instantiate:
+  - fragment: ../../units/control-tool-fragment.yaml
+    as: primary
+    args: {server: agent_control}
+  - fragment: ../../units/control-tool-fragment.yaml
+    as: patient
+    args: {server: agent_control, timeout: 45s}
+tools:
+  - name: exit_agent
+    override: true
+    type: builtin
+    init: exit_agent
+    category: lifecycle
+    visibility: internal
+    emits: [AgentExited, CommandError]
+    output:
+      description: The outcome of the exit request.
+      schema: {$type: control-types.ExitReport}
