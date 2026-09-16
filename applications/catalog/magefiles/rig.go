@@ -19,5 +19,5 @@ import (
 // and road-map proof lines can invoke the rig explicitly.
 func Rig() error {
 	fmt.Println("running go test ./conformance -run TestRigSelfProof -count=1")
-	return sh.Run("go", "test", "./conformance", "-run", "TestRigSelfProof", "-count=1", "-v")
+	return sh.RunV("go", "test", "./conformance", "-run", "TestRigSelfProof", "-count=1", "-v")
 }
