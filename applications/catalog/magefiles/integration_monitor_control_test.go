@@ -13,7 +13,7 @@ func TestCollectMonitorControlEvidenceRecordsRoutesAndLifecycleBoundary(t *testi
 	root := t.TempDir()
 	writeMonitorControlFixture(t, root, "exit_agent")
 
-	evidence, err := collectMonitorControlEvidence(root)
+	evidence, err := collectMonitorControlEvidence(root, monitorAwaitSource{Route: "exit", Signal: "ExitRequested"})
 	if err != nil {
 		t.Fatalf("collectMonitorControlEvidence: %v", err)
 	}
@@ -98,15 +98,6 @@ func writeMonitorControlFixture(t *testing.T, root, controlAction string) {
         metrics: {path: /monitor/metrics, binding: read_state}
         recent_events: {path: /monitor/events, binding: read_state}
 `)
-	// The lifecycle await filters the injected exit route on the monitor server.
-	writeFile(t, filepath.Join(root, "agents", "runtime-state-reader", "declarations.yaml"), `tools:
-  - name: await_monitor_control
-    config:
-      sources:
-        - server: monitor
-          routes: [exit]
-          signals: [ExitRequested]
-`)
 	writeFile(t, filepath.Join(root, "testdata", "conformance", "control", "rest.yaml"), `rest:
   servers:
     agent_control:
@@ -135,4 +126,30 @@ func writeMonitorControlFixture(t *testing.T, root, controlAction string) {
     signal: AgentExited
     next: Succeeded
 `)
+}
+
+// TestReadMonitorAwaitSourceSeesTheInstantiatedWord is GH-2094 as a test: the
+// shipped runtime-state-reader instantiates await_monitor_control from the
+// monitor-control fragment, so a reader of the raw declarations file finds no
+// such word, and only the loaded closure does.
+func TestReadMonitorAwaitSourceSeesTheInstantiatedWord(t *testing.T) {
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreRoot, err := resolveAgentCoreRoot(root)
+	if err != nil {
+		t.Skipf("agent-core checkout not resolvable beside the catalog: %v", err)
+	}
+
+	source, err := readMonitorAwaitSource(
+		filepath.Join(root, "agents", "runtime-state-reader", "profile.yaml"),
+		coreRoot, "await_monitor_control", "monitor",
+	)
+	if err != nil {
+		t.Fatalf("readMonitorAwaitSource: %v", err)
+	}
+	if source.Route != "exit" || source.Signal != "ExitRequested" {
+		t.Fatalf("await source = %#v, want route exit and signal ExitRequested", source)
+	}
 }

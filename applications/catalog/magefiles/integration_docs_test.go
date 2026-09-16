@@ -62,6 +62,23 @@ func TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile(t *testing
 	if !strings.Contains(rest, "address: "+cfg.docsAddr) {
 		t.Fatalf("rest.yaml missing docs address %s:\n%s", cfg.docsAddr, rest)
 	}
+	// The staged rest.yaml binds its requests to request-profile.yaml beside
+	// it, so the staged tree carries one whose references resolve (GH-2094).
+	if !strings.Contains(rest, "profile: request-profile.yaml") {
+		t.Fatalf("staged rest.yaml no longer binds requests to the staged request profile:\n%s", rest)
+	}
+	requestProfile := readTestFile(t, filepath.Join(tmpDir, "request-profile.yaml"))
+	for _, want := range []string{
+		filepath.Join(tmpDir, "request-machine.yaml"),
+		filepath.Join(profilesRoot, documentationCuratorProfile, "request-tools.yaml"),
+		filepath.Join(profilesRoot, documentationCuratorProfile, "request-declarations.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml"),
+		filepath.Join(tmpDir, "rest.yaml"),
+	} {
+		if !strings.Contains(requestProfile, want) {
+			t.Fatalf("request profile missing %q:\n%s", want, requestProfile)
+		}
+	}
 	if _, err := os.Stat(filepath.Join(tmpDir, "ui", "ux.yaml")); err != nil {
 		t.Fatalf("expected copied UX config: %v", err)
 	}
@@ -140,6 +157,7 @@ func writeDocumentationCuratorFixture(t *testing.T, root string) {
 	writeFile(t, filepath.Join(base, "tools.yaml"), "tools: []\n")
 	writeFile(t, filepath.Join(base, "declarations.yaml"), "tools: []\n")
 	writeFile(t, filepath.Join(base, "request-declarations.yaml"), "tools: []\n")
+	writeFile(t, filepath.Join(base, "request-tools.yaml"), "tools: []\n")
 	writeFile(t, filepath.Join(base, "request-machine.yaml"), "name: request\n")
 	writeFile(t, filepath.Join(base, "openapi.yaml"), "servers:\n  - url: http://127.0.0.1:18081\n")
 	writeFile(t, filepath.Join(base, "ui", "ux.yaml"), "id: documentation-curator-ui\n")
@@ -167,6 +185,12 @@ func writeDocumentationCuratorFixture(t *testing.T, root string) {
   servers:
     documentation_curator:
       address: 127.0.0.1:18081
+      endpoints:
+        document:
+          binding: machine_request
+          machine_request:
+            profile: request-profile.yaml
+            machine: request-machine.yaml
     documentation_curator_control:
       address: 127.0.0.1:18082
     monitor:

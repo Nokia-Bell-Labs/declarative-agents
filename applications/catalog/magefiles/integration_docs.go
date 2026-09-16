@@ -144,6 +144,7 @@ func copyDocumentationCuratorWorkspace(profilesRoot, coreRoot, workspace string)
 func writeDocumentationCuratorProfileFiles(profilesRoot, coreRoot, tmpDir string, cfg documentationCuratorConfig) error {
 	writers := []func(string, string, string, documentationCuratorConfig) error{
 		writeDocumentationCuratorProfile,
+		writeDocumentationCuratorRequestProfile,
 		writeDocumentationCuratorBuiltin,
 		writeDocumentationCuratorRest,
 		writeDocumentationCuratorOpenAPI,
@@ -185,6 +186,36 @@ rest_definitions:
 		filepath.Join(coreRoot, "tools", "builtin", "format-report.yaml"),
 		filepath.Join(tmpDir, "rest.yaml"))
 	return os.WriteFile(filepath.Join(tmpDir, "profile.yaml"), []byte(profile), 0o644)
+}
+
+// writeDocumentationCuratorRequestProfile stages the profile the curator's
+// REST requests run under. The staged rest.yaml binds every machine_request to
+// request-profile.yaml beside it (GH-2091), so the staged tree must carry one,
+// and its own relative references -- request-machine.yaml, request-tools.yaml,
+// request-declarations.yaml, rest.yaml -- resolve the way the staged main
+// profile's do: request pieces in place under the source profile, the staged
+// copies in the temp dir, core builtins under coreRoot (GH-2094).
+func writeDocumentationCuratorRequestProfile(profilesRoot, coreRoot, tmpDir string, _ documentationCuratorConfig) error {
+	profileDir := documentationCuratorPath(profilesRoot, "")
+	profile := fmt.Sprintf(`name: catalog-documentation-curator-request
+machine: %q
+tools:
+  - %q
+tool_declarations:
+  - %q
+  - %q
+  - %q
+  - %q
+rest_definitions:
+  - %q
+`, filepath.Join(tmpDir, "request-machine.yaml"),
+		filepath.Join(profileDir, "request-tools.yaml"),
+		filepath.Join(profileDir, "request-declarations.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "validate-specs.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "format-report.yaml"),
+		filepath.Join(tmpDir, "rest.yaml"))
+	return os.WriteFile(filepath.Join(tmpDir, "request-profile.yaml"), []byte(profile), 0o644)
 }
 
 func writeDocumentationCuratorBuiltin(profilesRoot, _ string, tmpDir string, _ documentationCuratorConfig) error {
