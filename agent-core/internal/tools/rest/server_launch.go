@@ -27,9 +27,17 @@ func (s *ServerState) Launch(def ServerDefinition) (map[string]interface{}, erro
 	return output, err
 }
 
+// launchOwned refuses a name already launched before it binds anything, so a
+// duplicate launch takes no port and can leak no listener. It checks again
+// under the lock it registers with, because the bind happens between the two
+// checks and a concurrent launch of the same name can win in that window; the
+// loser closes the listener it bound rather than replacing the winner.
 func (s *ServerState) launchOwned(
 	def ServerDefinition,
 ) (map[string]interface{}, serverLaunchIdentity, error) {
+	if s.launched(def.Name) {
+		return nil, serverLaunchIdentity{}, alreadyLaunchedError(def.Name)
+	}
 	runtime, err := newServerRuntime(def)
 	if err != nil {
 		return nil, serverLaunchIdentity{}, err
@@ -38,13 +46,24 @@ func (s *ServerState) launchOwned(
 	defer s.mu.Unlock()
 	if _, exists := s.servers[def.Name]; exists {
 		_ = runtime.listener.Close()
-		return nil, serverLaunchIdentity{}, fmt.Errorf("REST server %q is already launched", def.Name)
+		return nil, serverLaunchIdentity{}, alreadyLaunchedError(def.Name)
 	}
 	s.servers[def.Name] = runtime
 	go serveRuntime(runtime)
 	return runtime.launchOutput(), serverLaunchIdentity{
 		address: runtime.listener.Addr().String(), ownership: runtime.ownership,
 	}, nil
+}
+
+func (s *ServerState) launched(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, exists := s.servers[name]
+	return exists
+}
+
+func alreadyLaunchedError(name string) error {
+	return fmt.Errorf("REST server %q is already launched", name)
 }
 
 // UndoLaunch stops only the live process-local listener identified by a

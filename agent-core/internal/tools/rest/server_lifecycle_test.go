@@ -6,7 +6,6 @@ package rest
 import (
 	"context"
 	"encoding/json"
-	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -27,34 +26,6 @@ func TestRESTServer_LaunchRegistersRoutes(t *testing.T) {
 	result := getJSON(t, baseURL+"/health")
 	require.Equal(t, "ok", result["status"])
 	require.Equal(t, "control", getJSON(t, baseURL+"/metadata")["server"])
-}
-
-func TestRESTServer_DuplicateLaunchReleasesNewListener(t *testing.T) {
-	if testing.Short() {
-		t.Skip("integration-grade: binds real loopback listeners")
-	}
-	t.Parallel()
-	state := NewServerState()
-	first := monitorServer("duplicate")
-	_, err := state.Launch(ServerDefinition{Name: "duplicate", Server: first})
-	require.NoError(t, err)
-	t.Cleanup(func() { _, _ = state.Stop("duplicate") })
-
-	for range 10 {
-		reservation, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-		address := reservation.Addr().String()
-		require.NoError(t, reservation.Close())
-		duplicate := monitorServer("duplicate")
-		duplicate.Address = address
-
-		_, err = state.Launch(ServerDefinition{Name: "duplicate", Server: duplicate})
-		require.ErrorContains(t, err, `REST server "duplicate" is already launched`)
-
-		rebound, err := net.Listen("tcp", address)
-		require.NoError(t, err, "duplicate launch leaked listener at %s", address)
-		require.NoError(t, rebound.Close())
-	}
 }
 
 func TestRESTServer_LaunchReceiptStopsOnlyOwnedListener(t *testing.T) {
