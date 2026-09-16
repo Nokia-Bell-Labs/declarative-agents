@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -278,57 +277,6 @@ func policyDiagnosticRunner(run kindrig.CommandRunner) kindrig.CommandRunner {
 	}
 }
 
-// ensurePolicyCluster reuses or creates the policy cluster. It uses its own name
-// rather than the smoke cluster so the CNI is the one this proof was written
-// against; reusing a cluster built with a different CNI would measure a different
-// system. Reuse still passes through kindrig's generated-kubeconfig API health
-// check. Ownership follows the same rule as the other targets -- only a cluster
-// this run created may be deleted (GH-589).
-//
-// A reused cluster is taken on trust that it is this target's own. The self-test
-// still runs against it, so a reused cluster that does not enforce is caught; a
-// reused cluster that enforces differently is not, which is why the printed notice
-// names the risk.
-func ensurePolicyCluster() (kindrig.Cluster, error) {
-	return ensurePolicyClusterWith(
-		kindrig.DefaultRun,
-		kindrig.DefaultCommandRun,
-		runtime.GOARCH,
-	)
-}
-
-func ensurePolicyClusterWith(
-	kindRun kindrig.Runner,
-	commandRun kindrig.CommandRunner,
-	arch string,
-) (kindrig.Cluster, error) {
-	// The node stays NotReady until a CNI lands, so a Ready wait here would always
-	// time out (wait 0). A reused cluster is nevertheless API-health checked by
-	// EnsureCluster before it is returned.
-	cluster, err := kindrig.EnsureCluster(
-		kindRun, policyKindCluster, policyKindConfig, 0)
-	if err != nil {
-		return kindrig.Cluster{}, err
-	}
-	if !cluster.Created {
-		fmt.Printf("kind: reusing pre-existing cluster %s; it will not be deleted. "+
-			"If it was not created by this target its CNI may differ from %s\n",
-			policyKindCluster, calicoManifest)
-		return cluster, nil
-	}
-
-	fmt.Printf("policyProof: created %s with the default CNI disabled\n", policyKindCluster)
-	fmt.Printf("policyProof: installing Calico %s from locally loaded images\n", calicoVersion)
-	if err := installCalico(commandRun, cluster.Name, arch); err != nil {
-		return cluster, err
-	}
-	fmt.Printf("policyProof: loading the policy probe image into %s\n", cluster.Name)
-	if err := preloadPolicyProbeImage(commandRun, cluster.Name, arch); err != nil {
-		return cluster, err
-	}
-	return cluster, nil
-}
-
 func installCalico(run kindrig.CommandRunner, cluster, arch string) error {
 	if strings.TrimSpace(cluster) == "" {
 		return fmt.Errorf("install Calico %s: kind cluster name is required", calicoVersion)
@@ -352,29 +300,37 @@ func installCalico(run kindrig.CommandRunner, cluster, arch string) error {
 		}
 	}
 
+	if err := runCalicoCommand(run, "manifest", "kubectl",
+		"--context", "kind-"+cluster, "apply", "-f", calicoManifest); err != nil {
+		return err
+	}
+	return waitCalicoReady(run, cluster, "300s")
+}
+
+// waitCalicoReady waits for the Calico node daemonset and controllers to roll
+// out and for every node to report Ready. A kind node configured without the
+// default CNI stays NotReady until Calico runs, so node readiness is what says
+// pods can schedule.
+func waitCalicoReady(run kindrig.CommandRunner, cluster, timeout string) error {
 	contextArgs := []string{"--context", "kind-" + cluster}
 	commands := []struct {
 		component string
 		args      []string
 	}{
 		{
-			component: "manifest",
-			args:      append(contextArgs, "apply", "-f", calicoManifest),
-		},
-		{
 			component: "node rollout",
 			args: append(contextArgs, "-n", "kube-system", "rollout", "status",
-				"daemonset/calico-node", "--timeout=300s"),
+				"daemonset/calico-node", "--timeout="+timeout),
 		},
 		{
 			component: "kube-controllers rollout",
 			args: append(contextArgs, "-n", "kube-system", "rollout", "status",
-				"deployment/calico-kube-controllers", "--timeout=300s"),
+				"deployment/calico-kube-controllers", "--timeout="+timeout),
 		},
 		{
 			component: "node readiness",
 			args: append(contextArgs, "wait", "--for=condition=Ready", "node",
-				"--all", "--timeout=300s"),
+				"--all", "--timeout="+timeout),
 		},
 	}
 	for _, command := range commands {
@@ -486,7 +442,8 @@ func assertPolicyEnforcementActive() error {
 		return err
 	}
 	if err := kubectlPolicy("-n", ns, "wait", "--for=condition=Ready", "pod", "--all", "--timeout=180s"); err != nil {
-		return fmt.Errorf("self-test pods not ready: %w", err)
+		return fmt.Errorf("self-test pods not ready: %w; %s",
+			err, policyNodeReadiness(kindrig.DefaultCommandRun, policyKindCluster))
 	}
 	ip, err := podIP(ns, "selftest-target")
 	if err != nil {
