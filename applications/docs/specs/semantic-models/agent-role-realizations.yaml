@@ -241,6 +241,11 @@ bindings:
       sub_roles: [ontology-manager, recommendation-generator]
       domain: documentation
       execution_scope: server
+    - actor: documentation-curator-request
+      profile: applications/catalog/agents/knowledge-manager/documentation-curator/request-profile.yaml
+      classification: wrapper
+      inherits: documentation-curator
+      execution_scope: request
     - actor: corpus-ingest
       profile: applications/catalog/agents/knowledge-manager/corpus-ingest/profile.yaml
       classification: role_realization

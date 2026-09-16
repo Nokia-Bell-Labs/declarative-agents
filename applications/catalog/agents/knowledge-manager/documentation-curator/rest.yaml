@@ -206,7 +206,7 @@ rest:
           path: /api/v1/docs
           binding: machine_request
           machine_request: &index_request
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             timeout: 10s
             request:
@@ -225,7 +225,7 @@ rest:
           path: /api/v1/docs/{path...}
           binding: machine_request
           machine_request: &document_request
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             initial_signal: ReadRequested
             timeout: 10s
@@ -250,7 +250,7 @@ rest:
               properties: {query: {type: string}, category: {type: string}, limit: {type: integer}}
               required: [query]
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             initial_signal: SearchRequested
             timeout: 15s
@@ -272,7 +272,7 @@ rest:
               type: object
               properties: {paths: {type: array, items: {type: string}}, strict: {type: boolean}}
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             initial_signal: ValidateRequested
             timeout: 30s
@@ -302,7 +302,7 @@ rest:
               properties: {path: {type: string}, instruction: {type: string}, context: {type: string}}
               required: [path, instruction]
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             initial_signal: SuggestRequested
             timeout: 15s
@@ -331,7 +331,7 @@ rest:
               properties: {decided_by: {type: string}, note: {type: string}}
               required: [decided_by]
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             initial_signal: ApproveRequested
             timeout: 15s
@@ -361,7 +361,7 @@ rest:
               properties: {decided_by: {type: string}, reason: {type: string}}
               required: [decided_by]
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             initial_signal: RejectRequested
             timeout: 15s
@@ -376,7 +376,7 @@ rest:
           <<: *reject_endpoint
           path: /api/v1/docs/patches/{patch_id}/reopen
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             initial_signal: ReopenRequested
             timeout: 15s
@@ -391,7 +391,7 @@ rest:
           request:
             path: {path: {type: string}}
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             initial_signal: ConfigRequested
             timeout: 10s
@@ -413,7 +413,7 @@ rest:
           request:
             path: {path: {type: string}}
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             initial_signal: SourceRequested
             timeout: 10s

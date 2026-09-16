@@ -40,7 +40,90 @@ func discoverAuditProfiles(root string) ([]string, error) {
 		}
 		profiles = append(profiles, fixtures...)
 	}
-	return profiles, nil
+	return withoutRequestScopedProfiles(root, profiles)
+}
+
+// withoutRequestScopedProfiles drops the profiles a REST definition names as a
+// machine_request target, unless the target is a profile.yaml that also serves
+// as its agent's main entry. A request profile is entered only through a
+// request signal source, so standalone it waits on signals nothing emits and
+// fails exhaustiveness; it is validated through every parent that names it,
+// whose own preflight inspects each machine_request closure with the request
+// context (srd006 R2.10).
+func withoutRequestScopedProfiles(root string, profiles []string) ([]string, error) {
+	targets, err := requestProfileTargets(root)
+	if err != nil {
+		return nil, err
+	}
+	kept := make([]string, 0, len(profiles))
+	var skipped []string
+	for _, profile := range profiles {
+		canonical, err := filepath.Abs(profile)
+		if err != nil {
+			return nil, err
+		}
+		if targets[filepath.Clean(canonical)] && filepath.Base(profile) != "profile.yaml" {
+			skipped = append(skipped, profile)
+			continue
+		}
+		kept = append(kept, profile)
+	}
+	if len(skipped) > 0 {
+		fmt.Printf("boot smoke: %d request-scoped profile(s) validated through their parents: %s\n",
+			len(skipped), strings.Join(skipped, ", "))
+	}
+	return kept, nil
+}
+
+// requestProfileTargets returns every profile a REST definition under root
+// names as a machine_request target, as canonical absolute paths.
+func requestProfileTargets(root string) (map[string]bool, error) {
+	targets := map[string]bool{}
+	for _, dir := range []string{filepath.Join(root, "agents"), filepath.Join(root, "testdata", "conformance")} {
+		if _, err := os.Stat(dir); err != nil {
+			continue
+		}
+		err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil || entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+				return walkErr
+			}
+			var document map[string]any
+			if readYAML(path, &document) != nil {
+				return nil // not a declaration this walk understands
+			}
+			for _, target := range machineRequestProfiles(document) {
+				resolved, err := filepath.Abs(filepath.Join(filepath.Dir(path), target))
+				if err != nil {
+					return err
+				}
+				targets[filepath.Clean(resolved)] = true
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("scan machine_request targets under %s: %w", dir, err)
+		}
+	}
+	return targets, nil
+}
+
+// machineRequestProfiles reads rest.servers.*.endpoints.*.machine_request.profile.
+func machineRequestProfiles(document map[string]any) []string {
+	var profiles []string
+	rest, _ := document["rest"].(map[string]any)
+	servers, _ := rest["servers"].(map[string]any)
+	for _, server := range servers {
+		serverMap, _ := server.(map[string]any)
+		endpoints, _ := serverMap["endpoints"].(map[string]any)
+		for _, endpoint := range endpoints {
+			endpointMap, _ := endpoint.(map[string]any)
+			request, _ := endpointMap["machine_request"].(map[string]any)
+			if profile, ok := request["profile"].(string); ok && profile != "" {
+				profiles = append(profiles, profile)
+			}
+		}
+	}
+	return profiles
 }
 
 // BootSmoke loads every audited profile through the agent runtime's own startup
