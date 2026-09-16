@@ -17,7 +17,7 @@ pkg:internal/doltsql files=4 loc=274
 pkg:internal/evaluation files=23 loc=3860
 pkg:internal/declstyle files=1 loc=14
 pkg:internal/gostyle files=1 loc=9
-pkg:internal/load files=3 loc=719
+pkg:internal/load files=3 loc=724
 pkg:internal/model files=1 loc=7
 pkg:internal/model/llm files=8 loc=967
 pkg:internal/model/llm/cohere files=2 loc=376
@@ -45,7 +45,7 @@ pkg:internal/support/execute files=1 loc=110
 pkg:internal/support/subprocess files=1 loc=254
 pkg:internal/support/yamlstrict files=1 loc=246
 pkg:internal/tools files=1 loc=14
-pkg:internal/tools/catalog files=23 loc=4410
+pkg:internal/tools/catalog files=23 loc=4436
 pkg:internal/tools/compose files=6 loc=1041
 pkg:internal/tools/control files=7 loc=1291
 pkg:internal/tools/dolt files=6 loc=1357
@@ -56,10 +56,10 @@ pkg:internal/tools/llm files=14 loc=1782
 pkg:internal/tools/otlp files=14 loc=3877
 pkg:internal/tools/pipeline files=2 loc=232
 pkg:internal/tools/registry files=3 loc=327
-pkg:internal/tools/rest files=25 loc=4785
+pkg:internal/tools/rest files=25 loc=4795
 pkg:internal/tools/rest/client files=15 loc=2525
 pkg:internal/tools/rest/credentials files=1 loc=73
-pkg:internal/tools/rest/definition files=8 loc=1474
+pkg:internal/tools/rest/definition files=9 loc=1853
 pkg:internal/tools/rest/mock files=3 loc=332
 pkg:internal/tools/rest/monitor files=4 loc=920
 pkg:internal/tools/rest/redact files=1 loc=287

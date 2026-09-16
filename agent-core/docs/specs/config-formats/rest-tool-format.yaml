@@ -1154,10 +1154,19 @@ fragment_files:
     importing REST file's `instantiate` list applies the fragment with
     arguments. The two fields sit beside `unit` and `imports` (srd050) and
     follow the same rules as in cfg-tool-declaration-format: scalar-only
-    substitution of `$param(name)`, every produced client, server, and
-    operation name prefixed `<as>_` when `as` is given, and the instantiated
-    definition compiled through ValidateDefinition like a hand-written one.
-    Arriving with GH-2082.
+    substitution of `$param(name)`, and the instantiated definition compiled
+    through ValidateDefinition like a hand-written one. When `as` is given,
+    every name the fragment's `rest` body produces -- the clients, servers,
+    openapi, auth, limits, retry_policies, response_mappings, and
+    document_resources entries, and the operation and endpoint names nested
+    under clients and servers, which the closure holds unique -- is renamed
+    `<as>_<name>`, and the fragment's own references to those names
+    (`limits_ref`, `auth_ref`, `retry_ref`, `response_ref`,
+    `require_auth_ref`, `document_resources`, `bind`) follow, so each
+    instantiation resolves on its own. A tool that reaches a produced endpoint
+    names the prefixed form, `routes: [alpha_exit]`. A reference to a name the fragment does
+    not declare is left for the importer's closure to supply. Landed with
+    GH-2082.
   example: |
     # units/http-json-api.yaml -- the fragment
     unit: http-json-api
@@ -1183,12 +1192,15 @@ fragment_files:
     unit: observer-rest
     instantiate:
     - fragment: ../units/http-json-api.yaml
+      as: metrics
       args: {service: metrics, base_url: http://metrics:9090}
     - fragment: ../units/http-json-api.yaml
+      as: traces
       args: {service: traces, base_url: http://traces:4318, timeout: 2s}
     rest:
       version: v1
-    # produces clients metrics_api and traces_api
+    # produces clients metrics_metrics_api and traces_traces_api, each with
+    # its own limits profile metrics_default and traces_default
 
 format_examples:
   hand_authored: |

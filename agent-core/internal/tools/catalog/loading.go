@@ -244,8 +244,8 @@ func parseToolDefsFileRaw(
 	if !hasTools && !hasTypes && !hasParams && tolerateNonTool {
 		return ToolDefsFile{}, nil
 	}
-	var file ToolDefsFile
-	if err := yamlstrict.Unmarshal(expanded, &file); err != nil {
+	file, err := decodeToolDefsFile(expanded, hasParams)
+	if err != nil {
 		return ToolDefsFile{}, err
 	}
 	file.hasTools = hasTools
@@ -265,6 +265,32 @@ func parseToolDefsFileRaw(
 		return ToolDefsFile{}, fmt.Errorf("references $param but declares no params")
 	}
 	return file, nil
+}
+
+// decodeToolDefsFile decodes a file strictly. A fragment's body is left
+// undecoded: it holds $param references where typed fields stand, and it is
+// only a declaration once its arguments arrive (srd052 R2.4). Its header is
+// still checked strictly, and an unknown top-level field is still rejected.
+func decodeToolDefsFile(expanded []byte, fragment bool) (ToolDefsFile, error) {
+	if !fragment {
+		var file ToolDefsFile
+		return file, yamlstrict.Unmarshal(expanded, &file)
+	}
+	var header struct {
+		Unit        string                    `yaml:"unit,omitempty"`
+		Imports     []string                  `yaml:"imports,omitempty"`
+		Params      []fragments.Param         `yaml:"params,omitempty"`
+		Instantiate []fragments.Instantiation `yaml:"instantiate,omitempty"`
+		Tools       yaml.Node                 `yaml:"tools,omitempty"`
+		Types       yaml.Node                 `yaml:"types,omitempty"`
+	}
+	if err := yamlstrict.Unmarshal(expanded, &header); err != nil {
+		return ToolDefsFile{}, err
+	}
+	return ToolDefsFile{
+		Unit: header.Unit, Imports: header.Imports,
+		Params: header.Params, Instantiate: header.Instantiate,
+	}, nil
 }
 
 func toolDocumentRoot(data []byte) (*yaml.Node, error) {

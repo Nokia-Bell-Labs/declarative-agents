@@ -78,7 +78,7 @@ func DumpConfig(closure *Closure, writer io.Writer) error {
 	}
 	data, err := canonicalYAML(dumpDocument{
 		Version: 1, Profile: closure.Profile, Machine: closure.Machine,
-		Types: newTypeDump(closure.Types), Instantiations: newInstantiationDump(closure.ToolUniverse),
+		Types: newTypeDump(closure.Types), Instantiations: newInstantiationDump(closure.ToolUniverse, closure.Rest),
 		Tools: tools, Rest: newRestDump(closure.Rest), Files: files,
 	})
 	if err != nil {
@@ -111,22 +111,24 @@ func newTypeDump(registry *typesys.Registry) []dumpType {
 // newInstantiationDump groups the universe's tools by the fragment
 // application that produced them, sorted by fragment path then prefix, with
 // produced names sorted, so a dump is byte-identical across runs.
-func newInstantiationDump(universe []catalog.ToolDef) []dumpInstantiation {
+func newInstantiationDump(universe []catalog.ToolDef, rest toolrest.Collection) []dumpInstantiation {
 	byKey := map[string]*dumpInstantiation{}
-	for _, tool := range universe {
-		instantiation, ok := tool.Instantiation()
-		if !ok {
-			continue
-		}
-		key := instantiation.Fragment + "\x00" + instantiation.As
+	record := func(fragment, as string, args map[string]string, produced ...string) {
+		key := fragment + "\x00" + as
 		entry, exists := byKey[key]
 		if !exists {
-			entry = &dumpInstantiation{
-				Fragment: instantiation.Fragment, As: instantiation.As, Args: instantiation.Args,
-			}
+			entry = &dumpInstantiation{Fragment: fragment, As: as, Args: args}
 			byKey[key] = entry
 		}
-		entry.Produces = append(entry.Produces, tool.Name)
+		entry.Produces = append(entry.Produces, produced...)
+	}
+	for _, tool := range universe {
+		if instantiation, ok := tool.Instantiation(); ok {
+			record(instantiation.Fragment, instantiation.As, instantiation.Args, tool.Name)
+		}
+	}
+	for _, instantiation := range rest.DeclarationInstantiations() {
+		record(instantiation.Fragment, instantiation.As, instantiation.Args, instantiation.Produces...)
 	}
 	if len(byKey) == 0 {
 		return nil

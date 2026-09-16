@@ -11,6 +11,10 @@ params:
     type: string
     default: 30s
     description: How long the await waits for an exit request.
+  - name: route
+    type: string
+    default: exit
+    description: The server endpoint whose requests the await consumes.
 tools:
   - name: launch_agent_control
     type: builtin
@@ -29,7 +33,7 @@ tools:
     config:
       sources:
         - server: $param(server)
-          routes: [exit]
+          routes: [$param(route)]
           signals: [ExitRequested]
       timeout: $param(timeout)
       stopped_behavior: emit_server_stopped

@@ -21,10 +21,12 @@ type DeclarationSource struct {
 
 type declarationSource = DeclarationSource
 
-// DeclarationImport is one authored dependency between REST units.
+// DeclarationImport is one authored dependency between REST units. Args is
+// set when the edge is an instantiation rather than an import (srd052 R3.1).
 type DeclarationImport struct {
 	Importer DeclarationSource
 	Imported DeclarationSource
+	Args     map[string]string
 }
 
 type declarationUnit struct {
@@ -33,14 +35,17 @@ type declarationUnit struct {
 }
 
 type importResolver struct {
-	visit    FileVisitor
-	loaded   map[string]bool
-	visiting map[string]int
-	units    map[string]declarationSource
-	sources  map[string]declarationSource
-	stack    []string
-	order    []declarationUnit
-	imports  []DeclarationImport
+	visit          FileVisitor
+	loaded         map[string]bool
+	files          map[string]DefinitionFile
+	raw            map[string][]byte
+	visiting       map[string]int
+	units          map[string]declarationSource
+	sources        map[string]declarationSource
+	stack          []string
+	order          []declarationUnit
+	imports        []DeclarationImport
+	instantiations []DeclarationInstantiation
 }
 
 // LoadDefinitionClosure resolves and compiles REST roots and their imports as
@@ -48,6 +53,7 @@ type importResolver struct {
 func LoadDefinitionClosure(paths []string, visit FileVisitor) (Definition, error) {
 	resolver := &importResolver{
 		visit: visit, loaded: map[string]bool{}, visiting: map[string]int{},
+		files: map[string]DefinitionFile{}, raw: map[string][]byte{},
 		units: map[string]declarationSource{}, sources: map[string]declarationSource{},
 	}
 	for _, path := range paths {
@@ -63,6 +69,7 @@ func LoadDefinitionClosure(paths []string, visit FileVisitor) (Definition, error
 		return Definition{}, err
 	}
 	merged.declarationImports = append([]DeclarationImport(nil), resolver.imports...)
+	merged.instantiations = append([]DeclarationInstantiation(nil), resolver.instantiations...)
 	return merged, nil
 }
 
@@ -87,6 +94,9 @@ func (r *importResolver) load(path string, imported bool) error {
 	if err := r.loadImports(file, path); err != nil {
 		return err
 	}
+	if err := r.loadInstantiations(file, path); err != nil {
+		return err
+	}
 	r.stack = r.stack[:len(r.stack)-1]
 	delete(r.visiting, path)
 	r.loaded[path] = true
@@ -97,9 +107,14 @@ func (r *importResolver) load(path string, imported bool) error {
 func (r *importResolver) readUnit(
 	path string, imported bool,
 ) (DefinitionFile, declarationSource, error) {
-	file, err := readDefinitionFile(path, r.visit)
-	if err != nil {
-		return DefinitionFile{}, declarationSource{}, err
+	file, ok := r.files[path]
+	if !ok {
+		read, raw, err := readDefinitionFile(path, r.visit)
+		if err != nil {
+			return DefinitionFile{}, declarationSource{}, err
+		}
+		file = read
+		r.files[path], r.raw[path] = file, raw
 	}
 	if err := validateDeclarationUnit(file, path, imported); err != nil {
 		return DefinitionFile{}, declarationSource{}, err
@@ -157,7 +172,7 @@ func validateDeclarationUnit(file DefinitionFile, path string, imported bool) er
 			return fmt.Errorf("REST unit %q at %s has an empty import path", file.Unit, path)
 		}
 	}
-	return nil
+	return validateFragmentUnit(file, path, imported)
 }
 
 func mergeDeclarationUnits(

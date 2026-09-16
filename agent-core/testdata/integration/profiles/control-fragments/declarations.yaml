@@ -7,10 +7,10 @@ imports:
 instantiate:
   - fragment: ../../units/control-tool-fragment.yaml
     as: primary
-    args: {server: agent_control}
+    args: {server: alpha_agent_control, route: alpha_exit}
   - fragment: ../../units/control-tool-fragment.yaml
     as: patient
-    args: {server: agent_control, timeout: 45s}
+    args: {server: beta_agent_control, route: beta_exit, timeout: 45s}
 tools:
   - name: exit_agent
     override: true

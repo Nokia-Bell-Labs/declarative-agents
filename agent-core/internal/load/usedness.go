@@ -224,6 +224,9 @@ func restDeclarationEdges(imports []restdef.DeclarationImport) []declarationEdge
 			importer: declarationOwner{unit: edge.Importer.Unit, path: edge.Importer.Path},
 			imported: declarationOwner{unit: edge.Imported.Unit, path: edge.Imported.Path},
 		}
+		if edge.Args != nil {
+			edges[index].args = fragments.FormatArgs(edge.Args)
+		}
 	}
 	return edges
 }

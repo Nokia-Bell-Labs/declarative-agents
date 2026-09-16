@@ -67,3 +67,58 @@ tools: []
 		"entries sort by fragment then prefix")
 	require.Contains(t, dump, filepath.Join(root, "frag.yaml"), "the fragment file is in the closure")
 }
+
+const clientFragment = `unit: client-frag
+params:
+- {name: url, type: string}
+rest:
+  version: v1
+  clients:
+    api:
+      base_url: $param(url)
+`
+
+func TestLoadClosureReportsAnUnreferencedRESTInstantiationAsUnused(t *testing.T) {
+	root := writeUsednessClosureFixture(t, "other")
+	writeLoadFixture(t, root, "declarations.yaml", "tools:\n  - name: other\n    binary: echo\n")
+	writeLoadFixture(t, root, "client-frag.yaml", clientFragment)
+	writeLoadFixture(t, root, "rest.yaml", `unit: rest-root
+instantiate:
+- {fragment: client-frag.yaml, as: spare, args: {url: "http://spare"}}
+rest: {version: v1}
+`)
+	writeUsednessProfile(t, root, true)
+
+	_, err := LoadClosure(filepath.Join(root, "profile.yaml"), Options{})
+
+	require.ErrorContains(t, err, "unused declaration imports")
+	require.ErrorContains(t, err, `REST fragment "client-frag"`)
+	require.ErrorContains(t, err, "instantiated with (url=http://spare)")
+}
+
+func TestLoadClosureDumpsRESTInstantiationsBesideToolOnes(t *testing.T) {
+	root := writeUsednessClosureFixture(t, "call")
+	writeLoadFixture(t, root, "client-frag.yaml", clientFragment)
+	writeLoadFixture(t, root, "rest.yaml", `unit: rest-root
+instantiate:
+- {fragment: client-frag.yaml, as: main, args: {url: "http://main"}}
+rest: {version: v1}
+`)
+	writeLoadFixture(t, root, "declarations.yaml", `tools:
+  - name: call
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    emits: [ToolDone, CommandError]
+    config: {rest_ref: main_api, resource: r, operation: o}
+`)
+	writeUsednessProfile(t, root, true)
+
+	closure, err := LoadClosure(filepath.Join(root, "profile.yaml"), Options{})
+	require.NoError(t, err)
+	var dump bytes.Buffer
+	require.NoError(t, DumpConfig(closure, &dump))
+
+	require.Contains(t, dump.String(), "instantiations:\n")
+	require.Contains(t, dump.String(), "as: main\n    args:\n      url: http://main\n    produces:\n      - clients/main_api\n")
+}

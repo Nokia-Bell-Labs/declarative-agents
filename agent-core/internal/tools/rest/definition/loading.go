@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/envexpand"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 	"gopkg.in/yaml.v3"
@@ -28,21 +29,25 @@ func LoadDefinitionWithVisitor(path string, visit FileVisitor) (Definition, erro
 	return LoadDefinitionClosure([]string{path}, visit)
 }
 
-func readDefinitionFile(path string, visit FileVisitor) (DefinitionFile, error) {
+// readDefinitionFile reads one file and returns it decoded beside its
+// environment-expanded bytes, which a fragment is instantiated from
+// (srd052 R2.4).
+func readDefinitionFile(path string, visit FileVisitor) (DefinitionFile, []byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return DefinitionFile{}, fmt.Errorf("load REST definition %s: %w", path, err)
+		return DefinitionFile{}, nil, fmt.Errorf("load REST definition %s: %w", path, err)
 	}
 	if visit != nil {
 		if err := visit(path, data); err != nil {
-			return DefinitionFile{}, fmt.Errorf("visit REST definition %s: %w", path, err)
+			return DefinitionFile{}, nil, fmt.Errorf("visit REST definition %s: %w", path, err)
 		}
 	}
-	file, err := parseDefinitionFileRaw(data)
+	expanded := envexpand.Expand(data)
+	file, err := parseDefinitionFileExpanded(expanded)
 	if err != nil {
-		return DefinitionFile{}, fmt.Errorf("parse REST definition %s: %w", path, err)
+		return DefinitionFile{}, nil, fmt.Errorf("parse REST definition %s: %w", path, err)
 	}
-	return file, nil
+	return file, expanded, nil
 }
 
 // ParseDefinition parses REST definition YAML bytes. It does not validate;
@@ -63,11 +68,10 @@ func parseDefinitionRaw(data []byte) (Definition, error) {
 }
 
 func parseDefinitionFileRaw(data []byte) (DefinitionFile, error) {
-	expanded := envexpand.Expand(data)
-	var file DefinitionFile
-	if err := yamlstrict.Unmarshal(expanded, &file); err != nil {
-		return DefinitionFile{}, fmt.Errorf("parse REST definition: %w", err)
-	}
+	return parseDefinitionFileExpanded(envexpand.Expand(data))
+}
+
+func parseDefinitionFileExpanded(expanded []byte) (DefinitionFile, error) {
 	var document yaml.Node
 	if err := yaml.Unmarshal(expanded, &document); err != nil {
 		return DefinitionFile{}, fmt.Errorf("parse REST definition shape: %w", err)
@@ -76,10 +80,50 @@ func parseDefinitionFileRaw(data []byte) (DefinitionFile, error) {
 	if document.Kind == yaml.DocumentNode && len(document.Content) > 0 {
 		root = document.Content[0]
 	}
+	file, err := decodeDefinitionFile(expanded, yamlstrict.FieldPresent(root, "params"))
+	if err != nil {
+		return DefinitionFile{}, fmt.Errorf("parse REST definition: %w", err)
+	}
 	file.hasRest = yamlstrict.FieldPresent(root, "rest")
 	file.hasImports = yamlstrict.FieldPresent(root, "imports")
+	file.hasParams = yamlstrict.FieldPresent(root, "params")
+	file.hasInstantiate = yamlstrict.FieldPresent(root, "instantiate")
+	// A unit is a fragment or it is not; half of one declares nothing
+	// (srd052 R1.3).
+	if file.hasParams && !file.hasRest {
+		return DefinitionFile{}, fmt.Errorf("parse REST definition: fragment declares params but no rest body")
+	}
 	if !file.hasRest {
 		return DefinitionFile{}, fmt.Errorf("parse REST definition: top-level rest field is required")
 	}
+	if !file.hasParams && fragments.References(expanded) {
+		return DefinitionFile{}, fmt.Errorf("parse REST definition: references $param but declares no params")
+	}
 	return file, nil
+}
+
+// decodeDefinitionFile decodes a file strictly. A fragment's body is left
+// undecoded: it holds $param references where typed fields stand, and it is
+// only a definition once its arguments arrive (srd052 R2.4). Its header --
+// unit, imports, params, instantiate -- is still checked strictly, and an
+// unknown top-level field is still rejected.
+func decodeDefinitionFile(expanded []byte, fragment bool) (DefinitionFile, error) {
+	if !fragment {
+		var file DefinitionFile
+		return file, yamlstrict.Unmarshal(expanded, &file)
+	}
+	var header struct {
+		Unit        string                    `yaml:"unit,omitempty"`
+		Imports     []string                  `yaml:"imports,omitempty"`
+		Params      []fragments.Param         `yaml:"params,omitempty"`
+		Instantiate []fragments.Instantiation `yaml:"instantiate,omitempty"`
+		Rest        yaml.Node                 `yaml:"rest"`
+	}
+	if err := yamlstrict.Unmarshal(expanded, &header); err != nil {
+		return DefinitionFile{}, err
+	}
+	return DefinitionFile{
+		Unit: header.Unit, Imports: header.Imports,
+		Params: header.Params, Instantiate: header.Instantiate,
+	}, nil
 }

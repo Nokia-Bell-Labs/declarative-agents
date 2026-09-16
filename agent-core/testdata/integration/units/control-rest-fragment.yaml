@@ -1,0 +1,52 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The control server and its limits profile as a fragment: one shape, filled
+# per instantiation with the address it binds and the queue it keeps.
+unit: control-rest-fragment
+params:
+  - name: address
+    type: string
+    default: 127.0.0.1:0
+    description: The listener address the control server binds.
+  - name: capacity
+    type: integer
+    default: "8"
+    description: How many inbound events the queue holds before it drops.
+rest:
+  version: v1
+  limits:
+    local:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        hosts: [127.0.0.1, localhost]
+        ports: [0]
+  servers:
+    agent_control:
+      address: $param(address)
+      limits_ref: local
+      queue:
+        name: agent_control
+        capacity: $param(capacity)
+        timeout: 30s
+      shutdown:
+        timeout: 5s
+        drain_policy: drain_then_stop
+      endpoints:
+        exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason: {type: string}
+          response:
+            output:
+              accepted: "true"

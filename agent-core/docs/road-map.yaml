@@ -716,7 +716,7 @@ releases:
         status: implemented
       - id: gh-2082
         summary: REST-definition fragments through the REST import resolver.
-        status: planned
+        status: implemented
       - id: gh-2083
         summary: Machine stage fragments spliced under a prefix and validated as one machine.
         status: planned

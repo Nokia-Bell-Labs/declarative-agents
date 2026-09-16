@@ -189,3 +189,23 @@ func TestFragmentImportsResolveFromTheFragment(t *testing.T) {
 	require.ElementsMatch(t, []string{"shared_tool", "a_own"}, names,
 		"the fragment's import is resolved relative to the fragment and merged once")
 }
+
+// TestFragmentBodyIsDecodedOnlyAfterSubstitution: a fragment holds $param
+// references where typed fields stand, so decoding its body before the
+// arguments arrive would reject every integer hole as a string. Only the
+// header is decoded until then.
+func TestFragmentBodyIsDecodedOnlyAfterSubstitution(t *testing.T) {
+	t.Parallel()
+	defs, err := loadFragmentRoot(t, map[string]string{
+		"units/capped.yaml": "unit: capped\nparams:\n- {name: cap, type: integer}\ntools:\n- name: run\n  binary: echo\n  output_cap: $param(cap)\n",
+		"declarations.yaml": "unit: rag\ninstantiate:\n- {fragment: units/capped.yaml, args: {cap: 512}}\ntools: []\n",
+	})
+	require.NoError(t, err)
+	require.Equal(t, 512, defs[0].OutputCap)
+
+	_, err = loadFragmentRoot(t, map[string]string{
+		"units/typo.yaml":   "unit: typo\nparams:\n- {name: cap, type: integer}\nimprots: []\ntools: []\n",
+		"declarations.yaml": "unit: rag\ninstantiate:\n- {fragment: units/typo.yaml, args: {cap: 1}}\ntools: []\n",
+	})
+	require.ErrorContains(t, err, `field improts not found`, "the header is still strict")
+}

@@ -1,5 +1,11 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: control-rest-root
-imports: [../../units/control-rest.yaml]
+instantiate:
+  - fragment: ../../units/control-rest-fragment.yaml
+    as: alpha
+    args: {}
+  - fragment: ../../units/control-rest-fragment.yaml
+    as: beta
+    args: {capacity: 2}
 rest: {}

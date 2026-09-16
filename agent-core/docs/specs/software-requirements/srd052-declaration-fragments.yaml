@@ -156,7 +156,7 @@ related_documents:
 implementation_status:
   complete:
     - GH-2081 implements tool-declaration fragments and the substitution engine (R1, R2, R3 for the tools body), with the control-fragments profile instantiating one fragment twice and dumping deterministically.
+    - GH-2082 implements REST-definition fragments through the REST import resolver (R1, R2, R3 for the rest body); a prefix renames every produced entry and the fragment's own references to them, and a fragment's body is decoded only after its arguments arrive.
   planned:
-    - GH-2082 implements REST-definition fragments through the REST import resolver (R1, R2, R3 for the rest body).
     - GH-2083 implements machine stage fragments (R4), after the label and exhaustiveness checks it validates against.
     - GH-2085 factors the top duplicated blocks into fragments and shared units, reporting mage stats:reuse before and after.

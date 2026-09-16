@@ -15,9 +15,9 @@ preconditions:
 test_cases:
   - use_case: rel18.0-uc001-declaration-fragments
     name: A fragment with params and one body loads
-    go_test: go test ./internal/tools/catalog -run 'TestInstantiateProducesPrefixedTypedTools'
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateProducesPrefixedTypedTools|TestInstantiateRESTFragmentTwiceWithPrefixes|TestFragmentBodyIsDecodedOnlyAfterSubstitution'
     status: implemented
-    description: Load a fragment carrying unit, params of every allowed type, and a tools body. The rest body form is exercised when GH-2082 lands.
+    description: Load a fragment carrying unit, params of every allowed type, and a tools body; then one with a rest body.
     expected:
       loads: true
       param_types: string, integer, number, boolean
@@ -54,7 +54,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: Argument faults name importer, fragment, and parameter
-    go_test: go test ./internal/tools/catalog -run 'TestInstantiateArgumentFaultsNameImporterFragmentAndParameter'
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateArgumentFaultsNameImporterFragmentAndParameter|TestRESTArgumentFaultsNameImporterFragmentAndParameter'
     status: implemented
     description: Omit a required argument, supply an unknown one, pass a string for an integer, and pass a value outside an enum; a parameter with a default may be omitted.
     expected:
@@ -87,7 +87,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: A prefix makes repeated instantiation possible
-    go_test: go test ./internal/tools/catalog -run 'TestInstantiateProducesPrefixedTypedTools'
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateProducesPrefixedTypedTools|TestInstantiateRESTFragmentTwiceWithPrefixes'
     status: implemented
     description: "Instantiate one fragment twice with as: cohere and as: openai, then read both produced names."
     expected:
@@ -97,7 +97,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: A fragment under imports is rejected
-    go_test: go test ./internal/tools/catalog -run 'TestFragmentUnderImportsIsRejected'
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestFragmentUnderImportsIsRejected|TestRESTFragmentUnderImportsIsRejected'
     status: implemented
     description: List a fragment file under imports rather than instantiate.
     expected:
@@ -106,7 +106,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: Repeated instantiation without a prefix is the existing duplicate error
-    go_test: go test ./internal/tools/catalog -run 'TestRepeatedInstantiationWithoutPrefixIsADuplicate'
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestRepeatedInstantiationWithoutPrefixIsADuplicate|TestRepeatedRESTInstantiationWithoutPrefixIsTheConflictError'
     status: implemented
     description: Instantiate one fragment twice with identical args and no as.
     expected:
@@ -115,7 +115,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: An unselected instantiation is an unused import
-    go_test: go test ./internal/load -run 'TestLoadClosureReportsAnUnselectedInstantiationAsUnused'
+    go_test: go test ./internal/load -run 'TestLoadClosureReportsAnUnselectedInstantiationAsUnused|TestLoadClosureReportsAnUnreferencedRESTInstantiationAsUnused'
     status: implemented
     description: Instantiate a fragment whose produced tools tools.yaml never selects; then select one of them.
     expected:
@@ -126,7 +126,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: The dump lists every instantiation
-    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsEveryInstantiation|TestDumpGolden'
+    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsEveryInstantiation|TestLoadClosureDumpsRESTInstantiationsBesideToolOnes|TestDumpGolden'
     status: implemented
     description: Dump a profile with two instantiations and compare the instantiations section across two runs.
     expected:

@@ -131,10 +131,27 @@ types:
           type: array
       type: object
 instantiations:
+  - fragment: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
+    as: alpha
+    args:
+      address: 127.0.0.1:0
+      capacity: "8"
+    produces:
+      - limits/alpha_local
+      - servers/alpha_agent_control
+  - fragment: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
+    as: beta
+    args:
+      address: 127.0.0.1:0
+      capacity: "2"
+    produces:
+      - limits/beta_local
+      - servers/beta_agent_control
   - fragment: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
     as: patient
     args:
-      server: agent_control
+      route: beta_exit
+      server: beta_agent_control
       timeout: 45s
     produces:
       - patient_await_agent_control
@@ -142,7 +159,8 @@ instantiations:
   - fragment: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
     as: primary
     args:
-      server: agent_control
+      route: alpha_exit
+      server: alpha_agent_control
       timeout: 30s
     produces:
       - primary_await_agent_control
@@ -187,8 +205,8 @@ tools:
     config:
       sources:
         - routes:
-            - exit
-          server: agent_control
+            - beta_exit
+          server: beta_agent_control
           signals:
             - ExitRequested
       stopped_behavior: emit_server_stopped
@@ -205,7 +223,7 @@ tools:
     description: ""
     init: rest_server_launch
     config:
-      rest_ref: agent_control
+      rest_ref: beta_agent_control
     emits:
       - ServerLaunched
       - CommandError
@@ -218,8 +236,8 @@ tools:
     config:
       sources:
         - routes:
-            - exit
-          server: agent_control
+            - alpha_exit
+          server: alpha_agent_control
           signals:
             - ExitRequested
       stopped_behavior: emit_server_stopped
@@ -236,7 +254,7 @@ tools:
     description: ""
     init: rest_server_launch
     config:
-      rest_ref: agent_control
+      rest_ref: alpha_agent_control
     emits:
       - ServerLaunched
       - CommandError
@@ -244,15 +262,41 @@ tools:
 rest:
   version: v1
   servers:
-    agent_control:
+    alpha_agent_control:
       address: 127.0.0.1:0
-      limits_ref: local
+      limits_ref: alpha_local
       queue:
         name: agent_control
         capacity: 8
         timeout: 30s
       endpoints:
-        exit:
+        alpha_exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              properties:
+                reason:
+                  type: string
+              type: object
+          response:
+            output:
+              accepted: "true"
+          machine_request: {}
+      shutdown:
+        timeout: 5s
+        drain_policy: drain_then_stop
+    beta_agent_control:
+      address: 127.0.0.1:0
+      limits_ref: beta_local
+      queue:
+        name: agent_control
+        capacity: 2
+        timeout: 30s
+      endpoints:
+        beta_exit:
           method: POST
           path: /api/lifecycle/exit
           binding: emit_signal
@@ -271,7 +315,20 @@ rest:
         timeout: 5s
         drain_policy: drain_then_stop
   limits:
-    local:
+    alpha_local:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        hosts:
+          - 127.0.0.1
+          - localhost
+        ports:
+          - 0
+    beta_local:
       timeout: 30s
       read_timeout: 5s
       max_request_bytes: 16384
@@ -286,19 +343,19 @@ rest:
           - 0
 files:
   - path: <agent-core>/testdata/integration/profiles/control-fragments/declarations.yaml
-    sha256: 5efd8d3b92a963b2d6a3d31ae85ce419fdb7bca7847987c02ec186f8de3fd8bd
+    sha256: ba4c3a347e037fcdadf6e9bc005ad3ad62e611f1a7aae803e7fe6f81c654ee2f
   - path: <agent-core>/testdata/integration/profiles/control-fragments/machine.yaml
     sha256: 97d04611c599a3d723c561f031a7c6f08277576ad2624fa881a9f940b358adfb
   - path: <agent-core>/testdata/integration/profiles/control-fragments/profile.yaml
     sha256: a434ab8817769851c98aeae8879bc6795ca46e7e13e5fe9410f94d5ca961c5e2
   - path: <agent-core>/testdata/integration/profiles/control-fragments/rest.yaml
-    sha256: fd72094564d5b16b608fb5109f1fa99fbe47202f00c113ce1fd2e64c0105d3c0
+    sha256: fda647b4aed34f4247124fc469106ab8edb35181ae07ba0e23627eef3949d35d
   - path: <agent-core>/testdata/integration/profiles/control-fragments/tools.yaml
     sha256: 295aa1982468ea69317d16ea7ac0d187540045eb22f82a77ed245cdca5e22f56
-  - path: <agent-core>/testdata/integration/units/control-rest.yaml
-    sha256: e332735889a88387c408e3cf3d646dccddb10d3ee841f84b55e3c00b745cdd3f
+  - path: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
+    sha256: 5cd4dc6a27a39d76d617350c8558fc40e4fff916d81ed874909b9f58e6f46526
   - path: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
-    sha256: 488529311006653d50db2e9023971febb9987389b3e91aed08c647bc0ca7d3a8
+    sha256: b7537273b6340ee0b8c8c12618172693fe31de1e4ae28541d68b9aa40102f9c4
   - path: <agent-core>/testdata/integration/units/control-types.yaml
     sha256: ed6608b6e81df7eac4ba4d67308236026a7a25cc7130091f01bc9996731a4362
   - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
