@@ -289,6 +289,12 @@ type releaseLane struct {
 	active    bool
 	started   bool
 	startedAt time.Time
+	// readyAt is when the lane's next gate could first have launched: the
+	// schedule start, or its predecessor's completion. blockedBy collects the
+	// resource classes that held it back since then, so a launch can say how
+	// long it waited and on what (GH-2101).
+	readyAt   time.Time
+	blockedBy map[releaseResourceClass]bool
 }
 
 type indexedReleaseGate struct {
@@ -312,6 +318,10 @@ func executeReleaseSchedule(
 	if len(lanes) == 0 {
 		return nil
 	}
+	scheduleStart := time.Now()
+	for index := range lanes {
+		lanes[index].readyAt = scheduleStart
+	}
 	if err := validateReleaseResources(gates, capacities); err != nil {
 		return err
 	}
@@ -327,6 +337,11 @@ func executeReleaseSchedule(
 			lane.started = true
 			lane.startedAt = time.Now()
 			fmt.Printf("=== release lane: %s ===\n", lane.name)
+		}
+		if len(lane.blockedBy) > 0 {
+			fmt.Println(releaseWaitNotice(item.gate.name,
+				time.Since(lane.readyAt), lane.blockedBy))
+			lane.blockedBy = nil
 		}
 		acquireReleaseResources(item.gate.resources, inUse)
 		lane.active = true
@@ -355,9 +370,12 @@ func executeReleaseSchedule(
 					break
 				}
 				gate := lanes[laneIndex].gates[lanes[laneIndex].next].gate
-				if releaseResourcesAvailable(gate.resources, capacities, inUse) {
+				blocking := blockingReleaseResources(gate.resources, capacities, inUse)
+				if len(blocking) == 0 {
 					launch(laneIndex)
+					continue
 				}
+				recordReleaseBlock(&lanes[laneIndex], blocking)
 			}
 		}
 		if active == 0 {
@@ -374,6 +392,7 @@ func executeReleaseSchedule(
 			continue
 		}
 		lane.next++
+		lane.readyAt = time.Now()
 		if lane.next == len(lane.gates) {
 			fmt.Printf("=== release lane complete: %s (%s) ===\n",
 				lane.name, time.Since(lane.startedAt).Round(time.Millisecond))
@@ -453,19 +472,51 @@ func validateReleaseResources(
 	return nil
 }
 
-func releaseResourcesAvailable(
+// blockingReleaseResources returns the classes, in request order and without
+// repeats, whose free capacity cannot cover resources; empty means the gate can
+// launch now.
+func blockingReleaseResources(
 	resources []releaseResourceClass,
 	capacities map[releaseResourceClass]int,
 	inUse map[releaseResourceClass]int,
-) bool {
+) []releaseResourceClass {
 	required := make(map[releaseResourceClass]int)
+	var blocking []releaseResourceClass
+	seen := make(map[releaseResourceClass]bool)
 	for _, resource := range resources {
 		required[resource]++
-		if inUse[resource]+required[resource] > capacities[resource] {
-			return false
+		if inUse[resource]+required[resource] > capacities[resource] && !seen[resource] {
+			seen[resource] = true
+			blocking = append(blocking, resource)
 		}
 	}
-	return true
+	return blocking
+}
+
+func recordReleaseBlock(lane *releaseLane, blocking []releaseResourceClass) {
+	if lane.blockedBy == nil {
+		lane.blockedBy = make(map[releaseResourceClass]bool)
+	}
+	for _, resource := range blocking {
+		lane.blockedBy[resource] = true
+	}
+}
+
+// releaseWaitNotice is the banner printed when a gate launches after waiting on
+// resource capacity rather than on its own lane, naming the classes it waited
+// for. Gates that launch as soon as they are ready print nothing.
+func releaseWaitNotice(
+	gate string,
+	waited time.Duration,
+	blockedBy map[releaseResourceClass]bool,
+) string {
+	classes := make([]string, 0, len(blockedBy))
+	for resource := range blockedBy {
+		classes = append(classes, string(resource))
+	}
+	sort.Strings(classes)
+	return fmt.Sprintf("=== release gate waited: %s (%s for %s) ===",
+		gate, waited.Round(time.Millisecond), strings.Join(classes, ", "))
 }
 
 func acquireReleaseResources(
