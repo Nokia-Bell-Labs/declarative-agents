@@ -24,10 +24,5 @@ tools:
     condition: required input, configuration, or runtime state is invalid
     message_shape: 'find: <error>'
     state_after_failure: no additional workflow step is executed by this tool
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: Plain-text ripgrep matches with paths and line numbers.

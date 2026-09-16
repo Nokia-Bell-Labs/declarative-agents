@@ -39,8 +39,3 @@ tools:
     condition: the path is invalid, unreadable, a directory, binary, or the requested range is invalid
     message_shape: '<read failure>'
     state_after_failure: no filesystem state changes
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor

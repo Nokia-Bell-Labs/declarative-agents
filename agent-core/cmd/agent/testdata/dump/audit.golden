@@ -204,11 +204,6 @@ tools:
         condition: the validation finding set contains one or more error-level findings
         message_shape: <human-readable validation report>
         state_after_failure: the complete report is printed and returned
-    relationships:
-      before:
-        - machine-selected predecessor
-      after:
-        - machine-selected successor
     init: format_report
     emits:
       - ToolDone
@@ -458,7 +453,7 @@ files:
   - path: <agent-core>/testdata/integration/profiles/audit/tools.yaml
     sha256: 8c0b951612e211648d44a1c451ee610710dd2ca5fa86e7a63cda5175a2b833ee
   - path: <agent-core>/tools/builtin/format-report.yaml
-    sha256: ca6f7a278a792ceea6d92ac331ed643f14ca3146ec94c5d112bf7e758f079df1
+    sha256: cd04b785b59509a0a215d67a165efe4a509bfafd84fb048f111299c80335b295
   - path: <agent-core>/tools/builtin/load-corpus.yaml
     sha256: c59b336c72f712aed9eaebfe5d9448bc8600a8e39b746b90293def58662bc795
   - path: <agent-core>/tools/builtin/spec-validation/reduce-grep-checks.yaml

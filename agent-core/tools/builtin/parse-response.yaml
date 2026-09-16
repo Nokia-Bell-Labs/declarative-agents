@@ -25,11 +25,6 @@ tools:
     condition: required input, configuration, or runtime state is invalid
     message_shape: 'parse_response: <error>'
     state_after_failure: no additional workflow step is executed by this tool
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: Parsed tool-request JSON or a plain completion summary.
   config:

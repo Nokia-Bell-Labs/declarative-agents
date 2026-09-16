@@ -22,10 +22,5 @@ tools:
     condition: required input, configuration, or runtime state is invalid
     message_shape: 'summarize_point_results: <error>'
     state_after_failure: no additional workflow step is executed by this tool
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: summarize_point_results command result summary.

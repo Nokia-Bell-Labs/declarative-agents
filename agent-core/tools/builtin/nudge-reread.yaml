@@ -18,11 +18,6 @@ tools:
     condition: required input, configuration, or runtime state is invalid
     message_shape: 'nudge_reread: <error>'
     state_after_failure: no additional workflow step is executed by this tool
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: Plain-text edit result followed by the reread instruction.
   config:

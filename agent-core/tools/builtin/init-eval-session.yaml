@@ -31,11 +31,6 @@ tools:
     condition: required input, configuration, or runtime state is invalid
     message_shape: 'init_eval_session: <error>'
     state_after_failure: no additional workflow step is executed by this tool
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: init_eval_session command result summary.
   config:
