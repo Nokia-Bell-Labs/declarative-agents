@@ -129,3 +129,31 @@ func TestCheckPathAcceptsTheWholeOutputSelector(t *testing.T) {
 	require.Error(t, typesys.CheckPath(map[string]any{"type": "string"}, []string{"$", "a"}),
 		"only a lone $ is the whole output; a longer path names a field")
 }
+
+// TestCheckPathSkipsADescribedFieldWithNoType covers the third way a
+// declaration says it does not know a shape. A nil schema and an empty one
+// were already undecided; a schema carrying only a description reported
+// "untyped, so it has no field", which contradicted both the rule and its own
+// wording (GH-2064).
+func TestCheckPathSkipsADescribedFieldWithNoType(t *testing.T) {
+	t.Parallel()
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"body": map[string]any{"description": "the producer decides this shape"},
+		},
+	}
+	require.NoError(t, typesys.CheckPath(schema, []string{"body", "anything", "deep"}))
+}
+
+// TestCheckPathStillStopsAtADeclaredScalar keeps the relaxation narrow: a type
+// the declaration does state is still walked past as an error.
+func TestCheckPathStillStopsAtADeclaredScalar(t *testing.T) {
+	t.Parallel()
+	schema := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"name": map[string]any{"type": "string"}},
+	}
+	err := typesys.CheckPath(schema, []string{"name", "first"})
+	require.ErrorContains(t, err, "is a string, so it has no field \"first\"")
+}

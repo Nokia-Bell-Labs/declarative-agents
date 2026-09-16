@@ -23,6 +23,7 @@ import (
 // than present and empty, so a caller cannot confuse untyped with empty.
 func LabelTypes(
 	spec core.MachineSpec, defs []ToolDef, registry *typesys.Registry,
+	operations RESTOperations,
 ) map[string]map[string]any {
 	byName := make(map[string]ToolDef, len(defs))
 	for _, def := range defs {
@@ -35,7 +36,7 @@ func LabelTypes(
 		}
 	}
 	for _, transition := range spec.Transitions {
-		addTransitionLabelTypes(types, transition, byName, registry)
+		addTransitionLabelTypes(types, transition, byName, registry, operations)
 	}
 	return types
 }
@@ -45,12 +46,13 @@ func addTransitionLabelTypes(
 	transition core.TransitionSpec,
 	byName map[string]ToolDef,
 	registry *typesys.Registry,
+	operations RESTOperations,
 ) {
 	action, ok := byName[transition.Action]
 	if !ok {
 		return
 	}
-	output := signatureOutputSchema(action)
+	output := actionOutputSchema(action, operations)
 	if len(output) == 0 {
 		return
 	}
@@ -116,6 +118,20 @@ func joinEnvelope(output map[string]any) map[string]any {
 	}
 }
 
+// actionOutputSchema returns the type a label takes from its publishing
+// action: the result a REST word publishes, or the type its signature states.
+//
+// The REST case is taken from the runtime rather than from a declaration
+// because the runtime builds that result itself — from the operation the word
+// names (GH-2064), or from its own listener and queue state (GH-2065) — so a
+// signature restating it could disagree with what the word returns.
+func actionOutputSchema(def ToolDef, operations RESTOperations) map[string]any {
+	if schema, ok := restLabelSchema(def, operations); ok {
+		return schema
+	}
+	return signatureOutputSchema(def)
+}
+
 // signatureOutputSchema returns the type a label takes from its publishing
 // action, and only for an action that declares a signature.
 //
@@ -157,8 +173,9 @@ func resolvedTypeRef(ref string, registry *typesys.Registry) map[string]any {
 // signatures one tool at a time.
 func ValidateSelectorPaths(
 	spec core.MachineSpec, defs []ToolDef, registry *typesys.Registry,
+	operations RESTOperations,
 ) []core.MachineDiagnostic {
-	types := LabelTypes(spec, defs, registry)
+	types := LabelTypes(spec, defs, registry, operations)
 	var diagnostics []core.MachineDiagnostic
 	seen := map[string]struct{}{}
 	for i, transition := range spec.Transitions {
@@ -217,8 +234,9 @@ func pathDiagnostics(
 // naming every mismatch.
 func ValidateSelectorPathsStrict(
 	spec core.MachineSpec, defs []ToolDef, registry *typesys.Registry,
+	operations RESTOperations,
 ) error {
-	diagnostics := ValidateSelectorPaths(spec, defs, registry)
+	diagnostics := ValidateSelectorPaths(spec, defs, registry, operations)
 	if len(diagnostics) == 0 {
 		return nil
 	}

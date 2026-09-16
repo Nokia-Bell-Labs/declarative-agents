@@ -698,7 +698,7 @@ func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpe
 		return core.MachineSpec{}, fmt.Errorf("load machine runtime policy: %w", err)
 	}
 	if err := validateRuntimeToolWiring(
-		machineSpec, closure.Selected, closure.Types,
+		machineSpec, closure.Selected, closure.Types, closure.Rest,
 		catalog.ExhaustivenessInputs{External: requestSourceSignals(closure.Rest)},
 	); err != nil {
 		return core.MachineSpec{}, err
@@ -736,7 +736,8 @@ func validateReachedMachine(reached profileaudit.ReachedMachine) error {
 		kind = "request machine"
 	}
 	err := validateRuntimeToolWiring(
-		reached.Machine, reached.Selected, reached.Types, inputs, runtimeLabels...,
+		reached.Machine, reached.Selected, reached.Types, reached.Rest,
+		inputs, runtimeLabels...,
 	)
 	if err != nil {
 		return fmt.Errorf("%s %s: %w", kind, reached.MachinePath, err)
@@ -751,6 +752,7 @@ func validateReachedMachine(reached profileaudit.ReachedMachine) error {
 // specification-audit concern.
 func validateRuntimeToolWiring(
 	machine core.MachineSpec, defs []catalog.ToolDef, types *typesys.Registry,
+	operations catalog.RESTOperations,
 	exhaustiveness catalog.ExhaustivenessInputs, runtimeLabels ...string,
 ) error {
 	if err := catalog.ValidateMachineActions(machine, defs); err != nil {
@@ -768,7 +770,7 @@ func validateRuntimeToolWiring(
 	if err := catalog.ValidateSelectorLabelsStrict(machine, defs, runtimeLabels...); err != nil {
 		return err
 	}
-	if err := catalog.ValidateSelectorPathsStrict(machine, defs, types); err != nil {
+	if err := catalog.ValidateSelectorPathsStrict(machine, defs, types, operations); err != nil {
 		return err
 	}
 	if err := catalog.ValidateMachineExhaustivenessStrict(machine, defs, exhaustiveness); err != nil {

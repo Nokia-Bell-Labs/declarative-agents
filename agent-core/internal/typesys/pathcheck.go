@@ -39,6 +39,12 @@ func checkPathAt(schema map[string]any, path, walked []string) error {
 		return checkPathAt(next, rest, append(walked, component))
 	case "array":
 		return checkArrayPath(schema, component, rest, walked)
+	case "":
+		// A schema that declares no type decides nothing about its fields, the
+		// same as a nil or empty one. Describing a value without constraining
+		// it is how a declaration says the shape is the producer's to decide,
+		// and reporting "untyped, so it has no field" contradicted that.
+		return nil
 	default:
 		return fmt.Errorf("%s is %s, so it has no field %q",
 			describeWalked(walked), describeScalar(schema), component)
@@ -78,11 +84,10 @@ func schemaType(schema map[string]any) string {
 	return name
 }
 
+// describeScalar names the declared type a path tried to walk past. Only a
+// declared type reaches it: a schema that declares none decides nothing.
 func describeScalar(schema map[string]any) string {
-	if name := schemaType(schema); name != "" {
-		return "a " + name
-	}
-	return "untyped"
+	return "a " + schemaType(schema)
 }
 
 func describeWalked(walked []string) string {
