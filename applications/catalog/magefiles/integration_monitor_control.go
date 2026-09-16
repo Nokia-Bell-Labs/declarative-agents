@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profileaudit"
 	"os"
 	"path/filepath"
 )
@@ -28,21 +29,6 @@ type monitorControlEvidence struct {
 	MonitorStopTransition   bool   `yaml:"monitor_stop_transition_declared"`
 	HTTPHandlersEnqueueOnly bool   `yaml:"http_handlers_enqueue_only"`
 	TargetOwner             string `yaml:"target_owner"`
-}
-
-// monitorAwaitConfig is the minimal shape of a tool declaration file needed to
-// read the lifecycle await source a profile declares.
-type monitorAwaitConfig struct {
-	Tools []struct {
-		Name   string `yaml:"name"`
-		Config struct {
-			Sources []struct {
-				Server  string   `yaml:"server"`
-				Routes  []string `yaml:"routes"`
-				Signals []string `yaml:"signals"`
-			} `yaml:"sources"`
-		} `yaml:"config"`
-	} `yaml:"tools"`
 }
 
 type monitorControlMachine struct {
@@ -76,7 +62,18 @@ func (Integration) MonitorControl() error {
 	if err := requireProfilePaths(profilesRoot, "agents/runtime-state-reader/profile.yaml", "testdata/conformance/control/profile.yaml"); err != nil {
 		return err
 	}
-	evidence, err := collectMonitorControlEvidence(profilesRoot)
+	coreRoot, err := resolveAgentCoreRoot(profilesRoot)
+	if err != nil {
+		return err
+	}
+	monitorAwait, err := readMonitorAwaitSource(
+		filepath.Join(profilesRoot, "agents", "runtime-state-reader", "profile.yaml"),
+		coreRoot, "await_monitor_control", "monitor",
+	)
+	if err != nil {
+		return err
+	}
+	evidence, err := collectMonitorControlEvidence(profilesRoot, monitorAwait)
 	if err != nil {
 		return err
 	}
@@ -99,7 +96,7 @@ func (Integration) MonitorControl() error {
 	return nil
 }
 
-func collectMonitorControlEvidence(profilesRoot string) (monitorControlEvidence, error) {
+func collectMonitorControlEvidence(profilesRoot string, monitorAwait monitorAwaitSource) (monitorControlEvidence, error) {
 	monitorREST, err := readMonitorControlREST(filepath.Join(profilesRoot, "agents", "runtime-state-reader", "rest.yaml"))
 	if err != nil {
 		return monitorControlEvidence{}, err
@@ -113,13 +110,6 @@ func collectMonitorControlEvidence(profilesRoot string) (monitorControlEvidence,
 		return monitorControlEvidence{}, err
 	}
 	controlMachine, err := readMonitorControlMachine(filepath.Join(profilesRoot, "testdata", "conformance", "control", "machine.yaml"))
-	if err != nil {
-		return monitorControlEvidence{}, err
-	}
-	monitorAwait, err := readMonitorAwaitSource(
-		filepath.Join(profilesRoot, "agents", "runtime-state-reader", "declarations.yaml"),
-		"await_monitor_control", "monitor",
-	)
 	if err != nil {
 		return monitorControlEvidence{}, err
 	}
@@ -163,23 +153,68 @@ type monitorAwaitSource struct {
 // readMonitorAwaitSource returns the route filter and signal the named await
 // word declares against the given server, proving the machine consumes the
 // injected exit (route name 'exit') rather than a removed static route.
-func readMonitorAwaitSource(path, word, server string) (monitorAwaitSource, error) {
-	var decls monitorAwaitConfig
-	if err := readIntegrationYAML(path, "tool declarations", &decls); err != nil {
-		return monitorAwaitSource{}, err
+//
+// The word is read from the profile's loaded closure, not from its declaration
+// file: since GH-2091 the reader instantiates it from a fragment, so the raw
+// file carries an instantiate entry and no tool of that name. Loading is what
+// makes imported and instantiated words visible (GH-2094).
+func readMonitorAwaitSource(profilePath, coreRoot, word, server string) (monitorAwaitSource, error) {
+	var found *monitorAwaitSource
+	_, err := profileaudit.InspectWithOptions(profilePath, profileaudit.Options{
+		CoreRoot: coreRoot,
+		OnMachine: func(reached profileaudit.ReachedMachine) error {
+			if reached.RequestScoped || found != nil {
+				return nil
+			}
+			for _, tool := range reached.Selected {
+				if tool.Name != word {
+					continue
+				}
+				if source, ok := awaitSourceFor(tool.Config, server); ok {
+					found = &source
+				}
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		return monitorAwaitSource{}, fmt.Errorf("load %s: %w", profilePath, err)
 	}
-	for _, tool := range decls.Tools {
-		if tool.Name != word {
+	if found == nil {
+		return monitorAwaitSource{}, fmt.Errorf(
+			"await source for %q on server %q not found among the tools %s selects", word, server, profilePath)
+	}
+	return *found, nil
+}
+
+// awaitSourceFor reads the first configured source on server from a
+// rest_await_event word's config: sources[].{server, routes, signals}.
+func awaitSourceFor(config map[string]interface{}, server string) (monitorAwaitSource, bool) {
+	sources, _ := config["sources"].([]interface{})
+	for _, raw := range sources {
+		source, _ := raw.(map[string]interface{})
+		if fmt.Sprint(source["server"]) != server {
 			continue
 		}
-		for _, src := range tool.Config.Sources {
-			if src.Server != server || len(src.Routes) == 0 || len(src.Signals) == 0 {
-				continue
-			}
-			return monitorAwaitSource{Route: src.Routes[0], Signal: src.Signals[0]}, nil
+		routes := stringsOf(source["routes"])
+		signals := stringsOf(source["signals"])
+		if len(routes) == 0 || len(signals) == 0 {
+			continue
+		}
+		return monitorAwaitSource{Route: routes[0], Signal: signals[0]}, true
+	}
+	return monitorAwaitSource{}, false
+}
+
+func stringsOf(value interface{}) []string {
+	items, _ := value.([]interface{})
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if text, ok := item.(string); ok {
+			out = append(out, text)
 		}
 	}
-	return monitorAwaitSource{}, fmt.Errorf("await source for %q on server %q not found in %s", word, server, path)
+	return out
 }
 
 func readMonitorControlEvidence(path string) (monitorControlEvidence, error) {
