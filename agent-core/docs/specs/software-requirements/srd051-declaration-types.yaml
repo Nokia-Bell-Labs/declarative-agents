@@ -43,7 +43,11 @@ requirements:
           unique within its unit.
       - R1.4: >-
           A type SHALL be addressed as `<unit>.<Name>`. The unit segment is the
-          declaring file's `unit` value, not its path.
+          declaring file's `unit` value, not its path, and it is a namespace:
+          the name it qualifies is unique within that unit and carries no
+          claim on the same name in another one. Every reference states the
+          unit it means, so an application names a shape for what it is rather
+          than for what no other unit has taken.
 
   R2:
     title: Closed schema subset
@@ -89,8 +93,11 @@ requirements:
           A reference to an unknown unit or an unknown name SHALL be a load
           error naming both the unit and the name that could not be found.
       - R4.3: >-
-          The same type name declared in two units SHALL be a load error naming
-          both declaring units.
+          One unit declaring the same type name twice SHALL be a load error
+          naming the unit and the name, and naming both declaring files when a
+          unit spans more than one. The same name declared in two different
+          units SHALL load: they are two types with two addresses, and no
+          reference can mean both.
       - R4.4: >-
           A reference cycle SHALL be a load error naming the references that
           form it, rather than exhausting the stack. A type referring to itself
@@ -191,7 +198,7 @@ acceptance_criteria:
     criterion: A tool declaration that imports a type unit uses a reference in its output schema and its parameters, including a reference nested inside properties, and mixing $type with sibling keywords fails.
     traces: [R3.1, R3.2, R3.3]
   - id: AC4
-    criterion: Unknown references, duplicate names across units, and reference cycles each fail the load with the stated evidence, and repeated resolution of one schema yields the same result without mutating the declaration.
+    criterion: Unknown references, a name one unit declares twice, and reference cycles each fail the load with the stated evidence; two units each declaring one name resolve to two types; and repeated resolution of one schema yields the same result without mutating the declaration.
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
   - id: AC5
     criterion: An unimported type unit produces the existing unused-unit error, and the canonical dump carries a sorted types section with tool schemas rendered resolved.
@@ -221,3 +228,4 @@ implementation_status:
     - GH-2006 through GH-2025 sign every word and response declaration in the repository.
     - GH-2009 promotes R6.12, so an unsigned word fails the corpus audit.
     - GH-2064 and GH-2065 type the boundary REST labels from the runtime result, which is what R6.12 exempts a boundary tool from restating.
+    - GH-2026 makes the unit segment a namespace (R1.4, R4.3), so catalog-types-core declares Text and Comparison under the names they describe.

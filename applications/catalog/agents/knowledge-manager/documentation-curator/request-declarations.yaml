@@ -550,7 +550,7 @@ tools:
     visibility: internal
     category: response
     signature:
-      output: catalog-types-core.PredicateResult
+      output: catalog-types-core.Comparison
       emits: [ReviewPending, ReviewClosed, CommandError]
     description: Permit decisions only for pending reviews.
     parameters: {type: object, properties: {}, additionalProperties: false}

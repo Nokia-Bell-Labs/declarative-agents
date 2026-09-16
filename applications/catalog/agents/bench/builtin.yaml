@@ -59,7 +59,7 @@ tools:
   init: value_predicate
   visibility: internal
   signature:
-    output: catalog-types-core.PredicateResult
+    output: catalog-types-core.Comparison
     emits: [SuiteSelected, SuiteMissing, CommandError]
   description: Require a non-empty suite path before child dispatch.
   category: response

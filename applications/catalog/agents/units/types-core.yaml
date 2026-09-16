@@ -1,16 +1,16 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # Shapes the runtime produces for catalog words, independent of which agent
-# declares them. The names avoid agent-core's Text and Comparison because
-# srd051 R4.3 makes a type name unique across the whole closure, not within
-# its declaring unit.
+# declares them. Text and Comparison restate the shapes agent-core's own units
+# declare under the same names; the unit segment of an address is a namespace,
+# so an application names its shapes for what they are (srd051 R1.4, R4.3).
 unit: catalog-types-core
 types:
-- name: PlainText
+- name: Text
   description: Plain text a catalog word publishes as its whole result.
   schema:
     type: string
-- name: PredicateResult
+- name: Comparison
   description: The resolved comparison a value_predicate word publishes; right is absent for unary operations.
   schema:
     type: object

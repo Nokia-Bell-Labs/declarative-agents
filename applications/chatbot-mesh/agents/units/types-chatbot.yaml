@@ -1,16 +1,16 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # Shapes the chatbot request machines pass between their words, and the
-# runtime shapes its words publish. The names avoid agent-core's and the
-# catalog's because srd051 R4.3 makes a type name unique across the whole
-# closure, not within its declaring unit.
+# runtime shapes its words publish. Text and Partition restate shapes
+# agent-core declares under the same names; the unit segment of an address is
+# a namespace, so a shape is named for what it is (srd051 R1.4, R4.3).
 unit: mesh-types-chatbot
 types:
-- name: RenderedText
+- name: Text
   description: Rendered text a word publishes as its whole result.
   schema:
     type: string
-- name: ResultPartition
+- name: Partition
   description: Ordered matched and unmatched fan-out outcomes with their counts.
   schema:
     type: object

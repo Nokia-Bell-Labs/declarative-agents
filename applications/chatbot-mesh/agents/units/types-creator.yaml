@@ -1,11 +1,12 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
-# Shapes the creator publishes while it provisions and ingests a corpus. The
-# names avoid agent-core's and the catalog's because srd051 R4.3 makes a type
-# name unique across the whole closure, not within its declaring unit.
+# Shapes the creator publishes while it provisions and ingests a corpus.
+# Comparison restates the shape agent-core declares under the same name; the
+# unit segment of an address is a namespace, so a shape is named for what it
+# is (srd051 R1.4, R4.3).
 unit: mesh-types-creator
 types:
-- name: ComparisonOutcome
+- name: Comparison
   description: The resolved comparison a value_predicate word publishes; right is absent for unary operations.
   schema:
     type: object

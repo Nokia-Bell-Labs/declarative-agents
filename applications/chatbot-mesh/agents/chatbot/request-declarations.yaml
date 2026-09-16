@@ -78,7 +78,7 @@ tools:
     description: Compose the original question and the human-readable declared source catalog.
     parameters: {type: object, properties: {}, additionalProperties: false}
     signature:
-      output: mesh-types-chatbot.RenderedText
+      output: mesh-types-chatbot.Text
       emits: [SourceSelectionComposed, CommandError]
     output: {description: Source-classifier input.}
     config:
@@ -355,7 +355,7 @@ tools:
     visibility: internal
     category: word
     signature:
-      output: mesh-types-chatbot.RenderedText
+      output: mesh-types-chatbot.Text
       emits: [ToolDone, ParseFailed, TaskCompleted]
     description: Parse the tier-selector response into one chat-LLM tool call.
     output:

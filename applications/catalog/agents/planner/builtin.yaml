@@ -14,7 +14,7 @@ tools:
     init: report_parse_error
     visibility: internal
     signature:
-      output: catalog-types-core.PlainText
+      output: catalog-types-core.Text
       emits: [ToolDone, BudgetExhausted]
     description: "Report an invalid implementation plan back to the LLM for correction."
     category: word
@@ -196,7 +196,7 @@ tools:
     description: "Render the planner user prompt from labelled structured context."
     visibility: internal
     signature:
-      output: catalog-types-core.PlainText
+      output: catalog-types-core.Text
       emits: [PromptReady, CommandError]
     category: word
     parameters: {type: object, properties: {}, additionalProperties: false}
@@ -279,7 +279,7 @@ tools:
     description: "Compare the visible retry count with the declared two-attempt limit."
     visibility: internal
     signature:
-      output: catalog-types-core.PredicateResult
+      output: catalog-types-core.Comparison
       emits: [RetryAvailable, RetriesExhausted, CommandError]
     category: word
     parameters: {type: object, properties: {}, additionalProperties: false}

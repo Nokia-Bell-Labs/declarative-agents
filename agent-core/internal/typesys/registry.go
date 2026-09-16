@@ -12,18 +12,15 @@ import (
 // Registry holds every declared type addressed as unit.Name (srd051 R1.4).
 type Registry struct {
 	types map[string]TypeDecl
-	units map[string]string
 	paths map[string]string
 }
 
 // Build indexes the types of every unit, rejecting a schema outside the closed
-// subset and a name declared by more than one unit. Type names are unique
-// across the closure, not only within a unit, so a reader never has to know
-// which unit a name came from to know which type it is (srd051 R4.3).
+// subset and a name its own unit declares twice. The unit segment of an
+// address is a namespace: two units may each declare Text, because every
+// reference names the unit it means (srd051 R1.4, R4.3).
 func Build(units ...TypeUnitFile) (*Registry, error) {
-	registry := &Registry{
-		types: map[string]TypeDecl{}, units: map[string]string{}, paths: map[string]string{},
-	}
+	registry := &Registry{types: map[string]TypeDecl{}, paths: map[string]string{}}
 	for _, unit := range sortedUnits(units) {
 		for _, declared := range unit.Types {
 			if err := registry.add(unit, declared); err != nil {
@@ -38,17 +35,30 @@ func (r *Registry) add(unit TypeUnitFile, declared TypeDecl) error {
 	if declared.Name == "" {
 		return fmt.Errorf("unit %q declares a type with no name", unit.Unit)
 	}
-	if first, exists := r.units[declared.Name]; exists {
-		return fmt.Errorf("type %q is declared by unit %q and unit %q",
-			declared.Name, first, unit.Unit)
+	ref := unit.Ref(declared.Name)
+	if _, exists := r.types[ref]; exists {
+		return fmt.Errorf("unit %q declares type %q twice%s",
+			unit.Unit, declared.Name, declaringFiles(r.paths[ref], unit.Path))
 	}
 	if err := ValidateSubset(declared.Schema); err != nil {
 		return fmt.Errorf("unit %q type %q: %w", unit.Unit, declared.Name, err)
 	}
-	r.units[declared.Name] = unit.Unit
-	r.types[unit.Ref(declared.Name)] = declared
-	r.paths[unit.Ref(declared.Name)] = unit.Path
+	r.types[ref] = declared
+	r.paths[ref] = unit.Path
 	return nil
+}
+
+// declaringFiles names the two files a duplicate came from. A unit may span
+// files, so which file declared the first one is the part an author cannot
+// work out from the unit name alone.
+func declaringFiles(first, second string) string {
+	if first == "" || second == "" {
+		return ""
+	}
+	if first == second {
+		return fmt.Sprintf(" in %s", first)
+	}
+	return fmt.Sprintf(": %s and %s", first, second)
 }
 
 // Resolve returns the type a unit.Name reference addresses.
