@@ -119,14 +119,14 @@ func joinEnvelope(output map[string]any) map[string]any {
 }
 
 // actionOutputSchema returns the type a label takes from its publishing
-// action: the envelope a REST client word publishes, derived from the
-// operation it names, or the type its signature states.
+// action: the result a REST word publishes, or the type its signature states.
 //
-// The REST case is derived rather than declared because the runtime builds
-// that envelope from the same operation, so a signature restating it could
-// disagree with what the word returns (GH-2064).
+// The REST case is taken from the runtime rather than from a declaration
+// because the runtime builds that result itself — from the operation the word
+// names (GH-2064), or from its own listener and queue state (GH-2065) — so a
+// signature restating it could disagree with what the word returns.
 func actionOutputSchema(def ToolDef, operations RESTOperations) map[string]any {
-	if schema, ok := restClientLabelSchema(def, operations); ok {
+	if schema, ok := restLabelSchema(def, operations); ok {
 		return schema
 	}
 	return signatureOutputSchema(def)

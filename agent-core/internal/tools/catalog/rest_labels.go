@@ -46,24 +46,21 @@ var restClientInits = map[string]bool{
 // shape is right for a label published whichever status returned, and a wrong
 // one rejects a selector that resolves.
 func restClientEnvelopeSchema(response RESTClientResponse) map[string]interface{} {
-	return map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"rest_ref":           map[string]interface{}{"type": "string"},
-			"resource":           map[string]interface{}{"type": "string"},
-			"operation":          map[string]interface{}{"type": "string"},
-			"status":             map[string]interface{}{"type": "integer"},
-			"headers":            map[string]interface{}{"type": "object"},
-			"body":               describedValue("the decoded response, whose shape the status mapping decides"),
-			"mapped":             namedFields(response.Mapped, "a field the operation's response mapping publishes"),
-			"carried":            namedFields(response.Carried, "a request parameter the operation carries forward"),
-			"resource_id":        describedValue("the resource identity the response mapping selects"),
-			"request_id":         describedValue("the request identity the response mapping selects"),
-			"retry_count":        map[string]interface{}{"type": "integer"},
-			"domain_error_code":  map[string]interface{}{"type": "string"},
-			"selected_authority": map[string]interface{}{"type": "string"},
-		},
-	}
+	return objectSchema(map[string]interface{}{
+		"rest_ref":           map[string]interface{}{"type": "string"},
+		"resource":           map[string]interface{}{"type": "string"},
+		"operation":          map[string]interface{}{"type": "string"},
+		"status":             map[string]interface{}{"type": "integer"},
+		"headers":            map[string]interface{}{"type": "object"},
+		"body":               describedValue("the decoded response, whose shape the status mapping decides"),
+		"mapped":             namedFields(response.Mapped, "a field the operation's response mapping publishes"),
+		"carried":            namedFields(response.Carried, "a request parameter the operation carries forward"),
+		"resource_id":        describedValue("the resource identity the response mapping selects"),
+		"request_id":         describedValue("the request identity the response mapping selects"),
+		"retry_count":        map[string]interface{}{"type": "integer"},
+		"domain_error_code":  map[string]interface{}{"type": "string"},
+		"selected_authority": map[string]interface{}{"type": "string"},
+	})
 }
 
 // namedFields is an object whose declared fields are exactly the names given,
@@ -73,7 +70,7 @@ func namedFields(names []string, description string) map[string]interface{} {
 	for _, name := range names {
 		properties[name] = describedValue(description)
 	}
-	return map[string]interface{}{"type": "object", "properties": properties}
+	return objectSchema(properties)
 }
 
 // describedValue is a schema that names what a value is without constraining
@@ -81,6 +78,16 @@ func namedFields(names []string, description string) map[string]interface{} {
 // declaration states.
 func describedValue(description string) map[string]interface{} {
 	return map[string]interface{}{"description": description}
+}
+
+// restLabelSchema returns the type a REST word's label takes: the constant its
+// runtime result fixes, or the envelope derived from the operation a client
+// word names. It reports false for any other word.
+func restLabelSchema(def ToolDef, operations RESTOperations) (map[string]interface{}, bool) {
+	if constant, ok := restConstantSchemas[def.Init]; ok {
+		return constant(), true
+	}
+	return restClientLabelSchema(def, operations)
 }
 
 // restClientLabelSchema returns the envelope a REST client word publishes, and
@@ -96,4 +103,67 @@ func restClientLabelSchema(def ToolDef, operations RESTOperations) (map[string]i
 		return nil, false
 	}
 	return restClientEnvelopeSchema(response), true
+}
+
+// Label types for the REST words that are not clients (srd028, srd038 R2.15).
+//
+// These three results are built by the runtime from its own listener and queue
+// state, not from anything the declaration says: launchOutput, stopOutput, and
+// the inbound event carry the same fields for every server a profile declares.
+// So each is a constant here rather than derived. The one part a declaration
+// could reach — the payload an inbound request carries — is left undecided,
+// because the request body is the caller's and no endpoint states its shape.
+
+// restConstantSchemas are the words whose result the runtime fixes. Each is
+// the full set of keys its command writes to core.Result.Output.
+var restConstantSchemas = map[string]func() map[string]interface{}{
+	"rest_server_launch": restServerLaunchSchema,
+	"rest_server_stop":   restServerStopSchema,
+	"rest_server_await":  restInboundEventSchema,
+	"rest_await_event":   restInboundEventSchema,
+}
+
+// restServerLaunchSchema is the shape launchOutput builds.
+func restServerLaunchSchema() map[string]interface{} {
+	return objectSchema(map[string]interface{}{
+		"server":         map[string]interface{}{"type": "string"},
+		"address":        map[string]interface{}{"type": "string"},
+		"route_count":    map[string]interface{}{"type": "integer"},
+		"bindings":       map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+		"owned":          map[string]interface{}{"type": "boolean"},
+		"active_streams": map[string]interface{}{"type": "integer"},
+	})
+}
+
+// restServerStopSchema is the shape stopOutput builds.
+func restServerStopSchema() map[string]interface{} {
+	return objectSchema(map[string]interface{}{
+		"server":         map[string]interface{}{"type": "string"},
+		"address":        map[string]interface{}{"type": "string"},
+		"drained_events": map[string]interface{}{"type": "integer"},
+		"dropped_events": map[string]interface{}{"type": "integer"},
+		"status":         map[string]interface{}{"type": "string"},
+		"drain_policy":   map[string]interface{}{"type": "string"},
+		"queue_outcome":  map[string]interface{}{"type": "string"},
+	})
+}
+
+// restInboundEventSchema is the shape an awaited event carries. Both the
+// per-server await and the fan-in await publish the same event, so they share
+// one type.
+func restInboundEventSchema() map[string]interface{} {
+	return objectSchema(map[string]interface{}{
+		"source":     map[string]interface{}{"type": "string"},
+		"queue":      map[string]interface{}{"type": "string"},
+		"route":      map[string]interface{}{"type": "string"},
+		"method":     map[string]interface{}{"type": "string"},
+		"signal":     map[string]interface{}{"type": "string"},
+		"payload":    describedValue("the body the inbound request carried, whose shape the caller decides"),
+		"request_id": map[string]interface{}{"type": "string"},
+	})
+}
+
+// objectSchema is an object declaring exactly the properties given.
+func objectSchema(properties map[string]interface{}) map[string]interface{} {
+	return map[string]interface{}{"type": "object", "properties": properties}
 }

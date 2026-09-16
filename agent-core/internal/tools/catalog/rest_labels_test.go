@@ -133,3 +133,94 @@ func TestRESTLabelIsNotDerivedWithoutAResolver(t *testing.T) {
 
 	require.Empty(t, ValidateSelectorPaths(spec, defs, nil, nil))
 }
+
+// restServerMachine publishes the result of a non-client REST word under a
+// label a later word reads. No resolver is passed: these results are fixed by
+// the runtime, so their types do not depend on one.
+func restServerMachine(init, selector string) (core.MachineSpec, []ToolDef) {
+	spec := core.MachineSpec{Transitions: []core.TransitionSpec{
+		{State: "S0", Signal: "Seed", Next: "S1", Action: "serve", Label: "server_result"},
+		{State: "S1", Signal: "ToolDone", Next: "Done", Action: "report"},
+	}}
+	return spec, []ToolDef{
+		{Name: "serve", Init: init, Config: map[string]interface{}{"rest_ref": "bench_http"}},
+		{Name: "report", Config: map[string]interface{}{"source": selector}},
+	}
+}
+
+func TestRESTServerLaunchLabelCarriesTheListenerState(t *testing.T) {
+	t.Parallel()
+	for _, selector := range []string{
+		"$from(server_result).server",
+		"$from(server_result).address",
+		"$from(server_result).route_count",
+		"$from(server_result).bindings",
+		"$from(server_result).owned",
+		"$from(server_result).active_streams",
+	} {
+		spec, defs := restServerMachine("rest_server_launch", selector)
+		require.Emptyf(t, ValidateSelectorPaths(spec, defs, nil, nil), "selector %s", selector)
+	}
+}
+
+func TestRESTServerStopLabelCarriesTheDrainOutcome(t *testing.T) {
+	t.Parallel()
+	for _, selector := range []string{
+		"$from(server_result).drained_events",
+		"$from(server_result).dropped_events",
+		"$from(server_result).status",
+		"$from(server_result).drain_policy",
+		"$from(server_result).queue_outcome",
+	} {
+		spec, defs := restServerMachine("rest_server_stop", selector)
+		require.Emptyf(t, ValidateSelectorPaths(spec, defs, nil, nil), "selector %s", selector)
+	}
+}
+
+// TestRESTAwaitLabelCarriesTheInboundEvent covers both await words: the fan-in
+// and the per-server await publish the same event, so they share one type.
+func TestRESTAwaitLabelCarriesTheInboundEvent(t *testing.T) {
+	t.Parallel()
+	for _, init := range []string{"rest_await_event", "rest_server_await"} {
+		for _, selector := range []string{
+			"$from(server_result).source",
+			"$from(server_result).queue",
+			"$from(server_result).route",
+			"$from(server_result).method",
+			"$from(server_result).signal",
+			"$from(server_result).request_id",
+		} {
+			spec, defs := restServerMachine(init, selector)
+			require.Emptyf(t, ValidateSelectorPaths(spec, defs, nil, nil),
+				"%s selector %s", init, selector)
+		}
+	}
+}
+
+// TestRESTAwaitPayloadStaysUndecided is why payload carries no shape: the body
+// belongs to the caller and no endpoint declares it, so a path through it must
+// resolve. applications/catalog/agents/bench reads payload.body.config.suite.
+func TestRESTAwaitPayloadStaysUndecided(t *testing.T) {
+	t.Parallel()
+	spec, defs := restServerMachine("rest_await_event", "$from(server_result).payload.body.config.suite")
+
+	require.Empty(t, ValidateSelectorPaths(spec, defs, nil, nil))
+}
+
+func TestRESTServerLabelRejectsAFieldTheResultLacks(t *testing.T) {
+	t.Parallel()
+	for init, selector := range map[string]string{
+		"rest_server_launch": "$from(server_result).addres",
+		"rest_server_stop":   "$from(server_result).drained",
+		"rest_await_event":   "$from(server_result).paylod",
+		"rest_server_await":  "$from(server_result).paylod",
+	} {
+		spec, defs := restServerMachine(init, selector)
+
+		diagnostics := ValidateSelectorPaths(spec, defs, nil, nil)
+
+		require.Lenf(t, diagnostics, 1, "init %s", init)
+		require.Equal(t, core.DiagnosticSelectorPathMismatch, diagnostics[0].Code)
+		require.Contains(t, diagnostics[0].Message, "has no field")
+	}
+}
