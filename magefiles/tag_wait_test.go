@@ -41,7 +41,7 @@ func TestReleaseWaitNoticeNamesDurationAndSortedClasses(t *testing.T) {
 }
 
 // TestHostOllamaWaitIsReported is GH-2101: attempt 4 of the 2026-09-16 release
-// showed agent-core idle for ten minutes behind chatbot-mesh, visible only by
+// showed agent-core idle for 5m52 behind chatbot-mesh, visible only by
 // reconstructing timestamps. The scheduler now says so when agent-core launches,
 // and says nothing for a gate that never waited.
 func TestHostOllamaWaitIsReported(t *testing.T) {
