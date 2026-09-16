@@ -15,31 +15,103 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/typesys"
 )
 
 type loadedClosure struct {
-	profilePath string
-	machinePath string
-	defs        []catalog.ToolDef
-	rest        toolrest.Collection
-	machine     core.MachineSpec
+	profilePath   string
+	machinePath   string
+	defs          []catalog.ToolDef
+	rest          toolrest.Collection
+	machine       core.MachineSpec
+	types         *typesys.Registry
+	requestScoped bool
 }
 
-func (i *inspector) inspectProfile(profilePath, machineOverride string) error {
+// requestEntry is how a request machine is reached: the endpoint dispatching
+// it, and the signal that endpoint injects to seed it. Its presence is what
+// makes a machine request-scoped; a point machine also overrides the machine
+// path and is not.
+type requestEntry struct{ signal string }
+
+// reached reports this closure to a caller that asked to see every machine the
+// walk resolves (srd006 R2.9, srd038 R2.14).
+func (c loadedClosure) reached(injected []string) ReachedMachine {
+	return ReachedMachine{
+		ProfilePath: c.profilePath, MachinePath: c.machinePath,
+		Machine: c.machine, Selected: c.defs, Rest: c.rest, Types: c.types,
+		RequestScoped: c.requestScoped, InitialSignals: injected,
+	}
+}
+
+func (i *inspector) inspectProfile(
+	profilePath, machineOverride string, request *requestEntry,
+) error {
 	closure, key, err := loadProfileClosure(profilePath, machineOverride)
 	if err != nil {
 		return err
+	}
+	closure.requestScoped = request != nil
+	// Recorded before the visit check, because a machine two endpoints dispatch
+	// is walked once and the second endpoint's signal would otherwise be lost.
+	if request != nil {
+		i.recordInjectedSignal(key, request.signal)
 	}
 	if done, err := i.beginVisit(key); done || err != nil {
 		return err
 	}
 	defer delete(i.visiting, key)
+	i.recordReached(closure)
 	if err := i.inspectLoaded(closure); err != nil {
 		return err
 	}
 	i.visited[key] = true
 	return nil
 }
+
+// recordReached remembers one resolved machine. Reporting waits until the walk
+// ends: two endpoints may dispatch the same request machine under different
+// initial signals, and beginVisit stops the second from reaching it, so the
+// union is only complete once every endpoint has been seen.
+func (i *inspector) recordReached(closure loadedClosure) {
+	if i.onMachine == nil {
+		return
+	}
+	i.reached = append(i.reached, closure)
+}
+
+// recordInjectedSignal accumulates the signal one endpoint injects into the
+// machine it dispatches, against the key that machine will be reported under.
+func (i *inspector) recordInjectedSignal(key, signal string) {
+	if i.onMachine == nil || signal == "" {
+		return
+	}
+	if i.injected == nil {
+		i.injected = map[string]map[string]bool{}
+	}
+	if i.injected[key] == nil {
+		i.injected[key] = map[string]bool{}
+	}
+	i.injected[key][signal] = true
+}
+
+// flushReached reports every machine the walk resolved, each with the complete
+// set of signals the endpoints dispatching it inject.
+func (i *inspector) flushReached() error {
+	for _, closure := range i.reached {
+		signals := make([]string, 0, len(i.injected[closure.key()]))
+		for signal := range i.injected[closure.key()] {
+			signals = append(signals, signal)
+		}
+		sort.Strings(signals)
+		if err := i.onMachine(closure.reached(signals)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c loadedClosure) key() string { return c.profilePath + "|" + c.machinePath }
 
 func (i *inspector) inspectClosure(closure *internalload.Closure) error {
 	loaded := loadedClosure{
@@ -48,12 +120,14 @@ func (i *inspector) inspectClosure(closure *internalload.Closure) error {
 		defs:        closure.Selected,
 		rest:        closure.Rest,
 		machine:     closure.Machine,
+		types:       closure.Types,
 	}
 	key := loaded.profilePath + "|" + loaded.machinePath
 	if done, err := i.beginVisit(key); done || err != nil {
 		return err
 	}
 	defer delete(i.visiting, key)
+	i.recordReached(loaded)
 	if err := i.inspectLoaded(loaded); err != nil {
 		return err
 	}
@@ -79,6 +153,7 @@ func loadProfileClosure(profilePath, machineOverride string) (loadedClosure, str
 	closure := loadedClosure{
 		profilePath: canonical(profilePath), machinePath: canonical(machinePath),
 		defs: resolved.Selected, rest: resolved.Rest, machine: resolved.Machine,
+		types: resolved.Types,
 	}
 	return closure, closure.profilePath + "|" + closure.machinePath, nil
 }
@@ -255,7 +330,8 @@ func (i *inspector) inspectChildProfile(closure loadedClosure, def catalog.ToolD
 	if !ok || strings.TrimSpace(child) == "" {
 		return fmt.Errorf("profile %s action %q requires config.%s", closure.profilePath, def.Name, field)
 	}
-	return i.inspectProfile(resolveReference(filepath.Dir(closure.profilePath), child), "")
+	return i.inspectProfile(
+		resolveReference(filepath.Dir(closure.profilePath), child), "", nil)
 }
 
 func (i *inspector) inspectPointMachine(closure loadedClosure, def catalog.ToolDef) error {

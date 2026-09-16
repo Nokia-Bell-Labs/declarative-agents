@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	internalload "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/load"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
 func TestInspectProfileResolvesIncludesOverridesSelectionAndEnvironment(t *testing.T) {
@@ -356,4 +357,128 @@ func write(t *testing.T, root, name, content string) string {
 	path := filepath.Join(root, name)
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	return path
+}
+
+// twoRouteRequestProfile dispatches one request machine from two endpoints,
+// each seeding it with its own signal. The walk visits that machine once, so
+// the second endpoint's signal is only observable if it is recorded before the
+// visit check (GH-2058).
+func twoRouteRequestProfile(t *testing.T, root string) string {
+	t.Helper()
+	write(t, root, "machine.yaml", oneActionMachine("1m", "launch"))
+	write(t, root, "request-machine.yaml", oneActionMachine("10s", "request_wait"))
+	write(t, root, "tools.yaml", "tools: [launch]\n")
+	write(t, root, "declarations.yaml", declarations(`
+  - name: launch
+    type: builtin
+    init: rest_server_launch
+    category: boundary
+    visibility: internal
+    config: {rest_ref: api}
+`+tool("request_wait", "custom_await", "10s", "internal")))
+	write(t, root, "rest.yaml", `
+rest:
+  version: v1
+  limits:
+    local: {timeout: 30s}
+  servers:
+    api:
+      address: 127.0.0.1:19000
+      limits_ref: local
+      endpoints:
+        start:
+          method: POST
+          path: /start
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            initial_signal: StartRequested
+            timeout: 1m
+            response:
+              terminal_states:
+                Done: {status: 200}
+        resume:
+          method: POST
+          path: /resume
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            initial_signal: ResumeRequested
+            timeout: 1m
+            response:
+              terminal_states:
+                Done: {status: 200}
+`)
+	return writeProfile(t, root, "profile.yaml", "machine.yaml", "tools.yaml",
+		"declarations.yaml", "rest_definitions: [rest.yaml]\n")
+}
+
+func TestReachedMachinesUniteTheSignalsEveryRouteInjects(t *testing.T) {
+	root := t.TempDir()
+	profile := twoRouteRequestProfile(t, root)
+
+	var reached []ReachedMachine
+	_, err := InspectWithOptions(profile, Options{
+		OnMachine: func(machine ReachedMachine) error {
+			reached = append(reached, machine)
+			return nil
+		},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, reached, 2, "the profile's own machine and the request machine it dispatches")
+	request := reached[1]
+	require.Equal(t, canonical(filepath.Join(root, "request-machine.yaml")), request.MachinePath)
+	require.True(t, request.RequestScoped)
+	require.Equal(t, []string{"ResumeRequested", "StartRequested"}, request.InitialSignals,
+		"both routes seed the one machine the walk visits once")
+}
+
+func TestReachedProfileMachineIsNotRequestScoped(t *testing.T) {
+	root := t.TempDir()
+	profile := twoRouteRequestProfile(t, root)
+
+	var reached []ReachedMachine
+	_, err := InspectWithOptions(profile, Options{
+		OnMachine: func(machine ReachedMachine) error {
+			reached = append(reached, machine)
+			return nil
+		},
+	})
+
+	require.NoError(t, err)
+	own := reached[0]
+	require.Equal(t, canonical(filepath.Join(root, "machine.yaml")), own.MachinePath)
+	require.False(t, own.RequestScoped)
+	require.Empty(t, own.InitialSignals, "nothing injects a signal into the machine a profile runs")
+}
+
+// TestReachedMachineCarriesWhatThatMachineSelects covers the reason the walk is
+// reused rather than rebuilt: a request machine selects the actions its own
+// transitions name, so its tools are not the profile's.
+func TestReachedMachineCarriesWhatThatMachineSelects(t *testing.T) {
+	root := t.TempDir()
+	profile := twoRouteRequestProfile(t, root)
+
+	var reached []ReachedMachine
+	_, err := InspectWithOptions(profile, Options{
+		OnMachine: func(machine ReachedMachine) error {
+			reached = append(reached, machine)
+			return nil
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"launch"}, toolNames(reached[0].Selected))
+	require.Equal(t, []string{"request_wait"}, toolNames(reached[1].Selected))
+}
+
+func toolNames(defs []catalog.ToolDef) []string {
+	names := make([]string, 0, len(defs))
+	for _, def := range defs {
+		names = append(names, def.Name)
+	}
+	return names
 }
