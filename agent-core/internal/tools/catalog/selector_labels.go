@@ -52,6 +52,12 @@ func MachineLabels(spec core.MachineSpec) map[string]struct{} {
 // runtime dispatch.
 const DynamicActionSentinel = "$tool"
 
+// RequestSeedLabel is the synthetic machine_request entry srd038 R2.10
+// reserves. The runtime publishes it for every request-scoped machine and for
+// no other, so a caller validating one states it and a profile's own machine
+// reading it is still an unresolved label.
+const RequestSeedLabel = "seed"
+
 // SelectorRefs returns every $from(label).path selector a tool definition
 // carries: the exec stdin_source and parameter sources, plus every selector
 // anywhere in the config block.
@@ -64,10 +70,16 @@ const DynamicActionSentinel = "$tool"
 // Resolving a label does not depend on which field holds the selector, so
 // shape is enough here; checking a selector's path against a declared output
 // type is not, and belongs with the tool signatures of GH-1968.
+//
+// Parameters are walked for the same reason config is. A request binding
+// declares a word's arguments there, each with a source selector, and the
+// documentation curator carries four words whose only selectors sit in that
+// block (GH-2057).
 func (td ToolDef) SelectorRefs() []string {
 	refs := map[string]struct{}{}
 	collectSelector(refs, td.StdinSource)
 	collectSelectorsFrom(refs, td.Config)
+	collectSelectorsFrom(refs, td.Parameters)
 	out := make([]string, 0, len(refs))
 	for ref := range refs {
 		out = append(out, ref)
@@ -107,8 +119,17 @@ func collectSelectorsFrom(refs map[string]struct{}, value interface{}) {
 // ValidateSelectorLabels reports every selector, in the machine and in the
 // configs of tools the machine can dispatch, whose label no transition
 // publishes and no external_labels entry declares.
-func ValidateSelectorLabels(spec core.MachineSpec, defs []ToolDef) []core.MachineDiagnostic {
+//
+// runtimeLabels are labels present whatever the transitions declare, which a
+// caller states because the machine cannot: a request-scoped machine always
+// carries the synthetic machine_request entry under RequestSeedLabel.
+func ValidateSelectorLabels(
+	spec core.MachineSpec, defs []ToolDef, runtimeLabels ...string,
+) []core.MachineDiagnostic {
 	labels := MachineLabels(spec)
+	for _, label := range runtimeLabels {
+		labels[label] = struct{}{}
+	}
 	addDynamicDispatchNames(labels, spec, defs)
 	seen := make(map[string]struct{})
 	var diagnostics []core.MachineDiagnostic
@@ -239,8 +260,10 @@ func editDistanceLimit(label string) int {
 // diagnostics into one error naming every unresolved reference. Promoted from
 // a warning once the in-repo declarations were clean, which they were on the
 // check's first run across all 53 boot-smoke profiles (GH-1966).
-func ValidateSelectorLabelsStrict(spec core.MachineSpec, defs []ToolDef) error {
-	diagnostics := ValidateSelectorLabels(spec, defs)
+func ValidateSelectorLabelsStrict(
+	spec core.MachineSpec, defs []ToolDef, runtimeLabels ...string,
+) error {
+	diagnostics := ValidateSelectorLabels(spec, defs, runtimeLabels...)
 	if len(diagnostics) == 0 {
 		return nil
 	}

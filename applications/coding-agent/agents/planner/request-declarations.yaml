@@ -33,6 +33,6 @@ tools:
         workspace_id: {type: string}
     side_effects:
       - {kind: external_api, target: coding_critic.review, state: verdict_recorded}
-    reversibility: {classification: reversible}
-    undo: {strategy: noop, description: The critic verdict is an explicit workspace artifact.}
+    reversibility: {classification: irreversible}
+    undo: {strategy: irreversible, description: The critic exposes no operation that withdraws a recorded verdict.}
     config: {rest_ref: critic, operation: review}

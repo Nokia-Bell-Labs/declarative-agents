@@ -248,3 +248,95 @@ func TestValidateSelectorLabelsReportsRepeatedSelectorOnce(t *testing.T) {
 	require.Len(t, catalog.ValidateSelectorLabels(spec, nil), 1,
 		"one selector repeated across transitions is one finding")
 }
+
+// requestBoundParameters is the shape a request binding declares: the word's
+// arguments, each taking its value from a command-state selector. Four
+// documentation-curator words carry their only selectors here (GH-2057).
+func requestBoundParameters(selector string) map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"query": map[string]interface{}{
+				"type": "string", "positional": true, "position": 1, "source": selector,
+			},
+		},
+		"required": []interface{}{"query"},
+	}
+}
+
+func TestValidateSelectorLabelsAcceptsADeclaredParameterSource(t *testing.T) {
+	t.Parallel()
+	defs := []catalog.ToolDef{{
+		Name: "report", Parameters: requestBoundParameters("$from(fetched).body"),
+	}}
+	require.Empty(t, catalog.ValidateSelectorLabels(labelMachine(), defs))
+}
+
+// TestValidateSelectorLabelsReportsAnUnknownParameterSourceLabel is the
+// GH-2057 regression: a selector reachable only through parameters was never
+// collected, so the check passed on a label nothing publishes.
+func TestValidateSelectorLabelsReportsAnUnknownParameterSourceLabel(t *testing.T) {
+	t.Parallel()
+	defs := []catalog.ToolDef{{
+		Name: "report", Parameters: requestBoundParameters("$from(fetchedd).body"),
+	}}
+
+	diagnostics := catalog.ValidateSelectorLabels(labelMachine(), defs)
+
+	require.Len(t, diagnostics, 1)
+	require.Equal(t, core.DiagnosticUnresolvedSelectorLabel, diagnostics[0].Code)
+	require.Equal(t, "report", diagnostics[0].Tool)
+	require.Contains(t, diagnostics[0].Message, `"fetchedd"`)
+}
+
+// TestSelectorRefsReadsEveryCarrier keeps the doc comment honest: it named the
+// parameter sources before the walk reached them.
+func TestSelectorRefsReadsEveryCarrier(t *testing.T) {
+	t.Parallel()
+	def := catalog.ToolDef{
+		StdinSource: "$from(wrapped).payload",
+		Config:      map[string]interface{}{"items": "$from(rows).items"},
+		Parameters:  requestBoundParameters("$from(request).query"),
+	}
+
+	require.Equal(t, []string{
+		"$from(request).query", "$from(rows).items", "$from(wrapped).payload",
+	}, def.SelectorRefs())
+}
+
+// seedReadingTool is what a request-scoped word does with the entry the
+// runtime publishes for it: reads a request field out of the seed.
+func seedReadingTool() []catalog.ToolDef {
+	return []catalog.ToolDef{{
+		Name:   "report",
+		Config: map[string]interface{}{"left": "$from(seed).parameters.group_by"},
+	}}
+}
+
+// TestValidateSelectorLabelsAcceptsTheRequestSeedLabel covers the reason five
+// correct profiles were rejected: srd038 R2.10 reserves the machine_request
+// entry under seed, which the runtime publishes and no transition does.
+func TestValidateSelectorLabelsAcceptsTheRequestSeedLabel(t *testing.T) {
+	t.Parallel()
+	require.Empty(t, catalog.ValidateSelectorLabels(
+		labelMachine(), seedReadingTool(), catalog.RequestSeedLabel))
+}
+
+// TestValidateSelectorLabelsRejectsSeedOnAMachineNothingSeeds is the other
+// half. Accepting seed everywhere would have hidden a real unresolved label on
+// the machine a profile runs, where nothing publishes it.
+func TestValidateSelectorLabelsRejectsSeedOnAMachineNothingSeeds(t *testing.T) {
+	t.Parallel()
+	diagnostics := catalog.ValidateSelectorLabels(labelMachine(), seedReadingTool())
+
+	require.Len(t, diagnostics, 1)
+	require.Equal(t, core.DiagnosticUnresolvedSelectorLabel, diagnostics[0].Code)
+	require.Contains(t, diagnostics[0].Message, `"seed"`)
+}
+
+// TestRequestSeedLabelIsTheReservedName keeps the constant and srd038 R2.10
+// from drifting apart; the runtime publishes this exact name.
+func TestRequestSeedLabelIsTheReservedName(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "seed", catalog.RequestSeedLabel)
+}

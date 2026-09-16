@@ -703,10 +703,40 @@ func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpe
 	); err != nil {
 		return core.MachineSpec{}, err
 	}
-	if err := profileaudit.ValidateClosure(closure); err != nil {
+	// Request machines are checked here and not above: the profile's own
+	// machine is the one loadValidatedRuntimeMachine already holds, and the
+	// machines its machine_request endpoints dispatch are only reachable
+	// through this walk (GH-2059).
+	if err := profileaudit.ValidateClosureWithOptions(closure, profileaudit.Options{
+		OnMachine: validateReachedRequestMachine,
+	}); err != nil {
 		return core.MachineSpec{}, fmt.Errorf("inspect profile timeout closure: %w", err)
 	}
 	return machineSpec, nil
+}
+
+// validateReachedRequestMachine applies the startup boundary to one machine an
+// endpoint dispatches. Such a machine is seeded by the request rather than by
+// its own transitions: the runtime publishes the machine_request entry under
+// the seed label, and the dispatching endpoint injects the signal it starts
+// on, so both are stated here rather than read from the machine.
+//
+// A child agent profile and an evaluator point machine are separate programs
+// that validate when they load, so this reports on neither.
+func validateReachedRequestMachine(reached profileaudit.ReachedMachine) error {
+	if !reached.RequestScoped {
+		return nil
+	}
+	external := append(requestSourceSignals(reached.Rest), reached.InitialSignals...)
+	err := validateRuntimeToolWiring(
+		reached.Machine, reached.Selected, reached.Types,
+		catalog.ExhaustivenessInputs{External: external},
+		catalog.RequestSeedLabel,
+	)
+	if err != nil {
+		return fmt.Errorf("request machine %s: %w", reached.MachinePath, err)
+	}
+	return nil
 }
 
 // validateRuntimeToolWiring is the ordinary startup boundary. It rejects
@@ -716,7 +746,7 @@ func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpe
 // specification-audit concern.
 func validateRuntimeToolWiring(
 	machine core.MachineSpec, defs []catalog.ToolDef, types *typesys.Registry,
-	exhaustiveness catalog.ExhaustivenessInputs,
+	exhaustiveness catalog.ExhaustivenessInputs, runtimeLabels ...string,
 ) error {
 	if err := catalog.ValidateMachineActions(machine, defs); err != nil {
 		return err
@@ -730,7 +760,7 @@ func validateRuntimeToolWiring(
 	if err := catalog.ValidateToolEmits(machine, defs); err != nil {
 		return err
 	}
-	if err := catalog.ValidateSelectorLabelsStrict(machine, defs); err != nil {
+	if err := catalog.ValidateSelectorLabelsStrict(machine, defs, runtimeLabels...); err != nil {
 		return err
 	}
 	if err := catalog.ValidateSelectorPathsStrict(machine, defs, types); err != nil {

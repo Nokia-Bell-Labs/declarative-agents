@@ -255,7 +255,10 @@ func (i *inspector) inspectMachineRequestEndpoint(
 	profilePath := resolveReference(
 		filepath.Dir(closure.profilePath), endpoint.MachineRequest.Profile,
 	)
-	return i.inspectProfile(profilePath, endpoint.MachineRequest.Machine)
+	return i.inspectProfile(
+		profilePath, endpoint.MachineRequest.Machine,
+		&requestEntry{signal: endpoint.MachineRequest.InitialSignal},
+	)
 }
 
 func (i *inspector) addConfigDuration(
