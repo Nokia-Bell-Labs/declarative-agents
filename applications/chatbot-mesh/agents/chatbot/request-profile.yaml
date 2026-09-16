@@ -15,7 +15,6 @@ machine: request-machine.yaml
 tools:
   - request-tools.yaml
 tool_declarations:
-  - declarations.yaml
   - request-declarations.yaml
   - request-topology-declarations.yaml
   - request-fanout-declarations.yaml

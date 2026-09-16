@@ -37,6 +37,7 @@ func TestResolveCompleteClosureAndProvenance(t *testing.T) {
 		"agents/root/rest-imported.yaml",
 		"agents/root/rest.yaml",
 		"agents/root/tools.yaml",
+		"agents/units/frag.yaml",
 		"applications/fixture-app/common/machine.yaml",
 		"applications/fixture-app/local/profile.yaml",
 		"applications/fixture-app/local/ui/app.js",
@@ -318,7 +319,11 @@ rest_definitions: [rest.yaml]
 	} {
 		writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root", name), content)
 	}
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/units/frag.yaml"),
+		"unit: frag\nparams:\n  - {name: p, type: string}\ntools: []\n")
 	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/declarations.yaml"), `includes: [included.yaml]
+instantiate:
+  - {fragment: ../units/frag.yaml, args: {p: v}}
 tools:
   - name: child
     config:

@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The words the request machines dispatch; the request profile selects exactly
+# these, so a request closure carries no main-machine word.
+tools:
+  - rag_query
+  - rag_resolve

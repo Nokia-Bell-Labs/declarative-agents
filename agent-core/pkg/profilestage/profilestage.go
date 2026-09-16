@@ -217,21 +217,34 @@ func (c *stagedClosure) stageImport(file stagedFile, imported string) error {
 	return nil
 }
 
-// declaredImports reads the one import list srd050 R1.3 places at the top level
-// of a tool, REST, or type unit. A file that is not a declaration decodes to
-// nothing and imports nothing.
+// declaredImports reads the edges a declaration file follows to other files:
+// the import list srd050 R1.3 places at the top level of a tool, REST, or type
+// unit, and the fragments its instantiate list applies (srd052 R2.1), which
+// includes a machine's stage fragments. An instantiation is an import edge
+// whose unit is filled in on the way, so a stager that copied imports and not
+// fragments would stage a tree that fails at startup the same way. A file that
+// is not a declaration decodes to nothing and imports nothing.
 func declaredImports(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read staged declaration %s: %w", path, err)
 	}
 	var file struct {
-		Imports []string `yaml:"imports"`
+		Imports     []string `yaml:"imports"`
+		Instantiate []struct {
+			Fragment string `yaml:"fragment"`
+		} `yaml:"instantiate"`
 	}
 	if yaml.Unmarshal(data, &file) != nil {
 		return nil, nil
 	}
-	return file.Imports, nil
+	edges := append([]string(nil), file.Imports...)
+	for _, instantiation := range file.Instantiate {
+		if instantiation.Fragment != "" {
+			edges = append(edges, instantiation.Fragment)
+		}
+	}
+	return edges, nil
 }
 
 func copyFile(source, destination string) error {

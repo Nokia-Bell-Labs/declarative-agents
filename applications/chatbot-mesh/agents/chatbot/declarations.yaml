@@ -1,6 +1,9 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: mesh-chatbot-declarations
+instantiate:
+  - fragment: ../units/mesh-monitor-fragment.yaml
+    args: {agent: "chatbot", control_await: await_chatbot_control, requests_stop: stop_chat_requests}
 tools:
   - name: launch_chat_requests
     type: builtin
@@ -108,59 +111,6 @@ tools:
     config:
       rest_ref: chatbot_control
 
-  - name: launch_monitor_rest
-    type: builtin
-    init: rest_server_launch
-    visibility: internal
-    category: boundary
-    description: Launch read-only REST endpoints for cached monitor state.
-    problem: Operators need a profile-owned monitor reader that does not run tools.
-    goals:
-      - Register monitor snapshot, metadata, and stream routes.
-      - Keep monitor access inside the existing REST server tool path.
-    requirements:
-      input:
-        - Tool config references the trusted monitor REST server definition.
-      output:
-        - Output reports server name, bound address, and route count.
-      errors:
-        - Config, bind, route conflict, and schema failures emit CommandError.
-    non_goals:
-      - Does not execute monitor reads as MachineSpec workflow actions.
-      - Does not require a sidecar, collector, or external database.
-    parameters:
-      type: object
-      properties: {}
-    emits: [ServerLaunched, CommandError]
-    output:
-      description: Monitor REST server launch result.
-      schema:
-        type: object
-        properties:
-          server: {type: string}
-          address: {type: string}
-          route_count: {type: integer}
-    side_effects:
-      - kind: network_listen
-        target: monitor_rest_server
-        state: listener_started
-    reversibility:
-      classification: compensatable
-    undo:
-      strategy: compensating_action
-      description: Stop the monitor REST server if the launch owns the listener.
-    errors:
-      - signal: CommandError
-        condition: Monitor REST server config, bind, route, or schema failure.
-        state_after_failure: No monitor route is exposed.
-    relationships:
-      overlaps:
-        - tool: rest_server_launch
-          difference: This profile-specific word binds only the monitor REST route set.
-      before: [await_chatbot_control]
-    config:
-      rest_ref: monitor
-
   - name: await_chatbot_control
     type: builtin
     init: rest_await_event
@@ -227,58 +177,6 @@ tools:
           signals: [ExitRequested]
       timeout: 600s
       stopped_behavior: emit_server_stopped
-
-  - name: stop_monitor_rest
-    type: builtin
-    init: rest_server_stop
-    visibility: internal
-    category: boundary
-    description: Stop the owned monitor REST listener.
-    problem: The chatbot must release its monitor listener before reaching a terminal state.
-    goals:
-      - Stop the configured monitor REST server.
-      - Emit ServerStopped so MachineSpec can continue teardown.
-    requirements:
-      input:
-        - Tool config references the trusted monitor REST server definition.
-      output:
-        - Output reports server name, bound address, and stopped status.
-      errors:
-        - Missing server, shutdown timeout, and cleanup failures emit CommandError.
-    non_goals:
-      - Does not write monitor metrics or snapshots.
-      - Does not relaunch the monitor server.
-    parameters:
-      type: object
-      properties: {}
-    emits: [ServerStopped, CommandError]
-    output:
-      description: Monitor REST server stop result.
-      schema:
-        type: object
-        properties:
-          server: {type: string}
-          status: {type: string}
-    side_effects:
-      - kind: network_listener_shutdown
-        target: monitor_rest_server
-        state: listener_stopped
-    reversibility:
-      classification: compensatable
-    undo:
-      strategy: server_shutdown_or_user_action_compensation
-      description: The receipt records shutdown loss; MachineSpec must relaunch the trusted monitor definition.
-      payload: boundary_compensation
-      captures: [server, address, drained_events, dropped_events, relaunch_requirement]
-    errors:
-      - signal: CommandError
-        condition: Monitor REST server is missing, shutdown times out, or cleanup fails.
-        state_after_failure: Monitor listener state may be partially stopped.
-    relationships:
-      after: [await_chatbot_control]
-      before: [stop_chat_requests]
-    config:
-      rest_ref: monitor
 
   - name: stop_chat_requests
     type: builtin
