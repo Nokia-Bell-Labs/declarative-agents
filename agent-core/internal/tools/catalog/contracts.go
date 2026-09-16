@@ -242,7 +242,7 @@ func missingAuditFields(def ToolDef, category string) []string {
 		{"reversibility.classification", def.Reversibility.Classification != ""},
 		{"undo", def.Undo.Strategy != "" || len(def.Requirements.Undo) > 0},
 		{"errors", len(def.Errors) > 0 || len(def.Requirements.Errors) > 0},
-		{"relationships", len(def.Relationships.Before) > 0 || len(def.Relationships.After) > 0 || len(def.Relationships.Overlaps) > 0},
+		{"relationships", def.Signature != nil || declaresRelationships(def)},
 	}
 	missing := make([]string, 0, len(checks))
 	for _, check := range checks {
@@ -251,6 +251,13 @@ func missingAuditFields(def ToolDef, category string) []string {
 		}
 	}
 	return missing
+}
+
+// declaresRelationships reports whether a tool documents any neighbor.
+func declaresRelationships(def ToolDef) bool {
+	return len(def.Relationships.Before) > 0 ||
+		len(def.Relationships.After) > 0 ||
+		len(def.Relationships.Overlaps) > 0
 }
 
 func contractAuditStatus(missingCount int) string {
@@ -436,8 +443,12 @@ func missingUndo(def ToolDef, category string, opts ContractValidationOptions) C
 	}
 }
 
+// missingRelationships suggests documenting a tool's composition neighbors. A
+// signature discharges the obligation (srd051 R6.13): which tools sit either
+// side of this one is a machine's statement, and no signature or description
+// implies it, so there is nothing for an author to fill in.
 func missingRelationships(def ToolDef, category string, _ ContractValidationOptions) ContractFinding {
-	if len(def.Relationships.Before) > 0 || len(def.Relationships.After) > 0 || len(def.Relationships.Overlaps) > 0 {
+	if def.Signature != nil || declaresRelationships(def) {
 		return ContractFinding{}
 	}
 	return ContractFinding{
