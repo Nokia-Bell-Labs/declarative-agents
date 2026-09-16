@@ -162,7 +162,9 @@ related_documents:
   - srd051-declaration-types
 
 implementation_status:
+  complete:
+    - GH-2118 implements the agent-core root for tool and REST imports, their fragments, and machine stage fragments (R1.1, R1.3, the import and stage parts of R1.2), rooted files in the closure, digest, usedness, and dump (R3.1, R3.2), and staging that leaves agent-core's library to the image (the agent-core part of R3.3); it deletes the five application copies of agent-core types.
   planned:
-    - GH-2118 implements the implicit agent-core root for unit imports (R1, R3.1, R3.2) and deletes the application copies of agent-core type units.
+    - GH-2114 and GH-2115 extend R1.2 to machine template instances and blueprint machine mappings.
     - GH-2119 implements declared roots, the --library flag, the read-only rules, and rooted staging (R2, R3.3).
     - GH-2121 publishes the first service library once rag-server has a second consumer (R4).

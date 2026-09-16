@@ -14,8 +14,8 @@ preconditions:
 test_cases:
   - use_case: rel20.0-uc003-unit-libraries
     name: An import is relative or under a library root and nothing else
-    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestImportPathFormsRelativeOrRooted'
-    status: planned
+    go_test: go test ./internal/load ./internal/tools/catalog ./internal/support/corepath -run 'TestLoadClosureRejectsAnAbsoluteImportOutsideALibraryRoot|TestToolFragmentOutsideALibraryRootIsRejected|TestImportTargetResolvesRelativeAndLibraryRootedPaths'
+    status: implemented
     description: Import a unit by a relative path, by an /opt/agent-core path, and by /home/user/unit.yaml, in a tool file and a REST file.
     expected:
       relative_accepted: true
@@ -36,8 +36,8 @@ test_cases:
 
   - use_case: rel20.0-uc003-unit-libraries
     name: The agent-core root maps through --core-root or is used as written
-    go_test: go test ./internal/tools/catalog ./internal/load -run 'TestAgentCoreRootMapsThroughInstallRoot'
-    status: planned
+    go_test: go test ./internal/support/corepath ./internal/load ./internal/tools/catalog ./internal/tools/rest/definition ./internal/runtime/core -run 'TestImportTargetResolvesRelativeAndLibraryRootedPaths|TestLoadClosureImportsAUnitFromTheAgentCoreLibrary|TestToolImportsAndFragmentsResolveUnderTheAgentCoreLibrary|TestRESTImportsAndFragmentsResolveUnderTheAgentCoreLibrary|TestLoadMachineClosureSplicesAStageFromTheAgentCoreLibrary'
+    status: implemented
     description: Import /opt/agent-core/tools/units/types-core.yaml from an application unit with an install root set, then with none set against a tree laid out as the image.
     expected:
       mapped_with_install_root: true
@@ -89,8 +89,8 @@ test_cases:
 
   - use_case: rel20.0-uc003-unit-libraries
     name: Rooted files are closure files and digest assets
-    go_test: go test ./internal/load -run 'TestRootedFilesInClosureAndDigest'
-    status: planned
+    go_test: go test ./internal/load -run 'TestLoadClosureImportsAUnitFromTheAgentCoreLibrary|TestLoadClosureReportsAnUnusedLibraryImport'
+    status: implemented
     description: Load a profile importing through both roots, read Files, change one byte of a rooted file, and rebuild the program identity.
     expected:
       files_include_rooted_canonical_paths: true
@@ -99,8 +99,8 @@ test_cases:
 
   - use_case: rel20.0-uc003-unit-libraries
     name: The dump marks rooted files with their root
-    go_test: go test ./internal/load ./cmd/agent -run 'TestDumpMarksLibraryRoot|TestDumpGolden'
-    status: planned
+    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureImportsAUnitFromTheAgentCoreLibrary|TestDumpGolden'
+    status: implemented
     description: Dump a profile importing through both roots.
     expected:
       root_marker: "agent-core, declared name"
