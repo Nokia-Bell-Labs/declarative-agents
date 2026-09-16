@@ -10,7 +10,7 @@ import (
 )
 
 // ResolveToolSchemas expands every $type reference in a tool's output schema
-// and parameters, so ToToolSpec, schema compatibility, and every other reader
+// and parameters, so ToToolSpec and every other reader
 // downstream sees a plain schema and needs no knowledge of the type registry
 // (srd051 R3.3, R4.1).
 // It also reports, per tool name, the types that tool referenced, so closure

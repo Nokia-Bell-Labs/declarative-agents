@@ -157,8 +157,8 @@ overview:
         responsibility: |
           Catalog owns ToolDef, ToolDefsFile, ToolSelectionFile, declaration includes,
           declaration loading, selection filtering, ToolSpec conversion,
-          LLM-facing schema cleanup, runtime ToolDef contract validation,
-          result-schema compatibility checks, and typed config decoding helpers.
+          LLM-facing schema cleanup, runtime ToolDef contract validation, and
+          typed config decoding helpers.
         dependencies:
           may_depend_on:
             - internal/runtime/core for ToolSpec conversion
