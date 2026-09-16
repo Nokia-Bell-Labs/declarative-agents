@@ -452,6 +452,7 @@ func stageCorpusIngestRuntime(meshRoot string) (string, func(), error) {
 	// Each tree arrives with what its declarations import, so the type units
 	// travel with the profiles that reach them (GH-2041).
 	if err := profilestage.Stage(
+		stage,
 		profilestage.Tree{
 			Source:      filepath.Join(meshRoot, "agents", "corpus-ingest"),
 			Destination: filepath.Join(stage, "agents", "corpus-ingest"),

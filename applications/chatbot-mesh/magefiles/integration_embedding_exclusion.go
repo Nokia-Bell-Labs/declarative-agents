@@ -63,7 +63,7 @@ func generateShiftedChatbotProfile(applicationRoot, work string) (string, error)
 	dstDir := filepath.Join(work, "chatbot-shifted")
 	// Staged before the port rewrite so the units the declarations import
 	// arrive at the position the shifted profile resolves them to (GH-2041).
-	if err := profilestage.Stage(profilestage.Tree{
+	if err := profilestage.Stage(work, profilestage.Tree{
 		Source: srcDir, Destination: dstDir,
 	}); err != nil {
 		return "", fmt.Errorf("stage shifted chatbot profile: %w", err)

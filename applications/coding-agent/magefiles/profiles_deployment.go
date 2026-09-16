@@ -244,6 +244,7 @@ func stageDeploymentSource(appRoot, profilesRoot string) (string, func(), error)
 	// The applier projection drops the agents/ segment, so its imports are
 	// staged where the projected declaration resolves them (GH-2041).
 	if err := profilestage.Stage(
+		stage,
 		profilestage.Tree{
 			Source:      filepath.Join(profilesRoot, "agents"),
 			Destination: filepath.Join(stage, "agents"),

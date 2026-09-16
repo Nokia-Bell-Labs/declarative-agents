@@ -194,6 +194,7 @@ func stageRigRuntime(applicationRoot, catalogRoot, validatorOTLPEndpoint string)
 	// declarations import: the scenario critic's rest.yaml reaches two
 	// directories up for its REST unit (GH-2041).
 	if err := profilestage.Stage(
+		stage,
 		profilestage.Tree{
 			Source:      filepath.Join(applicationRoot, "testdata", "rig"),
 			Destination: filepath.Join(stage, "testdata", "rig"),
