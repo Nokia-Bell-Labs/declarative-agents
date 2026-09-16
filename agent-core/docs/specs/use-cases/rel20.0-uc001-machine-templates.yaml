@@ -1,0 +1,49 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel20.0-uc001-machine-templates
+title: A machine file instantiates a whole-machine template
+status: specified
+
+summary: |
+  A profile author finds the same machine written in several agents with only
+  the words wired into it changed. They move the machine into a template with
+  typed parameters for those words, and replace each copy with a machine file
+  that carries a unit name, one instantiation, and optionally its own name and
+  purpose. The loader substitutes the arguments, splices any stages the
+  template instantiates, validates the result as one hand-written machine, and
+  records the template in the closure, the program digest, and the dump.
+
+actor: A profile author replacing copied machines with one template
+
+trigger: |
+  A machine file lists one `instantiate` entry whose target is a fragment with
+  a `machine` body.
+
+flow:
+  - F1: The loader reads the instance header and rejects any top-level field other than unit, instantiate, name, and purpose, an as on the entry, and a second entry.
+  - F2: It reads the target, selects replace or splice from its body kind, and rejects a template that instantiates another template.
+  - F3: It checks the arguments and substitutes them into the template's text under srd052's rules, then splices any stage fragments the template body instantiates, resolving their paths against the template's directory.
+  - F4: It applies the instance's name and purpose and validates the result by the hand-written machine path, naming both template and instance in any diagnostic.
+  - F5: It visits the instance, the template, and each stage file, so they enter the closure, the program digest, the dump's instantiations with their kinds, and a staged tree.
+
+touchpoints:
+  - T1: "srd054-machine-templates R1 -- template and instance format"
+  - T2: "srd054-machine-templates R2 -- instantiation and validation"
+  - T3: "srd054-machine-templates R3 -- closure, identity, provenance, and staging"
+
+success_criteria:
+  - id: S1
+    criterion: An instance loads from a template; every forbidden instance field, a prefix, nesting, and a template named where a machine is expected each fail naming the file.
+    traces: [srd054-machine-templates AC1]
+  - id: S2
+    criterion: The instantiated machine equals the equivalent hand-written machine apart from name and purpose, and a fault inside the template names template and instance.
+    traces: [srd054-machine-templates AC2]
+  - id: S3
+    criterion: A template change moves the program digest, the dump lists machine and stage instantiations with their kinds, and a staged instance loads with no checkout.
+    traces: [srd054-machine-templates AC3]
+
+out_of_scope:
+  - Instance overrides other than name and purpose.
+  - Templates instantiating templates.
+  - Machines invoked as tools by other machines.
+  - Committing instantiated machines.

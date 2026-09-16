@@ -738,6 +738,65 @@ releases:
       - mage stats:reuse
       - mage audit
 
+  - version: "20.0"
+    name: Machine templates, agent blueprints, and unit libraries
+    description: |
+      Release 20.0 raises the grain of reuse from blocks to machines and
+      agents. Of 62 machine files, 26 share an identical state set with
+      another; the ten-state serve machine alone is written five times. A
+      machine template declares a whole machine once as a fragment, and a
+      machine file becomes one instantiation of it. An agent blueprint
+      declares a whole profile once, naming its machine template and units
+      relative to itself, and each agent's profile becomes an instance
+      carrying a name, arguments, and only the fields that differ.
+
+      Unit libraries let those shared declarations live in one place: an
+      import may name a unit under the agent-core install root or under a
+      root a profile declares, and staging carries rooted files into the
+      container. Release 19.0 is reserved for structured boundary contracts
+      (srd053).
+    status: planned
+    planned_work:
+      - id: gh-2113
+        summary: Specify machine templates (srd054) and agent blueprints (srd055), their use cases, the suite, and the profile format.
+        status: implemented
+      - id: gh-2117
+        summary: Specify unit libraries (srd056) -- prefix imports, declared library roots, staging, and the service-library convention.
+        status: planned
+      - id: gh-2118
+        summary: Prefix imports for the agent-core root; delete the application copies of agent-core types.
+        status: planned
+      - id: gh-2114
+        summary: Machine templates in the machine closure loader, with the control-template fixture.
+        status: planned
+      - id: gh-2115
+        summary: Agent blueprints; the chatbot-mesh serve agents become instances of one blueprint and the agent-core serve-machine template.
+        status: planned
+      - id: gh-2119
+        summary: Declared library roots, the --library flag, root read-only rules, and rooted staging.
+        status: planned
+      - id: gh-2116
+        summary: Migrate the remaining identical-state-set machine groups to templates.
+        status: planned
+    srds:
+      - srd054-machine-templates
+      - srd055-agent-blueprints
+    use_cases:
+      - id: rel20.0-uc001-machine-templates
+        summary: A machine file instantiates a whole-machine template.
+        status: planned
+      - id: rel20.0-uc002-agent-blueprints
+        summary: A profile instantiates an agent blueprint.
+        status: planned
+    test_suites:
+      - id: test-rel20.0-machine-templates
+        summary: Formal tests for template and blueprint formats, instantiation and path resolution, validation, and closure, identity, dump, staging, and audit provenance.
+        status: planned
+    proof:
+      - go test ./internal/runtime/core ./internal/tools/catalog ./internal/load ./pkg/profilestage ./pkg/profileaudit
+      - mage stats:reuse
+      - mage audit
+
   - version: "99.0"
     name: Architectural migrations and cleanup
     description: |

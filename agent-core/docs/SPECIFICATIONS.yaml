@@ -49,6 +49,10 @@ overview: |
   Release 18.0 covers srd052 for parameterized declaration fragments: typed
   parameters, hygienic instantiation before strict decoding, provenance in
   the dump, and machine stage splicing.
+  Release 20.0 covers srd054 for machine templates, whole machines declared
+  once as fragments and instantiated by machine files, and srd055 for agent
+  blueprints, whole profiles instantiated per agent with their machine
+  templates and units resolved relative to the blueprint.
   Release 99.0 covers srd037 dispatch planning and srd043
   application/catalog source-layout migration.
 
@@ -400,6 +404,16 @@ srd_index:
     summary: Declaration units with typed parameters, instantiated by importers with arguments; scalar-only substitution before strict decoding, the hand-written validation path, closure usedness and dump provenance for instantiations, and machine stage fragments spliced under a prefix.
     status: specified
     path: docs/specs/software-requirements/srd052-declaration-fragments.yaml
+  - id: srd054-machine-templates
+    title: Machine Templates
+    summary: Whole machines as fragments with a machine body, instantiated by machine files carrying unit, one instantiation, name, and purpose; stage splicing inside a template, validation as a hand-written machine with template and instance named, and closure, digest, dump, and staging provenance.
+    status: specified
+    path: docs/specs/software-requirements/srd054-machine-templates.yaml
+  - id: srd055-agent-blueprints
+    title: Agent Blueprints
+    summary: Whole agent profiles as fragments with a profile body, instantiated per agent with wholesale field overrides; blueprint-relative path resolution, direct machine template instantiation, the instance as program identity with blueprint and templates in its digest, and dump, staging, and audit provenance.
+    status: specified
+    path: docs/specs/software-requirements/srd055-agent-blueprints.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -430,6 +444,10 @@ config_format_index:
     title: REST Tool Configuration Format
     summary: YAML format for declarative REST definitions, clients, servers, OpenAPI imports, auth profiles, limits, retry policies, response mappings, machine_request bindings, and target-format event source, lifecycle control, and document resource fields. Release 03.0 support status is recorded in the spec.
     path: docs/specs/config-formats/rest-tool-format.yaml
+  - id: cfg-agent-profile-format
+    title: Agent Profile Format
+    summary: YAML format of the profile file --profile names -- machine, tool selections, tool declarations, REST definitions, config directories, workspace directory -- with path resolution, blueprints, and blueprint instances.
+    path: docs/specs/config-formats/agent-profile-format.yaml
   - id: cfg-jurist-charter-format
     title: Jurist Charter Format
     summary: YAML format for deterministic jurist check suites, including grep_check, ref_check, consistency_check, spec_corpus, target globs, severity, and finding provenance.
@@ -680,6 +698,18 @@ use_case_index:
     status: specified
     test_suite: test-rel18.0-declaration-fragments
     path: docs/specs/use-cases/rel18.0-uc001-declaration-fragments.yaml
+  - id: rel20.0-uc001-machine-templates
+    title: A machine file instantiates a whole-machine template
+    release: "20.0"
+    status: specified
+    test_suite: test-rel20.0-machine-templates
+    path: docs/specs/use-cases/rel20.0-uc001-machine-templates.yaml
+  - id: rel20.0-uc002-agent-blueprints
+    title: A profile instantiates an agent blueprint
+    release: "20.0"
+    status: specified
+    test_suite: test-rel20.0-machine-templates
+    path: docs/specs/use-cases/rel20.0-uc002-agent-blueprints.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -863,6 +893,15 @@ test_suite_index:
     formal_test_cases: 14
     status: specified
     path: docs/specs/test-suites/test-rel18.0-declaration-fragments.yaml
+  - id: test-rel20.0-machine-templates
+    title: Test Suite for Release 20.0 Machine Templates and Agent Blueprints
+    release: "20.0"
+    traces:
+      - rel20.0-uc001-machine-templates
+      - rel20.0-uc002-agent-blueprints
+    formal_test_cases: 23
+    status: specified
+    path: docs/specs/test-suites/test-rel20.0-machine-templates.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"
