@@ -145,3 +145,55 @@ func TestSignatureDischargesMatchesTheTable(t *testing.T) {
 		require.Equalf(t, row.undo, undo, "%s undo", row.category)
 	}
 }
+
+// loadedSignedTool is srd051 AC7's word as the loader leaves it: name,
+// description, category, init, signature, and config, with the contract
+// defaults applied and the signature's types resolved into Output.Schema and
+// Parameters the way applySignatureTypes does.
+func loadedSignedTool() ToolDef {
+	def := applyContractDefaults(ToolDef{
+		Name: "word_tool", Type: "builtin", Init: "array_transform", Category: "word",
+		Description: "Flatten compatible sources one row per chunk.",
+		Signature: &ToolSignature{
+			Input: "chat-types.Sources", Output: "chat-types.Rows",
+			Emits: []string{"Done", "CommandError"},
+		},
+	})
+	def.Output.Schema = map[string]interface{}{"type": "array"}
+	def.Parameters = map[string]interface{}{"type": "object"}
+	return def
+}
+
+// TestSignatureDischargesRelationships is srd051 R6.13, and the one block the
+// defaults leave empty: which tools sit either side of this one is a machine's
+// statement, so there is nothing a signed tool could fill in. Before this, a
+// word that satisfied the corpus audit in pkg/spec still reported a missing
+// block here and audited partial forever.
+func TestSignatureDischargesRelationships(t *testing.T) {
+	t.Parallel()
+	require.NotContains(t, contractFields(t, loadedSignedTool()), "relationships")
+	require.NotContains(t, missingAuditFields(loadedSignedTool(), "word"), "relationships")
+}
+
+// TestUnsignedToolStillDocumentsRelationships keeps the advice where it earns
+// its place: a tool with no signature states its own neighbors or hears about
+// it.
+func TestUnsignedToolStillDocumentsRelationships(t *testing.T) {
+	t.Parallel()
+	unsigned := signedToolIn("word")
+	unsigned.Signature = nil
+	unsigned.Relationships = ToolRelationships{}
+
+	require.Contains(t, contractFields(t, unsigned), "relationships")
+	require.Contains(t, missingAuditFields(unsigned, "word"), "relationships")
+}
+
+// TestLoadedSignedToolAuditsComplete is the migration report agreeing with the
+// corpus audit: a word pkg/spec accepts reports complete here too.
+func TestLoadedSignedToolAuditsComplete(t *testing.T) {
+	t.Parallel()
+	missing := missingAuditFields(loadedSignedTool(), "word")
+
+	require.Empty(t, missing)
+	require.Equal(t, ContractAuditComplete, contractAuditStatus(len(missing)))
+}
