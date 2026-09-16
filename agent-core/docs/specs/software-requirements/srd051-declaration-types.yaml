@@ -167,8 +167,10 @@ requirements:
           contract is exactly what a signature states, so an unsigned one
           defaults nothing and publishes an untyped label. A tool of category
           boundary or stateful_internal MAY declare one; the corpus audit
-          SHALL NOT require it while the envelope a boundary label publishes
-          has no declared type.
+          SHALL NOT require it, because the label such a tool publishes is
+          typed from the runtime result under srd038 R2.19 rather than from a
+          declaration, and a signature restating that result would be a second
+          statement free to disagree with it.
 
 non_goals:
   - Parameterized types, generics over declarations, or conditional schemas.
@@ -218,3 +220,4 @@ implementation_status:
     - GH-2001 loads type units into the closure, accepts references in tool schemas, and adds the dump types section.
     - GH-2006 through GH-2025 sign every word and response declaration in the repository.
     - GH-2009 promotes R6.12, so an unsigned word fails the corpus audit.
+    - GH-2064 and GH-2065 type the boundary REST labels from the runtime result, which is what R6.12 exempts a boundary tool from restating.

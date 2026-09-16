@@ -66,12 +66,14 @@ requirements:
       - R2.13: A declared input site that needs the complete prior output MAY use $from(label).$; resolution SHALL return only the versioned, redaction-applied output string and SHALL remain receipt-blind.
       - R2.14: "Every $from(label) selector a machine can reach SHALL resolve its label at load rather than at dispatch. The label universe SHALL be the transition labels, for_each join and item labels, and the machine's declared external_labels, which name labels the runtime seeds. Selectors SHALL be collected from the machine's for_each items and from the config of every tool a transition names as an action. An unresolved label SHALL fail the load, naming the selector, the unknown label, its carrier, and the nearest declared label; the runtime UnresolvedLabelError SHALL remain only for labels that cannot be known statically."
       - R2.15: >-
-          A label published by an action that declares a signature SHALL take
-          that signature's resolved output type. An action without a signature
-          SHALL publish an untyped label, and paths under an untyped label SHALL
-          NOT be checked. A legacy output.schema SHALL NOT type a label: it
-          describes the payload a word produces, not the output a selector
-          reads, which for a boundary word is an envelope around that payload.
+          A label published by an action whose result the runtime itself builds
+          SHALL take that result's type under R2.19. Otherwise a label published
+          by an action that declares a signature SHALL take that signature's
+          resolved output type, and any other action SHALL publish an untyped
+          label. Paths under an untyped label SHALL NOT be checked. A legacy
+          output.schema SHALL NOT type a label: it describes the payload a word
+          produces, not the output a selector reads, which for a boundary word
+          is an envelope around that payload.
       - R2.16: >-
           A for_each item label SHALL take the element type of the array it
           iterates when that array is typed. A join label SHALL take the
@@ -93,6 +95,20 @@ requirements:
           type, because it reads the output itself rather than a field of it.
           The runtime UnresolvedPathError SHALL remain only for paths under
           untyped labels.
+      - R2.19: >-
+          A word whose result the runtime constructs rather than reads from a
+          declaration SHALL have its label type derived from that construction,
+          and the derivation SHALL be the single statement of the result's
+          shape. A signature SHALL NOT be required for such a word and SHALL
+          NOT override the derived type, because a second statement is free to
+          disagree with what the word returns. The derivation SHALL read
+          whatever part of the result a declaration decides — for a REST client
+          word, the keys its configured operation publishes under mapped and
+          carries forward under carried — and SHALL leave undecided any part no
+          declaration states, so that a path stops there rather than being
+          checked against a shape nothing states. A word whose declaration the
+          derivation cannot resolve SHALL publish an untyped label rather than
+          failing, so typing stays gradual.
   R3:
     title: Authority boundary
     items:
@@ -134,8 +150,8 @@ acceptance_criteria:
     criterion: The store is a read-only forward view keyed by (run_id, step_index), populated from in-memory Entries during a run and rehydrated from persisted outputs and execution metadata after restart. Authored labels persist separately from command names, legacy entries remain loadable but their unversioned output is selector-inaccessible, unresolved and unavailable reads produce typed errors, and machine_request may expose its initial Result through the same execution view.
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9]
   - id: AC2
-    criterion: Authors optionally label a transition and select an earlier step by command name or label through a canonical $from(<label>).<dotted-path> grammar. One newest-to-oldest rule resolves duplicate labels and label/command-name collisions. Unlabeled, legacy, and programmatic steps retain command-name addressing; labeled $tool steps retain both addresses; absolute indices and metric_labels are excluded from the authoring surface. Machine requests reserve one seed address, and each declared input subsystem adopts selectors explicitly with infrastructure-fault semantics.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18]
+    criterion: Authors optionally label a transition and select an earlier step by command name or label through a canonical $from(<label>).<dotted-path> grammar. One newest-to-oldest rule resolves duplicate labels and label/command-name collisions. Unlabeled, legacy, and programmatic steps retain command-name addressing; labeled $tool steps retain both addresses; absolute indices and metric_labels are excluded from the authoring surface. Machine requests reserve one seed address, and each declared input subsystem adopts selectors explicitly with infrastructure-fault semantics. A label is typed from its action's signature, or from the runtime's own construction of the result where the runtime builds it, and a selector naming a field that type does not carry fails the load.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19]
   - id: AC3
     criterion: A consumer receives only the fields it selects into declared params, selectors can never name transport authority and are rejected when they try, receipts are structurally unaddressable via the srd036 split, and undeclared targets are rejected.
     traces: [R3.1, R3.2, R3.3, R3.4]
@@ -185,6 +201,7 @@ implementation_status:
     - Canonical selector AST: core.ParseSelector validates both $.path and $from(label).path forms, and the parsed selector owns the shared nested-map resolver used by core and REST consumers.
     - "GH-488: TransitionSpec authored labels are validated with the canonical selector grammar, recorded separately from command names, resolved with exported typed label/path errors, and persisted through an idempotent nullable Dolt schema upgrade. Real MachineSpec execution proves dynamic-tool separation, command-name fallback, duplicate-label newest-match behavior, and fresh-view restart rehydration."
     - "GH-786: Exec parameter source declarations resolve through CommandStateAware after command construction, and machine_request exposes its initial Result through the reserved seed entry."
+    - "GH-2064 and GH-2065: REST label types are derived from the runtime result (R2.19). A client word's envelope comes from the operation its config names, uniting the keys every status mapping publishes under mapped; the server launch, stop, and await results are constants the runtime fixes. A response body and an inbound request payload stay undecided, because no declaration states their shape."
     - "GH-489: Typed output-redaction metadata, pre-Entry removal, checkpoint defense in depth, selector denial for unsafe and legacy output, and persisted REST conformance evidence (R1.8, R5)."
   planned: []
 
