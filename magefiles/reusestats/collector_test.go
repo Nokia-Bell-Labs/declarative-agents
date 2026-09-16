@@ -113,3 +113,33 @@ func mustCollect(t *testing.T, base string, roots ...string) Result {
 	}
 	return result
 }
+
+// TestCollectCountsUnitEdges pins the reuse acceptance rule of GH-2079: a
+// unit earns its place with two importers or an instantiation. The fixture
+// has one unit two files import, one unit one file imports twice (one
+// importer, not two), and one fragment instantiated once, which is also an
+// importer edge of that fragment.
+func TestCollectCountsUnitEdges(t *testing.T) {
+	result := mustCollect(t, ".", "testdata/units")
+
+	if result.ImportedUnits != 3 {
+		t.Fatalf("ImportedUnits = %d, want 3 (shared, only-first, the fragment)", result.ImportedUnits)
+	}
+	if result.SharedUnits != 1 {
+		t.Fatalf("SharedUnits = %d, want 1", result.SharedUnits)
+	}
+	if result.SingleImporterUnits != 2 {
+		t.Fatalf("SingleImporterUnits = %d, want 2", result.SingleImporterUnits)
+	}
+	if result.Instantiations != 1 {
+		t.Fatalf("Instantiations = %d, want 1", result.Instantiations)
+	}
+}
+
+func TestCollectWithoutImportsReportsNoUnits(t *testing.T) {
+	result := mustCollect(t, ".", "testdata/fixture")
+	if result.ImportedUnits != 0 || result.SharedUnits != 0 ||
+		result.SingleImporterUnits != 0 || result.Instantiations != 0 {
+		t.Fatalf("fixture without imports reported units: %#v", result)
+	}
+}

@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: first
+imports:
+- ../../units/types-shared.yaml
+- ../../units/types-only-first.yaml
+- ../../units/types-shared.yaml
+instantiate:
+- fragment: ../../units/embed-provider.yaml
+  as: cohere
+  args:
+    provider: cohere
+tools: []

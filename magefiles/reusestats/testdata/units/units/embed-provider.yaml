@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: embed-provider
+params:
+- name: provider
+  type: string
+tools:
+- name: embed
+  description: Embed with $param(provider).
