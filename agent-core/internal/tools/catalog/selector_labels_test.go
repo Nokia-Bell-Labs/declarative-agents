@@ -303,3 +303,40 @@ func TestSelectorRefsReadsEveryCarrier(t *testing.T) {
 		"$from(request).query", "$from(rows).items", "$from(wrapped).payload",
 	}, def.SelectorRefs())
 }
+
+// seedReadingTool is what a request-scoped word does with the entry the
+// runtime publishes for it: reads a request field out of the seed.
+func seedReadingTool() []catalog.ToolDef {
+	return []catalog.ToolDef{{
+		Name:   "report",
+		Config: map[string]interface{}{"left": "$from(seed).parameters.group_by"},
+	}}
+}
+
+// TestValidateSelectorLabelsAcceptsTheRequestSeedLabel covers the reason five
+// correct profiles were rejected: srd038 R2.10 reserves the machine_request
+// entry under seed, which the runtime publishes and no transition does.
+func TestValidateSelectorLabelsAcceptsTheRequestSeedLabel(t *testing.T) {
+	t.Parallel()
+	require.Empty(t, catalog.ValidateSelectorLabels(
+		labelMachine(), seedReadingTool(), catalog.RequestSeedLabel))
+}
+
+// TestValidateSelectorLabelsRejectsSeedOnAMachineNothingSeeds is the other
+// half. Accepting seed everywhere would have hidden a real unresolved label on
+// the machine a profile runs, where nothing publishes it.
+func TestValidateSelectorLabelsRejectsSeedOnAMachineNothingSeeds(t *testing.T) {
+	t.Parallel()
+	diagnostics := catalog.ValidateSelectorLabels(labelMachine(), seedReadingTool())
+
+	require.Len(t, diagnostics, 1)
+	require.Equal(t, core.DiagnosticUnresolvedSelectorLabel, diagnostics[0].Code)
+	require.Contains(t, diagnostics[0].Message, `"seed"`)
+}
+
+// TestRequestSeedLabelIsTheReservedName keeps the constant and srd038 R2.10
+// from drifting apart; the runtime publishes this exact name.
+func TestRequestSeedLabelIsTheReservedName(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "seed", catalog.RequestSeedLabel)
+}

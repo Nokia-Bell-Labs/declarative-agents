@@ -12,7 +12,7 @@ import:pkg/profileaudit -> internal/support/corepath
 import:pkg/profileaudit -> internal/tools/catalog
 import:pkg/profileaudit -> internal/typesys
 import:pkg/profileaudit -> internal/tools/rest
-pkg:cmd/agent files=6 loc=1895
+pkg:cmd/agent files=6 loc=1917
 pkg:internal/doltsql files=4 loc=274
 pkg:internal/evaluation files=23 loc=3860
 pkg:internal/declstyle files=1 loc=14
@@ -45,7 +45,7 @@ pkg:internal/support/execute files=1 loc=110
 pkg:internal/support/subprocess files=1 loc=254
 pkg:internal/support/yamlstrict files=1 loc=246
 pkg:internal/tools files=1 loc=14
-pkg:internal/tools/catalog files=21 loc=4348
+pkg:internal/tools/catalog files=21 loc=4365
 pkg:internal/tools/compose files=6 loc=1041
 pkg:internal/tools/control files=7 loc=1291
 pkg:internal/tools/dolt files=6 loc=1357
