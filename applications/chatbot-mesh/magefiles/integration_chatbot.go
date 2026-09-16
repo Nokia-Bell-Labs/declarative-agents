@@ -710,26 +710,32 @@ func seedChromaCorpus2(embedModel string) error {
 	return nil
 }
 
-// generateRag1Variant copies the rag-server profile into a temp directory and
-// rewrites its ports (18085/6/7 -> 18095/6/7) and served collection
-// (corpus -> corpus2), so rag1 serves the disjoint corpus without a second
-// committed profile. It returns the variant profile path and a cleanup.
+// generateRag1Variant stages the rag-server profile under agents/rag-server in
+// a temp directory and rewrites its ports (18085/6/7 -> 18095/6/7) and served
+// collection (corpus -> corpus2), so rag1 serves the disjoint corpus without a
+// second committed profile. It returns the variant profile path and a cleanup.
+//
+// The profile sits one level below the temp root, as it does in the source
+// tree, so the units it imports from ../units land at <root>/agents/units --
+// inside the root the stager owns. Staging it at the root itself sent those
+// imports one level above it, which Stage refuses (GH-2075, GH-2096).
 func generateRag1Variant(profilesRoot string) (string, func(), error) {
 	srcDir := filepath.Join(profilesRoot, "agents", "rag-server")
-	dstDir, err := os.MkdirTemp("", "chatbot-mesh-rag1-*")
+	root, err := os.MkdirTemp("", "chatbot-mesh-rag1-*")
 	if err != nil {
 		return "", nil, fmt.Errorf("create rag1 variant dir: %w", err)
 	}
-	cleanup := func() { _ = os.RemoveAll(dstDir) }
+	cleanup := func() { _ = os.RemoveAll(root) }
+	dstDir := filepath.Join(root, "agents", "rag-server")
 	// Staged before rewriting so anything the profile imports arrives too and
 	// is rewritten with it (GH-2041).
-	if err := profilestage.Stage(dstDir, profilestage.Tree{
+	if err := profilestage.Stage(root, profilestage.Tree{
 		Source: srcDir, Destination: dstDir,
 	}); err != nil {
 		cleanup()
 		return "", nil, fmt.Errorf("stage rag-server profile: %w", err)
 	}
-	if err := rewriteRag1Variant(dstDir); err != nil {
+	if err := rewriteRag1Variant(root); err != nil {
 		cleanup()
 		return "", nil, err
 	}
