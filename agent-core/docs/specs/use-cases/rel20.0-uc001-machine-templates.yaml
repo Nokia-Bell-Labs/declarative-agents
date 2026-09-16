@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: rel20.0-uc001-machine-templates
 title: A machine file instantiates a whole-machine template
-status: specified
+status: implemented
 
 summary: |
   A profile author finds the same machine written in several agents with only

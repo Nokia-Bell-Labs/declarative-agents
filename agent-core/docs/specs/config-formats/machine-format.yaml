@@ -768,9 +768,8 @@ machine_templates: |
   and lists instantiations with `kind: machine` or `kind: stage`. A profile or
   a `machine_request` binding that names a template file directly is a load
   error, because a template is not a machine until its arguments arrive
-  (srd054 R1.4). This arrives with GH-2114; until then an instantiation
-  whose target has a `machine` body fails strict decoding of the stage header
-  with `machine` as an unknown field.
+  (srd054 R1.4). Landed with GH-2114; testdata/integration/profiles/
+  control-template is the reference instance.
 
 related_documents:
   - srd006

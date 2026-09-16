@@ -54,13 +54,19 @@ func (m MachineSpec) Instantiations() []MachineInstantiation {
 	return append([]MachineInstantiation(nil), m.instantiations...)
 }
 
-// LoadMachineClosure reads a machine file, splices every stage fragment it
-// instantiates, and validates the result as one machine. visit, when set,
-// sees the machine file and each fragment file, so a closure records them.
+// LoadMachineClosure reads a machine file and validates it as one machine. A
+// machine that instantiates a machine template is replaced by the template's
+// instantiation (srd054); a machine that instantiates stage fragments has them
+// spliced in (srd052 R4). visit, when set, sees the machine file and each
+// fragment file, so a closure records them.
 func LoadMachineClosure(path string, visit func(string, []byte) error) (MachineSpec, error) {
 	data, err := readMachineFile(path, visit)
 	if err != nil {
 		return MachineSpec{}, err
+	}
+	if kind, kindErr := fragmentBodyKind(data); kindErr == nil && kind == InstantiationKindMachine {
+		return MachineSpec{}, fmt.Errorf("machine spec %s is a machine template: a template is "+
+			"instantiated by a machine file, not loaded as a machine (srd054 R1.4)", path)
 	}
 	spec, err := decodeMachineSpec(data)
 	if err != nil {
@@ -70,12 +76,16 @@ func LoadMachineClosure(path string, visit func(string, []byte) error) (MachineS
 		return MachineSpec{}, fmt.Errorf(
 			"machine spec %s imports %q: a machine imports nothing; a stage fragment is instantiated", path, spec.Imports)
 	}
-	for _, instantiation := range spec.Instantiate {
-		if err := spliceStageFragment(&spec, path, instantiation, visit); err != nil {
-			return MachineSpec{}, fmt.Errorf("machine spec %s instantiates %q: %w", path, instantiation.Fragment, err)
-		}
+	template, err := instantiatedTemplate(path, spec.Instantiate)
+	if err != nil {
+		return MachineSpec{}, fmt.Errorf("machine spec %s: %w", path, err)
 	}
-	spec.Instantiate = nil
+	if template != "" {
+		return loadMachineInstance(path, data, spec.Instantiate[0], template, visit)
+	}
+	if err := spliceStages(&spec, path, visit); err != nil {
+		return MachineSpec{}, err
+	}
 	if err := validateSpec(spec); err != nil {
 		if len(spec.instantiations) > 0 {
 			return MachineSpec{}, fmt.Errorf("machine spec %s after splicing %s: %w",
@@ -84,6 +94,18 @@ func LoadMachineClosure(path string, visit func(string, []byte) error) (MachineS
 		return MachineSpec{}, fmt.Errorf("parse machine spec %s: %w", path, err)
 	}
 	return spec, nil
+}
+
+// spliceStages splices every stage fragment spec instantiates, resolving their
+// paths against the file at base, and clears the instantiation list.
+func spliceStages(spec *MachineSpec, base string, visit func(string, []byte) error) error {
+	for _, instantiation := range spec.Instantiate {
+		if err := spliceStageFragment(spec, base, instantiation, visit); err != nil {
+			return fmt.Errorf("machine spec %s instantiates %q: %w", base, instantiation.Fragment, err)
+		}
+	}
+	spec.Instantiate = nil
+	return nil
 }
 
 func readMachineFile(path string, visit func(string, []byte) error) ([]byte, error) {

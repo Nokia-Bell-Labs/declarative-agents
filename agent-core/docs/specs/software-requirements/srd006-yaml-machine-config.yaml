@@ -37,7 +37,10 @@ requirements:
           and transitions to the machine's lists, and validates the whole as
           one machine, so a spliced transition is held to R2 exactly as a
           hand-written one is. A machine declares no imports: a stage is
-          instantiated, and a machine has no other unit kind to import.
+          instantiated, and a machine has no other unit kind to import. An
+          instantiate entry whose fragment has a machine body instead makes
+          the file an instance of a machine template, which replaces the
+          machine rather than splicing into it (srd054).
 
   R2:
     title: Validation

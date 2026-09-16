@@ -701,6 +701,9 @@ func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpe
 		machineSpec, closure.Selected, closure.Types, closure.Rest,
 		catalog.ExhaustivenessInputs{External: requestSourceSignals(closure.Rest)},
 	); err != nil {
+		if machineSpec.TemplatePath() != "" {
+			err = fmt.Errorf("machine %s: %w", core.DescribeMachine(closure.Profile.Machine, machineSpec), err)
+		}
 		return core.MachineSpec{}, err
 	}
 	// Every machine this walk reaches is checked here and not above: the
@@ -740,7 +743,7 @@ func validateReachedMachine(reached profileaudit.ReachedMachine) error {
 		inputs, runtimeLabels...,
 	)
 	if err != nil {
-		return fmt.Errorf("%s %s: %w", kind, reached.MachinePath, err)
+		return fmt.Errorf("%s %s: %w", kind, core.DescribeMachine(reached.MachinePath, reached.Machine), err)
 	}
 	return nil
 }

@@ -768,7 +768,7 @@ releases:
         status: planned
       - id: gh-2114
         summary: Machine templates in the machine closure loader, with the control-template fixture.
-        status: planned
+        status: implemented
       - id: gh-2115
         summary: Agent blueprints; the chatbot-mesh serve agents become instances of one blueprint and the agent-core serve-machine template.
         status: planned
@@ -785,7 +785,7 @@ releases:
     use_cases:
       - id: rel20.0-uc001-machine-templates
         summary: A machine file instantiates a whole-machine template.
-        status: planned
+        status: implemented
       - id: rel20.0-uc002-agent-blueprints
         summary: A profile instantiates an agent blueprint.
         status: planned

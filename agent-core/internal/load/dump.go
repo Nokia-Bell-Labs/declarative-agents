@@ -147,6 +147,12 @@ func newInstantiationDump(
 		record(instantiation.Kind, instantiation.Fragment, instantiation.As, instantiation.Args,
 			instantiation.Produces...)
 	}
+	return sortedInstantiations(byKey)
+}
+
+// sortedInstantiations orders rows by fragment path then prefix, with produced
+// names sorted, so a dump is byte-identical across runs.
+func sortedInstantiations(byKey map[string]*dumpInstantiation) []dumpInstantiation {
 	if len(byKey) == 0 {
 		return nil
 	}

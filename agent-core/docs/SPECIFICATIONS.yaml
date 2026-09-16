@@ -709,7 +709,7 @@ use_case_index:
   - id: rel20.0-uc001-machine-templates
     title: A machine file instantiates a whole-machine template
     release: "20.0"
-    status: specified
+    status: implemented
     test_suite: test-rel20.0-machine-templates
     path: docs/specs/use-cases/rel20.0-uc001-machine-templates.yaml
   - id: rel20.0-uc002-agent-blueprints

@@ -211,7 +211,14 @@ func (c *collector) collectUnitEdges(root *yaml.Node, path string) {
 			}
 		}
 	}
-	instantiate := mappingValue(root, "instantiate")
+	c.collectInstantiations(mappingValue(root, "instantiate"), directory, path)
+	// A machine template's body instantiates its stages (srd054 R2.2).
+	if machine := mappingValue(root, "machine"); machine != nil && machine.Kind == yaml.MappingNode {
+		c.collectInstantiations(mappingValue(machine, "instantiate"), directory, path)
+	}
+}
+
+func (c *collector) collectInstantiations(instantiate *yaml.Node, directory, path string) {
 	if instantiate == nil || instantiate.Kind != yaml.SequenceNode {
 		return
 	}

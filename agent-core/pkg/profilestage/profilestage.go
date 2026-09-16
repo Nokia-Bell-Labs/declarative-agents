@@ -229,11 +229,16 @@ func declaredImports(path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read staged declaration %s: %w", path, err)
 	}
+	type instantiations []struct {
+		Fragment string `yaml:"fragment"`
+	}
 	var file struct {
-		Imports     []string `yaml:"imports"`
-		Instantiate []struct {
-			Fragment string `yaml:"fragment"`
-		} `yaml:"instantiate"`
+		Imports     []string       `yaml:"imports"`
+		Instantiate instantiations `yaml:"instantiate"`
+		// A machine template's body instantiates its stages (srd054 R2.2).
+		Machine struct {
+			Instantiate instantiations `yaml:"instantiate"`
+		} `yaml:"machine"`
 	}
 	if yaml.Unmarshal(data, &file) != nil {
 		return nil, nil
@@ -242,7 +247,7 @@ func declaredImports(path string) ([]string, error) {
 	for _, edge := range file.Imports {
 		edges = appendStagedEdge(edges, edge)
 	}
-	for _, instantiation := range file.Instantiate {
+	for _, instantiation := range append(file.Instantiate, file.Machine.Instantiate...) {
 		edges = appendStagedEdge(edges, instantiation.Fragment)
 	}
 	return edges, nil

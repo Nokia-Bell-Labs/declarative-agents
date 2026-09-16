@@ -39,3 +39,25 @@ func TestStageLeavesAgentCoreLibraryImportsToTheImage(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{filepath.Join(source, "agents", "units", "types-collector.yaml")}, imported)
 }
+
+// TestStageFollowsMachineTemplateEdges is srd054 R3.3: an instance's template
+// and the stages the template's body splices travel with the staged tree.
+func TestStageFollowsMachineTemplateEdges(t *testing.T) {
+	t.Parallel()
+	source := t.TempDir()
+	writeDeclaration(t, source, "agents/one/machine.yaml",
+		"unit: one\ninstantiate:\n- {fragment: ../units/serve.yaml, args: {word: go}}\n")
+	writeDeclaration(t, source, "agents/units/serve.yaml",
+		"unit: serve\nparams:\n- {name: word, type: string}\nmachine:\n  name: serve\n  instantiate:\n  - {fragment: stages/run.yaml, args: {word: $param(word)}}\n")
+	writeDeclaration(t, source, "agents/units/stages/run.yaml", "unit: run\nparams:\n- {name: word, type: string}\nstage: {}\n")
+	destination := t.TempDir()
+
+	require.NoError(t, profilestage.Stage(destination, profilestage.Tree{
+		Source:      filepath.Join(source, "agents", "one"),
+		Destination: filepath.Join(destination, "agents", "one"),
+	}))
+
+	require.FileExists(t, filepath.Join(destination, "agents", "units", "serve.yaml"))
+	require.FileExists(t, filepath.Join(destination, "agents", "units", "stages", "run.yaml"),
+		"a stage the template body splices resolves against the template and travels too")
+}

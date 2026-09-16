@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: core-control-template
+machine: machine.yaml
+tools:
+  - ../control/tools.yaml
+tool_declarations:
+  - ../control/declarations.yaml
+rest_definitions:
+  - ../control/rest.yaml
