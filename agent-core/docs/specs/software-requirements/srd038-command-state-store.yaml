@@ -75,8 +75,14 @@ requirements:
           produces, not the output a selector reads, which for a boundary word
           is an envelope around that payload.
       - R2.16: >-
-          A for_each item label SHALL take the element type of the array it
-          iterates when that array is typed. A join label SHALL take the
+          A for_each item label SHALL take the element type of the array its
+          for_each.items selector reaches when that array is typed, and SHALL
+          NOT take its type from the per-item action, whose output says nothing
+          about the elements it is handed. An items selector reaching an
+          undecided value publishes an untyped item: iterating a REST client's
+          mapped field is this case, since R2.19 leaves every mapped value
+          undecided, and a path into such an item is checked only at runtime.
+          A join label SHALL take the
           envelope the runtime publishes: one outcome per dispatched item under
           items, beside the aggregate counts and the failure policy, with the
           iterated action's own output under each outcome's
@@ -201,6 +207,7 @@ implementation_status:
     - Canonical selector AST: core.ParseSelector validates both $.path and $from(label).path forms, and the parsed selector owns the shared nested-map resolver used by core and REST consumers.
     - "GH-488: TransitionSpec authored labels are validated with the canonical selector grammar, recorded separately from command names, resolved with exported typed label/path errors, and persisted through an idempotent nullable Dolt schema upgrade. Real MachineSpec execution proves dynamic-tool separation, command-name fallback, duplicate-label newest-match behavior, and fresh-view restart rehydration."
     - "GH-786: Exec parameter source declarations resolve through CommandStateAware after command construction, and machine_request exposes its initial Result through the reserved seed entry."
+    - "GH-2067: for_each item labels take the element type of the array for_each.items reaches (R2.16); they had taken it from the per-item action's output. An item over a REST mapped field stays untyped by decision."
     - "GH-2064 and GH-2065: REST label types are derived from the runtime result (R2.19). A client word's envelope comes from the operation its config names, uniting the keys every status mapping publishes under mapped; the server launch, stop, and await results are constants the runtime fixes. A response body and an inbound request payload stay undecided, because no declaration states their shape."
     - "GH-489: Typed output-redaction metadata, pre-Entry removal, checkpoint defense in depth, selector denial for unsafe and legacy output, and persisted REST conformance evidence (R1.8, R5)."
   planned: []

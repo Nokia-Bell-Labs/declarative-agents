@@ -157,3 +157,41 @@ func TestCheckPathStillStopsAtADeclaredScalar(t *testing.T) {
 	err := typesys.CheckPath(schema, []string{"name", "first"})
 	require.ErrorContains(t, err, "is a string, so it has no field \"first\"")
 }
+
+func TestSchemaAtReachesWhatThePathNames(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		path []string
+		want string
+	}{
+		{[]string{"$"}, "object"},
+		{[]string{"rows"}, "array"},
+		{[]string{"rows", "0"}, "object"},
+		{[]string{"rows", "0", "text"}, "string"},
+		{[]string{"source", "document"}, "string"},
+	} {
+		schema, decided := typesys.SchemaAt(rowsSchema(), tc.path)
+		require.Truef(t, decided, "path %v", tc.path)
+		require.Equalf(t, tc.want, schema["type"], "path %v", tc.path)
+	}
+}
+
+// TestSchemaAtLeavesUndecidedWhatTheTypeDoesNotDecide covers the paths CheckPath
+// accepts or rejects but that name no single shape: a field spread across an
+// array's elements is accepted there, and yields no type here.
+func TestSchemaAtLeavesUndecidedWhatTheTypeDoesNotDecide(t *testing.T) {
+	t.Parallel()
+	for _, path := range [][]string{
+		{"missing"},
+		{"status", "length"},
+		{"rows", "text"},
+		{"rows", "-1"},
+	} {
+		_, decided := typesys.SchemaAt(rowsSchema(), path)
+		require.Falsef(t, decided, "path %v", path)
+	}
+	_, decided := typesys.SchemaAt(map[string]any{"description": "any value"}, []string{"$"})
+	require.True(t, decided, "a described value is still a schema at its own position")
+	_, decided = typesys.SchemaAt(nil, []string{"$"})
+	require.False(t, decided)
+}
