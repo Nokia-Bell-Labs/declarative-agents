@@ -379,3 +379,4 @@ files:
     sha256: ed6608b6e81df7eac4ba4d67308236026a7a25cc7130091f01bc9996731a4362
   - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
     sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25
+    root: agent-core

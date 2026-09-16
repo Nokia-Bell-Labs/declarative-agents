@@ -224,9 +224,13 @@ files:
     sha256: a3be02c2c7c96a9b5fca8dcea06f9f782f77ec97d80ffc74fc6281295904d7d2
   - path: <agent-core>/tools/builtin/done.yaml
     sha256: 5038c9ba4f5d5c2ae656d3032f95e66fccd959198a7117b1b84ebef9d52e62fa
+    root: agent-core
   - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
     sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25
+    root: agent-core
   - path: <agent-core>/tools/builtin/suspend.yaml
     sha256: 917023417eef2105abb3515ef2b0f35953b49e9a0e2d761cd7c98ed131dd6f48
+    root: agent-core
   - path: <agent-core>/tools/units/types-core.yaml
     sha256: 23b9182ef09b4feb01cf6c9438cdea033e526ea6bbee4012d0fce7a10163329b
+    root: agent-core

@@ -137,3 +137,4 @@ files:
     sha256: 356f28070da55b76a0f0951d7445750f2390f6bf36be02fb79787929b21c00f9
   - path: <agent-core>/tools/builtin/otlp/all.yaml
     sha256: 00b517317e275d0cf45b31b7b183653b3e51b30e3a2af4c44ba239c2f41fbec6
+    root: agent-core

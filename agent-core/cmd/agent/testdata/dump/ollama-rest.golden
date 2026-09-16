@@ -400,9 +400,13 @@ files:
     sha256: 2f9d1b5d42f1a3cddf18ca157c3c07b9411e8c0d14c2ae0b264f253418688dc9
   - path: <agent-core>/tools/builtin/done.yaml
     sha256: 5038c9ba4f5d5c2ae656d3032f95e66fccd959198a7117b1b84ebef9d52e62fa
+    root: agent-core
   - path: <agent-core>/tools/builtin/parse-response.yaml
     sha256: 03be4cf7edd69196be8ca5e0fd9e6bb7c83b18c685717a0e264a4cb53af1f6cb
+    root: agent-core
   - path: <agent-core>/tools/builtin/report-parse-error.yaml
     sha256: 4ae9e92a5ce3e249a5278284ace687ecaf8ae95231ff20dd301aa37b7bce2408
+    root: agent-core
   - path: <agent-core>/tools/units/types-core.yaml
     sha256: 23b9182ef09b4feb01cf6c9438cdea033e526ea6bbee4012d0fce7a10163329b
+    root: agent-core

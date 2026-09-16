@@ -454,13 +454,19 @@ files:
     sha256: 8c0b951612e211648d44a1c451ee610710dd2ca5fa86e7a63cda5175a2b833ee
   - path: <agent-core>/tools/builtin/format-report.yaml
     sha256: cd04b785b59509a0a215d67a165efe4a509bfafd84fb048f111299c80335b295
+    root: agent-core
   - path: <agent-core>/tools/builtin/load-corpus.yaml
     sha256: c59b336c72f712aed9eaebfe5d9448bc8600a8e39b746b90293def58662bc795
+    root: agent-core
   - path: <agent-core>/tools/builtin/spec-validation/reduce-grep-checks.yaml
     sha256: 8a5431c6200ace0a74ea2a689bb81562cf1c14cfe25a7cf65c8b60a1769831d9
+    root: agent-core
   - path: <agent-core>/tools/builtin/spec-validation/test-evidence.yaml
     sha256: 0c358c4b7eefeaed7db4244b4d7e2cfc9f01c7d8d566419255e4fca039d06ba6
+    root: agent-core
   - path: <agent-core>/tools/builtin/validate-specs.yaml
     sha256: 1dc29406dc6248e1c3a4a9dfa97191e76ea65f1497f02a92c515f26cc48e5e27
+    root: agent-core
   - path: <agent-core>/tools/units/types-core.yaml
     sha256: 23b9182ef09b4feb01cf6c9438cdea033e526ea6bbee4012d0fce7a10163329b
+    root: agent-core

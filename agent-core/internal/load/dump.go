@@ -9,11 +9,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
@@ -63,6 +66,9 @@ type restDump struct {
 type dumpFile struct {
 	Path   string `yaml:"path"`
 	SHA256 string `yaml:"sha256"`
+	// Root names the library root a file sits under, so a reader can tell a
+	// library file from one the profile's own tree supplies (srd056 R3.2).
+	Root string `yaml:"root,omitempty"`
 }
 
 // DumpConfig writes the canonical, resolved representation of a closure.
@@ -163,10 +169,36 @@ func dumpFiles(closure *Closure) ([]dumpFile, error) {
 			return nil, fmt.Errorf("closure asset %s has no captured bytes", path)
 		}
 		sum := sha256.Sum256(data)
-		files = append(files, dumpFile{Path: path, SHA256: hex.EncodeToString(sum[:])})
+		files = append(files, dumpFile{
+			Path: path, SHA256: hex.EncodeToString(sum[:]), Root: libraryRoot(path),
+		})
 	}
 	return files, nil
 }
+
+// libraryRoot names the library a closure file belongs to: agent-core for a
+// file in agent-core's library, which the runtime image installs at
+// /opt/agent-core/tools and a checkout maps through its install root. Other
+// files under the install root, such as integration fixtures, are not library.
+func libraryRoot(path string) string {
+	if within(corepath.InstallPrefix+"/"+agentCoreLibraryDir, filepath.ToSlash(path)) {
+		return agentCoreRoot
+	}
+	if root := corepath.InstallRoot(); root != "" && within(filepath.Join(root, agentCoreLibraryDir), path) {
+		return agentCoreRoot
+	}
+	return ""
+}
+
+func within(dir, path string) bool {
+	relative, err := filepath.Rel(dir, path)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
+const (
+	agentCoreRoot       = "agent-core"
+	agentCoreLibraryDir = "tools"
+)
 
 func newRestDump(collection toolrest.Collection) restDump {
 	return restDump{
