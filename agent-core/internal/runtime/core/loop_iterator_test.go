@@ -104,6 +104,14 @@ func TestLoopForEachCollectAllJoinsPartialInInputOrder(t *testing.T) {
 	require.Equal(t, Signal("ItemsPartial"), execution[len(execution)-1].Result.Signal)
 }
 
+// TestLoopForEachItemHonorsCommandTimeout times out the item command, which
+// blocks on its context and so cannot finish early whatever the timeout is.
+// The timeout still has to clear the list command that runs before it: it is
+// instant work, but CommandTimeout applies to every command, and at one
+// millisecond a loaded scheduler can miss it before the command goroutine is
+// even scheduled. That is what failed under concurrent audit lanes, and it
+// read as a routing bug because a list timeout lands in Loading as a
+// CommandError the machine has no transition for (GH-2053).
 func TestLoopForEachItemHonorsCommandTimeout(t *testing.T) {
 	t.Parallel()
 	spec, err := ParseMachineSpec([]byte(iteratorMachineYAML))
@@ -118,10 +126,12 @@ func TestLoopForEachItemHonorsCommandTimeout(t *testing.T) {
 	})
 	result, err := Loop(LoopParams{
 		MachineSpec: &spec, Registry: registry, Trace: &loopRecorder{},
-		Budget: Budget{MaxIterations: 10}, CommandTimeout: time.Millisecond,
+		Budget: Budget{MaxIterations: 10}, CommandTimeout: loadSafeCommandTimeout,
 	}, context.Background())
 	require.NoError(t, err)
 	require.Equal(t, StatusFailed, result.Status)
+	require.NotContains(t, result.LastError.Error(), "state=Loading",
+		"the list command timed out instead of the item command")
 	require.ErrorContains(t, result.LastError, "timeout executing context_blocking")
 }
 
@@ -284,6 +294,13 @@ func entryLabels(execution Execution) []string {
 	}
 	return values
 }
+
+// loadSafeCommandTimeout bounds a command that never returns on its own, so
+// its value decides only how long this test waits, not whether the timeout
+// fires. It is sized for the commands that must finish inside it rather than
+// for the one that must not, because CommandTimeout applies to every command
+// a run dispatches.
+const loadSafeCommandTimeout = 200 * time.Millisecond
 
 const iteratorMachineYAML = `
 name: iterator-test
