@@ -1,9 +1,11 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # Shapes the runtime produces for catalog words, independent of which agent
-# declares them. Text and Comparison restate the shapes agent-core's own units
-# declare under the same names; the unit segment of an address is a namespace,
-# so an application names its shapes for what they are (srd051 R1.4, R4.3).
+# declares them. Text and Comparison restate the shapes agent-core declares
+# under the same names, because an application cannot import another tree's
+# units: the two sit at different relative distances in the repository and in
+# the image (srd051 R1.5). The unit segment of an address is a namespace, so
+# the restatement keeps the name the shape deserves (srd051 R1.4, R4.3).
 unit: catalog-types-core
 types:
 - name: Text

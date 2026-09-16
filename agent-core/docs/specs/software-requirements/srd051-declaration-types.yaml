@@ -48,6 +48,17 @@ requirements:
           claim on the same name in another one. Every reference states the
           unit it means, so an application names a shape for what it is rather
           than for what no other unit has taken.
+      - R1.5: >-
+          A type is reachable only from a closure that imports its unit, and a
+          declaration tree reaches only the units it can name by a relative
+          path under srd050 R1.2. An application therefore declares its own
+          units for the shapes its words publish, including shapes agent-core
+          declares under the same names. That restatement is the design, not
+          drift: the two trees sit at different relative distances in the
+          repository and in the runtime image, so no single import path
+          resolves in both, and a reference that happens to resolve because
+          some other declaration pulled the unit into the closure resolves by
+          accident and SHALL NOT be relied on.
 
   R2:
     title: Closed schema subset
@@ -194,12 +205,12 @@ non_goals:
   - Validating runtime values against a declared type; these types constrain declarations, not payloads.
   - Tool signatures, typed labels, and machine exhaustiveness, which build on this and are specified separately.
   - Widening the schema subset toward complete JSON Schema.
-  - Remote or registry-hosted type units; imports stay relative paths as srd050 fixes them.
+  - Remote or registry-hosted type units, and any other way for one declaration tree to depend on another's units; imports stay relative paths as srd050 fixes them (R1.5).
 
 acceptance_criteria:
   - id: AC1
-    criterion: A type unit declares named types, imports another type unit, and its types are addressable as unit.Name.
-    traces: [R1.1, R1.2, R1.3, R1.4]
+    criterion: A type unit declares named types, imports another type unit, and its types are addressable as unit.Name from any closure that imports it and from no other.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
   - id: AC2
     criterion: Every keyword outside the closed subset fails the load naming the keyword, the unit, and the type, including a violation nested inside properties and one inside items.
     traces: [R2.1, R2.2, R2.3, R2.4]
@@ -239,3 +250,4 @@ implementation_status:
     - GH-2064 and GH-2065 type the boundary REST labels from the runtime result, which is what R6.12 exempts a boundary tool from restating.
     - GH-2026 makes the unit segment a namespace (R1.4, R4.3), so catalog-types-core declares Text and Comparison under the names they describe.
     - GH-2023 promotes R6.13, so the authoring checks in internal/tools/catalog and the corpus audit in pkg/spec agree about relationships.
+    - GH-2069 promotes R1.5 after establishing that an application cannot reach agent-core's units: the repository and the image place the two trees at different relative distances.

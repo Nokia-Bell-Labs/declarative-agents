@@ -2,8 +2,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Shapes the chatbot request machines pass between their words, and the
 # runtime shapes its words publish. Text and Partition restate shapes
-# agent-core declares under the same names; the unit segment of an address is
-# a namespace, so a shape is named for what it is (srd051 R1.4, R4.3).
+# agent-core declares under the same names, because an application cannot
+# import another tree's units (srd051 R1.5). The unit segment of an address is
+# a namespace, so the restatement keeps the name the shape deserves
+# (srd051 R1.4, R4.3).
 unit: mesh-types-chatbot
 types:
 - name: Text
