@@ -10,7 +10,7 @@ profile:
     - <agent-core>/testdata/integration/profiles/control-fragments/rest.yaml
 machine:
   name: core-control-fragments
-  purpose: Prove a fragment instantiated twice drives the same control flow as hand-written declarations.
+  purpose: Prove a fragment instantiated twice drives the same control flow as hand-written declarations, with the second control stage spliced in from a stage fragment.
   initial_state: Idle
   states:
     - name: Idle
@@ -21,16 +21,16 @@ machine:
       meaning: Waiting for an exit request.
     - name: Exiting
       meaning: Dispatching exit_agent.
-    - name: Retrying
-      meaning: Relaunching the control server with a patient await.
-    - name: Patient
-      meaning: Waiting longer for an exit request.
     - name: Succeeded
       meaning: Terminal success.
       run_status: succeeded
     - name: Failed
       meaning: Terminal failure.
       run_status: failed
+    - name: PatientLaunching
+      meaning: Starting the control server.
+    - name: PatientAwaiting
+      meaning: Waiting for an exit request.
   terminal_states:
     - Succeeded
     - Failed
@@ -66,10 +66,6 @@ machine:
       next: Exiting
       action: exit_agent
     - state: Awaiting
-      signal: AwaitTimedOut
-      next: Retrying
-      action: patient_launch_agent_control
-    - state: Awaiting
       signal: ServerStopped
       next: Failed
     - state: Awaiting
@@ -81,24 +77,28 @@ machine:
     - state: Exiting
       signal: CommandError
       next: Failed
-    - state: Retrying
+    - state: Awaiting
+      signal: AwaitTimedOut
+      next: PatientLaunching
+      action: patient_launch_agent_control
+    - state: PatientLaunching
       signal: ServerLaunched
-      next: Patient
+      next: PatientAwaiting
       action: patient_await_agent_control
-    - state: Retrying
+    - state: PatientLaunching
       signal: CommandError
       next: Failed
-    - state: Patient
+    - state: PatientAwaiting
       signal: ExitRequested
       next: Exiting
       action: exit_agent
-    - state: Patient
+    - state: PatientAwaiting
       signal: AwaitTimedOut
       next: Failed
-    - state: Patient
+    - state: PatientAwaiting
       signal: ServerStopped
       next: Failed
-    - state: Patient
+    - state: PatientAwaiting
       signal: CommandError
       next: Failed
   budget:
@@ -147,6 +147,23 @@ instantiations:
     produces:
       - limits/beta_local
       - servers/beta_agent_control
+  - fragment: <agent-core>/testdata/integration/units/control-stage-fragment.yaml
+    args:
+      await: patient_await_agent_control
+      enter: AwaitTimedOut
+      from: Awaiting
+      launch: patient_launch_agent_control
+      prefix: Patient
+    produces:
+      - states/PatientAwaiting
+      - states/PatientLaunching
+      - transitions/Awaiting:AwaitTimedOut
+      - transitions/PatientAwaiting:AwaitTimedOut
+      - transitions/PatientAwaiting:CommandError
+      - transitions/PatientAwaiting:ExitRequested
+      - transitions/PatientAwaiting:ServerStopped
+      - transitions/PatientLaunching:CommandError
+      - transitions/PatientLaunching:ServerLaunched
   - fragment: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
     as: patient
     args:
@@ -345,7 +362,7 @@ files:
   - path: <agent-core>/testdata/integration/profiles/control-fragments/declarations.yaml
     sha256: ba4c3a347e037fcdadf6e9bc005ad3ad62e611f1a7aae803e7fe6f81c654ee2f
   - path: <agent-core>/testdata/integration/profiles/control-fragments/machine.yaml
-    sha256: 97d04611c599a3d723c561f031a7c6f08277576ad2624fa881a9f940b358adfb
+    sha256: b01beab8ab2ad2ff8cd2f17f474379ef01a7dda7af02dc3dd04054db9b52444a
   - path: <agent-core>/testdata/integration/profiles/control-fragments/profile.yaml
     sha256: a434ab8817769851c98aeae8879bc6795ca46e7e13e5fe9410f94d5ca961c5e2
   - path: <agent-core>/testdata/integration/profiles/control-fragments/rest.yaml
@@ -354,6 +371,8 @@ files:
     sha256: 295aa1982468ea69317d16ea7ac0d187540045eb22f82a77ed245cdca5e22f56
   - path: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
     sha256: 5cd4dc6a27a39d76d617350c8558fc40e4fff916d81ed874909b9f58e6f46526
+  - path: <agent-core>/testdata/integration/units/control-stage-fragment.yaml
+    sha256: 3c9f14c822faa81e16a3b4c2f7c8b8aee95adbc40de8d4ce8c13ce98a8b01191
   - path: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
     sha256: b7537273b6340ee0b8c8c12618172693fe31de1e4ae28541d68b9aa40102f9c4
   - path: <agent-core>/testdata/integration/units/control-types.yaml

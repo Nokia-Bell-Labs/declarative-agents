@@ -137,8 +137,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: A stage fragment splices under a prefix with parameterized entry and exit
-    go_test: go test ./internal/runtime/core -run TestStageFragmentSplices
-    status: planned
+    go_test: go test ./internal/runtime/core -run 'TestLoadMachineClosureSplicesAStageTwice|TestStageArgumentFaultsNameFragmentAndParameter'
+    status: implemented
     description: Instantiate a stage fragment into a machine with entry and exit signals passed as arguments and read the resulting states and transitions.
     expected:
       states_prefixed: true
@@ -147,8 +147,8 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: A spliced machine is checked as one machine
-    go_test: go test ./internal/runtime/core ./internal/tools/catalog -run TestStageFragmentValidatedAsOneMachine
-    status: planned
+    go_test: go test ./internal/runtime/core ./internal/load ./cmd/agent -run 'TestSplicedStageIsValidatedAsOneMachine|TestSplicingTheSamePrefixTwiceIsTheDuplicateStateError|TestLoadClosureDumpsMachineStageInstantiations|TestDumpGolden'
+    status: implemented
     description: Splice a stage whose transition reads a label the importing machine never publishes, then one with an unhandled signal, then a correct one.
     expected:
       label_check_applies: true

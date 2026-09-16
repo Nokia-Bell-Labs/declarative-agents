@@ -5,38 +5,45 @@ package core
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 )
 
 // MachineSpec is the YAML schema for a declarative state machine.
 type MachineSpec struct {
-	Name            string           `yaml:"name"`
-	Purpose         string           `yaml:"purpose,omitempty"`
-	Invariants      []string         `yaml:"invariants,omitempty"`
-	Lifecycle       string           `yaml:"lifecycle,omitempty"`
-	Configuration   map[string]any   `yaml:"configuration,omitempty"`
-	MetricLabels    MetricLabels     `yaml:"metric_labels,omitempty"`
-	PipelineDiagram string           `yaml:"pipeline_diagram,omitempty"`
-	ViewTags        []ViewTag        `yaml:"view_tags,omitempty"`
-	InitialState    string           `yaml:"initial_state"`
-	SummarySignal   string           `yaml:"summary_signal,omitempty"`
-	ResumeSignal    string           `yaml:"resume_signal,omitempty"`
-	States          StateSpecs       `yaml:"states"`
-	TerminalStates  []string         `yaml:"terminal_states"`
-	Signals         SignalSpecs      `yaml:"signals"`
-	Transitions     []TransitionSpec `yaml:"transitions"`
-	BudgetSpec      *BudgetSpec      `yaml:"budget,omitempty"`
+	// Unit and Instantiate are the machine's declaration-unit header: a machine
+	// instantiates stage fragments under instantiate (srd052 R4). Imports is
+	// decoded so the error for it can say what a machine may do instead.
+	Unit            string                    `yaml:"unit,omitempty"`
+	Imports         []string                  `yaml:"imports,omitempty"`
+	Instantiate     []fragments.Instantiation `yaml:"instantiate,omitempty"`
+	Name            string                    `yaml:"name"`
+	Purpose         string                    `yaml:"purpose,omitempty"`
+	Invariants      []string                  `yaml:"invariants,omitempty"`
+	Lifecycle       string                    `yaml:"lifecycle,omitempty"`
+	Configuration   map[string]any            `yaml:"configuration,omitempty"`
+	MetricLabels    MetricLabels              `yaml:"metric_labels,omitempty"`
+	PipelineDiagram string                    `yaml:"pipeline_diagram,omitempty"`
+	ViewTags        []ViewTag                 `yaml:"view_tags,omitempty"`
+	InitialState    string                    `yaml:"initial_state"`
+	SummarySignal   string                    `yaml:"summary_signal,omitempty"`
+	ResumeSignal    string                    `yaml:"resume_signal,omitempty"`
+	States          StateSpecs                `yaml:"states"`
+	TerminalStates  []string                  `yaml:"terminal_states"`
+	Signals         SignalSpecs               `yaml:"signals"`
+	Transitions     []TransitionSpec          `yaml:"transitions"`
+	BudgetSpec      *BudgetSpec               `yaml:"budget,omitempty"`
 	// ExternalLabels names command-state labels the runtime seeds rather than
 	// any transition publishing them, so selector validation counts them in
 	// the machine's label universe. The REST machine_request seed label is the
 	// first user (srd006).
 	ExternalLabels []ExternalLabel `yaml:"external_labels,omitempty"`
+	instantiations []MachineInstantiation
 }
 
 // ExternalLabel is one runtime-seeded command-state label. It authors either
@@ -217,25 +224,30 @@ func (t *TransitionSpec) UnmarshalYAML(value *yaml.Node) error {
 
 // LoadMachineSpec reads and parses a machine YAML file.
 func LoadMachineSpec(path string) (MachineSpec, error) {
-	data, err := os.ReadFile(path)
+	return LoadMachineClosure(path, nil)
+}
+
+// ParseMachineSpec parses machine YAML from bytes. A machine that instantiates
+// stage fragments names them by paths relative to its file, so it is loaded
+// through LoadMachineClosure rather than parsed from bytes (srd052 R4).
+func ParseMachineSpec(data []byte) (MachineSpec, error) {
+	spec, err := decodeMachineSpec(data)
 	if err != nil {
-		return MachineSpec{}, fmt.Errorf("read machine spec %s: %w", path, err)
+		return MachineSpec{}, err
 	}
-	spec, err := ParseMachineSpec(data)
-	if err != nil {
-		return MachineSpec{}, fmt.Errorf("parse machine spec %s: %w", path, err)
+	if len(spec.Instantiate) > 0 {
+		return MachineSpec{}, fmt.Errorf("machine instantiates stage fragments, so it must be loaded from its file")
+	}
+	if err := validateSpec(spec); err != nil {
+		return MachineSpec{}, err
 	}
 	return spec, nil
 }
 
-// ParseMachineSpec parses machine YAML from bytes.
-func ParseMachineSpec(data []byte) (MachineSpec, error) {
+func decodeMachineSpec(data []byte) (MachineSpec, error) {
 	var spec MachineSpec
 	if err := yamlstrict.Unmarshal(data, &spec); err != nil {
 		return MachineSpec{}, fmt.Errorf("parse machine YAML: %w", err)
-	}
-	if err := validateSpec(spec); err != nil {
-		return MachineSpec{}, err
 	}
 	return spec, nil
 }

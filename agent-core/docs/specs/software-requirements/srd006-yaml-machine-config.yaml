@@ -28,6 +28,16 @@ requirements:
       - R1.6: "When label is absent, the completed step remains addressable by its executed command name. This preserves existing unlabeled machines and programmatic TransitionTable runs with no MachineSpec label."
       - R1.7: "A labeled $tool transition records label as the stable workflow-step address and records the dynamically selected tool separately as the command name."
       - R1.8: "external_labels (list of strings, optional) names command-state labels the runtime seeds rather than any transition publishing them. Each entry satisfies the transition-label grammar and widens the machine's label universe for selector validation. The REST machine_request seed label is the first user."
+      - R1.9: >-
+          instantiate (list, optional) names stage fragments the machine
+          splices in (srd052 R4). Each entry carries fragment, a path relative
+          to the machine file, and args. A stage fragment declares params and a
+          stage body of states, signals, and transitions; the loader fills the
+          arguments into scalar values, appends the produced states, signals,
+          and transitions to the machine's lists, and validates the whole as
+          one machine, so a spliced transition is held to R2 exactly as a
+          hand-written one is. A machine declares no imports: a stage is
+          instantiated, and a machine has no other unit kind to import.
 
   R2:
     title: Validation
@@ -70,6 +80,12 @@ requirements:
       - R4.1: LoadMachineSpec(path string) reads and parses a YAML file.
       - R4.2: ParseMachineSpec(data []byte) parses YAML bytes and validates.
       - R4.3: File read errors and YAML parse errors are wrapped with context.
+      - R4.4: >-
+          LoadMachineClosure(path, visit) reads the machine file and every stage
+          fragment it instantiates through visit, splices, and validates.
+          LoadMachineSpec is that with no visitor. ParseMachineSpec refuses a
+          document that instantiates, because its fragments are named relative
+          to a file it does not have.
 
   R5:
     title: Data-driven iteration and join
@@ -111,7 +127,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: MachineSpec has name, initial_state, states, terminal_states, signals, transitions, and a required budget with a positive command timeout. TransitionSpec has state, signal, next, optional action, and optional command-state label. An unlabeled transition falls back to its executed command name, including programmatic tables without MachineSpec labels, while a labeled $tool transition keeps its stable label distinct from the selected command.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9]
 
   - id: AC2
     criterion: Validation checks referential integrity for initial_state, terminal_states, transitions, minimum counts, and transition-label grammar. Duplicate valid labels remain legal. Errors are collected together.
@@ -122,8 +138,8 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
 
   - id: AC4
-    criterion: LoadMachineSpec reads and parses YAML files. ParseMachineSpec parses bytes with validation. Errors include context.
-    traces: [R4.1, R4.2, R4.3]
+    criterion: LoadMachineSpec reads and parses YAML files, splicing any stage fragments the machine instantiates and validating the result as one machine. ParseMachineSpec parses bytes with validation and refuses a document that instantiates. Errors include context, naming the fragment where one is involved.
+    traces: [R4.1, R4.2, R4.3, R4.4]
   - id: AC5
     criterion: A trusted command-state array drives sequential or positively bounded parallel named-action dispatches with per-item trace, checkpoint, receipt, cancellation, rollback visibility, deterministic input-order join output, and checkpoint-resume progress; fail-fast waits for all started children and collect-all retains every outcome.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9]

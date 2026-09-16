@@ -1,0 +1,35 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A control stage: launch a server, await its exit request, hand success to
+# Exiting and every failure to Failed. The importer names the state the stage
+# hangs off, the signal that enters it, the two words it runs, and a prefix
+# that keeps its states apart from another instantiation's.
+unit: control-stage-fragment
+params:
+  - name: prefix
+    type: string
+    description: Prefix on the states this stage declares.
+  - name: from
+    type: string
+    description: The importer's state the stage is entered from.
+  - name: enter
+    type: string
+    description: The signal, seen in the from state, that enters the stage.
+  - name: launch
+    type: string
+    description: The word that launches the control server.
+  - name: await
+    type: string
+    description: The word that awaits the exit request.
+stage:
+  states:
+    - {name: $param(prefix)Launching, meaning: Starting the control server.}
+    - {name: $param(prefix)Awaiting, meaning: Waiting for an exit request.}
+  transitions:
+    - {state: $param(from), signal: $param(enter), next: $param(prefix)Launching, action: $param(launch)}
+    - {state: $param(prefix)Launching, signal: ServerLaunched, next: $param(prefix)Awaiting, action: $param(await)}
+    - {state: $param(prefix)Launching, signal: CommandError, next: Failed}
+    - {state: $param(prefix)Awaiting, signal: ExitRequested, next: Exiting, action: exit_agent}
+    - {state: $param(prefix)Awaiting, signal: AwaitTimedOut, next: Failed}
+    - {state: $param(prefix)Awaiting, signal: ServerStopped, next: Failed}
+    - {state: $param(prefix)Awaiting, signal: CommandError, next: Failed}

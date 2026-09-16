@@ -686,17 +686,47 @@ examples:
       invariants, and lifecycle narrative.
 
 stage_fragments: |
-  A machine MAY instantiate a stage fragment (srd052-declaration-fragments
-  R4): a unit whose body is `stage` rather than a whole machine, declaring
-  states, signals, transitions, and labels that splice into the importing
-  machine under a prefix. The stage's entry signal and exit signals are
-  parameters, so the importing machine decides how the stage is reached and
-  left. The spliced result is validated as one machine by the label checks
-  (srd038) and the exhaustiveness checks (srd006), so an instantiated stage
-  is held to exactly what a hand-written one is held to. The `params` and
-  `instantiate` fields follow cfg-tool-declaration-format. This arrives with
-  GH-2083, after the tool and REST fragments; until then a machine file
-  carrying `instantiate` fails strict decoding as an unknown field.
+  A machine MAY instantiate stage fragments (srd052 R4, srd006 R1.9). A stage
+  fragment is a unit whose body is `stage` rather than a whole machine:
+
+    unit: control-stage-fragment
+    params:
+      - {name: prefix, type: string}
+      - {name: from, type: string}
+      - {name: enter, type: string}
+      - {name: launch, type: string}
+      - {name: await, type: string}
+    stage:
+      states:
+        - {name: $param(prefix)Launching, meaning: Starting the control server.}
+        - {name: $param(prefix)Awaiting, meaning: Waiting for an exit request.}
+      transitions:
+        - {state: $param(from), signal: $param(enter), next: $param(prefix)Launching, action: $param(launch)}
+        - {state: $param(prefix)Launching, signal: ServerLaunched, next: $param(prefix)Awaiting, action: $param(await)}
+        - {state: $param(prefix)Awaiting, signal: ExitRequested, next: Exiting, action: exit_agent}
+        - {state: $param(prefix)Awaiting, signal: CommandError, next: Failed}
+
+  The importing machine lists it beside its own transitions:
+
+    instantiate:
+      - fragment: ../../units/control-stage-fragment.yaml
+        args: {prefix: Patient, from: Awaiting, enter: AwaitTimedOut,
+               launch: patient_launch_agent_control, await: patient_await_agent_control}
+
+  The loader fills the arguments into scalar values and appends the produced
+  states, signals, and transitions to the machine's lists. The stage's
+  entry (`from`, `enter`) and every state it hands to (`Exiting`, `Failed`
+  above) belong to the importer, which must declare them; a stage that names
+  a state or signal nothing declares fails as a hand-written transition
+  would, with the fragment named. The prefix is a parameter the fragment
+  composes into its state names, so one stage can be spliced twice under two
+  prefixes; splicing the same prefix twice is the existing duplicate-state
+  error. The spliced machine is then validated as one machine by every
+  machine check -- referential integrity, labels (srd038), exhaustiveness
+  (srd006 R2.10) -- and the dump renders the spliced result under `machine`
+  with the fragment, arguments, and produced names under `instantiations`.
+  A machine declares no `imports`; a stage is instantiated, and a machine
+  has no other unit kind to import.
 
 related_documents:
   - srd006

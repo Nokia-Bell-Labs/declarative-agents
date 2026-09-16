@@ -122,3 +122,35 @@ rest: {version: v1}
 	require.Contains(t, dump.String(), "instantiations:\n")
 	require.Contains(t, dump.String(), "as: main\n    args:\n      url: http://main\n    produces:\n      - clients/main_api\n")
 }
+
+func TestLoadClosureDumpsMachineStageInstantiations(t *testing.T) {
+	root := writeUsednessClosureFixture(t, "other")
+	writeLoadFixture(t, root, "declarations.yaml", "tools:\n  - name: other\n    binary: echo\n    emits: [Done]\n")
+	writeLoadFixture(t, root, "stage.yaml", `unit: run-stage
+params:
+- {name: prefix, type: string}
+stage:
+  states: [{name: $param(prefix)Running}]
+  transitions:
+    - {state: Idle, signal: Go, next: $param(prefix)Running, action: other}
+    - {state: $param(prefix)Running, signal: Done, next: Done}
+`)
+	writeLoadFixture(t, root, "machine.yaml", `name: usedness
+initial_state: Idle
+states: [Idle, {name: Done, run_status: succeeded}]
+terminal_states: [Done]
+signals: [Seed, Go, Done]
+instantiate:
+  - {fragment: stage.yaml, args: {prefix: Run}}
+transitions: [{state: Idle, signal: Seed, next: Done}]
+`)
+
+	closure, err := LoadClosure(filepath.Join(root, "profile.yaml"), Options{})
+	require.NoError(t, err)
+	var dump bytes.Buffer
+	require.NoError(t, DumpConfig(closure, &dump))
+
+	require.Contains(t, closure.Machine.States.Names(), "RunRunning")
+	require.Contains(t, dump.String(), "args:\n      prefix: Run\n    produces:\n      - states/RunRunning\n")
+	require.Contains(t, closure.Files, filepath.Join(root, "stage.yaml"), "the stage fragment is a closure file")
+}

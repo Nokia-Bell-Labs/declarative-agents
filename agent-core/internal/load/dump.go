@@ -78,8 +78,9 @@ func DumpConfig(closure *Closure, writer io.Writer) error {
 	}
 	data, err := canonicalYAML(dumpDocument{
 		Version: 1, Profile: closure.Profile, Machine: closure.Machine,
-		Types: newTypeDump(closure.Types), Instantiations: newInstantiationDump(closure.ToolUniverse, closure.Rest),
-		Tools: tools, Rest: newRestDump(closure.Rest), Files: files,
+		Types:          newTypeDump(closure.Types),
+		Instantiations: newInstantiationDump(closure.ToolUniverse, closure.Rest, closure.Machine),
+		Tools:          tools, Rest: newRestDump(closure.Rest), Files: files,
 	})
 	if err != nil {
 		return err
@@ -111,7 +112,9 @@ func newTypeDump(registry *typesys.Registry) []dumpType {
 // newInstantiationDump groups the universe's tools by the fragment
 // application that produced them, sorted by fragment path then prefix, with
 // produced names sorted, so a dump is byte-identical across runs.
-func newInstantiationDump(universe []catalog.ToolDef, rest toolrest.Collection) []dumpInstantiation {
+func newInstantiationDump(
+	universe []catalog.ToolDef, rest toolrest.Collection, machine core.MachineSpec,
+) []dumpInstantiation {
 	byKey := map[string]*dumpInstantiation{}
 	record := func(fragment, as string, args map[string]string, produced ...string) {
 		key := fragment + "\x00" + as
@@ -128,6 +131,9 @@ func newInstantiationDump(universe []catalog.ToolDef, rest toolrest.Collection) 
 		}
 	}
 	for _, instantiation := range rest.DeclarationInstantiations() {
+		record(instantiation.Fragment, instantiation.As, instantiation.Args, instantiation.Produces...)
+	}
+	for _, instantiation := range machine.Instantiations() {
 		record(instantiation.Fragment, instantiation.As, instantiation.Args, instantiation.Produces...)
 	}
 	if len(byKey) == 0 {
