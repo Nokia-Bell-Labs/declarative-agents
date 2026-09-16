@@ -177,15 +177,36 @@ machine: %s
 tools:
   - %s
 tool_declarations:
-  - %s
-  - %s
+%s  - %s
   - %s
 rest_definitions:
   - %s
 `, coreIntegrationProfilePath(rootDir, "ollama-rest/machine.yaml"), coreIntegrationProfilePath(rootDir, "ollama-rest/tools.yaml"),
-		abs(rootDir, "tools/builtin/llm/all.yaml"), llmPath,
+		yamlPathItems(ollamaLLMDeclarationPaths(rootDir)), llmPath,
 		coreIntegrationProfilePath(rootDir, "ollama-rest/declarations.yaml"), coreIntegrationProfilePath(rootDir, "ollama-rest/rest.yaml"))
 	return os.WriteFile(profilePath, []byte(profile), 0o644)
+}
+
+// ollamaLLMDeclarationPaths names the builtin llm units the Ollama fixtures
+// select: parse_response, report_parse_error, done. Importing the llm/all.yaml
+// aggregate instead brought reset_history along unused, and the loader refuses
+// a partial import (srd050; GH-2099).
+func ollamaLLMDeclarationPaths(rootDir string) []string {
+	return []string{
+		abs(rootDir, "tools/builtin/parse-response.yaml"),
+		abs(rootDir, "tools/builtin/report-parse-error.yaml"),
+		abs(rootDir, "tools/builtin/done.yaml"),
+	}
+}
+
+// yamlPathItems renders paths as two-space-indented YAML list items, one per
+// line, each line newline-terminated.
+func yamlPathItems(paths []string) string {
+	var b strings.Builder
+	for _, path := range paths {
+		b.WriteString("  - " + path + "\n")
+	}
+	return b.String()
 }
 
 func writeOllamaLLMOverride(rootDir, outPath, model string) error {
