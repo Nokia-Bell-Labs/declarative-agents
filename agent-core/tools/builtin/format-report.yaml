@@ -22,10 +22,5 @@ tools:
     condition: the validation finding set contains one or more error-level findings
     message_shape: '<human-readable validation report>'
     state_after_failure: the complete report is printed and returned
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: Plain-text human-readable validation report.

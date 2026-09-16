@@ -28,10 +28,5 @@ tools:
     condition: required input, configuration, or runtime state is invalid
     message_shape: 'collect_trace_tokens: <error>'
     state_after_failure: no additional workflow step is executed by this tool
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: collect_trace_tokens command result summary.

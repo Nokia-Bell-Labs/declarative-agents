@@ -64,6 +64,9 @@ type ToolDef struct {
 	sourceUnit     string
 	sourcePath     string
 	overrideTarget ToolSource
+	fragment       string
+	fragmentAs     string
+	fragmentArgs   map[string]string
 }
 
 // UnmarshalYAML validates command-state selectors while declarations are loaded,

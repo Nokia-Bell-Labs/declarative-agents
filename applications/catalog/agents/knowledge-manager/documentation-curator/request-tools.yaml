@@ -1,0 +1,38 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The words the request machines dispatch; the request profile selects
+# exactly these, so a request closure carries no main-machine word.
+tools:
+  - build_approval
+  - build_suggestion
+  - capture_approval
+  - capture_rejection
+  - capture_reopen
+  - capture_search
+  - capture_suggestion
+  - capture_validation
+  - config_read_resource
+  - config_response
+  - decision_response
+  - doc_detail_response
+  - doc_index_input
+  - doc_index_jq
+  - doc_list_paths
+  - doc_list_resource
+  - doc_read_resource
+  - empty_search
+  - format_report
+  - invalid_response
+  - load_corpus
+  - review_pending
+  - review_read_resource
+  - search_docs
+  - shape_search
+  - source_read_resource
+  - source_response
+  - suggestion_hash_material
+  - suggestion_response
+  - suggestion_sha256
+  - valid_response
+  - validate_specs
+  - write_review

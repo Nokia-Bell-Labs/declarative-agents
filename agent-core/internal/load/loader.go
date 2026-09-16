@@ -157,17 +157,15 @@ func resolveSelectedTools(
 	return selection, selected, nil
 }
 
+// loadMachine loads the machine and every stage fragment it instantiates
+// through the closure's visitor, so the fragments land in Files and Assets
+// like any other declaration (srd052 R4).
 func loadMachine(path string, visit catalog.FileVisitor) (core.MachineSpec, error) {
-	data, err := os.ReadFile(path)
+	machine, err := core.LoadMachineClosure(path, func(file string, data []byte) error {
+		return visit(file, data)
+	})
 	if err != nil {
-		return core.MachineSpec{}, fmt.Errorf("read machine spec %s: %w", path, err)
-	}
-	if err := visit(path, data); err != nil {
-		return core.MachineSpec{}, err
-	}
-	machine, err := core.ParseMachineSpec(data)
-	if err != nil {
-		return core.MachineSpec{}, fmt.Errorf("load machine spec %s: %w", path, err)
+		return core.MachineSpec{}, fmt.Errorf("load machine spec: %w", err)
 	}
 	return machine, nil
 }

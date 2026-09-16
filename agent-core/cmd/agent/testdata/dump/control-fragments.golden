@@ -1,0 +1,381 @@
+dump_version: 1
+profile:
+  name: core-control-fragments
+  machine: <agent-core>/testdata/integration/profiles/control-fragments/machine.yaml
+  tools:
+    - <agent-core>/testdata/integration/profiles/control-fragments/tools.yaml
+  tool_declarations:
+    - <agent-core>/testdata/integration/profiles/control-fragments/declarations.yaml
+  rest_definitions:
+    - <agent-core>/testdata/integration/profiles/control-fragments/rest.yaml
+machine:
+  name: core-control-fragments
+  purpose: Prove a fragment instantiated twice drives the same control flow as hand-written declarations, with the second control stage spliced in from a stage fragment.
+  initial_state: Idle
+  states:
+    - name: Idle
+      meaning: Initial state.
+    - name: Launching
+      meaning: Starting the control server.
+    - name: Awaiting
+      meaning: Waiting for an exit request.
+    - name: Exiting
+      meaning: Dispatching exit_agent.
+    - name: Succeeded
+      meaning: Terminal success.
+      run_status: succeeded
+    - name: Failed
+      meaning: Terminal failure.
+      run_status: failed
+    - name: PatientLaunching
+      meaning: Starting the control server.
+    - name: PatientAwaiting
+      meaning: Waiting for an exit request.
+  terminal_states:
+    - Succeeded
+    - Failed
+  signals:
+    - name: Seed
+      trigger: Loop initialization.
+    - name: ServerLaunched
+      trigger: Control server started.
+    - name: ExitRequested
+      trigger: Operator requested exit.
+    - name: AwaitTimedOut
+      trigger: No event arrived.
+    - name: ServerStopped
+      trigger: Server stopped.
+    - name: AgentExited
+      trigger: exit_agent requested shutdown.
+    - name: CommandError
+      trigger: Runtime failure.
+  transitions:
+    - state: Idle
+      signal: Seed
+      next: Launching
+      action: primary_launch_agent_control
+    - state: Launching
+      signal: ServerLaunched
+      next: Awaiting
+      action: primary_await_agent_control
+    - state: Launching
+      signal: CommandError
+      next: Failed
+    - state: Awaiting
+      signal: ExitRequested
+      next: Exiting
+      action: exit_agent
+    - state: Awaiting
+      signal: ServerStopped
+      next: Failed
+    - state: Awaiting
+      signal: CommandError
+      next: Failed
+    - state: Exiting
+      signal: AgentExited
+      next: Succeeded
+    - state: Exiting
+      signal: CommandError
+      next: Failed
+    - state: Awaiting
+      signal: AwaitTimedOut
+      next: PatientLaunching
+      action: patient_launch_agent_control
+    - state: PatientLaunching
+      signal: ServerLaunched
+      next: PatientAwaiting
+      action: patient_await_agent_control
+    - state: PatientLaunching
+      signal: CommandError
+      next: Failed
+    - state: PatientAwaiting
+      signal: ExitRequested
+      next: Exiting
+      action: exit_agent
+    - state: PatientAwaiting
+      signal: AwaitTimedOut
+      next: Failed
+    - state: PatientAwaiting
+      signal: ServerStopped
+      next: Failed
+    - state: PatientAwaiting
+      signal: CommandError
+      next: Failed
+  budget:
+    max_iterations: 5
+    command_timeout: 1m
+types:
+  - ref: control-types.ExitOutcome
+    description: The outcome an exiting control agent reports.
+    schema:
+      properties:
+        detail:
+          type: string
+        status:
+          enum:
+            - exited
+            - refused
+          type: string
+      required:
+        - status
+      type: object
+  - ref: control-types.ExitReport
+    description: An exit outcome with the request that produced it.
+    schema:
+      properties:
+        outcome:
+          $type: control-types.ExitOutcome
+        requests:
+          items:
+            type: integer
+          type: array
+      type: object
+instantiations:
+  - fragment: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
+    as: alpha
+    args:
+      address: 127.0.0.1:0
+      capacity: "8"
+    produces:
+      - limits/alpha_local
+      - servers/alpha_agent_control
+  - fragment: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
+    as: beta
+    args:
+      address: 127.0.0.1:0
+      capacity: "2"
+    produces:
+      - limits/beta_local
+      - servers/beta_agent_control
+  - fragment: <agent-core>/testdata/integration/units/control-stage-fragment.yaml
+    args:
+      await: patient_await_agent_control
+      enter: AwaitTimedOut
+      from: Awaiting
+      launch: patient_launch_agent_control
+      prefix: Patient
+    produces:
+      - states/PatientAwaiting
+      - states/PatientLaunching
+      - transitions/Awaiting:AwaitTimedOut
+      - transitions/PatientAwaiting:AwaitTimedOut
+      - transitions/PatientAwaiting:CommandError
+      - transitions/PatientAwaiting:ExitRequested
+      - transitions/PatientAwaiting:ServerStopped
+      - transitions/PatientLaunching:CommandError
+      - transitions/PatientLaunching:ServerLaunched
+  - fragment: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
+    as: patient
+    args:
+      route: beta_exit
+      server: beta_agent_control
+      timeout: 45s
+    produces:
+      - patient_await_agent_control
+      - patient_launch_agent_control
+  - fragment: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
+    as: primary
+    args:
+      route: alpha_exit
+      server: alpha_agent_control
+      timeout: 30s
+    produces:
+      - primary_await_agent_control
+      - primary_launch_agent_control
+tools:
+  - name: exit_agent
+    type: builtin
+    category: lifecycle
+    description: ""
+    output:
+      description: The outcome of the exit request.
+      schema:
+        properties:
+          outcome:
+            properties:
+              detail:
+                type: string
+              status:
+                enum:
+                  - exited
+                  - refused
+                type: string
+            required:
+              - status
+            type: object
+          requests:
+            items:
+              type: integer
+            type: array
+        type: object
+    init: exit_agent
+    emits:
+      - AgentExited
+      - CommandError
+    visibility: internal
+    override: true
+  - name: patient_await_agent_control
+    type: builtin
+    category: boundary
+    description: ""
+    init: rest_await_event
+    config:
+      sources:
+        - routes:
+            - beta_exit
+          server: beta_agent_control
+          signals:
+            - ExitRequested
+      stopped_behavior: emit_server_stopped
+      timeout: 45s
+    emits:
+      - ExitRequested
+      - AwaitTimedOut
+      - ServerStopped
+      - CommandError
+    visibility: internal
+  - name: patient_launch_agent_control
+    type: builtin
+    category: boundary
+    description: ""
+    init: rest_server_launch
+    config:
+      rest_ref: beta_agent_control
+    emits:
+      - ServerLaunched
+      - CommandError
+    visibility: internal
+  - name: primary_await_agent_control
+    type: builtin
+    category: boundary
+    description: ""
+    init: rest_await_event
+    config:
+      sources:
+        - routes:
+            - alpha_exit
+          server: alpha_agent_control
+          signals:
+            - ExitRequested
+      stopped_behavior: emit_server_stopped
+      timeout: 30s
+    emits:
+      - ExitRequested
+      - AwaitTimedOut
+      - ServerStopped
+      - CommandError
+    visibility: internal
+  - name: primary_launch_agent_control
+    type: builtin
+    category: boundary
+    description: ""
+    init: rest_server_launch
+    config:
+      rest_ref: alpha_agent_control
+    emits:
+      - ServerLaunched
+      - CommandError
+    visibility: internal
+rest:
+  version: v1
+  servers:
+    alpha_agent_control:
+      address: 127.0.0.1:0
+      limits_ref: alpha_local
+      queue:
+        name: agent_control
+        capacity: 8
+        timeout: 30s
+      endpoints:
+        alpha_exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              properties:
+                reason:
+                  type: string
+              type: object
+          response:
+            output:
+              accepted: "true"
+          machine_request: {}
+      shutdown:
+        timeout: 5s
+        drain_policy: drain_then_stop
+    beta_agent_control:
+      address: 127.0.0.1:0
+      limits_ref: beta_local
+      queue:
+        name: agent_control
+        capacity: 2
+        timeout: 30s
+      endpoints:
+        beta_exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              properties:
+                reason:
+                  type: string
+              type: object
+          response:
+            output:
+              accepted: "true"
+          machine_request: {}
+      shutdown:
+        timeout: 5s
+        drain_policy: drain_then_stop
+  limits:
+    alpha_local:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        hosts:
+          - 127.0.0.1
+          - localhost
+        ports:
+          - 0
+    beta_local:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        hosts:
+          - 127.0.0.1
+          - localhost
+        ports:
+          - 0
+files:
+  - path: <agent-core>/testdata/integration/profiles/control-fragments/declarations.yaml
+    sha256: ba4c3a347e037fcdadf6e9bc005ad3ad62e611f1a7aae803e7fe6f81c654ee2f
+  - path: <agent-core>/testdata/integration/profiles/control-fragments/machine.yaml
+    sha256: b01beab8ab2ad2ff8cd2f17f474379ef01a7dda7af02dc3dd04054db9b52444a
+  - path: <agent-core>/testdata/integration/profiles/control-fragments/profile.yaml
+    sha256: a434ab8817769851c98aeae8879bc6795ca46e7e13e5fe9410f94d5ca961c5e2
+  - path: <agent-core>/testdata/integration/profiles/control-fragments/rest.yaml
+    sha256: fda647b4aed34f4247124fc469106ab8edb35181ae07ba0e23627eef3949d35d
+  - path: <agent-core>/testdata/integration/profiles/control-fragments/tools.yaml
+    sha256: 295aa1982468ea69317d16ea7ac0d187540045eb22f82a77ed245cdca5e22f56
+  - path: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
+    sha256: 5cd4dc6a27a39d76d617350c8558fc40e4fff916d81ed874909b9f58e6f46526
+  - path: <agent-core>/testdata/integration/units/control-stage-fragment.yaml
+    sha256: 3c9f14c822faa81e16a3b4c2f7c8b8aee95adbc40de8d4ce8c13ce98a8b01191
+  - path: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
+    sha256: b7537273b6340ee0b8c8c12618172693fe31de1e4ae28541d68b9aa40102f9c4
+  - path: <agent-core>/testdata/integration/units/control-types.yaml
+    sha256: ed6608b6e81df7eac4ba4d67308236026a7a25cc7130091f01bc9996731a4362
+  - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
+    sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/typesys"
 )
 
@@ -16,13 +17,17 @@ var toolUnitName = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 
 // ToolDefsFile is the top-level YAML structure for declaration files.
 type ToolDefsFile struct {
-	Unit       string             `yaml:"unit,omitempty"`
-	Imports    []string           `yaml:"imports,omitempty"`
-	Tools      []ToolDef          `yaml:"tools,omitempty"`
-	Types      []typesys.TypeDecl `yaml:"types,omitempty"`
-	hasTools   bool
-	hasTypes   bool
-	hasImports bool
+	Unit           string                    `yaml:"unit,omitempty"`
+	Imports        []string                  `yaml:"imports,omitempty"`
+	Params         []fragments.Param         `yaml:"params,omitempty"`
+	Instantiate    []fragments.Instantiation `yaml:"instantiate,omitempty"`
+	Tools          []ToolDef                 `yaml:"tools,omitempty"`
+	Types          []typesys.TypeDecl        `yaml:"types,omitempty"`
+	hasTools       bool
+	hasTypes       bool
+	hasImports     bool
+	hasParams      bool
+	hasInstantiate bool
 }
 
 // IsTypeUnit reports a declaration file that carries types instead of tools
@@ -30,16 +35,23 @@ type ToolDefsFile struct {
 // and may import further units of either kind.
 func (f ToolDefsFile) IsTypeUnit() bool { return f.hasTypes && !f.hasTools }
 
+// IsFragment reports a declaration file with declared parameters, which is
+// only ever instantiated and never imported plainly (srd052 R1.1, R2.6).
+func (f ToolDefsFile) IsFragment() bool { return f.hasParams }
+
 // ToolSource identifies the declaration unit and file that owns one tool.
 type ToolSource struct {
 	Unit string
 	Path string
 }
 
-// ToolImport is one authored dependency between declaration units.
+// ToolImport is one authored dependency between declaration units. Args is
+// set when the edge is an instantiation rather than an import, carrying the
+// arguments so an unused-instantiation diagnostic can name them (srd052 R3.1).
 type ToolImport struct {
 	Importer ToolSource
 	Imported ToolSource
+	Args     map[string]string
 }
 
 // LoadOptions selects the documented runtime or audit-side declaration policy.
@@ -61,6 +73,7 @@ func (td ToolDef) OverrideTarget() ToolSource {
 type toolImportResolver struct {
 	visit          FileVisitor
 	files          map[string]ToolDefsFile
+	raw            map[string][]byte
 	resolved       map[string][]ToolDef
 	units          map[string]ToolSource
 	visiting       map[string]int
@@ -81,7 +94,7 @@ func newToolImportResolverWithOptions(
 ) *toolImportResolver {
 	return &toolImportResolver{
 		visit: visit,
-		files: map[string]ToolDefsFile{}, resolved: map[string][]ToolDef{},
+		files: map[string]ToolDefsFile{}, raw: map[string][]byte{}, resolved: map[string][]ToolDef{},
 		units: map[string]ToolSource{}, visiting: map[string]int{},
 		options: options,
 	}
@@ -155,17 +168,36 @@ func (r *toolImportResolver) resolveFile(file ToolDefsFile, path string) ([]Tool
 	if err := validateAndDefaultToolDefs(local); err != nil {
 		return nil, fmt.Errorf("tool unit %q at %s: %w", file.Unit, path, err)
 	}
-	if len(file.Imports) > 0 {
-		imported, err := r.resolveImports(file, path)
-		if err != nil {
-			return nil, err
+	if len(file.Imports) == 0 && len(file.Instantiate) == 0 {
+		if hasToolOverride(local) {
+			return nil, fmt.Errorf("tool unit %q at %s declares override without an imported target", file.Unit, path)
 		}
-		return applyLocalTools(imported, local, source)
+		return local, nil
 	}
-	if hasToolOverride(local) {
-		return nil, fmt.Errorf("tool unit %q at %s declares override without an imported target", file.Unit, path)
+	dependencies, err := r.resolveDependencies(file, path)
+	if err != nil {
+		return nil, err
 	}
-	return local, nil
+	return applyLocalTools(dependencies, local, source)
+}
+
+// resolveDependencies gathers what a unit imports and what it instantiates.
+// Both arrive as imported tools: an instantiation is an import whose unit was
+// filled in on the way (srd052 R2.4).
+func (r *toolImportResolver) resolveDependencies(file ToolDefsFile, path string) ([]ToolDef, error) {
+	imported, err := r.resolveImports(file, path)
+	if err != nil {
+		return nil, err
+	}
+	instantiated, err := r.resolveInstantiations(file, path)
+	if err != nil {
+		return nil, err
+	}
+	merged, err := mergeImportedTools(imported, instantiated)
+	if err != nil {
+		return nil, fmt.Errorf("tool unit %q at %s: %w", file.Unit, path, err)
+	}
+	return merged, nil
 }
 
 func (r *toolImportResolver) resolveImports(file ToolDefsFile, path string) ([]ToolDef, error) {
@@ -196,11 +228,12 @@ func (r *toolImportResolver) readFile(path string) (ToolDefsFile, error) {
 	if file, ok := r.files[path]; ok {
 		return file, nil
 	}
-	file, err := readToolDefsFile(path, r.options, r.visit)
+	file, raw, err := readToolDefsFile(path, r.options, r.visit)
 	if err != nil {
 		return ToolDefsFile{}, err
 	}
 	r.files[path] = file
+	r.raw[path] = raw
 	return file, nil
 }
 
@@ -215,6 +248,9 @@ func (r *toolImportResolver) validateFile(
 	}
 	if file.IsTypeUnit() && file.Unit == "" {
 		return fmt.Errorf("type declaration %s must declare unit", path)
+	}
+	if err := validateFragmentFile(file, path, imported); err != nil {
+		return err
 	}
 	if file.Unit != "" && !toolUnitName.MatchString(file.Unit) {
 		return fmt.Errorf("tool declaration %s has invalid unit %q", path, file.Unit)
@@ -257,7 +293,7 @@ func (r *toolImportResolver) registerUnit(unit, path string) error {
 }
 
 func (r *toolImportResolver) registerEdges(file ToolDefsFile, path string) {
-	if len(file.Imports) > 0 {
+	if len(file.Imports) > 0 || len(file.Instantiate) > 0 {
 		r.hasImportEdges = true
 	}
 }

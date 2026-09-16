@@ -241,6 +241,11 @@ bindings:
       sub_roles: [ontology-manager, recommendation-generator]
       domain: documentation
       execution_scope: server
+    - actor: documentation-curator-request
+      profile: applications/catalog/agents/knowledge-manager/documentation-curator/request-profile.yaml
+      classification: wrapper
+      inherits: documentation-curator
+      execution_scope: request
     - actor: corpus-ingest
       profile: applications/catalog/agents/knowledge-manager/corpus-ingest/profile.yaml
       classification: role_realization
@@ -478,6 +483,21 @@ bindings:
           - applications/chatbot-mesh/agents/creator/request-declarations.yaml
           - applications/chatbot-mesh/helm/templates/creator.yaml
         migration_impact: None; the actor and workload name remain semantically compatible with canonical Creator.
+    - actor: creator-request
+      profile: applications/chatbot-mesh/agents/creator/request-profile.yaml
+      classification: configuration_variant
+      inherits: creator
+      execution_scope: request
+    - actor: provisioning-workflow-orchestrator-request
+      profile: applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/request-profile.yaml
+      classification: configuration_variant
+      inherits: provisioning-workflow-orchestrator
+      execution_scope: request
+    - actor: rag-server-request
+      profile: applications/chatbot-mesh/agents/rag-server/request-profile.yaml
+      classification: configuration_variant
+      inherits: rag-server
+      execution_scope: request
     - actor: applier
       profile: applications/chatbot-mesh/agents/applier/profile.yaml
       classification: wrapper

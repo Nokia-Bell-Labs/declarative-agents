@@ -29,10 +29,5 @@ tools:
     condition: required input, configuration, or runtime state is invalid
     message_shape: 'dump_config: <error>'
     state_after_failure: no additional workflow step is executed by this tool
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: dump_config command result summary.

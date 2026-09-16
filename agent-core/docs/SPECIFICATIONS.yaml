@@ -46,6 +46,9 @@ overview: |
   Release 16.0 covers srd049 for the pure marshalling pipeline word.
   Release 17.0 covers srd050 for named declaration units, explicit tool and
   REST imports, deterministic merge diagnostics, and closure usedness.
+  Release 18.0 covers srd052 for parameterized declaration fragments: typed
+  parameters, hygienic instantiation before strict decoding, provenance in
+  the dump, and machine stage splicing.
   Release 99.0 covers srd037 dispatch planning and srd043
   application/catalog source-layout migration.
 
@@ -392,6 +395,11 @@ srd_index:
     summary: Explicit relative imports for named tool and REST declaration units, with deterministic graph resolution, duplicate and override rules, closure usedness, legacy includes compatibility, and canonical dump evidence.
     status: specified
     path: docs/specs/software-requirements/srd050-declaration-imports.yaml
+  - id: srd052-declaration-fragments
+    title: Parameterized Declaration Fragments
+    summary: Declaration units with typed parameters, instantiated by importers with arguments; scalar-only substitution before strict decoding, the hand-written validation path, closure usedness and dump provenance for instantiations, and machine stage fragments spliced under a prefix.
+    status: specified
+    path: docs/specs/software-requirements/srd052-declaration-fragments.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -666,6 +674,12 @@ use_case_index:
     status: specified
     test_suite: test-rel17.0-declaration-imports
     path: docs/specs/use-cases/rel17.0-uc001-declaration-imports.yaml
+  - id: rel18.0-uc001-declaration-fragments
+    title: A profile instantiates parameterized declaration fragments
+    release: "18.0"
+    status: specified
+    test_suite: test-rel18.0-declaration-fragments
+    path: docs/specs/use-cases/rel18.0-uc001-declaration-fragments.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -841,6 +855,14 @@ test_suite_index:
     formal_test_cases: 7
     status: specified
     path: docs/specs/test-suites/test-rel17.0-declaration-imports.yaml
+  - id: test-rel18.0-declaration-fragments
+    title: Test Suite for Release 18.0 Declaration Fragments
+    release: "18.0"
+    traces:
+      - rel18.0-uc001-declaration-fragments
+    formal_test_cases: 14
+    status: specified
+    path: docs/specs/test-suites/test-rel18.0-declaration-fragments.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"

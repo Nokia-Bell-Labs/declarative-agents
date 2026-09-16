@@ -1,0 +1,115 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The monitor REST pair -- launch the read-only monitor server, stop it -- as
+# one fragment. Every mesh agent that serves monitor snapshots differs only in
+# the agent its prose names and the control and requests words its
+# relationships point at, so each instantiates this once, under the words'
+# own names.
+unit: mesh-monitor-fragment
+imports:
+  - types-server.yaml
+params:
+  - name: agent
+    type: string
+    description: The agent the problem statement names.
+  - name: control_await
+    type: string
+    description: The agent's control-await word the pair sits around.
+  - name: requests_stop
+    type: string
+    description: The agent's requests-stop word that follows the monitor stop.
+tools:
+  - name: launch_monitor_rest
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch read-only REST endpoints for cached monitor state.
+    problem: Operators need a profile-owned monitor reader that does not run tools.
+    goals:
+      - Register monitor snapshot, metadata, and stream routes.
+      - Keep monitor access inside the existing REST server tool path.
+    requirements:
+      input:
+        - Tool config references the trusted monitor REST server definition.
+      output:
+        - Output reports server name, bound address, and route count.
+      errors:
+        - Config, bind, route conflict, and schema failures emit CommandError.
+    non_goals:
+      - Does not execute monitor reads as MachineSpec workflow actions.
+      - Does not require a sidecar, collector, or external database.
+    emits: [ServerLaunched, CommandError]
+    signature:
+      input: mesh-types-server.NoParameters
+      output: mesh-types-server.ServerLaunch
+      emits: [ServerLaunched, CommandError]
+    output:
+      description: Monitor REST server launch result.
+    side_effects:
+      - kind: network_listen
+        target: monitor_rest_server
+        state: listener_started
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Stop the monitor REST server if the launch owns the listener.
+    errors:
+      - signal: CommandError
+        condition: Monitor REST server config, bind, route, or schema failure.
+        state_after_failure: No monitor route is exposed.
+    relationships:
+      overlaps:
+        - tool: rest_server_launch
+          difference: This profile-specific word binds only the monitor REST route set.
+      before: [$param(control_await)]
+    config:
+      rest_ref: monitor
+  - name: stop_monitor_rest
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    category: boundary
+    description: Stop the owned monitor REST listener.
+    problem: The $param(agent) must release its monitor listener before reaching a terminal state.
+    goals:
+      - Stop the configured monitor REST server.
+      - Emit ServerStopped so MachineSpec can continue teardown.
+    requirements:
+      input:
+        - Tool config references the trusted monitor REST server definition.
+      output:
+        - Output reports server name, bound address, and stopped status.
+      errors:
+        - Missing server, shutdown timeout, and cleanup failures emit CommandError.
+    non_goals:
+      - Does not write monitor metrics or snapshots.
+      - Does not relaunch the monitor server.
+    emits: [ServerStopped, CommandError]
+    signature:
+      input: mesh-types-server.NoParameters
+      output: mesh-types-server.ServerStop
+      emits: [ServerStopped, CommandError]
+    output:
+      description: Monitor REST server stop result.
+    side_effects:
+      - kind: network_listener_shutdown
+        target: monitor_rest_server
+        state: listener_stopped
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: server_shutdown_or_user_action_compensation
+      description: The receipt records shutdown loss; MachineSpec must relaunch the trusted monitor definition.
+      payload: boundary_compensation
+      captures: [server, address, drained_events, dropped_events, relaunch_requirement]
+    errors:
+      - signal: CommandError
+        condition: Monitor REST server is missing, shutdown times out, or cleanup fails.
+        state_after_failure: Monitor listener state may be partially stopped.
+    relationships:
+      after: [$param(control_await)]
+      before: [$param(requests_stop)]
+    config:
+      rest_ref: monitor

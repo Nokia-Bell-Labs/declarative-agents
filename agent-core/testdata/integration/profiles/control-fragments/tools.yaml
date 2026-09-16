@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+tools:
+  - primary_launch_agent_control
+  - primary_await_agent_control
+  - patient_launch_agent_control
+  - patient_await_agent_control
+  - exit_agent

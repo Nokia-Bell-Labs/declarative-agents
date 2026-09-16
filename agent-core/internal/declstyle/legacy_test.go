@@ -15,6 +15,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -213,7 +215,7 @@ func fileEntries(t *testing.T, path string) []string {
 			if typedCategories[tool.Category] {
 				entries = append(entries, fmt.Sprintf("%s:%s:%s", classUntypedTool, rel, tool.Name))
 			}
-		case retainsDefaultedProse(tool.SideEffects, tool.Reversibility.Classification, tool.Undo.Strategy):
+		case retainsDefaultedProse(tool.Category, tool.SideEffects, tool.Reversibility.Classification, tool.Undo.Strategy):
 			entries = append(entries, fmt.Sprintf("%s:%s:%s", classProseDefaulted, rel, tool.Name))
 		}
 	}
@@ -223,12 +225,19 @@ func fileEntries(t *testing.T, path string) []string {
 // retainsDefaultedProse reports a signed tool still carrying a block whose value
 // is exactly what its category would default it to, so deleting it changes
 // nothing. A block that differs is an authored override and is left alone
-// (srd051 R6.10).
-func retainsDefaultedProse(sideEffects []map[string]any, reversibility, undo string) bool {
-	if reversibility == "reversible" || undo == "noop" {
+// (srd051 R6.10). Which blocks a signature defaults depends on the category,
+// read from the one table catalog owns: a boundary tool's signature defaults
+// none of them (R6.9), so its reversible/noop blocks are authored, and
+// deleting them would fail the corpus audit rather than change nothing.
+func retainsDefaultedProse(category string, sideEffects []map[string]any, reversibility, undo string) bool {
+	defaultsSideEffects, defaultsReversibility, defaultsUndo := catalog.SignatureDischarges(category)
+	if defaultsReversibility && reversibility == "reversible" {
 		return true
 	}
-	return len(sideEffects) == 1 && fmt.Sprint(sideEffects[0]["kind"]) == "none"
+	if defaultsUndo && undo == "noop" {
+		return true
+	}
+	return defaultsSideEffects && len(sideEffects) == 1 && fmt.Sprint(sideEffects[0]["kind"]) == "none"
 }
 
 // declarationRoots are the trees this gate classifies: the agent-core fixtures

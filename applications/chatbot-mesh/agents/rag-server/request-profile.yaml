@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The profile the REST requests run under. It shares rest.yaml and the request
+# words with profile.yaml and carries nothing the main machine alone uses, so a
+# main-only import -- the monitor fragment -- is not judged unused against a
+# request's selection (srd050 R5, srd052 R3.1).
+name: rag-server-request
+machine: request-machine.yaml
+tools:
+- request-tools.yaml
+tool_declarations:
+- request-declarations.yaml
+rest_definitions:
+- rest.yaml

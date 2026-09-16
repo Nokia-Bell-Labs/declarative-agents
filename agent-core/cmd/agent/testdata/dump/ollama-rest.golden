@@ -152,11 +152,6 @@ tools:
         condition: required input, configuration, or runtime state is invalid
         message_shape: 'done: <error>'
         state_after_failure: no additional workflow step is executed by this tool
-    relationships:
-      before:
-        - machine-selected predecessor
-      after:
-        - machine-selected successor
     init: done
     emits:
       - TaskCompleted
@@ -254,11 +249,6 @@ tools:
         condition: required input, configuration, or runtime state is invalid
         message_shape: 'parse_response: <error>'
         state_after_failure: no additional workflow step is executed by this tool
-    relationships:
-      before:
-        - machine-selected predecessor
-      after:
-        - machine-selected successor
     init: parse_response
     config:
       manifest_state: Composing
@@ -308,11 +298,6 @@ tools:
         condition: required input, configuration, or runtime state is invalid
         message_shape: 'report_parse_error: <error>'
         state_after_failure: no additional workflow step is executed by this tool
-    relationships:
-      before:
-        - machine-selected predecessor
-      after:
-        - machine-selected successor
     init: report_parse_error
     config:
       feedback_template: |-
@@ -414,10 +399,10 @@ files:
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/tools.yaml
     sha256: 2f9d1b5d42f1a3cddf18ca157c3c07b9411e8c0d14c2ae0b264f253418688dc9
   - path: <agent-core>/tools/builtin/done.yaml
-    sha256: 73bd50e42d9508b44d7c06e145c09deb3148ed8eea955d99bde0e7b76c00f435
+    sha256: 5038c9ba4f5d5c2ae656d3032f95e66fccd959198a7117b1b84ebef9d52e62fa
   - path: <agent-core>/tools/builtin/parse-response.yaml
-    sha256: 8cd7d31bbe4a96a879a2ca193a859a3759cd9636b73c196ddc874fab9eb7601d
+    sha256: 03be4cf7edd69196be8ca5e0fd9e6bb7c83b18c685717a0e264a4cb53af1f6cb
   - path: <agent-core>/tools/builtin/report-parse-error.yaml
-    sha256: 443690cef033a5ae7a7a5c26f4ed5a0d5b50d52565e0a0203941bb4cc8c28a28
+    sha256: 4ae9e92a5ce3e249a5278284ace687ecaf8ae95231ff20dd301aa37b7bce2408
   - path: <agent-core>/tools/units/types-core.yaml
     sha256: 23b9182ef09b4feb01cf6c9438cdea033e526ea6bbee4012d0fce7a10163329b

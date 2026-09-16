@@ -357,7 +357,7 @@ rest:
                 role: {type: string}
                 content: {type: string}
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             # The apply leg waits on the applier\'s full rollout, so this tracks the
             # applier\'s own apply budget rather than a request-response round trip.
@@ -418,7 +418,7 @@ rest:
           path: /api/v1/rollout
           binding: machine_request
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             # Contains the applier rollout endpoint this hop calls, which allows
             # 30s because two real kubectl reads can exceed ten seconds on a
@@ -486,7 +486,7 @@ rest:
                 collection: {type: string}
                 embedding_model: {type: string}
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             timeout: 600s
             initial_signal: SeedIngest
@@ -603,7 +603,7 @@ rest:
           path: /api/v1/state
           binding: machine_request
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             # Contains the applier state endpoint this hop calls, which allows
             # 15s. Equal budgets left no margin for the hop itself, so a read

@@ -23,15 +23,23 @@ import (
 
 // Result is the stable JSON shape emitted by module and repository Mage targets.
 type Result struct {
-	TotalLines       int              `json:"total_lines"`
-	DuplicatedLines  int              `json:"duplicated_lines"`
-	DuplicationRatio float64          `json:"duplication_ratio"`
-	CeremonyLines    int              `json:"ceremony_lines"`
-	BehaviorLines    int              `json:"behavior_lines"`
-	CeremonyRatio    float64          `json:"ceremony_ratio"`
-	DistinctToolDefs int              `json:"distinct_tool_defs"`
-	ToolRefs         int              `json:"tool_refs"`
-	TopBlocks        []DuplicateBlock `json:"top_blocks"`
+	TotalLines       int     `json:"total_lines"`
+	DuplicatedLines  int     `json:"duplicated_lines"`
+	DuplicationRatio float64 `json:"duplication_ratio"`
+	CeremonyLines    int     `json:"ceremony_lines"`
+	BehaviorLines    int     `json:"behavior_lines"`
+	CeremonyRatio    float64 `json:"ceremony_ratio"`
+	DistinctToolDefs int     `json:"distinct_tool_defs"`
+	ToolRefs         int     `json:"tool_refs"`
+	// ImportedUnits is the number of distinct files something imports.
+	// SharedUnits have two or more importing files; SingleImporterUnits have
+	// one, which is an include by another name. Instantiations counts
+	// instantiate entries, a fragment applied with arguments (srd052).
+	ImportedUnits       int              `json:"imported_units"`
+	SharedUnits         int              `json:"shared_units"`
+	SingleImporterUnits int              `json:"single_importer_units"`
+	Instantiations      int              `json:"instantiations"`
+	TopBlocks           []DuplicateBlock `json:"top_blocks"`
 }
 
 // DuplicateBlock describes one repeated canonical YAML mapping.
@@ -53,6 +61,9 @@ type collector struct {
 	result      Result
 	definitions map[string]bool
 	blocks      map[string][]occurrence
+	// importers maps a resolved unit path to the files that import it, so a
+	// file importing one unit twice counts as one importer.
+	importers map[string]map[string]bool
 }
 
 var ceremonyFields = map[string]bool{
@@ -93,7 +104,7 @@ func Collect(baseDir string, roots ...string) (Result, error) {
 	}
 	c := collector{
 		base: base, definitions: map[string]bool{},
-		blocks: map[string][]occurrence{},
+		blocks: map[string][]occurrence{}, importers: map[string]map[string]bool{},
 	}
 	for _, path := range files {
 		if err := c.collectFile(path); err != nil {
@@ -181,7 +192,42 @@ func (c *collector) collectFile(path string) error {
 	}
 	c.collectTools(root)
 	c.collectMachineActions(root)
+	c.collectUnitEdges(root, path)
 	return nil
+}
+
+// collectUnitEdges records the top-level imports and instantiate entries of
+// one declaration file (srd050 R1.2, srd052 R2.1). An import path is relative
+// to the importing file, so the same unit reached from two directories
+// resolves to one key. Only scalar import entries and instantiate entries
+// naming a fragment count; anything else is not an edge the loader follows.
+func (c *collector) collectUnitEdges(root *yaml.Node, path string) {
+	directory := filepath.Dir(path)
+	if imports := mappingValue(root, "imports"); imports != nil && imports.Kind == yaml.SequenceNode {
+		for _, imported := range imports.Content {
+			if imported.Kind == yaml.ScalarNode && imported.Value != "" {
+				c.recordImporter(filepath.Join(directory, imported.Value), path)
+			}
+		}
+	}
+	instantiate := mappingValue(root, "instantiate")
+	if instantiate == nil || instantiate.Kind != yaml.SequenceNode {
+		return
+	}
+	for _, entry := range instantiate.Content {
+		if fragment := scalarMappingValue(entry, "fragment"); fragment != "" {
+			c.result.Instantiations++
+			c.recordImporter(filepath.Join(directory, fragment), path)
+		}
+	}
+}
+
+func (c *collector) recordImporter(unit, importer string) {
+	unit = filepath.Clean(unit)
+	if c.importers[unit] == nil {
+		c.importers[unit] = map[string]bool{}
+	}
+	c.importers[unit][filepath.Clean(importer)] = true
 }
 
 func normalizeEnvironmentReferences(data []byte) []byte {
@@ -363,6 +409,14 @@ func scalarMappingValue(mapping *yaml.Node, name string) string {
 
 func (c *collector) finish() {
 	c.result.DistinctToolDefs = len(c.definitions)
+	c.result.ImportedUnits = len(c.importers)
+	for _, files := range c.importers {
+		if len(files) >= 2 {
+			c.result.SharedUnits++
+		} else {
+			c.result.SingleImporterUnits++
+		}
+	}
 	blocks := make([]DuplicateBlock, 0)
 	duplicatedByHash := map[string]int{}
 	for hash, occurrences := range c.blocks {

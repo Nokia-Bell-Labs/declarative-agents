@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/envexpand"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
@@ -191,25 +192,30 @@ func LoadToolDefs(path string) ([]ToolDef, error) {
 
 func readToolDefsFile(
 	path string, options LoadOptions, visit FileVisitor,
-) (ToolDefsFile, error) {
+) (ToolDefsFile, []byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return ToolDefsFile{}, fmt.Errorf("load tool defs %s: %w", path, err)
+		return ToolDefsFile{}, nil, fmt.Errorf("load tool defs %s: %w", path, err)
 	}
 	if visit != nil {
 		if err := visit(path, data); err != nil {
-			return ToolDefsFile{}, fmt.Errorf("visit tool defs %s: %w", path, err)
+			return ToolDefsFile{}, nil, fmt.Errorf("visit tool defs %s: %w", path, err)
 		}
 	}
 	// Expanded before parsing, by the same rules the REST definition loader
 	// applies, so an address that differs between a local run and a deployment
 	// is an environment reference rather than a literal the deployment cannot
-	// reach (srd013 R5.6).
-	file, err := parseToolDefsFileRaw(data, options.ExpandEnv, options.TolerateNonToolFiles)
-	if err != nil {
-		return ToolDefsFile{}, fmt.Errorf("parse tool defs %s: %w", path, err)
+	// reach (srd013 R5.6). The expanded bytes are returned as well: a fragment
+	// is instantiated from them, not from the decoded file (srd052 R2.4).
+	expanded := data
+	if options.ExpandEnv {
+		expanded = envexpand.Expand(data)
 	}
-	return file, nil
+	file, err := parseToolDefsFileRaw(expanded, false, options.TolerateNonToolFiles)
+	if err != nil {
+		return ToolDefsFile{}, nil, fmt.Errorf("parse tool defs %s: %w", path, err)
+	}
+	return file, expanded, nil
 }
 
 // ParseToolDefs parses YAML bytes into tool definitions without resolving includes.
@@ -234,20 +240,57 @@ func parseToolDefsFileRaw(
 	}
 	hasTools := yamlstrict.FieldPresent(root, "tools")
 	hasTypes := yamlstrict.FieldPresent(root, "types")
-	if !hasTools && !hasTypes && tolerateNonTool {
+	hasParams := yamlstrict.FieldPresent(root, "params")
+	if !hasTools && !hasTypes && !hasParams && tolerateNonTool {
 		return ToolDefsFile{}, nil
 	}
-	var file ToolDefsFile
-	if err := yamlstrict.Unmarshal(expanded, &file); err != nil {
+	file, err := decodeToolDefsFile(expanded, hasParams)
+	if err != nil {
 		return ToolDefsFile{}, err
 	}
 	file.hasTools = hasTools
 	file.hasTypes = hasTypes
 	file.hasImports = yamlstrict.FieldPresent(root, "imports")
+	file.hasParams = hasParams
+	file.hasInstantiate = yamlstrict.FieldPresent(root, "instantiate")
+	// A unit is a fragment or it is not; half of one declares nothing
+	// (srd052 R1.3).
+	if file.hasParams && !file.hasTools && !file.hasTypes {
+		return ToolDefsFile{}, fmt.Errorf("fragment declares params but no tools or types body")
+	}
 	if !file.hasTools && !file.hasTypes {
 		return ToolDefsFile{}, fmt.Errorf("top-level tools field is required")
 	}
+	if !file.hasParams && fragments.References(expanded) {
+		return ToolDefsFile{}, fmt.Errorf("references $param but declares no params")
+	}
 	return file, nil
+}
+
+// decodeToolDefsFile decodes a file strictly. A fragment's body is left
+// undecoded: it holds $param references where typed fields stand, and it is
+// only a declaration once its arguments arrive (srd052 R2.4). Its header is
+// still checked strictly, and an unknown top-level field is still rejected.
+func decodeToolDefsFile(expanded []byte, fragment bool) (ToolDefsFile, error) {
+	if !fragment {
+		var file ToolDefsFile
+		return file, yamlstrict.Unmarshal(expanded, &file)
+	}
+	var header struct {
+		Unit        string                    `yaml:"unit,omitempty"`
+		Imports     []string                  `yaml:"imports,omitempty"`
+		Params      []fragments.Param         `yaml:"params,omitempty"`
+		Instantiate []fragments.Instantiation `yaml:"instantiate,omitempty"`
+		Tools       yaml.Node                 `yaml:"tools,omitempty"`
+		Types       yaml.Node                 `yaml:"types,omitempty"`
+	}
+	if err := yamlstrict.Unmarshal(expanded, &header); err != nil {
+		return ToolDefsFile{}, err
+	}
+	return ToolDefsFile{
+		Unit: header.Unit, Imports: header.Imports,
+		Params: header.Params, Instantiate: header.Instantiate,
+	}, nil
 }
 
 func toolDocumentRoot(data []byte) (*yaml.Node, error) {

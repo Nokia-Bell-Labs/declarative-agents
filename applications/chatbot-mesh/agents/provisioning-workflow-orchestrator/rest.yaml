@@ -381,7 +381,7 @@ rest:
                 embedding_model: {type: string}
                 directory: {type: string}
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             # The run this bounds waits on the creator's ingest child and then on
             # the rollout that child triggers. At 130s it cancelled the whole
@@ -461,7 +461,7 @@ rest:
               properties:
                 values: {type: string}
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: request-machine.yaml
             # The run this bounds waits on the creator's ingest child and then on
             # the rollout that child triggers. At 130s it cancelled the whole
@@ -514,7 +514,7 @@ rest:
           path: /provisioning/api/rollout
           binding: machine_request
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: rollout-machine.yaml
             # Contains the rollout-machine budget below and the creator rollout
             # hop it calls at 35s, which itself contains the applier's 30s read.
@@ -555,7 +555,7 @@ rest:
           path: /provisioning/api/state
           binding: machine_request
           machine_request:
-            profile: profile.yaml
+            profile: request-profile.yaml
             machine: state-machine.yaml
             # Contains the state-machine budget below and the creator state hop
             # it calls at 20s, so a slow read is reported rather than cut off.

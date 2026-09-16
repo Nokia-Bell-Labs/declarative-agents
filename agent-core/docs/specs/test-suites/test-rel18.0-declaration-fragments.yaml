@@ -1,0 +1,157 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel18.0-declaration-fragments
+title: Test Suite for Release 18.0 Declaration Fragments
+release: "18.0"
+
+traces:
+  - rel18.0-uc001-declaration-fragments
+
+preconditions:
+  - srd052-declaration-fragments defines the fragment format, instantiation, hygienic substitution, usedness, provenance, and stage splicing.
+  - srd050 imports and closure usedness, srd051 type units and the schema subset, and the canonical dump are available.
+  - Machine stage cases additionally require the srd038 label checks and srd006 exhaustiveness checks.
+
+test_cases:
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: A fragment with params and one body loads
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateProducesPrefixedTypedTools|TestInstantiateRESTFragmentTwiceWithPrefixes|TestFragmentBodyIsDecodedOnlyAfterSubstitution'
+    status: implemented
+    description: Load a fragment carrying unit, params of every allowed type, and a tools body; then one with a rest body.
+    expected:
+      loads: true
+      param_types: string, integer, number, boolean
+    traces: [rel18.0-uc001-declaration-fragments S1, srd052-declaration-fragments AC1, srd052-declaration-fragments R1.1]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: A fragment may import units but may not instantiate a fragment
+    go_test: go test ./internal/tools/catalog -run 'TestFragmentImportsResolveFromTheFragment|TestFragmentCannotNest'
+    status: implemented
+    description: Load a fragment importing a type unit, then one whose instantiate list names another fragment.
+    expected:
+      type_import_accepted: true
+      nested_instantiate_rejected: true
+    traces: [rel18.0-uc001-declaration-fragments S1, srd052-declaration-fragments AC1, srd052-declaration-fragments R1.2]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: Half a fragment is a load error naming the file
+    go_test: go test ./internal/tools/catalog -run 'TestHalfDeclaredFragmentFails'
+    status: implemented
+    description: Load a file with params and no body, then a file with a body and no params but a $param reference.
+    expected:
+      error_names_file: true
+    traces: [rel18.0-uc001-declaration-fragments S1, srd052-declaration-fragments AC1, srd052-declaration-fragments R1.3]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: An instantiate entry names fragment, args, and an optional prefix
+    go_test: go test ./internal/tools/catalog -run 'TestInstantiateProducesPrefixedTypedTools|TestPlainUnitCannotBeInstantiated'
+    status: implemented
+    description: Instantiate with and without as; resolve fragment relative to the importing file, including from a re-rooted directory.
+    expected:
+      fragment_resolved_relative_to_importer: true
+      as_optional: true
+    traces: [rel18.0-uc001-declaration-fragments S2, srd052-declaration-fragments AC2, srd052-declaration-fragments R2.1]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: Argument faults name importer, fragment, and parameter
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateArgumentFaultsNameImporterFragmentAndParameter|TestRESTArgumentFaultsNameImporterFragmentAndParameter'
+    status: implemented
+    description: Omit a required argument, supply an unknown one, pass a string for an integer, and pass a value outside an enum; a parameter with a default may be omitted.
+    expected:
+      every_error_names_importer_fragment_parameter: true
+      default_fills_omitted: true
+    traces: [rel18.0-uc001-declaration-fragments S2, srd052-declaration-fragments AC2, srd052-declaration-fragments R2.2]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: Substitution is hygienic and leaves no reference behind
+    go_test: go test ./internal/fragments ./internal/tools/catalog -run 'TestSubstitute|TestReferenceInMappingNameIsLeftAndReported'
+    status: implemented
+    description: Reference a parameter inside a scalar, inside a mapping name, and inside a list; reference an undeclared parameter.
+    expected:
+      scalar_substituted: true
+      mapping_name_not_substituted_and_rejected: true
+      undeclared_reference_names_fragment_and_line: true
+      env_and_selector_forms_untouched: true
+    traces: [rel18.0-uc001-declaration-fragments S2, srd052-declaration-fragments AC2, srd052-declaration-fragments R2.3]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: The instantiated document takes the hand-written validation path
+    go_test: go test ./internal/tools/catalog -run 'TestInstantiatedUnitTakesTheHandWrittenPath'
+    status: implemented
+    description: Instantiate a fragment producing a tool with a misspelled field, then one whose per-tool hook rejects its config.
+    expected:
+      strict_decode_applies: true
+      per_tool_hooks_apply: true
+      no_generated_file_written: true
+    traces: [rel18.0-uc001-declaration-fragments S2, srd052-declaration-fragments AC2, srd052-declaration-fragments R2.4]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: A prefix makes repeated instantiation possible
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateProducesPrefixedTypedTools|TestInstantiateRESTFragmentTwiceWithPrefixes'
+    status: implemented
+    description: "Instantiate one fragment twice with as: cohere and as: openai, then read both produced names."
+    expected:
+      names_prefixed: "<as>_<name>"
+      both_selectable: true
+    traces: [rel18.0-uc001-declaration-fragments S3, srd052-declaration-fragments AC2, srd052-declaration-fragments R2.5]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: A fragment under imports is rejected
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestFragmentUnderImportsIsRejected|TestRESTFragmentUnderImportsIsRejected'
+    status: implemented
+    description: List a fragment file under imports rather than instantiate.
+    expected:
+      error_names_importer_and_fragment: true
+    traces: [rel18.0-uc001-declaration-fragments S3, srd052-declaration-fragments AC2, srd052-declaration-fragments R2.6]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: Repeated instantiation without a prefix is the existing duplicate error
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestRepeatedInstantiationWithoutPrefixIsADuplicate|TestRepeatedRESTInstantiationWithoutPrefixIsTheConflictError'
+    status: implemented
+    description: Instantiate one fragment twice with identical args and no as.
+    expected:
+      error: srd050 duplicate-name error, not a fragment-specific one
+    traces: [rel18.0-uc001-declaration-fragments S3, srd052-declaration-fragments AC2, srd052-declaration-fragments R2.7]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: An unselected instantiation is an unused import
+    go_test: go test ./internal/load -run 'TestLoadClosureReportsAnUnselectedInstantiationAsUnused|TestLoadClosureReportsAnUnreferencedRESTInstantiationAsUnused'
+    status: implemented
+    description: Instantiate a fragment whose produced tools tools.yaml never selects; then select one of them.
+    expected:
+      unselected_fails_as_unused_import: true
+      evidence: importing file, fragment path, arguments
+      selected_passes: true
+    traces: [rel18.0-uc001-declaration-fragments S4, srd052-declaration-fragments AC3, srd052-declaration-fragments R3.1]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: The dump lists every instantiation
+    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsEveryInstantiation|TestLoadClosureDumpsRESTInstantiationsBesideToolOnes|TestDumpGolden'
+    status: implemented
+    description: Dump a profile with two instantiations and compare the instantiations section across two runs.
+    expected:
+      section: instantiations
+      entries_carry: fragment, args, produced names
+      two_dumps_identical: true
+    traces: [rel18.0-uc001-declaration-fragments S4, srd052-declaration-fragments AC3, srd052-declaration-fragments R3.2]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: A stage fragment splices under a prefix with parameterized entry and exit
+    go_test: go test ./internal/runtime/core -run 'TestLoadMachineClosureSplicesAStageTwice|TestStageArgumentFaultsNameFragmentAndParameter'
+    status: implemented
+    description: Instantiate a stage fragment into a machine with entry and exit signals passed as arguments and read the resulting states and transitions.
+    expected:
+      states_prefixed: true
+      entry_exit_from_args: true
+    traces: [rel18.0-uc001-declaration-fragments S5, srd052-declaration-fragments AC4, srd052-declaration-fragments R4.1]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: A spliced machine is checked as one machine
+    go_test: go test ./internal/runtime/core ./internal/load ./cmd/agent -run 'TestSplicedStageIsValidatedAsOneMachine|TestSplicingTheSamePrefixTwiceIsTheDuplicateStateError|TestLoadClosureDumpsMachineStageInstantiations|TestDumpGolden'
+    status: implemented
+    description: Splice a stage whose transition reads a label the importing machine never publishes, then one with an unhandled signal, then a correct one.
+    expected:
+      label_check_applies: true
+      exhaustiveness_applies: true
+      correct_splice_loads: true
+    traces: [rel18.0-uc001-declaration-fragments S5, srd052-declaration-fragments AC4, srd052-declaration-fragments R4.2]

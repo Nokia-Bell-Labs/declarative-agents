@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -123,6 +125,54 @@ func mkProfile(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte("name: test\nmachine: machine.yaml\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestDiscoverAuditProfilesSkipsRequestScopedProfiles: a profile a REST
+// definition names as a machine_request target is entered only through a
+// request, so it boots through its parent's inspection rather than standalone;
+// a profile.yaml named as its own request target stays a main entry.
+func TestDiscoverAuditProfilesSkipsRequestScopedProfiles(t *testing.T) {
+	root := t.TempDir()
+	writeSmokeFile(t, filepath.Join(root, "agents", "curator", "profile.yaml"), "name: curator\n")
+	writeSmokeFile(t, filepath.Join(root, "agents", "curator", "request-profile.yaml"), "name: curator-request\n")
+	writeSmokeFile(t, filepath.Join(root, "agents", "curator", "rest.yaml"), `rest:
+  servers:
+    curator:
+      endpoints:
+        read:
+          machine_request: {profile: request-profile.yaml, machine: request-machine.yaml}
+        self:
+          machine_request: {profile: profile.yaml, machine: request-machine.yaml}
+`)
+	writeSmokeFile(t, filepath.Join(root, "agents", "plain", "profile.yaml"), "name: plain\n")
+
+	profiles, err := discoverAuditProfiles(root)
+	if err != nil {
+		t.Fatalf("discoverAuditProfiles: %v", err)
+	}
+	var names []string
+	for _, profile := range profiles {
+		rel, err := filepath.Rel(root, profile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		names = append(names, filepath.ToSlash(rel))
+	}
+	sort.Strings(names)
+	want := []string{"agents/curator/profile.yaml", "agents/plain/profile.yaml"}
+	if !reflect.DeepEqual(names, want) {
+		t.Fatalf("discovered %v, want %v (request-profile.yaml boots through its parent)", names, want)
+	}
+}
+
+func writeSmokeFile(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

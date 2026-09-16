@@ -1,0 +1,41 @@
+{
+  "commit": "e781bc6c",
+  "roots": "per module: agents, tools, testdata (reusestats.Reuse); testdata fixtures count as importers",
+  "rule": "a unit earns its place with two or more importers or one instantiation (GH-2079)",
+  "agent-core": {
+    "imported_units": 94,
+    "shared_units": 9,
+    "single_importer_units": 85,
+    "instantiations": 0
+  },
+  "applications/agent-architecture": {
+    "imported_units": 0,
+    "shared_units": 0,
+    "single_importer_units": 0,
+    "instantiations": 0
+  },
+  "applications/catalog": {
+    "imported_units": 6,
+    "shared_units": 3,
+    "single_importer_units": 3,
+    "instantiations": 0
+  },
+  "applications/chatbot-mesh": {
+    "imported_units": 2,
+    "shared_units": 1,
+    "single_importer_units": 1,
+    "instantiations": 0
+  },
+  "applications/coding-agent": {
+    "imported_units": 0,
+    "shared_units": 0,
+    "single_importer_units": 0,
+    "instantiations": 0
+  },
+  "reuse_total": {
+    "imported_units": 102,
+    "shared_units": 13,
+    "single_importer_units": 89,
+    "instantiations": 0
+  }
+}

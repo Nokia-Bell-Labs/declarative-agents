@@ -21,13 +21,14 @@ import (
 )
 
 type dumpDocument struct {
-	Version int                  `yaml:"dump_version"`
-	Profile catalog.AgentProfile `yaml:"profile"`
-	Machine core.MachineSpec     `yaml:"machine"`
-	Types   []dumpType           `yaml:"types,omitempty"`
-	Tools   []catalog.ToolDef    `yaml:"tools"`
-	Rest    restDump             `yaml:"rest"`
-	Files   []dumpFile           `yaml:"files"`
+	Version        int                  `yaml:"dump_version"`
+	Profile        catalog.AgentProfile `yaml:"profile"`
+	Machine        core.MachineSpec     `yaml:"machine"`
+	Types          []dumpType           `yaml:"types,omitempty"`
+	Instantiations []dumpInstantiation  `yaml:"instantiations,omitempty"`
+	Tools          []catalog.ToolDef    `yaml:"tools"`
+	Rest           restDump             `yaml:"rest"`
+	Files          []dumpFile           `yaml:"files"`
 }
 
 // dumpType renders one declared type under its unit.Name address. Tool schemas
@@ -38,6 +39,15 @@ type dumpType struct {
 	Ref         string         `yaml:"ref"`
 	Description string         `yaml:"description,omitempty"`
 	Schema      map[string]any `yaml:"schema,omitempty"`
+}
+
+// dumpInstantiation renders one application of a fragment: where it came
+// from, what filled it, and what it produced (srd052 R3.2).
+type dumpInstantiation struct {
+	Fragment string            `yaml:"fragment"`
+	As       string            `yaml:"as,omitempty"`
+	Args     map[string]string `yaml:"args,omitempty"`
+	Produces []string          `yaml:"produces"`
 }
 
 type restDump struct {
@@ -68,8 +78,9 @@ func DumpConfig(closure *Closure, writer io.Writer) error {
 	}
 	data, err := canonicalYAML(dumpDocument{
 		Version: 1, Profile: closure.Profile, Machine: closure.Machine,
-		Types: newTypeDump(closure.Types),
-		Tools: tools, Rest: newRestDump(closure.Rest), Files: files,
+		Types:          newTypeDump(closure.Types),
+		Instantiations: newInstantiationDump(closure.ToolUniverse, closure.Rest, closure.Machine),
+		Tools:          tools, Rest: newRestDump(closure.Rest), Files: files,
 	})
 	if err != nil {
 		return err
@@ -96,6 +107,50 @@ func newTypeDump(registry *typesys.Registry) []dumpType {
 		})
 	}
 	return types
+}
+
+// newInstantiationDump groups the universe's tools by the fragment
+// application that produced them, sorted by fragment path then prefix, with
+// produced names sorted, so a dump is byte-identical across runs.
+func newInstantiationDump(
+	universe []catalog.ToolDef, rest toolrest.Collection, machine core.MachineSpec,
+) []dumpInstantiation {
+	byKey := map[string]*dumpInstantiation{}
+	record := func(fragment, as string, args map[string]string, produced ...string) {
+		key := fragment + "\x00" + as
+		entry, exists := byKey[key]
+		if !exists {
+			entry = &dumpInstantiation{Fragment: fragment, As: as, Args: args}
+			byKey[key] = entry
+		}
+		entry.Produces = append(entry.Produces, produced...)
+	}
+	for _, tool := range universe {
+		if instantiation, ok := tool.Instantiation(); ok {
+			record(instantiation.Fragment, instantiation.As, instantiation.Args, tool.Name)
+		}
+	}
+	for _, instantiation := range rest.DeclarationInstantiations() {
+		record(instantiation.Fragment, instantiation.As, instantiation.Args, instantiation.Produces...)
+	}
+	for _, instantiation := range machine.Instantiations() {
+		record(instantiation.Fragment, instantiation.As, instantiation.Args, instantiation.Produces...)
+	}
+	if len(byKey) == 0 {
+		return nil
+	}
+	entries := make([]dumpInstantiation, 0, len(byKey))
+	for _, entry := range byKey {
+		sort.Strings(entry.Produces)
+		entries = append(entries, *entry)
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Fragment != entries[j].Fragment {
+			return entries[i].Fragment < entries[j].Fragment
+		}
+		return entries[i].As < entries[j].As
+	})
+	return entries
 }
 
 func dumpFiles(closure *Closure) ([]dumpFile, error) {

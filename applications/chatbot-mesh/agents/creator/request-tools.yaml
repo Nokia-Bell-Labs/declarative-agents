@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The words the request machines dispatch; the request profile selects exactly
+# these, so a request closure carries no main-machine word.
+tools:
+  - apply_instance
+  - count_after_ingest
+  - count_before_ingest
+  - ingest_wrote_documents
+  - read_state
+  - report_ingest_outcome
+  - requested_family_matches
+  - resolve_ingest_collection
+  - run_corpus_ingest
+  - verify_health

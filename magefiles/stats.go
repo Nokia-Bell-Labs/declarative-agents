@@ -103,6 +103,10 @@ func sumReuseResults(results map[string]reusestats.Result) reusestats.Result {
 		total.BehaviorLines += result.BehaviorLines
 		total.DistinctToolDefs += result.DistinctToolDefs
 		total.ToolRefs += result.ToolRefs
+		total.ImportedUnits += result.ImportedUnits
+		total.SharedUnits += result.SharedUnits
+		total.SingleImporterUnits += result.SingleImporterUnits
+		total.Instantiations += result.Instantiations
 		addModuleBlocks(groups, module, result.TopBlocks)
 	}
 	total.DuplicationRatio = statsRatio(total.DuplicatedLines, total.TotalLines)

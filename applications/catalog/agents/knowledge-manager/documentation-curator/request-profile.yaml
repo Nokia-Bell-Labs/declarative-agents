@@ -1,0 +1,17 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The profile the documentation REST requests run under. It shares rest.yaml
+# and the request words with profile.yaml and carries nothing the main machine
+# alone uses, so a main-only import -- the monitor control fragment -- is not
+# judged unused against a request's selection (srd050 R5, srd052 R3.1).
+name: catalog-documentation-curator-request
+machine: request-machine.yaml
+tools:
+- request-tools.yaml
+tool_declarations:
+- request-declarations.yaml
+- /opt/agent-core/tools/builtin/load-corpus.yaml
+- /opt/agent-core/tools/builtin/validate-specs.yaml
+- /opt/agent-core/tools/builtin/format-report.yaml
+rest_definitions:
+- rest.yaml

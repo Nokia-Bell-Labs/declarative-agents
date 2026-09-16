@@ -28,10 +28,5 @@ tools:
     condition: required input, configuration, or runtime state is invalid
     message_shape: 'expand_eval_grid: <error>'
     state_after_failure: no additional workflow step is executed by this tool
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: expand_eval_grid command result summary.

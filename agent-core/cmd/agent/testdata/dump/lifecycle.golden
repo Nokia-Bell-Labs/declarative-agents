@@ -137,11 +137,6 @@ tools:
         condition: required input, configuration, or runtime state is invalid
         message_shape: 'done: <error>'
         state_after_failure: no additional workflow step is executed by this tool
-    relationships:
-      before:
-        - machine-selected predecessor
-      after:
-        - machine-selected successor
     init: done
     emits:
       - TaskCompleted
@@ -228,7 +223,7 @@ files:
   - path: <agent-core>/testdata/integration/profiles/lifecycle/tools.yaml
     sha256: a3be02c2c7c96a9b5fca8dcea06f9f782f77ec97d80ffc74fc6281295904d7d2
   - path: <agent-core>/tools/builtin/done.yaml
-    sha256: 73bd50e42d9508b44d7c06e145c09deb3148ed8eea955d99bde0e7b76c00f435
+    sha256: 5038c9ba4f5d5c2ae656d3032f95e66fccd959198a7117b1b84ebef9d52e62fa
   - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
     sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25
   - path: <agent-core>/tools/builtin/suspend.yaml

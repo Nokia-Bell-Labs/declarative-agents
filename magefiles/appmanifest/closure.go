@@ -472,7 +472,11 @@ func yamlReferences(document *yaml.Node) []string {
 					stringSet("profile", "subject_profile", "point_machine",
 						"point_tools", "point_tool_declarations", "includes", "imports")[key] ||
 					(key == "machine" && contains(ancestors, "machine_request")) ||
-					(key == "path" && contains(ancestors, "openapi"))
+					(key == "path" && contains(ancestors, "openapi")) ||
+					// An instantiation is an import edge whose unit is filled in
+					// on the way (srd052 R2.1); the fragment travels with the
+					// declaration or machine that instantiates it.
+					(key == "fragment" && contains(ancestors, "instantiate"))
 				if pathField {
 					allowDirectory := topLevelField && (key == "tool_config_dirs" || key == "rest_config_dirs")
 					references = append(references, referenceStrings(value, allowDirectory)...)

@@ -31,10 +31,5 @@ tools:
     condition: required input, configuration, or runtime state is invalid
     message_shape: 'report_session: <error>'
     state_after_failure: no additional workflow step is executed by this tool
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: report_session command result summary.
