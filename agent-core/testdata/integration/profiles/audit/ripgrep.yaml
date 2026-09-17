@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: audit-ripgrep
+imports:
+  - /opt/agent-core/tools/units/types-core.yaml
 tools:
   - name: jurist_rg
     type: exec
@@ -8,6 +10,9 @@ tools:
     args: [--json, --line-number, --no-ignore, --hidden, --text, --threads, "1", --sort, path]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      output: builtin-types-core.ExecResult
+      emits: [ToolDone, ToolFailed, CommandError]
     parameters:
       type: object
       properties:
@@ -34,10 +39,4 @@ tools:
       required: [query, path]
     output:
       mode: structured
-      schema:
-        type: object
-        properties:
-          output: {type: string}
-          exit_code: {type: integer}
-        required: [output, exit_code]
     output_cap: 1048576

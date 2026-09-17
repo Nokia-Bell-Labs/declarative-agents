@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: builtin-load-corpus
+imports:
+- ../units/types-spec-validation.yaml
 tools:
 - name: load_corpus
   type: builtin
@@ -12,6 +14,9 @@ tools:
   emits:
   - ToolDone
   - CommandError
+  signature:
+    output: builtin-types-spec-validation.LoadedCorpus
+    emits: [ToolDone, CommandError]
   description: Load the specification corpus from the project directory.
   category: stateful_internal
   side_effects:
@@ -19,8 +24,6 @@ tools:
     target: validation_state
     state: corpus_loaded
     description: Loads specification documents into validation state.
-  reversibility:
-    classification: reversible
   undo:
     strategy: session_state_restore
     description: Restore validation state to the snapshot before loading the corpus.
@@ -51,22 +54,3 @@ tools:
     - machine-selected successor
   output:
     description: Loaded corpus summary and the declared search plans consumed by the specification-critic machine.
-    schema:
-      type: object
-      properties:
-        summary:
-          type: string
-        grep_checks:
-          type: array
-          items: {type: object}
-        ref_checks:
-          type: array
-          items: {type: object}
-        consistency_checks:
-          type: array
-          items: {type: object}
-      required:
-      - summary
-      - grep_checks
-      - ref_checks
-      - consistency_checks
