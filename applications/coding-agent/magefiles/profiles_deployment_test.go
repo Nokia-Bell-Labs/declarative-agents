@@ -64,6 +64,7 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 			"agents/executor/machine.yaml",
 			"agents/executor/profile.yaml",
 			"agents/executor/tools.yaml",
+			"agents/units/invoke-llm-model-fragment.yaml",
 			"applications/coding-agent/role-server/declarations.yaml",
 			"applications/coding-agent/role-server/machine.yaml",
 			"applications/coding-agent/role-server/tools.yaml",

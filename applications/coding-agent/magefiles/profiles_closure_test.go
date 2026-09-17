@@ -311,6 +311,8 @@ func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 	for _, required := range []string{
 		"agents/planner/builtin.yaml",
 		"agents/executor/llm/default.yaml",
+		// The executor's model file instantiates this fragment (GH-2150).
+		"agents/units/invoke-llm-model-fragment.yaml",
 		"agents/critic/point.yaml",
 		"agents/critic/profile-workspace.yaml",
 		"agents/critic/workspace-exec.yaml",
