@@ -273,7 +273,8 @@ implementation_status:
     - GH-2064 and GH-2065 type the boundary REST labels from the runtime result, which is what R6.12 exempts a boundary tool from restating.
     - GH-2026 makes the unit segment a namespace (R1.4, R4.3), so catalog-types-core declares Text and Comparison under the names they describe.
     - GH-2023 promotes R6.13, so the authoring checks in internal/tools/catalog and the corpus audit in pkg/spec agree about relationships.
+    - GH-2110 adds R6.14 and R6.15, lists unsigned and uncategorized tools in the declaration legacy gate, and signs every boundary and stateful_internal tool in coding-agent, agent-architecture, catalog, chatbot-mesh, and agent-core, deleting their descriptive prose; repository ceremony fell from 8,097 to 3,507 lines.
     - GH-2069 promoted R1.5 after establishing that an application could not reach agent-core's units, because the repository and the image place the two trees at different relative distances; srd056 amends R1.5 so a library-root path reaches them in both.
   planned:
     - GH-2118 implements R1.5 as amended by srd056 and deletes the application copies of agent-core type units.
-    - GH-2110 adds R6.14 and R6.15, lists unsigned boundary and stateful_internal tools and uncategorized tools in the declaration legacy gate, and migrates each application's tools to signatures, deleting their descriptive prose.
+    - GH-2150 categorizes or folds the 26 catalog critic session and LLM overlay tools that R6.15 still lists; the corpus audit then promotes R6.14 and R6.15.
