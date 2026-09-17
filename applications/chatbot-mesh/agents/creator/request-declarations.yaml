@@ -10,29 +10,13 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Realize the decided operation by forwarding the values document to the deployment API's apply path.
-    problem: A decided instance operation must be realized against real instances, and the creator alone holds the deployment-API authority that does so.
-    goals:
-      - Forward the provisioning-workflow-orchestrator's decided values-plane document as the versioned apply request content (srd006 R1.4).
-      - Drive the deployment API to apply it, authoring no values decision.
-      - Advance to the health verification when the deployment API accepts the apply.
-    requirements:
-      input:
-        - The values document (content) is selected from the seeded instance body.
-        - The caller's operation name is selected from the same body and carried, not sent; the deployment API decides nothing from it.
-      output:
-        - Output reports the deployment API's apply status, with the caller's operation carried forward.
-      errors:
-        - A values document the chart's own schema refuses emits InstanceRejected.
-        - Network, timeout, schema, and mapping failures emit CommandError.
-    non_goals:
-      - Does not decide what to change; the values decision is the provisioning-workflow-orchestrator's.
-      - Does not accept a runtime method, URL, host, or credential for the deployment API.
     parameters:
       type: object
       properties:
         content: {type: string}
         operation: {type: string}
-    emits: [InstanceApplied, InstanceRejected, CommandError]
+    signature:
+      emits: [InstanceApplied, InstanceRejected, CommandError]
     output:
       description: Deployment-API apply status, carrying the caller's operation.
       schema:
@@ -59,8 +43,6 @@ tools:
       - signal: CommandError
         condition: Network, timeout, schema, or mapping failure reaching the deployment API.
         state_after_failure: The operation outcome is unknown; the request ends in Failed.
-    relationships:
-      before: [verify_health]
     config:
       rest_ref: deployment_api
       operation: apply_instance
@@ -105,23 +87,6 @@ tools:
     category: boundary
     visibility: internal
     description: Run a corpus-ingest child agent over the requested directory and into the requested collection, so the creator realizes an ingest operation rather than forwarding it to the deployment API.
-    problem: The creator must create a child agent run per requested directory (srd005 R3.1); its only other client drives the deployment API, which applies values and cannot ingest a corpus.
-    goals:
-      - Run the corpus-ingest profile as a child agent over the requested directory.
-      - Write into the collection the caller named, by overlaying it on the child's inherited environment.
-      - Emit ToolDone when the child reaches a success terminal and ToolFailed when it reaches a failure terminal.
-    requirements:
-      input:
-        - must run the configured corpus-ingest profile with the requested directory as the child workspace
-        - must give the child the requested collection, so the collection resolved, counted, and written is one value
-      output:
-        - must include the child's exit status and captured output
-      errors:
-        - must emit ToolFailed when the child reaches a failure terminal or cannot run
-    non_goals:
-      - Does not decide what to ingest; the provisioning-workflow-orchestrator names the directory and the collection.
-      - Does not verify the outcome; the collection count read does, because a child can exit zero having written nothing.
-      - Does not choose the embedding family; that stays deployment configuration, because an ingest at a family the serving RAG unit does not report leaves every document it wrote unreachable (srd002 R3.3).
     parameters:
       type: object
       properties:
@@ -150,7 +115,8 @@ tools:
           source: $from(resolve_ingest_collection).carried.collection
           description: The collection the caller asked to ingest into, handed to the child through CORPUS_INGEST_COLLECTION.
       required: [directory, collection]
-    emits: [ToolDone, ToolFailed]
+    signature:
+      emits: [ToolDone, ToolFailed]
     output:
       description: corpus-ingest child agent process result.
       schema:
@@ -171,9 +137,6 @@ tools:
         condition: the child reaches a failure terminal, exhausts its budget, or the binary cannot run
         message_shape: <captured child agent output>
         state_after_failure: the requested collection may hold a partial ingest; the request ends in IngestFailed
-    relationships:
-      after: [count_before_ingest]
-      before: [count_after_ingest]
     undo:
       strategy: irreversible
       description: The child may have added external collection records that this parent command cannot identify or remove safely.
@@ -183,24 +146,11 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Resolve the collection the caller named to its id before the child run, so both count reads and the child address the same collection.
-    problem: Chroma's count endpoint addresses a collection by id, and the request carries only a name.
-    goals:
-      - Resolve the requested collection to its id.
-      - Keep the read total by creating the collection when absent, so an ingest that wrote nothing counts zero rather than failing as a missing resource, and a caller's first ingest into a new collection is not a missing resource either.
-      - Carry the requested name forward, so the child run downstream is given the same collection this word resolved.
-    requirements:
-      input:
-        - The collection and directory are mapped from the seeded request; the endpoint declares both required, so neither arrives empty.
-      output:
-        - Output carries the resolved collection id and the name Chroma echoed for it.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
-    non_goals:
-      - Does not write documents; the child does.
     parameters:
       type: object
       properties: {}
-    emits: [CollectionResolved, CommandError]
+    signature:
+      emits: [CollectionResolved, CommandError]
     output:
       description: Resolved Chroma collection id and the name Chroma resolved.
       schema:
@@ -225,8 +175,6 @@ tools:
       - signal: CommandError
         condition: Network, timeout, schema, or mapping failure reaching Chroma.
         state_after_failure: No count is read; the request ends in IngestFailed.
-    relationships:
-      before: [count_before_ingest]
     config:
       rest_ref: chroma
       operation: resolve_ingest_collection
@@ -236,25 +184,12 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Read the collection's document count before the child run, establishing the baseline for this run's outcome.
-    problem: A collection can already hold documents, so its total after a child run cannot show whether that run contributed anything.
-    goals:
-      - Read the item count of the resolved collection before the child runs.
-      - Leave the baseline addressable through command state for the later predicate (agent-core srd038).
-    requirements:
-      input:
-        - The collection id is selected from resolve_ingest_collection through command state.
-      output:
-        - Output carries the pre-run collection count.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
-    non_goals:
-      - Does not judge the run; the predicate compares this baseline with the post-run count.
-      - Does not mutate the collection.
     parameters:
       type: object
       properties:
         collection: {type: string}
-    emits: [DocumentsCounted, CommandError]
+    signature:
+      emits: [DocumentsCounted, CommandError]
     output:
       description: The pre-run collection count, carried as a string because Chroma answers with a bare integer.
       schema:
@@ -274,9 +209,6 @@ tools:
       - signal: CommandError
         condition: Network, timeout, schema, or mapping failure reaching Chroma.
         state_after_failure: No baseline is recorded and the child does not run; the request ends in IngestFailed.
-    relationships:
-      after: [resolve_ingest_collection]
-      before: [run_corpus_ingest]
     config:
       rest_ref: chroma
       operation: count_ingested_documents
@@ -286,25 +218,12 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Read the collection's document count after the child run, so the creator can measure this run's contribution.
-    problem: A corpus-ingest child can exit zero having written nothing, and a populated collection's total remains non-zero even when the child contributes nothing.
-    goals:
-      - Read the item count of the same collection after the child runs.
-      - Supply the post-run count to the predicate while the pre-run baseline remains in command state.
-    requirements:
-      input:
-        - The collection id is selected from resolve_ingest_collection through command state.
-      output:
-        - Output carries the post-run collection count.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
-    non_goals:
-      - Does not judge the run; the predicate compares this count with the pre-run baseline.
-      - Does not mutate the collection.
     parameters:
       type: object
       properties:
         collection: {type: string}
-    emits: [DocumentsCounted, CommandError]
+    signature:
+      emits: [DocumentsCounted, CommandError]
     output:
       description: The post-run collection count, carried as a string because Chroma answers with a bare integer.
       schema:
@@ -324,9 +243,6 @@ tools:
       - signal: CommandError
         condition: Network, timeout, schema, or mapping failure reaching Chroma.
         state_after_failure: No post-run count is reported; the request ends in IngestFailed.
-    relationships:
-      after: [run_corpus_ingest]
-      before: [ingest_wrote_documents]
     config:
       rest_ref: chroma
       operation: count_ingested_documents
@@ -436,25 +352,11 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Read the deployed mesh view from the applier's state endpoint, so the provisioning panel's initial load is served by the creator.
-    problem: The panel loads its mesh view from the provisioning-workflow-orchestrator rather than from the deployment API, which no browser may reach, and the creator is the only agent that declares a deployment-API client.
-    goals:
-      - Read the applier-reported RAG topology, LLM configuration, and parameters.
-      - Serve the mesh view the provisioning panel renders on its initial load (srd006 R1.5).
-    requirements:
-      input:
-        - Takes no request-scoped input; the read is unparameterized.
-      output:
-        - Output carries the flat mesh-view fields the applier's state endpoint reports.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError rather than an empty view.
-        - A creator read that answers 502 because the applier could not read the release is outside the declared success status and emits CommandError.
-    non_goals:
-      - Does not drive an instance operation; a state read mutates nothing.
-      - Does not accept a runtime method, URL, host, or credential for the applier.
     parameters:
       type: object
       properties: {}
-    emits: [StateReported, CommandError]
+    signature:
+      emits: [StateReported, CommandError]
     output:
       description: Applier-reported mesh view -- topology, LLM configuration, and parameters -- as the flat fields the state_response contract declares (srd006 deployment_api_contract).
       schema:
@@ -484,10 +386,6 @@ tools:
       - signal: CommandError
         condition: Network, timeout, schema, or mapping failure reaching the applier.
         state_after_failure: No mesh view is reported; the request ends in Failed.
-    relationships:
-      overlaps:
-        - tool: verify_health
-          difference: read_state reads the deployed values for the panel's initial view; verify_health reads rollout health to confirm an operation's outcome.
     config:
       rest_ref: deployment_api
       operation: read_state
@@ -497,25 +395,11 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Verify the instance's health through the deployment API's rollout read.
-    problem: A created or restarted instance must be confirmed healthy before the operation is reported complete.
-    goals:
-      - Read the rollout status from the deployment API.
-      - Report the instance health and revision for the provisioning-workflow-orchestrator's aggregated status.
-    requirements:
-      input:
-        - The rollout read takes no request-scoped input beyond the applied operation.
-      output:
-        - Output includes the reported health phase and the Deployment's ready and desired replicas and revision.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
-        - A rollout read the applier could not serve answers 502, outside the declared success status, and so emits CommandError rather than a phase.
-    non_goals:
-      - Does not mutate the deployment state; the read is idempotent.
-      - Does not accept a runtime method, URL, host, or credential for the deployment API.
     parameters:
       type: object
       properties: {}
-    emits: [HealthReported, CommandError]
+    signature:
+      emits: [HealthReported, CommandError]
     output:
       description: Deployment-API rollout health and the Deployment's replica counts and revision.
       schema:
@@ -538,8 +422,6 @@ tools:
       - signal: CommandError
         condition: Network, timeout, schema, or mapping failure reaching the deployment API.
         state_after_failure: The instance health is unknown; the request ends in Failed.
-    relationships:
-      after: [apply_instance]
     config:
       rest_ref: deployment_api
       operation: read_rollout

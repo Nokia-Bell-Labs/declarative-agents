@@ -91,7 +91,6 @@ type execDeclaration struct {
 		Signal    string `yaml:"signal"`
 		Condition string `yaml:"condition"`
 	} `yaml:"errors"`
-	Relationships map[string]any `yaml:"relationships"`
 }
 
 type execDeclarations struct {
@@ -316,9 +315,8 @@ func TestApplierRolloutCountsWordContract(t *testing.T) {
 			t.Errorf("declared error %+v does not name a ToolFailed condition", e)
 		}
 	}
-	if len(word.Relationships) == 0 {
-		t.Error("the counts word declares no relationships; its order against kubectl_rollout_poll is what makes the counts the last output")
-	}
+	// Its order after kubectl_rollout_poll is the rollout machine's statement
+	// (srd051 R6.13), proved by the rollout machine test.
 }
 
 // TestApplierRolloutCountsRenderJSON runs the declared go-template over the

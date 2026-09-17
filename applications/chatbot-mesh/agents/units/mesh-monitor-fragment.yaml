@@ -25,21 +25,6 @@ tools:
     visibility: internal
     category: boundary
     description: Launch read-only REST endpoints for cached monitor state.
-    problem: Operators need a profile-owned monitor reader that does not run tools.
-    goals:
-      - Register monitor snapshot, metadata, and stream routes.
-      - Keep monitor access inside the existing REST server tool path.
-    requirements:
-      input:
-        - Tool config references the trusted monitor REST server definition.
-      output:
-        - Output reports server name, bound address, and route count.
-      errors:
-        - Config, bind, route conflict, and schema failures emit CommandError.
-    non_goals:
-      - Does not execute monitor reads as MachineSpec workflow actions.
-      - Does not require a sidecar, collector, or external database.
-    emits: [ServerLaunched, CommandError]
     signature:
       input: mesh-types-server.NoParameters
       output: mesh-types-server.ServerLaunch
@@ -59,11 +44,6 @@ tools:
       - signal: CommandError
         condition: Monitor REST server config, bind, route, or schema failure.
         state_after_failure: No monitor route is exposed.
-    relationships:
-      overlaps:
-        - tool: rest_server_launch
-          difference: This profile-specific word binds only the monitor REST route set.
-      before: [$param(control_await)]
     config:
       rest_ref: monitor
   - name: stop_monitor_rest
@@ -72,21 +52,6 @@ tools:
     visibility: internal
     category: boundary
     description: Stop the owned monitor REST listener.
-    problem: The $param(agent) must release its monitor listener before reaching a terminal state.
-    goals:
-      - Stop the configured monitor REST server.
-      - Emit ServerStopped so MachineSpec can continue teardown.
-    requirements:
-      input:
-        - Tool config references the trusted monitor REST server definition.
-      output:
-        - Output reports server name, bound address, and stopped status.
-      errors:
-        - Missing server, shutdown timeout, and cleanup failures emit CommandError.
-    non_goals:
-      - Does not write monitor metrics or snapshots.
-      - Does not relaunch the monitor server.
-    emits: [ServerStopped, CommandError]
     signature:
       input: mesh-types-server.NoParameters
       output: mesh-types-server.ServerStop
@@ -108,8 +73,5 @@ tools:
       - signal: CommandError
         condition: Monitor REST server is missing, shutdown times out, or cleanup fails.
         state_after_failure: Monitor listener state may be partially stopped.
-    relationships:
-      after: [$param(control_await)]
-      before: [$param(requests_stop)]
     config:
       rest_ref: monitor

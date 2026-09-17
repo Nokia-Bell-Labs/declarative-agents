@@ -17,24 +17,12 @@ tools:
     visibility: internal
     category: boundary
     description: Query the currently bound RAG source with the message vector.
-    problem: The chatbot must fan one embedding out over an ordered runtime topology without one word per source.
-    goals:
-      - Read the selected RAG authority from the trusted for_each item binding.
-      - Return chunks and the source's reported embedding model.
-    requirements:
-      input:
-        - The query embedding and current topology item are selected from command state.
-      output:
-        - Output includes ids, documents, distances, and embedding_model.
-      errors:
-        - A mapped 400 emits QueryRejected; transport and mapping failures emit CommandError.
-    non_goals:
-      - Does not accept a model-authored URL, method, credential, or operation.
     parameters:
       type: object
       properties: {}
       additionalProperties: false
-    emits: [QueryResponded, QueryRejected, CommandError]
+    signature:
+      emits: [QueryResponded, QueryRejected, CommandError]
     output:
       description: Mapped RAG query response.
       schema:

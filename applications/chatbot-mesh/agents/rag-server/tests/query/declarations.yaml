@@ -8,23 +8,11 @@ tools:
     visibility: internal
     category: boundary
     description: Post a vector-in query to the rag-server the rig started and map its answer.
-    problem: The rag-server's query boundary must be proven against a controlled Chroma rather than a live one.
-    goals:
-      - Post query_embeddings to the subject at the address the rig published.
-      - Map the response to the signal this scenario expects.
-    requirements:
-      input:
-        - Tool config fixes the operation; the query vector is literal fixture data.
-      output:
-        - Output reports the returned ids, documents, and embedding-model metadata.
-      errors:
-        - Unreachable or unmapped responses emit CommandError.
-    non_goals:
-      - Does not start or stop the subject; the rig owns that.
     parameters:
       type: object
       properties: {}
-    emits: [SubjectAnswered, SubjectRejected, SubjectBroke, RESTResponded, CommandError]
+    signature:
+      emits: [SubjectAnswered, SubjectRejected, SubjectBroke, RESTResponded, CommandError]
     output:
       description: The rag-server's query response.
       schema:
