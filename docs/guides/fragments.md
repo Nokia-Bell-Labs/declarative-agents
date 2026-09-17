@@ -23,11 +23,13 @@ The table lists the shared units that exist today and the ones the capability-pr
 | mesh monitor fragment (launch/stop pair) | `applications/chatbot-mesh/agents/units/mesh-monitor-fragment.yaml` | shipped |
 | monitor control fragment (launch/await/stop trio) | `applications/catalog/agents/units/monitor-control-fragment.yaml` | shipped |
 | serve-lifecycle declarations fragment | `agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml` | shipped (GH-2166) |
-| monitor/control REST servers fragment | `agent-core/tools/units/` | planned (GH-2167); the loader support it needs already ships |
+| monitor server fragment | `agent-core/tools/rest/units/monitor-server-fragment.yaml` | shipped (GH-2167) |
 
 ## REST definitions
 
-`rest.yaml` composes exactly as a declarations file does: `unit:`, `imports:`, and `instantiate:` are implemented in the REST definition loader and enforce the srd052 rules — a fragment is instantiated and never imported plainly, and nesting stops at one level. What is missing is not the mechanism but its use: no `rest.yaml` in the ecosystem instantiates anything, while 26 of them carry the same control server, monitor routes, and limits blocks by hand. GH-2167 adds the canonical fragment and converts the monorepo carriers.
+`rest.yaml` composes exactly as a declarations file does: `unit:`, `imports:` and `instantiate:` are implemented in the REST definition loader and enforce the srd052 rules. The canonical monitor server ships at `agent-core/tools/rest/units/monitor-server-fragment.yaml`, and an agent instantiates it with its address, limits profile and queue name.
+
+Two rules shape where that instantiation goes. An instantiation none of whose produced definitions a closure selects is an unused import (srd052 R3.1), so a server cannot be instantiated in a `rest.yaml` that a request profile also loads — the request machine launches no monitor server. The instantiation therefore lives in a `monitor-rest.yaml` that only the agent's own profile lists. And a mapping name is never substituted (R2.3), so the fragment produces a server under a fixed name; an agent whose server takes another name instantiates it under `as`, which prefixes every produced name including the endpoints.
 
 ## When to make a fragment
 

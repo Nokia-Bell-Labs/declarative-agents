@@ -9,3 +9,4 @@ tool_declarations:
   - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
 rest_definitions:
   - rest.yaml
+  - monitor-rest.yaml
