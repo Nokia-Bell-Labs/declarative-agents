@@ -5,6 +5,7 @@ package control
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,11 +47,14 @@ func TestSelfInvokeCancellationAfterChildStartRetainsReceipt(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "started")
 	script := filepath.Join(dir, "child")
-	require.NoError(t, os.WriteFile(script, []byte(`#!/bin/sh
+	// The child outlives the wait below, so a marker seen within the wait means
+	// the child was running when the test cancels it.
+	const childLifetime = 30 * time.Second
+	require.NoError(t, os.WriteFile(script, []byte(fmt.Sprintf(`#!/bin/sh
 for marker; do :; done
 printf started > "$marker"
-sleep 30
-`), 0o700))
+sleep %d
+`, int(childLifetime.Seconds()))), 0o700))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	cmd := (&SelfInvokeBuilder{
@@ -65,10 +69,15 @@ sleep 30
 	go func() {
 		resultCh <- cmd.(core.ContextCommand).ExecuteContext(ctx)
 	}()
+	// The first exec of a freshly written script varies widely on macOS, where
+	// new executables are scanned before launch, and more so beside the release
+	// lanes that start kind clusters; 5s still failed there (GH-1708, GH-2128).
+	// Any bound below the child's lifetime keeps the assertion meaningful, and
+	// Eventually returns as soon as the marker appears.
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(marker)
 		return err == nil
-	}, 5*time.Second, 10*time.Millisecond)
+	}, childLifetime-5*time.Second, 10*time.Millisecond)
 
 	cancel()
 	result := <-resultCh
