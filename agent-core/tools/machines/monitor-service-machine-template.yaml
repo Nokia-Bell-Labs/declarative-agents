@@ -1,0 +1,89 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The monitor service lifecycle (srd054): launch the monitor REST server,
+# await a control exit event, stop the server. catalog's runtime-state-reader
+# and agent-core's monitor fixture instantiate it; the words are the shared
+# monitor vocabulary, so only the configuration paths are parameters.
+unit: monitor-service-machine-template
+params:
+  - {name: profile, type: string, description: Monitor profile label the machine's metrics carry.}
+  - {name: machine, type: string, description: The machine path the configuration block records.}
+  - {name: tools, type: string, description: The tool selection path the configuration block records.}
+machine:
+  name: monitor-service
+  purpose: Serve runtime state over the monitor REST server until a control exit.
+  configuration:
+    machine: $param(machine)
+    tools: $param(tools)
+  metric_labels:
+    profile: $param(profile)
+  initial_state: Idle
+  budget:
+    command_timeout: 1m
+    max_iterations: 6
+  states:
+    - name: Idle
+      meaning: Initial state before the monitor server starts.
+    - name: Launching
+      meaning: The REST server launch command is running.
+    - name: AwaitingControl
+      meaning: Monitor REST routes are available while the machine waits for a control event.
+    - name: Stopping
+      meaning: The machine stops the owned monitor REST listener.
+    - name: Done
+      run_status: succeeded
+      meaning: Terminal. The monitor REST listener stopped without error.
+    - name: Failed
+      run_status: failed
+      meaning: Terminal state for launch failures.
+  terminal_states:
+    - Done
+    - Failed
+  signals:
+    - name: Seed
+      trigger: Loop initialization.
+    - name: ServerLaunched
+      trigger: Monitor REST routes were registered.
+    - name: ExitRequested
+      trigger: Supervisor requested monitor exit through REST control.
+    - name: AwaitTimedOut
+      trigger: No matching control event arrived.
+    - name: ServerStopped
+      trigger: Monitor REST listener stopped.
+    - name: CommandError
+      trigger: REST server lifecycle command failed.
+  transitions:
+    - state: Idle
+      signal: Seed
+      next: Launching
+      action: launch_monitor_rest
+      label: monitor
+      report_output: $.address
+      metric_labels:
+        route_group: monitor
+    - state: Launching
+      signal: ServerLaunched
+      next: AwaitingControl
+      action: await_monitor_control
+    - state: Launching
+      signal: CommandError
+      next: Failed
+    - state: AwaitingControl
+      signal: ExitRequested
+      next: Stopping
+      action: stop_monitor_rest
+    - state: AwaitingControl
+      signal: AwaitTimedOut
+      next: Failed
+    - state: AwaitingControl
+      signal: ServerStopped
+      next: Failed
+    - state: AwaitingControl
+      signal: CommandError
+      next: Failed
+    - state: Stopping
+      signal: ServerStopped
+      next: Done
+    - state: Stopping
+      signal: CommandError
+      next: Failed

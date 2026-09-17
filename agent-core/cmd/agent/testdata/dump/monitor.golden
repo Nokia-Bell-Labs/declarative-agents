@@ -11,28 +11,43 @@ profile:
 machine:
   name: monitor-rest-profile
   purpose: Serve embedded monitor state until a control exit request arrives.
+  configuration:
+    machine: machine.yaml
+    tools: tools.yaml
   metric_labels:
     profile: monitor
   initial_state: Idle
   states:
     - name: Idle
+      meaning: Initial state before the monitor server starts.
     - name: Launching
+      meaning: The REST server launch command is running.
     - name: AwaitingControl
+      meaning: Monitor REST routes are available while the machine waits for a control event.
     - name: Stopping
+      meaning: The machine stops the owned monitor REST listener.
     - name: Done
+      meaning: Terminal. The monitor REST listener stopped without error.
       run_status: succeeded
     - name: Failed
+      meaning: Terminal state for launch failures.
       run_status: failed
   terminal_states:
     - Done
     - Failed
   signals:
     - name: Seed
+      trigger: Loop initialization.
     - name: ServerLaunched
+      trigger: Monitor REST routes were registered.
     - name: ExitRequested
+      trigger: Supervisor requested monitor exit through REST control.
     - name: AwaitTimedOut
+      trigger: No matching control event arrived.
     - name: ServerStopped
+      trigger: Monitor REST listener stopped.
     - name: CommandError
+      trigger: REST server lifecycle command failed.
   transitions:
     - state: Idle
       signal: Seed
@@ -71,6 +86,15 @@ machine:
   budget:
     max_iterations: 6
     command_timeout: 1m
+instantiations:
+  - kind: machine
+    fragment: <agent-core>/tools/machines/monitor-service-machine-template.yaml
+    args:
+      machine: machine.yaml
+      profile: monitor
+      tools: tools.yaml
+    produces:
+      - machine/monitor-rest-profile
 tools:
   - name: await_monitor_control
     type: builtin
@@ -232,10 +256,13 @@ files:
   - path: <agent-core>/testdata/integration/profiles/monitor/declarations.yaml
     sha256: 7f0c82900e6d4fcfc712193258bd21a4e571cab53aebc1178e5d97679f6328af
   - path: <agent-core>/testdata/integration/profiles/monitor/machine.yaml
-    sha256: 8c2b6a1562dd4ac561341733fe8ca8ca79bc23c3978ce7ce66588a03f619bead
+    sha256: a8b9034017d70438932b4defce3aef2972887c0bd65dbb1e525c22fd5111bb6b
   - path: <agent-core>/testdata/integration/profiles/monitor/profile.yaml
     sha256: 3084e376fc7740cdb41e4ff80bd2d74c5d4e5abf1471630ffc595e9009ced05f
   - path: <agent-core>/testdata/integration/profiles/monitor/rest.yaml
     sha256: 053c00421f3abc63da89fd59fffaf7acca3040bdb279090d293a3ea4ba1a1799
   - path: <agent-core>/testdata/integration/profiles/monitor/tools.yaml
     sha256: 8978c7ba3ef4bc7e17a2330e20237640ad2349436fdb45406836a8b8550cecc5
+  - path: <agent-core>/tools/machines/monitor-service-machine-template.yaml
+    sha256: 2c6767760a6830cc180c002efc2824e170adfd0691860e47cf3b3bd32b5163bf
+    root: agent-core

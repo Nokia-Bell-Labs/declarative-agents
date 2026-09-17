@@ -1,0 +1,67 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The verdict machine a rig-subject scenario runs (srd054): drive the subject
+# once on the way into Checking, then map each outcome signal to the verdict
+# this scenario expects. happy-path and broken instantiate it; dep-failure
+# stays hand-written because it primes with a second drive through an extra
+# state, and a template cannot add states.
+unit: subject-verdict-machine-template
+params:
+  - {name: answered, type: string, enum: [Passed, Failed], description: Verdict when the subject reports its dependency answered.}
+  - {name: broke, type: string, enum: [Passed, Failed], description: Verdict when the subject returns an unreachable or missing mapping.}
+  - {name: read, type: string, enum: [Passed, Failed], description: Verdict when the read maps to the generic read signal.}
+machine:
+  name: rig-subject-verdict
+  purpose: Drive the subject once; the configured verdicts decide the terminal state.
+  configuration:
+    machine: machine.yaml
+    tools: tools.yaml
+  initial_state: Idle
+  budget:
+    command_timeout: 1m
+    max_iterations: 6
+  states:
+    - name: Idle
+      meaning: Before the subject is driven.
+    - name: Checking
+      meaning: The subject has been driven; its answer decides the outcome.
+    - name: Passed
+      run_status: succeeded
+      meaning: Terminal. The subject behaved as this scenario expects.
+    - name: Failed
+      run_status: failed
+      meaning: Terminal. The subject did not behave as this scenario expects.
+  terminal_states: [Passed, Failed]
+  signals:
+    - name: Seed
+      trigger: Loop initialization.
+    - name: SubjectAnswered
+      trigger: The subject reported its dependency answered.
+    - name: SubjectDegraded
+      trigger: The subject reported its dependency unavailable, its clean failure path.
+    - name: SubjectBroke
+      trigger: The subject returned an unreachable or missing mapping.
+    - name: RESTResourceRead
+      trigger: The read succeeded and mapped to the generic read signal.
+    - name: CommandError
+      trigger: The subject was unreachable or returned an unmapped status.
+  transitions:
+    - state: Idle
+      signal: Seed
+      next: Checking
+      action: drive_subject
+    - state: Checking
+      signal: SubjectAnswered
+      next: $param(answered)
+    - state: Checking
+      signal: SubjectDegraded
+      next: Failed
+    - state: Checking
+      signal: SubjectBroke
+      next: $param(broke)
+    - state: Checking
+      signal: RESTResourceRead
+      next: $param(read)
+    - state: Checking
+      signal: CommandError
+      next: Failed
