@@ -64,7 +64,12 @@ ollama:
     count: 0
   nodeSelector: {}
   tolerations: []
-
+  # The preload Job's controls. An integration run points
+  # integrationCacheHostPath at a warmed model cache on the host; empty keeps the
+  # tier self-contained (GH-2045 aligns the key with the mesh).
+  preload:
+    suspend: false
+    integrationCacheHostPath: ""
 collector:
   enabled: true
   image:
@@ -88,7 +93,7 @@ collector:
 # divergence from the profile-free runtime image, srd003 R1.2; GH-1368), which is
 # not the runtime image the serving and smoke tests kind-load, so the live tier
 # enables it explicitly (ci/kind-applier-values.yaml) and supplies the chart it
-# mounts at /chart via applier.chartArchive.
+# mounts at /chart via applier.chartArchiveConfigMap.
 applier:
   enabled: false
   # The shared applier image carries the agent-core runtime plus helm and kubectl
@@ -97,15 +102,16 @@ applier:
     repository: ghcr.io/nokia-bell-labs/declarative-agents/applier
     tag: "0.1.0"
     pullPolicy: IfNotPresent
-  # The packaged chart the applier's `helm upgrade coding-agent /chart` word
-  # installs, base64-encoded, delivered to the applier pod at /chart as a mounted
-  # volume rather than baked into the image (GH-1368). Empty by default; whoever
-  # enables the applier supplies it, e.g. the release tooling passes
-  #   --set-file applier.chartArchive=<packaged-chart.tgz.b64>
-  # so the chart bytes travel with the Helm release. With it empty the applier
+  # The ConfigMap carrying the packaged chart the applier's
+  # `helm upgrade coding-agent /chart` word installs, delivered to the pod at
+  # /chart as a mounted volume rather than baked into the image (GH-1368).
+  # Provisioned outside the Helm release: an archive carried inside the release
+  # Secret overflows the API server's object limit (GH-1407, and GH-2045 aligned
+  # this application with the other two). Empty by default; whoever enables the
+  # applier provisions the ConfigMap and names it here. With it empty the applier
   # renders without the chart mount (fine for render-only checks; a live applier
   # needs the chart).
-  chartArchive: ""
+  chartArchiveConfigMap: ""
   # apply/request server, control server, monitor server. Chosen apart from the
   # role ports (18200-18221) and the collector ports so no listener collides.
   ports: {apply: 18230, control: 18231, monitor: 18232}

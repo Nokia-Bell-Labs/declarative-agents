@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/appmanifest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/helmlib"
 	"gopkg.in/yaml.v3"
 )
 
@@ -81,6 +82,11 @@ func HelmPrepare() error {
 		return err
 	}
 	chartRoot := filepath.Join(resolved.Application, "helm")
+	// The shared agent-services library chart the app chart depends on; Helm
+	// resolves a dependency only from the chart's own charts/ directory (GH-2045).
+	if err := helmlib.Vendor(filepath.Join(resolved.Application, "..", ".."), chartRoot); err != nil {
+		return err
+	}
 	if err := prepareChartProfiles(resolved.Application, resolved.Catalog, chartRoot); err != nil {
 		return err
 	}

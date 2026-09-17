@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/helmlib"
 )
 
 func TestApplicationKindRendersHaveTypeMeta(t *testing.T) {
@@ -41,6 +43,11 @@ func stageKindRenderChart(t *testing.T, root, application string) string {
 	chart := filepath.Join(t.TempDir(), application)
 	if err := os.CopyFS(chart, os.DirFS(source)); err != nil {
 		t.Fatalf("copy chart: %v", err)
+	}
+	// The app charts depend on the shared library chart, which Helm resolves only
+	// from the chart's own charts/ directory (GH-2045).
+	if err := helmlib.Vendor(root, chart); err != nil {
+		t.Fatalf("vendor library chart: %v", err)
 	}
 	switch application {
 	case "agent-architecture":

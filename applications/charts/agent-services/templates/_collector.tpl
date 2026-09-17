@@ -75,7 +75,7 @@ spec:
         - name: collector
           image: {{ .image | default (include "agent-services.collectorImage" $root) | quote }}
           imagePullPolicy: {{ .imagePullPolicy | default $collector.image.pullPolicy }}
-          workingDir: {{ .workingDir | default (dir .profilePath) | quote }}
+          workingDir: {{ .workingDir | default (dir .profilePath) }}
           {{- with $values.containerSecurityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}

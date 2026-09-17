@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/magefile/mage/mg"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/helmlib"
 )
 
 var chatbotChartSourceFiles = []string{
@@ -22,6 +24,12 @@ var chatbotChartSourceFiles = []string{
 	"Chart.yaml",
 	"PACKAGING.md",
 	"README.md",
+	"charts/agent-services/Chart.yaml",
+	"charts/agent-services/README.md",
+	"charts/agent-services/templates/_applier.tpl",
+	"charts/agent-services/templates/_collector.tpl",
+	"charts/agent-services/templates/_naming.tpl",
+	"charts/agent-services/templates/_ollama.tpl",
 	"ci/kind-applier-values.yaml",
 	"ci/kind-config.yaml",
 	"ci/kind-demo-config.yaml",
@@ -74,6 +82,11 @@ func (Helm) Package() error {
 func packageHelmChart(chartDir, profilesRoot, destination string) error {
 	if _, err := exec.LookPath("helm"); err != nil {
 		return fmt.Errorf("package chatbot-mesh chart: helm not found on PATH")
+	}
+	// The shared agent-services library chart the app chart depends on; Helm
+	// resolves a dependency only from the chart's own charts/ directory (GH-2045).
+	if err := helmlib.Vendor(filepath.Join(profilesRoot, "..", ".."), chartDir); err != nil {
+		return err
 	}
 	catalogRoot, err := resolveCatalogRoot("chatbot-mesh helm package", profilesRoot)
 	if err != nil {
