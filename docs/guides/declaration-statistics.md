@@ -2,7 +2,7 @@
 
 `mage stats:reuse` measures declaration duplication, ceremony, unit sharing, and maintainability for every stats participant and folds them into `reuse_total`. The maintainability block reports file length (median, 90th percentile, maximum, files over 300 and 500 lines, the ten longest files), files per agent, and import fan-out and fan-in (GH-2111). Medians are lower medians of the observed values, and the repository total is computed over every module's samples rather than from module medians.
 
-The JSON files beside this README record the numbers at a named commit so a factoring change can state what it moved.
+The JSON files in `docs/stats` record the numbers at a named commit so a factoring change can state what it moved.
 
 | File | Records |
 |---|---|
