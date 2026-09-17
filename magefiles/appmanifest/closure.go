@@ -64,6 +64,15 @@ type closureResolver struct {
 	packages        map[string]InventoryFile
 	visited         map[string]bool
 	queue           []closureItem
+	// libraries holds, per closure root, the library roots its profiles
+	// declare: a rooted /opt/<name>/ reference resolves as the declaring
+	// profile's own reference to the declared directory (srd056 R2).
+	libraries map[string]map[string]declaredLibrary
+}
+
+type declaredLibrary struct {
+	profile   closureItem
+	directory string
 }
 
 type runtimeSourceMapping struct {
@@ -106,6 +115,7 @@ func Resolve(manifest Manifest, options Options) (Inventory, error) {
 		files:           make(map[string]InventoryFile),
 		packages:        make(map[string]InventoryFile),
 		visited:         make(map[string]bool),
+		libraries:       make(map[string]map[string]declaredLibrary),
 	}
 	inventory := Inventory{SchemaVersion: SchemaVersion, Application: manifest.Application}
 	for _, root := range manifest.Roots {
@@ -301,22 +311,17 @@ func (resolver *closureResolver) resolveYAML(item closureItem, data []byte) erro
 	if err := yaml.Unmarshal(yamlTemplateSafe(data), &document); err != nil {
 		return fmt.Errorf("parse closure source %s: %w", logicalSource(item.ownership, item.source), err)
 	}
+	if err := resolver.recordLibraries(item, &document); err != nil {
+		return err
+	}
 	references := yamlReferences(&document)
 	for _, reference := range references {
 		if resolver.isRuntimeOwned(reference) {
 			continue
 		}
-		if path.IsAbs(filepath.ToSlash(reference)) || isWindowsPath(reference) {
-			return fmt.Errorf("%s contains disallowed absolute reference %s",
-				logicalSource(item.ownership, item.source), reference)
-		}
-		if strings.ContainsAny(reference, "*?[") {
-			return fmt.Errorf("%s contains unbounded glob reference %s",
-				logicalSource(item.ownership, item.source), reference)
-		}
-		ownership, source, runtime, packagePath, err := resolver.resolveReference(item, reference)
+		ownership, source, runtime, packagePath, err := resolver.referenceTarget(item, reference)
 		if err != nil {
-			return fmt.Errorf("%s references %s: %w", logicalSource(item.ownership, item.source), reference, err)
+			return err
 		}
 		key := sourceKey(ownership, source)
 		// Machine configuration inventories may name the current machine or
@@ -344,6 +349,83 @@ func (resolver *closureResolver) resolveYAML(item closureItem, data []byte) erro
 		})
 	}
 	return nil
+}
+
+// referenceTarget resolves one non-runtime-owned reference of item. A rooted
+// /opt/<name>/ reference resolves through the library its closure declares.
+func (resolver *closureResolver) referenceTarget(item closureItem, reference string) (string, string, string, string, error) {
+	origin := logicalSource(item.ownership, item.source)
+	resolveFrom, relative := item, reference
+	if name, rest, rooted := libraryReference(reference); rooted {
+		library, declared := resolver.libraries[item.rootID][name]
+		if !declared {
+			return "", "", "", "", fmt.Errorf("%s references %s: library root %q is not declared by the profile",
+				origin, reference, name)
+		}
+		resolveFrom, relative = library.profile, path.Join(library.directory, rest)
+	} else if path.IsAbs(filepath.ToSlash(reference)) || isWindowsPath(reference) {
+		return "", "", "", "", fmt.Errorf("%s contains disallowed absolute reference %s", origin, reference)
+	}
+	if strings.ContainsAny(reference, "*?[") {
+		return "", "", "", "", fmt.Errorf("%s contains unbounded glob reference %s", origin, reference)
+	}
+	ownership, source, runtime, packagePath, err := resolver.resolveReference(resolveFrom, relative)
+	if err != nil {
+		return "", "", "", "", fmt.Errorf("%s references %s: %w", origin, reference, err)
+	}
+	return ownership, source, runtime, packagePath, nil
+}
+
+// recordLibraries registers the top-level libraries mapping of a profile for
+// the closure root it belongs to. Two profiles in one closure may not bind the
+// same name to different directories.
+func (resolver *closureResolver) recordLibraries(item closureItem, document *yaml.Node) error {
+	if len(document.Content) == 0 || document.Content[0].Kind != yaml.MappingNode {
+		return nil
+	}
+	root := document.Content[0]
+	for index := 0; index+1 < len(root.Content); index += 2 {
+		if root.Content[index].Value != "libraries" || root.Content[index+1].Kind != yaml.MappingNode {
+			continue
+		}
+		entries := root.Content[index+1].Content
+		for entry := 0; entry+1 < len(entries); entry += 2 {
+			if err := resolver.declareLibrary(item, entries[entry].Value, entries[entry+1].Value); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (resolver *closureResolver) declareLibrary(item closureItem, name, directory string) error {
+	declared := resolver.libraries[item.rootID]
+	if declared == nil {
+		declared = make(map[string]declaredLibrary)
+		resolver.libraries[item.rootID] = declared
+	}
+	library := declaredLibrary{profile: item, directory: path.Clean(filepath.ToSlash(directory))}
+	if previous, exists := declared[name]; exists {
+		if path.Join(path.Dir(previous.profile.runtime), previous.directory) !=
+			path.Join(path.Dir(item.runtime), library.directory) {
+			return fmt.Errorf("%s declares library root %q at %s, already declared at %s by %s",
+				logicalSource(item.ownership, item.source), name, directory, previous.directory,
+				logicalSource(previous.profile.ownership, previous.profile.source))
+		}
+		return nil
+	}
+	declared[name] = library
+	return nil
+}
+
+// libraryReference splits a rooted /opt/<name>/<rest> reference.
+func libraryReference(reference string) (name, rest string, ok bool) {
+	clean := path.Clean(filepath.ToSlash(strings.TrimSpace(reference)))
+	if !strings.HasPrefix(clean, "/opt/") {
+		return "", "", false
+	}
+	name, rest, _ = strings.Cut(strings.TrimPrefix(clean, "/opt/"), "/")
+	return name, rest, name != "" && rest != ""
 }
 
 func (resolver *closureResolver) sourcePath(ownership, relative string, allowDirectory bool) (string, error) {

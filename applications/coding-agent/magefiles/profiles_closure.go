@@ -85,6 +85,10 @@ type profileClosure struct {
 	sourceRoot string
 	assets     map[string]string
 	pending    []closureAsset
+	// libraries maps each library root a profile in the closure declares to its
+	// directory, as source and destination paths resolved against that profile
+	// (srd056 R2).
+	libraries map[string]closureAsset
 }
 
 // Package assembles the coding application's complete, deterministic profile
@@ -348,12 +352,21 @@ func (c *profileClosure) resolveYAMLReferences(asset closureAsset, filename stri
 	if err := yaml.Unmarshal(profileTemplatePattern.ReplaceAll(data, []byte("manifest_value")), &document); err != nil {
 		return fmt.Errorf("parse profile asset %s: %w", asset.source, err)
 	}
+	if err := c.recordLibraries(asset, &document); err != nil {
+		return err
+	}
 	refs, err := runtimeYAMLReferences(&document)
 	if err != nil {
 		return fmt.Errorf("%s: %w", asset.source, err)
 	}
 	for _, ref := range refs {
 		if isExternalCoreReference(ref) {
+			continue
+		}
+		if name, rest, rooted := libraryReference(ref); rooted {
+			if err := c.enqueueLibraryFile(asset, ref, name, rest); err != nil {
+				return err
+			}
 			continue
 		}
 		if filepath.IsAbs(ref) || strings.HasPrefix(ref, "/") {
@@ -375,6 +388,59 @@ func (c *profileClosure) resolveYAMLReferences(asset closureAsset, filename stri
 		}
 	}
 	return nil
+}
+
+// recordLibraries registers a profile's top-level libraries mapping. Two
+// profiles in one closure may not bind a name to different directories.
+func (c *profileClosure) recordLibraries(asset closureAsset, document *yaml.Node) error {
+	if len(document.Content) == 0 || document.Content[0].Kind != yaml.MappingNode {
+		return nil
+	}
+	root := document.Content[0]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value != "libraries" || root.Content[i+1].Kind != yaml.MappingNode {
+			continue
+		}
+		entries := root.Content[i+1].Content
+		for j := 0; j+1 < len(entries); j += 2 {
+			name, directory := entries[j].Value, filepath.ToSlash(entries[j+1].Value)
+			declared := closureAsset{
+				source: path.Join(path.Dir(asset.source), directory),
+				dest:   path.Join(path.Dir(asset.dest), directory),
+			}
+			if previous, exists := c.libraries[name]; exists && previous != declared {
+				return fmt.Errorf("%s declares library root %q at %s, already declared at %s",
+					asset.source, name, declared.source, previous.source)
+			}
+			if c.libraries == nil {
+				c.libraries = make(map[string]closureAsset)
+			}
+			c.libraries[name] = declared
+		}
+	}
+	return nil
+}
+
+func (c *profileClosure) enqueueLibraryFile(asset closureAsset, ref, name, rest string) error {
+	library, declared := c.libraries[name]
+	if !declared {
+		return fmt.Errorf("%s references %s: library root %q is not declared by the profile",
+			asset.source, ref, name)
+	}
+	if err := c.enqueue(path.Join(library.source, rest), path.Join(library.dest, rest)); err != nil {
+		return fmt.Errorf("%s references %s: %w", asset.source, ref, err)
+	}
+	return nil
+}
+
+// libraryReference splits a rooted /opt/<name>/<rest> reference.
+func libraryReference(ref string) (name, rest string, ok bool) {
+	clean := path.Clean(filepath.ToSlash(ref))
+	if !strings.HasPrefix(clean, "/opt/") {
+		return "", "", false
+	}
+	name, rest, _ = strings.Cut(strings.TrimPrefix(clean, "/opt/"), "/")
+	return name, rest, name != "" && rest != ""
 }
 
 func runtimeYAMLReferences(document *yaml.Node) ([]string, error) {
@@ -402,7 +468,10 @@ func runtimeYAMLReferences(document *yaml.Node) ([]string, error) {
 		for i := 0; i+1 < len(node.Content); i += 2 {
 			key, value := node.Content[i].Value, node.Content[i+1]
 			isReference := nestedKeys[key] || (depth == 0 && topLevelKeys[key]) ||
-				(key == "machine" && slices.Contains(ancestors, "machine_request"))
+				(key == "machine" && slices.Contains(ancestors, "machine_request")) ||
+				// An instantiation is an import edge whose unit is filled in on the
+				// way (srd052 R2.1); its fragment travels with the instantiating file.
+				(key == "fragment" && slices.Contains(ancestors, "instantiate"))
 			if isReference {
 				if values, ok := referenceScalars(value); ok {
 					for _, value := range values {
@@ -464,7 +533,7 @@ func referenceScalars(node *yaml.Node) ([]string, bool) {
 
 func looksLikeRuntimePath(value string) bool {
 	return strings.HasSuffix(value, ".yaml") || strings.HasSuffix(value, ".yml") ||
-		strings.HasPrefix(value, "/opt/agent-core/")
+		strings.HasPrefix(value, "/opt/")
 }
 
 func isExternalCoreReference(ref string) bool {

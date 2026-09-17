@@ -447,3 +447,50 @@ func snapshotTree(t *testing.T, root string) map[string][]byte {
 	}
 	return snapshot
 }
+
+// A declared library root brings the rooted files the closure imports or
+// instantiates into the package, beside the declaring profile's directory;
+// agent-core stays external (srd056 R2, GH-2124).
+func TestProfileClosureFollowsDeclaredLibraryRoots(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "agents/planner/profile.yaml"), `name: planner
+libraries: {shared: ../lib}
+machine: machine.yaml
+tool_declarations: [declarations.yaml]
+`)
+	writeTestFile(t, filepath.Join(root, "agents/planner/machine.yaml"),
+		"unit: planner\ninstantiate: {fragment: /opt/shared/machines/serve.yaml, args: {}}\n")
+	writeTestFile(t, filepath.Join(root, "agents/planner/declarations.yaml"),
+		"imports: [/opt/shared/units/x.yaml, /opt/agent-core/tools/units/types-core.yaml]\ntools: []\n")
+	writeTestFile(t, filepath.Join(root, "agents/lib/units/x.yaml"), "unit: x\ntools: []\n")
+	writeTestFile(t, filepath.Join(root, "agents/lib/machines/serve.yaml"), "unit: serve\nmachine: {}\n")
+
+	closure := &profileClosure{sourceRoot: root, assets: map[string]string{}}
+	if err := closure.enqueue("agents/planner/profile.yaml", "agents/planner/profile.yaml"); err != nil {
+		t.Fatal(err)
+	}
+	if err := closure.resolve(); err != nil {
+		t.Fatalf("resolve closure: %v", err)
+	}
+	want := []string{
+		"agents/lib/machines/serve.yaml",
+		"agents/lib/units/x.yaml",
+		"agents/planner/declarations.yaml",
+		"agents/planner/machine.yaml",
+		"agents/planner/profile.yaml",
+	}
+	if got := sortedAssetDestinations(closure.assets); !reflect.DeepEqual(got, want) {
+		t.Fatalf("closure files = %#v, want %#v", got, want)
+	}
+}
+
+func TestProfileClosureRejectsUndeclaredLibraryRoot(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "agents/planner/profile.yaml"),
+		"name: planner\ntool_declarations: [/opt/unknown/units/x.yaml]\n")
+	manifest := testProfileManifest("agents/planner/profile.yaml", "agents/planner/profile.yaml")
+	_, err := assembleProfileClosure(manifest, root, filepath.Join(t.TempDir(), "profiles"), testPackageSource())
+	if err == nil || !strings.Contains(err.Error(), `library root "unknown" is not declared by the profile`) {
+		t.Fatalf("assemble error = %v, want undeclared library root", err)
+	}
+}
