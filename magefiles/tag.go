@@ -208,6 +208,9 @@ func runReleaseGates(commit string) error {
 		return fmt.Errorf("resolve repository root: %w", err)
 	}
 	fmt.Printf("release: verifying commit %s\n", commit)
+	if err := checkReleaseDockerHeadroom(probeDockerMemory, releaseDockerFreeFloor); err != nil {
+		return err
+	}
 	return executeReleaseGates(releaseGates(root), runReleaseCommand)
 }
 
