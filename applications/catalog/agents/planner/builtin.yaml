@@ -38,18 +38,9 @@ tools:
     init: seed_passthrough_plan
     description: "Seed the pass-through implementation plan from planner-profile policy."
     visibility: internal
-    emits: [PassThroughPlanSeeded, CommandError]
+    signature:
+      emits: [PassThroughPlanSeeded, CommandError]
     category: stateful_internal
-    problem: "The planner pass-through variant owns its implementation-plan wording."
-    goals:
-      - "Keep pass-through plan title and summary in the planner profile."
-      - "Seed plan state separately from task selection and graph lifecycle."
-    requirements:
-      input: ["must run after select_all_ready"]
-      output: ["must emit PassThroughPlanSeeded after setting current plan"]
-      errors: ["must emit CommandError when the selected task or configured text is missing"]
-    non_goals:
-      - "Does not select or mutate graph nodes."
     output:
       description: "Profile-configured pass-through plan seeding summary."
       schema:
@@ -62,7 +53,6 @@ tools:
         target: planner_pipeline_state
         state: current_plan_seeded
         description: "Sets only the current implementation plan."
-    reversibility: {classification: reversible}
     undo:
       strategy: pipeline_state_restore
       description: "Restore the receipt-recorded planner state."
@@ -71,9 +61,6 @@ tools:
         condition: "current task or configured plan text is missing"
         message_shape: "seed_passthrough_plan: <error>"
         state_after_failure: "no graph lifecycle change occurs"
-    relationships:
-      before: [select_all_ready]
-      after: [mark_nodes_planning]
     config:
       title: "Execute all ready requirements"
       summary: "Pass-through execution for the selected ready graph nodes."
@@ -83,37 +70,9 @@ tools:
     init: self_invoke
     description: "Invoke the configured executor through the shared child-agent boundary."
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     category: boundary
-    problem: |
-      The planner needs a boundary word that hands the materialized task file
-      to the executor program. This is not an ordinary deterministic word
-      because it starts another agent process whose state machine and tools
-      can mutate the workspace.
-    goals:
-      - "Run the configured executor profile in the planner workspace."
-      - "Propagate profile and trace configuration into the child agent invocation."
-      - "Return enough execution status for the planner to decide retry, advance, or fail."
-    requirements:
-      input:
-        - "must require profile in config"
-        - "must consume the workspace directory from runtime arguments"
-      output:
-        - "must emit ToolDone when the child agent exits successfully"
-        - "must emit ToolFailed when the child agent exits without satisfying the task"
-      side_effects:
-        - "must spawn one child agent process"
-        - "must allow the child agent to mutate the target workspace according to its own selected tools"
-        - "must propagate trace context to the child process"
-      undo:
-        - "must rely on workspace checkpoints to restore child workspace mutations"
-        - "must rely on pipeline history to restore planner command state"
-      errors:
-        - "must emit CommandError when required config is missing or the child process cannot be started"
-    non_goals:
-      - "Does not inspect or modify individual source files itself."
-      - "Does not implement the executor workflow; the configured child machine does that."
-      - "Does not guarantee rollback without an external workspace checkpoint."
     output:
       description: "Child executor standard output."
       schema: {type: string}
@@ -139,12 +98,6 @@ tools:
         condition: "child agent exits with failure status"
         message_shape: "invoke_executor failed: <status/output>"
         state_after_failure: "workspace may contain child edits and must be restored from checkpoint if rollback is requested"
-    relationships:
-      before: [record_tracker_issue, extract_task, mark_nodes_planning]
-      after: [build, vet, test, increment_retry, mark_task_done]
-      overlaps:
-        - tool: run_point
-          difference: "run_point invokes an in-process nested machine; invoke_executor uses the shared self_invoke child process."
     config:
       profile: agents/executor/profile.yaml
 

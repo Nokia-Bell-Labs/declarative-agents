@@ -7,25 +7,11 @@ tools:
     visibility: internal
     category: boundary
     description: Launch the subject REST endpoints that serve a scenario's fixture.
-    problem: A subject agent under test needs its REST dependency to answer controlled responses without a live upstream service.
-    goals:
-      - Register the dependency-reading route, health, and control routes.
-      - Load and validate the scenario fixture before serving any request.
-    requirements:
-      input:
-        - Tool config references the trusted subject REST server definition.
-        - The fixture path and listen address come from the environment, so one profile serves any dependency.
-      output:
-        - Output reports server name, bound address, route count, and binding kinds.
-      errors:
-        - Config, bind, route conflict, schema, and malformed-fixture failures emit CommandError.
-    non_goals:
-      - Does not proxy to, record from, or replay a real upstream service.
-      - Does not assert anything about the requests it receives; a validator does that.
     parameters:
       type: object
       properties: {}
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
     output:
       description: Subject REST server launch result.
       schema:
@@ -51,10 +37,6 @@ tools:
       - signal: CommandError
         condition: Subject REST server config, bind, route, schema, or fixture validation failure.
         state_after_failure: No subject route is exposed and no request is served.
-    relationships:
-      overlaps:
-        - tool: rest_server_launch
-          difference: This profile-specific word binds the fixture-backed subject route set.
     config:
       rest_ref: subject
 
@@ -64,25 +46,11 @@ tools:
     visibility: internal
     category: boundary
     description: Await the subject REST control exit event.
-    problem: The subject must keep serving while a subject is exercised, then stop on request rather than on a timer.
-    goals:
-      - Wait on the subject server queue after launch.
-      - Accept only configured subject control events.
-      - Return the selected lifecycle signal to MachineSpec.
-    requirements:
-      input:
-        - Tool config references the trusted subject REST server queue.
-      output:
-        - Output reports source, route, signal, payload, and request ID.
-      errors:
-        - Missing server, timeout, stopped server, and queue failures emit declared signals.
-    non_goals:
-      - Does not read or mutate the fixture or the request log.
-      - Does not execute lifecycle behavior inside HTTP handlers.
     parameters:
       type: object
       properties: {}
-    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    signature:
+      emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
     output:
       description: Selected subject control event.
       schema:
@@ -106,9 +74,6 @@ tools:
       - signal: CommandError
         condition: Subject control source is missing or stopped with command_error policy.
         state_after_failure: Subject listener state is unchanged.
-    relationships:
-      after: [launch_subject_rest]
-      before: [stop_subject_rest]
     config:
       sources:
         - server: subject
@@ -127,25 +92,11 @@ tools:
     visibility: internal
     category: boundary
     description: Stop the owned subject REST listener.
-    problem: The subject must release its listener and its recorded log before reaching a success terminal state.
-    goals:
-      - Stop the configured subject REST server.
-      - Drain queued subject control events according to server shutdown config.
-      - Emit ServerStopped so MachineSpec can route to Done.
-    requirements:
-      input:
-        - Tool config references the trusted subject REST server definition.
-      output:
-        - Output reports server name, bound address, drained events, dropped events, and stopped status.
-      errors:
-        - Missing server, shutdown timeout, and cleanup failures emit CommandError.
-    non_goals:
-      - Does not persist the request log; it is scoped to the server instance.
-      - Does not relaunch the subject server.
     parameters:
       type: object
       properties: {}
-    emits: [ServerStopped, CommandError]
+    signature:
+      emits: [ServerStopped, CommandError]
     output:
       description: Subject REST server stop result.
       schema:
@@ -172,8 +123,6 @@ tools:
       - signal: CommandError
         condition: Subject REST server is missing, shutdown times out, or cleanup fails.
         state_after_failure: Subject listener state may be partially stopped.
-    relationships:
-      after: [await_subject_control]
     config:
       rest_ref: subject
 
@@ -183,23 +132,11 @@ tools:
     visibility: internal
     category: boundary
     description: Read the configured dependency once for this request.
-    problem: The subject must call a real dependency so a rig can redirect it at a mock.
-    goals:
-      - Read the dependency resource the client config declares.
-      - Map its outcome to a signal the request machine routes on.
-    requirements:
-      input:
-        - Tool config references the dependency client resource.
-      output:
-        - Output reports the mapped response fields.
-      errors:
-        - Unreachable or unmapped responses emit CommandError.
-    non_goals:
-      - Does not retry beyond the declared policy.
     parameters:
       type: object
       properties: {}
-    emits: [RESTResourceRead, RESTDomainFailed, RESTMissing, CommandError]
+    signature:
+      emits: [RESTResourceRead, RESTDomainFailed, RESTMissing, CommandError]
     output:
       description: Dependency read result.
       schema:

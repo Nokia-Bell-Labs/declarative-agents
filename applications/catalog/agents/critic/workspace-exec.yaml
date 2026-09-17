@@ -7,29 +7,10 @@ tools:
     binary: go
     args: [test, ./...]
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Run the canonical changed-workspace Go oracle.
     category: boundary
-    problem: The critic needs an application-neutral pass/fail boundary over an existing changed Go workspace.
-    goals:
-      - Evaluate the supplied workspace without copying it or launching a coding agent.
-      - Preserve the oracle process result as ToolDone or ToolFailed.
-    requirements:
-      input:
-        - must execute in the workspace supplied by the runtime directory binding
-      output:
-        - must emit ToolDone when all workspace tests pass
-        - must emit ToolFailed when the tests reject the candidate
-      side_effects:
-        - must only perform the build artifacts ordinarily produced by go test
-      undo:
-        - must require no critic-owned compensation
-      errors:
-        - must emit CommandError when the Go tool cannot start
-    non_goals:
-      - Does not edit the candidate.
-      - Does not launch another agent.
-      - Does not infer the final verdict outside the critic machine.
     output:
       description: Raw output from the changed-workspace oracle.
       schema:
@@ -65,27 +46,10 @@ tools:
         '{"schema_version":"1","mode":"changed-workspace","verdict":"accepted","accepted":true,"oracle":{"command":"go test ./...","status":"passed"}}'
         > critic-verdict.json
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Write the canonical accepting changed-workspace verdict.
     category: boundary
-    problem: A successful critic terminal must expose a machine-readable verdict rather than requiring terminal-state inference.
-    goals:
-      - Record an explicit accepted verdict selected only by the oracle ToolDone signal.
-      - Keep the verdict schema independent of any consuming application.
-    requirements:
-      input:
-        - must run only on the Evaluating ToolDone branch
-      output:
-        - must write critic-verdict.json with verdict accepted and accepted true
-      side_effects:
-        - must overwrite only critic-verdict.json
-      undo:
-        - must restore or remove the prior verdict file with workspace restoration
-      errors:
-        - must emit ToolFailed or CommandError when the verdict cannot be written
-    non_goals:
-      - Does not choose the application terminal outcome.
-      - Does not rerun the oracle.
     output:
       description: Empty output after the accepting verdict is written.
       schema:
@@ -123,27 +87,10 @@ tools:
         '{"schema_version":"1","mode":"changed-workspace","verdict":"rejected","accepted":false,"oracle":{"command":"go test ./...","status":"failed"}}'
         > critic-verdict.json
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Write the canonical rejecting changed-workspace verdict.
     category: boundary
-    problem: A completed critic run must distinguish oracle rejection from infrastructure failure and from acceptance.
-    goals:
-      - Record an explicit rejected verdict selected only by the oracle ToolFailed signal.
-      - Keep the verdict schema independent of any consuming application.
-    requirements:
-      input:
-        - must run only on the Evaluating ToolFailed branch
-      output:
-        - must write critic-verdict.json with verdict rejected and accepted false
-      side_effects:
-        - must overwrite only critic-verdict.json
-      undo:
-        - must restore or remove the prior verdict file with workspace restoration
-      errors:
-        - must emit ToolFailed or CommandError when the verdict cannot be written
-    non_goals:
-      - Does not choose the application terminal outcome.
-      - Does not convert rejection into infrastructure failure.
     output:
       description: Empty output after the rejecting verdict is written.
       schema:

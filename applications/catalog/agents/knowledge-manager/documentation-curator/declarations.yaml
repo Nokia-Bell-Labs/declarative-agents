@@ -10,24 +10,12 @@ tools:
     init: rest_client_get
     category: boundary
     description: List documentation entries through the configured documentation API.
-    problem: Documentation-curator needs a read word whose HTTP authority stays in REST config.
-    goals:
-      - Resolve the configured documentation index resource.
-      - Return document index data as a grammar-visible REST read result.
-    requirements:
-      input:
-        - Runtime input supplies no transport authority.
-      output:
-        - Output includes document entries and count when the service returns them.
-      errors:
-        - Config, schema, network, timeout, and mapping failures emit CommandError.
-    non_goals:
-      - Does not accept runtime URL, method, host, auth, or redirect policy values.
     parameters:
       type: object
       properties:
         params: {type: object}
-    emits: [RESTResourceRead, RESTDomainFailed, CommandError]
+    signature:
+      emits: [RESTResourceRead, RESTDomainFailed, CommandError]
     output:
       description: Documentation index response.
       schema:
@@ -48,8 +36,6 @@ tools:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or response mapping failure.
         state_after_failure: No REST command state changes.
-    relationships:
-      before: [doc_get, doc_search]
     config:
       rest_ref: documentation
       resource: document_index
@@ -60,19 +46,6 @@ tools:
     init: rest_client_get
     category: boundary
     description: Fetch one documentation document through the configured documentation API.
-    problem: Documentation-curator needs document reads without model-supplied paths becoming transport authority.
-    goals:
-      - Resolve the configured document resource.
-      - Return parsed and raw document data for a declared path.
-    requirements:
-      input:
-        - Runtime input supplies only the declared document path parameter.
-      output:
-        - Output includes path, parsed content, and raw text when available.
-      errors:
-        - Missing documents emit RESTMissing; infrastructure failures emit CommandError.
-    non_goals:
-      - Does not read files directly from the workspace.
     parameters:
       type: object
       properties:
@@ -80,7 +53,8 @@ tools:
           type: object
           properties:
             path: {type: string}
-    emits: [RESTResourceRead, RESTMissing, RESTDomainFailed, CommandError]
+    signature:
+      emits: [RESTResourceRead, RESTMissing, RESTDomainFailed, CommandError]
     output:
       description: Documentation detail response.
       schema:
@@ -102,9 +76,6 @@ tools:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or response mapping failure.
         state_after_failure: No REST command state changes.
-    relationships:
-      after: [doc_list]
-      before: [doc_validate, doc_suggest_changes]
     config:
       rest_ref: documentation
       resource: document
@@ -115,19 +86,6 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Search documentation through the configured documentation API.
-    problem: Documentation-curator needs search as one configured RPC-shaped REST word.
-    goals:
-      - Submit declared search parameters to the documentation service.
-      - Return matches without exposing arbitrary REST authority.
-    requirements:
-      input:
-        - Runtime input supplies query, optional category, and optional limit fields.
-      output:
-        - Output includes query, matches, and count when returned by the service.
-      errors:
-        - Config, schema, network, timeout, and mapping failures emit CommandError.
-    non_goals:
-      - Does not crawl the docs corpus directly.
     parameters:
       type: object
       properties:
@@ -137,7 +95,8 @@ tools:
             query: {type: string}
             category: {type: string}
             limit: {type: integer}
-    emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
+    signature:
+      emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
     output:
       description: Documentation search response.
       schema:
@@ -159,9 +118,6 @@ tools:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or response mapping failure.
         state_after_failure: No REST command state changes.
-    relationships:
-      after: [doc_list]
-      before: [doc_get]
     config:
       rest_ref: documentation
       operation: doc_search
@@ -171,19 +127,6 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Validate selected documentation paths through the configured documentation API.
-    problem: Documentation-curator needs validation findings as structured service output.
-    goals:
-      - Submit declared validation scope.
-      - Distinguish valid responses from domain validation failures.
-    requirements:
-      input:
-        - Runtime input supplies paths and strict mode only.
-      output:
-        - Output includes status, findings, and checked paths.
-      errors:
-        - Validation-domain failures emit RESTDomainFailed; infrastructure failures emit CommandError.
-    non_goals:
-      - Does not run local validation commands directly.
     parameters:
       type: object
       properties:
@@ -192,7 +135,8 @@ tools:
           properties:
             paths: {type: array, items: {type: string}}
             strict: {type: boolean}
-    emits: [RESTResponded, RESTDomainFailed, CommandError]
+    signature:
+      emits: [RESTResponded, RESTDomainFailed, CommandError]
     output:
       description: Documentation validation response.
       schema:
@@ -214,9 +158,6 @@ tools:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or response mapping failure.
         state_after_failure: No REST command state changes.
-    relationships:
-      after: [doc_get]
-      before: [doc_suggest_changes]
     config:
       rest_ref: documentation
       operation: doc_validate
@@ -226,19 +167,6 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Request documentation change suggestions through the configured documentation API.
-    problem: Documentation-curator needs suggestion creation to expose patch state and compensation.
-    goals:
-      - Submit one declared documentation change request.
-      - Return a patch ID for later approval handling.
-    requirements:
-      input:
-        - Runtime input supplies path, instruction, and optional context.
-      output:
-        - Output includes patch ID, path, and suggestions.
-      errors:
-        - Config, schema, network, timeout, and mapping failures emit CommandError.
-    non_goals:
-      - Does not apply patches directly.
     parameters:
       type: object
       properties:
@@ -248,7 +176,8 @@ tools:
             path: {type: string}
             instruction: {type: string}
             context: {type: string}
-    emits: [RESTAccepted, RESTResponded, RESTDomainFailed, CommandError]
+    signature:
+      emits: [RESTAccepted, RESTResponded, RESTDomainFailed, CommandError]
     output:
       description: Documentation suggestion response.
       schema:
@@ -270,9 +199,6 @@ tools:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or response mapping failure.
         state_after_failure: Patch suggestion state exists only after accepted submission.
-    relationships:
-      after: [doc_get, doc_validate]
-      before: [doc_patch_approve, doc_patch_reject]
     config:
       rest_ref: documentation
       operation: doc_suggest_changes
@@ -282,19 +208,6 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Approve a pending documentation patch through the configured documentation API.
-    problem: Future patch approval must be explicit because it changes documentation patch state.
-    goals:
-      - Resolve one configured patch approval operation.
-      - Return the patch decision state for machine routing.
-    requirements:
-      input:
-        - Runtime input supplies patch ID, approver identity, and optional note.
-      output:
-        - Output includes patch ID, status, and decision owner.
-      errors:
-        - Missing patches emit RESTMissing; infrastructure failures emit CommandError.
-    non_goals:
-      - Does not accept arbitrary patch service routes.
     parameters:
       type: object
       properties:
@@ -304,7 +217,8 @@ tools:
             patch_id: {type: string}
             decided_by: {type: string}
             note: {type: string}
-    emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
+    signature:
+      emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
     output:
       description: Documentation patch approval response.
       schema:
@@ -326,8 +240,6 @@ tools:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or response mapping failure.
         state_after_failure: Remote patch state may record the approval attempt.
-    relationships:
-      after: [doc_suggest_changes]
     config:
       rest_ref: documentation
       operation: doc_patch_approve
@@ -337,19 +249,6 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Reject a pending documentation patch through the configured documentation API.
-    problem: Future patch rejection must be explicit because it changes documentation patch state.
-    goals:
-      - Resolve one configured patch rejection operation.
-      - Return the patch decision state for machine routing.
-    requirements:
-      input:
-        - Runtime input supplies patch ID, decision owner, and optional reason.
-      output:
-        - Output includes patch ID, status, and decision owner.
-      errors:
-        - Missing patches emit RESTMissing; infrastructure failures emit CommandError.
-    non_goals:
-      - Does not delete patch history.
     parameters:
       type: object
       properties:
@@ -359,7 +258,8 @@ tools:
             patch_id: {type: string}
             decided_by: {type: string}
             reason: {type: string}
-    emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
+    signature:
+      emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
     output:
       description: Documentation patch rejection response.
       schema:
@@ -381,8 +281,6 @@ tools:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or response mapping failure.
         state_after_failure: Remote patch state may record the rejection attempt.
-    relationships:
-      after: [doc_suggest_changes]
     config:
       rest_ref: documentation
       operation: doc_patch_reject
@@ -392,19 +290,6 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Reopen a rejected documentation patch through the configured documentation API.
-    problem: Patch rejection compensation must resolve to an implemented REST operation.
-    goals:
-      - Resolve one configured patch reopen operation.
-      - Return the reopened patch decision state for machine routing.
-    requirements:
-      input:
-        - Runtime input supplies patch ID, decision owner, and optional reason.
-      output:
-        - Output includes patch ID, status, and decision owner.
-      errors:
-        - Missing patches emit RESTMissing; infrastructure failures emit CommandError.
-    non_goals:
-      - Does not apply or rewrite the patch.
     parameters:
       type: object
       properties:
@@ -414,7 +299,8 @@ tools:
             patch_id: {type: string}
             decided_by: {type: string}
             reason: {type: string}
-    emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
+    signature:
+      emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
     output:
       description: Documentation patch reopen response.
       schema:
@@ -436,8 +322,6 @@ tools:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or response mapping failure.
         state_after_failure: Remote patch state may record the reopen attempt.
-    relationships:
-      after: [doc_patch_reject]
     config:
       rest_ref: documentation
       operation: doc_patch_reopen

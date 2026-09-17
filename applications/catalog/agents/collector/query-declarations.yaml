@@ -10,15 +10,9 @@ tools:
     init: spool_list_traces
     category: boundary
     visibility: internal
-    emits: [TracesListed, CommandError]
+    signature:
+      emits: [TracesListed, CommandError]
     description: Read paginated trace summaries from the collector spool.
-    problem: A trace list view needs bounded summary reads without a separate query backend.
-    goals: [Return paginated summaries sorted by recency, Cap page size in config]
-    requirements:
-      input: [Path and page defaults come from trusted config; page_size and offset may come from the request seed]
-      output: [Output includes traces, total, offset, page_size, skipped_lines]
-      errors: [An unreadable spool emits CommandError]
-    non_goals: [Does not expose raw span payloads]
     parameters: {type: object, properties: {}}
     output:
       description: Paginated trace summaries.
@@ -47,15 +41,9 @@ tools:
     init: spool_get_trace
     category: boundary
     visibility: internal
-    emits: [TraceRetrieved, CommandError]
+    signature:
+      emits: [TraceRetrieved, CommandError]
     description: Read all spans for one trace from the collector spool.
-    problem: A trace waterfall view needs per-span records with timing and parent linkage.
-    goals: [Return all spans for one trace id, Read across active and rotated spool files]
-    requirements:
-      input: [Path comes from trusted config; trace_id comes from the request seed]
-      output: [Output includes trace_id, spans, span_count, skipped_lines]
-      errors: [An unreadable spool or missing trace_id emits CommandError]
-    non_goals: [Does not filter or mutate spans]
     parameters: {type: object, properties: {}}
     output:
       description: All spans for one trace.
@@ -81,15 +69,9 @@ tools:
     init: spool_list_metrics
     category: boundary
     visibility: internal
-    emits: [MetricsListed, CommandError]
+    signature:
+      emits: [MetricsListed, CommandError]
     description: Read paginated metric summaries from the collector metric spool.
-    problem: A metric list view needs bounded per-name summary reads without a separate query backend.
-    goals: [Return paginated summaries by metric name, Cap page size in config]
-    requirements:
-      input: [Path and page defaults come from trusted config; page_size and offset may come from the request seed]
-      output: [Output includes metrics, total, offset, page_size, skipped_lines]
-      errors: [An unreadable spool emits CommandError]
-    non_goals: [Does not expose raw data-point payloads on the monitor surface]
     parameters: {type: object, properties: {}}
     output:
       description: Paginated metric summaries.
@@ -118,15 +100,9 @@ tools:
     init: spool_get_metric
     category: boundary
     visibility: internal
-    emits: [MetricRetrieved, CommandError]
+    signature:
+      emits: [MetricRetrieved, CommandError]
     description: Read one bounded page of spooled records for a metric name.
-    problem: A long-lived metric spool grows without bound, so an unpaginated detail response eventually exceeds the REST response-size limit.
-    goals: [Return paginated records for one metric name, Cap page size in config, Read across active and rotated spool files]
-    requirements:
-      input: [Path and page defaults come from trusted config; metric_name, page_size, and offset may come from the request seed]
-      output: [Output includes metric_name, records, total, record_count, page_record_count, data_point_count, offset, page_size, skipped_lines; each record includes unchanged decoded resource attributes such as service.name and test.run.id]
-      errors: [An unreadable spool or missing metric_name emits CommandError]
-    non_goals: [Does not aggregate across metric names or mutate records]
     parameters: {type: object, properties: {}}
     output:
       description: One bounded page plus total counts for one metric name.
@@ -180,15 +156,9 @@ tools:
     init: spool_span_heatmap
     category: boundary
     visibility: internal
-    emits: [SpanHeatmapReady, CommandError]
+    signature:
+      emits: [SpanHeatmapReady, CommandError]
     description: Filter spooled spans and return a duration heatmap.
-    problem: An Explore panel needs an aggregate latency view over the trace spool without coupling it to categorical aggregation.
-    goals: [Bucket filtered spans into a duration-over-time heatmap]
-    requirements:
-      input: [Path and bucket shape come from trusted config; the filter and time_buckets come from the request seed]
-      output: [Output includes heatmap, matched, exemplar_trace_ids, and skipped_lines]
-      errors: [An unreadable spool emits CommandError]
-    non_goals: [Does not mutate spans, Does not depend on an environment variable it introduces]
     parameters: {type: object, properties: {}}
     output:
       description: A duration heatmap over filtered spans.
@@ -216,15 +186,9 @@ tools:
     init: spool_span_group_by
     category: boundary
     visibility: internal
-    emits: [SpanGroupByReady, CommandError]
+    signature:
+      emits: [SpanGroupByReady, CommandError]
     description: Filter spooled spans and count them by one requested key.
-    problem: An Explore panel needs a bounded categorical breakdown independent of its heatmap.
-    goals: [Count filtered spans grouped by an attribute with a reported dropped remainder]
-    requirements:
-      input: [Path and caps come from trusted config; the filter, group_by, and top_n come from the request seed]
-      output: [Output includes matched, exemplar_trace_ids, groups, dropped_groups, dropped_span_total, and skipped_lines]
-      errors: [A missing group_by or unreadable spool emits CommandError]
-    non_goals: [Does not compute a heatmap, Does not mutate spans]
     parameters: {type: object, properties: {}}
     output:
       description: Bounded group-by counts over filtered spans.
@@ -321,15 +285,9 @@ tools:
     init: spool_span_breakdown
     category: boundary
     visibility: internal
-    emits: [SpanBreakdownReady, CommandError]
+    signature:
+      emits: [SpanBreakdownReady, CommandError]
     description: Rank the attributes that distinguish a selected span region from its complement.
-    problem: After spotting a slow region an operator needs to know which attribute values explain it.
-    goals: [Partition a baseline into a selection and its complement, Rank attribute values by concentration inside the selection]
-    requirements:
-      input: [Path and caps come from trusted config; the baseline and selection filters and top_n come from the request seed]
-      output: [Output includes inside_total, outside_total, exemplar_trace_ids, ranked, dropped, skipped_lines]
-      errors: [An unreadable spool emits CommandError]
-    non_goals: [Does not mutate spans, Does not depend on an environment variable it introduces]
     parameters: {type: object, properties: {}}
     output:
       description: The ranked attribute divergence between the selection and its complement.

@@ -7,7 +7,8 @@ tools:
     binary: env
     args: [GOWORK=off, go, list, -m]
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Read the target module path.
     category: boundary
     output: &structured_output
@@ -35,7 +36,8 @@ tools:
     binary: go
     args: [list, ./...]
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Inventory target module packages.
     category: boundary
     output: *structured_output
@@ -51,7 +53,8 @@ tools:
     stdin_source: $from(go_packages_raw).output
     stdin_max_bytes: 4194304
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Deterministically normalize the declared Go package inventory.
     category: boundary
     output: *structured_output
@@ -69,7 +72,8 @@ tools:
     binary: go
     args: [test, -json, -list, ^Test, ./...]
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Inventory top-level Go tests without executing them.
     category: boundary
     output: *structured_output
@@ -83,7 +87,8 @@ tools:
     binary: go
     args: [test, -json, -count=1, ./...]
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Execute the target module tests once for claim evaluation.
     category: boundary
     output: *structured_output

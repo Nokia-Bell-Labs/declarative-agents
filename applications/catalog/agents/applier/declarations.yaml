@@ -9,7 +9,8 @@ tools:
     category: boundary
     description: Launch the application-owned applier request server.
     parameters: {type: object, properties: {}}
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
     side_effects:
       - {kind: network_listen, target: applier_apply, state: listener_started}
     reversibility: {classification: compensatable}
@@ -27,7 +28,8 @@ tools:
     category: boundary
     description: Launch the application-owned lifecycle control server.
     parameters: {type: object, properties: {}}
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
     side_effects:
       - {kind: network_listen, target: applier_control, state: listener_started}
     reversibility: {classification: compensatable}
@@ -45,7 +47,8 @@ tools:
     category: boundary
     description: Launch the application-owned read-only monitor server.
     parameters: {type: object, properties: {}}
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
     side_effects:
       - {kind: network_listen, target: monitor, state: listener_started}
     reversibility: {classification: compensatable}
@@ -63,7 +66,8 @@ tools:
     category: boundary
     description: Await only the declared lifecycle exit event.
     parameters: {type: object, properties: {}}
-    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    signature:
+      emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
     side_effects:
       - {kind: state_mutation, target: rest_server_queue, state: selected_event_consumed}
     reversibility: {classification: reversible}
@@ -89,7 +93,8 @@ tools:
     category: boundary
     description: Stop the application-owned monitor listener.
     parameters: {type: object, properties: {}}
-    emits: [ServerStopped, CommandError]
+    signature:
+      emits: [ServerStopped, CommandError]
     side_effects:
       - {kind: network_listener_shutdown, target: monitor, state: listener_stopped}
     reversibility: {classification: compensatable}
@@ -109,7 +114,8 @@ tools:
     category: boundary
     description: Stop the application-owned request listener.
     parameters: {type: object, properties: {}}
-    emits: [ServerStopped, CommandError]
+    signature:
+      emits: [ServerStopped, CommandError]
     side_effects:
       - {kind: network_listener_shutdown, target: applier_apply, state: listener_stopped}
     reversibility: {classification: compensatable}

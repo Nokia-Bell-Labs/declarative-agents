@@ -8,25 +8,12 @@ tools:
     visibility: internal
     category: boundary
     description: Post the fixed lifecycle-exit request to the target agent's control server.
-    problem: A supervisor must ask a running agent to exit, and that request is a declared REST call, not an embedded HTTP client.
-    goals:
-      - Resolve the control client and the post_exit operation.
-      - Post the fixed exit request and return the control server's acceptance.
-    requirements:
-      input:
-        - Runtime input supplies no transport authority or request parameters; the reason is fixed in the operation.
-      output:
-        - Output reports the control server's acceptance.
-      errors:
-        - Definition, network, timeout, and mapping failures emit CommandError.
-    non_goals:
-      - Does not accept a runtime method, URL, host, or credential for the control server.
-      - Does not read or start the target agent.
     parameters:
       type: object
       properties: {}
       additional_properties: false
-    emits: [ExitAccepted, CommandError]
+    signature:
+      emits: [ExitAccepted, CommandError]
     output:
       description: Mapped control-server acceptance.
       schema:
@@ -47,10 +34,6 @@ tools:
       - signal: CommandError
         condition: The control client definition is missing, or the exit call fails on network, timeout, or mapping.
         state_after_failure: The exit request outcome is unknown to the caller.
-    relationships:
-      overlaps:
-        - tool: rest_client_invoke
-          difference: This catalog-owned word binds the control-server lifecycle-exit operation.
     config:
       rest_ref: control
       operation: post_exit

@@ -5,28 +5,10 @@ tools:
     type: builtin
     init: invoke_llm
     visibility: internal
-    emits: [LLMResponded, CommandError]
+    signature:
+      emits: [LLMResponded, CommandError]
     description: Invoke the configured Qwen Ollama model for the live REST model-listing proof.
     category: boundary
-    problem: The Ollama REST proof needs a model boundary that must choose the configured REST word before answering.
-    goals:
-      - Send the operator request, tool manifest, and REST result to Qwen.
-      - Require use of ollama_list_models before final answer generation.
-      - Keep model, provider, parser, and prompt configuration in profile-owned YAML.
-    requirements:
-      input:
-        - must read conversation history and selected model-visible tools from runtime state
-        - must use the configured Qwen 3 family model against local Ollama
-      output:
-        - must emit LLMResponded when Ollama returns model text
-        - must emit CommandError for provider setup, model discovery, or chat failures
-      side_effects:
-        - must call local Ollama POST /api/chat
-      undo:
-        - must restore conversation history from the pre-call snapshot
-    non_goals:
-      - Does not call Ollama /api/tags directly.
-      - Does not expose mutating Ollama REST tools.
     output:
       description: Raw plain-text Qwen response.
       schema: {type: string}
@@ -50,12 +32,6 @@ tools:
         condition: provider configuration is invalid, the model is unavailable, or the model call fails
         message_shape: 'invoke_llm: <provider/model>: <error>'
         state_after_failure: conversation history is unchanged unless the provider response was already appended
-    relationships:
-      after:
-        - parse_response
-      overlaps:
-        - tool: ollama_list_models
-          difference: invoke_llm asks Qwen to choose or summarize; ollama_list_models calls GET /api/tags.
     config:
       model: "qwen3.6:35b-mlx"
       provider: ollama

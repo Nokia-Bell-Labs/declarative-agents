@@ -12,7 +12,8 @@ tools:
     category: boundary
     visibility: internal
     description: Standalone validation double.
-    emits: [ToolDone, ToolFailed]
+    signature:
+      emits: [ToolDone, ToolFailed]
     side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
     reversibility: {classification: reversible, requires_confirmation: false}
     undo: {strategy: noop, description: The standalone validation double mutates nothing.}
@@ -25,7 +26,8 @@ tools:
     category: boundary
     visibility: internal
     description: Standalone apply double.
-    emits: [ToolDone, ToolFailed]
+    signature:
+      emits: [ToolDone, ToolFailed]
     side_effects: [{kind: child_process, state: simulated, target: conformance_double}]
     reversibility: {classification: compensatable, requires_confirmation: false}
     undo: {strategy: compensating_action, description: The standalone rollback double represents compensation.}
@@ -38,7 +40,8 @@ tools:
     category: boundary
     visibility: internal
     description: Standalone rollout verification double.
-    emits: [ToolDone, ToolFailed]
+    signature:
+      emits: [ToolDone, ToolFailed]
     side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
     reversibility: {classification: reversible, requires_confirmation: false}
     undo: {strategy: noop, description: The standalone verification double mutates nothing.}
@@ -51,7 +54,8 @@ tools:
     category: boundary
     visibility: internal
     description: Standalone compensation double.
-    emits: [ToolDone, ToolFailed]
+    signature:
+      emits: [ToolDone, ToolFailed]
     side_effects: [{kind: child_process, state: simulated, target: conformance_double}]
     reversibility: {classification: irreversible, requires_confirmation: true}
     undo: {strategy: irreversible, description: Compensation is terminal for the standalone request.}
@@ -64,7 +68,8 @@ tools:
     category: boundary
     visibility: internal
     description: Standalone bounded rollout poll double.
-    emits: [ToolDone, ToolFailed]
+    signature:
+      emits: [ToolDone, ToolFailed]
     side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
     reversibility: {classification: reversible, requires_confirmation: false}
     undo: {strategy: noop, description: The standalone poll double mutates nothing.}
@@ -77,7 +82,8 @@ tools:
     category: boundary
     visibility: internal
     description: Standalone rollout count read double.
-    emits: [ToolDone, ToolFailed]
+    signature:
+      emits: [ToolDone, ToolFailed]
     output:
       description: Deterministic standalone rollout counts.
       schema:

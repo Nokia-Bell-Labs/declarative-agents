@@ -9,15 +9,9 @@ tools:
     init: rest_server_launch
     category: boundary
     visibility: internal
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
     description: Launch collector lifecycle control routes.
-    problem: Persistent intake needs health and graceful exit outside OTLP handlers.
-    goals: [Bind trusted control routes, Keep lifecycle routing in MachineSpec]
-    requirements:
-      input: [Trusted config names collector_control]
-      output: [Reports bound server identity]
-      errors: [Bind and config faults emit CommandError]
-    non_goals: [Does not execute lifecycle behavior in HTTP handlers]
     parameters: {type: object, properties: {}}
     output:
       description: REST launch result.
@@ -28,7 +22,6 @@ tools:
     undo: {strategy: compensating_action, description: Stop the owned control listener.}
     errors:
       - {signal: CommandError, condition: config or bind failure, state_after_failure: no new control listener remains}
-    relationships: {before: [await_collector_control]}
     config: {rest_ref: collector_control}
 
   - name: launch_collector_monitor
@@ -36,15 +29,9 @@ tools:
     init: rest_server_launch
     category: boundary
     visibility: internal
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
     description: Launch collector monitor snapshot and stream routes.
-    problem: Operators need bounded collector state without exposing raw span payloads.
-    goals: [Expose standard monitor views, Keep monitor reads side-effect free]
-    requirements:
-      input: [Trusted config names collector_monitor]
-      output: [Reports bound server identity]
-      errors: [Bind and config faults emit CommandError]
-    non_goals: [Does not expose queued span payloads]
     parameters: {type: object, properties: {}}
     output: {description: REST launch result, schema: {type: object}}
     side_effects:
@@ -53,7 +40,6 @@ tools:
     undo: {strategy: compensating_action, description: Stop the owned monitor listener.}
     errors:
       - {signal: CommandError, condition: config or bind failure, state_after_failure: no new monitor listener remains}
-    relationships: {before: [await_collector_control]}
     config: {rest_ref: collector_monitor}
 
   - name: launch_collector_query
@@ -61,15 +47,9 @@ tools:
     init: rest_server_launch
     category: boundary
     visibility: internal
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
     description: Launch collector query routes for bounded spool reads.
-    problem: Trace reads need a dedicated surface separate from monitor and control.
-    goals: [Bind query routes, Keep query reads side-effect free]
-    requirements:
-      input: [Trusted config names collector_query]
-      output: [Reports bound server identity]
-      errors: [Bind and config faults emit CommandError]
-    non_goals: [Does not expose raw span payloads on the monitor surface]
     parameters: {type: object, properties: {}}
     output: {description: REST launch result, schema: {type: object}}
     side_effects:
@@ -78,7 +58,6 @@ tools:
     undo: {strategy: compensating_action, description: Stop the owned query listener.}
     errors:
       - {signal: CommandError, condition: config or bind failure, state_after_failure: no new query listener remains}
-    relationships: {before: [await_collector_control], after: [launch_collector_monitor]}
     config: {rest_ref: collector_query}
 
   - name: stop_collector_query
@@ -86,12 +65,9 @@ tools:
     init: rest_server_stop
     category: boundary
     visibility: internal
-    emits: [ServerStopped, CommandError]
+    signature:
+      emits: [ServerStopped, CommandError]
     description: Stop the collector query listener.
-    problem: Clean terminal shutdown must release the query address.
-    goals: [Release the owned query listener]
-    requirements: {input: [Trusted query reference], output: [Reports stopped state], errors: [Stop faults emit CommandError]}
-    non_goals: [Does not delete query history]
     parameters: {type: object, properties: {}}
     output: {description: REST stop result, schema: {type: object}}
     side_effects:
@@ -104,7 +80,6 @@ tools:
       captures: [server, address, drained_events, dropped_events, relaunch_requirement]
     errors:
       - {signal: CommandError, condition: stop fails, state_after_failure: listener may be partially stopped}
-    relationships: {after: [otlp_receiver_stop], before: [stop_collector_monitor]}
     config: {rest_ref: collector_query}
 
   - name: await_collector_control
@@ -112,15 +87,9 @@ tools:
     init: rest_await_event
     category: boundary
     visibility: internal
-    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    signature:
+      emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
     description: Check control and monitor queues for lifecycle exit between intake waits.
-    problem: A single-threaded machine must remain responsive to exit while awaiting trace traffic.
-    goals: [Fan in both exit routes, Use a short bounded wait]
-    requirements:
-      input: [Trusted config names control sources]
-      output: [Returns one selected lifecycle event]
-      errors: [Stopped or absent sources remain distinct]
-    non_goals: [Does not inspect monitor snapshots]
     parameters: {type: object, properties: {}}
     output: {description: Selected lifecycle event, schema: {type: object}}
     side_effects:
@@ -133,7 +102,6 @@ tools:
       captures: [source, event]
     errors:
       - {signal: CommandError, condition: source lookup or queue read fails, state_after_failure: listeners remain unchanged}
-    relationships: {after: [launch_collector_control, launch_collector_monitor]}
     config:
       sources:
         - {server: collector_control, routes: [exit], signals: [ExitRequested]}
@@ -167,15 +135,9 @@ tools:
     init: spool_spans
     category: boundary
     visibility: internal
-    emits: [SpansSpooled, CommandError]
+    signature:
+      emits: [SpansSpooled, CommandError]
     description: Spool the last accepted batch before any relay.
-    problem: Live relay is not deterministic retained evidence.
-    goals: [Write complete NDJSON lines, Preserve the batch for relay]
-    requirements:
-      input: [Select the labeled await batch from command state]
-      output: [Report path counts bytes and unchanged batch]
-      errors: [Selection append rotation and sync failures emit CommandError]
-    non_goals: [Does not relay spans]
     parameters: {type: object, properties: {}}
     output: {description: Spool result and batch, schema: {type: object}}
     side_effects:
@@ -184,7 +146,6 @@ tools:
     undo: {strategy: irreversible, description: Audit evidence remains retained and cannot be removed safely after rotation.}
     errors:
       - {signal: CommandError, condition: selection or filesystem failure, state_after_failure: command-state source remains}
-    relationships: {after: [filter_collector_batch], before: [decide_collector_relay]}
     config:
       path: ${COLLECTOR_SPOOL_PATH:-traces/collector.ndjson}
       batch_source: $from(received_batch).batch
@@ -196,15 +157,9 @@ tools:
     init: await_metrics
     category: boundary
     visibility: internal
-    emits: [MetricsReceived, AwaitTimedOut, ReceiverStopped, CommandError]
+    signature:
+      emits: [MetricsReceived, AwaitTimedOut, ReceiverStopped, CommandError]
     description: Wait a short bounded interval for one metric batch between trace intake cycles.
-    problem: A single-threaded machine must drain buffered metrics without blocking trace intake or lifecycle response.
-    goals: [Return one complete metric batch or a distinct timeout, Keep the poll bounded]
-    requirements:
-      input: [Receiver name and a short timeout come from trusted config]
-      output: [Returns one metric batch plus data-point and metric-name metadata]
-      errors: [Receiver stop and cancellation remain distinct signals]
-    non_goals: [Does not spool, mutate, or relay metrics]
     parameters: {type: object, properties: {}}
     output: {description: Metric batch and bounded metadata, schema: {type: object}}
     side_effects:
@@ -213,7 +168,6 @@ tools:
     undo: {strategy: irreversible, description: A consumed concurrent queue item cannot be restored in original order.}
     errors:
       - {signal: CommandError, condition: receiver is absent or the wait is canceled, state_after_failure: no metric batch is returned}
-    relationships: {after: [await_collector_control], before: [spool_collector_metrics]}
     config:
       receiver: ingress
       timeout: 500ms
@@ -223,15 +177,9 @@ tools:
     init: spool_metrics
     category: boundary
     visibility: internal
-    emits: [MetricsSpooled, CommandError]
+    signature:
+      emits: [MetricsSpooled, CommandError]
     description: Spool the last accepted metric batch as NDJSON metric records to a separate file.
-    problem: Metric evidence must be retained deterministically without a Prometheus backend.
-    goals: [Write one NDJSON record per metric, Keep the metric spool separate from the trace spool]
-    requirements:
-      input: [Select the labeled metric await batch from command state]
-      output: [Report path, metric count, data-point count, bytes, and the unchanged batch]
-      errors: [Selection, append, rotation, and sync failures emit CommandError]
-    non_goals: [Does not relay metrics or touch the trace spool]
     parameters: {type: object, properties: {}}
     output: {description: Metric spool result and batch, schema: {type: object}}
     side_effects:
@@ -240,7 +188,6 @@ tools:
     undo: {strategy: irreversible, description: Audit evidence remains retained and cannot be removed safely after rotation.}
     errors:
       - {signal: CommandError, condition: selection or filesystem failure, state_after_failure: command-state source remains}
-    relationships: {after: [await_collector_metrics]}
     config:
       path: ${COLLECTOR_METRICS_SPOOL_PATH:-metrics/collector.ndjson}
       batch_source: $from(received_metrics).batch
@@ -274,15 +221,9 @@ tools:
     init: relay_spans
     category: boundary
     visibility: internal
-    emits: [SpansRelayed, CommandError]
+    signature:
+      emits: [SpansRelayed, CommandError]
     description: Relay the labeled spooled batch unchanged to a configured OTLP endpoint.
-    problem: Persistent trace query needs accepted batches upstream after local evidence.
-    goals: [Preserve protobuf identity, Fail on any partial rejection]
-    requirements:
-      input: [Select the labeled spool batch and trusted endpoint]
-      output: [Report endpoint and completely accepted span count]
-      errors: [Connection timeout RPC and rejection emit CommandError]
-    non_goals: [Does not retry or retract spans]
     parameters: {type: object, properties: {}}
     output:
       description: Completely accepted relay endpoint and span count.
@@ -296,7 +237,6 @@ tools:
     undo: {strategy: irreversible, description: OTLP cannot retract accepted spans.}
     errors:
       - {signal: CommandError, condition: selection transport or rejection failure, state_after_failure: spool evidence remains}
-    relationships: {after: [spool_collector_spans]}
     config:
       endpoint: ${COLLECTOR_RELAY_ENDPOINT:-}
       receiver_address: ${COLLECTOR_RECEIVER_ADDRESS:-0.0.0.0:4317}
@@ -308,12 +248,9 @@ tools:
     init: rest_server_stop
     category: boundary
     visibility: internal
-    emits: [ServerStopped, CommandError]
+    signature:
+      emits: [ServerStopped, CommandError]
     description: Stop the collector monitor listener.
-    problem: Clean terminal shutdown must release the monitor address.
-    goals: [Release the owned monitor listener]
-    requirements: {input: [Trusted monitor reference], output: [Reports stopped state], errors: [Stop faults emit CommandError]}
-    non_goals: [Does not delete monitor history]
     parameters: {type: object, properties: {}}
     output: {description: REST stop result, schema: {type: object}}
     side_effects:
@@ -326,7 +263,6 @@ tools:
       captures: [server, address, drained_events, dropped_events, relaunch_requirement]
     errors:
       - {signal: CommandError, condition: stop fails, state_after_failure: listener may be partially stopped}
-    relationships: {before: [stop_collector_control]}
     config: {rest_ref: collector_monitor}
 
   - name: stop_collector_control
@@ -334,12 +270,9 @@ tools:
     init: rest_server_stop
     category: boundary
     visibility: internal
-    emits: [ServerStopped, CommandError]
+    signature:
+      emits: [ServerStopped, CommandError]
     description: Stop the collector control listener.
-    problem: Clean terminal shutdown must release the control address.
-    goals: [Release the owned control listener]
-    requirements: {input: [Trusted control reference], output: [Reports stopped state], errors: [Stop faults emit CommandError]}
-    non_goals: [Does not relaunch control]
     parameters: {type: object, properties: {}}
     output: {description: REST stop result, schema: {type: object}}
     side_effects:
@@ -352,5 +285,4 @@ tools:
       captures: [server, address, drained_events, dropped_events, relaunch_requirement]
     errors:
       - {signal: CommandError, condition: stop fails, state_after_failure: listener may be partially stopped}
-    relationships: {after: [stop_collector_monitor]}
     config: {rest_ref: collector_control}

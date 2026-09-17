@@ -62,7 +62,8 @@ tools:
           done
       - jurist-consistency-scan
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Externally enumerate and load files for one consistency_check.
     category: boundary
     parameters:
