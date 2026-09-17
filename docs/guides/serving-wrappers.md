@@ -13,7 +13,9 @@ We do not write serve loops by hand. `agent-core/tools/machines/` ships the temp
 
 ## The lifecycle vocabulary and monitor pair
 
-The six lifecycle words (launch requests, launch control, await control, stop requests, and the exit and stop variants) and the monitor launch/stop pair are the same in every wrapper up to naming. They become fragment instantiations: the monitor pair from the shared monitor fragment (the chatbot-mesh chatbot already instantiates it), and the lifecycle words from a serve-lifecycle declarations fragment planned in GH-2166. Until that fragment ships, new wrappers copy the chatbot-mesh chatbot's declarations rather than a demo repository's — the monorepo copy is the shortest and closest to the fragment's target content.
+The six lifecycle words (launch requests, launch control, await control, stop requests, and the exit and stop variants) and the monitor launch/stop pair are the same in every wrapper up to naming. Both are fragment instantiations now. The four lifecycle words come from `agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml`, which takes the names they arrive under as arguments, so the machine that references them needs no change; the monitor pair comes from the monitor fragment beside the agent. A chatbot-mesh wrapper's whole declarations file is those two instantiations and nothing else, about twenty lines where it was a hundred and thirty-five.
+
+The two monitor fragments in the tree are not duplicates of each other. `mesh-monitor-fragment.yaml` is the launch/stop pair for an agent that has its own control server and await word; `catalog/agents/units/monitor-control-fragment.yaml` is the launch/await/stop trio for an agent whose control server is its monitor server. They compose different sets, and fragments do not nest (srd052 R1.2), so the shared monitor words stay written twice.
 
 ## The control and monitor servers
 

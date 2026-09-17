@@ -20,9 +20,9 @@ The table lists the shared units that exist today and the ones the capability-pr
 | monitor service machine template | `agent-core/tools/machines/monitor-service-machine-template.yaml` | shipped |
 | serve machine template | `agent-core/tools/machines/serve-machine-template.yaml` | shipped |
 | lifecycle approval machine template | `agent-core/tools/machines/lifecycle-approval-machine-template.yaml` | shipped |
-| mesh monitor fragment | `applications/chatbot-mesh/agents/units/mesh-monitor-fragment.yaml` | shipped, promotion to agent-core planned (GH-2166) |
-| monitor control fragment | `applications/catalog/agents/units/monitor-control-fragment.yaml` | shipped, reconciliation with the above planned (GH-2166) |
-| serve-lifecycle declarations fragment | `agent-core/tools/units/` | planned (GH-2166) |
+| mesh monitor fragment (launch/stop pair) | `applications/chatbot-mesh/agents/units/mesh-monitor-fragment.yaml` | shipped |
+| monitor control fragment (launch/await/stop trio) | `applications/catalog/agents/units/monitor-control-fragment.yaml` | shipped |
+| serve-lifecycle declarations fragment | `agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml` | shipped (GH-2166) |
 | monitor/control REST servers fragment | `agent-core/tools/units/` | planned (GH-2167); the loader support it needs already ships |
 
 ## REST definitions

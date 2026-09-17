@@ -1,17 +1,11 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
-# Shapes the mesh's REST server words publish: what a launch, a stop, and an
-# awaited control event report, and the empty parameter object of a word whose
-# input arrives through config. Declared here rather than imported from
-# agent-core because an application cannot reach another tree's units
-# (srd051 R1.5); the unit segment of an address is a namespace (R1.4).
-unit: mesh-types-server
+# Shapes the shipped REST server words publish: what a launch and a stop
+# report, and the control event an await selected. The empty parameter object
+# these words take stays in builtin-types-core, because every word whose input
+# arrives through config shares it.
+unit: builtin-types-server
 types:
-- name: NoParameters
-  description: The empty parameter object of a word whose input arrives through config selectors.
-  schema:
-    type: object
-    properties: {}
 - name: ServerLaunch
   description: What a REST server launch reports.
   schema:

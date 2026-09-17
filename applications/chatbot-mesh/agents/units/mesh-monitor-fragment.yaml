@@ -7,7 +7,8 @@
 # own names.
 unit: mesh-monitor-fragment
 imports:
-  - types-server.yaml
+  - /opt/agent-core/tools/units/types-core.yaml
+  - /opt/agent-core/tools/units/types-server.yaml
 params:
   - name: agent
     type: string
@@ -26,8 +27,8 @@ tools:
     category: boundary
     description: Launch read-only REST endpoints for cached monitor state.
     signature:
-      input: mesh-types-server.NoParameters
-      output: mesh-types-server.ServerLaunch
+      input: builtin-types-core.NoParameters
+      output: builtin-types-server.ServerLaunch
       emits: [ServerLaunched, CommandError]
     output:
       description: Monitor REST server launch result.
@@ -53,8 +54,8 @@ tools:
     category: boundary
     description: Stop the owned monitor REST listener.
     signature:
-      input: mesh-types-server.NoParameters
-      output: mesh-types-server.ServerStop
+      input: builtin-types-core.NoParameters
+      output: builtin-types-server.ServerStop
       emits: [ServerStopped, CommandError]
     output:
       description: Monitor REST server stop result.

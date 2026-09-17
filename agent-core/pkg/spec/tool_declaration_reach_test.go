@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
@@ -44,6 +45,14 @@ func declaredWordsOnDisk(t *testing.T, root string) map[string]string {
 		require.NoError(t, yaml.Unmarshal(data, &file), path)
 		for _, tool := range file.Tools {
 			if tool.Name == "" {
+				continue
+			}
+			// A fragment names its words with `$param(...)`, and those names
+			// are placeholders until an instantiation supplies arguments
+			// (srd052 R2.3). The word the corpus holds is the instantiated
+			// one, declared wherever the instantiation is, so the template
+			// itself declares nothing the corpus could reach.
+			if strings.Contains(tool.Name, "$param(") {
 				continue
 			}
 			rel, relErr := filepath.Rel(root, path)

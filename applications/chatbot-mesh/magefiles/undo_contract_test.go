@@ -48,19 +48,17 @@ func TestMutationUndoContractsStaySemanticallyAligned(t *testing.T) {
 	}
 	cases := []expectedContract{
 		{"../../catalog/agents/applier/declarations.yaml", "await_applier_control", "reversible", "queue_event_restore", "rest_await_event", false},
-		{"../agents/chatbot/declarations.yaml", "await_chatbot_control", "reversible", "queue_event_restore", "rest_await_event", false},
 		{"../../catalog/agents/collector/declarations.yaml", "await_collector_control", "reversible", "queue_event_restore", "rest_await_event", false},
-		{"../agents/provisioning-workflow-orchestrator/declarations.yaml", "await_provisioning_workflow_orchestrator_control", "reversible", "queue_event_restore", "rest_await_event", false},
-		{"../agents/creator/declarations.yaml", "await_creator_control", "reversible", "queue_event_restore", "rest_await_event", false},
-		{"../agents/rag-server/declarations.yaml", "await_rag_control", "reversible", "queue_event_restore", "rest_await_event", false},
 		{"../../catalog/agents/applier/declarations.yaml", "stop_monitor_rest", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
 		{"../../catalog/agents/applier/declarations.yaml", "stop_applier_requests", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
 		// The four mesh agents instantiate stop_monitor_rest from one fragment (GH-2092).
 		{"../agents/units/mesh-monitor-fragment.yaml", "stop_monitor_rest", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
-		{"../agents/chatbot/declarations.yaml", "stop_chat_requests", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
-		{"../agents/provisioning-workflow-orchestrator/declarations.yaml", "stop_provisioning_workflow_orchestrator_requests", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
-		{"../agents/creator/declarations.yaml", "stop_creator_requests", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
-		{"../agents/rag-server/declarations.yaml", "stop_rag_requests", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
+		// The same four agents instantiate their await and stop words from the
+		// agent-core serve-lifecycle fragment, which holds the contract once for
+		// every serving agent (GH-2166). The names carry $param because a
+		// fragment's words are named by its arguments.
+		{"../../../agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml", "$param(await_control)", "reversible", "queue_event_restore", "rest_await_event", false},
+		{"../../../agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml", "$param(stop_requests)", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
 		{"../../catalog/agents/collector/declarations.yaml", "stop_collector_monitor", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
 		{"../../catalog/agents/collector/declarations.yaml", "stop_collector_control", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
 		{"../../catalog/agents/collector/declarations.yaml", "spool_collector_spans", "irreversible", "irreversible", "", true},
