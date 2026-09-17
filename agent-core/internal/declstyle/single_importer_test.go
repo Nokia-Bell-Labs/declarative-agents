@@ -20,6 +20,12 @@ import (
 // never instantiated. Such a unit is an include by another name: it adds a
 // file, a unit header, and an edge, and removes no duplication, so the fragment
 // rule folds it back into its importer (GH-2079, GH-2107).
+//
+// Two kinds of unit are outside the class. A type-only unit cannot fold back,
+// because a declaration may not carry both tools and types. agent-core's
+// library under tools/ is published for importers outside this repository, so
+// an in-repo count does not measure it. The class had no entries when it
+// landed, so any new single-importer unit fails.
 const classSingleImporterUnit = "single-importer-unit"
 
 // agentCoreLibraryPrefix is the install path of agent-core's library; in a
