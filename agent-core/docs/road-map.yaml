@@ -780,7 +780,7 @@ releases:
         status: implemented
       - id: gh-2116
         summary: Migrate the remaining identical-state-set machine groups to templates.
-        status: planned
+        status: implemented
     srds:
       - srd054-machine-templates
       - srd055-agent-blueprints
