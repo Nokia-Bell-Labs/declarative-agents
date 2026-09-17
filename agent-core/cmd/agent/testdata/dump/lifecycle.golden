@@ -177,23 +177,18 @@ tools:
     category: boundary
     contract: migrated
     description: Suspend the run at an approval gate. The loop persists a checkpoint through the Checkpoint port when a persistent backend (--dolt-dsn) is configured.
-    problem: A machine needs an explicit human approval boundary that stops automatic dispatch and optionally requires durable checkpoint support before yielding control.
+    problem: Suspend the run at an approval gate. The loop persists a checkpoint through the Checkpoint port when a persistent backend (--dolt-dsn) is configured.
     goals:
-      - Emit AwaitApproval with the configured reason, or the default `awaiting approval` reason.
-      - Refuse suspension when require_checkpoint is true and no persistent checkpoint backend is configured.
-      - Preserve declaration alias, label, resolved reason, checkpoint requirement/reference context, and compensation intent in a strict receipt for rollback.
+      - Suspend the run at an approval gate. The loop persists a checkpoint through the Checkpoint port when a persistent backend (--dolt-dsn) is configured.
     requirements:
       input:
-        - must take label, reason, and require_checkpoint only from trusted tool configuration
+        - suspend declares no input type
       output:
-        - must emit AwaitApproval with the resolved reason when the gate is valid
-        - must emit a strict receipt that a fresh receipt-only reverser can validate and report as pending resume, rejection, or rollback compensation
+        - suspend declares no output type
       errors:
-        - must emit CommandError before suspension when a required persistent checkpoint backend is unavailable
-        - must emit no receipt when suspension fails
+        - suspend emits CommandError when it cannot produce its declared output
     non_goals:
-      - Does not approve or reject the run on the operator's behalf.
-      - Does not itself persist a checkpoint; the loop owns persistence through the Checkpoint port.
+      - Behavior outside suspend, which its signature states in full
     output:
       description: The configured or default reason presented at the approval boundary; the opaque receipt carries rollback compensation context.
       schema:
@@ -226,12 +221,6 @@ tools:
         condition: require_checkpoint is true but the Checkpoint port is nil or the no-op backend
         message_shape: suspend requires a persistent checkpoint backend for checkpoint persistence
         state_after_failure: the run is not suspended and no approval handoff occurs
-    relationships:
-      before:
-        - machine-selected operation requiring approval
-      after:
-        - resume approval signal
-        - checkpoint_rollback
     init: suspend
     config:
       label: approval
@@ -240,6 +229,10 @@ tools:
     emits:
       - AwaitApproval
       - CommandError
+    signature:
+      emits:
+        - AwaitApproval
+        - CommandError
     visibility: internal
 rest: {}
 files:
@@ -253,10 +246,10 @@ files:
     sha256: 5038c9ba4f5d5c2ae656d3032f95e66fccd959198a7117b1b84ebef9d52e62fa
     root: agent-core
   - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
-    sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25
+    sha256: 0d310bc366663c42363af6af66fb4e6bba16aea4f963c7b2e73685a933adff78
     root: agent-core
   - path: <agent-core>/tools/builtin/suspend.yaml
-    sha256: 917023417eef2105abb3515ef2b0f35953b49e9a0e2d761cd7c98ed131dd6f48
+    sha256: ba5156dab28b3adae0b1110647afd61f4c977e77fda22e9c593ca8a0ad660f02
     root: agent-core
   - path: <agent-core>/tools/machines/lifecycle-approval-machine-template.yaml
     sha256: 66bccbaf08565a646cb378f93bbd728d307658cd68f40a69fd4ee997506f1074

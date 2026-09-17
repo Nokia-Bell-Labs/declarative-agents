@@ -12,37 +12,12 @@ tools:
   config:
     checkpoint: $request.checkpoint
     to_iteration: $request.to_iteration
-  emits:
-  - ToolDone
-  - CommandError
+  signature:
+    emits:
+    - ToolDone
+    - CommandError
   description: Roll back a run to the last persisted step of a target iteration by reverting the Dolt branch and replaying receipts, then persist operator recovery context.
   category: boundary
-  problem: |
-    Operators need rollback as a machine action with explicit inputs, not as
-    a special root command path.
-  goals:
-  - Resolve one run and target iteration to its last persisted step.
-  - Revert DB-persisted state to that step with the Dolt adapter Revert.
-  - Reverse external effects by replaying each reverted entry's receipt into its tool's receipt-consuming Undo.
-  requirements:
-    input:
-    - must receive the resolved checkpoint backend (the Dolt adapter by default).
-    - must receive a run id or use latest.
-    - must receive a target iteration and resolve its last execution step.
-    output:
-    - must print the run id, target step, reverted-entry count, skipped irreversible entries, and pending compensation work.
-    - on success, must emit a strict receipt containing the declaration alias, run, target iteration and step, prior branch or checkpoint when available, resulting rollback checkpoint when available, and required operator decision.
-    side_effects:
-    - must revert DB-persisted state on the run branch to the target step (DB-only).
-    - reverses external effects only through each tool's receipt-consuming Undo; effects with no sufficient receipt are not reverted.
-    undo:
-    - must validate the persisted rollback receipt in a fresh receipt-only reverser and report named pending operator recovery without replaying the original forward execution.
-    errors:
-    - must fail when the target step is invalid, Revert fails, or a receipt-walk Undo fails.
-    - must emit no receipt when rollback or receipt validation fails.
-  non_goals:
-  - Does not resume the agent after rollback.
-  - Does not revert files, HTTP, or workspace effects inside the Dolt adapter; Revert is DB-only and external effects are reversed only through tool receipts.
   # GH-1377 resolution: the rollback profile is a machine and dispatches this
   # declared boundary word. Inside that boundary, DB Revert plus the complete
   # reverse receipt walk form one recovery transaction: Undo resolution is
@@ -133,10 +108,3 @@ tools:
     condition: rollback fails to resolve the run/step, revert the branch, or replay a receipt-consuming Undo
     message_shape: "rollback <component>: <error>"
     state_after_failure: the run branch is reverted, but a failed receipt-walk Undo may leave some external effects unreversed; the report names them
-  relationships:
-    before:
-    - checkpoint_history
-    after: []
-    overlaps:
-    - tool: checkpoint_history
-      difference: "checkpoint_rollback reverts the run branch and replays receipts; checkpoint_history only reads Dolt commit history."

@@ -241,6 +241,10 @@ tools:
     emits:
       - AwaitApproval
       - CommandError
+    signature:
+      emits:
+        - AwaitApproval
+        - CommandError
     visibility: internal
 rest:
   version: v1
@@ -308,7 +312,7 @@ rest:
         disabled: true
 files:
   - path: <agent-core>/testdata/integration/profiles/request-signal/declarations.yaml
-    sha256: f01693d282639a6360414e9bab1bb2efbadc638503b1f530aac05328cf6f6305
+    sha256: 325f0355c755ee329b901661896aadf368ce9faa794881f46c2a149da9d3b8ca
   - path: <agent-core>/testdata/integration/profiles/request-signal/machine.yaml
     sha256: cfa3e3a8746dbe49722e1b68871517e8012fb3b582a5ecb31fa796a37bf42c1d
   - path: <agent-core>/testdata/integration/profiles/request-signal/profile.yaml

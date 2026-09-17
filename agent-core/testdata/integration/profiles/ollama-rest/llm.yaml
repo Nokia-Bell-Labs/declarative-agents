@@ -7,10 +7,20 @@ tools:
     init: invoke_llm
     visibility: internal
     description: Invoke the configured Ollama model for the live REST proof.
-    emits: [LLMResponded, CommandError]
+    category: boundary
+    signature:
+      emits: [LLMResponded, CommandError]
     output:
       description: Raw plain-text model response.
       schema: {type: string}
+    side_effects:
+      - kind: external_api_call
+        target: llm_provider
+      - kind: state_mutation
+        target: conversation_history
+        state: appended
+    reversibility: {classification: reversible}
+    undo: {strategy: conversation_truncate, requires: [conversation_checkpoint]}
     config:
       model: "gemma4:31b-cloud"
       provider: ollama

@@ -11,7 +11,8 @@ tools:
       type: object
       properties: {}
       additional_properties: false
-    emits: [RESTResponded, RESTDomainFailed, CommandError]
+    signature:
+      emits: [RESTResponded, RESTDomainFailed, CommandError]
     config:
       rest_ref: ollama
       operation: listOllamaModels

@@ -21,7 +21,8 @@ tools:
     init: rest_server_launch
     category: boundary
     visibility: internal
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
     config:
       rest_ref: $param(server)
   - name: await_agent_control
@@ -29,7 +30,8 @@ tools:
     init: rest_await_event
     category: boundary
     visibility: internal
-    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    signature:
+      emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
     config:
       sources:
         - server: $param(server)

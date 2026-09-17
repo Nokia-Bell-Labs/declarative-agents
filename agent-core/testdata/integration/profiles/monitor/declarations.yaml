@@ -7,8 +7,13 @@ tools:
     init: rest_server_launch
     visibility: internal
     description: Launch the embedded monitor REST server.
+    category: boundary
     parameters: {type: object, properties: {}}
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
+    side_effects: [{kind: network_listen, target: monitor, state: listener_started}]
+    reversibility: {classification: compensatable}
+    undo: {strategy: compensating_action, description: Stop the monitor listener.}
     config:
       rest_ref: monitor
   - name: await_monitor_control
@@ -16,8 +21,10 @@ tools:
     init: rest_await_event
     visibility: internal
     description: Await the monitor control exit event.
+    category: boundary
     parameters: {type: object, properties: {}}
-    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    signature:
+      emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
     side_effects:
       - kind: state_mutation
         target: rest_server_queue
@@ -40,7 +47,12 @@ tools:
     init: rest_server_stop
     visibility: internal
     description: Stop the embedded monitor REST server.
+    category: boundary
     parameters: {type: object, properties: {}}
-    emits: [ServerStopped, CommandError]
+    signature:
+      emits: [ServerStopped, CommandError]
+    side_effects: [{kind: network_listener_shutdown, target: monitor, state: listener_stopped}]
+    reversibility: {classification: reversible}
+    undo: {strategy: noop, description: Relaunch is a separate machine action.}
     config:
       rest_ref: monitor

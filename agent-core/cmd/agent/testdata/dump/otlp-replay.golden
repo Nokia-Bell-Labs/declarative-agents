@@ -177,7 +177,7 @@ tools:
 rest: {}
 files:
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/declarations.yaml
-    sha256: 35b9fd248e8d05271baa0b642a8bb3996224d6822c698016e6cdb9a8c425fae9
+    sha256: 749f8167316679abf40befb476818ba037a5336cf5ba9437b422f2eeba207859
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/machine.yaml
     sha256: b84a930d1e764db0889db7a8c0e075d79202a1f446f497cd60173bcb5a786793
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/profile.yaml
@@ -187,5 +187,5 @@ files:
   - path: <agent-core>/testdata/integration/units/otlp-replay-types.yaml
     sha256: ea964d685a28846ac3afbf2367bdf48fbc73667f2c2862df1f1205bc195218db
   - path: <agent-core>/tools/builtin/otlp/all.yaml
-    sha256: 00b517317e275d0cf45b31b7b183653b3e51b30e3a2af4c44ba239c2f41fbec6
+    sha256: ecff02e2abba05c96da87367204614fe7e026518382356b200f8f589e9979ad6
     root: agent-core

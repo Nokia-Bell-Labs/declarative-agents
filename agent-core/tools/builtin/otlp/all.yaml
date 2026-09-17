@@ -7,23 +7,9 @@ tools:
   init: otlp_receiver_launch
   category: boundary
   visibility: internal
-  emits: [ReceiverLaunched, CommandError]
+  signature:
+    emits: [ReceiverLaunched, CommandError]
   description: Bind a declared OTLP/gRPC receiver for trace and metric exports and return without waiting for traffic.
-  problem: A machine cannot own telemetry-ingress lifecycle unless listener launch is an explicit word.
-  goals:
-  - Bind one named receiver with bounded trace and metric queues.
-  - Keep the launch-to-await transition visible in MachineSpec.
-  requirements:
-    input:
-    - Receiver name, address, queue capacity, overflow policy, and shutdown policy come from trusted config.
-    output:
-    - Output reports receiver, bound address, queue capacity, and overflow policy.
-    side_effects:
-    - Opens a network listener and registers receiver state.
-    errors:
-    - Invalid config, duplicate live name, or bind failure emits CommandError.
-  non_goals:
-  - Does not wait for or process a trace batch.
   parameters: {type: object, properties: {}}
   output:
     description: Bound receiver identity and queue policy.
@@ -51,8 +37,6 @@ tools:
     condition: config is invalid, the receiver is live, or the address cannot bind
     message_shape: 'tool <name>: bind OTLP receiver <receiver>: <cause>'
     state_after_failure: no newly bound receiver remains
-  relationships:
-    before: [await_spans, otlp_receiver_stop]
   config:
     receiver: ingress
     address: ${COLLECTOR_RECEIVER_ADDRESS:-0.0.0.0:4317}
@@ -66,21 +50,9 @@ tools:
   init: await_spans
   category: boundary
   visibility: internal
-  emits: [SpansReceived, AwaitTimedOut, ReceiverStopped, CommandError]
+  signature:
+    emits: [SpansReceived, AwaitTimedOut, ReceiverStopped, CommandError]
   description: Wait for and consume one complete FIFO trace batch from a named OTLP receiver.
-  problem: OTLP handler goroutines cannot decide machine policy, so accepted batches need a bounded handoff into the grammar.
-  goals:
-  - Return one complete request and bounded decision metadata.
-  - Distinguish timeout, lifecycle stop, and transport faults.
-  requirements:
-    input:
-    - Receiver and timeout come from trusted config.
-    output:
-    - Output includes batch, batch_id, span_count, service_names, trace_ids, resource_attributes, and received_at.
-    errors:
-    - An absent receiver or canceled wait emits CommandError; timeout and receiver stop have distinct signals.
-  non_goals:
-  - Does not filter, spool, relay, or mutate spans.
   parameters: {type: object, properties: {}}
   output:
     description: Complete OTLP batch plus bounded metadata used by declared decisions.
@@ -110,9 +82,6 @@ tools:
     condition: receiver is absent or context cancellation is not the declared timeout
     message_shape: 'tool <name>: OTLP receiver <receiver>: <cause>'
     state_after_failure: no batch is returned
-  relationships:
-    before: [spool_spans, relay_spans]
-    after: [otlp_receiver_launch]
   config:
     receiver: ingress
     timeout: 30s
@@ -122,21 +91,9 @@ tools:
   init: load_otlp_batch
   category: boundary
   visibility: internal
-  emits: [BatchLoaded, CommandError]
+  signature:
+    emits: [BatchLoaded, CommandError]
   description: Read and decode one trusted OTLP protobuf-JSON trace batch.
-  problem: Offline replay needs a visible file/decode step before the shared relay boundary.
-  goals:
-  - Distinguish file-read failures from protobuf-JSON decode failures.
-  - Return the unchanged batch for a later declared relay_spans dispatch.
-  requirements:
-    input:
-    - The OTLP protobuf-JSON path comes from trusted config.
-    output:
-    - Output includes path, span_count, and the decoded batch.
-    errors:
-    - Read and decode failures emit CommandError before any network dispatch.
-  non_goals:
-  - Does not export, retry, mutate, or convert stdouttrace NDJSON.
   parameters: {type: object, properties: {}, additionalProperties: false}
   output:
     description: Trusted OTLP protobuf-JSON batch and metadata.
@@ -161,8 +118,6 @@ tools:
     condition: the configured file cannot be read or decoded as an ExportTraceServiceRequest
     message_shape: 'tool <name>: read|decode OTLP batch <path>: <cause>'
     state_after_failure: relay is not invoked
-  relationships:
-    before: [relay_spans]
   config:
     path: traces/replay.otlp.json
 
@@ -171,24 +126,9 @@ tools:
   init: spool_spans
   category: boundary
   visibility: internal
-  emits: [SpansSpooled, CommandError]
+  signature:
+    emits: [SpansSpooled, CommandError]
   description: Append a selected OTLP batch as complete stdouttrace-compatible NDJSON span lines.
-  problem: A live backend is not deterministic test evidence, so received spans need a local format existing assertions already read.
-  goals:
-  - Preserve span and resource identity in stdouttrace-compatible objects.
-  - Rotate only before a complete batch and sync evidence before success.
-  requirements:
-    input:
-    - Path, batch selector, and rotation bounds come from trusted config.
-    - A positive max_bytes requires max_files of at least two.
-    output:
-    - Output reports path, span count, bytes written, and repeats the selected batch for declared relay.
-    side_effects:
-    - Appends and syncs a trace evidence file.
-    errors:
-    - Selector, conversion, rotation, append, and sync failures emit CommandError.
-  non_goals:
-  - Does not relay, query, or delete accepted backend spans.
   parameters: {type: object, properties: {}}
   output:
     description: Spool result plus the unchanged selected OTLP batch.
@@ -215,9 +155,6 @@ tools:
     condition: batch selection, encoding, rotation, append, or sync fails
     message_shape: 'tool <name>: <spool operation>: <cause>'
     state_after_failure: relay is not invoked and the source batch remains in command state
-  relationships:
-    before: [relay_spans]
-    after: [await_spans]
   config:
     path: traces/collector.ndjson
     batch_source: $.batch
@@ -229,22 +166,9 @@ tools:
   init: relay_spans
   category: boundary
   visibility: internal
-  emits: [SpansRelayed, CommandError]
+  signature:
+    emits: [SpansRelayed, CommandError]
   description: Export a selected complete trace batch unchanged to one trusted OTLP/gRPC endpoint.
-  problem: Persistent backends need accepted batches, but relay and retry order must remain visible in MachineSpec.
-  goals:
-  - Preserve protobuf resource and span identity at the upstream.
-  - Treat any upstream partial rejection as CommandError rather than a successful relay.
-  - Reject a statically equivalent receiver and relay endpoint.
-  requirements:
-    input:
-    - Endpoint, receiver address, batch selector, and timeout come from trusted config.
-    output:
-    - Output reports endpoint and span count after complete upstream acceptance.
-    errors:
-    - Selection, connection, timeout, RPC, and partial-success rejection emit CommandError.
-  non_goals:
-  - Does not retry, sample, mutate, or retract spans.
   parameters: {type: object, properties: {}}
   output:
     description: Upstream endpoint and completely accepted span count.
@@ -269,8 +193,6 @@ tools:
     condition: batch selection, connection, timeout, RPC, or upstream partial success fails
     message_shape: 'tool <name>: relay spans to <endpoint>: <cause>'
     state_after_failure: local spool evidence and command-state batch remain available for declared retry
-  relationships:
-    after: [spool_spans, await_spans]
   config:
     endpoint: jaeger:4317
     receiver_address: 0.0.0.0:4317
@@ -282,23 +204,9 @@ tools:
   init: otlp_receiver_stop
   category: boundary
   visibility: internal
-  emits: [ReceiverStopped, CommandError]
+  signature:
+    emits: [ReceiverStopped, CommandError]
   description: Stop a named OTLP receiver, reject new exports, and unblock waiting commands.
-  problem: A machine-owned listener needs an explicit terminal lifecycle word that releases transport resources.
-  goals:
-  - Stop intake and unblock every waiter within a declared bound.
-  - Report retained and dropped queue state.
-  requirements:
-    input:
-    - Receiver, shutdown timeout, and drain policy come from trusted config.
-    output:
-    - Output reports trace and metric queue counts, drop counts, and drain policy.
-    side_effects:
-    - Closes the listener and mutates receiver lifecycle state.
-    errors:
-    - Missing receiver, shutdown timeout, or cleanup failure emits CommandError.
-  non_goals:
-  - Does not retract already relayed or spooled spans.
   parameters: {type: object, properties: {}}
   output:
     description: Final receiver queue and drop state.
@@ -333,8 +241,6 @@ tools:
     condition: the named receiver was never launched or graceful shutdown exceeds its bound
     message_shape: 'tool <name>: shutdown OTLP receiver <receiver>: <cause>'
     state_after_failure: forced stop still releases the listener when graceful shutdown times out
-  relationships:
-    after: [otlp_receiver_launch, await_spans]
   config:
     receiver: ingress
     shutdown_timeout: 5s
@@ -345,23 +251,9 @@ tools:
   init: spool_list_traces
   category: boundary
   visibility: internal
-  emits: [TracesListed, CommandError]
+  signature:
+    emits: [TracesListed, CommandError]
   description: Read the NDJSON trace spool and return paginated trace summaries, newest first.
-  problem: A collector needs a read path over spooled traces so operators and UIs can browse ingested data without a separate backend.
-  goals:
-  - Aggregate spooled spans into trace summaries with bounded pagination.
-  - Read across the active spool and rotated files without mutation.
-  requirements:
-    input:
-    - Path, page size, max page size, and offset come from trusted config.
-    output:
-    - Output includes traces (trace id, root service, root span name, span count, start time, duration), total, offset, page size, and skipped line count.
-    side_effects:
-    - Read-only file access.
-    errors:
-    - Unreadable spool path emits CommandError.
-  non_goals:
-  - Does not mutate, rotate, or delete spool files.
   parameters: {type: object, properties: {}}
   output:
     description: Paginated trace summaries and spool health metadata.
@@ -398,8 +290,6 @@ tools:
     condition: the configured spool path cannot be read
     message_shape: 'tool <name>: <cause>'
     state_after_failure: no output is returned
-  relationships:
-    after: [spool_spans]
   config:
     path: traces/collector.ndjson
     page_size: 20
@@ -411,23 +301,9 @@ tools:
   init: spool_get_trace
   category: boundary
   visibility: internal
-  emits: [TraceRetrieved, CommandError]
+  signature:
+    emits: [TraceRetrieved, CommandError]
   description: Read all spans for one trace from the NDJSON spool, returning the fields a waterfall UI needs.
-  problem: A trace detail view needs per-span records with parent linkage, timing, and attributes from the spool without a separate query backend.
-  goals:
-  - Return all spans for one trace id with waterfall-ready fields.
-  - Read across the active spool and rotated files without mutation.
-  requirements:
-    input:
-    - Path and trace id come from trusted config.
-    output:
-    - Output includes trace id, spans (span id, parent span id, service, name, start time, end time, status, attributes), span count, and skipped line count.
-    side_effects:
-    - Read-only file access.
-    errors:
-    - Missing trace id or unreadable spool path emits CommandError.
-  non_goals:
-  - Does not mutate, rotate, or delete spool files.
   parameters: {type: object, properties: {}}
   output:
     description: All spans for one trace with waterfall fields.
@@ -469,8 +345,6 @@ tools:
     condition: trace id is missing or the configured spool path cannot be read
     message_shape: 'tool <name>: <cause>'
     state_after_failure: no output is returned
-  relationships:
-    after: [spool_spans]
   config:
     path: traces/collector.ndjson
     trace_id: ""
@@ -480,23 +354,9 @@ tools:
   init: spool_span_heatmap
   category: boundary
   visibility: internal
-  emits: [SpanHeatmapReady, CommandError]
+  signature:
+    emits: [SpanHeatmapReady, CommandError]
   description: Filter spooled spans and return a duration-over-time heatmap.
-  problem: An Explore panel needs to see where latency occurs over time without coupling that view to another aggregation.
-  goals:
-  - Filter spans by time, service, name, and attribute equality, then bucket them into a duration-over-time heatmap.
-  requirements:
-    input:
-    - Spool path, time-bucket count, duration bucket edges, and exemplar cap come from trusted config; the filter and time-bucket override arrive per request.
-    output:
-    - Output includes the heatmap grid with axis boundaries, matched span count, exemplar trace IDs, and skipped line count.
-    side_effects:
-    - Read-only file access.
-    errors:
-    - Unreadable spool path emits CommandError.
-  non_goals:
-  - Does not mutate, rotate, or delete spool files.
-  - Does not depend on any environment variable.
   parameters:
     type: object
     properties:
@@ -538,8 +398,6 @@ tools:
     condition: the configured spool path cannot be read
     message_shape: 'tool <name>: <cause>'
     state_after_failure: no output is returned
-  relationships:
-    after: [spool_spans]
   config:
     path: traces/collector.ndjson
     time_buckets: 24
@@ -551,23 +409,9 @@ tools:
   init: spool_span_group_by
   category: boundary
   visibility: internal
-  emits: [SpanGroupByReady, CommandError]
+  signature:
+    emits: [SpanGroupByReady, CommandError]
   description: Filter spooled spans and count them by one requested key.
-  problem: An Explore panel needs a bounded categorical breakdown without forcing an unrelated heatmap calculation.
-  goals:
-  - Count filtered spans grouped by an attribute, reporting the dropped remainder rather than truncating silently.
-  requirements:
-    input:
-    - Spool path and caps come from trusted config; the filter, group-by key, and top-N arrive per request.
-    output:
-    - Output includes the matched span count, exemplar trace IDs, group-by counts, dropped group and span totals, and skipped line count.
-    side_effects:
-    - Read-only file access.
-    errors:
-    - A missing group-by key or unreadable spool path emits CommandError.
-  non_goals:
-  - Does not compute a duration heatmap.
-  - Does not mutate, rotate, or delete spool files.
   parameters:
     type: object
     properties:
@@ -614,8 +458,6 @@ tools:
     condition: group_by is missing or the configured spool path cannot be read
     message_shape: 'tool <name>: <cause>'
     state_after_failure: no output is returned
-  relationships:
-    after: [spool_spans]
   config:
     path: traces/collector.ndjson
     group_by: ""
@@ -628,24 +470,9 @@ tools:
   init: spool_span_breakdown
   category: boundary
   visibility: internal
-  emits: [SpanBreakdownReady, CommandError]
+  signature:
+    emits: [SpanBreakdownReady, CommandError]
   description: Rank the attributes that most distinguish a selected span region from its complement.
-  problem: After spotting a slow region in the heatmap, an operator needs to know which attribute values explain it, without guessing which dimension to group by.
-  goals:
-  - Partition a baseline span set into a selection and its complement, then rank attribute values by their concentration inside the selection.
-  - Report inside and outside counts and a deterministic divergence score, capped with a dropped remainder.
-  requirements:
-    input:
-    - Spool path and caps come from trusted config; the baseline and selection filters and top-N arrive per request.
-    output:
-    - Output includes inside and outside totals, a capped list of exemplar trace IDs for the selection, the ranked attribute divergences, the dropped count, and skipped line count.
-    side_effects:
-    - Read-only file access.
-    errors:
-    - Unreadable spool path emits CommandError.
-  non_goals:
-  - Does not mutate, rotate, or delete spool files.
-  - Does not depend on any environment variable.
   parameters:
     type: object
     properties:
@@ -689,8 +516,6 @@ tools:
     condition: the configured spool path cannot be read
     message_shape: 'tool <name>: <cause>'
     state_after_failure: no output is returned
-  relationships:
-    after: [spool_spans]
   config:
     path: traces/collector.ndjson
     top_n: 20
@@ -702,21 +527,9 @@ tools:
   init: await_metrics
   category: boundary
   visibility: internal
-  emits: [MetricsReceived, AwaitTimedOut, ReceiverStopped, CommandError]
+  signature:
+    emits: [MetricsReceived, AwaitTimedOut, ReceiverStopped, CommandError]
   description: Wait for and consume one complete FIFO metric batch from a named OTLP receiver.
-  problem: Metric handler goroutines cannot decide machine policy, so accepted metric batches need a bounded handoff into the grammar.
-  goals:
-  - Return one complete metric request and bounded decision metadata.
-  - Distinguish timeout, lifecycle stop, and transport faults.
-  requirements:
-    input:
-    - Receiver and timeout come from trusted config.
-    output:
-    - Output includes batch, batch_id, data_point_count, service_names, metric_names, resource_attributes, and received_at.
-    errors:
-    - An absent receiver or canceled wait emits CommandError; timeout and receiver stop have distinct signals.
-  non_goals:
-  - Does not spool, relay, or mutate metrics.
   parameters: {type: object, properties: {}}
   output:
     description: Complete OTLP metric batch plus bounded metadata used by declared decisions.
@@ -746,9 +559,6 @@ tools:
     condition: receiver is absent or context cancellation is not the declared timeout
     message_shape: 'tool <name>: OTLP receiver <receiver>: <cause>'
     state_after_failure: no batch is returned
-  relationships:
-    before: [spool_metrics]
-    after: [otlp_receiver_launch]
   config:
     receiver: ingress
     timeout: 30s
@@ -758,24 +568,9 @@ tools:
   init: spool_metrics
   category: boundary
   visibility: internal
-  emits: [MetricsSpooled, CommandError]
+  signature:
+    emits: [MetricsSpooled, CommandError]
   description: Append a selected OTLP metric batch as complete NDJSON metric lines carrying resource, scope, and data-point identity.
-  problem: A live backend is not deterministic test evidence, so received metrics need a local format a declared query reads.
-  goals:
-  - Preserve metric name, resource, and data-point identity in one NDJSON record per metric.
-  - Rotate only before a complete batch and sync evidence before success.
-  requirements:
-    input:
-    - Path, batch selector, and rotation bounds come from trusted config.
-    - A positive max_bytes requires max_files of at least two.
-    output:
-    - Output reports path, metric count, data-point count, bytes written, and repeats the selected batch.
-    side_effects:
-    - Appends and syncs a metric evidence file.
-    errors:
-    - Selector, conversion, rotation, append, and sync failures emit CommandError.
-  non_goals:
-  - Does not relay, query, or delete accepted metrics; does not touch the trace spool.
   parameters: {type: object, properties: {}}
   output:
     description: Metric spool result plus the unchanged selected OTLP batch.
@@ -803,8 +598,6 @@ tools:
     condition: batch selection, encoding, rotation, append, or sync fails
     message_shape: 'tool <name>: <spool operation>: <cause>'
     state_after_failure: the source batch remains in command state
-  relationships:
-    after: [await_metrics]
   config:
     path: metrics/collector.ndjson
     batch_source: $.batch
@@ -816,23 +609,9 @@ tools:
   init: spool_list_metrics
   category: boundary
   visibility: internal
-  emits: [MetricsListed, CommandError]
+  signature:
+    emits: [MetricsListed, CommandError]
   description: Read the NDJSON metric spool and return paginated metric summaries by name.
-  problem: A collector needs a read path over spooled metrics so operators and UIs can browse ingested data without a separate backend.
-  goals:
-  - Aggregate spooled metric records into per-name summaries with bounded pagination.
-  - Read across the active spool and rotated files without mutation.
-  requirements:
-    input:
-    - Path, page size, max page size, and offset come from trusted config.
-    output:
-    - Output includes metrics (name, type, unit, record count, data-point count, services), total, offset, page size, and skipped line count.
-    side_effects:
-    - Read-only file access.
-    errors:
-    - Unreadable spool path emits CommandError.
-  non_goals:
-  - Does not mutate, rotate, or delete spool files; does not read the trace spool.
   parameters: {type: object, properties: {}}
   output:
     description: Paginated metric summaries and spool health metadata.
@@ -869,8 +648,6 @@ tools:
     condition: the configured metric spool path cannot be read
     message_shape: 'tool <name>: <cause>'
     state_after_failure: no output is returned
-  relationships:
-    after: [spool_metrics]
   config:
     path: metrics/collector.ndjson
     page_size: 20
@@ -882,23 +659,9 @@ tools:
   init: spool_get_metric
   category: boundary
   visibility: internal
-  emits: [MetricRetrieved, CommandError]
+  signature:
+    emits: [MetricRetrieved, CommandError]
   description: Read one bounded page of spooled records for one metric name from the NDJSON metric spool.
-  problem: A metric detail view needs bounded per-record data points and resource identity without hiding truncation.
-  goals:
-  - Return one declared page with total and page record counts.
-  - Read across the active spool and rotated files without mutation.
-  requirements:
-    input:
-    - Path and metric name come from trusted config.
-    output:
-    - Output includes metric name, records with resource identity, total, record count, page record count, pagination fields, data-point count, and skipped line count.
-    side_effects:
-    - Read-only file access.
-    errors:
-    - Missing metric name or unreadable spool path emits CommandError.
-  non_goals:
-  - Does not mutate, rotate, or delete spool files.
   parameters: {type: object, properties: {}}
   output:
     description: One bounded page of spooled records for one metric name; total reports all matching records.
@@ -942,8 +705,6 @@ tools:
     condition: metric name is missing or the configured metric spool path cannot be read
     message_shape: 'tool <name>: <cause>'
     state_after_failure: no output is returned
-  relationships:
-    after: [spool_metrics]
   config:
     path: metrics/collector.ndjson
     metric_name: ""

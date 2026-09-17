@@ -8,32 +8,12 @@ tools:
   args:
   - vet
   - ./...
-  emits:
-  - ToolDone
-  - ToolFailed
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
   description: Run go vet ./... on the workspace. Reports suspicious constructs.
   category: boundary
-  problem: The generator and planner machines need the go vet ./... validation step as an explicit boundary word rather than a hidden aggregate validation sequence.
-  goals:
-  - Run `go vet ./...` in the configured workspace.
-  - Emit ToolDone on a zero exit status and ToolFailed on a non-zero exit status.
-  - Return captured command output for the next machine step or LLM feedback.
-  requirements:
-    input:
-    - must run in the configured workspace root
-    - may accept an optional package/path parameter when declared in parameters
-    output:
-    - must return captured stdout/stderr as a string
-    - must emit ToolDone for success and ToolFailed for command failure
-    side_effects:
-    - must execute one child process using the configured binary and args
-    undo:
-    - must not require rollback beyond workspace restore when the underlying command writes artifacts
-    errors:
-    - must emit CommandError when the process cannot be started
-  non_goals:
-  - Does not decide whether validation is complete.
-  - Does not run other validation tools.
   output:
     description: Raw go vet command output.
     schema:
@@ -59,14 +39,6 @@ tools:
     condition: the command exits non-zero
     message_shape: <captured command output>
     state_after_failure: workspace unchanged by agent-core
-  relationships:
-    before:
-    - done
-    - invoke_executor
-    after:
-    - increment_retry
-    - mark_task_done
-    - invoke_llm
   undo:
     strategy: noop
     description: Validation command has no direct repository mutations to reverse.

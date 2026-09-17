@@ -125,6 +125,12 @@ tools:
       - AwaitTimedOut
       - ServerStopped
       - CommandError
+    signature:
+      emits:
+        - ExitRequested
+        - AwaitTimedOut
+        - ServerStopped
+        - CommandError
     visibility: internal
   - name: exit_agent
     type: builtin
@@ -167,6 +173,10 @@ tools:
     emits:
       - ServerLaunched
       - CommandError
+    signature:
+      emits:
+        - ServerLaunched
+        - CommandError
     visibility: internal
 rest:
   version: v1
@@ -225,9 +235,9 @@ files:
   - path: <agent-core>/testdata/integration/units/control-rest.yaml
     sha256: e332735889a88387c408e3cf3d646dccddb10d3ee841f84b55e3c00b745cdd3f
   - path: <agent-core>/testdata/integration/units/control-tools.yaml
-    sha256: 10fbd112582fc4f2f4bce55fc92a45d50733352f5b78bd2432e7d5332b807967
+    sha256: 748f30478e60f19828e6854996a609620438c4db9ab740ffc15d40aca7c0bf16
   - path: <agent-core>/testdata/integration/units/control-types.yaml
     sha256: ed6608b6e81df7eac4ba4d67308236026a7a25cc7130091f01bc9996731a4362
   - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
-    sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25
+    sha256: 0d310bc366663c42363af6af66fb4e6bba16aea4f963c7b2e73685a933adff78
     root: agent-core

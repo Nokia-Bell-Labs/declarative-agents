@@ -98,7 +98,20 @@ instantiations:
 tools:
   - name: await_monitor_control
     type: builtin
+    category: boundary
     description: Await the monitor control exit event.
+    problem: Await the monitor control exit event.
+    goals:
+      - Await the monitor control exit event.
+    requirements:
+      input:
+        - await_monitor_control declares no input type
+      output:
+        - await_monitor_control declares no output type
+      errors:
+        - await_monitor_control emits CommandError when it cannot produce its declared output
+    non_goals:
+      - Behavior outside await_monitor_control, which its signature states in full
     side_effects:
       - kind: state_mutation
         target: rest_server_queue
@@ -126,32 +139,90 @@ tools:
       - AwaitTimedOut
       - ServerStopped
       - CommandError
+    signature:
+      emits:
+        - ExitRequested
+        - AwaitTimedOut
+        - ServerStopped
+        - CommandError
     parameters:
       properties: {}
       type: object
     visibility: internal
   - name: launch_monitor_rest
     type: builtin
+    category: boundary
     description: Launch the embedded monitor REST server.
+    problem: Launch the embedded monitor REST server.
+    goals:
+      - Launch the embedded monitor REST server.
+    requirements:
+      input:
+        - launch_monitor_rest declares no input type
+      output:
+        - launch_monitor_rest declares no output type
+      errors:
+        - launch_monitor_rest emits CommandError when it cannot produce its declared output
+    non_goals:
+      - Behavior outside launch_monitor_rest, which its signature states in full
+    side_effects:
+      - kind: network_listen
+        target: monitor
+        state: listener_started
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Stop the monitor listener.
     init: rest_server_launch
     config:
       rest_ref: monitor
     emits:
       - ServerLaunched
       - CommandError
+    signature:
+      emits:
+        - ServerLaunched
+        - CommandError
     parameters:
       properties: {}
       type: object
     visibility: internal
   - name: stop_monitor_rest
     type: builtin
+    category: boundary
     description: Stop the embedded monitor REST server.
+    problem: Stop the embedded monitor REST server.
+    goals:
+      - Stop the embedded monitor REST server.
+    requirements:
+      input:
+        - stop_monitor_rest declares no input type
+      output:
+        - stop_monitor_rest declares no output type
+      errors:
+        - stop_monitor_rest emits CommandError when it cannot produce its declared output
+    non_goals:
+      - Behavior outside stop_monitor_rest, which its signature states in full
+    side_effects:
+      - kind: network_listener_shutdown
+        target: monitor
+        state: listener_stopped
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Relaunch is a separate machine action.
     init: rest_server_stop
     config:
       rest_ref: monitor
     emits:
       - ServerStopped
       - CommandError
+    signature:
+      emits:
+        - ServerStopped
+        - CommandError
     parameters:
       properties: {}
       type: object
@@ -254,7 +325,7 @@ rest:
           - localhost
 files:
   - path: <agent-core>/testdata/integration/profiles/monitor/declarations.yaml
-    sha256: 7f0c82900e6d4fcfc712193258bd21a4e571cab53aebc1178e5d97679f6328af
+    sha256: b5ad1c9006a7b12c66f1ed0cc7b1e825cead927a0acc32beb9a0e032edb21b23
   - path: <agent-core>/testdata/integration/profiles/monitor/machine.yaml
     sha256: a8b9034017d70438932b4defce3aef2972887c0bd65dbb1e525c22fd5111bb6b
   - path: <agent-core>/testdata/integration/profiles/monitor/profile.yaml

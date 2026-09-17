@@ -200,11 +200,36 @@ tools:
     visibility: internal
   - name: invoke_llm
     type: builtin
+    category: boundary
     description: Invoke the configured Ollama model for the live REST proof.
+    problem: Invoke the configured Ollama model for the live REST proof.
+    goals:
+      - Invoke the configured Ollama model for the live REST proof.
+    requirements:
+      input:
+        - invoke_llm declares no input type
+      output:
+        - invoke_llm declares no output type
+      errors:
+        - invoke_llm emits CommandError when it cannot produce its declared output
+    non_goals:
+      - Behavior outside invoke_llm, which its signature states in full
     output:
       description: Raw plain-text model response.
       schema:
         type: string
+    side_effects:
+      - kind: external_api_call
+        target: llm_provider
+      - kind: state_mutation
+        target: conversation_history
+        state: appended
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: conversation_truncate
+      requires:
+        - conversation_checkpoint
     init: invoke_llm
     config:
       llm_timeout: 120
@@ -236,11 +261,27 @@ tools:
     emits:
       - LLMResponded
       - CommandError
+    signature:
+      emits:
+        - LLMResponded
+        - CommandError
     visibility: internal
   - name: ollama_list_models
     type: builtin
     category: boundary
     description: List local Ollama models through the configured REST client.
+    problem: List local Ollama models through the configured REST client.
+    goals:
+      - List local Ollama models through the configured REST client.
+    requirements:
+      input:
+        - ollama_list_models declares no input type
+      output:
+        - ollama_list_models declares no output type
+      errors:
+        - ollama_list_models emits CommandError when it cannot produce its declared output
+    non_goals:
+      - Behavior outside ollama_list_models, which its signature states in full
     init: rest_client_invoke
     config:
       operation: listOllamaModels
@@ -249,6 +290,11 @@ tools:
       - RESTResponded
       - RESTDomainFailed
       - CommandError
+    signature:
+      emits:
+        - RESTResponded
+        - RESTDomainFailed
+        - CommandError
     parameters:
       additional_properties: false
       properties: {}
@@ -423,9 +469,9 @@ rest:
           - 11434
 files:
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/declarations.yaml
-    sha256: ef9f4388170296a3f14a190d621e1c715f90b8354c056a7b148a234873ebc34f
+    sha256: 46e4a19db54a38b5cd39ad84dc53ec0a9a3fabe0313f5b35b23e4596c1f18480
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/llm.yaml
-    sha256: 2cfb17199ba2ac43d7072360869091977d487cdf43aeef421f100b1f347c2bcd
+    sha256: 66f28ebcc72955c78b74c702618103dc4091b8808fa95c1f0a5b70ad1c64af6a
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/machine.yaml
     sha256: a318d0dd7995ee96e2467d0dfbd73f1d42e3fe1bfc2017bb766c82d90287a791
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/openapi.yaml

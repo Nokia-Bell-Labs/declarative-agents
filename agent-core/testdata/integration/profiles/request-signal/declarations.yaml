@@ -23,7 +23,8 @@ tools:
     init: suspend
     category: boundary
     visibility: internal
-    emits: [AwaitApproval, CommandError]
+    signature:
+      emits: [AwaitApproval, CommandError]
     config:
       label: request-signal-approval
       reason: awaiting continuation request

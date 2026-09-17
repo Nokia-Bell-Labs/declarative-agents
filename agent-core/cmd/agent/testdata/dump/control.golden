@@ -99,37 +99,30 @@ tools:
       - AwaitTimedOut
       - ServerStopped
       - CommandError
+    signature:
+      emits:
+        - ExitRequested
+        - AwaitTimedOut
+        - ServerStopped
+        - CommandError
     visibility: internal
   - name: exit_agent
     type: builtin
     category: boundary
     contract: migrated
     description: Request a controlled agent exit through lifecycle vocabulary.
-    problem: |
-      Profiles need an explicit lifecycle word for operator-requested exit,
-      instead of hidden process handlers or REST handlers that terminate the run.
+    problem: Request a controlled agent exit through lifecycle vocabulary.
     goals:
-      - Report AgentExited after the configured runtime shutdown hook is invoked.
-      - Return CommandError when no shutdown hook is wired.
-      - Keep exit routing visible in MachineSpec transitions.
-      - Preserve the selected declaration alias in command results and diagnostics.
+      - Request a controlled agent exit through lifecycle vocabulary.
     requirements:
       input:
-        - must receive reason, status, and drain policy from ToolDef config or validated event context.
-        - must prefer validated runtime event payload fields over ToolDef defaults.
+        - exit_agent declares no input type
       output:
-        - must report requested status, reason, drain policy, resulting signal, and optional drain or checkpoint result fields as structured JSON.
-        - must emit no rollback receipt after successful shutdown because the effect is irreversible.
-      side_effects:
-        - must mutate lifecycle run state through the injected shutdown dependency.
-      undo:
-        - must classify a completed shutdown as irreversible and let rollback skip it explicitly.
+        - exit_agent declares no output type
       errors:
-        - must fail when the shutdown dependency is missing.
-        - must emit no receipt when shutdown or input validation fails.
+        - exit_agent emits CommandError when it cannot produce its declared output
     non_goals:
-      - Does not call os.Exit.
-      - Does not bypass MachineSpec routing.
+      - Behavior outside exit_agent, which its signature states in full
     output:
       description: Agent exit request summary.
       schema:
@@ -167,12 +160,6 @@ tools:
         condition: previous Result output is malformed or contains non-string lifecycle payload fields
         message_shape: 'decode exit_agent previous result: <error>'
         state_after_failure: run continues until MachineSpec handles CommandError
-    relationships:
-      after:
-        - rest_await_event
-      overlaps:
-        - tool: suspend
-          difference: suspend pauses for later resume; exit_agent requests terminal shutdown.
     init: exit_agent
     config:
       drain_policy: stop_servers
@@ -181,6 +168,10 @@ tools:
     emits:
       - AgentExited
       - CommandError
+    signature:
+      emits:
+        - AgentExited
+        - CommandError
     parameters:
       properties: {}
       type: object
@@ -195,6 +186,10 @@ tools:
     emits:
       - ServerLaunched
       - CommandError
+    signature:
+      emits:
+        - ServerLaunched
+        - CommandError
     visibility: internal
 rest:
   version: v1
@@ -253,7 +248,7 @@ files:
   - path: <agent-core>/testdata/integration/units/control-rest.yaml
     sha256: e332735889a88387c408e3cf3d646dccddb10d3ee841f84b55e3c00b745cdd3f
   - path: <agent-core>/testdata/integration/units/control-tools.yaml
-    sha256: 10fbd112582fc4f2f4bce55fc92a45d50733352f5b78bd2432e7d5332b807967
+    sha256: 748f30478e60f19828e6854996a609620438c4db9ab740ffc15d40aca7c0bf16
   - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
-    sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25
+    sha256: 0d310bc366663c42363af6af66fb4e6bba16aea4f963c7b2e73685a933adff78
     root: agent-core
