@@ -1,44 +1,12 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 name: monitor-rest-profile
+# An instance of agent-core's monitor-service machine template (srd054).
+unit: core-monitor-machine
 purpose: Serve embedded monitor state until a control exit request arrives.
-metric_labels:
-  profile: monitor
-initial_state: Idle
-budget:
-  command_timeout: 1m
-  max_iterations: 6
-states:
-  - name: Idle
-  - name: Launching
-  - name: AwaitingControl
-  - name: Stopping
-  - name: Done
-    run_status: succeeded
-  - name: Failed
-    run_status: failed
-terminal_states: [Done, Failed]
-signals:
-  - name: Seed
-  - name: ServerLaunched
-  - name: ExitRequested
-  - name: AwaitTimedOut
-  - name: ServerStopped
-  - name: CommandError
-transitions:
-  - state: Idle
-    signal: Seed
-    next: Launching
-    action: launch_monitor_rest
-    label: monitor
-    report_output: $.address
-    metric_labels:
-      route_group: monitor
-  - {state: Launching, signal: ServerLaunched, next: AwaitingControl, action: await_monitor_control}
-  - {state: Launching, signal: CommandError, next: Failed}
-  - {state: AwaitingControl, signal: ExitRequested, next: Stopping, action: stop_monitor_rest}
-  - {state: AwaitingControl, signal: AwaitTimedOut, next: Failed}
-  - {state: AwaitingControl, signal: ServerStopped, next: Failed}
-  - {state: AwaitingControl, signal: CommandError, next: Failed}
-  - {state: Stopping, signal: ServerStopped, next: Done}
-  - {state: Stopping, signal: CommandError, next: Failed}
+instantiate:
+  - fragment: ../../../../tools/machines/monitor-service-machine-template.yaml
+    args:
+      profile: monitor
+      machine: machine.yaml
+      tools: tools.yaml

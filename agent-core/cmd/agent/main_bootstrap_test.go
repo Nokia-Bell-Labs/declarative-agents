@@ -399,18 +399,25 @@ func TestValidateConfigRejectsImplicitParseRetryPolicy(t *testing.T) {
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
 	monitorDir := filepath.Dir(profilePathFromTest(t, "monitor/profile.yaml"))
-	machineData, err := os.ReadFile(filepath.Join(monitorDir, "machine.yaml"))
+	// The monitor machine is an instance of the monitor-service template
+	// (srd054), so the budget text to corrupt lives in the template body.
+	templateData, err := os.ReadFile(filepath.Join(
+		repoRootFromTest(t), "tools", "machines", "monitor-service-machine-template.yaml"))
 	require.NoError(t, err)
-	machineData = []byte(strings.Replace(
-		string(machineData),
-		"  max_iterations: 6",
-		"  max_iterations: 6\n  max_consecutive_parse_errors: 2",
+	patched := strings.Replace(
+		string(templateData),
+		"    max_iterations: 6",
+		"    max_iterations: 6\n    max_consecutive_parse_errors: 2",
 		1,
-	))
+	)
+	require.NotEqual(t, string(templateData), patched, "the template budget text moved")
 
 	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "template.yaml"), []byte(patched), 0o644))
 	machine := filepath.Join(dir, "machine.yaml")
-	require.NoError(t, os.WriteFile(machine, machineData, 0o644))
+	require.NoError(t, os.WriteFile(machine, []byte(
+		"name: monitor-rest-profile\ninstantiate:\n"+
+			"  - fragment: template.yaml\n    args: {profile: monitor, machine: machine.yaml, tools: tools.yaml}\n"), 0o644))
 	profile := filepath.Join(dir, "profile.yaml")
 	require.NoError(t, os.WriteFile(profile, []byte(fmt.Sprintf(
 		"name: implicit-parse-retry\nmachine: %s\ntools:\n  - %s\ntool_declarations:\n  - %s\nrest_definitions:\n  - %s\n",

@@ -1,81 +1,14 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 name: runtime-state-reader
+# An instance of agent-core's monitor-service machine template (srd054).
+unit: runtime-state-reader-machine
 purpose: |-
   Launches the runtime-state reader over embedded monitor REST and keeps it serving
   until a configured control exit request stops the owned listener.
-configuration:
-  machine: agents/runtime-state-reader/machine.yaml
-  tools: agents/runtime-state-reader/tools.yaml
-metric_labels:
-  profile: runtime-state-reader
-initial_state: Idle
-budget:
-  command_timeout: 1m
-  max_iterations: 6
-states:
-  - name: Idle
-    meaning: Initial state before the monitor server starts.
-  - name: Launching
-    meaning: The REST server launch command is running.
-  - name: AwaitingControl
-    meaning: Monitor REST routes are available while the machine waits for a control event.
-  - name: Stopping
-    meaning: The machine stops the owned monitor REST listener.
-  - name: Done
-    run_status: succeeded
-    meaning: Terminal. The monitor REST listener stopped without error.
-  - name: Failed
-    run_status: failed
-    meaning: Terminal state for launch failures.
-terminal_states:
-  - Done
-  - Failed
-signals:
-  - name: Seed
-    trigger: Loop initialization.
-  - name: ServerLaunched
-    trigger: Monitor REST routes were registered.
-  - name: ExitRequested
-    trigger: Supervisor requested monitor exit through REST control.
-  - name: AwaitTimedOut
-    trigger: No matching control event arrived.
-  - name: ServerStopped
-    trigger: Monitor REST listener stopped.
-  - name: CommandError
-    trigger: REST server lifecycle command failed.
-transitions:
-  - state: Idle
-    signal: Seed
-    next: Launching
-    action: launch_monitor_rest
-    label: monitor
-    report_output: $.address
-    metric_labels:
-      route_group: monitor
-  - state: Launching
-    signal: ServerLaunched
-    next: AwaitingControl
-    action: await_monitor_control
-  - state: Launching
-    signal: CommandError
-    next: Failed
-  - state: AwaitingControl
-    signal: ExitRequested
-    next: Stopping
-    action: stop_monitor_rest
-  - state: AwaitingControl
-    signal: AwaitTimedOut
-    next: Failed
-  - state: AwaitingControl
-    signal: ServerStopped
-    next: Failed
-  - state: AwaitingControl
-    signal: CommandError
-    next: Failed
-  - state: Stopping
-    signal: ServerStopped
-    next: Done
-  - state: Stopping
-    signal: CommandError
-    next: Failed
+instantiate:
+  - fragment: /opt/agent-core/tools/machines/monitor-service-machine-template.yaml
+    args:
+      profile: runtime-state-reader
+      machine: agents/runtime-state-reader/machine.yaml
+      tools: agents/runtime-state-reader/tools.yaml
