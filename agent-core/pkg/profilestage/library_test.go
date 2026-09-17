@@ -61,3 +61,48 @@ func TestStageFollowsMachineTemplateEdges(t *testing.T) {
 	require.FileExists(t, filepath.Join(destination, "agents", "units", "stages", "run.yaml"),
 		"a stage the template body splices resolves against the template and travels too")
 }
+
+// TestStageCopiesADeclaredLibraryRootToItsStagedPosition is srd056 R3.3: a
+// file reached through a declared root lands where the staged profile's
+// declared directory resolves, so the staged profile loads with no --library.
+func TestStageCopiesADeclaredLibraryRootToItsStagedPosition(t *testing.T) {
+	t.Parallel()
+	source := t.TempDir()
+	writeDeclaration(t, source, "agents/one/profile.yaml",
+		"name: one\nmachine: machine.yaml\ntools: [tools.yaml]\ntool_declarations: [declarations.yaml]\nlibraries: {shared: ../../lib}\n")
+	writeDeclaration(t, source, "agents/one/declarations.yaml",
+		"unit: one\nimports:\n- /opt/shared/units/words.yaml\ntools: []\n")
+	writeDeclaration(t, source, "lib/units/words.yaml",
+		"unit: words\nimports:\n- ../types.yaml\ntools: []\n")
+	writeDeclaration(t, source, "lib/types.yaml", "unit: types\ntypes: []\n")
+	destination := t.TempDir()
+
+	require.NoError(t, profilestage.Stage(destination, profilestage.Tree{
+		Source:      filepath.Join(source, "agents", "one"),
+		Destination: filepath.Join(destination, "agents", "one"),
+	}))
+
+	require.FileExists(t, filepath.Join(destination, "lib", "units", "words.yaml"),
+		"the rooted file lands where the staged profile's ../../lib resolves")
+	require.FileExists(t, filepath.Join(destination, "lib", "types.yaml"),
+		"the library's own relative import travels inside the root")
+	imported, err := profilestage.Imported(filepath.Join(source, "agents", "one"))
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{
+		filepath.Join(source, "lib", "units", "words.yaml"), filepath.Join(source, "lib", "types.yaml"),
+	}, imported)
+}
+
+func TestStageReportsAnUndeclaredLibraryRoot(t *testing.T) {
+	t.Parallel()
+	source := t.TempDir()
+	writeDeclaration(t, source, "agents/one/declarations.yaml",
+		"unit: one\nimports:\n- /opt/nowhere/words.yaml\ntools: []\n")
+
+	destination := t.TempDir()
+	err := profilestage.Stage(destination, profilestage.Tree{
+		Source: filepath.Join(source, "agents", "one"), Destination: filepath.Join(destination, "agents", "one"),
+	})
+
+	require.ErrorContains(t, err, `library root "nowhere" is declared by no staged profile`)
+}

@@ -275,9 +275,15 @@ func validateToolImportPaths(file ToolDefsFile, path string) error {
 		if strings.TrimSpace(importPath) == "" {
 			return fmt.Errorf("tool unit %q at %s has an empty import path", file.Unit, path)
 		}
-		if filepath.IsAbs(importPath) && !corepath.UnderInstallPrefix(importPath) {
-			return fmt.Errorf("tool unit %q at %s imports absolute path %q: %w",
-				file.Unit, path, importPath, corepath.ErrOutsideLibraryRoot)
+		if !filepath.IsAbs(importPath) {
+			continue
+		}
+		mapped, err := corepath.MapLibraryPath(importPath)
+		if err == nil && mapped == "" {
+			err = corepath.ErrOutsideLibraryRoot
+		}
+		if err != nil {
+			return fmt.Errorf("tool unit %q at %s imports absolute path %q: %w", file.Unit, path, importPath, err)
 		}
 	}
 	return nil
@@ -380,6 +386,10 @@ func applyLocalTools(imported, local []ToolDef, source ToolSource) ([]ToolDef, e
 		case !exists && tool.Override:
 			return nil, fmt.Errorf("tool %q in %s overrides no imported target", tool.Name, formatToolSource(source))
 		case exists:
+			if root, inLibrary := corepath.LibraryRootOf(source.Path); inLibrary {
+				return nil, fmt.Errorf("tool %q in %s overrides an import from inside library root %q: "+
+					"a library is read-only to its importers (srd056 R2.4)", tool.Name, formatToolSource(source), root)
+			}
 			tool.overrideTarget = result[position].DeclarationSource()
 			result[position] = tool
 		default:

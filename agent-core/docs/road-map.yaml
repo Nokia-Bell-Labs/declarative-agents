@@ -777,7 +777,7 @@ releases:
         status: planned
       - id: gh-2119
         summary: Declared library roots, the --library flag, root read-only rules, and rooted staging.
-        status: planned
+        status: implemented
       - id: gh-2116
         summary: Migrate the remaining identical-state-set machine groups to templates.
         status: planned
@@ -794,7 +794,7 @@ releases:
         status: planned
       - id: rel20.0-uc003-unit-libraries
         summary: A unit imports from the agent-core root or a declared library root.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel20.0-machine-templates
         summary: Formal tests for template and blueprint formats, instantiation and path resolution, validation, and closure, identity, dump, staging, and audit provenance.

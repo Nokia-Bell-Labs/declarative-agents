@@ -721,7 +721,7 @@ use_case_index:
   - id: rel20.0-uc003-unit-libraries
     title: A unit imports from a library root
     release: "20.0"
-    status: specified
+    status: implemented
     test_suite: test-rel20.0-unit-libraries
     path: docs/specs/use-cases/rel20.0-uc003-unit-libraries.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification

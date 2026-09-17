@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: rel20.0-uc003-unit-libraries
 title: A unit imports from a library root
-status: specified
+status: implemented
 
 summary: |
   A profile author needs a unit, a machine template, or a type that lives

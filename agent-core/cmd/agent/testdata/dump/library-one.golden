@@ -1,0 +1,111 @@
+dump_version: 1
+profile:
+  name: library-one
+  machine: <agent-core>/testdata/integration/profiles/library-one/machine.yaml
+  tools:
+    - <agent-core>/testdata/integration/profiles/library-one/tools.yaml
+  tool_declarations:
+    - <agent-core>/testdata/integration/profiles/library-one/declarations.yaml
+  libraries:
+    shared: <agent-core>/testdata/integration/library
+machine:
+  name: library-one
+  purpose: Say the shared library's word once and finish.
+  initial_state: Idle
+  states:
+    - name: Idle
+      meaning: Initial state.
+    - name: Saying
+      meaning: Saying the shared word.
+    - name: Succeeded
+      meaning: Terminal success.
+      run_status: succeeded
+    - name: Failed
+      meaning: Terminal failure.
+      run_status: failed
+  terminal_states:
+    - Succeeded
+    - Failed
+  signals:
+    - name: Seed
+      trigger: Loop initialization.
+    - name: Done
+      trigger: The word finished.
+    - name: CommandError
+      trigger: Runtime failure.
+  transitions:
+    - state: Idle
+      signal: Seed
+      next: Saying
+      action: say_shared
+    - state: Saying
+      signal: Done
+      next: Succeeded
+    - state: Saying
+      signal: CommandError
+      next: Failed
+  budget:
+    max_iterations: 3
+    command_timeout: 1m
+types:
+  - ref: shared-types.Text
+    description: Plain text the shared library's word publishes.
+    schema:
+      type: string
+tools:
+  - name: say_shared
+    type: builtin
+    category: word
+    description: Finish with the shared library's word.
+    problem: Finish with the shared library's word.
+    goals:
+      - Finish with the shared library's word.
+    requirements:
+      input:
+        - say_shared declares no input type
+      output:
+        - say_shared takes its output as shared-types.Text
+      errors:
+        - say_shared emits CommandError when it cannot produce its declared output
+    non_goals:
+      - Behavior outside say_shared, which its signature states in full
+    output:
+      schema:
+        type: string
+    side_effects:
+      - kind: none
+        state: read_only
+        description: say_shared computes a value and mutates nothing
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: say_shared mutates nothing, so undo does nothing
+    errors:
+      - signal: CommandError
+        condition: required input, configuration, or runtime state is invalid
+        message_shape: 'say_shared: <error>'
+        state_after_failure: no additional workflow step is executed by this tool
+    init: done
+    emits:
+      - Done
+    signature:
+      output: shared-types.Text
+      emits:
+        - Done
+rest: {}
+files:
+  - path: <agent-core>/testdata/integration/library/types/shared-types.yaml
+    sha256: e6963f40349787587cc4353592121d3594bbd1ab5acd938d40c64d92caf6576f
+    root: shared
+  - path: <agent-core>/testdata/integration/library/units/shared-words.yaml
+    sha256: 73666358f741b0cc0db23b2010e603f94b79c14bea2d30ff722f3d4a97b304b2
+    root: shared
+  - path: <agent-core>/testdata/integration/profiles/library-one/declarations.yaml
+    sha256: 540ef8232e9792490409f69e6bb2221edf4b7bc04fe8108b573b99a4098f8617
+  - path: <agent-core>/testdata/integration/profiles/library-one/machine.yaml
+    sha256: fb3b089d05c020243267eba35b7bff4f8a3a4237cd548e6d05d82c1599a4ac50
+  - path: <agent-core>/testdata/integration/profiles/library-one/profile.yaml
+    sha256: 291a58d3d4e708f8a0569854a561c708175086952d2cfad11b1de3b190715898
+  - path: <agent-core>/testdata/integration/profiles/library-one/tools.yaml
+    sha256: 629894928dd46f99d89b1ae79508875d83d5572a0e521a12c911e5997a55b617

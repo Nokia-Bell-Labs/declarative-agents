@@ -64,5 +64,42 @@ func TestImportTargetResolvesRelativeAndLibraryRootedPaths(t *testing.T) {
 	_, err = ImportTarget(importer, "/home/user/types.yaml")
 	require.ErrorIs(t, err, ErrOutsideLibraryRoot)
 	_, err = ImportTarget(importer, InstallPrefix+"-backup/types.yaml")
-	require.ErrorIs(t, err, ErrOutsideLibraryRoot)
+	require.ErrorAs(t, err, &UndeclaredRootError{}, "a sibling prefix is a library form naming an undeclared root")
+}
+
+func TestDeclaredLibraryRootsResolveScopedAndReadOnly(t *testing.T) {
+	SetInstallRoot("")
+	t.Cleanup(func() { SetInstallRoot(""); SetLibraryRoots(nil); SetLibraryOverrides(nil) })
+	shared := filepath.Join(t.TempDir(), "lib")
+	previous := SetLibraryRoots(map[string]string{"shared": shared})
+	require.Nil(t, previous)
+	importer := filepath.Join(string(filepath.Separator), "profiles", "agents", "one", "declarations.yaml")
+
+	got, err := ImportTarget(importer, "/opt/shared/units/words.yaml")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(shared, "units", "words.yaml"), got)
+
+	_, err = ImportTarget(importer, "/opt/other/units/words.yaml")
+	var undeclared UndeclaredRootError
+	require.ErrorAs(t, err, &undeclared)
+	require.Equal(t, "other", undeclared.Name)
+
+	inLibrary := filepath.Join(shared, "units", "words.yaml")
+	got, err = ImportTarget(inLibrary, "../types.yaml")
+	require.NoError(t, err, "a relative import that stays inside the root is fine")
+	require.Equal(t, filepath.Join(shared, "types.yaml"), got)
+	_, err = ImportTarget(inLibrary, "../../escape.yaml")
+	require.ErrorIs(t, err, ErrEscapesLibraryRoot)
+	root, ok := LibraryRootOf(inLibrary)
+	require.True(t, ok)
+	require.Equal(t, "shared", root)
+
+	require.Equal(t, map[string]string{"shared": shared}, SetLibraryRoots(nil), "the previous set comes back for restoring")
+	require.Empty(t, LibraryRoots())
+	_, err = ImportTarget(importer, "/opt/shared/units/words.yaml")
+	require.ErrorAs(t, err, &undeclared, "a root does not outlive the closure that declared it")
+
+	require.Error(t, ValidateLibraryRootName(AgentCoreRoot))
+	require.Error(t, ValidateLibraryRootName("Shared_Lib"))
+	require.NoError(t, ValidateLibraryRootName("mesh-lib"))
 }

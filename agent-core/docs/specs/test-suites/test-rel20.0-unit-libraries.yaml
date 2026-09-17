@@ -25,8 +25,8 @@ test_cases:
 
   - use_case: rel20.0-uc003-unit-libraries
     name: Rooted paths work in every form srd050 governs
-    go_test: go test ./internal/tools/catalog ./internal/runtime/core ./internal/load -run 'TestRootedPathsInInstantiateTemplateBlueprintAndProfileLists'
-    status: planned
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition ./internal/runtime/core ./internal/load -run 'TestToolImportsAndFragmentsResolveUnderTheAgentCoreLibrary|TestRESTImportsAndFragmentsResolveUnderTheAgentCoreLibrary|TestLoadMachineClosureSplicesAStageFromTheAgentCoreLibrary|TestProfileDeclaresLibraryRootsAndMapsItsOwnPaths|TestLoadClosureRejectsAnAbsoluteImportOutsideALibraryRoot'
+    status: implemented
     description: Name a rooted path in an instantiate fragment, a machine template instance, a blueprint machine mapping, and a profile tool_declarations list; then put an unrooted absolute path in the profile list and in an import.
     expected:
       each_form_resolves: true
@@ -46,8 +46,8 @@ test_cases:
 
   - use_case: rel20.0-uc003-unit-libraries
     name: A profile declares a named root for a directory
-    go_test: go test ./internal/tools/catalog ./internal/load -run 'TestProfileDeclaresLibraryRoot|TestLibraryRootNameRules'
-    status: planned
+    go_test: go test ./internal/tools/catalog ./internal/load -run 'TestProfileDeclaresLibraryRootsAndMapsItsOwnPaths|TestLoadClosureResolvesADeclaredLibraryRoot|TestLoadClosureRejectsAReservedOrMalformedRootName'
+    status: implemented
     description: "Declare libraries: {mesh-lib: ../lib} and import /opt/mesh-lib/units/types.yaml; then declare agent-core and a name with an underscore."
     expected:
       import_maps_to_declared_directory: true
@@ -57,8 +57,8 @@ test_cases:
 
   - use_case: rel20.0-uc003-unit-libraries
     name: --library overrides a declared root for one run
-    go_test: go test ./cmd/agent ./internal/load -run 'TestLibraryFlagOverridesDeclaredRoot|TestLibraryFlagUndeclaredNameFails|TestFlagContract'
-    status: planned
+    go_test: go test ./cmd/agent ./internal/load -run 'TestLibraryFlagOverridesADeclaredRootOnly|TestLoadClosureAppliesALibraryOverride|TestRootCommandExposesEveryRuntimeFlag'
+    status: implemented
     description: Run with --library mesh-lib=<other dir>, then with --library absent-lib=<dir>.
     expected:
       override_applies: true
@@ -67,19 +67,19 @@ test_cases:
 
   - use_case: rel20.0-uc003-unit-libraries
     name: Roots are closure-scoped and must agree
-    go_test: go test ./internal/load -run 'TestUndeclaredLibraryPrefixFails|TestConflictingLibraryRootFails|TestChildProfileDeclaresItsOwnRoots'
-    status: planned
+    go_test: go test ./internal/load ./internal/support/corepath -run 'TestLoadClosureReportsAnUndeclaredLibraryPrefix|TestLoadClosureResolvesADeclaredLibraryRoot|TestDeclaredLibraryRootsResolveScopedAndReadOnly'
+    status: implemented
     description: Import under /opt/unknown; declare one root name with two directories on a profile and its blueprint; load a child profile relying on a parent root.
     expected:
       undeclared_prefix_names_prefix_and_profile: true
-      conflict_names_both: true
+      conflict_names_both: deferred with agent blueprints (GH-2123); a profile has one libraries mapping
       child_does_not_inherit: true
     traces: [rel20.0-uc003-unit-libraries S2, srd056-unit-libraries AC2, srd056-unit-libraries R2.3]
 
   - use_case: rel20.0-uc003-unit-libraries
     name: A library is read-only to its importers
-    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestLibraryFileCannotOverride|TestLibraryRelativeImportCannotEscapeRoot'
-    status: planned
+    go_test: go test ./internal/tools/catalog ./internal/support/corepath -run 'TestLibraryFileCannotOverrideAnImport|TestLibraryRelativeImportCannotLeaveItsRoot|TestDeclaredLibraryRootsResolveScopedAndReadOnly'
+    status: implemented
     description: "Put override: true on a tool in a rooted file; give a rooted file a ../ import that leaves the root; give one an import of another root by prefix."
     expected:
       override_rejected_names_root_and_file: true
@@ -89,7 +89,7 @@ test_cases:
 
   - use_case: rel20.0-uc003-unit-libraries
     name: Rooted files are closure files and digest assets
-    go_test: go test ./internal/load -run 'TestLoadClosureImportsAUnitFromTheAgentCoreLibrary|TestLoadClosureReportsAnUnusedLibraryImport'
+    go_test: go test ./internal/load -run 'TestLoadClosureImportsAUnitFromTheAgentCoreLibrary|TestLoadClosureReportsAnUnusedLibraryImport|TestLoadClosureResolvesADeclaredLibraryRoot'
     status: implemented
     description: Load a profile importing through both roots, read Files, change one byte of a rooted file, and rebuild the program identity.
     expected:
@@ -99,7 +99,7 @@ test_cases:
 
   - use_case: rel20.0-uc003-unit-libraries
     name: The dump marks rooted files with their root
-    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureImportsAUnitFromTheAgentCoreLibrary|TestDumpGolden'
+    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureImportsAUnitFromTheAgentCoreLibrary|TestLoadClosureResolvesADeclaredLibraryRoot|TestDumpGolden'
     status: implemented
     description: Dump a profile importing through both roots.
     expected:
@@ -109,8 +109,8 @@ test_cases:
 
   - use_case: rel20.0-uc003-unit-libraries
     name: Staging copies declared-root files and leaves agent-core to the image
-    go_test: go test ./pkg/profilestage -run 'TestStageCopiesDeclaredLibraryRoot|TestStageLeavesAgentCoreRootToTheImage'
-    status: planned
+    go_test: go test ./pkg/profilestage -run 'TestStageCopiesADeclaredLibraryRootToItsStagedPosition|TestStageLeavesAgentCoreLibraryImportsToTheImage|TestStageReportsAnUndeclaredLibraryRoot'
+    status: implemented
     description: Stage a profile importing under a declared root and under /opt/agent-core, remove the source checkout, and load the staged profile with only --core-root.
     expected:
       declared_root_files_copied: true

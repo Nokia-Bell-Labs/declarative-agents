@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/typesys"
@@ -37,6 +38,10 @@ type Closure struct {
 	Machine      core.MachineSpec
 	Files        []string
 	Assets       map[string][]byte
+	// FileRoots names the library root each rooted file was reached through,
+	// recorded while the closure's declared roots were in force, because the
+	// roots are restored when the load returns (srd056 R3.2).
+	FileRoots map[string]string
 	// Types indexes every named type the closure reached. Tool schemas are
 	// already resolved against it by the time a consumer sees them, so the
 	// registry is here for the dump and for later typed checks rather than
@@ -59,6 +64,8 @@ func LoadClosure(profilePath string, options Options) (*Closure, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load profile: %w", err)
 	}
+	restoreRoots := registerLibraryRoots(profile)
+	defer restoreRoots()
 	if options.ProfileLoaded != nil {
 		if err := options.ProfileLoaded(profilePath, profile); err != nil {
 			return nil, err
@@ -69,9 +76,17 @@ func LoadClosure(profilePath string, options Options) (*Closure, error) {
 	if err != nil {
 		return nil, err
 	}
-	files, err := programFiles(
-		profilePath, resolved.machinePath, profile, visited, options.ResolveSelection == nil,
-	)
+	return assembleClosure(profilePath, profile, resolved, visited, assets, options.ResolveSelection == nil)
+}
+
+// assembleClosure fixes the closure's file inventory and captured bytes once
+// every declaration has loaded, while the profile's library roots are still in
+// force.
+func assembleClosure(
+	profilePath string, profile catalog.AgentProfile, resolved resolvedConfig,
+	visited []string, assets map[string][]byte, includeSelections bool,
+) (*Closure, error) {
+	files, err := programFiles(profilePath, resolved.machinePath, profile, visited, includeSelections)
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +97,35 @@ func LoadClosure(profilePath string, options Options) (*Closure, error) {
 		ProfilePath: profilePath, Profile: profile,
 		ToolUniverse: resolved.universe, Selection: resolved.selection, Selected: resolved.selected,
 		Rest: resolved.rest, Machine: resolved.machine, Files: files, Assets: assets,
-		Types: resolved.types,
+		FileRoots: fileRoots(files), Types: resolved.types,
 	}, nil
+}
+
+func fileRoots(files []string) map[string]string {
+	roots := map[string]string{}
+	for _, file := range files {
+		if root, ok := corepath.LibraryRootOf(file); ok {
+			roots[file] = root
+		}
+	}
+	return roots
+}
+
+// registerLibraryRoots makes the profile's declared roots, with any --library
+// override applied, the roots every import in this closure resolves against,
+// and returns the function that restores the previous set. Roots are scoped to
+// the closure: a child profile declares its own (srd056 R2.2, R2.3).
+func registerLibraryRoots(profile catalog.AgentProfile) func() {
+	roots := make(map[string]string, len(profile.Libraries))
+	overrides := corepath.LibraryOverrides()
+	for name, directory := range profile.Libraries {
+		if override, ok := overrides[name]; ok {
+			directory = override
+		}
+		roots[name] = directory
+	}
+	previous := corepath.SetLibraryRoots(roots)
+	return func() { corepath.SetLibraryRoots(previous) }
 }
 
 type resolvedConfig struct {

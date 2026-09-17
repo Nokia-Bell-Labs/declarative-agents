@@ -1,0 +1,22 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: library-one
+purpose: Say the shared library's word once and finish.
+initial_state: Idle
+budget:
+  command_timeout: 1m
+  max_iterations: 3
+states:
+  - {name: Idle, meaning: Initial state.}
+  - {name: Saying, meaning: Saying the shared word.}
+  - {name: Succeeded, meaning: Terminal success., run_status: succeeded}
+  - {name: Failed, meaning: Terminal failure., run_status: failed}
+terminal_states: [Succeeded, Failed]
+signals:
+  - {name: Seed, trigger: Loop initialization.}
+  - {name: Done, trigger: The word finished.}
+  - {name: CommandError, trigger: Runtime failure.}
+transitions:
+  - {state: Idle, signal: Seed, next: Saying, action: say_shared}
+  - {state: Saying, signal: Done, next: Succeeded}
+  - {state: Saying, signal: CommandError, next: Failed}

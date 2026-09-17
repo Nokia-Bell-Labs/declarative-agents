@@ -731,8 +731,8 @@ library_imports: |
   A library is read-only: a tool in a file under a root cannot carry
   `override: true`, and a relative import inside a root cannot leave it,
   though it may import another root by prefix. Rooted files are closure files
-  and program identity assets, and the dump marks each with its root. Arriving
-  with GH-2118 (agent-core root) and GH-2119 (declared roots).
+  and program identity assets, and the dump marks each with its root. Landed with
+  GH-2118 (agent-core root) and GH-2119 (declared roots).
 
 boundary_compensation_example: |
   Boundary tools that cross process, issue, or human boundaries declare
