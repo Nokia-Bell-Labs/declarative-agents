@@ -139,7 +139,13 @@ func TestSumReuseResultsAggregatesAndRanksDeterministically(t *testing.T) {
 		},
 	}
 
-	got := sumReuseResults(results)
+	samples := map[string]reusestats.Samples{
+		"module-b": {Files: []reusestats.FileSize{{Path: "b.yaml", Lines: 400}}, FilesPerAgent: []int{7}},
+		"module-a": {Files: []reusestats.FileSize{{Path: "a.yaml", Lines: 10}, {Path: "c.yaml", Lines: 20}},
+			FilesPerAgent: []int{1, 3}},
+	}
+
+	got := sumReuseResults(results, samples)
 
 	if got.TotalLines != 100 || got.DuplicatedLines != 25 ||
 		got.DuplicationRatio != 0.25 || got.CeremonyRatio != 2 {
@@ -152,6 +158,13 @@ func TestSumReuseResultsAggregatesAndRanksDeterministically(t *testing.T) {
 	if got.ImportedUnits != 8 || got.SharedUnits != 3 ||
 		got.SingleImporterUnits != 5 || got.Instantiations != 3 {
 		t.Fatalf("unit reuse total = %#v", got)
+	}
+	// The maintainability fold reads all samples: the median of 10, 20, 400 is
+	// 20, not the median of the module medians.
+	if m := got.Maintainability; m.Files != 3 || m.MedianLines != 20 || m.MaxLines != 400 ||
+		m.FilesOver300 != 1 || m.Agents != 3 || m.MedianFilesPerAgent != 3 ||
+		m.LongestFiles[0] != (reusestats.FileSize{Path: "module-b/b.yaml", Lines: 400}) {
+		t.Fatalf("maintainability total = %#v", m)
 	}
 	wantBlock := reusestats.DuplicateBlock{
 		Hash: "shared", Lines: 5, Count: 5,

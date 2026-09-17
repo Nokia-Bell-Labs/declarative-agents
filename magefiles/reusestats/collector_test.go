@@ -26,6 +26,14 @@ func TestCollectPinsFixtureMetrics(t *testing.T) {
 		CeremonyRatio:    6.0 / 8.0,
 		DistinctToolDefs: 2,
 		ToolRefs:         4,
+		Maintainability: Maintainability{
+			Files: 3, MedianLines: 13, P90Lines: 27, MaxLines: 27,
+			LongestFiles: []FileSize{
+				{Path: "testdata/fixture/declarations.yaml", Lines: 27},
+				{Path: "testdata/fixture/machine.yaml", Lines: 13},
+				{Path: "testdata/fixture/tools.yaml", Lines: 5},
+			},
+		},
 		TopBlocks: []DuplicateBlock{{
 			Hash:  "4ad1a5aa11144e222d1a4f9aa0fde2c4d85ec09ddf95ddfcc167db89824c49f7",
 			Lines: 3, Count: 2,

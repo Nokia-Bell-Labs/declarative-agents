@@ -39,6 +39,7 @@ type Result struct {
 	SharedUnits         int              `json:"shared_units"`
 	SingleImporterUnits int              `json:"single_importer_units"`
 	Instantiations      int              `json:"instantiations"`
+	Maintainability     Maintainability  `json:"maintainability"`
 	TopBlocks           []DuplicateBlock `json:"top_blocks"`
 }
 
@@ -81,38 +82,13 @@ var environmentReference = regexp.MustCompile(`\$\{[^}\n]+\}`)
 
 // Reuse emits reuse metrics for the conventional agent-owned YAML roots.
 func Reuse() error {
-	result, err := Collect(".", "agents", "tools", "testdata")
+	result, err := Collect(".", DefaultRoots...)
 	if err != nil {
 		return err
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(result)
-}
-
-// Collect measures all YAML files under roots. Relative roots resolve from
-// baseDir; absent roots are ignored so thin module adapters can declare the
-// same ownership classes.
-func Collect(baseDir string, roots ...string) (Result, error) {
-	base, err := filepath.Abs(baseDir)
-	if err != nil {
-		return Result{}, fmt.Errorf("resolve reuse stats base %s: %w", baseDir, err)
-	}
-	files, err := yamlFiles(base, roots)
-	if err != nil {
-		return Result{}, err
-	}
-	c := collector{
-		base: base, definitions: map[string]bool{},
-		blocks: map[string][]occurrence{}, importers: map[string]map[string]bool{},
-	}
-	for _, path := range files {
-		if err := c.collectFile(path); err != nil {
-			return Result{}, err
-		}
-	}
-	c.finish()
-	return c.result, nil
 }
 
 func yamlFiles(base string, roots []string) ([]string, error) {
@@ -171,15 +147,17 @@ func addYAMLFile(files map[string]bool, path string) {
 	}
 }
 
-func (c *collector) collectFile(path string) error {
+// collectFile measures one file and returns its physical line count.
+func (c *collector) collectFile(path string) (int, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("read reuse YAML %s: %w", path, err)
+		return 0, fmt.Errorf("read reuse YAML %s: %w", path, err)
 	}
-	c.result.TotalLines += physicalLines(data)
+	lines := physicalLines(data)
+	c.result.TotalLines += lines
 	var document yaml.Node
 	if err := yaml.Unmarshal(normalizeEnvironmentReferences(data), &document); err != nil {
-		return fmt.Errorf("parse reuse YAML %s: %w", path, err)
+		return 0, fmt.Errorf("parse reuse YAML %s: %w", path, err)
 	}
 	root := documentRoot(&document)
 	relative, err := filepath.Rel(c.base, path)
@@ -188,12 +166,12 @@ func (c *collector) collectFile(path string) error {
 	}
 	relative = filepath.ToSlash(relative)
 	if err := c.collectMappings(root, relative); err != nil {
-		return fmt.Errorf("measure reuse YAML %s: %w", path, err)
+		return 0, fmt.Errorf("measure reuse YAML %s: %w", path, err)
 	}
 	c.collectTools(root)
 	c.collectMachineActions(root)
 	c.collectUnitEdges(root, path)
-	return nil
+	return lines, nil
 }
 
 // collectUnitEdges records the top-level imports and instantiate entries of

@@ -51,6 +51,7 @@ func writeReuseStats() error {
 
 func collectReuseStats() ([]byte, error) {
 	results := make(map[string]reusestats.Result)
+	samples := make(map[string]reusestats.Samples)
 	for _, mod := range reuseParticipants() {
 		mageDir := filepath.Join(mod, "magefiles")
 		if _, err := os.Stat(mageDir); os.IsNotExist(err) {
@@ -60,9 +61,17 @@ func collectReuseStats() ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("reuse stats in %s: %w", mod, err)
 		}
-		results[filepath.ToSlash(filepath.Clean(mod))] = result
+		name := filepath.ToSlash(filepath.Clean(mod))
+		results[name] = result
+		// Medians do not fold, so the total re-reads each module's samples
+		// from the same roots its own stats:reuse measured (GH-2111).
+		moduleSamples, err := reusestats.CollectSamples(mod, reusestats.DefaultRoots...)
+		if err != nil {
+			return nil, fmt.Errorf("reuse samples in %s: %w", mod, err)
+		}
+		samples[name] = moduleSamples
 	}
-	results[reuseTotalKey] = sumReuseResults(results)
+	results[reuseTotalKey] = sumReuseResults(results, samples)
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
 	encoder.SetIndent("", "  ")
@@ -90,7 +99,10 @@ func runMageReuse(dir string) (reusestats.Result, error) {
 	return result, nil
 }
 
-func sumReuseResults(results map[string]reusestats.Result) reusestats.Result {
+func sumReuseResults(
+	results map[string]reusestats.Result,
+	samples map[string]reusestats.Samples,
+) reusestats.Result {
 	var total reusestats.Result
 	groups := map[string]reusestats.DuplicateBlock{}
 	for module, result := range results {
@@ -112,6 +124,7 @@ func sumReuseResults(results map[string]reusestats.Result) reusestats.Result {
 	total.DuplicationRatio = statsRatio(total.DuplicatedLines, total.TotalLines)
 	total.CeremonyRatio = statsRatio(total.CeremonyLines, total.BehaviorLines)
 	total.TopBlocks = rankedReuseBlocks(groups)
+	total.Maintainability = reusestats.Summarize(reusestats.Merge(samples))
 	return total
 }
 
