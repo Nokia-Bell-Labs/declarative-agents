@@ -20,6 +20,7 @@ purpose: |-
 instantiate:
   - fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
     args:
+      workflow: rag_server
       launch_requests: launch_rag_requests
       launch_control: launch_rag_control
       await_control: await_rag_control

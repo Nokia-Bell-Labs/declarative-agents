@@ -875,16 +875,16 @@ releases:
         summary: Adopt the monitor server fragment in the agents whose monitor server is the shipped one.
         status: implemented
       - id: gh-2168
-        summary: Finish the machine-template migration for the four remaining serve-shaped machines.
-        status: planned
+        summary: Model labels and budget in the serve template, name every instance's workflow, and convert documentation-curator; observer, collector, and bench become instances when their extra states are cleaved.
+        status: implemented
       - id: gh-2123
         summary: Implement agent blueprints (srd055) with the serving wrappers as the profile group that is one agent with arguments.
         status: planned
       - id: gh-2170
-        summary: Promote the fleet observer to a capability profile the applications host.
+        summary: Promote the fleet observer to a capability profile the applications host, its serve wrapper ending as a template instance.
         status: planned
       - id: gh-2171
-        summary: Cleave the shared request capabilities out of the agents that trap them behind machine overrides.
+        summary: Cleave the shared request capabilities out of the agents that trap them behind machine overrides; collector and bench end as template instances.
         status: planned
     srds:
       - srd057-capability-profiles

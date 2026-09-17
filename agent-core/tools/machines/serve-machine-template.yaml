@@ -12,6 +12,8 @@ params:
   - {name: launch_control, type: string, description: Word that launches the agent's control server.}
   - {name: await_control, type: string, description: Word that awaits a lifecycle event on the control server.}
   - {name: stop_requests, type: string, description: Word that stops the agent's machine_request server.}
+  - {name: workflow, type: string, description: "Value of the machine-level workflow metric label, so every dispatch names the agent it served."}
+  - {name: command_timeout, type: string, default: 11m, description: "Budget for one boundary word, sized to the slowest launch or await the agent tolerates."}
 machine:
   name: serve
   purpose: |-
@@ -23,8 +25,10 @@ machine:
     - Each inbound request runs the agent's request-scoped machine; this machine holds only the service lifecycle.
   initial_state: Idle
   budget:
-    command_timeout: 11m
+    command_timeout: $param(command_timeout)
     max_iterations: 10000
+  metric_labels:
+    workflow: $param(workflow)
   states:
     - {name: Idle, meaning: Initial state before the servers start.}
     - {name: LaunchingRequests, meaning: The machine_request server is starting.}
@@ -48,15 +52,15 @@ machine:
     - {name: AwaitTimedOut, trigger: No lifecycle event arrived before the await timeout.}
     - {name: CommandError, trigger: A server or boundary word failed.}
   transitions:
-    - {state: Idle,              signal: Seed,           next: LaunchingRequests, action: $param(launch_requests)}
-    - {state: LaunchingRequests, signal: ServerLaunched, next: LaunchingControl,   action: $param(launch_control)}
+    - {state: Idle,              signal: Seed,           next: LaunchingRequests, action: $param(launch_requests), metric_labels: {phase: requests_launch}}
+    - {state: LaunchingRequests, signal: ServerLaunched, next: LaunchingControl,   action: $param(launch_control), metric_labels: {phase: control_launch}}
     - {state: LaunchingRequests, signal: CommandError,   next: Failed}
-    - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest, label: monitor, report_output: $.address}
+    - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest, label: monitor, report_output: $.address, metric_labels: {phase: monitor_launch}}
     - {state: LaunchingControl,  signal: CommandError,   next: Failed}
-    - {state: LaunchingMonitor,  signal: ServerLaunched, next: AwaitingControl,    action: $param(await_control)}
+    - {state: LaunchingMonitor,  signal: ServerLaunched, next: AwaitingControl,    action: $param(await_control), metric_labels: {phase: control_await}}
     - {state: LaunchingMonitor,  signal: CommandError,   next: Failed}
-    - {state: AwaitingControl,   signal: ExitRequested,  next: Exiting,            action: exit_agent}
-    - {state: AwaitingControl,   signal: AwaitTimedOut,  next: AwaitingControl,    action: $param(await_control)}
+    - {state: AwaitingControl,   signal: ExitRequested,  next: Exiting,            action: exit_agent, metric_labels: {phase: exit}}
+    - {state: AwaitingControl,   signal: AwaitTimedOut,  next: AwaitingControl,    action: $param(await_control), metric_labels: {phase: control_await}}
     - {state: AwaitingControl,   signal: ServerStopped,  next: Failed}
     - {state: AwaitingControl,   signal: CommandError,   next: Failed}
     - {state: Exiting,           signal: AgentExited,    next: StoppingMonitor,    action: stop_monitor_rest}

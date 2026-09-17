@@ -19,6 +19,7 @@ purpose: |-
 instantiate:
   - fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
     args:
+      workflow: chatbot
       launch_requests: launch_chat_requests
       launch_control: launch_chatbot_control
       await_control: await_chatbot_control

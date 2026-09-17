@@ -16,6 +16,7 @@ purpose: |-
 instantiate:
   - fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
     args:
+      workflow: applier
       launch_requests: launch_applier_requests
       launch_control: launch_applier_control
       await_control: await_applier_control
