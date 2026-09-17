@@ -23,11 +23,11 @@ The table lists the shared units that exist today and the ones the capability-pr
 | mesh monitor fragment | `applications/chatbot-mesh/agents/units/mesh-monitor-fragment.yaml` | shipped, promotion to agent-core planned (GH-2166) |
 | monitor control fragment | `applications/catalog/agents/units/monitor-control-fragment.yaml` | shipped, reconciliation with the above planned (GH-2166) |
 | serve-lifecycle declarations fragment | `agent-core/tools/units/` | planned (GH-2166) |
-| monitor/control REST servers fragment | `agent-core/tools/rest/units/` | planned (GH-2167) |
+| monitor/control REST servers fragment | `agent-core/tools/units/` | planned (GH-2167); the loader support it needs already ships |
 
 ## REST definitions
 
-`rest.yaml` supports no reuse mechanism today; every REST file is self-contained. Extending REST definition loading with `unit:` and `instantiate:` — the same grammar declaration files use — is planned in GH-2167, together with a canonical fragment for the control server and the eight monitor routes that every serving wrapper carries. Until then, REST blocks are copied (see [serving-wrappers.md](serving-wrappers.md) for the copy source).
+`rest.yaml` composes exactly as a declarations file does: `unit:`, `imports:`, and `instantiate:` are implemented in the REST definition loader and enforce the srd052 rules — a fragment is instantiated and never imported plainly, and nesting stops at one level. What is missing is not the mechanism but its use: no `rest.yaml` in the ecosystem instantiates anything, while 26 of them carry the same control server, monitor routes, and limits blocks by hand. GH-2167 adds the canonical fragment and converts the monorepo carriers.
 
 ## When to make a fragment
 

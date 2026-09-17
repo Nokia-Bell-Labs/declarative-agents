@@ -426,6 +426,11 @@ srd_index:
     summary: Import paths relative to the declaring file or absolute under a library root -- the implicit /opt/agent-core root or a root the profile declares under libraries -- with a --library override, closure-scoped roots, read-only libraries, closure, digest, and dump provenance, rooted staging, and the service-library convention.
     status: specified
     path: docs/specs/software-requirements/srd056-unit-libraries.yaml
+  - id: srd057-capability-profiles
+    title: Capability Profiles
+    summary: A profile that does one job, terminates, and declares no serve lifecycle, control or monitor server, or static assets; the child-process, service-endpoint, and workload forms that consume it unchanged, the evaluation-scoped in-process boundary it may not assume, and the binding discipline that makes shared behaviour a named profile with findings for the machines more than one profile reaches.
+    status: specified
+    path: docs/specs/software-requirements/srd057-capability-profiles.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -728,6 +733,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel20.0-unit-libraries
     path: docs/specs/use-cases/rel20.0-uc003-unit-libraries.yaml
+  - id: rel21.0-uc001-capability-profiles
+    title: One capability profile is consumed by more than one form
+    release: "21.0"
+    status: specified
+    test_suite: test-rel21.0-capability-profiles
+    path: docs/specs/use-cases/rel21.0-uc001-capability-profiles.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -928,6 +939,14 @@ test_suite_index:
     formal_test_cases: 12
     status: specified
     path: docs/specs/test-suites/test-rel20.0-unit-libraries.yaml
+  - id: test-rel21.0-capability-profiles
+    title: Test Suite for Release 21.0 Capability Profiles
+    release: "21.0"
+    traces:
+      - rel21.0-uc001-capability-profiles
+    formal_test_cases: 5
+    status: specified
+    path: docs/specs/test-suites/test-rel21.0-capability-profiles.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"
