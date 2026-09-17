@@ -1,25 +1,21 @@
 {{- define "coding-agent.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- include "agent-services.name" . -}}
 {{- end -}}
 
 {{- define "coding-agent.fullname" -}}
-{{- printf "%s-%s" .Release.Name (include "coding-agent.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- include "agent-services.fullname" . -}}
 {{- end -}}
 
 {{- define "coding-agent.labels" -}}
-app.kubernetes.io/name: {{ include "coding-agent.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
+{{- include "agent-services.labels" . -}}
 {{- end -}}
 
 {{- define "coding-agent.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "coding-agent.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+{{- include "agent-services.selectorLabels" . -}}
 {{- end -}}
 
 {{- define "coding-agent.image" -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- include "agent-services.image" . -}}
 {{- end -}}
 
 {{- define "coding-agent.roleManifest" -}}
@@ -75,13 +71,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "coding-agent.otlpEndpoint" -}}
-{{- if .Values.collector.enabled -}}
-{{- printf "%s-collector:%v" (include "coding-agent.fullname" .) .Values.collector.otlpGRPCPort -}}
-{{- end -}}
+{{- include "agent-services.otlpEndpoint" . -}}
 {{- end -}}
 
 {{- define "coding-agent.collectorImage" -}}
-{{- printf "%s:%s" .Values.collector.image.repository .Values.collector.image.tag -}}
+{{- include "agent-services.collectorImage" . -}}
 {{- end -}}
 
 {{- define "coding-agent.ollamaModels" -}}

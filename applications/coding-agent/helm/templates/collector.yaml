@@ -1,90 +1,18 @@
 {{/* Copyright (c) 2026 Nokia */}}
 {{/* SPDX-License-Identifier: BSD-3-Clause */}}
 {{- if .Values.collector.enabled }}
-{{- $fullname := include "coding-agent.fullname" . -}}
+{{/*
+The collector workload and its Service come from the shared agent-services
+library (GH-2045). This chart supplies the role-sharded profile partitions it
+mounts and the profile path the runtime reads; the collector serves its trace UI
+from the profile directory, which the library uses as the working directory
+(srd020 R7, GH-1228).
+*/}}
 {{- $context := dict "root" . "role" "collector" -}}
 {{- $manifest := include "coding-agent.roleManifest" $context | fromYaml -}}
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ $fullname }}-collector
-  labels:
-    {{- include "coding-agent.labels" . | nindent 4 }}
-    app.kubernetes.io/component: collector
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      {{- include "coding-agent.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: collector
-  template:
-    metadata:
-      labels:
-        {{- include "coding-agent.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: collector
-      annotations:
-        checksum/config: {{ toYaml .Values.collector | sha256sum }}
-        checksum/profiles: {{ include "coding-agent.profileChecksum" $context }}
-    spec:
-      automountServiceAccountToken: false
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      containers:
-        - name: collector
-          image: {{ include "coding-agent.collectorImage" . | quote }}
-          imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
-          # The collector serves its trace UI from the literal ui/dist path
-          # (srd020 R7), resolved against the working directory. The profile
-          # directory holds the staged ui/dist, so the working directory is the
-          # mounted profile directory -- no UI environment variable (GH-1228).
-          workingDir: {{ printf "/profiles/%s" $manifest.profile | dir }}
-          args:
-            - "--profile"
-            - {{ printf "/profiles/%s" $manifest.profile | quote }}
-            - "--directory"
-            - "/data"
-          securityContext:
-            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          env:
-            - {name: COLLECTOR_BIND_HOST, value: "0.0.0.0"}
-            - {name: COLLECTOR_RECEIVER_ADDRESS, value: "0.0.0.0:{{ .Values.collector.otlpGRPCPort }}"}
-            - {name: COLLECTOR_CONTROL_PORT, value: "18191"}
-            - {name: COLLECTOR_MONITOR_PORT, value: "18192"}
-            - {name: COLLECTOR_QUERY_PORT, value: {{ .Values.collector.queryPort | quote }}}
-            - {name: COLLECTOR_SPOOL_PATH, value: "/data/collector.ndjson"}
-            - {name: COLLECTOR_MODE, value: "spool"}
-          ports:
-            - {name: otlp-grpc, containerPort: {{ .Values.collector.otlpGRPCPort }}}
-            - {name: query, containerPort: {{ .Values.collector.queryPort }}}
-          readinessProbe:
-            httpGet: {path: /api/lifecycle/health, port: 18191}
-            initialDelaySeconds: 2
-            periodSeconds: 5
-          resources:
-            {{- toYaml .Values.collector.resources | nindent 12 }}
-          volumeMounts:
-            - {name: profiles, mountPath: /profiles, readOnly: true}
-            - {name: spool, mountPath: /data}
-            - {name: tmp, mountPath: /tmp}
-      volumes:
-        {{- include "coding-agent.profilesVolume" $context | nindent 8 }}
-        - name: spool
-          emptyDir: {}
-        - name: tmp
-          emptyDir: {}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ $fullname }}-collector
-  labels:
-    {{- include "coding-agent.labels" . | nindent 4 }}
-    app.kubernetes.io/component: collector
-spec:
-  selector:
-    {{- include "coding-agent.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: collector
-  ports:
-    - {name: otlp-grpc, port: {{ .Values.collector.otlpGRPCPort }}, targetPort: otlp-grpc}
-    - {name: query, port: {{ .Values.collector.queryPort }}, targetPort: query}
+{{- include "agent-services.collector" (dict
+      "root" .
+      "profilePath" (printf "/profiles/%s" $manifest.profile)
+      "profilesVolume" (include "coding-agent.profilesVolume" $context | fromYamlArray)
+      "podAnnotations" (dict "checksum/profiles" (include "coding-agent.profileChecksum" $context))) }}
 {{- end }}

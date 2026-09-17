@@ -72,6 +72,11 @@ collector:
     tag: "0.1.0"
     pullPolicy: IfNotPresent
   otlpGRPCPort: 4317
+  # The control, monitor, and query surfaces the collector serves. They were
+  # hardcoded in the template until the shared agent-services library took the
+  # workload over (GH-2045).
+  controlPort: 18191
+  monitorPort: 18192
   queryPort: 18193
   resources:
     requests: {cpu: 50m, memory: 128Mi}

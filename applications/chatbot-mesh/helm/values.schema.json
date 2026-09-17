@@ -3,41 +3,89 @@
   "title": "chatbot-mesh values",
   "$comment": "Encodes the deployment-values constraints the applier agent (srd006) relies on helm to enforce, replacing the standard-library provisioner's MeshView.Validate. A helm dry-run against this schema is the applier's validate step.",
   "definitions": {
-    "nonEmptyString": {"type": "string", "minLength": 1},
-    "port": {"type": "integer", "minimum": 1, "maximum": 65535},
-    "replicas": {"type": "integer", "minimum": 0},
-    "quantity": {"type": ["string", "number"], "minLength": 1},
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "replicas": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "quantity": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "minLength": 1
+    },
     "image": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "tag", "pullPolicy"],
+      "required": [
+        "repository",
+        "tag",
+        "pullPolicy"
+      ],
       "properties": {
-        "repository": {"$ref": "#/definitions/nonEmptyString"},
-        "tag": {"$ref": "#/definitions/nonEmptyString"},
-        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+        "repository": {
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "tag": {
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
       }
     },
     "resources": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["requests", "limits"],
+      "required": [
+        "requests",
+        "limits"
+      ],
       "properties": {
         "requests": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["cpu", "memory"],
+          "required": [
+            "cpu",
+            "memory"
+          ],
           "properties": {
-            "cpu": {"$ref": "#/definitions/quantity"},
-            "memory": {"$ref": "#/definitions/quantity"}
+            "cpu": {
+              "$ref": "#/definitions/quantity"
+            },
+            "memory": {
+              "$ref": "#/definitions/quantity"
+            }
           }
         },
         "limits": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["cpu", "memory"],
+          "required": [
+            "cpu",
+            "memory"
+          ],
           "properties": {
-            "cpu": {"$ref": "#/definitions/quantity"},
-            "memory": {"$ref": "#/definitions/quantity"}
+            "cpu": {
+              "$ref": "#/definitions/quantity"
+            },
+            "memory": {
+              "$ref": "#/definitions/quantity"
+            }
           }
         }
       }
@@ -45,353 +93,424 @@
     "agentPorts": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["control", "monitor"],
+      "required": [
+        "control",
+        "monitor"
+      ],
       "properties": {
-        "chat": {"$ref": "#/definitions/port"},
-        "query": {"$ref": "#/definitions/port"},
-        "apply": {"$ref": "#/definitions/port"},
-        "intent": {"$ref": "#/definitions/port"},
-        "instance": {"$ref": "#/definitions/port"},
-        "control": {"$ref": "#/definitions/port"},
-        "monitor": {"$ref": "#/definitions/port"}
+        "chat": {
+          "$ref": "#/definitions/port"
+        },
+        "query": {
+          "$ref": "#/definitions/port"
+        },
+        "apply": {
+          "$ref": "#/definitions/port"
+        },
+        "intent": {
+          "$ref": "#/definitions/port"
+        },
+        "instance": {
+          "$ref": "#/definitions/port"
+        },
+        "control": {
+          "$ref": "#/definitions/port"
+        },
+        "monitor": {
+          "$ref": "#/definitions/port"
+        }
       }
     },
     "stringMap": {
       "type": "object",
-      "additionalProperties": {"type": "string"}
+      "additionalProperties": {
+        "type": "string"
+      }
     },
     "networkPolicyToggle": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled"],
-      "properties": {"enabled": {"type": "boolean"}}
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
     }
   },
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "profiles", "chatbot", "ragUnits", "ragServer", "chroma", "llm", "ollama", "dolt", "collector", "ingress", "validateProfiles", "observer", "applier", "controlPlane"],
+  "required": [
+    "image",
+    "profiles",
+    "chatbot",
+    "ragUnits",
+    "ragServer",
+    "chroma",
+    "llm",
+    "ollama",
+    "dolt",
+    "collector",
+    "ingress",
+    "validateProfiles",
+    "observer",
+    "applier",
+    "controlPlane"
+  ],
   "properties": {
-    "image": {
-      "$ref": "#/definitions/image"
+    "agent-services": {
+      "type": "object",
+      "description": "Values Helm reserves for the agent-services library dependency; the library reads this chart's own values and declares none of its own."
     },
-    "profiles": {
+    "applier": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mountPath", "workMountPath"],
+      "required": [
+        "enabled",
+        "image",
+        "ports",
+        "allowApply",
+        "networkPolicy",
+        "resources",
+        "params"
+      ],
       "properties": {
-        "mountPath": {"type": "string", "pattern": "^/.*$"},
-        "workMountPath": {"type": "string", "pattern": "^/.*$"}
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "chartArchiveConfigMap": {
+          "type": "string"
+        },
+        "ports": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/agentPorts"
+            },
+            {
+              "required": [
+                "apply"
+              ]
+            }
+          ]
+        },
+        "allowApply": {
+          "type": "boolean"
+        },
+        "networkPolicy": {
+          "$ref": "#/definitions/networkPolicyToggle"
+        },
+        "resources": {
+          "$ref": "#/definitions/resources"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "nResults",
+            "chunkCap",
+            "tierDefault",
+            "chatModel"
+          ],
+          "properties": {
+            "nResults": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "chunkCap": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tierDefault": {
+              "$ref": "#/definitions/nonEmptyString"
+            },
+            "chatModel": {
+              "$ref": "#/definitions/nonEmptyString"
+            }
+          }
+        }
       }
     },
     "chatbot": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["replicas", "embeddingModel", "resources", "ports"],
+      "required": [
+        "replicas",
+        "embeddingModel",
+        "resources",
+        "ports"
+      ],
       "properties": {
-        "replicas": {"$ref": "#/definitions/replicas"},
-        "embeddingModel": {"$ref": "#/definitions/nonEmptyString"},
-        "resources": {"$ref": "#/definitions/resources"},
-        "ports": {
-          "allOf": [
-            {"$ref": "#/definitions/agentPorts"},
-            {"required": ["chat"]}
-          ]
-        }
-      }
-    },
-    "ragUnits": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["name", "description", "collection", "embeddingModel"],
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
-            "not": {"enum": ["embedding", "provisioning-workflow-orchestrator"]}
-          },
-          "description": {"type": "string", "minLength": 1},
-          "collection": {"type": "string", "minLength": 1},
-          "embeddingModel": {"type": "string", "minLength": 1},
-          "replicas": {"type": "integer", "minimum": 0}
-        }
-      }
-    },
-    "ragServer": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["ports", "resources"],
-      "properties": {
-        "ports": {
-          "allOf": [
-            {"$ref": "#/definitions/agentPorts"},
-            {"required": ["query"]}
-          ]
+        "replicas": {
+          "$ref": "#/definitions/replicas"
         },
-        "resources": {"$ref": "#/definitions/resources"}
+        "embeddingModel": {
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "resources": {
+          "$ref": "#/definitions/resources"
+        },
+        "ports": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/agentPorts"
+            },
+            {
+              "required": [
+                "chat"
+              ]
+            }
+          ]
+        }
       }
     },
     "chroma": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "port", "storage", "resources"],
+      "required": [
+        "image",
+        "port",
+        "storage",
+        "resources"
+      ],
       "properties": {
-        "image": {"$ref": "#/definitions/image"},
-        "port": {"$ref": "#/definitions/port"},
-        "storage": {"$ref": "#/definitions/nonEmptyString"},
-        "resources": {"$ref": "#/definitions/resources"}
-      }
-    },
-    "llm": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["externalURL", "port"],
-      "properties": {
-        "externalURL": {"type": "string", "format": "uri"},
-        "port": {"$ref": "#/definitions/port"}
-      }
-    },
-    "ollama": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["enabled", "image", "models", "preload", "persistence", "resources", "gpu", "nodeSelector", "tolerations", "topology"],
-      "properties": {
-        "enabled": {"type": "boolean"},
-        "image": {"$ref": "#/definitions/image"},
-        "models": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["embedding", "chat", "tier"],
-          "properties": {
-            "embedding": {"type": "string", "minLength": 1},
-            "chat": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/definitions/nonEmptyString"}},
-            "tier": {"type": "string", "minLength": 1}
-          }
+        "image": {
+          "$ref": "#/definitions/image"
         },
-        "preload": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["suspend", "integrationCacheHostPath"],
-          "properties": {
-            "suspend": {"type": "boolean"},
-            "integrationCacheHostPath": {
-              "type": "string",
-              "pattern": "^(|/var/lib/declarative-agents/ollama-cache/[a-f0-9]{64})$"
-            }
-          }
+        "port": {
+          "$ref": "#/definitions/port"
         },
-        "persistence": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["size", "storageClass"],
-          "properties": {
-            "size": {"$ref": "#/definitions/nonEmptyString"},
-            "storageClass": {"type": "string"}
-          }
+        "storage": {
+          "$ref": "#/definitions/nonEmptyString"
         },
-        "resources": {"$ref": "#/definitions/resources"},
-        "gpu": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["count"],
-          "properties": {"count": {"type": "integer", "minimum": 0}}
-        },
-        "nodeSelector": {"$ref": "#/definitions/stringMap"},
-        "tolerations": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "key": {"type": "string"},
-              "operator": {"type": "string", "enum": ["Exists", "Equal"]},
-              "value": {"type": "string"},
-              "effect": {"type": "string", "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"]},
-              "tolerationSeconds": {"type": "integer", "minimum": 0}
-            }
-          }
-        },
-        "topology": {"type": "string", "enum": ["single", "per-model"]}
-      }
-    },
-    "observer": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["enabled", "uiArchiveConfigMap", "uiArchiveChecksum", "ports", "pollInterval", "resources", "proxy"],
-      "properties": {
-        "enabled": {"type": "boolean"},
-        "uiArchiveConfigMap": {"type": "string"},
-        "uiArchiveChecksum": {"type": "string", "pattern": "^(|[a-f0-9]{64})$"},
-        "ports": {"$ref": "#/definitions/agentPorts"},
-        "pollInterval": {
-          "type": "string",
-          "description": "Observer poll interval, bounded at ten minutes by the 11m machine command envelope.",
-          "pattern": "^(?:(?:[1-9]|[1-9][0-9]|[1-5][0-9]{2})s|(?:[1-9]|10)m)$"
-        },
-        "resources": {"$ref": "#/definitions/resources"},
-        "proxy": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["image", "port", "resources"],
-          "properties": {
-            "image": {"$ref": "#/definitions/image"},
-            "port": {"type": "integer", "minimum": 1},
-            "resources": {"$ref": "#/definitions/resources"}
-          }
+        "resources": {
+          "$ref": "#/definitions/resources"
         }
-      }
-    },
-    "applier": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["enabled", "image", "ports", "allowApply", "networkPolicy", "resources", "params"],
-      "properties": {
-        "enabled": {"type": "boolean"},
-        "image": {"$ref": "#/definitions/image"},
-        "chartArchiveConfigMap": {"type": "string"},
-        "ports": {
-          "allOf": [
-            {"$ref": "#/definitions/agentPorts"},
-            {"required": ["apply"]}
-          ]
-        },
-        "allowApply": {"type": "boolean"},
-        "networkPolicy": {"$ref": "#/definitions/networkPolicyToggle"},
-        "resources": {"$ref": "#/definitions/resources"},
-        "params": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["nResults", "chunkCap", "tierDefault", "chatModel"],
-          "properties": {
-            "nResults": {"type": "integer", "minimum": 1},
-            "chunkCap": {"type": "integer", "minimum": 0},
-            "tierDefault": {"$ref": "#/definitions/nonEmptyString"},
-            "chatModel": {"$ref": "#/definitions/nonEmptyString"}
-          }
-        }
-      }
-    },
-    "dolt": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["enabled", "image", "port", "metricsPort", "storage", "rootHost", "user", "database"],
-      "properties": {
-        "enabled": {"type": "boolean"},
-        "image": {"$ref": "#/definitions/image"},
-        "port": {"$ref": "#/definitions/port"},
-        "metricsPort": {"$ref": "#/definitions/port"},
-        "storage": {"$ref": "#/definitions/nonEmptyString"},
-        "rootHost": {"$ref": "#/definitions/nonEmptyString"},
-        "user": {"$ref": "#/definitions/nonEmptyString"},
-        "database": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
       }
     },
     "collector": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "implementation", "uiArchiveConfigMap", "uiArchiveChecksum", "image", "otlpGRPCPort", "otlpHTTPPort", "externalOTLPEndpoint", "integrationResource"],
+      "required": [
+        "controlPort",
+        "enabled",
+        "externalOTLPEndpoint",
+        "image",
+        "implementation",
+        "integrationResource",
+        "monitorPort",
+        "otlpGRPCPort",
+        "otlpHTTPPort",
+        "queryPort",
+        "resources",
+        "uiArchiveChecksum",
+        "uiArchiveConfigMap"
+      ],
       "properties": {
-        "enabled": {"type": "boolean"},
-        "implementation": {"type": "string", "enum": ["agent", "contrib"]},
-        "uiArchiveConfigMap": {"type": "string"},
-        "uiArchiveChecksum": {"type": "string", "pattern": "^(|[a-f0-9]{64})$"},
-        "image": {"$ref": "#/definitions/image"},
-        "otlpGRPCPort": {"$ref": "#/definitions/port"},
-        "otlpHTTPPort": {"$ref": "#/definitions/port"},
-        "externalOTLPEndpoint": {"type": "string"},
+        "controlPort": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "externalOTLPEndpoint": {
+          "type": "string"
+        },
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "implementation": {
+          "type": "string",
+          "enum": [
+            "agent",
+            "contrib"
+          ]
+        },
         "integrationResource": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["repository", "module", "target", "commit", "runID"],
+          "required": [
+            "repository",
+            "module",
+            "target",
+            "commit",
+            "runID"
+          ],
           "properties": {
-            "repository": {"type": "string"},
-            "module": {"type": "string"},
-            "target": {"type": "string"},
-            "commit": {"type": "string"},
-            "runID": {"type": "string"}
+            "repository": {
+              "type": "string"
+            },
+            "module": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            },
+            "commit": {
+              "type": "string"
+            },
+            "runID": {
+              "type": "string"
+            }
           }
+        },
+        "monitorPort": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "otlpGRPCPort": {
+          "$ref": "#/definitions/port"
+        },
+        "otlpHTTPPort": {
+          "$ref": "#/definitions/port"
+        },
+        "queryPort": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "resources": {
+          "type": "object"
+        },
+        "uiArchiveChecksum": {
+          "type": "string",
+          "pattern": "^(|[a-f0-9]{64})$"
+        },
+        "uiArchiveConfigMap": {
+          "type": "string"
         }
       }
     },
-    "ingress": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["enabled", "className", "host", "annotations"],
-      "properties": {
-        "enabled": {"type": "boolean"},
-        "className": {"type": "string"},
-        "host": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9](?:[-A-Za-z0-9.]*[A-Za-z0-9])?$"
-        },
-        "annotations": {"$ref": "#/definitions/stringMap"}
-      }
+    "containerSecurityContext": {
+      "type": "object"
     },
-    "validateProfiles": {"type": "boolean"},
     "controlPlane": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "provisioningWorkflowOrchestrator", "creator"],
+      "required": [
+        "enabled",
+        "provisioningWorkflowOrchestrator",
+        "creator"
+      ],
       "properties": {
-        "enabled": {"type": "boolean"},
+        "enabled": {
+          "type": "boolean"
+        },
         "provisioningWorkflowOrchestrator": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["replicas", "ports", "networkPolicy", "resources"],
+          "required": [
+            "replicas",
+            "ports",
+            "networkPolicy",
+            "resources"
+          ],
           "properties": {
-            "replicas": {"$ref": "#/definitions/replicas"},
+            "replicas": {
+              "$ref": "#/definitions/replicas"
+            },
             "ports": {
               "allOf": [
-                {"$ref": "#/definitions/agentPorts"},
-                {"required": ["intent"]}
+                {
+                  "$ref": "#/definitions/agentPorts"
+                },
+                {
+                  "required": [
+                    "intent"
+                  ]
+                }
               ]
             },
             "networkPolicy": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["enabled", "ingressController"],
+              "required": [
+                "enabled",
+                "ingressController"
+              ],
               "properties": {
-                "enabled": {"type": "boolean"},
+                "enabled": {
+                  "type": "boolean"
+                },
                 "ingressController": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["namespaceSelector", "podSelector"],
+                  "required": [
+                    "namespaceSelector",
+                    "podSelector"
+                  ],
                   "properties": {
                     "namespaceSelector": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["matchLabels"],
-                      "properties": {"matchLabels": {"$ref": "#/definitions/stringMap"}}
+                      "required": [
+                        "matchLabels"
+                      ],
+                      "properties": {
+                        "matchLabels": {
+                          "$ref": "#/definitions/stringMap"
+                        }
+                      }
                     },
                     "podSelector": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["matchLabels"],
-                      "properties": {"matchLabels": {"$ref": "#/definitions/stringMap"}}
+                      "required": [
+                        "matchLabels"
+                      ],
+                      "properties": {
+                        "matchLabels": {
+                          "$ref": "#/definitions/stringMap"
+                        }
+                      }
                     }
                   }
                 }
               }
             },
-            "resources": {"$ref": "#/definitions/resources"}
+            "resources": {
+              "$ref": "#/definitions/resources"
+            }
           }
         },
         "creator": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["replicas", "ports", "networkPolicy", "resources"],
+          "required": [
+            "replicas",
+            "ports",
+            "networkPolicy",
+            "resources"
+          ],
           "properties": {
-            "replicas": {"$ref": "#/definitions/replicas"},
+            "replicas": {
+              "$ref": "#/definitions/replicas"
+            },
             "ports": {
               "allOf": [
-                {"$ref": "#/definitions/agentPorts"},
-                {"required": ["instance"]}
+                {
+                  "$ref": "#/definitions/agentPorts"
+                },
+                {
+                  "required": [
+                    "instance"
+                  ]
+                }
               ]
             },
-            "networkPolicy": {"$ref": "#/definitions/networkPolicyToggle"},
-            "resources": {"$ref": "#/definitions/resources"},
+            "networkPolicy": {
+              "$ref": "#/definitions/networkPolicyToggle"
+            },
+            "resources": {
+              "$ref": "#/definitions/resources"
+            },
             "ingestRagUnit": {
               "type": "string",
               "description": "RAG unit whose Chroma the corpus-ingest child writes into; empty takes the first declared unit."
@@ -401,9 +520,15 @@
               "additionalProperties": false,
               "description": "Embedding identity the ingest child embeds with; empty follows the ingest unit's declared embeddingModel.",
               "properties": {
-                "restRef": {"type": "string"},
-                "operation": {"type": "string"},
-                "model": {"type": "string"}
+                "restRef": {
+                  "type": "string"
+                },
+                "operation": {
+                  "type": "string"
+                },
+                "model": {
+                  "type": "string"
+                }
               }
             },
             "ingestOllamaURL": {
@@ -417,54 +542,507 @@
           }
         }
       }
+    },
+    "dolt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "image",
+        "port",
+        "metricsPort",
+        "storage",
+        "rootHost",
+        "user",
+        "database"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "port": {
+          "$ref": "#/definitions/port"
+        },
+        "metricsPort": {
+          "$ref": "#/definitions/port"
+        },
+        "storage": {
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "rootHost": {
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "user": {
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "database": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+        }
+      }
+    },
+    "image": {
+      "$ref": "#/definitions/image"
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "className",
+        "host",
+        "annotations"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "className": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9](?:[-A-Za-z0-9.]*[A-Za-z0-9])?$"
+        },
+        "annotations": {
+          "$ref": "#/definitions/stringMap"
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "externalURL",
+        "port"
+      ],
+      "properties": {
+        "externalURL": {
+          "type": "string",
+          "format": "uri"
+        },
+        "port": {
+          "$ref": "#/definitions/port"
+        }
+      }
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "observer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "uiArchiveConfigMap",
+        "uiArchiveChecksum",
+        "ports",
+        "pollInterval",
+        "resources",
+        "proxy"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "uiArchiveConfigMap": {
+          "type": "string"
+        },
+        "uiArchiveChecksum": {
+          "type": "string",
+          "pattern": "^(|[a-f0-9]{64})$"
+        },
+        "ports": {
+          "$ref": "#/definitions/agentPorts"
+        },
+        "pollInterval": {
+          "type": "string",
+          "description": "Observer poll interval, bounded at ten minutes by the 11m machine command envelope.",
+          "pattern": "^(?:(?:[1-9]|[1-9][0-9]|[1-5][0-9]{2})s|(?:[1-9]|10)m)$"
+        },
+        "resources": {
+          "$ref": "#/definitions/resources"
+        },
+        "proxy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "image",
+            "port",
+            "resources"
+          ],
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/image"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "resources": {
+              "$ref": "#/definitions/resources"
+            }
+          }
+        }
+      }
+    },
+    "ollama": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "image",
+        "models",
+        "preload",
+        "persistence",
+        "resources",
+        "gpu",
+        "nodeSelector",
+        "tolerations",
+        "topology"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "models": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "embedding",
+            "chat",
+            "tier"
+          ],
+          "properties": {
+            "embedding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "chat": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/definitions/nonEmptyString"
+              }
+            },
+            "tier": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "preload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "suspend",
+            "integrationCacheHostPath"
+          ],
+          "properties": {
+            "suspend": {
+              "type": "boolean"
+            },
+            "integrationCacheHostPath": {
+              "type": "string",
+              "pattern": "^(|/var/lib/declarative-agents/ollama-cache/[a-f0-9]{64})$"
+            }
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "size",
+            "storageClass"
+          ],
+          "properties": {
+            "size": {
+              "$ref": "#/definitions/nonEmptyString"
+            },
+            "storageClass": {
+              "type": "string"
+            }
+          }
+        },
+        "resources": {
+          "$ref": "#/definitions/resources"
+        },
+        "gpu": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "count"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "nodeSelector": {
+          "$ref": "#/definitions/stringMap"
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "operator": {
+                "type": "string",
+                "enum": [
+                  "Exists",
+                  "Equal"
+                ]
+              },
+              "value": {
+                "type": "string"
+              },
+              "effect": {
+                "type": "string",
+                "enum": [
+                  "NoSchedule",
+                  "PreferNoSchedule",
+                  "NoExecute"
+                ]
+              },
+              "tolerationSeconds": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "topology": {
+          "type": "string",
+          "enum": [
+            "single",
+            "per-model"
+          ]
+        }
+      }
+    },
+    "podAnnotations": {
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "type": "object"
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mountPath",
+        "workMountPath"
+      ],
+      "properties": {
+        "mountPath": {
+          "type": "string",
+          "pattern": "^/.*$"
+        },
+        "workMountPath": {
+          "type": "string",
+          "pattern": "^/.*$"
+        }
+      }
+    },
+    "ragServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ports",
+        "resources"
+      ],
+      "properties": {
+        "ports": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/agentPorts"
+            },
+            {
+              "required": [
+                "query"
+              ]
+            }
+          ]
+        },
+        "resources": {
+          "$ref": "#/definitions/resources"
+        }
+      }
+    },
+    "ragUnits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description",
+          "collection",
+          "embeddingModel"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+            "not": {
+              "enum": [
+                "embedding",
+                "provisioning-workflow-orchestrator"
+              ]
+            }
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "collection": {
+            "type": "string",
+            "minLength": 1
+          },
+          "embeddingModel": {
+            "type": "string",
+            "minLength": 1
+          },
+          "replicas": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "tolerations": {
+      "type": "array"
+    },
+    "validateProfiles": {
+      "type": "boolean"
     }
   },
   "allOf": [
     {
       "$comment": "In-cluster LLM tier requires the model set (MeshView.Validate in-cluster branch: embedding, tier selector, and at least one chat model).",
       "if": {
-        "required": ["ollama"],
-        "properties": {"ollama": {"properties": {"enabled": {"const": true}}}}
+        "required": [
+          "ollama"
+        ],
+        "properties": {
+          "ollama": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          }
+        }
       },
       "then": {
-        "properties": {"ollama": {"required": ["models"]}}
+        "properties": {
+          "ollama": {
+            "required": [
+              "models"
+            ]
+          }
+        }
       }
     },
     {
       "$comment": "External LLM requires an endpoint (MeshView.Validate not-in-cluster branch: externalURL is required when ollama is disabled).",
       "if": {
-        "required": ["ollama"],
-        "properties": {"ollama": {"properties": {"enabled": {"const": false}}}}
+        "required": [
+          "ollama"
+        ],
+        "properties": {
+          "ollama": {
+            "properties": {
+              "enabled": {
+                "const": false
+              }
+            }
+          }
+        }
       },
       "then": {
-        "required": ["llm"],
-        "properties": {"llm": {"required": ["externalURL"], "properties": {"externalURL": {"type": "string", "minLength": 1}}}}
+        "required": [
+          "llm"
+        ],
+        "properties": {
+          "llm": {
+            "required": [
+              "externalURL"
+            ],
+            "properties": {
+              "externalURL": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
       }
     },
     {
       "$comment": "An external integration sink requires complete bounded run identity.",
       "if": {
-        "required": ["collector"],
+        "required": [
+          "collector"
+        ],
         "properties": {
           "collector": {
-            "required": ["externalOTLPEndpoint"],
-            "properties": {"externalOTLPEndpoint": {"minLength": 1}}
+            "required": [
+              "externalOTLPEndpoint"
+            ],
+            "properties": {
+              "externalOTLPEndpoint": {
+                "minLength": 1
+              }
+            }
           }
         }
       },
       "then": {
         "properties": {
           "collector": {
-            "required": ["integrationResource"],
+            "required": [
+              "integrationResource"
+            ],
             "properties": {
               "integrationResource": {
-                "required": ["repository", "module", "target", "commit", "runID"],
+                "required": [
+                  "repository",
+                  "module",
+                  "target",
+                  "commit",
+                  "runID"
+                ],
                 "properties": {
-                  "repository": {"minLength": 1},
-                  "module": {"minLength": 1},
-                  "target": {"minLength": 1},
-                  "commit": {"minLength": 1},
-                  "runID": {"minLength": 1}
+                  "repository": {
+                    "minLength": 1
+                  },
+                  "module": {
+                    "minLength": 1
+                  },
+                  "target": {
+                    "minLength": 1
+                  },
+                  "commit": {
+                    "minLength": 1
+                  },
+                  "runID": {
+                    "minLength": 1
+                  }
                 }
               }
             }
