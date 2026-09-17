@@ -46,7 +46,6 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 			"applications/coding-agent/applier/profile.yaml",
 			"applications/coding-agent/applier/rest.yaml",
 			"applications/coding-agent/applier/rollout-profile.yaml",
-			"applications/coding-agent/units/types-core.yaml",
 		},
 		"planner": {
 			"agents/planner/llm/default.yaml",

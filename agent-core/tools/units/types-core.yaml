@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # Shapes the shipped builtin words share regardless of what they compute:
-# plain text, an opaque object, and the message/signal summary every command
-# word publishes.
+# plain text, an opaque object, the message/signal summary every command word
+# publishes, and the process result an exec word publishes under structured
+# output.
 unit: builtin-types-core
 types:
 - name: Text
@@ -24,6 +25,18 @@ types:
         type: string
     required:
     - message
+- name: ExecResult
+  description: The exit status and captured output of one child process an exec word ran.
+  schema:
+    type: object
+    properties:
+      exit_code:
+        type: integer
+      output:
+        type: string
+    required:
+    - exit_code
+    - output
 - name: NoParameters
   description: The empty parameter object of a word whose input arrives through config selectors.
   schema:

@@ -3,7 +3,7 @@
 unit: catalog-knowledge-manager-documentation-curator-request-declarations
 imports:
 - /opt/agent-core/tools/units/types-collections.yaml
-- ../../units/types-core.yaml
+- /opt/agent-core/tools/units/types-core.yaml
 - ../../units/types-curator.yaml
 - ../../units/types-requests.yaml
 tools:
@@ -408,7 +408,7 @@ tools:
     stdin_max_bytes: 1048576
     visibility: internal
     signature:
-      output: catalog-types-core.ExecStep
+      output: builtin-types-core.ExecResult
       emits: [ToolDone, ToolFailed, CommandError]
     description: Compose stable scalar suggestion hash material.
     category: response
@@ -429,7 +429,7 @@ tools:
     stdin_max_bytes: 1048576
     visibility: internal
     signature:
-      output: catalog-types-core.ExecStep
+      output: builtin-types-core.ExecResult
       emits: [ToolDone, ToolFailed, CommandError]
     description: Hash stable suggestion material.
     category: response

@@ -93,6 +93,18 @@ types:
       required:
         - message
       type: object
+  - ref: builtin-types-core.ExecResult
+    description: The exit status and captured output of one child process an exec word ran.
+    schema:
+      properties:
+        exit_code:
+          type: integer
+        output:
+          type: string
+      required:
+        - exit_code
+        - output
+      type: object
   - ref: builtin-types-core.NoParameters
     description: The empty parameter object of a word whose input arrives through config selectors.
     schema:
@@ -250,5 +262,5 @@ files:
     sha256: 66bccbaf08565a646cb378f93bbd728d307658cd68f40a69fd4ee997506f1074
     root: agent-core
   - path: <agent-core>/tools/units/types-core.yaml
-    sha256: 23b9182ef09b4feb01cf6c9438cdea033e526ea6bbee4012d0fce7a10163329b
+    sha256: 0ed81677d3d2b86cf14fdba16967f44ab9335d75a46047759cd1532aa645436d
     root: agent-core
