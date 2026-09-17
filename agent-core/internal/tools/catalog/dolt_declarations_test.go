@@ -34,7 +34,9 @@ func TestDoltDeclarationsExposeCompleteDistinctWords(t *testing.T) {
 		require.NotEmpty(t, def.Output.Schema["required"])
 		require.NotEmpty(t, def.SideEffects.Items)
 		require.NotEmpty(t, def.Errors)
-		require.NotEmpty(t, def.Relationships)
+		// srd051 R6.14: the signature names the signals; neighbors are the
+		// machine's statement (R6.13).
+		require.NotNil(t, def.Signature)
 	}
 }
 
