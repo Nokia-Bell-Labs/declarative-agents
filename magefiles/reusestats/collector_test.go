@@ -163,3 +163,18 @@ func TestCollectKeysLibraryRootedImportsByPath(t *testing.T) {
 		t.Fatalf("ImportedUnits, SharedUnits = %d, %d; want 1, 1", result.ImportedUnits, result.SharedUnits)
 	}
 }
+
+// TestCollectCountsTemplateMachineActions is GH-2132: a machine template's
+// actions sit under its machine body and count once, at the template.
+func TestCollectCountsTemplateMachineActions(t *testing.T) {
+	root := t.TempDir()
+	writeReuseFixture(t, root, "template.yaml", "unit: serve\nparams:\n  - {name: word, type: string}\nmachine:\n  transitions:\n"+
+		"    - {state: Idle, signal: Seed, next: Serving, action: launch}\n    - {state: Serving, signal: Tick, next: Serving, action: $tool}\n")
+	writeReuseFixture(t, root, "instance.yaml", "unit: one\ninstantiate:\n  - fragment: template.yaml\n    args: {word: go}\n")
+
+	result := mustCollect(t, root, ".")
+
+	if result.ToolRefs != 1 {
+		t.Fatalf("ToolRefs = %d, want 1 from the template body ($tool excluded)", result.ToolRefs)
+	}
+}

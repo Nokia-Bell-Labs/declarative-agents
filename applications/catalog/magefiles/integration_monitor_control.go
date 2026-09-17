@@ -32,12 +32,14 @@ type monitorControlEvidence struct {
 }
 
 type monitorControlMachine struct {
-	Transitions []struct {
-		State  string `yaml:"state"`
-		Signal string `yaml:"signal"`
-		Next   string `yaml:"next"`
-		Action string `yaml:"action"`
-	} `yaml:"transitions"`
+	Transitions []monitorControlTransition `yaml:"transitions"`
+}
+
+type monitorControlTransition struct {
+	State  string `yaml:"state"`
+	Signal string `yaml:"signal"`
+	Next   string `yaml:"next"`
+	Action string `yaml:"action"`
 }
 
 type monitorControlREST struct {
@@ -73,7 +75,7 @@ func (Integration) MonitorControl() error {
 	if err != nil {
 		return err
 	}
-	evidence, err := collectMonitorControlEvidence(profilesRoot, monitorAwait)
+	evidence, err := collectMonitorControlEvidence(profilesRoot, monitorAwait, loadedMonitorControlMachine(coreRoot))
 	if err != nil {
 		return err
 	}
@@ -96,7 +98,13 @@ func (Integration) MonitorControl() error {
 	return nil
 }
 
-func collectMonitorControlEvidence(profilesRoot string, monitorAwait monitorAwaitSource) (monitorControlEvidence, error) {
+// monitorControlMachineReader returns the machine a profile runs, named by the
+// profile's path relative to the catalog root.
+type monitorControlMachineReader func(profilesRoot, profile string) (monitorControlMachine, error)
+
+func collectMonitorControlEvidence(
+	profilesRoot string, monitorAwait monitorAwaitSource, readMachine monitorControlMachineReader,
+) (monitorControlEvidence, error) {
 	monitorREST, err := readMonitorControlREST(filepath.Join(profilesRoot, "agents", "runtime-state-reader", "rest.yaml"))
 	if err != nil {
 		return monitorControlEvidence{}, err
@@ -105,11 +113,11 @@ func collectMonitorControlEvidence(profilesRoot string, monitorAwait monitorAwai
 	if err != nil {
 		return monitorControlEvidence{}, err
 	}
-	monitorMachine, err := readMonitorControlMachine(filepath.Join(profilesRoot, "agents", "runtime-state-reader", "machine.yaml"))
+	monitorMachine, err := readMachine(profilesRoot, "agents/runtime-state-reader/profile.yaml")
 	if err != nil {
 		return monitorControlEvidence{}, err
 	}
-	controlMachine, err := readMonitorControlMachine(filepath.Join(profilesRoot, "testdata", "conformance", "control", "machine.yaml"))
+	controlMachine, err := readMachine(profilesRoot, "testdata/conformance/control/profile.yaml")
 	if err != nil {
 		return monitorControlEvidence{}, err
 	}
@@ -254,12 +262,39 @@ func readMonitorControlREST(path string) (monitorControlREST, error) {
 	return rest, nil
 }
 
-func readMonitorControlMachine(path string) (monitorControlMachine, error) {
-	var machine monitorControlMachine
-	if err := readIntegrationYAML(path, "machine", &machine); err != nil {
-		return monitorControlMachine{}, err
+// loadedMonitorControlMachine reads a profile's machine as the agent loads it.
+// The runtime-state-reader's machine.yaml is an instance of agent-core's
+// monitor-service template since GH-2126, so the file itself declares no
+// transitions; reading it as YAML found none and failed the release (GH-2132).
+func loadedMonitorControlMachine(coreRoot string) monitorControlMachineReader {
+	return func(profilesRoot, profile string) (monitorControlMachine, error) {
+		path := filepath.Join(profilesRoot, filepath.FromSlash(profile))
+		var machine *monitorControlMachine
+		_, err := profileaudit.InspectWithOptions(path, profileaudit.Options{
+			CoreRoot: coreRoot,
+			OnMachine: func(reached profileaudit.ReachedMachine) error {
+				if reached.RequestScoped || machine != nil {
+					return nil
+				}
+				loaded := monitorControlMachine{}
+				for _, transition := range reached.Machine.Transitions {
+					loaded.Transitions = append(loaded.Transitions, monitorControlTransition{
+						State: transition.State, Signal: transition.Signal,
+						Next: transition.Next, Action: transition.Action,
+					})
+				}
+				machine = &loaded
+				return nil
+			},
+		})
+		if err != nil {
+			return monitorControlMachine{}, fmt.Errorf("load %s: %w", path, err)
+		}
+		if machine == nil {
+			return monitorControlMachine{}, fmt.Errorf("load %s: no machine reached", path)
+		}
+		return *machine, nil
 	}
-	return machine, nil
 }
 
 func endpoint(rest monitorControlREST, server, route string) (struct {
