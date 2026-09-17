@@ -63,7 +63,6 @@ long-declaration-file:applications/chatbot-mesh/docs/ARCHITECTURE.yaml
 long-declaration-file:applications/chatbot-mesh/docs/specs/test-suites/test-rel06.0-applier.yaml
 long-declaration-file:applications/chatbot-mesh/helm/values.yaml
 long-declaration-file:applications/chatbot-mesh/testdata/rig/declarations.yaml
-long-declaration-file:applications/coding-agent/agents/applier/exec-declarations.yaml
 long-declaration-file:applications/coding-agent/docs/ARCHITECTURE.yaml
 long-declaration-file:applications/coding-agent/helm/templates/applier.yaml
 long-declaration-file:applications/docs/ARCHITECTURE.yaml
@@ -378,10 +377,3 @@ untyped-tool:applications/chatbot-mesh/testdata/rig/declarations.yaml:start_scen
 untyped-tool:applications/chatbot-mesh/testdata/rig/declarations.yaml:stop_all_services
 untyped-tool:applications/chatbot-mesh/testdata/rig/declarations.yaml:stop_scenario_child
 untyped-tool:applications/chatbot-mesh/testdata/rig/declarations.yaml:wait_health_retry
-untyped-tool:applications/coding-agent/agents/applier/exec-declarations.yaml:kubectl_get_rollout_counts
-untyped-tool:applications/coding-agent/agents/planner/request-declarations.yaml:delegate_critic
-untyped-tool:applications/coding-agent/agents/planner/request-declarations.yaml:delegate_executor
-untyped-tool:applications/coding-agent/agents/role-server/declarations.yaml:await_role_control
-untyped-tool:applications/coding-agent/agents/role-server/declarations.yaml:launch_role_control
-untyped-tool:applications/coding-agent/agents/role-server/declarations.yaml:launch_role_requests
-untyped-tool:applications/coding-agent/agents/role-server/declarations.yaml:stop_role_requests
