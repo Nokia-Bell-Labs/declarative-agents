@@ -23,28 +23,28 @@ Only the machine and one tools entry are required. Paths under `/opt/agent-core/
 graph LR
   T[machine templates<br/>agent-core/tools/machines] -->|instantiate| M[machine.yaml]
   F[declaration fragments<br/>units/*.yaml] -->|instantiate / imports| D[declarations.yaml]
-  CP[capability profile] -->|run_point| M
-  CP -->|self_invoke| D
+  CP[capability profile] -->|self_invoke| D
   CP -->|machine_request| R[rest.yaml]
-  CP -->|promotion| W[application.yaml workload]
+  CP -->|hosted by| W[serving wrapper / blueprint instance]
 ```
 
 Reuse operates at three layers. At the fragment layer, machines instantiate parameterized templates and declaration files import or instantiate shared units (see [fragments.md](fragments.md)). At the path layer, several profiles reference the same files directly; the four coding-agent server profiles share one `role-server/{machine,tools,declarations}.yaml` and differ only in `rest.yaml`. At the profile layer, a whole profile becomes a unit another agent consumes — a capability profile (see [capability-profiles.md](capability-profiles.md)).
 
 There is no profile-includes-profile mechanism, and that is a decision rather than a gap: composition stays at the fragment and path layers, where the closure remains inspectable and content-hashable.
 
-## The four consumption forms
+## The consumption forms
 
-The boundary-tool pattern (design-patterns/09-boundary-tool.md) states the invariant: to the parent machine, every boundary looks like one tool emitting one signal. A capability written once as a profile is consumable four ways.
+The boundary-tool pattern (design-patterns/09-boundary-tool.md) states the invariant: to the parent machine, every boundary looks like one tool emitting one signal. A capability written once as a profile is consumable three ways, specified in srd057.
 
 | Form | Mechanism | Runs as |
 |---|---|---|
-| Nested machine | `run_point` word | in-process, same binary |
 | Child agent | `self_invoke` / `run_agent` word | child process of the same image |
-| Service endpoint | `machine_request` REST binding | per-request machine run to a terminal state |
-| Standalone workload | serving wrapper + `application.yaml` entry | its own Deployment |
+| Service endpoint | `machine_request` REST binding naming `profile` | per-request machine run to a terminal state |
+| Standalone workload | serving wrapper hosting the capability | its own Deployment |
 
-The fourth form gains a declarative shorthand under the capability-profiles epic (GH-2164): a promotion entry in `application.yaml` that generates the serving wrapper at profile-staging time (GH-2169, planned). Until it lands, the wrapper is written by hand following [serving-wrappers.md](serving-wrappers.md).
+The nested-machine boundary kind is the fourth in the pattern's table, but it is not a fourth form here. Its only word, `run_point`, requires `point_machine`, `point_tools`, and `point_tool_declarations` and carries evaluation-session semantics (srd019), so a capability profile may not assume it. srd057 R2.4 records that, and a general nested-machine word is out of scope.
+
+The workload form is a serving wrapper, and where the wrappers are one agent with arguments they become agent blueprint instances (srd055, implementation GH-2123). See [serving-wrappers.md](serving-wrappers.md).
 
 ## Where to read next
 

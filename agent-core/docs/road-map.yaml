@@ -843,6 +843,64 @@ releases:
       - mage stats:reuse
       - mage audit
 
+  - version: "21.0"
+    name: Capability profiles
+    description: |
+      Release 20.0 raised the grain of reuse to the files an agent is made of.
+      Release 21.0 raises it to the agent: a profile that does one job,
+      terminates, and hosts nothing, consumed by whichever form a caller
+      needs.
+
+      The binding grammar shows why. Of 45 machine_request bindings outside
+      test data, 33 override the machine of their own serving profile, so the
+      behaviour exists only as a state set inside one agent and a second
+      caller must copy it. Naming the capability costs no mechanism: the
+      child-process, service-endpoint, and workload forms all ship today. What
+      is missing is the name, the statement of what a capability does not
+      carry, and a check that reports the machines more than one profile still
+      reaches.
+
+      The in-process nested-machine boundary stays out. Its only word,
+      run_point, carries evaluation-session semantics, and a general form
+      would be a mechanism this release does not add.
+    status: planned
+    planned_work:
+      - id: gh-2165
+        summary: Specify capability profiles (srd057), the consumption forms, the binding discipline, and their use case and suite.
+        status: implemented
+      - id: gh-2166
+        summary: The serve-lifecycle declaration fragment, so a wrapper's lifecycle words are one instantiation.
+        status: planned
+      - id: gh-2167
+        summary: Adopt REST fragments for the control and monitor server block the wrappers repeat.
+        status: planned
+      - id: gh-2168
+        summary: Finish the machine-template migration for the four remaining serve-shaped machines.
+        status: planned
+      - id: gh-2123
+        summary: Implement agent blueprints (srd055) with the serving wrappers as the profile group that is one agent with arguments.
+        status: planned
+      - id: gh-2170
+        summary: Promote the fleet observer to a capability profile the applications host.
+        status: planned
+      - id: gh-2171
+        summary: Cleave the shared request capabilities out of the agents that trap them behind machine overrides.
+        status: planned
+    srds:
+      - srd057-capability-profiles
+    use_cases:
+      - id: rel21.0-uc001-capability-profiles
+        summary: One capability profile is consumed by more than one form.
+        status: specified
+    test_suites:
+      - id: test-rel21.0-capability-profiles
+        summary: Formal tests for the capability profile, the three supported consumption forms, the evaluation-scoped in-process boundary, and the shared-machine findings.
+        status: planned
+    proof:
+      - go test ./internal/load ./internal/tools/rest ./internal/tools/control ./pkg/profileaudit
+      - mage stats:reuse
+      - mage audit
+
   - version: "99.0"
     name: Architectural migrations and cleanup
     description: |

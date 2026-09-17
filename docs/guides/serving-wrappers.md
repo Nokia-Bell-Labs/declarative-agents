@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Nokia -->
 <!-- SPDX-License-Identifier: BSD-3-Clause -->
 
-# Serving wrappers and workload promotion
+# Serving wrappers and blueprints
 
 A serving wrapper turns a capability into a workload. It contributes exactly four things: a serve machine (launch, await control, stop), the lifecycle tool words, the control and monitor REST servers, and the application routes that bind capabilities. Everything else belongs to the capability profiles it hosts.
 
@@ -17,25 +17,16 @@ The six lifecycle words (launch requests, launch control, await control, stop re
 
 ## The control and monitor servers
 
-Every wrapper exposes the same eight monitor routes and the control server. This block becomes a REST fragment once `rest.yaml` supports instantiation (GH-2167, planned). Until then we copy the block from `applications/chatbot-mesh/agents/chatbot/rest.yaml` unchanged apart from ports and the agent name, because the monitor OpenAPI surface is pinned by the presentation contract of the declarative UX epic (GH-2154).
+Every wrapper exposes the same eight monitor routes and the control server. REST definitions already instantiate fragments — `unit:`, `imports:`, and `instantiate:` work in `rest.yaml` exactly as they do in a declarations file, under the srd052 rules — so this block is a fragment waiting to be written rather than a mechanism waiting to be built. GH-2167 supplies the canonical one; until it lands we copy the block from `applications/chatbot-mesh/agents/chatbot/rest.yaml` unchanged apart from ports and the agent name, because the monitor surface is pinned by the presentation contract of the declarative UX epic (GH-2154).
 
-## Promotion
+## The wrapper as a blueprint
 
-Promotion makes the wrapper disappear. A deployment entry in `application.yaml` names the capability profile and the staging pipeline generates the wrapper into the staged closure:
+The wrappers are one agent with arguments: they differ by agent name, two ports, the four lifecycle word names, and their application routes. That is what an agent blueprint is for. srd055 declares a whole profile once as a fragment with typed parameters, carries its machine template and units with it, and each agent's profile becomes an instance holding a name, the arguments, and only the fields that genuinely differ. Implementation is GH-2123, and the serving wrappers are the profile group it was waiting for.
 
-```yaml
-deployment:
-  entries:
-    - id: observer
-      promote:
-        profile: agents/observer/profile.yaml
-        rest_extra: agents/observer/rest.yaml
-      workload: observer
-      mount_path: /profiles
-```
+We do not add a second profile-level templating mechanism beside it. An earlier proposal to generate wrappers from an `application.yaml` promotion entry (GH-2169) was closed for that reason: the deployment entry stays what it is, and the wrapper becomes a blueprint instance.
 
-This is planned work (GH-2169); the section records the target shape so wrappers written today converge toward it. Generation happens at profile-staging time in `pkg/profilestage`, the generated files land in `helm/profiles/` like hand-written ones, and the generic binary needs no change. The parity gate is `--dump-config` equality with the wrapper the entry replaces.
+The shape to converge on already exists in the tree. `applications/agent-architecture/agents/applier/` is a workload in an 11-line `profile.yaml` plus a `rest.yaml`, and a blueprint instance is that with its arguments named.
 
 ## Checklist for a new workload
 
-Until promotion lands, a new workload adds: a wrapper `profile.yaml` referencing the capability's files, a serve `machine.yaml` as a template instance, `tools.yaml` listing the lifecycle words, `declarations.yaml` instantiating the monitor fragment plus the lifecycle words, a `rest.yaml` with the copied control/monitor block plus the application routes, and one `roots[]` plus one `deployment.entries[]` line in `application.yaml`. After GH-2169, the same workload is the one deployment entry.
+Until blueprints land, a new workload adds: a wrapper `profile.yaml` referencing the capability's files, a serve `machine.yaml` as a template instance, `tools.yaml` listing the lifecycle words, `declarations.yaml` instantiating the monitor fragment plus the lifecycle words, a `rest.yaml` carrying the control and monitor block plus the application routes, and one `roots[]` and one `deployment.entries[]` line in `application.yaml`. After GH-2123, the first five collapse into an instance naming the blueprint and its arguments.

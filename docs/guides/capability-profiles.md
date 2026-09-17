@@ -7,7 +7,7 @@ A capability profile does one job and terminates. Its machine runs from an initi
 
 Two profiles in the tree model the shape. `applications/coding-agent/agents/executor/` is a request-scoped capability: the role servers around it bind it with `machine_request` and map its terminal states to HTTP statuses. `applications/catalog/agents/runtime-state-reader/` is the monitoring capability as a 110-line agent whose machine is a 14-line instantiation of a shared template.
 
-A formal definition of the capability profile and the wrapper contract is planned as a product requirements document (GH-2165). This guide records the working rules until that lands.
+srd057 defines the capability profile, the consumption forms it supports, and the binding discipline that keeps shared behaviour a named profile. This guide is the working companion to it.
 
 ## Writing one
 
@@ -19,12 +19,13 @@ The table lists the four forms and when we reach for each.
 
 | Form | Declaration | Choose when |
 |---|---|---|
-| `run_point` | tool word with `config.point_machine: <machine path>` | lowest latency, shared process state acceptable |
 | `self_invoke` | tool word with `config.profile: <profile path>` | process isolation, workspace undo, trace propagation |
 | `machine_request` | REST route with `machine_request: {profile, timeout, response.terminal_states}` | the capability is a service another agent or a UI calls |
-| promotion | `application.yaml` deployment entry | the capability deserves its own Deployment |
+| serving wrapper | a wrapper profile hosting it, a blueprint instance where the wrappers are one agent with arguments | the capability deserves its own Deployment |
 
 `coding-agent/agents/executor/rest.yaml` shows the `machine_request` form binding a profile path; `applications/catalog/agents/bench/builtin.yaml` shows `self_invoke` with request and output mapping.
+
+There is no in-process form to reach for. `run_point` is the nested-machine boundary's only word and it is evaluation-harness machinery — it requires `point_machine`, `point_tools`, and `point_tool_declarations` and keeps per-point session state (srd019). A capability profile handed to it fails registration, which srd057 R2.4 states and the release 21.0 suite tests.
 
 ## Binding discipline
 

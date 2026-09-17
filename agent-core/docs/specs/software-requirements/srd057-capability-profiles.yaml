@@ -1,0 +1,140 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd057-capability-profiles
+title: Capability Profiles
+
+problem: |
+  A profile's machine runs three ways today. It runs as the agent `--profile`
+  names, as a child process through `self_invoke` (srd022 R6), and per request
+  behind a REST route through a `machine_request` binding (srd027). The runtime
+  offers all three, but nothing names the thing being run or states what it
+  must not carry. The consumption form is therefore decided at each call site,
+  and behaviour that one agent reached by a route is written again when a
+  second agent wants it.
+
+  The binding grammar records the outcome. Of 45 `machine_request` bindings
+  outside test data, 33 name their own serving profile and override its
+  machine. Such behaviour exists only as a state set inside one agent: no other
+  profile can name it, so a second caller copies it. The copies then drift,
+  because nothing relates them. The same query, the same document read, and the
+  same fleet poll appear in several agents with small differences that no
+  reader can attribute to a decision.
+
+  Machine templates (srd054), agent blueprints (srd055), and unit libraries
+  (srd056) raised the grain of reuse from blocks to the files an agent is made
+  of. The grain above them is the agent itself: a profile that does one job,
+  terminates, and is consumed by whichever form a caller needs. Naming it costs
+  no mechanism. Every form it needs already exists.
+
+goals:
+  - G1: Name the capability profile and state what it does not carry, so a profile that is one job is recognizable without a new field.
+  - G2: State what each consumption form guarantees a capability, so one profile serves every form it supports unchanged.
+  - G3: Make behaviour that more than one profile reaches a named capability rather than a machine override, and make a departure visible where profiles are already checked.
+  - G4: Add no mechanism. Capability profiles are ordinary profiles consumed by words and bindings that ship today.
+
+requirements:
+  R1:
+    title: The capability profile
+    items:
+      - R1.1: >-
+          A capability profile SHALL be an AgentProfile whose machine reaches a
+          terminal state without external control. It SHALL NOT declare the
+          serve lifecycle words that launch, await, and stop a request server,
+          a control or monitor REST server, or static assets, because those
+          belong to whatever hosts it.
+      - R1.2: >-
+          A capability profile SHALL carry no field, marker, or kind that a
+          hand-written profile does not. It is recognized by what it contains
+          and by how it is referenced, so no loader, schema, or staging change
+          follows from this document.
+      - R1.3: >-
+          A capability profile SHALL be referenced by path: by a
+          `machine_request` binding's `profile`, by a child-agent word's
+          `config.profile`, or by the `machine`, `tools`, and declaration
+          fields of a serving wrapper or blueprint that hosts it. It SHALL NOT
+          be reached by search, registry, or naming convention.
+
+  R2:
+    title: Consumption forms
+    items:
+      - R2.1: >-
+          The child-process form SHALL be `self_invoke` under srd022 R6:
+          request and output selectors carry the payload, `execute.Config`
+          carries the arguments, trace context propagates into the child, and
+          the workspace undo contract applies. A capability profile SHALL
+          require no edit to be invoked this way.
+      - R2.2: >-
+          The service-endpoint form SHALL be a `machine_request` binding naming
+          `profile`, with the capability's terminal states mapped to responses
+          under srd027. The capability SHALL NOT know it is behind a route, and
+          the route SHALL NOT depend on states the capability does not declare.
+      - R2.3: >-
+          The workload form SHALL be a serving wrapper that hosts the
+          capability, itself a blueprint instance under srd055 where the
+          wrappers are one agent with arguments. Hosting SHALL require no edit
+          to the capability profile.
+      - R2.4: >-
+          The in-process nested-machine boundary SHALL NOT be assumed available
+          to a capability profile. Its only word, `run_point`, requires
+          `point_machine`, `point_tools`, and `point_tool_declarations` and
+          carries evaluation-session semantics (srd019 R2.5, R3.9, R6.3). A
+          general nested-machine word is out of scope here, and a document
+          proposing one SHALL state which of R2.1 to R2.3 it subsumes.
+
+  R3:
+    title: Binding discipline and visibility
+    items:
+      - R3.1: >-
+          A `machine_request` binding MAY override `machine` when the behaviour
+          is private to the declaring agent: reached by no other profile and
+          wanted by no other application.
+      - R3.2: >-
+          Behaviour that more than one profile reaches, or that exists as
+          copies in more than one application or repository, SHALL be a
+          capability profile named by `profile`. The copies SHALL be replaced
+          by references rather than kept in step by review.
+      - R3.3: >-
+          The repository consistency check SHALL report, as findings rather
+          than load errors, each machine file reachable from more than one
+          profile and each `machine_request` override whose machine another
+          profile also reaches. A finding SHALL name the machine file and every
+          profile that reaches it, so the reader can see what a capability
+          would replace.
+
+non_goals:
+  - A profile-includes-profile mechanism. Composition stays at the fragment (srd052), template (srd054), blueprint (srd055), and library (srd056) layers.
+  - Runtime discovery of capabilities. Every reference is a path in a file.
+  - A general nested-machine word, and any change to run_point or the evaluation harness.
+  - Converting the existing machine-override bindings. That is migration work, tracked per application.
+  - Unifying behaviour that genuinely differs between applications. Two agents that do different jobs stay two profiles.
+  - Any change to the loader, the profile schema, staging, or program identity.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A capability profile loads and runs to a terminal state with no serve lifecycle words, no control or monitor server, and no static assets, and carries no field a hand-written profile lacks; it is reached only by a declared path, and a reference by anything other than a path fails.
+    traces: [R1.1, R1.2, R1.3]
+  - id: AC2
+    criterion: One unchanged capability profile is invoked by self_invoke with selectors, undo, and trace propagation, bound by a machine_request naming profile with its terminal states mapped to responses, and hosted by a serving wrapper, with no edit to the capability between the three; and run_point rejects a profile that declares no point machine.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+  - id: AC3
+    criterion: The consistency check reports a machine file reachable from two profiles and a machine_request override whose machine another profile reaches, naming the machine file and each reaching profile, and reports neither as a load error; a machine reached by one profile produces no finding.
+    traces: [R3.1, R3.2, R3.3]
+
+depends_on:
+  - srd_id: srd022-builtin-tools
+    symbols_used: [self_invoke, ChildAgentConfig, execute.Config, child agent trace propagation]
+  - srd_id: srd027-rest-tool-runtime
+    symbols_used: [machine_request binding, terminal response schema validation]
+  - srd_id: srd055-agent-blueprints
+    symbols_used: [blueprint, profile instance, blueprint-relative resolution]
+  - srd_id: srd054-machine-templates
+    symbols_used: [machine template, machine instance]
+  - srd_id: srd056-unit-libraries
+    symbols_used: [library root, rooted import]
+  - srd_id: srd019-eval-harness
+    symbols_used: [run_point, point_machine, evaluation session semantics]
+
+related_documents:
+  - cfg-agent-profile-format
+  - cfg-runtime-contract
+  - srd055-agent-blueprints
