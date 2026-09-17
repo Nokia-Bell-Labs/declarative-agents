@@ -28,7 +28,6 @@
 # Declaration files over 300 lines when the length class landed (GH-2111).
 long-declaration-file:agent-core/tools/builtin/otlp/all.yaml
 long-declaration-file:agent-core/tools/builtin/rest/all.yaml
-long-declaration-file:applications/agent-architecture/agents/applier/exec-declarations.yaml
 long-declaration-file:applications/agent-architecture/docs/ARCHITECTURE.yaml
 long-declaration-file:applications/agent-architecture/helm/templates/applier.yaml
 long-declaration-file:applications/catalog/agents/collector/declarations.yaml
@@ -183,7 +182,6 @@ untyped-tool:agent-core/tools/exec/rev-parse.yaml:rev_parse
 untyped-tool:agent-core/tools/exec/test.yaml:test
 untyped-tool:agent-core/tools/exec/vet.yaml:vet
 untyped-tool:agent-core/tools/exec/workspace-status.yaml:workspace_status
-untyped-tool:applications/agent-architecture/agents/applier/exec-declarations.yaml:kubectl_get_rollout_counts
 untyped-tool:applications/catalog/agents/applier/declarations.yaml:await_applier_control
 untyped-tool:applications/catalog/agents/applier/declarations.yaml:launch_applier_control
 untyped-tool:applications/catalog/agents/applier/declarations.yaml:launch_applier_requests
