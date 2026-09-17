@@ -870,7 +870,7 @@ releases:
         status: implemented
       - id: gh-2166
         summary: The serve-lifecycle declaration fragment, so a wrapper's lifecycle words are one instantiation.
-        status: planned
+        status: implemented
       - id: gh-2167
         summary: Adopt REST fragments for the control and monitor server block the wrappers repeat.
         status: planned
