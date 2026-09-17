@@ -237,7 +237,7 @@ test_cases:
     expected:
       revision_one_release_secret_asserted_before_readiness: true
       failed_owned_bootstrap_retains_evidence_before_delete: true
-      reused_cluster_not_harvested_or_deleted_by_release: true
+      leftover_cluster_replaced_before_scenario: true
       real_helm_upgrade_changes_the_release: true
       post_upgrade_verify_failure_reaches_rolled_back: true
       real_helm_rollback_restores_prior_computed_values: true
@@ -333,8 +333,9 @@ test_cases:
 
       A failed bootstrap still owns the cluster creation it completed. Before
       deleting that cluster, the failure path exports kind logs and captures
-      kube-system descriptions, pod inventory, and container logs; reused clusters
-      remain untouched.
+      kube-system descriptions, pod inventory, and container logs. A leftover
+      policy cluster from an interrupted run is deleted and recreated before
+      bootstrap, so the proof never adopts a cluster it did not build.
     inputs:
       cluster: kind Kubernetes 1.36.1 with compatible, locally loaded Calico v3.32.1
       positive: request through the ingress to the provisioning-workflow-orchestrator intent surface
@@ -344,7 +345,7 @@ test_cases:
       cni_images_digest_pinned_and_loaded_before_manifest_apply: true
       policy_probe_image_digest_pinned_locally_loaded_and_never_pulled: true
       failed_owned_bootstrap_captures_kube_system_evidence_before_delete: true
-      reused_cluster_never_deleted_or_inspected_for_failure_evidence: true
+      leftover_policy_cluster_recreated_and_bootstrapped: true
       browser_route_reaches_provisioning-workflow-orchestrator: true
       applier_apply_refuses_non_creator: true
       creator_instance_port_not_ingress_reachable: true

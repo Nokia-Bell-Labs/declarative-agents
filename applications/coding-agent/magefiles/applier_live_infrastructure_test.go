@@ -11,17 +11,18 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
-func TestCodingApplierLiveOwnsDedicatedClusterRecovery(t *testing.T) {
-	options := codingApplierLiveEnsureOptions()
-	if options.ReusePolicy != kindrig.RecreateUnhealthyOwnedCluster {
-		t.Fatalf("reuse policy = %v, want explicit owned-cluster recovery", options.ReusePolicy)
-	}
-	if options.HealthRun == nil {
-		t.Fatal("dedicated-cluster recovery must provide a bounded health runner")
+func TestCodingHelmClustersAreAcquiredFresh(t *testing.T) {
+	for _, file := range []string{"integration_applier_live.go", "integration_helm_smoke.go"} {
+		body, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(body), "kindrig.EnsureFreshCluster(") ||
+			strings.Contains(string(body), "kindrig.EnsureCluster(") {
+			t.Fatalf("%s must acquire its dedicated cluster fresh so a leftover never persists (GH-2137)", file)
+		}
 	}
 }
 

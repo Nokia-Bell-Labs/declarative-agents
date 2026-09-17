@@ -725,3 +725,46 @@ func kubeconfigEntry(environment []string) string {
 	}
 	return ""
 }
+
+// A healthy leftover with a test-owned name is still deleted and recreated, so
+// a cluster from an interrupted run never lingers past the next run (GH-2137).
+func TestEnsureFreshClusterReplacesHealthyLeftover(t *testing.T) {
+	kind := &fakeKind{existing: []string{"da-coding-agent-smoke"}}
+	cluster, err := EnsureFreshCluster(kind.run, "da-coding-agent-smoke", testConfig(t), 120*time.Second)
+	if err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	if !cluster.Created {
+		t.Fatal("a fresh cluster must be owned so release deletes it")
+	}
+	if len(kind.calls) != 3 || kind.calls[0][0] != "get" ||
+		kind.calls[1][0] != "delete" || kind.calls[2][0] != "create" {
+		t.Fatalf("calls = %v, want list, delete, create with no health probe", kind.calls)
+	}
+	cluster.Release(kind.run)
+	if deletes := countKindCalls(kind.calls, "delete"); deletes != 2 {
+		t.Fatalf("delete count = %d, want leftover plus release; calls: %v", deletes, kind.calls)
+	}
+}
+
+func TestEnsureFreshClusterCreatesWhenAbsent(t *testing.T) {
+	kind := &fakeKind{existing: []string{"da-agentic-wiki-mesh-demo"}}
+	cluster, err := EnsureFreshCluster(kind.run, "da-coding-agent-smoke", testConfig(t), 120*time.Second)
+	if err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	if !cluster.Created || kind.issued("delete") {
+		t.Fatalf("absent cluster: created=%v calls=%v, want create without delete", cluster.Created, kind.calls)
+	}
+}
+
+func TestEnsureFreshClusterReportsLeftoverDeleteFailure(t *testing.T) {
+	kind := &fakeKind{existing: []string{"da-coding-agent-smoke"}, deleteErr: errors.New("exit status 1")}
+	cluster, err := EnsureFreshCluster(kind.run, "da-coding-agent-smoke", testConfig(t), 120*time.Second)
+	if err == nil || !strings.Contains(err.Error(), "delete leftover") {
+		t.Fatalf("err = %v, want leftover delete failure", err)
+	}
+	if cluster.Created || kind.issued("create") {
+		t.Fatalf("failed delete still created or claimed ownership: %v", kind.calls)
+	}
+}

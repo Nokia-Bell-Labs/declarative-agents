@@ -9,7 +9,7 @@ introduction: |
   cluster, and a demo a person can drive from a browser or terminal.
   The chatbot-mesh application grew a working rig for both in its magefiles:
   dependency gating, image bake, kind image load, a chart values overlay
-  for cluster runs, pre-existing-cluster detection, and teardown in all
+  for cluster runs, leftover-cluster replacement, and teardown in all
   paths. Nothing in that rig is specific to chatbot-mesh, and each new
   application would otherwise re-invent it with small divergences.
 
@@ -67,12 +67,20 @@ sections:
       file is not permitted; the file is what makes two machines produce
       the same cluster.
 
-      Clusters are disposable by default. A target that creates a
-      cluster deletes it in all exit paths, including failure. The one
-      exception is the existing reuse convention: when the named cluster
-      already exists before the target runs, the target reuses it and
-      leaves it in place, so a developer iterating on a chart keeps the
-      multi-minute cluster creation out of the loop.
+      Integration test clusters are on demand. A target creates its
+      cluster, uses it, and deletes it in all exit paths, including
+      failure. When the named cluster already exists before the target
+      runs, it is a leftover from an interrupted run, not a cluster
+      anyone is using: the target deletes it and creates a fresh one
+      that it owns. Reusing leftovers let one interrupted run pin idle
+      clusters in the Docker VM through every later run, which starved
+      concurrent release lanes of memory (GH-2134, GH-2137). An
+      aggregate target that shares one cluster across its scenarios
+      acquires it fresh once and passes it between them.
+
+      Demo clusters are the exception. `demo:up` creates or reuses the
+      named demo cluster and leaves it running for a person to use;
+      only `demo:down` deletes it.
 
       Readiness is observed, never assumed. Targets wait with
       `kubectl wait --for=condition=Ready` and `kubectl rollout status`

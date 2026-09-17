@@ -5,6 +5,7 @@ package main
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -409,4 +410,57 @@ func TestCollectorOTLPReadinessReportsForwardFailure(t *testing.T) {
 	if !errors.Is(err, want) || !strings.Contains(err.Error(), "readiness forward") {
 		t.Fatalf("error = %v, want wrapped forward failure", err)
 	}
+}
+
+// The first acquisition of a shared cluster replaces a leftover; a later target
+// in the same session reuses the cluster the session adopted instead of deleting
+// it out from under the earlier target (GH-2137).
+func TestEnsureIntegrationClusterIsFreshOnceThenReusesTheSessionCluster(t *testing.T) {
+	config := filepath.Join(t.TempDir(), "kind-config.yaml")
+	if err := os.WriteFile(config, []byte("kind: Cluster\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var calls []string
+	kindRun := func(args ...string) ([]byte, error) {
+		calls = append(calls, strings.Join(args, " "))
+		if len(args) >= 2 && args[0] == "get" && args[1] == "clusters" {
+			return []byte(aggregateKindCluster + "\n"), nil
+		}
+		return nil, nil
+	}
+	session := newIntegrationKindSession(t.TempDir())
+	deactivate, err := activateIntegrationKindSession(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer deactivate()
+
+	first, err := ensureIntegrationCluster(kindRun, aggregateKindCluster, config, 0)
+	if err != nil || !first.Created {
+		t.Fatalf("first acquisition = %+v, %v; want a fresh owned cluster", first, err)
+	}
+	if countCalls(calls, "delete cluster") != 1 || countCalls(calls, "create cluster") != 1 {
+		t.Fatalf("first acquisition calls = %v, want leftover delete then create", calls)
+	}
+	if !adoptAggregateKindCluster(first, kindRun, kindrig.FailureEvidence{}) {
+		t.Fatal("session did not adopt the fresh cluster")
+	}
+
+	calls = nil
+	// Reuse probes API health against the fake's empty kubeconfig and reports an
+	// error; the assertion is only that the session cluster was not replaced.
+	_, _ = ensureIntegrationCluster(kindRun, aggregateKindCluster, config, 0)
+	if countCalls(calls, "delete cluster") != 0 || countCalls(calls, "create cluster") != 0 {
+		t.Fatalf("second acquisition mutated the session cluster: %v", calls)
+	}
+}
+
+func countCalls(calls []string, prefix string) int {
+	n := 0
+	for _, call := range calls {
+		if strings.HasPrefix(call, prefix) {
+			n++
+		}
+	}
+	return n
 }

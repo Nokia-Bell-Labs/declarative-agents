@@ -146,6 +146,11 @@ const (
 	// be deleted and recreated; the returned Cluster is then marked Created so
 	// normal cleanup deletes the replacement.
 	RecreateUnhealthyOwnedCluster
+	// FreshOwnedCluster asserts the fixed name belongs to one integration target
+	// and must never outlive the run that made it. A listed cluster, healthy or
+	// not, is a leftover from an interrupted run: it is deleted and recreated,
+	// and the returned Cluster is marked Created so release deletes it (GH-2137).
+	FreshOwnedCluster
 )
 
 // EnsureOptions customizes reuse validation. HealthRun is injectable for unit
@@ -194,9 +199,10 @@ func DefaultCommandRun(name string, args ...string) ([]byte, error) {
 }
 
 // Cluster records whether this run created the cluster it is using. Only a
-// cluster this run created may be deleted: the integration targets use fixed
-// cluster names and reuse one that is already up, so deleting unconditionally
-// destroys a developer or CI cluster the test did not create (GH-589).
+// cluster this run created may be deleted, so a reused demo cluster survives
+// (GH-589). Integration targets acquire through EnsureFreshCluster, which
+// replaces a leftover, so their clusters are always created and deleted
+// (GH-2137).
 type Cluster struct {
 	Name    string
 	Created bool
@@ -228,10 +234,14 @@ func EnsureClusterWithOptions(
 	if _, err := os.Stat(configPath); err != nil {
 		return Cluster{}, fmt.Errorf("kind cluster %s: config %s: %w", name, configPath, err)
 	}
-	if options.ReusePolicy > RecreateUnhealthyOwnedCluster {
+	if options.ReusePolicy > FreshOwnedCluster {
 		return Cluster{}, fmt.Errorf("kind cluster %s: unsupported reuse policy %d", name, options.ReusePolicy)
 	}
-	if Exists(run, name) {
+	exists := Exists(run, name)
+	if exists && options.ReusePolicy == FreshOwnedCluster {
+		return recreateLeftoverCluster(run, name, configPath, wait)
+	}
+	if exists {
 		healthRun := options.HealthRun
 		if healthRun == nil {
 			healthRun = DefaultCommandRun
@@ -273,6 +283,27 @@ func EnsureClusterWithOptions(
 		}
 		return cluster, nil
 	}
+	return createCluster(run, name, configPath, wait)
+}
+
+// EnsureFreshCluster acquires an integration target's dedicated cluster: any
+// leftover with the same name is deleted first, and the result is always owned
+// so the target's release deletes it.
+func EnsureFreshCluster(run Runner, name, configPath string, wait time.Duration) (Cluster, error) {
+	return EnsureClusterWithOptions(run, name, configPath, wait,
+		EnsureOptions{ReusePolicy: FreshOwnedCluster})
+}
+
+func recreateLeftoverCluster(run Runner, name, configPath string, wait time.Duration) (Cluster, error) {
+	started := time.Now()
+	fmt.Printf("kind: deleting leftover cluster %s before creating it fresh\n", name)
+	if output, err := run("delete", "cluster", "--name", name); err != nil {
+		LogPhase(name, "leftover-delete", "failed", started, "")
+		return Cluster{}, fmt.Errorf("kind cluster %s: delete leftover from a prior run: %w: %s; "+
+			"remediation: remove it manually with kind delete cluster --name %s, then rerun",
+			name, err, strings.TrimSpace(string(output)), name)
+	}
+	LogPhase(name, "leftover-delete", "deleted", started, "")
 	return createCluster(run, name, configPath, wait)
 }
 

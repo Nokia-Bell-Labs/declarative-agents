@@ -301,7 +301,7 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	}
 	defer cleanupKindConfig()
 	clusterName := aggregateClusterName(helmKindCluster)
-	cluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, clusterName, kindConfig, helmClusterWait)
+	cluster, err := ensureIntegrationCluster(kindrig.DefaultRun, clusterName, kindConfig, helmClusterWait)
 	if err != nil {
 		return err
 	}
@@ -1362,7 +1362,7 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 	}
 
 	clusterName := aggregateClusterName(helmSwapCluster)
-	swapCluster, err := kindrig.EnsureCluster(
+	swapCluster, err := ensureIntegrationCluster(
 		kindrig.DefaultRun, clusterName, helmKindConfig(chartDir), helmClusterWait)
 	if err != nil {
 		return err
@@ -1866,7 +1866,7 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 	var llmCluster kindrig.Cluster
 	if err := runHelmLLMPhase("cluster-ensure", func() error {
 		var clusterErr error
-		llmCluster, clusterErr = kindrig.EnsureCluster(
+		llmCluster, clusterErr = ensureIntegrationCluster(
 			kindrig.DefaultRun, clusterName, helmKindConfig(chartDir), helmClusterWait)
 		return clusterErr
 	}); err != nil {

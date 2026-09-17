@@ -216,7 +216,7 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 	var cluster kindrig.Cluster
 	if err := runApplierLivePhase("cluster-ensure", func() error {
 		var ensureErr error
-		cluster, ensureErr = kindrig.EnsureCluster(kindrig.DefaultRun, clusterName,
+		cluster, ensureErr = ensureIntegrationCluster(kindrig.DefaultRun, clusterName,
 			helmKindConfig(applicationChartDir(profilesRoot)), helmClusterWait)
 		return ensureErr
 	}); err != nil {

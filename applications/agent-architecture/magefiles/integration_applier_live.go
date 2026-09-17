@@ -103,7 +103,7 @@ func runApplierLive(resolved roots) (result error) {
 		defer cancel()
 		return smokeEnvironment{}.run(ctx, "kind", args...)
 	}
-	cluster, err := kindrig.EnsureCluster(kindRun, applierLiveCluster, kindConfig, 120*time.Second)
+	cluster, err := kindrig.EnsureFreshCluster(kindRun, applierLiveCluster, kindConfig, 120*time.Second)
 	if err != nil {
 		return fmt.Errorf("applierLive kind cluster acquisition: %w", err)
 	}
