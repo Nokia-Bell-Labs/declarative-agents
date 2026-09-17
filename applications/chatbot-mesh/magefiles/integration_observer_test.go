@@ -64,8 +64,16 @@ func TestObserverMonitorEndpoints(t *testing.T) {
 
 	workDir := t.TempDir()
 
+	// The observer wraps the catalog's agent since GH-2170, so it starts from
+	// the staged tree where its canonical closure resolves.
+	stagedProfile, stageCleanup, err := stageObserverProfile(applicationRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(stageCleanup)
+
 	cmd := exec.Command(binary,
-		"--profile", observerProfile,
+		"--profile", stagedProfile,
 		"--core-root", coreRoot,
 		"--directory", workDir,
 	)

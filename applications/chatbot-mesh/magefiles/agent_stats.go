@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -170,8 +171,14 @@ func compositionProgram(
 	if strings.HasPrefix(filepath.ToSlash(profile.Machine), "agents/") {
 		return filepath.ToSlash(filepath.Dir(profile.Machine)), true, nil
 	}
-	if strings.HasSuffix(filepath.ToSlash(filepath.Dir(profile.Machine)), "catalog/applier") {
-		return "agents/applier", true, nil
+	// A wrapper around a catalog agent names its machine through the staged
+	// layout (../../catalog/<agent>/machine.yaml), which does not resolve
+	// against this checkout's agents root. The canonical program is the
+	// catalog agent the path ends in.
+	if dir := filepath.ToSlash(filepath.Dir(profile.Machine)); strings.Contains(dir, "catalog/") {
+		if agent := path.Base(dir); agent != "" && agent != "." && agent != "catalog" {
+			return "agents/" + agent, true, nil
+		}
 	}
 	if stats.States != 0 || stats.Tools != 0 {
 		return "", false, nil

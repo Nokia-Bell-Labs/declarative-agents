@@ -119,7 +119,9 @@ func TestApplierPromotionWrappersReferenceCanonicalClosure(t *testing.T) {
 					"../../catalog/applier/declarations.yaml",
 					"/opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml",
 				},
-				RESTDefinitions: []string{"rest.yaml"},
+				// The monitor server arrived as its own definition in GH-2167,
+				// listed only by the agent's own profile.
+				RESTDefinitions: []string{"rest.yaml", "monitor-rest.yaml"},
 			},
 			"apply-profile.yaml": {
 				Machine: "../../catalog/applier/apply-machine.yaml",

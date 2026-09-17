@@ -60,7 +60,14 @@ func TestObserverPollIntervalAtMachineEnvelopeIsRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 	coreRoot := demoCoreRoot(root)
-	profile := filepath.Join(root, "agents", "observer", "profile.yaml")
+	// The observer wraps the catalog's agent since GH-2170, and a wrapper
+	// names its canonical closure through the staged layout, so inspect the
+	// staged profile rather than the one in this checkout.
+	_, compositionProfiles := stageMeshTimeoutProfiles(t, root)
+	profile := compositionProfiles["observer"]
+	if profile == "" {
+		t.Fatal("mesh manifest declares no observer root")
+	}
 	report, err := profileaudit.InspectWithOptions(
 		profile, profileaudit.Options{CoreRoot: coreRoot},
 	)
@@ -111,7 +118,7 @@ func TestObserverPollIntervalHelmSchemaConstraint(t *testing.T) {
 		t.Errorf("observer pollInterval pattern = %q, want %q", pollInterval["pattern"], observerPollIntervalPattern)
 	}
 
-	declaration, err := os.ReadFile("../agents/observer/declarations.yaml")
+	declaration, err := os.ReadFile("../../catalog/agents/observer/declarations.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

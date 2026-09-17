@@ -225,15 +225,22 @@ func Audit() error {
 		return err
 	}
 	defer cleanupApplierRuntime()
-	sourceApplierProfile := filepath.Join(root, "agents", "applier", "profile.yaml")
+	// A wrapper around a catalog agent names its canonical closure through the
+	// staged layout, so the smoke preflights the staged profile. Both wrappers
+	// come from the one chart staged above.
+	stagedWrappers := map[string]string{
+		filepath.Join(root, "agents", "applier", "profile.yaml"): filepath.Join(
+			applierChart, "profiles", "applications", "chatbot-mesh", "applier", "profile.yaml"),
+		filepath.Join(root, "agents", "observer", "profile.yaml"): filepath.Join(
+			applierChart, "profiles", "applications", "chatbot-mesh", "observer", "profile.yaml"),
+	}
 	for index, profile := range profiles {
 		if filepath.Clean(profile) == sourceCorpusProfile {
 			profiles[index] = filepath.Join(
 				corpusRuntime, filepath.FromSlash(chromaIngestProfile))
 		}
-		if filepath.Clean(profile) == sourceApplierProfile {
-			profiles[index] = filepath.Join(
-				applierChart, "profiles", "applications", "chatbot-mesh", "applier", "profile.yaml")
+		if staged, ok := stagedWrappers[filepath.Clean(profile)]; ok {
+			profiles[index] = staged
 		}
 	}
 	if err := bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles); err != nil {

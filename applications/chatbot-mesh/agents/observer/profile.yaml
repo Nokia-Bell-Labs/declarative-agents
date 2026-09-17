@@ -1,11 +1,16 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+# A wrapper around the catalog's fleet observer, as the applier wrappers are
+# around the catalog's applier. The machine, its words, and their selection are
+# the same in every mesh that runs an observer; what differs is where this one
+# binds, which agents it proxies, and the UI it serves, all of which live in
+# rest.yaml beside this file.
 name: observer
-machine: machine.yaml
+machine: ../../catalog/observer/machine.yaml
 tools:
-  - tools.yaml
+  - ../../catalog/observer/tools.yaml
 tool_declarations:
-  - declarations.yaml
+  - ../../catalog/observer/declarations.yaml
   - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
 rest_definitions:
   - rest.yaml

@@ -57,7 +57,7 @@ roots:
   - id: observer
     ownership: local
     source: agents/observer/profile.yaml
-    runtime_path: agents/observer/profile.yaml
+    runtime_path: applications/chatbot-mesh/observer/profile.yaml
   - id: corpus-ingest
     ownership: local
     source: agents/corpus-ingest/profile.yaml
@@ -105,7 +105,7 @@ deployment:
     - id: observer
       root: observer
       workload: observer
-      profile_path: agents/observer/profile.yaml
+      profile_path: applications/chatbot-mesh/observer/profile.yaml
       mount_path: /profiles
     - id: corpus-ingest
       root: corpus-ingest
