@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Declaration statistics
 
 `mage stats:reuse` measures declaration duplication, ceremony, unit sharing, and maintainability for every stats participant and folds them into `reuse_total`. The maintainability block reports file length (median, 90th percentile, maximum, files over 300 and 500 lines, the ten longest files), files per agent, and import fan-out and fan-in (GH-2111). Medians are lower medians of the observed values, and the repository total is computed over every module's samples rather than from module medians.
