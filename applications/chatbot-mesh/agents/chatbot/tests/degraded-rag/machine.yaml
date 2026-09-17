@@ -1,8 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+name: chatbot-turn-critic
 # An instance of the chat-turn critic machine template (srd054); the purpose
 # says what this scenario proves.
-name: chatbot-turn-critic
 unit: degraded-rag-critic-machine
 purpose: |-
   Critiques one chatbot turn whose source classifier returns malformed JSON while
