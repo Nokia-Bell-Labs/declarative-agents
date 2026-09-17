@@ -33,4 +33,6 @@ There is no in-process form to reach for. `run_point` is the nested-machine boun
 
 ## Current capability inventory
 
-Capabilities being cleaved out of their current hosts under GH-2171 (planned): vector query against the document store, document read and filter, the provisioning and creator request sides, the collector's span intake loop, and the bench experiment launcher. The fleet observer becomes a capability profile under GH-2170 (planned), which also serves the embedded observer UI of GH-2158.
+Capabilities being cleaved out of their current hosts under GH-2171 (planned): vector query against the document store, document read and filter, the provisioning and creator request sides, the collector's span intake loop, and the bench experiment launcher.
+
+The fleet observer is not among them, and the reason is worth recording. Its poll loop never reaches a terminal state, and the loop is driven by the lifecycle await itself: `AwaitTimedOut` routes to `Discovering`, so the interval timer and the service lifecycle are one machine by design. R1.1 rules that out, and the forms that remain would each spawn a process per poll interval. What the observer shares instead is its whole agent: the catalog owns its machine, words, and selection, and a mesh wraps them with its own REST surface (GH-2170), the way the applications wrap the catalog's applier.

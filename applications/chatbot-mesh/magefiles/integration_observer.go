@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -57,6 +58,38 @@ var observerFanInLabels = []string{
 // reaches a running machine state. The scenario launches the observer profile
 // locally with the kube client pointed at a non-routable address (so discovery
 // degrades gracefully), verifies the health and monitor endpoints respond, and
+// stageObserverProfile stages the chart and returns the staged observer
+// profile. The observer wraps the catalog's agent since GH-2170, and a wrapper
+// names its canonical closure through the staged layout, so a local run starts
+// from the staged tree rather than from this checkout.
+func stageObserverProfile(applicationRoot string) (string, func(), error) {
+	catalogRoot, err := resolveCatalogRoot("chatbot-mesh observer integration", applicationRoot)
+	if err != nil {
+		return "", nil, err
+	}
+	composition, err := resolveChatbotComposition(applicationRoot, catalogRoot)
+	if err != nil {
+		return "", nil, err
+	}
+	var runtimePath string
+	for _, manifestRoot := range composition.manifest.Roots {
+		if manifestRoot.ID == "observer" {
+			runtimePath = manifestRoot.RuntimePath
+			break
+		}
+	}
+	if runtimePath == "" {
+		return "", nil, fmt.Errorf("mesh manifest declares no observer root")
+	}
+	chart, cleanup, err := stagePackageChart(
+		filepath.Join(applicationRoot, "helm"), applicationRoot, catalogRoot,
+	)
+	if err != nil {
+		return "", nil, err
+	}
+	return filepath.Join(chart, "profiles", filepath.FromSlash(runtimePath)), cleanup, nil
+}
+
 // stops the agent through its lifecycle exit. Skips when agent-core is absent.
 func (Integration) Observer() error {
 	applicationRoot, err := os.Getwd()
@@ -68,9 +101,11 @@ func (Integration) Observer() error {
 		fmt.Printf("SKIP integration:observer: agent-core checkout not found at %s\n", coreRoot)
 		return nil
 	}
-	if err := requireProfilePaths(applicationRoot, observerProfile); err != nil {
+	stagedProfile, stageCleanup, err := stageObserverProfile(applicationRoot)
+	if err != nil {
 		return err
 	}
+	defer stageCleanup()
 	binary, err := buildAgent(coreRoot)
 	if err != nil {
 		return err
@@ -94,7 +129,7 @@ func (Integration) Observer() error {
 	defer func() { _ = os.RemoveAll(workDir) }()
 
 	cmd := exec.Command(binary,
-		"--profile", observerProfile,
+		"--profile", stagedProfile,
 		"--core-root", coreRoot,
 		"--directory", workDir,
 	)
@@ -346,6 +381,11 @@ func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, l
 	if err != nil {
 		return fleetSummary, err
 	}
+	stagedProfile, stageCleanup, err := stageObserverProfile(applicationRoot)
+	if err != nil {
+		return fleetSummary, err
+	}
+	defer stageCleanup()
 
 	controlAddr, err := freeLoopbackAddr()
 	if err != nil {
@@ -365,7 +405,7 @@ func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, l
 	defer func() { _ = os.RemoveAll(workDir) }()
 
 	cmd := exec.Command(binary,
-		"--profile", observerProfile,
+		"--profile", stagedProfile,
 		"--core-root", coreRoot,
 		"--directory", workDir,
 	)

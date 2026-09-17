@@ -42,7 +42,7 @@ long-declaration-file:applications/catalog/agents/units/types-curator.yaml
 long-declaration-file:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml
 long-declaration-file:applications/chatbot-mesh/agents/creator/request-declarations.yaml
 long-declaration-file:applications/chatbot-mesh/agents/creator/rest.yaml
-long-declaration-file:applications/chatbot-mesh/agents/observer/declarations.yaml
+long-declaration-file:applications/catalog/agents/observer/declarations.yaml
 long-declaration-file:applications/chatbot-mesh/agents/observer/rest.yaml
 long-declaration-file:applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/rest.yaml
 long-declaration-file:applications/chatbot-mesh/testdata/rig/declarations.yaml

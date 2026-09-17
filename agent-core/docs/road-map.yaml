@@ -881,8 +881,8 @@ releases:
         summary: Implement agent blueprints (srd055) with the serving wrappers as the profile group that is one agent with arguments.
         status: planned
       - id: gh-2170
-        summary: Promote the fleet observer to a capability profile the applications host, its serve wrapper ending as a template instance.
-        status: planned
+        summary: Give the catalog the fleet observer and let a mesh wrap it, as the applications wrap the catalog's applier.
+        status: implemented
       - id: gh-2171
         summary: Cleave the shared request capabilities out of the agents that trap them behind machine overrides; collector and bench end as template instances.
         status: planned

@@ -176,10 +176,13 @@ func TestRepositoryMeshOwnershipClassifiesCorpusIngestAsComposition(t *testing.T
 		t.Fatalf("agent total %d != per-agent count %d",
 			stats.Agents.Total.Agents, len(stats.Agents.PerAgent))
 	}
+	// The observer joined the applier and corpus-ingest as a wrapper around a
+	// catalog agent in GH-2170, so the mesh implements one agent fewer and
+	// wraps one more.
 	output := newMeshStatsOutput(stats, "agent-owning")
 	if output.Application.Ownership != "agent-owning" ||
-		output.Application.AgentsContributed != 5 ||
-		output.Application.CompositionWrappers != 2 {
+		output.Application.AgentsContributed != 4 ||
+		output.Application.CompositionWrappers != 3 {
 		t.Fatalf("repository ownership summary = %#v", output.Application)
 	}
 }
