@@ -83,11 +83,6 @@ func packageHelmChart(chartDir, profilesRoot, destination string) error {
 	if _, err := exec.LookPath("helm"); err != nil {
 		return fmt.Errorf("package chatbot-mesh chart: helm not found on PATH")
 	}
-	// The shared agent-services library chart the app chart depends on; Helm
-	// resolves a dependency only from the chart's own charts/ directory (GH-2045).
-	if err := helmlib.Vendor(filepath.Join(profilesRoot, "..", ".."), chartDir); err != nil {
-		return err
-	}
 	catalogRoot, err := resolveCatalogRoot("chatbot-mesh helm package", profilesRoot)
 	if err != nil {
 		return err
@@ -130,6 +125,13 @@ func packageHelmChart(chartDir, profilesRoot, destination string) error {
 }
 
 func stagePackageChart(chartDir, profilesRoot, catalogRoot string) (string, func(), error) {
+	// The shared agent-services library chart the app chart depends on. Helm
+	// resolves a dependency only from the chart's own charts/ directory, and the
+	// vendored copy is generated rather than tracked, so every path that stages
+	// the chart refreshes it first (GH-2045, GH-2175).
+	if err := helmlib.Vendor(filepath.Join(profilesRoot, "..", ".."), chartDir); err != nil {
+		return "", nil, err
+	}
 	stage, err := os.MkdirTemp("", "chatbot-mesh-package-*")
 	if err != nil {
 		return "", nil, err
