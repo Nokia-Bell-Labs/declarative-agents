@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/magefile/mage/mg"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/helmlib"
 )
 
 var chartSourceInventory = []string{
@@ -101,6 +103,13 @@ func packageHelmChart(chartRoot, catalogRoot, destination string) (string, error
 }
 
 func stageChartSource(source, destination string) error {
+	// The shared agent-services library chart the app chart depends on. Helm
+	// resolves a dependency only from the chart's own charts/ directory, and the
+	// vendored copy is generated rather than tracked, so every path that stages
+	// the chart refreshes it first (GH-2045, GH-2175).
+	if err := helmlib.Vendor(filepath.Join(source, "..", "..", ".."), source); err != nil {
+		return err
+	}
 	entries, err := os.ReadDir(source)
 	if err != nil {
 		return err
