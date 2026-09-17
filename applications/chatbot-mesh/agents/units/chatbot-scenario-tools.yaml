@@ -11,23 +11,11 @@ tools:
     visibility: internal
     category: boundary
     description: Post one chat turn to the chatbot the rig started and map its answer.
-    problem: The chatbot's tier-selected turn must be proven against controlled dependencies rather than live services.
-    goals:
-      - Post a message to the chatbot at the address the rig published.
-      - Map the response to the signal this scenario expects.
-    requirements:
-      input:
-        - Tool config fixes the operation; the message is literal fixture data.
-      output:
-        - Output reports the answer field of the turn response.
-      errors:
-        - Unreachable or unmapped responses emit CommandError.
-    non_goals:
-      - Does not start or stop the chatbot; the rig owns that.
     parameters:
       type: object
       properties: {}
-    emits: [SubjectAnswered, SubjectBroke, RESTResponded, CommandError]
+    signature:
+      emits: [SubjectAnswered, SubjectBroke, RESTResponded, CommandError]
     output:
       description: The chatbot's turn response.
       schema:

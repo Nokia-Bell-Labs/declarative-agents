@@ -11,25 +11,12 @@ tools:
     visibility: internal
     category: boundary
     description: Embed the incoming chat message once at the embedding provider.
-    problem: The RAG server is vector-in, so the chatbot must compute the query vector at a provider.
-    goals:
-      - Read the message from the seeded request body and embed it.
-      - Return the message embedding and carry the message text forward.
-    requirements:
-      input:
-        - The message is selected from the seeded request parameters.
-      output:
-        - Output includes the mapped embedding vector and the carried message.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
-    non_goals:
-      - Does not author or alter the embedding vector.
-      - Does not accept runtime method, URL, host, or auth overrides.
     parameters:
       type: object
       properties:
         input: {type: string}
-    emits: [QueryEmbedded, CommandError]
+    signature:
+      emits: [QueryEmbedded, CommandError]
     output:
       description: Mapped message embedding with the carried message.
       schema:
@@ -99,23 +86,9 @@ tools:
     init: invoke_llm
     visibility: internal
     category: boundary
-    emits: [LLMResponded, CommandError]
+    signature:
+      emits: [LLMResponded, CommandError]
     description: Select declared RAG source names for the original user question.
-    problem: A turn should query only corpora relevant to the question while retaining safe full-fan-out fallback.
-    goals:
-      - Read the original question and rendered source catalog in one classifier message.
-      - Return only a JSON object containing a names array.
-      - Remain independent from the already-tested select_tier classifier contract.
-    requirements:
-      input:
-        - user_prompt_from must read compose_source_selection_prompt.
-        - The prompt contains only source names and descriptions, never target fields.
-      output:
-        - A successful response is passed to parse_source_selection for schema validation.
-      errors:
-        - Provider setup, model discovery, and chat failures emit CommandError for full-set fallback.
-    non_goals:
-      - Does not select a chat-LLM tier, query RAG, or author a URL or endpoint.
     output:
       description: Raw source-selector response.
       schema: {type: string}
@@ -261,27 +234,9 @@ tools:
     init: invoke_llm
     visibility: internal
     category: boundary
-    emits: [LLMResponded, CommandError]
+    signature:
+      emits: [LLMResponded, CommandError]
     description: Classify the original user question to one chat-LLM word with a small fast model.
-    problem: The turn must select a chat-LLM word by query difficulty before answering (srd002 R2).
-    goals:
-      - Read the original user question and emit one tool call over the chat-LLM vocabulary.
-      - Use a small fast classifier model so tier selection is cheap relative to the answer.
-      - Keep the tier-selector prompt and model profile-owned.
-    requirements:
-      input:
-        - must read the original question from embed_query through command state
-        - must use the configured small model against local Ollama
-      output:
-        - must emit LLMResponded with a tool call selecting invoke_llm_fast, invoke_llm_deep, or invoke_command
-        - must emit CommandError for provider setup, model discovery, or chat failures
-      side_effects:
-        - must call local Ollama POST /api/chat
-      undo:
-        - must restore conversation history from the pre-call snapshot
-    non_goals:
-      - Does not answer the user; it only picks the chat-LLM word.
-      - Does not call embedding or RAG endpoints.
     output:
       description: Raw tier-selector response text carrying one chat-LLM tool call.
       schema:
@@ -306,9 +261,6 @@ tools:
         condition: provider configuration is invalid, the model is unavailable, or the model call fails
         message_shape: 'invoke_llm: <provider/model>: <error>'
         state_after_failure: conversation history is unchanged unless the provider response was already appended
-    relationships:
-      after:
-        - compose_prompt
     config:
       model: "${CHATBOT_TIER_MODEL:-qwen2.5:3b}"
       provider: ollama
@@ -370,27 +322,9 @@ tools:
     init: invoke_llm
     visibility: external
     category: boundary
-    emits: [LLMResponded, CommandError]
+    signature:
+      emits: [LLMResponded, CommandError]
     description: Answer the question over the composed grounding prompt with a small fast model.
-    problem: Short factual questions the chunks answer directly do not need a large model.
-    goals:
-      - Answer grounded in the retrieved chunks, citing the chunk record ids.
-      - Read the composed grounding prompt through command-state $from(compose_prompt).
-      - Serve as the default chat-LLM word on a tier-selector misparse or error.
-    requirements:
-      input:
-        - must read the composed grounding prompt from command state (user_prompt_from)
-        - must use the configured small model against local Ollama
-      output:
-        - must emit LLMResponded when the model returns answer text
-        - must emit CommandError for provider setup, model discovery, or chat failures
-      side_effects:
-        - must call local Ollama POST /api/chat
-      undo:
-        - must restore conversation history from the pre-call snapshot
-    non_goals:
-      - Does not call embedding or RAG endpoints directly.
-      - Does not author or alter the retrieved chunks.
     output:
       description: Raw model response text.
       schema:
@@ -415,10 +349,6 @@ tools:
         condition: provider configuration is invalid, the model is unavailable, or the model call fails
         message_shape: 'invoke_llm: <provider/model>: <error>'
         state_after_failure: conversation history is unchanged unless the provider response was already appended
-    relationships:
-      after:
-        - compose_prompt
-        - parse_tier
     config:
       model: "${CHATBOT_FAST_MODEL:-qwen2.5:3b}"
       provider: ollama
@@ -445,27 +375,9 @@ tools:
     init: invoke_llm
     visibility: external
     category: boundary
-    emits: [LLMResponded, CommandError]
+    signature:
+      emits: [LLMResponded, CommandError]
     description: Answer the question over the composed grounding prompt with a larger model.
-    problem: Multi-part or analytical questions need a larger model to reason over several chunks.
-    goals:
-      - Answer grounded in the retrieved chunks, citing the chunk record ids.
-      - Read the composed grounding prompt through command-state $from(compose_prompt).
-      - Handle the analytical questions the tier selector sends its way.
-    requirements:
-      input:
-        - must read the composed grounding prompt from command state (user_prompt_from)
-        - must use the configured larger model against local Ollama
-      output:
-        - must emit LLMResponded when the model returns answer text
-        - must emit CommandError for provider setup, model discovery, or chat failures
-      side_effects:
-        - must call local Ollama POST /api/chat
-      undo:
-        - must restore conversation history from the pre-call snapshot
-    non_goals:
-      - Does not call embedding or RAG endpoints directly.
-      - Does not author or alter the retrieved chunks.
     output:
       description: Raw model response text.
       schema:
@@ -490,10 +402,6 @@ tools:
         condition: provider configuration is invalid, the model is unavailable, or the model call fails
         message_shape: 'invoke_llm: <provider/model>: <error>'
         state_after_failure: conversation history is unchanged unless the provider response was already appended
-    relationships:
-      after:
-        - compose_prompt
-        - parse_tier
     config:
       model: "${CHATBOT_DEEP_MODEL:-ornith:9b}"
       provider: ollama
