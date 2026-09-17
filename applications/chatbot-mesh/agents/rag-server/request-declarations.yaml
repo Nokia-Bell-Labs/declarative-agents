@@ -7,21 +7,6 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Create-or-get the served collection and carry the query vector forward.
-    problem: Single-hop threading means the resolved collection id and the query vector must ride together into the query word.
-    goals:
-      - Create-or-get the plain served collection with no server-side embedding function.
-      - Resolve the returned collection id for the query path.
-      - Carry the caller-supplied query vector forward from the seeded request body.
-    requirements:
-      input:
-        - The query vector is selected from the seeded request body output.
-      output:
-        - Output includes the mapped collection id and the carried query vector.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
-    non_goals:
-      - Does not configure a server-side embedding function.
-      - Does not accept runtime method, URL, host, or auth overrides.
     parameters:
       type: object
       properties:
@@ -30,7 +15,8 @@ tools:
         # maps and requires it, so leaving it undeclared here described a word
         # that takes less than it is given.
         n_results: {type: integer}
-    emits: [CollectionReady, CommandError]
+    signature:
+      emits: [CollectionReady, CommandError]
     output:
       description: Mapped Chroma collection id with the carried query vector.
       schema:
@@ -63,20 +49,6 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Query the resolved collection with the caller-supplied query vector.
-    problem: Chroma retrieval uses a client-supplied query vector threaded from the previous words.
-    goals:
-      - Thread the collection id and query vector from the previous Result.
-      - Return the retrieved chunk ids, documents, and distances.
-    requirements:
-      input:
-        - Collection id and query vector are selected from the previous Result output.
-      output:
-        - Output includes the retrieved chunk ids, documents, and distances.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
-    non_goals:
-      - Does not author the query vector.
-      - Does not accept runtime method, URL, host, or auth overrides.
     parameters:
       type: object
       properties:
@@ -85,7 +57,8 @@ tools:
         # Required and mapped by the operation, so it belongs in the word's own
         # parameter set rather than arriving undeclared.
         n_results: {type: integer}
-    emits: [QueryResponded, QueryRejected, CommandError]
+    signature:
+      emits: [QueryResponded, QueryRejected, CommandError]
     output:
       description: Mapped Chroma query result.
       schema:
