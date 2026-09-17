@@ -66,29 +66,3 @@ long-declaration-file:applications/docs/specs/software-requirements/srd003-appli
 
 # Unsigned boundary and stateful_internal tools and uncategorized tools when
 # srd051 R6.14 and R6.15 landed (GH-2110). Each application migration deletes its lines.
-uncategorized-tool:applications/catalog/agents/critic/llm/deepseek-16b.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/critic/llm/devstral.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/critic/llm/gemma4.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/critic/llm/glm.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/critic/llm/granite.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/critic/llm/laguna.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/critic/llm/mistral-small.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/critic/llm/nemotron.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/critic/llm/qwen3-35b.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/critic/llm/qwen3-8b.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/critic/session.yaml:discover_suite_samples
-uncategorized-tool:applications/catalog/agents/critic/session.yaml:expand_eval_grid
-uncategorized-tool:applications/catalog/agents/critic/session.yaml:init_eval_session
-uncategorized-tool:applications/catalog/agents/critic/session.yaml:materialize_eval_points
-uncategorized-tool:applications/catalog/agents/critic/session.yaml:parse_suite_config
-uncategorized-tool:applications/catalog/agents/critic/session.yaml:report_session
-uncategorized-tool:applications/catalog/agents/critic/session.yaml:report_suite_summary
-uncategorized-tool:applications/catalog/agents/critic/session.yaml:run_point
-uncategorized-tool:applications/catalog/agents/executor/llm/deepseek.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/executor/llm/devstral.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/executor/llm/gemma4.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/executor/llm/glm.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/executor/llm/granite.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/executor/llm/laguna.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/executor/llm/mistral-small.yaml:invoke_llm
-uncategorized-tool:applications/catalog/agents/executor/llm/nemotron.yaml:invoke_llm

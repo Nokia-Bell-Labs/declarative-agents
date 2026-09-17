@@ -1,66 +1,11 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-executor-llm-qwen27b
-# LLM tool declaration for the executor agent — Qwen 3.6 27B.
-# Loaded through a executor profile tool_declarations entry.
-
-tools:
-  - name: invoke_llm
-    type: builtin
-    init: invoke_llm
-    visibility: internal
-    signature:
-      emits: [LLMResponded, CommandError]
-    description: "Invoke the LLM with the current conversation history."
-    category: boundary
-    output:
-      description: "Raw model response text."
-      schema:
-        type: string
-    side_effects:
-      - kind: external_api_call
-        target: llm_provider
-        description: "Sends the current prompt and tool manifest to the configured model provider."
-      - kind: state_mutation
-        target: conversation_history
-        state: appended
-        description: "Appends the model response to the in-memory conversation history."
-    reversibility:
-      classification: reversible
-      requires_confirmation: false
-    undo:
-      strategy: conversation_truncate
-      description: "Restore the conversation history checkpoint captured before invoking the model."
-      requires: [conversation_checkpoint]
-    errors:
-      - signal: CommandError
-        condition: "provider configuration is invalid or the model call fails"
-        message_shape: "invoke_llm: <provider/model>: <error>"
-        state_after_failure: "conversation history unchanged unless the provider response was already appended"
-    config:
+# The executor bound to qwen3.6:27b-mlx (catalog-invoke-llm-model-fragment).
+instantiate:
+  - fragment: ../../units/invoke-llm-model-fragment.yaml
+    args:
       model: "qwen3.6:27b-mlx"
-      provider: ollama
-      provider_url: "http://localhost:11434"
-      manifest_state: Composing
       response_profile: qwen
-      system_prompt: |
-        You are a Go developer following specification-driven development. You
-        read specifications before writing code. You make minimal, focused
-        changes that satisfy requirements and pass acceptance criteria.
-
-        Read the specifications in the doc/ directory to understand what needs
-        to be built. The specifications follow SRD format with numbered
-        requirements (R-items) and acceptance criteria (ACs). Implement the
-        code changes described in the specifications. The existing tests in
-        the workspace serve as the oracle — your implementation must pass them.
-
-        Constraints:
-        - Read the SRD in doc/specs/software-requirements/ first
-        - Implement only what the requirements specify
-        - Do not modify test files
-        - All existing tests must pass after your changes
-
-        Use the tools to read the spec files, read existing code, make edits,
-        and signal done when the implementation satisfies the requirements.
-
       max_time: 600
+tools: []
