@@ -3,44 +3,16 @@
   "title": "coding-agent values",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "image",
-    "profiles",
-    "workspace",
-    "roles",
-    "llm",
-    "ollama",
-    "collector",
-    "applier",
-    "podSecurityContext",
-    "containerSecurityContext"
-  ],
+  "required": ["image", "profiles", "workspace", "roles", "llm", "ollama", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
   "definitions": {
     "image": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "repository",
-        "tag",
-        "pullPolicy"
-      ],
+      "required": ["repository", "tag", "pullPolicy"],
       "properties": {
-        "repository": {
-          "type": "string",
-          "pattern": "^[a-z0-9]+([._/-][a-z0-9]+)*(:[0-9]+)?([/][a-z0-9]+([._-][a-z0-9]+)*)*$"
-        },
-        "tag": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"
-        },
-        "pullPolicy": {
-          "type": "string",
-          "enum": [
-            "Always",
-            "IfNotPresent",
-            "Never"
-          ]
-        }
+        "repository": {"type": "string", "pattern": "^[a-z0-9]+([._/-][a-z0-9]+)*(:[0-9]+)?([/][a-z0-9]+([._-][a-z0-9]+)*)*$"},
+        "tag": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
       }
     },
     "resourceQuantity": {
@@ -50,41 +22,24 @@
     "resources": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "requests",
-        "limits"
-      ],
+      "required": ["requests", "limits"],
       "properties": {
         "requests": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "cpu",
-            "memory"
-          ],
+          "required": ["cpu", "memory"],
           "properties": {
-            "cpu": {
-              "$ref": "#/definitions/resourceQuantity"
-            },
-            "memory": {
-              "$ref": "#/definitions/resourceQuantity"
-            }
+            "cpu": {"$ref": "#/definitions/resourceQuantity"},
+            "memory": {"$ref": "#/definitions/resourceQuantity"}
           }
         },
         "limits": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "cpu",
-            "memory"
-          ],
+          "required": ["cpu", "memory"],
           "properties": {
-            "cpu": {
-              "$ref": "#/definitions/resourceQuantity"
-            },
-            "memory": {
-              "$ref": "#/definitions/resourceQuantity"
-            }
+            "cpu": {"$ref": "#/definitions/resourceQuantity"},
+            "memory": {"$ref": "#/definitions/resourceQuantity"}
           }
         }
       }
@@ -92,31 +47,12 @@
     "role": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "replicas",
-        "requestPort",
-        "controlPort",
-        "resources"
-      ],
+      "required": ["replicas", "requestPort", "controlPort", "resources"],
       "properties": {
-        "replicas": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1
-        },
-        "requestPort": {
-          "type": "integer",
-          "minimum": 1024,
-          "maximum": 65535
-        },
-        "controlPort": {
-          "type": "integer",
-          "minimum": 1024,
-          "maximum": 65535
-        },
-        "resources": {
-          "$ref": "#/definitions/resources"
-        }
+        "replicas": {"type": "integer", "minimum": 1, "maximum": 1},
+        "requestPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "controlPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "resources": {"$ref": "#/definitions/resources"}
       }
     },
     "storageSize": {
@@ -125,9 +61,7 @@
     },
     "labels": {
       "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      }
+      "additionalProperties": {"type": "string"}
     },
     "tolerations": {
       "type": "array",
@@ -135,490 +69,214 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "key": {
-            "type": "string"
-          },
-          "operator": {
-            "type": "string",
-            "enum": [
-              "Exists",
-              "Equal"
-            ]
-          },
-          "value": {
-            "type": "string"
-          },
-          "effect": {
-            "type": "string",
-            "enum": [
-              "NoSchedule",
-              "PreferNoSchedule",
-              "NoExecute"
-            ]
-          },
-          "tolerationSeconds": {
-            "type": "integer",
-            "minimum": 0
-          }
+          "key": {"type": "string"},
+          "operator": {"type": "string", "enum": ["Exists", "Equal"]},
+          "value": {"type": "string"},
+          "effect": {"type": "string", "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"]},
+          "tolerationSeconds": {"type": "integer", "minimum": 0}
         }
       }
     }
   },
   "properties": {
-    "affinity": {
-      "type": "object"
-    },
-    "agent-services": {
-      "type": "object",
-      "description": "Values Helm reserves for the agent-services library dependency; the library reads this chart's own values and declares none of its own."
-    },
-    "applier": {
+    "nameOverride": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+    "image": {"$ref": "#/definitions/image"},
+    "profiles": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "enabled",
-        "image",
-        "ports",
-        "allowApply",
-        "networkPolicy",
-        "resources"
-      ],
+      "required": ["mountPath"],
+      "properties": {"mountPath": {"const": "/profiles"}}
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mountPath", "existingClaim", "storageClass", "accessModes", "size"],
       "properties": {
-        "allowApply": {
-          "type": "boolean"
+        "mountPath": {"const": "/work"},
+        "existingClaim": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 63
         },
-        "chartArchiveConfigMap": {
-          "type": "string"
+        "storageClass": {"type": "string", "maxLength": 253},
+        "accessModes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]}
         },
-        "enabled": {
-          "type": "boolean"
+        "size": {"$ref": "#/definitions/storageSize"}
+      }
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planner", "executor", "critic"],
+      "properties": {
+        "planner": {
+          "allOf": [
+            {"$ref": "#/definitions/role"},
+            {"properties": {"requestPort": {"const": 18200}, "controlPort": {"const": 18201}}}
+          ]
         },
-        "image": {
-          "$ref": "#/definitions/image"
+        "executor": {
+          "allOf": [
+            {"$ref": "#/definitions/role"},
+            {"properties": {"requestPort": {"const": 18210}, "controlPort": {"const": 18211}}}
+          ]
         },
-        "networkPolicy": {
+        "critic": {
+          "allOf": [
+            {"$ref": "#/definitions/role"},
+            {"properties": {"requestPort": {"const": 18220}, "controlPort": {"const": 18221}}}
+          ]
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["externalURL", "port"],
+      "properties": {
+        "externalURL": {"type": "string", "pattern": "^https?://[^[:space:]/]+(:[0-9]+)?(/[^[:space:]]*)?$"},
+        "port": {"type": "integer", "minimum": 1024, "maximum": 65535}
+      }
+    },
+    "ollama": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "utilityImage", "models", "persistence", "resources", "gpu", "nodeSelector", "tolerations"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "utilityImage": {"type": "string", "pattern": "^[^[:space:]@]+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
+        "models": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "pattern": "^[^[:space:]]+$"}
+        },
+        "persistence": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "enabled"
-          ],
+          "required": ["storageClass", "size"],
           "properties": {
-            "enabled": {
-              "type": "boolean"
-            }
+            "storageClass": {"type": "string", "maxLength": 253},
+            "size": {"$ref": "#/definitions/storageSize"}
           }
         },
-        "ports": {
+        "resources": {"$ref": "#/definitions/resources"},
+        "gpu": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "apply",
-            "control",
-            "monitor"
-          ],
-          "properties": {
-            "apply": {
-              "const": 18230
-            },
-            "control": {
-              "const": 18231
-            },
-            "monitor": {
-              "const": 18232
-            }
-          }
+          "required": ["count"],
+          "properties": {"count": {"type": "integer", "minimum": 0}}
         },
-        "resources": {
-          "$ref": "#/definitions/resources"
+        "nodeSelector": {"$ref": "#/definitions/labels"},
+        "tolerations": {"$ref": "#/definitions/tolerations"},
+        "preload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "suspend": {"type": "boolean"},
+            "integrationCacheHostPath": {"type": "string"}
+          }
         }
       }
     },
     "collector": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "controlPort",
-        "enabled",
-        "image",
-        "monitorPort",
-        "otlpGRPCPort",
-        "queryPort",
-        "resources"
-      ],
+      "required": ["enabled", "image", "otlpGRPCPort", "controlPort", "monitorPort", "queryPort", "resources"],
       "properties": {
-        "controlPort": {
-          "type": "integer",
-          "minimum": 1024,
-          "maximum": 65535
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "otlpGRPCPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "controlPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "monitorPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "queryPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "applier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "ports", "allowApply", "networkPolicy", "resources"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "chartArchiveConfigMap": {"type": "string"},
+        "ports": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["apply", "control", "monitor"],
+          "properties": {
+            "apply": {"const": 18230},
+            "control": {"const": 18231},
+            "monitor": {"const": 18232}
+          }
         },
-        "enabled": {
-          "type": "boolean"
+        "allowApply": {"type": "boolean"},
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {"enabled": {"type": "boolean"}}
         },
-        "image": {
-          "$ref": "#/definitions/image"
-        },
-        "monitorPort": {
-          "type": "integer",
-          "minimum": 1024,
-          "maximum": 65535
-        },
-        "otlpGRPCPort": {
-          "type": "integer",
-          "minimum": 1024,
-          "maximum": 65535
-        },
-        "queryPort": {
-          "type": "integer",
-          "minimum": 1024,
-          "maximum": 65535
-        },
-        "resources": {
-          "$ref": "#/definitions/resources"
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runAsNonRoot", "runAsUser", "runAsGroup", "fsGroup", "seccompProfile"],
+      "properties": {
+        "runAsNonRoot": {"const": true},
+        "runAsUser": {"type": "integer", "minimum": 1},
+        "runAsGroup": {"type": "integer", "minimum": 1},
+        "fsGroup": {"type": "integer", "minimum": 1},
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {"type": {"const": "RuntimeDefault"}}
         }
       }
     },
     "containerSecurityContext": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "allowPrivilegeEscalation",
-        "readOnlyRootFilesystem",
-        "capabilities"
-      ],
+      "required": ["allowPrivilegeEscalation", "readOnlyRootFilesystem", "capabilities"],
       "properties": {
-        "allowPrivilegeEscalation": {
-          "const": false
-        },
-        "readOnlyRootFilesystem": {
-          "const": true
-        },
+        "allowPrivilegeEscalation": {"const": false},
+        "readOnlyRootFilesystem": {"const": true},
         "capabilities": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "drop"
-          ],
+          "required": ["drop"],
           "properties": {
             "drop": {
               "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "contains": {
-                "const": "ALL"
-              }
+              "items": {"type": "string"},
+              "contains": {"const": "ALL"}
             }
           }
         }
       }
     },
-    "image": {
-      "$ref": "#/definitions/image"
-    },
-    "llm": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "externalURL",
-        "port"
-      ],
-      "properties": {
-        "externalURL": {
-          "type": "string",
-          "pattern": "^https?://[^[:space:]/]+(:[0-9]+)?(/[^[:space:]]*)?$"
-        },
-        "port": {
-          "type": "integer",
-          "minimum": 1024,
-          "maximum": 65535
-        }
-      }
-    },
-    "nameOverride": {
-      "type": "string",
-      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-    },
-    "nodeSelector": {
-      "$ref": "#/definitions/labels"
-    },
-    "ollama": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "enabled",
-        "image",
-        "utilityImage",
-        "models",
-        "persistence",
-        "resources",
-        "gpu",
-        "nodeSelector",
-        "tolerations"
-      ],
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "gpu": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "count"
-          ],
-          "properties": {
-            "count": {
-              "type": "integer",
-              "minimum": 0
-            }
-          }
-        },
-        "image": {
-          "$ref": "#/definitions/image"
-        },
-        "models": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[^[:space:]]+$"
-          }
-        },
-        "nodeSelector": {
-          "$ref": "#/definitions/labels"
-        },
-        "persistence": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "storageClass",
-            "size"
-          ],
-          "properties": {
-            "storageClass": {
-              "type": "string",
-              "maxLength": 253
-            },
-            "size": {
-              "$ref": "#/definitions/storageSize"
-            }
-          }
-        },
-        "preload": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "suspend": {
-              "type": "boolean"
-            },
-            "integrationCacheHostPath": {
-              "type": "string"
-            }
-          }
-        },
-        "resources": {
-          "$ref": "#/definitions/resources"
-        },
-        "tolerations": {
-          "$ref": "#/definitions/tolerations"
-        },
-        "utilityImage": {
-          "type": "string",
-          "pattern": "^[^[:space:]@]+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"
-        }
-      }
-    },
+    "agent-services": {"type": "object", "description": "Values Helm reserves for the agent-services library dependency; the library reads this chart's own values and declares none of its own."},
     "podAnnotations": {
       "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      }
+      "additionalProperties": {"type": "string"}
     },
-    "podSecurityContext": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "runAsNonRoot",
-        "runAsUser",
-        "runAsGroup",
-        "fsGroup",
-        "seccompProfile"
-      ],
-      "properties": {
-        "runAsNonRoot": {
-          "const": true
-        },
-        "runAsUser": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "runAsGroup": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "fsGroup": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "seccompProfile": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "type"
-          ],
-          "properties": {
-            "type": {
-              "const": "RuntimeDefault"
-            }
-          }
-        }
-      }
-    },
-    "profiles": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "mountPath"
-      ],
-      "properties": {
-        "mountPath": {
-          "const": "/profiles"
-        }
-      }
-    },
-    "roles": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "planner",
-        "executor",
-        "critic"
-      ],
-      "properties": {
-        "planner": {
-          "allOf": [
-            {
-              "$ref": "#/definitions/role"
-            },
-            {
-              "properties": {
-                "requestPort": {
-                  "const": 18200
-                },
-                "controlPort": {
-                  "const": 18201
-                }
-              }
-            }
-          ]
-        },
-        "executor": {
-          "allOf": [
-            {
-              "$ref": "#/definitions/role"
-            },
-            {
-              "properties": {
-                "requestPort": {
-                  "const": 18210
-                },
-                "controlPort": {
-                  "const": 18211
-                }
-              }
-            }
-          ]
-        },
-        "critic": {
-          "allOf": [
-            {
-              "$ref": "#/definitions/role"
-            },
-            {
-              "properties": {
-                "requestPort": {
-                  "const": 18220
-                },
-                "controlPort": {
-                  "const": 18221
-                }
-              }
-            }
-          ]
-        }
-      }
-    },
-    "tolerations": {
-      "$ref": "#/definitions/tolerations"
-    },
-    "workspace": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "mountPath",
-        "existingClaim",
-        "storageClass",
-        "accessModes",
-        "size"
-      ],
-      "properties": {
-        "mountPath": {
-          "const": "/work"
-        },
-        "existingClaim": {
-          "type": "string",
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-          "maxLength": 63
-        },
-        "storageClass": {
-          "type": "string",
-          "maxLength": 253
-        },
-        "accessModes": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": {
-            "type": "string",
-            "enum": [
-              "ReadWriteOnce",
-              "ReadOnlyMany",
-              "ReadWriteMany",
-              "ReadWriteOncePod"
-            ]
-          }
-        },
-        "size": {
-          "$ref": "#/definitions/storageSize"
-        }
-      }
-    }
+    "nodeSelector": {"$ref": "#/definitions/labels"},
+    "tolerations": {"$ref": "#/definitions/tolerations"},
+    "affinity": {"type": "object"}
   },
   "allOf": [
     {
-      "if": {
-        "properties": {
-          "ollama": {
-            "properties": {
-              "enabled": {
-                "const": false
-              }
-            }
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "llm": {
-            "properties": {
-              "externalURL": {
-                "minLength": 1
-              }
-            }
-          }
-        }
-      }
+      "if": {"properties": {"ollama": {"properties": {"enabled": {"const": false}}}}},
+      "then": {"properties": {"llm": {"properties": {"externalURL": {"minLength": 1}}}}}
     }
   ]
 }
