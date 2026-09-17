@@ -52,7 +52,7 @@
 # rollout-status wait without disturbing in-cluster config.
 unit: agent-architecture-applier-exec-declarations
 imports:
-  - ../units/types-core.yaml
+  - /opt/agent-core/tools/units/types-core.yaml
 tools:
   - name: helm_dry_run
     type: exec
@@ -77,7 +77,7 @@ tools:
       - Does not decide the values; the operator or CI caller does.
     emits: [ToolDone, ToolFailed]
     signature:
-      output: architecture-types-core.ExecResult
+      output: builtin-types-core.ExecResult
       emits: [ToolDone, ToolFailed]
     output:
       description: helm upgrade --dry-run process result.
@@ -126,7 +126,7 @@ tools:
       - Does not submit any endpoint or credential to a running agent.
     emits: [ToolDone, ToolFailed]
     signature:
-      output: architecture-types-core.ExecResult
+      output: builtin-types-core.ExecResult
       emits: [ToolDone, ToolFailed]
     output:
       description: helm upgrade process result.
@@ -174,7 +174,7 @@ tools:
       - Does not decide when to roll back; the request machine does.
     emits: [ToolDone, ToolFailed]
     signature:
-      output: architecture-types-core.ExecResult
+      output: builtin-types-core.ExecResult
       emits: [ToolDone, ToolFailed]
     output:
       description: helm rollback process result.
@@ -219,7 +219,7 @@ tools:
       - Does not compute the phase in the mapping layer; kubectl computes it.
     emits: [ToolDone, ToolFailed]
     signature:
-      output: architecture-types-core.ExecResult
+      output: builtin-types-core.ExecResult
       emits: [ToolDone, ToolFailed]
     output:
       description: kubectl rollout status process result.
@@ -266,7 +266,7 @@ tools:
       - Does not itself distinguish a cluster error from a still-progressing rollout (exec emits one failure signal); kubectl_get_rollout_counts runs next and fails cleanly when the Deployment cannot be read, so the machine reaches Unavailable rather than reporting progress.
     emits: [ToolDone, ToolFailed]
     signature:
-      output: architecture-types-core.ExecResult
+      output: builtin-types-core.ExecResult
       emits: [ToolDone, ToolFailed]
     output:
       description: kubectl rollout status process result.

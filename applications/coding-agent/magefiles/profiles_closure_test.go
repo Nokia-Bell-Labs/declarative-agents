@@ -361,7 +361,6 @@ func TestCodingApplicationAgentsContainOnlyCompositionAndServingAssets(t *testin
 		"role-server/declarations.yaml",
 		"role-server/machine.yaml",
 		"role-server/tools.yaml",
-		"units/types-core.yaml",
 	}
 	if !reflect.DeepEqual(files, want) {
 		t.Fatalf("application agents files = %#v, want composition-only %#v", files, want)

@@ -4,7 +4,6 @@ unit: catalog-planner-builtin
 imports:
 - /opt/agent-core/tools/units/types-collections.yaml
 - /opt/agent-core/tools/units/types-core.yaml
-- ../units/types-core.yaml
 - ../units/types-planner.yaml
 # Planner-local builtin overrides.
 # Adds mode-specific config to tools declared in tools/builtin.yaml.
@@ -255,7 +254,7 @@ tools:
     description: "Increment the latest command-state retry count."
     visibility: internal
     signature:
-      output: catalog-types-core.ExecStep
+      output: builtin-types-core.ExecResult
       emits: [ToolDone, ToolFailed, CommandError]
     category: word
     parameters: {type: object, properties: {}, additionalProperties: false}
