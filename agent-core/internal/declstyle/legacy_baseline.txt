@@ -10,6 +10,8 @@
 #   prose-defaulted:<file>:<tool>  signed tool still carrying a block equal to
 #                                  its category default, so deleting it changes
 #                                  nothing
+#   long-declaration-file:<file>   declaration YAML over 300 lines; split it or
+#                                  extract a fragment (execution constitution E11)
 #   single-importer-unit:<file>    unit with one importer and no instantiation;
 #                                  fold it back (type-only units and agent-core's
 #                                  library are exempt). No entries: the class
@@ -20,3 +22,49 @@
 # legacy form to retire.
 #
 # GH-2009 flips the type system strict once this file has no entries.
+
+# Declaration files over 300 lines when the length class landed (GH-2111).
+long-declaration-file:agent-core/tools/builtin/otlp/all.yaml
+long-declaration-file:agent-core/tools/builtin/rest/all.yaml
+long-declaration-file:applications/agent-architecture/agents/applier/exec-declarations.yaml
+long-declaration-file:applications/agent-architecture/docs/ARCHITECTURE.yaml
+long-declaration-file:applications/agent-architecture/helm/templates/applier.yaml
+long-declaration-file:applications/catalog/agents/collector/declarations.yaml
+long-declaration-file:applications/catalog/agents/collector/query-declarations.yaml
+long-declaration-file:applications/catalog/agents/critic/point.yaml
+long-declaration-file:applications/catalog/agents/knowledge-manager/corpus-ingest/declarations.yaml
+long-declaration-file:applications/catalog/agents/knowledge-manager/corpus-reader/declarations.yaml
+long-declaration-file:applications/catalog/agents/knowledge-manager/documentation-curator/declarations.yaml
+long-declaration-file:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml
+long-declaration-file:applications/catalog/agents/knowledge-manager/documentation-curator/rest.yaml
+long-declaration-file:applications/catalog/agents/planner/builtin.yaml
+long-declaration-file:applications/catalog/agents/planner/machine-passthrough.yaml
+long-declaration-file:applications/catalog/agents/planner/machine.yaml
+long-declaration-file:applications/catalog/agents/scenario-critic/declarations.yaml
+long-declaration-file:applications/catalog/agents/scenario-critic/machine.yaml
+long-declaration-file:applications/catalog/agents/units/types-curator.yaml
+long-declaration-file:applications/catalog/docs/SPECIFICATIONS.yaml
+long-declaration-file:applications/catalog/docs/road-map.yaml
+long-declaration-file:applications/catalog/docs/specs/semantic-models/agent-role-taxonomy.yaml
+long-declaration-file:applications/catalog/docs/specs/semantic-models/multi-agent-profile-system.yaml
+long-declaration-file:applications/catalog/docs/specs/test-suites/test-rel07.1-profile-conformance.yaml
+long-declaration-file:applications/catalog/docs/specs/test-suites/test-rel11.0-scenario-critic-rig.yaml
+long-declaration-file:applications/catalog/testdata/conformance/rest/declarations.yaml
+long-declaration-file:applications/chatbot-mesh/agents/applier/exec-declarations.yaml
+long-declaration-file:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml
+long-declaration-file:applications/chatbot-mesh/agents/creator/request-declarations.yaml
+long-declaration-file:applications/chatbot-mesh/agents/creator/rest.yaml
+long-declaration-file:applications/chatbot-mesh/agents/observer/declarations.yaml
+long-declaration-file:applications/chatbot-mesh/agents/observer/rest.yaml
+long-declaration-file:applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/rest.yaml
+long-declaration-file:applications/chatbot-mesh/docs/ARCHITECTURE.yaml
+long-declaration-file:applications/chatbot-mesh/docs/specs/test-suites/test-rel06.0-applier.yaml
+long-declaration-file:applications/chatbot-mesh/helm/values.yaml
+long-declaration-file:applications/chatbot-mesh/testdata/rig/declarations.yaml
+long-declaration-file:applications/coding-agent/agents/applier/exec-declarations.yaml
+long-declaration-file:applications/coding-agent/docs/ARCHITECTURE.yaml
+long-declaration-file:applications/coding-agent/helm/templates/applier.yaml
+long-declaration-file:applications/docs/ARCHITECTURE.yaml
+long-declaration-file:applications/docs/pattern-language.yaml
+long-declaration-file:applications/docs/specs/semantic-models/agent-role-realizations.yaml
+long-declaration-file:applications/docs/specs/software-requirements/srd003-application-consistency.yaml

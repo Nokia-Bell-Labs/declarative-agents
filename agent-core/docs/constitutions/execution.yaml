@@ -129,6 +129,17 @@ articles:
     extract a shared function, method, table, or config helper.
 
     '
+- id: E11
+  title: Declaration file size limit
+  rule: 'Keep declaration YAML files at or below 300 lines. One concept belongs
+
+    in one file; a longer file is several concepts or a repeated shape, so split
+
+    it or extract a fragment rather than extend it. internal/declstyle holds a
+
+    shrink-only baseline of the files over the limit (GH-2111).
+
+    '
 workflows:
   documentation:
     steps:
