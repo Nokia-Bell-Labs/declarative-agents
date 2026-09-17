@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: audit-go-test
+imports:
+  - /opt/agent-core/tools/units/types-core.yaml
 tools:
   - name: go_module
     type: exec
@@ -8,14 +10,11 @@ tools:
     args: [GOWORK=off, go, list, -m]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    signature: &exec_result
+      output: builtin-types-core.ExecResult
+      emits: [ToolDone, ToolFailed, CommandError]
     output: &structured
       mode: structured
-      schema:
-        type: object
-        properties:
-          output: {type: string}
-          exit_code: {type: integer}
-        required: [output, exit_code]
     output_cap: 1048576
   - name: go_packages_raw
     type: exec
@@ -23,6 +22,7 @@ tools:
     args: [list, ./...]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    signature: *exec_result
     output: *structured
     output_cap: 1048576
   - name: go_packages
@@ -33,6 +33,7 @@ tools:
     stdin_max_bytes: 4194304
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    signature: *exec_result
     output: *structured
     output_cap: 1048576
   - name: go_test_inventory
@@ -45,6 +46,7 @@ tools:
     args: [test, -p=1, -json, -list, ^Test, ./...]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    signature: *exec_result
     output: *structured
     output_cap: 1048576
   - name: go_test_run
@@ -53,5 +55,6 @@ tools:
     args: [test, -p=1, -json, -count=1, ./...]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    signature: *exec_result
     output: *structured
     output_cap: 1048576

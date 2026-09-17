@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: otlp-replay-tools
+imports:
+  - ../../units/otlp-replay-types.yaml
 tools:
   - name: load_replay_batch
     type: builtin
@@ -8,8 +10,11 @@ tools:
     category: boundary
     visibility: internal
     emits: [BatchLoaded, CommandError]
+    signature:
+      output: otlp-replay-types.ReplayBatch
+      emits: [BatchLoaded, CommandError]
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: Decoded OTLP protobuf-JSON batch, schema: {type: object}}
+    output: {description: Decoded OTLP protobuf-JSON batch}
     side_effects: [{kind: filesystem_read, target: configured replay file, state: read_only}]
     reversibility: {classification: reversible}
     undo: {strategy: noop, description: Loading changes nothing.}
@@ -22,13 +27,12 @@ tools:
     category: boundary
     visibility: internal
     emits: [SpansRelayed, CommandError]
+    signature:
+      output: otlp-replay-types.RelayResult
+      emits: [SpansRelayed, CommandError]
     parameters: {type: object, properties: {}, additionalProperties: false}
     output:
       description: Completely accepted relay endpoint and span count.
-      schema:
-        type: object
-        properties: {endpoint: {type: string}, span_count: {type: integer}}
-        required: [endpoint, span_count]
     side_effects: [{kind: external_api, target: configured OTLP endpoint, state: batch accepted}]
     reversibility: {classification: irreversible, requires_confirmation: true}
     undo: {strategy: irreversible, description: OTLP has no retraction operation.}

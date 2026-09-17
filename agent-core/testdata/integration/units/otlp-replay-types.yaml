@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes the OTLP replay fixture's words publish, so its batch selector is
+# checked at load (GH-2108).
+unit: otlp-replay-types
+types:
+  - name: ReplayBatch
+    description: One decoded offline OTLP batch and its span count.
+    schema:
+      type: object
+      properties:
+        path: {type: string}
+        span_count: {type: integer}
+        batch:
+          description: The OTLP protobuf-JSON export request, as decoded.
+      required: [path, span_count, batch]
+  - name: RelayResult
+    description: The endpoint that accepted a relayed batch and how many spans it took.
+    schema:
+      type: object
+      properties:
+        endpoint: {type: string}
+        span_count: {type: integer}
+      required: [endpoint, span_count]

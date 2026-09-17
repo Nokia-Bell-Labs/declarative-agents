@@ -181,6 +181,158 @@ types:
     description: Plain text a word publishes as its whole result.
     schema:
       type: string
+  - ref: builtin-types-spec-validation.ConsistencyCheck
+    description: One consistency scan with its source paths validated.
+    schema:
+      properties:
+        check:
+          description: The charter check the scan evaluates, as the charter declares it.
+        display_root:
+          type: string
+        exclude_glob:
+          type: string
+        include_glob:
+          type: string
+        path:
+          type: string
+        source_glob:
+          type: string
+        suite_id:
+          type: string
+      required:
+        - suite_id
+        - check
+        - path
+        - display_root
+        - include_glob
+        - exclude_glob
+        - source_glob
+      type: object
+  - ref: builtin-types-spec-validation.GrepCheck
+    description: One grep check lowered to a ripgrep query, path, and globs.
+    schema:
+      properties:
+        check_id:
+          type: string
+        display_root:
+          type: string
+        exclude_glob:
+          type: string
+        include_glob:
+          type: string
+        kind:
+          type: string
+        message:
+          type: string
+        mode:
+          type: string
+        path:
+          type: string
+        patterns:
+          items:
+            type: string
+          type: array
+        query:
+          type: string
+        regex:
+          type: boolean
+        severity:
+          type: string
+        suite_id:
+          type: string
+      required:
+        - suite_id
+        - check_id
+        - kind
+        - severity
+        - mode
+        - patterns
+        - regex
+        - query
+        - path
+        - display_root
+        - include_glob
+        - exclude_glob
+      type: object
+  - ref: builtin-types-spec-validation.LoadedCorpus
+    description: The corpus summary and the search plans load_corpus prepares.
+    schema:
+      properties:
+        consistency_checks:
+          items:
+            $type: builtin-types-spec-validation.ConsistencyCheck
+          type: array
+        grep_checks:
+          items:
+            $type: builtin-types-spec-validation.GrepCheck
+          type: array
+        ref_checks:
+          items:
+            $type: builtin-types-spec-validation.RefCheck
+          type: array
+        summary:
+          type: string
+      required:
+        - summary
+        - grep_checks
+        - ref_checks
+        - consistency_checks
+      type: object
+  - ref: builtin-types-spec-validation.RefCheck
+    description: One reference check lowered to a search plan and its allowed reference inventory.
+    schema:
+      properties:
+        allow_missing:
+          type: boolean
+        allowed:
+          items:
+            type: string
+          type: array
+        check_id:
+          type: string
+        display_root:
+          type: string
+        exclude_glob:
+          type: string
+        group:
+          type: integer
+        include_glob:
+          type: string
+        kind:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+        query:
+          type: string
+        reference_dir:
+          type: string
+        reference_file:
+          type: string
+        reference_format:
+          type: string
+        severity:
+          type: string
+        suite_id:
+          type: string
+      required:
+        - suite_id
+        - check_id
+        - kind
+        - severity
+        - path
+        - display_root
+        - include_glob
+        - exclude_glob
+        - query
+        - group
+        - allow_missing
+        - allowed
+        - reference_file
+        - reference_dir
+        - reference_format
+      type: object
 tools:
   - name: format_report
     type: builtin
@@ -237,8 +389,8 @@ tools:
           output:
             type: string
         required:
-          - output
           - exit_code
+          - output
         type: object
       mode: structured
     binary: rg
@@ -256,6 +408,12 @@ tools:
       - ToolDone
       - ToolFailed
       - CommandError
+    signature:
+      output: builtin-types-core.ExecResult
+      emits:
+        - ToolDone
+        - ToolFailed
+        - CommandError
     parameters:
       properties:
         exclude_glob:
@@ -309,14 +467,130 @@ tools:
         properties:
           consistency_checks:
             items:
+              properties:
+                check:
+                  description: The charter check the scan evaluates, as the charter declares it.
+                display_root:
+                  type: string
+                exclude_glob:
+                  type: string
+                include_glob:
+                  type: string
+                path:
+                  type: string
+                source_glob:
+                  type: string
+                suite_id:
+                  type: string
+              required:
+                - suite_id
+                - check
+                - path
+                - display_root
+                - include_glob
+                - exclude_glob
+                - source_glob
               type: object
             type: array
           grep_checks:
             items:
+              properties:
+                check_id:
+                  type: string
+                display_root:
+                  type: string
+                exclude_glob:
+                  type: string
+                include_glob:
+                  type: string
+                kind:
+                  type: string
+                message:
+                  type: string
+                mode:
+                  type: string
+                path:
+                  type: string
+                patterns:
+                  items:
+                    type: string
+                  type: array
+                query:
+                  type: string
+                regex:
+                  type: boolean
+                severity:
+                  type: string
+                suite_id:
+                  type: string
+              required:
+                - suite_id
+                - check_id
+                - kind
+                - severity
+                - mode
+                - patterns
+                - regex
+                - query
+                - path
+                - display_root
+                - include_glob
+                - exclude_glob
               type: object
             type: array
           ref_checks:
             items:
+              properties:
+                allow_missing:
+                  type: boolean
+                allowed:
+                  items:
+                    type: string
+                  type: array
+                check_id:
+                  type: string
+                display_root:
+                  type: string
+                exclude_glob:
+                  type: string
+                group:
+                  type: integer
+                include_glob:
+                  type: string
+                kind:
+                  type: string
+                message:
+                  type: string
+                path:
+                  type: string
+                query:
+                  type: string
+                reference_dir:
+                  type: string
+                reference_file:
+                  type: string
+                reference_format:
+                  type: string
+                severity:
+                  type: string
+                suite_id:
+                  type: string
+              required:
+                - suite_id
+                - check_id
+                - kind
+                - severity
+                - path
+                - display_root
+                - include_glob
+                - exclude_glob
+                - query
+                - group
+                - allow_missing
+                - allowed
+                - reference_file
+                - reference_dir
+                - reference_format
               type: object
             type: array
           summary:
@@ -354,6 +628,11 @@ tools:
     emits:
       - ToolDone
       - CommandError
+    signature:
+      output: builtin-types-spec-validation.LoadedCorpus
+      emits:
+        - ToolDone
+        - CommandError
     visibility: internal
   - name: reduce_grep_checks
     type: builtin
@@ -461,14 +740,14 @@ files:
   - path: <agent-core>/testdata/integration/profiles/audit/profile.yaml
     sha256: 5f768ac09173a742653c01e974825ed3a302036b09828900674009996e848faa
   - path: <agent-core>/testdata/integration/profiles/audit/ripgrep.yaml
-    sha256: 16a85cda76aecdcb118959cc3366059b4b6dce3041fb7b42ed819a529a8e6656
+    sha256: 30d0ea6ea943a9cccbc48d9c26012e23770e6c4b49f1d2ba61747c2075010a0f
   - path: <agent-core>/testdata/integration/profiles/audit/tools.yaml
     sha256: 8c0b951612e211648d44a1c451ee610710dd2ca5fa86e7a63cda5175a2b833ee
   - path: <agent-core>/tools/builtin/format-report.yaml
     sha256: cd04b785b59509a0a215d67a165efe4a509bfafd84fb048f111299c80335b295
     root: agent-core
   - path: <agent-core>/tools/builtin/load-corpus.yaml
-    sha256: c59b336c72f712aed9eaebfe5d9448bc8600a8e39b746b90293def58662bc795
+    sha256: 1a23128b5b7dc39e5b5c3961442760a254f2beafcebe906c0e8b280d0a9d98d8
     root: agent-core
   - path: <agent-core>/tools/builtin/spec-validation/reduce-grep-checks.yaml
     sha256: 8a5431c6200ace0a74ea2a689bb81562cf1c14cfe25a7cf65c8b60a1769831d9
@@ -481,4 +760,7 @@ files:
     root: agent-core
   - path: <agent-core>/tools/units/types-core.yaml
     sha256: 0ed81677d3d2b86cf14fdba16967f44ab9335d75a46047759cd1532aa645436d
+    root: agent-core
+  - path: <agent-core>/tools/units/types-spec-validation.yaml
+    sha256: 2519bf876e3047e71f09236f421f5c8800600ee459ff3e8ef91c06e0fe9d5ede
     root: agent-core

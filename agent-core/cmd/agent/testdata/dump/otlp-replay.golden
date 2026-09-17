@@ -57,6 +57,34 @@ machine:
   budget:
     max_iterations: 2
     command_timeout: 1m
+types:
+  - ref: otlp-replay-types.RelayResult
+    description: The endpoint that accepted a relayed batch and how many spans it took.
+    schema:
+      properties:
+        endpoint:
+          type: string
+        span_count:
+          type: integer
+      required:
+        - endpoint
+        - span_count
+      type: object
+  - ref: otlp-replay-types.ReplayBatch
+    description: One decoded offline OTLP batch and its span count.
+    schema:
+      properties:
+        batch:
+          description: The OTLP protobuf-JSON export request, as decoded.
+        path:
+          type: string
+        span_count:
+          type: integer
+      required:
+        - path
+        - span_count
+        - batch
+      type: object
 tools:
   - name: load_replay_batch
     type: builtin
@@ -65,6 +93,17 @@ tools:
     output:
       description: Decoded OTLP protobuf-JSON batch
       schema:
+        properties:
+          batch:
+            description: The OTLP protobuf-JSON export request, as decoded.
+          path:
+            type: string
+          span_count:
+            type: integer
+        required:
+          - path
+          - span_count
+          - batch
         type: object
     side_effects:
       - kind: filesystem_read
@@ -81,6 +120,11 @@ tools:
     emits:
       - BatchLoaded
       - CommandError
+    signature:
+      output: otlp-replay-types.ReplayBatch
+      emits:
+        - BatchLoaded
+        - CommandError
     parameters:
       additionalProperties: false
       properties: {}
@@ -120,6 +164,11 @@ tools:
     emits:
       - SpansRelayed
       - CommandError
+    signature:
+      output: otlp-replay-types.RelayResult
+      emits:
+        - SpansRelayed
+        - CommandError
     parameters:
       additionalProperties: false
       properties: {}
@@ -128,13 +177,15 @@ tools:
 rest: {}
 files:
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/declarations.yaml
-    sha256: 11ad92a9a8c2753b020d97276d91ddb17f5824880dd877409190ec4f93eddfdf
+    sha256: 35b9fd248e8d05271baa0b642a8bb3996224d6822c698016e6cdb9a8c425fae9
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/machine.yaml
     sha256: b84a930d1e764db0889db7a8c0e075d79202a1f446f497cd60173bcb5a786793
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/profile.yaml
     sha256: 0f086b8e0c799a7de4c91e678d946cba4b8006b04b8a40f5ce1a22a93b96ef15
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/tools.yaml
     sha256: 356f28070da55b76a0f0951d7445750f2390f6bf36be02fb79787929b21c00f9
+  - path: <agent-core>/testdata/integration/units/otlp-replay-types.yaml
+    sha256: ea964d685a28846ac3afbf2367bdf48fbc73667f2c2862df1f1205bc195218db
   - path: <agent-core>/tools/builtin/otlp/all.yaml
     sha256: 00b517317e275d0cf45b31b7b183653b3e51b30e3a2af4c44ba239c2f41fbec6
     root: agent-core
