@@ -1,0 +1,34 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel19.0-signed-boundary-contracts
+title: Test Suite for Release 19.0 Signed Boundary Contracts
+release: "19.0"
+
+traces:
+  - rel19.0-uc001-signed-boundary-contracts
+
+preconditions:
+  - srd051-declaration-types R6 defines signatures and contract defaults, with R6.14 and R6.15 for boundary, stateful_internal, and uncategorized tools.
+  - The corpus audit in pkg/spec and the declaration legacy gate in internal/declstyle are available.
+
+test_cases:
+  - use_case: rel19.0-uc001-signed-boundary-contracts
+    name: An emits-only signature completes a boundary tool with its effect blocks
+    go_test: go test ./pkg/spec -run 'TestEmitsOnlySignatureCompletesABoundaryToolWithItsEffectBlocks|TestSignatureNeverWaivesBoundarySideEffects|TestSignatureLeavesStatefulInternalSideEffectsRequired'
+    status: implemented
+    description: Check a boundary tool with a signature naming only its signals, an output schema, and side_effects, reversibility, and undo; then drop each effect block in turn.
+    expected:
+      complete_with_effect_blocks: true
+      each_missing_effect_block_named: true
+    traces: [rel19.0-uc001-signed-boundary-contracts S1, srd051-declaration-types AC8, srd051-declaration-types R6.14]
+
+  - use_case: rel19.0-uc001-signed-boundary-contracts
+    name: The legacy gate lists unsigned boundary and stateful tools and uncategorized tools
+    go_test: go test ./internal/declstyle -run 'TestUntypedAndUncategorizedToolClassification|TestDeclarationLegacyBaseline'
+    status: implemented
+    description: Classify a declaration holding an unsigned boundary tool, an unsigned stateful_internal tool, a signed boundary tool, and a tool with no category; the repository matches its seeded baseline.
+    expected:
+      unsigned_boundary_and_stateful_untyped: true
+      no_category_uncategorized: true
+      signed_boundary_listed: false
+    traces: [rel19.0-uc001-signed-boundary-contracts S2, srd051-declaration-types AC8, srd051-declaration-types R6.14, srd051-declaration-types R6.15]

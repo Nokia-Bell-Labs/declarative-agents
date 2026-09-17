@@ -93,3 +93,29 @@ func TestToolDeclarationCarriesTheSignature(t *testing.T) {
 	require.NotNil(t, declaration.Signature)
 	require.Empty(t, missingToolContractFields(declaration))
 }
+
+// srd051 R6.14: a boundary tool is complete with a signature naming only its
+// signals, its output schema, and the three explicit effect blocks. The
+// signature discharges the prose; it never discharges an effect block.
+func TestEmitsOnlySignatureCompletesABoundaryToolWithItsEffectBlocks(t *testing.T) {
+	t.Parallel()
+	complete := ToolDeclaration{
+		Name: "read_counts", Type: "exec", Category: "boundary",
+		Signature:     &catalog.ToolSignature{Emits: []string{"ToolDone", "ToolFailed"}},
+		Output:        ToolDeclOutput{Schema: map[string]any{"type": "object"}},
+		SideEffects:   ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "child_process"}}},
+		Reversibility: ToolDeclReversibility{Classification: "reversible"},
+		Undo:          ToolDeclUndo{Strategy: "noop"},
+	}
+	require.Empty(t, missingToolContractFields(complete))
+
+	for field, strip := range map[string]func(*ToolDeclaration){
+		"side_effects":                 func(d *ToolDeclaration) { d.SideEffects = ToolDeclSideEffects{} },
+		"reversibility.classification": func(d *ToolDeclaration) { d.Reversibility = ToolDeclReversibility{} },
+		"undo.strategy":                func(d *ToolDeclaration) { d.Undo = ToolDeclUndo{} },
+	} {
+		missingBlock := complete
+		strip(&missingBlock)
+		require.Equal(t, []string{field}, missingToolContractFields(missingBlock))
+	}
+}
