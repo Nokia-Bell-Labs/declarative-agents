@@ -143,3 +143,23 @@ func TestCollectWithoutImportsReportsNoUnits(t *testing.T) {
 		t.Fatalf("fixture without imports reported units: %#v", result)
 	}
 }
+
+// TestCollectKeysLibraryRootedImportsByPath is srd056 R1.1: two files in
+// different directories importing one agent-core unit by its install path
+// share that unit, instead of each joining the path onto its own directory.
+func TestCollectKeysLibraryRootedImportsByPath(t *testing.T) {
+	root := t.TempDir()
+	for _, directory := range []string{"agents/one", "agents/two"} {
+		if err := os.MkdirAll(filepath.Join(root, directory), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeReuseFixture(t, root, directory+"/declarations.yaml",
+			"unit: "+filepath.Base(directory)+"\nimports:\n- /opt/agent-core/tools/units/types-core.yaml\ntools: []\n")
+	}
+
+	result := mustCollect(t, root, "agents")
+
+	if result.ImportedUnits != 1 || result.SharedUnits != 1 {
+		t.Fatalf("ImportedUnits, SharedUnits = %d, %d; want 1, 1", result.ImportedUnits, result.SharedUnits)
+	}
+}

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: mesh-chatbot-request-declarations
 imports:
+- /opt/agent-core/tools/units/types-core.yaml
 - ../units/types-chatbot.yaml
 tools:
   - name: embed_query
@@ -78,7 +79,7 @@ tools:
     description: Compose the original question and the human-readable declared source catalog.
     parameters: {type: object, properties: {}, additionalProperties: false}
     signature:
-      output: mesh-types-chatbot.Text
+      output: builtin-types-core.Text
       emits: [SourceSelectionComposed, CommandError]
     output: {description: Source-classifier input.}
     config:
@@ -355,7 +356,7 @@ tools:
     visibility: internal
     category: word
     signature:
-      output: mesh-types-chatbot.Text
+      output: builtin-types-core.Text
       emits: [ToolDone, ParseFailed, TaskCompleted]
     description: Parse the tier-selector response into one chat-LLM tool call.
     output:

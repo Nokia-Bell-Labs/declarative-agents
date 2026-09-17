@@ -1,37 +1,12 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # Shapes the runtime produces for catalog words, independent of which agent
-# declares them. Text and Comparison restate the shapes agent-core declares
-# under the same names, because an application cannot import another tree's
-# units: the two sit at different relative distances in the repository and in
-# the image (srd051 R1.5). The unit segment of an address is a namespace, so
-# the restatement keeps the name the shape deserves (srd051 R1.4, R4.3).
+# declares them. Shapes agent-core already declares, such as Text and
+# Comparison, are imported from /opt/agent-core/tools/units instead
+# (srd051 R1.5, srd056). ExecStep stays here until agent-core's library
+# declares the exec result (GH-2122).
 unit: catalog-types-core
 types:
-- name: Text
-  description: Plain text a catalog word publishes as its whole result.
-  schema:
-    type: string
-- name: Comparison
-  description: The resolved comparison a value_predicate word publishes; right is absent for unary operations.
-  schema:
-    type: object
-    properties:
-      left:
-        description: The raw resolved left operand, before comparison coercion.
-      op:
-        type: string
-      right:
-        description: The raw resolved right operand, before comparison coercion; absent for unary operations.
-      operand_type:
-        type: string
-      held:
-        type: boolean
-    required:
-    - left
-    - op
-    - operand_type
-    - held
 - name: ExecStep
   description: The structured envelope an exec word publishes under output mode structured.
   schema:

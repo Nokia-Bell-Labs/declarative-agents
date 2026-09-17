@@ -6,7 +6,6 @@ package definition
 import (
 	"bytes"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -85,12 +84,12 @@ func (r *importResolver) loadInstantiations(file DefinitionFile, path string) er
 }
 
 func (r *importResolver) instantiate(path string, instantiation fragments.Instantiation) error {
-	if strings.TrimSpace(instantiation.Fragment) == "" || filepath.IsAbs(instantiation.Fragment) {
-		return fmt.Errorf("fragment path must be a non-empty relative path")
+	if strings.TrimSpace(instantiation.Fragment) == "" {
+		return fmt.Errorf("fragment path must be non-empty")
 	}
-	target, err := canonicalDeclarationPath(filepath.Join(filepath.Dir(path), instantiation.Fragment))
+	target, err := declarationImportTarget(path, instantiation.Fragment)
 	if err != nil {
-		return err
+		return fmt.Errorf("fragment path %q: %w", instantiation.Fragment, err)
 	}
 	fragment, source, err := r.readUnit(target, false)
 	if err != nil {

@@ -27,6 +27,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/lifecycle"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
@@ -44,6 +45,7 @@ import (
 var (
 	flagProfile        string
 	flagCoreRoot       string
+	flagLibraries      []string
 	flagDirectory      string
 	flagRequest        string
 	flagOutput         string
@@ -112,6 +114,7 @@ func init() {
 	telemetryFlags = f
 	f.StringVar(&flagProfile, "profile", "", "path to agent profile YAML")
 	f.StringVar(&flagCoreRoot, "core-root", "", "maps /opt/agent-core paths in the profile to this directory (development checkout)")
+	f.StringArrayVar(&flagLibraries, "library", nil, "name=path: maps /opt/<name> paths to this directory instead of the profile's declared library root; repeatable (srd056 R2.2)")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
 	f.StringVar(&flagRequest, "request", "", "request data file")
 	f.StringVar(&flagOutput, "output", "", "output directory for runtime artifacts")
@@ -197,6 +200,9 @@ func (s *deferredShutdown) Apply() {
 func run(cmd *cobra.Command, args []string) error {
 	if f := cmd.Flags().Lookup("core-root"); f != nil && f.Changed && strings.TrimSpace(flagCoreRoot) != "" {
 		spec.SetAgentCoreInstallRoot(strings.TrimSpace(flagCoreRoot))
+	}
+	if err := applyLibraryOverrides(flagLibraries); err != nil {
+		return err
 	}
 	if flagValidateConfig && flagDumpConfig {
 		return fmt.Errorf("--validate-config and --dump-config cannot be used together")
@@ -667,6 +673,38 @@ func loadRunResources() (runResources, error) {
 	}, nil
 }
 
+// applyLibraryOverrides records each --library name=path for the closures this
+// process loads, after checking the entry profile declares the name: an
+// override for a root the profile never declares is a startup error, since it
+// could only ever be a typo (srd056 R2.2).
+func applyLibraryOverrides(entries []string) error {
+	if len(entries) == 0 {
+		corepath.SetLibraryOverrides(nil)
+		return nil
+	}
+	overrides := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		name, path, ok := strings.Cut(entry, "=")
+		if !ok || strings.TrimSpace(name) == "" || strings.TrimSpace(path) == "" {
+			return fmt.Errorf("--library %q: want name=path", entry)
+		}
+		overrides[strings.TrimSpace(name)] = strings.TrimSpace(path)
+	}
+	if flagProfile != "" {
+		profile, err := catalog.LoadProfile(flagProfile)
+		if err != nil {
+			return err
+		}
+		for name := range overrides {
+			if _, declared := profile.Libraries[name]; !declared {
+				return fmt.Errorf("--library %s: profile %s declares no library root %q", name, flagProfile, name)
+			}
+		}
+	}
+	corepath.SetLibraryOverrides(overrides)
+	return nil
+}
+
 func loadRuntimeClosure(captureLevel toollm.CaptureLevel) (runtimeClosure, error) {
 	if flagProfile == "" {
 		return runtimeClosure{}, fmt.Errorf("--profile is required")
@@ -701,6 +739,9 @@ func loadValidatedRuntimeMachine(closure *internalload.Closure) (core.MachineSpe
 		machineSpec, closure.Selected, closure.Types, closure.Rest,
 		catalog.ExhaustivenessInputs{External: requestSourceSignals(closure.Rest)},
 	); err != nil {
+		if machineSpec.TemplatePath() != "" {
+			err = fmt.Errorf("machine %s: %w", core.DescribeMachine(closure.Profile.Machine, machineSpec), err)
+		}
 		return core.MachineSpec{}, err
 	}
 	// Every machine this walk reaches is checked here and not above: the
@@ -740,7 +781,7 @@ func validateReachedMachine(reached profileaudit.ReachedMachine) error {
 		inputs, runtimeLabels...,
 	)
 	if err != nil {
-		return fmt.Errorf("%s %s: %w", kind, reached.MachinePath, err)
+		return fmt.Errorf("%s %s: %w", kind, core.DescribeMachine(reached.MachinePath, reached.Machine), err)
 	}
 	return nil
 }

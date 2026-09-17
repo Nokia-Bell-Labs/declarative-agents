@@ -14,6 +14,7 @@ func TestRootCommandExposesEveryRuntimeFlag(t *testing.T) {
 	flags := []string{
 		"profile",
 		"core-root",
+		"library",
 		"directory",
 		"request",
 		"output",
@@ -32,7 +33,7 @@ func TestRootCommandExposesEveryRuntimeFlag(t *testing.T) {
 		"resume-checkpoint",
 		"resume-signal",
 	}
-	require.Len(t, flags, 19)
+	require.Len(t, flags, 20)
 	for _, name := range flags {
 		require.NotNil(t, rootCmd.PersistentFlags().Lookup(name), name)
 	}

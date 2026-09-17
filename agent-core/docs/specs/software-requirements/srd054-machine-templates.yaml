@@ -1,0 +1,169 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd054-machine-templates
+title: Machine Templates
+
+problem: |
+  Stage fragments (srd052 R4) splice a few states into a machine. The
+  duplication that remains in machines is at a coarser grain: whole machines
+  written out again with different words wired in. Of 62 machine files on
+  main, 26 share an identical state set with another machine, in 9 groups. The
+  largest is the ten-state serve machine, written five times across two
+  applications at 56 to 63 lines each. A stage fragment cannot remove that
+  copy, because nothing in the copy is a stage: the states, the signals, the
+  budget, the lifecycle, and the prose preamble are all the same, and only the
+  action names differ.
+
+  The preamble is where much of a machine's size sits. It is 21 percent of
+  machine lines, and `purpose`, `invariants`, `lifecycle`, and `budget` are
+  prose or near-prose that no include mechanism can shorten. A template
+  instance inherits all of it and writes only its arguments.
+
+  In the terms of srd052, a stage fragment is a function template spliced
+  into a larger body. A machine template is a class template: the whole
+  machine is the fragment, and a machine file becomes one instantiation of it.
+
+goals:
+  - G1: Let a whole machine be declared once as a fragment with typed parameters and instantiated by a machine file that carries only its arguments.
+  - G2: Keep instantiation inside srd052's rules, so a machine template adds a body kind and no second substitution or argument model.
+  - G3: Validate an instantiated machine exactly as a hand-written one, with diagnostics that name both the template and the instance.
+  - G4: Make templates visible to the closure, the program identity, the dump, and staging as instantiations are for tools and REST definitions.
+
+requirements:
+  R1:
+    title: Template and instance format
+    items:
+      - R1.1: >-
+          A machine template SHALL be a fragment file (srd052 R1.1) whose body
+          kind is `machine`. The `machine` body SHALL hold MachineSpec fields
+          as a machine file does, except `unit` and `imports`, and SHALL NOT
+          hold a nested `params`.
+      - R1.2: >-
+          A machine instance SHALL be a machine file carrying `unit`, exactly
+          one `instantiate` entry whose target is a machine template, and
+          optionally `name` and `purpose`, which replace the template's values.
+          Any other top-level field on an instance SHALL be a load error naming
+          the field and the instance path. The entry SHALL NOT carry `as`: an
+          instance produces one machine, so there is nothing to prefix.
+      - R1.3: >-
+          A machine template's body MAY carry `instantiate` listing stage
+          fragments, which splice under srd052 R4 after the template's
+          arguments are substituted. A template SHALL NOT instantiate another
+          machine template, and an instance SHALL NOT instantiate a stage
+          fragment beside its template. Each violation SHALL be a load error
+          naming the file and the offending entry. This is the one exception
+          to srd052 R1.2, and nesting stops at one level.
+      - R1.4: >-
+          A template SHALL only be instantiated. A profile naming a template
+          file as its `machine`, and a REST `machine_request` binding naming
+          one, SHALL be load errors naming the referring file and the
+          template, because a template holds unfilled references and is not a
+          machine until its arguments arrive (the machine counterpart of
+          srd052 R2.6).
+
+  R2:
+    title: Instantiation
+    items:
+      - R2.1: >-
+          Argument checking, `$param(name)` substitution, and leftover
+          detection SHALL be srd052 R2.2 and R2.3 unchanged, applied to the
+          template's text before the body is decoded. A reference MAY stand
+          in any scalar value of the body, including action names, signal
+          names, labels, and the arguments of a stage instantiation inside
+          the body, so a template can pass its own arguments through to a
+          stage.
+      - R2.2: >-
+          The instance's `instantiate` fragment path SHALL resolve against the
+          instance file's directory, or under a declared library root when
+          srd056 permits it. Relative paths inside the template body,
+          including stage fragment paths, SHALL resolve against the template
+          file's directory, so a template can live beside its stages without
+          the instance knowing where they are.
+      - R2.3: >-
+          The loader SHALL tell a machine instantiation from a stage splice by
+          the target's body kind: a `machine` body replaces the instance's
+          machine, and a `stage` body splices into it. A target with any other
+          body kind SHALL be a load error naming the target and its body kind.
+      - R2.4: >-
+          After substitution and any stage splicing, `name` and `purpose` from
+          the instance SHALL replace the template's, and the result SHALL be
+          decoded strictly and validated by the path a hand-written machine
+          takes: the structural checks, the required machine policy, the label
+          and selector path checks (srd038), and exhaustiveness (srd006).
+      - R2.5: >-
+          Every diagnostic raised while validating an instantiated machine
+          SHALL name the template path and the instance path, and a diagnostic
+          that points at a line SHALL point into the template.
+
+  R3:
+    title: Closure, identity, provenance, and staging
+    items:
+      - R3.1: >-
+          Loading an instance SHALL visit the instance, the template, and every
+          stage fragment the template splices, so each is a file of the
+          closure and an asset of the program identity digest; changing a
+          template SHALL change the digest of every program that instantiates
+          it.
+      - R3.2: >-
+          The canonical dump SHALL render the instantiated machine under
+          `machine` and list the template instantiation under
+          `instantiations` with `kind: machine`, the template path, the
+          arguments, and the produced machine name. Stage rows SHALL carry
+          `kind: stage`.
+      - R3.3: >-
+          Staging a declaration tree (`pkg/profilestage`) SHALL follow the
+          edge from an instance to its template and from a template to its
+          stage fragments, so a staged tree loads with no source checkout
+          present.
+
+non_goals:
+  - Overriding anything on an instance other than `name` and `purpose`. A machine is an instance of a template or it is hand-written; partial overrides wait for a release that needs them.
+  - Templates instantiating templates, and stages instantiating stages.
+  - Conditional or computed machine structure. Arguments fill scalar holes; a template is one fixed shape.
+  - Machines invoked as tools by other machines, and loader words. Both follow once agent blueprints (srd055) exist.
+  - Committing any instantiated machine.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A template with params and a machine body loads through an instance carrying unit, one instantiate entry, and optionally name and purpose; any other instance field, an as on the entry, a nested params, a template instantiating a template, an instance instantiating a stage beside its template, and a profile or machine_request naming a template directly each fail naming the file and the offending field or entry.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+  - id: AC2
+    criterion: Argument faults and leftover references fail as they do for srd052 fragments; a reference passes through to a stage inside the template; template-relative and instance-relative paths resolve against their own files; a target's body kind selects replace or splice and an unknown kind fails; the instantiated machine equals the equivalent hand-written machine apart from name and purpose; and a misspelled label inside a template fails naming both template and instance.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+  - id: AC3
+    criterion: Changing a template changes the program digest of its instances; the dump renders the instantiated machine and lists the template and stage instantiations with their kinds; and a staged tree containing an instance loads with no checkout present.
+    traces: [R3.1, R3.2, R3.3]
+
+depends_on:
+  - srd_id: srd052-declaration-fragments
+    symbols_used: [fragment format, params, instantiate, $param substitution, argument checks, stage fragments, instantiations dump section]
+  - srd_id: srd006-yaml-machine-config
+    symbols_used: [MachineSpec, structural validation, exhaustiveness]
+  - srd_id: srd038-command-state-store
+    symbols_used: [typed labels, selector path checks]
+  - srd_id: srd050-declaration-imports
+    symbols_used: [unit, closure files, relative path rule]
+
+related_documents:
+  - cfg-machine-format
+  - srd052-declaration-fragments
+  - srd055-agent-blueprints
+  - srd006-yaml-machine-config
+
+implementation_status:
+  complete:
+    - GH-2114 implements machine templates in the machine closure loader (R1, R2, R3), with a control-template fixture whose instance equals the control machine apart from its name; startup wiring faults name the template beside the instance. A reference left after substitution reports its line in the template; a strict-decode fault in a template body reports the line of the re-encoded body rather than the template (R2.5, partial).
+    - GH-2115 extracts the serve machine shared by catalog's applier and the four chatbot-mesh serve agents into agent-core's library at tools/machines/serve-machine-template.yaml, instantiated by each through its install path.
+    - >-
+      GH-2116 migrates the remaining groups that were one shape: the test-
+      evidence audit, lifecycle approval, and Ollama model-listing machines
+      into agent-core's library, catalog's mock and rig-subject lifecycle into
+      a catalog template, and chatbot-mesh's two chat-turn critics into a
+      scenario template; it deletes the unselected copy of the scenario-critic
+      machine under chatbot-mesh's rig. Machine YAML nets about 520 lines
+      fewer. Four groups keep hand-written copies: control-imports and
+      control-types, whose dump srd050 AC8 holds equal to control's; the
+      monitor fixture, whose text cmd/agent tests corrupt on purpose; the rig-
+      subject scenario verdict machines, which share states but route them
+      differently; and the two library fixtures, which are the srd056 two-
+      importer proof.

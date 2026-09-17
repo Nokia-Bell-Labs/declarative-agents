@@ -1,9 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # Shapes the coding-agent applier's exec words publish. ExecResult is the process
-# result every agent-core exec tool returns; it is declared here rather than
-# imported from agent-core because an application cannot reach another
-# tree's units (srd051 R1.5).
+# result every agent-core exec tool returns; agent-core's library declares no
+# type for it yet, so the application does (GH-2122 moves it into agent-core).
 unit: coding-types-core
 types:
 - name: ExecResult

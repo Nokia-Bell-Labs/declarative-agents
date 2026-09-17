@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-bench-builtin
 imports:
-- ../units/types-core.yaml
+- /opt/agent-core/tools/units/types-collections.yaml
 tools:
 - name: launch_bench_http
   type: builtin
@@ -59,7 +59,7 @@ tools:
   init: value_predicate
   visibility: internal
   signature:
-    output: catalog-types-core.Comparison
+    output: builtin-types-collections.Comparison
     emits: [SuiteSelected, SuiteMissing, CommandError]
   description: Require a non-empty suite path before child dispatch.
   category: response

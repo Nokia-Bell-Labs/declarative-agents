@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 )
 
@@ -32,27 +33,40 @@ type StageSpec struct {
 	Transitions []TransitionSpec `yaml:"transitions"`
 }
 
-// MachineInstantiation records one stage fragment a machine instantiated,
-// for the dump (srd052 R3.2).
+// MachineInstantiation records one fragment a machine instantiated, for the
+// dump (srd052 R3.2): a stage spliced into it, or the template it instantiates.
 type MachineInstantiation struct {
+	Kind     string
 	Fragment string
 	As       string
 	Args     map[string]string
 	Produces []string
 }
 
+// Instantiation kinds a machine records (srd054 R3.2).
+const (
+	InstantiationKindStage   = "stage"
+	InstantiationKindMachine = "machine"
+)
+
 // Instantiations returns the stage fragments spliced into the machine.
 func (m MachineSpec) Instantiations() []MachineInstantiation {
 	return append([]MachineInstantiation(nil), m.instantiations...)
 }
 
-// LoadMachineClosure reads a machine file, splices every stage fragment it
-// instantiates, and validates the result as one machine. visit, when set,
-// sees the machine file and each fragment file, so a closure records them.
+// LoadMachineClosure reads a machine file and validates it as one machine. A
+// machine that instantiates a machine template is replaced by the template's
+// instantiation (srd054); a machine that instantiates stage fragments has them
+// spliced in (srd052 R4). visit, when set, sees the machine file and each
+// fragment file, so a closure records them.
 func LoadMachineClosure(path string, visit func(string, []byte) error) (MachineSpec, error) {
 	data, err := readMachineFile(path, visit)
 	if err != nil {
 		return MachineSpec{}, err
+	}
+	if kind, kindErr := fragmentBodyKind(data); kindErr == nil && kind == InstantiationKindMachine {
+		return MachineSpec{}, fmt.Errorf("machine spec %s is a machine template: a template is "+
+			"instantiated by a machine file, not loaded as a machine (srd054 R1.4)", path)
 	}
 	spec, err := decodeMachineSpec(data)
 	if err != nil {
@@ -62,12 +76,16 @@ func LoadMachineClosure(path string, visit func(string, []byte) error) (MachineS
 		return MachineSpec{}, fmt.Errorf(
 			"machine spec %s imports %q: a machine imports nothing; a stage fragment is instantiated", path, spec.Imports)
 	}
-	for _, instantiation := range spec.Instantiate {
-		if err := spliceStageFragment(&spec, path, instantiation, visit); err != nil {
-			return MachineSpec{}, fmt.Errorf("machine spec %s instantiates %q: %w", path, instantiation.Fragment, err)
-		}
+	template, err := instantiatedTemplate(path, spec.Instantiate)
+	if err != nil {
+		return MachineSpec{}, fmt.Errorf("machine spec %s: %w", path, err)
 	}
-	spec.Instantiate = nil
+	if template != "" {
+		return loadMachineInstance(path, data, spec.Instantiate[0], template, visit)
+	}
+	if err := spliceStages(&spec, path, visit); err != nil {
+		return MachineSpec{}, err
+	}
 	if err := validateSpec(spec); err != nil {
 		if len(spec.instantiations) > 0 {
 			return MachineSpec{}, fmt.Errorf("machine spec %s after splicing %s: %w",
@@ -76,6 +94,18 @@ func LoadMachineClosure(path string, visit func(string, []byte) error) (MachineS
 		return MachineSpec{}, fmt.Errorf("parse machine spec %s: %w", path, err)
 	}
 	return spec, nil
+}
+
+// spliceStages splices every stage fragment spec instantiates, resolving their
+// paths against the file at base, and clears the instantiation list.
+func spliceStages(spec *MachineSpec, base string, visit func(string, []byte) error) error {
+	for _, instantiation := range spec.Instantiate {
+		if err := spliceStageFragment(spec, base, instantiation, visit); err != nil {
+			return fmt.Errorf("machine spec %s instantiates %q: %w", base, instantiation.Fragment, err)
+		}
+	}
+	spec.Instantiate = nil
+	return nil
 }
 
 func readMachineFile(path string, visit func(string, []byte) error) ([]byte, error) {
@@ -108,10 +138,14 @@ func spliceStageFragment(
 	spec *MachineSpec, machinePath string, instantiation fragments.Instantiation,
 	visit func(string, []byte) error,
 ) error {
-	if strings.TrimSpace(instantiation.Fragment) == "" || filepath.IsAbs(instantiation.Fragment) {
-		return fmt.Errorf("fragment path must be a non-empty relative path")
+	if strings.TrimSpace(instantiation.Fragment) == "" {
+		return fmt.Errorf("fragment path must be non-empty")
 	}
-	target := filepath.Clean(filepath.Join(filepath.Dir(machinePath), instantiation.Fragment))
+	resolved, err := corepath.ImportTarget(machinePath, instantiation.Fragment)
+	if err != nil {
+		return fmt.Errorf("fragment path %q: %w", instantiation.Fragment, err)
+	}
+	target := filepath.Clean(resolved)
 	header, data, err := readStageHeader(target, visit)
 	if err != nil {
 		return err
@@ -132,7 +166,8 @@ func spliceStageFragment(
 	spec.Signals = append(spec.Signals, stage.Stage.Signals...)
 	spec.Transitions = append(spec.Transitions, stage.Stage.Transitions...)
 	spec.instantiations = append(spec.instantiations, MachineInstantiation{
-		Fragment: target, As: instantiation.As, Args: values, Produces: stageProduces(stage.Stage),
+		Kind: InstantiationKindStage, Fragment: target, As: instantiation.As, Args: values,
+		Produces: stageProduces(stage.Stage),
 	})
 	return nil
 }

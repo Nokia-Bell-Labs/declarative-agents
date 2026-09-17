@@ -1,83 +1,20 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 name: mock-rest-profile
+# An instance of catalog's rest-service machine template (srd054).
+unit: mock-machine
 purpose: |-
   Serves a dependency's canned REST responses from a scenario fixture and
   records every request it received, standing in for a real upstream service
   while a subject agent is exercised. Serves until a control exit request
   stops the owned listener.
-configuration:
-  machine: agents/mock/machine.yaml
-  tools: agents/mock/tools.yaml
-metric_labels:
-  profile: mock
-initial_state: Idle
-budget:
-  command_timeout: 11m
-  max_iterations: 6
-states:
-  - name: Idle
-    meaning: Initial state before the mock server starts.
-  - name: Launching
-    meaning: The REST server launch command is running; the fixture is loaded and validated here.
-  - name: Serving
-    meaning: Fixture routes and the request log are available while the machine waits for a control event.
-  - name: Stopping
-    meaning: The machine stops the owned mock REST listener.
-  - name: Done
-    run_status: succeeded
-    meaning: Terminal. The mock listener stopped without error.
-  - name: Failed
-    run_status: failed
-    meaning: Terminal state for launch, fixture, and control failures.
-terminal_states:
-  - Done
-  - Failed
-signals:
-  - name: Seed
-    trigger: Loop initialization.
-  - name: ServerLaunched
-    trigger: Mock REST routes were registered and the fixture loaded.
-  - name: ExitRequested
-    trigger: A rig requested mock exit through REST control.
-  - name: AwaitTimedOut
-    trigger: No matching control event arrived.
-  - name: ServerStopped
-    trigger: Mock REST listener stopped.
-  - name: CommandError
-    trigger: REST server lifecycle command failed, including a malformed fixture.
-transitions:
-  - state: Idle
-    signal: Seed
-    next: Launching
-    action: launch_mock_rest
-    metric_labels:
+instantiate:
+  - fragment: ../units/rest-service-machine-template.yaml
+    args:
+      launch: launch_mock_rest
+      await: await_mock_control
+      stop: stop_mock_rest
       route_group: mock
-  - state: Launching
-    signal: ServerLaunched
-    next: Serving
-    action: await_mock_control
-  # A malformed fixture fails the launch rather than the first request, so the
-  # mock never serves with bad data (srd019 R2.4).
-  - state: Launching
-    signal: CommandError
-    next: Failed
-  - state: Serving
-    signal: ExitRequested
-    next: Stopping
-    action: stop_mock_rest
-  - state: Serving
-    signal: AwaitTimedOut
-    next: Failed
-  - state: Serving
-    signal: ServerStopped
-    next: Failed
-  - state: Serving
-    signal: CommandError
-    next: Failed
-  - state: Stopping
-    signal: ServerStopped
-    next: Done
-  - state: Stopping
-    signal: CommandError
-    next: Failed
+      profile: mock
+      machine: agents/mock/machine.yaml
+      tools: agents/mock/tools.yaml

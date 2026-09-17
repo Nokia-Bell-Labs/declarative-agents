@@ -11,23 +11,30 @@ profile:
 machine:
   name: core-lifecycle-approval
   purpose: Prove suspend and resume through Agent Core lifecycle ports.
+  invariants:
+    - Suspend is a machine action, not a hidden CLI branch.
+    - Approved resume continues through an explicit machine signal.
+    - Rejected resume stops without running the approved path.
+  configuration:
+    machine: machine.yaml
+    tools: tools.yaml
   initial_state: Idle
   resume_signal: Approved
   states:
     - name: Idle
-      meaning: Initial state.
+      meaning: Initial state before the approval gate.
     - name: AwaitingApproval
-      meaning: Suspended for approval.
+      meaning: The first run suspended and waits for an operator signal.
     - name: ApplyingApproval
-      meaning: Completing approved work.
+      meaning: The approved path is running after resume.
     - name: Succeeded
-      meaning: Terminal success.
+      meaning: Terminal. The approved path completed.
       run_status: succeeded
     - name: Rejected
-      meaning: Terminal rejection.
+      meaning: Terminal. The operator rejected the risky action.
       run_status: failed
     - name: Failed
-      meaning: Terminal failure.
+      meaning: Terminal. Suspend or resume failed.
       run_status: failed
   terminal_states:
     - Succeeded
@@ -37,15 +44,15 @@ machine:
     - name: Seed
       trigger: Loop initialization.
     - name: AwaitApproval
-      trigger: suspend requested approval.
+      trigger: suspend requested an approval checkpoint.
     - name: Approved
-      trigger: Operator approved.
+      trigger: Operator approved the suspended action during resume.
     - name: Rejected
-      trigger: Operator rejected.
+      trigger: Operator rejected the suspended action during resume.
     - name: TaskCompleted
-      trigger: done completed.
+      trigger: done completed the approved path.
     - name: CommandError
-      trigger: Runtime failure.
+      trigger: Runtime or command infrastructure failed.
   transitions:
     - state: Idle
       signal: Seed
@@ -95,6 +102,14 @@ types:
     description: Plain text a word publishes as its whole result.
     schema:
       type: string
+instantiations:
+  - kind: machine
+    fragment: <agent-core>/tools/machines/lifecycle-approval-machine-template.yaml
+    args:
+      machine: machine.yaml
+      tools: tools.yaml
+    produces:
+      - machine/core-lifecycle-approval
 tools:
   - name: done
     type: builtin
@@ -217,16 +232,23 @@ tools:
 rest: {}
 files:
   - path: <agent-core>/testdata/integration/profiles/lifecycle/machine.yaml
-    sha256: 4a0eb71a3489108416150f53ea49e8d85b91c0dea22af8b4163dfadff215d4e0
+    sha256: 8b9b5a8d43aca38de0019fad5d454d45d1e19948563804eb22039cd1a2a770e2
   - path: <agent-core>/testdata/integration/profiles/lifecycle/profile.yaml
     sha256: 83ef6c0f58c750bc0a75a52e8730501298bba657ae386a5b077478fa821e0830
   - path: <agent-core>/testdata/integration/profiles/lifecycle/tools.yaml
     sha256: a3be02c2c7c96a9b5fca8dcea06f9f782f77ec97d80ffc74fc6281295904d7d2
   - path: <agent-core>/tools/builtin/done.yaml
     sha256: 5038c9ba4f5d5c2ae656d3032f95e66fccd959198a7117b1b84ebef9d52e62fa
+    root: agent-core
   - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
     sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25
+    root: agent-core
   - path: <agent-core>/tools/builtin/suspend.yaml
     sha256: 917023417eef2105abb3515ef2b0f35953b49e9a0e2d761cd7c98ed131dd6f48
+    root: agent-core
+  - path: <agent-core>/tools/machines/lifecycle-approval-machine-template.yaml
+    sha256: 66bccbaf08565a646cb378f93bbd728d307658cd68f40a69fd4ee997506f1074
+    root: agent-core
   - path: <agent-core>/tools/units/types-core.yaml
     sha256: 23b9182ef09b4feb01cf6c9438cdea033e526ea6bbee4012d0fce7a10163329b
+    root: agent-core

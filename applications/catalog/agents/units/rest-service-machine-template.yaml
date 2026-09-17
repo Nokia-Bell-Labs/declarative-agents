@@ -1,0 +1,92 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The lifecycle of an agent that serves one REST listener until a control exit
+# arrives (srd054): launch, serve while awaiting control, stop. The mock and the
+# conformance rig-subject instantiate it with their own words and labels.
+unit: rest-service-machine-template
+params:
+  - {name: launch, type: string, description: Word that launches the REST listener.}
+  - {name: await, type: string, description: Word that awaits a control event.}
+  - {name: stop, type: string, description: Word that stops the listener.}
+  - {name: route_group, type: string, description: Monitor route_group label the launch transition carries.}
+  - {name: profile, type: string, description: Monitor profile label.}
+  - {name: machine, type: string, description: The machine path the configuration block records.}
+  - {name: tools, type: string, description: The tool selection path the configuration block records.}
+machine:
+  name: rest-service
+  purpose: Serve one REST listener until a control exit request stops it.
+  configuration:
+    machine: $param(machine)
+    tools: $param(tools)
+  metric_labels:
+    profile: $param(profile)
+  initial_state: Idle
+  budget:
+    command_timeout: 11m
+    max_iterations: 6
+  states:
+    - name: Idle
+      meaning: Initial state before the server starts.
+    - name: Launching
+      meaning: The REST server launch command is running.
+    - name: Serving
+      meaning: Routes are available while the machine waits for a control event.
+    - name: Stopping
+      meaning: The machine stops its owned listener.
+    - name: Done
+      run_status: succeeded
+      meaning: Terminal. The listener stopped without error.
+    - name: Failed
+      run_status: failed
+      meaning: Terminal. Launch or control failed.
+  terminal_states:
+    - Done
+    - Failed
+  signals:
+    - name: Seed
+      trigger: Loop initialization.
+    - name: ServerLaunched
+      trigger: Routes were registered.
+    - name: ExitRequested
+      trigger: A rig or operator requested exit.
+    - name: AwaitTimedOut
+      trigger: No control event arrived.
+    - name: ServerStopped
+      trigger: The listener stopped.
+    - name: CommandError
+      trigger: A lifecycle command failed.
+  transitions:
+    - state: Idle
+      signal: Seed
+      next: Launching
+      action: $param(launch)
+      metric_labels:
+        route_group: $param(route_group)
+    - state: Launching
+      signal: ServerLaunched
+      next: Serving
+      action: $param(await)
+    # A launch failure, such as a malformed fixture, fails here rather than at
+    # the first request (srd019 R2.4).
+    - state: Launching
+      signal: CommandError
+      next: Failed
+    - state: Serving
+      signal: ExitRequested
+      next: Stopping
+      action: $param(stop)
+    - state: Serving
+      signal: AwaitTimedOut
+      next: Failed
+    - state: Serving
+      signal: ServerStopped
+      next: Failed
+    - state: Serving
+      signal: CommandError
+      next: Failed
+    - state: Stopping
+      signal: ServerStopped
+      next: Done
+    - state: Stopping
+      signal: CommandError
+      next: Failed

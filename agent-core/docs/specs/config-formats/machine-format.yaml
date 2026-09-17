@@ -728,8 +728,53 @@ stage_fragments: |
   A machine declares no `imports`; a stage is instantiated, and a machine
   has no other unit kind to import.
 
+machine_templates: |
+  A whole machine MAY be a template (srd054-machine-templates). A template is
+  a fragment whose body is `machine` rather than `stage`, holding the fields
+  a machine file holds apart from `unit` and `imports`:
+
+    unit: control-machine-template
+    params:
+      - {name: server, type: string}
+      - {name: exit_signal, type: string}
+    machine:
+      name: control
+      purpose: Serve a control endpoint until an exit request arrives.
+      initial_state: Idle
+      states: [...]
+      transitions:
+        - {state: Idle, signal: Seed, next: Launching, action: launch_$param(server)_control}
+        ...
+
+  A machine file becomes an instance of it by carrying a unit, exactly one
+  instantiation, and optionally its own name and purpose:
+
+    unit: control-template
+    name: control-template
+    instantiate:
+      - fragment: ../../units/control-machine-template.yaml
+        args: {server: agent, exit_signal: ExitRequested}
+
+  Any other field on an instance is a load error naming the field, as is an
+  `as` on the entry (srd054 R1.2). The target's body kind selects the
+  behavior: a `machine` body replaces the instance's machine and a `stage`
+  body splices into it. A template body MAY itself instantiate stages, whose
+  paths resolve against the template's directory; a template cannot
+  instantiate a template, and an instance cannot splice a stage beside its
+  template (srd054 R1.3). The instantiated machine is validated by every check
+  a hand-written machine passes, and a diagnostic names both the template and
+  the instance. The template and its stages are closure files and program
+  identity assets; the dump renders the instantiated machine under `machine`
+  and lists instantiations with `kind: machine` or `kind: stage`. A profile or
+  a `machine_request` binding that names a template file directly is a load
+  error, because a template is not a machine until its arguments arrive
+  (srd054 R1.4). Landed with GH-2114; testdata/integration/profiles/
+  control-template is the reference instance.
+
 related_documents:
   - srd006
   - srd052-declaration-fragments
+  - srd054-machine-templates
+  - cfg-agent-profile-format
 
 implementation: internal/runtime/core/machine.go

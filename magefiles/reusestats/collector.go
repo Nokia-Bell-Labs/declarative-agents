@@ -199,27 +199,42 @@ func (c *collector) collectFile(path string) error {
 // collectUnitEdges records the top-level imports and instantiate entries of
 // one declaration file (srd050 R1.2, srd052 R2.1). An import path is relative
 // to the importing file, so the same unit reached from two directories
-// resolves to one key. Only scalar import entries and instantiate entries
-// naming a fragment count; anything else is not an edge the loader follows.
+// resolves to one key; a library-rooted path is its own key (srd056 R1.1).
+// Only scalar import entries and instantiate entries naming a fragment count;
+// anything else is not an edge the loader follows.
 func (c *collector) collectUnitEdges(root *yaml.Node, path string) {
 	directory := filepath.Dir(path)
 	if imports := mappingValue(root, "imports"); imports != nil && imports.Kind == yaml.SequenceNode {
 		for _, imported := range imports.Content {
 			if imported.Kind == yaml.ScalarNode && imported.Value != "" {
-				c.recordImporter(filepath.Join(directory, imported.Value), path)
+				c.recordImporter(unitKey(directory, imported.Value), path)
 			}
 		}
 	}
-	instantiate := mappingValue(root, "instantiate")
+	c.collectInstantiations(mappingValue(root, "instantiate"), directory, path)
+	// A machine template's body instantiates its stages (srd054 R2.2).
+	if machine := mappingValue(root, "machine"); machine != nil && machine.Kind == yaml.MappingNode {
+		c.collectInstantiations(mappingValue(machine, "instantiate"), directory, path)
+	}
+}
+
+func (c *collector) collectInstantiations(instantiate *yaml.Node, directory, path string) {
 	if instantiate == nil || instantiate.Kind != yaml.SequenceNode {
 		return
 	}
 	for _, entry := range instantiate.Content {
 		if fragment := scalarMappingValue(entry, "fragment"); fragment != "" {
 			c.result.Instantiations++
-			c.recordImporter(filepath.Join(directory, fragment), path)
+			c.recordImporter(unitKey(directory, fragment), path)
 		}
 	}
+}
+
+func unitKey(directory, reference string) string {
+	if filepath.IsAbs(reference) {
+		return reference
+	}
+	return filepath.Join(directory, reference)
 }
 
 func (c *collector) recordImporter(unit, importer string) {

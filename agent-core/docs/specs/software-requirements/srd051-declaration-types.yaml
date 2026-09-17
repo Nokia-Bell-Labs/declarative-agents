@@ -50,15 +50,16 @@ requirements:
           than for what no other unit has taken.
       - R1.5: >-
           A type is reachable only from a closure that imports its unit, and a
-          declaration tree reaches only the units it can name by a relative
-          path under srd050 R1.2. An application therefore declares its own
-          units for the shapes its words publish, including shapes agent-core
-          declares under the same names. That restatement is the design, not
-          drift: the two trees sit at different relative distances in the
-          repository and in the runtime image, so no single import path
-          resolves in both, and a reference that happens to resolve because
-          some other declaration pulled the unit into the closure resolves by
-          accident and SHALL NOT be relied on.
+          declaration tree reaches only the units it can name under srd050
+          R1.2. An application reaches agent-core's type units by their
+          library-root path, `/opt/agent-core/tools/units/...`, which resolves
+          in a checkout through `--core-root` and in the runtime image as
+          written (srd056-unit-libraries R1.3), and SHALL import them rather
+          than restate a shape agent-core already declares. A reference that
+          resolves only because some other declaration pulled the unit into
+          the closure resolves by accident and SHALL NOT be relied on. Amended
+          by srd056: before it, no single import path resolved in both places,
+          and applications restated agent-core's types (GH-2069).
 
   R2:
     title: Closed schema subset
@@ -205,7 +206,7 @@ non_goals:
   - Validating runtime values against a declared type; these types constrain declarations, not payloads.
   - Tool signatures, typed labels, and machine exhaustiveness, which build on this and are specified separately.
   - Widening the schema subset toward complete JSON Schema.
-  - Remote or registry-hosted type units, and any other way for one declaration tree to depend on another's units; imports stay relative paths as srd050 fixes them (R1.5).
+  - Remote or registry-hosted type units. One declaration tree depends on another's units only through a library root (srd056), never by search or fetch.
 
 acceptance_criteria:
   - id: AC1
@@ -250,4 +251,6 @@ implementation_status:
     - GH-2064 and GH-2065 type the boundary REST labels from the runtime result, which is what R6.12 exempts a boundary tool from restating.
     - GH-2026 makes the unit segment a namespace (R1.4, R4.3), so catalog-types-core declares Text and Comparison under the names they describe.
     - GH-2023 promotes R6.13, so the authoring checks in internal/tools/catalog and the corpus audit in pkg/spec agree about relationships.
-    - GH-2069 promotes R1.5 after establishing that an application cannot reach agent-core's units: the repository and the image place the two trees at different relative distances.
+    - GH-2069 promoted R1.5 after establishing that an application could not reach agent-core's units, because the repository and the image place the two trees at different relative distances; srd056 amends R1.5 so a library-root path reaches them in both.
+  planned:
+    - GH-2118 implements R1.5 as amended by srd056 and deletes the application copies of agent-core type units.

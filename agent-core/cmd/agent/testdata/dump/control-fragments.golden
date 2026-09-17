@@ -131,7 +131,8 @@ types:
           type: array
       type: object
 instantiations:
-  - fragment: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
+  - kind: rest
+    fragment: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
     as: alpha
     args:
       address: 127.0.0.1:0
@@ -139,7 +140,8 @@ instantiations:
     produces:
       - limits/alpha_local
       - servers/alpha_agent_control
-  - fragment: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
+  - kind: rest
+    fragment: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
     as: beta
     args:
       address: 127.0.0.1:0
@@ -147,7 +149,8 @@ instantiations:
     produces:
       - limits/beta_local
       - servers/beta_agent_control
-  - fragment: <agent-core>/testdata/integration/units/control-stage-fragment.yaml
+  - kind: stage
+    fragment: <agent-core>/testdata/integration/units/control-stage-fragment.yaml
     args:
       await: patient_await_agent_control
       enter: AwaitTimedOut
@@ -164,7 +167,8 @@ instantiations:
       - transitions/PatientAwaiting:ServerStopped
       - transitions/PatientLaunching:CommandError
       - transitions/PatientLaunching:ServerLaunched
-  - fragment: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
+  - kind: tool
+    fragment: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
     as: patient
     args:
       route: beta_exit
@@ -173,7 +177,8 @@ instantiations:
     produces:
       - patient_await_agent_control
       - patient_launch_agent_control
-  - fragment: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
+  - kind: tool
+    fragment: <agent-core>/testdata/integration/units/control-tool-fragment.yaml
     as: primary
     args:
       route: alpha_exit
@@ -379,3 +384,4 @@ files:
     sha256: ed6608b6e81df7eac4ba4d67308236026a7a25cc7130091f01bc9996731a4362
   - path: <agent-core>/tools/builtin/lifecycle/exit-agent.yaml
     sha256: 81938b2d96dd9be01aaab2360b2e4ce7c11a22690081cf4a9e34cbabb402cf25
+    root: agent-core

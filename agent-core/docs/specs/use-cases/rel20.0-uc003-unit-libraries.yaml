@@ -1,0 +1,56 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel20.0-uc003-unit-libraries
+title: A unit imports from a library root
+status: implemented
+
+summary: |
+  A profile author needs a unit, a machine template, or a type that lives
+  outside their declaration tree. For agent-core's library they import it by
+  its install path, `/opt/agent-core/...`, which resolves in a checkout
+  through `--core-root` and in the runtime image as written. For a directory
+  inside their own application they declare a named root on the profile and
+  import under `/opt/<name>/...`. The loader maps each rooted path explicitly,
+  keeps libraries read-only, records rooted files in the closure, the digest,
+  and the dump, and staging carries declared-root files into the staged tree.
+
+actor: A profile author who imports shared units instead of restating them
+
+trigger: |
+  A declaration file, an instantiation, a machine template instance, a
+  blueprint machine mapping, or a profile-level list names a path under
+  `/opt/<root>/`.
+
+flow:
+  - F1: The loader classifies the path as relative or rooted, rejects any other absolute path with srd050's wording, and applies the same rule to every path form srd050 governs.
+  - F2: For `/opt/agent-core` it maps through the install root when one is set and uses the path as written otherwise.
+  - F3: For any other root it looks up the name among the roots the closure's profile declares, applies a `--library` override, and rejects an undeclared prefix, a reserved or malformed name, and a conflicting redeclaration.
+  - F4: It rejects a tool marked override and an escaping relative import inside a root, naming the root and the file.
+  - F5: It records each rooted file in the closure inventory and the digest, marks it with its root in the dump, and staging copies declared-root files to the staged position of the declared directory while leaving agent-core-rooted files to the image.
+
+touchpoints:
+  - T1: "srd056-unit-libraries R1 -- import path forms"
+  - T2: "srd056-unit-libraries R2 -- declared library roots"
+  - T3: "srd056-unit-libraries R3 -- closure, identity, dump, and staging"
+  - T4: "srd056-unit-libraries R4 -- service libraries"
+  - T5: "srd050-declaration-imports R1 -- import path rule, as amended by srd056"
+  - T6: "srd051-declaration-types R1 -- type unit reachability, as amended by srd056"
+
+success_criteria:
+  - id: S1
+    criterion: An application unit imports an agent-core type unit by its install path and loads from a checkout and from a staged tree; an absolute path outside a root fails.
+    traces: [srd056-unit-libraries AC1]
+  - id: S2
+    criterion: A declared root resolves, --library overrides it, and every misdeclaration and read-only violation fails naming the profile or the root and file.
+    traces: [srd056-unit-libraries AC2]
+  - id: S3
+    criterion: Rooted files are in the closure, the digest, and the dump, and a staged profile using a declared root loads with no checkout.
+    traces: [srd056-unit-libraries AC3]
+  - id: S4
+    criterion: The service-library convention is documented and no service library in the corpus has fewer than two importing profiles.
+    traces: [srd056-unit-libraries AC4]
+
+out_of_scope:
+  - Search paths, registries, and version constraints.
+  - Cross-application libraries other than agent-core's.
+  - The rag-server service library (GH-2121).

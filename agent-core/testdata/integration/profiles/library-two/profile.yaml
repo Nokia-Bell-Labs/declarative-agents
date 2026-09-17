@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# One of two profiles importing the same unit through the declared library
+# root `shared` (srd056 R2); library-one is the other.
+name: library-two
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml
+libraries:
+  shared: ../../library

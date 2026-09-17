@@ -1,0 +1,255 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel20.0-machine-templates
+title: Test Suite for Release 20.0 Machine Templates and Agent Blueprints
+release: "20.0"
+
+traces:
+  - rel20.0-uc001-machine-templates
+  - rel20.0-uc002-agent-blueprints
+
+preconditions:
+  - srd054-machine-templates defines the machine template and instance formats, instantiation, validation, and closure, identity, dump, and staging behavior.
+  - srd055-agent-blueprints defines the blueprint and instance formats, path resolution, the machine mapping, and identity, dump, staging, and audit behavior.
+  - srd052 fragments, stage splicing, and the instantiations dump section; srd006 and srd038 machine validation; and pkg/profilestage and pkg/profileaudit are available.
+
+test_cases:
+  - use_case: rel20.0-uc001-machine-templates
+    name: A template with params and a machine body loads through an instance
+    go_test: go test ./internal/runtime/core -run 'TestMachineTemplateInstanceEqualsTheHandWrittenMachine|TestMachineTemplateBodyHoldsNoParamsUnitOrImports'
+    status: implemented
+    description: Load control-template, whose machine.yaml instantiates a template holding the control machine as a machine body; then a template carrying a nested params.
+    expected:
+      loads: true
+      nested_params_rejected: true
+    traces: [rel20.0-uc001-machine-templates S1, srd054-machine-templates AC1, srd054-machine-templates R1.1]
+
+  - use_case: rel20.0-uc001-machine-templates
+    name: An instance carries only unit, one instantiate, name, and purpose
+    go_test: go test ./internal/runtime/core -run 'TestMachineInstanceCarriesOnlyItsHeader'
+    status: implemented
+    description: Add states to an instance, add an as to its entry, add a second instantiate entry, and override name and purpose.
+    expected:
+      extra_field_error_names_field_and_instance: true
+      as_rejected: true
+      second_entry_rejected: true
+      name_and_purpose_replace_template: true
+    traces: [rel20.0-uc001-machine-templates S1, srd054-machine-templates AC1, srd054-machine-templates R1.2]
+
+  - use_case: rel20.0-uc001-machine-templates
+    name: A template may splice stages and nesting stops at one level
+    go_test: go test ./internal/runtime/core -run 'TestMachineTemplateSplicesItsStagesRelativeToItself|TestMachineTemplateCannotNestOrBeLoadedAsAMachine|TestMachineInstanceCarriesOnlyItsHeader'
+    status: implemented
+    description: Instantiate a template whose body instantiates a stage fragment; then a template instantiating a template; then an instance instantiating a stage beside its template.
+    expected:
+      stage_inside_template_spliced: true
+      template_in_template_rejected: true
+      stage_beside_template_rejected: true
+    traces: [rel20.0-uc001-machine-templates S1, srd054-machine-templates AC1, srd054-machine-templates R1.3]
+
+  - use_case: rel20.0-uc001-machine-templates
+    name: A template named where a machine is expected is rejected
+    go_test: go test ./internal/runtime/core ./internal/load -run 'TestMachineTemplateCannotNestOrBeLoadedAsAMachine|TestLoadClosureRefusesAProfileNamingAMachineTemplate'
+    status: implemented
+    description: Point a profile machine field at a template file, then a machine_request machine binding.
+    expected:
+      error_names_referrer_and_template: true
+    traces: [rel20.0-uc001-machine-templates S1, srd054-machine-templates AC1, srd054-machine-templates R1.4]
+
+  - use_case: rel20.0-uc001-machine-templates
+    name: Template arguments follow srd052 and pass through to stages
+    go_test: go test ./internal/runtime/core -run 'TestMachineTemplateFaultsNameTemplateAndInstance|TestMachineTemplateSplicesItsStagesRelativeToItself'
+    status: implemented
+    description: Omit a required argument, supply an unknown one, leave a reference unfilled; then pass an argument through to a stage instantiation in the body and to an action name.
+    expected:
+      argument_faults_match_srd052: true
+      reference_in_action_name_substituted: true
+      reference_in_stage_args_substituted: true
+    traces: [rel20.0-uc001-machine-templates S2, srd054-machine-templates AC2, srd054-machine-templates R2.1]
+
+  - use_case: rel20.0-uc001-machine-templates
+    name: Template paths resolve against the template, instance paths against the instance
+    go_test: go test ./internal/runtime/core ./pkg/profilestage -run 'TestMachineTemplateSplicesItsStagesRelativeToItself|TestStageFollowsMachineTemplateEdges'
+    status: implemented
+    description: Place the template and its stage in one directory and the instance in another; load the instance.
+    expected:
+      instance_fragment_relative_to_instance: true
+      stage_path_relative_to_template: true
+    traces: [rel20.0-uc001-machine-templates S2, srd054-machine-templates AC2, srd054-machine-templates R2.2]
+
+  - use_case: rel20.0-uc001-machine-templates
+    name: The target body kind selects replace or splice
+    go_test: go test ./internal/runtime/core -run 'TestInstantiateTargetBodyKindSelectsReplaceOrSplice|TestMachineTemplateSplicesItsStagesRelativeToItself'
+    status: implemented
+    description: Instantiate a machine body, a stage body, and a tools body from a machine file.
+    expected:
+      machine_body_replaces: true
+      stage_body_splices: true
+      other_body_error_names_target_and_kind: true
+    traces: [rel20.0-uc001-machine-templates S2, srd054-machine-templates AC2, srd054-machine-templates R2.3]
+
+  - use_case: rel20.0-uc001-machine-templates
+    name: An instantiated machine takes the hand-written validation path
+    go_test: go test ./internal/runtime/core -run 'TestMachineTemplateInstanceEqualsTheHandWrittenMachine|TestMachineTemplateFaultsNameTemplateAndInstance'
+    status: implemented
+    description: Compare the parsed control-template machine with the parsed control machine; instantiate a template with an unreachable state and one missing a required policy.
+    expected:
+      parsed_specs_equal_except_name: true
+      structural_checks_apply: true
+      required_policy_applies: true
+      no_generated_file_written: true
+    traces: [rel20.0-uc001-machine-templates S2, srd054-machine-templates AC2, srd054-machine-templates R2.4]
+
+  - use_case: rel20.0-uc001-machine-templates
+    name: Diagnostics in an instantiated machine name template and instance
+    go_test: go test ./internal/runtime/core ./cmd/agent -run 'TestMachineTemplateFaultsNameTemplateAndInstance|TestStartupWiringFaultNamesTemplateAndInstance'
+    status: implemented
+    description: Misspell a label a transition in the template reads, then run --validate-config on the instance profile.
+    expected:
+      error_names_template_path: true
+      error_names_instance_path: true
+      leftover_reference_line_points_into_template: true
+    traces: [rel20.0-uc001-machine-templates S2, srd054-machine-templates AC2, srd054-machine-templates R2.5]
+
+  - use_case: rel20.0-uc001-machine-templates
+    name: Templates and their stages are closure files and digest assets
+    go_test: go test ./internal/load -run 'TestLoadClosureCarriesTheMachineTemplate'
+    status: implemented
+    description: Load a profile whose machine is an instance, read Files, then change one byte of the template and rebuild the program identity.
+    expected:
+      files_include_instance_template_stages: true
+      digest_changes: true
+    traces: [rel20.0-uc001-machine-templates S3, srd054-machine-templates AC3, srd054-machine-templates R3.1]
+
+  - use_case: rel20.0-uc001-machine-templates
+    name: The dump renders the instantiated machine and labels instantiation kinds
+    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureCarriesTheMachineTemplate|TestDumpGolden'
+    status: implemented
+    description: Dump control-template twice and read its machine and instantiations sections.
+    expected:
+      machine_section: instantiated machine
+      instantiation_kinds: "machine, stage"
+      two_dumps_identical: true
+    traces: [rel20.0-uc001-machine-templates S3, srd054-machine-templates AC3, srd054-machine-templates R3.2]
+
+  - use_case: rel20.0-uc001-machine-templates
+    name: Staging follows instance, template, and stage edges
+    go_test: go test ./pkg/profilestage -run 'TestStageFollowsMachineTemplateEdges'
+    status: implemented
+    description: Stage a profile whose machine is an instance of a template in another directory, remove the source, and load the staged profile.
+    expected:
+      staged_tree_loads_without_checkout: true
+    traces: [rel20.0-uc001-machine-templates S3, srd054-machine-templates AC3, srd054-machine-templates R3.3]
+
+  - use_case: rel20.0-uc002-agent-blueprints
+    name: A blueprint with params and a profile body loads through an instance
+    go_test: go test ./internal/tools/catalog -run 'TestBlueprintInstanceLoads'
+    status: planned
+    description: Load control-blueprint, whose profile.yaml instantiates a blueprint holding every AgentProfile field.
+    expected:
+      loads: true
+      every_profile_field_accepted: true
+    traces: [rel20.0-uc002-agent-blueprints S1, srd055-agent-blueprints AC1, srd055-agent-blueprints R1.1]
+
+  - use_case: rel20.0-uc002-agent-blueprints
+    name: Instance fields replace blueprint fields wholesale
+    go_test: go test ./internal/tools/catalog -run 'TestBlueprintInstanceOverridesReplaceWholesale|TestBlueprintEntryRejectsAs'
+    status: planned
+    description: Override tools with a shorter list and directory with another path; add as to the entry.
+    expected:
+      list_replaced_not_merged: true
+      scalar_replaced: true
+      as_rejected: true
+    traces: [rel20.0-uc002-agent-blueprints S1, srd055-agent-blueprints AC1, srd055-agent-blueprints R1.2]
+
+  - use_case: rel20.0-uc002-agent-blueprints
+    name: A blueprint cannot nest and is refused where a profile is expected
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition ./cmd/agent -run 'TestBlueprintCannotNest|TestBlueprintNamedAsProfileFails|TestMachineRequestNamingBlueprintFails'
+    status: planned
+    description: Instantiate a blueprint from a blueprint; pass a blueprint to --profile, to a child-agent profile reference, and to a machine_request profile binding.
+    expected:
+      nesting_rejected: true
+      error_names_referrer_and_blueprint: true
+    traces: [rel20.0-uc002-agent-blueprints S1, srd055-agent-blueprints AC1, srd055-agent-blueprints R1.3]
+
+  - use_case: rel20.0-uc002-agent-blueprints
+    name: Blueprint arguments follow srd052
+    go_test: go test ./internal/tools/catalog -run 'TestBlueprintArgumentFaults'
+    status: planned
+    description: Omit a required argument, supply an unknown one, pass a wrong type, and leave a reference unfilled.
+    expected:
+      argument_faults_match_srd052: true
+      body_decoded_after_substitution: true
+    traces: [rel20.0-uc002-agent-blueprints S2, srd055-agent-blueprints AC2, srd055-agent-blueprints R2.1]
+
+  - use_case: rel20.0-uc002-agent-blueprints
+    name: Blueprint paths resolve against the blueprint, instance paths against the instance
+    go_test: go test ./internal/tools/catalog -run 'TestBlueprintPathsResolveAgainstTheirFiles'
+    status: planned
+    description: Place the blueprint and its units in one directory and the instance in another; override one path on the instance; use an install-prefix path in each.
+    expected:
+      blueprint_relative_to_blueprint: true
+      override_relative_to_instance: true
+      install_prefix_mapped_in_both: true
+    traces: [rel20.0-uc002-agent-blueprints S2, srd055-agent-blueprints AC2, srd055-agent-blueprints R2.2]
+
+  - use_case: rel20.0-uc002-agent-blueprints
+    name: A machine mapping instantiates a template directly
+    go_test: go test ./internal/tools/catalog ./internal/load -run 'TestBlueprintMachineMappingInstantiatesTemplate'
+    status: planned
+    description: "Give the blueprint machine: {fragment: <template>, args: {server: $param(server)}} and load two instances with different server arguments."
+    expected:
+      template_instantiated_without_instance_file: true
+      arguments_pass_through: true
+      instances_differ_by_argument: true
+    traces: [rel20.0-uc002-agent-blueprints S2, srd055-agent-blueprints AC2, srd055-agent-blueprints R2.3]
+
+  - use_case: rel20.0-uc002-agent-blueprints
+    name: A resolved profile satisfies hand-written profile rules
+    go_test: go test ./internal/tools/catalog -run 'TestResolvedBlueprintProfileRequiresMachineAndTools'
+    status: planned
+    description: Resolve a blueprint whose body omits tools and whose instance does not supply them.
+    expected:
+      error_names_instance_and_blueprint: true
+    traces: [rel20.0-uc002-agent-blueprints S2, srd055-agent-blueprints AC2, srd055-agent-blueprints R2.4]
+
+  - use_case: rel20.0-uc002-agent-blueprints
+    name: The instance is the identity and the blueprint is in its digest
+    go_test: go test ./internal/load -run 'TestBlueprintInstanceProgramIdentity'
+    status: planned
+    description: Build the program identity for an instance, then change one byte of the blueprint and of the machine template it reaches.
+    expected:
+      identity_profile: instance path
+      digest_changes_with_blueprint: true
+      digest_changes_with_template: true
+    traces: [rel20.0-uc002-agent-blueprints S3, srd055-agent-blueprints AC3, srd055-agent-blueprints R3.1]
+
+  - use_case: rel20.0-uc002-agent-blueprints
+    name: The dump renders the resolved profile and lists the blueprint
+    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsBlueprintInstantiation|TestDumpGolden'
+    status: planned
+    description: Dump control-blueprint twice and read its profile and instantiations sections.
+    expected:
+      profile_section: resolved instance
+      instantiation_kind: profile
+      two_dumps_identical: true
+    traces: [rel20.0-uc002-agent-blueprints S3, srd055-agent-blueprints AC3, srd055-agent-blueprints R3.2]
+
+  - use_case: rel20.0-uc002-agent-blueprints
+    name: Staging follows blueprint edges
+    go_test: go test ./pkg/profilestage -run 'TestStageFollowsBlueprintEdges'
+    status: planned
+    description: Stage an instance whose blueprint and machine template live in other directories, remove the source, and load the staged profile.
+    expected:
+      staged_tree_loads_without_checkout: true
+    traces: [rel20.0-uc002-agent-blueprints S3, srd055-agent-blueprints AC3, srd055-agent-blueprints R3.3]
+
+  - use_case: rel20.0-uc002-agent-blueprints
+    name: profileaudit resolves a blueprint-based child profile
+    go_test: go test ./pkg/profileaudit -run 'TestInspectResolvesBlueprintChildProfile'
+    status: planned
+    description: Inspect a parent profile whose child-agent reference names a blueprint instance.
+    expected:
+      child_resolved: true
+      child_wiring_checked: true
+    traces: [rel20.0-uc002-agent-blueprints S3, srd055-agent-blueprints AC3, srd055-agent-blueprints R3.4]

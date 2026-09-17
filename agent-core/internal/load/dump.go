@@ -44,6 +44,9 @@ type dumpType struct {
 // dumpInstantiation renders one application of a fragment: where it came
 // from, what filled it, and what it produced (srd052 R3.2).
 type dumpInstantiation struct {
+	// Kind is what the fragment's body is: tool, rest, stage, or machine
+	// (srd054 R3.2).
+	Kind     string            `yaml:"kind"`
 	Fragment string            `yaml:"fragment"`
 	As       string            `yaml:"as,omitempty"`
 	Args     map[string]string `yaml:"args,omitempty"`
@@ -63,6 +66,9 @@ type restDump struct {
 type dumpFile struct {
 	Path   string `yaml:"path"`
 	SHA256 string `yaml:"sha256"`
+	// Root names the library root a file sits under, so a reader can tell a
+	// library file from one the profile's own tree supplies (srd056 R3.2).
+	Root string `yaml:"root,omitempty"`
 }
 
 // DumpConfig writes the canonical, resolved representation of a closure.
@@ -116,26 +122,34 @@ func newInstantiationDump(
 	universe []catalog.ToolDef, rest toolrest.Collection, machine core.MachineSpec,
 ) []dumpInstantiation {
 	byKey := map[string]*dumpInstantiation{}
-	record := func(fragment, as string, args map[string]string, produced ...string) {
+	record := func(kind, fragment, as string, args map[string]string, produced ...string) {
 		key := fragment + "\x00" + as
 		entry, exists := byKey[key]
 		if !exists {
-			entry = &dumpInstantiation{Fragment: fragment, As: as, Args: args}
+			entry = &dumpInstantiation{Kind: kind, Fragment: fragment, As: as, Args: args}
 			byKey[key] = entry
 		}
 		entry.Produces = append(entry.Produces, produced...)
 	}
 	for _, tool := range universe {
 		if instantiation, ok := tool.Instantiation(); ok {
-			record(instantiation.Fragment, instantiation.As, instantiation.Args, tool.Name)
+			record(instantiationKindTool, instantiation.Fragment, instantiation.As, instantiation.Args, tool.Name)
 		}
 	}
 	for _, instantiation := range rest.DeclarationInstantiations() {
-		record(instantiation.Fragment, instantiation.As, instantiation.Args, instantiation.Produces...)
+		record(instantiationKindREST, instantiation.Fragment, instantiation.As, instantiation.Args,
+			instantiation.Produces...)
 	}
 	for _, instantiation := range machine.Instantiations() {
-		record(instantiation.Fragment, instantiation.As, instantiation.Args, instantiation.Produces...)
+		record(instantiation.Kind, instantiation.Fragment, instantiation.As, instantiation.Args,
+			instantiation.Produces...)
 	}
+	return sortedInstantiations(byKey)
+}
+
+// sortedInstantiations orders rows by fragment path then prefix, with produced
+// names sorted, so a dump is byte-identical across runs.
+func sortedInstantiations(byKey map[string]*dumpInstantiation) []dumpInstantiation {
 	if len(byKey) == 0 {
 		return nil
 	}
@@ -163,10 +177,17 @@ func dumpFiles(closure *Closure) ([]dumpFile, error) {
 			return nil, fmt.Errorf("closure asset %s has no captured bytes", path)
 		}
 		sum := sha256.Sum256(data)
-		files = append(files, dumpFile{Path: path, SHA256: hex.EncodeToString(sum[:])})
+		files = append(files, dumpFile{
+			Path: path, SHA256: hex.EncodeToString(sum[:]), Root: closure.FileRoots[path],
+		})
 	}
 	return files, nil
 }
+
+const (
+	instantiationKindTool = "tool"
+	instantiationKindREST = "rest"
+)
 
 func newRestDump(collection toolrest.Collection) restDump {
 	return restDump{

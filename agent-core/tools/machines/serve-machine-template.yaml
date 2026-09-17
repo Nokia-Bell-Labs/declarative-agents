@@ -1,0 +1,67 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The persistent-service lifecycle an agent that serves requests runs
+# (srd054). It launches the agent's request server, control server, and the
+# monitor, idles until a lifecycle exit event is enqueued, exits the agent,
+# and stops the servers in reverse order. An instance names the agent's four
+# server words and supplies its own name and purpose; what each request does
+# lives in the agent's request machine, not here.
+unit: serve-machine-template
+params:
+  - {name: launch_requests, type: string, description: Word that launches the agent's machine_request server.}
+  - {name: launch_control, type: string, description: Word that launches the agent's control server.}
+  - {name: await_control, type: string, description: Word that awaits a lifecycle event on the control server.}
+  - {name: stop_requests, type: string, description: Word that stops the agent's machine_request server.}
+machine:
+  name: serve
+  purpose: |-
+    Host an agent as a persistent service. Launch its request, control, and
+    monitor servers, wait for a lifecycle exit event, exit the agent, and stop
+    the servers.
+  invariants:
+    - REST authority lives in the profile's REST definitions; no runtime input supplies transport authority.
+    - Each inbound request runs the agent's request-scoped machine; this machine holds only the service lifecycle.
+  initial_state: Idle
+  budget:
+    command_timeout: 11m
+    max_iterations: 10000
+  states:
+    - {name: Idle, meaning: Initial state before the servers start.}
+    - {name: LaunchingRequests, meaning: The machine_request server is starting.}
+    - {name: LaunchingControl, meaning: The control server is starting.}
+    - {name: LaunchingMonitor, meaning: The monitor server is starting.}
+    - {name: AwaitingControl, meaning: Serving; waiting for a lifecycle exit event.}
+    - {name: Exiting, meaning: Routing ExitRequested to exit_agent.}
+    - {name: StoppingMonitor, meaning: Stopping the monitor server.}
+    - {name: StoppingRequests, meaning: Stopping the machine_request server.}
+    - {name: Failed, meaning: Terminal. A server or boundary word failed., run_status: failed}
+    - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit., run_status: succeeded}
+  terminal_states:
+    - Done
+    - Failed
+  signals:
+    - {name: Seed, trigger: Agent startup.}
+    - {name: ServerLaunched, trigger: A server launched.}
+    - {name: ExitRequested, trigger: A lifecycle exit event was enqueued.}
+    - {name: AgentExited, trigger: exit_agent completed.}
+    - {name: ServerStopped, trigger: A server stopped.}
+    - {name: AwaitTimedOut, trigger: No lifecycle event arrived before the await timeout.}
+    - {name: CommandError, trigger: A server or boundary word failed.}
+  transitions:
+    - {state: Idle,              signal: Seed,           next: LaunchingRequests, action: $param(launch_requests)}
+    - {state: LaunchingRequests, signal: ServerLaunched, next: LaunchingControl,   action: $param(launch_control)}
+    - {state: LaunchingRequests, signal: CommandError,   next: Failed}
+    - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest, label: monitor, report_output: $.address}
+    - {state: LaunchingControl,  signal: CommandError,   next: Failed}
+    - {state: LaunchingMonitor,  signal: ServerLaunched, next: AwaitingControl,    action: $param(await_control)}
+    - {state: LaunchingMonitor,  signal: CommandError,   next: Failed}
+    - {state: AwaitingControl,   signal: ExitRequested,  next: Exiting,            action: exit_agent}
+    - {state: AwaitingControl,   signal: AwaitTimedOut,  next: AwaitingControl,    action: $param(await_control)}
+    - {state: AwaitingControl,   signal: ServerStopped,  next: Failed}
+    - {state: AwaitingControl,   signal: CommandError,   next: Failed}
+    - {state: Exiting,           signal: AgentExited,    next: StoppingMonitor,    action: stop_monitor_rest}
+    - {state: Exiting,           signal: CommandError,   next: Failed}
+    - {state: StoppingMonitor,   signal: ServerStopped,  next: StoppingRequests,   action: $param(stop_requests)}
+    - {state: StoppingMonitor,   signal: CommandError,   next: Failed}
+    - {state: StoppingRequests,  signal: ServerStopped,  next: Done}
+    - {state: StoppingRequests,  signal: CommandError,   next: Failed}

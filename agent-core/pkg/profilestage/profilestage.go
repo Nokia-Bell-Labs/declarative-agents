@@ -77,36 +77,81 @@ func Validate(profilePath, coreRoot string) error {
 // depend on and the directory does not contain.
 func Imported(root string) ([]string, error) {
 	root = filepath.Clean(root)
-	seen := map[string]bool{}
-	pending, err := declarationsUnder(root, seen)
+	walk := importWalk{root: root, seen: map[string]bool{}}
+	pending, err := declarationsUnder(root, walk.seen)
 	if err != nil {
 		return nil, err
 	}
-	var outside []string
-	for len(pending) > 0 {
-		file := pending[0]
-		pending = pending[1:]
+	walk.libraries = declaredRootsOf(pending)
+	walk.pending = pending
+	for len(walk.pending) > 0 {
+		file := walk.pending[0]
+		walk.pending = walk.pending[1:]
 		imports, err := declaredImports(file)
 		if err != nil {
 			return nil, err
 		}
 		for _, imported := range imports {
-			target := filepath.Clean(filepath.Join(filepath.Dir(file), imported))
-			if seen[target] {
-				continue
+			if err := walk.follow(file, imported); err != nil {
+				return nil, err
 			}
-			seen[target] = true
-			if _, err := os.Stat(target); err != nil {
-				return nil, fmt.Errorf("import %q of %s: %w", imported, file, err)
-			}
-			if !within(root, target) {
-				outside = append(outside, target)
-			}
-			pending = append(pending, target)
 		}
 	}
-	sort.Strings(outside)
-	return outside, nil
+	sort.Strings(walk.outside)
+	return walk.outside, nil
+}
+
+// importWalk is the state of one Imported traversal.
+type importWalk struct {
+	root      string
+	seen      map[string]bool
+	libraries map[string]string
+	pending   []string
+	outside   []string
+}
+
+func (w *importWalk) follow(file, imported string) error {
+	target, ok := importedTarget(file, imported, w.libraries)
+	if !ok || w.seen[target] {
+		return nil
+	}
+	w.seen[target] = true
+	if _, err := os.Stat(target); err != nil {
+		return fmt.Errorf("import %q of %s: %w", imported, file, err)
+	}
+	if !within(w.root, target) {
+		w.outside = append(w.outside, target)
+	}
+	w.pending = append(w.pending, target)
+	return nil
+}
+
+// declaredRootsOf collects the library roots the profiles among files declare,
+// each directory resolved against its profile.
+func declaredRootsOf(files []string) map[string]string {
+	libraries := map[string]string{}
+	for _, file := range files {
+		for name, directory := range declaredLibraries(file) {
+			libraries[name] = filepath.Clean(filepath.Join(filepath.Dir(file), directory))
+		}
+	}
+	return libraries
+}
+
+// importedTarget resolves an edge for Imported: relative to the file, under a
+// declared root's directory, or not followed at all for agent-core's library,
+// which the image supplies, and for an undeclared root, which the loader
+// reports.
+func importedTarget(file, imported string, libraries map[string]string) (string, bool) {
+	if !filepath.IsAbs(imported) {
+		return filepath.Clean(filepath.Join(filepath.Dir(file), imported)), true
+	}
+	root, rest, ok := libraryReference(imported)
+	directory, declared := libraries[root]
+	if isAgentCoreLibraryPath(imported) || !ok || !declared {
+		return "", false
+	}
+	return filepath.Join(directory, rest), true
 }
 
 func declarationsUnder(root string, seen map[string]bool) ([]string, error) {
@@ -140,6 +185,10 @@ type stagedClosure struct {
 	root    string
 	staged  map[string]bool
 	pending []stagedFile
+	// libraries maps a declared root name to where its directory sits in the
+	// source and in the staged tree, learned from each staged profile's
+	// libraries field (srd056 R3.3).
+	libraries map[string]stagedFile
 }
 
 type stagedFile struct{ source, destination string }
@@ -172,7 +221,38 @@ func (c *stagedClosure) record(source, destination string) {
 	c.staged[filepath.Clean(destination)] = true
 	if isYAML(destination) {
 		c.pending = append(c.pending, stagedFile{source: source, destination: destination})
+		c.recordLibraries(source, destination)
 	}
+}
+
+// recordLibraries learns the roots a staged profile declares. A root's
+// directory is a path relative to the profile, so it re-roots exactly as a
+// relative import does: the staged directory is where the copied profile's
+// relative path resolves.
+func (c *stagedClosure) recordLibraries(source, destination string) {
+	for name, directory := range declaredLibraries(source) {
+		if c.libraries == nil {
+			c.libraries = map[string]stagedFile{}
+		}
+		c.libraries[name] = stagedFile{
+			source:      filepath.Clean(filepath.Join(filepath.Dir(source), directory)),
+			destination: filepath.Clean(filepath.Join(filepath.Dir(destination), directory)),
+		}
+	}
+}
+
+func declaredLibraries(path string) map[string]string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var profile struct {
+		Libraries map[string]string `yaml:"libraries"`
+	}
+	if yaml.Unmarshal(data, &profile) != nil {
+		return nil
+	}
+	return profile.Libraries
 }
 
 func (c *stagedClosure) followImports() error {
@@ -193,7 +273,22 @@ func (c *stagedClosure) followImports() error {
 }
 
 func (c *stagedClosure) stageImport(file stagedFile, imported string) error {
+	source := filepath.Clean(filepath.Join(filepath.Dir(file.source), imported))
 	destination := filepath.Clean(filepath.Join(filepath.Dir(file.destination), imported))
+	if filepath.IsAbs(imported) {
+		if isAgentCoreLibraryPath(imported) {
+			// The runtime image supplies agent-core's library (srd056 R3.3).
+			return nil
+		}
+		root, rest, ok := libraryReference(imported)
+		library, declared := c.libraries[root]
+		if !ok || !declared {
+			return fmt.Errorf("stage import %q of %s: library root %q is declared by no staged profile",
+				imported, file.source, root)
+		}
+		source = filepath.Join(library.source, rest)
+		destination = filepath.Join(library.destination, rest)
+	}
 	if !within(c.root, destination) {
 		return fmt.Errorf(
 			"stage import %q of %s: resolves to %s, outside the staged root %s",
@@ -203,7 +298,6 @@ func (c *stagedClosure) stageImport(file stagedFile, imported string) error {
 	if c.staged[destination] {
 		return nil
 	}
-	source := filepath.Clean(filepath.Join(filepath.Dir(file.source), imported))
 	if _, err := os.Stat(source); err != nil {
 		return fmt.Errorf("stage import %q of %s: %w", imported, file.source, err)
 	}
@@ -229,22 +323,59 @@ func declaredImports(path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read staged declaration %s: %w", path, err)
 	}
+	type instantiations []struct {
+		Fragment string `yaml:"fragment"`
+	}
 	var file struct {
-		Imports     []string `yaml:"imports"`
-		Instantiate []struct {
-			Fragment string `yaml:"fragment"`
-		} `yaml:"instantiate"`
+		Imports     []string       `yaml:"imports"`
+		Instantiate instantiations `yaml:"instantiate"`
+		// A machine template's body instantiates its stages (srd054 R2.2).
+		Machine struct {
+			Instantiate instantiations `yaml:"instantiate"`
+		} `yaml:"machine"`
 	}
 	if yaml.Unmarshal(data, &file) != nil {
 		return nil, nil
 	}
-	edges := append([]string(nil), file.Imports...)
-	for _, instantiation := range file.Instantiate {
-		if instantiation.Fragment != "" {
-			edges = append(edges, instantiation.Fragment)
-		}
+	var edges []string
+	for _, edge := range file.Imports {
+		edges = appendStagedEdge(edges, edge)
+	}
+	for _, instantiation := range append(file.Instantiate, file.Machine.Instantiate...) {
+		edges = appendStagedEdge(edges, instantiation.Fragment)
 	}
 	return edges, nil
+}
+
+// appendStagedEdge keeps the edges a stager follows: every non-empty import
+// and fragment path, relative or library-rooted.
+func appendStagedEdge(edges []string, edge string) []string {
+	if edge == "" {
+		return edges
+	}
+	return append(edges, edge)
+}
+
+// libraryPrefix is the directory every library root sits under as written,
+// and agentCoreRoot the implicit root the runtime image installs (srd056).
+const (
+	libraryPrefix = "/opt"
+	agentCoreRoot = "agent-core"
+)
+
+func isAgentCoreLibraryPath(path string) bool {
+	root, _, ok := libraryReference(path)
+	return ok && root == agentCoreRoot
+}
+
+// libraryReference splits /opt/<root>/<rest>.
+func libraryReference(path string) (root, rest string, ok bool) {
+	clean := filepath.ToSlash(filepath.Clean(path))
+	if !strings.HasPrefix(clean, libraryPrefix+"/") {
+		return "", "", false
+	}
+	root, rest, _ = strings.Cut(strings.TrimPrefix(clean, libraryPrefix+"/"), "/")
+	return root, filepath.FromSlash(rest), root != ""
 }
 
 func copyFile(source, destination string) error {

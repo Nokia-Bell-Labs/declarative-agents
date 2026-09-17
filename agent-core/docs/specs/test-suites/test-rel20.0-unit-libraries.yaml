@@ -1,0 +1,138 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel20.0-unit-libraries
+title: Test Suite for Release 20.0 Unit Libraries
+release: "20.0"
+
+traces:
+  - rel20.0-uc003-unit-libraries
+
+preconditions:
+  - srd056-unit-libraries defines import path forms, declared library roots, read-only libraries, closure, dump, and staging behavior, and the service-library convention.
+  - srd050 imports as amended by srd056, srd051 type units, srd052 instantiation, srd054 machine template instances, srd055 blueprint machine mappings, and pkg/profilestage are available.
+
+test_cases:
+  - use_case: rel20.0-uc003-unit-libraries
+    name: An import is relative or under a library root and nothing else
+    go_test: go test ./internal/load ./internal/tools/catalog ./internal/support/corepath -run 'TestLoadClosureRejectsAnAbsoluteImportOutsideALibraryRoot|TestToolFragmentOutsideALibraryRootIsRejected|TestImportTargetResolvesRelativeAndLibraryRootedPaths'
+    status: implemented
+    description: Import a unit by a relative path, by an /opt/agent-core path, and by /home/user/unit.yaml, in a tool file and a REST file.
+    expected:
+      relative_accepted: true
+      rooted_accepted: true
+      other_absolute_rejected_with_srd050_wording: true
+    traces: [rel20.0-uc003-unit-libraries S1, srd056-unit-libraries AC1, srd056-unit-libraries R1.1]
+
+  - use_case: rel20.0-uc003-unit-libraries
+    name: Rooted paths work in every form srd050 governs
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition ./internal/runtime/core ./internal/load -run 'TestToolImportsAndFragmentsResolveUnderTheAgentCoreLibrary|TestRESTImportsAndFragmentsResolveUnderTheAgentCoreLibrary|TestLoadMachineClosureSplicesAStageFromTheAgentCoreLibrary|TestProfileDeclaresLibraryRootsAndMapsItsOwnPaths|TestLoadClosureRejectsAnAbsoluteImportOutsideALibraryRoot'
+    status: implemented
+    description: Name a rooted path in an instantiate fragment, a machine template instance, a blueprint machine mapping, and a profile tool_declarations list; then put an unrooted absolute path in the profile list and in an import.
+    expected:
+      each_form_resolves: true
+      profile_absolute_path_accepted: true
+      import_absolute_path_rejected: true
+    traces: [rel20.0-uc003-unit-libraries S1, srd056-unit-libraries AC1, srd056-unit-libraries R1.2]
+
+  - use_case: rel20.0-uc003-unit-libraries
+    name: The agent-core root maps through --core-root or is used as written
+    go_test: go test ./internal/support/corepath ./internal/load ./internal/tools/catalog ./internal/tools/rest/definition ./internal/runtime/core -run 'TestImportTargetResolvesRelativeAndLibraryRootedPaths|TestLoadClosureImportsAUnitFromTheAgentCoreLibrary|TestToolImportsAndFragmentsResolveUnderTheAgentCoreLibrary|TestRESTImportsAndFragmentsResolveUnderTheAgentCoreLibrary|TestLoadMachineClosureSplicesAStageFromTheAgentCoreLibrary'
+    status: implemented
+    description: Import /opt/agent-core/tools/units/types-core.yaml from an application unit with an install root set, then with none set against a tree laid out as the image.
+    expected:
+      mapped_with_install_root: true
+      used_as_written_without: true
+    traces: [rel20.0-uc003-unit-libraries S1, srd056-unit-libraries AC1, srd056-unit-libraries R1.3]
+
+  - use_case: rel20.0-uc003-unit-libraries
+    name: A profile declares a named root for a directory
+    go_test: go test ./internal/tools/catalog ./internal/load -run 'TestProfileDeclaresLibraryRootsAndMapsItsOwnPaths|TestLoadClosureResolvesADeclaredLibraryRoot|TestLoadClosureRejectsAReservedOrMalformedRootName'
+    status: implemented
+    description: "Declare libraries: {mesh-lib: ../lib} and import /opt/mesh-lib/units/types.yaml; then declare agent-core and a name with an underscore."
+    expected:
+      import_maps_to_declared_directory: true
+      agent_core_name_rejected: true
+      malformed_name_rejected: true
+    traces: [rel20.0-uc003-unit-libraries S2, srd056-unit-libraries AC2, srd056-unit-libraries R2.1]
+
+  - use_case: rel20.0-uc003-unit-libraries
+    name: --library overrides a declared root for one run
+    go_test: go test ./cmd/agent ./internal/load -run 'TestLibraryFlagOverridesADeclaredRootOnly|TestLoadClosureAppliesALibraryOverride|TestRootCommandExposesEveryRuntimeFlag'
+    status: implemented
+    description: Run with --library mesh-lib=<other dir>, then with --library absent-lib=<dir>.
+    expected:
+      override_applies: true
+      undeclared_name_startup_error: true
+    traces: [rel20.0-uc003-unit-libraries S2, srd056-unit-libraries AC2, srd056-unit-libraries R2.2]
+
+  - use_case: rel20.0-uc003-unit-libraries
+    name: Roots are closure-scoped and must agree
+    go_test: go test ./internal/load ./internal/support/corepath -run 'TestLoadClosureReportsAnUndeclaredLibraryPrefix|TestLoadClosureResolvesADeclaredLibraryRoot|TestDeclaredLibraryRootsResolveScopedAndReadOnly'
+    status: implemented
+    description: Import under /opt/unknown; declare one root name with two directories on a profile and its blueprint; load a child profile relying on a parent root.
+    expected:
+      undeclared_prefix_names_prefix_and_profile: true
+      conflict_names_both: deferred with agent blueprints (GH-2123); a profile has one libraries mapping
+      child_does_not_inherit: true
+    traces: [rel20.0-uc003-unit-libraries S2, srd056-unit-libraries AC2, srd056-unit-libraries R2.3]
+
+  - use_case: rel20.0-uc003-unit-libraries
+    name: A library is read-only to its importers
+    go_test: go test ./internal/tools/catalog ./internal/support/corepath -run 'TestLibraryFileCannotOverrideAnImport|TestLibraryRelativeImportCannotLeaveItsRoot|TestDeclaredLibraryRootsResolveScopedAndReadOnly'
+    status: implemented
+    description: "Put override: true on a tool in a rooted file; give a rooted file a ../ import that leaves the root; give one an import of another root by prefix."
+    expected:
+      override_rejected_names_root_and_file: true
+      escape_rejected_names_root_and_file: true
+      cross_root_prefix_import_accepted: true
+    traces: [rel20.0-uc003-unit-libraries S2, srd056-unit-libraries AC2, srd056-unit-libraries R2.4]
+
+  - use_case: rel20.0-uc003-unit-libraries
+    name: Rooted files are closure files and digest assets
+    go_test: go test ./internal/load -run 'TestLoadClosureImportsAUnitFromTheAgentCoreLibrary|TestLoadClosureReportsAnUnusedLibraryImport|TestLoadClosureResolvesADeclaredLibraryRoot'
+    status: implemented
+    description: Load a profile importing through both roots, read Files, change one byte of a rooted file, and rebuild the program identity.
+    expected:
+      files_include_rooted_canonical_paths: true
+      digest_changes: true
+    traces: [rel20.0-uc003-unit-libraries S3, srd056-unit-libraries AC3, srd056-unit-libraries R3.1]
+
+  - use_case: rel20.0-uc003-unit-libraries
+    name: The dump marks rooted files with their root
+    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureImportsAUnitFromTheAgentCoreLibrary|TestLoadClosureResolvesADeclaredLibraryRoot|TestDumpGolden'
+    status: implemented
+    description: Dump a profile importing through both roots.
+    expected:
+      root_marker: "agent-core, declared name"
+      two_dumps_identical: true
+    traces: [rel20.0-uc003-unit-libraries S3, srd056-unit-libraries AC3, srd056-unit-libraries R3.2]
+
+  - use_case: rel20.0-uc003-unit-libraries
+    name: Staging copies declared-root files and leaves agent-core to the image
+    go_test: go test ./pkg/profilestage -run 'TestStageCopiesADeclaredLibraryRootToItsStagedPosition|TestStageLeavesAgentCoreLibraryImportsToTheImage|TestStageReportsAnUndeclaredLibraryRoot'
+    status: implemented
+    description: Stage a profile importing under a declared root and under /opt/agent-core, remove the source checkout, and load the staged profile with only --core-root.
+    expected:
+      declared_root_files_copied: true
+      agent_core_files_not_copied: true
+      staged_loads_without_library_flag: true
+    traces: [rel20.0-uc003-unit-libraries S3, srd056-unit-libraries AC3, srd056-unit-libraries R3.3]
+
+  - use_case: rel20.0-uc003-unit-libraries
+    name: The service-library convention is documented
+    go_test: mage audit
+    status: planned
+    description: Read the service library section of cfg-rest-tool-format.
+    expected:
+      layout_documented: "REST unit, type unit, client words"
+      consumers_import_through_root: true
+    traces: [rel20.0-uc003-unit-libraries S4, srd056-unit-libraries AC4, srd056-unit-libraries R4.1]
+
+  - use_case: rel20.0-uc003-unit-libraries
+    name: No service library has fewer than two importing profiles
+    go_test: mage stats:reuse
+    status: planned
+    description: Count importing profiles for every unit under a declared library root.
+    expected:
+      min_importing_profiles: 2
+    traces: [rel20.0-uc003-unit-libraries S4, srd056-unit-libraries AC4, srd056-unit-libraries R4.2]

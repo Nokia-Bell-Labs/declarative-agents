@@ -159,7 +159,7 @@ func runEvidenceCheck(repositoryRoot, label string, check evidenceCheck) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", label, err)
 		}
-		if err := validateArtifact(path, check.Artifact); err != nil {
+		if err := validateArtifact(root, path, check.Artifact); err != nil {
 			return fmt.Errorf("%s: evidence path %q: %w", label, check.Path, err)
 		}
 		switch check.Assertion {
@@ -176,7 +176,11 @@ func runEvidenceCheck(repositoryRoot, label string, check evidenceCheck) error {
 		case "yaml_reference":
 			return validateYAMLReference(root, path, check)
 		case "yaml_transition":
-			return validateYAMLSequenceMatch(path, "transitions", check.Match)
+			doc, err := readMachineDoc(root, path)
+			if err != nil {
+				return err
+			}
+			return validateSequenceMatch(doc, "transitions", check.Match)
 		case "yaml_sequence_match":
 			return validateYAMLSequenceMatch(path, check.Field, check.Match)
 		}
@@ -206,7 +210,7 @@ func resolveEvidencePath(root, relative string) (string, error) {
 	return path, nil
 }
 
-func validateArtifact(path, artifact string) error {
+func validateArtifact(root, path, artifact string) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
@@ -227,7 +231,13 @@ func validateArtifact(path, artifact string) error {
 		}
 		_, err = parser.ParseFile(token.NewFileSet(), path, nil, 0)
 		return err
-	case "machine", "profile", "rest_definition", "tool_declaration", "tool_selection":
+	case "machine":
+		doc, err := readMachineDoc(root, path)
+		if err != nil {
+			return err
+		}
+		return validateYAMLArtifact(doc, artifact)
+	case "profile", "rest_definition", "tool_declaration", "tool_selection":
 		doc, err := readYAMLMap(path)
 		if err != nil {
 			return err
@@ -546,6 +556,48 @@ func goExpressionName(expression ast.Expr) string {
 	return ""
 }
 
+// readMachineDoc reads a machine artifact as the machine it declares. A file
+// that instantiates a machine template (srd054) holds only its header, so the
+// template's machine body stands in, with the instance's name and purpose
+// applied; the template path resolves relative to the instance, or under the
+// repository's agent-core tree for /opt/agent-core paths.
+func readMachineDoc(root, path string) (map[string]any, error) {
+	doc, err := readYAMLMap(path)
+	if err != nil {
+		return nil, err
+	}
+	if _, hasStates := doc["states"]; hasStates {
+		return doc, nil
+	}
+	instantiate, _ := doc["instantiate"].([]any)
+	if len(instantiate) != 1 {
+		return doc, nil
+	}
+	entry, _ := instantiate[0].(map[string]any)
+	fragment, _ := entry["fragment"].(string)
+	if fragment == "" {
+		return doc, nil
+	}
+	target := filepath.Join(filepath.Dir(path), fragment)
+	if strings.HasPrefix(fragment, "/opt/agent-core/") {
+		target = filepath.Join(root, "agent-core", strings.TrimPrefix(fragment, "/opt/agent-core/"))
+	}
+	template, err := readYAMLMap(target)
+	if err != nil {
+		return nil, fmt.Errorf("machine template %s: %w", fragment, err)
+	}
+	machine, ok := template["machine"].(map[string]any)
+	if !ok {
+		return doc, nil
+	}
+	for _, field := range []string{"name", "purpose"} {
+		if value, ok := doc[field]; ok {
+			machine[field] = value
+		}
+	}
+	return machine, nil
+}
+
 func readYAMLMap(path string) (map[string]any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -622,7 +674,7 @@ func validateYAMLReference(root, path string, check evidenceCheck) error {
 	if err != nil {
 		return err
 	}
-	if err := validateArtifact(target, check.TargetArtifact); err != nil {
+	if err := validateArtifact(root, target, check.TargetArtifact); err != nil {
 		return fmt.Errorf("reference target: %w", err)
 	}
 	for _, reference := range references {
@@ -652,12 +704,16 @@ func yamlStrings(value any) []string {
 }
 
 func validateYAMLSequenceMatch(path, field string, match map[string]string) error {
-	if len(match) == 0 {
-		return errors.New("YAML sequence assertion requires match fields")
-	}
 	doc, err := readYAMLMap(path)
 	if err != nil {
 		return err
+	}
+	return validateSequenceMatch(doc, field, match)
+}
+
+func validateSequenceMatch(doc map[string]any, field string, match map[string]string) error {
+	if len(match) == 0 {
+		return errors.New("YAML sequence assertion requires match fields")
 	}
 	items, ok := doc[field].([]any)
 	if !ok {
@@ -692,7 +748,7 @@ func validateYAMLRelation(root string, check evidenceCheck) error {
 		if err != nil {
 			return err
 		}
-		if err := validateArtifact(path, check.Artifact); err != nil {
+		if err := validateArtifact(root, path, check.Artifact); err != nil {
 			return fmt.Errorf("evidence path %q: %w", relative, err)
 		}
 		doc, err := readYAMLMap(path)

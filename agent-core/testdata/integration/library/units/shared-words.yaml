@@ -1,0 +1,22 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A unit two profiles reach through the declared library root `shared`
+# (srd056 R2): profiles/library-one and profiles/library-two each declare
+# libraries: {shared: ../../library} and import this file by its rooted path.
+unit: shared-words
+imports:
+  - ../types/shared-types.yaml
+tools:
+  - name: say_shared
+    type: builtin
+    init: done
+    description: Finish with the shared library's word.
+    signature:
+      output: shared-types.Text
+      emits: [Done]
+    category: word
+    errors:
+      - signal: CommandError
+        condition: required input, configuration, or runtime state is invalid
+        message_shape: 'say_shared: <error>'
+        state_after_failure: no additional workflow step is executed by this tool
