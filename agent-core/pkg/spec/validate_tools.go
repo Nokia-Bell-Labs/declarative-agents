@@ -146,11 +146,14 @@ func selectedToolConsumers(corpus *Corpus) map[string][]string {
 	return consumers
 }
 
-// signatureRequiredCategories are the categories whose words must state a
-// signature: a word or response tool's contract is exactly what a signature
-// states, while boundary and stateful_internal keep their explicit blocks and
-// publish an envelope no type names yet (srd051 R6.9, R6.12).
-var signatureRequiredCategories = map[string]bool{"word": true, "response": true}
+// signatureRequiredCategories are the categories whose tools must state a
+// signature. A word or response tool's contract is exactly what a signature
+// states (srd051 R6.12). A boundary or stateful_internal tool's signature names
+// its signals and may omit output, while its effect blocks stay explicit
+// (R6.14, promoted by GH-2150 once every in-repo tool conformed).
+var signatureRequiredCategories = map[string]bool{
+	"word": true, "response": true, "boundary": true, "stateful_internal": true,
+}
 
 func missingToolContractFields(td ToolDeclaration) []string {
 	signed := td.Signature != nil

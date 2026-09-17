@@ -14,7 +14,7 @@ preconditions:
 test_cases:
   - use_case: rel19.0-uc001-signed-boundary-contracts
     name: An emits-only signature completes a boundary tool with its effect blocks
-    go_test: go test ./pkg/spec -run 'TestEmitsOnlySignatureCompletesABoundaryToolWithItsEffectBlocks|TestSignatureNeverWaivesBoundarySideEffects|TestSignatureLeavesStatefulInternalSideEffectsRequired'
+    go_test: go test ./pkg/spec -run 'TestEmitsOnlySignatureCompletesABoundaryToolWithItsEffectBlocks|TestValidate_BoundaryWordMustDeclareASignature|TestSignatureNeverWaivesBoundarySideEffects|TestSignatureLeavesStatefulInternalSideEffectsRequired'
     status: implemented
     description: Check a boundary tool with a signature naming only its signals, an output schema, and side_effects, reversibility, and undo; then drop each effect block in turn.
     expected:

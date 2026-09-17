@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
 func TestValidate_SelectedToolContractCompletenessErrorsForActiveMigratedTool(t *testing.T) {
@@ -105,20 +107,26 @@ func TestValidate_SelectedWordMustDeclareASignature(t *testing.T) {
 	require.Contains(t, findings[0].Message, "signature")
 }
 
-// TestValidate_BoundaryWordNeedsNoSignature is the other half. srd051 R6.9
-// keeps a boundary word's side-effect, reversibility, and undo blocks explicit
-// whatever it declares, and no type names the envelope its label publishes, so
-// the audit does not require one (GH-2028).
-func TestValidate_BoundaryWordNeedsNoSignature(t *testing.T) {
-	boundary := completeToolDeclaration("boundary_word")
-	boundary.Signature = nil
-	boundary.Category = "boundary"
-	corpus := &Corpus{
-		ToolSelections:   map[string][]string{"agent": {"boundary_word"}},
-		ToolDeclarations: map[string]ToolDeclaration{"boundary_word": boundary},
+// TestValidate_BoundaryWordMustDeclareASignature is srd051 R6.14 as promoted
+// by GH-2150: a boundary or stateful_internal tool without a signature fails
+// even with its prose complete, and one naming only its signals passes, because
+// the output type stays optional (R6.12).
+func TestValidate_BoundaryWordMustDeclareASignature(t *testing.T) {
+	for _, category := range []string{"boundary", "stateful_internal"} {
+		unsigned := completeToolDeclaration("boundary_word")
+		unsigned.Signature = nil
+		unsigned.Category = category
+		corpus := &Corpus{
+			ToolSelections:   map[string][]string{"agent": {"boundary_word"}},
+			ToolDeclarations: map[string]ToolDeclaration{"boundary_word": unsigned},
+		}
+		findings := checkSelectedToolContractCompleteness(corpus)
+		require.Len(t, findings, 1, category)
+		require.Contains(t, findings[0].Message, "signature")
+
+		signed := unsigned
+		signed.Signature = &catalog.ToolSignature{Emits: unsigned.Emits}
+		corpus.ToolDeclarations["boundary_word"] = signed
+		require.Empty(t, checkSelectedToolContractCompleteness(corpus), category)
 	}
-
-	findings := checkSelectedToolContractCompleteness(corpus)
-
-	require.Empty(t, findings)
 }

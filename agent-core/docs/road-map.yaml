@@ -752,14 +752,14 @@ releases:
       states a category. The declaration legacy gate lists the unsigned and
       uncategorized tools in a shrink-only baseline, and each application's
       migration signs its tools, deletes the prose, and deletes its lines.
-    status: planned
+    status: implemented
     planned_work:
       - id: gh-2110
         summary: Specify R6.14 and R6.15, gate unsigned boundary, stateful_internal, and uncategorized tools, and migrate coding-agent, agent-architecture, catalog, chatbot-mesh, and agent-core's library.
         status: implemented
       - id: gh-2150
         summary: Categorize or fold the catalog critic session and LLM overlay tools, then promote R6.14 and R6.15 into the corpus audit.
-        status: planned
+        status: implemented
     srds:
       - srd051-declaration-types
     use_cases:

@@ -208,16 +208,14 @@ requirements:
           descriptive prose, and under R6.8 and R6.9 it discharges no effect
           block the category keeps explicit. A boundary tool with a signature,
           a description, and its side_effects, reversibility, and undo blocks is
-          complete. Until every tool in the repository conforms, the declaration
-          legacy gate lists the unsigned ones in a shrink-only baseline, and the
-          corpus audit promotes the rule once that list is empty, as GH-2009 did
-          for R6.12.
+          complete. The corpus audit SHALL fail a selected boundary or
+          stateful_internal tool that declares no signature.
       - R6.15: >-
           Every tool declaration SHALL state a category. Which contract defaults
           apply depends on the category, so a tool without one cannot be judged
-          complete or typed. The declaration legacy gate lists uncategorized
-          tools in its shrink-only baseline until none remain, and the corpus
-          audit then makes a missing category an error.
+          complete or typed. The corpus audit SHALL fail a selected tool with
+          no category, and the declaration legacy gate SHALL fail any
+          uncategorized declaration.
 
 non_goals:
   - Parameterized types, generics over declarations, or conditional schemas.
@@ -274,7 +272,7 @@ implementation_status:
     - GH-2026 makes the unit segment a namespace (R1.4, R4.3), so catalog-types-core declares Text and Comparison under the names they describe.
     - GH-2023 promotes R6.13, so the authoring checks in internal/tools/catalog and the corpus audit in pkg/spec agree about relationships.
     - GH-2110 adds R6.14 and R6.15, lists unsigned and uncategorized tools in the declaration legacy gate, and signs every boundary and stateful_internal tool in coding-agent, agent-architecture, catalog, chatbot-mesh, and agent-core, deleting their descriptive prose; repository ceremony fell from 8,097 to 3,507 lines.
+    - GH-2150 folds the 20 catalog executor and critic model variants into one invoke_llm fragment carrying the boundary contract, deletes the unloaded critic session.yaml, and promotes R6.14 in the corpus audit, leaving no untyped or uncategorized entry in the legacy gate.
     - GH-2069 promoted R1.5 after establishing that an application could not reach agent-core's units, because the repository and the image place the two trees at different relative distances; srd056 amends R1.5 so a library-root path reaches them in both.
   planned:
     - GH-2118 implements R1.5 as amended by srd056 and deletes the application copies of agent-core type units.
-    - GH-2150 categorizes or folds the 26 catalog critic session and LLM overlay tools that R6.15 still lists; the corpus audit then promotes R6.14 and R6.15.
