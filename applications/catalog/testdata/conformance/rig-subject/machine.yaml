@@ -1,77 +1,20 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 name: rig-subject
+# An instance of catalog's rest-service machine template (srd054).
+unit: rig-subject-machine
 purpose: |-
   A reference agent under test: it serves a route whose request-scoped machine
   reads one REST dependency, so a dependency failure surfaces as a mapped
   response rather than preventing the agent from starting. The rig points that
   dependency at a scenario's mock.
-configuration:
-  machine: machine.yaml
-  tools: tools.yaml
-metric_labels:
-  profile: rig-subject
-initial_state: Idle
-budget:
-  command_timeout: 11m
-  max_iterations: 6
-states:
-  - name: Idle
-    meaning: Before the subject serves.
-  - name: Launching
-    meaning: The REST server launch command is running.
-  - name: Serving
-    meaning: Routes are available while the machine waits for a control event.
-  - name: Stopping
-    meaning: The machine stops its owned listener.
-  - name: Done
-    run_status: succeeded
-    meaning: Terminal. The listener stopped without error.
-  - name: Failed
-    run_status: failed
-    meaning: Terminal. Launch or control failed.
-terminal_states: [Done, Failed]
-signals:
-  - name: Seed
-    trigger: Loop initialization.
-  - name: ServerLaunched
-    trigger: Routes were registered.
-  - name: ExitRequested
-    trigger: A rig or operator requested exit.
-  - name: AwaitTimedOut
-    trigger: No control event arrived.
-  - name: ServerStopped
-    trigger: The listener stopped.
-  - name: CommandError
-    trigger: A lifecycle command failed.
-transitions:
-  - state: Idle
-    signal: Seed
-    next: Launching
-    action: launch_subject_rest
-  - state: Launching
-    signal: ServerLaunched
-    next: Serving
-    action: await_subject_control
-  - state: Launching
-    signal: CommandError
-    next: Failed
-  - state: Serving
-    signal: ExitRequested
-    next: Stopping
-    action: stop_subject_rest
-  - state: Serving
-    signal: AwaitTimedOut
-    next: Failed
-  - state: Serving
-    signal: ServerStopped
-    next: Failed
-  - state: Serving
-    signal: CommandError
-    next: Failed
-  - state: Stopping
-    signal: ServerStopped
-    next: Done
-  - state: Stopping
-    signal: CommandError
-    next: Failed
+instantiate:
+  - fragment: ../../../agents/units/rest-service-machine-template.yaml
+    args:
+      launch: launch_subject_rest
+      await: await_subject_control
+      stop: stop_subject_rest
+      route_group: rig-subject
+      profile: rig-subject
+      machine: machine.yaml
+      tools: tools.yaml
