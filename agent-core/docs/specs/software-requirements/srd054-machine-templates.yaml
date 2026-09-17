@@ -154,4 +154,16 @@ implementation_status:
   complete:
     - GH-2114 implements machine templates in the machine closure loader (R1, R2, R3), with a control-template fixture whose instance equals the control machine apart from its name; startup wiring faults name the template beside the instance. A reference left after substitution reports its line in the template; a strict-decode fault in a template body reports the line of the re-encoded body rather than the template (R2.5, partial).
     - GH-2115 extracts the serve machine shared by catalog's applier and the four chatbot-mesh serve agents into agent-core's library at tools/machines/serve-machine-template.yaml, instantiated by each through its install path.
-    - GH-2116 migrates the remaining groups that were one shape: the test-evidence audit, lifecycle approval, and Ollama model-listing machines into agent-core's library, catalog's mock and rig-subject lifecycle into a catalog template, and chatbot-mesh's two chat-turn critics into a scenario template; it deletes the unselected copy of the scenario-critic machine under chatbot-mesh's rig. Machine YAML nets about 520 lines fewer. Four groups keep hand-written copies: control-imports and control-types, whose dump srd050 AC8 holds equal to control's; the monitor fixture, whose text cmd/agent tests corrupt on purpose; the rig-subject scenario verdict machines, which share states but route them differently; and the two library fixtures, which are the srd056 two-importer proof.
+    - >-
+      GH-2116 migrates the remaining groups that were one shape: the test-
+      evidence audit, lifecycle approval, and Ollama model-listing machines
+      into agent-core's library, catalog's mock and rig-subject lifecycle into
+      a catalog template, and chatbot-mesh's two chat-turn critics into a
+      scenario template; it deletes the unselected copy of the scenario-critic
+      machine under chatbot-mesh's rig. Machine YAML nets about 520 lines
+      fewer. Four groups keep hand-written copies: control-imports and
+      control-types, whose dump srd050 AC8 holds equal to control's; the
+      monitor fixture, whose text cmd/agent tests corrupt on purpose; the rig-
+      subject scenario verdict machines, which share states but route them
+      differently; and the two library fixtures, which are the srd056 two-
+      importer proof.
