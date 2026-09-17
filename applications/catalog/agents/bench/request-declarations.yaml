@@ -10,12 +10,8 @@ tools:
     init: list_evaluation_sessions
     visibility: internal
     category: boundary
-    emits: [EvaluationDataReady, EvaluationMissing, EvaluationDenied, CommandError]
+    signature: {emits: [EvaluationDataReady, EvaluationMissing, EvaluationDenied, CommandError]}
     description: List evaluator sessions from persisted point artifacts.
-    problem: Bench reads need a deterministic, HTTP-independent evaluation artifact query.
-    goals: [Return sorted session counts from meta.json files.]
-    requirements: {input: [Configured evaluation root.], output: [Evaluation session summaries.], errors: [Filesystem failures remain distinct.]}
-    non_goals: [Does not serve HTTP or own UI policy.]
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Evaluation session summaries, schema: {type: array}}
     side_effects: [{kind: filesystem_read, target: evaluation_artifacts, state: read_only}]
@@ -28,7 +24,6 @@ tools:
     <<: *evaluation_query
     init: analyze_evaluation_session
     description: Compute model and sample statistics for one evaluation session.
-    goals: [Reuse deterministic evaluation statistics without HTTP dependencies.]
     parameters:
       type: object
       properties: {suite: {type: string}, timestamp: {type: string}}
@@ -39,7 +34,6 @@ tools:
     <<: *evaluation_query
     init: list_evaluation_points
     description: List point outcomes and trace-derived metrics for one session.
-    goals: [Return stable point metrics from persisted evaluator artifacts.]
     parameters:
       type: object
       properties: {suite: {type: string}, timestamp: {type: string}}
@@ -50,7 +44,6 @@ tools:
     <<: *evaluation_query
     init: read_evaluation_trace
     description: Read and normalize one evaluator trace.
-    goals: [Return spans and tool snapshots from a bounded point path.]
     parameters:
       type: object
       properties: {suite: {type: string}, timestamp: {type: string}, point_id: {type: string}}
@@ -74,12 +67,9 @@ tools:
       - bench-config-paths
     visibility: internal
     category: boundary
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Discover bench configuration paths through declared find.
-    problem: Recursive profile traversal belongs at the external filesystem CLI boundary.
-    goals: [Emit deterministic paths beneath the fixed agents root.]
-    requirements: {input: [Optional prefix only.], output: [One resource-relative path per line.], errors: [Traversal failures stay explicit.]}
-    non_goals: [Does not shape metadata or accept a runtime root.]
     parameters:
       type: object
       properties:
@@ -98,12 +88,8 @@ tools:
     init: list_resource
     visibility: internal
     category: boundary
-    emits: [DocumentListReady, DocumentResourceDenied, CommandError]
+    signature: {emits: [DocumentListReady, DocumentResourceDenied, CommandError]}
     description: Shape discovered bench paths as allowlisted configuration metadata.
-    problem: Profile views need path-safe metadata without hidden recursive traversal.
-    goals: [Validate discovered paths and list YAML files under the configured agents root.]
-    requirements: {input: [Declared find output.], output: [Stable resource entries.], errors: [Denied and filesystem outcomes stay distinct.]}
-    non_goals: [Does not traverse directories or shape HTTP responses.]
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Configuration resource entries, schema: {type: array}}
     side_effects: [{kind: filesystem_read, target: bench_configs, state: read_only}]
@@ -126,9 +112,8 @@ tools:
   - name: read_bench_config
     <<: *resource_base
     init: read_resource
-    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    signature: {emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]}
     description: Read one allowlisted bench configuration YAML.
-    goals: [Return raw and parsed configuration content.]
     parameters: {type: object, properties: {path: {type: string}}, required: [path]}
     output: {description: Configuration resource detail, schema: {type: object}}
     config: *config_resource
@@ -136,9 +121,8 @@ tools:
   - name: read_bench_source
     <<: *resource_base
     init: read_resource
-    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    signature: {emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]}
     description: Read one allowlisted text source file.
-    goals: [Expose bounded textual source through the generic resource word.]
     parameters: {type: object, properties: {path: {type: string}}, required: [path]}
     output: {description: Source resource detail, schema: {type: object}}
     config:
@@ -154,9 +138,8 @@ tools:
   - name: read_bench_experiment
     <<: *resource_base
     init: read_resource
-    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    signature: {emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]}
     description: Read one persisted evaluator experiment YAML.
-    goals: [Expose only experiment.yaml files below eval-results.]
     parameters: {type: object, properties: {path: {type: string}}, required: [path]}
     output: {description: Parsed evaluator experiment, schema: {type: object}}
     config:

@@ -42,7 +42,8 @@ tools:
         fi
       - jurist-ref-scan
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Externally scan one ref_check target and its declared inventories.
     category: boundary
     parameters:

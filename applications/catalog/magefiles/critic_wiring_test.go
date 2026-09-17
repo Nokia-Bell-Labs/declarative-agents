@@ -180,15 +180,12 @@ func TestCriticRunPointContractNamesToolDeclarations(t *testing.T) {
 		if declaration.Name != "run_point" {
 			continue
 		}
+		// The signed boundary word no longer restates its config in prose
+		// (srd051 R6.14); the config itself is the contract.
 		if len(declaration.Config.PointToolDeclarations) == 0 {
 			t.Fatal("run_point config has no point_tool_declarations")
 		}
-		for _, requirement := range declaration.Requirements.Input {
-			if requirement == "must require point_machine, point_tools, and point_tool_declarations in config" {
-				return
-			}
-		}
-		t.Fatalf("run_point input requirements do not name point_tool_declarations: %v", declaration.Requirements.Input)
+		return
 	}
 	t.Fatal("run_point declaration not found")
 }

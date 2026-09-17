@@ -7,24 +7,10 @@ tools:
     binary: rg
     args: [--json, --line-number, --no-ignore, --hidden, --text, --threads, "1", --sort, path]
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Search one declared jurist grep_check with ripgrep.
     category: boundary
-    problem: Charter text search must be an external, machine-visible filesystem operation.
-    goals:
-      - Run one deterministic rg search for each grep_check plan.
-      - Preserve JSON path, line, and matched-line evidence for reduction.
-    requirements:
-      input:
-        - query, root path, and effective include/exclude globs come from the current grep_check binding
-      output:
-        - emits rg JSON events and its exit code as structured output
-      errors:
-        - no matches emit ToolFailed with exit code one
-        - process startup failures emit CommandError
-    non_goals:
-      - Does not decide whether a match is a finding.
-      - Does not format the jurist report.
     parameters:
       type: object
       properties:
@@ -78,9 +64,3 @@ tools:
         condition: rg could not be started.
         message_shape: "jurist_rg: <process error>"
         state_after_failure: No target or validation state changes.
-    relationships:
-      before: [validate_specs]
-      after: [reduce_grep_checks]
-      overlaps:
-        - tool: find
-          difference: jurist_rg consumes trusted charter plans and emits JSON evidence for finding reduction.

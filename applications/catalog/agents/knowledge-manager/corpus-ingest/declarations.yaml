@@ -10,25 +10,12 @@ tools:
     visibility: internal
     category: boundary
     description: Check the Chroma v2 heartbeat through the configured REST client.
-    problem: The ingest flow must fail fast when the Chroma server is unreachable.
-    goals:
-      - Resolve the chroma client and heartbeat operation.
-      - Return a configured readiness signal to MachineSpec.
-    requirements:
-      input:
-        - Runtime input supplies no transport authority or request parameters.
-      output:
-        - Output reports operation identity and status.
-      errors:
-        - Definition, network, timeout, and mapping failures emit CommandError.
-    non_goals:
-      - Does not create collections or start the Chroma server.
-      - Does not accept runtime method, URL, host, or auth overrides.
     parameters:
       type: object
       properties: {}
       additional_properties: false
-    emits: [ChromaReady, CommandError]
+    signature:
+      emits: [ChromaReady, CommandError]
     output:
       description: Mapped Chroma heartbeat result.
       schema:
@@ -49,10 +36,6 @@ tools:
       - signal: CommandError
         condition: The chroma client definition is missing, or the heartbeat call fails on network, timeout, or mapping.
         state_after_failure: No Chroma state is read or changed.
-    relationships:
-      overlaps:
-        - tool: rest_client_invoke
-          difference: This profile-specific word binds the Chroma heartbeat readiness probe.
     config:
       rest_ref: chroma
       operation: heartbeat
@@ -63,25 +46,12 @@ tools:
     visibility: internal
     category: boundary
     description: Check the Ollama version endpoint through the configured REST client.
-    problem: The ingest flow must fail fast when the Ollama server is unreachable.
-    goals:
-      - Resolve the ollama client and version operation.
-      - Return a configured readiness signal to MachineSpec.
-    requirements:
-      input:
-        - Runtime input supplies no transport authority or request parameters.
-      output:
-        - Output reports operation identity, status, and Ollama version.
-      errors:
-        - Definition, network, timeout, and mapping failures emit CommandError.
-    non_goals:
-      - Does not pull models or start the Ollama server.
-      - Does not accept runtime method, URL, host, or auth overrides.
     parameters:
       type: object
       properties: {}
       additional_properties: false
-    emits: [OllamaReady, CommandError]
+    signature:
+      emits: [OllamaReady, CommandError]
     output:
       description: Mapped Ollama version result.
       schema:
@@ -102,10 +72,6 @@ tools:
       - signal: CommandError
         condition: The ollama client definition is missing, or the version call fails on network, timeout, or mapping.
         state_after_failure: No Ollama state is read or changed.
-    relationships:
-      overlaps:
-        - tool: rest_client_invoke
-          difference: This profile-specific word binds the Ollama version readiness probe.
     config:
       rest_ref: ollama
       operation: version
@@ -116,28 +82,13 @@ tools:
     visibility: internal
     category: boundary
     description: Embed a corpus document at the configured provider and carry its text and id forward.
-    problem: Chroma does not embed server-side, so the agent must compute the vector at a provider.
-    goals:
-      - Select the document text and id from the previous read Result.
-      - Dispatch through the configured REST client and uniquely named document-embedding operation.
-      - Return the embedding vector mapped from the provider response.
-      - Carry the document text and id forward for the collection and add words.
-    requirements:
-      input:
-        - Runtime input is selected from the previous Result output through input_mapping.
-      output:
-        - Output includes the mapped embedding vector and the carried text and id.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
-    non_goals:
-      - Does not author or alter the embedding vector.
-      - Does not accept runtime method, URL, host, or auth overrides.
     parameters:
       type: object
       properties:
         input: {type: string}
         id: {type: string}
-    emits: [DocumentEmbedded, CommandError]
+    signature:
+      emits: [DocumentEmbedded, CommandError]
     output:
       description: Mapped provider embedding with carried document text and id.
       schema:
@@ -158,12 +109,6 @@ tools:
       - signal: CommandError
         condition: The configured document-embedding operation is absent or fails on network, timeout, schema, or mapping.
         state_after_failure: No embedding is produced and no state changes.
-    relationships:
-      overlaps:
-        - tool: rest_client_invoke
-          difference: This profile-specific word binds the configured provider's document-embedding operation.
-      after: [read_resource]
-      before: [normalize_embedding]
     config:
       rest_ref: "${CORPUS_INGEST_EMBEDDING_REST_REF:-ollama}"
       operation: "${CORPUS_INGEST_EMBEDDING_OPERATION:-embed}"
@@ -203,28 +148,14 @@ tools:
     visibility: internal
     category: boundary
     description: Create-or-get the collection and carry the embedding, document, and id forward.
-    problem: Single-hop threading means the returned collection id must reach add through this word.
-    goals:
-      - Create-or-get the plain collection with no server-side embedding function.
-      - Resolve the returned collection id for the add path.
-      - Carry the embedding, document, and id forward from the normalized Result.
-    requirements:
-      input:
-        - Embedding, document, and id are selected from the previous normalize_embedding Result output.
-      output:
-        - Output includes the mapped collection id and the carried embedding, document, and id.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
-    non_goals:
-      - Does not configure a server-side embedding function.
-      - Does not accept runtime method, URL, host, or auth overrides.
     parameters:
       type: object
       properties:
         embeddings: {type: array}
         documents: {type: string}
         ids: {type: string}
-    emits: [CollectionReady, CommandError]
+    signature:
+      emits: [CollectionReady, CommandError]
     output:
       description: Mapped Chroma collection id with carried record fields.
       schema:
@@ -247,12 +178,6 @@ tools:
       - signal: CommandError
         condition: The Chroma create-or-get collection call fails on network, timeout, schema, or mapping.
         state_after_failure: The collection id is unresolved; create-or-get is idempotent so there is no net change.
-    relationships:
-      overlaps:
-        - tool: rest_client_invoke
-          difference: This profile-specific word binds the Chroma create-or-get collection operation for the add path.
-      after: [normalize_embedding]
-      before: [chroma_add]
     config:
       rest_ref: chroma
       operation: create_or_get_collection_carry
@@ -263,24 +188,11 @@ tools:
     visibility: internal
     category: boundary
     description: Re-resolve the collection id for the count verification.
-    problem: The count verification needs the collection id after the ingest loop ends.
-    goals:
-      - Create-or-get the collection and resolve its id.
-      - Provide the collection id to the count word.
-    requirements:
-      input:
-        - Runtime input selects nothing from the previous Result.
-      output:
-        - Output includes the mapped collection id.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
-    non_goals:
-      - Does not add records or configure a server-side embedding function.
-      - Does not accept runtime method, URL, host, or auth overrides.
     parameters:
       type: object
       properties: {}
-    emits: [CollectionReady, CommandError]
+    signature:
+      emits: [CollectionReady, CommandError]
     output:
       description: Mapped Chroma collection id.
       schema:
@@ -302,11 +214,6 @@ tools:
       - signal: CommandError
         condition: The Chroma create-or-get collection call fails on network, timeout, schema, or mapping.
         state_after_failure: The collection id is unresolved; create-or-get is idempotent so there is no net change.
-    relationships:
-      overlaps:
-        - tool: rest_client_invoke
-          difference: This profile-specific word binds the Chroma create-or-get collection operation for the count path.
-      before: [chroma_count]
     config:
       rest_ref: chroma
       operation: create_or_get_collection
@@ -317,20 +224,6 @@ tools:
     visibility: internal
     category: boundary
     description: Add the agent-supplied embedding, document, and id to the collection.
-    problem: Chroma stores client-supplied vectors, threaded from the previous words.
-    goals:
-      - Thread the collection id, embedding, document, and id from the previous Result.
-      - Write the record to the resolved collection.
-    requirements:
-      input:
-        - Collection id, embedding, document, and id are selected from the previous Result output.
-      output:
-        - Output reports operation identity and status.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
-    non_goals:
-      - Does not author the embedding vector.
-      - Does not accept runtime method, URL, host, or auth overrides.
     parameters:
       type: object
       properties:
@@ -338,7 +231,8 @@ tools:
         embeddings: {type: array}
         documents: {type: string}
         ids: {type: string}
-    emits: [DocumentAdded, CommandError]
+    signature:
+      emits: [DocumentAdded, CommandError]
     output:
       description: Mapped Chroma add result.
       schema:
@@ -361,11 +255,6 @@ tools:
       - signal: CommandError
         condition: The Chroma add call fails on network, timeout, schema, or mapping.
         state_after_failure: The record is not written to the collection.
-    relationships:
-      overlaps:
-        - tool: rest_client_invoke
-          difference: This profile-specific word binds the Chroma add-records operation.
-      after: [resolve_collection]
     config:
       rest_ref: chroma
       operation: add_records
@@ -376,25 +265,12 @@ tools:
     visibility: internal
     category: boundary
     description: Read the collection item count for post-ingest verification.
-    problem: The ingest flow must verify that documents were added.
-    goals:
-      - Thread the collection id from the previous Result.
-      - Read the collection item count.
-    requirements:
-      input:
-        - The collection id is selected from the previous Result output.
-      output:
-        - Output reports operation identity and status.
-      errors:
-        - Network, timeout, and mapping failures emit CommandError.
-    non_goals:
-      - Does not add or remove records.
-      - Does not accept runtime method, URL, host, or auth overrides.
     parameters:
       type: object
       properties:
         collection: {type: string}
-    emits: [CountReady, CommandError]
+    signature:
+      emits: [CountReady, CommandError]
     output:
       description: Mapped Chroma count result.
       schema:
@@ -415,11 +291,6 @@ tools:
       - signal: CommandError
         condition: The Chroma count call fails on network, timeout, or mapping.
         state_after_failure: No count is read and no state changes.
-    relationships:
-      overlaps:
-        - tool: rest_client_invoke
-          difference: This profile-specific word binds the Chroma count-records operation.
-      after: [count_collection]
     config:
       rest_ref: chroma
       operation: count_records
@@ -438,12 +309,9 @@ tools:
       - corpus-resource-paths
     visibility: internal
     category: boundary
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Discover corpus paths through the declared filesystem CLI.
-    problem: Recursive corpus traversal belongs at the external find boundary.
-    goals: [Emit deterministic workspace-relative paths for resource shaping.]
-    requirements: {input: [The profile fixes the workspace root.], output: [One path per line.], errors: [Traversal failures stay explicit.]}
-    non_goals: [Does not shape metadata or accept runtime traversal authority.]
     parameters: {type: object, properties: {}, additionalProperties: false}
     output_cap: 1048576
     side_effects:
@@ -459,23 +327,9 @@ tools:
     visibility: internal
     category: boundary
     description: Shape discovered corpus paths so the model can choose which document to ingest.
-    problem: The model needs allowlisted metadata after a visible external traversal step.
-    goals:
-      - Validate and list the discovered documents under the configured corpus resource.
-      - Return resource-relative paths for the model to read.
-    requirements:
-      input:
-        - The preceding declared find word supplies workspace-relative paths.
-      output:
-        - Output includes resource-relative document entries.
-      errors:
-        - Unknown resources and scan failures emit declared signals.
-    non_goals:
-      - Does not read document body content.
-      - Does not recursively traverse directories.
-      - Does not let runtime input choose roots, include patterns, or extension policy.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    emits: [DocumentListReady, DocumentResourceDenied, CommandError]
+    signature:
+      emits: [DocumentListReady, DocumentResourceDenied, CommandError]
     output:
       description: Structured corpus document entries.
       schema:
@@ -500,8 +354,6 @@ tools:
       - signal: CommandError
         condition: Scanning the configured resource root fails.
         state_after_failure: No documents are listed and no state changes.
-    relationships:
-      before: [read_resource]
     config:
       resource: corpus
       resources:
@@ -519,27 +371,14 @@ tools:
     init: read_resource
     category: boundary
     description: Read one corpus document the model selected.
-    problem: The model selects a document by path; the machine then embeds and adds it deterministically.
-    goals:
-      - Read the model-selected resource-relative document.
-      - Return the raw document text and path for the embed and add words.
-    requirements:
-      input:
-        - Runtime input may choose only the configured resource name and a resource-relative path.
-      output:
-        - Output includes the document path and raw content.
-      errors:
-        - Missing files, denied paths, and parse failures emit distinct declared signals.
-    non_goals:
-      - Does not mutate documents.
-      - Does not let runtime input choose roots, parser mode, or extension policy.
     parameters:
       type: object
       properties:
         resource: {type: string, enum: [corpus]}
         path: {type: string}
       required: [resource, path]
-    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    signature:
+      emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
     output:
       description: Structured document detail from the configured resource.
       schema:
@@ -569,9 +408,6 @@ tools:
       - signal: CommandError
         condition: The resource read fails for a reason other than the declared document signals.
         state_after_failure: No document is read and no state changes.
-    relationships:
-      after: [list_resource]
-      before: [embed_document]
     config:
       resource: corpus
       resources:
@@ -587,29 +423,9 @@ tools:
     init: invoke_llm
     visibility: internal
     category: boundary
-    emits: [LLMResponded, CommandError]
+    signature:
+      emits: [LLMResponded, CommandError]
     description: Invoke the configured model to drive corpus file selection.
-    problem: The ingest loop needs a model boundary that lists the corpus and selects one file to read per turn.
-    goals:
-      - List the corpus once, then select the next unread file, or signal done.
-      - Never author an embedding vector; the machine sequences embedding after each read.
-      - Keep model, provider, parser, and prompt configuration profile-owned.
-    requirements:
-      input:
-        - must read conversation history and the model-visible manifest from runtime state
-        - must use the configured model against local Ollama
-      output:
-        - must emit LLMResponded when the model returns text
-        - must emit CommandError for provider setup, model discovery, or chat failures
-      errors:
-        - Provider setup, model discovery, and chat failures emit CommandError.
-      side_effects:
-        - must call local Ollama POST /api/chat
-      undo:
-        - must restore conversation history from the pre-call snapshot
-    non_goals:
-      - Does not call Chroma or the Ollama embedding endpoint.
-      - Does not author or alter an embedding vector.
     output:
       description: Raw model response text.
       schema:
@@ -634,9 +450,6 @@ tools:
         condition: provider configuration is invalid, the model is unavailable, or the model call fails
         message_shape: 'invoke_llm: <provider/model>: <error>'
         state_after_failure: conversation history is unchanged unless the provider response was already appended
-    relationships:
-      after: [chroma_ready, ollama_ready]
-      before: [read_resource]
     config:
       model: "${CORPUS_CHAT_MODEL:-ornith:9b}"
       provider: ollama

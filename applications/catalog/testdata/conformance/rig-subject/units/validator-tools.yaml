@@ -11,23 +11,11 @@ tools:
     visibility: internal
     category: boundary
     description: Read the subject's dependency-reading route and map its answer to a signal.
-    problem: A scenario must assert what the subject does when its dependency behaves a given way.
-    goals:
-      - Call the subject at the address the rig published.
-      - Map the subject's response to the signal this scenario expects.
-    requirements:
-      input:
-        - Tool config references the subject client resource.
-      output:
-        - Output reports the subject's mapped response.
-      errors:
-        - Unreachable or unmapped responses emit CommandError.
-    non_goals:
-      - Does not start or stop the subject; the rig owns that.
     parameters:
       type: object
       properties: {}
-    emits: [SubjectAnswered, SubjectDegraded, SubjectBroke, RESTResourceRead, CommandError]
+    signature:
+      emits: [SubjectAnswered, SubjectDegraded, SubjectBroke, RESTResourceRead, CommandError]
     output:
       description: The subject's response.
       schema:

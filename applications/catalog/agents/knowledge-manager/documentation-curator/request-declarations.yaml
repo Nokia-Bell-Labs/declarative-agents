@@ -24,15 +24,9 @@ tools:
       - doc-list-paths
     visibility: internal
     category: boundary
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Discover documentation paths through the declared filesystem CLI.
-    problem: Recursive traversal belongs at the external find boundary rather than inside list_resource Go.
-    goals: [Emit deterministic resource-relative paths under the fixed docs root.]
-    requirements:
-      input: [An optional prefix is the only runtime filter.]
-      output: [One resource-relative file or symlink path per line.]
-      errors: [Missing roots and find failures remain explicit.]
-    non_goals: [Does not shape metadata or accept a runtime root.]
     parameters:
       type: object
       properties:
@@ -50,15 +44,9 @@ tools:
     init: list_resource
     visibility: internal
     category: boundary
-    emits: [DocumentListReady, DocumentResourceDenied, CommandError]
+    signature:
+      emits: [DocumentListReady, DocumentResourceDenied, CommandError]
     description: Shape discovered documentation paths as allowlisted resource metadata.
-    problem: Index requests need path-safe metadata without hiding traversal in Go.
-    goals: [Validate discovered paths and return stable metadata for allowed YAML and Markdown files.]
-    requirements:
-      input: [The preceding declared find word supplies resource-relative paths.]
-      output: [Entries contain path, name, category, extension, and size.]
-      errors: [Denied paths and filesystem failures emit declared signals.]
-    non_goals: [Does not traverse directories or shape an HTTP response.]
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Documentation resource entries, schema: {type: array}}
     side_effects: [{kind: filesystem_read, target: docs, state: read_only}]
@@ -90,15 +78,9 @@ tools:
     init: read_resource
     visibility: internal
     category: boundary
-    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    signature:
+      emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
     description: Read one allowlisted documentation resource.
-    problem: Detail and suggestion requests need one path-safe document read.
-    goals: [Return parsed and raw content without exposing arbitrary roots.]
-    requirements:
-      input: [The request supplies one relative path.]
-      output: [Output includes raw, parsed, content type, extension, and size.]
-      errors: [Missing, denied, parse, and infrastructure failures remain distinct.]
-    non_goals: [Does not validate or mutate a document.]
     parameters: {type: object, properties: {path: {type: string}}, required: [path]}
     output: {description: Documentation detail, schema: {type: object}}
     side_effects: [{kind: filesystem_read, target: docs, state: read_only}]
@@ -112,15 +94,9 @@ tools:
     init: read_resource
     visibility: internal
     category: boundary
-    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    signature:
+      emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
     description: Read one allowlisted runtime config.
-    problem: The UI config viewer needs the generic resource boundary.
-    goals: [Allow YAML config reads under configs only.]
-    requirements:
-      input: [One relative config path.]
-      output: [Raw and parsed YAML.]
-      errors: [Unsafe paths are denied.]
-    non_goals: [Does not write configuration.]
     parameters: {type: object, properties: {path: {type: string}}, required: [path]}
     output: {description: Config detail, schema: {type: object}}
     side_effects: [{kind: filesystem_read, target: configs, state: read_only}]
@@ -142,15 +118,9 @@ tools:
     init: read_resource
     visibility: internal
     category: boundary
-    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    signature:
+      emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
     description: Read one allowlisted text source file.
-    problem: The source viewer needs a bounded generic resource read.
-    goals: [Allow known text extensions inside the workspace.]
-    requirements:
-      input: [One relative source path.]
-      output: [Raw content, extension, MIME type, and size.]
-      errors: [Traversal, binary, and disallowed extension reads are denied.]
-    non_goals: [Does not expose binary or arbitrary filesystem content.]
     parameters: {type: object, properties: {path: {type: string}}, required: [path]}
     output: {description: Source detail, schema: {type: object}}
     side_effects: [{kind: filesystem_read, target: workspace_source, state: read_only}]
@@ -172,15 +142,9 @@ tools:
     init: read_resource
     visibility: internal
     category: boundary
-    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    signature:
+      emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
     description: Read one persisted curator review artifact.
-    problem: Decisions must survive process restarts instead of using an in-memory Go map.
-    goals: [Read only JSON reviews under the declared state directory.]
-    requirements:
-      input: [A capture word derives the review path from patch_id.]
-      output: [Parsed and raw review content.]
-      errors: [Missing reviews remain distinguishable.]
-    non_goals: [Does not decide or write review state.]
     parameters: {type: object, properties: {path: {type: string}}, required: [path]}
     output: {description: Persisted review detail, schema: {type: object}}
     side_effects: [{kind: filesystem_read, target: curator_reviews, state: read_only}]
@@ -288,13 +252,10 @@ tools:
     binary: sh
     args: [-c, 'exec rg -i -n --json --max-count 1 -- "$1" docs', curator-search]
     visibility: internal
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Search the configured docs corpus with ripgrep.
     category: boundary
-    problem: Search is an external atomic corpus operation rather than Go workflow policy.
-    goals: [Run rg with a fixed root and bounded output.]
-    requirements: {input: [Query comes from captured command state.], output: [rg JSON events.], errors: [No matches emit ToolFailed and infrastructure errors emit CommandError.]}
-    non_goals: [Does not accept a runtime root or binary.]
     parameters:
       type: object
       properties:
@@ -481,12 +442,9 @@ tools:
     init: file_write
     visibility: internal
     category: boundary
-    emits: [ToolDone, ToolFailed, CommandError]
+    signature:
+      emits: [ToolDone, ToolFailed, CommandError]
     description: Persist a complete curator review artifact.
-    problem: Cross-request state must be durable and rollback-capable.
-    goals: [Write only the profile-composed path and complete JSON content.]
-    requirements: {input: [Previous output supplies path and content.], output: [A filesystem write receipt.], errors: [Unsafe paths and write failures are reported.]}
-    non_goals: [Does not construct or interpret review policy.]
     parameters:
       type: object
       properties: {path: {type: string}, content: {type: string}}

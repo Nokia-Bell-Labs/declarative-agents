@@ -6,36 +6,16 @@ tools:
   type: builtin
   init: parse_suite_config
   visibility: internal
-  emits:
-  - SuiteConfigParsed
-  - CommandError
+  signature:
+    emits:
+    - SuiteConfigParsed
+    - CommandError
   description: Read and validate critic suite YAML metadata without discovering samples or creating session artifacts.
   config:
     input: $request.suite
     output_dir: eval-results
     reps: 1
   category: stateful_internal
-  problem: The critic session machine needs suite YAML parsed into critic session state before sample discovery, grid expansion, or point iteration can run.
-  goals:
-  - Parse suite metadata from the configured input file.
-  - Resolve session defaults such as output directory and repetitions.
-  - Store suite configuration in critic session state for later words.
-  requirements:
-    input:
-    - must read suite YAML from the configured input path
-    - must apply output_dir and reps defaults from tool config
-    output:
-    - must emit SuiteConfigParsed when suite metadata is valid
-    side_effects:
-    - must update critic session state with parsed suite config
-    undo:
-    - must restore critic session state to the previous snapshot
-    errors:
-    - must emit CommandError when suite YAML is missing, invalid, or incompatible
-  non_goals:
-  - Does not discover sample directories.
-  - Does not expand grid points.
-  - Does not create session artifact directories.
   output:
     description: Parsed critic suite metadata summary.
     schema:
@@ -58,19 +38,11 @@ tools:
     target: critic_session
     state: suite_config_parsed
     description: Stores parsed suite config and defaults in critic session state.
-  reversibility:
-    classification: reversible
-    requires_confirmation: false
   errors:
   - signal: CommandError
     condition: suite file is missing, invalid, or mixes incompatible suite formats
     message_shape: 'parse_suite_config: <error>'
     state_after_failure: previous critic session state is preserved
-  relationships:
-    before:
-    - Seed
-    after:
-    - discover_suite_samples
   undo:
     strategy: evaluator_session_restore
     description: Restore the critic session from the persisted pre-command receipt.
@@ -80,44 +52,12 @@ tools:
   type: builtin
   init: run_point
   visibility: internal
-  emits:
-  - PointDone
-  - CommandError
+  signature:
+    emits:
+    - PointDone
+    - CommandError
   description: Run the per-point evaluation pipeline via a nested core.Loop with the point machine.
   category: boundary
-  problem: 'The critic session machine needs a boundary word that runs one
-
-    evaluation point by entering a nested state machine. This is not an
-
-    ordinary deterministic word because it delegates control to another
-
-    machine with its own tool registry and point-local side effects.
-
-    '
-  goals:
-  - Run the configured point_machine with the configured point_tools for the current evaluation point.
-  - Record the point result in critic session state.
-  - Keep point-machine configuration declarative in YAML rather than hardcoded in Go.
-  requirements:
-    input:
-    - must require point_machine, point_tools, and point_tool_declarations in config
-    - must require agent_name, positive max_iterations, and success_state in config
-    - must bind the current point input supplied by the session for_each iterator
-    output:
-    - must emit PointDone after the nested point machine reaches its configured success state
-    - must return nested machine status, point identity, and result metadata
-    side_effects:
-    - must run one nested core.Loop with the point registry
-    - must allow nested point tools to create workspaces, run agents, and write artifacts
-    - must update critic session state with the point outcome
-    undo:
-    - must rely on point workspace checkpoints and session-state history to reverse nested effects
-    errors:
-    - must emit CommandError when config is missing, current point context is absent, or nested machine setup fails
-  non_goals:
-  - Does not prepare the point workspace itself.
-  - Does not run oracle checks or collect metrics directly.
-  - Does not hide point-machine sequencing; point.yaml owns that workflow.
   output:
     description: Nested point-machine execution result.
     schema:
@@ -165,16 +105,6 @@ tools:
     condition: required config is missing, iterator point binding fails, or nested machine construction fails
     message_shape: 'run_point: <error>'
     state_after_failure: session state unchanged unless nested execution already recorded a result
-  relationships:
-    before:
-    - materialize_eval_points
-    after:
-    - report_session
-    overlaps:
-    - tool: invoke_executor
-      difference: invoke_executor aliases self_invoke for a child process; run_point runs an in-process nested core.Loop.
-    - tool: self_invoke
-      difference: self_invoke starts a configured child profile; run_point runs one point inside the critic session.
   config:
     point_machine: agents/critic/point.yaml
     point_tools: agents/critic/tools-point.yaml

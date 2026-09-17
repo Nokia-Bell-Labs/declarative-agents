@@ -7,18 +7,9 @@ tools:
     init: rest_server_launch
     visibility: internal
     category: boundary
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
     description: Launch the generic REST server that owns curator UI and request routes.
-    problem: The curator needs one configured HTTP boundary without a domain-specific Go host.
-    goals:
-      - Serve static UI assets and machine_request routes from rest.yaml.
-      - Keep listener authority in trusted profile configuration.
-    requirements:
-      input: [The trusted REST definition selects the listener and routes.]
-      output: [ServerLaunched reports the bound generic server.]
-      errors: [Configuration, bind, or route failures emit CommandError.]
-    non_goals:
-      - Does not execute documentation workflows inside the listener command.
     parameters: {type: object, properties: {}, additionalProperties: false}
     output:
       description: Generic REST launch result.
@@ -31,9 +22,6 @@ tools:
       description: Stop the configured curator HTTP listener.
     errors:
       - {signal: CommandError, condition: REST configuration or listener launch fails, state_after_failure: No curator route is exposed.}
-    relationships:
-      before: [launch_curator_control]
-      after: [stop_curator_http]
     config:
       rest_ref: documentation_curator
 
@@ -42,18 +30,9 @@ tools:
     init: rest_server_stop
     visibility: internal
     category: boundary
-    emits: [ServerStopped, CommandError]
+    signature:
+      emits: [ServerStopped, CommandError]
     description: Stop the generic curator HTTP server and drain in-flight requests.
-    problem: Clean lifecycle completion must release the configured curator listener.
-    goals:
-      - Stop only the listener selected by rest_ref.
-      - Apply the declared drain and timeout policy.
-    requirements:
-      input: [The trusted REST definition selects the listener.]
-      output: [ServerStopped reports clean shutdown.]
-      errors: [Missing server or shutdown failure emits CommandError.]
-    non_goals:
-      - Does not mutate documentation or review artifacts.
     parameters: {type: object, properties: {}, additionalProperties: false}
     output:
       description: Generic REST stop result.
@@ -68,8 +47,6 @@ tools:
       captures: [server, address, drained_events, dropped_events, relaunch_requirement]
     errors:
       - {signal: CommandError, condition: Curator server is absent or cannot stop, state_after_failure: Listener may be partially stopped.}
-    relationships:
-      after: [stop_monitor_rest]
     config:
       rest_ref: documentation_curator
 
@@ -78,15 +55,9 @@ tools:
     init: rest_server_launch
     visibility: internal
     category: boundary
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
     description: Launch generic lifecycle control routes for documentation-curator.
-    problem: The process needs a separate loopback control plane for graceful exit.
-    goals: [Expose configured health and exit routes.]
-    requirements:
-      input: [The trusted REST definition selects control routes.]
-      output: [ServerLaunched reports the control listener.]
-      errors: [Configuration or bind failures emit CommandError.]
-    non_goals: [Does not execute lifecycle behavior in HTTP handlers.]
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Control launch result, schema: {type: object}}
     side_effects:
@@ -95,9 +66,6 @@ tools:
     undo: {strategy: compensating_action, description: Stop the control listener.}
     errors:
       - {signal: CommandError, condition: Control server launch fails, state_after_failure: No control route is exposed.}
-    relationships:
-      after: [launch_curator_http]
-      before: [await_curator_control]
     config:
       rest_ref: documentation_curator_control
 
@@ -106,15 +74,9 @@ tools:
     init: rest_await_event
     visibility: internal
     category: boundary
-    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    signature:
+      emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
     description: Await the configured curator lifecycle exit event.
-    problem: The host machine needs one grammar-visible wait while HTTP routes remain available.
-    goals: [Consume only declared exit events from the control queue.]
-    requirements:
-      input: [Trusted config names accepted server, route, and signal.]
-      output: [The selected lifecycle signal is returned to MachineSpec.]
-      errors: [Missing, stopped, or timed-out sources emit declared signals.]
-    non_goals: [Does not read or mutate documentation content.]
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Selected control event, schema: {type: object}}
     side_effects:
@@ -127,9 +89,6 @@ tools:
       captures: [source, event]
     errors:
       - {signal: CommandError, condition: The configured source is unavailable, state_after_failure: Listener state is unchanged.}
-    relationships:
-      after: [launch_curator_control]
-      before: [exit_agent]
     config:
       sources:
         - server: documentation_curator_control

@@ -9,38 +9,10 @@ tools:
     type: builtin
     init: invoke_llm
     visibility: internal
-    emits: [LLMResponded, CommandError]
+    signature:
+      emits: [LLMResponded, CommandError]
     description: "Invoke the LLM with the current conversation history."
     category: boundary
-    problem: |
-      The executor machine needs a boundary word that asks the configured
-      model to choose the next tool call from the current conversation and
-      tool manifest. This is not an ordinary deterministic word because it
-      crosses the model/provider boundary and may return different text for
-      the same prompt.
-    goals:
-      - "Return one raw model response for the current conversation state."
-      - "Append the model response to conversation history exactly once on success."
-      - "Expose provider, model, and manifest-state configuration through the tool declaration."
-    requirements:
-      input:
-        - "must read the current conversation history and selected tool manifest from agent state"
-        - "must use the configured provider, provider_url, model, system_prompt, tool_prompt, manifest_state, and max_time values"
-      output:
-        - "must emit LLMResponded with the raw response text when the provider call succeeds"
-        - "must return provider/model metadata and token usage when the provider exposes it"
-      side_effects:
-        - "must perform one external model/provider API call"
-        - "must append the model response to conversation history only after a successful provider response"
-      undo:
-        - "must be reversible by restoring or truncating conversation history to the pre-call checkpoint"
-      errors:
-        - "must emit CommandError when provider configuration is invalid, the provider call fails, or max_time is exceeded"
-        - "must leave conversation history unchanged when no provider response was appended"
-    non_goals:
-      - "Does not parse the response into a tool call."
-      - "Does not execute any requested tool."
-      - "Does not guarantee deterministic text across provider calls."
     output:
       description: "Raw model response text."
       schema:
@@ -65,12 +37,6 @@ tools:
         condition: "provider configuration is invalid or the model call fails"
         message_shape: "invoke_llm: <provider/model>: <error>"
         state_after_failure: "conversation history unchanged unless the provider response was already appended"
-    relationships:
-      before: [assemble_prompt, report_parse_error, nudge_reread, reset_history]
-      after: [parse_response, parse_plan]
-      overlaps:
-        - tool: rest_await_event
-          difference: "rest_await_event blocks on configured HTTP events; invoke_llm blocks on a model/provider response."
     config:
       model: "qwen3.6:35b-mlx"
       provider: ollama

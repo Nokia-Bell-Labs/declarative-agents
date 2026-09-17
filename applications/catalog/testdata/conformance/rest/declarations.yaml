@@ -6,24 +6,12 @@ tools:
     init: rest_client_get
     category: boundary
     description: Read one payment through the configured REST client.
-    problem: The sample needs a read word whose HTTP authority stays in REST config.
-    goals:
-      - Resolve the payments client and payment resource read operation.
-      - Return configured REST read signals to MachineSpec.
-    requirements:
-      input:
-        - Runtime input supplies only declared payment path parameters.
-      output:
-        - Output reports operation identity, status, and mapped payment fields.
-      errors:
-        - Definition, schema, network, timeout, and mapping failures emit CommandError.
-    non_goals:
-      - Does not accept runtime method, URL, host, or auth overrides.
     parameters:
       type: object
       properties:
         params: {type: object}
-    emits: [RESTResourceRead, RESTMissing, RESTDomainFailed, CommandError]
+    signature:
+      emits: [RESTResourceRead, RESTMissing, RESTDomainFailed, CommandError]
     output:
       description: Mapped REST payment read result.
       schema:
@@ -45,8 +33,6 @@ tools:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or response mapping failure.
         state_after_failure: No REST command state changes.
-    relationships:
-      before: [create_payment]
     config:
       rest_ref: payments
       resource: payment
@@ -57,24 +43,12 @@ tools:
     init: rest_client_send
     category: boundary
     description: Submit an asynchronous payment create request.
-    problem: The sample needs send and await as separate grammar-visible words.
-    goals:
-      - Submit the configured async payment operation.
-      - Store request state for await_payment.
-    requirements:
-      input:
-        - Runtime input matches the configured create payment schema.
-      output:
-        - Output includes request ID, operation ID, and correlation metadata.
-      errors:
-        - Schema, network, timeout, or async state failures emit CommandError.
-    non_goals:
-      - Does not wait for final payment completion.
     parameters:
       type: object
       properties:
         params: {type: object}
-    emits: [RESTAccepted, CommandError]
+    signature:
+      emits: [RESTAccepted, CommandError]
     output:
       description: Async REST submission result.
       schema:
@@ -99,9 +73,6 @@ tools:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or async state failure.
         state_after_failure: Async state is recorded only after accepted submission.
-    relationships:
-      after: [get_payment]
-      before: [probe_payment]
     config:
       rest_ref: payments
       operation: create_payment
@@ -111,24 +82,12 @@ tools:
     init: rest_client_get
     category: boundary
     description: Probe the submitted payment exactly once.
-    problem: Async completion polling must remain visible as repeated machine dispatches.
-    goals:
-      - Perform at most one outbound HTTP request per dispatch.
-      - Map ready and not-ready responses into declared signals.
-    requirements:
-      input:
-        - The labeled create result supplies the trusted payment request ID.
-      output:
-        - Output includes operation, status, and mapped payment data.
-      errors:
-        - Definition, schema, network, timeout, and mapping failures are explicit.
-    non_goals:
-      - Does not sleep, retry, or await stored async state.
     parameters:
       type: object
       properties:
         params: {type: object}
-    emits: [RESTResourceRead, RESTDomainFailed, RESTMissing, CommandError]
+    signature:
+      emits: [RESTResourceRead, RESTDomainFailed, RESTMissing, CommandError]
     output:
       description: One payment readiness sample.
       schema:
@@ -149,9 +108,6 @@ tools:
       - signal: CommandError
         condition: REST config, schema, network, timeout, or response mapping failure.
         state_after_failure: The submitted payment remains available for another declared probe.
-    relationships:
-      after: [create_payment]
-      before: [wait_payment_retry, launch_payment_webhooks]
     config:
       rest_ref: payments
       operation: probe_payment
@@ -161,21 +117,9 @@ tools:
     init: delay
     category: boundary
     description: Wait once between declared payment readiness probes.
-    problem: Immediate probes create a hot loop, while an internal sleep hides retry policy.
-    goals:
-      - Expose each retry interval as its own machine dispatch.
-      - Remain cancellation-aware without performing network I/O.
-    requirements:
-      input:
-        - The retry interval comes from trusted tool config.
-      output:
-        - Output reports the elapsed wait.
-      errors:
-        - Cancellation emits CommandError.
-    non_goals:
-      - Does not probe payment state or decide whether to retry.
     parameters: {type: object, properties: {}}
-    emits: [PaymentRetryReady, CommandError]
+    signature:
+      emits: [PaymentRetryReady, CommandError]
     output:
       description: One bounded retry delay.
       schema: {type: object}
@@ -189,9 +133,6 @@ tools:
       - signal: CommandError
         condition: The wait is cancelled.
         state_after_failure: The submitted payment remains unchanged.
-    relationships:
-      after: [probe_payment]
-      before: [probe_payment]
     config:
       duration: 100ms
       elapsed_signal: PaymentRetryReady
@@ -201,23 +142,11 @@ tools:
     init: rest_server_launch
     category: boundary
     description: Launch configured payment webhook routes.
-    problem: Inbound REST routes need profile-owned authority.
-    goals:
-      - Bind the configured webhook server.
-      - Register OpenAPI-backed payment webhook routes.
-    requirements:
-      input:
-        - Tool config references one trusted REST server definition.
-      output:
-        - Output includes server name, address, route count, and binding kinds.
-      errors:
-        - Config, bind, route conflict, and schema failures emit CommandError.
-    non_goals:
-      - Does not let HTTP handlers choose MachineSpec actions.
     parameters:
       type: object
       properties: {}
-    emits: [ServerLaunched, CommandError]
+    signature:
+      emits: [ServerLaunched, CommandError]
     output:
       description: REST server launch result.
       schema:
@@ -242,9 +171,6 @@ tools:
       - signal: CommandError
         condition: Config decode, bind, route conflict, or schema failure.
         state_after_failure: Partial launch cleans up owned listener state.
-    relationships:
-      after: [probe_payment]
-      before: [await_payment_webhook, stop_payment_webhooks]
     config:
       rest_ref: payments_webhooks
 
@@ -253,23 +179,11 @@ tools:
     init: rest_server_await
     category: boundary
     description: Await a queued payment webhook event.
-    problem: Inbound HTTP events need a grammar-visible wait word.
-    goals:
-      - Consume one configured webhook event.
-      - Return PaymentWebhookReceived to MachineSpec.
-    requirements:
-      input:
-        - Tool config references one trusted REST server definition.
-      output:
-        - Output includes route, signal, request ID, and validated payload.
-      errors:
-        - Missing server, timeout, closed queue, and payload decode failures are explicit.
-    non_goals:
-      - Does not run hidden workflow steps from HTTP handler code.
     parameters:
       type: object
       properties: {}
-    emits: [PaymentWebhookReceived, AwaitTimedOut, ServerStopped, CommandError]
+    signature:
+      emits: [PaymentWebhookReceived, AwaitTimedOut, ServerStopped, CommandError]
     output:
       description: REST inbound event result.
       schema:
@@ -293,9 +207,6 @@ tools:
       - signal: CommandError
         condition: Missing server, queue closed, timeout, or payload decode failure.
         state_after_failure: Queue state follows server policy.
-    relationships:
-      after: [launch_payment_webhooks]
-      before: [stop_payment_webhooks]
     config:
       rest_ref: payments_webhooks
 
@@ -304,23 +215,11 @@ tools:
     init: rest_server_stop
     category: boundary
     description: Stop configured payment webhook routes.
-    problem: REST listeners need explicit grammar-visible shutdown.
-    goals:
-      - Resolve the configured payment webhook server.
-      - Stop owned listener state according to shutdown policy.
-    requirements:
-      input:
-        - Tool config references one trusted REST server definition.
-      output:
-        - Output includes server name, address, drained count, and shutdown status.
-      errors:
-        - Missing server, shutdown timeout, or drain failures emit CommandError.
-    non_goals:
-      - Does not roll back remote HTTP clients.
     parameters:
       type: object
       properties: {}
-    emits: [ServerStopped, CommandError]
+    signature:
+      emits: [ServerStopped, CommandError]
     output:
       description: REST server stop result.
       schema:
@@ -347,7 +246,5 @@ tools:
       - signal: CommandError
         condition: Missing server, shutdown timeout, cleanup failure, or drain failure.
         state_after_failure: Server state reports partial shutdown when cleanup fails.
-    relationships:
-      after: [launch_payment_webhooks, await_payment_webhook]
     config:
       rest_ref: payments_webhooks
