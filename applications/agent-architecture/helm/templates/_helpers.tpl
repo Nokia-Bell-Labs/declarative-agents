@@ -1,29 +1,25 @@
 {{- define "agent-architecture.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- include "agent-services.name" . -}}
 {{- end -}}
 
 {{- define "agent-architecture.fullname" -}}
-{{- printf "%s-%s" .Release.Name (include "agent-architecture.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- include "agent-services.fullname" . -}}
 {{- end -}}
 
 {{- define "agent-architecture.labels" -}}
-app.kubernetes.io/name: {{ include "agent-architecture.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
+{{- include "agent-services.labels" . -}}
 {{- end -}}
 
 {{- define "agent-architecture.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "agent-architecture.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+{{- include "agent-services.selectorLabels" . -}}
 {{- end -}}
 
 {{- define "agent-architecture.image" -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- include "agent-services.image" . -}}
 {{- end -}}
 
 {{- define "agent-architecture.collectorImage" -}}
-{{- printf "%s:%s" .Values.collector.image.repository .Values.collector.image.tag -}}
+{{- include "agent-services.collectorImage" . -}}
 {{- end -}}
 
 {{- define "agent-architecture.roleProfile" -}}
@@ -44,9 +40,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "agent-architecture.otlpEndpoint" -}}
-{{- if .Values.collector.enabled -}}
-{{- printf "%s-collector:%v" (include "agent-architecture.fullname" .) .Values.collector.otlpGRPCPort -}}
-{{- end -}}
+{{- include "agent-services.otlpEndpoint" . -}}
 {{- end -}}
 
 {{- define "agent-architecture.validateValues" -}}

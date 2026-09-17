@@ -177,6 +177,7 @@
         }
       }
     },
+    "agent-services": {"type": "object", "description": "Values Helm reserves for the agent-services library dependency; the library reads this chart's own values and declares none of its own."},
     "podAnnotations": {
       "type": "object",
       "additionalProperties": {"type": "string"}

@@ -20,6 +20,9 @@ import (
 var chartSourceInventory = []string{
 	".helmignore",
 	"Chart.yaml",
+	// The agent-services library chart mage helmPrepare vendors here; Helm
+	// resolves a dependency only from the chart's own charts/ directory (GH-2045).
+	"charts",
 	"PACKAGING.md",
 	"README.md",
 	"ci",
@@ -34,6 +37,12 @@ var chartArchiveInventory = []string{
 	"coding-agent/Chart.yaml",
 	"coding-agent/PACKAGING.md",
 	"coding-agent/README.md",
+	"coding-agent/charts/agent-services/Chart.yaml",
+	"coding-agent/charts/agent-services/README.md",
+	"coding-agent/charts/agent-services/templates/_applier.tpl",
+	"coding-agent/charts/agent-services/templates/_collector.tpl",
+	"coding-agent/charts/agent-services/templates/_naming.tpl",
+	"coding-agent/charts/agent-services/templates/_ollama.tpl",
 	"coding-agent/ci/kind-applier-values.yaml",
 	"coding-agent/ci/kind-config.yaml",
 	"coding-agent/ci/kind-demo-config.yaml",

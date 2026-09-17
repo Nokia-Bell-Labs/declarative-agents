@@ -69,8 +69,10 @@ func TestHelmCoreTopologyRendersRoleContract(t *testing.T) {
 	if got := strings.Count(render, "checksum/profiles:"); got != 4 {
 		t.Errorf("profile rollout checksum count = %d, want 4 manifest deployments", got)
 	}
-	if got := strings.Count(render, "httpGet: {path: /api/lifecycle/health, port: control}"); got != 6 {
-		t.Errorf("truthful lifecycle probes = %d, want readiness+liveness for 3 roles", got)
+	// Three roles and the collector, each with a readiness and a liveness probe;
+	// the collector's pair arrives with the shared library workload (GH-2045).
+	if got := strings.Count(render, "httpGet: {path: /api/lifecycle/health, port: control}"); got != 8 {
+		t.Errorf("truthful lifecycle probes = %d, want readiness+liveness for 3 roles and the collector", got)
 	}
 	for _, want := range []string{
 		`value: "http://test-coding-agent-executor:18210"`,

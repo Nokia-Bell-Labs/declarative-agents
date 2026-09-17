@@ -3,26 +3,22 @@
      setting one is refused before a template runs. The branch that read it could
      never be reached (GH-220). */}}
 {{- define "chatbot-mesh.name" -}}
-{{- .Chart.Name | trunc 63 | trimSuffix "-" -}}
+{{- include "agent-services.name" . -}}
 {{- end -}}
 
 {{/* Fully qualified release name. */}}
 {{- define "chatbot-mesh.fullname" -}}
-{{- printf "%s-%s" .Release.Name (include "chatbot-mesh.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- include "agent-services.fullname" . -}}
 {{- end -}}
 
 {{/* Common labels. */}}
 {{- define "chatbot-mesh.labels" -}}
-app.kubernetes.io/name: {{ include "chatbot-mesh.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
+{{- include "agent-services.labels" . -}}
 {{- end -}}
 
 {{/* Selector labels for a component. */}}
 {{- define "chatbot-mesh.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "chatbot-mesh.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+{{- include "agent-services.selectorLabels" . -}}
 {{- end -}}
 
 {{/* Component resource name: <fullname>-<component>. */}}
@@ -32,7 +28,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* The agent runtime image reference. */}}
 {{- define "chatbot-mesh.image" -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- include "agent-services.image" . -}}
 {{- end -}}
 
 {{/* The LLM base URL: in-cluster Ollama Service or the external endpoint. */}}
@@ -86,9 +82,7 @@ have ready. busybox supplies wget and grep.
 
 {{/* The OTLP endpoint agents export to: the collector, else empty. */}}
 {{- define "chatbot-mesh.otlpEndpoint" -}}
-{{- if .Values.collector.enabled -}}
-{{ include "chatbot-mesh.fullname" . }}-collector:{{ .Values.collector.otlpGRPCPort }}
-{{- end -}}
+{{- include "agent-services.otlpEndpoint" . -}}
 {{- end -}}
 
 {{/*

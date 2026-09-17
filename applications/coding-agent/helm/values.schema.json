@@ -173,17 +173,27 @@
           "properties": {"count": {"type": "integer", "minimum": 0}}
         },
         "nodeSelector": {"$ref": "#/definitions/labels"},
-        "tolerations": {"$ref": "#/definitions/tolerations"}
+        "tolerations": {"$ref": "#/definitions/tolerations"},
+        "preload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "suspend": {"type": "boolean"},
+            "integrationCacheHostPath": {"type": "string"}
+          }
+        }
       }
     },
     "collector": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "image", "otlpGRPCPort", "queryPort", "resources"],
+      "required": ["enabled", "image", "otlpGRPCPort", "controlPort", "monitorPort", "queryPort", "resources"],
       "properties": {
         "enabled": {"type": "boolean"},
         "image": {"$ref": "#/definitions/image"},
         "otlpGRPCPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "controlPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "monitorPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
         "queryPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
         "resources": {"$ref": "#/definitions/resources"}
       }
@@ -195,7 +205,7 @@
       "properties": {
         "enabled": {"type": "boolean"},
         "image": {"$ref": "#/definitions/image"},
-        "chartArchive": {"type": "string"},
+        "chartArchiveConfigMap": {"type": "string"},
         "ports": {
           "type": "object",
           "additionalProperties": false,
@@ -254,6 +264,7 @@
         }
       }
     },
+    "agent-services": {"type": "object", "description": "Values Helm reserves for the agent-services library dependency; the library reads this chart's own values and declares none of its own."},
     "podAnnotations": {
       "type": "object",
       "additionalProperties": {"type": "string"}

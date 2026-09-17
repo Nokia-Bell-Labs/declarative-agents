@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/helmlib"
 )
 
 // HelmPrepare regenerates every manifest-declared deployment package and stages
@@ -19,8 +21,14 @@ func HelmPrepare() error {
 	if err := Package(); err != nil {
 		return err
 	}
+	chartRoot := filepath.Join(root, "helm")
+	// The shared agent-services library chart the app chart depends on; Helm
+	// resolves a dependency only from the chart's own charts/ directory (GH-2045).
+	if err := helmlib.Vendor(filepath.Join(root, "..", ".."), chartRoot); err != nil {
+		return err
+	}
 	source := demoProfilesOutput(root)
-	if err := prepareHelmProfiles(source, filepath.Join(root, "helm")); err != nil {
+	if err := prepareHelmProfiles(source, chartRoot); err != nil {
 		return err
 	}
 	fmt.Printf("prepared Helm profile artifacts from %s\n", source)

@@ -20,6 +20,9 @@ import (
 var chartSourceInventory = []string{
 	".helmignore",
 	"Chart.yaml",
+	// The agent-services library chart mage helmPrepare vendors here; Helm
+	// resolves a dependency only from the chart's own charts/ directory (GH-2045).
+	"charts",
 	"PACKAGING.md",
 	"README.md",
 	"ci",

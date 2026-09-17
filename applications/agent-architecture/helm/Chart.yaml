@@ -11,3 +11,7 @@ maintainers:
   - name: Nokia Bell Labs
 sources:
   - https://github.com/Nokia-Bell-Labs/declarative-agents
+dependencies:
+  - name: agent-services
+    version: 0.1.0
+    repository: file://../../charts/agent-services

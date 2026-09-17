@@ -181,6 +181,15 @@ collector:
   image: {repository: otel/opentelemetry-collector-contrib, tag: "0.127.0", pullPolicy: IfNotPresent}
   otlpGRPCPort: 4317
   otlpHTTPPort: 4318
+  # The control, monitor, and query surfaces the agent collector serves, and the
+  # resources it runs under. They were hardcoded or absent in the template until
+  # the shared agent-services library took the workload over (GH-2045).
+  controlPort: 18191
+  monitorPort: 18192
+  queryPort: 18193
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 512Mi}
   # Integration overlays may forward through this chart-local gateway to the
   # persistent host ingress. Empty keeps production self-contained.
   externalOTLPEndpoint: ""
@@ -307,3 +316,23 @@ controlPlane:
     resources:
       requests: {cpu: 50m, memory: 64Mi}
       limits: {cpu: 500m, memory: 256Mi}
+
+# Pod settings the shared agent-services workloads apply. The mesh ran its
+# collector and applier without them until the library took those workloads
+# over; the other applications already shipped this posture (GH-2045).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile: {type: RuntimeDefault}
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []

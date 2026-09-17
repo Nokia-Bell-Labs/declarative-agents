@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+apiVersion: v2
+name: agent-services
+description: Shared workloads and helpers every declarative-agents application chart installs — the applier, the collector, the in-cluster Ollama tier, and the naming, labelling, and image helpers they share.
+type: library
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [declarative-agents, helm-library]
+maintainers:
+  - name: Nokia Bell Labs
+sources:
+  - https://github.com/Nokia-Bell-Labs/declarative-agents

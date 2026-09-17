@@ -92,6 +92,55 @@ data:
   {{- end }}
 {{- end }}
 ---
+{{- if $agent }}
+{{/*
+The agent collector workload and its Service come from the shared agent-services
+library (GH-2045). This chart supplies the mesh-wide profiles ConfigMap volume,
+the trace UI it serves from /collector-ui, and the relay-mode spool paths on its
+work volume; the contrib gateway below is a different product and stays here.
+*/}}
+{{- $uiVolumes := list -}}
+{{- $uiInit := list -}}
+{{- $uiAnnotations := dict -}}
+{{- if $uiArchive }}
+{{- $uiVolumes = list (dict "name" "collector-ui" "emptyDir" dict) (dict "name" "collector-ui-source" "configMap" (dict "name" $uiArchive "items" (list (dict "key" "assets.tgz" "path" "assets.tgz")))) -}}
+{{- $uiInit = list (dict
+      "name" "stage-collector-ui"
+      "image" (include "agent-services.image" .)
+      "imagePullPolicy" .Values.image.pullPolicy
+      "command" (list "sh" "-c" (printf "echo '%s  /collector-ui-src/assets.tgz' | sha256sum -c - && tar -xzf /collector-ui-src/assets.tgz -C /collector-ui && cd /collector-ui && sha256sum -c .inventory.sha256 && rm .inventory.sha256" .Values.collector.uiArchiveChecksum))
+      "volumeMounts" (list (dict "name" "collector-ui-source" "mountPath" "/collector-ui-src" "readOnly" true) (dict "name" "collector-ui" "mountPath" "/collector-ui"))) -}}
+{{- $uiAnnotations = dict "checksum/collector-ui-archive" (required "collector.uiArchiveChecksum is required with collector.uiArchiveConfigMap" .Values.collector.uiArchiveChecksum) -}}
+{{- else }}
+{{- $uiItems := list -}}
+{{- range $path, $_ := .Files.Glob "collector-ui/**" }}
+{{- $uiItems = append $uiItems (dict "key" ($path | trimPrefix "collector-ui/" | replace "/" "__") "path" ($path | trimPrefix "collector-ui/")) -}}
+{{- end }}
+{{- $uiVolumes = list (dict "name" "collector-ui" "projected" (dict "defaultMode" 0444 "sources" (list (dict "configMap" (dict "name" (printf "%s-collector-ui" $fullname) "items" $uiItems))))) -}}
+{{- end }}
+{{- $work := .Values.profiles.workMountPath -}}
+{{- include "agent-services.collector" (dict
+      "root" .
+      "image" (include "agent-services.image" .)
+      "imagePullPolicy" .Values.image.pullPolicy
+      "profilePath" (printf "%s/agents/collector/profile.yaml" .Values.profiles.mountPath)
+      "workingDir" "/collector-ui"
+      "dataDir" $work
+      "spoolPath" (printf "%s/traces/collector.ndjson" $work)
+      "serviceName" "collector"
+      "profilesVolume" (include "chatbot-mesh.profilesVolume" . | fromYamlArray)
+      "podLabels" (dict "monitorPort" (toString .Values.collector.monitorPort))
+      "podAnnotations" $uiAnnotations
+      "initContainers" $uiInit
+      "extraVolumes" $uiVolumes
+      "extraVolumeMounts" (list (dict "name" "collector-ui" "mountPath" "/collector-ui" "readOnly" true))
+      "extraEnv" (list (dict "name" "COLLECTOR_METRICS_SPOOL_PATH" "value" (printf "%s/metrics/collector.ndjson" $work)))) }}
+{{- else }}
+{{/*
+The OpenTelemetry contrib gateway: a different product from the agent collector
+above, selected by collector.implementation. It scrapes Dolt's Prometheus
+surface and relays to an external endpoint, so it stays in this chart.
+*/}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -110,79 +159,9 @@ spec:
       labels:
         {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: collector
-        # The observer's monitor fan-in reads this pod's monitor port from a
-        # label, because a pod's container ports live in an array the
-        # command-state selector grammar cannot address (srd008 R2.1, GH-1319).
-        # The key carries no dot so the dotted selector can reach it.
-        monitorPort: "18192"
-      {{- if $uiArchive }}
-      annotations:
-        checksum/collector-ui-archive: {{ required "collector.uiArchiveChecksum is required with collector.uiArchiveConfigMap" .Values.collector.uiArchiveChecksum | quote }}
-      {{- end }}
     spec:
-      {{- if and $agent $uiArchive }}
-      initContainers:
-        - name: stage-collector-ui
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command:
-            - sh
-            - -c
-            - >-
-              echo '{{ .Values.collector.uiArchiveChecksum }}  /collector-ui-src/assets.tgz' |
-              sha256sum -c - &&
-              tar -xzf /collector-ui-src/assets.tgz -C /collector-ui &&
-              cd /collector-ui &&
-              sha256sum -c .inventory.sha256 &&
-              rm .inventory.sha256
-          volumeMounts:
-            - {name: collector-ui-source, mountPath: /collector-ui-src, readOnly: true}
-            - {name: collector-ui, mountPath: /collector-ui}
-      {{- end }}
       containers:
         - name: collector
-          {{- if $agent }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          # The collector serves its trace UI from the literal ui/dist path
-          # (srd020 R7), resolved against the working directory. The UI bundle
-          # rides a collector-only ConfigMap mounted at /collector-ui rather than
-          # the shared profiles ConfigMap (which mounts into every pod and must
-          # stay under its size limit), so the working directory is /collector-ui
-          # -- no UI environment variable (GH-1228).
-          workingDir: /collector-ui
-          args:
-            - "--profile"
-            - "{{ .Values.profiles.mountPath }}/agents/collector/profile.yaml"
-            - "--directory"
-            - "{{ .Values.profiles.workMountPath }}"
-            - "--otel-service-name"
-            - "collector"
-          env:
-            - {name: COLLECTOR_BIND_HOST, value: "0.0.0.0"}
-            - {name: COLLECTOR_RECEIVER_ADDRESS, value: "0.0.0.0:{{ .Values.collector.otlpGRPCPort }}"}
-            - {name: COLLECTOR_RELAY_ENDPOINT, value: {{ default "" $external | quote }}}
-            - {name: COLLECTOR_SPOOL_PATH, value: "{{ .Values.profiles.workMountPath }}/traces/collector.ndjson"}
-            # The working directory is a read-only ConfigMap, so the relative
-            # metrics-spool default would fail; point it at the writable work
-            # volume. COLLECTOR_METRICS_SPOOL_PATH is an existing variable, and
-            # this keeps received metrics off the read-only mount (GH-1228).
-            - {name: COLLECTOR_METRICS_SPOOL_PATH, value: "{{ .Values.profiles.workMountPath }}/metrics/collector.ndjson"}
-            - {name: COLLECTOR_MODE, value: {{ ternary "relay" "spool" (ne (default "" $external) "") | quote }}}
-          ports:
-            - {name: otlp-grpc, containerPort: {{ .Values.collector.otlpGRPCPort }}}
-            - {name: control, containerPort: 18191}
-            - {name: monitor, containerPort: 18192}
-            - {name: query, containerPort: 18193}
-          readinessProbe:
-            httpGet: {path: /api/lifecycle/health, port: control}
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          volumeMounts:
-            - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
-            - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
-            - {name: collector-ui, mountPath: /collector-ui, readOnly: true}
-          {{- else }}
           image: "{{ .Values.collector.image.repository }}:{{ .Values.collector.image.tag }}"
           imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
           args: ["--config=/etc/collector/config.yaml"]
@@ -191,37 +170,10 @@ spec:
             - {name: otlp-http, containerPort: {{ .Values.collector.otlpHTTPPort }}}
           volumeMounts:
             - {name: config, mountPath: /etc/collector, readOnly: true}
-          {{- end }}
       volumes:
-        {{- if $agent }}
-        {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
-        - name: work
-          emptyDir: {}
-        - name: collector-ui
-          {{- if $uiArchive }}
-          emptyDir: {}
-        - name: collector-ui-source
-          configMap:
-            name: {{ $uiArchive }}
-            items:
-              - {key: assets.tgz, path: assets.tgz}
-          {{- else }}
-          projected:
-            defaultMode: 0444
-            sources:
-              - configMap:
-                  name: {{ $fullname }}-collector-ui
-                  items:
-                    {{- range $path, $_ := .Files.Glob "collector-ui/**" }}
-                    - key: {{ $path | trimPrefix "collector-ui/" | replace "/" "__" }}
-                      path: {{ $path | trimPrefix "collector-ui/" }}
-                    {{- end }}
-          {{- end }}
-        {{- else }}
         - name: config
           configMap:
             name: {{ $fullname }}-collector-contrib
-        {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -236,9 +188,6 @@ spec:
     app.kubernetes.io/component: collector
   ports:
     - {name: otlp-grpc, port: {{ .Values.collector.otlpGRPCPort }}, targetPort: otlp-grpc}
-    {{- if $agent }}
-    - {name: query, port: 18193, targetPort: query}
-    {{- else }}
     - {name: otlp-http, port: {{ .Values.collector.otlpHTTPPort }}, targetPort: otlp-http}
-    {{- end }}
+{{- end }}
 {{- end }}
