@@ -49,6 +49,10 @@ overview: |
   Release 18.0 covers srd052 for parameterized declaration fragments: typed
   parameters, hygienic instantiation before strict decoding, provenance in
   the dump, and machine stage splicing.
+  Release 19.0 covers srd051 R6.14 and R6.15: boundary and stateful_internal
+  tools declare a signature naming their signals, which discharges their
+  descriptive prose while their effect blocks stay explicit, and every tool
+  states a category.
   Release 20.0 covers srd054 for machine templates, whole machines declared
   once as fragments and instantiated by machine files, and srd055 for agent
   blueprints, whole profiles instantiated per agent with their machine

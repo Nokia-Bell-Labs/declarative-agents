@@ -22,14 +22,19 @@ import (
 
 // Entry classes. Adding a class is one line here plus its emitter.
 const (
-	classUntypedTool    = "untyped-tool"
-	classProseDefaulted = "prose-defaulted"
+	classUntypedTool       = "untyped-tool"
+	classProseDefaulted    = "prose-defaulted"
+	classUncategorizedTool = "uncategorized-tool"
 )
 
-// typedCategories are the categories a signature is expected to cover.
-// Boundary is absent: srd051 R6.9 keeps its contract blocks explicit, so an
-// unsigned boundary word is not a legacy form to retire here.
-var typedCategories = map[string]bool{"word": true, "response": true}
+// typedCategories are the categories a signature is expected to cover. Boundary
+// and stateful_internal joined word and response under srd051 R6.14: their
+// signature names their signals and discharges the descriptive prose, while
+// their effect blocks stay explicit (R6.8, R6.9), so an unsigned one is a legacy
+// form to retire (GH-2110).
+var typedCategories = map[string]bool{
+	"word": true, "response": true, "boundary": true, "stateful_internal": true,
+}
 
 // TestDeclarationLegacyBaseline holds the line on declaration form while the
 // type system migration runs. Every legacy usage in the repository is listed in
@@ -219,6 +224,10 @@ func fileEntries(t *testing.T, path string) []string {
 			continue
 		}
 		switch {
+		case tool.Category == "":
+			// srd051 R6.15: which contract defaults apply depends on the
+			// category, so a tool without one cannot be judged typed or not.
+			entries = append(entries, fmt.Sprintf("%s:%s:%s", classUncategorizedTool, rel, tool.Name))
 		case tool.Signature == nil:
 			if typedCategories[tool.Category] {
 				entries = append(entries, fmt.Sprintf("%s:%s:%s", classUntypedTool, rel, tool.Name))

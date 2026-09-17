@@ -185,11 +185,12 @@ requirements:
           A tool of category word or response SHALL declare a signature. Its
           contract is exactly what a signature states, so an unsigned one
           defaults nothing and publishes an untyped label. A tool of category
-          boundary or stateful_internal MAY declare one; the corpus audit
-          SHALL NOT require it, because the label such a tool publishes is
-          typed from the runtime result under srd038 R2.19 rather than from a
-          declaration, and a signature restating that result would be a second
-          statement free to disagree with it.
+          boundary or stateful_internal is governed by R6.14; the corpus audit
+          SHALL NOT require its signature to name an output type, because the
+          label such a tool publishes is typed from the runtime result under
+          srd038 R2.19 rather than from a declaration, and a signature
+          restating that result would be a second statement free to disagree
+          with it.
       - R6.13: >-
           A signature SHALL discharge the `relationships` obligation without
           defaulting it. Which tools sit either side of this one is a machine's
@@ -199,6 +200,24 @@ requirements:
           neighbors. The authoring checks and the corpus audit SHALL both read
           this rule, so the advisory never asks for a block the audit does not
           require.
+      - R6.14: >-
+          A tool of category boundary or stateful_internal SHALL declare a
+          signature. The signature SHALL name the tool's signals and MAY omit
+          `output`, and the tool's output schema and explicit effect blocks
+          stay where they are: under R6.6 the signature discharges the
+          descriptive prose, and under R6.8 and R6.9 it discharges no effect
+          block the category keeps explicit. A boundary tool with a signature,
+          a description, and its side_effects, reversibility, and undo blocks is
+          complete. Until every tool in the repository conforms, the declaration
+          legacy gate lists the unsigned ones in a shrink-only baseline, and the
+          corpus audit promotes the rule once that list is empty, as GH-2009 did
+          for R6.12.
+      - R6.15: >-
+          Every tool declaration SHALL state a category. Which contract defaults
+          apply depends on the category, so a tool without one cannot be judged
+          complete or typed. The declaration legacy gate lists uncategorized
+          tools in its shrink-only baseline until none remain, and the corpus
+          audit then makes a missing category an error.
 
 non_goals:
   - Parameterized types, generics over declarations, or conditional schemas.
@@ -230,6 +249,9 @@ acceptance_criteria:
   - id: AC7
     criterion: A word tool declaring only name, description, category, init, signature, and config satisfies every contract check, a boundary tool omitting side_effects, reversibility, or undo still fails, an explicit block overrides its default, the dump shows the effective contract, and a word whose prose contract is complete but which declares no signature fails the corpus audit while a boundary tool without one passes, and a signed word omitting relationships is accepted by the authoring checks and the corpus audit alike while an unsigned one is not.
     traces: [R6.6, R6.7, R6.8, R6.9, R6.10, R6.11, R6.12, R6.13]
+  - id: AC8
+    criterion: A boundary tool declaring a signature that names only its signals, an output schema, and its three effect blocks satisfies every corpus contract check while omitting any one effect block fails; the declaration legacy gate lists an unsigned boundary or stateful_internal tool as untyped and a tool with no category as uncategorized, and a signed boundary tool as neither.
+    traces: [R6.14, R6.15]
 
 depends_on:
   - srd_id: srd050-declaration-imports
@@ -254,3 +276,4 @@ implementation_status:
     - GH-2069 promoted R1.5 after establishing that an application could not reach agent-core's units, because the repository and the image place the two trees at different relative distances; srd056 amends R1.5 so a library-root path reaches them in both.
   planned:
     - GH-2118 implements R1.5 as amended by srd056 and deletes the application copies of agent-core type units.
+    - GH-2110 adds R6.14 and R6.15, lists unsigned boundary and stateful_internal tools and uncategorized tools in the declaration legacy gate, and migrates each application's tools to signatures, deleting their descriptive prose.

@@ -738,6 +738,40 @@ releases:
       - mage stats:reuse
       - mage audit
 
+  - version: "19.0"
+    name: Signed boundary contracts
+    description: |
+      Release 19.0 retires the descriptive prose on boundary and
+      stateful_internal tools. Of 312 such tools, 36 carry a signature, and
+      their problem, goals, requirements, non_goals, and relationships blocks
+      hold about 5,900 lines that restate each description and are checked
+      only for presence. srd051 R6.6 already lets a signature discharge that
+      prose for every category while R6.8 and R6.9 keep the effect blocks
+      explicit, so the release adds the obligation, R6.14, that these tools
+      declare a signature naming their signals, and R6.15, that every tool
+      states a category. The declaration legacy gate lists the unsigned and
+      uncategorized tools in a shrink-only baseline, and each application's
+      migration signs its tools, deletes the prose, and deletes its lines.
+    status: planned
+    planned_work:
+      - id: gh-2110
+        summary: Specify R6.14 and R6.15, gate unsigned boundary, stateful_internal, and uncategorized tools, and migrate coding-agent, agent-architecture, catalog, chatbot-mesh, and agent-core's library.
+        status: planned
+    srds:
+      - srd051-declaration-types
+    use_cases:
+      - id: rel19.0-uc001-signed-boundary-contracts
+        summary: A boundary tool states its contract through a signature and its effect blocks.
+        status: planned
+    test_suites:
+      - id: test-rel19.0-signed-boundary-contracts
+        summary: Formal tests for emits-only boundary signatures in the corpus audit and the untyped and uncategorized classes of the legacy gate.
+        status: planned
+    proof:
+      - go test ./pkg/spec ./internal/declstyle
+      - mage stats:reuse
+      - mage audit
+
   - version: "20.0"
     name: Machine templates, agent blueprints, and unit libraries
     description: |
@@ -753,8 +787,7 @@ releases:
       Unit libraries let those shared declarations live in one place: an
       import may name a unit under the agent-core install root or under a
       root a profile declares, and staging carries rooted files into the
-      container. Release 19.0 is reserved for structured boundary contracts
-      (srd053).
+      container.
     status: planned
     planned_work:
       - id: gh-2113
