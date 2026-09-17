@@ -12,87 +12,61 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildProgramRefTracksCompleteDeclarationClosure(t *testing.T) {
+// The asset file set is the declared roots, every declaration the loader
+// visited, and every file under a declared config directory, sorted.
+func TestProgramAssetFilesFromVisitedIncludesRootsVisitsAndConfigDirectories(t *testing.T) {
 	paths, files := writeProgramRefFixture(t)
+	visited := []string{files["included"]}
 
-	first, err := BuildProgramRef(paths)
-	require.NoError(t, err)
-	second, err := BuildProgramRef(paths)
-	require.NoError(t, err)
-	require.Equal(t, first, second)
-	require.Equal(t, canonicalProgramPath(paths.Profile), first.Profile)
-
-	for _, name := range []string{"included", "tool_config", "rest_config"} {
-		t.Run(name, func(t *testing.T) {
-			original, err := os.ReadFile(files[name])
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, os.WriteFile(files[name], original, 0o600))
-			})
-			require.NoError(t, os.WriteFile(files[name], append(original, []byte("\n# digest drift\n")...), 0o600))
-
-			changed, err := BuildProgramRef(paths)
-			require.NoError(t, err)
-			require.NotEqual(t, first.Digest, changed.Digest)
-		})
-	}
-}
-
-func TestProgramAssetFilesIncludesSortedClosurePaths(t *testing.T) {
-	paths, files := writeProgramRefFixture(t)
-
-	got, err := ProgramAssetFiles(paths)
+	got, err := ProgramAssetFilesFromVisited(paths, visited)
 	require.NoError(t, err)
 	require.True(t, sort.StringsAreSorted(got))
-	for _, name := range []string{"included", "tool_config", "rest_config"} {
-		require.Contains(t, got, canonicalProgramPath(files[name]))
+	for _, path := range []string{
+		paths.Profile, paths.Machine, paths.ToolSelections[0], paths.ToolDeclarations[0],
+		paths.RESTDefinitions[0], files["included"], files["tool_config"], files["rest_config"],
+	} {
+		require.Contains(t, got, canonicalProgramPath(path))
 	}
 }
 
-func TestProgramAssetFilesFromVisitedPreservesProgramDigest(t *testing.T) {
+func TestProgramAssetFilesFromVisitedReportsMissingConfigDirectory(t *testing.T) {
 	paths, _ := writeProgramRefFixture(t)
-	var visited []string
-	visit := func(path string, _ []byte) error {
-		visited = append(visited, path)
-		return nil
+	paths.ToolConfigDirs = []string{filepath.Join(t.TempDir(), "absent")}
+	_, err := ProgramAssetFilesFromVisited(paths, nil)
+	require.Error(t, err)
+}
+
+// The reference hashes canonical paths with the captured bytes: the same
+// program named relatively or absolutely has one identity, and any byte change
+// in any asset changes the digest.
+func TestBuildProgramRefFromAssetsIsCanonicalAndBoundToBytes(t *testing.T) {
+	dir := t.TempDir()
+	profile := filepath.Join(dir, "profile.yaml")
+	assets := map[string][]byte{
+		profile:                            []byte("name: fixture\n"),
+		filepath.Join(dir, "machine.yaml"): []byte("name: fixture\n"),
 	}
-	_, err := LoadToolDeclarationsFromDirsWithVisitor(paths.ToolConfigDirs, visit)
-	require.NoError(t, err)
-	_, err = LoadToolDeclarationsWithVisitor(paths.ToolDeclarations, visit)
-	require.NoError(t, err)
+	first := BuildProgramRefFromAssets(profile, assets)
+	require.Equal(t, first, BuildProgramRefFromAssets(profile, assets))
+	require.Equal(t, canonicalProgramPath(profile), first.Profile)
 
-	files, err := ProgramAssetFilesFromVisited(paths, visited)
+	relative, err := filepath.Rel(mustGetwd(t), dir)
 	require.NoError(t, err)
-	fromFiles, err := BuildProgramRefFromFiles(paths.Profile, files)
-	require.NoError(t, err)
-	legacy, err := BuildProgramRef(paths)
-	require.NoError(t, err)
-	require.Equal(t, legacy, fromFiles)
+	renamed := map[string][]byte{
+		filepath.Join(relative, "profile.yaml"): assets[profile],
+		filepath.Join(relative, "machine.yaml"): assets[filepath.Join(dir, "machine.yaml")],
+	}
+	require.Equal(t, first, BuildProgramRefFromAssets(filepath.Join(relative, "profile.yaml"), renamed))
+
+	assets[filepath.Join(dir, "machine.yaml")] = []byte("name: fixture\n# drift\n")
+	require.NotEqual(t, first.Digest, BuildProgramRefFromAssets(profile, assets).Digest)
 }
 
-func TestBuildProgramRefRejectsDeclarationImportCycle(t *testing.T) {
-	dir := t.TempDir()
-	first := filepath.Join(dir, "first.yaml")
-	second := filepath.Join(dir, "second.yaml")
-	writeProgramRefFile(t, first, "unit: first\nimports: [second.yaml]\ntools: []\n")
-	writeProgramRefFile(t, second, "unit: second\nimports: [first.yaml]\ntools: []\n")
-
-	_, err := BuildProgramRef(ProgramPaths{
-		Profile:          writeProgramRefFile(t, filepath.Join(dir, "profile.yaml"), "name: cycle\n"),
-		Machine:          writeProgramRefFile(t, filepath.Join(dir, "machine.yaml"), "name: cycle\n"),
-		ToolDeclarations: []string{first},
-	})
-	require.ErrorContains(t, err, "tool import cycle")
-}
-
-func TestBuildProgramRefReportsMissingAsset(t *testing.T) {
-	dir := t.TempDir()
-	_, err := BuildProgramRef(ProgramPaths{
-		Profile: writeProgramRefFile(t, filepath.Join(dir, "profile.yaml"), "name: missing\n"),
-		Machine: filepath.Join(dir, "missing-machine.yaml"),
-	})
-	require.ErrorContains(t, err, "read program asset")
-	require.ErrorContains(t, err, "missing-machine.yaml")
+func mustGetwd(t *testing.T) string {
+	t.Helper()
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	return wd
 }
 
 func writeProgramRefFixture(t *testing.T) (ProgramPaths, map[string]string) {

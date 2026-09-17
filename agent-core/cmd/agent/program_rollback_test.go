@@ -133,8 +133,7 @@ rest_definitions: [rest.yaml]
 		Directory: workspace, ChildAgentBinary: "true",
 	})
 	require.NoError(t, err)
-	ref, err := buildProgramRef(cfg)
-	require.NoError(t, err)
+	ref := testProgramRef(t, cfg.Profile)
 	program, err := loadReferencedProgram(ref, cfg)
 	require.NoError(t, err)
 	reverter := &programReverter{}

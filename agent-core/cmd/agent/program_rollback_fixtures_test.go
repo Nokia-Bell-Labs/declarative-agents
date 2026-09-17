@@ -49,8 +49,7 @@ func TestFreshRollbackRegistryRestoresOriginatingFileTool(t *testing.T) {
 	profile := writeFileRollbackProgram(t)
 	targetConfig, err := runtimeConfigForProfile(profile, runtimeConfig{Directory: workspace})
 	require.NoError(t, err)
-	ref, err := buildProgramRef(targetConfig)
-	require.NoError(t, err)
+	ref := testProgramRef(t, targetConfig.Profile)
 	reverter := &programReverter{}
 	require.NoError(t, reverter.Save(core.Position{
 		Snapshot: core.AgentSnapshot{Program: ref},
@@ -88,8 +87,7 @@ func TestFreshRollbackRegistryReportsAliasedSelfInvokeReceipt(t *testing.T) {
 	profile := selfInvokeRollbackProgram(t)
 	targetConfig, err := runtimeConfigForProfile(profile, runtimeConfig{Directory: workspace})
 	require.NoError(t, err)
-	ref, err := buildProgramRef(targetConfig)
-	require.NoError(t, err)
+	ref := testProgramRef(t, targetConfig.Profile)
 	reverter := &programReverter{}
 	require.NoError(t, reverter.Save(core.Position{
 		Snapshot: core.AgentSnapshot{Program: ref},

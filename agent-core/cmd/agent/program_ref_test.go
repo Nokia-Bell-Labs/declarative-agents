@@ -20,8 +20,7 @@ func TestAugmentRollbackResourcesLoadsVerifiedOriginatingProgram(t *testing.T) {
 	runtime := runtimeConfig{Directory: t.TempDir()}
 	targetConfig, err := runtimeConfigForProfile(profile, runtime)
 	require.NoError(t, err)
-	ref, err := buildProgramRef(targetConfig)
-	require.NoError(t, err)
+	ref := testProgramRef(t, targetConfig.Profile)
 
 	checkpoint := &core.InMemoryCheckpoint{}
 	require.NoError(t, checkpoint.Save(core.Position{
@@ -67,8 +66,7 @@ func TestAugmentRollbackResourcesRejectsMissingReceiptBuilder(t *testing.T) {
 	profile, _ := writeRollbackOriginProgram(t)
 	targetConfig, err := runtimeConfigForProfile(profile, runtimeConfig{})
 	require.NoError(t, err)
-	ref, err := buildProgramRef(targetConfig)
-	require.NoError(t, err)
+	ref := testProgramRef(t, targetConfig.Profile)
 	checkpoint := &core.InMemoryCheckpoint{}
 	require.NoError(t, checkpoint.Save(core.Position{
 		Snapshot: core.AgentSnapshot{Program: ref},
