@@ -16,3 +16,7 @@ sources:
   - https://github.com/Nokia-Bell-Labs/declarative-agents
 annotations:
   declarative-agents.nokia.com/catalog-compatible-release: v0.20260804.0
+dependencies:
+  - name: agent-services
+    version: 0.1.0
+    repository: file://../../charts/agent-services

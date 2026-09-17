@@ -24,9 +24,15 @@ func SourceDir(repoRoot string) string {
 
 // Vendor replaces chartRoot/charts/agent-services with a fresh copy of the
 // library chart, so a render or package sees exactly the repository's version.
+//
+// A chart copied out of the repository carries its vendored copy and has no
+// library source beside it; that copy is left as it stands.
 func Vendor(repoRoot, chartRoot string) error {
 	source := SourceDir(repoRoot)
 	if _, err := os.Stat(filepath.Join(source, "Chart.yaml")); err != nil {
+		if _, vendored := os.Stat(filepath.Join(chartRoot, "charts", Name, "Chart.yaml")); vendored == nil {
+			return nil
+		}
 		return fmt.Errorf("library chart %s: %w", source, err)
 	}
 	destination := filepath.Join(chartRoot, "charts", Name)
