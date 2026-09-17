@@ -10,9 +10,13 @@ tools:
     args: [GOWORK=off, go, list, -m]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    category: &category boundary
     signature: &exec_result
       output: builtin-types-core.ExecResult
       emits: [ToolDone, ToolFailed, CommandError]
+    side_effects: &read_only_process [{kind: child_process, target: go_toolchain, state: read_only}]
+    reversibility: &reversible {classification: reversible}
+    undo: &noop {strategy: noop, description: A read-only go command changes nothing.}
     output: &structured
       mode: structured
     output_cap: 1048576
@@ -22,7 +26,11 @@ tools:
     args: [list, ./...]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    category: *category
     signature: *exec_result
+    side_effects: *read_only_process
+    reversibility: *reversible
+    undo: *noop
     output: *structured
     output_cap: 1048576
   - name: go_packages
@@ -33,7 +41,11 @@ tools:
     stdin_max_bytes: 4194304
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    category: *category
     signature: *exec_result
+    side_effects: *read_only_process
+    reversibility: *reversible
+    undo: *noop
     output: *structured
     output_cap: 1048576
   - name: go_test_inventory
@@ -46,7 +58,11 @@ tools:
     args: [test, -p=1, -json, -list, ^Test, ./...]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    category: *category
     signature: *exec_result
+    side_effects: *read_only_process
+    reversibility: *reversible
+    undo: *noop
     output: *structured
     output_cap: 1048576
   - name: go_test_run
@@ -55,6 +71,10 @@ tools:
     args: [test, -p=1, -json, -count=1, ./...]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    category: *category
     signature: *exec_result
+    side_effects: *read_only_process
+    reversibility: *reversible
+    undo: *noop
     output: *structured
     output_cap: 1048576

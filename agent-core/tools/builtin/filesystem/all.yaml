@@ -15,27 +15,12 @@ tools:
     category: boundary
     init: list_resource
     description: Shape externally discovered paths from a configured filesystem resource.
-    problem: Machine and REST words need resource metadata without hiding recursive traversal inside Go.
-    goals:
-      - Validate candidate paths under a trusted resource root.
-      - Return path, name, category, extension, size, and configured metadata.
-      - Keep include, extension, and presentation category rules in trusted tool config.
-    requirements:
-      input:
-        - A preceding declared filesystem CLI word supplies one resource-relative candidate path per line.
-      output:
-        - Output includes resource-relative document entries with path, name, category, extension, and size.
-      errors:
-        - Unknown resources, root failures, traversal denial, and metadata failures emit declared signals.
-    non_goals:
-      - Does not read document body content.
-      - Does not recursively traverse directories.
-      - Does not let runtime input choose roots, include patterns, extension allowlists, category rules, or parser modes.
     parameters:
       type: object
       properties: {}
       additionalProperties: false
-    emits: [DocumentListReady, DocumentResourceDenied, CommandError]
+    signature:
+      emits: [DocumentListReady, DocumentResourceDenied, CommandError]
     output:
       description: Structured document list entries from the configured resource.
       schema:
@@ -69,29 +54,11 @@ tools:
       condition: the configured resource is unknown or filesystem metadata cannot be read or encoded
       message_shape: 'list_resource: <error>'
       state_after_failure: no successful document list is published
-    relationships:
-      before: [configured filesystem CLI word]
-      after: [read_resource, machine-selected successor]
   - name: read_resource
     type: builtin
     category: boundary
     init: read_resource
     description: Read one document from a configured filesystem resource.
-    problem: Machine and REST words need safe document reads whose corpus authority stays in trusted configuration.
-    goals:
-      - Read one resource-relative document path.
-      - Enforce configured include rules, extension allowlists, size limits, and response modes.
-      - Return raw content, parsed content, content type, extension, and size when configured.
-    requirements:
-      input:
-        - Runtime input may choose only the configured resource name and resource-relative path.
-      output:
-        - Output includes path, content metadata, raw content when enabled, and parsed content when enabled.
-      errors:
-        - Missing files, denied paths, parse failures, and infrastructure failures emit distinct declared signals.
-    non_goals:
-      - Does not mutate documents or approve patch suggestions.
-      - Does not let runtime input choose parser mode, maximum bytes, root, include patterns, or extension policy.
     parameters:
       type: object
       properties:
@@ -102,7 +69,8 @@ tools:
           type: string
           description: Resource-relative document path.
       required: [resource, path]
-    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    signature:
+      emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
     output:
       description: Structured document detail from the configured resource.
       schema:
@@ -142,6 +110,3 @@ tools:
       condition: the resource is unknown or an unclassified filesystem or encoding failure occurs
       message_shape: 'read_resource: <error>'
       state_after_failure: no runtime or filesystem state is changed
-    relationships:
-      before: [list_resource, machine-selected predecessor]
-      after: [machine-selected successor]

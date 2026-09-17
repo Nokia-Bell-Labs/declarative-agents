@@ -10,9 +10,13 @@ tools:
     args: [--json, --line-number, --no-ignore, --hidden, --text, --threads, "1", --sort, path]
     visibility: internal
     emits: [ToolDone, ToolFailed, CommandError]
+    category: boundary
     signature:
       output: builtin-types-core.ExecResult
       emits: [ToolDone, ToolFailed, CommandError]
+    side_effects: [{kind: child_process, target: ripgrep, state: read_only}]
+    reversibility: {classification: reversible}
+    undo: {strategy: noop, description: A ripgrep search changes nothing.}
     parameters:
       type: object
       properties:

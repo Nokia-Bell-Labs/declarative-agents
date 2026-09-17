@@ -7,9 +7,10 @@ tools:
   contract: migrated
   init: suspend
   visibility: internal
-  emits:
-  - AwaitApproval
-  - CommandError
+  signature:
+    emits:
+    - AwaitApproval
+    - CommandError
   description: Suspend the run at an approval gate. The loop persists a checkpoint through the Checkpoint port when a persistent backend (--dolt-dsn) is configured.
   category: boundary
   config:
@@ -39,23 +40,6 @@ tools:
     requires:
     - operator_decision
     - resume_signal_or_rollback_target
-  problem: A machine needs an explicit human approval boundary that stops automatic dispatch and optionally requires durable checkpoint support before yielding control.
-  goals:
-  - Emit AwaitApproval with the configured reason, or the default `awaiting approval` reason.
-  - Refuse suspension when require_checkpoint is true and no persistent checkpoint backend is configured.
-  - Preserve declaration alias, label, resolved reason, checkpoint requirement/reference context, and compensation intent in a strict receipt for rollback.
-  requirements:
-    input:
-    - must take label, reason, and require_checkpoint only from trusted tool configuration
-    output:
-    - must emit AwaitApproval with the resolved reason when the gate is valid
-    - must emit a strict receipt that a fresh receipt-only reverser can validate and report as pending resume, rejection, or rollback compensation
-    errors:
-    - must emit CommandError before suspension when a required persistent checkpoint backend is unavailable
-    - must emit no receipt when suspension fails
-  non_goals:
-  - Does not approve or reject the run on the operator's behalf.
-  - Does not itself persist a checkpoint; the loop owns persistence through the Checkpoint port.
   output:
     description: The configured or default reason presented at the approval boundary; the opaque receipt carries rollback compensation context.
     schema: {type: string}
@@ -64,6 +48,3 @@ tools:
     condition: require_checkpoint is true but the Checkpoint port is nil or the no-op backend
     message_shape: suspend requires a persistent checkpoint backend for checkpoint persistence
     state_after_failure: the run is not suspended and no approval handoff occurs
-  relationships:
-    before: [machine-selected operation requiring approval]
-    after: [resume approval signal, checkpoint_rollback]

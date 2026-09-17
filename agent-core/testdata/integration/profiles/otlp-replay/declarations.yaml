@@ -9,7 +9,6 @@ tools:
     init: load_otlp_batch
     category: boundary
     visibility: internal
-    emits: [BatchLoaded, CommandError]
     signature:
       output: otlp-replay-types.ReplayBatch
       emits: [BatchLoaded, CommandError]
@@ -26,7 +25,6 @@ tools:
     init: relay_spans
     category: boundary
     visibility: internal
-    emits: [SpansRelayed, CommandError]
     signature:
       output: otlp-replay-types.RelayResult
       emits: [SpansRelayed, CommandError]

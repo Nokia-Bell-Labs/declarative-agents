@@ -12,22 +12,8 @@ tools:
   precondition: git_repo
   type: exec
   category: boundary
-  problem: A machine needs a read-only Git inspection word to run `git rev-parse --short HEAD` to identify the current commit.
-  goals:
-  - Run `git rev-parse --short HEAD` to identify the current commit.
-  - Emit ToolDone on exit code zero and return Git's combined output unchanged.
-  - Leave repository files, index, and refs unchanged.
-  requirements:
-    input:
-    - must run in the configured workspace after verifying the Git repository precondition
-    output:
-    - must return the command's combined stdout and stderr as a string
-    errors:
-    - must emit CommandError when the process cannot start and ToolFailed when the precondition or Git command fails
-  non_goals:
-  - Does not mutate the working tree, index, refs, or commit graph.
-  - Does not interpret the Git output or choose a subsequent workflow action.
-  emits: [ToolDone, ToolFailed, CommandError]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
   output:
     description: Short object name for HEAD, followed by Git's newline.
     schema: {type: string}
@@ -54,6 +40,3 @@ tools:
     condition: the workspace is not a Git repository or the Git command exits non-zero
     message_shape: '<captured git output>'
     state_after_failure: repository state is unchanged
-  relationships:
-    before: [commit, commit_workspace_baseline]
-    after: [record_agent_commit, machine-selected successor]

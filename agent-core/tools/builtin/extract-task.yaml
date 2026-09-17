@@ -7,48 +7,27 @@ tools:
   init: extract_task
   description: Extract the next unblocked task from the dependency graph.
   visibility: internal
-  emits:
-  - TaskExtracted
-  - NoTask
-  - CommandError
+  signature:
+    emits:
+    - TaskExtracted
+    - NoTask
+    - CommandError
   category: stateful_internal
   side_effects:
   - kind: state_mutation
     target: pipeline_state
     state: current_task_selected
     description: Updates only the current task cursor.
-  reversibility:
-    classification: reversible
   undo:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded pipeline state captured before extraction.
     payload: pipeline_state_snapshot
     captures: [current_task, current_plan, issue_id, task_deps]
-  problem: The machine needs a declared word for extracting the next ready planning task without embedding that workflow step in Go control flow.
-  goals:
-  - Perform the extract_task action as one machine-selected word.
-  - Return an explicit signal that lets the MachineSpec choose the next state.
-  - Keep sequencing outside the tool implementation and in machine.yaml.
-  requirements:
-    input:
-    - max_weight comes from trusted config; zero means unlimited
-    output:
-    - must emit one declared signal and return machine-readable output when available
-    errors:
-    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
-  non_goals:
-  - Does not choose the next workflow step; machine.yaml owns sequencing.
-  - Does not advance graph nodes; mark_nodes_planning owns that mutation.
   errors:
   - signal: CommandError
     condition: required input, configuration, or runtime state is invalid
     message_shape: 'extract_task: <error>'
     state_after_failure: no additional workflow step is executed by this tool
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: Plain-text extracted task summary.
     schema:

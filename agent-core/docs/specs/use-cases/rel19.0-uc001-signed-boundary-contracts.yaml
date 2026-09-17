@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: rel19.0-uc001-signed-boundary-contracts
 title: A boundary tool states its contract through a signature and its effect blocks
-status: specified
+status: implemented
 
 summary: |
   A declaration author maintains a boundary or stateful_internal tool whose

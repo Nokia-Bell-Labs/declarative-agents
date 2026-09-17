@@ -79,9 +79,10 @@ tools:
       done
   - list_files
   output_cap: 200
-  emits:
-  - ToolDone
-  - ToolFailed
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
   description: List files and directories in a tree format. Use this first to understand the workspace layout before reading files.
   parameters:
     type: object
@@ -123,31 +124,6 @@ tools:
   undo:
     strategy: noop
     description: Directory listing is read-only and has no effects to reverse.
-  problem: The machine needs a declared word for listing workspace files without embedding that workflow step in Go control flow.
-  goals:
-  - Perform the list_files action as one machine-selected word.
-  - Return an explicit signal that lets the MachineSpec choose the next state.
-  - Keep sequencing outside the tool implementation and in machine.yaml.
-  requirements:
-    input:
-    - must run from the configured workspace root
-    - must resolve the requested directory beneath that root before invoking find
-    - must limit find traversal to max_depth (default 4)
-    output:
-    - must preserve the existing tree-shaped, workspace-relative output
-    - must include hidden entries and list symlinks without following them
-    - must order entries deterministically and cap output at 200 lines
-    errors:
-    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
-  non_goals:
-  - Does not choose the next workflow step; machine.yaml owns sequencing.
-  - Does not hide unrelated tool execution behind this word.
-  # GH-1376 resolution: path validation, bounded enumeration, ordering, and
-  # formatting construct one list_files result under one read-only contract.
-  # None is an independently selectable domain action or rollback boundary.
-  # Internal control flow and helper processes do not by themselves make an
-  # agent-visible tool composite; hidden dispatches or distinct effects would.
-  - Does not expose implementation stages as independently selectable machine actions.
   errors:
   - signal: CommandError
     condition: bash, find, awk, or sort cannot be started
@@ -157,11 +133,6 @@ tools:
     condition: the path is missing, not a directory, outside the workspace, or find exits non-zero
     message_shape: 'list_files: <error>'
     state_after_failure: workspace unchanged
-  relationships:
-    before:
-    - machine-selected predecessor
-    after:
-    - machine-selected successor
   output:
     description: Deterministically ordered, workspace-relative tree text.
     schema:

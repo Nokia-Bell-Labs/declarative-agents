@@ -380,6 +380,7 @@ tools:
     visibility: internal
   - name: jurist_rg
     type: exec
+    category: boundary
     description: ""
     output:
       schema:
@@ -393,6 +394,15 @@ tools:
           - output
         type: object
       mode: structured
+    side_effects:
+      - kind: child_process
+        target: ripgrep
+        state: read_only
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: A ripgrep search changes nothing.
     binary: rg
     args:
       - --json
@@ -446,21 +456,18 @@ tools:
     type: builtin
     category: stateful_internal
     description: Load the specification corpus from the project directory.
-    problem: The machine needs a declared word for loading the specification corpus without embedding that workflow step in Go control flow.
+    problem: Load the specification corpus from the project directory.
     goals:
-      - Perform the load_corpus action as one machine-selected word.
-      - Return an explicit signal that lets the MachineSpec choose the next state.
-      - Keep sequencing outside the tool implementation and in machine.yaml.
+      - Load the specification corpus from the project directory.
     requirements:
       input:
-        - must consume parameters from tool input, prior Result, or configured command/domain state
+        - load_corpus declares no input type
       output:
-        - must emit one declared signal and return machine-readable output when available
+        - load_corpus takes its output as builtin-types-spec-validation.LoadedCorpus
       errors:
-        - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+        - load_corpus emits CommandError when it cannot produce its declared output
     non_goals:
-      - Does not choose the next workflow step; machine.yaml owns sequencing.
-      - Does not hide unrelated tool execution behind this word.
+      - Behavior outside load_corpus, which its signature states in full
     output:
       description: Loaded corpus summary and the declared search plans consumed by the specification-critic machine.
       schema:
@@ -616,11 +623,6 @@ tools:
         condition: required input, configuration, or runtime state is invalid
         message_shape: 'load_corpus: <error>'
         state_after_failure: no additional workflow step is executed by this tool
-    relationships:
-      before:
-        - machine-selected predecessor
-      after:
-        - machine-selected successor
     init: load_corpus
     config:
       suite_paths:
@@ -638,20 +640,18 @@ tools:
     type: builtin
     category: stateful_internal
     description: Shape joined ripgrep events into deterministic jurist findings.
-    problem: grep_check match policy and finding provenance need a visible reduction step after external search.
+    problem: Shape joined ripgrep events into deterministic jurist findings.
     goals:
-      - Map rg match and missing outcomes to charter findings.
-      - Preserve suite, check, severity, path, and line provenance.
+      - Shape joined ripgrep events into deterministic jurist findings.
     requirements:
       input:
-        - must consume the joined structured outputs of declared jurist_rg executions
+        - reduce_grep_checks declares no input type
       output:
-        - must emit ValidationPassed or ValidationFailed from the complete finding set
+        - reduce_grep_checks declares no output type
       errors:
-        - must reject malformed rg events and rg exit codes above one as CommandError
+        - reduce_grep_checks emits CommandError when it cannot produce its declared output
     non_goals:
-      - Does not read or scan target files.
-      - Does not execute search subprocesses.
+      - Behavior outside reduce_grep_checks, which its signature states in full
     output:
       description: Plain-text aggregate jurist finding and error count.
       schema:
@@ -671,11 +671,6 @@ tools:
         condition: Joined rg output is malformed or reports an exit code above one.
         message_shape: 'reduce grep checks failed: <error>'
         state_after_failure: No additional workflow step is executed.
-    relationships:
-      before:
-        - jurist_rg
-      after:
-        - format_report
     init: reduce_grep_checks
     config:
       results_from: $from(grep_results).items
@@ -683,26 +678,28 @@ tools:
       - ValidationPassed
       - ValidationFailed
       - CommandError
+    signature:
+      emits:
+        - ValidationPassed
+        - ValidationFailed
+        - CommandError
     visibility: internal
   - name: validate_specs
     type: builtin
     category: stateful_internal
     description: Run consistency checks on the loaded specification corpus.
-    problem: The machine needs a declared word for validating specification graph consistency without embedding that workflow step in Go control flow.
+    problem: Run consistency checks on the loaded specification corpus.
     goals:
-      - Perform the validate_specs action as one machine-selected word.
-      - Return an explicit signal that lets the MachineSpec choose the next state.
-      - Keep sequencing outside the tool implementation and in machine.yaml.
+      - Run consistency checks on the loaded specification corpus.
     requirements:
       input:
-        - must consume parameters from tool input, prior Result, or configured command/domain state
+        - validate_specs declares no input type
       output:
-        - must emit one declared signal and return machine-readable output when available
+        - validate_specs declares no output type
       errors:
-        - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+        - validate_specs emits CommandError when it cannot produce its declared output
     non_goals:
-      - Does not choose the next workflow step; machine.yaml owns sequencing.
-      - Does not hide unrelated tool execution behind this word.
+      - Behavior outside validate_specs, which its signature states in full
     output:
       description: Plain-text finding and error count summary.
       schema:
@@ -722,16 +719,16 @@ tools:
         condition: required input, configuration, or runtime state is invalid
         message_shape: 'validate_specs: <error>'
         state_after_failure: no additional workflow step is executed by this tool
-    relationships:
-      before:
-        - machine-selected predecessor
-      after:
-        - machine-selected successor
     init: validate_specs
     emits:
       - ValidationPassed
       - ValidationFailed
       - CommandError
+    signature:
+      emits:
+        - ValidationPassed
+        - ValidationFailed
+        - CommandError
     visibility: internal
 rest: {}
 files:
@@ -740,23 +737,23 @@ files:
   - path: <agent-core>/testdata/integration/profiles/audit/profile.yaml
     sha256: 5f768ac09173a742653c01e974825ed3a302036b09828900674009996e848faa
   - path: <agent-core>/testdata/integration/profiles/audit/ripgrep.yaml
-    sha256: 30d0ea6ea943a9cccbc48d9c26012e23770e6c4b49f1d2ba61747c2075010a0f
+    sha256: c438f2f997fa0a03d896ad02bd99b1369b8df47fd9f37e8219a75e247b293814
   - path: <agent-core>/testdata/integration/profiles/audit/tools.yaml
     sha256: 8c0b951612e211648d44a1c451ee610710dd2ca5fa86e7a63cda5175a2b833ee
   - path: <agent-core>/tools/builtin/format-report.yaml
     sha256: cd04b785b59509a0a215d67a165efe4a509bfafd84fb048f111299c80335b295
     root: agent-core
   - path: <agent-core>/tools/builtin/load-corpus.yaml
-    sha256: 1a23128b5b7dc39e5b5c3961442760a254f2beafcebe906c0e8b280d0a9d98d8
+    sha256: 868812463d63e62ad3ff99d0eab7ba17eeca17eb9377d6c5296cae292a39584b
     root: agent-core
   - path: <agent-core>/tools/builtin/spec-validation/reduce-grep-checks.yaml
-    sha256: 8a5431c6200ace0a74ea2a689bb81562cf1c14cfe25a7cf65c8b60a1769831d9
+    sha256: 25936bf6e651be24ad0780bdc68ce20eb4880fc87f566fb98ee66a3265086aad
     root: agent-core
   - path: <agent-core>/tools/builtin/spec-validation/test-evidence.yaml
-    sha256: 0c358c4b7eefeaed7db4244b4d7e2cfc9f01c7d8d566419255e4fca039d06ba6
+    sha256: 83f8550ccb6d495fe50e7d11d45205c25329e06d0b018a5c5af8b7ed6f38ffcb
     root: agent-core
   - path: <agent-core>/tools/builtin/validate-specs.yaml
-    sha256: 1dc29406dc6248e1c3a4a9dfa97191e76ea65f1497f02a92c515f26cc48e5e27
+    sha256: b010cd10749b71c9631e85e16c89abff8ea1b023998319ba2b873302b3777c9f
     root: agent-core
   - path: <agent-core>/tools/units/types-core.yaml
     sha256: 0ed81677d3d2b86cf14fdba16967f44ab9335d75a46047759cd1532aa645436d
