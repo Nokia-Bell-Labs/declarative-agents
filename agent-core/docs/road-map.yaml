@@ -770,7 +770,10 @@ releases:
         summary: Machine templates in the machine closure loader, with the control-template fixture.
         status: implemented
       - id: gh-2115
-        summary: Agent blueprints; the chatbot-mesh serve agents become instances of one blueprint and the agent-core serve-machine template.
+        summary: The chatbot-mesh serve agents and catalog's applier become instances of the agent-core serve-machine template.
+        status: implemented
+      - id: gh-2123
+        summary: Agent blueprints in the profile loader, once a profile group that is one agent with arguments exists; deferred from gh-2115.
         status: planned
       - id: gh-2119
         summary: Declared library roots, the --library flag, root read-only rules, and rooted staging.

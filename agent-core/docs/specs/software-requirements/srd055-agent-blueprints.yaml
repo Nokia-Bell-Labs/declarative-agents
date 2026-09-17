@@ -131,4 +131,4 @@ related_documents:
 
 implementation_status:
   planned:
-    - GH-2115 implements blueprints in the profile loader, the closure, the dump, profilestage, and profileaudit, and migrates the four chatbot-mesh serve agents to one blueprint and the shared serve-machine template.
+    - GH-2123 implements blueprints in the profile loader, the closure, the dump, profilestage, and profileaudit, once the corpus holds a profile group that is one agent with arguments. GH-2115 measured the four chatbot-mesh serve agents and found their duplication was the serve machine, which srd054's template removed; their request machines differ, so they were not that group.

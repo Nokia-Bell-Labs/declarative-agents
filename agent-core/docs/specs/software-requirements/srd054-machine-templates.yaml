@@ -153,6 +153,6 @@ related_documents:
 implementation_status:
   complete:
     - GH-2114 implements machine templates in the machine closure loader (R1, R2, R3), with a control-template fixture whose instance equals the control machine apart from its name; startup wiring faults name the template beside the instance. A reference left after substitution reports its line in the template; a strict-decode fault in a template body reports the line of the re-encoded body rather than the template (R2.5, partial).
+    - GH-2115 extracts the serve machine shared by catalog's applier and the four chatbot-mesh serve agents into agent-core's library at tools/machines/serve-machine-template.yaml, instantiated by each through its install path.
   planned:
-    - GH-2115 extracts the serve-machine template shared by the chatbot-mesh serve agents and catalog's applier into agent-core's library.
     - GH-2116 migrates the remaining identical-state-set machine groups to templates.
