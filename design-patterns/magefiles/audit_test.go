@@ -656,3 +656,26 @@ func writeAuditFixture(t *testing.T, path, content string) {
 		t.Fatalf("write fixture: %v", err)
 	}
 }
+
+// TestReferenceEvidenceReadsAMachineInstanceThroughItsTemplate is srd054: a
+// machine file that instantiates a template carries no states of its own, so
+// the audit reads the template's machine body for it.
+func TestReferenceEvidenceReadsAMachineInstanceThroughItsTemplate(t *testing.T) {
+	root := t.TempDir()
+	writeAuditFixture(t, filepath.Join(root, "agent-core", "tools", "machines", "approve.yaml"),
+		"unit: approve\nparams: []\nmachine:\n  name: approve\n  states: [Idle, Done]\n  transitions:\n"+
+			"    - {state: Idle, signal: Seed, next: Done, action: suspend}\n")
+	writeAuditFixture(t, filepath.Join(root, "conformance", "machine.yaml"),
+		"name: approval\ninstantiate:\n  - fragment: /opt/agent-core/tools/machines/approve.yaml\n    args: {}\n")
+	check := evidenceCheck{
+		Path: "conformance/machine.yaml", Artifact: "machine",
+		Assertion: "yaml_transition", Match: map[string]string{"state": "Idle", "signal": "Seed", "action": "suspend"},
+	}
+	if err := runEvidenceCheck(root, "instance", check); err != nil {
+		t.Fatalf("instance through template: %v", err)
+	}
+	check.Match = map[string]string{"state": "Idle", "signal": "Seed", "action": "other"}
+	if err := runEvidenceCheck(root, "instance", check); err == nil {
+		t.Fatal("a transition the template does not declare passed")
+	}
+}

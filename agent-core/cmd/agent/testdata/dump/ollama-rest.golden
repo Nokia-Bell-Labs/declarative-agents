@@ -15,16 +15,25 @@ profile:
 machine:
   name: ollama-rest-model-listing
   purpose: List live local Ollama models through the configured REST tool.
+  configuration:
+    machine: machine.yaml
+    tools: tools.yaml
   initial_state: Idle
   states:
     - name: Idle
+      meaning: Initial state before the model receives the operator request.
     - name: Composing
+      meaning: The Qwen boundary is deciding the next tool call or final answer.
     - name: Parsing
+      meaning: The model response is being parsed into one tool request.
     - name: Succeeded
+      meaning: Terminal. The model listed live Ollama models and produced a final answer.
       run_status: succeeded
     - name: Failed
+      meaning: Terminal. The model or REST boundary failed.
       run_status: failed
     - name: BudgetExceeded
+      meaning: Terminal. The loop exhausted its iteration or parse-error budget.
       run_status: budget_exceeded
   terminal_states:
     - Succeeded
@@ -32,14 +41,23 @@ machine:
     - BudgetExceeded
   signals:
     - name: Seed
+      trigger: Loop initialization.
     - name: LLMResponded
+      trigger: Qwen returned a response.
     - name: ToolDone
+      trigger: The parser found a model-selected tool call.
     - name: ParseFailed
+      trigger: The model response could not be parsed.
     - name: TaskCompleted
+      trigger: The model called done with the final answer.
     - name: RESTResponded
+      trigger: Ollama returned the configured successful model-listing response.
     - name: RESTDomainFailed
+      trigger: Ollama returned a configured service-domain failure.
     - name: CommandError
+      trigger: Runtime or REST boundary infrastructure failed.
     - name: BudgetExhausted
+      trigger: Iteration or parse-error budget was exhausted.
   transitions:
     - state: Idle
       signal: Seed
@@ -110,6 +128,14 @@ types:
     description: Plain text a word publishes as its whole result.
     schema:
       type: string
+instantiations:
+  - kind: machine
+    fragment: <agent-core>/tools/machines/ollama-model-listing-machine-template.yaml
+    args:
+      machine: machine.yaml
+      tools: tools.yaml
+    produces:
+      - machine/ollama-rest-model-listing
 tools:
   - name: done
     type: builtin
@@ -389,7 +415,7 @@ files:
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/llm.yaml
     sha256: 2cfb17199ba2ac43d7072360869091977d487cdf43aeef421f100b1f347c2bcd
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/machine.yaml
-    sha256: 0f6156846b83c4dcfb4a37675f09aca960c9341282885df831d3a0fdf1241226
+    sha256: a318d0dd7995ee96e2467d0dfbd73f1d42e3fe1bfc2017bb766c82d90287a791
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/openapi.yaml
     sha256: 4fd398a63267be22bba1387ebf94b0a0d0d6cdcb02ff37b8aefa2fee4856b055
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/profile.yaml
@@ -406,6 +432,9 @@ files:
     root: agent-core
   - path: <agent-core>/tools/builtin/report-parse-error.yaml
     sha256: 4ae9e92a5ce3e249a5278284ace687ecaf8ae95231ff20dd301aa37b7bce2408
+    root: agent-core
+  - path: <agent-core>/tools/machines/ollama-model-listing-machine-template.yaml
+    sha256: 4e18d96284ec07945a5a8e46eecb3b0ae0b58c3f98b71b11678a2166a59489c3
     root: agent-core
   - path: <agent-core>/tools/units/types-core.yaml
     sha256: 23b9182ef09b4feb01cf6c9438cdea033e526ea6bbee4012d0fce7a10163329b
