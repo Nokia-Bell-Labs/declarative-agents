@@ -22,6 +22,7 @@ purpose: |-
 instantiate:
   - fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
     args:
+      workflow: provisioning_workflow_orchestrator
       launch_requests: launch_provisioning_workflow_orchestrator_requests
       launch_control: launch_provisioning_workflow_orchestrator_control
       await_control: await_provisioning_workflow_orchestrator_control

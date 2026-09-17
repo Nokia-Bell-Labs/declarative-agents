@@ -1,111 +1,23 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+# An instance of agent-core's serve-machine template (srd054): the persistent
+# service lifecycle with the curator's server words wired in. Documentation
+# workflow behavior lives in request-machine.yaml, not here.
+unit: documentation-curator-machine
 name: documentation-curator
 purpose: |-
   Serve the Knowledge Manager documentation application through generic,
   profile-configured REST servers. Request behavior is owned by the companion
-  request machine; this host machine owns only listener lifecycle.
-invariants:
-  - All browser routes are declared in rest.yaml.
-  - Documentation workflow policy is executed by request-machine.yaml.
-  - Runtime Go words remain atomic and profile-independent.
-  - All listeners bind only to configured loopback addresses.
-lifecycle: |-
-  1. Launch the curator HTTP server.
-  2. Launch the lifecycle control server.
-  3. Launch the monitor server and await control.
-  4. Exit the agent, then stop monitor and curator HTTP listeners.
-initial_state: Idle
-budget:
-  command_timeout: 1m
-  max_iterations: 10000
-metric_labels:
-  workflow: documentation_curator
-states:
-  - {name: Idle, meaning: Initial state before listeners start.}
-  - {name: LaunchingHTTP, meaning: The generic curator HTTP listener is starting.}
-  - {name: LaunchingControl, meaning: The lifecycle control listener is starting.}
-  - {name: LaunchingMonitor, meaning: The monitor listener is starting.}
-  - {name: AwaitingControl, meaning: Curator routes are available while control waits.}
-  - {name: Exiting, meaning: The lifecycle exit word is running.}
-  - {name: StoppingMonitor, meaning: The monitor listener is stopping.}
-  - {name: StoppingHTTP, meaning: The curator HTTP listener is stopping.}
-  - {name: Failed, meaning: Terminal listener or lifecycle failure., run_status: failed}
-  - {name: Done, meaning: Terminal clean shutdown., run_status: succeeded}
-terminal_states: [Done, Failed]
-signals:
-  - {name: Seed, trigger: Agent startup.}
-  - {name: ServerLaunched, trigger: A generic REST listener started.}
-  - {name: ExitRequested, trigger: The control endpoint requested exit.}
-  - {name: AgentExited, trigger: exit_agent completed.}
-  - {name: ServerStopped, trigger: A generic REST listener stopped.}
-  - {name: AwaitTimedOut, trigger: No control event arrived.}
-  - {name: CommandError, trigger: Listener or lifecycle infrastructure failed.}
-transitions:
-  - state: Idle
-    signal: Seed
-    next: LaunchingHTTP
-    action: launch_curator_http
-    metric_labels: {phase: http_launch}
-  - state: LaunchingHTTP
-    signal: ServerLaunched
-    next: LaunchingControl
-    action: launch_curator_control
-    metric_labels: {phase: control_launch}
-  - state: LaunchingHTTP
-    signal: CommandError
-    next: Failed
-  - state: LaunchingControl
-    signal: ServerLaunched
-    next: LaunchingMonitor
-    action: launch_monitor_rest
-    label: monitor
-    report_output: $.address
-    metric_labels: {phase: monitor_launch}
-  - state: LaunchingControl
-    signal: CommandError
-    next: Failed
-  - state: LaunchingMonitor
-    signal: ServerLaunched
-    next: AwaitingControl
-    action: await_curator_control
-    metric_labels: {phase: control_await}
-  - state: LaunchingMonitor
-    signal: CommandError
-    next: Failed
-  - state: AwaitingControl
-    signal: ExitRequested
-    next: Exiting
-    action: exit_agent
-    metric_labels: {phase: exit}
-  - state: AwaitingControl
-    signal: AwaitTimedOut
-    next: AwaitingControl
-    action: await_curator_control
-    metric_labels: {phase: control_await}
-  - state: AwaitingControl
-    signal: ServerStopped
-    next: Failed
-  - state: AwaitingControl
-    signal: CommandError
-    next: Failed
-  - state: Exiting
-    signal: AgentExited
-    next: StoppingMonitor
-    action: stop_monitor_rest
-  - state: Exiting
-    signal: CommandError
-    next: Failed
-  - state: StoppingMonitor
-    signal: ServerStopped
-    next: StoppingHTTP
-    action: stop_curator_http
-  - state: StoppingMonitor
-    signal: CommandError
-    next: Failed
-  - state: StoppingHTTP
-    signal: ServerStopped
-    next: Done
-  - state: StoppingHTTP
-    signal: CommandError
-    next: Failed
+  request machine; this host machine owns only listener lifecycle. All browser
+  routes are declared in rest.yaml, documentation workflow policy is executed
+  by request-machine.yaml, and every listener binds only to configured
+  loopback addresses.
+instantiate:
+  - fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
+    args:
+      workflow: documentation_curator
+      command_timeout: 1m
+      launch_requests: launch_curator_http
+      launch_control: launch_curator_control
+      await_control: await_curator_control
+      stop_requests: stop_curator_http

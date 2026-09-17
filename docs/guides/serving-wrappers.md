@@ -9,7 +9,9 @@ The target shape exists in the tree: `applications/agent-architecture/agents/app
 
 ## The serve machine
 
-We do not write serve loops by hand. `agent-core/tools/machines/` ships the templates — `serve-machine-template.yaml`, `monitor-service-machine-template.yaml`, `lifecycle-approval-machine-template.yaml` — and a wrapper's `machine.yaml` reduces to one instantiation with the four word names as arguments. `applications/chatbot-mesh/agents/chatbot/machine.yaml` is the reference instance at 25 lines; the same machine written out by hand runs about 60. Migration of the remaining hand-rolled serve machines is tracked in GH-2168 (planned).
+We do not write serve loops by hand. `agent-core/tools/machines/` ships the templates — `serve-machine-template.yaml`, `monitor-service-machine-template.yaml`, `lifecycle-approval-machine-template.yaml` — and a wrapper's `machine.yaml` reduces to one instantiation. The serve template takes the four word names, a `workflow` value for the machine's metric label, and an optional `command_timeout`; its transitions carry the phase labels every serve agent shares, so an instance's telemetry names the agent and the phase without writing either out. `applications/chatbot-mesh/agents/chatbot/machine.yaml` is the reference instance; documentation-curator shows the label and budget arguments in use.
+
+A machine that is the serve lifecycle plus extra states — a poll loop, an intake loop, a launch sequence — is not an instance, because an instance carries only its name, purpose and arguments (srd054 R1.2). The extra states are a capability waiting to be cleaved out (GH-2170, GH-2171), and the wrapper becomes an instance when they go.
 
 ## The lifecycle vocabulary and monitor pair
 
