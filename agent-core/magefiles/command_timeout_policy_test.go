@@ -5,7 +5,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profileaudit"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/profilestage"
 )
 
 func TestAgentCoreProfileTimeoutEnvelopes(t *testing.T) {
@@ -31,8 +31,13 @@ func TestAgentCoreProfileTimeoutEnvelopes(t *testing.T) {
 func TestAgentCoreProfileTimeoutMutationIsRejected(t *testing.T) {
 	coreRoot := coreRootForPolicyTest(t)
 	source := filepath.Join(coreRoot, "testdata", "integration", "profiles", "otlp-replay")
-	mutated := filepath.Join(t.TempDir(), "otlp-replay")
-	copyPolicyFixture(t, source, mutated)
+	// Stage the fixture with the units it imports, placed where its relative
+	// imports resolve, rather than copying the profile directory alone (GH-2108).
+	staged := t.TempDir()
+	mutated := filepath.Join(staged, "profiles", "otlp-replay")
+	if err := profilestage.Stage(staged, profilestage.Tree{Source: source, Destination: mutated}); err != nil {
+		t.Fatal(err)
+	}
 	profile := filepath.Join(mutated, "profile.yaml")
 
 	report, err := profileaudit.InspectWithOptions(
@@ -114,32 +119,4 @@ func isCoreProfileName(name string) bool {
 	return name == "profile.yaml" ||
 		strings.HasPrefix(name, "profile-") && strings.HasSuffix(name, ".yaml") ||
 		strings.HasSuffix(name, "-profile.yaml")
-}
-
-func copyPolicyFixture(t *testing.T, source, destination string) {
-	t.Helper()
-	err := filepath.WalkDir(source, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		rel, err := filepath.Rel(source, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(destination, rel)
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		if err := os.WriteFile(target, data, 0o644); err != nil {
-			return fmt.Errorf("copy %s: %w", path, err)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
 }
