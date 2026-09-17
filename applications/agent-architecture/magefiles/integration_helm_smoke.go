@@ -112,7 +112,7 @@ func runHelmSmoke(resolved roots) (result error) {
 		defer cancel()
 		return smokeEnvironment{}.run(ctx, "kind", args...)
 	}
-	cluster, err := kindrig.EnsureCluster(kindRun, smokeCluster, kindConfig, 120*time.Second)
+	cluster, err := kindrig.EnsureFreshCluster(kindRun, smokeCluster, kindConfig, 120*time.Second)
 	if err != nil {
 		return fmt.Errorf("helmSmoke kind cluster acquisition: %w", err)
 	}

@@ -79,6 +79,31 @@ func aggregateClusterName(standalone string) string {
 	return standalone
 }
 
+// ensureIntegrationCluster acquires a chatbot-mesh test cluster fresh, so a
+// leftover from an interrupted run is replaced rather than adopted. Inside an
+// aggregate session only the first acquisition is fresh; later targets reuse
+// the cluster the session already adopted (GH-2137).
+func ensureIntegrationCluster(
+	run kindrig.Runner,
+	name, configPath string,
+	wait time.Duration,
+) (kindrig.Cluster, error) {
+	if aggregateSessionHoldsCluster(name) {
+		return kindrig.EnsureCluster(run, name, configPath, wait)
+	}
+	return kindrig.EnsureFreshCluster(run, name, configPath, wait)
+}
+
+func aggregateSessionHoldsCluster(name string) bool {
+	session := activeIntegrationKindSession()
+	if session == nil {
+		return false
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	return session.cluster.Name == name
+}
+
 func aggregateKindClusterOwned(name string) bool {
 	session := activeIntegrationKindSession()
 	if session == nil {

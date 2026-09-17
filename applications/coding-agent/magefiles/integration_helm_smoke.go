@@ -170,7 +170,7 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 		defer cancel()
 		return codingSmokeEnvironment{}.run(ctx, "kind", args...)
 	}
-	cluster, err := kindrig.EnsureCluster(
+	cluster, err := kindrig.EnsureFreshCluster(
 		kindRun, codingHelmCluster, kindConfig, 120*time.Second)
 	if err != nil {
 		return &codingHelmInfrastructureError{Step: "kind cluster acquisition", Cause: err}

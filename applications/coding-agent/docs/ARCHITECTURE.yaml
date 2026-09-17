@@ -294,7 +294,7 @@ design_decisions:
     benefits:
       - Static chart evidence is connected to real Kubernetes behavior.
       - Model nondeterminism does not weaken role or trace assertions.
-      - Reused clusters are not deleted and failures retain targeted evidence.
+      - A leftover cluster is replaced, every cluster is deleted after the run, and failures retain targeted evidence.
   - id: 12
     title: Separate the deciding caller from the actuating applier
     decision: |
