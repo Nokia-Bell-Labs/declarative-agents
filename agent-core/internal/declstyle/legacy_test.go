@@ -36,13 +36,13 @@ var typedCategories = map[string]bool{"word": true, "response": true}
 // legacy_baseline.txt; the gate fails on any usage not in it, and on any entry
 // no longer present, so the baseline shrinks and never grows.
 func TestDeclarationLegacyBaseline(t *testing.T) {
-	found := collectLegacyEntries(t)
+	found, lengths := collectLegacyEntries(t)
 	baseline := loadBaseline(t, filepath.Join(thisDir(t), "legacy_baseline.txt"))
 
 	var added []string
 	for _, entry := range found {
 		if !baseline[entry] {
-			added = append(added, entry)
+			added = append(added, describeNewEntry(entry, lengths))
 		}
 	}
 	seen := make(map[string]bool, len(found))
@@ -89,7 +89,7 @@ type declarationFile struct {
 	} `yaml:"tools"`
 }
 
-func collectLegacyEntries(t *testing.T) []string {
+func collectLegacyEntries(t *testing.T) ([]string, map[string]int) {
 	t.Helper()
 	var entries []string
 	paths, err := discoverLegacyDeclarationFiles(declarationRoots(t))
@@ -100,8 +100,13 @@ func collectLegacyEntries(t *testing.T) []string {
 	singles, err := singleImporterEntries(paths, moduleRoot(t), filepath.Dir(moduleRoot(t)))
 	require.NoError(t, err)
 	entries = append(entries, singles...)
+	lengths, err := longFileEntries(paths, filepath.Dir(moduleRoot(t)))
+	require.NoError(t, err)
+	for entry := range lengths {
+		entries = append(entries, entry)
+	}
 	sort.Strings(entries)
-	return entries
+	return entries, lengths
 }
 
 func discoverLegacyDeclarationFiles(roots []string) ([]string, error) {
