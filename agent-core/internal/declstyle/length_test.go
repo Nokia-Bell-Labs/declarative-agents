@@ -29,6 +29,9 @@ const maxDeclarationFileLines = 300
 func longFileEntries(paths []string, repo string) (map[string]int, error) {
 	entries := map[string]int{}
 	for _, path := range paths {
+		if outsideDeclarationLimit(path) {
+			continue
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
@@ -44,6 +47,18 @@ func longFileEntries(paths []string, repo string) (map[string]int, error) {
 		entries[fmt.Sprintf("%s:%s", classLongDeclarationFile, filepath.ToSlash(rel))] = lines
 	}
 	return entries, nil
+}
+
+// outsideDeclarationLimit reports a YAML file E11 does not govern: a spec or
+// architecture document under docs/, whose shape the design constitution sets,
+// or a chart file under helm/ (GH-2161).
+func outsideDeclarationLimit(path string) bool {
+	for _, segment := range strings.Split(filepath.ToSlash(path), "/") {
+		if segment == "docs" || segment == "helm" {
+			return true
+		}
+	}
+	return false
 }
 
 // physicalLines counts lines the way an editor shows them: a final line
@@ -78,6 +93,8 @@ func TestLongDeclarationFileClassification(t *testing.T) {
 	write("agents/fits/declarations.yaml", 300)
 	write("agents/long/declarations.yaml", 301)
 	write("build/profiles/long.yaml", 900)
+	write("docs/SPECIFICATIONS.yaml", 900)
+	write("helm/templates/applier.yaml", 400)
 
 	paths, err := discoverLegacyDeclarationFiles([]string{root})
 	require.NoError(t, err)
@@ -86,6 +103,6 @@ func TestLongDeclarationFileClassification(t *testing.T) {
 
 	entry := classLongDeclarationFile + ":agents/long/declarations.yaml"
 	require.Equal(t, map[string]int{entry: 301}, entries,
-		"only the 301-line authored file is long; generated trees stay excluded")
+		"only the 301-line declaration is long; generated trees, docs, and helm stay excluded")
 	require.Equal(t, entry+" (301 lines, limit 300)", describeNewEntry(entry, entries))
 }
