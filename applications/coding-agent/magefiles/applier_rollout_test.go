@@ -68,7 +68,10 @@ type execDeclaration struct {
 	Name   string   `yaml:"name"`
 	Binary string   `yaml:"binary"`
 	Args   []string `yaml:"args"`
-	Emits  []string `yaml:"emits"`
+	// The signature states the word's signals (srd051 R6.14).
+	Signature struct {
+		Emits []string `yaml:"emits"`
+	} `yaml:"signature"`
 	Output struct {
 		Schema struct {
 			Properties map[string]map[string]string `yaml:"properties"`
@@ -79,7 +82,6 @@ type execDeclaration struct {
 		Signal    string `yaml:"signal"`
 		Condition string `yaml:"condition"`
 	} `yaml:"errors"`
-	Relationships map[string]any `yaml:"relationships"`
 }
 
 type execDeclarations struct {
@@ -279,8 +281,8 @@ func TestApplierRolloutCountsWordContract(t *testing.T) {
 	}
 
 	for _, signal := range []string{"ToolDone", "ToolFailed"} {
-		if !containsString(word.Emits, signal) {
-			t.Errorf("emits %v missing %s", word.Emits, signal)
+		if !containsString(word.Signature.Emits, signal) {
+			t.Errorf("signature emits %v missing %s", word.Signature.Emits, signal)
 		}
 	}
 	for _, field := range []string{"ready", "desired", "revision"} {
@@ -300,9 +302,8 @@ func TestApplierRolloutCountsWordContract(t *testing.T) {
 			t.Errorf("declared error %+v does not name a ToolFailed condition", e)
 		}
 	}
-	if len(word.Relationships) == 0 {
-		t.Error("the counts word declares no relationships; its order against kubectl_rollout_poll is what makes the counts the last output")
-	}
+	// Its order after kubectl_rollout_poll is the rollout machine's statement
+	// (srd051 R6.13), proved by TestApplierRolloutMachineSeparatesBrokenRead.
 }
 
 // TestApplierRolloutCountsRenderJSON runs the declared go-template over the
