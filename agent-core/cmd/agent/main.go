@@ -970,14 +970,6 @@ func initRunTelemetry(cfg runtimeConfig) (tracing.Tracer, metric.Meter, func(), 
 	return telemetry.TraceAdapter{T: t}, t.Meter(), shutdown, nil
 }
 
-func loadRuntimeDefinitions(cfg runtimeConfig) ([]catalog.ToolDef, toolrest.Collection, error) {
-	closure, err := internalload.LoadClosure(cfg.Profile, internalload.Options{})
-	if err != nil {
-		return nil, toolrest.Collection{}, err
-	}
-	return closure.Selected, closure.Rest, nil
-}
-
 func parseErrorRetryTracker(machine core.MachineSpec) *toollm.ParseErrorRetryTracker {
 	limit := parseErrorLimit(machine)
 	if limit == 0 {

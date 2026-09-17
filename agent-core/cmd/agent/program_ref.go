@@ -57,24 +57,8 @@ func canonicalPath(path string) string {
 	return filepath.Clean(absolute)
 }
 
-func buildProgramRef(cfg runtimeConfig) (core.ProgramRef, error) {
-	return catalog.BuildProgramRef(catalogProgramPaths(cfg))
-}
-
 func buildClosureProgramRef(closure *internalload.Closure) (core.ProgramRef, error) {
 	return catalog.BuildProgramRefFromAssets(closure.ProfilePath, closure.Assets), nil
-}
-
-func catalogProgramPaths(cfg runtimeConfig) catalog.ProgramPaths {
-	return catalog.ProgramPaths{
-		Profile:          cfg.Profile,
-		Machine:          cfg.Machine,
-		ToolSelections:   cfg.Tools,
-		ToolDeclarations: cfg.ToolDeclarations,
-		ToolConfigDirs:   cfg.ToolConfigDirs,
-		RESTDefinitions:  cfg.RestDefinitions,
-		RESTConfigDirs:   cfg.RestConfigDirs,
-	}
 }
 
 func loadReferencedProgram(

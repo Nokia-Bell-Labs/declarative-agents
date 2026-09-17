@@ -102,8 +102,8 @@ func monitorReleaseProof(t *testing.T) monitorProof {
 
 	cfg, err := loadRuntimeConfig()
 	require.NoError(t, err)
-	defs, restDefs, err := loadRuntimeDefinitions(cfg)
-	require.NoError(t, err)
+	closure := testClosure(t, cfg.Profile)
+	defs, restDefs := closure.Selected, closure.Rest
 	machine, err := core.LoadMachineSpec(cfg.Machine)
 	require.NoError(t, err)
 	require.NoError(t, catalog.ValidateToolEmits(machine, defs))

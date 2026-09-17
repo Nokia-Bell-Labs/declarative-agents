@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	internalload "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/load"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/checkpoint"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -197,4 +198,21 @@ func captureStderr(t *testing.T, fn func() error) (string, error) {
 	require.NoError(t, readErr)
 	require.NoError(t, r.Close())
 	return buf.String(), runErr
+}
+
+// testClosure loads a profile's declaration closure the way the runtime does.
+func testClosure(t *testing.T, profilePath string) *internalload.Closure {
+	t.Helper()
+	closure, err := internalload.LoadClosure(profilePath, internalload.Options{})
+	require.NoError(t, err)
+	return closure
+}
+
+// testProgramRef returns the program reference production builds from a
+// profile's loaded closure (GH-2109).
+func testProgramRef(t *testing.T, profilePath string) core.ProgramRef {
+	t.Helper()
+	ref, err := buildClosureProgramRef(testClosure(t, profilePath))
+	require.NoError(t, err)
+	return ref
 }
