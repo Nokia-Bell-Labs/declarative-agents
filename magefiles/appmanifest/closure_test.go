@@ -428,3 +428,53 @@ func inventoryFile(inventory Inventory, runtimePath string) InventoryFile {
 	}
 	return InventoryFile{}
 }
+
+// A profile that declares a library root brings the rooted files it imports,
+// from itself and from files deeper in its closure, into the package closure;
+// agent-core stays runtime-owned (srd056 R2, GH-2124).
+func TestResolveFollowsDeclaredLibraryRoots(t *testing.T) {
+	appRoot, catalogRoot, manifest := minimalClosureFixture(t, `name: root
+libraries: {shared: ../../lib}
+machine: machine.yaml
+tool_declarations: [declarations.yaml]
+`)
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/machine.yaml"), "name: root-machine\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/declarations.yaml"),
+		"imports: [/opt/shared/units/x.yaml, /opt/agent-core/tools/units/types-core.yaml]\ntools: []\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "lib/units/x.yaml"),
+		"unit: x\nimports: [/opt/shared/units/y.yaml]\ntools: []\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "lib/units/y.yaml"), "unit: y\ntools: []\n")
+
+	inventory, err := Resolve(manifest, Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"agents/root/declarations.yaml", "agents/root/machine.yaml", "agents/root/profile.yaml",
+		"lib/units/x.yaml", "lib/units/y.yaml",
+	}
+	if got := inventoryRuntimePaths(inventory); !reflect.DeepEqual(got, want) {
+		t.Fatalf("closure paths = %#v, want %#v", got, want)
+	}
+	if got := inventoryFile(inventory, "lib/units/y.yaml").Source; got != "catalog/lib/units/y.yaml" {
+		t.Fatalf("rooted file source = %q", got)
+	}
+}
+
+func TestResolveRejectsUndeclaredAndConflictingLibraryRoots(t *testing.T) {
+	appRoot, catalogRoot, manifest := minimalClosureFixture(t,
+		"name: root\ntool_declarations: [/opt/unknown/units/x.yaml]\n")
+	_, err := Resolve(manifest, Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot})
+	if err == nil || !strings.Contains(err.Error(), `library root "unknown" is not declared by the profile`) {
+		t.Fatalf("undeclared root error = %v", err)
+	}
+
+	appRoot, catalogRoot, manifest = minimalClosureFixture(t,
+		"name: root\nlibraries: {shared: ../lib}\nmachine: request-profile.yaml\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/request-profile.yaml"),
+		"name: request\nlibraries: {shared: ../other}\n")
+	_, err = Resolve(manifest, Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot})
+	if err == nil || !strings.Contains(err.Error(), `library root "shared"`) {
+		t.Fatalf("conflicting root error = %v", err)
+	}
+}
