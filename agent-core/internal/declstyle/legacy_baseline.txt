@@ -10,6 +10,10 @@
 #   prose-defaulted:<file>:<tool>  signed tool still carrying a block equal to
 #                                  its category default, so deleting it changes
 #                                  nothing
+#   single-importer-unit:<file>    unit with one importer and no instantiation;
+#                                  fold it back (type-only units and agent-core's
+#                                  library are exempt). No entries: the class
+#                                  started clean.
 #
 # Boundary words are absent by design: srd051 R6.9 keeps their side-effect,
 # reversibility, and undo blocks explicit, so an unsigned boundary word is not a

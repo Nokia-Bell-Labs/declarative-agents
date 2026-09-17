@@ -97,6 +97,9 @@ func collectLegacyEntries(t *testing.T) []string {
 	for _, path := range paths {
 		entries = append(entries, fileEntries(t, path)...)
 	}
+	singles, err := singleImporterEntries(paths, moduleRoot(t), filepath.Dir(moduleRoot(t)))
+	require.NoError(t, err)
+	entries = append(entries, singles...)
 	sort.Strings(entries)
 	return entries
 }
@@ -201,7 +204,7 @@ func fileEntries(t *testing.T, path string) []string {
 	var file declarationFile
 	// A file that is not a tool declaration decodes to nothing and contributes
 	// nothing; this walks far more YAML than it classifies.
-	if yaml.Unmarshal(data, &file) != nil {
+	if yaml.Unmarshal(placeholderSafe(data), &file) != nil {
 		return nil
 	}
 	rel := repoRelative(t, path)
