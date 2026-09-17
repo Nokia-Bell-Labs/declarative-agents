@@ -274,11 +274,7 @@ func TestCollectorListenerFixture(t *testing.T) {
 			_ = listener.Close()
 		}
 	}()
-	if err := os.WriteFile(
-		os.Getenv("COLLECTOR_FIXTURE_READY"),
-		[]byte(strings.Join(ports, ",")),
-		0o644,
-	); err != nil {
+	if err := publishFixtureReady(os.Getenv("COLLECTOR_FIXTURE_READY"), strings.Join(ports, ",")); err != nil {
 		t.Fatal(err)
 	}
 	for {
@@ -453,8 +449,7 @@ func TestUnrelatedMonitorListenerFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(
-		os.Getenv("UNRELATED_MONITOR_READY"), []byte(port+"\n"), 0o644); err != nil {
+	if err := publishFixtureReady(os.Getenv("UNRELATED_MONITOR_READY"), port+"\n"); err != nil {
 		t.Fatal(err)
 	}
 	for {
@@ -811,8 +806,7 @@ func TestCollectorReconciliationLockFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = lock.release() }()
-	if err := os.WriteFile(
-		os.Getenv("COLLECTOR_LOCK_READY"), []byte("ready\n"), 0o644); err != nil {
+	if err := publishFixtureReady(os.Getenv("COLLECTOR_LOCK_READY"), "ready\n"); err != nil {
 		t.Fatal(err)
 	}
 	for {
@@ -957,4 +951,17 @@ func assertFileContent(t *testing.T, path, want string) {
 	if string(data) != want {
 		t.Fatalf("%s = %q, want %q", path, data, want)
 	}
+}
+
+// publishFixtureReady makes a re-executed fixture's ready file appear with its
+// whole contents at once. os.WriteFile creates the file before it writes, and
+// the parent polls for the path, so a read between the two saw an empty file
+// and failed the test under release load (GH-2130). A rename within one
+// directory is atomic, so the path never names a partial file.
+func publishFixtureReady(path, contents string) error {
+	temporary := path + ".tmp"
+	if err := os.WriteFile(temporary, []byte(contents), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(temporary, path)
 }
