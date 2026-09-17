@@ -872,8 +872,8 @@ releases:
         summary: The serve-lifecycle declaration fragment, so a wrapper's lifecycle words are one instantiation.
         status: implemented
       - id: gh-2167
-        summary: Adopt REST fragments for the control and monitor server block the wrappers repeat.
-        status: planned
+        summary: Adopt the monitor server fragment in the agents whose monitor server is the shipped one.
+        status: implemented
       - id: gh-2168
         summary: Finish the machine-template migration for the four remaining serve-shaped machines.
         status: planned

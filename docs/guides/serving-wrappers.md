@@ -19,7 +19,7 @@ The two monitor fragments in the tree are not duplicates of each other. `mesh-mo
 
 ## The control and monitor servers
 
-Every wrapper exposes the same eight monitor routes and the control server. REST definitions already instantiate fragments — `unit:`, `imports:`, and `instantiate:` work in `rest.yaml` exactly as they do in a declarations file, under the srd052 rules — so this block is a fragment waiting to be written rather than a mechanism waiting to be built. GH-2167 supplies the canonical one; until it lands we copy the block from `applications/chatbot-mesh/agents/chatbot/rest.yaml` unchanged apart from ports and the agent name, because the monitor surface is pinned by the presentation contract of the declarative UX epic (GH-2154).
+Every wrapper exposes the same eight monitor routes and the control server. The monitor server is now one instantiation of `agent-core/tools/rest/units/monitor-server-fragment.yaml`, and it lives in a `monitor-rest.yaml` that only the agent's own profile lists, because a `rest.yaml` shared with a request profile would make the instantiation an unused import there (srd052 R3.1). The control server stays written out: its name differs per agent, and instantiating it under `as` would rename its endpoints and with them the generated OpenAPI operation ids, which is a worse trade than the ten lines it saves.
 
 ## The wrapper as a blueprint
 

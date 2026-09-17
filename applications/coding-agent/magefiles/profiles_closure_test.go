@@ -347,6 +347,7 @@ func TestCodingApplicationAgentsContainOnlyCompositionAndServingAssets(t *testin
 		"application.yaml",
 		"applier/apply-profile.yaml",
 		"applier/exec-declarations.yaml",
+		"applier/monitor-rest.yaml",
 		"applier/profile.yaml",
 		"applier/rest.yaml",
 		"applier/rollout-profile.yaml",

@@ -1,0 +1,53 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The read-only monitor server every agent serves its own state through: the
+# eight views the monitor runtime publishes, the queue that keeps a snapshot
+# read from blocking the agent, and a shutdown that stops listeners and
+# unblocks an await. An agent differs only in where it binds and which limits
+# profile bounds it, so each instantiates this once.
+#
+# The server it produces is named `monitor`. An agent whose monitor server
+# takes another name instantiates this under `as`, which prefixes the produced
+# name (srd052 R2.5).
+#
+# The views are fixed on purpose. srd057's presentation contract pins this
+# surface, and an instantiation cannot add an endpoint to the server it
+# produces (srd052 R2.3), so an agent that serves more than these writes its
+# own server.
+unit: builtin-monitor-server
+params:
+  - name: address
+    type: string
+    description: The host and port the monitor server binds.
+  - name: limits_ref
+    type: string
+    description: The limits profile that bounds monitor reads.
+  - name: queue_name
+    type: string
+    description: The name the monitor read queue reports itself under.
+rest:
+  version: v1
+  servers:
+    monitor:
+      address: $param(address)
+      limits_ref: $param(limits_ref)
+      lifecycle_exit: {disabled: true}
+      queue:
+        name: $param(queue_name)
+        capacity: 8
+        overflow: reject
+        timeout: 100ms
+      shutdown:
+        timeout: 2s
+        drain_policy: drain_then_stop
+        stop_listeners: true
+        unblock_await_signal: ServerStopped
+      endpoints:
+        machine_spec:  {method: GET, path: /monitor/machine,       binding: read_state,    monitor_view: machine_spec}
+        declared_machines: {method: GET, path: /monitor/machines, binding: read_state, monitor_view: declared_machines}
+        declared_tools: {method: GET, path: /monitor/tools/declared, binding: read_state, monitor_view: declared_tools}
+        current_state: {method: GET, path: /monitor/state,         binding: read_state,    monitor_view: current_state}
+        tools:         {method: GET, path: /monitor/tools,         binding: read_state,    monitor_view: tools}
+        metrics:       {method: GET, path: /monitor/metrics,       binding: read_state,    monitor_view: metrics}
+        recent_events: {method: GET, path: /monitor/events,        binding: read_state,    monitor_view: events}
+        event_stream:  {method: GET, path: /monitor/events/stream, binding: stream_events, monitor_view: events}
