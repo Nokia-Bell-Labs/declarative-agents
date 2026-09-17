@@ -124,12 +124,6 @@ tools:
   undo:
     strategy: noop
     description: Directory listing is read-only and has no effects to reverse.
-  # GH-1376 resolution: path validation, bounded enumeration, ordering, and
-  # formatting construct one list_files result under one read-only contract.
-  # None is an independently selectable domain action or rollback boundary.
-  # Internal control flow and helper processes do not by themselves make an
-  # agent-visible tool composite; hidden dispatches or distinct effects would.
-  - Does not expose implementation stages as independently selectable machine actions.
   errors:
   - signal: CommandError
     condition: bash, find, awk, or sort cannot be started

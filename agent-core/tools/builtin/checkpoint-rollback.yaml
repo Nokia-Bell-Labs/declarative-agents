@@ -18,16 +18,6 @@ tools:
     - CommandError
   description: Roll back a run to the last persisted step of a target iteration by reverting the Dolt branch and replaying receipts, then persist operator recovery context.
   category: boundary
-  # GH-1377 resolution: the rollback profile is a machine and dispatches this
-  # declared boundary word. Inside that boundary, DB Revert plus the complete
-  # reverse receipt walk form one recovery transaction: Undo resolution is
-  # dynamic over opaque persisted receipts, failures do not stop later Undo
-  # attempts, and one ToolDone/partial CommandError summarizes the whole walk.
-  # This ownership is required by srd025 R4.3/R9.3 and srd026 R3.5, rather than
-  # being a "no machine can drive itself" bootstrap exception. Every attempted
-  # entry remains observable as rollback.entry_reversed, _undo_failed, or
-  # _skipped on the boundary span and in the structured final report.
-  - Does not expose receipt-walk implementation entries as separate parent-machine actions.
   output:
     description: Rollback result summary.
     schema:
