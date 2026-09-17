@@ -136,3 +136,33 @@ func TestScanAgentsBadYAML(t *testing.T) {
 		t.Fatal("scanAgents = nil error, want parse failure for malformed machine.yaml")
 	}
 }
+
+// TestScanAgentsCountsATemplateInstance is GH-2132: an instance machine file
+// declares no states of its own, so the scan counts its template's body.
+func TestScanAgentsCountsATemplateInstance(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	agentsDir := filepath.Join(root, "agents")
+	writeAgentFixture(t, filepath.Join(agentsDir, "units", "serve-template.yaml"), `unit: serve-template
+params:
+  - {name: word, type: string}
+machine:
+  name: serve
+  states: [Idle, Serving, Done]
+  transitions:
+    - {state: Idle, signal: Seed, next: Serving, action: $param(word)}
+    - {state: Serving, signal: ExitRequested, next: Done}
+`)
+	writeAgentFixture(t, filepath.Join(agentsDir, "alpha", "machine.yaml"),
+		"unit: alpha-machine\nname: alpha\ninstantiate:\n  - fragment: ../units/serve-template.yaml\n    args: {word: go}\n")
+	writeAgentFixture(t, filepath.Join(agentsDir, "alpha", "tools.yaml"), "tools:\n  - go\n")
+
+	section, err := scanAgents(agentsDir, profileCountLines)
+	if err != nil {
+		t.Fatalf("scanAgents returned error: %v", err)
+	}
+	alpha := section.PerAgent["alpha"]
+	if alpha.States != 3 || alpha.Transitions != 2 {
+		t.Fatalf("alpha states, transitions = %d, %d; want 3, 2 from the template body", alpha.States, alpha.Transitions)
+	}
+}

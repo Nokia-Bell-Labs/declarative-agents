@@ -389,8 +389,15 @@ func mappingFieldLines(mapping *yaml.Node, keyIndex int) int {
 	return nodeEndLine(mapping) - start + 1
 }
 
+// collectMachineActions counts the named actions a machine declares. A machine
+// template declares its transitions under its machine body (srd054), and its
+// instances declare none, so the template file is where they count, once
+// (GH-2132).
 func (c *collector) collectMachineActions(root *yaml.Node) {
 	transitions := mappingValue(root, "transitions")
+	if machine := mappingValue(root, "machine"); transitions == nil && machine != nil && machine.Kind == yaml.MappingNode {
+		transitions = mappingValue(machine, "transitions")
+	}
 	if transitions == nil || transitions.Kind != yaml.SequenceNode {
 		return
 	}

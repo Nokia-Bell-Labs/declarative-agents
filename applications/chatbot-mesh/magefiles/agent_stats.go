@@ -67,6 +67,9 @@ type agentYAMLStats struct {
 type agentMachineDoc struct {
 	States      []yaml.Node `yaml:"states"`
 	Transitions []yaml.Node `yaml:"transitions"`
+	Instantiate []struct {
+		Fragment string `yaml:"fragment"`
+	} `yaml:"instantiate"`
 }
 
 // agentToolsDoc captures the tool selection list in tools.yaml. Declarations
@@ -109,6 +112,7 @@ func scanAgentOwnership(
 		return result, err
 	}
 
+	coreRoot := demoCoreRoot(filepath.Dir(filepath.Clean(agentsDir)))
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -117,7 +121,7 @@ func scanAgentOwnership(
 		if entry.Name() == declarationUnitsDir {
 			continue
 		}
-		stats, err := scanAgentDir(filepath.Join(agentsDir, entry.Name()), countLines)
+		stats, err := scanAgentDir(filepath.Join(agentsDir, entry.Name()), coreRoot, countLines)
 		if err != nil {
 			return result, err
 		}
@@ -185,7 +189,7 @@ func compositionProgram(
 	return "agents/" + filepath.ToSlash(canonical), true, nil
 }
 
-func scanAgentDir(dir string, countLines func(string) (int, error)) (agentStats, error) {
+func scanAgentDir(dir, coreRoot string, countLines func(string) (int, error)) (agentStats, error) {
 	var stats agentStats
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -205,12 +209,12 @@ func scanAgentDir(dir string, countLines func(string) (int, error)) (agentStats,
 		base := filepath.Base(path)
 		switch {
 		case strings.HasSuffix(base, "machine.yaml"):
-			var doc agentMachineDoc
-			if err := unmarshalYAMLFile(path, &doc); err != nil {
+			states, transitions, err := countMachine(path, coreRoot)
+			if err != nil {
 				return err
 			}
-			stats.States += len(doc.States)
-			stats.Transitions += len(doc.Transitions)
+			stats.States += states
+			stats.Transitions += transitions
 		case base == "tools.yaml":
 			var doc agentToolsDoc
 			if err := unmarshalYAMLFile(path, &doc); err != nil {
@@ -232,4 +236,34 @@ func unmarshalYAMLFile(path string, out any) error {
 		return fmt.Errorf("parse %s: %w", path, err)
 	}
 	return nil
+}
+
+// countMachine counts the states and transitions a machine file declares. A
+// file that instantiates a machine template (srd054) declares none itself, so
+// its template body is counted instead: the fragment resolves against the file,
+// or under the agent-core checkout for /opt/agent-core paths. Without this every
+// instance counted as an empty machine (GH-2132).
+func countMachine(path, coreRoot string) (states, transitions int, err error) {
+	var doc agentMachineDoc
+	if err := unmarshalYAMLFile(path, &doc); err != nil {
+		return 0, 0, err
+	}
+	if len(doc.States) > 0 || len(doc.Transitions) > 0 || len(doc.Instantiate) != 1 {
+		return len(doc.States), len(doc.Transitions), nil
+	}
+	fragment := doc.Instantiate[0].Fragment
+	target := filepath.Join(filepath.Dir(path), fragment)
+	if strings.HasPrefix(fragment, "/opt/agent-core/") {
+		if coreRoot == "" {
+			return 0, 0, nil
+		}
+		target = filepath.Join(coreRoot, strings.TrimPrefix(fragment, "/opt/agent-core/"))
+	}
+	var template struct {
+		Machine agentMachineDoc `yaml:"machine"`
+	}
+	if err := unmarshalYAMLFile(target, &template); err != nil {
+		return 0, 0, err
+	}
+	return len(template.Machine.States), len(template.Machine.Transitions), nil
 }

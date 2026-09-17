@@ -5,6 +5,7 @@ package main
 
 import (
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -13,7 +14,7 @@ func TestCollectMonitorControlEvidenceRecordsRoutesAndLifecycleBoundary(t *testi
 	root := t.TempDir()
 	writeMonitorControlFixture(t, root, "exit_agent")
 
-	evidence, err := collectMonitorControlEvidence(root, monitorAwaitSource{Route: "exit", Signal: "ExitRequested"})
+	evidence, err := collectMonitorControlEvidence(root, monitorAwaitSource{Route: "exit", Signal: "ExitRequested"}, fixtureMonitorControlMachine)
 	if err != nil {
 		t.Fatalf("collectMonitorControlEvidence: %v", err)
 	}
@@ -79,6 +80,57 @@ func TestReadMonitorControlEvidenceParsesExpectedFixture(t *testing.T) {
 	}
 	if len(evidence.MonitorStateRoutes) != 5 {
 		t.Fatalf("monitor state routes = %#v", evidence.MonitorStateRoutes)
+	}
+}
+
+// fixtureMonitorControlMachine reads the hand-written machine.yaml beside a
+// synthetic fixture profile; the shipped profiles are read through the loader.
+func fixtureMonitorControlMachine(profilesRoot, profile string) (monitorControlMachine, error) {
+	var machine monitorControlMachine
+	path := filepath.Join(profilesRoot, filepath.Dir(filepath.FromSlash(profile)), "machine.yaml")
+	if err := readIntegrationYAML(path, "machine", &machine); err != nil {
+		return monitorControlMachine{}, err
+	}
+	return machine, nil
+}
+
+// TestMonitorControlEvidenceLoadsTheShippedMachines is GH-2132: the shipped
+// runtime-state-reader machine is a template instance, so evidence gathered
+// from the loaded machines must still see the stop and lifecycle routes.
+func TestMonitorControlEvidenceLoadsTheShippedMachines(t *testing.T) {
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreRoot, err := resolveAgentCoreRoot(root)
+	if err != nil {
+		t.Skipf("agent-core checkout not resolvable beside the catalog: %v", err)
+	}
+	await, err := readMonitorAwaitSource(
+		filepath.Join(root, "agents", "runtime-state-reader", "profile.yaml"),
+		coreRoot, "await_monitor_control", "monitor",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evidence, err := collectMonitorControlEvidence(root, await, loadedMonitorControlMachine(coreRoot))
+
+	if err != nil {
+		t.Fatalf("collectMonitorControlEvidence: %v", err)
+	}
+	if !evidence.MonitorStopTransition {
+		t.Fatalf("monitor stop transition not found in the loaded runtime-state-reader machine: %#v", evidence)
+	}
+	if !evidence.HTTPHandlersEnqueueOnly {
+		t.Fatalf("lifecycle routing not found in the loaded control machine: %#v", evidence)
+	}
+	expected, err := readMonitorControlEvidence(filepath.Join(root, monitorControlFixture, "expected", "evidence.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(evidence, expected) {
+		t.Fatalf("evidence = %#v\nwant %#v", evidence, expected)
 	}
 }
 
