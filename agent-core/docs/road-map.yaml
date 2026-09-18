@@ -550,7 +550,7 @@ releases:
       database. A real-Dolt integration target, not a mock-only test, proves
       provisioning, schema, parameterized reads and writes, commit history,
       authority refusal, and database isolation.
-    status: in_progress
+    status: implemented
     planned_work:
       - id: gh-1731
         summary: Specify the request-driven signal source and Dolt boundary-word seams.
@@ -661,7 +661,7 @@ releases:
       Legacy tool includes are gone; GH-2012 converted the closure to units and
       imports and GH-2010 deleted the mechanism. No flattened or generated
       declaration output is committed.
-    status: in_progress
+    status: implemented
     planned_work:
       - id: gh-1975
         summary: Specify named declaration units, imports, merge semantics, and usedness.
@@ -703,7 +703,7 @@ releases:
       The metric that judges the release landed first: stats:reuse counts
       imported, shared, and single-importer units and instantiations, and a
       unit earns its place with two importers or one instantiation.
-    status: planned
+    status: implemented
     planned_work:
       - id: gh-2084
         summary: Count imported, shared, single-importer units and instantiations in stats:reuse.
@@ -722,7 +722,7 @@ releases:
         status: implemented
       - id: gh-2085
         summary: Factor the top duplicated blocks into fragments and shared units, reporting stats:reuse before and after.
-        status: planned
+        status: implemented
     srds:
       - srd052-declaration-fragments
     use_cases:
@@ -791,7 +791,14 @@ releases:
       import may name a unit under the agent-core install root or under a
       root a profile declares, and staging carries rooted files into the
       container.
-    status: planned
+
+      Machine templates and unit libraries shipped. Agent blueprints did not:
+      gh-2115 deferred the loader work to gh-2123 for want of a profile group
+      that is one agent with arguments, and release 21.0 carries it. The
+      blueprint use case is specified and its eleven test cases wait on that
+      implementation, so the release stays open rather than claiming a feature
+      it only specified.
+    status: in_progress
     planned_work:
       - id: gh-2113
         summary: Specify machine templates (srd054) and agent blueprints (srd055), their use cases, the suite, and the profile format.
@@ -801,7 +808,7 @@ releases:
         status: implemented
       - id: gh-2118
         summary: Prefix imports for the agent-core root; delete the application copies of agent-core types.
-        status: planned
+        status: implemented
       - id: gh-2114
         summary: Machine templates in the machine closure loader, with the control-template fixture.
         status: implemented
@@ -809,8 +816,8 @@ releases:
         summary: The chatbot-mesh serve agents and catalog's applier become instances of the agent-core serve-machine template.
         status: implemented
       - id: gh-2123
-        summary: Agent blueprints in the profile loader, once a profile group that is one agent with arguments exists; deferred from gh-2115.
-        status: planned
+        summary: Agent blueprints in the profile loader, deferred from gh-2115 and carried to release 21.0, where the serving wrappers are the profile group the trigger names.
+        status: deferred
       - id: gh-2119
         summary: Declared library roots, the --library flag, root read-only rules, and rooted staging.
         status: implemented
@@ -827,17 +834,17 @@ releases:
         status: implemented
       - id: rel20.0-uc002-agent-blueprints
         summary: A profile instantiates an agent blueprint.
-        status: planned
+        status: specified
       - id: rel20.0-uc003-unit-libraries
         summary: A unit imports from the agent-core root or a declared library root.
         status: implemented
     test_suites:
       - id: test-rel20.0-machine-templates
-        summary: Formal tests for template and blueprint formats, instantiation and path resolution, validation, and closure, identity, dump, staging, and audit provenance.
-        status: planned
+        summary: Formal tests for template and blueprint formats, instantiation and path resolution, validation, and closure, identity, dump, staging, and audit provenance. The twelve template cases are implemented; the eleven blueprint cases wait on gh-2123.
+        status: in_progress
       - id: test-rel20.0-unit-libraries
-        summary: Formal tests for import path forms, declared roots, read-only libraries, rooted closure and dump provenance, staging, and the service-library convention.
-        status: planned
+        summary: Formal tests for import path forms, declared roots, read-only libraries, rooted closure and dump provenance, staging, and the service-library convention. Ten cases are implemented; the two service-library cases wait on gh-2121, which needs a second consumer before a library exists to measure.
+        status: in_progress
     proof:
       - go test ./internal/runtime/core ./internal/tools/catalog ./internal/load ./pkg/profilestage ./pkg/profileaudit
       - mage stats:reuse
@@ -863,7 +870,7 @@ releases:
       The in-process nested-machine boundary stays out. Its only word,
       run_point, carries evaluation-session semantics, and a general form
       would be a mechanism this release does not add.
-    status: planned
+    status: in_progress
     planned_work:
       - id: gh-2165
         summary: Specify capability profiles (srd057), the consumption forms, the binding discipline, and their use case and suite.
