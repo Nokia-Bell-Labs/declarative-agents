@@ -118,6 +118,22 @@ func TestCollectorQueryEmptySpool(t *testing.T) {
 				t.Fatalf("empty-spool response missing key %q; body:\n%s", key, body)
 			}
 		}
+		// A list that reached its success terminal is a succeeded run; the
+		// directory case below proves a read failure still reports failed
+		// (#2202, agentic-wiki-mesh#110).
+		var envelope struct {
+			Trace struct {
+				Status         string `json:"status"`
+				TerminalSignal string `json:"terminal_signal"`
+			} `json:"trace"`
+		}
+		if err := json.Unmarshal([]byte(body), &envelope); err != nil {
+			t.Fatalf("decode empty-spool envelope: %v; body:\n%s", err, body)
+		}
+		if envelope.Trace.Status != "succeeded" || envelope.Trace.TerminalSignal != "TracesListed" {
+			t.Errorf("empty-spool trace = %+v, want status=succeeded terminal_signal=TracesListed; body:\n%s",
+				envelope.Trace, body)
+		}
 		// Checked typed decoding of each field: a wrong JSON type fails here.
 		var total int
 		if err := json.Unmarshal(raw["total"], &total); err != nil {
