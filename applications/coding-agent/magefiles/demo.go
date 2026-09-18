@@ -49,6 +49,9 @@ func (Demo) Up() error {
 			}
 			defer cleanup()
 			environment := codingSmokeEnvironment{kubeconfig: kubeconfig}
+			if err := recreateCodingDemoNamespace(environment); err != nil {
+				return err
+			}
 			if err := prepareCodingHelmCluster(
 				environment, codingDemoCluster, roots, images); err != nil {
 				return err
@@ -115,6 +118,17 @@ func (Demo) Up() error {
 				images.Revision)
 			return nil
 		})
+}
+
+// recreateCodingDemoNamespace gives each demo:up a fresh namespace, clearing a
+// prior install and its workspace claim before the workspace is re-seeded.
+func recreateCodingDemoNamespace(environment codingSmokeEnvironment) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	_, _ = environment.run(ctx, "kubectl", "delete", "namespace", codingHelmNamespace,
+		"--ignore-not-found=true", "--wait=true", "--timeout=30s")
+	cancel()
+	return runCodingSmokeCommand(environment, 30*time.Second,
+		"kubectl", "create", "namespace", codingHelmNamespace)
 }
 
 // Down deletes only the coding-agent demo cluster.

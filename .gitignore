@@ -20,3 +20,6 @@ applications/chatbot-mesh/helm/dist/
 
 # Vendored Helm library chart copies (mage helmPrepare regenerates them)
 applications/*/helm/charts/
+
+# Release-run kind evidence (da-platform diagnostics, GH-2215)
+/build/

@@ -36,6 +36,8 @@ type releaseGate struct {
 	resources []releaseResourceClass
 	priority  int
 	exclusive bool
+	// run executes an in-process gate (the da-platform boot) instead of args.
+	run func() error
 }
 
 type releaseGateRunner func(string) error
@@ -46,6 +48,10 @@ type remoteTagsFunc func(date string) (string, error)
 type releaseResourceClass string
 
 const (
+	// releaseResourceDocker bounds concurrent application integration gates.
+	// Since GH-2215 they no longer own kind clusters: they install namespaced
+	// releases on the one shared da-platform, so a slot models contention for
+	// its API server and the Docker VM memory their pods use, not a cluster.
 	releaseResourceDocker     releaseResourceClass = "docker"
 	releaseResourceHostOllama releaseResourceClass = "host-ollama"
 	releaseResourceCPU        releaseResourceClass = "cpu"
@@ -54,7 +60,7 @@ const (
 )
 
 var releaseResourceCapacities = map[releaseResourceClass]int{
-	releaseResourceDocker:     3,
+	releaseResourceDocker:     2,
 	releaseResourceHostOllama: 1,
 	releaseResourceCPU:        1,
 }
@@ -211,7 +217,8 @@ func runReleaseGates(commit string) error {
 	if err := checkReleaseDockerHeadroom(probeDockerMemory, releaseDockerFreeFloor); err != nil {
 		return err
 	}
-	return executeReleaseGates(releaseGates(root), runReleaseCommand)
+	return executePlatformReleaseGates(
+		releaseGates(root), newReleasePlatform(root, commit), runReleaseCommand)
 }
 
 func releaseGates(root string) []releaseGate {
@@ -564,6 +571,9 @@ func releasePhaseField(value string) string {
 }
 
 func runReleaseCommand(gate releaseGate) error {
+	if gate.run != nil {
+		return gate.run()
+	}
 	cmd := exec.Command(gate.args[0], gate.args[1:]...)
 	cmd.Dir = gate.dir
 	cmd.Env = append(os.Environ(), gate.env...)

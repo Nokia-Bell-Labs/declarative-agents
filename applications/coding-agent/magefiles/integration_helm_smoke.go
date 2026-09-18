@@ -17,9 +17,11 @@ import (
 )
 
 const (
-	codingHelmRelease        = "smoke"
-	codingHelmNamespace      = "coding-agent-smoke"
-	codingHelmCluster        = "da-coding-agent-smoke"
+	codingHelmRelease  = "smoke"
+	codingHelmScenario = "coding-agent-smoke"
+	// codingHelmNamespace is the scenario's namespace on da-platform; the
+	// live applier tier and the demo install into the same name.
+	codingHelmNamespace      = kindrig.ScenarioNamespacePrefix + codingHelmScenario
 	codingHelmAgentImageRepo = "declarative-agents/coding-agent-smoke"
 	codingHelmModelImageRepo = "declarative-agents/coding-model-smoke"
 	codingHelmGoBaseImage    = "golang:1.26-alpine"
@@ -115,8 +117,8 @@ func (failure *codingHelmSemanticError) Error() string {
 
 func (failure *codingHelmSemanticError) Unwrap() error { return failure.Cause }
 
-// HelmSmoke installs the packaged chart into a disposable kind cluster and
-// proves the real planner -> executor -> critic path, shared workspace mutation,
+// HelmSmoke installs the packaged chart as a namespaced release on the shared
+// da-platform cluster and proves the real planner -> executor -> critic path, shared workspace mutation,
 // truthful readiness, and one connected trace. Only missing host prerequisites
 // skip; failures after cluster acquisition are classified and returned.
 func (Integration) HelmSmoke() error {
@@ -164,36 +166,21 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 	if err != nil {
 		return err
 	}
-	kindConfig := filepath.Join(roots.Application, "helm", "ci", "kind-config.yaml")
-	kindRun := func(args ...string) ([]byte, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
-		defer cancel()
-		return codingSmokeEnvironment{}.run(ctx, "kind", args...)
-	}
-	cluster, err := kindrig.EnsureFreshCluster(
-		kindRun, codingHelmCluster, kindConfig, 120*time.Second)
+	evidenceDir := codingHelmEvidenceDir(roots.Application, images.Revision)
+	scenario, err := acquireCodingScenario(evidenceDir)
 	if err != nil {
-		return &codingHelmInfrastructureError{Step: "kind cluster acquisition", Cause: err}
+		return err
 	}
-	kubeconfig, cleanupKubeconfig, err := codingKindKubeconfig(codingHelmCluster)
-	if err != nil {
-		cluster.ReleaseAfter(kindRun, true, kindrig.FailureEvidence{
-			Directory: codingHelmEvidenceDir(roots.Application, images.Revision),
-		})
-		return &codingHelmInfrastructureError{Step: "kind kubeconfig", Cause: err}
-	}
-	defer cleanupKubeconfig()
-	environment := codingSmokeEnvironment{kubeconfig: kubeconfig}
 	defer func() {
-		cleanupCodingHelmSmoke(
-			environment, cluster, kindRun, result != nil,
-			codingHelmEvidenceDir(roots.Application, images.Revision))
+		result = errors.Join(result, scenario.release(result != nil, evidenceDir))
 	}()
+	environment := scenario.environment
 
 	if err := checkCodingHelmInfrastructure(environment.run); err != nil {
 		return err
 	}
-	if err := prepareCodingHelmCluster(environment, cluster.Name, roots, images); err != nil {
+	if err := prepareCodingHelmCluster(
+		environment, scenario.platform.Cluster.Name, roots, images); err != nil {
 		return classifyCodingHelmFailure(environment.run, "cluster preparation", err)
 	}
 	archiveDir, err := os.MkdirTemp("", "coding-agent-smoke-chart-*")

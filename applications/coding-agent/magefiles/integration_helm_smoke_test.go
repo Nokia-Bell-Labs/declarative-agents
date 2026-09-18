@@ -127,11 +127,15 @@ func TestCodingHelmFixturesMatchServingAndStorageContract(t *testing.T) {
 	for _, want := range []string{
 		"accessModes: [ReadWriteMany]",
 		"path: /tmp/coding-agent-workspace",
-		"namespace: coding-agent-smoke",
 	} {
 		if !strings.Contains(string(workspace), want) {
 			t.Errorf("kind workspace missing %q", want)
 		}
+	}
+	// The claim is applied into the scenario namespace on da-platform, so the
+	// fixture must not pin one (GH-2215).
+	if strings.Contains(string(workspace), "namespace:") {
+		t.Error("kind workspace pins a namespace; the scenario applies it with --namespace")
 	}
 }
 

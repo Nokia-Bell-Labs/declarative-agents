@@ -16,7 +16,15 @@ import (
 // and gating every runnable target on capable hosts. This aggregate is what
 // lets the released application participate in the repository release gate
 // rather than being tagged without its own integration evidence (GH-1343).
-func (i Integration) All() error {
+// The helm scenarios share one da-platform: the aggregate reuses a running one
+// (a release run's or platform:up's) or starts its own and deletes it when
+// every target is done.
+func (i Integration) All() (result error) {
+	releasePlatform, err := acquireSmokeIntegrationPlatform()
+	if err != nil {
+		return err
+	}
+	defer func() { releasePlatform(result != nil) }()
 	targets := []struct {
 		name string
 		fn   func() error

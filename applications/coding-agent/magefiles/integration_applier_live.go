@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -19,12 +20,11 @@ import (
 )
 
 const (
-	// The live applier tier reuses the smoke release and namespace so the
-	// runtime helpers (prepareCodingHelmCluster, verifyCodingHelmRollouts,
-	// startCodingHelmForwards) apply unchanged; it stands its own dedicated
-	// cluster apart from the smoke one so a cluster failure here reads as a
-	// cluster failure, not a smoke regression.
-	codingApplierLiveCluster = "da-coding-agent-applier"
+	// The live applier tier reuses the smoke release and scenario namespace on
+	// da-platform so the runtime helpers (prepareCodingHelmCluster,
+	// verifyCodingHelmRollouts, startCodingHelmForwards) apply unchanged. It runs
+	// after the smoke has released the namespace, so the two never overlap.
+
 	// The ConfigMap the live run provisions beside the release to carry the chart
 	// the applier mounts at /chart (GH-2045).
 	codingApplierChartConfigMap = codingHelmRelease + "-coding-agent-applier-chart"
@@ -115,31 +115,16 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return &codingHelmSemanticError{Step: "applier chart verification", Cause: err}
 	}
 
-	kindConfig := filepath.Join(roots.Application, "helm", "ci", "kind-config.yaml")
-	kindRun := func(args ...string) ([]byte, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
-		defer cancel()
-		return codingSmokeEnvironment{}.run(ctx, "kind", args...)
-	}
-	cluster, err := kindrig.EnsureFreshCluster(
-		kindRun, codingApplierLiveCluster, kindConfig, 120*time.Second)
+	evidenceDir := codingHelmEvidenceDir(roots.Application, images.Revision)
+	scenario, err := acquireCodingScenario(evidenceDir)
 	if err != nil {
-		return &codingHelmInfrastructureError{Step: "kind cluster acquisition", Cause: err}
+		return err
 	}
-	kubeconfig, cleanupKubeconfig, err := codingKindKubeconfig(codingApplierLiveCluster)
-	if err != nil {
-		cluster.ReleaseAfter(kindRun, true, kindrig.FailureEvidence{
-			Directory: codingHelmEvidenceDir(roots.Application, images.Revision),
-		})
-		return &codingHelmInfrastructureError{Step: "kind kubeconfig", Cause: err}
-	}
-	defer cleanupKubeconfig()
-	environment := codingSmokeEnvironment{kubeconfig: kubeconfig}
 	defer func() {
-		cleanupCodingHelmSmoke(
-			environment, cluster, kindRun, result != nil,
-			codingHelmEvidenceDir(roots.Application, images.Revision))
+		result = errors.Join(result, scenario.release(result != nil, evidenceDir))
 	}()
+	environment := scenario.environment
+	cluster := scenario.platform.Cluster
 
 	if err := checkCodingHelmInfrastructure(environment.run); err != nil {
 		return err

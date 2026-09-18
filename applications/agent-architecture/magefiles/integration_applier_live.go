@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -19,11 +20,10 @@ import (
 )
 
 const (
-	// The live applier tier reuses the smoke release and namespace so the runtime
-	// helpers apply unchanged; it stands its own dedicated cluster apart from the
-	// smoke one so a cluster failure here reads as a cluster failure, not a smoke
-	// regression.
-	applierLiveCluster = "da-agent-architecture-applier"
+	// The live applier tier reuses the smoke release and scenario namespace on
+	// da-platform so the runtime helpers apply unchanged. It runs after the smoke
+	// has released the namespace, so the two never overlap.
+
 	// The shared applier image (GH-1368): agent-core plus helm and kubectl, no
 	// baked chart. One repo serves every application's applier because the image
 	// content is application-agnostic; the per-run tag is the tested commit.
@@ -97,29 +97,16 @@ func runApplierLive(resolved roots) (result error) {
 		return fmt.Errorf("applier chart verification: %w", err)
 	}
 
-	kindConfig := filepath.Join(resolved.Application, "helm", "ci", "kind-config.yaml")
-	kindRun := func(args ...string) ([]byte, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), applierLiveClusterTimeout)
-		defer cancel()
-		return smokeEnvironment{}.run(ctx, "kind", args...)
-	}
-	cluster, err := kindrig.EnsureFreshCluster(kindRun, applierLiveCluster, kindConfig, 120*time.Second)
+	scenario, err := acquireSmokeScenario(resolved.Application, "applierLive")
 	if err != nil {
-		return fmt.Errorf("applierLive kind cluster acquisition: %w", err)
+		return err
 	}
-	kubeconfig, cleanupKubeconfig, err := smokeKubeconfig(applierLiveCluster)
-	if err != nil {
-		cluster.Release(kindRun)
-		return fmt.Errorf("applierLive kubeconfig: %w", err)
-	}
-	defer cleanupKubeconfig()
-	environment := smokeEnvironment{kubeconfig: kubeconfig}
-	defer func() {
-		cleanupHelmSmoke(environment, cluster, kindRun, result != nil)
-	}()
+	defer func() { result = errors.Join(result, scenario.release(result != nil)) }()
+	environment := scenario.environment
+	cluster := scenario.platform.Cluster
 
 	// Reuse the smoke cluster preparation verbatim: it builds and loads the shared
-	// agent-core image both workloads run and creates the namespace.
+	// agent-core image both workloads run.
 	if err := prepareSmokeCluster(environment, cluster.Name, resolved); err != nil {
 		return smokeFailure(environment.run, "cluster preparation", err)
 	}

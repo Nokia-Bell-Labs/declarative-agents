@@ -422,6 +422,13 @@ func (c Cluster) ReleaseAfter(run Runner, failed bool, evidence FailureEvidence)
 	c.Release(run)
 }
 
+// Capture persists kind logs and namespace diagnostics for a cluster that stays
+// running. A scenario on a shared cluster captures its own namespace this way;
+// an owned cluster's scenario uses ReleaseAfter instead.
+func (e FailureEvidence) Capture(kindRun Runner, cluster string) error {
+	return e.capture(kindRun, cluster)
+}
+
 func (e FailureEvidence) capture(kindRun Runner, cluster string) error {
 	if e.Directory == "" {
 		return fmt.Errorf("evidence directory is required")

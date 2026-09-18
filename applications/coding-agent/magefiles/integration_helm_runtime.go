@@ -26,16 +26,13 @@ func prepareCodingHelmCluster(
 	roots integrationRoots,
 	images codingHelmImages,
 ) error {
-	// Clear only smoke-owned objects when reusing a developer cluster.
-	for _, command := range [][]string{
-		{"delete", "namespace", codingHelmNamespace, "--ignore-not-found=true", "--wait=true", "--timeout=30s"},
-		{"delete", "pv", "coding-agent-kind-workspace", "--ignore-not-found=true", "--wait=true", "--timeout=30s"},
-	} {
-		ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
-		_, _ = environment.run(ctx, "kubectl", command...)
-		cancel()
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), codingHelmProbeTimeout)
+	// The caller owns the namespace. The workspace volume is cluster-scoped, so
+	// a leftover from an interrupted run is cleared here.
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	_, _ = environment.run(ctx, "kubectl", "delete", "persistentvolume", codingWorkspaceVolume,
+		"--ignore-not-found=true", "--wait=true", "--timeout=30s")
+	cancel()
+	ctx, cancel = context.WithTimeout(context.Background(), codingHelmProbeTimeout)
 	output, err := codingSmokeEnvironment{}.run(ctx, "docker", "exec",
 		cluster+"-control-plane", "sh", "-c",
 		"rm -rf /tmp/coding-agent-workspace && mkdir -p /tmp/coding-agent-workspace && chmod 0777 /tmp/coding-agent-workspace")
@@ -74,11 +71,7 @@ func prepareCodingHelmCluster(
 		}
 	}
 	if err := runCodingSmokeCommand(environment, 30*time.Second,
-		"kubectl", "create", "namespace", codingHelmNamespace); err != nil {
-		return err
-	}
-	if err := runCodingSmokeCommand(environment, 30*time.Second,
-		"kubectl", "apply", "-f",
+		"kubectl", "apply", "--namespace", codingHelmNamespace, "-f",
 		filepath.Join(roots.Application, "helm", "ci", "kind-workspace.yaml")); err != nil {
 		return err
 	}
@@ -88,7 +81,7 @@ func prepareCodingHelmCluster(
 	}
 	defer cleanup()
 	if err := runCodingSmokeCommand(environment, 30*time.Second,
-		"kubectl", "apply", "-f", modelManifest); err != nil {
+		"kubectl", "apply", "--namespace", codingHelmNamespace, "-f", modelManifest); err != nil {
 		return err
 	}
 	return runCodingSmokeCommand(environment, codingHelmReadyTimeout,
@@ -196,7 +189,7 @@ func codingModelManifest(image string) (string, func(), error) {
 	path := filepath.Join(dir, "model.yaml")
 	manifest := fmt.Sprintf(`apiVersion: apps/v1
 kind: Deployment
-metadata: {name: coding-model, namespace: coding-agent-smoke}
+metadata: {name: coding-model}
 spec:
   replicas: 1
   selector: {matchLabels: {app: coding-model}}
@@ -215,7 +208,7 @@ spec:
 ---
 apiVersion: v1
 kind: Service
-metadata: {name: coding-model, namespace: coding-agent-smoke}
+metadata: {name: coding-model}
 spec:
   selector: {app: coding-model}
   ports: [{name: http, port: 11434, targetPort: http}]
@@ -531,43 +524,8 @@ func codingCollectorGetTrace(endpoint string) (*codingCollectorTrace, error) {
 	return &trace, nil
 }
 
-func cleanupCodingHelmSmoke(
-	environment codingSmokeEnvironment,
-	cluster kindrig.Cluster,
-	kindRun kindrig.Runner,
-	failed bool,
-	evidenceDir string,
-) {
-	evidence := kindrig.FailureEvidence{
-		Directory:  evidenceDir,
-		Namespaces: []string{codingHelmNamespace},
-		Run: func(name string, args ...string) ([]byte, error) {
-			ctx, cancel := context.WithTimeout(context.Background(), codingHelmDiagTimeout)
-			defer cancel()
-			return environment.run(ctx, name, args...)
-		},
-	}
-	if failed && cluster.Created {
-		cluster.ReleaseAfter(kindRun, true, evidence)
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	_, _ = environment.run(ctx, "helm", "uninstall", codingHelmRelease,
-		"-n", codingHelmNamespace, "--wait", "--timeout=20s")
-	cancel()
-	ctx, cancel = context.WithTimeout(context.Background(), 40*time.Second)
-	_, _ = environment.run(ctx, "kubectl", "delete", "namespace", codingHelmNamespace,
-		"--ignore-not-found=true", "--wait=true", "--timeout=30s")
-	cancel()
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	_, _ = environment.run(ctx, "kubectl", "delete", "pv",
-		"coding-agent-kind-workspace", "--ignore-not-found=true", "--wait=false")
-	cancel()
-	cluster.ReleaseAfter(kindRun, failed, evidence)
-}
-
 func codingHelmEvidenceDir(applicationRoot, revision string) string {
 	run := time.Now().UTC().Format("20060102T150405.000000000Z")
 	return filepath.Join(applicationRoot, "build", "kind-evidence",
-		codingHelmCluster+"-"+revision+"-"+run)
+		codingHelmNamespace+"-"+revision+"-"+run)
 }

@@ -108,6 +108,42 @@ func StartPlatform(options PlatformOptions) (*Platform, error) {
 	return platform, nil
 }
 
+// AcquirePlatform is how an application's integration targets reach the tier.
+// A listed da-platform belongs to whoever created it (a release run or a
+// developer) and is reused without ownership once its data plane answers, so
+// Stop leaves it running. With none listed, AcquirePlatform starts an owned
+// platform through StartPlatform, which Stop deletes.
+func AcquirePlatform(options PlatformOptions) (*Platform, error) {
+	options = options.withDefaults()
+	if !Exists(options.KindRun, PlatformClusterName) {
+		return StartPlatform(options)
+	}
+	run, unbind, err := options.Bind(PlatformClusterName)
+	if err != nil {
+		return nil, fmt.Errorf("bind running %s commands: %w", PlatformClusterName, err)
+	}
+	if err := VerifyDataPlane(run); err != nil {
+		unbind()
+		return nil, fmt.Errorf(
+			"running %s is not ready: %w; remediation: wait for its owner to finish, "+
+				"or remove it with kind delete cluster --name %s and rerun",
+			PlatformClusterName, err, PlatformClusterName)
+	}
+	fmt.Printf("kind: reusing running platform cluster %s; it will not be deleted\n",
+		PlatformClusterName)
+	return &Platform{
+		Cluster: Cluster{Name: PlatformClusterName},
+		Run:     run,
+		kindRun: options.KindRun,
+		evidence: FailureEvidence{
+			Directory:  options.EvidenceDirectory,
+			Namespaces: platformEvidenceNamespaces(),
+			Run:        run,
+		},
+		unbind: unbind,
+	}, nil
+}
+
 // Stop releases the platform: an owned cluster is deleted, after evidence
 // capture when failed is true and an evidence directory was configured. A
 // reused cluster is left in place. Stop is idempotent.

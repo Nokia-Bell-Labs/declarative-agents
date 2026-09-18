@@ -255,3 +255,58 @@ func TestPlatformConformanceManifestUsesLoadedImageAndConformanceHost(t *testing
 		}
 	}
 }
+
+func TestAcquirePlatformStartsOwnedPlatformWhenNoneIsListed(t *testing.T) {
+	h := newPlatformHarness(t)
+	platform, err := AcquirePlatform(h.options())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !platform.Cluster.Created || strings.Join(h.order, ",") != "bind da-platform,boot,conformance" {
+		t.Fatalf("platform=%+v order=%v, want an owned, booted, checked platform", platform.Cluster, h.order)
+	}
+	platform.Stop(false)
+	if h.kind.lastCall("delete") == nil {
+		t.Fatal("owned platform survived stop")
+	}
+}
+
+func TestAcquirePlatformReusesRunningPlatformWithoutOwnership(t *testing.T) {
+	h := newPlatformHarness(t)
+	h.kind.existing = []string{PlatformClusterName}
+	checked := &fakeCluster{}
+	h.commandFn = checked.run
+	platform, err := AcquirePlatform(h.options())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if platform.Cluster.Created || strings.Join(h.order, ",") != "bind da-platform" {
+		t.Fatalf("platform=%+v order=%v, want unowned reuse without boot or conformance",
+			platform.Cluster, h.order)
+	}
+	if !strings.Contains(strings.Join(checked.calls, "\n"), "kubectl get --raw=/readyz") {
+		t.Fatalf("reuse skipped the data-plane check: %v", checked.calls)
+	}
+	platform.Stop(true)
+	if h.kind.issued("create") || h.kind.issued("delete") || h.kind.issued("export") {
+		t.Fatalf("reused platform was mutated: %v", h.kind.calls)
+	}
+	if !h.unbound {
+		t.Fatal("reused platform kept its kubeconfig binding")
+	}
+}
+
+func TestAcquirePlatformRefusesUnreadyRunningPlatform(t *testing.T) {
+	h := newPlatformHarness(t)
+	h.kind.existing = []string{PlatformClusterName}
+	h.commandFn = (&fakeCluster{fail: map[string]string{
+		"kubectl get --raw=/readyz": "apiserver down",
+	}}).run
+	if _, err := AcquirePlatform(h.options()); err == nil ||
+		!strings.Contains(err.Error(), "remediation") || !strings.Contains(err.Error(), "apiserver down") {
+		t.Fatalf("error = %v, want unready platform refusal", err)
+	}
+	if h.kind.issued("delete") || !h.unbound {
+		t.Fatal("refusal deleted someone else's platform or leaked its binding")
+	}
+}

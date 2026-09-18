@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -21,9 +22,11 @@ import (
 )
 
 const (
-	smokeCluster        = "da-agent-architecture-smoke"
-	smokeRelease        = "smoke"
-	smokeNamespace      = "agent-architecture-smoke"
+	smokeRelease      = "smoke"
+	smokeScenarioName = "agent-architecture-smoke"
+	// smokeNamespace is the scenario's namespace on da-platform; the live
+	// applier tier installs into the same one after the smoke releases it.
+	smokeNamespace      = kindrig.ScenarioNamespacePrefix + smokeScenarioName
 	smokeCollectorImage = kindrig.DefaultAgentCoreImage
 
 	smokeClusterTimeout  = 3 * time.Minute
@@ -59,8 +62,8 @@ func (environment smokeEnvironment) run(ctx context.Context, name string, args .
 	return command.CombinedOutput()
 }
 
-// HelmSmoke installs the packaged chart into a disposable kind cluster and
-// proves the curator and collector reach real readiness, the curator serves its
+// HelmSmoke installs the packaged chart as a namespaced release on the shared
+// da-platform cluster and proves the curator and collector reach real readiness, the curator serves its
 // documentation interface, the collector retains a trace the curator exports
 // under its service name, and a lifecycle-exit request stops the curator
 // cleanly. Only missing host prerequisites skip; every terminal path cleans up
@@ -106,28 +109,14 @@ func runHelmSmoke(resolved roots) (result error) {
 	// Both workloads run the locally built agent-core image (GH-1368); the
 	// application builds no runtime image of its own.
 	revision := mustGitRevision(resolved.Application)
-	kindConfig := filepath.Join(resolved.Application, "helm", "ci", "kind-config.yaml")
-	kindRun := func(args ...string) ([]byte, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), smokeClusterTimeout)
-		defer cancel()
-		return smokeEnvironment{}.run(ctx, "kind", args...)
-	}
-	cluster, err := kindrig.EnsureFreshCluster(kindRun, smokeCluster, kindConfig, 120*time.Second)
+	scenario, err := acquireSmokeScenario(resolved.Application, "helmSmoke")
 	if err != nil {
-		return fmt.Errorf("helmSmoke kind cluster acquisition: %w", err)
+		return err
 	}
-	kubeconfig, cleanupKubeconfig, err := smokeKubeconfig(smokeCluster)
-	if err != nil {
-		cluster.Release(kindRun)
-		return fmt.Errorf("helmSmoke kubeconfig: %w", err)
-	}
-	defer cleanupKubeconfig()
-	environment := smokeEnvironment{kubeconfig: kubeconfig}
-	defer func() {
-		cleanupHelmSmoke(environment, cluster, kindRun, result != nil)
-	}()
+	defer func() { result = errors.Join(result, scenario.release(result != nil)) }()
+	environment := scenario.environment
 
-	if err := prepareSmokeCluster(environment, cluster.Name, resolved); err != nil {
+	if err := prepareSmokeCluster(environment, scenario.platform.Cluster.Name, resolved); err != nil {
 		return smokeFailure(environment.run, "cluster preparation", err)
 	}
 	archiveDir, err := os.MkdirTemp("", "agent-architecture-smoke-chart-*")
@@ -281,11 +270,9 @@ func smokeKubeconfig(cluster string) (string, func(), error) {
 	return path, func() { _ = os.RemoveAll(dir) }, nil
 }
 
+// prepareSmokeCluster builds and loads the agent-core image into the cluster.
+// The caller owns the scenario namespace.
 func prepareSmokeCluster(environment smokeEnvironment, cluster string, resolved roots) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
-	_, _ = environment.run(ctx, "kubectl", "delete", "namespace", smokeNamespace,
-		"--ignore-not-found=true", "--wait=true", "--timeout=30s")
-	cancel()
 	// The curator and collector both run agent-core (GH-1368); build and load one
 	// image for both rather than a separate per-app runtime.
 	if _, err := kindrig.EnsureAgentCoreImage(resolved.Core, smokeCollectorImage); err != nil {
@@ -297,10 +284,7 @@ func prepareSmokeCluster(environment smokeEnvironment, cluster string, resolved 
 	loadCtx, cancelLoad := context.WithTimeout(context.Background(), smokeClusterTimeout)
 	err := kindrig.LoadImage(loadCtx, kindLoad, cluster, smokeCollectorImage)
 	cancelLoad()
-	if err != nil {
-		return err
-	}
-	return runSmokeCommand(environment, 30*time.Second, "kubectl", "create", "namespace", smokeNamespace)
+	return err
 }
 
 func installSmokeChart(environment smokeEnvironment, archive, applicationRoot string, shardNames []string) error {
@@ -730,15 +714,4 @@ func collectSmokeDiagnostics(run func(context.Context, string, ...string) ([]byt
 		}
 	}
 	return report.String()
-}
-
-func cleanupHelmSmoke(environment smokeEnvironment, cluster kindrig.Cluster, kindRun kindrig.Runner, failed bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	_, _ = environment.run(ctx, "helm", "uninstall", smokeRelease, "-n", smokeNamespace, "--wait", "--timeout=20s")
-	cancel()
-	ctx, cancel = context.WithTimeout(context.Background(), 40*time.Second)
-	_, _ = environment.run(ctx, "kubectl", "delete", "namespace", smokeNamespace,
-		"--ignore-not-found=true", "--wait=true", "--timeout=30s")
-	cancel()
-	cluster.Release(kindRun)
 }
