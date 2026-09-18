@@ -59,41 +59,132 @@ sections:
 
   - title: "Cluster lifecycle"
     content: |
-      Each scenario owns one named cluster, `da-<application>-<scenario>`,
-      created from a checked-in kind configuration file next to the
-      scenario. The configuration pins the node image by version and
-      digest (`kindest/node:vX.Y.Z@sha256:...`) and declares any
-      `extraPortMappings`. Creating a cluster without a configuration
-      file is not permitted; the file is what makes two machines produce
-      the same cluster.
+      The rig has two tiers (GH-2215). The cluster-services tier is one
+      shared cluster, `da-platform`, that owns the kind node, the Traefik
+      ingress controller, metrics-server, and storage provisioning. The
+      application tier runs each integration scenario as a Helm release in
+      its own namespace, `da-<scenario>`, on that cluster. A kind node costs
+      about 1.3 GiB before any application pod, and releases paid that tax
+      eight to nine times with three lanes concurrent; one control plane
+      per release replaces those bootstraps.
 
-      Integration test clusters are on demand. A target creates its
-      cluster, uses it, and deletes it in all exit paths, including
-      failure. When the named cluster already exists before the target
-      runs, it is a leftover from an interrupted run, not a cluster
-      anyone is using: the target deletes it and creates a fresh one
-      that it owns. Reusing leftovers let one interrupted run pin idle
+      Every cluster is created from a checked-in kind configuration file.
+      The configuration pins the node image by version and digest
+      (`kindest/node:vX.Y.Z@sha256:...`) and declares any `extraMounts` or
+      `extraPortMappings`. Creating a cluster without a configuration file
+      is not permitted; the file is what makes two machines produce the same
+      cluster.
+
+      Table 2: Checked-in kind configurations
+
+      | Configuration | Cluster | Purpose |
+      |---------------|---------|---------|
+      | `magefiles/kindrig/platform-kind-config.yaml` | `da-platform` | Shared tier; ingress-ready label, control-plane tracing, no host ports |
+      | `applications/chatbot-mesh/testdata/kind-policy-config.yaml` | `da-chatbot-mesh-policy` | Cluster-mutating policy proof; default CNI disabled for Calico |
+      | `applications/<application>/helm/ci/kind-demo-config.yaml` | `da-<application>-demo` | Persistent demo; ingress host ports 80 and 443 |
+
+      The platform cluster lives for one release. The release creates
+      `da-platform` fresh in a gate after the root audit, reuses it across
+      every application gate, and deletes it on every exit path, capturing
+      its evidence when the release failed. A `da-platform` already listed
+      when the release starts is a leftover from an interrupted run: the
+      release deletes it and creates its own, so no state survives from one
+      release to the next. Reusing leftovers let one interrupted run pin idle
       clusters in the Docker VM through every later run, which starved
-      concurrent release lanes of memory (GH-2134, GH-2137). An
-      aggregate target that shares one cluster across its scenarios
-      acquires it fresh once and passes it between them.
+      concurrent release lanes of memory (GH-2134, GH-2137).
 
-      Demo clusters are the exception. `demo:up` creates or reuses the
-      named demo cluster and leaves it running for a person to use;
-      only `demo:down` deletes it.
+      Outside a release, an application integration target reuses a running
+      `da-platform` without taking ownership once its data plane answers, or
+      starts its own and deletes it when the target finishes. An
+      `integration:all` aggregate acquires the platform once and its
+      scenarios reuse it. A developer keeps a platform running between runs
+      with `mage platform:up`, which reuses a healthy platform, prunes
+      unreferenced node images, and reruns conformance, and removes it with
+      `mage platform:down`. A release deletes a developer platform like any
+      leftover; the developer runs `platform:up` again afterwards.
+
+      A scenario namespace is created by `PrepareScenarioNamespace` and torn
+      down by its release on every exit path: Helm uninstall, workload
+      controllers, pods, persistent volume claims, and the namespace, then a
+      check that the namespace is gone and a data-plane recheck (kube-proxy
+      Ready, CoreDNS rolled out, `/readyz`) before the next scenario
+      installs. A namespace left by an interrupted run is torn down before
+      the scenario creates its own. Cluster-scoped fixtures a scenario
+      applies, such as the coding-agent workspace PersistentVolume, are the
+      scenario's to delete explicitly.
+
+      Table 3: Isolation guarantees
+
+      | Guarantee | Mechanism before GH-2215 | Mechanism now |
+      |-----------|--------------------------|---------------|
+      | No leftover state between scenarios | Cluster delete and create | Namespace, claim, and controller deletion plus data-plane recheck |
+      | No leftover state between releases | Cluster delete and create | Cluster delete and create, once per release |
+      | Cluster-scoped configuration per scenario | Per-scenario kind configuration | Cluster-mutating scenarios keep owned clusters |
+
+      Demo clusters stay per application. `demo:up` creates or reuses the
+      named demo cluster and leaves it running for a person to use; only
+      `demo:down` deletes it.
 
       Readiness is observed, never assumed. Targets wait with
       `kubectl wait --for=condition=Ready` and `kubectl rollout status`
       with explicit timeouts. Sleep loops are not permitted.
+
+  - title: "Scenario classification"
+    content: |
+      A scenario is namespaced or cluster-mutating, and the classification
+      lives in the scenario definition (`kindrig.ScenarioClass`), not in a
+      flag. Namespaced is the default: the scenario's chart carries only
+      namespaced resources and it runs on `da-platform`. A scenario that
+      needs cluster-scoped configuration, which a shared cluster cannot take,
+      is cluster-mutating and keeps an owned cluster,
+      `da-<application>-<scenario>`, acquired fresh from its own checked-in
+      configuration and deleted on every exit path. The rules this guideline
+      gave every scenario before GH-2215 apply to it verbatim.
+
+      Table 4: Scenario classes
+
+      | Class | Cluster | Isolation | Example |
+      |-------|---------|-----------|---------|
+      | Namespaced | `da-platform` | Namespace `da-<scenario>` | coding-agent helmSmoke, chatbot-mesh helmSwap |
+      | Cluster-mutating | Owned `da-<application>-<scenario>` | Whole cluster | chatbot-mesh policyProof (`disableDefaultCNI` for Calico) |
+
+  - title: "Platform conformance"
+    content: |
+      Platform failures and application failures must not read alike. After
+      `da-platform` boots, and before any application gate runs, a
+      conformance suite proves the tier; a failure there stops the release as
+      a platform failure and deletes the cluster with its evidence.
+
+      Table 5: Platform conformance checks
+
+      | Check | What it proves |
+      |-------|----------------|
+      | Readiness | kube-proxy Ready, CoreDNS rolled out, and the API server answers `/readyz` |
+      | Storage | The local-path provisioner binds a claim |
+      | Ingress route | Traefik routes an Ingress to a Service, probed through the node's port 80 |
+      | Namespace churn | A full scenario-namespace teardown leaves no namespace and deletes the bound volume |
+
+      The check workload reuses the kind-loaded Traefik image as its echo
+      backend, so conformance pulls nothing. The suite runs at every release
+      start, whenever a target starts its own platform, and on every
+      `platform:up`.
 
   - title: "Image delivery"
     content: |
       Images are built from the current checkout and tagged with the
       short git commit hash, never `latest`. The build target bakes the
       binary into a minimal runtime image and loads it into the cluster
-      with `kind load docker-image`. The chart's kind values overlay
+      with `kind load docker-image`; on the shared platform each image is
+      loaded once per revision and scenarios reuse it. The chart's kind values overlay
       sets `pullPolicy: IfNotPresent` so the loaded image is used and
       the cluster never reaches for a registry.
+
+      Commit-tagged images accumulate on the host, one per revision per
+      image family. `mage clean:images <keep>` removes all but the newest
+      revisions of each rig family, and `mage clean:imagesDryRun <keep>`
+      lists them first. Only commit-shaped tags of rig families are
+      considered, and an image whose labels name another source is kept. No
+      release gate runs it; it is an operator target.
 
       Image loading stays behind the runner interface the chatbot-mesh
       rig already uses for kind subcommands. When load times become a
@@ -136,14 +227,26 @@ sections:
       Every application exposes the same verbs with the same contracts, so a
       person who has run one application can run them all.
 
-      Table 2: Rig verbs each application exposes
+      Table 6: Rig verbs each application exposes
 
       | Verb | Contract |
       |------|----------|
       | doctor | Checks toolchain presence, versions, and host resources; reports, never mutates |
       | demo:up | Creates or reuses the cluster, deploys the chart, prints the localhost URLs; fails on missing tools |
       | demo:down | Deletes the demo cluster and nothing else |
-      | integration:* | One verb per proof (smoke, swap, policy); skips on missing tools; creates and deletes its own cluster; prints a one-line PASS statement naming what was proven |
+      | integration:* | One verb per proof (smoke, swap, policy); skips on missing tools; a namespaced proof reuses a running da-platform or starts and deletes its own, a cluster-mutating proof creates and deletes its own cluster; prints a one-line PASS statement naming what was proven |
+
+      The repository root exposes the platform-tier verbs. They are not per
+      application, because every application shares the one platform.
+
+      Table 7: Platform-tier verbs at the repository root
+
+      | Verb | Contract |
+      |------|----------|
+      | platform:up | Creates da-platform, or reuses a healthy one and prunes its node images; runs conformance; leaves it running |
+      | platform:down | Deletes da-platform and nothing else |
+      | clean:images | Removes commit-tagged rig images beyond the newest given number of revisions per family |
+      | clean:imagesDryRun | Lists what clean:images would remove |
 
       The cluster-lifecycle code (create from configuration, reuse
       detection, image load, teardown, log export) moves from the
@@ -181,10 +284,13 @@ sections:
       A kind chart may keep its chart-local collector as a gateway, but the
       integration values overlay sends that gateway to the host ingress. The
       chart's production defaults remain self-contained and retain their local
-      collector agent. Generated kind configuration enables supported
-      API-server and kubelet tracing. helm and kubectl do not propagate
-      traceparent, so control-plane traces are correlated to the scenario by
-      run identity and time; they are not part of one agent waterfall.
+      collector agent. The platform kind configuration enables API-server and
+      kubelet tracing to the host ingress at `host.docker.internal:4317`
+      with static resource attributes (`k8s.cluster.name=da-platform`),
+      since one control plane serves every scenario on it. helm and kubectl
+      do not propagate traceparent, so control-plane traces are correlated
+      to a scenario by time and namespace; they are not part of one agent
+      waterfall.
 
       Chroma exports native OTLP traces with one stable service name per RAG
       unit. Agent REST calls to Chroma inject traceparent. Dolt exposes its
@@ -199,7 +305,10 @@ sections:
       re-running. On any integration failure the rig runs
       `kind export logs` into the scenario's persistent
       `build/kind-evidence/` directory, alongside `kubectl describe` and pod
-      logs for the namespaces the scenario touched. Before teardown, both
+      logs for the namespaces the scenario touched. A scenario on the shared
+      platform captures this evidence while the platform keeps running, then
+      tears its namespace down; only the platform's owner deletes the
+      cluster. Before teardown, both
       failed runs and successful release gates record shared-sink health, the
       run identity, representative trace ids and service names, and the
       availability of expected agent and Dolt metrics. Backend data stays
@@ -226,3 +335,6 @@ references:
   - "kind Ingress, https://kind.sigs.k8s.io/docs/user/ingress/"
   - "applications/chatbot-mesh/magefiles/integration_helm.go (existing rig this guideline generalizes)"
   - "magefiles/kindrig/kindrig.go (shared cluster lifecycle and failure-evidence machinery)"
+  - "magefiles/kindrig/platform.go (da-platform lifecycle, conformance suite, platform:up)"
+  - "magefiles/kindrig/namespace.go (scenario classification and scenario-namespace lifecycle)"
+  - "magefiles/tag_platform.go (release-run platform gate and teardown)"

@@ -70,7 +70,7 @@ func (f *fakeKind) lastCall(verb string) []string {
 }
 
 // testConfig writes a minimal kind config file and returns its path, standing
-// in for the checked-in per-scenario configuration eng01 requires.
+// in for the checked-in cluster configuration eng01 requires.
 func testConfig(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "kind-config.yaml")
