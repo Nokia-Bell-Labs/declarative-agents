@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -104,20 +105,25 @@ var allowedUndeclaredHeaders = map[string]bool{
 }
 
 func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	name, endpoint, vars, pathFound := r.matchEndpoint(req)
-	if !pathFound {
+	route := r.matchEndpoint(req)
+	if !route.pathFound {
 		http.NotFound(w, req)
 		return
 	}
+	// The most specific matching path owns the resource, so a method it does
+	// not declare is refused here even when a less specific catch-all would
+	// accept it (srd029 R6.8).
+	if route.name == "" {
+		w.Header().Set("Allow", strings.Join(route.allowed, ", "))
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	name, endpoint, vars := route.name, route.endpoint, route.vars
 	// A mock endpoint is a mount point, not one declared route: its fixture
 	// decides which methods and paths answer, so it precedes the declared-method
 	// check and reads the request body directly (srd039 R2.1).
 	if endpoint.Binding == bindingMock {
 		r.serveMock(w, req)
-		return
-	}
-	if req.Method != endpoint.Method {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	req, authorized := r.authorizeEndpoint(w, req, endpoint)
@@ -189,9 +195,23 @@ type routeMatch struct {
 	catchAll bool
 }
 
-func (r *serverRuntime) matchEndpoint(req *http.Request) (string, restdef.Endpoint, map[string]string, bool) {
-	best := routeMatch{}
-	found := false
+// routeSelection is the outcome of matching one request. pathFound with an
+// empty name means the most specific path declares no endpoint for the method,
+// and allowed lists the methods it does declare.
+type routeSelection struct {
+	pathFound bool
+	name      string
+	endpoint  restdef.Endpoint
+	vars      map[string]string
+	allowed   []string
+}
+
+// matchEndpoint selects by path specificity first and method second (srd029
+// R6.8): only the most specific matching paths are candidates, and among them
+// the endpoint declaring the request's method wins. A mock mount answers every
+// method, so it stands in when no candidate declares the method.
+func (r *serverRuntime) matchEndpoint(req *http.Request) routeSelection {
+	var top []routeMatch
 	for name, endpoint := range r.def.Server.Endpoints {
 		vars, ok := matchPath(endpoint.Path, req.URL.Path)
 		if !ok {
@@ -202,27 +222,54 @@ func (r *serverRuntime) matchEndpoint(req *http.Request) (string, restdef.Endpoi
 			score:    literalSegmentScore(endpoint.Path),
 			catchAll: pathHasCatchAll(endpoint.Path),
 		}
-		if !found || moreSpecificRoute(candidate, best) {
-			best, found = candidate, true
+		switch {
+		case len(top) == 0 || moreSpecificPath(candidate, top[0]):
+			top = []routeMatch{candidate}
+		case !moreSpecificPath(top[0], candidate):
+			top = append(top, candidate)
 		}
 	}
-	if !found {
-		return "", restdef.Endpoint{}, nil, false
+	if len(top) == 0 {
+		return routeSelection{}
 	}
-	return best.name, best.endpoint, best.vars, true
+	sort.Slice(top, func(i, j int) bool { return top[i].name < top[j].name })
+	selected := func(match routeMatch) routeSelection {
+		return routeSelection{pathFound: true, name: match.name, endpoint: match.endpoint, vars: match.vars}
+	}
+	for _, match := range top {
+		if match.endpoint.Method == req.Method {
+			return selected(match)
+		}
+	}
+	for _, match := range top {
+		if match.endpoint.Binding == bindingMock {
+			return selected(match)
+		}
+	}
+	return routeSelection{pathFound: true, allowed: declaredMethods(top)}
 }
 
-// moreSpecificRoute reports whether candidate should win over the current best.
-// Higher literal-segment count wins; on a tie an exact route beats a trailing
-// catch-all; otherwise the lexicographically smaller name wins for stability.
-func moreSpecificRoute(candidate, best routeMatch) bool {
+// moreSpecificPath reports whether candidate's path outranks best's: more
+// literal segments win, and on a tie an exact route beats a trailing catch-all.
+// Paths that rank equally are one candidate set, split by method.
+func moreSpecificPath(candidate, best routeMatch) bool {
 	if candidate.score != best.score {
 		return candidate.score > best.score
 	}
-	if candidate.catchAll != best.catchAll {
-		return !candidate.catchAll
+	return candidate.catchAll != best.catchAll && !candidate.catchAll
+}
+
+func declaredMethods(matches []routeMatch) []string {
+	seen := map[string]bool{}
+	var methods []string
+	for _, match := range matches {
+		if method := match.endpoint.Method; method != "" && !seen[method] {
+			seen[method] = true
+			methods = append(methods, method)
+		}
 	}
-	return candidate.name < best.name
+	sort.Strings(methods)
+	return methods
 }
 
 func literalSegmentScore(path string) int {

@@ -763,6 +763,9 @@ func validateServers(servers map[string]Server, limits map[string]LimitProfile) 
 				return err
 			}
 		}
+		if err := validateRouteCollisions(serverName, server.Endpoints); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -836,6 +836,31 @@ test_cases:
       - srd029-rest-server-tools AC9
 
   - use_case: rel03.0-uc003-rest-server-signals
+    name: Endpoints sharing a path are selected by method
+    go_test: go test ./internal/tools/rest -run 'TestRESTServer_SelectsSamePathEndpointByMethod|TestRESTDefinition_RejectsSameMethodOnSamePath'
+    status: done
+    description: |
+      One server declares GET and POST on one path, a POST-only path, and a GET
+      catch-all. Each method reaches its own endpoint; an undeclared method on
+      the shared path answers 405 with Allow naming both; a GET on the POST-only
+      path answers 405 rather than falling to the catch-all; other GETs reach
+      the catch-all. Two endpoints declaring one method on one path shape fail
+      definition validation, and a parameter beside a catch-all does not.
+    inputs:
+      endpoints: ["GET /api/items", "POST /api/items", "POST /api/chat", "GET /{path...}"]
+      requests: [GET /api/items, POST /api/items, PUT /api/items, GET /api/chat, GET /anything/else]
+    expected:
+      get_items_status: 200
+      post_items_signal: ItemCreated
+      put_items: {status: 405, allow: "GET, POST"}
+      get_chat: {status: 405, allow: POST}
+      catch_all_status: 200
+      duplicate_method_and_shape_rejected: true
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - srd029-rest-server-tools AC11
+
+  - use_case: rel03.0-uc003-rest-server-signals
     name: Server query header and output redaction policies fail closed
     go_test: TestRESTServer_RejectsUndeclaredQueryAndHeader
     status: done
