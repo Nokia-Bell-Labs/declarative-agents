@@ -174,6 +174,7 @@ func TestPrepareAggregateNamespaceCreatesSelectsAndCleansOnlyOwnedNamespace(t *t
 		t.Fatal(err)
 	}
 	want := []string{
+		"kubectl get namespace da-helm-smoke",
 		"kubectl create namespace da-helm-smoke",
 		"kubectl config set-context --current --namespace da-helm-smoke",
 		"helm uninstall smoke --namespace da-helm-smoke --ignore-not-found",
@@ -343,28 +344,6 @@ func TestNormalizedDockerImageReferenceMatchesContainerdNames(t *testing.T) {
 		if got := normalizedDockerImageReference(input); got != want {
 			t.Errorf("normalizedDockerImageReference(%q) = %q, want %q", input, got, want)
 		}
-	}
-}
-
-func TestAggregateDataPlaneFailureNamesReadinessBoundary(t *testing.T) {
-	session := newIntegrationKindSession(t.TempDir())
-	deactivate, err := activateIntegrationKindSession(session)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer deactivate()
-	err = verifyAggregateDataPlane(func(name string, args ...string) ([]byte, error) {
-		command := name + " " + strings.Join(args, " ")
-		if strings.Contains(command, "deployment/coredns") {
-			return []byte("zero ready replicas"), errors.New("rollout timed out")
-		}
-		return nil, nil
-	})
-	if err == nil ||
-		!strings.Contains(err.Error(), "shared kind data-plane readiness") ||
-		!strings.Contains(err.Error(), "deployment/coredns") ||
-		!strings.Contains(err.Error(), "zero ready replicas") {
-		t.Fatalf("readiness error = %v", err)
 	}
 }
 

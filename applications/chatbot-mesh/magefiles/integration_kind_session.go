@@ -17,7 +17,6 @@ import (
 )
 
 const aggregateKindCluster = "da-chatbot-mesh-aggregate"
-const aggregateNamespaceCleanupTimeout = "180s"
 
 type integrationKindSession struct {
 	mu         sync.Mutex
@@ -296,6 +295,9 @@ func (session *integrationKindSession) endConcurrentBatch(cause error) {
 	}
 }
 
+// prepareAggregateNamespace gives a shared-session scenario its own namespace
+// through the kindrig scenario-namespace lifecycle. A direct target owns its
+// whole cluster and keeps the default namespace.
 func prepareAggregateNamespace(
 	run kindrig.CommandRunner,
 	scenario, release string,
@@ -303,86 +305,11 @@ func prepareAggregateNamespace(
 	if activeIntegrationKindSession() == nil {
 		return "default", func() error { return nil }, nil
 	}
-	namespace := "da-" + scenario
-	if output, err := run("kubectl", "create", "namespace", namespace); err != nil {
-		return "", nil, fmt.Errorf("create aggregate namespace %s: %w: %s",
-			namespace, err, output)
+	namespace, err := kindrig.PrepareScenarioNamespace(run, scenario, release)
+	if err != nil {
+		return "", nil, err
 	}
-	if output, err := run(
-		"kubectl", "config", "set-context", "--current", "--namespace", namespace,
-	); err != nil {
-		_, _ = run("kubectl", "delete", "namespace", namespace,
-			"--ignore-not-found=true", "--wait=true", "--timeout=60s")
-		return "", nil, fmt.Errorf("select aggregate namespace %s: %w: %s",
-			namespace, err, output)
-	}
-	cleanup := func() error {
-		var cleanupErrors []error
-		if output, err := run(
-			"helm", "uninstall", release, "--namespace", namespace, "--ignore-not-found",
-		); err != nil {
-			cleanupErrors = append(cleanupErrors,
-				fmt.Errorf("uninstall %s/%s: %w: %s", namespace, release, err, output))
-		}
-		if output, err := run(
-			"kubectl", "delete", "pod", "--all", "--namespace", namespace,
-			"--ignore-not-found=true", "--wait=true", "--timeout=60s",
-		); err != nil {
-			cleanupErrors = append(cleanupErrors,
-				fmt.Errorf("drain aggregate namespace %s pods: %w: %s", namespace, err, output))
-		}
-		if output, err := run(
-			"kubectl", "delete", "persistentvolumeclaim", "--all", "--namespace", namespace,
-			"--ignore-not-found=true", "--wait=true", "--timeout=60s",
-		); err != nil {
-			cleanupErrors = append(cleanupErrors,
-				fmt.Errorf("delete aggregate namespace %s PVCs: %w: %s", namespace, err, output))
-		}
-		if output, err := run(
-			"kubectl", "delete", "namespace", namespace,
-			"--ignore-not-found=true", "--wait=false",
-		); err != nil {
-			cleanupErrors = append(cleanupErrors,
-				fmt.Errorf("delete aggregate namespace %s: %w: %s", namespace, err, output))
-		}
-		if output, err := run(
-			"kubectl", "wait", "--for=delete", "namespace/"+namespace,
-			"--timeout="+aggregateNamespaceCleanupTimeout,
-		); err != nil {
-			cleanupErrors = append(cleanupErrors,
-				fmt.Errorf("wait for aggregate namespace %s deletion: %w: %s",
-					namespace, err, output))
-		}
-		if _, err := run("kubectl", "get", "namespace", namespace); err == nil {
-			cleanupErrors = append(cleanupErrors,
-				fmt.Errorf("aggregate namespace %s remains after cleanup", namespace))
-		}
-		if err := verifyAggregateDataPlane(run); err != nil {
-			cleanupErrors = append(cleanupErrors, err)
-		}
-		return errors.Join(cleanupErrors...)
-	}
-	return namespace, cleanup, nil
-}
-
-func verifyAggregateDataPlane(run kindrig.CommandRunner) error {
-	if activeIntegrationKindSession() == nil {
-		return nil
-	}
-	checks := [][]string{
-		{"kubectl", "-n", "kube-system", "wait", "--for=condition=Ready",
-			"pod", "-l", "k8s-app=kube-proxy", "--timeout=120s"},
-		{"kubectl", "-n", "kube-system", "rollout", "status",
-			"deployment/coredns", "--timeout=120s"},
-		{"kubectl", "get", "--raw=/readyz"},
-	}
-	for _, command := range checks {
-		if output, err := run(command[0], command[1:]...); err != nil {
-			return fmt.Errorf("shared kind data-plane readiness %s: %w: %s",
-				strings.Join(command, " "), err, output)
-		}
-	}
-	return nil
+	return namespace.Name, namespace.Release, nil
 }
 
 func (session *integrationKindSession) runTarget(name string, run func() error) error {
