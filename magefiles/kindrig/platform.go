@@ -54,6 +54,7 @@ type PlatformOptions struct {
 
 	boot        func(CommandRunner, string) error
 	conformance func(CommandRunner, string) error
+	healthRun   CommandRunner
 }
 
 // Platform is a running, conformance-checked da-platform cluster. Run is bound
@@ -167,6 +168,87 @@ func (p *Platform) Stop(failed bool) {
 	}
 }
 
+// UpPlatform brings up the persistent developer da-platform and leaves it
+// running. With none listed it starts one (StartPlatform), deleting it only if
+// boot or conformance fails. A listed, healthy da-platform is reused without
+// ownership: its node image store is pruned of unreferenced images, the shared
+// infrastructure is re-applied, and the conformance suite runs again; a failure
+// leaves it in place for inspection. An unhealthy listed cluster is refused, not
+// deleted. A release deletes and recreates da-platform (GH-2137), so a developer
+// runs UpPlatform again afterwards.
+func UpPlatform(options PlatformOptions) (Cluster, error) {
+	options = options.withDefaults()
+	if !Exists(options.KindRun, PlatformClusterName) {
+		platform, err := StartPlatform(options)
+		if err != nil {
+			return Cluster{}, err
+		}
+		return platform.Detach(), nil
+	}
+	cluster, err := ensureListedPlatform(options)
+	if err != nil {
+		return Cluster{}, err
+	}
+	run, unbind, err := options.Bind(cluster.Name)
+	if err != nil {
+		return Cluster{}, fmt.Errorf("bind %s commands: %w", cluster.Name, err)
+	}
+	defer unbind()
+	for _, phase := range []struct {
+		name string
+		run  func(CommandRunner, string) error
+	}{
+		{"platform-image-prune", prunePlatformImages},
+		{"platform-boot", options.boot},
+		{"platform-conformance", options.conformance},
+	} {
+		started := time.Now()
+		if err := phase.run(run, cluster.Name); err != nil {
+			LogPhase(cluster.Name, phase.name, "failed", started, "")
+			return Cluster{}, fmt.Errorf("%s %s: %w", cluster.Name, phase.name, err)
+		}
+		LogPhase(cluster.Name, phase.name, "passed", started, "")
+	}
+	return cluster, nil
+}
+
+// DownPlatform deletes da-platform and no other cluster.
+func DownPlatform(run Runner) error {
+	if !Exists(run, PlatformClusterName) {
+		fmt.Printf("platform: cluster %s does not exist\n", PlatformClusterName)
+		return nil
+	}
+	if output, err := run("delete", "cluster", "--name", PlatformClusterName); err != nil {
+		return fmt.Errorf("delete %s: %w: %s", PlatformClusterName, err,
+			strings.TrimSpace(string(output)))
+	}
+	fmt.Printf("platform: deleted cluster %s\n", PlatformClusterName)
+	return nil
+}
+
+// ensureListedPlatform reuses a listed da-platform through the health-checked,
+// ownership-preserving branch of EnsureClusterWithOptions.
+func ensureListedPlatform(options PlatformOptions) (Cluster, error) {
+	path, cleanup, err := stagePlatformKindConfig()
+	if err != nil {
+		return Cluster{}, err
+	}
+	defer cleanup()
+	return EnsureClusterWithOptions(options.KindRun, PlatformClusterName, path,
+		platformClusterWait, EnsureOptions{
+			ReusePolicy: PreserveUnhealthyCluster,
+			HealthRun:   options.healthRun,
+		})
+}
+
+// prunePlatformImages removes images no container references from the node's
+// containerd store, which a long-lived developer platform accumulates as each
+// revision is kind-loaded.
+func prunePlatformImages(run CommandRunner, cluster string) error {
+	return runChecked(run, "docker", "exec", cluster+"-control-plane",
+		"crictl", "rmi", "--prune")
+}
+
 // Detach hands the platform's cluster to a caller that manages its lifecycle
 // itself, dropping the kubeconfig binding without deleting anything. The caller
 // releases the returned Cluster with Release or ReleaseAfter, which delete it
@@ -186,17 +268,27 @@ func (p *Platform) Detach() Cluster {
 // platform-kind-config.yaml with FreshOwnedCluster semantics: any listed
 // da-platform is a leftover and is deleted first, and the result is owned.
 func EnsurePlatformCluster(run Runner) (Cluster, error) {
-	tracingPath, err := stagePlatformTracingConfig()
+	path, cleanup, err := stagePlatformKindConfig()
 	if err != nil {
 		return Cluster{}, err
+	}
+	defer cleanup()
+	return EnsureFreshCluster(run, PlatformClusterName, path, platformClusterWait)
+}
+
+// stagePlatformKindConfig writes the kind config with its tracing mount
+// resolved, for the duration of one acquisition.
+func stagePlatformKindConfig() (string, func(), error) {
+	tracingPath, err := stagePlatformTracingConfig()
+	if err != nil {
+		return "", nil, err
 	}
 	config := strings.ReplaceAll(string(platformKindConfig), platformTracingPlaceholder, tracingPath)
 	path, cleanup, err := writeTempManifest("kindrig-platform-*.yaml", config)
 	if err != nil {
-		return Cluster{}, fmt.Errorf("stage %s kind config: %w", PlatformClusterName, err)
+		return "", nil, fmt.Errorf("stage %s kind config: %w", PlatformClusterName, err)
 	}
-	defer cleanup()
-	return EnsureFreshCluster(run, PlatformClusterName, path, platformClusterWait)
+	return path, cleanup, nil
 }
 
 // stagePlatformTracingConfig writes the API-server tracing configuration to the

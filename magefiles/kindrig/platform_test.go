@@ -350,3 +350,90 @@ func TestPlatformDetachHandsOverClusterWithoutDeleting(t *testing.T) {
 		t.Fatal("detach or a later stop deleted the platform")
 	}
 }
+
+func listedPlatformHarness(t *testing.T) (*platformHarness, *fakeCluster) {
+	h := newPlatformHarness(t)
+	h.kind.existing = []string{PlatformClusterName}
+	h.kind.kubeconfig = []byte("apiVersion: v1\nkind: Config\n")
+	commands := &fakeCluster{}
+	h.commandFn = commands.run
+	return h, commands
+}
+
+func (h *platformHarness) upOptions(healthy bool) PlatformOptions {
+	options := h.options()
+	options.healthRun = func(string, ...string) ([]byte, error) {
+		if healthy {
+			return []byte("ok"), nil
+		}
+		return []byte("connection refused"), errors.New("unhealthy")
+	}
+	return options
+}
+
+func TestUpPlatformStartsAndKeepsPlatformWhenNoneIsListed(t *testing.T) {
+	h := newPlatformHarness(t)
+	cluster, err := UpPlatform(h.upOptions(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cluster.Created || strings.Join(h.order, ",") != "bind da-platform,boot,conformance" {
+		t.Fatalf("cluster=%+v order=%v", cluster, h.order)
+	}
+	if h.kind.issued("delete") || !h.unbound {
+		t.Fatal("platform:up deleted its platform or kept the kubeconfig binding")
+	}
+}
+
+func TestUpPlatformReusesHealthyPlatformAndPrunesNodeImages(t *testing.T) {
+	h, commands := listedPlatformHarness(t)
+	cluster, err := UpPlatform(h.upOptions(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cluster.Created || h.kind.issued("create") || h.kind.issued("delete") {
+		t.Fatalf("reuse recreated or deleted the platform: cluster=%+v calls=%v", cluster, h.kind.calls)
+	}
+	if strings.Join(h.order, ",") != "bind da-platform,boot,conformance" || !h.unbound {
+		t.Fatalf("order=%v unbound=%v", h.order, h.unbound)
+	}
+	if strings.Join(commands.calls, "\n") != "docker exec da-platform-control-plane crictl rmi --prune" {
+		t.Fatalf("reuse did not prune node images first: %v", commands.calls)
+	}
+}
+
+func TestUpPlatformRefusesUnhealthyPlatformWithoutDeleting(t *testing.T) {
+	h, _ := listedPlatformHarness(t)
+	if _, err := UpPlatform(h.upOptions(false)); err == nil ||
+		!strings.Contains(err.Error(), "refusing to delete") {
+		t.Fatalf("error = %v, want unhealthy refusal", err)
+	}
+	if h.kind.issued("delete") || h.kind.issued("create") || len(h.order) != 0 {
+		t.Fatalf("unhealthy platform was mutated: calls=%v order=%v", h.kind.calls, h.order)
+	}
+}
+
+func TestUpPlatformReuseConformanceFailureKeepsPlatform(t *testing.T) {
+	h, _ := listedPlatformHarness(t)
+	h.confErr = errors.New("ingress route: 404")
+	if _, err := UpPlatform(h.upOptions(true)); !errors.Is(err, h.confErr) {
+		t.Fatalf("error = %v, want conformance failure", err)
+	}
+	if h.kind.issued("delete") {
+		t.Fatal("a failed reuse deleted the developer's platform")
+	}
+}
+
+func TestDownPlatformDeletesOnlyThePlatform(t *testing.T) {
+	kind := &fakeKind{existing: []string{"da-chatbot-mesh-demo", PlatformClusterName}}
+	if err := DownPlatform(kind.run); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(kind.lastCall("delete"), " "); got != "delete cluster --name da-platform" {
+		t.Fatalf("delete = %q", got)
+	}
+	absent := &fakeKind{existing: []string{"da-chatbot-mesh-demo"}}
+	if err := DownPlatform(absent.run); err != nil || absent.issued("delete") {
+		t.Fatalf("absent platform: err=%v calls=%v", err, absent.calls)
+	}
+}
