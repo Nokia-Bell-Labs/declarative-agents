@@ -1,8 +1,6 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-bench-builtin
-imports:
-- /opt/agent-core/tools/units/types-collections.yaml
 tools:
 - name: launch_bench_http
   type: builtin
@@ -25,8 +23,8 @@ tools:
   init: rest_await_event
   visibility: internal
   signature:
-    emits: [ExperimentRequested, Shutdown, AwaitTimedOut, ServerStopped, CommandError]
-  description: Await one declared operator action from the bench REST queue.
+    emits: [Shutdown, AwaitTimedOut, ServerStopped, CommandError]
+  description: Await the operator shutdown action from the bench REST queue.
   category: boundary
   parameters: {type: object, properties: {}, additionalProperties: false}
   output: {description: Bench operator event, schema: {type: object}}
@@ -42,51 +40,9 @@ tools:
     sources:
       - server: bench
         routes: [actions]
-        signals: [ExperimentRequested, Shutdown]
+        signals: [Shutdown]
     timeout: 24h
     stopped_behavior: emit_server_stopped
-
-- name: validate_eval_suite
-  type: builtin
-  init: value_predicate
-  visibility: internal
-  signature:
-    output: builtin-types-collections.Comparison
-    emits: [SuiteSelected, SuiteMissing, CommandError]
-  description: Require a non-empty suite path before child dispatch.
-  category: response
-  parameters: {type: object, properties: {}, additionalProperties: false}
-  output: {description: Suite predicate result}
-  side_effects: [{kind: state_read, target: bench_operator_event, state: read_only}]
-  errors: [{signal: CommandError, condition: Suite selector cannot resolve, state_after_failure: No child started.}]
-  relationships: {before: [await_bench_action], after: [launch_evaluator]}
-  config:
-    left: $.payload.body.config.suite
-    op: non_empty
-    operand_type: string
-    satisfied: SuiteSelected
-    unsatisfied: SuiteMissing
-
-- name: launch_evaluator
-  type: builtin
-  init: self_invoke
-  visibility: internal
-  signature:
-    emits: [ToolDone, ToolFailed, CommandError]
-  description: Invoke the critic through the reusable child-agent boundary.
-  category: boundary
-  parameters: {type: object, properties: {}, additionalProperties: false}
-  output: {description: Child evaluator output, schema: {type: string}}
-  side_effects:
-    - {kind: child_process, target: critic_agent, state: evaluation_running}
-    - {kind: filesystem_write, target: eval_results, state: evaluator_owned}
-  reversibility: {classification: compensatable}
-  undo: {strategy: compensating_action, description: Compensate evaluator artifacts according to child boundary policy.}
-  errors: [{signal: ToolFailed, condition: Critic exits unsuccessfully, state_after_failure: Partial evaluator artifacts may exist.}]
-  config:
-    profile: agents/critic/profile.yaml
-    request_from: $from(operator_action).payload.body.config.suite
-    output_from: $from(operator_action).payload.body.config.output_dir
 
 - name: stop_bench_http
   type: builtin

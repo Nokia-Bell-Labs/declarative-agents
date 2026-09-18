@@ -132,26 +132,53 @@ rest:
             request:
               path: {path: $.path}
 
+        experiments:
+          method: POST
+          path: /api/v1/experiments
+          binding: machine_request
+          request:
+            body_schema:
+              type: object
+              required: [suite, output_dir]
+              properties:
+                suite: {type: string, minLength: 1}
+                output_dir: {type: string, minLength: 1}
+          machine_request:
+            profile: experiments-profile.yaml
+            timeout: 10s
+            request:
+              body: {suite: $.suite, output_dir: $.output_dir}
+            response:
+              terminal_states:
+                Launched: {status: 202, content_type: application/json, body: {service: $.service, pid: $.pid, started_at: $.started_at}}
+                Busy: {status: 429, content_type: application/json, body: {error: too_many_experiments, max_running: $.max_running}}
+                Failed: {status: 500, content_type: application/json, body: {error: launch_failed}}
+
+        experiment_runs:
+          method: GET
+          path: /api/v1/experiments/runs
+          binding: machine_request
+          machine_request:
+            profile: experiments-profile.yaml
+            timeout: 10s
+            initial_signal: ListRequested
+            response:
+              terminal_states:
+                Listed: {status: 200, content_type: application/json, body: {data: $.services}}
+
         actions:
           method: POST
           path: /api/v1/actions
           binding: emit_dynamic_signal
-          allowed_signals: [ExperimentRequested, Shutdown]
+          allowed_signals: [Shutdown]
           signal_field: body.type
           signal_mapping:
-            launch_eval: ExperimentRequested
             shutdown: Shutdown
           request:
             body_schema:
               type: object
               properties:
                 type: {type: string}
-                config:
-                  type: object
-                  properties:
-                    suite: {type: string}
-                    output_dir: {type: string}
-                    request_id: {type: string}
               required: [type]
 
         ui:

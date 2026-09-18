@@ -1,0 +1,35 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: bench-experiments
+purpose: |-
+  Launch one critic run as a detached child and return its handle, or list the
+  runs started since the host launched with their outcomes. The child outlives
+  this request; the host's shared service state tracks and reaps it (srd040
+  R7.2), and max_running on the launch word bounds how many run at once.
+initial_state: AwaitingRequest
+budget:
+  command_timeout: 1m
+  max_iterations: 3
+states:
+  - {name: AwaitingRequest, meaning: Seeded by one experiments route.}
+  - {name: Starting, meaning: Starting the critic as a detached child.}
+  - {name: Listing, meaning: Reading the tracked critic runs.}
+  - {name: Launched, meaning: Terminal. The critic run started and its handle is returned., run_status: succeeded}
+  - {name: Listed, meaning: Terminal. The tracked runs are returned., run_status: succeeded}
+  - {name: Busy, meaning: Terminal. The declared bound of running critics is reached; nothing started., run_status: failed}
+  - {name: Failed, meaning: Terminal. The critic could not be started or the runs could not be read., run_status: failed}
+terminal_states: [Launched, Listed, Busy, Failed]
+signals:
+  - {name: Seed, trigger: POST /api/v1/experiments seeds a launch.}
+  - {name: ListRequested, trigger: GET /api/v1/experiments/runs seeds a listing.}
+  - {name: ServiceStarted, trigger: The critic child started.}
+  - {name: ServiceLimitReached, trigger: The declared bound of running critics is reached.}
+  - {name: ChildrenListed, trigger: The tracked runs were read.}
+  - {name: CommandError, trigger: A selector did not resolve or the child failed to spawn.}
+transitions:
+  - {state: AwaitingRequest, signal: Seed,                next: Starting, action: launch_evaluator}
+  - {state: AwaitingRequest, signal: ListRequested,       next: Listing,  action: list_experiments}
+  - {state: Starting,        signal: ServiceStarted,      next: Launched}
+  - {state: Starting,        signal: ServiceLimitReached, next: Busy}
+  - {state: Starting,        signal: CommandError,        next: Failed}
+  - {state: Listing,         signal: ChildrenListed,      next: Listed}

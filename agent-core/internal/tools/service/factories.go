@@ -72,7 +72,9 @@ const (
 )
 
 // ToolConfig is the declared config for every service word. Each word reads
-// the fields it needs; unrelated fields stay empty.
+// the fields it needs; unrelated fields stay empty. Declarations reach it
+// through catalog.DecodeToolConfig, a strict JSON decode, so every snake_case
+// key needs a json tag as well as a yaml one.
 type ToolConfig struct {
 	Service   string   `yaml:"service,omitempty"`
 	Binary    string   `yaml:"binary,omitempty"`
@@ -99,17 +101,17 @@ type ToolConfig struct {
 	// to be told which one: its profile declares address: ${VAR:-...} and this
 	// names that VAR. Defaults to MOCK_ADDRESS for mocks and SUBJECT_ADDRESS
 	// for the subject.
-	AddressEnv string `yaml:"address_env,omitempty"`
+	AddressEnv string `yaml:"address_env,omitempty" json:"address_env,omitempty"`
 
 	// start_service reads each of service, request, and output from a literal
 	// or a $from(label).path selector, never both, and bounds the live
 	// children with max_running when it is positive.
-	ServiceFrom string `yaml:"service_from,omitempty"`
+	ServiceFrom string `yaml:"service_from,omitempty" json:"service_from,omitempty"`
 	Request     string `yaml:"request,omitempty"`
-	RequestFrom string `yaml:"request_from,omitempty"`
+	RequestFrom string `yaml:"request_from,omitempty" json:"request_from,omitempty"`
 	Output      string `yaml:"output,omitempty"`
-	OutputFrom  string `yaml:"output_from,omitempty"`
-	MaxRunning  int    `yaml:"max_running,omitempty"`
+	OutputFrom  string `yaml:"output_from,omitempty" json:"output_from,omitempty"`
+	MaxRunning  int    `yaml:"max_running,omitempty" json:"max_running,omitempty"`
 }
 
 // FactoryDeps holds service factory dependencies.

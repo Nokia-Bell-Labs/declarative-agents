@@ -276,13 +276,17 @@ test_cases:
     status: implemented
     test: conformance/bench_test.go
     coverage: shipped-behavioral
-    coverage_note: Copies the shipped agents/bench profile, patches only its REST listen address, and uses a fixture critic child.
+    coverage_note: Copies the shipped agents/bench profile, patches its REST listen address and lowers max_running to 2, and uses a fixture critic child that holds until reaped.
     description: |
       Launches the profile-owned static UI and machine_request routes, exercises
-      session/config/source reads, dispatches a launch through value_predicate and
-      self_invoke, requests clean shutdown, and waits for the host machine to exit.
+      session/config/source reads, starts two overlapping critic runs through the
+      experiments capability's start_service word, lists both as running, is
+      refused a third with 429 at the bound, requests clean shutdown, and waits
+      for the host machine to exit and reap the runs.
     expected:
-      asserted_tool_spans: [launch_bench_http, await_bench_action, list_evaluation_sessions, list_resource, read_resource, validate_eval_suite, launch_evaluator, stop_bench_http]
+      asserted_tool_spans: [launch_bench_http, await_bench_action, list_evaluation_sessions, list_resource, read_resource, launch_evaluator, list_experiments, stop_bench_http]
+      overlapping_runs: 2
+      bound_status: 429
       error_status_spans: 0
       terminal_states: [Done]
     traces:

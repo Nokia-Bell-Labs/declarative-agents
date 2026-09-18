@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
 func listed(t *testing.T, state *State, name string) map[string]interface{} {
@@ -157,4 +158,30 @@ func TestStartService_DerivedNameAndOutputFlag(t *testing.T) {
 	}.Build(core.Result{}).Execute()
 	require.Equal(t, SignalServiceStarted, result.Signal, result.Output)
 	require.Regexp(t, `"service":"critic-\d+"`, result.Output)
+}
+
+// TestStartServiceDeclarationDecodes covers the path a profile takes: its
+// snake_case config goes through the strict JSON decode in
+// catalog.DecodeToolConfig, so a field without a json tag fails to load.
+func TestStartServiceDeclarationDecodes(t *testing.T) {
+	t.Parallel()
+	def := catalog.ToolDef{
+		Name: "launch_evaluator", Type: "builtin", Init: InitStartService,
+		Config: map[string]interface{}{
+			"profile":      "agents/critic/profile.yaml",
+			"service_from": "$from(seed).request_id",
+			"request_from": "$from(seed).parameters.suite",
+			"output_from":  "$from(seed).parameters.output_dir",
+			"max_running":  4,
+			"address_env":  "CRITIC_ADDRESS",
+		},
+	}
+	builder, err := factoryFor(InitStartService, FactoryDeps{State: NewState()})(def, nil)
+	require.NoError(t, err)
+	cfg := builder.(Builder).Config
+	require.Equal(t, "$from(seed).request_id", cfg.ServiceFrom)
+	require.Equal(t, "$from(seed).parameters.suite", cfg.RequestFrom)
+	require.Equal(t, "$from(seed).parameters.output_dir", cfg.OutputFrom)
+	require.Equal(t, 4, cfg.MaxRunning)
+	require.Equal(t, "CRITIC_ADDRESS", cfg.AddressEnv)
 }
