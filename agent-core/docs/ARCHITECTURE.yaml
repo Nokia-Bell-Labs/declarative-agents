@@ -283,10 +283,12 @@ overview:
             - internal/planning
       - path: internal/tools/service/
         responsibility: |
-          Service owns scenario-rig process boundary words: serve-mode child
-          start and stop, deterministic scenario discovery, one-validator child
-          execution, and thin session state used by MachineSpec iteration,
-          joins, verdicts, and teardown.
+          Service owns child-process boundary words: generic detached child
+          start and listing under a declared count bound, serve-mode scenario
+          child start and stop, deterministic scenario discovery, one-validator
+          child execution, and thin session state used by MachineSpec
+          iteration, joins, verdicts, and teardown. The host run and its
+          machine_request runs share one tracked child set.
         dependencies:
           may_depend_on:
             - internal/runtime/core

@@ -168,7 +168,7 @@ test_cases:
       on undo. A spawn failure surfaces as a tool error signal rather than a
       panic, and no word invokes a model.
     inputs:
-      words: [init_scenario_session, start_scenario_mock, start_scenario_subject, stop_service, run_scenario_validator]
+      words: [init_scenario_session, start_scenario_mock, start_scenario_subject, stop_service, run_scenario_validator, start_service, list_services]
       spawn_failure_case: nonexistent profile path
     expected:
       reversibility_consistent: true
@@ -177,6 +177,31 @@ test_cases:
       no_model_invocation: true
     traces:
       - srd040-service-child-tools AC5
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: Generic detached start returns a handle and lists the outcome
+    go_test: go test ./internal/tools/service -run 'TestStartService_DetachedReturnsAndListsExit|TestStartService_MaxRunningEmitsLimitReached|TestStartServiceUndoConsumesReceipt'
+    status: implemented
+    description: |
+      start_service returns while its child still runs, list_services
+      reports the child running and then exited with its exit code, a
+      declared max_running bound emits ServiceLimitReached and holds when
+      concurrent starts race for the last slot, and undo stops only the
+      child its receipt names. The shared host and request service state
+      is proved in cmd/agent by TestRequestLocalStateSharesHostServiceState.
+    inputs:
+      child_modes: [exit3slow, hang]
+      max_running: [1, 2]
+      concurrent_starts: 8
+    expected:
+      returns_before_exit: true
+      listed_exit_code: 3
+      limit_signal: ServiceLimitReached
+      concurrent_started: 2
+      undo_stops_only_receipt_child: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S6
+      - srd040-service-child-tools AC6
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: One scenario runs end-to-end to a verdict

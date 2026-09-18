@@ -47,6 +47,11 @@ func TestMain(m *testing.M) {
 	case "exit3":
 		fmt.Fprintln(os.Stderr, "terminal state: failed")
 		os.Exit(3)
+	case "exit3slow":
+		// Outlives the start word's return, then fails, so a detached start
+		// can be observed running before it is observed exited.
+		time.Sleep(500 * time.Millisecond)
+		os.Exit(3)
 	case "exit0silent":
 		// Exits zero and reports nothing: proved nothing.
 		os.Exit(0)

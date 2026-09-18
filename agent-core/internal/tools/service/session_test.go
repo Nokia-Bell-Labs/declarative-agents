@@ -470,4 +470,24 @@ func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
 	err = validateToolConfig("i", InitInitScenarioSession, ToolConfig{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "requires at least one root")
+
+	// start_service needs a profile, one source per field, selectors that
+	// parse, and a non-negative bound.
+	for _, tc := range []struct {
+		cfg  ToolConfig
+		want string
+	}{
+		{ToolConfig{}, "requires a profile"},
+		{ToolConfig{Profile: "p", Service: "a", ServiceFrom: "$from(seed).name"}, "both service and service_from"},
+		{ToolConfig{Profile: "p", Request: "r", RequestFrom: "$from(seed).r"}, "both request and request_from"},
+		{ToolConfig{Profile: "p", OutputFrom: "seed.output"}, "output_from must be"},
+		{ToolConfig{Profile: "p", MaxRunning: -1}, "max_running must not be negative"},
+	} {
+		err = validateToolConfig("s", InitStartService, tc.cfg)
+		require.Error(t, err, tc.want)
+		require.Contains(t, err.Error(), tc.want)
+	}
+	require.NoError(t, validateToolConfig("s", InitStartService, ToolConfig{
+		Profile: "p", ServiceFrom: "$from(seed).request_id", RequestFrom: "$from(seed).parameters.suite", MaxRunning: 4,
+	}))
 }

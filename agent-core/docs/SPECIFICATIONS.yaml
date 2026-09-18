@@ -373,7 +373,7 @@ srd_index:
     path: docs/specs/software-requirements/srd039-mock-endpoint-binding.yaml
   - id: srd040-service-child-tools
     title: Service-Child and Scenario Tools
-    summary: Words for a rig machine that composes other machines - start_scenario_mock, start_scenario_subject, and stop_service manage background serve-mode children with injected environment, trusted runtime targets, and process-group reaping; profile-visible REST probes and delay transitions own readiness retries and timeout; one-validator child execution composes through MachineSpec iteration and join; and init_scenario_session with next_scenario discovers and visits deterministic work under declared roots.
+    summary: Words for a rig machine that composes other machines - start_scenario_mock, start_scenario_subject, and stop_service manage background serve-mode children with injected environment, trusted runtime targets, and process-group reaping; profile-visible REST probes and delay transitions own readiness retries and timeout; one-validator child execution composes through MachineSpec iteration and join; init_scenario_session with next_scenario discovers and visits deterministic work under declared roots; and start_service with list_services starts any profile as a detached child under a declared count bound and reports its outcome.
     status: implemented
     path: docs/specs/software-requirements/srd040-service-child-tools.yaml
   - id: srd041-value-predicate-tool

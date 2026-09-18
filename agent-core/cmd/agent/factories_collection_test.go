@@ -5,6 +5,8 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,6 +15,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/service"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
 )
 
@@ -122,12 +125,26 @@ func TestNewAgentStateServiceStateSurvivesCatalogProbe(t *testing.T) {
 	require.Same(t, svc, st.services)
 }
 
-func TestRequestLocalStateAllocatesOwnServiceState(t *testing.T) {
+// TestRequestLocalStateSharesHostServiceState covers srd040 R7.2: a child a
+// machine_request run starts is tracked by the host, so the host's orderly
+// shutdown reaps it and every other run can list or stop it.
+func TestRequestLocalStateSharesHostServiceState(t *testing.T) {
 	t.Parallel()
 	host := newAgentState(runtimeConfig{}, agentStateDeps{Ctx: context.Background()})
 	local := requestLocalState(host, core.NewRegistry())
-	require.NotNil(t, local.services)
-	require.NotSame(t, host.services, local.services)
+	require.Same(t, host.services, local.services)
+	if testing.Short() {
+		return
+	}
+	script := filepath.Join(t.TempDir(), "detached-child")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nsleep 30\n"), 0o755))
+	_, err := local.services.Start(service.StartSpec{Name: "request-started", Binary: script, Profile: "profile"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"request-started"}, host.services.Running())
+
+	host.reapServices()
+	require.Empty(t, host.services.Running())
+	require.Empty(t, local.services.List())
 }
 
 func catalogInitSets(entries []toolregistry.StandardFactoryCatalogEntry) [][]string {
