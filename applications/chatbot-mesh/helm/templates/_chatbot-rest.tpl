@@ -6,7 +6,7 @@ renders the RAG objects, so selected authority and deployment cannot drift. The
 packaged agents/chatbot/rest.yaml stays the local integration source; this render
 overrides that ConfigMap key in the cluster. Server addresses bind 0.0.0.0 so the
 Services route to the pod. Runtime {{`{{ params.x }}`}} bodies are emitted
-literally.
+literally. The monitor server is not here: chatbotMonitorRest below renders it.
 */}}
 {{- define "chatbot-mesh.chatbotRest" -}}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
@@ -62,18 +62,6 @@ rest:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
         ports: [{{ .Values.chatbot.ports.control }}]
-        allow_public_listener: true
-    local_chatbot_monitor:
-      timeout: 5s
-      read_timeout: 5s
-      max_request_bytes: 4096
-      max_response_bytes: 1048576
-      redirect:
-        mode: none
-      network:
-        schemes: [http]
-        hosts: [127.0.0.1, localhost]
-        ports: [{{ .Values.chatbot.ports.monitor }}]
         allow_public_listener: true
 
   clients:
@@ -249,57 +237,42 @@ rest:
       shutdown:
         timeout: 5s
         drain_policy: drain_then_stop
+      # The exit route is agent-core's canonical one, injected at load
+      # (GH-1264), as it is for the packaged profile.
       endpoints:
-        exit:
-          method: POST
-          path: /api/lifecycle/exit
-          binding: emit_signal
-          signal: ExitRequested
-          request:
-            body_schema:
-              type: object
-              properties:
-                reason: {type: string}
-                status: {type: string}
-          response:
-            output:
-              accepted: "true"
         health:
           method: GET
           path: /api/lifecycle/health
           binding: health
+{{- end -}}
 
-    monitor:
-      address: 0.0.0.0:{{ .Values.chatbot.ports.monitor }}
-      limits_ref: local_chatbot_monitor
-      queue:
-        name: chatbot_monitor
-        capacity: 8
-        overflow: reject
-        timeout: 100ms
-      shutdown:
-        timeout: 2s
-        drain_policy: drain_then_stop
-        stop_listeners: true
-        unblock_await_signal: ServerStopped
-      endpoints:
-        machine_spec:  {method: GET, path: /monitor/machine,       binding: read_state,    monitor_view: machine_spec}
-        current_state: {method: GET, path: /monitor/state,         binding: read_state,    monitor_view: current_state}
-        tools:         {method: GET, path: /monitor/tools,         binding: read_state,    monitor_view: tools}
-        metrics:       {method: GET, path: /monitor/metrics,       binding: read_state,    monitor_view: metrics}
-        recent_events: {method: GET, path: /monitor/events,        binding: read_state,    monitor_view: events}
-        event_stream:  {method: GET, path: /monitor/events/stream, binding: stream_events, monitor_view: events}
-        control_exit:
-          method: POST
-          path: /monitor/control/exit
-          binding: emit_signal
-          signal: ExitRequested
-          request:
-            body_schema:
-              type: object
-              properties:
-                reason: {type: string}
-          response:
-            output:
-              accepted: "true"
+{{/*
+The chatbot monitor-rest.yaml: an instantiation of agent-core's monitor server
+fragment with the in-cluster bind address, and the limits that bound it. The
+fragment is the one definition of the monitor surface, so the chart supplies
+only what varies in the cluster, the address and its port; the views are the
+eight every agent serves (GH-2183). It is its own file because the chatbot's
+rest.yaml is shared with its request profile, which launches no monitor server
+(srd052 R3.1).
+*/}}
+{{- define "chatbot-mesh.chatbotMonitorRest" -}}
+unit: mesh-chatbot-monitor-rest
+instantiate:
+  - fragment: /opt/agent-core/tools/rest/units/monitor-server-fragment.yaml
+    args: {address: "0.0.0.0:{{ .Values.chatbot.ports.monitor }}", limits_ref: local_chatbot_monitor, queue_name: chatbot_monitor}
+rest:
+  version: v1
+  limits:
+    local_chatbot_monitor:
+      timeout: 5s
+      read_timeout: 5s
+      max_request_bytes: 4096
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [{{ .Values.chatbot.ports.monitor }}]
+        allow_public_listener: true
 {{- end -}}

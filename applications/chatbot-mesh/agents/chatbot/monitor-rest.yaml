@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The chatbot monitor server, and the limits that bound it. It lives beside
+# rest.yaml rather than in it because rest.yaml is shared with request
+# profiles whose machines launch no monitor server, and an instantiation none
+# of whose definitions a closure selects is an unused import (srd052 R3.1).
+unit: mesh-chatbot-monitor-rest
+instantiate:
+  - fragment: /opt/agent-core/tools/rest/units/monitor-server-fragment.yaml
+    args: {address: "127.0.0.1:18082", limits_ref: local_chatbot_monitor, queue_name: chatbot_monitor}
+rest:
+  version: v1
+  limits:
+    local_chatbot_monitor:
+      timeout: 5s
+      read_timeout: 5s
+      max_request_bytes: 4096
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18082]

@@ -46,6 +46,8 @@ data:
   # are packaged verbatim rather than rendered from this list.
   agents__chatbot__rest.yaml: |-
     {{- include "chatbot-mesh.chatbotRest" . | nindent 4 }}
+  agents__chatbot__monitor-rest.yaml: |-
+    {{- include "chatbot-mesh.chatbotMonitorRest" . | nindent 4 }}
   agents__chatbot__ui__ui.yaml: |-
     {{- include "chatbot-mesh.chatbotUI" . | nindent 4 }}
   agents__chatbot__request-topology-declarations.yaml: |-

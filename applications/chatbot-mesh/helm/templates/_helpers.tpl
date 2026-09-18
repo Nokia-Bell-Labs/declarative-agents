@@ -120,7 +120,7 @@ co-generated. The topology key reached the pod only because a packaging step had
 left the staged file on disk for the glob to find (cohere-demo GH-220).
 */}}
 {{- define "chatbot-mesh.cogeneratedProfileKeys" -}}
-agents__chatbot__rest.yaml agents__chatbot__ui__ui.yaml agents__chatbot__request-topology-declarations.yaml
+agents__chatbot__rest.yaml agents__chatbot__monitor-rest.yaml agents__chatbot__ui__ui.yaml agents__chatbot__request-topology-declarations.yaml
 {{- end -}}
 
 {{/*
