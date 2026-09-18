@@ -54,10 +54,6 @@ var observerFanInLabels = []string{
 	"agent_events_fanin",
 }
 
-// Observer proves the observer agent boots, serves its monitor surface, and
-// reaches a running machine state. The scenario launches the observer profile
-// locally with the kube client pointed at a non-routable address (so discovery
-// degrades gracefully), verifies the health and monitor endpoints respond, and
 // stageObserverProfile stages the chart and returns the staged observer
 // profile. The observer wraps the catalog's agent since GH-2170, and a wrapper
 // names its canonical closure through the staged layout, so a local run starts
@@ -90,6 +86,10 @@ func stageObserverProfile(applicationRoot string) (string, func(), error) {
 	return filepath.Join(chart, "profiles", filepath.FromSlash(runtimePath)), cleanup, nil
 }
 
+// Observer proves the observer agent boots, serves its monitor surface, and
+// reaches a running machine state. The scenario launches the observer profile
+// locally with the kube client pointed at a non-routable address (so discovery
+// degrades gracefully), verifies the health and monitor endpoints respond, and
 // stops the agent through its lifecycle exit. Skips when agent-core is absent.
 func (Integration) Observer() error {
 	applicationRoot, err := os.Getwd()
