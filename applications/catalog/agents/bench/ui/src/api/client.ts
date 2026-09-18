@@ -131,24 +131,43 @@ export const listConfigs = () => fetchJSON<ConfigCategory[]>('/configs')
 export const getConfig = (path: string) => fetchJSON<ConfigDetail>(`/configs/${path}`)
 export const getSource = (path: string) => fetchJSON<SourceDetail>(`/source/${path}`)
 
-export interface ActionPayload {
-  type: string
-  config?: Record<string, unknown>
+export interface ExperimentLaunch {
+  suite: string
+  output_dir: string
 }
 
-export async function postAction(action: ActionPayload): Promise<{ status: string }> {
-  const res = await fetch(`${BASE}/actions`, {
+export interface LaunchedExperiment {
+  service: string
+  pid: number
+  started_at: string
+}
+
+// A critic run the bench started (srd006 R3.5): running, or exited with the
+// exit code the host recorded when it reaped the child.
+export interface ExperimentRun {
+  service: string
+  pid: number
+  status: 'running' | 'exited'
+  exit_code?: number
+  started_at: string
+  finished_at?: string
+}
+
+export async function launchExperiment(launch: ExperimentLaunch): Promise<LaunchedExperiment> {
+  const res = await fetch(`${BASE}/experiments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(action),
+    body: JSON.stringify(launch),
   })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `Action failed: ${res.status}`)
+  const body = await res.json().catch(() => ({}))
+  if (res.status === 429) {
+    throw new Error(`Too many experiments running (limit ${body.max_running ?? 'reached'}); wait for one to finish.`)
   }
-  const body = await res.json()
-  return { status: body.status || (body.accepted ? 'accepted' : 'unknown') }
+  if (!res.ok) throw new Error(body.error || `Launch failed: ${res.status}`)
+  return body as LaunchedExperiment
 }
+
+export const listExperiments = () => fetchJSON<ExperimentRun[]>('/experiments/runs')
 
 export const listSessions = () => fetchJSON<Session[]>('/sessions')
 export const getSession = (suite: string, ts: string) => fetchJSON<SessionDetail>(`/sessions/${suite}/${ts}`)
