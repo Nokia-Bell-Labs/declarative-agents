@@ -1,24 +1,17 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
-# The monitor REST pair -- launch the read-only monitor server, stop it -- as
-# one fragment. Every mesh agent that serves monitor snapshots differs only in
-# the agent its prose names and the control and requests words its
-# relationships point at, so each instantiates this once, under the words'
-# own names.
-unit: mesh-monitor-fragment
+# The monitor REST pair -- launch the read-only monitor server, stop it -- for
+# an agent that also has its own control server and await word. The monitor
+# server fragment names its server `monitor` whatever agent instantiates it
+# (srd052 R2.3), so these two words are the same in every agent and arrive by
+# import rather than instantiation.
+#
+# An agent whose control server is its monitor server composes a
+# launch/await/stop trio instead, and imports a different unit.
+unit: builtin-monitor-rest
 imports:
-  - /opt/agent-core/tools/units/types-core.yaml
-  - /opt/agent-core/tools/units/types-server.yaml
-params:
-  - name: agent
-    type: string
-    description: The agent the problem statement names.
-  - name: control_await
-    type: string
-    description: The agent's control-await word the pair sits around.
-  - name: requests_stop
-    type: string
-    description: The agent's requests-stop word that follows the monitor stop.
+  - types-core.yaml
+  - types-server.yaml
 tools:
   - name: launch_monitor_rest
     type: builtin
@@ -47,6 +40,7 @@ tools:
         state_after_failure: No monitor route is exposed.
     config:
       rest_ref: monitor
+
   - name: stop_monitor_rest
     type: builtin
     init: rest_server_stop

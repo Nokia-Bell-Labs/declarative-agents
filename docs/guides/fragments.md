@@ -11,7 +11,7 @@ A `machine.yaml` may carry `unit:` and `instantiate:` and nothing else. `applica
 
 ## Declaration units
 
-Tool declaration files (`catalog.ToolDefsFile`) compose with `unit:`, `imports:`, `params:`, `instantiate:`, and `override: true` for replacing a tool from an imported unit. `applications/chatbot-mesh/agents/chatbot/declarations.yaml` instantiates the mesh monitor fragment in two lines where other agents inline the same two tool definitions at about 120 lines.
+Tool declaration files (`catalog.ToolDefsFile`) compose with `unit:`, `imports:`, `params:`, `instantiate:`, and `override: true` for replacing a tool from an imported unit. `applications/chatbot-mesh/agents/chatbot/declarations.yaml` is one import and one instantiation: the monitor pair arrives by importing a unit, because it is the same in every agent, and the four lifecycle words by instantiating a fragment, because their names vary. The file carries no tool definition of its own.
 
 The table lists the shared units that exist today and the ones the capability-profiles epic adds.
 
@@ -20,7 +20,7 @@ The table lists the shared units that exist today and the ones the capability-pr
 | monitor service machine template | `agent-core/tools/machines/monitor-service-machine-template.yaml` | shipped |
 | serve machine template | `agent-core/tools/machines/serve-machine-template.yaml` | shipped |
 | lifecycle approval machine template | `agent-core/tools/machines/lifecycle-approval-machine-template.yaml` | shipped |
-| mesh monitor fragment (launch/stop pair) | `applications/chatbot-mesh/agents/units/mesh-monitor-fragment.yaml` | shipped |
+| monitor REST pair (launch/stop, imported) | `agent-core/tools/units/monitor-rest-declarations.yaml` | shipped (GH-2180) |
 | monitor control fragment (launch/await/stop trio) | `applications/catalog/agents/units/monitor-control-fragment.yaml` | shipped |
 | serve-lifecycle declarations fragment | `agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml` | shipped (GH-2166) |
 | monitor server fragment | `agent-core/tools/rest/units/monitor-server-fragment.yaml` | shipped (GH-2167) |

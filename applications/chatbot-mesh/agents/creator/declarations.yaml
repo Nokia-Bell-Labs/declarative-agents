@@ -1,9 +1,12 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
-# The creator serving lifecycle and its monitor pair, each one instantiation.
-# The four lifecycle words arrive from the agent-core fragment under this
-# agent's own names; nothing about them is written out here.
+# The creator serving lifecycle and its monitor pair. The four lifecycle words
+# arrive from the agent-core fragment under this agent's own names, and the
+# monitor pair is the agent-core unit every such agent imports; nothing about
+# either is written out here.
 unit: mesh-creator-declarations
+imports:
+  - /opt/agent-core/tools/units/monitor-rest-declarations.yaml
 instantiate:
   - fragment: /opt/agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml
     args:
@@ -16,6 +19,4 @@ instantiate:
       control_rest_ref: creator_control
       requests_noun: instance
       requests_purpose: for instance operations
-  - fragment: ../units/mesh-monitor-fragment.yaml
-    args: {agent: "creator", control_await: await_creator_control, requests_stop: stop_creator_requests}
 tools:

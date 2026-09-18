@@ -11,11 +11,11 @@ import (
 )
 
 // TestGenerateRag1VariantStagesUnderItsRoot is GH-2096: the rag-server profile
-// reaches a unit through ../units/, so staging it at the temp root itself put
+// reached a unit through ../units/, so staging it at the temp root itself put
 // that unit one level above the root, which profilestage refuses. Staged under
-// agents/rag-server, the unit lands inside the root beside it. The unit is the
-// monitor fragment since GH-2166 moved the server types into agent-core, which
-// the profile now reaches by a library root rather than a relative path.
+// agents/rag-server, anything the profile reaches relatively lands inside the
+// root. Since GH-2180 every unit rag-server imports comes by a library root, so
+// the guard is the layout and the empty space beside the root.
 func TestGenerateRag1VariantStagesUnderItsRoot(t *testing.T) {
 	profilesRoot, err := filepath.Abs("..")
 	if err != nil {
@@ -31,9 +31,6 @@ func TestGenerateRag1VariantStagesUnderItsRoot(t *testing.T) {
 	root := filepath.Dir(filepath.Dir(filepath.Dir(profile)))
 	if filepath.Base(filepath.Dir(profile)) != "rag-server" || filepath.Base(filepath.Dir(filepath.Dir(profile))) != "agents" {
 		t.Fatalf("profile staged at %s, want <root>/agents/rag-server/profile.yaml", profile)
-	}
-	if _, err := os.Stat(filepath.Join(root, "agents", "units", "mesh-monitor-fragment.yaml")); err != nil {
-		t.Fatalf("imported unit not staged beside the profile: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(root), "units")); !os.IsNotExist(err) {
 		t.Fatalf("a units directory exists beside the root %s: nothing may be written outside it", root)

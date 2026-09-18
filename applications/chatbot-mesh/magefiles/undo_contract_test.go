@@ -47,16 +47,14 @@ func TestMutationUndoContractsStaySemanticallyAligned(t *testing.T) {
 		confirmation                                  bool
 	}
 	cases := []expectedContract{
-		{"../../catalog/agents/applier/declarations.yaml", "await_applier_control", "reversible", "queue_event_restore", "rest_await_event", false},
 		{"../../catalog/agents/collector/declarations.yaml", "await_collector_control", "reversible", "queue_event_restore", "rest_await_event", false},
-		{"../../catalog/agents/applier/declarations.yaml", "stop_monitor_rest", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
-		{"../../catalog/agents/applier/declarations.yaml", "stop_applier_requests", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
-		// The four mesh agents instantiate stop_monitor_rest from one fragment (GH-2092).
-		{"../agents/units/mesh-monitor-fragment.yaml", "stop_monitor_rest", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
-		// The same four agents instantiate their await and stop words from the
+		// The four mesh agents and catalog's applier import stop_monitor_rest from
+		// one agent-core unit (GH-2180).
+		{"../../../agent-core/tools/units/monitor-rest-declarations.yaml", "stop_monitor_rest", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
+		// The same five agents instantiate their await and stop words from the
 		// agent-core serve-lifecycle fragment, which holds the contract once for
-		// every serving agent (GH-2166). The names carry $param because a
-		// fragment's words are named by its arguments.
+		// every serving agent (GH-2166, GH-2180). The names carry $param because
+		// a fragment's words are named by its arguments.
 		{"../../../agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml", "$param(await_control)", "reversible", "queue_event_restore", "rest_await_event", false},
 		{"../../../agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml", "$param(stop_requests)", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
 		{"../../catalog/agents/collector/declarations.yaml", "stop_collector_monitor", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
