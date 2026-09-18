@@ -890,6 +890,9 @@ releases:
       - id: gh-2170
         summary: Give the catalog the fleet observer and let a mesh wrap it, as the applications wrap the catalog's applier.
         status: implemented
+      - id: gh-2197
+        summary: Generic detached service start and list words, so a request capability can launch a child and return.
+        status: planned
       - id: gh-2171
         summary: Cleave the shared request capabilities out of the agents that trap them behind machine overrides; collector and bench end as template instances.
         status: planned

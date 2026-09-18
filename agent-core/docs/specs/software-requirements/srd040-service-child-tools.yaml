@@ -22,6 +22,7 @@ goals:
   - G3: Define init_scenario_session and next_scenario for deterministic scenario discovery and iteration under configured roots.
   - G4: Keep every word deterministic, LLM-free, and bounded in time.
   - G5: Declare honest reversibility and undo behavior for each word.
+  - G6: Define start_service and list_services so any profile can start a child detached, bound how many run at once, and read their outcomes.
 
 requirements:
   R1:
@@ -73,11 +74,20 @@ requirements:
       - R6.2: The words SHALL be declared as boundary tools crossing a child process, per the tool language boundary rules.
       - R6.3: Failure of a child to spawn SHALL surface as a tool error signal, not a panic.
 
+  R7:
+    title: Generic detached service words
+    items:
+      - R7.1: start_service SHALL spawn one declared profile as a background child through the shared service state and return its handle without waiting for the child to exit.
+      - R7.2: The host run and every machine_request run in the same process SHALL share one tracked child set, so a child started by a request run is reaped under R1.4 and visible to list_services and stop_service from any run.
+      - R7.3: When max_running is declared, start_service SHALL compare it against the live child count before spawning and SHALL emit ServiceLimitReached without starting a child at the bound.
+      - R7.4: list_services SHALL report every tracked child with its running or exited status, exit code, and start and finish times; an exited child SHALL remain listed until stopped or reaped.
+      - R7.5: start_service SHALL declare compensating undo that stops only the child named by its receipt; list_services undo SHALL be noop.
+
 non_goals:
   - A Kubernetes or container backend for scenario child starts; children are local processes in this SRD.
   - Span-based assertion words; validators assert over HTTP responses and the srd039 request log.
   - Scenario scheduling policy beyond one rig machine's sequential scenario loop; cross-scenario parallelism belongs to the caller.
-  - Bounded parallel validator iteration; until MachineSpec supports it, validators run sequentially rather than through hidden goroutines.
+  - Scheduling policy across detached children beyond a declared count bound; queueing or prioritising launches belongs to the caller.
 
 tool_words:
   - name: init_scenario_session
@@ -157,6 +167,20 @@ tool_words:
     side_effects: [scenario_session_read]
     errors: [session_failed]
     undo: noop.
+  - name: start_service
+    input: a declared profile, an optional literal or selector-resolved service name, request, and output, a working directory, environment additions, and an optional max_running bound.
+    output: child identity, pid, address, base URL, start time, and receipt.
+    signals: [ServiceStarted, ServiceLimitReached, CommandError]
+    side_effects: [child_process_start]
+    errors: [selector_resolution, address_allocation, spawn_failed]
+    undo: stop only the child identified by the dispatch receipt.
+  - name: list_services
+    input: the shared service state.
+    output: every tracked child with running or exited status, exit code, and start and finish times.
+    signals: [ChildrenListed]
+    side_effects: [service_state_read]
+    errors: []
+    undo: noop.
 
 acceptance_criteria:
   - id: AC1
@@ -174,3 +198,11 @@ acceptance_criteria:
   - id: AC5
     criterion: Each word declares its reversibility and undo consistently, invokes no model, and surfaces a spawn failure as a tool error signal, adding no tool-undo-mismatch audit warnings.
     traces: [R1.5, R3.3, R6.1, R6.2, R6.3]
+  - id: AC6
+    criterion: start_service returns before its child exits, list_services shows the child running then exited with its exit code, a declared max_running bound emits ServiceLimitReached, a child started inside a machine_request run is reaped by orderly host shutdown, and both words declare undo consistently.
+    traces: [R7.1, R7.2, R7.3, R7.4, R7.5]
+
+implementation_status:
+  planned:
+    - GH-2197 adds start_service and list_services and shares the host service state with machine_request runs (R7).
+    - GH-2188 is the first consumer, launching bench experiments as detached critic children behind a request capability.
