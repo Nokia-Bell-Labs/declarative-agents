@@ -79,9 +79,9 @@ overview: |
 
 roadmap_summary:
   - version: "00.0"
-    name: Core engine and telemetry import
-    use_cases_done: 1
-    use_cases_total: 1
+    name: Core engine and supporting packages
+    use_cases_done: 2
+    use_cases_total: 2
     status: done
   - version: "01.0"
     name: Unified agent binary and configuration-driven architecture
@@ -127,7 +127,7 @@ roadmap_summary:
     name: Scenario rig runtime
     use_cases_done: 0
     use_cases_total: 1
-    status: in_progress
+    status: done
   - version: "10.0"
     name: Value predicate word
     use_cases_done: 1
@@ -150,9 +150,9 @@ roadmap_summary:
     status: implemented
   - version: "14.0"
     name: Request-driven signals and configured Dolt words
-    use_cases_done: 0
+    use_cases_done: 2
     use_cases_total: 2
-    status: in_progress
+    status: implemented
   - version: "15.0"
     name: Cohere invoke_llm provider adapter
     use_cases_done: 1
@@ -165,6 +165,26 @@ roadmap_summary:
     status: done
   - version: "17.0"
     name: Named declaration units and explicit imports
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "18.0"
+    name: Parameterized declaration fragments
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "19.0"
+    name: Signed boundary contracts
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "20.0"
+    name: Machine templates, agent blueprints, and unit libraries
+    use_cases_done: 2
+    use_cases_total: 3
+    status: in_progress
+  - version: "21.0"
+    name: Capability profiles
     use_cases_done: 0
     use_cases_total: 1
     status: in_progress
