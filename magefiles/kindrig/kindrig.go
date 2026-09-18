@@ -199,10 +199,10 @@ func DefaultCommandRun(name string, args ...string) ([]byte, error) {
 }
 
 // Cluster records whether this run created the cluster it is using. Only a
-// cluster this run created may be deleted, so a reused demo cluster survives
-// (GH-589). Integration targets acquire through EnsureFreshCluster, which
-// replaces a leftover, so their clusters are always created and deleted
-// (GH-2137).
+// cluster this run created may be deleted, so a reused demo or platform cluster
+// survives (GH-589). Cluster-mutating scenarios and the release's da-platform
+// acquire through EnsureFreshCluster, which replaces a leftover, so those
+// clusters are always created and deleted (GH-2137, GH-2215).
 type Cluster struct {
 	Name    string
 	Created bool
@@ -420,6 +420,13 @@ func (c Cluster) ReleaseAfter(run Runner, failed bool, evidence FailureEvidence)
 		}
 	}
 	c.Release(run)
+}
+
+// Capture persists kind logs and namespace diagnostics for a cluster that stays
+// running. A scenario on a shared cluster captures its own namespace this way;
+// an owned cluster's scenario uses ReleaseAfter instead.
+func (e FailureEvidence) Capture(kindRun Runner, cluster string) error {
+	return e.capture(kindRun, cluster)
 }
 
 func (e FailureEvidence) capture(kindRun Runner, cluster string) error {

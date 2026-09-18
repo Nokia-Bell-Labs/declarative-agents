@@ -36,6 +36,11 @@ import (
 // same rule is exactly why the proof names the one it was written against instead
 // of trusting the default (GH-682).
 
+// policyProofClass marks the proof cluster-mutating: its kind config disables
+// the default CNI for Calico, which a shared platform cannot take, so it keeps
+// an owned cluster through EnsureFreshCluster (GH-2215).
+const policyProofClass = kindrig.ClusterMutatingScenario
+
 const (
 	policyKindCluster = "da-chatbot-mesh-policy"
 	policyMeshNS      = "mesh"

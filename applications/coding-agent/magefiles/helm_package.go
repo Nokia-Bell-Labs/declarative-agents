@@ -46,7 +46,6 @@ var chartArchiveInventory = []string{
 	"coding-agent/charts/agent-services/templates/_naming.tpl",
 	"coding-agent/charts/agent-services/templates/_ollama.tpl",
 	"coding-agent/ci/kind-applier-values.yaml",
-	"coding-agent/ci/kind-config.yaml",
 	"coding-agent/ci/kind-demo-config.yaml",
 	"coding-agent/ci/kind-values.yaml",
 	"coding-agent/ci/kind-workspace.yaml",

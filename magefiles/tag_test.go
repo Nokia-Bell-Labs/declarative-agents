@@ -496,22 +496,28 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 	}
 }
 
-func TestPostAuditCPUGateOverlapsAllThreeDockerApplicationLanes(t *testing.T) {
+// With one shared da-platform (GH-2215) the docker capacity bounds concurrent
+// application gates at two: chatbot-mesh (priority) and coding-agent start
+// beside the CPU lint gate, and agent-architecture waits for a docker slot.
+func TestPostAuditGatesShareTwoDockerSlots(t *testing.T) {
 	gates := releaseGates("/release")
 	started := make(chan string, len(gates))
 	releaseInitial := make(chan struct{})
+	releaseCoding := make(chan struct{})
 	done := make(chan error, 1)
 	initial := map[string]bool{
-		"root lint":                                   true,
-		"applications/chatbot-mesh integration":       true,
-		"applications/coding-agent integration":       true,
-		"applications/agent-architecture integration": true,
+		"root lint":                             true,
+		"applications/chatbot-mesh integration": true,
+		"applications/coding-agent integration": true,
 	}
 
 	go func() {
 		done <- executeReleaseGates(gates, func(gate releaseGate) error {
 			started <- gate.name
-			if initial[gate.name] {
+			switch {
+			case gate.name == "applications/coding-agent integration":
+				<-releaseCoding
+			case initial[gate.name]:
 				<-releaseInitial
 			}
 			return nil
@@ -528,7 +534,15 @@ func TestPostAuditCPUGateOverlapsAllThreeDockerApplicationLanes(t *testing.T) {
 	if !reflect.DeepEqual(got, initial) {
 		t.Fatalf("initial post-audit gates = %v, want %v", got, initial)
 	}
-
+	select {
+	case gate := <-started:
+		t.Fatalf("gate %q started beyond the two docker slots", gate)
+	default:
+	}
+	close(releaseCoding)
+	if got := receiveReleaseStart(t, started); got != "applications/agent-architecture integration" {
+		t.Fatalf("gate after coding-agent = %q, want agent-architecture", got)
+	}
 	close(releaseInitial)
 	if err := receiveReleaseResult(t, done); err != nil {
 		t.Fatal(err)

@@ -13,15 +13,29 @@ import (
 	"time"
 )
 
-func TestCodingHelmClustersAreAcquiredFresh(t *testing.T) {
+// The helm scenarios are namespaced (GH-2215): they reach da-platform through
+// the shared scenario lifecycle and never own a cluster. A leftover platform is
+// kindrig's to replace (GH-2137); a leftover namespace, PrepareScenarioNamespace's.
+func TestCodingHelmScenariosRunOnSharedPlatform(t *testing.T) {
 	for _, file := range []string{"integration_applier_live.go", "integration_helm_smoke.go"} {
 		body, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(body), "kindrig.EnsureFreshCluster(") ||
-			strings.Contains(string(body), "kindrig.EnsureCluster(") {
-			t.Fatalf("%s must acquire its dedicated cluster fresh so a leftover never persists (GH-2137)", file)
+		source := string(body)
+		if !strings.Contains(source, "acquireCodingScenario(") ||
+			strings.Contains(source, "kindrig.EnsureFreshCluster(") ||
+			strings.Contains(source, "kindrig.EnsureCluster(") {
+			t.Fatalf("%s must run as a namespaced scenario on da-platform, not own a cluster", file)
+		}
+	}
+	body, err := os.ReadFile("integration_platform.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"kindrig.AcquirePlatform(", "kindrig.PrepareScenarioNamespace("} {
+		if !strings.Contains(string(body), want) {
+			t.Fatalf("scenario acquisition lacks %s", want)
 		}
 	}
 }

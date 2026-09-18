@@ -12,10 +12,13 @@ import (
 )
 
 // releaseDockerFreeFloor is the Docker VM memory the release needs free before
-// its docker lanes start: three concurrent kind lanes plus the in-cluster LLM
-// tier. Release attempt 4 on GH-2120 started with about 4 GiB free and timed
-// out chat inference and readiness probes; attempts with more headroom passed
-// (GH-2134).
+// it boots da-platform: one kind control plane (about 1.3 GiB), the application
+// pods of two concurrent docker lanes, and the in-cluster LLM tier. Release
+// attempt 4 on GH-2120 started with about 4 GiB free and timed out chat
+// inference and readiness probes; attempts with more headroom passed (GH-2134).
+// That run paid three control planes; with one shared control plane (GH-2215)
+// the same floor leaves more for application pods, and we keep the value until
+// a release measures otherwise.
 const releaseDockerFreeFloor = 5 << 30
 
 // dockerContainerMemory is one running container's resident memory.

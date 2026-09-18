@@ -14,9 +14,18 @@ import (
 )
 
 type integrationTarget struct {
-	name       string
-	fn         func() error
-	sharedKind bool
+	name string
+	fn   func() error
+	// kind marks a target that runs on a kind cluster. Its class says whether
+	// it shares da-platform as a namespaced release (the default) or keeps an
+	// owned cluster because it needs cluster-scoped configuration (GH-2215).
+	kind  bool
+	class kindrig.ScenarioClass
+}
+
+// sharedKind reports whether the target runs on the shared platform.
+func (t integrationTarget) sharedKind() bool {
+	return t.kind && t.class == kindrig.NamespacedScenario
 }
 
 func integrationTargets(i Integration) []integrationTarget {
@@ -27,13 +36,13 @@ func integrationTargets(i Integration) []integrationTarget {
 		{name: "controlPlane", fn: i.ControlPlane},
 		{name: "embeddingExclusion", fn: i.EmbeddingExclusion},
 		{name: "observer", fn: i.Observer},
-		{name: "policyProof", fn: i.PolicyProof},
+		{name: "policyProof", fn: i.PolicyProof, kind: true, class: policyProofClass},
 		{name: "rig", fn: i.Rig},
-		{name: "helmSmoke", fn: i.HelmSmoke, sharedKind: true},
-		{name: "helmSwap", fn: i.HelmSwap, sharedKind: true},
-		{name: "helmLLMTier", fn: i.HelmLLMTier, sharedKind: true},
+		{name: "helmSmoke", fn: i.HelmSmoke, kind: true},
+		{name: "helmSwap", fn: i.HelmSwap, kind: true},
+		{name: "helmLLMTier", fn: i.HelmLLMTier, kind: true},
 		{name: "applier", fn: i.Applier},
-		{name: "applierLive", fn: i.ApplierLive, sharedKind: true},
+		{name: "applierLive", fn: i.ApplierLive, kind: true},
 	}
 }
 
@@ -42,8 +51,8 @@ func integrationTargets(i Integration) []integrationTarget {
 // policy, LLM-tier, and applier targets.
 func (i Integration) SharedSmokeSwap() error {
 	return runSharedKindTargets([]integrationTarget{
-		{name: "helmSmoke", fn: i.HelmSmoke, sharedKind: true},
-		{name: "helmSwap", fn: i.HelmSwap, sharedKind: true},
+		{name: "helmSmoke", fn: i.HelmSmoke, kind: true},
+		{name: "helmSwap", fn: i.HelmSwap, kind: true},
 	})
 }
 
@@ -52,8 +61,8 @@ func (i Integration) SharedSmokeSwap() error {
 // focused repeatable gate for the warm applier target's release budget.
 func (i Integration) SharedSmokeApplier() error {
 	return runSharedKindTargets([]integrationTarget{
-		{name: "helmSmoke", fn: i.HelmSmoke, sharedKind: true},
-		{name: "applierLive", fn: i.ApplierLive, sharedKind: true},
+		{name: "helmSmoke", fn: i.HelmSmoke, kind: true},
+		{name: "applierLive", fn: i.ApplierLive, kind: true},
 	})
 }
 
@@ -62,10 +71,10 @@ func (i Integration) SharedSmokeApplier() error {
 // without repeating unrelated application targets or cluster setup.
 func (i Integration) SharedApplierBenchmark() error {
 	return runSharedKindTargets([]integrationTarget{
-		{name: "helmSmoke", fn: i.HelmSmoke, sharedKind: true},
-		{name: "applierLive-1", fn: i.ApplierLive, sharedKind: true},
-		{name: "applierLive-2", fn: i.ApplierLive, sharedKind: true},
-		{name: "applierLive-3", fn: i.ApplierLive, sharedKind: true},
+		{name: "helmSmoke", fn: i.HelmSmoke, kind: true},
+		{name: "applierLive-1", fn: i.ApplierLive, kind: true},
+		{name: "applierLive-2", fn: i.ApplierLive, kind: true},
+		{name: "applierLive-3", fn: i.ApplierLive, kind: true},
 	})
 }
 
@@ -73,11 +82,11 @@ func (i Integration) SharedApplierBenchmark() error {
 // identity-keyed model cache once, then records three warm LLM-tier runs.
 func (i Integration) SharedLLMBenchmark() error {
 	return runSharedKindTargets([]integrationTarget{
-		{name: "helmSmoke", fn: i.HelmSmoke, sharedKind: true},
-		{name: "helmLLMTier-bootstrap", fn: i.HelmLLMTier, sharedKind: true},
-		{name: "helmLLMTier-warm-1", fn: i.HelmLLMTier, sharedKind: true},
-		{name: "helmLLMTier-warm-2", fn: i.HelmLLMTier, sharedKind: true},
-		{name: "helmLLMTier-warm-3", fn: i.HelmLLMTier, sharedKind: true},
+		{name: "helmSmoke", fn: i.HelmSmoke, kind: true},
+		{name: "helmLLMTier-bootstrap", fn: i.HelmLLMTier, kind: true},
+		{name: "helmLLMTier-warm-1", fn: i.HelmLLMTier, kind: true},
+		{name: "helmLLMTier-warm-2", fn: i.HelmLLMTier, kind: true},
+		{name: "helmLLMTier-warm-3", fn: i.HelmLLMTier, kind: true},
 	})
 }
 
@@ -185,7 +194,7 @@ type integrationResult struct {
 func localIntegrationTargets(targets []integrationTarget) []integrationTarget {
 	var local []integrationTarget
 	for _, target := range targets {
-		if !target.sharedKind && target.name != "policyProof" {
+		if !target.kind {
 			local = append(local, target)
 		}
 	}

@@ -23,7 +23,6 @@ const (
 	// baked chart. One repo serves every application's applier because the image
 	// content is application-agnostic; the per-run tag is the tested commit.
 	applierLiveImageRepository = "declarative-agents/applier"
-	applierLiveCluster         = "da-chatbot-mesh-applier"
 	applierLiveRelease         = "live"
 
 	applierReadyWait = 3 * time.Minute
@@ -212,12 +211,10 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 		return err
 	}
 
-	clusterName := aggregateClusterName(applierLiveCluster)
 	var cluster kindrig.Cluster
 	if err := runApplierLivePhase("cluster-ensure", func() error {
 		var ensureErr error
-		cluster, ensureErr = ensureIntegrationCluster(kindrig.DefaultRun, clusterName,
-			helmKindConfig(applicationChartDir(profilesRoot)), helmClusterWait)
+		cluster, ensureErr = acquireIntegrationCluster(profilesRoot)
 		return ensureErr
 	}); err != nil {
 		return err
@@ -233,7 +230,7 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 	var cleanupNamespace func() error
 	if err := runApplierLivePhase("namespace-prepare", func() error {
 		var prepareErr error
-		namespace, cleanupNamespace, prepareErr = prepareAggregateNamespace(
+		namespace, cleanupNamespace, prepareErr = prepareScenarioNamespace(
 			commands.Run, "applier-live", applierLiveRelease)
 		return prepareErr
 	}); err != nil {
@@ -253,10 +250,9 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 		Run: boundedHelmEvidenceRunnerWith(
 			helmDiagnosticRunner(commands.RunContext), helmEvidenceCommandTimeout),
 	}
-	ownedForDiagnostics := cluster.Created || aggregateKindClusterOwned(cluster.Name)
 	defer func() {
 		failed := result != nil
-		if failed && ownedForDiagnostics {
+		if failed {
 			diagnostics := captureApplierLiveDiagnostics(
 				evidenceDir, contextRun, applierLiveDiagnosticsTimeout)
 			result = fmt.Errorf("%w\n%s", result, diagnostics)
@@ -264,12 +260,13 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 		if releaseAggregateKindCluster(
 			cluster, commands.KindRun, evidence, result,
 		) {
-			if failed {
+			if failed && scenarioClusterGone(cluster.Name) {
 				cleanupNamespaceFn = func() error { return nil }
 			}
 			return
 		}
-		cluster.ReleaseAfter(commands.KindRun, failed, evidence)
+		result = errors.Join(result, releaseDirectScenarioCluster(
+			cluster, commands.KindRun, failed, evidence, &cleanupNamespaceFn))
 	}()
 
 	if err := runApplierLivePhase("image-loads", func() error {

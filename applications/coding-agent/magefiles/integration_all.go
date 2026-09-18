@@ -13,8 +13,15 @@ import (
 // targets replace their component targets in this aggregate so release evidence
 // is not generated repeatedly; executorLive, plannerDelegation, and criticGate
 // remain independently addressable. Each aggregate target self-skips when an
-// optional Docker, kind, or Helm prerequisite is missing.
-func (i Integration) All() error {
+// optional Docker, kind, or Helm prerequisite is missing. The helm scenarios
+// share one da-platform: the aggregate reuses a running one (a release run's or
+// platform:up's) or starts its own and deletes it when every target is done.
+func (i Integration) All() (result error) {
+	releasePlatform, err := acquireCodingIntegrationPlatform()
+	if err != nil {
+		return err
+	}
+	defer func() { releasePlatform(result != nil) }()
 	targets := []struct {
 		name string
 		fn   func() error
