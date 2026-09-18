@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -114,5 +115,72 @@ func TestRenderedProfilesPreflight(t *testing.T) {
 	root := renderChartProfiles(t, staged)
 	if err := preflightRenderedProfiles(t, root); err != nil {
 		t.Errorf("the rendered chart cannot start at its own defaults: %v", err)
+	}
+}
+
+// dumpedServer is a REST server as --dump-config resolves it.
+type dumpedServer struct {
+	Address   string                    `yaml:"address"`
+	Endpoints map[string]map[string]any `yaml:"endpoints"`
+}
+
+func dumpServers(t *testing.T, binary, coreRoot, profile string) map[string]dumpedServer {
+	t.Helper()
+	out, err := exec.Command(binary, "--profile", profile, "--core-root", coreRoot, "--dump-config").Output()
+	if err != nil {
+		t.Fatalf("dump %s: %v", profile, err)
+	}
+	var dump struct {
+		Rest struct {
+			Servers map[string]dumpedServer `yaml:"servers"`
+		} `yaml:"rest"`
+	}
+	if err := yaml.Unmarshal(out, &dump); err != nil {
+		t.Fatalf("parse dump of %s: %v", profile, err)
+	}
+	return dump.Rest.Servers
+}
+
+// TestRenderedChatbotServesThePackagedLifecycleSurface is GH-2183: the chart
+// wrote the chatbot's monitor server out by hand and it drifted to six views
+// while the packaged profile served eight, so a panel reading /monitor/machines
+// got a 404 in cluster and a 200 locally. Its control server had drifted the
+// same way, declaring an exit route agent-core now injects. Both servers now
+// match the packaged ones, and only their addresses may differ.
+func TestRenderedChatbotServesThePackagedLifecycleSurface(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chartDir := findChartDir(t)
+	applicationRoot := filepath.Dir(chartDir)
+	coreRoot := demoCoreRoot(applicationRoot)
+	if !agentCoreAvailable(coreRoot) {
+		t.Skipf("agent-core checkout not found at %s", coreRoot)
+	}
+	staged, cleanup, err := stageSmokeChart(chartDir, applicationRoot)
+	if err != nil {
+		t.Fatalf("stage chart: %v", err)
+	}
+	defer cleanup()
+	root := renderChartProfiles(t, staged)
+	binary, err := buildAgent(coreRoot)
+	if err != nil {
+		t.Fatalf("build agent: %v", err)
+	}
+
+	rendered := dumpServers(t, binary, coreRoot, filepath.Join(root, "agents", "chatbot", "profile.yaml"))
+	packaged := dumpServers(t, binary, coreRoot, filepath.Join(applicationRoot, "agents", "chatbot", "profile.yaml"))
+
+	if views := len(packaged["monitor"].Endpoints); views != 8 {
+		t.Fatalf("packaged chatbot monitor serves %d views, want the fragment's eight", views)
+	}
+	for _, name := range []string{"monitor", "chatbot_control"} {
+		if !reflect.DeepEqual(rendered[name].Endpoints, packaged[name].Endpoints) {
+			t.Errorf("rendered chatbot %s endpoints differ from the packaged ones:\nrendered: %v\npackaged: %v",
+				name, rendered[name].Endpoints, packaged[name].Endpoints)
+		}
+		if !strings.HasPrefix(rendered[name].Address, "0.0.0.0:") {
+			t.Errorf("rendered chatbot %s binds %q, want 0.0.0.0 so the Service routes to the pod", name, rendered[name].Address)
+		}
 	}
 }
