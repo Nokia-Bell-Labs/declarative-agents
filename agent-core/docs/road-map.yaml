@@ -897,8 +897,8 @@ releases:
         summary: Bench launches critic runs as detached children behind a request capability and ends as a serve-machine-template instance.
         status: implemented
       - id: gh-2171
-        summary: Cleave the shared request capabilities out of the agents that trap them behind machine overrides; collector and bench end as template instances.
-        status: planned
+        summary: Measured six shared request capabilities trapped behind machine overrides and closed as decided. Bench cleaved in gh-2188 and ended as a template instance; collector intake is not extractable under srd057 R1.1; vector query and the provisioning and creator request sides stay out of the catalog because their SRDs are tombstones; document read and the scenario rigs belong to consumer repositories.
+        status: done
     srds:
       - srd057-capability-profiles
     use_cases:
