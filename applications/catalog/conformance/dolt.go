@@ -34,6 +34,9 @@ import (
 // way the whole suite is gated on the sibling agent-core checkout being present.
 func RequireDolt(t *testing.T) string {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("starts a dolt sql-server; the release conformance gate runs Dolt-backed cases")
+	}
 	path, err := exec.LookPath("dolt")
 	if err != nil {
 		t.Skipf("dolt not on PATH; skipping Dolt-backed lifecycle conformance: %v", err)

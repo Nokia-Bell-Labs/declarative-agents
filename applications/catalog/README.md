@@ -161,6 +161,7 @@ Release evidence is:
 go test ./...
 mage validate
 mage audit
+mage test              # unit tests plus the conformance cases that need no agent binary
 mage conformance       # deterministic release gate; never performs live inference
 mage liveConformance   # explicit live-model opt-in; unavailable exact models skip
 mage integration:all
@@ -171,6 +172,12 @@ mage containerSmoke   # when the agent-core image prerequisite is present
 reusable specification-critic profile. Non-conformance packages retain normal
 `go test -json` inventory and execution; conformance emits the same Go JSON
 evidence from a uniquely staged test binary and removes it after each phase.
+
+`mage test` runs the conformance package under `-short`, which skips every case
+that builds the agent binary or starts a Dolt server. The cases left read
+declarations and finish in about a second, and they are the ones a routine
+profile change breaks, so a wrapper whose shape drifts fails `mage test` rather
+than the next release attempt.
 
 `go test ./...`, `mage test`, and `mage conformance` do not initiate model
 inference merely because Ollama or a declared model is installed. The six live

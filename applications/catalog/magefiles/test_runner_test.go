@@ -203,16 +203,16 @@ func TestRunNonConformanceUsesNormalGoTestAndExcludesConformance(t *testing.T) {
 	}
 }
 
-func TestCatalogTestModeDoesNotRepeatReleaseConformance(t *testing.T) {
+func TestCatalogTestModeRunsConformanceShapesWithoutTheBinary(t *testing.T) {
 	recorder := &recordingCatalogRunner{stdout: "example.test/catalogroot\n"}
 	runner := newTestCatalogRunner(t, recorder)
 
-	if err := runner.runMode(catalogTestMode{nonConformance: true}); err != nil {
+	if err := runner.runMode(unitTestMode()); err != nil {
 		t.Fatalf("catalog test mode returned error: %v", err)
 	}
 	calls := recorder.recordedCalls()
-	if len(calls) != 2 {
-		t.Fatalf("catalog test commands = %d, want go list and go test only", len(calls))
+	if len(calls) != 3 {
+		t.Fatalf("catalog test commands = %d, want go list, go test, and the shape run", len(calls))
 	}
 	for _, call := range calls {
 		if call.name != "go" {
@@ -221,6 +221,27 @@ func TestCatalogTestModeDoesNotRepeatReleaseConformance(t *testing.T) {
 		if slices.Contains(call.args, "-c") {
 			t.Fatalf("catalog test unexpectedly compiled conformance: %#v", call.args)
 		}
+	}
+	wantShapes := []string{"test", "-short", "./conformance"}
+	if !reflect.DeepEqual(calls[2].args, wantShapes) {
+		t.Fatalf("shape run args = %#v, want %#v", calls[2].args, wantShapes)
+	}
+	if calls[2].dir != runner.catalogRoot {
+		t.Errorf("shape run cwd = %q, want %q", calls[2].dir, runner.catalogRoot)
+	}
+}
+
+func TestCatalogTestModeStopsBeforeShapesWhenUnitTestsFail(t *testing.T) {
+	wantErr := errors.New("unit tests failed")
+	recorder := &recordingCatalogRunner{stdout: "example.test/catalogroot\n", failCall: 2, failErr: wantErr}
+	runner := newTestCatalogRunner(t, recorder)
+
+	err := runner.runMode(unitTestMode())
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("catalog test mode error = %v, want unit test failure", err)
+	}
+	if calls := recorder.recordedCalls(); len(calls) != 2 {
+		t.Fatalf("commands = %d, want the shape run skipped after a unit failure", len(calls))
 	}
 }
 
