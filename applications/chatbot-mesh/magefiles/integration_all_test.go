@@ -14,7 +14,7 @@ func TestIntegrationLaneRosterSeparatesPolicyAndSharedTargets(t *testing.T) {
 	var localNames []string
 	for _, target := range localIntegrationTargets(targets) {
 		localNames = append(localNames, target.name)
-		if target.sharedKind || target.name == "policyProof" {
+		if target.kind {
 			t.Fatalf("local lane includes isolated target %+v", target)
 		}
 	}
@@ -39,18 +39,18 @@ func TestSharedIntegrationBatchWaitsForEveryStartedFailure(t *testing.T) {
 	release := make(chan struct{})
 	targetError := errors.New("controlled swap failure")
 	targets := []integrationTarget{
-		{name: "helmSmoke", sharedKind: true, fn: func() error { return nil }},
-		{name: "helmSwap", sharedKind: true, fn: func() error {
+		{name: "helmSmoke", kind: true, fn: func() error { return nil }},
+		{name: "helmSwap", kind: true, fn: func() error {
 			started <- "helmSwap"
 			<-release
 			return targetError
 		}},
-		{name: "helmLLMTier", sharedKind: true, fn: func() error {
+		{name: "helmLLMTier", kind: true, fn: func() error {
 			started <- "helmLLMTier"
 			<-release
 			return nil
 		}},
-		{name: "applierLive", sharedKind: true, fn: func() error {
+		{name: "applierLive", kind: true, fn: func() error {
 			started <- "applierLive"
 			<-release
 			return nil
@@ -97,10 +97,10 @@ func TestSharedIntegrationSmokeFailureBlocksTerminalBatch(t *testing.T) {
 	smokeErr := errors.New("smoke failed")
 	called := false
 	targets := []integrationTarget{
-		{name: "helmSmoke", sharedKind: true, fn: func() error { return smokeErr }},
-		{name: "helmSwap", sharedKind: true, fn: func() error { called = true; return nil }},
-		{name: "helmLLMTier", sharedKind: true, fn: func() error { called = true; return nil }},
-		{name: "applierLive", sharedKind: true, fn: func() error { called = true; return nil }},
+		{name: "helmSmoke", kind: true, fn: func() error { return smokeErr }},
+		{name: "helmSwap", kind: true, fn: func() error { called = true; return nil }},
+		{name: "helmLLMTier", kind: true, fn: func() error { called = true; return nil }},
+		{name: "applierLive", kind: true, fn: func() error { called = true; return nil }},
 	}
 	results := make(chan integrationResult, len(targets))
 	runSharedIntegrationLane(session, targets, results)

@@ -310,3 +310,43 @@ func TestAcquirePlatformRefusesUnreadyRunningPlatform(t *testing.T) {
 		t.Fatal("refusal deleted someone else's platform or leaked its binding")
 	}
 }
+
+func TestPlatformKindConfigExportsControlPlaneTracing(t *testing.T) {
+	config := string(platformKindConfig)
+	for _, want := range []string{
+		"hostPath: " + platformTracingPlaceholder,
+		"containerPath: /etc/kubernetes/tracing.yaml",
+		"tracing-config-file", "OTEL_RESOURCE_ATTRIBUTES",
+		"kind: KubeletConfiguration", "endpoint: host.docker.internal:4317",
+	} {
+		if !strings.Contains(config, want) {
+			t.Errorf("platform kind config lacks %q", want)
+		}
+	}
+	if !strings.Contains(string(platformTracingConfig), "endpoint: host.docker.internal:4317") {
+		t.Error("platform tracing config does not target host observability")
+	}
+	path, err := stagePlatformTracingConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != string(platformTracingConfig) {
+		t.Fatalf("staged tracing config at %s: %v", path, err)
+	}
+}
+
+func TestPlatformDetachHandsOverClusterWithoutDeleting(t *testing.T) {
+	h := newPlatformHarness(t)
+	platform, err := StartPlatform(h.options())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cluster := platform.Detach()
+	platform.Stop(true)
+	if cluster != (Cluster{Name: PlatformClusterName, Created: true}) || !h.unbound {
+		t.Fatalf("detached cluster=%+v unbound=%v", cluster, h.unbound)
+	}
+	if h.kind.issued("delete") {
+		t.Fatal("detach or a later stop deleted the platform")
+	}
+}

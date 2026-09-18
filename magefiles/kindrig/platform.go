@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -25,6 +26,7 @@ const (
 	platformConformanceHost    = "conformance.localhost"
 	platformConformanceRelease = "platform-conformance"
 	platformHostPlaceholder    = "KINDRIG_CONFORMANCE_HOST"
+	platformTracingPlaceholder = "KINDRIG_PLATFORM_TRACING_CONFIG"
 	platformWaitTimeout        = "120s"
 )
 
@@ -33,6 +35,9 @@ var platformKindConfig []byte
 
 //go:embed platform-conformance.yaml
 var platformConformanceManifest string
+
+//go:embed platform-tracing.yaml
+var platformTracingConfig []byte
 
 // PlatformOptions configures StartPlatform. The zero value streams kind output,
 // binds commands to a private kubeconfig for da-platform, and captures no
@@ -162,24 +167,55 @@ func (p *Platform) Stop(failed bool) {
 	}
 }
 
+// Detach hands the platform's cluster to a caller that manages its lifecycle
+// itself, dropping the kubeconfig binding without deleting anything. The caller
+// releases the returned Cluster with Release or ReleaseAfter, which delete it
+// only when this acquisition created it.
+func (p *Platform) Detach() Cluster {
+	if p == nil {
+		return Cluster{}
+	}
+	p.stopped = true
+	if p.unbind != nil {
+		p.unbind()
+	}
+	return p.Cluster
+}
+
 // EnsurePlatformCluster creates da-platform from the checked-in
 // platform-kind-config.yaml with FreshOwnedCluster semantics: any listed
 // da-platform is a leftover and is deleted first, and the result is owned.
 func EnsurePlatformCluster(run Runner) (Cluster, error) {
-	file, err := os.CreateTemp("", "kindrig-platform-*.yaml")
+	tracingPath, err := stagePlatformTracingConfig()
+	if err != nil {
+		return Cluster{}, err
+	}
+	config := strings.ReplaceAll(string(platformKindConfig), platformTracingPlaceholder, tracingPath)
+	path, cleanup, err := writeTempManifest("kindrig-platform-*.yaml", config)
 	if err != nil {
 		return Cluster{}, fmt.Errorf("stage %s kind config: %w", PlatformClusterName, err)
 	}
-	path := file.Name()
-	defer func() { _ = os.Remove(path) }()
-	if _, err := file.Write(platformKindConfig); err != nil {
-		_ = file.Close()
-		return Cluster{}, fmt.Errorf("stage %s kind config: %w", PlatformClusterName, err)
-	}
-	if err := file.Close(); err != nil {
-		return Cluster{}, fmt.Errorf("stage %s kind config: %w", PlatformClusterName, err)
-	}
+	defer cleanup()
 	return EnsureFreshCluster(run, PlatformClusterName, path, platformClusterWait)
+}
+
+// stagePlatformTracingConfig writes the API-server tracing configuration to the
+// user cache directory. The node bind-mounts it, and a restarted node remounts
+// it, so it cannot live in a temporary directory the host may clean.
+func stagePlatformTracingConfig() (string, error) {
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("stage %s tracing config: %w", PlatformClusterName, err)
+	}
+	dir := filepath.Join(cache, "kindrig")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("stage %s tracing config: %w", PlatformClusterName, err)
+	}
+	path := filepath.Join(dir, "platform-tracing.yaml")
+	if err := os.WriteFile(path, platformTracingConfig, 0o644); err != nil {
+		return "", fmt.Errorf("stage %s tracing config: %w", PlatformClusterName, err)
+	}
+	return path, nil
 }
 
 // BootPlatform installs the cluster-wide infrastructure scenarios share: the

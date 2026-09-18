@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# API-server tracing for da-platform (GH-2215), staged to a stable host path
+# and mounted into the node at /etc/kubernetes/tracing.yaml.
+apiVersion: apiserver.config.k8s.io/v1beta1
+kind: TracingConfiguration
+endpoint: host.docker.internal:4317
+samplingRatePerMillion: 1000000

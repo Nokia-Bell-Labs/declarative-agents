@@ -24,17 +24,14 @@ import (
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
-	"gopkg.in/yaml.v3"
 )
 
 const (
 	helmRelease         = "smoke"
-	helmKindCluster     = "da-chatbot-mesh-smoke"
 	helmImageRepository = "declarative-agents/agent-core"
 
 	helmInstallTimeout   = 5 * time.Minute
 	helmImageLoadTimeout = 3 * time.Minute
-	helmClusterWait      = 120 * time.Second
 	helmReadyTimeout     = 90 * time.Second
 	helmSpanTimeout      = 60 * time.Second
 
@@ -67,14 +64,6 @@ func resolveChatbotIntegrationImages(repoRoot string) (chatbotIntegrationImages,
 // ships with the application rather than as a sibling deploy directory.
 func applicationChartDir(profilesRoot string) string {
 	return filepath.Join(profilesRoot, "helm")
-}
-
-// helmKindConfig is the checked-in cluster configuration the helm scenarios
-// share; it pins the node image so every machine creates the same cluster
-// (eng01). It sits in the source chart's ci directory beside the kind values,
-// not in the staged copy, so staging cannot drift it.
-func helmKindConfig(chartDir string) string {
-	return filepath.Join(chartDir, "ci", "kind-config.yaml")
 }
 
 func loadKindImageWithCommands(
@@ -182,82 +171,6 @@ func requireSharedObservability(timeout time.Duration) error {
 	return nil
 }
 
-func stageTelemetryKindConfig(basePath string, telemetry helmTelemetryIdentity) (string, func(), error) {
-	data, err := os.ReadFile(basePath)
-	if err != nil {
-		return "", nil, fmt.Errorf("read kind config: %w", err)
-	}
-	var config struct {
-		Kind                 string           `yaml:"kind"`
-		APIVersion           string           `yaml:"apiVersion"`
-		Nodes                []map[string]any `yaml:"nodes"`
-		KubeadmConfigPatches []string         `yaml:"kubeadmConfigPatches,omitempty"`
-	}
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return "", nil, fmt.Errorf("parse kind config: %w", err)
-	}
-	if len(config.Nodes) == 0 {
-		return "", nil, fmt.Errorf("kind config has no nodes")
-	}
-	dir, err := os.MkdirTemp("", "chatbot-mesh-kind-telemetry-*")
-	if err != nil {
-		return "", nil, err
-	}
-	cleanup := func() { _ = os.RemoveAll(dir) }
-	tracingPath := filepath.Join(dir, "tracing.yaml")
-	tracing := fmt.Sprintf(`apiVersion: apiserver.config.k8s.io/v1beta1
-kind: TracingConfiguration
-endpoint: %s
-samplingRatePerMillion: 1000000
-`, telemetry.OTLPEndpoint)
-	if err := os.WriteFile(tracingPath, []byte(tracing), 0o644); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("write API-server tracing config: %w", err)
-	}
-	mounts, _ := config.Nodes[0]["extraMounts"].([]any)
-	config.Nodes[0]["extraMounts"] = append(mounts, map[string]any{
-		"hostPath": tracingPath, "containerPath": "/etc/kubernetes/tracing.yaml",
-		"readOnly": true,
-	})
-	resourceAttrs := integrationResourceAttributes(
-		"integration:helmSmoke", telemetry.RunID, telemetry.Commit)
-	config.KubeadmConfigPatches = append(config.KubeadmConfigPatches,
-		fmt.Sprintf(`apiVersion: kubeadm.k8s.io/v1beta4
-kind: ClusterConfiguration
-apiServer:
-  extraArgs:
-    - name: tracing-config-file
-      value: /etc/kubernetes/tracing.yaml
-  extraEnvs:
-    - name: OTEL_RESOURCE_ATTRIBUTES
-      value: %q
-  extraVolumes:
-    - name: tracing-config
-      hostPath: /etc/kubernetes/tracing.yaml
-      mountPath: /etc/kubernetes/tracing.yaml
-      readOnly: true
-      pathType: File
-`, resourceAttrs),
-		fmt.Sprintf(`apiVersion: kubelet.config.k8s.io/v1beta1
-kind: KubeletConfiguration
-tracing:
-  endpoint: %s
-  samplingRatePerMillion: 1000000
-`, telemetry.OTLPEndpoint),
-	)
-	generated, err := yaml.Marshal(config)
-	if err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("marshal kind tracing config: %w", err)
-	}
-	generatedPath := filepath.Join(dir, "kind-config.yaml")
-	if err := os.WriteFile(generatedPath, generated, 0o644); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("write generated kind config: %w", err)
-	}
-	return generatedPath, cleanup, nil
-}
-
 func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	images, err := resolveChatbotIntegrationImages(profilesRoot)
 	if err != nil {
@@ -295,13 +208,7 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 
-	kindConfig, cleanupKindConfig, err := stageTelemetryKindConfig(helmKindConfig(chartDir), telemetry)
-	if err != nil {
-		return err
-	}
-	defer cleanupKindConfig()
-	clusterName := aggregateClusterName(helmKindCluster)
-	cluster, err := ensureIntegrationCluster(kindrig.DefaultRun, clusterName, kindConfig, helmClusterWait)
+	cluster, err := acquireIntegrationCluster(profilesRoot)
 	if err != nil {
 		return err
 	}
@@ -312,7 +219,7 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	defer cleanupCommands()
-	namespace, cleanupNamespace, err := prepareAggregateNamespace(
+	namespace, cleanupNamespace, err := prepareScenarioNamespace(
 		commands.Run, "helm-smoke", helmRelease)
 	if err != nil {
 		cluster.Release(kindrig.DefaultRun)
@@ -342,11 +249,12 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 			if releaseAggregateKindCluster(
 				cluster, commands.KindRun, evidence, result,
 			) {
-				if failed {
+				if failed && scenarioClusterGone(cluster.Name) {
 					cleanupNamespaceFn = func() error { return nil }
 				}
 			} else {
-				cluster.ReleaseAfter(commands.KindRun, failed, evidence)
+				result = errors.Join(result, releaseDirectScenarioCluster(
+					cluster, commands.KindRun, failed, evidence, &cleanupNamespaceFn))
 			}
 		}
 	}()
@@ -463,7 +371,12 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	}
 	cleanupMetrics = nil
 	if !releaseAggregateKindCluster(cluster, commands.KindRun, evidence, nil) {
-		cluster.ReleaseAfter(commands.KindRun, false, kindrig.FailureEvidence{})
+		if err := releaseDirectScenarioCluster(
+			cluster, commands.KindRun, false, kindrig.FailureEvidence{},
+			&cleanupNamespaceFn); err != nil {
+			released = true
+			return err
+		}
 	}
 	released = true
 	if err := verifySharedMetricsEvidence(
@@ -1288,7 +1201,6 @@ func metricServicesInclude(services []string, required ...string) bool {
 
 const (
 	helmSwapRelease = "swap"
-	helmSwapCluster = "da-chatbot-mesh-swap"
 )
 
 // HelmSwap proves the two tiered-swap paths of the chatbot-mesh chart on a kind
@@ -1361,9 +1273,7 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 
-	clusterName := aggregateClusterName(helmSwapCluster)
-	swapCluster, err := ensureIntegrationCluster(
-		kindrig.DefaultRun, clusterName, helmKindConfig(chartDir), helmClusterWait)
+	swapCluster, err := acquireIntegrationCluster(profilesRoot)
 	if err != nil {
 		return err
 	}
@@ -1374,7 +1284,7 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	defer cleanupCommands()
-	namespace, cleanupNamespace, err := prepareAggregateNamespace(
+	namespace, cleanupNamespace, err := prepareScenarioNamespace(
 		commands.Run, "helm-swap", helmSwapRelease)
 	if err != nil {
 		swapCluster.Release(kindrig.DefaultRun)
@@ -1402,12 +1312,13 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 		if releaseAggregateKindCluster(
 			swapCluster, commands.KindRun, evidence, result,
 		) {
-			if failed {
+			if failed && scenarioClusterGone(swapCluster.Name) {
 				cleanupNamespaceFn = func() error { return nil }
 			}
 			return
 		}
-		swapCluster.ReleaseAfter(commands.KindRun, failed, evidence)
+		result = errors.Join(result, releaseDirectScenarioCluster(
+			swapCluster, commands.KindRun, failed, evidence, &cleanupNamespaceFn))
 	}()
 	if err := provisionExternalUIAssets(commands.Run, assets); err != nil {
 		return err
@@ -1734,7 +1645,6 @@ func kubectlConfigMapKey(
 
 const (
 	helmLLMRelease = "llm"
-	helmLLMCluster = "da-chatbot-mesh-llm"
 
 	// Model pulls run on CPU inside kind. Installation deliberately does not use
 	// --wait: the integration observes the agent readiness transition around the
@@ -1862,12 +1772,10 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 
-	clusterName := aggregateClusterName(helmLLMCluster)
 	var llmCluster kindrig.Cluster
 	if err := runHelmLLMPhase("cluster-ensure", func() error {
 		var clusterErr error
-		llmCluster, clusterErr = ensureIntegrationCluster(
-			kindrig.DefaultRun, clusterName, helmKindConfig(chartDir), helmClusterWait)
+		llmCluster, clusterErr = acquireIntegrationCluster(profilesRoot)
 		return clusterErr
 	}); err != nil {
 		return err
@@ -1879,7 +1787,7 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	defer cleanupCommands()
-	namespace, cleanupNamespace, err := prepareAggregateNamespace(
+	namespace, cleanupNamespace, err := prepareScenarioNamespace(
 		commands.Run, "helm-llm-tier", helmLLMRelease)
 	if err != nil {
 		llmCluster.Release(kindrig.DefaultRun)
@@ -1904,11 +1812,9 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 		Run: boundedHelmEvidenceRunnerWith(
 			helmDiagnosticRunner(commands.RunContext), helmEvidenceCommandTimeout),
 	}
-	ownedForDiagnostics := llmCluster.Created ||
-		aggregateKindClusterOwned(llmCluster.Name)
 	defer func() {
 		failed := result != nil
-		if failed && ownedForDiagnostics {
+		if failed {
 			diagnostics := captureHelmFailureDiagnostics(
 				evidenceDir, helmLLMRelease,
 				helmDiagnosticRunner(commands.RunContext),
@@ -1918,12 +1824,13 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 		if releaseAggregateKindCluster(
 			llmCluster, commands.KindRun, evidence, result,
 		) {
-			if failed {
+			if failed && scenarioClusterGone(llmCluster.Name) {
 				cleanupNamespaceFn = func() error { return nil }
 			}
 			return
 		}
-		llmCluster.ReleaseAfter(commands.KindRun, failed, evidence)
+		result = errors.Join(result, releaseDirectScenarioCluster(
+			llmCluster, commands.KindRun, failed, evidence, &cleanupNamespaceFn))
 	}()
 	if err := runHelmLLMPhase("model-cache", func() error {
 		var cacheErr error

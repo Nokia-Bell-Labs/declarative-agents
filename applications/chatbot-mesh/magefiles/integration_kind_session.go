@@ -16,8 +16,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
-const aggregateKindCluster = "da-chatbot-mesh-aggregate"
-
 type integrationKindSession struct {
 	mu         sync.Mutex
 	root       string
@@ -41,7 +39,7 @@ func newIntegrationKindSession(root string) *integrationKindSession {
 		root:    root,
 		kindRun: kindrig.DefaultRun,
 		evidence: kindrig.FailureEvidence{
-			Directory:  filepath.Join(root, "build", "kind-evidence", aggregateKindCluster),
+			Directory:  filepath.Join(root, "build", "kind-evidence", kindrig.PlatformClusterName),
 			Namespaces: []string{"default"},
 		},
 		hostImages: make(map[string]string),
@@ -71,46 +69,48 @@ func activeIntegrationKindSession() *integrationKindSession {
 	return integrationKindSessionState.active
 }
 
-func aggregateClusterName(standalone string) string {
-	if activeIntegrationKindSession() != nil {
-		return aggregateKindCluster
+// acquireIntegrationCluster gives a namespaced chatbot scenario the shared
+// da-platform (GH-2215). A running platform (a release run's, platform:up's, or
+// one an earlier scenario in the aggregate session started) is reused without
+// ownership; with none running, the scenario starts one it owns. The aggregate
+// session adopts that ownership, so the platform lives until the session closes.
+func acquireIntegrationCluster(root string) (kindrig.Cluster, error) {
+	platform, err := kindrig.AcquirePlatform(kindrig.PlatformOptions{
+		EvidenceDirectory: filepath.Join(root, "build", "kind-evidence",
+			kindrig.PlatformClusterName+"-"+time.Now().UTC().Format("20060102T150405Z")),
+	})
+	if err != nil {
+		return kindrig.Cluster{}, err
 	}
-	return standalone
+	return platform.Detach(), nil
 }
 
-// ensureIntegrationCluster acquires a chatbot-mesh test cluster fresh, so a
-// leftover from an interrupted run is replaced rather than adopted. Inside an
-// aggregate session only the first acquisition is fresh; later targets reuse
-// the cluster the session already adopted (GH-2137).
-func ensureIntegrationCluster(
+// releaseDirectScenarioCluster ends a scenario invoked outside the aggregate
+// session: failure evidence first, then the scenario namespace, then the
+// platform when this run created it. The namespace goes before the cluster so a
+// platform someone else owns is left clean.
+func releaseDirectScenarioCluster(
+	cluster kindrig.Cluster,
 	run kindrig.Runner,
-	name, configPath string,
-	wait time.Duration,
-) (kindrig.Cluster, error) {
-	if aggregateSessionHoldsCluster(name) {
-		return kindrig.EnsureCluster(run, name, configPath, wait)
+	failed bool,
+	evidence kindrig.FailureEvidence,
+	cleanupNamespace *func() error,
+) error {
+	if failed {
+		if err := evidence.Capture(run, cluster.Name); err != nil {
+			fmt.Printf("kind: capture failure evidence for %s failed: %v\n", cluster.Name, err)
+		}
 	}
-	return kindrig.EnsureFreshCluster(run, name, configPath, wait)
+	err := (*cleanupNamespace)()
+	*cleanupNamespace = func() error { return nil }
+	cluster.Release(run)
+	return err
 }
 
-func aggregateSessionHoldsCluster(name string) bool {
-	session := activeIntegrationKindSession()
-	if session == nil {
-		return false
-	}
-	session.mu.Lock()
-	defer session.mu.Unlock()
-	return session.cluster.Name == name
-}
-
-func aggregateKindClusterOwned(name string) bool {
-	session := activeIntegrationKindSession()
-	if session == nil {
-		return false
-	}
-	session.mu.Lock()
-	defer session.mu.Unlock()
-	return session.cluster.Name == name && session.cluster.Created
+// scenarioClusterGone reports whether a failed session scenario's cluster was
+// deleted with the poisoned session, leaving no namespace to clean.
+func scenarioClusterGone(name string) bool {
+	return !kindrig.Exists(kindrig.CaptureRun, name)
 }
 
 func reusePreparedHostImage(
@@ -295,16 +295,12 @@ func (session *integrationKindSession) endConcurrentBatch(cause error) {
 	}
 }
 
-// prepareAggregateNamespace gives a shared-session scenario its own namespace
-// through the kindrig scenario-namespace lifecycle. A direct target owns its
-// whole cluster and keeps the default namespace.
-func prepareAggregateNamespace(
+// prepareScenarioNamespace gives a chatbot scenario its own namespace on the
+// shared platform through the kindrig scenario-namespace lifecycle.
+func prepareScenarioNamespace(
 	run kindrig.CommandRunner,
 	scenario, release string,
 ) (string, func() error, error) {
-	if activeIntegrationKindSession() == nil {
-		return "default", func() error { return nil }, nil
-	}
 	namespace, err := kindrig.PrepareScenarioNamespace(run, scenario, release)
 	if err != nil {
 		return "", nil, err
@@ -332,7 +328,7 @@ func (session *integrationKindSession) runTarget(name string, run func() error) 
 		outcome = "failed"
 		session.poison(err)
 	}
-	kindrig.LogPhase(aggregateKindCluster, "target", outcome, started, "scenario="+name)
+	kindrig.LogPhase(kindrig.PlatformClusterName, "target", outcome, started, "scenario="+name)
 	return err
 }
 
@@ -349,8 +345,15 @@ func (session *integrationKindSession) poison(cause error) {
 	if err := runAggregateFinalizers(finalizers); err != nil {
 		fmt.Printf("shared kind: failure finalizer error: %v\n", err)
 	}
-	if cluster.Name != "" && cluster.Created {
+	switch {
+	case cluster.Name != "" && cluster.Created:
 		cluster.ReleaseAfter(run, true, evidence)
+	case cluster.Name != "":
+		// A platform the session does not own stays up for its owner; keep the
+		// evidence the deletion would otherwise have captured.
+		if err := evidence.Capture(run, cluster.Name); err != nil {
+			fmt.Printf("shared kind: capture failure evidence failed: %v\n", err)
+		}
 	}
 }
 
@@ -378,7 +381,7 @@ func (session *integrationKindSession) closeWithError() error {
 	if cluster.Name != "" {
 		cluster.Release(run)
 	}
-	kindrig.LogPhase(aggregateKindCluster, "final-teardown", "complete", started, "")
+	kindrig.LogPhase(kindrig.PlatformClusterName, "final-teardown", "complete", started, "")
 	return finalizerErr
 }
 

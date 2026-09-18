@@ -383,42 +383,6 @@ func TestDoltDatabaseInitializationRenderContract(t *testing.T) {
 	}
 }
 
-func TestStageTelemetryKindConfigEnablesControlPlaneTracing(t *testing.T) {
-	base := filepath.Join(t.TempDir(), "kind.yaml")
-	if err := os.WriteFile(base, []byte(`kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-  - role: control-plane
-    image: kindest/node:v1.36.1@sha256:test
-`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	path, cleanup, err := stageTelemetryKindConfig(base, helmTelemetryIdentity{
-		OTLPEndpoint: "host.docker.internal:4317",
-		RunID:        "run-123",
-		Commit:       "abc123",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanup()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	generated := string(data)
-	for _, want := range []string{
-		"tracing-config-file", "/etc/kubernetes/tracing.yaml",
-		"OTEL_RESOURCE_ATTRIBUTES", "test.run.id=run-123",
-		"kind: KubeletConfiguration", "host.docker.internal:4317",
-		"samplingRatePerMillion: 1000000",
-	} {
-		if !strings.Contains(generated, want) {
-			t.Errorf("generated kind config missing %q:\n%s", want, generated)
-		}
-	}
-}
-
 func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
 	chart, chartArchive, assets := stageThinIntegrationChart(t, helmRelease)
 	var command []string

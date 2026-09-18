@@ -5,8 +5,8 @@ package main
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
+
 	"reflect"
 	"strings"
 	"testing"
@@ -29,14 +29,14 @@ func TestIntegrationKindSessionOwnsOneAggregateClusterLifecycle(t *testing.T) {
 	defer deactivate()
 
 	if !adoptAggregateKindCluster(
-		kindrig.Cluster{Name: aggregateKindCluster, Created: true},
+		kindrig.Cluster{Name: kindrig.PlatformClusterName, Created: true},
 		run,
 		kindrig.FailureEvidence{Directory: t.TempDir()},
 	) {
 		t.Fatal("active aggregate did not adopt its created cluster")
 	}
 	if !adoptAggregateKindCluster(
-		kindrig.Cluster{Name: aggregateKindCluster},
+		kindrig.Cluster{Name: kindrig.PlatformClusterName},
 		run,
 		kindrig.FailureEvidence{},
 	) {
@@ -44,7 +44,7 @@ func TestIntegrationKindSessionOwnsOneAggregateClusterLifecycle(t *testing.T) {
 	}
 	session.close()
 
-	want := []string{"delete cluster --name " + aggregateKindCluster}
+	want := []string{"delete cluster --name " + kindrig.PlatformClusterName}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("kind calls = %v, want %v", calls, want)
 	}
@@ -57,7 +57,7 @@ func TestIntegrationKindSessionLeavesDeveloperClusterUntouched(t *testing.T) {
 		called = true
 		return nil, nil
 	}
-	session.cluster = kindrig.Cluster{Name: aggregateKindCluster}
+	session.cluster = kindrig.Cluster{Name: kindrig.PlatformClusterName}
 	session.kindRun = run
 	session.close()
 	if called {
@@ -81,7 +81,7 @@ func TestIntegrationKindSessionCapturesEvidenceBeforeOwnedDelete(t *testing.T) {
 	wantErr := errors.New("scenario failed")
 	err = session.runTarget("helmSmoke", func() error {
 		if !adoptAggregateKindCluster(
-			kindrig.Cluster{Name: aggregateKindCluster, Created: true},
+			kindrig.Cluster{Name: kindrig.PlatformClusterName, Created: true},
 			run,
 			kindrig.FailureEvidence{Directory: evidenceDir},
 		) {
@@ -94,7 +94,7 @@ func TestIntegrationKindSessionCapturesEvidenceBeforeOwnedDelete(t *testing.T) {
 	}
 	if len(calls) != 2 ||
 		!strings.HasPrefix(calls[0], "export logs ") ||
-		calls[1] != "delete cluster --name "+aggregateKindCluster {
+		calls[1] != "delete cluster --name "+kindrig.PlatformClusterName {
 		t.Fatalf("evidence/delete ordering = %v", calls)
 	}
 }
@@ -121,11 +121,12 @@ func TestIntegrationKindSessionPoisonBlocksLaterSharedTargets(t *testing.T) {
 func TestIntegrationTargetRosterKeepsPolicyProofOutsideSharedSession(t *testing.T) {
 	var shared []string
 	for _, target := range integrationTargets(Integration{}) {
-		if target.sharedKind {
+		if target.sharedKind() {
 			shared = append(shared, target.name)
 		}
-		if target.name == "policyProof" && target.sharedKind {
-			t.Fatal("policy-proof entered the default-CNI shared session")
+		if target.name == "policyProof" &&
+			(target.sharedKind() || target.class != kindrig.ClusterMutatingScenario) {
+			t.Fatal("policy-proof must stay a cluster-mutating scenario on its own cluster")
 		}
 	}
 	want := []string{"helmSmoke", "helmSwap", "helmLLMTier", "applierLive"}
@@ -139,7 +140,7 @@ func TestDirectIntegrationTargetHasNoSharedSession(t *testing.T) {
 		t.Fatal("test started with leaked aggregate session")
 	}
 	if adoptAggregateKindCluster(
-		kindrig.Cluster{Name: aggregateKindCluster, Created: true},
+		kindrig.Cluster{Name: kindrig.PlatformClusterName, Created: true},
 		kindrig.DefaultRun,
 		kindrig.FailureEvidence{},
 	) {
@@ -163,7 +164,7 @@ func TestPrepareAggregateNamespaceCreatesSelectsAndCleansOnlyOwnedNamespace(t *t
 		}
 		return nil, nil
 	}
-	namespace, cleanup, err := prepareAggregateNamespace(run, "helm-smoke", "smoke")
+	namespace, cleanup, err := prepareScenarioNamespace(run, "helm-smoke", "smoke")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +214,7 @@ func TestPrepareAggregateNamespaceContinuesCleanupAfterUninstallFailure(t *testi
 			return nil, nil
 		}
 	}
-	_, cleanup, err := prepareAggregateNamespace(run, "helm-swap", "swap")
+	_, cleanup, err := prepareScenarioNamespace(run, "helm-swap", "swap")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,27 +227,7 @@ func TestPrepareAggregateNamespaceContinuesCleanupAfterUninstallFailure(t *testi
 	}
 }
 
-func TestPrepareAggregateNamespaceIsNoopForDirectTarget(t *testing.T) {
-	called := false
-	namespace, cleanup, err := prepareAggregateNamespace(
-		func(string, ...string) ([]byte, error) {
-			called = true
-			return nil, nil
-		},
-		"helm-smoke", "smoke",
-	)
-	if err != nil || namespace != "default" {
-		t.Fatalf("direct namespace = %q err=%v, want default/nil", namespace, err)
-	}
-	if err := cleanup(); err != nil {
-		t.Fatal(err)
-	}
-	if called {
-		t.Fatal("direct target invoked aggregate namespace commands")
-	}
-}
-
-func TestApplierLiveUsesOwnedAggregateClusterAndIsolatedNamespace(t *testing.T) {
+func TestApplierLiveUsesSessionPlatformAndIsolatedNamespace(t *testing.T) {
 	session := newIntegrationKindSession(t.TempDir())
 	deactivate, err := activateIntegrationKindSession(session)
 	if err != nil {
@@ -262,20 +243,14 @@ func TestApplierLiveUsesOwnedAggregateClusterAndIsolatedNamespace(t *testing.T) 
 		}
 		return nil, nil
 	}
-	if cluster := aggregateClusterName(applierLiveCluster); cluster != aggregateKindCluster {
-		t.Fatalf("applierLive cluster = %q, want aggregate %q", cluster, aggregateKindCluster)
-	}
 	if !adoptAggregateKindCluster(
-		kindrig.Cluster{Name: aggregateKindCluster, Created: true},
+		kindrig.Cluster{Name: kindrig.PlatformClusterName, Created: true},
 		func(args ...string) ([]byte, error) { return run("kind", args...) },
 		kindrig.FailureEvidence{Directory: t.TempDir()},
 	) {
 		t.Fatal("applierLive aggregate cluster was not adopted")
 	}
-	if !aggregateKindClusterOwned(aggregateKindCluster) {
-		t.Fatal("session did not retain aggregate ownership for applierLive diagnostics")
-	}
-	namespace, cleanup, err := prepareAggregateNamespace(
+	namespace, cleanup, err := prepareScenarioNamespace(
 		run, "applier-live", applierLiveRelease)
 	if err != nil {
 		t.Fatal(err)
@@ -389,49 +364,6 @@ func TestCollectorOTLPReadinessReportsForwardFailure(t *testing.T) {
 	)
 	if !errors.Is(err, want) || !strings.Contains(err.Error(), "readiness forward") {
 		t.Fatalf("error = %v, want wrapped forward failure", err)
-	}
-}
-
-// The first acquisition of a shared cluster replaces a leftover; a later target
-// in the same session reuses the cluster the session adopted instead of deleting
-// it out from under the earlier target (GH-2137).
-func TestEnsureIntegrationClusterIsFreshOnceThenReusesTheSessionCluster(t *testing.T) {
-	config := filepath.Join(t.TempDir(), "kind-config.yaml")
-	if err := os.WriteFile(config, []byte("kind: Cluster\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	var calls []string
-	kindRun := func(args ...string) ([]byte, error) {
-		calls = append(calls, strings.Join(args, " "))
-		if len(args) >= 2 && args[0] == "get" && args[1] == "clusters" {
-			return []byte(aggregateKindCluster + "\n"), nil
-		}
-		return nil, nil
-	}
-	session := newIntegrationKindSession(t.TempDir())
-	deactivate, err := activateIntegrationKindSession(session)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer deactivate()
-
-	first, err := ensureIntegrationCluster(kindRun, aggregateKindCluster, config, 0)
-	if err != nil || !first.Created {
-		t.Fatalf("first acquisition = %+v, %v; want a fresh owned cluster", first, err)
-	}
-	if countCalls(calls, "delete cluster") != 1 || countCalls(calls, "create cluster") != 1 {
-		t.Fatalf("first acquisition calls = %v, want leftover delete then create", calls)
-	}
-	if !adoptAggregateKindCluster(first, kindRun, kindrig.FailureEvidence{}) {
-		t.Fatal("session did not adopt the fresh cluster")
-	}
-
-	calls = nil
-	// Reuse probes API health against the fake's empty kubeconfig and reports an
-	// error; the assertion is only that the session cluster was not replaced.
-	_, _ = ensureIntegrationCluster(kindRun, aggregateKindCluster, config, 0)
-	if countCalls(calls, "delete cluster") != 0 || countCalls(calls, "create cluster") != 0 {
-		t.Fatalf("second acquisition mutated the session cluster: %v", calls)
 	}
 }
 

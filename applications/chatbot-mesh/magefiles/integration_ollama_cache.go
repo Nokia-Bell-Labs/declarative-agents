@@ -13,6 +13,10 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
+// aggregateOllamaCacheRoot holds the LLM tier's model cache on the platform
+// node (GH-2215). It lives as long as the node: a release's per-run platform
+// starts cold, while a persistent developer platform keeps it warm across runs.
+// Only the current identity is kept; preparing a new one prunes the others.
 const aggregateOllamaCacheRoot = "/var/lib/declarative-agents/ollama-cache"
 
 type aggregateOllamaCache struct {
@@ -27,10 +31,6 @@ func prepareAggregateOllamaCache(
 	imageID string,
 	models []string,
 ) (aggregateOllamaCache, error) {
-	if activeIntegrationKindSession() == nil ||
-		(!cluster.Created && !aggregateKindClusterOwned(cluster.Name)) {
-		return aggregateOllamaCache{}, nil
-	}
 	identity, err := ollamaCacheIdentity(imageID, models)
 	if err != nil {
 		return aggregateOllamaCache{}, err
@@ -54,7 +54,8 @@ func prepareAggregateOllamaCache(
 				cache.HostPath, activeErr, strings.TrimSpace(string(activeOutput)))
 		}
 	} else {
-		reset := `rm -rf "$1" && mkdir -p "$1/models" "$1/active" && printf '%s\n' "$2" > "$1/identity"`
+		reset := `find "$(dirname "$1")" -mindepth 1 -maxdepth 1 ! -path "$1" -exec rm -rf {} + 2>/dev/null; ` +
+			`rm -rf "$1" && mkdir -p "$1/models" "$1/active" && printf '%s\n' "$2" > "$1/identity"`
 		if resetOutput, resetErr := run(
 			"docker", "exec", node, "sh", "-c", reset, "--", cache.HostPath, identity,
 		); resetErr != nil {
@@ -62,18 +63,6 @@ func prepareAggregateOllamaCache(
 				"prepare aggregate Ollama cache %s: %w: %s",
 				cache.HostPath, resetErr, strings.TrimSpace(string(resetOutput)))
 		}
-	}
-	if !registerAggregateFinalizer("ollama-model-cache", func() error {
-		output, err := run(
-			"docker", "exec", node, "rm", "-rf", aggregateOllamaCacheRoot)
-		if err != nil {
-			return fmt.Errorf("remove aggregate Ollama cache: %w: %s",
-				err, strings.TrimSpace(string(output)))
-		}
-		return nil
-	}) {
-		return aggregateOllamaCache{}, fmt.Errorf(
-			"aggregate Ollama cache prepared without an active session")
 	}
 	outcome := "empty"
 	if cache.Reused {
