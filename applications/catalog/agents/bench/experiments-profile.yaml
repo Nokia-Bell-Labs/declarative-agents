@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: bench-experiments
+machine: experiments-machine.yaml
+tools: [experiments-tools.yaml]
+tool_declarations: [experiments-declarations.yaml]
+rest_definitions: [rest.yaml]

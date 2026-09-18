@@ -1,0 +1,58 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-bench-experiments-declarations
+tools:
+- name: launch_evaluator
+  type: builtin
+  init: start_service
+  visibility: internal
+  signature:
+    emits: [ServiceStarted, ServiceLimitReached, CommandError]
+  description: Start the critic on the requested suite as a detached child and return its handle.
+  category: boundary
+  parameters: {type: object, properties: {}, additionalProperties: false}
+  output:
+    description: The started critic's handle, or the bound it hit.
+    schema:
+      type: object
+      properties:
+        service: {type: string}
+        pid: {type: integer}
+        started_at: {type: string}
+        running: {type: integer}
+        max_running: {type: integer}
+  side_effects:
+    - {kind: child_agent_execution, target: critic_agent, state: evaluation_running}
+    - {kind: filesystem_write, target: eval_results, state: evaluator_owned}
+  reversibility: {classification: compensatable}
+  undo: {strategy: compensating_action, description: Decode the receipt and stop only the critic this dispatch started.}
+  errors:
+    - {signal: ServiceLimitReached, condition: The declared number of critics is already running, state_after_failure: No child started.}
+    - {signal: CommandError, condition: A seed selector does not resolve or the critic fails to spawn, state_after_failure: No child started.}
+  config:
+    profile: agents/critic/profile.yaml
+    service_from: $from(seed).request_id
+    request_from: $from(seed).parameters.suite
+    output_from: $from(seed).parameters.output_dir
+    max_running: 4
+
+- name: list_experiments
+  type: builtin
+  init: list_services
+  visibility: internal
+  signature:
+    emits: [ChildrenListed]
+  description: List the critic runs the host has started, running or exited with their exit codes.
+  category: boundary
+  parameters: {type: object, properties: {}, additionalProperties: false}
+  output:
+    description: Tracked critic runs.
+    schema:
+      type: object
+      properties:
+        services: {type: array}
+  side_effects: [{kind: state_read, target: bench_service_state, state: read_only}]
+  reversibility: {classification: reversible}
+  undo: {strategy: noop, description: Listing changes nothing.}
+  errors: []
+  config: {}

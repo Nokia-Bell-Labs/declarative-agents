@@ -893,6 +893,9 @@ releases:
       - id: gh-2197
         summary: Generic detached service start and list words, so a request capability can launch a child and return.
         status: implemented
+      - id: gh-2188
+        summary: Bench launches critic runs as detached children behind a request capability and ends as a serve-machine-template instance.
+        status: implemented
       - id: gh-2171
         summary: Cleave the shared request capabilities out of the agents that trap them behind machine overrides; collector and bench end as template instances.
         status: planned

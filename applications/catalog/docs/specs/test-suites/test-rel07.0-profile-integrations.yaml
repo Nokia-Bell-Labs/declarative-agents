@@ -144,9 +144,12 @@ test_cases:
     inputs:
       bench_profile: agents/bench/profile.yaml
       critic_profile: agents/critic/profile.yaml
-      launch_action: '{"type":"launch_eval","config":{"suite":"suites/basic.yaml","output_dir":"eval-results"}}'
+      launch_action: 'POST /api/v1/experiments {"suite":"suites/basic.yaml","output_dir":"eval-results"}'
     expected:
       human_action_received: true
+      launch_returns_handle: true
+      overlapping_runs: true
+      runs_listed: true
       critic_profile_dispatched: true
       real_rest_machine_path_executed: true
       shipped_profile_trace_observed: true
@@ -155,6 +158,7 @@ test_cases:
       - rel07.0-uc004-bench-evaluator-profile-boundary S1
       - rel07.0-uc004-bench-evaluator-profile-boundary S2
       - rel07.0-uc004-bench-evaluator-profile-boundary S3
+      - rel07.0-uc004-bench-evaluator-profile-boundary S4
       - sm-multi-agent-profile-system dependency_directions bench->critic
 
   - use_case: rel07.0-uc005-monitor-control-profile-boundary

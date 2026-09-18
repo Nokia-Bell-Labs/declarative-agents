@@ -1283,19 +1283,19 @@ patterns:
       - system: Reference implementation — bench/critic/executor stack
         cite: reference-implementation
         kind: internal
-        note: Bench delegates to critics via self_invoke; critics run executors via nested run_point; this shipped evidence covers hierarchical dispatch, not nested trace linkage.
+        note: Bench delegates to critics as detached children through start_service in its experiments capability, bounded by max_running and reaped by the host; critics run executors via nested run_point; this shipped evidence covers hierarchical dispatch, not nested trace linkage.
         evidence:
           classification: shipped
           checks:
-            - path: applications/catalog/agents/bench/machine.yaml
+            - path: applications/catalog/agents/bench/experiments-machine.yaml
               artifact: machine
               assertion: yaml_transition
-              match: {state: Validating, signal: SuiteSelected, next: Launching, action: launch_evaluator}
-            - path: applications/catalog/agents/bench/builtin.yaml
+              match: {state: AwaitingRequest, signal: Seed, next: Starting, action: launch_evaluator}
+            - path: applications/catalog/agents/bench/experiments-declarations.yaml
               artifact: tool_declaration
               assertion: yaml_sequence_match
               field: tools
-              match: {name: launch_evaluator, init: self_invoke}
+              match: {name: launch_evaluator, init: start_service}
             - path: applications/catalog/agents/critic/machine.yaml
               artifact: machine
               assertion: yaml_transition

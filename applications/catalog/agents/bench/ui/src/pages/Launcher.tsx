@@ -1,5 +1,10 @@
-import { useState, useEffect } from 'react'
-import { listConfigs, postAction, type ConfigCategory } from '../api/client'
+import { useState, useEffect, useCallback } from 'react'
+import {
+  listConfigs, launchExperiment, listExperiments,
+  type ConfigCategory, type ExperimentRun,
+} from '../api/client'
+
+const RUN_POLL_MS = 5000
 
 export default function Launcher() {
   const [configs, setConfigs] = useState<ConfigCategory[]>([])
@@ -10,6 +15,24 @@ export default function Launcher() {
   const [outputDir, setOutputDir] = useState('eval-results')
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [runs, setRuns] = useState<ExperimentRun[]>([])
+  const [runsError, setRunsError] = useState<string | null>(null)
+
+  const refreshRuns = useCallback(() => {
+    listExperiments()
+      .then(data => { setRuns(data ?? []); setRunsError(null) })
+      .catch(() => setRunsError('Failed to load experiment runs'))
+  }, [])
+
+  useEffect(() => { refreshRuns() }, [refreshRuns])
+
+  // Poll only while a run is live; an idle launcher makes no requests.
+  const anyRunning = runs.some(run => run.status === 'running')
+  useEffect(() => {
+    if (!anyRunning) return
+    const timer = setInterval(refreshRuns, RUN_POLL_MS)
+    return () => clearInterval(timer)
+  }, [anyRunning, refreshRuns])
 
   useEffect(() => {
     listConfigs()
@@ -28,14 +51,12 @@ export default function Launcher() {
     setSubmitting(true)
     setResult(null)
     try {
-      await postAction({
-        type: 'launch_eval',
-        config: {
-          suite: suitePath.trim(),
-          output_dir: outputDir.trim() || undefined,
-        },
+      const launched = await launchExperiment({
+        suite: suitePath.trim(),
+        output_dir: outputDir.trim() || 'eval-results',
       })
-      setResult({ type: 'success', message: `Experiment launched: ${suitePath}` })
+      setResult({ type: 'success', message: `Experiment launched: ${suitePath} (run ${launched.service})` })
+      refreshRuns()
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Launch failed'
       setResult({ type: 'error', message: msg })
@@ -113,6 +134,45 @@ export default function Launcher() {
           </div>
         )}
       </div>
+
+      <div className="launcher-runs">
+        <h2>Experiment Runs</h2>
+        {runsError && <div className="error">{runsError}</div>}
+        {!runsError && runs.length === 0 && (
+          <div className="empty">No experiments started since the bench launched.</div>
+        )}
+        {runs.length > 0 && (
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Run</th>
+                  <th>Status</th>
+                  <th>Exit code</th>
+                  <th>Started</th>
+                  <th>Finished</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map(run => (
+                  <tr key={run.service}>
+                    <td>{run.service}</td>
+                    <td className={runStatusClass(run)}>{run.status}</td>
+                    <td>{run.exit_code ?? ''}</td>
+                    <td>{run.started_at}</td>
+                    <td>{run.finished_at ?? ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
+}
+
+function runStatusClass(run: ExperimentRun): string {
+  if (run.status === 'running') return ''
+  return run.exit_code === 0 ? 'pass' : 'fail'
 }

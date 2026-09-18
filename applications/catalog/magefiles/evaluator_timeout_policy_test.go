@@ -15,8 +15,6 @@ import (
 const (
 	maxEvaluatorPointDeadline   = 15 * time.Minute
 	criticPointProcessingMargin = time.Minute
-	maxEvaluatorSessionDeadline = 24 * time.Hour
-	benchSessionCleanupMargin   = time.Hour
 )
 
 func TestCatalogEvaluatorTimeoutEnvelopes(t *testing.T) {
@@ -35,10 +33,6 @@ func TestCatalogEvaluatorTimeoutEnvelopes(t *testing.T) {
 		{
 			name: "critic session run_point", machinePath: "../agents/critic/machine.yaml",
 			action: "run_point", authority: maxEvaluatorPointDeadline, requiredMargin: criticPointProcessingMargin,
-		},
-		{
-			name: "bench evaluator child session", machinePath: "../agents/bench/machine.yaml",
-			action: "launch_evaluator", authority: maxEvaluatorSessionDeadline, requiredMargin: benchSessionCleanupMargin,
 		},
 	}
 	for _, test := range tests {

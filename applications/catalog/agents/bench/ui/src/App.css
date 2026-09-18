@@ -689,3 +689,7 @@ tbody tr:hover {
   color: var(--danger);
   border: 1px solid rgba(226, 59, 59, 0.2);
 }
+
+.launcher-runs {
+  margin-top: 2rem;
+}

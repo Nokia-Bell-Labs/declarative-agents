@@ -280,6 +280,16 @@ bindings:
       domain: evaluation
       execution_scope: server
       launches: critic
+    - actor: bench-request
+      profile: applications/catalog/agents/bench/request-profile.yaml
+      classification: wrapper
+      inherits: bench
+      execution_scope: request
+    - actor: bench-experiments
+      profile: applications/catalog/agents/bench/experiments-profile.yaml
+      classification: configuration_variant
+      inherits: bench
+      execution_scope: request
     - actor: mock
       profile: applications/catalog/agents/mock/profile.yaml
       classification: mock
