@@ -8,8 +8,8 @@
 # under its own names.
 #
 # The monitor pair that sits between the control launch and the control await
-# is a separate fragment, because an agent whose control server is its monitor
-# server composes a different set (srd057 R1).
+# is a separate unit, monitor-rest-declarations.yaml, because an agent whose
+# control server is its monitor server composes a different set (srd057 R1).
 unit: builtin-serve-lifecycle
 imports:
   - types-core.yaml

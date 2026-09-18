@@ -67,12 +67,18 @@ func TestApplierMutationUndoContractsStaySemanticallyAligned(t *testing.T) {
 		file, name, classification, strategy, payload string
 		confirmation                                  bool
 	}
-	decls := filepath.Join("..", "..", "catalog", "agents", "applier", "declarations.yaml")
+	// The catalog applier's lifecycle words arrive from agent-core's
+	// serve-lifecycle fragment under names its arguments give them, and its
+	// monitor pair from the unit every serving agent imports (GH-2180), so the
+	// contracts are read where they are written.
+	units := filepath.Join("..", "..", "..", "agent-core", "tools", "units")
+	lifecycle := filepath.Join(units, "serve-lifecycle-declarations-fragment.yaml")
+	monitor := filepath.Join(units, "monitor-rest-declarations.yaml")
 	execFile := filepath.Join(agentDir(t, "applier"), "exec-declarations.yaml")
 	cases := []expectedContract{
-		{decls, "await_applier_control", "reversible", "queue_event_restore", "rest_await_event", false},
-		{decls, "stop_monitor_rest", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
-		{decls, "stop_applier_requests", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
+		{lifecycle, "$param(await_control)", "reversible", "queue_event_restore", "rest_await_event", false},
+		{monitor, "stop_monitor_rest", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
+		{lifecycle, "$param(stop_requests)", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
 		{execFile, "helm_rollback", "irreversible", "irreversible", "", true},
 	}
 

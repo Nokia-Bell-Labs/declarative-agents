@@ -1,9 +1,12 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
-# The provisioning-workflow-orchestrator serving lifecycle and its monitor pair, each one instantiation.
-# The four lifecycle words arrive from the agent-core fragment under this
-# agent's own names; nothing about them is written out here.
+# The provisioning-workflow-orchestrator serving lifecycle and its monitor pair. The four lifecycle words
+# arrive from the agent-core fragment under this agent's own names, and the
+# monitor pair is the agent-core unit every such agent imports; nothing about
+# either is written out here.
 unit: mesh-provisioning-workflow-orchestrator-declarations
+imports:
+  - /opt/agent-core/tools/units/monitor-rest-declarations.yaml
 instantiate:
   - fragment: /opt/agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml
     args:
@@ -16,6 +19,4 @@ instantiate:
       control_rest_ref: provisioning_workflow_orchestrator_control
       requests_noun: intent
       requests_purpose: for provisioning intents
-  - fragment: ../units/mesh-monitor-fragment.yaml
-    args: {agent: "provisioning-workflow-orchestrator", control_await: await_provisioning_workflow_orchestrator_control, requests_stop: stop_provisioning_workflow_orchestrator_requests}
 tools:

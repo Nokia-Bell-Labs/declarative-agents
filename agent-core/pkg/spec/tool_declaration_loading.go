@@ -59,12 +59,12 @@ func toolDeclarationFiles(rootDir string) ([]string, map[string]bool) {
 		filepath.Join(rootDir, "tools", "builtin.yaml"),
 		filepath.Join(rootDir, "tools", "exec.yaml"),
 	}
-	// Traversed rather than globbed: shipped words live in subdirectories
-	// (tools/builtin/rest, tools/builtin/otlp, tools/exec/git), and a
+	// Traversed rather than globbed: shipped words live in subdirectories, and a
 	// non-recursive glob left a third of the vocabulary outside the audited
-	// corpus while the runtime loaded it (GH-1525).
-	declFiles = append(declFiles, yamlFilesUnderDir(filepath.Join(rootDir, "tools", "builtin"))...)
-	declFiles = append(declFiles, yamlFilesUnderDir(filepath.Join(rootDir, "tools", "exec"))...)
+	// corpus while the runtime loaded it (GH-1525). Units ship words too (GH-2180).
+	for _, dir := range []string{"builtin", "exec", "units"} {
+		declFiles = append(declFiles, yamlFilesUnderDir(filepath.Join(rootDir, "tools", dir))...)
+	}
 
 	requiredSet := make(map[string]bool)
 	for _, pd := range collectProfileDirs(resolveProfileAssetsRoot(rootDir)) {
