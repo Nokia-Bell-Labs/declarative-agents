@@ -1,0 +1,294 @@
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
+
+package kindrig
+
+import (
+	_ "embed"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+)
+
+// PlatformClusterName is the shared cluster-services tier every namespaced
+// scenario runs on (GH-2215).
+const PlatformClusterName = "da-platform"
+
+// PlatformConformanceScenario owns the throwaway namespace the conformance
+// suite exercises, da-platform-conformance.
+const PlatformConformanceScenario = "platform-conformance"
+
+const (
+	platformClusterWait        = 5 * time.Minute
+	platformConformanceHost    = "conformance.localhost"
+	platformConformanceRelease = "platform-conformance"
+	platformHostPlaceholder    = "KINDRIG_CONFORMANCE_HOST"
+	platformWaitTimeout        = "120s"
+)
+
+//go:embed platform-kind-config.yaml
+var platformKindConfig []byte
+
+//go:embed platform-conformance.yaml
+var platformConformanceManifest string
+
+// PlatformOptions configures StartPlatform. The zero value streams kind output,
+// binds commands to a private kubeconfig for da-platform, and captures no
+// failure evidence.
+type PlatformOptions struct {
+	// KindRun runs kind subcommands for acquisition, evidence, and teardown.
+	KindRun Runner
+	// Bind returns a command runner bound to the named cluster's kubeconfig and
+	// a cleanup for that binding.
+	Bind func(cluster string) (CommandRunner, func(), error)
+	// EvidenceDirectory receives kind logs and namespace diagnostics when boot,
+	// conformance, or a later caller-reported failure ends the platform.
+	EvidenceDirectory string
+
+	boot        func(CommandRunner, string) error
+	conformance func(CommandRunner, string) error
+}
+
+// Platform is a running, conformance-checked da-platform cluster. Run is bound
+// to its kubeconfig. Stop must run on every exit path of the platform's owner.
+type Platform struct {
+	Cluster Cluster
+	Run     CommandRunner
+
+	kindRun  Runner
+	evidence FailureEvidence
+	unbind   func()
+	stopped  bool
+}
+
+// StartPlatform acquires da-platform fresh, installs the shared infrastructure,
+// and runs the conformance suite. A leftover da-platform from an interrupted
+// run is deleted and recreated (GH-2137). When any step fails the cluster is
+// released with evidence before StartPlatform returns, so a platform failure is
+// reported before, and separately from, any application gate.
+func StartPlatform(options PlatformOptions) (*Platform, error) {
+	options = options.withDefaults()
+	cluster, err := EnsurePlatformCluster(options.KindRun)
+	if err != nil {
+		return nil, err
+	}
+	run, unbind, err := options.Bind(cluster.Name)
+	if err != nil {
+		cluster.Release(options.KindRun)
+		return nil, fmt.Errorf("bind %s commands: %w", cluster.Name, err)
+	}
+	platform := &Platform{
+		Cluster: cluster,
+		Run:     run,
+		kindRun: options.KindRun,
+		evidence: FailureEvidence{
+			Directory:  options.EvidenceDirectory,
+			Namespaces: platformEvidenceNamespaces(),
+			Run:        run,
+		},
+		unbind: unbind,
+	}
+	for _, phase := range []struct {
+		name string
+		run  func(CommandRunner, string) error
+	}{
+		{"platform-boot", options.boot},
+		{"platform-conformance", options.conformance},
+	} {
+		started := time.Now()
+		if err := phase.run(run, cluster.Name); err != nil {
+			LogPhase(cluster.Name, phase.name, "failed", started, "")
+			platform.Stop(true)
+			return nil, fmt.Errorf("%s %s: %w", cluster.Name, phase.name, err)
+		}
+		LogPhase(cluster.Name, phase.name, "passed", started, "")
+	}
+	return platform, nil
+}
+
+// Stop releases the platform: an owned cluster is deleted, after evidence
+// capture when failed is true and an evidence directory was configured. A
+// reused cluster is left in place. Stop is idempotent.
+func (p *Platform) Stop(failed bool) {
+	if p == nil || p.stopped {
+		return
+	}
+	p.stopped = true
+	if failed && p.evidence.Directory != "" {
+		p.Cluster.ReleaseAfter(p.kindRun, true, p.evidence)
+	} else {
+		p.Cluster.Release(p.kindRun)
+	}
+	if p.unbind != nil {
+		p.unbind()
+	}
+}
+
+// EnsurePlatformCluster creates da-platform from the checked-in
+// platform-kind-config.yaml with FreshOwnedCluster semantics: any listed
+// da-platform is a leftover and is deleted first, and the result is owned.
+func EnsurePlatformCluster(run Runner) (Cluster, error) {
+	file, err := os.CreateTemp("", "kindrig-platform-*.yaml")
+	if err != nil {
+		return Cluster{}, fmt.Errorf("stage %s kind config: %w", PlatformClusterName, err)
+	}
+	path := file.Name()
+	defer func() { _ = os.Remove(path) }()
+	if _, err := file.Write(platformKindConfig); err != nil {
+		_ = file.Close()
+		return Cluster{}, fmt.Errorf("stage %s kind config: %w", PlatformClusterName, err)
+	}
+	if err := file.Close(); err != nil {
+		return Cluster{}, fmt.Errorf("stage %s kind config: %w", PlatformClusterName, err)
+	}
+	return EnsureFreshCluster(run, PlatformClusterName, path, platformClusterWait)
+}
+
+// BootPlatform installs the cluster-wide infrastructure scenarios share: the
+// pinned Traefik ingress controller and the pinned metrics-server. Application
+// infrastructure (Dolt, Chroma, Ollama) stays in the application charts.
+func BootPlatform(run CommandRunner, cluster string) error {
+	if err := InstallIngress(run, cluster); err != nil {
+		return fmt.Errorf("install ingress: %w", err)
+	}
+	// The platform is deleted whole, so the per-install cleanup is not needed.
+	if _, err := InstallMetricsServer(run, cluster); err != nil {
+		return fmt.Errorf("install metrics-server: %w", err)
+	}
+	return nil
+}
+
+// PlatformConformance proves the cluster tier before any application gate:
+// the data plane and /readyz answer, the storage provisioner binds a claim,
+// Traefik routes an Ingress to a Service, and a torn-down scenario namespace
+// leaves no namespace or volume behind. The error names the failed check.
+func PlatformConformance(run CommandRunner, cluster string) (result error) {
+	if err := VerifyDataPlane(run); err != nil {
+		return fmt.Errorf("readiness: %w", err)
+	}
+	namespace, err := PrepareScenarioNamespace(
+		run, PlatformConformanceScenario, platformConformanceRelease)
+	if err != nil {
+		return fmt.Errorf("namespace churn: %w", err)
+	}
+	released := false
+	defer func() {
+		if !released {
+			result = errors.Join(result, namespace.Release())
+		}
+		result = errors.Join(result, resetCurrentNamespace(run))
+	}()
+
+	manifest := strings.ReplaceAll(platformConformanceManifest,
+		traefikImagePlaceholder, traefikRuntimeRepository+":"+traefikImageVersion)
+	manifest = strings.ReplaceAll(manifest, platformHostPlaceholder, platformConformanceHost)
+	path, removeManifest, err := writeTempManifest("kindrig-platform-conformance-*.yaml", manifest)
+	if err != nil {
+		return err
+	}
+	defer removeManifest()
+	if err := runChecked(run, "kubectl", "apply", "--namespace", namespace.Name, "-f", path); err != nil {
+		return fmt.Errorf("apply conformance workload: %w", err)
+	}
+
+	if err := runChecked(run, "kubectl", "wait", "--namespace", namespace.Name,
+		"--for=jsonpath={.status.phase}=Bound", "persistentvolumeclaim/conformance-claim",
+		"--timeout="+platformWaitTimeout); err != nil {
+		return fmt.Errorf("storage provisioner: %w", err)
+	}
+	volume, err := run("kubectl", "get", "persistentvolumeclaim", "conformance-claim",
+		"--namespace", namespace.Name, "-o", "jsonpath={.spec.volumeName}")
+	if err != nil || strings.TrimSpace(string(volume)) == "" {
+		return fmt.Errorf("storage provisioner: bound claim names no volume: %v: %s", err, volume)
+	}
+
+	if err := runChecked(run, "kubectl", "rollout", "status", "deployment/conformance-echo",
+		"--namespace", namespace.Name, "--timeout="+platformWaitTimeout); err != nil {
+		return fmt.Errorf("ingress route: backend rollout: %w", err)
+	}
+	if err := runChecked(run, "docker", "exec", cluster+"-control-plane",
+		"curl", "--fail", "--silent", "--show-error", "--max-time", "5",
+		"--retry", "30", "--retry-delay", "1", "--retry-all-errors",
+		"--header", "Host: "+platformConformanceHost, "http://127.0.0.1/ping"); err != nil {
+		return fmt.Errorf("ingress route: Traefik did not route %s/ping: %w",
+			platformConformanceHost, err)
+	}
+
+	released = true
+	if err := namespace.Release(); err != nil {
+		return fmt.Errorf("namespace churn: %w", err)
+	}
+	if err := runChecked(run, "kubectl", "wait", "--for=delete",
+		"persistentvolume/"+strings.TrimSpace(string(volume)),
+		"--timeout="+platformWaitTimeout); err != nil {
+		return fmt.Errorf("namespace churn: volume %s outlived its namespace: %w",
+			strings.TrimSpace(string(volume)), err)
+	}
+	return nil
+}
+
+func (o PlatformOptions) withDefaults() PlatformOptions {
+	if o.KindRun == nil {
+		o.KindRun = DefaultRun
+	}
+	if o.Bind == nil {
+		o.Bind = func(cluster string) (CommandRunner, func(), error) {
+			commands, cleanup, err := ClusterCommands(CaptureRun, cluster)
+			if err != nil {
+				return nil, nil, err
+			}
+			return commands.Run, cleanup, nil
+		}
+	}
+	if o.boot == nil {
+		o.boot = BootPlatform
+	}
+	if o.conformance == nil {
+		o.conformance = PlatformConformance
+	}
+	return o
+}
+
+func platformEvidenceNamespaces() []string {
+	conformance, _ := ScenarioNamespaceName(PlatformConformanceScenario)
+	return []string{"kube-system", "traefik", conformance}
+}
+
+// resetCurrentNamespace points the bound kubeconfig back at default, since the
+// conformance namespace no longer exists once the suite returns.
+func resetCurrentNamespace(run CommandRunner) error {
+	if err := runChecked(run, "kubectl", "config", "set-context", "--current",
+		"--namespace", "default"); err != nil {
+		return fmt.Errorf("reset current namespace: %w", err)
+	}
+	return nil
+}
+
+func runChecked(run CommandRunner, name string, args ...string) error {
+	if output, err := run(name, args...); err != nil {
+		return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "),
+			err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func writeTempManifest(pattern, manifest string) (string, func(), error) {
+	file, err := os.CreateTemp("", pattern)
+	if err != nil {
+		return "", nil, fmt.Errorf("create manifest: %w", err)
+	}
+	path := file.Name()
+	cleanup := func() { _ = os.Remove(path) }
+	if _, err := file.WriteString(manifest); err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", nil, fmt.Errorf("write manifest: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("close manifest: %w", err)
+	}
+	return path, cleanup, nil
+}

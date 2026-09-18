@@ -11,11 +11,13 @@ import (
 )
 
 // fakeCluster records host commands and scripts failures by command prefix.
-// Namespaces listed in present answer `kubectl get namespace` successfully.
+// Namespaces listed in present answer `kubectl get namespace` successfully;
+// outputs scripts successful output by command prefix.
 type fakeCluster struct {
 	calls   []string
 	present map[string]bool
 	fail    map[string]string
+	outputs map[string]string
 }
 
 func (f *fakeCluster) run(name string, args ...string) ([]byte, error) {
@@ -24,6 +26,11 @@ func (f *fakeCluster) run(name string, args ...string) ([]byte, error) {
 	for prefix, output := range f.fail {
 		if strings.HasPrefix(call, prefix) {
 			return []byte(output), errors.New("command failed")
+		}
+	}
+	for prefix, output := range f.outputs {
+		if strings.HasPrefix(call, prefix) {
+			return []byte(output), nil
 		}
 	}
 	if strings.HasPrefix(call, "kubectl get namespace ") {
@@ -47,6 +54,8 @@ func (f *fakeCluster) run(name string, args ...string) ([]byte, error) {
 func releaseCalls(namespace, release string) []string {
 	return []string{
 		"helm uninstall " + release + " --namespace " + namespace + " --ignore-not-found",
+		"kubectl delete deployment,statefulset,daemonset,replicaset,job --all --namespace " + namespace +
+			" --ignore-not-found=true --wait=true --timeout=60s",
 		"kubectl delete pod --all --namespace " + namespace +
 			" --ignore-not-found=true --wait=true --timeout=60s",
 		"kubectl delete persistentvolumeclaim --all --namespace " + namespace +

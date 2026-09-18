@@ -178,6 +178,7 @@ func TestPrepareAggregateNamespaceCreatesSelectsAndCleansOnlyOwnedNamespace(t *t
 		"kubectl create namespace da-helm-smoke",
 		"kubectl config set-context --current --namespace da-helm-smoke",
 		"helm uninstall smoke --namespace da-helm-smoke --ignore-not-found",
+		"kubectl delete deployment,statefulset,daemonset,replicaset,job --all --namespace da-helm-smoke --ignore-not-found=true --wait=true --timeout=60s",
 		"kubectl delete pod --all --namespace da-helm-smoke --ignore-not-found=true --wait=true --timeout=60s",
 		"kubectl delete persistentvolumeclaim --all --namespace da-helm-smoke --ignore-not-found=true --wait=true --timeout=60s",
 		"kubectl delete namespace da-helm-smoke --ignore-not-found=true --wait=false",

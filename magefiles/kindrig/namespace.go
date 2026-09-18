@@ -42,6 +42,7 @@ const (
 	scenarioPodDeleteTimeout       = "60s"
 	scenarioNamespaceDeleteTimeout = "180s"
 	dataPlaneReadyTimeout          = "120s"
+	scenarioWorkloadControllers    = "deployment,statefulset,daemonset,replicaset,job"
 )
 
 var scenarioLabel = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
@@ -106,8 +107,8 @@ func PrepareScenarioNamespace(
 	return namespace, nil
 }
 
-// Release uninstalls the scenario's Helm release, deletes its pods, claims, and
-// namespace, confirms the namespace is gone, and rechecks the shared data plane
+// Release uninstalls the scenario's Helm release, deletes its workload
+// controllers, pods, claims, and namespace, confirms the namespace is gone, and rechecks the shared data plane
 // so the next scenario starts on a ready cluster. Every step runs even after an
 // earlier one fails; the joined error names each failure. A zero value is a
 // no-op, so a failure path may release a namespace that was never prepared.
@@ -125,6 +126,11 @@ func (n ScenarioNamespace) Release() error {
 	}
 	step(fmt.Sprintf("uninstall %s/%s", name, n.HelmRelease),
 		"helm", "uninstall", n.HelmRelease, "--namespace", name, "--ignore-not-found")
+	// Workloads applied outside the release, or left by a failed uninstall,
+	// would recreate pods that keep claims bound.
+	step(fmt.Sprintf("delete scenario namespace %s workload controllers", name),
+		"kubectl", "delete", scenarioWorkloadControllers, "--all", "--namespace", name,
+		"--ignore-not-found=true", "--wait=true", "--timeout="+scenarioPodDeleteTimeout)
 	step(fmt.Sprintf("drain scenario namespace %s pods", name),
 		"kubectl", "delete", "pod", "--all", "--namespace", name,
 		"--ignore-not-found=true", "--wait=true", "--timeout="+scenarioPodDeleteTimeout)
