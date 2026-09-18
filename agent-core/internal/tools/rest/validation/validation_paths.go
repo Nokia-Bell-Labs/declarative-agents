@@ -6,6 +6,7 @@ package validation
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -100,4 +101,48 @@ func collectBodyTemplateFields(value interface{}, fields *[]string) {
 			collectBodyTemplateFields(item, fields)
 		}
 	}
+}
+
+// validateRouteCollisions rejects two endpoints on one server that declare the
+// same method on the same path shape (srd029 R6.9). The router selects by path
+// first and method second, so such a pair leaves one endpoint unreachable;
+// parameter names do not distinguish shapes, since /a/{id} and /a/{key} match
+// the same requests.
+func validateRouteCollisions(serverName string, endpoints map[string]Endpoint) error {
+	names := make([]string, 0, len(endpoints))
+	for name := range endpoints {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	owners := map[string]string{}
+	for _, name := range names {
+		endpoint := endpoints[name]
+		if endpoint.Method == "" || endpoint.Path == "" {
+			continue
+		}
+		key := endpoint.Method + " " + routeShape(endpoint.Path)
+		if owner, taken := owners[key]; taken {
+			return fmt.Errorf("server %q endpoints %q and %q both declare %s %s; one would never be reached",
+				serverName, owner, name, endpoint.Method, endpoint.Path)
+		}
+		owners[key] = name
+	}
+	return nil
+}
+
+// routeShape reduces a path template to what routing compares: literal
+// segments as written, "{}" for a parameter, and "{...}" for a catch-all.
+func routeShape(template string) string {
+	segments := strings.Split(strings.Trim(template, "/"), "/")
+	for i, segment := range segments {
+		if !strings.HasPrefix(segment, "{") || !strings.HasSuffix(segment, "}") {
+			continue
+		}
+		if strings.HasSuffix(segment, "...}") {
+			segments[i] = "{...}"
+		} else {
+			segments[i] = "{}"
+		}
+	}
+	return "/" + strings.Join(segments, "/")
 }
