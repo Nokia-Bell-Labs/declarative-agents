@@ -52,7 +52,7 @@ requirements:
     title: Behavior model
     items:
       - R1.1: The scenario critic profile must model a deterministic pipeline that discovers scenarios, composes each one, collects a verdict, and reports an aggregate outcome.
-      - R1.2: For each scenario the scenario critic must expose fixture and validator arrays as command state; dispatch one mock start and one validator child execution per item through MachineSpec sequential for_each; join each ordered outcome list; start and label the subject; loop through one REST health probe and one delay dispatch per retry; list scenario children; and dispatch stop_service once per child through a final iterator.
+      - R1.2: For each scenario the scenario critic must expose fixture and validator arrays as command state; dispatch one mock start per fixture through MachineSpec sequential for_each and one validator child execution per validator through bounded parallel for_each; join each outcome list in input order; start and label the subject; loop through one REST health probe and one delay dispatch per retry; list scenario children; and dispatch stop_service once per child through a final iterator.
       - R1.3: The scenario critic must give each scenario a fresh subject instance, so scenarios stay independent of one another.
       - R1.4: Validators declared within one scenario must run against that scenario's single subject instance.
       - R1.5: The scenario critic must tear down every child it started, including on a failure path, so no child process outlives a scenario.
@@ -105,11 +105,11 @@ non_goals:
   - Kubernetes, container, or hierarchical control-plane deployment of the rig; children are local processes at this release.
   - Span-based state assertion; validators witness through responses and the mock request log.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
-  - Bounded parallel fixture or validator dispatch; MachineSpec iteration is sequential in this release, so validator order is deterministic without hidden goroutines.
+  - Parallel fixture dispatch; mock starts stay sequential so each fixture's address is recorded before the subject starts.
 
 acceptance_criteria:
   - id: AC1
-    criterion: The scenario critic profile is a configured, deterministic scenario composition pipeline; each fixture start, validator execution, and child stop is a machine-visible sequential iterator dispatch with its own trace, checkpoint Entry, receipt, and rollback boundary.
+    criterion: The scenario critic profile is a configured, deterministic scenario composition pipeline; each fixture start and child stop is a machine-visible sequential iterator dispatch and each validator execution a bounded parallel one, each with its own trace, checkpoint Entry, receipt, and rollback boundary.
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9]
   - id: AC2
     criterion: The scenario layout lets one subject carry several self-contained tests as profile-owned data, with no scenario critic change required to add one.

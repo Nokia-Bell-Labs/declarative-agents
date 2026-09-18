@@ -23,16 +23,25 @@ The table lists the four forms and when we reach for each.
 | `machine_request` | REST route with `machine_request: {profile, timeout, response.terminal_states}` | the capability is a service another agent or a UI calls |
 | serving wrapper | a wrapper profile hosting it, a blueprint instance where the wrappers are one agent with arguments | the capability deserves its own Deployment |
 
-`coding-agent/agents/executor/rest.yaml` shows the `machine_request` form binding a profile path; `applications/catalog/agents/bench/builtin.yaml` shows `self_invoke` with request and output mapping.
+`applications/catalog/agents/planner/builtin.yaml` shows the `self_invoke` form in `invoke_executor`. `coding-agent/agents/executor/rest.yaml` shows the `machine_request` form binding a profile path, and bench shows it launching work that outlives the request: the `experiments` route in `applications/catalog/agents/bench/rest.yaml` binds `bench/experiments-profile.yaml`, whose one word starts the critic as a detached child through `start_service` and returns a handle while the run continues (GH-2188).
 
 There is no in-process form to reach for. `run_point` is the nested-machine boundary's only word and it is evaluation-harness machinery — it requires `point_machine`, `point_tools`, and `point_tool_declarations` and keeps per-point session state (srd019). A capability profile handed to it fails registration, which srd057 R2.4 states and the release 21.0 suite tests.
 
 ## Binding discipline
 
-`machine_request` also accepts `profile: profile.yaml` with a `machine:` override — a machine fork of the serving profile itself. We reserve that form for behavior private to one agent. Anything reused across agents or repositories must be a named capability profile, so the reuse is visible in the closure and the copies cannot drift. Converting the existing machine-override bindings that carry shared behavior is tracked in GH-2171 (planned); the survey behind it found 74 of 103 bindings using the override form.
+`machine_request` also accepts `profile: profile.yaml` with a `machine:` override — a machine fork of the serving profile itself. We reserve that form for behavior private to one agent. Anything reused across agents or repositories must be a named capability profile, so the reuse is visible in the closure and the copies cannot drift. The survey behind GH-2171 found 74 of 103 bindings using the override form. GH-2171 closed as decided: most of those overrides are private to their agent, and the one cleave this repository owed shipped in GH-2188.
 
 ## Current capability inventory
 
-Capabilities being cleaved out of their current hosts under GH-2171 (planned): vector query against the document store, document read and filter, the provisioning and creator request sides, the collector's span intake loop, and the bench experiment launcher.
+GH-2171 measured six candidate cleaves, and each ended differently. We record the outcomes because each one states a rule a future cleave will meet.
+
+Table: GH-2171 cleave outcomes
+
+| Candidate | Outcome |
+|---|---|
+| Bench experiment launcher | Shipped as `bench-experiments` (GH-2188). Its host is now a serve-machine-template instance. |
+| Collector span intake | Not extractable: the intake loop is a never-ending rotation whose lifecycle await is one of its legs, which srd057 R1.1 rules out. |
+| Vector query, provisioning and creator request sides | Decided against. Their SRDs (srd013, srd016, srd017) record each agent's move out of the catalog, and `applications/catalog/README.md` makes membership an owner's decision, not a side effect of a cleave. |
+| Document read, scenario rigs | Owned by the consumer repositories (petar-djukic/cohere-demo#738, petar-djukic/agentic-wiki-mesh#125). |
 
 The fleet observer is not among them, and the reason is worth recording. Its poll loop never reaches a terminal state, and the loop is driven by the lifecycle await itself: `AwaitTimedOut` routes to `Discovering`, so the interval timer and the service lifecycle are one machine by design. R1.1 rules that out, and the forms that remain would each spawn a process per poll interval. What the observer shares instead is its whole agent: the catalog owns its machine, words, and selection, and a mesh wraps them with its own REST surface (GH-2170), the way the applications wrap the catalog's applier.

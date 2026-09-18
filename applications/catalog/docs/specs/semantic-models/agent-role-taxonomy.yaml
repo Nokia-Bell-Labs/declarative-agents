@@ -184,18 +184,18 @@ roles:
       - bench UI
       - critic launch
     runtime_dependencies:
-      - agent-core bench tools
+      - agent-core serve lifecycle and service-child words (start_service, list_services)
       - critic profile
     outputs:
       - served UI
-      - critic run request
-      - launch status
+      - detached critic run handle
+      - run listing with outcomes
     outcomes:
       - Done
       - Failed
     checks:
-      - Confirm rest_await_event is the blocking human boundary.
-      - Confirm self_invoke delegates session execution to critic.
+      - Confirm the control server's lifecycle exit is the only host await; launches run through the experiments capability.
+      - Confirm start_service delegates session execution to critic as a detached child bounded by max_running.
       - Trace bench to critic with rel07.0-uc004-bench-evaluator-profile-boundary.
 
   - id: runtime-state-reader
