@@ -31,6 +31,11 @@ const (
 	InitListScenarioChildren = "list_scenario_children"
 	InitStopAllServices      = "stop_all_services"
 	InitReportSession        = "report_scenario_session"
+
+	// The generic detached words start any profile and return, and list the
+	// outcome later (srd040 R7).
+	InitStartService = "start_service"
+	InitListServices = "list_services"
 )
 
 // StandardInits lists every service builtin init name.
@@ -39,6 +44,7 @@ var StandardInits = []string{
 	InitInitScenarioSession, InitNextScenario, InitStartScenarioMock, InitStartSubject,
 	InitRunScenarioValidator, InitRecordValidators, InitCollectVerdict, InitListScenarioChildren,
 	InitStopAllServices, InitReportSession,
+	InitStartService, InitListServices,
 }
 
 // Result signals distinguish each child operation and thin session mutation.
@@ -58,6 +64,9 @@ const (
 	SignalAllServicesStopped     core.Signal = "AllServicesStopped"
 	SignalScenarioPassed         core.Signal = "ScenarioPassed"
 	SignalScenarioFailed         core.Signal = "ScenarioFailed"
+	SignalServiceStarted         core.Signal = "ServiceStarted"
+	SignalServiceLimitReached    core.Signal = "ServiceLimitReached"
+	SignalChildrenListed         core.Signal = "ChildrenListed"
 	SignalSessionPassed          core.Signal = "SessionPassed"
 	SignalSessionFailed          core.Signal = "SessionFailed"
 )
@@ -91,6 +100,16 @@ type ToolConfig struct {
 	// names that VAR. Defaults to MOCK_ADDRESS for mocks and SUBJECT_ADDRESS
 	// for the subject.
 	AddressEnv string `yaml:"address_env,omitempty"`
+
+	// start_service reads each of service, request, and output from a literal
+	// or a $from(label).path selector, never both, and bounds the live
+	// children with max_running when it is positive.
+	ServiceFrom string `yaml:"service_from,omitempty"`
+	Request     string `yaml:"request,omitempty"`
+	RequestFrom string `yaml:"request_from,omitempty"`
+	Output      string `yaml:"output,omitempty"`
+	OutputFrom  string `yaml:"output_from,omitempty"`
+	MaxRunning  int    `yaml:"max_running,omitempty"`
 }
 
 // FactoryDeps holds service factory dependencies.
@@ -98,6 +117,9 @@ type FactoryDeps struct {
 	State    *State
 	Session  *ScenarioSessionState
 	CoreRoot string
+	// ChildAgentBinary is the --child-agent-binary override start_service
+	// uses when its declaration names no binary.
+	ChildAgentBinary string
 }
 
 // RegisterBuiltins registers every service builtin factory. The session and
@@ -127,6 +149,7 @@ func factoryFor(init string, deps FactoryDeps) toolregistry.BuiltinFactory {
 		return Builder{
 			ToolName: def.Name, Init: init, Config: cfg,
 			State: deps.State, Session: deps.Session, CoreRoot: deps.CoreRoot,
+			ChildAgentBinary: deps.ChildAgentBinary,
 		}, nil
 	}
 }
@@ -161,18 +184,21 @@ func validateToolConfig(name, init string, cfg ToolConfig) error {
 		if _, _, ok := core.ParseFromSelector(cfg.Outcomes); !ok {
 			return fmt.Errorf("tool %q (%s) outcomes must be a $from(label).path selector", name, init)
 		}
+	case InitStartService:
+		return validateStartService(name, init, cfg)
 	}
 	return nil
 }
 
 // Builder constructs one service boundary command.
 type Builder struct {
-	ToolName string
-	Init     string
-	Config   ToolConfig
-	State    *State
-	Session  *ScenarioSessionState
-	CoreRoot string
+	ToolName         string
+	Init             string
+	Config           ToolConfig
+	State            *State
+	Session          *ScenarioSessionState
+	CoreRoot         string
+	ChildAgentBinary string
 }
 
 // Build creates one service command.
@@ -184,6 +210,7 @@ func (b Builder) Build(_ core.Result) core.Command {
 	return &command{
 		toolName: b.ToolName, init: b.Init, cfg: b.Config,
 		state: b.State, session: session, coreRoot: b.CoreRoot,
+		childAgentBinary: b.ChildAgentBinary,
 	}
 }
 
@@ -200,6 +227,8 @@ type command struct {
 	session      *ScenarioSessionState
 	coreRoot     string
 	commandState core.CommandStateView
+
+	childAgentBinary string
 }
 
 func (c *command) Name() string { return c.toolName }
@@ -232,6 +261,10 @@ func (c *command) ExecuteContext(ctx context.Context) core.Result {
 		return c.stopAllServices()
 	case InitReportSession:
 		return c.reportSession()
+	case InitStartService:
+		return c.startService()
+	case InitListServices:
+		return c.listServices()
 	default:
 		return commandError(c.toolName, fmt.Errorf("unsupported service init %q", c.init))
 	}
@@ -245,15 +278,17 @@ func (c *command) stopAllServices() core.Result {
 	}
 }
 
-// Undo reverses scenario-specific child starts from their receipts; every
-// other word is read-only or already terminal, so its undo is a noop (srd040
-// R1.5, R3.3). The declarations must match this, or the corpus audit reports a
+// Undo reverses child starts from their receipts; every other word is
+// read-only or already terminal, so its undo is a noop (srd040 R1.5, R3.3,
+// R7.5). The declarations must match this, or the corpus audit reports a
 // tool-undo mismatch.
 func (c *command) Undo(prior core.Result) core.Result {
 	switch c.init {
 	case InitStartScenarioMock:
 		return c.undoStartedChild(prior)
 	case InitStartSubject:
+		return c.undoStartedChild(prior)
+	case InitStartService:
 		return c.undoStartedChild(prior)
 	default:
 		return core.NoopUndo(c.toolName)

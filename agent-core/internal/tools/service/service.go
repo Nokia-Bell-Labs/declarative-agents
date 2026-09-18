@@ -1,17 +1,19 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-// Package service provides the words a rig machine composes other machines
-// with (srd040): background serve-mode child agents, one-validator child
-// execution, and scenario discovery. Every word is deterministic and calls no
-// model.
+// Package service provides the child-process words a machine composes other
+// machines with (srd040): generic detached children under a declared bound,
+// background serve-mode scenario children, one-validator child execution, and
+// scenario discovery. Every word is deterministic and calls no model.
 package service
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
+	"os/exec"
 	"sort"
 	"sync"
 	"syscall"
@@ -26,14 +28,26 @@ const (
 	defaultRunTimeout = 10 * time.Minute
 )
 
-// child is one running serve-mode agent process.
+// child is one tracked agent process. The reaper goroutine records its exit
+// under State.mu, and an exited child stays tracked until it is stopped or
+// reaped so list_services can report its outcome (srd040 R7.4).
 type child struct {
-	name    string
-	process *subprocess.Handle
-	baseURL string
-	done    chan struct{}
-	once    sync.Once
+	name      string
+	process   *subprocess.Handle
+	pid       int
+	baseURL   string
+	startedAt time.Time
+	done      chan struct{}
+	once      sync.Once
+
+	exited     bool
+	exitCode   int
+	finishedAt time.Time
 }
+
+// ErrLimitReached reports that a bounded start found the declared number of
+// live children already running (srd040 R7.3).
+var ErrLimitReached = errors.New("running child limit reached")
 
 // State holds the serve-mode children a rig started. Children are
 // process-group managed so stopping one stops anything it spawned, and
@@ -41,6 +55,7 @@ type child struct {
 type State struct {
 	mu       sync.Mutex
 	children map[string]*child
+	pending  map[string]struct{}
 	ctx      context.Context
 }
 
@@ -54,7 +69,7 @@ func NewStateWithContext(ctx context.Context) *State {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return &State{children: map[string]*child{}, ctx: ctx}
+	return &State{children: map[string]*child{}, pending: map[string]struct{}{}, ctx: ctx}
 }
 
 // StartSpec describes one serve-mode child.
@@ -65,8 +80,13 @@ type StartSpec struct {
 	CoreRoot  string
 	Directory string
 	Request   string
+	Output    string
 	Address   string
 	Env       []string
+
+	// MaxRunning, when positive, bounds the live children the state holds;
+	// Start returns ErrLimitReached at the bound without spawning.
+	MaxRunning int
 }
 
 // FreeAddress reserves a loopback port and releases it, so a child can bind
@@ -97,15 +117,12 @@ func (s *State) Start(spec StartSpec) (map[string]interface{}, error) {
 		return nil, fmt.Errorf("start child %q: %w", spec.Name, err)
 	}
 
-	s.mu.Lock()
-	if _, exists := s.children[spec.Name]; exists {
-		s.mu.Unlock()
-		return nil, fmt.Errorf("start child %q: a service with that name is already running", spec.Name)
+	if err := s.reserve(spec); err != nil {
+		return nil, err
 	}
-	s.mu.Unlock()
-
 	process, err := subprocess.Start(s.ctx, childProcessSpec(spec))
 	if err != nil {
+		s.release(spec.Name)
 		// A spawn failure is a tool error, never a panic (srd040 R6.3).
 		return nil, fmt.Errorf("start child %q: %w", spec.Name, err)
 	}
@@ -114,11 +131,34 @@ func (s *State) Start(spec StartSpec) (map[string]interface{}, error) {
 
 	return map[string]interface{}{
 		"service":    spec.Name,
-		"pid":        process.PID(),
+		"pid":        entry.pid,
 		"address":    address,
 		"base_url":   entry.baseURL,
-		"started_at": time.Now().UTC().Format(time.RFC3339Nano),
+		"started_at": entry.startedAt.Format(time.RFC3339Nano),
 	}, nil
+}
+
+// reserve claims the name and, under a declared bound, a live-child slot in
+// one critical section, so concurrent request runs cannot both pass the bound
+// check before either spawns.
+func (s *State) reserve(spec StartSpec) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, exists := s.children[spec.Name]
+	if _, starting := s.pending[spec.Name]; exists || starting {
+		return fmt.Errorf("start child %q: a service with that name is already running", spec.Name)
+	}
+	if spec.MaxRunning > 0 && s.liveLocked()+len(s.pending) >= spec.MaxRunning {
+		return fmt.Errorf("start child %q: %w (%d)", spec.Name, ErrLimitReached, spec.MaxRunning)
+	}
+	s.pending[spec.Name] = struct{}{}
+	return nil
+}
+
+func (s *State) release(name string) {
+	s.mu.Lock()
+	delete(s.pending, name)
+	s.mu.Unlock()
 }
 
 // Stop ends one service: a graceful signal to the process group, a bounded
@@ -159,8 +199,40 @@ func (s *State) Reap() []map[string]interface{} {
 	return s.StopAll(defaultStopGrace)
 }
 
-// Running reports the names of the services currently held.
+// Running reports the names of the tracked children that have not exited.
 func (s *State) Running() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	names := make([]string, 0, len(s.children))
+	for name, entry := range s.children {
+		if !entry.exited {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// RunningCount reports how many tracked children have not exited.
+func (s *State) RunningCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.liveLocked()
+}
+
+func (s *State) liveLocked() int {
+	live := 0
+	for _, entry := range s.children {
+		if !entry.exited {
+			live++
+		}
+	}
+	return live
+}
+
+// List reports every tracked child, running or exited, sorted by name
+// (srd040 R7.4).
+func (s *State) List() []map[string]interface{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	names := make([]string, 0, len(s.children))
@@ -168,7 +240,24 @@ func (s *State) Running() []string {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	return names
+	out := make([]map[string]interface{}, 0, len(names))
+	for _, name := range names {
+		entry := s.children[name]
+		item := map[string]interface{}{
+			"service":    name,
+			"pid":        entry.pid,
+			"base_url":   entry.baseURL,
+			"started_at": entry.startedAt.Format(time.RFC3339Nano),
+			"status":     "running",
+		}
+		if entry.exited {
+			item["status"] = "exited"
+			item["exit_code"] = entry.exitCode
+			item["finished_at"] = entry.finishedAt.Format(time.RFC3339Nano)
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func (c *child) stop(grace time.Duration) map[string]interface{} {
@@ -178,6 +267,14 @@ func (c *child) stop(grace time.Duration) map[string]interface{} {
 	out := map[string]interface{}{"service": c.name, "stopped": true}
 	if c.process == nil {
 		return out
+	}
+	// An exited child has nothing left to signal, and its process group id
+	// may already name another process.
+	select {
+	case <-c.done:
+		out["exited"] = true
+		return out
+	default:
 	}
 
 	// Signal the group, not just the leader, so a child's own children go too.
@@ -208,20 +305,41 @@ func validateStartSpec(spec StartSpec) error {
 // wait on a closed channel rather than racing the process exit.
 func (s *State) track(name string, process *subprocess.Handle, address string) *child {
 	entry := &child{
-		name:    name,
-		process: process,
-		baseURL: "http://" + address,
-		done:    make(chan struct{}),
+		name:      name,
+		process:   process,
+		pid:       process.PID(),
+		baseURL:   "http://" + address,
+		startedAt: time.Now().UTC(),
+		done:      make(chan struct{}),
 	}
 	go func() {
-		_ = process.Wait()
+		code := exitCode(process.Wait())
+		s.mu.Lock()
+		entry.exited = true
+		entry.exitCode = code
+		entry.finishedAt = time.Now().UTC()
+		s.mu.Unlock()
 		close(entry.done)
 	}()
 
 	s.mu.Lock()
+	delete(s.pending, name)
 	s.children[name] = entry
 	s.mu.Unlock()
 	return entry
+}
+
+// exitCode reads a reaped process's exit status; -1 means it ended without
+// one, such as by a signal or a wait failure.
+func exitCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode()
+	}
+	return -1
 }
 
 // resolveAddress returns the declared address, or a freshly reserved loopback
@@ -242,7 +360,7 @@ func childProcessSpec(spec StartSpec) subprocess.StartSpec {
 	}
 	cfg := execute.Config{
 		Binary: binary, Profile: spec.Profile, CoreRoot: spec.CoreRoot,
-		Directory: spec.Directory, Request: spec.Request, Env: spec.Env,
+		Directory: spec.Directory, Request: spec.Request, Output: spec.Output, Env: spec.Env,
 	}
 	return subprocess.StartSpec{Binary: binary, Args: cfg.BuildArgs(), Env: cfg.Env}
 }

@@ -111,7 +111,7 @@ func bindServiceState(st *agentState) {
 func registerServiceFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		service.RegisterBuiltins(br, service.FactoryDeps{
-			State: st.services, CoreRoot: st.coreRoot,
+			State: st.services, CoreRoot: st.coreRoot, ChildAgentBinary: st.childAgentBinary,
 		})
 	}
 }
@@ -182,7 +182,9 @@ func profileMachineRequestRunner(st *agentState) toolrest.MachineRequestRunner {
 }
 
 // requestLocalState copies host deps into a request-scoped agentState so
-// machine_request factories bind the request registry, conversation, and services.
+// machine_request factories bind the request registry and conversation. The
+// service state stays the host's: a child a request run starts is reaped by the
+// host's shutdown and visible to every other run (srd040 R7.2).
 func requestLocalState(host *agentState, reg *core.Registry) *agentState {
 	local := *host
 	local.registry = reg
@@ -195,6 +197,5 @@ func requestLocalState(host *agentState, reg *core.Registry) *agentState {
 		maxConsecutive = host.parseRetries.MaxConsecutive
 	}
 	local.parseRetries = &toollm.ParseErrorRetryTracker{MaxConsecutive: maxConsecutive}
-	bindServiceState(&local)
 	return &local
 }

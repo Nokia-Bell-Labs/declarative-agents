@@ -203,6 +203,7 @@ acceptance_criteria:
     traces: [R7.1, R7.2, R7.3, R7.4, R7.5]
 
 implementation_status:
+  implemented:
+    - GH-2197 adds start_service and list_services and shares the host service state with machine_request runs (R7); the bound is reserved under the state lock, so concurrent request runs cannot overshoot it.
   planned:
-    - GH-2197 adds start_service and list_services and shares the host service state with machine_request runs (R7).
     - GH-2188 is the first consumer, launching bench experiments as detached critic children behind a request capability.

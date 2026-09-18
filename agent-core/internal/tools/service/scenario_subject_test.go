@@ -64,6 +64,38 @@ func TestUndoStartedChildValidatesAndConsumesReceipt(t *testing.T) {
 	require.Empty(t, state.Running())
 }
 
+// TestStartServiceUndoConsumesReceipt covers srd040 R7.5: undo stops only the
+// child its dispatch receipt names.
+func TestStartServiceUndoConsumesReceipt(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration-grade: spawns a real OS child")
+	}
+	state := NewState()
+	other, err := state.Start(StartSpec{
+		Name: "bystander", Binary: os.Args[0], Profile: "profile",
+		Env: []string{envChildMode + "=hang"},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, other)
+	t.Cleanup(func() { state.Reap() })
+
+	cmd := Builder{
+		ToolName: "launch", Init: InitStartService, State: state,
+		Config: ToolConfig{
+			Profile: "agents/critic/profile.yaml", Service: "launched", Binary: os.Args[0],
+			Env: []string{envChildMode + "=hang"}, Grace: "1s",
+		},
+	}.Build(core.Result{})
+	started := cmd.Execute()
+	require.Equal(t, SignalServiceStarted, started.Signal, started.Output)
+	require.JSONEq(t, `{"service":"launched"}`, started.Receipt)
+	require.Equal(t, []string{"bystander", "launched"}, state.Running())
+
+	undone := cmd.Undo(started)
+	require.Equal(t, SignalServiceStopped, undone.Signal)
+	require.Equal(t, []string{"bystander"}, state.Running())
+}
+
 func TestStopAllServicesWordIsIdempotent(t *testing.T) {
 	state := NewState()
 	for _, name := range []string{"first", "second"} {

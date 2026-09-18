@@ -12,3 +12,5 @@ tools:
   - {name: list_scenario_children, type: builtin, init: list_scenario_children, category: boundary, emits: [ScenarioChildrenListed, CommandError]}
   - {name: stop_all_services, type: builtin, init: stop_all_services, category: boundary, emits: [AllServicesStopped]}
   - {name: report_scenario_session, type: builtin, init: report_scenario_session, category: boundary, emits: [SessionPassed, SessionFailed]}
+  - {name: start_service, type: builtin, init: start_service, category: boundary, emits: [ServiceStarted, ServiceLimitReached, CommandError]}
+  - {name: list_services, type: builtin, init: list_services, category: boundary, emits: [ChildrenListed]}

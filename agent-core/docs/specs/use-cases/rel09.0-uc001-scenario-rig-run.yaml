@@ -61,6 +61,10 @@ success_criteria:
     criterion: Discovery returns the same scenario list for the same tree on every run.
     traces:
       - srd040-service-child-tools AC4
+  - id: S6
+    criterion: A detached start returns while its child runs, the child's exit code is listed afterwards, a declared bound refuses a start, and a child a request run started is reaped with the host.
+    traces:
+      - srd040-service-child-tools AC6
 
 failure_scenarios:
   - id: E1

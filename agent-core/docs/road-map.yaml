@@ -892,7 +892,7 @@ releases:
         status: implemented
       - id: gh-2197
         summary: Generic detached service start and list words, so a request capability can launch a child and return.
-        status: planned
+        status: implemented
       - id: gh-2171
         summary: Cleave the shared request capabilities out of the agents that trap them behind machine overrides; collector and bench end as template instances.
         status: planned
