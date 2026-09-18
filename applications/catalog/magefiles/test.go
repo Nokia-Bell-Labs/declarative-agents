@@ -44,18 +44,27 @@ type conformanceOptions struct {
 }
 
 type catalogTestMode struct {
-	nonConformance bool
-	runConformance bool
-	conformance    conformanceOptions
+	nonConformance    bool
+	conformanceShapes bool
+	runConformance    bool
+	conformance       conformanceOptions
 }
 
-// Test runs non-conformance Go unit tests for the catalog. The repository
-// release owns deterministic conformance as a separate gate, so keeping it out
-// of Test avoids compiling and executing the exact same suite twice.
+// Test runs the catalog's Go unit tests and the declaration-shape half of
+// conformance. The cases that build, boot, or serve a profile skip under
+// -short and stay with the release gate, which owns the whole suite; the ones
+// left read declarations, cost little, and are the ones a routine profile
+// change breaks, so a change that breaks one fails here rather than at the
+// next release attempt (GH-2186).
 func Test() error {
-	return runCatalogTestMode(catalogTestMode{
-		nonConformance: true,
-	})
+	return runCatalogTestMode(unitTestMode())
+}
+
+func unitTestMode() catalogTestMode {
+	return catalogTestMode{
+		nonConformance:    true,
+		conformanceShapes: true,
+	}
 }
 
 // Conformance runs the deterministic per-family profile conformance gate. It
@@ -104,6 +113,11 @@ func (runner catalogTestRunner) runMode(mode catalogTestMode) error {
 			return err
 		}
 	}
+	if mode.conformanceShapes {
+		if err := runner.runConformanceShapes(); err != nil {
+			return err
+		}
+	}
 	if mode.runConformance {
 		return runner.runConformance(mode.conformance)
 	}
@@ -131,6 +145,17 @@ func (runner catalogTestRunner) runNonConformance() error {
 	return runner.runPhase("run non-conformance catalog tests", catalogCommand{
 		name: "go",
 		args: append([]string{"test"}, packages...),
+		dir:  runner.catalogRoot,
+	})
+}
+
+// runConformanceShapes runs the conformance package under -short, which skips
+// every case that needs the agent binary or a Dolt server.
+func (runner catalogTestRunner) runConformanceShapes() error {
+	fmt.Fprintln(runner.stdout, "=== catalog conformance shape tests ===")
+	return runner.runPhase("run catalog conformance shape tests", catalogCommand{
+		name: "go",
+		args: []string{"test", "-short", "./conformance"},
 		dir:  runner.catalogRoot,
 	})
 }

@@ -199,9 +199,15 @@ var (
 
 // agentBinary builds the agent binary from coreRoot once per test process and
 // returns its path. It calls the shared agentbuild recipe (GH-1390), buffering
-// build output so it is only surfaced on failure.
+// build output so it is only surfaced on failure. Every case that runs or serves
+// a profile reaches the binary here, so skipping here under -short is what
+// splits the suite: mage test runs what remains, and those are the cases a
+// routine declaration change can break (GH-2186).
 func agentBinary(t *testing.T, coreRoot string) string {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("builds and runs the agent binary; -short keeps the declaration-shape cases and the release conformance gate runs the rest")
+	}
 	binaryOnce.Do(func() {
 		out := filepath.Join(os.TempDir(), "application-catalog-conformance-agent")
 		var buf bytes.Buffer
