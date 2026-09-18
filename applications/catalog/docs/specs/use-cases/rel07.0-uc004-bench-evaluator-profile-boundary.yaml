@@ -32,13 +32,13 @@ flow:
   - id: F1
     text: The target launches agents/bench/profile.yaml through the built agent-core runtime with only its listen address patched.
   - id: F2
-    text: A fixture operator action POSTs a critic run request through the bench REST route.
+    text: A fixture operator POSTs a critic run request to /api/v1/experiments.
   - id: F3
-    text: The running bench machine validates the action and dispatches the critic profile and suite through self_invoke.
+    text: The experiments capability starts the critic profile and suite as a detached child through start_service and returns its handle while the child runs.
   - id: F4
     text: The controlled child records the profile, request, and output arguments supplied by bench.
   - id: F5
-    text: OpenTelemetry spans prove the shipped REST lifecycle, request validation, and self_invoke path executed before the host returns to serving and shuts down cleanly.
+    text: OpenTelemetry spans prove the shipped serve lifecycle and the start_service and list_services path executed, and the host shuts down cleanly through its control exit route.
 
 touchpoints:
   - id: T1
@@ -67,6 +67,10 @@ success_criteria:
     criterion: The trace records the real REST/machine path and the controlled child records critic dispatch arguments.
     traces:
       - sm-agent-role-taxonomy bench outputs
+  - id: S4
+    criterion: A second launch overlaps the first, the experiments listing reports both runs, and a launch at the declared bound is refused.
+    traces:
+      - srd006-bench AC3
 
 out_of_scope:
   - Browser visual regression testing for the bench UI.
