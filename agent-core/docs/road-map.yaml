@@ -816,7 +816,7 @@ releases:
         summary: The chatbot-mesh serve agents and catalog's applier become instances of the agent-core serve-machine template.
         status: implemented
       - id: gh-2123
-        summary: Agent blueprints in the profile loader, deferred from gh-2115 and carried to release 21.0, where the serving wrappers are the profile group the trigger names.
+        summary: Agent blueprints in the profile loader, deferred from gh-2115. Release 21.0 measured the serving wrappers as the candidate group and did not find one agent with arguments; srd055 stays specified.
         status: deferred
       - id: gh-2119
         summary: Declared library roots, the --library flag, root read-only rules, and rooted staging.
@@ -885,8 +885,8 @@ releases:
         summary: Model labels and budget in the serve template, name every instance's workflow, and convert documentation-curator; observer, collector, and bench become instances when their extra states are cleaved.
         status: implemented
       - id: gh-2123
-        summary: Implement agent blueprints (srd055) with the serving wrappers as the profile group that is one agent with arguments.
-        status: planned
+        summary: Closed as not planned after three measurements across this repository, cohere-demo, and agentic-wiki-mesh. Fragments and the serve template already share what serving and scenario profiles repeated, leaving 8-15 line profiles of self-relative paths a blueprint cannot absorb (srd055 R2.2). srd055 stays specified for a future group that differs only in scalars.
+        status: deferred
       - id: gh-2170
         summary: Give the catalog the fleet observer and let a mesh wrap it, as the applications wrap the catalog's applier.
         status: implemented

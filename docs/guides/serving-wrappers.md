@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Nokia -->
 <!-- SPDX-License-Identifier: BSD-3-Clause -->
 
-# Serving wrappers and blueprints
+# Serving wrappers
 
 A serving wrapper turns a capability into a workload. It contributes exactly four things: a serve machine (launch, await control, stop), the lifecycle tool words, the control and monitor REST servers, and the application routes that bind capabilities. Everything else belongs to the capability profiles it hosts.
 
@@ -23,14 +23,14 @@ The monitor pair and catalog's monitor control fragment are not duplicates of ea
 
 Every wrapper exposes the same eight monitor routes and the control server. The monitor server is now one instantiation of `agent-core/tools/rest/units/monitor-server-fragment.yaml`, and it lives in a `monitor-rest.yaml` that only the agent's own profile lists, because a `rest.yaml` shared with a request profile would make the instantiation an unused import there (srd052 R3.1). The control server stays written out: its name differs per agent, and instantiating it under `as` would rename its endpoints and with them the generated OpenAPI operation ids, which is a worse trade than the ten lines it saves.
 
-## The wrapper as a blueprint
+## Why the wrapper is not a blueprint
 
-The wrappers are one agent with arguments: they differ by agent name, two ports, the four lifecycle word names, and their application routes. That is what an agent blueprint is for. srd055 declares a whole profile once as a fragment with typed parameters, carries its machine template and units with it, and each agent's profile becomes an instance holding a name, the arguments, and only the fields that genuinely differ. Implementation is GH-2123, and the serving wrappers are the profile group it was waiting for.
+The wrappers looked like one agent with arguments: they differ by agent name, two ports, the four lifecycle word names, and their application routes. An agent blueprint (srd055) was specified for that shape. Then the lifecycle declaration fragment (GH-2166), the monitor server fragment (GH-2167), and the serve template (GH-2168) moved every shared part into units, and each wrapper profile shrank to 8 to 15 lines of paths to its own files. A blueprint's relative paths resolve against the blueprint (srd055 R2.2), so an instance would restate those paths, and the blueprint would share nothing the fragments do not. GH-2123 measured this three times across this repository, cohere-demo, and agentic-wiki-mesh and closed as not planned; srd055 stays specified for a group that differs only in scalars.
 
-We do not add a second profile-level templating mechanism beside it. An earlier proposal to generate wrappers from an `application.yaml` promotion entry (GH-2169) was closed for that reason: the deployment entry stays what it is, and the wrapper becomes a blueprint instance.
+We do not add a second profile-level templating mechanism either. An earlier proposal to generate wrappers from an `application.yaml` promotion entry (GH-2169) was closed for that reason: the deployment entry stays what it is.
 
-The shape to converge on already exists in the tree. `applications/agent-architecture/agents/applier/` is a workload in an 11-line `profile.yaml` plus a `rest.yaml`, and a blueprint instance is that with its arguments named.
+The shape to converge on already exists in the tree. `applications/agent-architecture/agents/applier/` is a workload in an 11-line `profile.yaml` plus a `rest.yaml`.
 
 ## Checklist for a new workload
 
-Until blueprints land, a new workload adds: a wrapper `profile.yaml` referencing the capability's files, a serve `machine.yaml` as a template instance, `tools.yaml` listing the lifecycle words, `declarations.yaml` importing the monitor pair and instantiating the lifecycle words, a `rest.yaml` carrying the control and monitor block plus the application routes, and one `roots[]` and one `deployment.entries[]` line in `application.yaml`. After GH-2123, the first five collapse into an instance naming the blueprint and its arguments.
+A new workload adds: a wrapper `profile.yaml` referencing the capability's files, a serve `machine.yaml` as a template instance, `tools.yaml` listing the lifecycle words, `declarations.yaml` importing the monitor pair and instantiating the lifecycle words, a `rest.yaml` carrying the control and monitor block plus the application routes, and one `roots[]` and one `deployment.entries[]` line in `application.yaml`.

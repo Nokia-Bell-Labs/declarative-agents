@@ -44,7 +44,7 @@ The boundary-tool pattern (design-patterns/09-boundary-tool.md) states the invar
 
 The nested-machine boundary kind is the fourth in the pattern's table, but it is not a fourth form here. Its only word, `run_point`, requires `point_machine`, `point_tools`, and `point_tool_declarations` and carries evaluation-session semantics (srd019), so a capability profile may not assume it. srd057 R2.4 records that, and a general nested-machine word is out of scope.
 
-The workload form is a serving wrapper, and where the wrappers are one agent with arguments they become agent blueprint instances (srd055, implementation GH-2123). See [serving-wrappers.md](serving-wrappers.md).
+The workload form is a serving wrapper: a short profile over shared fragments and a serve-template instance. srd055 blueprints stay specified for a group of profiles that differs only in scalars; GH-2123 found none and closed as not planned. See [serving-wrappers.md](serving-wrappers.md).
 
 ## Where to read next
 
