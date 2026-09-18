@@ -17,11 +17,20 @@ rest:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
         ports: [8080]
+    local_bench_control:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [8081]
   servers:
     bench:
       address: 127.0.0.1:8080
       limits_ref: local_bench
-      queue: {name: bench_actions, capacity: 1, overflow: reject, timeout: 30s}
       shutdown: {timeout: 5s, drain_policy: drain_then_stop, stop_listeners: true}
       endpoints:
         health:
@@ -34,8 +43,7 @@ rest:
           path: /api/v1/sessions
           binding: machine_request
           machine_request: &sessions_request
-            profile: profile.yaml
-            machine: request-machine.yaml
+            profile: request-profile.yaml
             timeout: 30s
             response:
               terminal_states:
@@ -166,21 +174,6 @@ rest:
               terminal_states:
                 Listed: {status: 200, content_type: application/json, body: {data: $.services}}
 
-        actions:
-          method: POST
-          path: /api/v1/actions
-          binding: emit_dynamic_signal
-          allowed_signals: [Shutdown]
-          signal_field: body.type
-          signal_mapping:
-            shutdown: Shutdown
-          request:
-            body_schema:
-              type: object
-              properties:
-                type: {type: string}
-              required: [type]
-
         ui:
           method: GET
           path: /{path...}
@@ -191,3 +184,11 @@ rest:
             spa: true
           request:
             path: {path: {type: string}}
+
+    bench_control:
+      address: 127.0.0.1:8081
+      limits_ref: local_bench_control
+      queue: {name: bench_control, capacity: 8, timeout: 30s}
+      shutdown: {timeout: 5s, drain_policy: drain_then_stop}
+      endpoints:
+        control_health: {method: GET, path: /api/lifecycle/health, binding: health}

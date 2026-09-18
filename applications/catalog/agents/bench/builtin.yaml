@@ -1,65 +1,21 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+# The bench serving lifecycle and its monitor pair. The four lifecycle words
+# arrive from the agent-core fragment under bench's own names, and the monitor
+# pair is the agent-core unit every such agent imports.
 unit: catalog-bench-builtin
-tools:
-- name: launch_bench_http
-  type: builtin
-  init: rest_server_launch
-  visibility: internal
-  signature:
-    emits: [ServerLaunched, CommandError]
-  description: Launch the profile-configured bench HTTP application.
-  category: boundary
-  parameters: {type: object, properties: {}, additionalProperties: false}
-  output: {description: REST server launch result, schema: {type: object}}
-  side_effects: [{kind: network_listen, target: bench_http, state: listener_started}]
-  reversibility: {classification: compensatable}
-  undo: {strategy: compensating_action, description: Stop the configured listener.}
-  errors: [{signal: CommandError, condition: Listener launch fails, state_after_failure: No route is exposed.}]
-  config: {rest_ref: bench}
-
-- name: await_bench_action
-  type: builtin
-  init: rest_await_event
-  visibility: internal
-  signature:
-    emits: [Shutdown, AwaitTimedOut, ServerStopped, CommandError]
-  description: Await the operator shutdown action from the bench REST queue.
-  category: boundary
-  parameters: {type: object, properties: {}, additionalProperties: false}
-  output: {description: Bench operator event, schema: {type: object}}
-  side_effects: [{kind: state_mutation, target: bench_action_queue, state: event_consumed}]
-  reversibility: {classification: reversible}
-  undo:
-    strategy: queue_event_restore
-    description: Restore the receipt-recorded event to the front of its source queue.
-    payload: rest_await_event
-    captures: [source, event]
-  errors: [{signal: CommandError, condition: Queue is unavailable, state_after_failure: Listener is unchanged.}]
-  config:
-    sources:
-      - server: bench
-        routes: [actions]
-        signals: [Shutdown]
-    timeout: 24h
-    stopped_behavior: emit_server_stopped
-
-- name: stop_bench_http
-  type: builtin
-  init: rest_server_stop
-  visibility: internal
-  signature:
-    emits: [ServerStopped, CommandError]
-  description: Stop and drain the generic bench REST server.
-  category: boundary
-  parameters: {type: object, properties: {}, additionalProperties: false}
-  output: {description: REST server stop result, schema: {type: object}}
-  side_effects: [{kind: network_listener_shutdown, target: bench_http, state: listener_stopped}]
-  reversibility: {classification: compensatable}
-  undo:
-    strategy: server_shutdown_or_user_action_compensation
-    description: The receipt records shutdown loss; MachineSpec must relaunch the trusted bench definition.
-    payload: boundary_compensation
-    captures: [server, address, drained_events, dropped_events, relaunch_requirement]
-  errors: [{signal: CommandError, condition: Listener cannot stop, state_after_failure: Listener may be partially drained.}]
-  config: {rest_ref: bench}
+imports:
+  - /opt/agent-core/tools/units/monitor-rest-declarations.yaml
+instantiate:
+  - fragment: /opt/agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml
+    args:
+      agent: "bench"
+      launch_requests: launch_bench_http
+      launch_control: launch_bench_control
+      await_control: await_bench_control
+      stop_requests: stop_bench_http
+      requests_rest_ref: bench
+      control_rest_ref: bench_control
+      requests_noun: bench
+      requests_purpose: that serves the UI, evaluation reads, and experiment launches
+tools: []

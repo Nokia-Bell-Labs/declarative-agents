@@ -2,5 +2,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 tools:
   - launch_bench_http
-  - await_bench_action
+  - launch_bench_control
+  - launch_monitor_rest
+  - await_bench_control
+  - stop_monitor_rest
   - stop_bench_http
+  - exit_agent

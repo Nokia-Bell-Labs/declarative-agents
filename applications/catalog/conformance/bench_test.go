@@ -21,13 +21,13 @@ import (
 
 // TestBenchConformance launches the bench profile, waits for its generic REST
 // health route, starts two overlapping critic runs through the experiments
-// capability, lists them, is refused a third at the declared bound, and posts
-// a shutdown action so the host machine drains the profile-owned listener and
-// reaches Done.
+// capability, lists them, is refused a third at the declared bound, and asks
+// the control server for a lifecycle exit so the serve lifecycle stops its
+// listeners and reaches Done.
 //
 // It runs the wrapper an operator ships — agents/bench/profile.yaml — through a
-// temp copy, patching the profile REST listen address in rest.yaml so the UI
-// host does not collide with a real bench server on :8080, and the launch
+// temp copy, patching the request, control, and monitor listen addresses so
+// the test does not collide with a real bench on :8080-:8082, and the launch
 // bound from four to two so the bound is reachable with held children. The
 // profile's /opt/agent-core tool_config_dir remaps onto the checkout via
 // --core-root; nothing else is rebuilt.
@@ -38,12 +38,7 @@ import (
 func TestBenchConformance(t *testing.T) {
 	t.Parallel()
 	RequireCoreRoot(t)
-	addr := FreeAddr(t)
-
-	profilePath := CopyShippedProfile(t, filepath.Join("agents", "bench", "profile.yaml"), map[string]string{
-		"address: 127.0.0.1:8080": `address: ` + addr,
-		"max_running: 4":          "max_running: 2",
-	})
+	profilePath, addr, controlAddr := stageBench(t, map[string]string{"max_running: 4": "max_running: 2"})
 	runDir := t.TempDir()
 	child := filepath.Join(runDir, "critic-child")
 	capture := filepath.Join(runDir, "child-args.txt")
@@ -58,7 +53,9 @@ func TestBenchConformance(t *testing.T) {
 	requireBenchResponse(t, "http://"+addr+"/", http.StatusOK, "<div id=\"root\"></div>")
 	requireBenchResponse(t, "http://"+addr+"/api/v1/sessions", http.StatusOK, `"data":[]`)
 	requireBenchResponse(t, "http://"+addr+"/api/v1/configs", http.StatusOK, `"category"`)
-	requireBenchResponse(t, "http://"+addr+"/api/v1/configs/bench/machine.yaml", http.StatusOK, `"graph"`)
+	// The host machine is a template instance with no states of its own, so the
+	// graph comes from a machine that declares them.
+	requireBenchResponse(t, "http://"+addr+"/api/v1/configs/bench/experiments-machine.yaml", http.StatusOK, `"graph"`)
 	requireBenchProfiles(t, "http://"+addr+"/api/v1/profiles")
 	requireBenchResponse(t, "http://"+addr+"/api/v1/source/agents/bench/machine.yaml", http.StatusOK, `"language":"yaml"`)
 	experiments := "http://" + addr + "/api/v1/experiments"
@@ -71,17 +68,16 @@ func TestBenchConformance(t *testing.T) {
 	}
 	requireBenchRunsRunning(t, experiments+"/runs", first["service"], second["service"])
 	requireBenchLaunch(t, experiments, launch, http.StatusTooManyRequests)
-	if status := server.Post("http://"+addr+"/api/v1/actions", `{"type":"shutdown"}`); status != http.StatusAccepted {
-		t.Fatalf("shutdown action POST status = %d, want %d", status, http.StatusAccepted)
-	}
+	requireBenchExit(t, server, controlAddr)
 	result := server.WaitExit(15 * time.Second)
 
 	// srd006: clean terminal outcome with no error-status spans.
 	result.RequireExit(t, 0)
 	result.RequireNoErrorSpans(t)
 
-	// srd006: generic REST lifecycle words are the visible human-input boundary.
-	result.RequireToolSpans(t, "launch_bench_http", "await_bench_action", "stop_bench_http")
+	// srd006: the serve lifecycle words are the visible human-input boundary.
+	result.RequireToolSpans(t, "launch_bench_http", "launch_bench_control", "launch_monitor_rest",
+		"await_bench_control", "exit_agent", "stop_monitor_rest", "stop_bench_http")
 	result.RequireToolSpans(t, "list_evaluation_sessions", "list_resource", "read_resource")
 	result.RequireToolSpans(t, "launch_evaluator", "list_experiments")
 
@@ -93,22 +89,44 @@ func TestBenchConformance(t *testing.T) {
 func TestBenchProfilesAreCheckoutIndependent(t *testing.T) {
 	t.Parallel()
 	RequireCoreRoot(t)
-	addr := FreeAddr(t)
-	profilePath := CopyShippedProfile(t, filepath.Join("agents", "bench", "profile.yaml"), map[string]string{
-		"address: 127.0.0.1:8080": `address: ` + addr,
-	})
+	profilePath, addr, controlAddr := stageBench(t, nil)
 	workspace := t.TempDir()
 	server := Serve(t, ServeConfig{Profile: profilePath, Directory: workspace})
 	server.WaitHealthy("http://"+addr+"/api/v1/health", 15*time.Second)
 
 	requireBenchProfiles(t, "http://"+addr+"/api/v1/profiles")
 
-	if status := server.Post("http://"+addr+"/api/v1/actions", `{"type":"shutdown"}`); status != http.StatusAccepted {
-		t.Fatalf("shutdown action POST status = %d, want %d", status, http.StatusAccepted)
-	}
+	requireBenchExit(t, server, controlAddr)
 	result := server.WaitExit(15 * time.Second)
 	result.RequireExit(t, 0)
 	requireBenchTerminalState(t, result, "Done")
+}
+
+// stageBench copies the shipped bench profile with its request, control, and
+// monitor listeners moved to free ports, so parallel tests and a real bench on
+// :8080-:8082 do not collide, plus any extra patches the caller names.
+func stageBench(t *testing.T, extra map[string]string) (profilePath, addr, controlAddr string) {
+	t.Helper()
+	addr, controlAddr = FreeAddr(t), FreeAddr(t)
+	patches := map[string]string{
+		"address: 127.0.0.1:8080": "address: " + addr,
+		"address: 127.0.0.1:8081": "address: " + controlAddr,
+		"127.0.0.1:8082":          FreeAddr(t),
+	}
+	for match, replacement := range extra {
+		patches[match] = replacement
+	}
+	profilePath = CopyShippedProfile(t, filepath.Join("agents", "bench", "profile.yaml"), patches)
+	return profilePath, addr, controlAddr
+}
+
+// requireBenchExit asks the bench control server for a lifecycle exit.
+func requireBenchExit(t *testing.T, server *Server, controlAddr string) {
+	t.Helper()
+	endpoint := "http://" + controlAddr + "/api/lifecycle/exit"
+	if status := server.Post(endpoint, `{"reason":"conformance","status":"success"}`); status != http.StatusAccepted {
+		t.Fatalf("POST %s status = %d, want %d", endpoint, status, http.StatusAccepted)
+	}
 }
 
 // requireBenchLaunch posts one experiment launch and returns its decoded body.

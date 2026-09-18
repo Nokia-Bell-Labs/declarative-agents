@@ -1,0 +1,19 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+tools:
+  - analyze_evaluation_session
+  - capture_experiment_path
+  - list_bench_config_paths
+  - list_bench_configs
+  - list_bench_profiles
+  - list_evaluation_points
+  - list_evaluation_sessions
+  - read_bench_config
+  - read_bench_experiment
+  - read_bench_source
+  - read_evaluation_trace
+  - shape_bench_config
+  - shape_bench_configs
+  - shape_bench_experiment
+  - shape_bench_source
+  - wrap_bench_input
