@@ -3,7 +3,8 @@ import { createContext, useContext, useMemo, useRef, useState, type ReactNode } 
 // A turn records the time window of one chat request. Monitor events do not carry
 // the request id (the monitor RunEvent has no request_id field), so the panel
 // correlates a turn to the mesh's events by time window: events observed between a
-// turn's start and end are its events. Request-id-tagged correlation is a follow-on
+// turn's start and end are its events, which the kit FleetPanel highlights when the
+// turn is passed as its highlight window. Request-id-tagged correlation is a follow-on
 // that needs the run events to carry the request id.
 export interface Turn {
   id: number;
@@ -52,12 +53,4 @@ export function useTurns(): TurnStore {
   const ctx = useContext(TurnContext);
   if (!ctx) throw new Error("useTurns must be used within a TurnProvider");
   return ctx;
-}
-
-// eventInSelectedTurn reports whether an event timestamp falls in the selected
-// turn's window (start .. end, or start .. now for an in-flight turn).
-export function eventInWindow(turn: Turn | undefined, at: number): boolean {
-  if (!turn) return false;
-  const end = turn.endedAt ?? Date.now();
-  return at >= turn.startedAt && at <= end + 500;
 }

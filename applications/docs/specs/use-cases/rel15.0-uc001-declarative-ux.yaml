@@ -3,7 +3,7 @@
 id: rel15.0-uc001-declarative-ux
 title: Compose an Application UI from Declared Panels
 release: "15.0"
-status: planned
+status: implemented
 
 summary: |
   A maintainer builds an application UI from ui.yaml, kit panels, and the

@@ -1,6 +1,6 @@
 // Public entry of @declarative-agents/ui-kit (srd004). KIT_VERSION tracks the
 // package version; CONTRACT_VERSION is the presentation contract's major.
-export const KIT_VERSION = "0.1.0";
+export const KIT_VERSION = "1.0.0";
 
 export { CONTRACT_ENDPOINTS, CONTRACT_VERSION, MONITOR_PROXY_PREFIX, type ContractEndpoint } from "./contract";
 export { createKitClient, HTTPError, proxyPath, type KitClient, type KitClientOptions, type ProxyResult } from "./client/client";
@@ -43,3 +43,4 @@ export * from "./panels/Topology";
 export * from "./panels/AgentCard";
 export { kitPanelRegistry, kitPanels } from "./panels/registry";
 export { kitPanelManifestById, kitPanelManifests } from "./panels/manifests";
+export { canonicalPanelPath, navigateTo, PanelLink, ShellRoutingProvider, usePanelPath } from "./shell/subPath";

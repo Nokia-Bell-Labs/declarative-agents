@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router'
+import { useKitClient } from '@declarative-agents/ui-kit'
 import { getTrace, getExperiment, TraceData, ExperimentConfig } from '../api/client'
+import { PanelLink as Link } from '@declarative-agents/ui-kit'
 
-export default function TraceViewer() {
-  const { suite, ts, pointId } = useParams()
+// A point's tool-call timeline and experiment configuration. The bench serves
+// its own per-point span summary (name, tool, signal, tokens) from the
+// evaluation files, not the collector's /query/traces contract (no span ids,
+// parents, services, or attribute pairs), so the kit TracePanel cannot read it.
+export default function TraceViewer({ suite, ts, pointId }: { suite: string; ts: string; pointId: string }) {
+  const client = useKitClient()
 
   const [trace, setTrace] = useState<TraceData | null>(null)
   const [experiment, setExperiment] = useState<ExperimentConfig | null>(null)
@@ -12,15 +17,14 @@ export default function TraceViewer() {
   const [configExpanded, setConfigExpanded] = useState(false)
 
   useEffect(() => {
-    if (!suite || !ts || !pointId) return
     Promise.all([
-      getTrace(suite, ts, pointId),
-      getExperiment(suite, ts, pointId).catch(() => null),
+      getTrace(client, suite, ts, pointId),
+      getExperiment(client, suite, ts, pointId).catch(() => null),
     ])
       .then(([t, e]) => { setTrace(t); setExperiment(e) })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [suite, ts, pointId])
+  }, [client, suite, ts, pointId])
 
   if (loading) return <div className="loading">Loading trace...</div>
   if (error) return <div className="error">{error}</div>

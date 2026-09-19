@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useKitClient } from '@declarative-agents/ui-kit'
+import { usePanelPath as usePath } from '@declarative-agents/ui-kit'
 import {
   listConfigs, launchExperiment, listExperiments,
   type ConfigCategory, type ExperimentRun,
@@ -7,6 +9,8 @@ import {
 const RUN_POLL_MS = 5000
 
 export default function Launcher() {
+  usePath() // folds a nested /sessions/{suite}/launch back to /launch
+  const client = useKitClient()
   const [configs, setConfigs] = useState<ConfigCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -19,10 +23,10 @@ export default function Launcher() {
   const [runsError, setRunsError] = useState<string | null>(null)
 
   const refreshRuns = useCallback(() => {
-    listExperiments()
+    listExperiments(client)
       .then(data => { setRuns(data ?? []); setRunsError(null) })
       .catch(() => setRunsError('Failed to load experiment runs'))
-  }, [])
+  }, [client])
 
   useEffect(() => { refreshRuns() }, [refreshRuns])
 
@@ -35,11 +39,11 @@ export default function Launcher() {
   }, [anyRunning, refreshRuns])
 
   useEffect(() => {
-    listConfigs()
+    listConfigs(client)
       .then(setConfigs)
       .catch(() => setError('Failed to load configs'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [client])
 
   const suiteFiles = configs
     .flatMap(cat => cat.files)
@@ -51,7 +55,7 @@ export default function Launcher() {
     setSubmitting(true)
     setResult(null)
     try {
-      const launched = await launchExperiment({
+      const launched = await launchExperiment(client, {
         suite: suitePath.trim(),
         output_dir: outputDir.trim() || 'eval-results',
       })

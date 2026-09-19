@@ -5,10 +5,12 @@ title: The collector serves its own trace UI at the query origin
 
 summary: |
   An operator opens the collector's query URL in a browser and lands on the
-  trace list, then clicks through to a per-trace waterfall. The UI is served by
+  trace list, then clicks through to a per-trace timeline. The UI is served by
   the collector_query server from the shipped ui/dist tree, same-origin with
   /query/*, so no separate UI workload is deployed. A collector built without
-  its UI answers an explicit error rather than a blank page.
+  its UI answers an explicit error rather than a blank page. The UI is composed
+  on the ui-kit shell from ui/ui.yaml and reads /query/* through the kit client
+  (applications srd004 R5, R6.1).
 
 actor: Operator browsing a deployed collector, or the conformance harness
 
@@ -19,9 +21,9 @@ trigger: |
 
 flow:
   - F1: The client issues GET / against the collector_query origin; the server returns the SPA index document from the configured ui/dist root.
-  - F2: The SPA loads and calls GET /query/traces on the same origin; the server returns the paginated trace summaries.
-  - F3: The operator selects a trace; the client router navigates to /traces/{trace_id}.
-  - F4: The client issues GET /traces/{trace_id}; the static_assets endpoint resolves the deep link to the SPA index (spa true), and the client router renders the waterfall after calling GET /query/traces/{trace_id}.
+  - F2: The SPA loads, the kit shell mounts the traces panel as the default, and the panel calls GET /query/traces on the same origin through the kit client; the server returns the paginated trace summaries.
+  - F3: The operator selects a trace; the traces panel pushes /traces/{trace_id}.
+  - F4: The client issues GET /traces/{trace_id}; the static_assets endpoint resolves the deep link to the SPA index (spa true), and the traces panel reads the trace id from the path, calls GET /query/traces/{trace_id}, and draws it with the kit trace timeline.
   - F5: The /query/* endpoints keep answering their JSON contracts unchanged; the static_assets catch-all never intercepts a query path.
 
 touchpoints:
@@ -35,7 +37,7 @@ success_criteria:
     traces:
       - srd020-collector AC4
   - id: S2
-    criterion: A deep link such as GET /traces/{trace_id} resolves to the SPA index rather than a 404, so the client router can render it.
+    criterion: A deep link such as GET /traces/{trace_id} resolves to the SPA index rather than a 404, so the traces panel can render it.
     traces:
       - srd020-collector AC4
   - id: S3
@@ -46,6 +48,10 @@ success_criteria:
     criterion: The UI root is a literal profile-declared path with no new environment variable; a missing UI root yields an explicit error status, not a silent empty body.
     traces:
       - srd020-collector AC5
+  - id: S5
+    criterion: The UI composes on the ui-kit shell from ui/ui.yaml, registers every local panel it declares, and reads /query/* through the kit client with no raw fetch or EventSource.
+    traces:
+      - srd020-collector R6.1
 
 out_of_scope:
   - The Explore/analytics UI and span-stats query routes (a later release).

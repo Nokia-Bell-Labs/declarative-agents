@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useKitClient } from "@declarative-agents/ui-kit";
 import {
   sendChat,
   type Answer,
@@ -127,6 +128,7 @@ export default function ChatPanel() {
   const [busy, setBusy] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const { startTurn, endTurn } = useTurns();
+  const client = useKitClient();
 
   function scrollToEnd() {
     requestAnimationFrame(() => {
@@ -150,7 +152,7 @@ export default function ChatPanel() {
     const turnId = startTurn(message);
     let traceId: string | undefined;
     try {
-      const answer: Answer = await sendChat({ message, history: priorHistory });
+      const answer: Answer = await sendChat(client, { message, history: priorHistory });
       traceId = answer.traceId;
       setMessages((prev) => [
         ...prev,

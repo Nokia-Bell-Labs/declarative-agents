@@ -149,7 +149,7 @@ components:
   - name: shared UI kit
     path: applications/ui-kit/
     responsibility: |
-      Planned in GH-2156. Own the npm package @declarative-agents/ui-kit: design tokens, the
+      Own the npm package @declarative-agents/ui-kit: design tokens, the
       injectable client, contract fixtures, the generic shell, shared hooks,
       and the observability panels. Applications compose it with their domain
       panels at build time from ui.yaml (srd004).
@@ -493,8 +493,9 @@ implementation_status:
     - implemented: Chatbot Mesh reports five local implementations and two
         wrappers; Coding Agent and Agent Architecture are composition-only with
         four and one wrappers respectively.
-    - planned: Release 15.0 srd004 is specified; the UI kit, generic shell,
-        and embedded observer bundle are tracked by GH-2156 through GH-2160.
+    - implemented: Release 15.0 srd004. The UI kit owns tokens, the client,
+        fixtures, shell, and panels; Chatbot Mesh, bench, collector, and the
+        curator monitor run on it; the observer is an embedded bundle.
 
 related_documents:
   - doc: docs/pattern-language.yaml

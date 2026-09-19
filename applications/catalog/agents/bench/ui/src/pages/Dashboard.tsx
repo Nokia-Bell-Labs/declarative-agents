@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router'
+import { useKitClient } from '@declarative-agents/ui-kit'
 import { listSessions, Session } from '../api/client'
+import { PanelLink as Link } from '@declarative-agents/ui-kit'
 
 export default function Dashboard() {
+  const client = useKitClient()
   const [sessions, setSessions] = useState<Session[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    listSessions()
+    listSessions(client)
       .then(setSessions)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [client])
 
   if (loading) return <div className="loading">Loading sessions...</div>
   if (error) return <div className="error">{error}</div>

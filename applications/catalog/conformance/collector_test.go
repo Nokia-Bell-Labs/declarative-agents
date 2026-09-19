@@ -256,9 +256,9 @@ func TestCollectorSpoolModeConformance(t *testing.T) {
 
 // TestCollectorQueryResponseContract pins the JSON keys the query surface
 // emits per trace summary and per span. The collector trace UI
-// (agents/collector/ui/src/api/client.ts) and the coding-agent smoke verdict
-// decode exactly these keys; a drift on either side must fail here first
-// (GH-1164).
+// (agents/collector/ui/src/api/client.ts, decoding with the ui-kit's
+// toListPage and toModel) and the coding-agent smoke verdict decode exactly
+// these keys; a drift on either side must fail here first (GH-1164).
 func TestCollectorQueryResponseContract(t *testing.T) {
 	t.Parallel()
 	RequireCoreRoot(t)

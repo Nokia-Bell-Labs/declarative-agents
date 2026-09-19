@@ -1,3 +1,5 @@
+import type { KitClient } from "@declarative-agents/ui-kit";
+
 // Client for the chatbot chat endpoint. History is kept client-side (srd002 R4):
 // the browser sends the accumulated turns with each request and the agent keeps
 // no server-side session.
@@ -86,10 +88,12 @@ export interface Answer {
 
 export class ChatError extends Error {}
 
-export async function sendChat(req: ChatRequest, signal?: AbortSignal): Promise<Answer> {
+// sendChat posts one turn through the kit client (applications srd004 R6.1), so
+// the chat call follows the same base URL as every other read the UI makes.
+export async function sendChat(client: KitClient, req: ChatRequest, signal?: AbortSignal): Promise<Answer> {
   let res: Response;
   try {
-    res = await fetch(CHAT_ENDPOINT, {
+    res = await client.request(CHAT_ENDPOINT, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(req),

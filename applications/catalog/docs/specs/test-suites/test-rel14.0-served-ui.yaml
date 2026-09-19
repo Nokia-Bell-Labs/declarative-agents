@@ -34,8 +34,8 @@ test_cases:
     go_test: go test ./conformance -run TestCollectorServesUIDeepLink
     status: implemented
     description: |
-      GET /traces/trace-aaa (a client-router path, not a file) returns the SPA
-      index document with a 200, so the client can render the waterfall route.
+      GET /traces/trace-aaa (a traces-panel path, not a file) returns the SPA
+      index document with a 200, so the client can render the trace timeline.
     inputs:
       request: GET /traces/trace-aaa
     expected:
@@ -95,3 +95,23 @@ test_cases:
       new_ui_env_var: none
     traces:
       - srd020-collector AC5
+
+  - use_case: rel14.0-uc001-served-trace-ui
+    name: Served UIs compose on the kit shell and read through the kit client
+    go_test: go test ./conformance -run TestServedUIsComposeOnKitShell
+    status: implemented
+    description: |
+      For the collector and bench UIs, ui/ui.yaml is version 2, every local
+      panel it declares has an entry in src/panels.ts, src/main.tsx mounts the
+      kit AppShell from virtual:ui-config, and src/ opens no EventSource and
+      issues no raw fetch beyond the bench's one POST launch, which the read-only
+      kit client cannot carry.
+    inputs:
+      ui_dirs: [agents/collector/ui, agents/bench/ui]
+    expected:
+      ui_yaml_version: 2
+      unregistered_panels: none
+      raw_fetch: {collector: 0, bench: 1}
+    traces:
+      - rel14.0-uc001-served-trace-ui S5
+      - srd020-collector R6.1

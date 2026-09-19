@@ -1,9 +1,12 @@
+import type { KitClient } from '@declarative-agents/ui-kit'
+
+// Every bench read goes through the kit client the shell provides (srd004
+// R6.1), so the same pages run same-origin or against another base URL. The
+// bench answers {data} on success and {error} on a domain failure.
 const BASE = '/api/v1'
 
-export async function fetchJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
-  if (!res.ok) throw new Error(`API error: ${res.status}`)
-  const body = await res.json()
+export async function fetchJSON<T>(client: KitClient, path: string): Promise<T> {
+  const body = await client.getJSON<{ data: T; error?: string }>(`${BASE}${path}`)
   if (body.error) throw new Error(body.error)
   return body.data
 }
@@ -127,9 +130,9 @@ export interface SourceDetail {
   size: number
 }
 
-export const listConfigs = () => fetchJSON<ConfigCategory[]>('/configs')
-export const getConfig = (path: string) => fetchJSON<ConfigDetail>(`/configs/${path}`)
-export const getSource = (path: string) => fetchJSON<SourceDetail>(`/source/${path}`)
+export const listConfigs = (client: KitClient) => fetchJSON<ConfigCategory[]>(client, '/configs')
+export const getConfig = (client: KitClient, path: string) => fetchJSON<ConfigDetail>(client, `/configs/${path}`)
+export const getSource = (client: KitClient, path: string) => fetchJSON<SourceDetail>(client, `/source/${path}`)
 
 export interface ExperimentLaunch {
   suite: string
@@ -153,8 +156,9 @@ export interface ExperimentRun {
   finished_at?: string
 }
 
-export async function launchExperiment(launch: ExperimentLaunch): Promise<LaunchedExperiment> {
-  const res = await fetch(`${BASE}/experiments`, {
+// The launch is a POST through the kit client's request init.
+export async function launchExperiment(client: KitClient, launch: ExperimentLaunch): Promise<LaunchedExperiment> {
+  const res = await client.request(`${BASE}/experiments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(launch),
@@ -167,10 +171,14 @@ export async function launchExperiment(launch: ExperimentLaunch): Promise<Launch
   return body as LaunchedExperiment
 }
 
-export const listExperiments = () => fetchJSON<ExperimentRun[]>('/experiments/runs')
+export const listExperiments = (client: KitClient) => fetchJSON<ExperimentRun[]>(client, '/experiments/runs')
 
-export const listSessions = () => fetchJSON<Session[]>('/sessions')
-export const getSession = (suite: string, ts: string) => fetchJSON<SessionDetail>(`/sessions/${suite}/${ts}`)
-export const listPoints = (suite: string, ts: string) => fetchJSON<Point[]>(`/sessions/${suite}/${ts}/points`)
-export const getTrace = (suite: string, ts: string, pointId: string) => fetchJSON<TraceData>(`/sessions/${suite}/${ts}/points/${pointId}`)
-export const getExperiment = (suite: string, ts: string, pointId: string) => fetchJSON<ExperimentConfig>(`/sessions/${suite}/${ts}/points/${pointId}/experiment`)
+export const listSessions = (client: KitClient) => fetchJSON<Session[]>(client, '/sessions')
+export const getSession = (client: KitClient, suite: string, ts: string) =>
+  fetchJSON<SessionDetail>(client, `/sessions/${suite}/${ts}`)
+export const listPoints = (client: KitClient, suite: string, ts: string) =>
+  fetchJSON<Point[]>(client, `/sessions/${suite}/${ts}/points`)
+export const getTrace = (client: KitClient, suite: string, ts: string, pointId: string) =>
+  fetchJSON<TraceData>(client, `/sessions/${suite}/${ts}/points/${pointId}`)
+export const getExperiment = (client: KitClient, suite: string, ts: string, pointId: string) =>
+  fetchJSON<ExperimentConfig>(client, `/sessions/${suite}/${ts}/points/${pointId}/experiment`)

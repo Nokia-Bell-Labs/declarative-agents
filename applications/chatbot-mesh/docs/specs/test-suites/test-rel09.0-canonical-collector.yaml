@@ -68,7 +68,7 @@ test_cases:
   - use_case: rel09.0-uc001-canonical-collector
     name: UX waterfall transforms collector query format
     status: implemented
-    description: The traceApi module converts collector query response format (ISO timestamps, span_id, parent_span_id) to the internal TraceModel (microsecond timestamps, hierarchical spans).
+    description: The ui-kit traceApi module the chatbot UI imports converts collector query response format (ISO timestamps, span_id, parent_span_id) to the internal TraceModel (microsecond timestamps, hierarchical spans).
     expected:
       iso_to_microsecond_conversion: true
       flat_span_structure_parsed: true

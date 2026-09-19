@@ -13,3 +13,5 @@
 .dak-fleet .event-row { display: flex; gap: 8px; font-size: 12px; padding: 3px 6px; border-radius: 5px; border-left: 3px solid transparent; }
 .dak-fleet .event-row-hl { background: color-mix(in srgb, var(--accent) 10%, transparent); border-left-color: var(--accent); }
 .dak-fleet .event-kind { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); min-width: 96px; flex-shrink: 0; }
+.dak-fleet .event-body { font-family: var(--font-mono); color: var(--text-primary); }
+.dak-fleet .event-signal { color: var(--accent); }

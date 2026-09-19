@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useKitClient, type KitClient } from "@declarative-agents/ui-kit";
 
 // The provisioning surface the panel drives (srd003 R4). It is same-origin at
 // /provisioning, routed by the chatbot ingress to the provisioning-workflow-orchestrator's intent
@@ -117,14 +118,16 @@ async function readError(res: Response): Promise<string> {
   return `${res.status} ${res.statusText}`;
 }
 
-export async function fetchMeshState(token: string): Promise<MeshView> {
-  const res = await fetch(`${PROVISIONING_BASE}/state`, { headers: authHeaders(token) });
+// Every call goes through the kit client (applications srd004 R6.1); the
+// request init carries the bearer token and, for apply, the JSON body.
+export async function fetchMeshState(client: KitClient, token: string): Promise<MeshView> {
+  const res = await client.request(`${PROVISIONING_BASE}/state`, { headers: authHeaders(token) });
   if (!res.ok) throw new Error(await readError(res));
   return toMeshView((await res.json()) as MeshStateResponse);
 }
 
-export async function applyMesh(token: string, view: MeshView): Promise<void> {
-  const res = await fetch(`${PROVISIONING_BASE}/apply`, {
+export async function applyMesh(client: KitClient, token: string, view: MeshView): Promise<void> {
+  const res = await client.request(`${PROVISIONING_BASE}/apply`, {
     method: "POST",
     headers: { ...authHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify(view),
@@ -132,8 +135,8 @@ export async function applyMesh(token: string, view: MeshView): Promise<void> {
   if (!res.ok) throw new Error(await readError(res));
 }
 
-export async function fetchRollout(token: string): Promise<RolloutStatus> {
-  const res = await fetch(`${PROVISIONING_BASE}/rollout`, { headers: authHeaders(token) });
+export async function fetchRollout(client: KitClient, token: string): Promise<RolloutStatus> {
+  const res = await client.request(`${PROVISIONING_BASE}/rollout`, { headers: authHeaders(token) });
   if (!res.ok) throw new Error(await readError(res));
   return (await res.json()) as RolloutStatus;
 }
@@ -184,6 +187,7 @@ const ROLLOUT_POLL_MS = 3000;
 // useRollout polls the deployment API for rollout progress while active, so the
 // panel shows the chatbot coming back after an apply.
 export function useRollout(token: string, active: boolean): RolloutStatus | undefined {
+  const client = useKitClient();
   const [status, setStatus] = useState<RolloutStatus>();
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => {
@@ -191,7 +195,7 @@ export function useRollout(token: string, active: boolean): RolloutStatus | unde
     let cancelled = false;
     const tick = async () => {
       try {
-        const s = await fetchRollout(token);
+        const s = await fetchRollout(client, token);
         if (!cancelled) setStatus(s);
       } catch {
         /* transient during a rollout; keep polling */
@@ -203,7 +207,7 @@ export function useRollout(token: string, active: boolean): RolloutStatus | unde
       cancelled = true;
       window.clearInterval(timer.current);
     };
-  }, [token, active]);
+  }, [client, token, active]);
   return status;
 }
 
@@ -214,6 +218,7 @@ export function useMeshState(token: string): {
   loading: boolean;
   reload: () => void;
 } {
+  const client = useKitClient();
   const [state, setState] = useState<MeshView>();
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
@@ -221,11 +226,11 @@ export function useMeshState(token: string): {
     if (!token) return;
     setLoading(true);
     setError(undefined);
-    fetchMeshState(token)
+    fetchMeshState(client, token)
       .then((s) => setState(s))
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [client, token]);
   useEffect(() => {
     reload();
   }, [reload]);

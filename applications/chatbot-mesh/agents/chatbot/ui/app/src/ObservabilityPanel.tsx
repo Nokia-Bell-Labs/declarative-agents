@@ -1,56 +1,11 @@
-import { MONITORED_AGENTS, useAgentMonitor, type AgentMonitor, type MonitoredAgent } from "./monitorApi";
-import TracePanel from "./TracePanel";
-import { eventInWindow, useTurns } from "./turns";
+import { FleetPanel, TracePanel, type PanelProps } from "@declarative-agents/ui-kit";
+import { useTurns } from "./turns";
 
-function statusDotClass(status: AgentMonitor["status"]): string {
-  if (status === "connected") return "dot dot-ok";
-  if (status === "error") return "dot dot-err";
-  return "dot dot-idle";
-}
-
-function AgentSubPanel({ agent }: { agent: MonitoredAgent }) {
-  const monitor = useAgentMonitor(agent.name);
-  const { turns, selectedId } = useTurns();
-  const selectedTurn = turns.find((t) => t.id === selectedId);
-
-  // The agent list is a superset of the deployment; an agent the release does
-  // not deploy answers 404 through the proxy and gets no panel at all.
-  if (monitor.status === "absent") return null;
-
-  return (
-    <div className="agent-panel">
-      <div className="agent-head">
-        <span className={statusDotClass(monitor.status)} />
-        <span className="agent-name">{agent.label}</span>
-        <span className="agent-state">{monitor.run?.state ?? "—"}</span>
-      </div>
-      <div className="agent-meta">
-        <span>status: {monitor.run?.status ?? "—"}</span>
-        <span>iter: {monitor.run?.iteration ?? "—"}</span>
-        <span>metrics: {monitor.metricCount}</span>
-      </div>
-      <div className="agent-events">
-        {monitor.runEvents.length === 0 ? (
-          <div className="agent-empty">
-            {monitor.status === "error" ? monitor.lastError ?? "unreachable" : "waiting for state transitions…"}
-          </div>
-        ) : (
-          monitor.runEvents.map((e) => {
-            const highlit = eventInWindow(selectedTurn, e.receivedAt);
-            return (
-              <div className={`event-row${highlit ? " event-row-hl" : ""}`} key={e.id}>
-                <span className="event-kind">{e.commandName ?? "—"}</span>
-                <span className="event-body">
-                  {(e.fromState ?? "?")} → {(e.toState ?? "?")} <span className="event-signal">{e.signal}</span>
-                </span>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
+// The observability panel composes two kit panels around the application's own
+// turn store (applications srd004 R4): the kit FleetPanel shows one live
+// sub-panel per ui.yaml monitored agent with the selected turn's window
+// highlighted, and the kit TracePanel reads that turn's trace from the declared
+// trace backend. Turns are chat state, so the selector stays here.
 
 function TurnSelector() {
   const { turns, selectedId, select } = useTurns();
@@ -78,28 +33,25 @@ function TurnSelector() {
   );
 }
 
-function TraceSection() {
+export default function ObservabilityPanel({ monitoredAgents, traceBackend }: PanelProps) {
   const { turns, selectedId } = useTurns();
   const selectedTurn = turns.find((t) => t.id === selectedId);
-  if (!selectedTurn) return null;
-  return (
-    <div className="trace-section">
-      <div className="trace-head">Cross-agent trace — turn #{selectedTurn.id + 1}</div>
-      <TracePanel traceId={selectedTurn.traceId} />
-    </div>
-  );
-}
-
-export default function ObservabilityPanel() {
   return (
     <div className="observability">
       <TurnSelector />
-      <TraceSection />
-      <div className="agent-grid">
-        {MONITORED_AGENTS.map((agent) => (
-          <AgentSubPanel key={agent.name} agent={agent} />
-        ))}
-      </div>
+      {selectedTurn && (
+        <div className="dak-trace">
+          <div className="trace-section">
+            <div className="trace-head">Cross-agent trace — turn #{selectedTurn.id + 1}</div>
+            <TracePanel
+              traceId={selectedTurn.traceId}
+              backend={traceBackend}
+              unavailableHint="The per-agent monitor panels below stay live; enable the collector agent (Helm values) to see the cross-agent waterfall."
+            />
+          </div>
+        </div>
+      )}
+      <FleetPanel agents={monitoredAgents} highlight={selectedTurn} />
     </div>
   );
 }

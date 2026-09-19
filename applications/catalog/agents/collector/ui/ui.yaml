@@ -1,0 +1,43 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The collector trace UI composed on the ui-kit shell (srd004 R5, R7). The
+# panels are this application's own: the kit trace panels read the trace
+# backend through /monitor-proxy/{agent}/, and the collector serves its UI
+# same-origin with /query/* (srd020 R7), so its trace pages read /query/traces
+# through the kit client directly. The actions bind each page to the query
+# machine request it drives.
+version: 2
+id: collector-trace-ui
+title: Collector Trace Query UI
+source_owner: agents/collector
+sidebar:
+  title: Collector
+panels:
+  - id: traces
+    package: local
+    route: /traces
+    label: Traces
+  - id: explore
+    package: local
+    route: /explore
+    label: Explore
+trace_backend:
+  name: collector
+  query_path: /query/traces/{trace_id}
+actions:
+  list_traces:
+    ui_action: list_traces
+    request_machine_action: query_list_traces
+    route: traces
+  get_trace:
+    ui_action: get_trace
+    request_machine_action: query_get_trace
+    route: traces
+  span_stats:
+    ui_action: span_stats
+    request_machine_action: query_span_stats
+    route: explore
+  span_breakdown:
+    ui_action: span_breakdown
+    request_machine_action: query_span_breakdown
+    route: explore

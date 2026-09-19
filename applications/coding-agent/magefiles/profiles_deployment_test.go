@@ -19,7 +19,7 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 	root, manifest, cleanup := packageCanonicalDeployment(t)
 	defer cleanup()
 	want := map[string][]string{
-		"collector": {
+		"collector": sortedWith([]string{
 			"agents/collector/declarations.yaml",
 			"agents/collector/machine.yaml",
 			"agents/collector/profile.yaml",
@@ -27,11 +27,9 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 			"agents/collector/query-machine.yaml",
 			"agents/collector/rest.yaml",
 			"agents/collector/tools.yaml",
-			"agents/collector/ui/dist/assets/index-5A82fh-G.js",
-			"agents/collector/ui/dist/assets/index-lOxaVWl8.css",
 			"agents/collector/ui/dist/index.html",
 			"agents/units/types-collector.yaml",
-		},
+		}, collectorUIAssets(t)...),
 		"applier": {
 			"applications/catalog/applier/apply-declarations.yaml",
 			"applications/catalog/applier/apply-machine.yaml",
@@ -386,4 +384,25 @@ func readYAMLFile(t *testing.T, filename string, value any) {
 	if err := yaml.Unmarshal(data, value); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// collectorUIAssets names the hashed files of the catalog collector's committed
+// UI dist, so the closure check follows a rebuild instead of pinning hashes.
+func collectorUIAssets(t *testing.T) []string {
+	t.Helper()
+	assets, err := filepath.Glob(filepath.Join("..", "..", "catalog", "agents", "collector", "ui", "dist", "assets", "*"))
+	if err != nil || len(assets) == 0 {
+		t.Fatalf("no committed collector UI assets: %v", err)
+	}
+	out := make([]string, 0, len(assets))
+	for _, asset := range assets {
+		out = append(out, "agents/collector/ui/dist/assets/"+filepath.Base(asset))
+	}
+	return out
+}
+
+func sortedWith(base []string, extra ...string) []string {
+	out := append(append([]string{}, base...), extra...)
+	sort.Strings(out)
+	return out
 }

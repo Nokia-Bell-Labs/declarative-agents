@@ -5,6 +5,7 @@ import type { KitPanel, PanelProps } from "../panels/manifest";
 import { kitPanelRegistry } from "../panels/registry";
 import { PanelFrame } from "./PanelFrame";
 import { Sidebar } from "./Sidebar";
+import { ShellRoutingProvider } from "./subPath";
 import { routingFromConfig, shellTitle, KIT_PACKAGE, type UIConfig, type UIPanel } from "./uiConfig";
 import { useAgentPresence } from "./useAgentPresence";
 import { usePanelLocation } from "./usePanelLocation";
@@ -48,31 +49,33 @@ function ShellBody({ config, registry }: { config: UIConfig; registry: PanelRegi
   const active = location.active;
   const Mount = mountFor(active, panels.get(active), registry);
   return (
-    <PanelFrame
-      sidebar={
-        <Sidebar
-          title={shellTitle(config)}
-          routes={sidebarRoutes}
-          groups={routing.groups}
-          active={active}
-          href={location.href}
-          onNavigate={location.navigate}
-        />
-      }
-    >
-      {Mount ? (
-        <Mount
-          key={active}
-          config={panels.get(active)?.config}
-          monitoredAgents={config.monitored_agents ?? []}
-          traceBackend={config.trace_backend?.name}
-        />
-      ) : (
-        <div className="dak-shell-placeholder" role="status" data-testid="panel-placeholder">
-          No component is registered for panel {JSON.stringify(active)}.
-        </div>
-      )}
-    </PanelFrame>
+    <ShellRoutingProvider routing={routing}>
+      <PanelFrame
+        sidebar={
+          <Sidebar
+            title={shellTitle(config)}
+            routes={sidebarRoutes}
+            groups={routing.groups}
+            active={active}
+            href={location.href}
+            onNavigate={location.navigate}
+          />
+        }
+      >
+        {Mount ? (
+          <Mount
+            key={active}
+            config={panels.get(active)?.config}
+            monitoredAgents={config.monitored_agents ?? []}
+            traceBackend={config.trace_backend?.name}
+          />
+        ) : (
+          <div className="dak-shell-placeholder" role="status" data-testid="panel-placeholder">
+            No component is registered for panel {JSON.stringify(active)}.
+          </div>
+        )}
+      </PanelFrame>
+    </ShellRoutingProvider>
   );
 }
 

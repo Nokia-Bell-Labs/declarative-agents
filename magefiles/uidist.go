@@ -25,9 +25,8 @@ var uiSearchRoots = []string{
 }
 
 const (
-	uiAuditLevel          = "high"
-	canonicalUITokensPath = "applications/ui-kit/src/tokens.css"
-	uiConcurrency         = 3
+	uiAuditLevel  = "high"
+	uiConcurrency = 3
 )
 
 // uiDistReleaseEnv is set by the release gate so UIDist treats a missing npm as
@@ -241,9 +240,8 @@ func rebuildAndDiffUIAgainst(appDir, trackedDist string, run uiRunner) error {
 }
 
 // stageUIBuild preserves a package's repository-relative location and stages
-// the UI kit beside it. The kit's file: dependency and its canonical tokens
-// therefore resolve identically in a clean gate build and in the source
-// checkout, while packaged closures consume the compiled CSS from tracked dist.
+// the UI kit beside it, so the UI's file: dependency on the kit resolves
+// identically in a clean gate build and in the source checkout.
 func stageUIBuild(appDir, tmp string) (string, error) {
 	absApp, err := filepath.Abs(appDir)
 	if err != nil {
@@ -267,8 +265,8 @@ func stageUIBuild(appDir, tmp string) (string, error) {
 			return "", fmt.Errorf("stage %s: %w", uiYAML, err)
 		}
 	}
-	// UIs resolve the kit, and through it the canonical tokens, by a file: path
-	// relative to the repository, so the kit source is staged at the same place.
+	// UIs resolve the kit by a file: path relative to the repository, so the kit
+	// source is staged at the same place.
 	if err := copyDirExcluding(
 		filepath.Join(repoRoot, filepath.FromSlash(uiKitDir)),
 		filepath.Join(buildRepo, filepath.FromSlash(uiKitDir)),
@@ -293,9 +291,12 @@ func buildStagedUIKit(build, tmp string, run uiRunner) error {
 	return uiKitBuild(kit, run)
 }
 
+// uiRepositoryLayout finds the repository holding absApp: the nearest ancestor
+// with the UI kit package at uiKitDir. It returns that root and absApp relative
+// to it, or ok=false for a UI outside any such repository.
 func uiRepositoryLayout(absApp string) (root, rel string, ok bool) {
 	for candidate := absApp; ; candidate = filepath.Dir(candidate) {
-		if info, err := os.Stat(filepath.Join(candidate, filepath.FromSlash(canonicalUITokensPath))); err == nil && !info.IsDir() {
+		if fileExists(filepath.Join(candidate, filepath.FromSlash(uiKitDir), "package.json")) {
 			rel, err := filepath.Rel(candidate, absApp)
 			if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 				return candidate, rel, true

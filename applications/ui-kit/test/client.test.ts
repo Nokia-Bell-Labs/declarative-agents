@@ -48,4 +48,20 @@ describe("kit client", () => {
     client.openEventStream(proxyPath("chatbot", "monitor/events/stream"));
     expect(opened).toEqual(["http://remote:9/monitor-proxy/chatbot/monitor/events/stream"]);
   });
+
+  it("passes method, headers, and body through for domain calls", async () => {
+    const seen: Array<{ url: string; init?: RequestInit }> = [];
+    const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      seen.push({ url: String(input), init });
+      return Response.json({ ok: true });
+    }) as typeof globalThis.fetch;
+    const client = createKitClient({ baseUrl: "http://remote:9", fetch });
+    const init = { method: "POST", headers: { Authorization: "Bearer t" }, body: "{}" };
+    await client.getJSON("/api/v1/chat", init);
+    await client.request("/provisioning/api/mesh");
+    expect(seen).toEqual([
+      { url: "http://remote:9/api/v1/chat", init },
+      { url: "http://remote:9/provisioning/api/mesh", init: undefined },
+    ]);
+  });
 });
