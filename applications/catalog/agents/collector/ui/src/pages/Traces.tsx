@@ -1,10 +1,17 @@
-import { usePanelPath as usePath } from '@declarative-agents/ui-kit'
-import TraceDetail from './TraceDetail'
-import TraceList from './TraceList'
+import { navigateTo, TraceView, usePanelPath, type PanelProps } from '@declarative-agents/ui-kit'
 
-// The traces panel owns /traces and its deep link /traces/{trace_id}; the
-// shell also mounts it at / as the default panel.
-export default function Traces() {
-  const match = /^\/traces\/([^/]+)$/.exec(usePath())
-  return match ? <TraceDetail traceId={decodeURIComponent(match[1])} /> : <TraceList />
+// The traces panel is the kit TraceView driven by the URL: /traces lists the
+// collector's traces and /traces/{trace_id} opens one, so a trace is a deep
+// link (srd020 R7.2). The shell mounts it at / too, as the default panel.
+// ui.yaml's trace_backend.query_path makes the backend the origin root ("/"):
+// the collector serves this UI beside its own /query/* (srd004 R2.4).
+export default function Traces({ traceBackend }: PanelProps) {
+  const match = /^\/traces\/([^/]+)$/.exec(usePanelPath())
+  return (
+    <TraceView
+      backend={traceBackend ?? '/'}
+      openTraceId={match ? decodeURIComponent(match[1]) : undefined}
+      onOpen={traceId => navigateTo(traceId ? `/traces/${encodeURIComponent(traceId)}` : '/traces')}
+    />
+  )
 }

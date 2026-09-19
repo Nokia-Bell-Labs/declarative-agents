@@ -79,7 +79,12 @@ type Agent struct {
 	Label string `yaml:"label" json:"label"`
 }
 
-// TraceBackend names the agent whose proxy serves the trace queries.
+// TraceQuerySuffix ends every TraceBackend.QueryPath; the prefix before it is
+// the same-origin path the kit reads /query/traces under (srd004 R2.4, R7.1).
+const TraceQuerySuffix = "/query/traces/{trace_id}"
+
+// TraceBackend names the agent whose proxy serves the trace queries. When
+// QueryPath is set, the kit reads the traces same-origin under its prefix.
 type TraceBackend struct {
 	Name      string `yaml:"name" json:"name"`
 	QueryPath string `yaml:"query_path,omitempty" json:"query_path,omitempty"`
@@ -176,8 +181,13 @@ func (d Document) Validate() error {
 		}
 		agents[agent.Name] = true
 	}
-	if d.TraceBackend != nil && strings.TrimSpace(d.TraceBackend.Name) == "" {
-		add("trace_backend has no name")
+	if d.TraceBackend != nil {
+		if strings.TrimSpace(d.TraceBackend.Name) == "" {
+			add("trace_backend has no name")
+		}
+		if qp := d.TraceBackend.QueryPath; qp != "" && !(strings.HasPrefix(qp, "/") && strings.HasSuffix(qp, TraceQuerySuffix)) {
+			add("trace_backend query_path %q must be an absolute path ending in %s", qp, TraceQuerySuffix)
+		}
 	}
 
 	if len(problems) == 0 {

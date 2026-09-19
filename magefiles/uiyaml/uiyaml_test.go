@@ -90,6 +90,8 @@ func TestValidateRejections(t *testing.T) {
 		{"kit panel without export", "    export: fleet\n", "", "must name the kit panel in export"},
 		{"monitored agent listed twice", "  - name: rag0\n", "  - name: chatbot\n", `monitored agent "chatbot" is listed twice`},
 		{"trace backend without a name", "  name: collector\n", "  name: \"\"\n", "trace_backend has no name"},
+		{"trace query path without the query suffix", "  query_path: /monitor-proxy/collector/query/traces/{trace_id}\n", "  query_path: /monitor-proxy/collector/traces\n", "must be an absolute path ending in /query/traces/{trace_id}"},
+		{"relative trace query path", "  query_path: /monitor-proxy/collector/query/traces/{trace_id}\n", "  query_path: query/traces/{trace_id}\n", `query_path "query/traces/{trace_id}" must be an absolute path`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -147,10 +149,11 @@ func TestJSONSchemaAgreesWithTheGoType(t *testing.T) {
 	}
 	base := string(read(t, "testdata/v2.yaml"))
 	for name, doc := range map[string]string{
-		"panels without version 2": strings.Replace(base, "version: 2\n", "", 1),
-		"nested route":             strings.Replace(base, "    route: /chat\n", "    route: /a/chat\n", 1),
-		"unknown branding key":     strings.Replace(base, "  accent: \"#005aff\"\n", "  accent: \"#005aff\"\n  font: x\n", 1),
-		"panel without package":    strings.Replace(base, "    package: local\n", "", 1),
+		"panels without version 2":                  strings.Replace(base, "version: 2\n", "", 1),
+		"nested route":                              strings.Replace(base, "    route: /chat\n", "    route: /a/chat\n", 1),
+		"unknown branding key":                      strings.Replace(base, "  accent: \"#005aff\"\n", "  accent: \"#005aff\"\n  font: x\n", 1),
+		"panel without package":                     strings.Replace(base, "    package: local\n", "", 1),
+		"trace query path without the query suffix": strings.Replace(base, "/collector/query/traces/{trace_id}\n", "/collector/traces\n", 1),
 	} {
 		if err := schema.Validate(asJSON([]byte(doc))); err == nil {
 			t.Errorf("schema accepted %s", name)

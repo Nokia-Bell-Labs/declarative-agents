@@ -143,3 +143,10 @@
 .dak-trace .span-message pre { margin: 4px 0 8px; padding: 8px; background: var(--bg-secondary); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow-y: auto; }
 .dak-trace .span-attr-long summary { cursor: pointer; color: var(--text-secondary); font-family: var(--font-mono); padding: 2px 0; }
 .dak-trace .span-attr-long pre { margin: 4px 0 8px; padding: 8px; background: var(--bg-secondary); border-radius: 6px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow-y: auto; }
+
+/* Error spans: OTel status code 2 (GH-2282). */
+.dak-trace .span-error-mark { flex: none; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--danger); border: 1px solid var(--danger); border-radius: 3px; padding: 0 4px; margin-left: 4px; }
+.dak-trace .timeline-seq-row.span-error, .dak-trace .trace-row.span-error .trace-label { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.dak-trace .timeline-bar.span-error, .dak-trace .trace-bar.span-error { outline: 2px solid var(--danger); outline-offset: 1px; }
+.dak-trace .span-detail.span-error { border-top-color: var(--danger); }
+.dak-trace .span-detail-status { font-size: 0.72rem; color: var(--danger); margin-bottom: 6px; overflow-wrap: anywhere; }

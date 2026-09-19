@@ -121,12 +121,20 @@ requirements:
           embedded observer wrapper declares /monitor-proxy.
       - id: R2.4
         text: |
-          Trace endpoints shall be reached through the proxy of the agent that
-          ui.yaml names as the trace backend, not through a constant compiled
-          into a panel.
+          Trace endpoints shall be reached through the trace backend ui.yaml
+          declares, not through a constant compiled into a panel. The backend
+          is an agent name, reached through that agent's proxy, or a
+          same-origin path prefix starting with "/" under which /query/traces
+          lives; "/" is the origin root, and "/monitor-proxy/collector" reads
+          the same URLs as the name collector. The shell derives the backend
+          from trace_backend.query_path when it is set, taking the prefix
+          before /query/traces/{trace_id} ("/" when the prefix is empty), and
+          from trace_backend.name otherwise. A UI served beside the query
+          surface, such as the collector's, uses the same-origin form.
         evidence: |
-          The kit trace client takes the backend agent name from shell
-          configuration.
+          The kit trace client takes the backend from shell configuration;
+          kit tests cover both forms and the shell's derivation, and the
+          collector UI reads its traces at the origin root.
 
   R3:
     title: Compatibility policy
@@ -247,6 +255,9 @@ requirements:
           application registry entry; any other package requires a registry
           entry keyed by the panel id. routes remains valid for routes that
           are not panels. A file without version is version 1 and stays valid.
+          trace_backend.query_path, when set, shall be an absolute path ending
+          in /query/traces/{trace_id}; the prefix before that suffix is the
+          same-origin trace backend of R2.4.
         evidence: |
           magefiles/uiyaml accepts every current ui.yaml unchanged and a
           version 2 fixture with every new field, and the kit JSON Schema

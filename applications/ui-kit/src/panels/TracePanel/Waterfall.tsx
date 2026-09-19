@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { TraceModel } from "../../api/traceApi";
 import { useTraceReader } from "./options";
+import { errorClass, SpanErrorMark } from "./SpanRows";
 import { filterTree, groupRootsByService, serviceColor, spanTree, type SpanNode } from "./traceLayout";
 
 // The trace as a collapsible span tree on one shared timeline (GH-423): rows in
@@ -74,7 +75,7 @@ export function Waterfall({ trace }: { trace: TraceModel }) {
         const folded = collapsed.has(span.id);
         const description = reader.description(span);
         return (
-          <div className="trace-row" key={span.id} data-testid="trace-row">
+          <div className={`trace-row${errorClass(span)}`} key={span.id} data-testid="trace-row">
             <div className="trace-label" style={{ paddingLeft: `${depth * 14}px` }}>
               {node.children.length > 0 ? (
                 <button type="button" className="trace-toggle" aria-expanded={!folded} onClick={() => toggle(span.id)}>
@@ -98,6 +99,7 @@ export function Waterfall({ trace }: { trace: TraceModel }) {
               ) : (
                 span.name
               )}
+              <SpanErrorMark span={span} />
               {folded && node.descendants > 0 && <span className="trace-folded-count">+{node.descendants}</span>}
               {description && (
                 <span className="trace-desc" title={description}>
@@ -108,7 +110,7 @@ export function Waterfall({ trace }: { trace: TraceModel }) {
             </div>
             <div className="trace-track">
               <div
-                className="trace-bar"
+                className={`trace-bar${errorClass(span)}`}
                 style={{ left: `${left}%`, width: `${width}%`, background: serviceColor(trace.services, span.service) }}
                 title={`${span.name} — ${(span.durationUs / 1000).toFixed(2)} ms`}
               />

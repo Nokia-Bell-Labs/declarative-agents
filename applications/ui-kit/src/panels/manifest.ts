@@ -18,6 +18,8 @@ export interface PanelManifest {
 export interface PanelProps<Config = Record<string, unknown>> {
   config?: Config;
   monitoredAgents: MonitoredAgent[];
+  // An agent name, or a same-origin path prefix starting with "/" (srd004
+  // R2.4; see traceQueryPath).
   traceBackend?: string;
 }
 

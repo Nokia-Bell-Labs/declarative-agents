@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { PanelFrame } from "../src/shell/PanelFrame";
 import { Sidebar } from "../src/shell/Sidebar";
@@ -30,6 +31,7 @@ describe("Sidebar and PanelFrame", () => {
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["/ui/chat", "/ui/observability"]);
     expect(screen.getByText("Traces").closest("a")?.className).toBe("nav-item nav-item-active");
     expect(screen.getByText("panel body").closest("main")?.className).toBe("content");
+    expect(screen.getByText("panel body").closest("main")?.parentElement?.className).toBe("dak-shell shell");
   });
 
   it("orders groups and renders their labels", () => {
@@ -82,5 +84,25 @@ describe("usePanelLocation", () => {
     fireEvent.click(screen.getByText("tab"), { metaKey: true });
     document.removeEventListener("click", stop);
     expect(window.location.pathname).toBe("/ui/chat");
+  });
+});
+
+// A variable, not a literal: Vite rewrites new URL("literal", import.meta.url)
+// to a served asset path.
+const SHELL_CSS = "../src/shell/shell.css";
+
+describe("shell styles (GH-2282)", () => {
+  const css = readFileSync(new URL(SHELL_CSS, import.meta.url).pathname, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const selectors = Array.from(css.matchAll(/([^{}]+)\{[^}]*\}/g)).flatMap((rule) => rule[1].split(",").map((selector) => selector.trim()));
+
+  it("scopes every rule under .dak-shell and styles the sidebar, nav, and content", () => {
+    expect(selectors.filter((selector) => !selector.startsWith(".dak-shell"))).toEqual([]);
+    for (const name of ["sidebar", "sidebar-title", "nav-item", "nav-item:hover", "nav-item-active", "nav-group", "nav-group-label", "content", "dak-shell-placeholder"]) {
+      expect(selectors).toContain(`.dak-shell .${name}`);
+    }
+  });
+
+  it("colors only through the kit tokens", () => {
+    expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
   });
 });

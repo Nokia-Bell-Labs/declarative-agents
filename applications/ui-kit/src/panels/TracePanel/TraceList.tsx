@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { isSingleSpanTrace, readableTraces, type TraceSummary } from "../../api/traceApi";
+import { isSingleSpanTrace, readableTraces, traceBackendLabel, type TraceSummary } from "../../api/traceApi";
 import { useTraceList } from "../../hooks/useTrace";
 
 // The trace list (agentic-wiki-mesh rel09.0-uc001, srd005 R3.4): the trace
@@ -10,7 +10,8 @@ import { useTraceList } from "../../hooks/useTrace";
 export const DEFAULT_TRACE_PAGE_SIZE = 50;
 
 export interface TraceListProps {
-  // The agent ui.yaml names as the trace backend (srd004 R2.4).
+  // The agent ui.yaml names as the trace backend, or a same-origin path
+  // prefix starting with "/" (srd004 R2.4).
   backend: string;
   onOpen: (traceId: string) => void;
   openTraceId?: string;
@@ -63,7 +64,7 @@ export function TraceList({
   } else if (state.status === "unavailable") {
     body = (
       <div className="trace-notice trace-notice-warn" data-testid="trace-list-unavailable">
-        Trace backend {backend} not reachable ({state.reason}). {unavailableHint}
+        Trace backend {traceBackendLabel(backend)} not reachable ({state.reason}). {unavailableHint}
       </div>
     );
   } else {

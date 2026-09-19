@@ -1,11 +1,12 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # The collector trace UI composed on the ui-kit shell (srd004 R5, R7). The
-# panels are this application's own: the kit trace panels read the trace
-# backend through /monitor-proxy/{agent}/, and the collector serves its UI
-# same-origin with /query/* (srd020 R7), so its trace pages read /query/traces
-# through the kit client directly. The actions bind each page to the query
-# machine request it drives.
+# collector serves this UI same-origin with /query/* (srd020 R7), so
+# trace_backend.query_path has an empty prefix and the kit reads the traces at
+# the origin root rather than through /monitor-proxy/{agent}/ (srd004 R2.4).
+# The traces panel is the kit TraceView driven by the URL; Explore is this
+# application's own. The actions bind each page to the query machine request
+# it drives.
 version: 2
 id: collector-trace-ui
 title: Collector Trace Query UI

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import type { ServiceWalk, TraceModel } from "../../api/traceApi";
+import { traceBackendLabel, type ServiceWalk, type TraceModel } from "../../api/traceApi";
 import { useTrace } from "../../hooks/useTrace";
 import type { PanelProps } from "../manifest";
 import { TraceOptionsProvider, type TraceViewOptions } from "./options";
@@ -73,7 +73,7 @@ function TraceBody({
   if (state.status === "unavailable") {
     return (
       <div className="trace-notice trace-notice-warn" data-testid="trace-unavailable">
-        Trace backend {backend} not reachable ({state.reason}). {unavailableHint}
+        Trace backend {traceBackendLabel(backend)} not reachable ({state.reason}). {unavailableHint}
       </div>
     );
   }
@@ -108,21 +108,29 @@ export interface TraceViewProps extends Omit<TracePanelProps, "traceId"> {
   pageSize?: number;
   listTitle?: string;
   emptyHint?: string;
+  // Controlled form: given onOpen, the view shows openTraceId (the list when
+  // it is undefined) and reports a row click or the way back through onOpen,
+  // so an application can drive it from the URL. Without onOpen the view
+  // keeps the open trace itself.
+  openTraceId?: string;
+  onOpen?: (traceId: string | undefined) => void;
 }
 
 // TraceView is the list-to-detail browser: the backend's trace list, and the
 // trace a row opens with a way back to the list.
-export function TraceView({ pageSize, listTitle, emptyHint, ...panel }: TraceViewProps) {
+export function TraceView({ pageSize, listTitle, emptyHint, openTraceId, onOpen, ...panel }: TraceViewProps) {
   const backend = panel.backend ?? DEFAULT_BACKEND;
-  const [openId, setOpenId] = useState<string | undefined>(undefined);
+  const [ownOpenId, setOwnOpenId] = useState<string | undefined>(undefined);
+  const openId = onOpen ? openTraceId : ownOpenId;
+  const open = onOpen ?? setOwnOpenId;
   if (!openId) {
-    return <TraceList backend={backend} onOpen={setOpenId} pageSize={pageSize} title={listTitle} emptyHint={emptyHint} unavailableHint={panel.unavailableHint} />;
+    return <TraceList backend={backend} onOpen={open} openTraceId={openId} pageSize={pageSize} title={listTitle} emptyHint={emptyHint} unavailableHint={panel.unavailableHint} />;
   }
   return (
     <div className="dak-trace">
       <div className="trace-section" data-testid="trace-section">
         <div className="trace-head trace-view-head">
-          <button type="button" className="detail-toggle" data-testid="trace-back" onClick={() => setOpenId(undefined)}>
+          <button type="button" className="detail-toggle" data-testid="trace-back" onClick={() => open(undefined)}>
             ‹ all traces
           </button>
           <span>Cross-agent trace</span>

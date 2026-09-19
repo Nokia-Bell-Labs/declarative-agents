@@ -1,38 +1,12 @@
-import {
-  HTTPError,
-  toListPage,
-  toModel,
-  type CollectorTrace,
-  type CollectorTraceList,
-  type KitClient,
-  type TraceListPage,
-  type TraceModel,
-} from '@declarative-agents/ui-kit'
+import type { KitClient } from '@declarative-agents/ui-kit'
 
 // Every read goes through the kit client (srd004 R6.1). The collector serves
 // this UI same-origin with /query/* (srd020 R7), so the paths are the query
-// surface itself rather than /monitor-proxy/{agent}/, and the kit's wire types
-// and parsers (toListPage, toModel) decode the trace responses. The
-// conformance guard TestCollectorQueryResponseContract
-// (applications/catalog/conformance/collector_test.go) pins the emitted keys.
+// surface itself rather than /monitor-proxy/{agent}/. The trace list and
+// detail are the kit TraceView's (src/pages/Traces.tsx); this module holds
+// only the Explore reads.
 
 const BASE = '/query'
-
-export async function listTraces(client: KitClient, pageSize: number, offset: number): Promise<TraceListPage> {
-  const params = new URLSearchParams({ page_size: String(pageSize), offset: String(offset) })
-  return toListPage(await client.getJSON<CollectorTraceList>(`${BASE}/traces?${params}`), offset, pageSize)
-}
-
-// getTrace answers undefined when the collector holds no spans for the id.
-export async function getTrace(client: KitClient, traceId: string): Promise<TraceModel | undefined> {
-  try {
-    const body = await client.getJSON<CollectorTrace>(`${BASE}/traces/${encodeURIComponent(traceId)}`)
-    return body.spans?.length ? toModel(body) : undefined
-  } catch (err) {
-    if (err instanceof HTTPError && err.status === 404) return undefined
-    throw err
-  }
-}
 
 // The Explore contracts mirror the /query/spans/* routes; the conformance
 // guards TestCollectorSpanStatsContract and TestCollectorSpanBreakdownContract

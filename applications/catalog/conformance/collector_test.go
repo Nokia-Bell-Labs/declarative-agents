@@ -255,9 +255,9 @@ func TestCollectorSpoolModeConformance(t *testing.T) {
 }
 
 // TestCollectorQueryResponseContract pins the JSON keys the query surface
-// emits per trace summary and per span. The collector trace UI
-// (agents/collector/ui/src/api/client.ts, decoding with the ui-kit's
-// toListPage and toModel) and the coding-agent smoke verdict decode exactly
+// emits per trace summary and per span. The collector trace UI (the ui-kit
+// TraceView, decoding with applications/ui-kit/src/api/traceApi.ts toListPage
+// and toModel) and the coding-agent smoke verdict decode exactly
 // these keys; a drift on either side must fail here first (GH-1164).
 func TestCollectorQueryResponseContract(t *testing.T) {
 	t.Parallel()
@@ -305,7 +305,7 @@ func TestCollectorQueryResponseContract(t *testing.T) {
 		}
 		sort.Strings(got)
 		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("%s %s keys = %v, want %v (keep agents/collector/ui/src/api/client.ts in sync)", url, listField, got, want)
+			t.Fatalf("%s %s keys = %v, want %v (keep applications/ui-kit/src/api/traceApi.ts in sync)", url, listField, got, want)
 		}
 	}
 	assertKeys("http://"+queryAddr+"/query/traces?page_size=1", "traces",

@@ -34,6 +34,14 @@ function selectionFromCells(stats: SpanStatsResponse, a: Cell, b: Cell) {
 }
 
 export default function Explore() {
+  return (
+    <div className="explore-page">
+      <ExploreView />
+    </div>
+  )
+}
+
+function ExploreView() {
   usePath() // folds a nested /traces/explore back to /explore
   const client = useKitClient()
   const [stats, setStats] = useState<SpanStatsResponse | null>(null)

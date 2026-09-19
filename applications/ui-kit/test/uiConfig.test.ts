@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { routingFromConfig, shellTitle, validateUIConfig, type UIConfig } from "../src/shell/uiConfig";
+import { routingFromConfig, shellTitle, traceBackendFromConfig, validateUIConfig, type UIConfig } from "../src/shell/uiConfig";
 
 // The Go validator's fixture and the chatbot-mesh ui.yaml are the shared
 // inputs: the TypeScript rules must agree with magefiles/uiyaml on both.
@@ -41,6 +41,8 @@ describe("validateUIConfig (srd004 R7)", () => {
     ["kit panel without export", "    export: fleet\n", "", "must name the kit panel in export"],
     ["monitored agent listed twice", "  - name: rag0\n", "  - name: chatbot\n", 'monitored agent "chatbot" is listed twice'],
     ["trace backend without a name", "  name: collector\n", '  name: ""\n', "trace_backend has no name"],
+    ["trace query path without the query suffix", "  query_path: /monitor-proxy/collector/query/traces/{trace_id}\n", "  query_path: /monitor-proxy/collector/traces\n", "must be an absolute path ending in /query/traces/{trace_id}"],
+    ["relative trace query path", "  query_path: /monitor-proxy/collector/query/traces/{trace_id}\n", "  query_path: query/traces/{trace_id}\n", 'query_path "query/traces/{trace_id}" must be an absolute path'],
   ];
   it.each(rejections)("rejects %s", (_name, from, to, want) => {
     expect(base).toContain(from);
@@ -129,5 +131,17 @@ sidebar:
   it("falls back to the first route when there are no groups", () => {
     const routing = routingFromConfig({ id: "x", routes: [{ id: "a", path: "/a" }, { id: "b", path: "/b" }] });
     expect(routing).toEqual({ groups: [], defaultPanel: "a", routes: [{ id: "a", path: "/a", label: "a" }, { id: "b", path: "/b", label: "b" }] });
+  });
+});
+
+describe("traceBackendFromConfig (srd004 R2.4)", () => {
+  const withBackend = (trace_backend?: UIConfig["trace_backend"]) => ({ id: "x", trace_backend }) as UIConfig;
+
+  it("takes the same-origin prefix of query_path, else the agent name", () => {
+    expect(traceBackendFromConfig(load(V2_FIXTURE))).toBe("/monitor-proxy/collector");
+    expect(traceBackendFromConfig(load(CHATBOT_MESH_UI_YAML))).toBe("/monitor-proxy/collector");
+    expect(traceBackendFromConfig(withBackend({ name: "collector", query_path: "/query/traces/{trace_id}" }))).toBe("/");
+    expect(traceBackendFromConfig(withBackend({ name: "tracer" }))).toBe("tracer");
+    expect(traceBackendFromConfig(withBackend(undefined))).toBeUndefined();
   });
 });

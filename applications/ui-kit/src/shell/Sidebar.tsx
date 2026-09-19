@@ -18,8 +18,9 @@ export interface SidebarProps {
   groups?: SidebarGroup[];
 }
 
-// Sidebar renders the panel navigation with the class names the application
-// stylesheets already style: sidebar, sidebar-title, nav-item, nav-item-active.
+// Sidebar renders the panel navigation: sidebar, sidebar-title, nav-item,
+// nav-item-active, nav-group, and nav-group-label, styled by shell.css under
+// the PanelFrame's dak-shell root.
 export function Sidebar({ title, routes, active, href, onNavigate, groups }: SidebarProps) {
   const visible = routes.filter((route) => !route.hidden);
   const entry = (route: PanelRoute) => (
