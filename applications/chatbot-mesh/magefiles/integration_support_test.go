@@ -134,7 +134,11 @@ func TestDetachedAgentDualExportsAndStampsResourceIdentity(t *testing.T) {
 	argsPath := filepath.Join(root, "args.txt")
 	attrsPath := filepath.Join(root, "attrs.txt")
 	binary := filepath.Join(root, "fake-agent")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGS_FILE\"\nprintf '%s' \"$OTEL_RESOURCE_ATTRIBUTES\" > \"$ATTRS_FILE\"\n"
+	// Each file is written whole and renamed into place, so the test never
+	// reads one mid-write; waitForNonEmptyFile returns on the first byte, and a
+	// loaded run caught the args file truncated (GH-2252).
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGS_FILE.tmp\" && mv \"$ARGS_FILE.tmp\" \"$ARGS_FILE\"\n" +
+		"printf '%s' \"$OTEL_RESOURCE_ATTRIBUTES\" > \"$ATTRS_FILE.tmp\" && mv \"$ATTRS_FILE.tmp\" \"$ATTRS_FILE\"\n"
 	if err := os.WriteFile(binary, []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
