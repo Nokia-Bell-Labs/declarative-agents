@@ -18,7 +18,7 @@ pkg:internal/doltsql files=4 loc=274
 pkg:internal/evaluation files=23 loc=3867
 pkg:internal/declstyle files=1 loc=14
 pkg:internal/gostyle files=1 loc=9
-pkg:internal/load files=3 loc=823
+pkg:internal/load files=3 loc=844
 pkg:internal/model files=1 loc=7
 pkg:internal/model/llm files=8 loc=1022
 pkg:internal/model/prompt files=4 loc=140

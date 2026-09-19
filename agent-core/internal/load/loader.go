@@ -163,10 +163,9 @@ func loadResolvedConfig(
 	if err != nil {
 		return resolvedConfig{}, err
 	}
-	used := append(append([]catalog.ToolDef(nil), selected...),
-		requestMachineWords(machine, machinePath, profileDir, rest, universe)...)
-	if err := validateImportUsedness(
-		used, rest, toolImports, toolTypeIndex.usedPaths(universe),
+	if err := validateClosureUsedness(
+		selected, universe, rest, toolImports, toolTypeIndex.usedPaths(universe),
+		machine, machinePath, profileDir,
 	); err != nil {
 		return resolvedConfig{}, err
 	}

@@ -58,14 +58,18 @@ func validateImportUsedness(
 // tool universe and REST collection, so a word only a request machine runs is
 // used (srd052 R3.1): the chatbot's embed stage, for one, runs only in its
 // request machine (srd058 R4.2). A request profile that does not load
-// contributes nothing here; the runtime reports it when a request arrives.
+// contributes no words and returns its load error, which the caller reports
+// in place of the unused imports it causes (GH-2250).
 func requestMachineWords(
 	machine core.MachineSpec, machinePath, profileDir string,
 	rest toolrest.Collection, universe []catalog.ToolDef,
-) []catalog.ToolDef {
+) ([]catalog.ToolDef, error) {
 	machines, err := toolrest.LoadDeclaredMachines(machine, machinePath, profileDir, rest)
-	if err != nil || len(machines) < 2 {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+	if len(machines) < 2 {
+		return nil, nil
 	}
 	actions := map[string]bool{}
 	for _, request := range machines[1:] {
@@ -79,7 +83,25 @@ func requestMachineWords(
 			words = append(words, tool)
 		}
 	}
-	return words
+	return words, nil
+}
+
+// validateClosureUsedness checks usedness over the selected words and the
+// words the closure's request machines run. A request machine that did not
+// load leaves its words uncounted, so its load error is the cause reported,
+// not the imports it strands (GH-2250).
+func validateClosureUsedness(
+	selected, universe []catalog.ToolDef, rest toolrest.Collection,
+	toolImports []catalog.ToolImport, typeUsed map[string]bool,
+	machine core.MachineSpec, machinePath, profileDir string,
+) error {
+	requestWords, requestErr := requestMachineWords(machine, machinePath, profileDir, rest, universe)
+	used := append(append([]catalog.ToolDef(nil), selected...), requestWords...)
+	err := validateImportUsedness(used, rest, toolImports, typeUsed)
+	if err != nil && requestErr != nil {
+		return fmt.Errorf("machine_request machine does not load, so the words it runs count as unused: %w", requestErr)
+	}
+	return err
 }
 
 func selectedToolSources(selected []catalog.ToolDef) map[string]bool {
