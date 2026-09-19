@@ -98,10 +98,25 @@ type UIAsset struct {
 	Owner          string `yaml:"owner"`
 	Ownership      string `yaml:"ownership"`
 	Source         string `yaml:"source"`
-	RuntimePath    string `yaml:"runtime_path"`
-	PackagePath    string `yaml:"package_path"`
+	RuntimePath    string `yaml:"runtime_path,omitempty"`
+	PackagePath    string `yaml:"package_path,omitempty"`
 	RESTDefinition string `yaml:"rest_definition"`
 	SharedTokens   string `yaml:"shared_tokens"`
+}
+
+// embeddedUISourcePrefix marks a UI asset whose files are a bundle compiled into
+// agent-core rather than a tree the application ships (applications srd004
+// R9.3). Such an asset has no runtime or package path: nothing is staged,
+// mounted, or packaged for it, and its REST definition selects the bundle.
+const embeddedUISourcePrefix = "embedded:"
+
+// EmbeddedBundle returns the agent-core bundle an embedded UI asset serves, and
+// whether the asset is embedded at all.
+func (asset UIAsset) EmbeddedBundle() (string, bool) {
+	if !strings.HasPrefix(asset.Source, embeddedUISourcePrefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(asset.Source, embeddedUISourcePrefix), true
 }
 
 // Package declares opaque, non-profile assets shipped by a packaged
@@ -402,54 +417,126 @@ func (manifest *Manifest) validateUI(
 			return fmt.Errorf("UI asset %s: %w", asset.ID, err)
 		}
 		asset.Ownership = ownership
-		asset.Source, err = cleanRelative(asset.Source)
-		if err != nil {
-			return fmt.Errorf("UI asset %s source: %w", asset.ID, err)
-		}
-		asset.RuntimePath, err = cleanRelative(asset.RuntimePath)
-		if err != nil {
-			return fmt.Errorf("UI asset %s runtime_path: %w", asset.ID, err)
-		}
-		asset.PackagePath, err = cleanRelative(asset.PackagePath)
-		if err != nil {
-			return fmt.Errorf("UI asset %s package_path: %w", asset.ID, err)
+		if strings.TrimSpace(asset.SharedTokens) == "" {
+			return fmt.Errorf("UI asset %s has no shared_tokens policy", asset.ID)
 		}
 		asset.RESTDefinition, err = cleanRelative(asset.RESTDefinition)
 		if err != nil {
 			return fmt.Errorf("UI asset %s rest_definition: %w", asset.ID, err)
 		}
-		if strings.TrimSpace(asset.SharedTokens) == "" {
-			return fmt.Errorf("UI asset %s has no shared_tokens policy", asset.ID)
+		bundle, embedded := asset.EmbeddedBundle()
+		if embedded {
+			if err := validateEmbeddedUIAsset(*asset, bundle); err != nil {
+				return fmt.Errorf("UI asset %s: %w", asset.ID, err)
+			}
+		} else if err := validateShippedUIAsset(asset, ownerRoot, runtimePaths, packagePaths); err != nil {
+			return err
 		}
-		if previous := runtimePaths[asset.RuntimePath]; previous != "" {
-			return fmt.Errorf("duplicate normalized runtime path %q for %s and UI asset %s", asset.RuntimePath, previous, asset.ID)
-		}
-		runtimePaths[asset.RuntimePath] = "UI asset " + asset.ID
-		if previous := packagePaths[asset.PackagePath]; previous != "" {
-			return fmt.Errorf("duplicate normalized package path %q for %s and UI asset %s",
-				asset.PackagePath, previous, asset.ID)
-		}
-		packagePaths[asset.PackagePath] = "UI asset " + asset.ID
-		if _, err := securePath(ownerRoot, asset.Source, true); err != nil {
-			return fmt.Errorf("UI asset %s source: %w", asset.ID, err)
-		}
-		restPath, err := securePath(ownerRoot, asset.RESTDefinition, false)
+		document, err := uiRESTDocument(ownerRoot, asset.RESTDefinition)
 		if err != nil {
 			return fmt.Errorf("UI asset %s rest_definition: %w", asset.ID, err)
 		}
-		data, err := os.ReadFile(restPath)
-		if err != nil {
-			return fmt.Errorf("UI asset %s rest_definition: %w", asset.ID, err)
-		}
-		var document yaml.Node
-		if err := yaml.Unmarshal(yamlTemplateSafe(data), &document); err != nil {
-			return fmt.Errorf("UI asset %s rest_definition: %w", asset.ID, err)
-		}
-		if !mappingKeyExists(&document, "static_assets") {
+		if embedded {
+			if !staticAssetsSelectsBundle(document, bundle) {
+				return fmt.Errorf("UI asset %s REST definition has no static_assets binding selecting bundle %q",
+					asset.ID, bundle)
+			}
+		} else if !mappingKeyExists(document, "static_assets") {
 			return fmt.Errorf("UI asset %s REST definition has no static_assets binding", asset.ID)
 		}
 	}
 	return nil
+}
+
+// validateShippedUIAsset checks a UI asset whose files the application ships:
+// its source exists under the owner root and its runtime and package paths are
+// unique across the manifest.
+func validateShippedUIAsset(
+	asset *UIAsset, ownerRoot string,
+	runtimePaths, packagePaths map[string]string,
+) error {
+	var err error
+	asset.Source, err = cleanRelative(asset.Source)
+	if err != nil {
+		return fmt.Errorf("UI asset %s source: %w", asset.ID, err)
+	}
+	asset.RuntimePath, err = cleanRelative(asset.RuntimePath)
+	if err != nil {
+		return fmt.Errorf("UI asset %s runtime_path: %w", asset.ID, err)
+	}
+	asset.PackagePath, err = cleanRelative(asset.PackagePath)
+	if err != nil {
+		return fmt.Errorf("UI asset %s package_path: %w", asset.ID, err)
+	}
+	if previous := runtimePaths[asset.RuntimePath]; previous != "" {
+		return fmt.Errorf("duplicate normalized runtime path %q for %s and UI asset %s", asset.RuntimePath, previous, asset.ID)
+	}
+	runtimePaths[asset.RuntimePath] = "UI asset " + asset.ID
+	if previous := packagePaths[asset.PackagePath]; previous != "" {
+		return fmt.Errorf("duplicate normalized package path %q for %s and UI asset %s",
+			asset.PackagePath, previous, asset.ID)
+	}
+	packagePaths[asset.PackagePath] = "UI asset " + asset.ID
+	if _, err := securePath(ownerRoot, asset.Source, true); err != nil {
+		return fmt.Errorf("UI asset %s source: %w", asset.ID, err)
+	}
+	return nil
+}
+
+// validateEmbeddedUIAsset checks a UI asset served from a bundle compiled into
+// agent-core (applications srd004 R9.3). The bundle name is an identifier, and
+// the asset declares no runtime or package path because nothing is staged.
+func validateEmbeddedUIAsset(asset UIAsset, bundle string) error {
+	if !identifierPattern.MatchString(bundle) {
+		return fmt.Errorf("embedded source %q does not name a bundle", asset.Source)
+	}
+	if strings.TrimSpace(asset.RuntimePath) != "" || strings.TrimSpace(asset.PackagePath) != "" {
+		return fmt.Errorf("embedded source %q must not declare runtime_path or package_path", asset.Source)
+	}
+	return nil
+}
+
+func uiRESTDocument(ownerRoot, restDefinition string) (*yaml.Node, error) {
+	restPath, err := securePath(ownerRoot, restDefinition, false)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(restPath)
+	if err != nil {
+		return nil, err
+	}
+	var document yaml.Node
+	if err := yaml.Unmarshal(yamlTemplateSafe(data), &document); err != nil {
+		return nil, err
+	}
+	return &document, nil
+}
+
+// staticAssetsSelectsBundle reports whether any static_assets mapping in the
+// document selects the named bundle.
+func staticAssetsSelectsBundle(node *yaml.Node, bundle string) bool {
+	if node == nil {
+		return false
+	}
+	if node.Kind == yaml.MappingNode {
+		for index := 0; index+1 < len(node.Content); index += 2 {
+			key, value := node.Content[index], node.Content[index+1]
+			if key.Value != "static_assets" || value.Kind != yaml.MappingNode {
+				continue
+			}
+			for field := 0; field+1 < len(value.Content); field += 2 {
+				if value.Content[field].Value == "bundle" && value.Content[field+1].Value == bundle {
+					return true
+				}
+			}
+		}
+	}
+	for _, child := range node.Content {
+		if staticAssetsSelectsBundle(child, bundle) {
+			return true
+		}
+	}
+	return false
 }
 
 func (manifest *Manifest) assetOwner(

@@ -195,3 +195,39 @@ func TestStageUIBuildStagesTheAdjacentUIYAML(t *testing.T) {
 		t.Fatal("ui.yaml beside the app was not staged")
 	}
 }
+
+func TestEmbeddedBundlesPointAtKitSourcesAndAgentCore(t *testing.T) {
+	t.Parallel()
+	for _, bundle := range embeddedUIBundles {
+		if !strings.HasPrefix(bundle.source, uiKitDir+"/") {
+			t.Errorf("embedded bundle source %s is not built from the kit", bundle.source)
+		}
+		if !strings.HasPrefix(bundle.embedded, "agent-core/internal/tools/rest/bundles/") {
+			t.Errorf("embedded bundle %s is outside the agent-core bundles registry", bundle.embedded)
+		}
+		if !isDir(filepath.Join("..", bundle.source)) || !isDir(filepath.Join("..", bundle.embedded)) {
+			t.Errorf("embedded bundle %s -> %s does not exist", bundle.source, bundle.embedded)
+		}
+	}
+}
+
+func TestRebuildAndDiffUIAgainstComparesTheEmbeddedCopy(t *testing.T) {
+	t.Parallel()
+	root, app := kitRepo(t, `"@declarative-agents/ui-kit":"file:../../../../ui-kit"`)
+	embedded := filepath.Join(root, "embedded")
+	writeUIFile(t, filepath.Join(embedded, "index.html"), "<html>old</html>")
+	run := func(dir, _ string, args ...string) error {
+		if filepath.Base(dir) != "ui-kit" && strings.Join(args, " ") == "run build" {
+			writeUIFile(t, filepath.Join(dir, "dist", "index.html"), "<html>new</html>")
+		}
+		return nil
+	}
+	err := rebuildAndDiffUIAgainst(app, embedded, run)
+	if err == nil || !strings.Contains(err.Error(), "content differs: index.html") {
+		t.Fatalf("error = %v, want a content difference against the embedded copy", err)
+	}
+	writeUIFile(t, filepath.Join(embedded, "index.html"), "<html>new</html>")
+	if err := rebuildAndDiffUIAgainst(app, embedded, run); err != nil {
+		t.Fatal(err)
+	}
+}

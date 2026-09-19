@@ -52,8 +52,8 @@ func TestApplierReleaseFitsSecretBudgetWithExternalUIAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanupAssets()
-	if len(assets) != 2 {
-		t.Fatalf("external assets = %d, want collector and observer", len(assets))
+	if len(assets) != 1 || assets[0].Component != "collector" {
+		t.Fatalf("external assets = %#v, want the collector UI only; the observer UI is embedded", assets)
 	}
 	for _, asset := range assets {
 		assertExternalAssetArchiveMatchesInventory(t, asset)
@@ -193,14 +193,11 @@ func TestExternalUIRenderReferencesButDoesNotStoreAssets(t *testing.T) {
 func TestExternalUIAssetValueArgsAreExact(t *testing.T) {
 	assets := []externalUIAsset{
 		{Component: "collector", ConfigMapName: "matrix-collector-ui-123", Checksum: strings.Repeat("1", 64)},
-		{Component: "observer", ConfigMapName: "matrix-observer-ui-abc", Checksum: strings.Repeat("a", 64)},
 	}
 	got := externalUIAssetValueArgs(assets)
 	want := []string{
 		"--set", "collector.uiArchiveConfigMap=matrix-collector-ui-123",
 		"--set-string", "collector.uiArchiveChecksum=" + strings.Repeat("1", 64),
-		"--set", "observer.uiArchiveConfigMap=matrix-observer-ui-abc",
-		"--set-string", "observer.uiArchiveChecksum=" + strings.Repeat("a", 64),
 	}
 	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
 		t.Fatalf("external asset values:\n got: %#v\nwant: %#v", got, want)

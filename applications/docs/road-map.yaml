@@ -313,8 +313,8 @@ releases:
           panels, shell, ui.yaml version 2, token ownership, embedded bundle,
           and the absence of duplicated UI code.
         status: planned
-        implemented_cases: [TC1, TC2, TC3, TC4, TC5, TC6]
-        planned_cases: [TC7, TC8, TC9]
+        implemented_cases: [TC1, TC2, TC3, TC4, TC5, TC6, TC8]
+        planned_cases: [TC7, TC9]
     implementation_sequence:
       - order: 1
         action: Specify srd004, the use case, the suite, and the index entries (GH-2155).
@@ -327,7 +327,7 @@ releases:
         status: implemented
       - order: 4
         action: Serve the observer from an embedded bundle and delete its UI tree (GH-2158; GH-2267 to GH-2269).
-        status: planned
+        status: implemented
       - order: 5
         action: Validate ui.yaml version 2 and run the chatbot-mesh chatbot on the generic shell (GH-2159; GH-2270 to GH-2272).
         status: implemented

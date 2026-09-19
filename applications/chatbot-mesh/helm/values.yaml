@@ -121,11 +121,8 @@ ollama:
 # agent's monitor surface, and serves a fleet-level UX at observer.localhost.
 observer:
   enabled: true
-  # Optional immutable UI archive provisioned outside Helm release storage.
-  # When set, the observer verifies and unpacks assets.tgz from this ConfigMap
-  # instead of rendering the built bundle into the release.
-  uiArchiveConfigMap: ""
-  uiArchiveChecksum: ""
+  # The fleet UI is the observer bundle compiled into agent-core (applications
+  # srd004 R9), so the chart delivers no observer UI files and takes no archive.
   ports:
     control: 18201
     monitor: 18202

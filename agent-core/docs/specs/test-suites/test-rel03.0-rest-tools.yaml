@@ -1634,3 +1634,26 @@ test_cases:
       - srd031-declarative-document-resources AC1
       - srd031-declarative-document-resources AC3
       - srd031-declarative-document-resources AC7
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: static_assets serves an embedded bundle and its declared config
+    go_test: TestStaticAssets_BundleServesEmbeddedIndexWithSPAFallback, TestStaticAssets_ServesDeclaredConfigAsUIConfigJSON, TestStaticAssets_UIConfigWithoutDeclarationFallsThrough, TestValidateDefinition_staticAssetsRejectsInvalidConfigs
+    status: done
+    description: |
+      Launch a REST server whose static_assets endpoint selects the observer
+      bundle compiled into agent-core, with SPA fallback and a declared config
+      map. The bundle index answers the mount and unknown routes, and
+      ui-config.json returns the declared map. Validation rejects a definition
+      with both root and bundle, with neither, or with an unknown bundle name.
+    inputs:
+      bundle: observer
+      config: {title: Chatbot Mesh observer, fleet_endpoint: /monitor/fleet}
+    expected:
+      bundle_index_served: true
+      spa_fallback_to_bundle_index: true
+      ui_config_json_equals_declared_map: true
+      root_and_bundle_together_rejected: true
+      unknown_bundle_rejected_with_known_names: true
+    traces:
+      - srd029-rest-server-tools AC5
+

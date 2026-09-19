@@ -120,7 +120,7 @@ co-generated. The topology key reached the pod only because a packaging step had
 left the staged file on disk for the glob to find (cohere-demo GH-220).
 */}}
 {{- define "chatbot-mesh.cogeneratedProfileKeys" -}}
-agents__chatbot__rest.yaml agents__chatbot__monitor-rest.yaml agents__chatbot__ui__ui.yaml agents__chatbot__request-topology-declarations.yaml
+agents__chatbot__rest.yaml agents__chatbot__monitor-rest.yaml agents__chatbot__ui__ui.yaml agents__chatbot__request-topology-declarations.yaml applications__chatbot-mesh__observer__monitor-rest.yaml
 {{- end -}}
 
 {{/*
@@ -150,10 +150,10 @@ mount. GH-314 co-generates the chatbot rest.yaml into this subtree before packag
     {{- $cogen := splitList " " (include "chatbot-mesh.cogeneratedProfileKeys" .) }}
     {{- range $path, $_ := .Files.Glob "profiles/**" }}
       {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
-      {{- /* Served UI bundles are projected from their own ConfigMaps by the
-            agents that serve them, so they are not items of this shared
-            projection (GH-131). */}}
-      {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) (not (hasPrefix "agents__chatbot__ui__app__dist__" $key)) }}
+      {{- /* The chatbot's served UI bundle is projected from its own ConfigMap
+            by the chatbot, so it is not an item of this shared projection
+            (GH-131). */}}
+      {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__chatbot__ui__app__dist__" $key)) }}
       - key: {{ $key }}
         path: {{ $path | trimPrefix "profiles/" }}
       {{- end }}

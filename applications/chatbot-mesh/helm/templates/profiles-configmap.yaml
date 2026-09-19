@@ -14,9 +14,9 @@ data:
   {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
   {{- /* A served UI bundle belongs to the agent that serves it, in its own
         ConfigMap, rather than to this object every agent pod mounts. The
-        chatbot bundle was a quarter of it (GH-131); the observer's was already
-        excluded on the same reasoning. */}}
-  {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) (not (hasPrefix "agents__chatbot__ui__app__dist__" $key)) }}
+        chatbot bundle was a quarter of it (GH-131). The observer serves the
+        bundle compiled into agent-core and ships none (srd004 R9.4). */}}
+  {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__chatbot__ui__app__dist__" $key)) }}
   {{ $key }}: |-
   {{- if eq $key "applications__chatbot-mesh__applier__exec-declarations.yaml" }}
     {{- /* Rewrite the applier exec args' placeholder coordinates to the installed
@@ -52,3 +52,8 @@ data:
     {{- include "chatbot-mesh.chatbotUI" . | nindent 4 }}
   agents__chatbot__request-topology-declarations.yaml: |-
     {{- include "chatbot-mesh.chatbotTopology" . | nindent 4 }}
+  # The observer monitor server, co-generated from the same values so its
+  # monitor_proxy upstreams and fleet UI config name the deployed agents at
+  # their in-cluster Services (srd004 R2.1, R9.2).
+  applications__chatbot-mesh__observer__monitor-rest.yaml: |-
+    {{- include "chatbot-mesh.observerMonitorRest" . | nindent 4 }}

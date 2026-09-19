@@ -52,7 +52,15 @@ sections:
       package @declarative-agents/ui-kit (srd004 R8). The design tokens at
       applications/ui-kit/src/tokens.css are the worked case; a UI imports
       them as @declarative-agents/ui-kit/tokens.css through a file:
-      dependency on the kit. Runtime-internal assets that are
+      dependency on the kit. A platform UI that every agent of a kind
+      shares, such as the fleet observer, is built from its source under
+      applications/ui-kit/observer and committed as a built bundle under
+      agent-core/internal/tools/rest/bundles/<name>/, because agent-core is
+      its own Go module and go:embed reads only files inside it; mage
+      uikit:observer refreshes the copy and mage uiDist fails when it differs
+      from a clean rebuild. An agent selects the bundle by name in its
+      rest.yaml static_assets binding and carries no UI files, so the bundle
+      needs no ConfigMap delivery (srd004 R9). Runtime-internal assets that are
       never mounted into a served application, such as
       agent-core/internal/knowledge/documentation/ui, are part of the platform
       and this guideline does not reach them.
@@ -140,13 +148,14 @@ sections:
       | documentation-curator | catalog | agents/knowledge-manager/documentation-curator/ui | yes |
       | collector | catalog | agents/collector/ui | yes — literal ui/dist root is a sanctioned exception (srd020 R7.4) |
       | chatbot | chatbot-mesh | ux/ (application top level) | no — moves to agents/chatbot/ui |
-      | observer | chatbot-mesh | agents/observer/ux | directory named ux, not ui |
+      | observer | chatbot-mesh | none — the observer bundle compiled into agent-core | yes — out of scope as a platform bundle (srd004 R9.4) |
 
-      The chatbot-mesh cases — the top-level SPA and the observer's ux
-      directory — migrate under GH-1316, which moves ux/ to agents/chatbot/ui
-      (with ux.yaml becoming ui.yaml), renames the observer tree to
-      agents/observer/ui, and rewrites every root, chart value, magefile path,
-      and spec reference to match. The collector conforms in placement and
+      The chatbot-mesh cases migrated under GH-1316, which moved ux/ to
+      agents/chatbot/ui (with ux.yaml becoming ui.yaml) and renamed the
+      observer tree to agents/observer/ui. GH-2269 then deleted that observer
+      tree: the observer's monitor-rest.yaml selects the embedded observer
+      bundle with a config map, so the agent carries declaration files only and
+      the chart delivers no ConfigMap, archive, volume, or root for it. The collector conforms in placement and
       writes its root as a literal ui/dist. That is not a pending normalization
       but a sanctioned exception: srd020 R7.4 forbids introducing an environment
       variable for the collector UI root, and the trace UI rides a

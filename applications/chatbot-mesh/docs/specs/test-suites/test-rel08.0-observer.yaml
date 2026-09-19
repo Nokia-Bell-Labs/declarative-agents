@@ -86,7 +86,7 @@ test_cases:
 
   - use_case: rel08.0-uc001-mesh-observer
     name: Fleet UX renders a card per pod from the four fan-in joins
-    go_test: cd agents/observer/ui && npm test
+    go_test: cd ../ui-kit && npm test
     status: done
     description: |
       fleetData zips the four monitor fan-in joins into one card per discovered
@@ -109,15 +109,41 @@ test_cases:
     status: done
     description: |
       The observer UX is reachable at http://observer.localhost/, which redirects
-      to /ui/ and serves the Fleet Observer bundle from the externalized asset
-      ConfigMap. The fleet payload behind it carries the four fan-in joins the
-      cards read, one item per discovered agent. Rendering those joins into cards
-      is covered by the observer UI tests; this case covers the served surface.
+      to /ui/ and serves the observer bundle compiled into agent-core, configured
+      by the static_assets config map in agents/observer/monitor-rest.yaml
+      (applications srd004 R9). The fleet payload behind it carries the four
+      fan-in joins the cards read, one item per discovered agent. Rendering those
+      joins into cards is covered by the ui-kit tests; TestObserverMonitorEndpoints
+      boots the observer and reads /ui/ and ui-config.json; this case covers the
+      served surface.
     expected:
       ux_reachable: true
       auto_refresh: true
-      served_from_external_asset_configmap: true
+      served_from_embedded_bundle: true
     traces: [rel08.0-uc001-mesh-observer S2, rel08.0-uc001-mesh-observer S3, srd008-observer-agent AC3]
+
+  - use_case: rel08.0-uc001-mesh-observer
+    name: Observer serves the embedded bundle and proxies the agents its UI names
+    go_test: go test ./magefiles -run 'TestObserver(UIRouteAndPackageContract|MonitorRestCoGeneratedForCluster|ChartDeliversNoUIFiles|MonitorEndpoints)'
+    status: implemented
+    description: |
+      agents/observer holds declaration files only. monitor-rest.yaml binds
+      /ui/{path...} to the observer bundle compiled into agent-core with a config
+      map naming the title, the chatbot's monitored agents, and the collector
+      trace backend, and declares GET /monitor-proxy/{agent}/{path...} with an
+      upstream for every agent that config names and no /trace-proxy route. The
+      chart co-generates the same file with upstreams at the in-cluster Services
+      derived from ragUnits and the collector toggle, and renders no observer UI
+      ConfigMap, archive, volume, or root. The booted observer serves /ui/ and
+      ui-config.json and answers 404 for an undeclared proxy agent.
+    expected:
+      declaration_files_only: true
+      bundle_binding_with_config: true
+      monitor_proxy_covers_ui_agents: true
+      no_trace_proxy: true
+      cluster_upstreams_are_services: true
+      no_chart_ui_delivery: true
+    traces: [rel08.0-uc001-mesh-observer S2, srd008-observer-agent AC3]
 
   - use_case: rel08.0-uc001-mesh-observer
     name: Observer RBAC is namespace-scoped and read-only
@@ -134,9 +160,9 @@ test_cases:
   - use_case: rel08.0-uc001-mesh-observer
     name: Observer discovers topology and the UX groups pods by Deployment and Service
     integration_target: mage demo:up
-    go_test: cd agents/observer/ui && npm test
+    go_test: cd ../ui-kit && npm test
     status: done
-    description: The retained demo observation proves the observer lists the release Deployments and Services alongside pods; the UI test proves the fleet view groups each pod under its owning Deployment and fronting Service. Configuration uses declarations and flags with no new environment variable. This case stays manual rather than attributing topology equality to Helm smoke, whose automated observer proof currently covers pods and fan-in.
+    description: The retained demo observation proves the observer lists the release Deployments and Services alongside pods; the ui-kit Topology test proves the fleet view groups each pod under its owning Deployment and fronting Service. Configuration uses declarations and flags with no new environment variable. This case stays manual rather than attributing topology equality to Helm smoke, whose automated observer proof currently covers pods and fan-in.
     expected:
       deployments_discovered: true
       services_discovered: true
@@ -147,7 +173,7 @@ test_cases:
   - use_case: rel08.0-uc001-mesh-observer
     name: Observer shows per-pod resource usage and degrades when metrics are absent
     integration_target: mage integration:helmSmoke
-    go_test: cd agents/observer/ui && npm test
+    go_test: cd ../ui-kit && npm test
     status: implemented
     description: |
       Helm smoke installs pinned test-only metrics-server and proves every

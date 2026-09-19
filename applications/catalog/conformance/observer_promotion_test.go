@@ -16,7 +16,8 @@ import (
 // The fleet observer is one agent the catalog owns and a mesh wraps (GH-2170).
 // Its machine, its words, and their selection are the same in every mesh that
 // runs an observer; only where it binds, which agents it proxies, and the UI it
-// serves differ, and those live in the wrapper's own rest.yaml.
+// serves differ, and those live in the wrapper's own rest.yaml and
+// monitor-rest.yaml.
 
 func TestObserverWrapperReferencesCanonicalClosure(t *testing.T) {
 	t.Parallel()
@@ -33,7 +34,7 @@ func TestObserverWrapperReferencesCanonicalClosure(t *testing.T) {
 			"../../catalog/observer/declarations.yaml",
 			"/opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml",
 		},
-		RESTDefinitions: []string{"rest.yaml"},
+		RESTDefinitions: []string{"rest.yaml", "monitor-rest.yaml"},
 	}
 	appsRoot := filepath.Clean(filepath.Join(ProfilesRoot(), ".."))
 	path := filepath.Join(appsRoot, "chatbot-mesh", "agents", "observer", "profile.yaml")

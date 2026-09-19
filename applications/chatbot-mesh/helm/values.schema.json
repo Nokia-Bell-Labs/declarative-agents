@@ -225,11 +225,9 @@
     "observer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "uiArchiveConfigMap", "uiArchiveChecksum", "ports", "pollInterval", "resources", "proxy"],
+      "required": ["enabled", "ports", "pollInterval", "resources", "proxy"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "uiArchiveConfigMap": {"type": "string"},
-        "uiArchiveChecksum": {"type": "string", "pattern": "^(|[a-f0-9]{64})$"},
         "ports": {"$ref": "#/definitions/agentPorts"},
         "pollInterval": {
           "type": "string",

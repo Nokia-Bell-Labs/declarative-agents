@@ -47,6 +47,7 @@ var chatbotChartSourceFiles = []string{
 	"templates/_chatbot-topology.tpl",
 	"templates/_chatbot-ui.tpl",
 	"templates/_helpers.tpl",
+	"templates/_observer-rest.tpl",
 	"templates/applier.yaml",
 	"templates/chatbot.yaml",
 	"templates/collector.yaml",

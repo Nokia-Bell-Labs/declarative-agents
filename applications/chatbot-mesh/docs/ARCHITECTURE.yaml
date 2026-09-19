@@ -257,11 +257,14 @@ design_decisions:
   - id: 3
     title: A served UI lives under its serving agent
     decision: |
-      Each user interface lives beneath the agent whose `static_assets` binding
-      serves it -- the single-page application at `agents/chatbot/ui/`, the
-      observer fleet view at `agents/observer/ui/` -- per the
-      eng02-agent-ui-placement guideline (GH-1316). The deployment chart stays
-      top-level under `helm/`, rather than under `deploy/`.
+      Each user interface the mesh ships lives beneath the agent whose
+      `static_assets` binding serves it -- the single-page application at
+      `agents/chatbot/ui/` -- per the eng02-agent-ui-placement guideline
+      (GH-1316). The observer ships none: its fleet view is the observer bundle
+      compiled into agent-core, selected and configured by
+      `agents/observer/monitor-rest.yaml` (applications srd004 R9). The
+      deployment chart stays top-level under `helm/`, rather than under
+      `deploy/`.
     benefits:
       - A reader finds an interface beside the agent that owns and serves it.
       - The chart and the profiles it deploys live in one project.
@@ -269,7 +272,8 @@ design_decisions:
     title: Co-generation stays, for now
     decision: |
       The Helm chart renders the chatbot client config, user interface, and
-      N-RAG fan-out from the values. The packaged profile copies are the local
+      N-RAG fan-out, and the observer monitor server's proxy upstreams and UI
+      config, from the values. The packaged profile copies are the local
       integration source; the render overrides them in the cluster. Inverting this
       so the profile is the source is a separate follow-up.
     benefits:

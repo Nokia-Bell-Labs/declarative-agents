@@ -133,8 +133,8 @@ func TestManifestDerivedPackageClosure(t *testing.T) {
 			"profiles/agents/chatbot/tests",
 			"profiles/agents/chatbot/ui/app/src",
 			"profiles/agents/chatbot/ui/app/node_modules",
-			"profiles/agents/observer/ui/src",
-			"profiles/agents/observer/ui/node_modules",
+			// The observer UI is compiled into agent-core (srd004 R9.4).
+			"profiles/agents/observer/ui",
 		} {
 			if _, err := os.Stat(filepath.Join(chart, filepath.FromSlash(forbidden))); !os.IsNotExist(err) {
 				t.Errorf("manifest closure carried development tree %s", forbidden)
@@ -159,7 +159,6 @@ func TestManifestClosureRecordsExpectedUIRuntimeDestinations(t *testing.T) {
 	for _, required := range []string{
 		"profiles/agents/chatbot/ui/ui.yaml",
 		"profiles/agents/chatbot/ui/app/dist/index.html",
-		"profiles/agents/observer/ui/dist/index.html",
 		"collector-ui/ui/dist/index.html",
 		"profiles/agents/collector/profile.yaml",
 		"profiles/agents/knowledge-manager/corpus-ingest/profile.yaml",

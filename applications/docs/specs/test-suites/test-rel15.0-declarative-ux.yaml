@@ -207,11 +207,12 @@ test_cases:
   - id: TC8
     use_case: rel15.0-uc001-declarative-ux
     name: REST tool serves an embedded bundle and its declared config
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2267, GH-2268, GH-2269
     command: |
       (cd agent-core && go test ./internal/tools/rest/...)
+      (cd magefiles && go test ./appmanifest/...)
       (cd applications/chatbot-mesh && go test ./magefiles/...)
     expected:
       bundle_served_with_spa_fallback: true

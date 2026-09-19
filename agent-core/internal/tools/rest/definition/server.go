@@ -74,11 +74,16 @@ type LifecycleControl struct {
 	RequireAuthRef string                 `yaml:"require_auth_ref,omitempty"`
 }
 
-// StaticAssetsConfig is filesystem-backed static file settings for binding static_assets.
+// StaticAssetsConfig is static file settings for binding static_assets. Files
+// come from exactly one source: a filesystem Root or a Bundle compiled into
+// agent-core. Config, when set, is served as ui-config.json beneath the mount
+// so a declaration configures the UI without a rebuild (srd029 R5.9, R5.10).
 type StaticAssetsConfig struct {
-	Root  string `yaml:"root"`
-	Index string `yaml:"index,omitempty"`
-	SPA   bool   `yaml:"spa,omitempty"`
+	Root   string                 `yaml:"root,omitempty"`
+	Bundle string                 `yaml:"bundle,omitempty"`
+	Index  string                 `yaml:"index,omitempty"`
+	SPA    bool                   `yaml:"spa,omitempty"`
+	Config map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // MachineRequest configures one request-scoped MachineSpec run.

@@ -31,7 +31,7 @@ capabilities:
   ui:
     status: implemented
     evidence:
-      - go test ./magefiles -run '^Test(StagedChatbotUI|StagedObserverUI|ObserverUI|CollectorUI)'
+      - go test ./magefiles -run '^Test(StagedChatbotUI|ObserverUI|CollectorUI)'
       - go test ./applications/catalog/conformance -run '^TestDesignTokens'
 roots:
   - id: chatbot
@@ -134,13 +134,13 @@ ui:
       package_path: profiles/agents/chatbot/ui/app/dist
       rest_definition: agents/chatbot/rest.yaml
       shared_tokens: "canonical import: @declarative-agents/ui-kit/tokens.css (applications/ui-kit/src/tokens.css)"
+    # The observer serves the bundle compiled into agent-core, so the asset has
+    # no runtime or package path and adds no file to the closure (srd004 R9.3).
     - id: observer
       owner: observer
       ownership: local
-      source: agents/observer/ui/dist
-      runtime_path: agents/observer/ui/dist
-      package_path: profiles/agents/observer/ui/dist
-      rest_definition: agents/observer/rest.yaml
+      source: embedded:observer
+      rest_definition: agents/observer/monitor-rest.yaml
       shared_tokens: "canonical import: @declarative-agents/ui-kit/tokens.css (applications/ui-kit/src/tokens.css)"
     - id: collector
       owner: collector

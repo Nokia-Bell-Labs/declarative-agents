@@ -365,7 +365,25 @@ func TestValidateDefinition_staticAssetsRejectsInvalidConfigs(t *testing.T) {
 				e.StaticAssets = &restdef.StaticAssetsConfig{Root: "  "}
 				return e
 			}(),
-			wantErr: "non-empty root",
+			wantErr: "requires a root or a bundle",
+		},
+		{
+			name: "root and bundle together",
+			ep: func() restdef.Endpoint {
+				e := validStaticAssetsEndpoint()
+				e.StaticAssets = &restdef.StaticAssetsConfig{Root: "dist", Bundle: "observer"}
+				return e
+			}(),
+			wantErr: "sets both root and bundle",
+		},
+		{
+			name: "unknown bundle",
+			ep: func() restdef.Endpoint {
+				e := validStaticAssetsEndpoint()
+				e.StaticAssets = &restdef.StaticAssetsConfig{Bundle: "no-such-ui"}
+				return e
+			}(),
+			wantErr: `bundle "no-such-ui" is not compiled into agent-core (known: observer)`,
 		},
 		{
 			name: "missing static_assets block",
