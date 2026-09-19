@@ -294,3 +294,46 @@ func TestStageCarriesAnInstantiatedFragment(t *testing.T) {
 		filepath.Join(source, "agents", "units", "stage.yaml"),
 	}, imported, "Imported reports fragments beside imports")
 }
+
+// installedUIDependencies plants what npm leaves beside an agent's UI: a .bin
+// symlink to a file, a symlink to a directory (a file: dependency), and a
+// dependency's own YAML, which is not a declaration (GH-2277).
+func installedUIDependencies(t *testing.T, agent string) {
+	t.Helper()
+	modules := filepath.Join(agent, "ui", "node_modules")
+	writeDeclaration(t, modules, "dep/package.yaml", "imports:\n- ../../missing.yaml\n")
+	writeDeclaration(t, agent, "ui/dist/index.html", "<html></html>")
+	require.NoError(t, os.MkdirAll(filepath.Join(modules, ".bin"), 0o755))
+	require.NoError(t, os.Symlink(filepath.Join(modules, "dep", "package.yaml"), filepath.Join(modules, ".bin", "tool")))
+	require.NoError(t, os.MkdirAll(filepath.Join(modules, "@scope"), 0o755))
+	require.NoError(t, os.Symlink(filepath.Join(agent, "ui", "dist"), filepath.Join(modules, "@scope", "kit")))
+}
+
+func TestStageSkipsInstalledUIDependencies(t *testing.T) {
+	t.Parallel()
+	source := agentImportingAUnit(t)
+	agent := filepath.Join(source, "agents", "collector")
+	installedUIDependencies(t, agent)
+	destination := t.TempDir()
+
+	require.NoError(t, profilestage.Stage(destination, profilestage.Tree{
+		Source:      agent,
+		Destination: filepath.Join(destination, "agents", "collector"),
+	}))
+
+	require.FileExists(t, filepath.Join(destination, "agents", "collector", "ui", "dist", "index.html"),
+		"the built UI still travels with its agent")
+	require.NoDirExists(t, filepath.Join(destination, "agents", "collector", "ui", "node_modules"))
+	require.FileExists(t, filepath.Join(destination, "agents", "units", "types-core.yaml"))
+}
+
+func TestImportedSkipsInstalledUIDependencies(t *testing.T) {
+	t.Parallel()
+	source := agentImportingAUnit(t)
+	agent := filepath.Join(source, "agents", "collector")
+	installedUIDependencies(t, agent)
+
+	imported, err := profilestage.Imported(agent)
+	require.NoError(t, err, "a dependency's YAML under node_modules is not a declaration to follow")
+	require.Equal(t, []string{filepath.Join(source, "agents", "units", "types-core.yaml")}, imported)
+}
