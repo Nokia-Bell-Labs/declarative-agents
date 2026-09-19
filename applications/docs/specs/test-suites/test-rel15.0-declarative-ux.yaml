@@ -3,7 +3,7 @@
 id: test-rel15.0-declarative-ux
 title: Release 15.0 Declarative UX Test Suite
 release: "15.0"
-status: planned
+status: implemented
 test_case_count: 9
 
 overview: |
@@ -190,7 +190,7 @@ test_cases:
   - id: TC7
     use_case: rel15.0-uc001-declarative-ux
     name: Kit owns tokens and ships as a file dependency and release tarball
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2259, GH-2260
     command: |
@@ -228,11 +228,11 @@ test_cases:
   - id: TC9
     use_case: rel15.0-uc001-declarative-ux
     name: No shared UI code is duplicated under applications/
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2275
     command: |
-      mage test
+      (cd magefiles && go test -run 'TestNoUIKitDuplicationInApplications|TestSweepUIDuplicationReportsEachShape' ./)
     expected:
       no_splitpanelpath_copy_outside_kit: true
       no_monitor_or_trace_client_copy_outside_kit: true

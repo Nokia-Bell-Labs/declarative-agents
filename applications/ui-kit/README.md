@@ -16,7 +16,7 @@ Every dependent UI's `package-lock.json` records the kit's `package.json` fields
 Repositories outside this one depend on the release tarball (srd004 R8.3):
 
 ```json
-"@declarative-agents/ui-kit": "https://github.com/Nokia-Bell-Labs/declarative-agents/releases/download/ui-kit%2Fv0.1.0/declarative-agents-ui-kit-0.1.0.tgz"
+"@declarative-agents/ui-kit": "https://github.com/Nokia-Bell-Labs/declarative-agents/releases/download/ui-kit%2Fv1.0.0/declarative-agents-ui-kit-1.0.0.tgz"
 ```
 
 ## Panels

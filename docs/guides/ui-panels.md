@@ -5,7 +5,7 @@
 
 Agent UIs are React single-page applications served by the agent itself: a `static_assets` REST binding (`agent-core/internal/tools/rest/definition/server.go`) serves a built Vite bundle from the path the agent's `rest.yaml` declares, with an SPA fallback. Each UI keeps a declarative descriptor, `ui/ui.yaml`, naming its routes, sidebar, and monitored agents. Placement rules live in `docs/engineering/eng02-agent-ui-placement.yaml`.
 
-Before the declarative UX epic the runtime treated every bundle as bytes on disk (a platform bundle such as the observer is now compiled into agent-core), a test cross-checked `ui.yaml` against a hand-written route table, and the applications shared one tokens file. The declarative UX epic (GH-2154) changes each of these; this guide documents the current mechanics and the target model so UI work written now converges toward it.
+Before the declarative UX epic the runtime treated every bundle as bytes on disk (a platform bundle such as the observer is now compiled into agent-core), a test cross-checked `ui.yaml` against a hand-written route table, and the applications shared one tokens file. The declarative UX epic (GH-2154, shipped) replaced each of these; this guide documents the resulting mechanics.
 
 ## The presentation contract
 
@@ -58,6 +58,6 @@ The kit applies the same rules at build time. Its Vite plugin `@declarative-agen
 
 The canonical tokens file is `applications/ui-kit/src/tokens.css` (GH-2260). Every UI imports it as `@import "@declarative-agents/ui-kit/tokens.css";` through its dependency on the kit — a `file:` path in this repository, the release tarball elsewhere — so no UI reaches it by filesystem path. The design-token drift tests (`magefiles/uidist_test.go`, `applications/catalog/conformance/design_tokens_drift_test.go`) resolve that import through `package.json` and the kit's exports map, and fail on any other `:root` token block under `applications/`.
 
-## Rules that hold now
+## Rules
 
-New UI code binds backends through a client with an injectable base URL rather than hard-coded relative fetches, so the same panel runs same-origin and under a desktop shell later. New shared-looking components (anything a second application would want) go toward the kit rather than into an app's `src/`, even while the kit is pending — keeping them in one file with no app imports makes the later extraction mechanical. Domain panels stay in their application; the epic does not unify them.
+UI code reads and writes only through the kit client, whose base URL is injectable, so the same panel runs same-origin and under a desktop shell later. A component a second application would want goes into the kit, not into an app's `src/`. `magefiles/ui_duplication_test.go` enforces this: it fails on a local copy of the panel path helpers, the monitor, trace, or fleet clients, the machine layout, the status bar, or sub-path routing; on `/trace-proxy` anywhere under `applications/`; and on a raw `fetch` or `EventSource` in a UI that uses the kit. Domain panels stay in their application; the epic does not unify them. Open kit gaps are tracked in GH-2282.

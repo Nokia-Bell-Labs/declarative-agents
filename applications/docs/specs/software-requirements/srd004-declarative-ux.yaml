@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: srd004-declarative-ux
 title: Presentation Contract and Panel Composition
-status: specified
+status: implemented
 
 problem: |
   Agents, tools, and REST routes are declared, but application user interfaces
