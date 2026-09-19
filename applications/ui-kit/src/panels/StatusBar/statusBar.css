@@ -1,0 +1,5 @@
+.dak-status-bar { display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem; font-size: .8rem; color: var(--text-secondary); }
+.dak-status-bar .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dak-status-bar .dot-ok { background: var(--success); }
+.dak-status-bar .dot-err { background: var(--danger); }
+.dak-status-bar .dot-warn { background: var(--warning); }

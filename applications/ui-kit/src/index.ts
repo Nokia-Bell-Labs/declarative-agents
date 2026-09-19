@@ -17,3 +17,7 @@ export { panelForPath, panelHref, splitPanelPath, staticHref, type PanelRoute, t
 export { usePanelLocation, type PanelLocation } from "./shell/usePanelLocation";
 export { Sidebar, type SidebarGroup, type SidebarProps } from "./shell/Sidebar";
 export { PanelFrame } from "./shell/PanelFrame";
+export { definePanel, type KitPanel, type PanelManifest, type PanelProps } from "./panels/manifest";
+export * from "./panels/StatusBar";
+export * from "./panels/FleetPanel";
+export { kitPanelRegistry, kitPanels } from "./panels/registry";

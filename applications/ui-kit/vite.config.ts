@@ -16,6 +16,7 @@ export default defineConfig({
         fixtures: resolve(__dirname, "src/fixtures/index.ts"),
       },
       formats: ["es"],
+      cssFileName: "ui-kit",
     },
     rollupOptions: {
       external: ["react", "react-dom", "react/jsx-runtime"],
