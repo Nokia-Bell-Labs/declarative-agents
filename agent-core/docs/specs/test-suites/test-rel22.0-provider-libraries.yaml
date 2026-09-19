@@ -16,7 +16,7 @@ test_cases:
   - use_case: rel22.0-uc001-provider-libraries
     name: A strict dialect loads and a bad one fails with its path
     go_test: go test ./internal/tools/llm/... -run 'TestChatDialectLoadsStrictly|TestChatDialectRejectsUnknownField|TestChatDialectRejectsCredentialLiteral|TestChatDialectRejectsMessagesInsideString'
-    status: planned
+    status: implemented
     description: Load a fixture dialect; then copies with an unknown field, a credential value in place of token_ref, and messages referenced inside a larger string.
     expected:
       valid_dialect_loads: true
@@ -28,7 +28,7 @@ test_cases:
   - use_case: rel22.0-uc001-provider-libraries
     name: A missing library file fails at load naming path and directory
     go_test: go test ./internal/load -run 'TestProviderLibraryMissingDialectNamesPathAndDirectory|TestProviderLibraryMissingFragmentNamesPathAndDirectory'
-    status: planned
+    status: implemented
     description: Bind a providers root that lacks chat-dialect.yaml, then one that lacks rerank-fragment.yaml under a profile that instantiates the rerank stage.
     expected:
       load_fails: true
@@ -39,7 +39,7 @@ test_cases:
   - use_case: rel22.0-uc001-provider-libraries
     name: Rebinding the providers root switches provider with no declaration edit
     go_test: go test ./internal/load ./internal/tools/llm/... -run 'TestLibraryRebindSwitchesProvider|TestDumpRecordsDialectRoot'
-    status: planned
+    status: implemented
     description: Load one profile with its declared Ollama root and again with --library providers set to the Cohere library; compare the machine, tool, REST, and fragment bytes, the resolved dialect, the dump, and the program identity.
     expected:
       declaration_bytes_identical: true
@@ -51,7 +51,7 @@ test_cases:
   - use_case: rel22.0-uc001-provider-libraries
     name: The dialect and provider fields do not combine
     go_test: go test ./internal/tools/llm/... -run 'TestInvokeLLMRejectsProviderAndDialect|TestInvokeLLMMapsLegacyProvider'
-    status: planned
+    status: implemented
     description: Configure invoke_llm with provider and dialect together; then with provider ollama and provider cohere alone.
     expected:
       both_fields_rejected: true
@@ -61,7 +61,7 @@ test_cases:
   - use_case: rel22.0-uc001-provider-libraries
     name: The dialect path matches the compiled adapters
     go_test: go test ./internal/tools/llm/... -run 'TestProviderDialectParity'
-    status: planned
+    status: implemented
     description: Run recorded multi-turn conversations through the Ollama and Cohere adapters and through their dialect files against the same fake servers; compare request JSON documents, histories, emitted signals, and span attributes.
     expected:
       request_documents_equal: true
@@ -74,7 +74,7 @@ test_cases:
   - use_case: rel22.0-uc001-provider-libraries
     name: Credentials resolve at call time and never leak
     go_test: go test ./internal/tools/llm/... -run 'TestDialectCredentialResolvedAtCallTime|TestDialectMissingCredentialFailsBeforeNetwork|TestDialectCredentialAbsentFromDiagnostics'
-    status: planned
+    status: implemented
     description: Call through a dialect whose token_ref names a variable set only through the injected resolver; then with the variable empty; then inspect output, errors, and spans.
     expected:
       bearer_sent_from_resolver: true
@@ -85,7 +85,7 @@ test_cases:
   - use_case: rel22.0-uc001-provider-libraries
     name: A library parser profile wins over the embedded registry
     go_test: go test ./internal/model/llm ./internal/tools/llm/... -run 'TestLibraryParserProfileOverridesEmbedded|TestDialectLibraryParserProfileResolves'
-    status: planned
+    status: implemented
     description: Bind a library whose parser profile shares a name with an embedded profile and changes one extraction rule.
     expected:
       library_profile_used: true
@@ -94,7 +94,7 @@ test_cases:
   - use_case: rel22.0-uc001-provider-libraries
     name: Stage fragments splice with each library and route every failure
     go_test: go test ./internal/load ./internal/tools/rest -run 'TestEmbedStageFragmentsSpliceWithEachLibrary|TestProviderFailureSignalsRouted'
-    status: planned
+    status: implemented
     description: Instantiate the embed-query, embed-document, and rerank stages in a fixture machine beside each library's REST fragments; answer 200, 401, 429, and 503 from the fake server.
     expected:
       label_and_exhaustiveness_checks_pass: true
@@ -105,7 +105,7 @@ test_cases:
   - use_case: rel22.0-uc001-provider-libraries
     name: No hand-written provider embedding remains
     go_test: go test ./internal/declstyle -run 'TestNoHandWrittenProviderEmbedding|TestHandWrittenProviderEmbeddingIsFound'
-    status: planned
+    status: implemented
     description: Scan the monorepo's REST declarations for provider embed and rerank operations declared outside a provider library, against a baseline that only shrinks (the chatbot query embedding, GH-2245); record mage stats:reuse before and after the adoption.
     expected:
       hand_written_embed_blocks_outside_baseline: 0
@@ -115,11 +115,12 @@ test_cases:
 
   - use_case: rel22.0-uc001-provider-libraries
     name: A synthetic third provider needs no Go and no agent edit
-    go_test: go test ./internal/tools/llm/... ./internal/load -run 'TestSyntheticProviderConformance|TestSyntheticProviderTouchesOnlyItsLibrary'
-    status: planned
-    description: Bind the OpenAI-shaped testdata library to the unchanged chat and embed fixtures, run chat and embed against the fake OpenAI-shaped server, and check that the suite's only inputs are the library directory and the harness.
+    go_test: go test ./internal/tools/llm ./internal/load -run 'TestSyntheticProviderConformance|TestSyntheticProviderFailuresUseTheSharedTaxonomy|TestSyntheticProviderTouchesOnlyItsLibrary'
+    status: implemented
+    description: Bind the OpenAI-shaped testdata library, a chat dialect with its own parser profile, to the unchanged invoke_llm word and the unchanged ollama-rest profile; run chat and every failure status against a fake OpenAI-shaped server; and check that the library is YAML only and that no declaration outside it names the provider. Embeddings in the OpenAI shape wait on array-indexing response selectors (GH-2246).
     expected:
-      chat_and_embed_pass: true
+      chat_passes: true
+      library_parser_profile_used: true
       shared_vocabulary_emitted: true
       go_changes_required: 0
       agent_declaration_changes_required: 0

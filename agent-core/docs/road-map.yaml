@@ -926,44 +926,54 @@ releases:
       as a template method, REST fragments for embed and rerank under one
       signal vocabulary, and a parser profile. A deployment changes provider
       by rebinding --library providers, and a new provider needs no Go.
-    status: in_progress
+    status: done
     planned_work:
       - id: gh-2224
         summary: Specify provider libraries (srd058), its use case, and its suite.
         status: implemented
+      - id: gh-2237
+        summary: Closed as not planned in the srd058 review. The REST body renderer already places a whole-scalar reference as structured data, so no fragment needs a structured parameter at load time.
+        status: deferred
       - id: gh-2238
         summary: The providers root, the shared result-type unit, and the strict chat-dialect loader.
-        status: planned
+        status: implemented
       - id: gh-2239
         summary: invoke_llm as a template method over the chat dialect, with dialect replacing provider.
-        status: planned
+        status: implemented
       - id: gh-2240
         summary: Ollama and Cohere libraries and the capture-fixture parity harness.
-        status: planned
+        status: implemented
       - id: gh-2241
         summary: Retire the compiled adapters and migrate provider users to dialect.
-        status: planned
+        status: implemented
       - id: gh-2242
         summary: Embed and rerank stage fragments in tools/machines.
-        status: planned
+        status: implemented
       - id: gh-2243
         summary: Adopt the stage and REST fragments in the catalog corpus agents and drop the duplicated embed blocks.
-        status: planned
+        status: implemented
       - id: gh-2244
         summary: The synthetic OpenAI-shaped third-provider conformance suite.
-        status: planned
+        status: implemented
     srds:
       - srd058-provider-libraries
     use_cases:
       - id: rel22.0-uc001-provider-libraries
         summary: A deployment changes and adds a model provider without editing an agent.
-        status: specified
+        status: implemented
     test_suites:
       - id: test-rel22.0-provider-libraries
         summary: Formal tests for the dialect loader, load failures, library rebinding, adapter parity, credentials, parser precedence, stage fragments, adoption, and the synthetic provider.
+        status: implemented
+    follow_up:
+      - id: GH-2245
+        summary: Adopt the embed-query stage in the chatbot-mesh chatbot request machine, the one hand-written provider embedding the guard baselines.
+        status: planned
+      - id: GH-2246
+        summary: Decide whether REST response selectors index arrays, so an OpenAI-shaped library can ship embed fragments.
         status: planned
     proof:
-      - go test ./internal/tools/llm/... ./internal/load ./internal/runtime/core
+      - go test ./internal/tools/llm/... ./internal/load ./internal/tools/rest ./internal/declstyle
       - mage stats:reuse
       - mage audit
 

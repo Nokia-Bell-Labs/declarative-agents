@@ -932,10 +932,21 @@ patterns:
               artifact: go_test
               assertion: go_test
               test: TestProviderDialectParity
-      - system: Design intent — further provider adapters
+      - system: Reference implementation — a provider added as YAML
         cite: reference-implementation
         kind: internal
-        note: Provider portability beyond Ollama and Cohere is design intent; adding OpenAI, Anthropic, or failover behavior requires new adapter code and focused cross-provider tests.
+        note: A third, OpenAI-shaped provider is a directory holding one chat dialect with its parser profile; binding it to the providers root runs the unchanged invoke_llm word with no Go and no agent edit (srd058 R5.3).
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-core/internal/tools/llm/synthetic_provider_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestSyntheticProviderConformance
+      - system: Design intent — provider failover
+        cite: reference-implementation
+        kind: internal
+        note: Failover, retries, and rate-limit policy across providers remain design intent (srd058 non-goals); a deployment binds one provider library per run.
         evidence:
           classification: design_intent
     provenance: [reference-implementation, external-corroboration]

@@ -220,3 +220,12 @@ related_documents:
   - srd050-declaration-imports
   - srd051-declaration-types
 
+implementation_status:
+  complete:
+    - GH-2238 implements the chat dialect loader (R2.1, R2.2 checks), config.dialect as a closure, dump, and staging edge (R1.2, R1.3 load failure, R2.3), and the provider type unit (R1.4).
+    - GH-2239 implements invoke_llm as a template method over the dialect, dialect beside provider, library parser profiles, and call-time credentials (R3.1 to R3.5).
+    - GH-2240 ships the Ollama and Cohere libraries (R5.1) and the capture parity run the adapters retired on.
+    - GH-2241 removes the compiled adapters (R5.2); provider values resolve to the shipped dialects, and the monorepo declarations use dialect with the providers root declared by their profiles (R1.1, R3.2).
+    - GH-2242 publishes the embed and rerank stage fragments and their words (R4.1).
+    - GH-2243 adopts them in catalog corpus-ingest and corpus-reader and replaces both duplicated Ollama embed blocks (R4.2); the chatbot query embedding stays baselined until GH-2245.
+    - GH-2244 adds the synthetic OpenAI-shaped chat library and its conformance suite (R5.3); OpenAI-shaped embeddings wait on the array-selector decision in GH-2246.

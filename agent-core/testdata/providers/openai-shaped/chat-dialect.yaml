@@ -1,0 +1,39 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A synthetic third provider for the srd058 R5.3 conformance suite: an
+# OpenAI-shaped chat completions endpoint, as an OpenAI-compatible gateway in
+# front of any hosted model serves it. It is a directory of YAML and nothing
+# else; binding it to the providers root is the whole of adding it.
+unit: provider-openai-shaped-chat-dialect
+provider_name: openai
+path: /v1/chat/completions
+auth:
+  type: bearer
+  token_ref: OPENAI_API_KEY
+body:
+  model: "{{ params.model }}"
+  messages: "{{ params.messages }}"
+  temperature: "{{ params.temperature }}"
+  seed: "{{ params.seed }}"
+response:
+  text: $.choices.0.message.content
+  text_required: true
+  input_tokens: $.usage.prompt_tokens
+  output_tokens: $.usage.completion_tokens
+failures:
+- status: [401, 403]
+  signal: ProviderUnauthorized
+- status: [429]
+  signal: ProviderThrottled
+- status: [500, 502, 503, 504]
+  signal: ProviderUnavailable
+# The library ships its own parser: gpt- models answer tool calls inside the
+# same [tool_call] envelope the default profile reads, and may wrap them in a
+# code fence.
+parser_profiles:
+- name: openai-shaped
+  match_prefixes: ["gpt-"]
+  envelope: {open: "[tool_call]", close: "[/tool_call]"}
+  extraction_pipeline:
+  - strip_code_fences
+  - extract_envelope: {open: "[tool_call]", close: "[/tool_call]"}
