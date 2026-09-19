@@ -28,6 +28,7 @@ func (r *toolImportResolver) resolveConfigFiles(defs []ToolDef, declaring string
 		return nil
 	}
 	for index := range defs {
+		r.adoptLegacyProviderDialect(&defs[index])
 		for _, field := range configFileFields {
 			written, ok := defs[index].Config[field].(string)
 			if !ok || strings.TrimSpace(written) == "" {
@@ -84,4 +85,52 @@ func missingConfigFile(written, target string, cause error) error {
 		return fmt.Errorf("%s does not exist: library root %q is bound to %s", target, root, directory)
 	}
 	return fmt.Errorf("%s does not exist under library root %q", target, root)
+}
+
+// legacyProviders are the provider values written before srd058; each names a
+// library agent-core ships.
+var legacyProviders = map[string]bool{"ollama": true, "cohere": true}
+
+// adoptLegacyProviderDialect rewrites an invoke_llm config that names a legacy
+// provider, or neither field, to the shipped library's dialect, so the dialect
+// the tool runs with is a closure file like any other (srd058 R2.3, R3.2). A
+// config left untouched (an unknown provider, or a shipped dialect that is not
+// installed here) keeps its provider for the runtime to resolve or report.
+func (r *toolImportResolver) adoptLegacyProviderDialect(def *ToolDef) {
+	if def.Init != "invoke_llm" {
+		return
+	}
+	if dialect, _ := def.Config["dialect"].(string); dialect != "" {
+		return
+	}
+	provider, _ := def.Config["provider"].(string)
+	if provider == "" {
+		provider = "ollama"
+	}
+	if !legacyProviders[provider] {
+		return
+	}
+	written := corepath.InstallPrefix + "/tools/providers/" + provider + "/chat-dialect.yaml"
+	target := written
+	if mapped := corepath.Map(written); mapped != "" {
+		target = mapped
+	}
+	if _, err := os.Stat(target); err != nil {
+		return
+	}
+	config := make(map[string]interface{}, len(def.Config)+1)
+	for key, value := range def.Config {
+		if key != "provider" {
+			config[key] = value
+		}
+	}
+	config["dialect"] = written
+	// A legacy Ollama config without an endpoint meant the local default,
+	// which invoke_llm keys to the provider value this rewrite removes.
+	_, hasURL := config["provider_url"]
+	_, hasLegacyURL := config["ollama_url"]
+	if provider == "ollama" && !hasURL && !hasLegacyURL {
+		config["provider_url"] = "http://localhost:11434"
+	}
+	def.Config = config
 }
