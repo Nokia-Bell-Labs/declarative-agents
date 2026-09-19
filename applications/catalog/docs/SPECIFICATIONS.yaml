@@ -190,6 +190,15 @@ roadmap_summary:
       (release 13.0), and the Explore UI page renders a duration heatmap,
       drag-selects a region, shows the ranked attribute divergence, and links
       exemplar spans into the per-trace waterfall.
+  - version: "17.0"
+    name: Rig doctor root-cause analyst
+    status: planned
+    scope: |
+      Add the rig-doctor family (srd023) on the root-cause-analyst sub-role.
+      Rig capture gains events, rollout counts, a trace spool tail, and a
+      manifest; mage diagnose captures a snapshot and runs the rig-doctor
+      over it. The diagnosis loop reads files only and cites evidence for
+      every claim.
   - version: "99.0"
     name: Observer family promotion
     status: planned
@@ -388,6 +397,13 @@ srd_index:
       endpoints, charts, rollout commands, and authority remain local.
     status: implemented
     path: docs/specs/software-requirements/srd022-applier.yaml
+  - id: srd023-rig-doctor
+    title: Rig Doctor Root-Cause Analyst
+    summary: Catalog root-cause-analyst that reads one captured kind evidence
+      directory and the trace spool tail, never the live cluster, and writes a
+      diagnosis whose every claim cites a captured file and line.
+    status: planned
+    path: docs/specs/software-requirements/srd023-rig-doctor.yaml
 
 config_format_index: []
 
@@ -623,6 +639,13 @@ use_case_index:
       thin application wrappers that retain local deployment authority.
     status: implemented
     path: docs/specs/use-cases/rel16.0-uc001-applier-family.yaml
+  - id: rel17.0-uc001-rig-doctor
+    title: An operator runs mage diagnose after a failed scenario and reads a cited diagnosis
+    summary: The diagnose target captures a scenario snapshot with a manifest and
+      runs the rig-doctor over it; the operator reads a cited diagnosis and runs
+      the suggested read-only command.
+    status: planned
+    path: docs/specs/use-cases/rel17.0-uc001-rig-doctor.yaml
   - id: rel99.0-uc001-observer-family
     title: The observer is a catalog-owned family adopted across applications
     summary: The fleet observer becomes a catalog-owned family generalized from
@@ -770,6 +793,12 @@ test_suite_index:
       statistics evidence for the promoted applier family.
     status: implemented
     path: docs/specs/test-suites/test-rel16.0-applier.yaml
+  - id: test-rel17.0-rig-doctor
+    title: Rig Doctor Root-Cause Analyst Conformance
+    summary: Closure, mock-provider diagnosis, empty-evidence, capture-manifest,
+      registration, and dependency-gated live cases for the rig-doctor.
+    status: planned
+    path: docs/specs/test-suites/test-rel17.0-rig-doctor.yaml
   - id: test-rel99.0-observer
     title: Test Suite for Release 99.0 Observer Family Promotion
     summary: Specification-graph cases for the generalized observer-family SRD,

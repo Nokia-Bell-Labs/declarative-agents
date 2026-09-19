@@ -836,6 +836,39 @@ releases:
       - Package provenance distinguishes canonical and local closure members.
       - Duplicate and statistics audits prevent copied forks and double counting.
 
+  - id: "17.0"
+    title: Rig doctor root-cause analyst
+    status: planned
+    dependencies:
+      - Release 13.0 collector family (spool trace query words)
+      - repository-root kind rig failure-evidence capture (eng01)
+    planned_work:
+      - {gh: 2286, title: "Specify the rig-doctor: srd023, use case, test suite, eng01 diagnose verb", estimated_loc: "0 (documentation)"}
+      - {gh: 2287, title: "Rig evidence capture with manifest and mage diagnose (capture only)", estimated_loc: "180 production"}
+      - {gh: 2288, title: "rig-doctor profile on root-cause-analyst, registration, and diagnose wiring", estimated_loc: "350 production and test"}
+    specification:
+      srd: srd023-rig-doctor
+      status: planned
+    use_cases:
+      - id: rel17.0-uc001-rig-doctor
+        title: An operator runs mage diagnose after a failed scenario and reads a cited diagnosis
+        status: planned
+    test_suites:
+      - id: test-rel17.0-rig-doctor
+        title: Rig doctor root-cause analyst conformance
+        cases: 6
+        status: planned
+    proof:
+      - mage validate
+      - mage conformance
+      - go test ./conformance -run RigDoctor
+      - cd ../.. && mage test
+      - cd ../.. && mage audit
+    success_markers:
+      - Capture records a manifest of every file and every capture error.
+      - The diagnosis loop declares no exec, kubectl, or helm word.
+      - Every diagnosis claim cites a captured file and line.
+
   - id: "99.0"
     title: Observer family promotion
     status: planned
