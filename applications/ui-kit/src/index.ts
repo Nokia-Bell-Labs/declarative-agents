@@ -20,4 +20,5 @@ export { PanelFrame } from "./shell/PanelFrame";
 export { definePanel, type KitPanel, type PanelManifest, type PanelProps } from "./panels/manifest";
 export * from "./panels/StatusBar";
 export * from "./panels/FleetPanel";
+export * from "./panels/MachineView";
 export { kitPanelRegistry, kitPanels } from "./panels/registry";

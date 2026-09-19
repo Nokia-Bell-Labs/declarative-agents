@@ -21,9 +21,11 @@ export interface PanelProps<Config = Record<string, unknown>> {
   traceBackend?: string;
 }
 
-export interface KitPanel<Config = Record<string, unknown>> {
+// KitPanel erases the author's config type: a shell passes the ui.yaml config
+// as a plain map, and each mount narrows it.
+export interface KitPanel {
   manifest: PanelManifest;
-  component: ComponentType<PanelProps<Config>>;
+  component: ComponentType<PanelProps>;
 }
 
 // definePanel pairs a component with its manifest and rejects a manifest that
@@ -31,10 +33,10 @@ export interface KitPanel<Config = Record<string, unknown>> {
 export function definePanel<Config = Record<string, unknown>>(
   manifest: PanelManifest,
   component: ComponentType<PanelProps<Config>>,
-): KitPanel<Config> {
+): KitPanel {
   const outside = manifest.required_endpoints.filter((endpoint) => !(CONTRACT_ENDPOINTS as readonly string[]).includes(endpoint));
   if (outside.length > 0) {
     throw new Error(`panel ${manifest.id} requires endpoints outside the presentation contract: ${outside.join(", ")}`);
   }
-  return { manifest, component };
+  return { manifest, component: component as ComponentType<PanelProps> };
 }

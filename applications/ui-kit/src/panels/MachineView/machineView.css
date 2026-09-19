@@ -1,0 +1,53 @@
+/* MachineView, AgentPanel, and the mountable machine panel. Every rule is
+   scoped under .dak-machine and reads colours from the kit tokens. */
+.dak-machine.agent-machine { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 10px; }
+.dak-machine.machine-panel { padding: 16px 24px; overflow: auto; }
+.dak-machine .machine-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dak-machine .machine-head { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.dak-machine .agent-picker,
+.dak-machine .machine-picker { font: inherit; font-size: 0.72rem; border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; background: var(--bg-primary); color: var(--text-primary); }
+.dak-machine .machine-live > .machine-picker { margin-top: 8px; }
+.dak-machine .machine-notice { font-size: 13px; color: var(--text-tertiary); padding: 8px 0; }
+.dak-machine .machine-notice-warn { color: var(--warning); }
+.dak-machine .machine-counts { display: flex; align-items: center; gap: 8px; font-size: 0.7rem; color: var(--text-secondary); margin: 6px 0; }
+.dak-machine .machine-hidden { color: var(--text-tertiary); }
+.dak-machine .machine-now { color: var(--accent); font-family: var(--font-mono); }
+.dak-machine .machine-toggle { margin-left: auto; font: inherit; font-size: 0.72rem; border: 1px solid var(--border); background: none; border-radius: 999px; padding: 1px 10px; cursor: pointer; color: var(--text-secondary); }
+.dak-machine.machine-view { overflow-x: auto; padding: 4px 0; }
+.dak-machine.machine-empty { font-size: 0.75rem; color: var(--text-tertiary); padding: 10px 0; }
+.dak-machine .machine-arrowhead { fill: var(--text-tertiary); }
+.dak-machine .machine-edge { fill: none; stroke: var(--text-tertiary); stroke-width: 1.1; opacity: 0.55; }
+.dak-machine .machine-edge-active { stroke: var(--accent); stroke-width: 2; opacity: 1; }
+.dak-machine .machine-state rect { fill: var(--bg-secondary); stroke: var(--border); stroke-width: 1; }
+.dak-machine .machine-state text { font-size: 11px; font-family: var(--font-mono); fill: var(--text-secondary); }
+.dak-machine .machine-state-terminal rect { stroke-dasharray: 3 2; }
+.dak-machine .machine-state-visited rect { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: var(--accent); }
+.dak-machine .machine-state-visited text { fill: var(--text-primary); font-weight: 600; }
+.dak-machine .machine-state-partial rect { fill: color-mix(in srgb, var(--accent) 6%, transparent); stroke: var(--accent); stroke-dasharray: 4 3; }
+.dak-machine .machine-state-final rect { stroke: var(--success); stroke-width: 2; }
+.dak-machine .machine-state-current rect { fill: color-mix(in srgb, var(--accent) 24%, transparent); stroke: var(--accent); stroke-width: 2; stroke-dasharray: none; }
+.dak-machine .machine-state-current text { fill: var(--text-primary); font-weight: 600; }
+.dak-machine .tool-list { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.dak-machine .tool-tag { font: inherit; font-size: 0.64rem; font-family: var(--font-mono); border: 1px solid var(--border); background: none; border-radius: 999px; padding: 1px 8px; cursor: pointer; color: var(--text-secondary); }
+.dak-machine .tool-tag:hover,
+.dak-machine .tool-tag-on { color: var(--accent); border-color: var(--accent); }
+.dak-machine .tool-window { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); padding: 10px 14px; margin-bottom: 10px; font-size: 0.74rem; }
+.dak-machine .tool-window-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.dak-machine .tool-window-title { font-family: var(--font-mono); font-weight: 600; }
+.dak-machine .machine-close { margin-left: auto; font: inherit; border: 1px solid var(--border); background: none; border-radius: 4px; padding: 2px 8px; cursor: pointer; color: var(--text-secondary); }
+.dak-machine .kind-badge { font-size: 0.62rem; border-radius: 3px; padding: 0 6px; color: var(--chart-white); background: var(--text-tertiary); }
+.dak-machine .kind-llm { background: var(--chart-purple); }
+.dak-machine .kind-rest { background: var(--chart-green); }
+.dak-machine .kind-lifecycle { background: var(--chart-orange); }
+.dak-machine .kind-process { background: var(--chart-teal); }
+.dak-machine .dialog-model { font-family: var(--font-mono); color: var(--accent); }
+.dak-machine .dialog-calls,
+.dak-machine .dialog-inputs,
+.dak-machine .dialog-emits { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-secondary); }
+.dak-machine .dialog-description { margin: 4px 0; }
+.dak-machine .dialog-problem { color: var(--text-secondary); margin-bottom: 4px; }
+.dak-machine .dialog-goals { margin: 4px 0 4px 16px; color: var(--text-secondary); }
+.dak-machine .dialog-params { font-size: 0.68rem; border-collapse: collapse; margin: 4px 0; }
+.dak-machine .dialog-params td { border-bottom: 1px solid var(--border); padding: 1px 10px 1px 0; font-family: var(--font-mono); }
+.dak-machine .dialog-prompt > summary { cursor: pointer; color: var(--text-secondary); font-size: 0.7rem; }
+.dak-machine .dialog-prompt pre { white-space: pre-wrap; font-size: 0.68rem; background: var(--bg-primary); border-radius: 6px; padding: 6px 8px; max-height: 260px; overflow-y: auto; }
