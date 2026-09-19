@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
@@ -255,15 +256,10 @@ func (r *ProfileMachineRequestRunner) requestRegistry(
 }
 
 func requestToolDefs(profile catalog.AgentProfile, machine core.MachineSpec) ([]catalog.ToolDef, error) {
-	dirDefs, err := catalog.LoadToolDeclarationsFromDirs(profile.ToolConfigDirs)
+	merged, err := loadRequestDeclarations(profile)
 	if err != nil {
-		return nil, fmt.Errorf("machine_config_invalid: load request tool config dirs: %w", err)
+		return nil, err
 	}
-	fileDefs, err := catalog.LoadToolDeclarations(profile.ToolDeclarations)
-	if err != nil {
-		return nil, fmt.Errorf("machine_config_invalid: load request tool declarations: %w", err)
-	}
-	merged := catalog.MergeToolDefs(dirDefs, fileDefs)
 	selection := machineActionNames(machine)
 	if machineHasDynamicDispatch(machine) {
 		// A $tool transition dispatches an LLM-selected external word that may not
@@ -292,6 +288,26 @@ func requestToolDefs(profile catalog.AgentProfile, machine core.MachineSpec) ([]
 		return nil, fmt.Errorf("machine_config_invalid: select request tools: %w", err)
 	}
 	return defs, nil
+}
+
+// loadRequestDeclarations loads the request profile's declarations with its
+// library roots in force, so a rooted reference such as invoke_llm's chat
+// dialect resolves against the library that profile binds (srd058 R1.1).
+func loadRequestDeclarations(profile catalog.AgentProfile) ([]catalog.ToolDef, error) {
+	var merged []catalog.ToolDef
+	err := corepath.WithLibraryRoots(profile.Libraries, func() error {
+		dirDefs, err := catalog.LoadToolDeclarationsFromDirs(profile.ToolConfigDirs)
+		if err != nil {
+			return fmt.Errorf("machine_config_invalid: load request tool config dirs: %w", err)
+		}
+		fileDefs, err := catalog.LoadToolDeclarations(profile.ToolDeclarations)
+		if err != nil {
+			return fmt.Errorf("machine_config_invalid: load request tool declarations: %w", err)
+		}
+		merged = catalog.MergeToolDefs(dirDefs, fileDefs)
+		return nil
+	})
+	return merged, err
 }
 
 func selectedDynamicDispatchVocabulary(defs []catalog.ToolDef, selected []string) []string {

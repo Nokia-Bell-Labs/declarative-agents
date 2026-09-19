@@ -106,10 +106,10 @@ test_cases:
     name: No hand-written provider embedding remains
     go_test: go test ./internal/declstyle -run 'TestNoHandWrittenProviderEmbedding|TestHandWrittenProviderEmbeddingIsFound'
     status: implemented
-    description: Scan the monorepo's REST declarations for provider embed and rerank operations declared outside a provider library, against a baseline that only shrinks (the chatbot query embedding, GH-2245); record mage stats:reuse before and after the adoption.
+    description: Scan the monorepo's REST declarations for provider embed and rerank operations declared outside a provider library; record mage stats:reuse before and after the adoption.
     expected:
-      hand_written_embed_blocks_outside_baseline: 0
-      corpus_embedding_openings_are_stage_instances: true
+      hand_written_embed_blocks: 0
+      embedding_openings_are_stage_instances: true
       ollama_path_declares_failures: true
     traces: [rel22.0-uc001-provider-libraries S3, srd058-provider-libraries AC3, srd058-provider-libraries R4.2]
 

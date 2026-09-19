@@ -21,6 +21,7 @@ tool_declarations:
   - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
 rest_definitions:
   - rest.yaml
+  - embed-rest.yaml
 # The provider library invoke_llm reads its chat dialect from (srd058 R1.1).
 libraries:
   providers: /opt/agent-core/tools/providers/ollama

@@ -227,5 +227,6 @@ implementation_status:
     - GH-2240 ships the Ollama and Cohere libraries (R5.1) and the capture parity run the adapters retired on.
     - GH-2241 removes the compiled adapters (R5.2); provider values resolve to the shipped dialects, and the monorepo declarations use dialect with the providers root declared by their profiles (R1.1, R3.2).
     - GH-2242 publishes the embed and rerank stage fragments and their words (R4.1).
-    - GH-2243 adopts them in catalog corpus-ingest and corpus-reader and replaces both duplicated Ollama embed blocks (R4.2); the chatbot query embedding stays baselined until GH-2245.
+    - GH-2243 adopts them in catalog corpus-ingest and corpus-reader and replaces both duplicated Ollama embed blocks (R4.2).
+    - GH-2245 adopts the embed-query stage in the chatbot-mesh chatbot request machine, so no hand-written provider embedding remains in the monorepo. It also makes a machine_request load its request profile's declarations under that profile's library roots and --library overrides, and counts the words a closure's request machines run as used, since the agent serves those requests from its own REST collection (srd052 R3.1).
     - GH-2244 adds the synthetic OpenAI-shaped chat library and its conformance suite (R5.3); OpenAI-shaped embeddings wait on the array-selector decision in GH-2246.

@@ -61,13 +61,6 @@ func handWrittenProviderOperations(paths []string, repo string) ([]string, error
 	return found, nil
 }
 
-// handWrittenProviderBaseline is the one operation still awaiting adoption:
-// the chatbot's query embedding, which the chart also renders (GH-2245). An
-// entry is deleted when its operation is gone; the list does not grow.
-var handWrittenProviderBaseline = []string{
-	"applications/chatbot-mesh/agents/chatbot/rest.yaml: embedding.embed_query /api/embeddings",
-}
-
 func TestNoHandWrittenProviderEmbedding(t *testing.T) {
 	paths, err := discoverLegacyDeclarationFiles(declarationRoots(t))
 	require.NoError(t, err)
@@ -75,9 +68,7 @@ func TestNoHandWrittenProviderEmbedding(t *testing.T) {
 	found, err := handWrittenProviderOperations(paths, filepath.Dir(moduleRoot(t)))
 
 	require.NoError(t, err)
-	require.ElementsMatch(t, handWrittenProviderBaseline, found,
-		"embedding and rerank operations come from the bound provider library (srd058 R4.2); "+
-			"a new entry is hand-written provider REST, a missing one is a stale baseline line")
+	require.Empty(t, found, "embedding and rerank operations come from the bound provider library (srd058 R4.2)")
 }
 
 func TestHandWrittenProviderEmbeddingIsFound(t *testing.T) {

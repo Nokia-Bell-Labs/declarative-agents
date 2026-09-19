@@ -638,16 +638,17 @@ func chromaTraceFile(label string) (string, func(), error) {
 	return path, func() { _ = os.Remove(path) }, nil
 }
 
-// assertChromaIngestTrace proves the ingest preconditions and the terminal
-// count verification ran: the Chroma and Ollama readiness words and the
-// chroma_count word each recorded a dispatch span.
+// assertChromaIngestTrace proves the ingest precondition, the embed stage, and
+// the terminal count verification ran: the Chroma readiness word, the stage's
+// embed and normalize words (srd058 R4.2), and chroma_count each recorded a
+// dispatch span.
 func assertChromaIngestTrace(tracePath string) error {
 	spans, err := readChromaSpans(tracePath)
 	if err != nil {
 		return err
 	}
 	present := chromaCommandSet(spans)
-	for _, want := range []string{"chroma_ready", "ollama_ready", "chroma_count"} {
+	for _, want := range []string{"chroma_ready", "embed_document", "normalize_document_embedding", "chroma_count"} {
 		if !present[want] {
 			return fmt.Errorf("ingest trace missing %q dispatch; saw %v", want, sortedKeys(present))
 		}

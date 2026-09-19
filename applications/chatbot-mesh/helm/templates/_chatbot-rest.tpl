@@ -14,7 +14,6 @@ literally. The monitor server is not here: chatbotMonitorRest below renders it.
 {{- $mon := .Values.ragServer.ports.monitor -}}
 {{- $llmURL := include "chatbot-mesh.llmURL" . -}}
 {{- $llmHost := (urlParse $llmURL).hostname -}}
-{{- $embedModel := .Values.chatbot.embeddingModel -}}
 {{- $firstRag := first .Values.ragUnits -}}
 rest:
   version: v1
@@ -65,38 +64,6 @@ rest:
         allow_public_listener: true
 
   clients:
-    embedding:
-      base_url: {{ $llmURL }}
-      auth_ref: none
-      limits_ref: local_provider
-      operations:
-        embed_query:
-          method: POST
-          path: /api/embeddings
-          params:
-            body_schema:
-              type: object
-              required: [input]
-              properties:
-                input: {type: string}
-            body_source: previous_result
-            input_mapping:
-              input: $.message
-            carry_forward: [input]
-          body:
-            model: {{ $embedModel }}
-            prompt: "{{`{{ params.input }}`}}"
-          success: {status: [200], signal: QueryEmbedded}
-          response:
-            output:
-              embedding: $.embedding
-          side_effects:
-            - kind: external_api
-              target: ollama.embeddings
-              state: read_only
-          reversibility:
-            classification: reversible
-            undo: noop
     rag:
       # A configured fallback remains required by the REST client schema. The
       # operation selects each declared item's authority through command state.
@@ -117,7 +84,7 @@ rest:
                 query_embeddings: {type: array}
             body_source: command_state
             input_mapping:
-              query_embeddings: $from(embed_query).mapped.embedding
+              query_embeddings: $from(normalize_query_embedding).mapped.embedding
           body:
             query_embeddings: "{{`{{ params.query_embeddings }}`}}"
             n_results: 5

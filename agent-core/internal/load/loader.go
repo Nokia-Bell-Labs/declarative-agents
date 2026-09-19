@@ -72,7 +72,7 @@ func LoadClosure(profilePath string, options Options) (*Closure, error) {
 		}
 	}
 
-	resolved, err := loadResolvedConfig(profile, options, visit)
+	resolved, err := loadResolvedConfig(profile, filepath.Dir(profilePath), options, visit)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ type resolvedConfig struct {
 }
 
 func loadResolvedConfig(
-	profile catalog.AgentProfile, options Options, visit catalog.FileVisitor,
+	profile catalog.AgentProfile, profileDir string, options Options, visit catalog.FileVisitor,
 ) (resolvedConfig, error) {
 	universe, toolImports, toolTypeIndex, err := loadToolUniverse(profile, visit)
 	if err != nil {
@@ -163,8 +163,10 @@ func loadResolvedConfig(
 	if err != nil {
 		return resolvedConfig{}, err
 	}
+	used := append(append([]catalog.ToolDef(nil), selected...),
+		requestMachineWords(machine, machinePath, profileDir, rest, universe)...)
 	if err := validateImportUsedness(
-		selected, rest, toolImports, toolTypeIndex.usedPaths(universe),
+		used, rest, toolImports, toolTypeIndex.usedPaths(universe),
 	); err != nil {
 		return resolvedConfig{}, err
 	}

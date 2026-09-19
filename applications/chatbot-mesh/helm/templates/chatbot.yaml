@@ -143,8 +143,9 @@ spec:
             # command state for the per-RAG comparison, and it lives in the
             # verbatim-mounted request declarations. Without this its packaged
             # default would be compared against a deployment that embedded with a
-            # different model, excluding every source. The co-generated
-            # embed_query request body reads the same value (srd002 R3.3, GH-765).
+            # different model, excluding every source. The embed-query
+            # fragment the chatbot's embed-rest.yaml instantiates reads the same
+            # value as its model (srd002 R3.3, GH-765, srd058 R4.2).
             - name: CHATBOT_EMBEDDING_MODEL
               value: {{ .Values.chatbot.embeddingModel | quote }}
             # The mounted declarations keep local-development defaults, while a

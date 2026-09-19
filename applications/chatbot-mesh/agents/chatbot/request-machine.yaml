@@ -21,7 +21,6 @@ budget:
   max_iterations: 72
 states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted chat endpoint.}
-  - {name: Embedding, meaning: The original question is being embedded once.}
   - {name: DeclaringModel, meaning: The query embedding model is being declared.}
   - {name: DeclaringTopology, meaning: The trusted ordered RAG topology is being declared.}
   - {name: ComposingSourceSelection, meaning: The original question and source catalog are being composed.}
@@ -50,6 +49,10 @@ terminal_states: [LLMResponded, Failed]
 signals:
   - {name: Seed, trigger: The chat endpoint starts a request-scoped turn.}
   - {name: QueryEmbedded, trigger: The provider returned the question embedding.}
+  - {name: QueryEmbeddingNormalized, trigger: The question embedding is one flat vector.}
+  - {name: ProviderUnauthorized, trigger: The embedding provider rejected the credential.}
+  - {name: ProviderThrottled, trigger: The embedding provider rate-limited the call.}
+  - {name: ProviderUnavailable, trigger: The embedding provider failed.}
   - {name: QueryModelDeclared, trigger: The query embedding model is addressable.}
   - {name: RagTopologyDeclared, trigger: The ordered trusted RAG array is addressable.}
   - {name: SourceSelectionComposed, trigger: The original question and rendered source catalog were composed.}
@@ -76,10 +79,7 @@ signals:
   - {name: ResponseComposed, trigger: The answer and source metadata were composed.}
   - {name: CommandError, trigger: A boundary or collection operation failed.}
 transitions:
-  - {state: AwaitingRequest, signal: Seed, next: Embedding, action: embed_query}
   - {state: AwaitingRequest, signal: CommandError, next: Failed}
-  - {state: Embedding, signal: QueryEmbedded, next: DeclaringModel, action: declare_query_model}
-  - {state: Embedding, signal: CommandError, next: Failed}
   - {state: DeclaringModel, signal: QueryModelDeclared, next: DeclaringTopology, action: declare_rag_topology}
   - {state: DeclaringModel, signal: CommandError, next: Failed}
   - {state: DeclaringTopology, signal: RagTopologyDeclared, next: ComposingSourceSelection, action: compose_source_selection_prompt}
@@ -163,3 +163,8 @@ transitions:
   - {state: RenderingQueryFailedSources, signal: CommandError, next: Failed}
   - {state: Finalizing, signal: ResponseComposed, next: LLMResponded}
   - {state: Finalizing, signal: CommandError, next: Failed}
+# The question is embedded once at the bound provider and normalized to one
+# flat vector before the model identity is declared (srd058 R4.1).
+instantiate:
+  - fragment: /opt/agent-core/tools/machines/embed-query-stage-fragment.yaml
+    args: {from: AwaitingRequest, enter: Seed, next: DeclaringModel, next_action: declare_query_model}

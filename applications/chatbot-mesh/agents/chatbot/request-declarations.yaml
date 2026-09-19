@@ -4,39 +4,10 @@ unit: mesh-chatbot-request-declarations
 imports:
 - /opt/agent-core/tools/units/types-core.yaml
 - ../units/types-chatbot.yaml
+# embed_query and normalize_query_embedding, the words the embed-query stage
+# runs over the bound provider library (srd058 R4.1).
+- /opt/agent-core/tools/units/embed-query-words.yaml
 tools:
-  - name: embed_query
-    type: builtin
-    init: rest_client_invoke
-    visibility: internal
-    category: boundary
-    description: Embed the incoming chat message once at the embedding provider.
-    parameters:
-      type: object
-      properties:
-        input: {type: string}
-    signature:
-      emits: [QueryEmbedded, CommandError]
-    output:
-      description: Mapped message embedding with the carried message.
-      schema:
-        type: object
-        properties:
-          mapped: {type: object}
-          carried: {type: object}
-    side_effects:
-      - kind: external_api
-        target: ollama.embeddings
-        state: read_only
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Computing an embedding does not mutate state.
-    config:
-      rest_ref: embedding
-      operation: embed_query
-
   - name: declare_query_model
     type: builtin
     init: compose

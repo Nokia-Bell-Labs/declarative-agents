@@ -147,10 +147,16 @@ func (Integration) EmbeddingExclusion() error {
 
 	stopChatbot, err := startDetachedAgentWithEnv(agentLaunch{
 		Binary: binary, ProfilesRoot: applicationRoot, CoreRoot: coreRoot,
-		Profile:      chatbotProfile,
-		TracePath:    filepath.Join(work, "chatbot.otel.json"),
-		Workdir:      work,
-		Env:          []string{"CHATBOT_EMBEDDING_MODEL=" + exclusionQueryModel},
+		Profile:   chatbotProfile,
+		TracePath: filepath.Join(work, "chatbot.otel.json"),
+		Workdir:   work,
+		// The embed library's endpoint sits in agent-core, outside the
+		// shifted copy, so the shifted mock is named where the library reads it
+		// (srd058 R4.2); the chat dialect reads the same variable.
+		Env: []string{
+			"CHATBOT_EMBEDDING_MODEL=" + exclusionQueryModel,
+			"OLLAMA_URL=" + exclusionURL(portEmbedding),
+		},
 		GracefulWait: 15 * time.Second,
 	})
 	if err != nil {

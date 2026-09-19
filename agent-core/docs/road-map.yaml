@@ -952,6 +952,9 @@ releases:
       - id: gh-2243
         summary: Adopt the stage and REST fragments in the catalog corpus agents and drop the duplicated embed blocks.
         status: implemented
+      - id: gh-2245
+        summary: Adopt the embed-query stage in the chatbot-mesh chatbot request machine and chart.
+        status: implemented
       - id: gh-2244
         summary: The synthetic OpenAI-shaped third-provider conformance suite.
         status: implemented
@@ -966,9 +969,6 @@ releases:
         summary: Formal tests for the dialect loader, load failures, library rebinding, adapter parity, credentials, parser precedence, stage fragments, adoption, and the synthetic provider.
         status: implemented
     follow_up:
-      - id: GH-2245
-        summary: Adopt the embed-query stage in the chatbot-mesh chatbot request machine, the one hand-written provider embedding the guard baselines.
-        status: planned
       - id: GH-2246
         summary: Decide whether REST response selectors index arrays, so an OpenAI-shaped library can ship embed fragments.
         status: planned

@@ -41,42 +41,6 @@ rest:
         hosts: [127.0.0.1, localhost]
         ports: [18081]
   clients:
-    embedding:
-      base_url: http://127.0.0.1:11434
-      auth_ref: none
-      limits_ref: local_provider
-      operations:
-        embed_query:
-          method: POST
-          path: /api/embeddings
-          params:
-            body_schema:
-              type: object
-              required: [input]
-              properties:
-                input: {type: string}
-            body_source: previous_result
-            input_mapping:
-              input: $.message
-            carry_forward: [input]
-          body:
-            # One environment reference names the query embedding model for both this
-            # request and declare_query_model, which puts that identity into command
-            # state for the per-RAG comparison (srd002 R3.3). Keep the two in step: a
-            # drift between them would compare against an identity nothing embedded with.
-            model: ${CHATBOT_EMBEDDING_MODEL:-qwen3-embedding:8b}
-            prompt: "{{ params.input }}"
-          success: {status: [200], signal: QueryEmbedded}
-          response:
-            output:
-              embedding: $.embedding
-          side_effects:
-            - kind: external_api
-              target: ollama.embeddings
-              state: read_only
-          reversibility:
-            classification: reversible
-            undo: noop
     rag:
       base_url: http://127.0.0.1:18085
       auth_ref: none
@@ -98,7 +62,7 @@ rest:
                 query_embeddings: {type: array}
             body_source: command_state
             input_mapping:
-              query_embeddings: $from(embed_query).mapped.embedding
+              query_embeddings: $from(normalize_query_embedding).mapped.embedding
           body:
             query_embeddings: "{{ params.query_embeddings }}"
             n_results: 5
