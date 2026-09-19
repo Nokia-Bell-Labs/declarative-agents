@@ -28,14 +28,9 @@ const (
 	// The ConfigMap the live run provisions beside the release to carry the chart
 	// the applier mounts at /chart (GH-2045).
 	codingApplierChartConfigMap = codingHelmRelease + "-coding-agent-applier-chart"
-	// The shared applier image (GH-1368): agent-core plus helm and kubectl, no
-	// baked chart. One repo serves every application's applier because the image
-	// content is application-agnostic; the per-run tag is the tested commit.
-	codingApplierLiveImageRepo = "declarative-agents/applier"
-
-	// The applier's exec declarations are written for helm 3, which the shared
-	// agent-core/applier.Dockerfile pins (ARG HELM_VERSION). A helm-4 image would
-	// reject the --atomic/--dry-run spellings outright.
+	// The applier's exec declarations are written for helm 3, which the CLI donor
+	// pins (applier.cliDonor.image, kindrig.CLIDonorHelmVersion). A helm-4 donor
+	// would reject the --atomic/--dry-run spellings outright.
 	codingApplierDeclaredHelmMajor = "3"
 
 	// The live apply legs run a real helm upgrade, a real 120s kubectl rollout
@@ -49,7 +44,7 @@ const (
 // tracer (integration:applier) cannot: that target drives recording stand-ins
 // whose exit codes come from the scenario, so it is evidence about the machine
 // and the arguments it builds, not about helm and kubectl behaving as the
-// declarations assume (srd006 R5.3). This one builds the applier image, installs
+// declarations assume (srd006 R5.3). This one loads the pinned CLI donor, installs
 // the packaged chart with the applier enabled, and drives a values patch through
 // the running applier so a real helm upgrade moves the release revision, a
 // verify stall triggers a real helm rollback, and a non-conforming patch is
@@ -82,10 +77,6 @@ func applierLiveSkipReason(roots integrationRoots, run codingSmokeRunner) string
 
 func runCodingApplierLive(roots integrationRoots) (result error) {
 	images, err := resolveCodingHelmImages(roots.Application)
-	if err != nil {
-		return err
-	}
-	applierImage, err := resolveCodingApplierImage(roots.Application)
 	if err != nil {
 		return err
 	}
@@ -136,28 +127,31 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return classifyCodingHelmFailure(environment.run, "cluster preparation", err, true)
 	}
 
-	// The shared applier image is FROM agent-core (GH-1368): agent-core plus helm
-	// and kubectl, no baked chart. prepareCodingHelmCluster already built and
-	// loaded the agent-core image the collector runs on. EnsureApplierImage
-	// layers helm and kubectl onto it under a tag-keyed lock so concurrent
-	// live-applier lanes cannot retag declarative-agents/applier:<rev> out from
-	// under inspect (GH-1764). The chart reaches the pod through the mounted
-	// applier.chartArchive.
-	if _, err := kindrig.EnsureApplierImage(roots.Core, codingHelmCollectorImage, applierImage); err != nil {
-		return &codingHelmSemanticError{Step: "applier image build", Cause: err}
-	}
-	if err := assertCodingApplierImageCarriesItsTools(applierImage); err != nil {
-		return &codingHelmSemanticError{Step: "applier image verification", Cause: err}
-	}
-	if err := loadCodingDependencyImage(cluster.Name, applierImage); err != nil {
-		return &codingHelmInfrastructureError{Step: "applier image load", Cause: err}
+	// prepareCodingHelmCluster already built and loaded the agent-core image the
+	// collector and the applier run. The applier's helm and kubectl come from the
+	// pinned CLI donor, loaded once per platform node and copied into the pod's
+	// read-only /opt/tools by the cli-donor init container (GH-2222). The chart
+	// reaches the pod through the mounted applier.chartArchive.
+	if err := kindrig.EnsureCLIDonorImage(codingCommandRunner(environment), cluster.Name); err != nil {
+		return &codingHelmInfrastructureError{Step: "applier CLI donor", Cause: err}
 	}
 
-	if err := installCodingApplierLiveChart(environment, chartDir, chartArchive, roots.Application, images.Agent, applierImage); err != nil {
+	if err := installCodingApplierLiveChart(environment, chartDir, chartArchive, roots.Application, images.Agent, codingHelmCollectorImage); err != nil {
 		return classifyCodingHelmFailure(environment.run, "Helm install", err, true)
 	}
 	if err := verifyCodingHelmRollouts(environment, "applier"); err != nil {
 		return classifyCodingHelmFailure(environment.run, "role readiness", err, true)
+	}
+	helmVersion, err := kindrig.VerifyCLIDonor(codingApplierDeclaredHelmMajor, func(args ...string) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), codingApplierLiveReadyTimeout)
+		defer cancel()
+		exec := append([]string{"exec", "--namespace", codingHelmNamespace,
+			"deployment/" + codingHelmRelease + "-coding-agent-applier", "-c", "applier", "--"}, args...)
+		output, runErr := environment.run(ctx, "kubectl", exec...)
+		return strings.TrimSpace(string(output)), runErr
+	})
+	if err != nil {
+		return classifyCodingHelmFailure(environment.run, "applier CLI donor", err, true)
 	}
 
 	forwards, err := startCodingHelmForwards(environment, true)
@@ -169,27 +163,12 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 	if err := assertCodingApplierServesItsSurface(environment, roots.Application); err != nil {
 		return err
 	}
-	fmt.Printf("integration:applierLive PASS - revision %s the applier runs on kind from an image built on the "+
-		"runtime under test, reads a real Deployment's rollout, applies a values patch that moves the release to a "+
-		"new revision, compensates a post-verify stall with a real helm rollback, and rejects a non-conforming patch "+
-		"against the real chart schema without touching it\n", images.Revision)
+	fmt.Printf("integration:applierLive PASS - revision %s the applier runs the agent-core runtime under test with "+
+		"helm %s from the pinned CLI donor on a read-only /opt/tools, reads a real Deployment's rollout, applies a "+
+		"values patch that moves the release to a new revision, compensates a post-verify stall with a real helm "+
+		"rollback, and rejects a non-conforming patch against the real chart schema without touching it\n",
+		images.Revision, helmVersion)
 	return nil
-}
-
-// resolveCodingApplierImage names the applier image by the tested checkout's
-// commit, the same revision tag resolveCodingHelmImages uses, so the image built
-// here is the one loaded and installed.
-func resolveCodingApplierImage(applicationRoot string) (string, error) {
-	repositoryRoot := filepath.Clean(filepath.Join(applicationRoot, "..", ".."))
-	commit, err := gitOutput(repositoryRoot, "rev-parse", "HEAD")
-	if err != nil {
-		return "", fmt.Errorf("resolve applier image revision: %w", err)
-	}
-	image, _, err := kindrig.CommitImage(codingApplierLiveImageRepo, commit)
-	if err != nil {
-		return "", err
-	}
-	return image, nil
 }
 
 // stageCodingApplierLiveChart assembles one chart directory carrying the
@@ -226,8 +205,8 @@ func stageCodingApplierLiveChart(applicationRoot string) (string, func(), error)
 // post-upgrade hook runs as part of the upgrade, before the upgrade command
 // returns; Helm waits for the hook Pod to complete even though the applier's own
 // helm_upgrade no longer waits for the release resources. For the reserved
-// sentinel value the hook uses the real kubectl in the applier image to regress
-// the planner Deployment. That makes the applier's own kubectl rollout status
+// sentinel value the hook runs the real kubectl from the pinned CLI donor image
+// (the applier itself runs agent-core, GH-2222) to regress the planner Deployment. That makes the applier's own kubectl rollout status
 // verify fail deterministically, without racing an out-of-band patch.
 //
 // The strategic patch also drops progressDeadlineSeconds so the unpullable
@@ -279,8 +258,9 @@ spec:
   restartPolicy: Never
   containers:
     - name: regress-planner
-      image: "{{ .Values.applier.image.repository }}:{{ .Values.applier.image.tag }}"
-      imagePullPolicy: {{ .Values.applier.image.pullPolicy }}
+      {{- $donor := .Values.applier.cliDonor.image }}
+      image: "{{ $donor.repository }}:{{ $donor.tag }}{{ with $donor.digest }}@{{ . }}{{ end }}"
+      imagePullPolicy: {{ $donor.pullPolicy | default "IfNotPresent" }}
       command: [kubectl]
       args:
         - patch
@@ -374,62 +354,12 @@ func assertCodingApplierChartArchiveCarriesProfiles(archive string) error {
 	return nil
 }
 
-// assertCodingApplierImageCarriesItsTools runs each assumption the exec
-// declarations make about their own container inside the built image, so a
-// missing or wrong-architecture tool fails here with a name rather than at
-// runtime inside a pod. Each probe runs the binary rather than testing for the
-// file, because a wrong-architecture binary is present and unrunnable.
-func assertCodingApplierImageCarriesItsTools(image string) error {
-	probes := []struct {
-		what string
-		args []string
-		want string
-	}{
-		{"helm", []string{"helm", "version", "--short"}, "v"},
-		{"kubectl", []string{"kubectl", "version", "--client"}, "Client Version"},
-		{"the agent binary", []string{"agent", "--help"}, "profile"},
-	}
-	for _, probe := range probes {
-		args := append([]string{"run", "--rm", "--entrypoint", probe.args[0], image}, probe.args[1:]...)
-		out, err := exec.Command("docker", args...).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("applier image does not carry %s: docker %s: %w\n%s",
-				probe.what, strings.Join(probe.args, " "), err, out)
-		}
-		if !strings.Contains(string(out), probe.want) {
-			return fmt.Errorf("applier image %s check did not report %q:\n%s", probe.what, probe.want, out)
-		}
-		fmt.Printf("applierLive: image carries %s\n", probe.what)
-	}
-	return assertCodingApplierImageHelmMajor(image)
-}
-
-// assertCodingApplierImageHelmMajor proves the helm inside the image is the major
-// the exec declarations are written for. A build-arg override or a changed base
-// could ship a different one, and helm rejects an unknown flag outright.
-func assertCodingApplierImageHelmMajor(image string) error {
-	out, err := exec.Command("docker", "run", "--rm", "--entrypoint", "helm", image,
-		"version", "--template", "{{.Version}}").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("read helm version from %s: %w\n%s", image, err, out)
-	}
-	version := strings.TrimSpace(string(out))
-	major := strings.TrimPrefix(strings.SplitN(version, ".", 2)[0], "v")
-	if major != codingApplierDeclaredHelmMajor {
-		return fmt.Errorf("the applier image ships helm %s, but its exec declarations are written for helm %s; "+
-			"the flag spellings differ between majors and helm rejects an unknown flag",
-			version, codingApplierDeclaredHelmMajor)
-	}
-	fmt.Printf("applierLive: image ships helm %s, matching the declared flags\n", version)
-	return nil
-}
-
 // installCodingApplierLiveChart installs the instrumented chart directory with the
 // applier enabled. It layers the kind footprint every cluster test shares, then
 // the applier the others deliberately disable, and pins the locally built and
 // loaded images. The chart the applier mounts at /chart arrives in the ConfigMap
 // provisioned beside the release, which the init container unpacks (GH-1368), so
-// the shared applier image bakes no chart.
+// no image bakes the chart.
 func installCodingApplierLiveChart(
 	environment codingSmokeEnvironment, chartDir, chartArchive, applicationRoot, runtimeImage, applierImage string,
 ) error {

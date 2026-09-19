@@ -24,14 +24,9 @@ const (
 	// da-platform so the runtime helpers apply unchanged. It runs after the smoke
 	// has released the namespace, so the two never overlap.
 
-	// The shared applier image (GH-1368): agent-core plus helm and kubectl, no
-	// baked chart. One repo serves every application's applier because the image
-	// content is application-agnostic; the per-run tag is the tested commit.
-	applierLiveImageRepo = "declarative-agents/applier"
-
-	// The applier's exec declarations are written for helm 3, which the shared
-	// agent-core/applier.Dockerfile pins (ARG HELM_VERSION). A helm-4 image would
-	// reject the --dry-run spelling outright.
+	// The applier's exec declarations are written for helm 3, which the CLI donor
+	// pins (applier.cliDonor.image, kindrig.CLIDonorHelmVersion). A helm-4 donor
+	// would reject the --dry-run spelling outright.
 	applierDeclaredHelmMajor = "3"
 
 	// The live apply legs run a real helm upgrade, a real 120s kubectl rollout verify,
@@ -48,7 +43,7 @@ const (
 // (integration:applier) cannot: that target drives recording stand-ins whose exit
 // codes come from the scenario, so it is evidence about the machine and the arguments
 // it builds, not about helm and kubectl behaving as the declarations assume
-// (srd002-applier R5.3). This one builds the applier image, installs the chart with
+// (srd002-applier R5.3). This one loads the pinned CLI donor, installs the chart with
 // the applier enabled, and drives a values patch through the running applier so a
 // real helm upgrade moves the release revision, a verify stall triggers a real helm
 // rollback, and a non-conforming patch is rejected against the real chart schema.
@@ -69,13 +64,10 @@ func (Integration) ApplierLive() error {
 }
 
 func runApplierLive(resolved roots) (result error) {
-	// The curator and collector run the locally built agent-core image (GH-1368);
-	// only the applier layers helm and kubectl on top of it.
+	// The curator, the collector, and the applier all run the locally built
+	// agent-core image (GH-1368); the applier's helm and kubectl arrive from the
+	// pinned CLI donor at pod start (GH-2222).
 	revision := mustGitRevision(resolved.Application)
-	applierImage, _, err := kindrig.CommitImage(applierLiveImageRepo, mustGitRevision(resolved.Application))
-	if err != nil {
-		return err
-	}
 
 	// One instrumented chart directory serves both the host-side install and the
 	// applier's mounted /chart, so Helm records and rolls back one coherent chart.
@@ -111,28 +103,24 @@ func runApplierLive(resolved roots) (result error) {
 		return smokeFailure(environment.run, "cluster preparation", err)
 	}
 
-	// The shared applier image is FROM agent-core (GH-1368): agent-core plus helm
-	// and kubectl, no baked chart. prepareSmokeCluster already built and loaded the
-	// agent-core image the collector runs on. EnsureApplierImage layers helm and
-	// kubectl onto it under a tag-keyed lock so concurrent live-applier lanes
-	// cannot retag declarative-agents/applier:<rev> out from under inspect
-	// (GH-1764). The chart reaches the pod through the externally provisioned
-	// ConfigMap named by applier.chartArchiveConfigMap.
-	if _, err := kindrig.EnsureApplierImage(resolved.Core, smokeCollectorImage, applierImage); err != nil {
-		return fmt.Errorf("applier image build: %w", err)
-	}
-	if err := assertApplierImageCarriesItsTools(applierImage); err != nil {
-		return fmt.Errorf("applier image verification: %w", err)
-	}
-	if err := loadApplierImage(cluster.Name, applierImage); err != nil {
-		return fmt.Errorf("applier image load: %w", err)
+	// prepareSmokeCluster already built and loaded the agent-core image the
+	// applier runs. Its helm and kubectl come from the pinned CLI donor, loaded
+	// once per platform node and copied into the pod's read-only /opt/tools by the
+	// cli-donor init container (GH-2222). The chart reaches the pod through the
+	// externally provisioned ConfigMap named by applier.chartArchiveConfigMap.
+	if err := kindrig.EnsureCLIDonorImage(smokeCommandRunner(environment), cluster.Name); err != nil {
+		return fmt.Errorf("applier CLI donor: %w", err)
 	}
 
-	if err := installApplierLiveChart(environment, chartDir, chartArchive, resolved.Application, smokeCollectorImage, applierImage); err != nil {
+	if err := installApplierLiveChart(environment, chartDir, chartArchive, resolved.Application, smokeCollectorImage, smokeCollectorImage); err != nil {
 		return smokeFailure(environment.run, "Helm install", err)
 	}
 	if err := verifyApplierLiveRollouts(environment); err != nil {
 		return smokeFailure(environment.run, "role readiness", err)
+	}
+	helmVersion, err := assertApplierCLIDonor(environment)
+	if err != nil {
+		return smokeFailure(environment.run, "applier CLI donor", err)
 	}
 
 	forward, err := forwardService(environment, smokeRelease+"-agent-architecture-applier",
@@ -145,10 +133,11 @@ func runApplierLive(resolved roots) (result error) {
 	if err := assertApplierServesItsSurface(environment, resolved.Application); err != nil {
 		return err
 	}
-	fmt.Printf("integration:applierLive PASS - revision %s the applier runs on kind from an image built on the "+
-		"runtime under test, reads a real collector Deployment's rollout, applies a values patch that moves the "+
-		"release to a new revision, compensates a post-verify stall with a real helm rollback, and rejects a "+
-		"non-conforming patch against the real chart schema without touching it\n", revision)
+	fmt.Printf("integration:applierLive PASS - revision %s the applier runs the agent-core runtime under test with "+
+		"helm %s from the pinned CLI donor on a read-only /opt/tools, reads a real collector Deployment's rollout, "+
+		"applies a values patch that moves the release to a new revision, compensates a post-verify stall with a "+
+		"real helm rollback, and rejects a non-conforming patch against the real chart schema without touching it\n",
+		revision, helmVersion)
 	return nil
 }
 
@@ -184,51 +173,19 @@ func stageApplierLiveChart(resolved roots) (string, func(), error) {
 	return chart, cleanup, nil
 }
 
-// assertApplierImageCarriesItsTools runs each assumption the exec declarations make
-// about their own container inside the built image, so a missing or wrong-architecture
-// tool fails here with a name rather than at runtime inside a pod.
-func assertApplierImageCarriesItsTools(image string) error {
-	probes := []struct {
-		what string
-		args []string
-		want string
-	}{
-		{"helm", []string{"helm", "version", "--short"}, "v"},
-		{"kubectl", []string{"kubectl", "version", "--client"}, "Client Version"},
-		{"the agent binary", []string{"agent", "--help"}, "profile"},
-	}
-	for _, probe := range probes {
-		args := append([]string{"run", "--rm", "--entrypoint", probe.args[0], image}, probe.args[1:]...)
-		out, err := exec.Command("docker", args...).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("applier image does not carry %s: docker %s: %w\n%s",
-				probe.what, strings.Join(probe.args, " "), err, out)
-		}
-		if !strings.Contains(string(out), probe.want) {
-			return fmt.Errorf("applier image %s check did not report %q:\n%s", probe.what, probe.want, out)
-		}
-		fmt.Printf("applierLive: image carries %s\n", probe.what)
-	}
-	return assertApplierImageHelmMajor(image)
-}
-
-// assertApplierImageHelmMajor proves the helm inside the image is the major the exec
-// declarations are written for.
-func assertApplierImageHelmMajor(image string) error {
-	out, err := exec.Command("docker", "run", "--rm", "--entrypoint", "helm", image,
-		"version", "--template", "{{.Version}}").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("read helm version from %s: %w\n%s", image, err, out)
-	}
-	version := strings.TrimSpace(string(out))
-	major := strings.TrimPrefix(strings.SplitN(version, ".", 2)[0], "v")
-	if major != applierDeclaredHelmMajor {
-		return fmt.Errorf("the applier image ships helm %s, but its exec declarations are written for helm %s; "+
-			"the flag spellings differ between majors and helm rejects an unknown flag",
-			version, applierDeclaredHelmMajor)
-	}
-	fmt.Printf("applierLive: image ships helm %s, matching the declared flags\n", version)
-	return nil
+// assertApplierCLIDonor proves, inside the running applier container, what the
+// donor pattern promises (GH-2222): helm resolves to the pinned donor release the
+// exec declarations are written for, kubectl is present, and the container cannot
+// replace the binaries it execs. It returns the helm version for the PASS line.
+func assertApplierCLIDonor(environment smokeEnvironment) (string, error) {
+	return kindrig.VerifyCLIDonor(applierDeclaredHelmMajor, func(args ...string) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), applierLiveReadyTimeout)
+		defer cancel()
+		exec := append([]string{"exec", "--namespace", smokeNamespace,
+			"deployment/" + smokeRelease + "-agent-architecture-applier", "-c", "applier", "--"}, args...)
+		output, err := environment.run(ctx, "kubectl", exec...)
+		return strings.TrimSpace(string(output)), err
+	})
 }
 
 // packageApplierChart packages the staged chart directory into a gzipped tarball
@@ -286,21 +243,12 @@ func assertApplierChartArchiveCarriesProfiles(archive string) error {
 	return nil
 }
 
-func loadApplierImage(cluster, image string) error {
-	kindLoad := func(ctx context.Context, args ...string) ([]byte, error) {
-		return smokeEnvironment{}.run(ctx, "kind", args...)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), applierLiveClusterTimeout)
-	defer cancel()
-	return kindrig.LoadImage(ctx, kindLoad, cluster, image)
-}
-
 // installApplierLiveChart installs the instrumented chart directory with the applier
 // enabled. It layers the kind footprint every cluster test shares, then the applier
 // the others deliberately disable, and pins the locally built and loaded images. The
 // chart the applier mounts at /chart is delivered through a ConfigMap provisioned
-// outside the release, so the shared applier image bakes no chart and Helm does
-// not duplicate the archive in its release Secret.
+// outside the release, so no image bakes the chart and Helm does not duplicate
+// the archive in its release Secret.
 func installApplierLiveChart(
 	environment smokeEnvironment, chartDir, chartArchive, applicationRoot, runtimeImage, applierImage string,
 ) error {

@@ -38,3 +38,37 @@ func EnsureCLIDonorImage(run CommandRunner, cluster string) error {
 	}
 	return nil
 }
+
+// VerifyCLIDonor proves, inside a running applier container reached through
+// inApplier, what the donor pattern promises: helm resolves to CLIDonorHelmVersion
+// with the major the exec declarations are written for, kubectl is present, and
+// the container cannot write /opt/tools, so the binaries it execs cannot be
+// replaced at runtime. It returns the helm version for the caller's evidence.
+func VerifyCLIDonor(declaredHelmMajor string, inApplier func(args ...string) (string, error)) (string, error) {
+	version, err := inApplier("helm", "version", "--template", "{{.Version}}")
+	if err != nil {
+		return "", fmt.Errorf("helm in the applier container: %w: %s", err, version)
+	}
+	if version != CLIDonorHelmVersion {
+		return "", fmt.Errorf("the applier resolves helm %s, but the pinned CLI donor carries %s",
+			version, CLIDonorHelmVersion)
+	}
+	if major := strings.TrimPrefix(strings.SplitN(version, ".", 2)[0], "v"); major != declaredHelmMajor {
+		return "", fmt.Errorf("the donor ships helm %s, but the exec declarations are written for helm %s; "+
+			"the flag spellings differ between majors and helm rejects an unknown flag",
+			version, declaredHelmMajor)
+	}
+	if output, err := inApplier("kubectl", "version", "--client"); err != nil ||
+		!strings.Contains(output, "Client Version") {
+		return "", fmt.Errorf("kubectl in the applier container: %v: %s", err, output)
+	}
+	output, err := inApplier("sh", "-c", "touch /opt/tools/cli-donor-write-probe")
+	if err == nil {
+		return "", fmt.Errorf("the applier container can write /opt/tools, so the binaries it execs are replaceable")
+	}
+	if !strings.Contains(strings.ToLower(output), "read-only") {
+		return "", fmt.Errorf("writing /opt/tools failed, but not on a read-only mount: %v: %s", err, output)
+	}
+	fmt.Printf("cli-donor: the applier runs helm %s and kubectl from a read-only /opt/tools\n", version)
+	return version, nil
+}
