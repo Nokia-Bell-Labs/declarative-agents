@@ -26,8 +26,10 @@ export interface KitClientOptions {
 export interface KitClient {
   readonly baseUrl: string;
   url(path: string): string;
-  request(path: string): Promise<Response>;
-  getJSON<T>(path: string): Promise<T>;
+  // init carries the method, headers, and body of a domain call, such as a
+  // chat POST or an authenticated provisioning read.
+  request(path: string, init?: RequestInit): Promise<Response>;
+  getJSON<T>(path: string, init?: RequestInit): Promise<T>;
   getProxyJSON<T>(agent: string, path: string): Promise<ProxyResult<T>>;
   openEventStream(path: string): EventSource;
 }
@@ -44,9 +46,9 @@ export function createKitClient(options: KitClientOptions = {}): KitClient {
   const Source = options.EventSource ?? globalThis.EventSource;
 
   const url = (path: string) => baseUrl + (path.startsWith("/") ? path : `/${path}`);
-  const request = (path: string) => doFetch(url(path));
-  const getJSON = async <T>(path: string): Promise<T> => {
-    const res = await request(path);
+  const request = (path: string, init?: RequestInit) => doFetch(url(path), init);
+  const getJSON = async <T>(path: string, init?: RequestInit): Promise<T> => {
+    const res = await request(path, init);
     if (!res.ok) throw new HTTPError(url(path), res.status);
     return (await res.json()) as T;
   };

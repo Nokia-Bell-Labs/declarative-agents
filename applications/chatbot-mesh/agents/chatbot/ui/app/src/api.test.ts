@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { deriveAttribution, extractSources, type ChatResponse } from "./api";
+import { ChatError, CHAT_ENDPOINT, deriveAttribution, extractSources, sendChat, type ChatResponse } from "./api";
+import { recordingClient } from "./testClient";
 
 function outcome(name: string, documents: string[][] = []) {
   return { name, signal: "QueryResponded", documents };
@@ -115,5 +116,47 @@ describe("extractSources", () => {
   // retrieved, and deriveAttribution owns that question.
   it("returns nothing for an answer carrying no brackets", () => {
     expect(extractSources("The corpus does not mention it.")).toEqual([]);
+  });
+});
+
+describe("sendChat", () => {
+  const answered: ChatResponse = {
+    answer: "Per [rec-1], yes.",
+    trace: { trace_id: "abc123" },
+    metadata: { sources: { composed: [outcome("rag0", [["chunk"]])] } },
+  };
+
+  it("posts the turn and its history as JSON through the kit client", async () => {
+    const { client, calls } = recordingClient({ [CHAT_ENDPOINT]: answered });
+    const history = [{ role: "user" as const, content: "earlier" }];
+    const answer = await sendChat(client, { message: "hello", history });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(CHAT_ENDPOINT);
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].headers.get("content-type")).toBe("application/json");
+    expect(JSON.parse(calls[0].body ?? "")).toEqual({ message: "hello", history });
+    expect(answer).toMatchObject({ text: "Per [rec-1], yes.", sources: ["rag0"], citations: ["rec-1"], grounded: true, traceId: "abc123" });
+  });
+
+  it("follows the client's base URL", async () => {
+    const { client, calls } = recordingClient({ [CHAT_ENDPOINT]: answered }, { baseUrl: "https://mesh.example" });
+    await sendChat(client, { message: "hello", history: [] });
+    expect(calls[0].url).toBe(`https://mesh.example${CHAT_ENDPOINT}`);
+  });
+
+  it("reports the server's message on a failed turn", async () => {
+    const { client } = recordingClient({}, { respond: () => Response.json({ message: "llm unavailable" }, { status: 502 }) });
+    await expect(sendChat(client, { message: "hello", history: [] })).rejects.toThrow(new ChatError("llm unavailable"));
+  });
+
+  it("reports a non-JSON body with its status", async () => {
+    const { client } = recordingClient({}, { respond: () => new Response("bad gateway", { status: 502 }) });
+    await expect(sendChat(client, { message: "hello", history: [] })).rejects.toThrow("HTTP 502 with a non-JSON body");
+  });
+
+  it("wraps a network failure as a ChatError", async () => {
+    const { client } = recordingClient({}, { respond: () => Promise.reject(new TypeError("network down")) });
+    await expect(sendChat(client, { message: "hello", history: [] })).rejects.toBeInstanceOf(ChatError);
   });
 });

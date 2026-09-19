@@ -38,10 +38,11 @@ actions:
 # The observability panel opens one live sub-panel per monitored agent, reading
 # its monitor state and SSE stream through the chatbot's same-origin monitor_proxy
 # (/monitor-proxy/<name>/...). This list is the monitored-agents surface srd003
-# co-generates; keep it in sync with the rest.yaml monitor_proxy upstreams and the
-# SPA agent list in app/src/monitorApi.ts. The list is a superset of any one
-# deployment: the proxy answers 404 for an agent the release declares no
-# upstream for, and the SPA reads that as "not deployed" and renders no panel.
+# co-generates; keep it in sync with the rest.yaml monitor_proxy upstreams. The
+# shell passes this list to the panel, which hands it to the kit FleetPanel. The
+# list is a superset of any one deployment: the proxy answers 404 for an agent
+# the release declares no upstream for, and the kit reads that as "not deployed"
+# and renders no panel.
 monitored_agents:
   - name: chatbot
     label: Chatbot
@@ -52,9 +53,9 @@ monitored_agents:
 # The trace backend the observability v2 waterfall queries by trace id, reached
 # same-origin through the chatbot's monitor_proxy (the collector upstream in
 # rest.yaml). This is the same values-driven surface srd003 co-generates; keep the
-# name in sync with the rest.yaml monitor_proxy upstream and TRACE_BACKEND in the
-# SPA traceApi.ts. Absent locally, so the waterfall degrades to a missing-backend
-# notice.
+# name in sync with the rest.yaml monitor_proxy upstream; the shell passes it to
+# the kit TracePanel as its backend. Absent locally, so the waterfall degrades to
+# a missing-backend notice.
 trace_backend:
   name: collector
   query_path: /monitor-proxy/collector/query/traces/{trace_id}

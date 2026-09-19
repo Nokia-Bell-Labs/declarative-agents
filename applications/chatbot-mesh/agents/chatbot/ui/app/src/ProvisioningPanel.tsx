@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useKitClient } from "@declarative-agents/ui-kit";
 import {
   type MeshView,
   type RagView,
@@ -14,6 +15,7 @@ import {
 // host or URL to a running agent. The apply token is entered here and held in
 // memory for the session, separate from the chat path.
 export default function ProvisioningPanel() {
+  const client = useKitClient();
   const [token, setToken] = useState("");
   const [applied, setApplied] = useState(false);
   const { state, error, loading, reload } = useMeshState(token);
@@ -197,7 +199,7 @@ export default function ProvisioningPanel() {
                 setApplying(true);
                 setApplyError(undefined);
                 try {
-                  await applyMesh(token, draft);
+                  await applyMesh(client, token, draft);
                   setApplied(true);
                 } catch (e) {
                   setApplyError((e as Error).message);
