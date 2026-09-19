@@ -307,47 +307,68 @@ func (resolver *closureResolver) addFile(item closureItem, data []byte) error {
 }
 
 func (resolver *closureResolver) resolveYAML(item closureItem, data []byte) error {
+	safe, templates := yamlTemplateTokens(data)
 	var document yaml.Node
-	if err := yaml.Unmarshal(yamlTemplateSafe(data), &document); err != nil {
+	if err := yaml.Unmarshal(safe, &document); err != nil {
 		return fmt.Errorf("parse closure source %s: %w", logicalSource(item.ownership, item.source), err)
 	}
 	if err := resolver.recordLibraries(item, &document); err != nil {
 		return err
 	}
-	references := yamlReferences(&document)
-	for _, reference := range references {
-		if resolver.isRuntimeOwned(reference) {
+	for _, reference := range collectYAMLReferences(&document) {
+		if reference.fragment && templateTokenPattern.MatchString(reference.value) {
+			variants, err := resolver.fragmentVariants(item, reference.value, templates)
+			if err != nil {
+				return err
+			}
+			for _, variant := range variants {
+				if err := resolver.enqueueReference(item, variant); err != nil {
+					return err
+				}
+			}
 			continue
 		}
-		ownership, source, runtime, packagePath, err := resolver.referenceTarget(item, reference)
-		if err != nil {
+		if err := resolver.enqueueReference(item, untokenized(reference.value)); err != nil {
 			return err
 		}
-		key := sourceKey(ownership, source)
-		// Machine configuration inventories may name the current machine or
-		// point_machine for observability. The file is already present and this
-		// direct self-edge adds no closure member.
-		if key == sourceKey(item.ownership, item.source) {
-			continue
-		}
-		if contains(item.lineage, key) {
-			// REST machine_request endpoints and their request profiles commonly
-			// refer back to one another. A repeated REST edge adds no file and is
-			// bounded by the visited set; cycles outside REST remain invalid.
-			currentBase, targetBase := path.Base(item.source), path.Base(source)
-			currentIsREST := currentBase == "rest.yaml" || strings.HasSuffix(currentBase, "-rest.yaml")
-			targetIsREST := targetBase == "rest.yaml" || strings.HasSuffix(targetBase, "-rest.yaml")
-			if currentIsREST || targetIsREST {
-				continue
-			}
-			return fmt.Errorf("cyclic closure reference: %s -> %s", strings.Join(item.lineage, " -> "), key)
-		}
-		lineage := append(append([]string(nil), item.lineage...), key)
-		resolver.queue = append(resolver.queue, closureItem{
-			ownership: ownership, source: source, runtime: runtime, packagePath: packagePath,
-			rootID: item.rootID, lineage: lineage,
-		})
 	}
+	return nil
+}
+
+// enqueueReference resolves one reference of item and queues its target
+// unless it is runtime-owned, the item itself, or a REST back-edge.
+func (resolver *closureResolver) enqueueReference(item closureItem, reference string) error {
+	if resolver.isRuntimeOwned(reference) {
+		return nil
+	}
+	ownership, source, runtime, packagePath, err := resolver.referenceTarget(item, reference)
+	if err != nil {
+		return err
+	}
+	key := sourceKey(ownership, source)
+	// Machine configuration inventories may name the current machine or
+	// point_machine for observability. The file is already present and this
+	// direct self-edge adds no closure member.
+	if key == sourceKey(item.ownership, item.source) {
+		return nil
+	}
+	if contains(item.lineage, key) {
+		// REST machine_request endpoints and their request profiles commonly
+		// refer back to one another. A repeated REST edge adds no file and is
+		// bounded by the visited set; cycles outside REST remain invalid.
+		currentBase, targetBase := path.Base(item.source), path.Base(source)
+		currentIsREST := currentBase == "rest.yaml" || strings.HasSuffix(currentBase, "-rest.yaml")
+		targetIsREST := targetBase == "rest.yaml" || strings.HasSuffix(targetBase, "-rest.yaml")
+		if currentIsREST || targetIsREST {
+			return nil
+		}
+		return fmt.Errorf("cyclic closure reference: %s -> %s", strings.Join(item.lineage, " -> "), key)
+	}
+	lineage := append(append([]string(nil), item.lineage...), key)
+	resolver.queue = append(resolver.queue, closureItem{
+		ownership: ownership, source: source, runtime: runtime, packagePath: packagePath,
+		rootID: item.rootID, lineage: lineage,
+	})
 	return nil
 }
 
@@ -535,8 +556,23 @@ func cleanJoined(base, reference string) (string, error) {
 	return clean, nil
 }
 
+// yamlReference is one path a closure source names; fragment marks an
+// instantiate -> fragment path, the one kind whose templates select variants.
+type yamlReference struct {
+	value    string
+	fragment bool
+}
+
 func yamlReferences(document *yaml.Node) []string {
-	var references []string
+	var values []string
+	for _, reference := range collectYAMLReferences(document) {
+		values = append(values, reference.value)
+	}
+	return values
+}
+
+func collectYAMLReferences(document *yaml.Node) []yamlReference {
+	var references []yamlReference
 	var visit func(*yaml.Node, int, []string)
 	visit = func(node *yaml.Node, depth int, ancestors []string) {
 		switch node.Kind {
@@ -550,33 +586,43 @@ func yamlReferences(document *yaml.Node) []string {
 				topLevelField := depth == 0 && stringSet(
 					"machine", "tools", "tool_declarations", "tool_config_dirs",
 					"rest_definitions", "rest_config_dirs")[key]
+				// An instantiation is an import edge whose unit is filled in
+				// on the way (srd052 R2.1); the fragment travels with the
+				// declaration or machine that instantiates it.
+				fragment := key == "fragment" && contains(ancestors, "instantiate")
 				pathField := topLevelField ||
 					stringSet("profile", "subject_profile", "point_machine",
 						"point_tools", "point_tool_declarations", "includes", "imports")[key] ||
 					(key == "machine" && contains(ancestors, "machine_request")) ||
 					(key == "path" && contains(ancestors, "openapi")) ||
-					// An instantiation is an import edge whose unit is filled in
-					// on the way (srd052 R2.1); the fragment travels with the
-					// declaration or machine that instantiates it.
-					(key == "fragment" && contains(ancestors, "instantiate"))
+					fragment
 				if pathField {
 					allowDirectory := topLevelField && (key == "tool_config_dirs" || key == "rest_config_dirs")
-					references = append(references, referenceStrings(value, allowDirectory)...)
+					for _, value := range referenceStrings(value, allowDirectory) {
+						references = append(references, yamlReference{value: value, fragment: fragment})
+					}
 				}
 				visit(value, depth+1, append(ancestors, key))
 			}
 		}
 	}
 	visit(document, 0, nil)
-	sort.Strings(references)
+	sort.Slice(references, func(i, j int) bool {
+		if references[i].value != references[j].value {
+			return references[i].value < references[j].value
+		}
+		return !references[i].fragment && references[j].fragment
+	})
 	result := references[:0]
 	for _, reference := range references {
-		reference = strings.TrimSpace(reference)
-		if reference == "" || strings.Contains(reference, "${") {
+		reference.value = strings.TrimSpace(reference.value)
+		if reference.value == "" || strings.Contains(reference.value, "${") {
 			continue
 		}
-		if len(result) == 0 || result[len(result)-1] != reference {
+		if len(result) == 0 || result[len(result)-1].value != reference.value {
 			result = append(result, reference)
+		} else if reference.fragment {
+			result[len(result)-1].fragment = true
 		}
 	}
 	return result
