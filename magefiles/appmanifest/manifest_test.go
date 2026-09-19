@@ -148,6 +148,91 @@ func TestLoadValidatesTemplatedRESTUIBinding(t *testing.T) {
 	}
 }
 
+// embeddedUIManifest declares the fixture's UI as a bundle compiled into
+// agent-core, served by a REST definition that selects it (srd004 R9.3).
+func embeddedUIManifest(t *testing.T, appRoot string, bundle string) Manifest {
+	t.Helper()
+	writeFixtureFile(t, filepath.Join(appRoot, "agents/local/embedded-rest.yaml"), `rest:
+  servers:
+    local:
+      address: ${BIND_HOST:-127.0.0.1}:18202
+      endpoints:
+        ui:
+          binding: static_assets
+          static_assets:
+            bundle: `+bundle+`
+            spa: true
+            config: {title: Fixture}
+`)
+	manifest := validManifest()
+	manifest.UI.Assets[0] = UIAsset{
+		ID: "local-ui", Owner: "local-root", Ownership: "local", Source: "embedded:observer",
+		RESTDefinition: "agents/local/embedded-rest.yaml", SharedTokens: "kit",
+	}
+	return manifest
+}
+
+func TestLoadAcceptsEmbeddedUIAsset(t *testing.T) {
+	appRoot, catalogRoot := manifestFixture(t)
+	options := Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot}
+	manifest, err := Load(writeManifest(t, appRoot, embeddedUIManifest(t, appRoot, "observer")), options)
+	if err != nil {
+		t.Fatalf("embedded UI asset was rejected: %v", err)
+	}
+	bundle, embedded := manifest.UI.Assets[0].EmbeddedBundle()
+	if !embedded || bundle != "observer" {
+		t.Fatalf("EmbeddedBundle = %q, %v; want observer, true", bundle, embedded)
+	}
+	inventory, err := Resolve(manifest, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, root := range inventory.Roots {
+		if root.ID == "ui-local-ui" {
+			found = true
+			if root.Source != "embedded:observer" || root.RuntimePath != "" || root.PackagePath != "" {
+				t.Errorf("embedded UI provenance = %#v, want source only", root)
+			}
+		}
+	}
+	if !found {
+		t.Error("embedded UI asset is absent from closure provenance")
+	}
+	for _, file := range inventory.Files {
+		if contains(file.Roots, "ui-local-ui") {
+			t.Errorf("embedded UI asset contributed package file %s", file.RuntimePath)
+		}
+	}
+}
+
+func TestLoadRejectsInvalidEmbeddedUIAsset(t *testing.T) {
+	tests := []struct {
+		name   string
+		bundle string
+		edit   func(*UIAsset)
+		want   string
+	}{
+		{"bundle not selected", "other", func(*UIAsset) {}, `selecting bundle "observer"`},
+		{"empty bundle", "observer", func(a *UIAsset) { a.Source = "embedded:" }, "does not name a bundle"},
+		{"runtime path", "observer", func(a *UIAsset) { a.RuntimePath = "agents/local/ui" }, "must not declare"},
+		{"package path", "observer", func(a *UIAsset) { a.PackagePath = "profiles/ui" }, "must not declare"},
+		{"shared tokens", "observer", func(a *UIAsset) { a.SharedTokens = "" }, "shared_tokens"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			appRoot, catalogRoot := manifestFixture(t)
+			manifest := embeddedUIManifest(t, appRoot, test.bundle)
+			test.edit(&manifest.UI.Assets[0])
+			_, err := Load(writeManifest(t, appRoot, manifest),
+				Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot})
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Load error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
 func TestLoadAcceptsApplicationRootWhoseBaseNameDiffersFromIdentity(t *testing.T) {
 	appRoot := newNamedApplicationRoot(t, "gh-160-worktree-application-root")
 	catalogRoot := t.TempDir()

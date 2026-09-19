@@ -31,8 +31,8 @@ type RootProvenance struct {
 	ID                string `yaml:"id"`
 	Ownership         string `yaml:"ownership"`
 	Source            string `yaml:"source"`
-	RuntimePath       string `yaml:"runtime_path"`
-	PackagePath       string `yaml:"package_path"`
+	RuntimePath       string `yaml:"runtime_path,omitempty"`
+	PackagePath       string `yaml:"package_path,omitempty"`
 	CompatibleRelease string `yaml:"compatible_release,omitempty"`
 }
 
@@ -158,6 +158,14 @@ func Resolve(manifest Manifest, options Options) (Inventory, error) {
 	}
 	for _, asset := range manifest.UI.Assets {
 		id := "ui-" + asset.ID
+		if _, embedded := asset.EmbeddedBundle(); embedded {
+			// Compiled into agent-core: provenance records the asset, but it
+			// contributes no file to the package closure (srd004 R9.3).
+			inventory.Roots = append(inventory.Roots, RootProvenance{
+				ID: id, Ownership: asset.Ownership, Source: asset.Source,
+			})
+			continue
+		}
 		inventory.Roots = append(inventory.Roots, RootProvenance{
 			ID: id, Ownership: asset.Ownership, Source: logicalSource(asset.Ownership, asset.Source),
 			RuntimePath: asset.RuntimePath, PackagePath: asset.PackagePath,

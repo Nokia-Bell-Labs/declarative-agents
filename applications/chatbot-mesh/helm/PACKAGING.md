@@ -6,16 +6,17 @@
 The `profiles/` subtree supplies the shared
 `<release>-chatbot-mesh-profiles` ConfigMap projected into each agent at
 `/profiles` (nested paths restored from the encoded ConfigMap keys; see
-`templates/_helpers.tpl`). The observer UI remains at its established packaged
-path below `profiles/`, but the chart places that bundle in an observer-only
-ConfigMap and mounts it back at the same runtime path.
+`templates/_helpers.tpl`). The chatbot UI bundle is excluded from that shared
+object and mounted only into the chatbot; the observer serves a bundle compiled
+into agent-core and has no UI files to package.
 
 A packaging step loads `agents/application.yaml`, resolves its deterministic
 transitive closure with the shared `appmanifest` package, and copies only the
 inventory files into the chart before `helm package`/`helm install`. Local and
 catalog profile roots, deployment entry profiles, runtime paths, and the
-chatbot, observer, and collector UI assets therefore have one composition
-authority. There is no Helm-owned agent list and no whole-actor copy followed by
+chatbot and collector UI assets therefore have one composition authority. The
+observer's UI asset is declared `source: embedded:observer` and contributes no
+file to the closure. There is no Helm-owned agent list and no whole-actor copy followed by
 fixture or UI-development pruning.
 
 Files with `agents/...` runtime paths are staged below `profiles/` for the
@@ -45,19 +46,20 @@ is a compatibility pin, not a claim that an arbitrary source checkout is the
 immutable release. The exact root catalog tag is published from `main` after
 merge; packaging on this branch stages the reviewed checkout and does not create release tags.
 
-The chatbot and observer UIs contribute their built runtime entries, not their
-whole package trees. The chatbot bundle remains in the shared profiles
-ConfigMap. The larger observer React bundle is excluded from that shared object
-and mounted only into the observer from `<release>-chatbot-mesh-observer-ui`;
-its archive and runtime location remain `profiles/agents/observer/ui/dist`.
-This document remains outside the runtime subtree because documentation is not
+The chatbot UI contributes its built runtime entries, not its whole package
+tree, and its bundle is mounted into the chatbot from its own ConfigMap. The
+observer ships no UI files: its fleet UI is the `observer` bundle compiled into
+agent-core, selected by the observer's `monitor-rest.yaml` (applications srd004
+R9), so the chart packages and mounts nothing for it. This document remains outside the runtime subtree because documentation is not
 runtime input. Panel sources, `tsconfig.json`, package lockfiles, and
 `node_modules` are build inputs rather than deployment inputs.
 
 The chatbot `rest.yaml`, `agents/chatbot/ui/ui.yaml`, and
-`request-topology-declarations.yaml` are co-generated from `ragUnits`: the
-profiles ConfigMap emits rendered versions
-through `_chatbot-rest.tpl`, `_chatbot-ui.tpl`, and `_chatbot-topology.tpl`.
+`request-topology-declarations.yaml`, and the observer `monitor-rest.yaml`, are
+co-generated from `ragUnits`: the profiles ConfigMap emits rendered versions
+through `_chatbot-rest.tpl`, `_chatbot-ui.tpl`, `_chatbot-topology.tpl`, and
+`_observer-rest.tpl`. The observer render points its `monitor_proxy` upstreams
+at the in-cluster Services and names the same agents in its UI config.
 The selected-target REST operation, its network allowlist, monitor upstreams,
 and ordered runtime topology therefore share one source of truth with the RAG
 objects. `request-machine.yaml` and `request-fanout-declarations.yaml` are
@@ -77,27 +79,23 @@ manifests therefore both charge immutable files that a template copies into a
 ConfigMap.
 
 Live integration releases may keep immutable archives outside release storage.
-The shared externalization path currently moves the collector and observer UIs
-for the applier live tier; later tiers can use the same release-parameterized
-helpers without changing the canonical package. Applier live keeps three
+The shared externalization path currently moves the collector UI for the
+applier live tier; later tiers can use the same release-parameterized
+helpers without changing the canonical package. Applier live keeps two
 archives outside its release:
 
 - the packaged chart in `<release>-applier-chart`, referenced only by
   `applier.chartArchiveConfigMap` (never supplied with `--set-file`);
 - the collector UI in the checksum-addressed ConfigMap named by
-  `collector.uiArchiveConfigMap`;
-- the observer UI in the checksum-addressed ConfigMap named by
-  `observer.uiArchiveConfigMap`.
+  `collector.uiArchiveConfigMap`.
 
 For the selected release name, live staging verifies every UI file against
-`provenance/application-closure.yaml`, creates deterministic `assets.tgz`
-archives, removes only those verified UI files from the staged chart, and
-pre-creates release-prefixed, checksum-addressed ConfigMaps with `kubectl
-create`. Each workload receives the archive through an explicit volume, verifies
+`provenance/application-closure.yaml`, creates a deterministic `assets.tgz`
+archive, removes only those verified UI files from the staged chart, and
+pre-creates a release-prefixed, checksum-addressed ConfigMap with `kubectl
+create`. The collector receives the archive through an explicit volume, verifies
 `uiArchiveChecksum`, and unpacks it at its explicitly configured serving root
-(`/collector-ui` or `/observer-ui`); the observer keeps this writable staging
-mount beside its read-only `/profiles` mount so it cannot mask the profile
-itself. Pod annotations bind rollouts to the archive checksum. An
+(`/collector-ui`). Pod annotations bind rollouts to the archive checksum. An
 archive-internal checksum manifest verifies every extracted file against the
 manifest-derived package inventory before the workload starts.
 

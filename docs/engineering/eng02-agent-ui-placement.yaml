@@ -148,13 +148,14 @@ sections:
       | documentation-curator | catalog | agents/knowledge-manager/documentation-curator/ui | yes |
       | collector | catalog | agents/collector/ui | yes — literal ui/dist root is a sanctioned exception (srd020 R7.4) |
       | chatbot | chatbot-mesh | ux/ (application top level) | no — moves to agents/chatbot/ui |
-      | observer | chatbot-mesh | agents/observer/ux | directory named ux, not ui |
+      | observer | chatbot-mesh | none — the observer bundle compiled into agent-core | yes — out of scope as a platform bundle (srd004 R9.4) |
 
-      The chatbot-mesh cases — the top-level SPA and the observer's ux
-      directory — migrate under GH-1316, which moves ux/ to agents/chatbot/ui
-      (with ux.yaml becoming ui.yaml), renames the observer tree to
-      agents/observer/ui, and rewrites every root, chart value, magefile path,
-      and spec reference to match. The collector conforms in placement and
+      The chatbot-mesh cases migrated under GH-1316, which moved ux/ to
+      agents/chatbot/ui (with ux.yaml becoming ui.yaml) and renamed the
+      observer tree to agents/observer/ui. GH-2269 then deleted that observer
+      tree: the observer's monitor-rest.yaml selects the embedded observer
+      bundle with a config map, so the agent carries declaration files only and
+      the chart delivers no ConfigMap, archive, volume, or root for it. The collector conforms in placement and
       writes its root as a literal ui/dist. That is not a pending normalization
       but a sanctioned exception: srd020 R7.4 forbids introducing an environment
       variable for the collector UI root, and the trace UI rides a

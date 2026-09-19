@@ -137,6 +137,27 @@ func TestObserverMonitorEndpoints(t *testing.T) {
 		t.Fatalf("observer state missing run state: %v", state)
 	}
 
+	// The fleet UI is the observer bundle compiled into agent-core, configured
+	// by the declaration's config map (srd004 R9.1, R9.2), and the monitor proxy
+	// answers 404 for an agent it declares no upstream for (R2.2).
+	if err := waitHTTPStatus(monitorURL+"/ui/", http.StatusOK, 5*time.Second); err != nil {
+		t.Fatalf("observer embedded UI index: %v", err)
+	}
+	uiConfig, err := observerGetJSON(monitorURL + "/ui/ui-config.json")
+	if err != nil {
+		t.Fatalf("observer ui-config.json: %v", err)
+	}
+	if title, _ := uiConfig["title"].(string); title != "Chatbot Mesh observer" {
+		t.Errorf("observer ui-config title = %q", title)
+	}
+	if backend, _ := uiConfig["trace_backend"].(string); backend != "collector" {
+		t.Errorf("observer ui-config trace_backend = %q, want collector", backend)
+	}
+	if err := waitHTTPStatus(monitorURL+"/monitor-proxy/undeclared/monitor/state",
+		http.StatusNotFound, 5*time.Second); err != nil {
+		t.Fatalf("observer monitor proxy for an undeclared agent: %v", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,

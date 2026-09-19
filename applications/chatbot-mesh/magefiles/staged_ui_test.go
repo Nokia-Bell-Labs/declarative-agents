@@ -101,32 +101,11 @@ func TestStagedChatbotUICarriesTheServedBundle(t *testing.T) {
 	}
 }
 
-func TestStagedObserverUICarriesOnlyTheServedBundle(t *testing.T) {
-	keys := renderedProfileKeys(t)
-	var index, assets bool
-	for _, key := range keys {
-		if !strings.HasPrefix(key, "agents__observer__ui__") {
-			continue
-		}
-		if !strings.HasPrefix(key, "agents__observer__ui__dist__") {
-			t.Errorf("rendered ConfigMap carries observer build input %s; only ui/dist belongs in a pod", key)
-		}
-		if key == "agents__observer__ui__dist__index.html" {
-			index = true
-		}
-		if strings.HasPrefix(key, "agents__observer__ui__dist__assets__") {
-			assets = true
-		}
-	}
-	if !index {
-		t.Error("rendered ConfigMap has no agents__observer__ui__dist__index.html; the observer /ui would 404")
-	}
-	if !assets {
-		t.Error("rendered ConfigMap has no observer dist assets; the observer shell would load without its bundle")
-	}
-}
-
-func TestObserverUIUsesDedicatedConfigMapAtPreservedPath(t *testing.T) {
+// TestObserverChartDeliversNoUIFiles pins srd004 R9.4 in the rendered chart: the
+// observer serves the bundle compiled into agent-core, so the chart carries no
+// observer UI key, renders no observer-ui ConfigMap, and mounts no UI volume or
+// root into the observer.
+func TestObserverChartDeliversNoUIFiles(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
 	}
@@ -140,37 +119,34 @@ func TestObserverUIUsesDedicatedConfigMapAtPreservedPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("helm template: %v\n%s", err, out)
 	}
-	var shared, observerUI, observerDeployment string
-	for _, doc := range strings.Split(string(out), "\n---") {
-		switch {
-		case strings.Contains(doc, "kind: Deployment") &&
-			strings.Contains(doc, "name: relx-chatbot-mesh-observer"):
-			observerDeployment = doc
-		case strings.Contains(doc, "name: relx-chatbot-mesh-profiles"):
-			shared = doc
-		case strings.Contains(doc, "name: relx-chatbot-mesh-observer-ui"):
-			observerUI = doc
-		}
-	}
-	if strings.Contains(shared, "agents__observer__ui__dist__") {
-		t.Error("shared profiles ConfigMap still carries the observer UI bundle")
-	}
-	if !strings.Contains(observerUI, "agents__observer__ui__dist__index.html") {
-		t.Error("observer-only ConfigMap is missing the UI index")
-	}
-	for _, contract := range []string{
-		"name: observer-ui",
-		"mountPath: \"/profiles/agents/observer/ui/dist\"",
-		"name: relx-chatbot-mesh-observer-ui",
+	render := string(out)
+	for _, forbidden := range []string{
+		"agents__observer__ui__",
+		"relx-chatbot-mesh-observer-ui",
+		"OBSERVER_UI_ROOT",
+		"observer-ui",
 	} {
-		if !strings.Contains(observerDeployment, contract) {
-			t.Errorf("observer Deployment missing dedicated UI mount contract %q", contract)
+		if strings.Contains(render, forbidden) {
+			t.Errorf("rendered chart still carries observer UI delivery %q", forbidden)
 		}
+	}
+	var observerDeployment string
+	for _, doc := range strings.Split(render, "\n---") {
+		if strings.Contains(doc, "kind: Deployment") &&
+			strings.Contains(doc, "name: relx-chatbot-mesh-observer") {
+			observerDeployment = doc
+		}
+	}
+	if observerDeployment == "" {
+		t.Fatal("rendered chart has no observer Deployment")
+	}
+	if strings.Contains(observerDeployment, "initContainers") {
+		t.Error("observer Deployment still stages a UI archive in an init container")
 	}
 }
 
-// TestChatbotUIUsesDedicatedConfigMapAtPreservedPath is the observer test's twin
-// for the chatbot bundle (GH-131), and it asserts the move end to end rather
+// TestChatbotUIUsesDedicatedConfigMapAtPreservedPath covers the chatbot bundle's
+// dedicated ConfigMap (GH-131), and it asserts the move end to end rather
 // than only its effect on the shared object's size.
 //
 // Removing the bundle from the shared ConfigMap shrinks that object whether or

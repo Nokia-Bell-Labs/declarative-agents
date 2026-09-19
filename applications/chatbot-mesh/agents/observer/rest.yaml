@@ -1,5 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
+# The observer's control server and its kube and fan-in clients. The monitor
+# server, which also serves the fleet UI and the monitor proxy, is in
+# monitor-rest.yaml beside this file.
 unit: mesh-observer-rest
 rest:
   version: v1
@@ -21,18 +24,6 @@ rest:
         hosts: [127.0.0.1, localhost]
         ports:
           - ${OBSERVER_CONTROL_PORT:-18201}
-        allow_public_listener: true
-    monitor:
-      timeout: 5s
-      read_timeout: 5s
-      max_request_bytes: 4096
-      max_response_bytes: 1048576
-      redirect: {mode: none}
-      network:
-        schemes: [http]
-        hosts: [127.0.0.1, localhost]
-        ports:
-          - ${OBSERVER_MONITOR_PORT:-18202}
         allow_public_listener: true
     kube_client:
       timeout: ${OBSERVER_KUBE_TIMEOUT:-5s}
@@ -76,64 +67,6 @@ rest:
       shutdown: {timeout: 5s, drain_policy: drain_then_stop}
       endpoints:
         health: {method: GET, path: /api/lifecycle/health, binding: health}
-
-    observer_monitor:
-      address: ${OBSERVER_BIND_HOST:-127.0.0.1}:${OBSERVER_MONITOR_PORT:-18202}
-      limits_ref: monitor
-      lifecycle_exit: {disabled: true}
-      queue: {name: observer_monitor, capacity: 8, overflow: reject, timeout: 100ms}
-      shutdown:
-        timeout: 2s
-        drain_policy: drain_then_stop
-        stop_listeners: true
-        unblock_await_signal: ServerStopped
-      endpoints:
-        machine_spec:  {method: GET, path: /monitor/machine, binding: read_state, monitor_view: machine_spec}
-        declared_machines: {method: GET, path: /monitor/machines, binding: read_state, monitor_view: declared_machines}
-        declared_tools: {method: GET, path: /monitor/tools/declared, binding: read_state, monitor_view: declared_tools}
-        current_state: {method: GET, path: /monitor/state, binding: read_state, monitor_view: current_state}
-        tools:         {method: GET, path: /monitor/tools, binding: read_state, monitor_view: tools}
-        metrics:       {method: GET, path: /monitor/metrics, binding: read_state, monitor_view: metrics}
-        recent_events: {method: GET, path: /monitor/events, binding: read_state, monitor_view: events}
-        event_stream:  {method: GET, path: /monitor/events/stream, binding: stream_events, monitor_view: events}
-        openapi:       {method: GET, path: /monitor/openapi, binding: static_metadata, monitor_view: openapi}
-        # The fleet view exposes each aggregation step's latest declared output
-        # (pods, Deployments, Services, per-agent fan-in, pod metrics) through the
-        # command_state monitor view. The discovery steps carry no authored label,
-        # so the allowlist addresses them by command name (srd033 R7, GH-1270).
-        # The four fan-in steps are for_each joins, which all execute under the
-        # command name for_each.join, so each declares its own join label and the
-        # allowlist names those labels instead (GH-1319).
-        fleet:
-          method: GET
-          path: /monitor/fleet
-          binding: read_state
-          monitor_view: command_state
-          labels:
-            - discover_mesh_pods
-            - list_mesh_deployments
-            - list_mesh_services
-            - agent_machine_fanin
-            - agent_state_fanin
-            - agent_tools_fanin
-            - agent_events_fanin
-            - poll_pod_metrics
-        fleet_ui:
-          method: GET
-          path: /ui/{path...}
-          binding: static_assets
-          static_assets:
-            root: "${OBSERVER_UI_ROOT:-agents/observer/ui/dist}"
-            index: index.html
-            spa: false
-          request:
-            path:
-              path: {type: string}
-        root_redirect:
-          method: GET
-          path: /
-          binding: redirect
-          redirect: {location: /ui/, status: 302}
 
   clients:
     kube_api:

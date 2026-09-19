@@ -42,7 +42,8 @@ what_this_does: |
   wrapper. The canonical ingest machine, tools, and declarations remain owned by
   applications/catalog and are resolved during packaging. Each served UI lives
   under its serving agent: `agents/chatbot/ui/` holds the single-page
-  application and its UI config, and `agents/observer/ui/` the fleet view. The
+  application and its UI config. The observer's fleet view is the bundle
+  compiled into agent-core, so `agents/observer/` holds declarations only. The
   `helm/` tree holds the
   deployment chart. The `docs/` tree holds this vision, the architecture, the
   road map, and the application's own software requirements, use cases, and test

@@ -65,8 +65,9 @@ requirements:
       - R3.1: The observer SHALL serve a UX that displays a card per discovered agent showing its declared machine name and purpose, tool list, current state, and recent events.
       - R3.2: The UX SHALL auto-refresh on the declared polling interval.
       - R3.3: The UX SHALL distinguish agents that are reachable from agents that are unreachable or degraded.
-      - R3.4: UX assets SHALL be served by the observer's own monitor REST server, following the pattern the documentation-curator uses for its monitor UI.
+      - R3.4: UX assets SHALL be served by the observer's own monitor REST server from the observer bundle compiled into agent-core (applications srd004 R9), selected by a static_assets bundle binding whose config map names the title, monitored agents, and trace backend; the observer directory SHALL carry no UI files.
       - R3.5: The UX SHALL render the deployment topology -- pods grouped by their owning Deployment and the Services fronting them -- and show each pod's CPU and memory usage on its card, or an explicit "metrics unavailable" state when resource data is absent.
+      - R3.6: The UX SHALL reach other agents' monitor surfaces and the trace backend only through the observer's same-origin GET /monitor-proxy/{agent}/{path...} route, whose upstreams name the same agents as the UX config (applications srd004 R2.1, R2.3).
 
   R4:
     title: Self-monitoring and control
@@ -105,7 +106,7 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4]
   - id: AC3
     criterion: The served UX shows one card per agent with machine, tools, state, and events, auto-refreshes, and distinguishes reachable from unreachable agents.
-    traces: [R3.1, R3.2, R3.3, R3.4]
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.6]
   - id: AC4
     criterion: Standard control and monitor surfaces expose fleet-level metrics and lifecycle exit stops all loops and servers.
     traces: [R4.1, R4.2, R4.3]

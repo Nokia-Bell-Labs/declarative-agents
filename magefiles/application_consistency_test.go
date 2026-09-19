@@ -295,7 +295,6 @@ func TestApplicationPromotionAndUITokens(t *testing.T) {
 	}
 	for _, relative := range []string{
 		"applications/chatbot-mesh/agents/chatbot/ui/app/src/App.css",
-		"applications/chatbot-mesh/agents/observer/ui/src/App.css",
 	} {
 		path, err := filepath.Abs(filepath.Join("..", filepath.FromSlash(relative)))
 		if err != nil {

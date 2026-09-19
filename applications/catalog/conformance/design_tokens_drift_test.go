@@ -25,7 +25,6 @@ var designTokenUIs = []struct {
 	{"monitor", "agents/knowledge-manager/documentation-curator/ui/monitor/src/App.css"},
 	{"docs", "agents/knowledge-manager/documentation-curator/ui/docs/src/App.css"},
 	{"chatbot-mesh", "../chatbot-mesh/agents/chatbot/ui/app/src/App.css"},
-	{"observer", "../chatbot-mesh/agents/observer/ui/src/App.css"},
 }
 
 func TestDesignTokensImportsResolveCanonical(t *testing.T) {

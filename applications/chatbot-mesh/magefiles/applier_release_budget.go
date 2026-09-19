@@ -100,12 +100,10 @@ func externalizeUIAssets(chart, releaseName string) ([]externalUIAsset, func(), 
 		prefix      string
 		mountedRoot string
 	}{
+		// The observer serves the bundle compiled into agent-core and packages
+		// no UI files, so the collector's is the only release-resident UI to
+		// move out (srd004 R9.4).
 		{component: "collector", prefix: "collector-ui/", mountedRoot: "/collector-ui/"},
-		{
-			component:   "observer",
-			prefix:      "profiles/agents/observer/ui/dist/",
-			mountedRoot: "/observer-ui/",
-		},
 	}
 	assets := make([]externalUIAsset, 0, len(specs))
 	for _, spec := range specs {
@@ -117,7 +115,7 @@ func externalizeUIAssets(chart, releaseName string) ([]externalUIAsset, func(), 
 		}
 		assets = append(assets, asset)
 	}
-	for _, relative := range []string{"collector-ui", "profiles/agents/observer/ui/dist"} {
+	for _, relative := range []string{"collector-ui"} {
 		if err := os.RemoveAll(filepath.Join(chart, filepath.FromSlash(relative))); err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("remove release-resident UI %s: %w", relative, err)

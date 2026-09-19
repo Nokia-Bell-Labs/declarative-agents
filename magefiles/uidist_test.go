@@ -111,7 +111,6 @@ func TestRepositoryShippedUIDiscovery(t *testing.T) {
 		"applications/catalog/agents/knowledge-manager/documentation-curator/ui/docs",
 		"applications/catalog/agents/knowledge-manager/documentation-curator/ui/monitor",
 		"applications/chatbot-mesh/agents/chatbot/ui/app",
-		"applications/chatbot-mesh/agents/observer/ui",
 	}
 	var want []string
 	for _, path := range wantRel {
@@ -134,7 +133,6 @@ func TestShippedUIsImportCanonicalDesignTokens(t *testing.T) {
 		"applications/catalog/agents/knowledge-manager/documentation-curator/ui/docs",
 		"applications/catalog/agents/knowledge-manager/documentation-curator/ui/monitor",
 		"applications/chatbot-mesh/agents/chatbot/ui/app",
-		"applications/chatbot-mesh/agents/observer/ui",
 	} {
 		cssPath := filepath.Join(repoRoot, filepath.FromSlash(rel), "src", "App.css")
 		data, err := os.ReadFile(cssPath)

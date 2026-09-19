@@ -3,8 +3,9 @@
 # A wrapper around the catalog's fleet observer, as the applier wrappers are
 # around the catalog's applier. The machine, its words, and their selection are
 # the same in every mesh that runs an observer; what differs is where this one
-# binds, which agents it proxies, and the UI it serves, all of which live in
-# rest.yaml beside this file.
+# binds, which agents it proxies, and the UI config it serves, all of which live
+# in rest.yaml and monitor-rest.yaml beside this file. The UI itself is the
+# observer bundle compiled into agent-core (applications srd004 R9).
 name: observer
 machine: ../../catalog/observer/machine.yaml
 tools:
@@ -14,3 +15,4 @@ tool_declarations:
   - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
 rest_definitions:
   - rest.yaml
+  - monitor-rest.yaml

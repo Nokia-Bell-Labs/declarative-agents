@@ -63,7 +63,7 @@ func TestHelmPackageIsRepeatableAndExcludesGeneratedInputs(t *testing.T) {
 		"chatbot-mesh/profiles/applications/chatbot-mesh/applier/exec-declarations.yaml",
 		"chatbot-mesh/profiles/agents/knowledge-manager/corpus-ingest/profile.yaml",
 		"chatbot-mesh/profiles/agents/chatbot/ui/app/dist/index.html",
-		"chatbot-mesh/profiles/agents/observer/ui/dist/index.html",
+		"chatbot-mesh/profiles/applications/chatbot-mesh/observer/monitor-rest.yaml",
 		"chatbot-mesh/provenance/application-closure.yaml",
 	} {
 		if !containsArchiveFile(second, required) {
@@ -254,7 +254,7 @@ func TestHelmPackageContainsRequiredProfileEntrypoints(t *testing.T) {
 		"agents__corpus-ingest__profile.yaml",
 		"agents__knowledge-manager__corpus-ingest__machine.yaml",
 		"agents__chatbot__ui__app__dist__index.html",
-		"agents__observer__ui__dist__index.html",
+		"applications__chatbot-mesh__observer__monitor-rest.yaml",
 	} {
 		if !strings.Contains(render, key+": |-") {
 			t.Errorf("packaged profiles ConfigMap missing %s", key)
