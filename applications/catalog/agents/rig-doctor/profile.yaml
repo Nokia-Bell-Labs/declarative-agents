@@ -1,0 +1,20 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: rig-doctor
+machine: machine.yaml
+tools:
+  - tools.yaml
+# Filesystem reads and the workspace write. The workspace is the evidence
+# directory the run is pointed at, so every path a word can reach is captured
+# evidence (srd023 R2).
+tool_config_dirs:
+  - /opt/agent-core/tools/builtin/filesystem
+tool_declarations:
+  - llm/default.yaml
+  - declarations.yaml
+  - /opt/agent-core/tools/builtin/parse-response.yaml
+  - /opt/agent-core/tools/builtin/report-parse-error.yaml
+  - /opt/agent-core/tools/builtin/done.yaml
+# The provider library invoke_llm reads its chat dialect from (srd058 R1.1).
+libraries:
+  providers: /opt/agent-core/tools/providers/ollama

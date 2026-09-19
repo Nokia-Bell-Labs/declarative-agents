@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The rig-doctor's own word: the evidence gate that stops an empty directory
+# before any model call.
+unit: catalog-rig-doctor-declarations
+imports:
+  - /opt/agent-core/tools/units/types-collections.yaml
+tools:
+  - name: evidence_present
+    type: builtin
+    init: value_predicate
+    category: word
+    visibility: internal
+    signature:
+      output: builtin-types-collections.Comparison
+      emits: [Satisfied, Unsatisfied, CommandError]
+    description: Branch on whether the evidence directory listing found anything to read.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: The listing emptiness comparison.}
+    errors:
+      - signal: CommandError
+        condition: the listing selector does not resolve
+        message_shape: 'evidence_present: <selector error>'
+        state_after_failure: no branch is taken and the machine routes the fault
+    config:
+      left: $from(evidence).$
+      op: non_empty
+      operand_type: string
+      satisfied: Satisfied
+      unsatisfied: Unsatisfied
+

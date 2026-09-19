@@ -1,0 +1,57 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel17.0-rig-doctor
+title: Rig Doctor Root-Cause Analyst Conformance
+status: implemented
+release: "17.0"
+traces: [rel17.0-uc001-rig-doctor]
+
+preconditions:
+  - The catalog rig-doctor profile closes against agent-core shared tools.
+  - conformance/testdata/rig-doctor holds a failing-rollout fixture and an empty fixture.
+  - A scripted provider serves a fixed diagnosis for the failing-rollout fixture.
+
+test_cases:
+  - id: rig-doctor-closure
+    verifies: [S2]
+    command: mage validate
+    assertions:
+      - The rig-doctor profile passes agent-core strict configuration validation.
+      - The tool manifest holds only list_files, read, find, the diagnosis write, done, and the loop words.
+      - No exec, kubectl, or helm declaration is reachable from the profile.
+  - id: rig-doctor-diagnosed
+    verifies: [S3]
+    command: go test ./conformance -run '^TestRigDoctorDiagnosed'
+    inputs:
+      evidence: conformance/testdata/rig-doctor/failing-rollout
+    assertions:
+      - The run reaches Diagnosed.
+      - diagnosis.yaml carries probable_cause, confidence, findings, next_command, and unresolved.
+      - Every evidence cite names a file that exists in the fixture and a line within its length.
+      - The probable cause names the Deployment whose rollout counts show zero available replicas.
+  - id: rig-doctor-no-evidence
+    verifies: [S4]
+    command: go test ./conformance -run '^TestRigDoctorNoEvidence'
+    inputs:
+      evidence: conformance/testdata/rig-doctor/empty
+    assertions:
+      - The run reaches NoEvidence.
+      - No diagnosis.yaml is written.
+  - id: rig-capture-manifest
+    verifies: [S1]
+    command: cd ../.. && go test ./magefiles/kindrig -run '^TestCaptureEvidence'
+    assertions:
+      - The manifest lists every captured file with its kind.
+      - A failing kubectl command is recorded as a capture error and later files are still captured.
+  - id: rig-doctor-registration
+    verifies: [S6]
+    command: go test ./conformance -run '^TestFamily'
+    assertions:
+      - The root-cause-analyst binding appears in the role-realization, taxonomy, and profile-system models.
+  - id: rig-doctor-live
+    verifies: [S3, S5]
+    command: cd ../chatbot-mesh && mage diagnose helm-smoke
+    assertions:
+      - With a Deployment broken by an unpullable image tag, the target exits zero and prints the evidence and diagnosis paths.
+      - The diagnosis names the broken Deployment and cites the ErrImagePull or ImagePullBackOff event.
+      - The live case is dependency gated on kind, kubectl, and a model provider.

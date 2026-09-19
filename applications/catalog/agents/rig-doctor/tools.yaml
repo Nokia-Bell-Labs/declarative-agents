@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the rig-doctor. Every word reads the evidence directory,
+# captured spool tail included, except write, which persists the diagnosis
+# beside it (srd023 R2.1).
+tools:
+  # Evidence gate -- direct transition actions before any model call
+  - list_files
+  - evidence_present
+
+  # Evidence reads -- LLM-invoked via $tool dispatch
+  - read
+  - find
+
+  # Diagnosis -- LLM-invoked, the only write the profile declares
+  - write
+
+  # LLM tools -- direct transition actions
+  - invoke_llm
+  - parse_response
+  - report_parse_error
+
+  # Completion -- emits TaskCompleted via parse_response
+  - done

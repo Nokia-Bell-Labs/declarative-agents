@@ -1,0 +1,27 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Captured by mage diagnose helm-smoke; trimmed to the files one diagnosis needs.
+cluster: da-platform
+namespaces:
+    - da-helm-smoke
+captured_at: "2026-09-19T20:14:07Z"
+revision: 374c9a0dc364f5b1371e06ac302703588fc028ff
+files:
+    - path: cluster-events.txt
+      kind: cluster-events
+    - path: namespace-da-helm-smoke-events.txt
+      kind: events
+      namespace: da-helm-smoke
+    - path: namespace-da-helm-smoke-rollout.txt
+      kind: rollout
+      namespace: da-helm-smoke
+    - path: namespace-da-helm-smoke-pods.txt
+      kind: pods
+      namespace: da-helm-smoke
+    - path: namespace-da-helm-smoke-pod-smoke-chatbot-6d4f8b9c7-nk2vq-logs.txt
+      kind: logs
+      namespace: da-helm-smoke
+      pod: smoke-chatbot-6d4f8b9c7-nk2vq
+    - path: traces/collector.ndjson
+      kind: traces
+capture_errors: []

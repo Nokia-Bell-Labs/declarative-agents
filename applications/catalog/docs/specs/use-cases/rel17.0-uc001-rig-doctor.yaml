@@ -1,0 +1,70 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel17.0-uc001-rig-doctor
+title: An operator runs mage diagnose after a failed scenario and reads a cited diagnosis
+status: implemented
+
+summary: |
+  After a kind scenario fails, an operator runs the application's diagnose
+  target. The target captures a snapshot of the scenario namespace and the
+  trace spool tail into an evidence directory, then runs the catalog
+  rig-doctor over it. The operator reads a diagnosis whose every claim cites
+  a captured file and line, and runs the suggested read-only command.
+
+actor: A developer or release operator working on the kind rig.
+trigger: An integration or demo target fails, or a rollout stays unready.
+
+preconditions:
+  - The da-platform cluster or the scenario's own cluster is still running.
+  - The catalog rig-doctor profile closes against agent-core shared tools.
+  - A model provider is reachable for the diagnosis loop.
+
+flow:
+  - id: F1
+    text: The operator runs mage diagnose with the scenario name as an explicit argument.
+  - id: F2
+    text: The target resolves the cluster, the da-<scenario> namespace, and a private kubeconfig without reading environment variables.
+  - id: F3
+    text: Capture writes events, describe, pods, rollout counts, pod logs, cluster events, and the trace spool tail with a manifest listing each file and each capture error.
+  - id: F4
+    text: The target runs the rig-doctor profile with the evidence directory as its working directory.
+  - id: F5
+    text: The rig-doctor reads the manifest, correlates events, rollout counts, logs, and traces, and writes diagnosis.yaml.
+  - id: F6
+    text: The target prints the evidence directory and the diagnosis path and exits zero whatever the diagnosis outcome.
+
+touchpoints:
+  - id: T1
+    target: srd023-rig-doctor R1
+    reason: Defines the evidence directory the capture writes and the agent reads.
+  - id: T2
+    target: srd023-rig-doctor R2
+    reason: Keeps the diagnosis loop read-only by declaration.
+  - id: T3
+    target: srd023-rig-doctor R3
+    reason: Defines the cited diagnosis the operator reads.
+  - id: T4
+    target: srd023-rig-doctor R4
+    reason: Guarantees a terminal state on empty or invalid input.
+  - id: T5
+    target: srd023-rig-doctor R5
+    reason: Registers the family and keeps its tests offline.
+
+success_criteria:
+  - id: S1
+    criterion: Capture produces a manifest listing events, describe, pods, rollout, logs, cluster-events, and traces files, and records capture errors without aborting.
+  - id: S2
+    criterion: The rig-doctor tool manifest holds no exec, kubectl, or helm word, and its only write targets diagnosis.yaml.
+  - id: S3
+    criterion: Given a fixture with a failing rollout, the diagnosis names the failing Deployment and cites the event or log line that shows the cause.
+  - id: S4
+    criterion: An empty evidence directory reaches NoEvidence and writes no diagnosis.
+  - id: S5
+    criterion: mage diagnose exits zero and prints the evidence and diagnosis paths whether or not diagnosis succeeds.
+  - id: S6
+    criterion: The root-cause-analyst binding appears in all three semantic models.
+
+out_of_scope:
+  - Remediation or any cluster mutation.
+  - Live queries against the cluster or the host ingress during diagnosis.
+  - Diagnose targets in coding-agent and agent-architecture; they adopt the verb after chatbot-mesh.

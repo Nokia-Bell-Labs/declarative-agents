@@ -1,0 +1,96 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd023-rig-doctor
+title: Rig Doctor Root-Cause Analyst
+
+context: |
+  A failed kind scenario leaves an evidence directory behind: kind logs,
+  namespace describe output, and pod logs (eng01 "Evidence and failure
+  capture"). The host OTLP ingress keeps a trace spool that outlives the run.
+  Reading that material to find why a rollout never became ready is
+  correlation work across events, logs, rollout counts, and traces. The
+  rig-doctor is the catalog realization of the root-cause-analyst sub-role:
+  it reads one captured evidence directory and writes a structured diagnosis
+  into it. The repository-root rig capture and each application's
+  `mage diagnose` target produce the directory; this family consumes it.
+
+problem: |
+  Today a person reconstructs the failure by hand from kubectl events,
+  rollout status, pod logs, and the NDJSON trace spool. The rig captures no
+  events, records no manifest of what it captured, and nothing ranks probable
+  causes or cites the lines that support them. A diagnosis that the reader
+  cannot verify quickly costs more time than reading the logs directly.
+
+goals:
+  - G1: Diagnose a failed rig from a captured snapshot, never from live cluster access.
+  - G2: Cite evidence for every claim so a person verifies the diagnosis in seconds.
+  - G3: Stay read-only by declaration; the only write is the diagnosis file.
+  - G4: Keep the family portable, independently bootable, and testable without a model provider.
+
+requirements:
+  R1:
+    title: Evidence directory contract
+    items:
+      - R1.1: The input is one directory whose manifest.yaml names the cluster, the captured namespaces, the capture time, the repository revision, every captured file with its kind, and every capture error.
+      - R1.2: File kinds are events, cluster-events, describe, pods, rollout, logs, traces, and kind-logs; a logs file also names its namespace and pod.
+      - R1.3: Per-namespace files follow the existing rig names, namespace-<ns>-<kind>.txt and namespace-<ns>-<pod>-logs.txt; cluster-wide events are cluster-events.txt; the trace spool tail is traces/collector.ndjson; kind export logs stay under kind/.
+      - R1.4: A capture error is recorded in the manifest and does not abort capture of the remaining files.
+  R2:
+    title: Read-only diagnosis loop
+    items:
+      - R2.1: The profile runs one model-driven loop whose tool manifest holds only filesystem reads (list_files, read, find), the diagnosis write, and done; the captured spool tail is read as one of those files.
+      - R2.2: The profile declares no exec word, no kubectl or helm access, and no network boundary other than the model provider.
+      - R2.3: The profile declares one write word, whose workspace is the evidence directory, and a run writes diagnosis.yaml and nothing else.
+      - R2.4: Every path a word can reach lies inside the evidence directory the run is pointed at; no path comes from an environment variable.
+  R3:
+    title: Diagnosis output
+    items:
+      - R3.1: diagnosis.yaml carries probable_cause, a confidence of high, medium, or low, a findings list, one next_command, and an unresolved list of questions the evidence cannot answer.
+      - R3.2: Every finding carries a claim and at least one evidence cite naming a file path relative to the evidence directory and, where the file is line-oriented, a line number.
+      - R3.3: next_command is a single read-only command a person runs to confirm or refute the probable cause.
+  R4:
+    title: Terminal states
+    items:
+      - R4.1: A run whose model writes the diagnosis and calls done reaches Diagnosed.
+      - R4.2: An evidence directory that is empty, or that cannot be listed, reaches NoEvidence before any model call and writes no diagnosis.
+      - R4.3: Budget exhaustion, a provider failure, or an infrastructure error reaches Failed; every run reaches a terminal state.
+  R5:
+    title: Portability and registration
+    items:
+      - R5.1: The profile closes every non-runtime reference and boots independently of any application chart or cluster.
+      - R5.2: The family binds the root-cause-analyst sub-role (parent analyst) in the role-realization, taxonomy, and profile-system semantic models.
+      - R5.3: Conformance exercises the machine against a checked-in fixture evidence directory with a scripted provider, so no test depends on a live model or cluster, and checks the written diagnosis against the R3 schema.
+
+non_goals:
+  - Remediate, restart, roll back, or otherwise change any cluster, release, or file outside diagnosis.yaml.
+  - Query the cluster, the Kubernetes API, or the host ingress live.
+  - Capture evidence; the repository-root rig and the application diagnose targets own capture.
+  - Gate a build or release; a diagnosis reports and never fails its caller.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Catalog boot smoke validates the standalone profile, and conformance checks that its tool manifest holds only the R2.1 words and no kubectl or helm access.
+    traces: [R2.1, R2.2, R2.4, R5.1]
+  - id: AC2
+    criterion: A fixture evidence directory with a failing rollout drives the scripted-provider run to Diagnosed, and the written diagnosis.yaml satisfies the R3 schema with resolvable evidence cites.
+    traces: [R1.1, R1.2, R1.3, R2.3, R3.1, R3.2, R3.3, R4.1, R5.3]
+  - id: AC3
+    criterion: An empty evidence directory reaches NoEvidence without calling the model and without writing a diagnosis.
+    traces: [R4.2, R4.3, R2.3]
+  - id: AC4
+    criterion: The family inventory test finds the root-cause-analyst binding in all three semantic models.
+    traces: [R5.2]
+  - id: AC5
+    criterion: Rig capture writes a manifest that lists every captured file and records capture errors without aborting.
+    traces: [R1.1, R1.4]
+
+depends_on:
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1, R2, R3]
+  - srd_id: srd020-collector
+    symbols_used: [R2]
+
+platform_dependencies:
+  - srd_id: srd003-application-consistency
+    provider: applications
+    symbols_used: [R2, R4, R5, R7]

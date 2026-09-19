@@ -74,6 +74,14 @@ role_groups:
     summary: |
       Supported test-time members compose profile-owned scenarios and replace
       external REST dependencies with deterministic fixtures.
+  - id: diagnostic_work
+    profiles:
+      - rig-doctor
+    summary: |
+      Diagnostic work reads one captured rig evidence directory and the trace
+      spool tail it carries, correlates events, rollout counts, logs, and
+      spans, and writes a diagnosis whose claims cite the captured files. No
+      cluster boundary participates; the snapshot is the only input.
   - id: boundary_runtime_work
     profiles:
       - rest
@@ -170,6 +178,12 @@ actor_boundaries:
       - validation commands
     boundary: LLM responses choose selected tools; filesystem and validation
       commands mutate or inspect the workspace.
+  - profile: rig-doctor
+    actors:
+      - model
+      - captured evidence directory
+    boundary: LLM responses choose filesystem reads and spool queries over one
+      captured directory; the only write is the diagnosis beside the evidence.
   - profile: deployment-applier
     actors:
       - authorized apply caller

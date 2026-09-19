@@ -11,7 +11,6 @@ package kindrig
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -158,15 +157,6 @@ const (
 type EnsureOptions struct {
 	ReusePolicy ReusePolicy
 	HealthRun   CommandRunner
-}
-
-// FailureEvidence describes the persistent diagnostics to collect when an
-// owned cluster's scenario fails. Directory is the final artifact directory,
-// and Namespaces limits kubectl collection to scenario-owned namespaces.
-type FailureEvidence struct {
-	Directory  string
-	Namespaces []string
-	Run        CommandRunner
 }
 
 // DefaultRun streams kind's output so a multi-minute create still reports
@@ -422,94 +412,7 @@ func (c Cluster) ReleaseAfter(run Runner, failed bool, evidence FailureEvidence)
 	c.Release(run)
 }
 
-// Capture persists kind logs and namespace diagnostics for a cluster that stays
-// running. A scenario on a shared cluster captures its own namespace this way;
-// an owned cluster's scenario uses ReleaseAfter instead.
-func (e FailureEvidence) Capture(kindRun Runner, cluster string) error {
-	return e.capture(kindRun, cluster)
-}
-
-func (e FailureEvidence) capture(kindRun Runner, cluster string) error {
-	if e.Directory == "" {
-		return fmt.Errorf("evidence directory is required")
-	}
-	if err := os.MkdirAll(e.Directory, 0o755); err != nil {
-		return fmt.Errorf("create evidence directory: %w", err)
-	}
-	var captureErrors []error
-	if err := ExportLogs(kindRun, cluster, filepath.Join(e.Directory, "kind")); err != nil {
-		captureErrors = append(captureErrors, err)
-	}
-	if e.Run == nil {
-		if len(e.Namespaces) > 0 {
-			captureErrors = append(captureErrors, fmt.Errorf("kubectl diagnostic runner is required"))
-		}
-		return errors.Join(captureErrors...)
-	}
-	for _, namespace := range e.Namespaces {
-		if err := e.captureNamespace(namespace); err != nil {
-			captureErrors = append(captureErrors, err)
-		}
-	}
-	return errors.Join(captureErrors...)
-}
-
-func (e FailureEvidence) captureNamespace(namespace string) error {
-	base := "namespace-" + evidenceName(namespace)
-	var captureErrors []error
-	if err := e.captureCommand(base+"-describe.txt", "kubectl",
-		"describe", "all", "-n", namespace); err != nil {
-		captureErrors = append(captureErrors, err)
-	}
-	pods, err := e.Run("kubectl", "get", "pods", "-n", namespace, "-o", "name")
-	if writeErr := writeDiagnostic(
-		filepath.Join(e.Directory, base+"-pods.txt"), pods, err); writeErr != nil {
-		captureErrors = append(captureErrors, writeErr)
-	}
-	if err != nil {
-		captureErrors = append(captureErrors, fmt.Errorf("list pods in %s: %w", namespace, err))
-		return errors.Join(captureErrors...)
-	}
-	for _, pod := range strings.Fields(string(pods)) {
-		if err := e.captureCommand(
-			base+"-"+evidenceName(pod)+"-logs.txt", "kubectl",
-			"logs", "-n", namespace, pod, "--all-containers=true",
-			"--prefix=true", "--tail=-1"); err != nil {
-			captureErrors = append(captureErrors, err)
-		}
-	}
-	return errors.Join(captureErrors...)
-}
-
-func (e FailureEvidence) captureCommand(filename, name string, args ...string) error {
-	output, commandErr := e.Run(name, args...)
-	path := filepath.Join(e.Directory, filename)
-	if err := writeDiagnostic(path, output, commandErr); err != nil {
-		return err
-	}
-	if commandErr != nil {
-		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), commandErr)
-	}
-	return nil
-}
-
-func writeDiagnostic(path string, output []byte, commandErr error) error {
-	data := append([]byte(nil), output...)
-	if commandErr != nil {
-		data = append(data, []byte(fmt.Sprintf("\n[command failed: %v]\n", commandErr))...)
-	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("write diagnostic %s: %w", path, err)
-	}
-	return nil
-}
-
-var nonEvidenceName = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 var gitRevision = regexp.MustCompile(`^[0-9a-fA-F]{12,64}$`)
-
-func evidenceName(value string) string {
-	return strings.Trim(nonEvidenceName.ReplaceAllString(value, "-"), "-")
-}
 
 // CommitImage returns a local image reference tagged with the tested checkout's
 // 12-character commit revision. The revision is returned for evidence output.

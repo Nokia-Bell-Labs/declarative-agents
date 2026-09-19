@@ -403,6 +403,33 @@ roles:
       - Confirm the query surface serves bounded reads from the spool.
       - Confirm shutdown ordering stops query before monitor before control.
 
+  - id: rig-doctor
+    title: Rig doctor root-cause analyst
+    profile_path: agents/rig-doctor/profile.yaml
+    actor_boundary: model plus one captured evidence directory
+    inputs:
+      - evidence manifest naming every captured file
+      - kubectl events, describe output, rollout counts, and pod logs
+      - trace spool tail captured beside them
+    selected_tool_families:
+      - filesystem read
+      - filesystem write
+      - llm
+    runtime_dependencies:
+      - agent-core filesystem tools
+      - a model provider library (srd058)
+    outputs:
+      - diagnosis naming a probable cause with cited evidence
+      - one suggested read-only next command
+    outcomes:
+      - Diagnosed
+      - NoEvidence
+      - Failed
+    checks:
+      - Confirm no exec, kubectl, or helm word is reachable from the profile.
+      - Confirm the only write targets the diagnosis beside the evidence.
+      - Confirm an empty evidence directory reaches NoEvidence without a diagnosis.
+
   - id: deployment-applier
     title: Deployment applier
     profile_path: agents/applier/profile.yaml

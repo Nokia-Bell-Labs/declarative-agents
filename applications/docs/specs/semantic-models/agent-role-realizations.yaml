@@ -188,6 +188,13 @@ bindings:
       inherits: critic
       domain: evaluation
       execution_scope: workspace
+    - actor: rig-doctor
+      profile: applications/catalog/agents/rig-doctor/profile.yaml
+      classification: role_realization
+      primary_role: analyst
+      sub_roles: [root-cause-analyst]
+      domain: operations
+      execution_scope: workspace
     - actor: executor
       profile: applications/catalog/agents/executor/profile.yaml
       classification: role_realization
