@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # The whole composition of the minimal example: two kit panels, grouped in
 # the sidebar, with no application registry entries.
 version: 2

@@ -69,8 +69,23 @@ describe("validateUIConfig (srd004 R7)", () => {
 });
 
 describe("routingFromConfig (srd004 R5.2)", () => {
-  it("groups the chatbot-mesh version 1 routes by their own id", () => {
-    const routing = routingFromConfig(load(CHATBOT_MESH_UI_YAML));
+  it("groups version 1 routes by their own id", () => {
+    // The chatbot-mesh ui.yaml before it moved to version 2 (GH-2272).
+    const v1 = parse(`id: chatbot-ui
+title: Chatbot Agent UI
+routes:
+  - {id: chat, path: /chat, label: Chat}
+  - {id: observability, path: /observability, label: Observability}
+  - {id: provisioning, path: /provisioning, label: Provisioning}
+sidebar:
+  title: Chatbot
+  groups:
+    chat: {label: Chat, order: 0}
+    observability: {label: Observability, order: 1}
+    provisioning: {label: Provisioning, order: 2}
+`) as UIConfig;
+    expect(validateUIConfig(v1)).toEqual([]);
+    const routing = routingFromConfig(v1);
     expect(routing.defaultPanel).toBe("chat");
     expect(routing.routes).toEqual([
       { id: "chat", path: "/chat", label: "Chat", group: "chat" },
@@ -81,6 +96,17 @@ describe("routingFromConfig (srd004 R5.2)", () => {
       { id: "chat", label: "Chat", order: 0 },
       { id: "observability", label: "Observability", order: 1 },
       { id: "provisioning", label: "Provisioning", order: 2 },
+    ]);
+    expect(shellTitle(v1)).toBe("Chatbot");
+  });
+
+  it("routes the chatbot-mesh version 2 panels flat, in declaration order", () => {
+    const routing = routingFromConfig(load(CHATBOT_MESH_UI_YAML));
+    expect(routing.defaultPanel).toBe("chat");
+    expect(routing.routes.map((route) => [route.id, route.path, route.group])).toEqual([
+      ["chat", "/chat", undefined],
+      ["observability", "/observability", undefined],
+      ["provisioning", "/provisioning", undefined],
     ]);
     expect(shellTitle(load(CHATBOT_MESH_UI_YAML))).toBe("Chatbot");
   });
