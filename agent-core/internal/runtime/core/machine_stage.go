@@ -15,6 +15,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/envexpand"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 )
 
@@ -138,14 +139,10 @@ func spliceStageFragment(
 	spec *MachineSpec, machinePath string, instantiation fragments.Instantiation,
 	visit func(string, []byte) error,
 ) error {
-	if strings.TrimSpace(instantiation.Fragment) == "" {
-		return fmt.Errorf("fragment path must be non-empty")
-	}
-	resolved, err := corepath.ImportTarget(machinePath, instantiation.Fragment)
+	target, err := fragmentTarget(machinePath, instantiation.Fragment)
 	if err != nil {
-		return fmt.Errorf("fragment path %q: %w", instantiation.Fragment, err)
+		return err
 	}
-	target := filepath.Clean(resolved)
 	header, data, err := readStageHeader(target, visit)
 	if err != nil {
 		return err
@@ -241,4 +238,38 @@ func splicedFragments(spec MachineSpec) []string {
 		paths = append(paths, instantiation.Fragment)
 	}
 	return paths
+}
+
+// fragmentTarget resolves the file an instantiation names, relative to the file
+// at base. A path carrying ${NAME:-default} references selects one of several
+// fixed variants by environment (srd052 R4.3): only the path is expanded, by
+// the envexpand rules tool declarations use, so the environment chooses a
+// validated stage and cannot rewrite the machine. The default variant must
+// exist whatever the environment selects, because it is the variant a
+// deployment gets with the variable unset.
+func fragmentTarget(base, fragment string) (string, error) {
+	if strings.TrimSpace(fragment) == "" {
+		return "", fmt.Errorf("fragment path must be non-empty")
+	}
+	selected := fragment
+	if envexpand.Templated(fragment) {
+		variant, err := envexpand.SelectVariant(fragment)
+		if err != nil {
+			return "", fmt.Errorf("fragment path %q: %w", fragment, err)
+		}
+		defaultTarget, err := corepath.ImportTarget(base, variant.Default)
+		if err != nil {
+			return "", fmt.Errorf("fragment path %q: %w", fragment, err)
+		}
+		if _, err := os.Stat(defaultTarget); err != nil {
+			return "", fmt.Errorf("fragment path %q: default variant %s is missing: %w",
+				fragment, variant.Default, err)
+		}
+		selected = envexpand.ExpandString(fragment)
+	}
+	resolved, err := corepath.ImportTarget(base, selected)
+	if err != nil {
+		return "", fmt.Errorf("fragment path %q: %w", fragment, err)
+	}
+	return filepath.Clean(resolved), nil
 }

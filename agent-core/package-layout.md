@@ -27,7 +27,10 @@ public Go APIs. Placement rules are defined in
 - `pkg/profilestage` is a public package the application build lanes use to
   copy a declaration tree into a staged profile and prove the copy resolves. It
   follows the import edges a declaration carries rather than enumerating the
-  sibling directories those edges reach.
+  sibling directories those edges reach. It imports `internal/support/envexpand`
+  so a fragment edge that selects its variant by environment
+  (`${NAME:-default}`, srd052 R4.3) stages every variant with the grammar the
+  loader uses.
 - `agents/`, `tools/`, `docs/`, and `testdata/` remain configuration,
   specification, and fixture directories rather than Go package domains.
 - Each migration should preserve behavior first. Rename symbols or redesign APIs

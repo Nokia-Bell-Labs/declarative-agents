@@ -155,3 +155,18 @@ test_cases:
       exhaustiveness_applies: true
       correct_splice_loads: true
     traces: [rel18.0-uc001-declaration-fragments S5, srd052-declaration-fragments AC4, srd052-declaration-fragments R4.2]
+
+  - use_case: rel18.0-uc001-declaration-fragments
+    name: A stage fragment path selects its variant by environment
+    go_test: go test ./internal/runtime/core ./internal/support/envexpand ./pkg/profilestage -run 'TestStageFragmentVariantIsSelectedByEnvironment|TestSelectedStageVariantIsValidatedAsOneMachine|TestTemplatedStagePathsThatCannotSelectAVariantFail|TestSelectVariant|TestStageCarriesEveryVariantOfAnEnvironmentSelectedStage|TestStageRefusesAVariantPathItCannotStage'
+    status: implemented
+    description: Instantiate stages/s-${X:-a}.yaml beside s-a.yaml and s-b.yaml, load with X unset and with X=b, then select a variant whose splice leaves a transition to an undeclared state, then use a path without a default and one whose default file is missing. Stage the machine's tree and package it with appmanifest (TestResolveStagesEveryVariantOfATemplatedMachineStage in magefiles).
+    expected:
+      unset_selects_default: true
+      bound_selects_variant: true
+      one_variant_spliced: true
+      dump_names_resolved_path: true
+      broken_variant_fails_naming_resolved_fragment: true
+      missing_default_or_no_default_fails_naming_path: true
+      staging_and_packaging_carry_every_variant: true
+    traces: [rel18.0-uc001-declaration-fragments S5, srd052-declaration-fragments AC5, srd052-declaration-fragments R4.3]

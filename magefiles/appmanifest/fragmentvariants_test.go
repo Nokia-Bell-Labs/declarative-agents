@@ -115,3 +115,28 @@ func TestYAMLTemplateTokensRecordTheEnvexpandGrammar(t *testing.T) {
 		t.Fatalf("untokenized = %q", got)
 	}
 }
+
+// A machine's stage fragment selected by environment (srd052 R4.3, GH-2235)
+// packages every variant, as a tool-declarations fragment does.
+func TestResolveStagesEveryVariantOfATemplatedMachineStage(t *testing.T) {
+	appRoot, catalogRoot, manifest := minimalClosureFixture(t, "name: root\nmachine: machine.yaml\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/machine.yaml"),
+		"name: root\ninstantiate:\n  - fragment: stages/rerank-${PROVIDER:-none}.yaml\n"+
+			"    args: {entry: Checking, exit: Rendering}\nstates: []\n")
+	for _, stage := range []string{"rerank-none.yaml", "rerank-cohere.yaml", "compose.yaml"} {
+		writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/stages", stage), "unit: "+stage+"\n")
+	}
+	inventory, err := Resolve(manifest, Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"agents/root/machine.yaml",
+		"agents/root/profile.yaml",
+		"agents/root/stages/rerank-cohere.yaml",
+		"agents/root/stages/rerank-none.yaml",
+	}
+	if got := inventoryRuntimePaths(inventory); !reflect.DeepEqual(got, want) {
+		t.Fatalf("closure paths = %v, want %v", got, want)
+	}
+}
