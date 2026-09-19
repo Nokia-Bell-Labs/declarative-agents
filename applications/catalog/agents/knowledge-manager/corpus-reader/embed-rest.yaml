@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-corpus-reader-embed-rest
+# The query-embedding operation comes from the provider library the profile
+# binds to the providers root (srd058 R4.2). It reads the composed question.
+# The library bounds and addresses its own client.
+instantiate:
+  - fragment: /opt/providers/embed-query-fragment.yaml
+    args: {input_selector: $.text}
+rest:
+  version: v1

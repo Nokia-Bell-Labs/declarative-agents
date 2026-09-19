@@ -20,10 +20,10 @@ import (
 // registries are process-scoped, so these tests do not run in parallel.
 
 type providerStage struct {
-	stage, words, fragment, enterSignal string
-	signals                             []string
-	selection                           []string
-	args                                string
+	stage, words, fragment string
+	signals                []string
+	selection              []string
+	args                   string
 }
 
 var providerStages = map[string]providerStage{
@@ -86,11 +86,8 @@ instantiate:
 	writeLoadFixture(t, root, "rest.yaml", `unit: probe-rest
 instantiate:
   - fragment: /opt/providers/`+stage.fragment+`
-    args: {limits_ref: probe, `+stage.args+`}
-rest:
-  version: v1
-  limits:
-    probe: {timeout: 30s}
+    args: {`+stage.args+`}
+rest: {version: v1}
 `)
 	writeLoadFixture(t, root, "profile.yaml", `name: provider-stage
 machine: machine.yaml

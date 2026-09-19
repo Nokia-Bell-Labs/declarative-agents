@@ -23,6 +23,7 @@ const (
 	chromaCorpusFixture        = "testdata/integration/chroma-corpus"
 	chromaIngestProfile        = "agents/corpus-ingest/profile.yaml"
 	corpusRestAsset            = "agents/corpus-ingest/corpus-rest.yaml"
+	corpusEmbedAsset           = "agents/corpus-ingest/embed-rest.yaml"
 	corpusIngestLibraryProfile = "agents/knowledge-manager/corpus-ingest/profile.yaml"
 
 	chromaImage = "chromadb/chroma:1.5.3"
@@ -160,27 +161,27 @@ func chromaRequiredModelsForChat(
 	return models, nil
 }
 
-// chromaEmbedModelFromConfig reads the embedding model from the ollama embed
-// operation in the corpus-ingest corpus-rest.yaml.
+// chromaEmbedModelFromConfig reads the embedding model the corpus-ingest
+// embed-rest.yaml passes to the provider library's embed-document fragment
+// (srd058 R4.2).
 func chromaEmbedModelFromConfig(profilesRoot string) (string, error) {
 	var cfg struct {
-		Rest struct {
-			Clients map[string]struct {
-				Operations map[string]struct {
-					Body struct {
-						Model string `yaml:"model"`
-					} `yaml:"body"`
-				} `yaml:"operations"`
-			} `yaml:"clients"`
-		} `yaml:"rest"`
+		Instantiate []struct {
+			Args struct {
+				Model string `yaml:"model"`
+			} `yaml:"args"`
+		} `yaml:"instantiate"`
 	}
-	path := filepath.Join(profilesRoot, corpusRestAsset)
-	if err := readIntegrationYAML(path, "chroma rest asset", &cfg); err != nil {
+	path := filepath.Join(profilesRoot, corpusEmbedAsset)
+	if err := readIntegrationYAML(path, "corpus embed asset", &cfg); err != nil {
 		return "", err
 	}
-	model := resolveModelReference(cfg.Rest.Clients["ollama"].Operations["embed"].Body.Model)
+	var model string
+	if len(cfg.Instantiate) > 0 {
+		model = resolveModelReference(cfg.Instantiate[0].Args.Model)
+	}
 	if model == "" {
-		return "", fmt.Errorf("no ollama embed model in %s", path)
+		return "", fmt.Errorf("no embed model in %s", path)
 	}
 	return model, nil
 }

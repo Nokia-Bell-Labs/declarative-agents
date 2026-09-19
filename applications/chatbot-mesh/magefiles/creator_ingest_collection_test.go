@@ -337,7 +337,7 @@ func TestFamilyJudgeComparesTheDeploymentReference(t *testing.T) {
 	// The child embeds at the reference the judge compares against. If these
 	// drift, the creator refuses requests naming the family the child actually
 	// uses, and admits ones it does not.
-	child := readAgentFile(t, "corpus-ingest", "corpus-rest.yaml")
+	child := readAgentFile(t, "corpus-ingest", "embed-rest.yaml")
 	if !strings.Contains(child, corpusEmbeddingModelRef) {
 		t.Errorf("the corpus-ingest child does not read %s, so the judge compares against a family nothing embeds at",
 			corpusEmbeddingModelRef)

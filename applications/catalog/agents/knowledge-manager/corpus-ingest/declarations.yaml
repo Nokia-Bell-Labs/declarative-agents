@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-knowledge-manager-corpus-ingest-declarations
 imports:
-- ../../units/types-requests.yaml
+# embed_document and normalize_document_embedding, the words the
+# embed-document stage runs over the bound provider library (srd058 R4.1).
+- /opt/agent-core/tools/units/embed-document-words.yaml
 tools:
   - name: chroma_ready
     type: builtin
@@ -39,108 +41,6 @@ tools:
     config:
       rest_ref: chroma
       operation: heartbeat
-
-  - name: ollama_ready
-    type: builtin
-    init: rest_client_invoke
-    visibility: internal
-    category: boundary
-    description: Check the Ollama version endpoint through the configured REST client.
-    parameters:
-      type: object
-      properties: {}
-      additional_properties: false
-    signature:
-      emits: [OllamaReady, CommandError]
-    output:
-      description: Mapped Ollama version result.
-      schema:
-        type: object
-        properties:
-          operation: {type: string}
-          status: {type: integer}
-    side_effects:
-      - kind: external_api
-        target: ollama.version
-        state: read_only
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: A version check does not mutate state.
-    errors:
-      - signal: CommandError
-        condition: The ollama client definition is missing, or the version call fails on network, timeout, or mapping.
-        state_after_failure: No Ollama state is read or changed.
-    config:
-      rest_ref: ollama
-      operation: version
-
-  - name: embed_document
-    type: builtin
-    init: rest_client_invoke
-    visibility: internal
-    category: boundary
-    description: Embed a corpus document at the configured provider and carry its text and id forward.
-    parameters:
-      type: object
-      properties:
-        input: {type: string}
-        id: {type: string}
-    signature:
-      emits: [DocumentEmbedded, CommandError]
-    output:
-      description: Mapped provider embedding with carried document text and id.
-      schema:
-        type: object
-        properties:
-          mapped: {type: object}
-          carried: {type: object}
-    side_effects:
-      - kind: external_api
-        target: embedding_provider.document
-        state: read_only
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Computing an embedding does not mutate state.
-    errors:
-      - signal: CommandError
-        condition: The configured document-embedding operation is absent or fails on network, timeout, schema, or mapping.
-        state_after_failure: No embedding is produced and no state changes.
-    config:
-      rest_ref: "${CORPUS_INGEST_EMBEDDING_REST_REF:-ollama}"
-      operation: "${CORPUS_INGEST_EMBEDDING_OPERATION:-embed}"
-
-  - name: normalize_embedding
-    type: builtin
-    init: normalize_vector
-    visibility: internal
-    category: word
-    description: Preserve a flat document vector or unwrap exactly one provider row.
-    parameters:
-      type: object
-      properties: {}
-      additional_properties: false
-    signature:
-      output: catalog-types-requests.ProviderEnvelope
-      emits: [EmbeddingNormalized, CommandError]
-    output:
-      description: Provider Result envelope with one flat embedding vector.
-    errors:
-      - signal: CommandError
-        condition: The embedding path or vector shape is invalid.
-        state_after_failure: No normalized embedding is published and Chroma is not called.
-    relationships:
-      overlaps:
-        - tool: normalize_vector
-          difference: This profile-specific word binds the generic shape normalizer to the document embedding Result.
-      after: [embed_document]
-      before: [resolve_collection]
-    config:
-      path: mapped.embedding
-      signal: EmbeddingNormalized
 
   - name: resolve_collection
     type: builtin

@@ -104,12 +104,12 @@ test_cases:
 
   - use_case: rel22.0-uc001-provider-libraries
     name: No hand-written provider embedding remains
-    go_test: go test ./pkg/profileaudit ./internal/declstyle -run 'TestNoHandWrittenProviderEmbedding'
+    go_test: go test ./internal/declstyle -run 'TestNoHandWrittenProviderEmbedding|TestHandWrittenProviderEmbeddingIsFound'
     status: planned
-    description: Scan the monorepo's machines and REST declarations for provider embed operations and embedding stages declared outside a provider library; record mage stats:reuse before and after the adoption.
+    description: Scan the monorepo's REST declarations for provider embed and rerank operations declared outside a provider library, against a baseline that only shrinks (the chatbot query embedding, GH-2245); record mage stats:reuse before and after the adoption.
     expected:
-      hand_written_embed_blocks: 0
-      hand_written_embedding_stages: 0
+      hand_written_embed_blocks_outside_baseline: 0
+      corpus_embedding_openings_are_stage_instances: true
       ollama_path_declares_failures: true
     traces: [rel22.0-uc001-provider-libraries S3, srd058-provider-libraries AC3, srd058-provider-libraries R4.2]
 

@@ -25,9 +25,9 @@ type providerFragment struct {
 }
 
 var shippedProviderFragments = []providerFragment{
-	{"ollama", "embed-query-fragment.yaml", "query_embedder", "embed_query", "QueryEmbedded", "input_selector: $from(ask).question"},
+	{"ollama", "embed-query-fragment.yaml", "query_embedder", "embed_query", "QueryEmbedded", "input_selector: $from(ask).question, id_selector: $from(ask).id, body_source: command_state"},
 	{"ollama", "embed-document-fragment.yaml", "document_embedder", "embed_document", "DocumentEmbedded", "input_selector: $.raw, body_source: previous_result"},
-	{"cohere", "embed-query-fragment.yaml", "query_embedder", "embed_query", "QueryEmbedded", "input_selector: $from(ask).question"},
+	{"cohere", "embed-query-fragment.yaml", "query_embedder", "embed_query", "QueryEmbedded", "input_selector: $from(ask).question, id_selector: $from(ask).id, body_source: command_state"},
 	{"cohere", "embed-document-fragment.yaml", "document_embedder", "embed_document", "DocumentEmbedded", "input_selector: $.raw, body_source: previous_result"},
 	{"cohere", "rerank-fragment.yaml", "reranker", "rerank", "Reranked", "query_selector: $from(ask).question, documents_selector: $from(search).documents, top_n: 5"},
 }
@@ -43,11 +43,8 @@ func instantiateProviderFragment(t *testing.T, fragment providerFragment) Collec
 	require.NoError(t, os.WriteFile(path, []byte(`unit: probe-provider-rest
 instantiate:
 - fragment: /opt/providers/`+fragment.file+`
-  args: {limits_ref: probe_limits, `+fragment.args+`}
-rest:
-  version: v1
-  limits:
-    probe_limits: {timeout: 30s}
+  args: {`+fragment.args+`}
+rest: {version: v1}
 `), 0o644))
 	collection, err := LoadDefinitions([]string{path}, nil)
 	require.NoError(t, err, "%s/%s", fragment.provider, fragment.file)
@@ -60,7 +57,7 @@ func TestProviderFragmentsProduceTheirFixedOperations(t *testing.T) {
 
 		client, ok := collection.Clients[fragment.client]
 		require.True(t, ok, "%s/%s produces client %s", fragment.provider, fragment.file, fragment.client)
-		require.Equal(t, "probe_limits", client.LimitsRef)
+		require.Equal(t, fragment.client+"_limits", client.LimitsRef, "the library bounds its own client")
 		operation, ok := client.Operations[fragment.operation]
 		require.True(t, ok, "%s/%s produces operation %s", fragment.provider, fragment.file, fragment.operation)
 		require.Equal(t, fragment.success, operation.Success.Signal)
@@ -97,4 +94,27 @@ func TestCohereRerankFragmentTakesItsBudget(t *testing.T) {
 	operation := collection.Clients["reranker"].Operations["rerank"]
 	require.Equal(t, 5, operation.Body["top_n"], "an integer parameter fills an integer field")
 	require.Equal(t, "rerank-v3.5", operation.Body["model"])
+}
+
+// A deployment points a library at its provider through the environment the
+// library names, so rebinding the library needs no agent edit (srd058 AC1).
+func TestProviderFragmentEndpointsFollowTheEnvironment(t *testing.T) {
+	t.Setenv("OLLAMA_URL", "http://ollama.mesh.svc:11434")
+	t.Setenv("COHERE_API_URL", "https://cohere.gateway.example")
+
+	ollama := instantiateProviderFragment(t, shippedProviderFragments[0])
+	cohere := instantiateProviderFragment(t, shippedProviderFragments[2])
+
+	require.Equal(t, "http://ollama.mesh.svc:11434", ollama.Clients["query_embedder"].BaseURL)
+	require.Equal(t, "https://cohere.gateway.example", cohere.Clients["query_embedder"].BaseURL)
+}
+
+func TestEmbedFragmentsCarryTheTextAndId(t *testing.T) {
+	for _, fragment := range shippedProviderFragments[:4] {
+		collection := instantiateProviderFragment(t, fragment)
+
+		params := collection.Clients[fragment.client].Operations[fragment.operation].Params
+		require.Equal(t, []string{"input", "id"}, params.CarryForward, "%s/%s", fragment.provider, fragment.file)
+		require.Contains(t, params.InputMapping, "id")
+	}
 }

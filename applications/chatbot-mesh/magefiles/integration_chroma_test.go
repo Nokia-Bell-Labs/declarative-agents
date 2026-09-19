@@ -243,8 +243,8 @@ func TestStartRequiredChromaContainerClassifiesLaunchOutcome(t *testing.T) {
 
 func TestChromaRequiredModelsFromConfig(t *testing.T) {
 	root := t.TempDir()
-	writeChromaConfigFile(t, filepath.Join(root, corpusRestAsset),
-		"rest:\n  clients:\n    ollama:\n      operations:\n        embed:\n          body:\n            model: embed-model\n")
+	writeChromaConfigFile(t, filepath.Join(root, corpusEmbedAsset),
+		"instantiate:\n  - fragment: /opt/providers/embed-document-fragment.yaml\n    args: {model: embed-model}\n")
 	decl := "tools:\n  - name: read_resource\n  - name: invoke_llm\n    config:\n      model: chat-model\n"
 	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "profile.yaml"), "name: corpus-ingest\n")
 	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "declarations.yaml"), decl)
@@ -290,8 +290,8 @@ func TestChromaRequiredModelsUseDeclaredIntegrationOverride(t *testing.T) {
 
 func TestChromaRequiredModelsMissingInvokeLLM(t *testing.T) {
 	root := t.TempDir()
-	writeChromaConfigFile(t, filepath.Join(root, corpusRestAsset),
-		"rest:\n  clients:\n    ollama:\n      operations:\n        embed:\n          body:\n            model: embed-model\n")
+	writeChromaConfigFile(t, filepath.Join(root, corpusEmbedAsset),
+		"instantiate:\n  - fragment: /opt/providers/embed-document-fragment.yaml\n    args: {model: embed-model}\n")
 	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "profile.yaml"), "name: corpus-ingest\n")
 	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "declarations.yaml"), "tools:\n  - name: read_resource\n")
 	if _, err := chromaRequiredModels(root); err == nil {

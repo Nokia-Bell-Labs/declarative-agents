@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 tools:
   - chroma_ready
-  - ollama_ready
+  - compose_question
   - embed_query
+  - normalize_query_embedding
   - resolve_collection
   - chroma_query
   - invoke_llm

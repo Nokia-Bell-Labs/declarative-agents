@@ -5,14 +5,12 @@ package conformance
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -134,15 +132,16 @@ func TestCorpusReaderConformance(t *testing.T) {
 	defer fixture.Close()
 
 	profile := copyCorpusReaderProfile(t, fixture.URL)
-	result := Run(t, RunConfig{Profile: profile, Directory: t.TempDir()})
+	result := Run(t, RunConfig{Profile: profile, Directory: t.TempDir(), Env: []string{"OLLAMA_URL=" + fixture.URL}})
 
 	result.RequireExit(t, 0)
 	result.RootRequired(t)
 	result.RequireNoErrorSpans(t)
 	result.RequireToolSpans(t,
 		"chroma_ready",
-		"ollama_ready",
+		"compose_question",
 		"embed_query",
+		"normalize_query_embedding",
 		"resolve_collection",
 		"chroma_query",
 	)
@@ -205,7 +204,7 @@ func copyCorpusReaderProfile(t *testing.T, fixtureURL string) string {
 	}
 	rest := strings.ReplaceAll(string(restData), "http://127.0.0.1:11434", fixtureURL)
 	rest = strings.ReplaceAll(rest, "http://127.0.0.1:8000", fixtureURL)
-	rest = strings.ReplaceAll(rest, "ports: [8000, 11434]", "ports: ["+parsed.Port()+"]")
+	rest = strings.ReplaceAll(rest, "ports: [8000]", "ports: ["+parsed.Port()+"]")
 	if err := os.WriteFile(filepath.Join(filepath.Dir(profile), "corpus-rest.yaml"), []byte(rest), 0o644); err != nil {
 		t.Fatalf("write patched corpus REST definition: %v", err)
 	}
@@ -242,17 +241,20 @@ func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
 			Next   string `yaml:"next"`
 			Action string `yaml:"action"`
 		} `yaml:"transitions"`
+		Instantiate []struct {
+			Fragment string            `yaml:"fragment"`
+			Args     map[string]string `yaml:"args"`
+		} `yaml:"instantiate"`
 	}
 	readKnowledgeYAML(t,
 		filepath.Join("..", "agents", "knowledge-manager", "corpus-ingest", "machine.yaml"),
 		&machine)
 	if !containsKnowledgeState(machine.States, "DiscoveringCorpus") ||
-		!containsKnowledgeState(machine.States, "ListingCorpus") ||
-		!containsKnowledgeState(machine.States, "NormalizingEmbedding") {
-		t.Fatal("canonical corpus-ingest machine does not expose discovery, listing, and embedding-normalization states")
+		!containsKnowledgeState(machine.States, "ListingCorpus") {
+		t.Fatal("canonical corpus-ingest machine does not expose discovery and listing states")
 	}
 	requireKnowledgeTransition(t, machine.Transitions,
-		"CheckingOllama", "OllamaReady", "DiscoveringCorpus", "list_resource_paths")
+		"CheckingChroma", "ChromaReady", "DiscoveringCorpus", "list_resource_paths")
 	requireKnowledgeTransition(t, machine.Transitions,
 		"DiscoveringCorpus", "ToolDone", "ListingCorpus", "list_resource")
 	requireKnowledgeTransition(t, machine.Transitions,
@@ -261,10 +263,15 @@ func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
 		"Composing", "DocumentMissing", "Composing", "invoke_llm")
 	requireKnowledgeTransition(t, machine.Transitions,
 		"Composing", "DocumentResourceDenied", "Composing", "invoke_llm")
-	requireKnowledgeTransition(t, machine.Transitions,
-		"Embedding", "DocumentEmbedded", "NormalizingEmbedding", "normalize_embedding")
-	requireKnowledgeTransition(t, machine.Transitions,
-		"NormalizingEmbedding", "EmbeddingNormalized", "ResolvingCollection", "resolve_collection")
+	// The embedding opening is the shipped embed-document stage, entered on a
+	// read document and leaving to the collection step (srd058 R4.2).
+	if len(machine.Instantiate) != 1 ||
+		machine.Instantiate[0].Fragment != "/opt/agent-core/tools/machines/embed-document-stage-fragment.yaml" ||
+		machine.Instantiate[0].Args["enter"] != "DocumentReady" ||
+		machine.Instantiate[0].Args["next"] != "ResolvingCollection" ||
+		machine.Instantiate[0].Args["next_action"] != "resolve_collection" {
+		t.Fatalf("corpus-ingest embedding stage = %#v", machine.Instantiate)
+	}
 	for _, transition := range machine.Transitions {
 		if transition.State == "Composing" && transition.Signal == "DocumentListReady" {
 			t.Fatal("model-controlled Composing state still owns corpus discovery")
@@ -292,89 +299,34 @@ func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
 		!strings.Contains(provider, "OLLAMA_URL") {
 		t.Fatalf("canonical model parameterization = model %q provider %q", model, provider)
 	}
-	normalize := knowledgeTool(t, declarations.Tools, "normalize_embedding")
-	if normalize.Init != "normalize_vector" || normalize.Visibility != "internal" ||
-		normalize.Config["path"] != "mapped.embedding" {
-		t.Fatalf("normalize_embedding binding = init %q visibility %q config %#v",
-			normalize.Init, normalize.Visibility, normalize.Config)
+	for _, tool := range declarations.Tools {
+		if tool.Name == "embed_document" || strings.HasPrefix(tool.Name, "normalize_") {
+			t.Fatalf("corpus-ingest declares %s itself; the embed stage's words come from agent-core", tool.Name)
+		}
 	}
 }
 
+// The corpus agents name no provider: the profile binds the providers root,
+// and rebinding it with --library switches the chat and embedding provider
+// together with no declaration edit (srd058 AC1).
 func TestCorpusIngestSelectsConfiguredEmbeddingProvider(t *testing.T) {
 	t.Parallel()
-	ingestRoot := ProfilePath(filepath.Join("agents", "knowledge-manager", "corpus-ingest"))
-	restPath := ProfilePath(filepath.Join("agents", "knowledge-manager", "corpus-rest.yaml"))
-	restData, err := os.ReadFile(restPath)
-	if err != nil {
-		t.Fatalf("read corpus REST definition: %v", err)
-	}
-	var document map[string]any
-	if err := yaml.Unmarshal(restData, &document); err != nil {
-		t.Fatalf("parse corpus REST definition: %v", err)
-	}
-	rest := knowledgeMap(t, document["rest"], "rest")
-	clients := knowledgeMap(t, rest["clients"], "rest.clients")
-	ollama := knowledgeMap(t, clients["ollama"], "rest.clients.ollama")
-	ollamaOperations := knowledgeMap(t, ollama["operations"], "rest.clients.ollama.operations")
-	documentEmbed := knowledgeMap(t, ollamaOperations["embed"], "ollama.embed")
-	queryEmbed := knowledgeMap(t, ollamaOperations["embed_query"], "ollama.embed_query")
-	delete(ollamaOperations, "embed")
-	delete(ollamaOperations, "embed_query")
-
-	const sharedModel = "${COHERE_EMBEDDING_MODEL:-embed-v4.0}"
-	documentEmbed["path"] = "/v2/embed"
-	documentEmbed["body"] = map[string]any{
-		"model": sharedModel, "input_type": "search_document",
-		"texts": []string{"{{ params.input }}"},
-	}
-	queryEmbed["path"] = "/v2/embed"
-	queryEmbed["body"] = map[string]any{
-		"model": sharedModel, "input_type": "search_query",
-		"texts": []string{"What does this corpus describe?"},
-	}
-	clients["cohere"] = map[string]any{
-		"base_url":   "http://127.0.0.1:11434",
-		"auth_ref":   "none",
-		"limits_ref": "local_corpus",
-		"operations": map[string]any{
-			"embed_document_cohere": documentEmbed,
-			"embed_query_cohere":    queryEmbed,
-		},
-	}
-
-	providerREST, err := yaml.Marshal(document)
-	if err != nil {
-		t.Fatalf("marshal provider REST definition: %v", err)
-	}
-	dir := t.TempDir()
-	providerRESTPath := writeEphemeral(t, dir, "corpus-rest.yaml", string(providerREST))
-	profile := writeEphemeral(t, dir, "profile.yaml", fmt.Sprintf(`name: corpus-ingest-provider
-machine: %q
-tools: [%q]
-tool_declarations:
-  - /opt/agent-core/tools/builtin/parse-response.yaml
-  - /opt/agent-core/tools/builtin/report-parse-error.yaml
-  - /opt/agent-core/tools/builtin/done.yaml
-  - %q
-rest_definitions: [%q]
-libraries:
-  providers: /opt/agent-core/tools/providers/ollama
-`, filepath.Join(ingestRoot, "machine.yaml"), filepath.Join(ingestRoot, "tools.yaml"),
-		filepath.Join(ingestRoot, "declarations.yaml"), providerRESTPath))
-
-	result := Run(t, RunConfig{
-		Profile: profile,
-		Args:    []string{"--validate-config"},
-		Env: []string{
-			"CORPUS_INGEST_EMBEDDING_REST_REF=cohere",
-			"CORPUS_INGEST_EMBEDDING_OPERATION=embed_document_cohere",
-		},
-	})
-	if result.ExitCode != 0 {
-		t.Fatalf("configured provider profile did not validate:\n%s", result.Output)
+	for _, provider := range []string{"ollama", "cohere"} {
+		profile := corpusIngestProviderProfile(t, "http://127.0.0.1:8000")
+		result := Run(t, RunConfig{
+			Profile: profile,
+			Args: []string{"--validate-config", "--library",
+				"providers=" + filepath.Join(RequireCoreRoot(t), "tools", "providers", provider)},
+		})
+		if result.ExitCode != 0 {
+			t.Fatalf("corpus-ingest bound to %s did not validate:\n%s", provider, result.Output)
+		}
 	}
 }
 
+// The embed-document stage leaves one flat vector whichever library is bound:
+// Ollama answers a flat vector, Cohere a single row the stage unwraps, and a
+// multi-row answer fails before Chroma (srd058 R4.1, srd012 R3.5).
 func TestCorpusIngestNormalizesProviderEmbeddings(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -406,12 +358,6 @@ func TestCorpusIngestNormalizesProviderEmbeddings(t *testing.T) {
 			fixture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				switch {
-				case r.Method == http.MethodGet && r.URL.Path == "/api/tags":
-					writeKnowledgeJSON(t, w, map[string]any{"models": []any{
-						map[string]any{"name": "ornith:9b"},
-					}})
-				case r.Method == http.MethodGet && r.URL.Path == "/api/version":
-					writeKnowledgeJSON(t, w, map[string]any{"version": "conformance"})
 				case r.Method == http.MethodGet && r.URL.Path == "/api/v2/heartbeat":
 					writeKnowledgeJSON(t, w, map[string]any{"nanosecond heartbeat": 1})
 				case r.Method == http.MethodPost &&
@@ -429,7 +375,7 @@ func TestCorpusIngestNormalizesProviderEmbeddings(t *testing.T) {
 					writeKnowledgeJSON(t, w, map[string]any{})
 				case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/collections/collection-1/count"):
 					_, _ = w.Write([]byte(`1`))
-				case r.Method == http.MethodPost && r.URL.Path == "/api/chat":
+				case r.Method == http.MethodPost && (r.URL.Path == "/api/chat" || r.URL.Path == "/v2/chat"):
 					content := `[tool_call]
 {"tool":"done","parameters":{"summary":"Ingested 1 corpus document."}}
 [/tool_call]`
@@ -437,6 +383,13 @@ func TestCorpusIngestNormalizesProviderEmbeddings(t *testing.T) {
 						content = `[tool_call]
 {"tool":"read_resource","parameters":{"resource":"corpus","path":"doc.md"}}
 [/tool_call]`
+					}
+					if r.URL.Path == "/v2/chat" {
+						writeKnowledgeJSON(t, w, map[string]any{
+							"message": map[string]any{"content": []any{map[string]any{"type": "text", "text": content}}},
+							"usage":   map[string]any{"tokens": map[string]any{"input_tokens": 16, "output_tokens": 8}},
+						})
+						return
 					}
 					writeKnowledgeJSON(t, w, map[string]any{
 						"message":    map[string]any{"role": "assistant", "content": content},
@@ -454,25 +407,27 @@ func TestCorpusIngestNormalizesProviderEmbeddings(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			profile := corpusIngestProviderProfile(t, fixture.URL, tc.cohere)
-			env := []string{"CORPUS_CHAT_MODEL=ornith:9b", "OLLAMA_URL=" + fixture.URL}
+			provider := "ollama"
 			if tc.cohere {
-				env = append(env,
-					"CORPUS_INGEST_EMBEDDING_REST_REF=cohere",
-					"CORPUS_INGEST_EMBEDDING_OPERATION=embed_document_cohere",
-				)
+				provider = "cohere"
 			}
 			result := Run(t, RunConfig{
-				Profile: profile, Directory: workspace, Env: env, Timeout: 30 * time.Second,
+				Profile: corpusIngestProviderProfile(t, fixture.URL), Directory: workspace,
+				Args: []string{"--library", "providers=" + filepath.Join(RequireCoreRoot(t), "tools", "providers", provider)},
+				Env: []string{
+					"CORPUS_CHAT_MODEL=ornith:9b", "OLLAMA_URL=" + fixture.URL,
+					"COHERE_API_URL=" + fixture.URL, "COHERE_API_KEY=conformance-key",
+				},
+				Timeout: 30 * time.Second,
 			})
 
 			if got := chatCalls.Load(); got != tc.wantChatCalls {
-				t.Fatalf("fixture /api/chat calls = %d, want %d", got, tc.wantChatCalls)
+				t.Fatalf("fixture chat calls = %d, want %d\n%s", got, tc.wantChatCalls, result.Output)
 			}
 			result.RequireExit(t, tc.wantExit)
 			result.RootRequired(t)
 			result.RequireTerminalState(t, tc.wantTerminal)
-			result.RequireToolSpans(t, "embed_document", "normalize_embedding")
+			result.RequireToolSpans(t, "embed_document", "normalize_document_embedding")
 			addMu.Lock()
 			gotAddBody := addBody
 			addMu.Unlock()
@@ -506,81 +461,28 @@ func TestCorpusIngestNormalizesProviderEmbeddings(t *testing.T) {
 	}
 }
 
-func corpusIngestProviderProfile(t *testing.T, fixtureURL string, cohere bool) string {
+// corpusIngestProviderProfile copies the shipped corpus-ingest profile with its
+// Chroma client pointed at chromaURL. The embedding and chat endpoints are the
+// bound library's, which the run's environment points at the fixture.
+func corpusIngestProviderProfile(t *testing.T, chromaURL string) string {
 	t.Helper()
-	restData, err := os.ReadFile(ProfilePath(
-		filepath.Join("agents", "knowledge-manager", "corpus-rest.yaml"),
-	))
-	if err != nil {
-		t.Fatalf("read corpus REST definition: %v", err)
-	}
-	var document map[string]any
-	if err := yaml.Unmarshal(restData, &document); err != nil {
-		t.Fatalf("parse corpus REST definition: %v", err)
-	}
-	rest := knowledgeMap(t, document["rest"], "rest")
-	clients := knowledgeMap(t, rest["clients"], "rest.clients")
-	ollama := knowledgeMap(t, clients["ollama"], "rest.clients.ollama")
-	chroma := knowledgeMap(t, clients["chroma"], "rest.clients.chroma")
-	ollama["base_url"] = fixtureURL
-	chroma["base_url"] = fixtureURL
-	parsedURL, err := url.Parse(fixtureURL)
+	parsed, err := url.Parse(chromaURL)
 	if err != nil {
 		t.Fatalf("parse fixture URL: %v", err)
 	}
-	port, err := strconv.Atoi(parsedURL.Port())
+	profile := CopyShippedProfile(t,
+		filepath.Join("agents", "knowledge-manager", "corpus-ingest", "profile.yaml"),
+		map[string]string{"../corpus-rest.yaml": "corpus-rest.yaml"})
+	restData, err := os.ReadFile(ProfilePath(filepath.Join("agents", "knowledge-manager", "corpus-rest.yaml")))
 	if err != nil {
-		t.Fatalf("parse fixture port: %v", err)
+		t.Fatalf("read shipped corpus REST definition: %v", err)
 	}
-	limits := knowledgeMap(t, rest["limits"], "rest.limits")
-	localCorpus := knowledgeMap(t, limits["local_corpus"], "rest.limits.local_corpus")
-	network := knowledgeMap(t, localCorpus["network"], "rest.limits.local_corpus.network")
-	network["ports"] = []int{port}
-
-	if cohere {
-		operations := knowledgeMap(t, ollama["operations"], "rest.clients.ollama.operations")
-		encoded, err := yaml.Marshal(knowledgeMap(t, operations["embed"], "ollama.embed"))
-		if err != nil {
-			t.Fatalf("copy Ollama embed operation: %v", err)
-		}
-		var embed map[string]any
-		if err := yaml.Unmarshal(encoded, &embed); err != nil {
-			t.Fatalf("decode copied embed operation: %v", err)
-		}
-		embed["path"] = "/v2/embed"
-		embed["body"] = map[string]any{
-			"model":      "${COHERE_EMBEDDING_MODEL:-embed-v4.0}",
-			"input_type": "search_document",
-			"texts":      []string{"{{ params.input }}"},
-		}
-		response := knowledgeMap(t, embed["response"], "cohere.embed.response")
-		response["output"] = map[string]any{"embedding": "$.embeddings.float"}
-		clients["cohere"] = map[string]any{
-			"base_url": fixtureURL, "auth_ref": "none", "limits_ref": "local_corpus",
-			"operations": map[string]any{"embed_document_cohere": embed},
-		}
+	rest := strings.ReplaceAll(string(restData), "http://127.0.0.1:8000", chromaURL)
+	rest = strings.ReplaceAll(rest, "ports: [8000]", "ports: ["+parsed.Port()+"]")
+	if err := os.WriteFile(filepath.Join(filepath.Dir(profile), "corpus-rest.yaml"), []byte(rest), 0o644); err != nil {
+		t.Fatalf("write patched corpus REST definition: %v", err)
 	}
-
-	providerREST, err := yaml.Marshal(document)
-	if err != nil {
-		t.Fatalf("marshal provider REST definition: %v", err)
-	}
-	dir := t.TempDir()
-	restPath := writeEphemeral(t, dir, "corpus-rest.yaml", string(providerREST))
-	ingestRoot := ProfilePath(filepath.Join("agents", "knowledge-manager", "corpus-ingest"))
-	return writeEphemeral(t, dir, "profile.yaml", fmt.Sprintf(`name: corpus-ingest-provider
-machine: %q
-tools: [%q]
-tool_declarations:
-  - /opt/agent-core/tools/builtin/parse-response.yaml
-  - /opt/agent-core/tools/builtin/report-parse-error.yaml
-  - /opt/agent-core/tools/builtin/done.yaml
-  - %q
-rest_definitions: [%q]
-libraries:
-  providers: /opt/agent-core/tools/providers/ollama
-`, filepath.Join(ingestRoot, "machine.yaml"), filepath.Join(ingestRoot, "tools.yaml"),
-		filepath.Join(ingestRoot, "declarations.yaml"), restPath))
+	return profile
 }
 
 func writeKnowledgeJSON(t *testing.T, w http.ResponseWriter, value any) {

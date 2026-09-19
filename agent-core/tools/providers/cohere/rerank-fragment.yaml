@@ -5,9 +5,6 @@
 # address the submitted documents by position.
 unit: provider-cohere-rerank
 params:
-- name: limits_ref
-  type: string
-  description: The importing agent's limits profile, whose network allowlist admits the provider.
 - name: query_selector
   type: string
   description: The selector the query text is read from, under body_source.
@@ -24,7 +21,8 @@ params:
   description: How many results to keep; a deployment's composition budget.
 - name: base_url
   type: string
-  default: https://api.cohere.com
+  default: ${COHERE_API_URL:-https://api.cohere.com}
+  description: The Cohere endpoint; a deployment may set COHERE_API_URL.
 - name: model
   type: string
   default: rerank-v3.5
@@ -34,11 +32,18 @@ rest:
     reranker_auth:
       type: bearer
       token_ref: COHERE_API_KEY
+  limits:
+    reranker_limits:
+      timeout: 60s
+      max_request_bytes: 1048576
+      max_response_bytes: 4194304
+      redirect:
+        mode: none
   clients:
     reranker:
       base_url: $param(base_url)
       auth_ref: reranker_auth
-      limits_ref: $param(limits_ref)
+      limits_ref: reranker_limits
       operations:
         rerank:
           method: POST

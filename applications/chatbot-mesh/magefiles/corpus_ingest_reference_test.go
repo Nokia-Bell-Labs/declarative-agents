@@ -22,7 +22,7 @@ func TestCorpusIngestApplicationDirectoryContainsOnlyWrapperAndREST(t *testing.T
 			names = append(names, entry.Name())
 		}
 	}
-	want := []string{"corpus-rest.yaml", "profile.yaml"}
+	want := []string{"corpus-rest.yaml", "embed-rest.yaml", "profile.yaml"}
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("mesh corpus-ingest assets = %v, want application-only %v", names, want)
 	}

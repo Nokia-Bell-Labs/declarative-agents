@@ -120,25 +120,16 @@ spec:
             {{- if not $model }}
             {{- $model = $unitEmbedding }}
             {{- end }}
-            {{- with $embedding.restRef }}
-            - {name: CORPUS_INGEST_EMBEDDING_REST_REF, value: {{ . | quote }}}
-            {{- end }}
-            {{- with $embedding.operation }}
-            - {name: CORPUS_INGEST_EMBEDDING_OPERATION, value: {{ . | quote }}}
-            {{- end }}
             {{- with $model }}
             - {name: CORPUS_EMBEDDING_MODEL, value: {{ . | quote }}}
             {{- end }}
             {{- /*
-            The child needs an Ollama for two things besides its embedding: a
-            readiness probe it opens every run with, and the invoke_llm word that
-            drives its file selection. The probe reads the corpus-ingest REST
-            client's own base URL; invoke_llm reads OLLAMA_URL, the same variable
-            the chatbot takes.
+            The child reaches Ollama for its embedding and for the invoke_llm word
+            that drives its file selection. Both read OLLAMA_URL, the variable the
+            chatbot takes: the embedding through the bound Ollama library's own
+            client (srd058 R4.2), invoke_llm through its dialect.
             */}}
             {{- with .Values.controlPlane.creator.ingestOllamaURL }}
-            - {name: CORPUS_INGEST_OLLAMA_URL, value: {{ . | quote }}}
-            - {name: CORPUS_INGEST_OLLAMA_HOST, value: {{ regexReplaceAll "^https?://([^:/]+).*$" . "${1}" | quote }}}
             - {name: OLLAMA_URL, value: {{ . | quote }}}
             {{- end }}
             {{- with .Values.controlPlane.creator.ingestChatModel }}

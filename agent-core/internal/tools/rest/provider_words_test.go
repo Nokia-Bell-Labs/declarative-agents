@@ -48,11 +48,8 @@ func buildProviderWord(t *testing.T, provider string, word providerWord, baseURL
 	require.NoError(t, os.WriteFile(path, []byte(`unit: probe-provider-rest
 instantiate:
 - fragment: /opt/providers/`+word.fragment+`
-  args: {limits_ref: probe_limits, base_url: "`+baseURL+`", `+word.args+`}
-rest:
-  version: v1
-  limits:
-    probe_limits: {timeout: 5s}
+  args: {base_url: "`+baseURL+`", `+word.args+`}
+rest: {version: v1}
 `), 0o644))
 	collection, err := LoadDefinitions([]string{path}, nil)
 	require.NoError(t, err)

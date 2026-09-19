@@ -1,6 +1,10 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-knowledge-manager-corpus-reader-declarations
+imports:
+# embed_query and normalize_query_embedding, the words the embed-query stage
+# runs over the bound provider library (srd058 R4.1).
+- /opt/agent-core/tools/units/embed-query-words.yaml
 tools:
   - name: chroma_ready
     type: builtin
@@ -37,74 +41,28 @@ tools:
       rest_ref: chroma
       operation: heartbeat
 
-  - name: ollama_ready
+  - name: compose_question
     type: builtin
-    init: rest_client_invoke
-    category: boundary
-    description: Check the Ollama version endpoint through the configured REST client.
-    parameters:
-      type: object
-      properties: {}
-      additional_properties: false
+    init: compose
+    visibility: internal
+    category: response
+    description: Compose the question the reader answers, as the text the embed stage reads.
+    parameters: {type: object, properties: {}, additionalProperties: false}
     signature:
-      emits: [OllamaReady, CommandError]
+      emits: [QuestionReady, CommandError]
     output:
-      description: Mapped Ollama version result.
+      description: The question under text.
       schema:
         type: object
         properties:
-          operation: {type: string}
-          status: {type: integer}
-    side_effects:
-      - kind: external_api
-        target: ollama.version
-        state: read_only
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: A version check does not mutate state.
+          text: {type: string}
     errors:
       - signal: CommandError
-        condition: The ollama client definition is missing, or the version call fails on network, timeout, or mapping.
-        state_after_failure: No Ollama state is read or changed.
+        condition: The question fails to render.
+        state_after_failure: No question is composed and no state changes.
     config:
-      rest_ref: ollama
-      operation: version
-
-  - name: embed_query
-    type: builtin
-    init: rest_client_invoke
-    category: boundary
-    description: Embed the request question at Ollama for the Chroma query.
-    parameters:
-      type: object
-      properties: {}
-      additional_properties: false
-    signature:
-      emits: [QueryEmbedded, CommandError]
-    output:
-      description: Mapped Ollama query embedding.
-      schema:
-        type: object
-        properties:
-          mapped: {type: object}
-    side_effects:
-      - kind: external_api
-        target: ollama.embeddings
-        state: read_only
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Computing an embedding does not mutate state.
-    errors:
-      - signal: CommandError
-        condition: The Ollama embeddings call fails on network, timeout, schema, or mapping.
-        state_after_failure: No query embedding is produced and no state changes.
-    config:
-      rest_ref: ollama
-      operation: embed_query
+      signal: QuestionReady
+      template: '{"text": "What does this corpus describe?"}'
 
   - name: resolve_collection
     type: builtin

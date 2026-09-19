@@ -35,7 +35,7 @@ preconditions:
 
 flow:
   - id: F1
-    text: The reader machine runs chroma_ready and ollama_ready, failing fast when either server is unreachable.
+    text: The reader machine runs chroma_ready, failing fast when Chroma is unreachable, then composes the question and runs the embed-query stage (srd058 R4.1).
   - id: F2
     text: embed_query calls Ollama with the configured model for the request question, maps the returned vector into its Result output, and carries it forward.
   - id: F3
@@ -51,7 +51,7 @@ touchpoints:
     reason: The reader profile is a configured Chroma retrieval boundary machine, not a Go package.
   - id: T2
     target: srd012-chroma-corpus-agents AC2
-    reason: chroma_ready, ollama_ready, chroma_collection, embed_query, and chroma_query are the named REST vocabulary.
+    reason: chroma_ready, chroma_collection, embed_query, and chroma_query are the named REST vocabulary.
   - id: T3
     target: srd012-chroma-corpus-agents AC3
     reason: The embed-to-query vector step uses srd028 R12 body_source previous_result, input_mapping, and single-token reshape, with no model-authored vector.
