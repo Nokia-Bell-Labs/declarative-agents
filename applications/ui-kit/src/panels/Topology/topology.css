@@ -1,0 +1,31 @@
+.dak-topology { margin: 16px 0; }
+.dak-topology .section-title { font-size: 14px; margin: 16px 0 8px; color: var(--text-secondary); }
+.dak-topology .topo-graph-empty { font-size: 12px; color: var(--text-tertiary); margin-bottom: 10px; }
+
+.dak-topology .topo-graph { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-tertiary); margin-bottom: 12px; }
+.dak-topology .topo-arrow { fill: var(--text-tertiary); }
+.dak-topology .topo-edge { fill: none; stroke: var(--text-tertiary); stroke-width: 1.2; }
+.dak-topology .topo-edge-egress { stroke: var(--warning); stroke-width: 1.6; }
+.dak-topology .topo-edge-poll { stroke: color-mix(in srgb, var(--text-tertiary) 60%, transparent); stroke-dasharray: 4 3; }
+.dak-topology .topo-node rect { fill: var(--bg-secondary); stroke: var(--border); }
+.dak-topology .topo-node text { font-size: 10.5px; fill: var(--text-primary); }
+.dak-topology .topo-node-host rect { fill: color-mix(in srgb, var(--chart-purple) 12%, transparent); stroke: var(--chart-purple); }
+.dak-topology .topo-node-agent rect { fill: color-mix(in srgb, var(--chart-blue) 12%, transparent); stroke: var(--chart-blue); }
+.dak-topology .topo-node-service rect { fill: color-mix(in srgb, var(--chart-green) 12%, transparent); stroke: var(--chart-green); }
+.dak-topology .topo-node-external rect { fill: color-mix(in srgb, var(--chart-yellow) 14%, transparent); stroke: var(--chart-yellow); }
+.dak-topology .topo-node-quiet { opacity: 0.45; }
+
+.dak-topology .topo-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11px; color: var(--text-secondary); padding: 6px 10px; }
+.dak-topology .topo-legend-host::before { content: "■ "; color: var(--chart-purple); }
+.dak-topology .topo-legend-agent::before { content: "■ "; color: var(--chart-blue); }
+.dak-topology .topo-legend-service::before { content: "■ "; color: var(--chart-green); }
+.dak-topology .topo-legend-external::before { content: "■ "; color: var(--chart-yellow); }
+.dak-topology .topo-legend-egress::before { content: "— "; color: var(--warning); }
+.dak-topology .topo-legend-poll::before { content: "-- "; color: var(--text-tertiary); }
+
+.dak-topology .topo-group { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; }
+.dak-topology .topo-group h3 { margin: 0 0 4px; font-size: 13px; }
+.dak-topology .topo-role,
+.dak-topology .topo-svc { color: var(--text-secondary); font-size: 12px; }
+.dak-topology .topo-pods { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.dak-topology .pod-chip { font-family: var(--font-mono); font-size: 11px; background: var(--bg-tertiary); border-radius: 4px; padding: 2px 6px; }

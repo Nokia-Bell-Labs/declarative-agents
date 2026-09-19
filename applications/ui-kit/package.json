@@ -17,7 +17,8 @@
       "types": "./dist/fixtures/index.d.ts",
       "import": "./dist/fixtures.js"
     },
-    "./tokens.css": "./src/tokens.css"
+    "./tokens.css": "./src/tokens.css",
+    "./styles.css": "./dist/ui-kit.css"
   },
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",

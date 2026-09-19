@@ -1,0 +1,145 @@
+/* TracePanel, TraceList, and TraceStoryOverlay, scoped under .dak-trace and
+   colored only through the kit tokens (srd004). Ported from cohere-demo App.css
+   (waterfall, timeline, story overlay) and agentic-wiki-mesh App.css (list,
+   state labels). */
+
+.dak-trace .trace-section { padding: 12px 24px 16px; background: var(--bg-primary); }
+.dak-trace .trace-head { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
+.dak-trace .trace-view-head { display: flex; align-items: center; gap: 10px; }
+.dak-trace .trace-id { font-family: var(--font-mono); font-weight: 400; color: var(--text-tertiary); }
+.dak-trace .trace-notice { font-size: 13px; color: var(--text-tertiary); padding: 8px 0; }
+.dak-trace .trace-notice-warn { color: var(--warning); }
+.dak-trace .detail-toggle { font: inherit; font-size: 0.72rem; border: 1px solid var(--border); background: none; border-radius: 999px; padding: 1px 10px; cursor: pointer; color: var(--text-secondary); }
+
+/* The trace list. */
+.dak-trace .trace-list { padding: 12px 24px 8px; background: var(--bg-primary); }
+.dak-trace .trace-list-head { display: flex; align-items: center; gap: 12px; }
+.dak-trace .trace-list-hidden { font-weight: 400; color: var(--text-tertiary); }
+.dak-trace .trace-list-filter { margin-left: auto; font-weight: 400; font-size: 12px; color: var(--text-tertiary); display: inline-flex; align-items: center; gap: 5px; }
+.dak-trace .trace-list-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; font-size: 12px; padding: 5px 8px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text-primary); cursor: pointer; }
+.dak-trace .trace-list-row:hover { background: var(--bg-secondary); }
+.dak-trace .trace-list-row-on { background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: var(--accent); }
+.dak-trace .trace-list-name { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dak-trace .trace-list-spans { margin-left: auto; color: var(--text-secondary); flex-shrink: 0; }
+.dak-trace .trace-list-when { color: var(--text-tertiary); flex-shrink: 0; min-width: 64px; text-align: right; }
+.dak-trace .trace-list-row .trace-ms { float: none; }
+.dak-trace .trace-list-pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding-top: 8px; font-size: 12px; color: var(--text-secondary); }
+.dak-trace .trace-list-pager button { font: inherit; border: 1px solid var(--border); background: none; border-radius: 4px; padding: 1px 8px; cursor: pointer; color: var(--text-primary); }
+.dak-trace .trace-list-pager button:disabled { opacity: 0.4; cursor: default; }
+
+/* The span tree (GH-423, GH-426). */
+.dak-trace .trace-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+.dak-trace .trace-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.dak-trace .trace-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.dak-trace .trace-total { margin-left: auto; color: var(--text-tertiary); font-family: var(--font-mono); }
+.dak-trace .trace-waterfall { display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; }
+.dak-trace .trace-row { display: grid; grid-template-columns: 320px 1fr; gap: 10px; align-items: center; }
+.dak-trace .trace-label { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); color: var(--text-primary); }
+.dak-trace .trace-svc { font-weight: 600; }
+.dak-trace .trace-track { position: relative; height: 14px; background: var(--bg-tertiary); border-radius: 3px; }
+.dak-trace .trace-bar { position: absolute; top: 2px; height: 10px; border-radius: 3px; min-width: 2px; }
+.dak-trace .trace-fold { margin-left: auto; display: flex; gap: 0.4rem; }
+.dak-trace .trace-fold button { font: inherit; font-size: 0.7rem; padding: 0.05rem 0.45rem; border: 1px solid var(--border); border-radius: 999px; background: transparent; cursor: pointer; color: var(--text-secondary); }
+.dak-trace .trace-toggle { width: 1.1em; display: inline-block; border: none; background: transparent; cursor: pointer; font: inherit; font-size: 0.75rem; padding: 0; color: var(--text-secondary); }
+.dak-trace .trace-toggle-leaf { cursor: default; }
+.dak-trace .trace-folded-count { margin-left: 0.35rem; font-size: 0.7rem; opacity: 0.6; }
+.dak-trace .trace-ms { float: right; font-size: 0.7rem; opacity: 0.55; padding-right: 6px; }
+.dak-trace .trace-filter { font: inherit; font-size: 0.72rem; padding: 0.1rem 0.5rem; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--text-primary); width: 150px; }
+.dak-trace .trace-matched { font-size: 0.7rem; opacity: 0.6; }
+.dak-trace .trace-command { font: inherit; border: none; background: transparent; padding: 0; cursor: pointer; color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
+.dak-trace .trace-desc { margin-left: 0.5rem; font-size: 0.7rem; opacity: 0.55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46%; display: inline-block; vertical-align: bottom; }
+.dak-trace .spantree-toggle-wrap { margin: 6px 0; }
+
+/* Request-machine walks (GH-413). */
+.dak-trace .walks { margin-top: 0.8rem; }
+.dak-trace .walks-head { margin-bottom: 0.4rem; }
+.dak-trace .walks-grid { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.dak-trace .walk { flex: 1 1 280px; min-width: 260px; }
+.dak-trace .walk-title { font-weight: 600; font-size: 0.8rem; margin-bottom: 0.3rem; }
+.dak-trace .walk-steps { margin: 0; padding: 0.3rem 0.5rem; list-style: none; max-height: 320px; overflow-y: auto; font-family: var(--font-mono); font-size: 0.72rem; border: 1px solid var(--border); border-radius: 6px; }
+.dak-trace .walk-step { display: flex; gap: 0.5rem; padding: 0.08rem 0; }
+.dak-trace .walk-iteration { opacity: 0.5; min-width: 2.2em; text-align: right; }
+.dak-trace .walk-command { flex: 1; }
+.dak-trace .walk-signal { opacity: 0.75; }
+.dak-trace .walk-signal-failed { color: var(--danger); opacity: 1; font-weight: 600; }
+
+/* The agent timeline and its brush (GH-511). */
+.dak-trace .timeline { display: flex; flex-direction: column; gap: 4px; margin-bottom: 0.8rem; }
+.dak-trace .timeline-brush { position: relative; height: 44px; margin: 2px 0 8px; }
+.dak-trace .timeline-overview { position: absolute; inset: 0 0 16px 0; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.dak-trace .timeline-tick { position: absolute; top: 20%; height: 60%; opacity: 0.65; border-radius: 1px; }
+.dak-trace .timeline-window { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 15%, transparent); border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); pointer-events: none; }
+.dak-trace .timeline-handle { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 16px; margin: 0; -webkit-appearance: none; appearance: none; background: transparent; pointer-events: none; }
+.dak-trace .timeline-handle::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg-primary); box-shadow: 0 0 2px color-mix(in srgb, var(--text-primary) 40%, transparent); pointer-events: auto; cursor: ew-resize; }
+.dak-trace .timeline-handle::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg-primary); pointer-events: auto; cursor: ew-resize; }
+.dak-trace .timeline-span { position: absolute; right: 0; top: -18px; font-size: 0.68rem; color: var(--text-secondary); }
+.dak-trace .timeline-reset { font: inherit; margin-left: 6px; border: 1px solid var(--border); background: none; border-radius: 4px; cursor: pointer; padding: 0 5px; color: var(--text-secondary); }
+.dak-trace .timeline-lane { display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 8px; }
+.dak-trace .timeline-lane-name { font-size: 0.72rem; font-weight: 600; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dak-trace .timeline-lane-external { color: var(--text-secondary); font-weight: 400; font-style: italic; }
+.dak-trace .timeline-external-mark { margin-left: 3px; }
+.dak-trace .timeline-lane-track { position: relative; height: 18px; background: var(--bg-tertiary); border-radius: 3px; }
+.dak-trace .timeline-bar { position: absolute; top: 3px; height: 12px; border: none; border-radius: 2px; padding: 0; cursor: pointer; opacity: 0.85; }
+.dak-trace .timeline-bar-selected { outline: 2px solid var(--text-primary); opacity: 1; }
+.dak-trace .timeline-bar-ghost { opacity: 0.35; }
+.dak-trace .timeline-legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0; font-size: 0.68rem; color: var(--text-secondary); }
+.dak-trace .timeline-seq-head { margin-top: 10px; }
+.dak-trace .timeline-sequence { display: flex; flex-direction: column; }
+.dak-trace .timeline-seq-row { display: flex; align-items: baseline; gap: 8px; width: 100%; font: inherit; font-size: 0.72rem; text-align: left; background: none; border: none; border-bottom: 1px solid color-mix(in srgb, var(--text-tertiary) 15%, transparent); padding: 2px 4px; cursor: pointer; color: var(--text-primary); }
+.dak-trace .timeline-seq-selected { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.dak-trace .timeline-seq-offset { min-width: 56px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.dak-trace .timeline-seq-call { font-family: var(--font-mono); }
+.dak-trace .timeline-seq-target { color: var(--text-secondary); }
+.dak-trace .timeline-seq-row .trace-ms { margin-left: auto; }
+.dak-trace .seq-category { flex: none; min-width: 70px; text-align: center; color: var(--chart-white); border-radius: 3px; font-size: 0.62rem; padding: 1px 6px; text-transform: uppercase; letter-spacing: 0.03em; }
+
+/* The story overlay (GH-513, GH-517). */
+.dak-trace .trace-overlay { position: fixed; inset: 4vh 4vw; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 12px 40px color-mix(in srgb, var(--text-primary) 25%, transparent); z-index: 60; display: flex; flex-direction: column; }
+.dak-trace .trace-overlay-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 0.85rem; }
+.dak-trace .trace-overlay-close { font: inherit; border: 1px solid var(--border); background: none; border-radius: 4px; padding: 2px 8px; cursor: pointer; color: var(--text-primary); }
+.dak-trace .trace-overlay-body { overflow: auto; padding: 12px 16px; }
+.dak-trace .trace-chat-picker { position: relative; }
+.dak-trace .trace-chat-menu { position: absolute; top: 26px; left: 0; z-index: 70; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 6px 20px color-mix(in srgb, var(--text-primary) 18%, transparent); padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 260px; }
+.dak-trace .trace-chat-option { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 400; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dak-trace .trace-chat-swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.dak-trace .trace-chat-count { color: var(--text-secondary); margin-left: auto; }
+.dak-trace .trace-turn-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.dak-trace .turn-chip { font-size: 12px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-secondary); border-radius: 12px; padding: 2px 10px; cursor: pointer; }
+.dak-trace .turn-chip-active { outline: 2px solid var(--accent); }
+.dak-trace .trace-tabs { display: flex; gap: 4px; margin: 10px 0 8px; border-bottom: 1px solid var(--border); }
+.dak-trace .trace-tab { font: inherit; font-size: 0.78rem; padding: 4px 14px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: none; color: var(--text-secondary); cursor: pointer; }
+.dak-trace .trace-tab:hover { color: var(--text-primary); }
+.dak-trace .trace-tab-active { border-color: var(--border); background: var(--bg-secondary); color: var(--text-primary); font-weight: 600; }
+
+/* Step and agent groupings with the span-content drawer (GH-652). */
+.dak-trace .step-group { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+.dak-trace .step-group-head { display: flex; align-items: center; gap: 8px; padding: 5px 10px; background: var(--bg-secondary); font-size: 0.74rem; font-weight: 600; }
+.dak-trace .step-group-command { font-family: var(--font-mono); }
+.dak-trace .step-group-count { color: var(--text-tertiary); font-weight: 400; }
+.dak-trace .agent-group { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+.dak-trace .agent-group-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; border: none; background: var(--bg-secondary); font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; color: var(--text-primary); }
+.dak-trace .agent-group-count { color: var(--text-secondary); font-weight: 400; margin-left: auto; }
+.dak-trace .span-row { cursor: pointer; }
+.dak-trace .span-row-toolcall { padding-left: 26px; opacity: 0.95; }
+.dak-trace .span-row-answer { padding-left: 26px; }
+.dak-trace .span-state { font-size: 0.64rem; font-family: var(--font-mono); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+.dak-trace .span-answer-badge { background: color-mix(in srgb, var(--chart-purple) 15%, transparent); color: var(--chart-purple); }
+.dak-trace .span-answer-text { color: var(--text-secondary); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dak-trace .span-follow { font: inherit; font-size: 0.66rem; border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: 999px; padding: 0 8px; cursor: pointer; margin-left: 6px; }
+.dak-trace .span-follow:hover { background: var(--accent); color: var(--bg-primary); }
+.dak-trace .span-detail { position: sticky; bottom: 0; background: var(--bg-primary); border-top: 2px solid var(--accent); padding: 8px 12px; max-height: 45vh; overflow: auto; box-shadow: 0 -6px 18px color-mix(in srgb, var(--text-primary) 12%, transparent); }
+.dak-trace .span-detail-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.dak-trace .span-detail-head .trace-overlay-close { margin-left: auto; }
+.dak-trace .span-detail-title { font-weight: 600; font-family: var(--font-mono); font-size: 0.82rem; }
+.dak-trace .span-detail-links { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.dak-trace .span-detail-attrs { margin: 0; font-size: 0.72rem; }
+.dak-trace .span-vocab-note { font-size: 0.68rem; font-style: italic; color: var(--text-secondary); margin: 4px 0 6px; }
+.dak-trace .span-attr { display: flex; gap: 8px; padding: 2px 0; border-bottom: 1px dotted var(--border); }
+.dak-trace .span-attr dt { flex: 0 0 220px; color: var(--text-secondary); font-family: var(--font-mono); overflow-wrap: anywhere; }
+.dak-trace .span-attr dd { margin: 0; overflow-wrap: anywhere; }
+.dak-trace .span-messages { margin: 6px 0; }
+.dak-trace .span-messages-key { font-family: var(--font-mono); color: var(--text-secondary); padding: 2px 0; }
+.dak-trace .span-message summary { cursor: pointer; font-weight: 600; padding: 2px 0; text-transform: capitalize; }
+.dak-trace .span-message pre { margin: 4px 0 8px; padding: 8px; background: var(--bg-secondary); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow-y: auto; }
+.dak-trace .span-attr-long summary { cursor: pointer; color: var(--text-secondary); font-family: var(--font-mono); padding: 2px 0; }
+.dak-trace .span-attr-long pre { margin: 4px 0 8px; padding: 8px; background: var(--bg-secondary); border-radius: 6px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow-y: auto; }

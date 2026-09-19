@@ -135,7 +135,7 @@ test_cases:
   - id: TC4
     use_case: rel15.0-uc001-declarative-ux
     name: Kit panels export manifests within the contract and render from fixtures
-    status: planned
+    status: implemented
     evidence_type: kit_test
     implemented_by: GH-2263, GH-2264, GH-2265, GH-2266
     command: |
