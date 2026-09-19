@@ -1,0 +1,49 @@
+.dak-agent-cards.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
+.dak-agent-cards .empty { text-align: center; padding: 3rem; color: var(--text-secondary); font-size: .9rem; }
+
+.dak-agent-card { background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow: hidden; }
+.dak-agent-card .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
+.dak-agent-card .agent-name { font-weight: 600; font-size: 1rem; }
+.dak-agent-card .agent-pod { font-size: 10.5px; color: var(--text-tertiary); font-family: var(--font-mono); margin-top: -2px; }
+.dak-agent-card .agent-egress { font-size: 11.5px; color: var(--warning); margin: 2px 0 4px; }
+.dak-agent-card .agent-state { font-size: .75rem; padding: 2px 8px; border-radius: 4px; font-family: var(--font-mono); }
+.dak-agent-card .state-idle { background: color-mix(in srgb, var(--text-secondary) 15%, transparent); color: var(--text-secondary); }
+.dak-agent-card .state-running { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+.dak-agent-card .state-done { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+.dak-agent-card .state-failed { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+.dak-agent-card .section-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); margin: .75rem 0 .25rem; }
+.dak-agent-card .purpose { font-size: .8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: .5rem; }
+.dak-agent-card .resources { display: flex; gap: 12px; font-family: var(--font-mono); font-size: 12px; margin-top: 4px; }
+.dak-agent-card .res-unavailable { color: var(--text-tertiary); font-style: italic; }
+
+.dak-agent-card .machine-toggle { border: 1px solid var(--border); background: var(--bg-primary); border-radius: 4px; padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--accent); }
+.dak-agent-card .machine-body { margin-top: 8px; overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-tertiary); }
+.dak-agent-card .machine-empty { font-size: 12px; color: var(--text-tertiary); padding: 6px 8px; }
+.dak-agent-card .machine-transitions { list-style: none; padding: 6px 8px; font-family: var(--font-mono); font-size: 11px; line-height: 1.6; }
+.dak-agent-card .machine-transitions li { display: flex; flex-wrap: wrap; gap: 6px; }
+.dak-agent-card .machine-transitions .transition-current .transition-state:first-child { color: var(--accent); font-weight: 600; }
+.dak-agent-card .transition-signal { color: var(--text-secondary); }
+.dak-agent-card .transition-signal::before { content: "—"; }
+.dak-agent-card .transition-signal::after { content: "→"; }
+.dak-agent-card .transition-action { color: var(--text-tertiary); }
+
+.dak-agent-card .tool-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.dak-agent-card .tool-tag { font-size: .7rem; font-family: var(--font-mono); padding: 2px 6px; border: 1px solid transparent; border-radius: 3px; cursor: pointer; }
+.dak-agent-card .tool-cat-boundary { background: color-mix(in srgb, var(--chart-blue) 14%, transparent); color: var(--chart-blue); }
+.dak-agent-card .tool-cat-response { background: color-mix(in srgb, var(--chart-green) 14%, transparent); color: var(--chart-green); }
+.dak-agent-card .tool-cat-control { background: color-mix(in srgb, var(--chart-yellow) 16%, transparent); color: var(--chart-orange); }
+.dak-agent-card .tool-cat-llm { background: color-mix(in srgb, var(--chart-purple) 14%, transparent); color: var(--chart-purple); }
+.dak-agent-card .tool-cat-unstated { background: var(--bg-tertiary); color: var(--text-secondary); border-color: var(--border); }
+.dak-agent-card .tool-detail { margin-top: 8px; padding: 8px 10px; background: var(--text-primary); color: var(--bg-primary); border-radius: 4px; font-size: 11px; line-height: 1.5; overflow: auto; max-height: 260px; }
+
+.dak-agent-card .walk-steps { margin: 0 0 .5rem; padding: .3rem .5rem; list-style: none; max-height: 180px; overflow-y: auto; font-family: var(--font-mono); font-size: .7rem; border: 1px solid color-mix(in srgb, var(--text-tertiary) 25%, transparent); border-radius: 6px; }
+.dak-agent-card .walk-step { display: flex; gap: .5rem; padding: .06rem 0; }
+.dak-agent-card .walk-iteration { opacity: .5; min-width: 2.2em; text-align: right; }
+.dak-agent-card .walk-command { flex: 1; overflow-wrap: anywhere; }
+.dak-agent-card .walk-signal { opacity: .75; }
+.dak-agent-card .walk-signal-failed { color: var(--danger); opacity: 1; font-weight: 600; }
+
+.dak-agent-card .events { font-size: .75rem; font-family: var(--font-mono); max-height: 120px; overflow-y: auto; line-height: 1.6; }
+.dak-agent-card .events div { border-bottom: 1px solid var(--border); padding: 2px 0; }
+.dak-agent-card .events .signal { color: var(--accent); }
+.dak-agent-card .events .ts { color: var(--text-secondary); }

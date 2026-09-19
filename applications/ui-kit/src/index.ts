@@ -22,4 +22,6 @@ export * from "./panels/StatusBar";
 export * from "./panels/FleetPanel";
 export * from "./panels/MachineView";
 export * from "./panels/TracePanel";
+export * from "./panels/Topology";
+export * from "./panels/AgentCard";
 export { kitPanelRegistry, kitPanels } from "./panels/registry";

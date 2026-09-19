@@ -17,7 +17,7 @@ A panel is the reuse unit: a component plus a manifest naming its id, route, req
 
 | Source | Examples | Status |
 |---|---|---|
-| ui-kit package | trace waterfall, machine view, topology, agent card, status bar, fleet | planned (GH-2156, GH-2157) |
+| ui-kit package | trace waterfall and list, machine view, topology, agent card, status bar, fleet (`kitPanelRegistry`) | shipped (GH-2156, GH-2157) |
 | the platform, embedded in a tool | the observer UI served by the rest tool via `go:embed`, backed by the observer capability profile | planned (GH-2158, GH-2170) |
 | the application | domain panels an app keeps to itself, including cohere-demo's provenance panel, which reads `/api/v1/documents` (srd004 R4.4) | current practice |
 

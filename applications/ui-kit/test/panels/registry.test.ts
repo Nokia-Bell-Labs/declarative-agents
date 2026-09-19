@@ -5,7 +5,7 @@ import { CONTRACT_ENDPOINTS } from "../../src/contract";
 import { definePanel } from "../../src/panels/manifest";
 import { kitPanelRegistry, kitPanels } from "../../src/panels/registry";
 
-// srd004 R4.4: the complete kit panel set once GH-2157 lands.
+// srd004 R4.4: the complete kit panel set.
 const R4_4_PANELS = ["status-bar", "fleet", "trace", "machine-view", "topology", "agent-card"];
 
 const PANELS = new URL("../../src/panels", import.meta.url).pathname;
@@ -27,9 +27,9 @@ describe("kit panels (srd004 R4)", () => {
     }
   });
 
-  it("key the registry by unique manifest id within the R4.4 set", () => {
+  it("key the registry by unique manifest id and publish exactly the R4.4 set", () => {
     expect(Object.keys(kitPanelRegistry)).toHaveLength(kitPanels.length);
-    for (const id of Object.keys(kitPanelRegistry)) expect(R4_4_PANELS).toContain(id);
+    expect(Object.keys(kitPanelRegistry).sort()).toEqual([...R4_4_PANELS].sort());
   });
 
   it("reject a manifest outside the contract", () => {
