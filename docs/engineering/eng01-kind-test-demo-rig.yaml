@@ -232,7 +232,7 @@ sections:
       | Verb | Contract |
       |------|----------|
       | doctor | Checks toolchain presence, versions, and host resources; reports, never mutates |
-      | diagnose | Captures a scenario snapshot into an evidence directory and runs the catalog rig-doctor over it; reads the cluster, never mutates it, and exits zero whatever the diagnosis says (chatbot-mesh first; the other applications adopt it) |
+      | diagnose | Captures a scenario snapshot into an evidence directory and runs the catalog rig-doctor over it; reads the cluster, never mutates it, and exits zero whatever the diagnosis says |
       | demo:up | Creates or reuses the cluster, deploys the chart, prints the localhost URLs; fails on missing tools |
       | demo:down | Deletes the demo cluster and nothing else |
       | integration:* | One verb per proof (smoke, swap, policy); skips on missing tools; a namespaced proof reuses a running da-platform or starts and deletes its own, a cluster-mutating proof creates and deletes its own cluster; prints a one-line PASS statement naming what was proven |
@@ -319,7 +319,8 @@ sections:
       stating what was proven, so transcript grep remains the audit trail.
 
       The same capture runs on demand. `mage diagnose <scenario>` resolves the
-      cluster and the `da-<scenario>` namespace from its argument, captures
+      cluster and the `da-<scenario>` namespace from its argument, or the
+      application's own demo cluster when the argument is `demo`, captures
       events, cluster events, describe output, rollout counts, pod logs, and
       the trace spool tail while the cluster keeps running, and writes a
       `manifest.yaml` naming each file, its kind, and each capture error. A
@@ -328,6 +329,12 @@ sections:
       that directory, and writes `diagnosis.yaml` beside the evidence. Doctor
       and diagnose split on timing: doctor is the preflight before a run,
       diagnose is the post-mortem after one. Neither mutates the cluster.
+      The verb is one shared implementation
+      (`magefiles/kindrig/diagnose.go`): each application supplies its demo
+      cluster, its revision, its optional trace spool, and the roots that
+      locate the rig-doctor, so adopting the verb is a declaration rather
+      than a copy. Only the chatbot-mesh keeps a persistent trace ingress,
+      so only its evidence carries a spool tail.
 
   - title: "Deferred: podman"
     content: |
@@ -349,5 +356,6 @@ references:
   - "magefiles/kindrig/kindrig.go (shared cluster lifecycle and failure-evidence machinery)"
   - "magefiles/kindrig/platform.go (da-platform lifecycle, conformance suite, platform:up)"
   - "magefiles/kindrig/namespace.go (scenario classification and scenario-namespace lifecycle)"
+  - "magefiles/kindrig/diagnose.go (shared on-demand diagnosis every application exposes as mage diagnose)"
   - "applications/catalog/docs/specs/software-requirements/srd023-rig-doctor.yaml (evidence directory contract and rig-doctor diagnosis)"
   - "magefiles/tag_platform.go (release-run platform gate and teardown)"

@@ -15,47 +15,40 @@ import (
 // directory and writes the diagnosis beside it (srd023).
 const rigDoctorProfileRel = "agents/rig-doctor/profile.yaml"
 
-// diagnoseTraceSpool is the persistent ingress spool this application keeps
-// between runs; its newest spans are captured with the kubectl evidence.
-func diagnoseTraceSpool(root string) string {
-	return filepath.Join(root, observabilityStateDir, observabilitySpoolDir,
-		"traces", "collector.ndjson")
-}
-
 // Diagnose captures a read-only snapshot of one running scenario into
 // build/kind-evidence and runs the catalog rig doctor over it (eng01, srd023).
-// Pass the scenario name (helm-smoke, or demo for the persistent demo
-// cluster). It reports and never gates.
+// Pass the scenario name (coding-agent-smoke, or demo for the persistent demo
+// cluster). It reports and never gates. This application keeps no persistent
+// trace ingress, so the evidence is kubectl reads and kind logs.
 func Diagnose(scenario string) error {
 	root, err := os.Getwd()
 	if err != nil {
 		return err
 	}
+	revision, err := gitOutput(root, "rev-parse", "HEAD")
+	if err != nil {
+		revision = ""
+	}
 	return kindrig.Diagnose(kindrig.DiagnoseRequest{
 		Scenario:        scenario,
-		DemoCluster:     chatbotDemoCluster,
+		DemoCluster:     codingDemoCluster,
 		ApplicationRoot: root,
-		Revision:        gitCommit(root),
-		TraceSpool:      diagnoseTraceSpool(root),
-		Agent:           chatbotRigDoctor(root),
+		Revision:        revision,
+		Agent:           codingRigDoctor(root),
 	})
 }
 
-// chatbotRigDoctor resolves the catalog rig doctor with this application's own
+// codingRigDoctor resolves the catalog rig doctor with this application's own
 // root and build helpers. A root that does not resolve returns a zero agent,
 // which captures evidence and reports that no diagnosis ran.
-func chatbotRigDoctor(root string) kindrig.DiagnoseAgent {
-	coreRoot := demoCoreRoot(root)
-	if !agentCoreAvailable(coreRoot) {
-		fmt.Printf("diagnose: agent-core checkout not found at %s\n", coreRoot)
-		return kindrig.DiagnoseAgent{}
-	}
+func codingRigDoctor(root string) kindrig.DiagnoseAgent {
+	coreRoot := codingAgentCoreRoot(root)
 	catalogRoot, err := resolveCatalogRoot("rig doctor", root)
 	if err != nil {
 		fmt.Printf("diagnose: %v\n", err)
 		return kindrig.DiagnoseAgent{}
 	}
-	binary, err := buildAgent(coreRoot)
+	binary, cleanup, err := buildAgent(coreRoot)
 	if err != nil {
 		fmt.Printf("diagnose: %v\n", err)
 		return kindrig.DiagnoseAgent{}
@@ -64,5 +57,6 @@ func chatbotRigDoctor(root string) kindrig.DiagnoseAgent {
 		Binary:   binary,
 		Profile:  filepath.Join(catalogRoot, filepath.FromSlash(rigDoctorProfileRel)),
 		CoreRoot: coreRoot,
+		Cleanup:  cleanup,
 	}
 }
