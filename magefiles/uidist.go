@@ -192,6 +192,9 @@ func rebuildAndDiffUIWithRunner(appDir string, run uiRunner) error {
 	if err != nil {
 		return err
 	}
+	if err := buildStagedUIKit(build, tmp, run); err != nil {
+		return fmt.Errorf("%s: %w", appDir, err)
+	}
 	// npm ci's implicit audit duplicates the two explicit policy audits below.
 	// Keep the clean install while preferring the shared download cache.
 	if err := run(build, "npm", "ci", "--no-audit", "--prefer-offline"); err != nil {
@@ -244,7 +247,32 @@ func stageUIBuild(appDir, tmp string) (string, error) {
 	); err != nil {
 		return "", fmt.Errorf("stage canonical UI tokens: %w", err)
 	}
+	// A UI that depends on the kit resolves it by a file: path relative to the
+	// repository, so the kit source is staged at the same relative location.
+	if isDir(filepath.Join(repoRoot, filepath.FromSlash(uiKitDir))) {
+		if err := copyDirExcluding(
+			filepath.Join(repoRoot, filepath.FromSlash(uiKitDir)),
+			filepath.Join(buildRepo, filepath.FromSlash(uiKitDir)),
+			map[string]bool{"node_modules": true, "dist": true, uiKitOutDir: true},
+		); err != nil {
+			return "", fmt.Errorf("stage %s: %w", uiKitDir, err)
+		}
+	}
 	return build, nil
+}
+
+// buildStagedUIKit builds the staged kit before a dependent UI installs it; the
+// kit ships no committed dist, so the dependent's npm ci needs a fresh one.
+func buildStagedUIKit(build, tmp string, run uiRunner) error {
+	dependent, err := uiKitDependent(build)
+	if err != nil || !dependent {
+		return err
+	}
+	kit := filepath.Join(tmp, "repo", filepath.FromSlash(uiKitDir))
+	if !isDir(kit) {
+		return fmt.Errorf("depends on %s but %s was not staged", uiKitPackageName, uiKitDir)
+	}
+	return uiKitBuild(kit, run)
 }
 
 func uiRepositoryLayout(absApp string) (root, rel string, ok bool) {

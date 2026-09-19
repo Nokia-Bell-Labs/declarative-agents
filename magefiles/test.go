@@ -84,7 +84,10 @@ func Test() error {
 	}
 	// Shipped UI reproducibility gate: fail if a tracked dist no longer matches a
 	// clean source build (GH-518). Skips cleanly where node/npm is absent.
-	return UIDist()
+	if err := UIDist(); err != nil {
+		return err
+	}
+	return testUIKit()
 }
 
 // TestFull fans out the same modules as Test, but agent-core runs mage test:full
@@ -96,7 +99,10 @@ func TestFull() error {
 	}); err != nil {
 		return err
 	}
-	return UIDist()
+	if err := UIDist(); err != nil {
+		return err
+	}
+	return testUIKit()
 }
 
 func fullSuiteRunner(target testTarget) unitTestRunner {
