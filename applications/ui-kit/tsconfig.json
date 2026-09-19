@@ -15,7 +15,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["node"]
+    "types": ["node"],
+    // The example resolves the kit to its sources, as its Vite alias does.
+    "paths": { "@declarative-agents/ui-kit": ["./src/index.ts"] }
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "examples", "ui-config.d.ts"]
 }

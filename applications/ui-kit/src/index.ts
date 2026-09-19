@@ -17,6 +17,23 @@ export { panelForPath, panelHref, splitPanelPath, staticHref, type PanelRoute, t
 export { usePanelLocation, type PanelLocation } from "./shell/usePanelLocation";
 export { Sidebar, type SidebarGroup, type SidebarProps } from "./shell/Sidebar";
 export { PanelFrame } from "./shell/PanelFrame";
+export {
+  KIT_PACKAGE,
+  routingFromConfig,
+  shellTitle,
+  validateUIConfig,
+  type ShellRouting,
+  type UIBranding,
+  type UIConfig,
+  type UIMonitoredAgent,
+  type UIPanel,
+  type UIRoute,
+  type UISidebar,
+  type UISidebarGroup,
+  type UITraceBackend,
+} from "./shell/uiConfig";
+export { AppShell, type AppShellProps, type PanelRegistry } from "./shell/AppShell";
+export { useAgentPresence, type AgentPresence } from "./shell/useAgentPresence";
 export { definePanel, type KitPanel, type PanelManifest, type PanelProps } from "./panels/manifest";
 export * from "./panels/StatusBar";
 export * from "./panels/FleetPanel";
@@ -25,3 +42,4 @@ export * from "./panels/TracePanel";
 export * from "./panels/Topology";
 export * from "./panels/AgentCard";
 export { kitPanelRegistry, kitPanels } from "./panels/registry";
+export { kitPanelManifestById, kitPanelManifests } from "./panels/manifests";

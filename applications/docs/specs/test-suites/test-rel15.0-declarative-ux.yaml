@@ -152,11 +152,12 @@ test_cases:
   - id: TC5
     use_case: rel15.0-uc001-declarative-ux
     name: ui.yaml version 2 validates, rejects, and renders from Helm values
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2270
     command: |
-      mage test
+      (cd magefiles && go test ./uiyaml/)
+      (cd applications/chatbot-mesh && go test ./magefiles/ -run TestChatbotUIRendersAsValidUIYAML)
     expected:
       every_current_ui_yaml_valid_unchanged: true
       version_2_fixture_valid: true
@@ -169,7 +170,7 @@ test_cases:
   - id: TC6
     use_case: rel15.0-uc001-declarative-ux
     name: Generic shell composes routes and sidebar from ui.yaml
-    status: planned
+    status: implemented
     evidence_type: kit_test
     implemented_by: GH-2271, GH-2272
     command: |

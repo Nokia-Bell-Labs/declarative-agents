@@ -25,6 +25,36 @@ A panel is a component plus a manifest (srd004 R4). Each lives in `src/panels/<N
 
 Panel styles sit under a root class (`dak-<panel>`), use only token variables, and build into `dist/ui-kit.css`. An application imports them once with `import "@declarative-agents/ui-kit/styles.css";`. Tests render each panel against the recorded fixtures through `test/panels/support.tsx`.
 
+## Shell
+
+An application built on the kit shell holds no routing code: its `ui.yaml` declares the sidebar and routes, and its entrypoint supplies a registry of domain panels (srd004 R5). The Vite plugin `@declarative-agents/ui-kit/vite` reads `ui.yaml` during the build (default path `../ui.yaml` relative to the Vite root, the chatbot-mesh layout), fails the build with every violation the Go validator `magefiles/uiyaml` would report, and serves the parsed file as the virtual module `virtual:ui-config`. Given `registryIds`, it also fails the build for a panel outside `@declarative-agents/ui-kit` with no registry entry; a kit panel's `export` must name a kit panel manifest id.
+
+```ts
+// vite.config.ts
+import react from "@vitejs/plugin-react";
+import uiYaml from "@declarative-agents/ui-kit/vite";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  base: "./",
+  plugins: [react(), uiYaml({ registryIds: ["chat", "provisioning"] })],
+  resolve: { dedupe: ["react", "react-dom"] },
+});
+```
+
+```tsx
+// src/main.tsx; src/vite-env.d.ts adds /// <reference types="@declarative-agents/ui-kit/ui-config" />
+import { createRoot } from "react-dom/client";
+import config from "virtual:ui-config";
+import { AppShell } from "@declarative-agents/ui-kit";
+import "@declarative-agents/ui-kit/styles.css";
+import { ChatPanel, ProvisioningPanel } from "./panels";
+
+createRoot(document.getElementById("root")!).render(<AppShell config={config} registry={{ chat: ChatPanel, provisioning: ProvisioningPanel }} />);
+```
+
+`AppShell` mounts the active panel from the registry by panel id, or, for a `@declarative-agents/ui-kit` panel with no registry entry, the kit panel its `export` names. A registry value is a component taking `PanelProps` or a whole kit panel, so `{...kitPanelRegistry, ...domainPanels}` works. Version 1 `routes[]` mount from the registry by route id and group under the sidebar group of the same id. A declared id with no component renders a placeholder rather than failing. The sidebar hides a kit panel whose manifest monitors agents that the monitor proxy reports all not deployed (srd004 R2.2); the shell probes each agent's `monitor/state` once on mount and re-probes absent agents every 60 seconds. The optional `client` prop points every panel at another base URL; the default is same-origin. `examples/minimal/` is a complete application of two kit panels composed only from its `ui.yaml`; `npm test` builds it.
+
 ## Mage targets
 
 Table: ui-kit Mage targets

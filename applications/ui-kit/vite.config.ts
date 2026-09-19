@@ -14,12 +14,14 @@ export default defineConfig({
       entry: {
         "ui-kit": resolve(__dirname, "src/index.ts"),
         fixtures: resolve(__dirname, "src/fixtures/index.ts"),
+        // The ui.yaml plugin runs in Node at the consumer's build time.
+        vite: resolve(__dirname, "src/shell/vite-plugin-ui-yaml.ts"),
       },
       formats: ["es"],
       cssFileName: "ui-kit",
     },
     rollupOptions: {
-      external: ["react", "react-dom", "react/jsx-runtime"],
+      external: ["react", "react-dom", "react/jsx-runtime", "vite", "yaml", /^node:/],
     },
   },
   test: {

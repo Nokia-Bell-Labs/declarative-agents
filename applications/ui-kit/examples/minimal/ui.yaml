@@ -1,0 +1,30 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The whole composition of the minimal example: two kit panels, grouped in
+# the sidebar, with no application registry entries.
+version: 2
+id: minimal-ui
+title: Minimal kit shell
+sidebar:
+  title: Minimal
+  groups:
+    observe:
+      label: Observe
+      order: 0
+panels:
+  - id: fleet
+    package: "@declarative-agents/ui-kit"
+    export: fleet
+    route: /fleet
+    sidebar_group: observe
+  - id: traces
+    package: "@declarative-agents/ui-kit"
+    export: trace
+    route: /traces
+    label: Traces
+    sidebar_group: observe
+monitored_agents:
+  - name: chatbot
+    label: Chatbot
+trace_backend:
+  name: collector

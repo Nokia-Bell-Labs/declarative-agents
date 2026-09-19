@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/uiyaml"
 )
 
 // TestChatbotFanOutCoGeneratedForNRags locks the source-count-independent
@@ -290,6 +292,38 @@ func TestChatbotUIMonitoredAgentsCoGenerated(t *testing.T) {
 	}
 	if strings.Contains(ux, "name: rag1") {
 		t.Error("packaged rag1 monitored-agent leaked into the co-generated ui.yaml")
+	}
+}
+
+// TestChatbotUIRendersAsValidUIYAML proves the chart's co-generated ui.yaml
+// is a valid, Helm-renderable composition input at the chart defaults and with
+// the optional collector and control plane on (applications srd004 R7.1, R7.3).
+func TestChatbotUIRendersAsValidUIYAML(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chart := findChartDir(t)
+	for name, args := range map[string][]string{
+		"defaults": nil,
+		"collector and control plane": {"--set", "collector.enabled=true", "--set", "collector.implementation=agent",
+			"--set", "controlPlane.enabled=true"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			out, err := exec.Command("helm", append([]string{"template", "t", chart}, args...)...).CombinedOutput()
+			if err != nil {
+				t.Fatalf("helm template: %v\n%s", err, out)
+			}
+			ux := configMapKeyBlock(string(out), "agents__chatbot__ui__ui.yaml")
+			if ux == "" {
+				t.Fatal("co-generated ui.yaml key not found")
+			}
+			if _, err := uiyaml.Parse([]byte(ux)); err != nil {
+				t.Error(err)
+			}
+			if err := uiyaml.CheckHelmRenderable([]byte(ux)); err != nil {
+				t.Error(err)
+			}
+		})
 	}
 }
 

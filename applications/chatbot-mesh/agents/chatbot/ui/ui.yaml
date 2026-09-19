@@ -3,34 +3,25 @@
 id: chatbot-ui
 title: Chatbot Agent UI
 source_owner: agents/chatbot
-routes:
+version: 2
+# The shell renders its sidebar and routes from these panels and mounts each
+# from the registry in app/src/panels.ts (applications srd004 R5, R7). The
+# last URL segment selects the panel, so /ui/observability deep-links as before.
+panels:
   - id: chat
-    path: /chat
+    package: local
+    route: /chat
     label: Chat
-    action: chat_send
-    resource: chat
   - id: observability
-    path: /observability
+    package: local
+    route: /observability
     label: Observability
-    action: observability_view
-    resource: monitor
   - id: provisioning
-    path: /provisioning
+    package: local
+    route: /provisioning
     label: Provisioning
-    action: provisioning_view
-    resource: provisioning
 sidebar:
   title: Chatbot
-  groups:
-    chat:
-      label: Chat
-      order: 0
-    observability:
-      label: Observability
-      order: 1
-    provisioning:
-      label: Provisioning
-      order: 2
 actions:
   chat_send:
     ui_action: chat_send

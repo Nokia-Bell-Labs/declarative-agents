@@ -1,0 +1,52 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+version: 2
+id: demo-ui
+title: Demo UI
+source_owner: agents/demo
+branding:
+  title: Demo
+  logo: logo.svg
+  accent: "#005aff"
+sidebar:
+  title: Demo
+  groups:
+    talk:
+      label: Talk
+      order: 0
+    observe:
+      label: Observe
+      order: 1
+routes:
+  - id: help
+    path: /help
+    label: Help
+panels:
+  - id: chat
+    package: local
+    route: /chat
+    label: Chat
+    sidebar_group: talk
+  - id: traces
+    package: "@declarative-agents/ui-kit"
+    export: trace
+    route: /traces
+    label: Traces
+    sidebar_group: observe
+    config:
+      page_size: 25
+  - id: fleet
+    package: "@declarative-agents/ui-kit"
+    export: fleet
+    route: /fleet
+    hidden: true
+monitored_agents:
+  - name: chatbot
+    label: Chatbot
+  - name: rag0
+    label: RAG server 0
+trace_backend:
+  name: collector
+  query_path: /monitor-proxy/collector/query/traces/{trace_id}
+presentation:
+  history_client_side: true

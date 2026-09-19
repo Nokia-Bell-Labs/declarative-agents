@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Nokia-Bell-Labs/declarative-agents/applications/ui-kit/schema/ui.v2.schema.json",
+  "title": "ui.yaml",
+  "description": "Composition input of a ui-kit application shell (applications srd004 R7). Structural rules only; duplicate ids, route collisions, and undeclared sidebar groups are checked by the Go validator (magefiles/uiyaml) and the kit Vite plugin.",
+  "type": "object",
+  "required": ["id"],
+  "properties": {
+    "version": { "enum": [1, 2] },
+    "id": { "type": "string", "minLength": 1 },
+    "title": { "type": "string" },
+    "source_owner": { "type": "string" },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "path"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "path": { "$ref": "#/$defs/route" },
+          "label": { "type": "string" },
+          "action": { "type": "string" },
+          "resource": { "type": "string" }
+        }
+      }
+    },
+    "sidebar": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "groups": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["label"],
+            "properties": { "label": { "type": "string" }, "order": { "type": "integer" } }
+          }
+        }
+      }
+    },
+    "actions": { "type": "object" },
+    "panels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "package", "route"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "package": { "type": "string", "minLength": 1 },
+          "export": { "type": "string" },
+          "route": { "$ref": "#/$defs/route" },
+          "label": { "type": "string" },
+          "sidebar_group": { "type": "string" },
+          "hidden": { "type": "boolean" },
+          "config": { "type": "object" }
+        }
+      }
+    },
+    "monitored_agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "label"],
+        "properties": { "name": { "type": "string", "minLength": 1 }, "label": { "type": "string" } }
+      }
+    },
+    "trace_backend": {
+      "type": "object",
+      "required": ["name"],
+      "properties": { "name": { "type": "string", "minLength": 1 }, "query_path": { "type": "string" } }
+    },
+    "branding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "title": { "type": "string" }, "logo": { "type": "string" }, "accent": { "type": "string" } }
+    },
+    "presentation": { "type": "object" },
+    "deployment_api": { "type": "object" }
+  },
+  "if": { "not": { "properties": { "version": { "const": 2 } }, "required": ["version"] } },
+  "then": { "not": { "required": ["panels"] } },
+  "$defs": {
+    "route": { "type": "string", "pattern": "^/[a-z0-9][a-z0-9-]*$" }
+  }
+}

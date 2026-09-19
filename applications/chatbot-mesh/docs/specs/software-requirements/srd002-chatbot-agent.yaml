@@ -86,7 +86,7 @@ requirements:
   R5:
     title: UX surface
     items:
-      - R5.1: The agent SHALL declare three panels -- chat, observability, and provisioning -- in ui.yaml. The provisioning panel delegates a user's provisioning intent to the provisioning-workflow-orchestrator (srd004) through a declared client rather than editing config itself.
+      - R5.1: The agent SHALL declare three panels -- chat, observability, and provisioning -- in ui.yaml version 2, the composition input the ui-kit shell renders routes and sidebar from (applications srd004 R5, R7). The provisioning panel delegates a user's provisioning intent to the provisioning-workflow-orchestrator (srd004) through a declared client rather than editing config itself.
       - R5.2: static_assets SHALL serve the built SPA that renders the panels; the SPA build and panel content requirements SHALL be owned by their own issues, not this SRD.
   R6:
     title: Transport-authority boundary
