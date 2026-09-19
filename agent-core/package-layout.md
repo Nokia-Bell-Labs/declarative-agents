@@ -162,6 +162,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/tools/pipeline`
 - `internal/tools/registry`
 - `internal/tools/rest`
+- `internal/tools/rest/bundles`
 - `internal/tools/rest/client`
 - `internal/tools/rest/credentials`
 - `internal/tools/rest/definition`

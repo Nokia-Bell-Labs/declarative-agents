@@ -280,3 +280,66 @@ func TestStaticAssets_responsesForceRevalidation(t *testing.T) {
 		require.NoError(t, resp.Body.Close())
 	}
 }
+
+func bundleServer(name string, cfg *restdef.StaticAssetsConfig) restdef.Server {
+	return restdef.Server{
+		Address: "127.0.0.1:0",
+		Queue:   restdef.QueueConfig{Name: name, Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]restdef.Endpoint{
+			"ui": {
+				Method: "GET", Path: "/ui/{path...}",
+				Binding:      bindingStaticAssets,
+				StaticAssets: cfg,
+				Request: restdef.RequestBinding{Path: map[string]interface{}{
+					"path": map[string]interface{}{"type": "string"},
+				}},
+			},
+		},
+	}
+}
+
+// An agent selects a UI compiled into agent-core by name and carries no UI
+// files of its own (srd029 R5.9, applications srd004 R9.1).
+func TestStaticAssets_BundleServesEmbeddedIndexWithSPAFallback(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, bundleServer("static_bundle",
+		&restdef.StaticAssetsConfig{Bundle: "observer", SPA: true}), restdef.LimitProfile{})
+	defer stopRESTServer(t, state, "static_bundle")
+
+	index := requestBody(t, http.MethodGet, baseURL+"/ui/", "", http.StatusOK)
+	require.Contains(t, index, "<div id=\"root\">")
+	require.Equal(t, index, requestBody(t, http.MethodGet, baseURL+"/ui/fleet", "", http.StatusOK))
+}
+
+// The declared config is the bundle's configuration, served beneath the mount
+// (srd029 R5.10, applications srd004 R9.2).
+func TestStaticAssets_ServesDeclaredConfigAsUIConfigJSON(t *testing.T) {
+	t.Parallel()
+
+	config := map[string]interface{}{
+		"title":            "Chatbot Mesh observer",
+		"fleet_endpoint":   "/monitor/fleet",
+		"monitored_agents": []interface{}{"chatbot", "rag0"},
+	}
+	state, baseURL := launchRESTServer(t, bundleServer("static_config",
+		&restdef.StaticAssetsConfig{Bundle: "observer", SPA: true, Config: config}), restdef.LimitProfile{})
+	defer stopRESTServer(t, state, "static_config")
+
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(requestBody(t, http.MethodGet, baseURL+"/ui/ui-config.json", "", http.StatusOK)), &got))
+	require.Equal(t, config, got)
+}
+
+// Without a declared config, ui-config.json is an ordinary path.
+func TestStaticAssets_UIConfigWithoutDeclarationFallsThrough(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("idx"), 0o644))
+	state, baseURL := launchRESTServer(t, bundleServer("static_noconfig",
+		&restdef.StaticAssetsConfig{Root: root, SPA: true}), restdef.LimitProfile{})
+	defer stopRESTServer(t, state, "static_noconfig")
+
+	require.Equal(t, "idx", requestBody(t, http.MethodGet, baseURL+"/ui/ui-config.json", "", http.StatusOK))
+}

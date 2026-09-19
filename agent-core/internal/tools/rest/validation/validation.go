@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/bundles"
 )
 
 const (
@@ -1207,8 +1208,18 @@ func validateStaticAssetsEndpoint(name string, endpoint Endpoint) error {
 	if endpoint.StaticAssets == nil {
 		return fmt.Errorf("endpoint %q static_assets binding requires static_assets config", name)
 	}
-	if strings.TrimSpace(endpoint.StaticAssets.Root) == "" {
-		return fmt.Errorf("endpoint %q static_assets requires non-empty root", name)
+	root := strings.TrimSpace(endpoint.StaticAssets.Root)
+	bundle := strings.TrimSpace(endpoint.StaticAssets.Bundle)
+	switch {
+	case root == "" && bundle == "":
+		return fmt.Errorf("endpoint %q static_assets requires a root or a bundle", name)
+	case root != "" && bundle != "":
+		return fmt.Errorf("endpoint %q static_assets sets both root and bundle; choose one", name)
+	case bundle != "":
+		if _, ok := bundles.Lookup(bundle); !ok {
+			return fmt.Errorf("endpoint %q static_assets bundle %q is not compiled into agent-core (known: %s)",
+				name, bundle, strings.Join(bundles.Names(), ", "))
+		}
 	}
 	if strings.TrimSpace(endpoint.Method) == "" || strings.ToUpper(strings.TrimSpace(endpoint.Method)) != "GET" {
 		return fmt.Errorf("endpoint %q static_assets requires GET method", name)

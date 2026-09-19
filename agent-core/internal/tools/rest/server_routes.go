@@ -7,9 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"path"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -430,92 +427,6 @@ func (r *serverRuntime) writeRedirect(w http.ResponseWriter, endpoint restdef.En
 	}
 	w.Header().Set("Location", cfg.Location)
 	w.WriteHeader(status)
-}
-
-func (r *serverRuntime) serveStaticAssets(w http.ResponseWriter, req *http.Request, endpoint restdef.Endpoint) {
-	cfg := endpoint.StaticAssets
-	if cfg == nil {
-		http.Error(w, "static_assets is not configured", http.StatusInternalServerError)
-		return
-	}
-	vars, ok := matchPath(endpoint.Path, req.URL.Path)
-	if !ok {
-		http.NotFound(w, req)
-		return
-	}
-	rel := ""
-	for _, seg := range pathSegments(endpoint.Path) {
-		if n, ok := catchAllParam(seg); ok {
-			rel = vars[n]
-			break
-		}
-	}
-	idx := cfg.Index
-	if idx == "" {
-		idx = "index.html"
-	}
-	f, info, err := openStaticAssetFile(http.Dir(filepath.Clean(cfg.Root)), rel, idx, cfg.SPA)
-	if err != nil {
-		http.NotFound(w, req)
-		return
-	}
-	defer func() { _ = f.Close() }()
-	// Without a cache policy browsers cache heuristically on Last-Modified,
-	// and a SPA keeps running its old bundle after a redeploy until a hard
-	// reload. no-cache forces revalidation, which ServeContent answers with
-	// cheap 304s, so a normal reload always runs the deployed page (GH-1939).
-	w.Header().Set("Cache-Control", "no-cache")
-	http.ServeContent(w, req, info.Name(), info.ModTime(), f)
-}
-
-func openStaticAssetFile(d http.Dir, rel, idx string, spa bool) (http.File, os.FileInfo, error) {
-	key := strings.TrimPrefix(path.Clean("/"+rel), "/")
-	if key == "." || key == "" {
-		return openStaticLeafFile(d, idx)
-	}
-	f, err := d.Open(key)
-	if err != nil {
-		if spa {
-			return openStaticLeafFile(d, idx)
-		}
-		return nil, nil, err
-	}
-	info, err := f.Stat()
-	if err != nil {
-		_ = f.Close()
-		if spa {
-			return openStaticLeafFile(d, idx)
-		}
-		return nil, nil, err
-	}
-	if !info.IsDir() {
-		return f, info, nil
-	}
-	_ = f.Close()
-	if f2, info2, err := openStaticLeafFile(d, path.Join(key, idx)); err == nil {
-		return f2, info2, nil
-	}
-	if spa {
-		return openStaticLeafFile(d, idx)
-	}
-	return nil, nil, os.ErrNotExist
-}
-
-func openStaticLeafFile(d http.Dir, name string) (http.File, os.FileInfo, error) {
-	f, err := d.Open(name)
-	if err != nil {
-		return nil, nil, err
-	}
-	info, err := f.Stat()
-	if err != nil {
-		_ = f.Close()
-		return nil, nil, err
-	}
-	if info.IsDir() {
-		_ = f.Close()
-		return nil, nil, os.ErrNotExist
-	}
-	return f, info, nil
 }
 
 func (r *serverRuntime) invokeHandler(
