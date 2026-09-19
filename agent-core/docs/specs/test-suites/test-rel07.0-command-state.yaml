@@ -34,6 +34,24 @@ test_cases:
       - srd038-command-state-store AC3
 
   - use_case: rel07.0-uc001-command-state-threading
+    name: A decimal component indexes an array and stays a key on an object
+    go_test: go test ./internal/runtime/core ./internal/tools/rest -run 'TestSelectorIndexesArraysAndKeepsDigitKeys|TestFromSelectorIndexesAPriorStepsArray|TestResponseSelectorsShareNestedMapSemantics'
+    status: implemented
+    description: |
+      Current-value, $from, and REST response selectors walk $.data.0.embedding
+      into an array's first member, keep "0" a key where the walk stands on an
+      object, and leave an index past the end, a signed index, or a key applied
+      to an array unresolved (srd038 R2.20, GH-2246).
+    expected:
+      array_indexed: true
+      digit_key_on_object_preserved: true
+      out_of_range_unresolved: true
+      signed_index_unresolved: true
+    traces:
+      - srd038-command-state-store AC2
+      - srd038-command-state-store R2.20
+
+  - use_case: rel07.0-uc001-command-state-threading
     name: Adjacent label selection threads the previous word's output
     go_test: go test ./internal/tools/rest/client -run TestRESTClient_CommandStateThreadsNonAdjacentStep
     status: implemented

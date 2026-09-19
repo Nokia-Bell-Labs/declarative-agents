@@ -870,7 +870,7 @@ test_suite_index:
     traces:
       - rel07.0-uc001-command-state-threading
       - rel07.0-uc002-two-plane-revert
-    formal_test_cases: 18
+    formal_test_cases: 21
     status: implemented
     path: docs/specs/test-suites/test-rel07.0-command-state.yaml
   - id: test-rel08.0-trace-propagation

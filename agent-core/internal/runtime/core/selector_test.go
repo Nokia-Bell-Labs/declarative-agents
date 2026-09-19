@@ -101,3 +101,48 @@ func FuzzParseSelectorCanonicalGrammar(f *testing.F) {
 		require.Equal(t, raw, canonical)
 	})
 }
+
+// A decimal component indexes where the walk stands on an array and stays a
+// key where it stands on an object (srd038 R2.20).
+func TestSelectorIndexesArraysAndKeepsDigitKeys(t *testing.T) {
+	t.Parallel()
+	source := map[string]interface{}{
+		"data":   []interface{}{map[string]interface{}{"embedding": []interface{}{0.5, 0.25}}},
+		"counts": map[string]interface{}{"0": "zero-key"},
+		"grid":   []interface{}{[]interface{}{"a", "b"}},
+	}
+	for selector, want := range map[string]interface{}{
+		"$.data.0.embedding":   []interface{}{0.5, 0.25},
+		"$.data.0.embedding.1": 0.25,
+		"$.counts.0":           "zero-key",
+		"$.grid.0.1":           "b",
+	} {
+		parsed, ok := ParseSelector(selector)
+		require.True(t, ok, selector)
+		got, found := parsed.Resolve(source)
+		require.True(t, found, selector)
+		assert.Equal(t, want, got, selector)
+	}
+	for _, selector := range []string{"$.data.1", "$.data.-1", "$.data.+0", "$.data.embedding", "$.data.01x", "$.data.9999999999"} {
+		parsed, ok := ParseSelector(selector)
+		require.True(t, ok, selector)
+		_, found := parsed.Resolve(source)
+		assert.False(t, found, selector)
+	}
+}
+
+func TestFromSelectorIndexesAPriorStepsArray(t *testing.T) {
+	t.Parallel()
+	view := NewCommandStateView(Execution{{
+		CommandName: "embed",
+		Result:      commandStateDigest(`{"mapped":{"rows":[{"text":"first"},{"text":"second"}]}}`),
+	}})
+
+	value, err := ResolveFromSelector(view, "$from(embed).mapped.rows.1.text")
+
+	require.NoError(t, err)
+	assert.Equal(t, "second", value)
+	_, err = ResolveFromSelector(view, "$from(embed).mapped.rows.2.text")
+	var unresolved *UnresolvedPathError
+	require.ErrorAs(t, err, &unresolved, "an index past the end is unresolved, as a missing key is")
+}

@@ -935,7 +935,7 @@ patterns:
       - system: Reference implementation — a provider added as YAML
         cite: reference-implementation
         kind: internal
-        note: A third, OpenAI-shaped provider is a directory holding one chat dialect with its parser profile; binding it to the providers root runs the unchanged invoke_llm word with no Go and no agent edit (srd058 R5.3).
+        note: A third, OpenAI-shaped provider is a directory holding a chat dialect with its parser profile and two embed fragments; binding it to the providers root runs the unchanged invoke_llm word and embed stage words with no Go and no agent edit (srd058 R5.3).
         evidence:
           classification: shipped
           checks:
