@@ -19,6 +19,8 @@ overview: |
 
   The release 00.0 use case and suite trace the baseline SRDs reciprocally.
   Release 14.0 adds a reciprocal cross-application use case and suite.
+  Release 15.0 adds srd004, the presentation contract and panel composition
+  model for application UIs, with its use case and suite.
   Structural
   checks parse documents, verify module classification and root orchestration,
   enforce ownership-aware stats, and invoke application-owned capability
@@ -57,6 +59,12 @@ roadmap_summary:
       reciprocal and executable. Root conformance tests validate all three
       manifests, ownership, package assets, canonical applier promotion, shared
       UI tokens, and README/status classification.
+  - version: "15.0"
+    name: Declarative UX
+    use_cases_done: 0
+    use_cases_total: 1
+    status: in-progress
+    evidence: srd004, the use case, and the suite are reciprocal; TC1 is executable and TC2 through TC9 are planned.
 
 foundation_document_index:
   - id: application-composition-pattern-language
@@ -123,6 +131,15 @@ srd_index:
     path: docs/specs/software-requirements/srd003-application-consistency.yaml
     use_cases: [rel14.0-uc001-application-consistency]
     test_suites: [test-rel14.0-application-consistency]
+  - id: srd004-declarative-ux
+    title: Presentation Contract and Panel Composition
+    status: specified
+    applicability: |
+      Applications and actors that ship UI assets; R9 applies only to REST
+      definitions that select an embedded bundle.
+    path: docs/specs/software-requirements/srd004-declarative-ux.yaml
+    use_cases: [rel15.0-uc001-declarative-ux]
+    test_suites: [test-rel15.0-declarative-ux]
 
 config_format_index: []
 
@@ -157,6 +174,14 @@ use_case_index:
       - srd003-application-consistency
     test_suite: test-rel14.0-application-consistency
     path: docs/specs/use-cases/rel14.0-uc001-application-consistency.yaml
+  - id: rel15.0-uc001-declarative-ux
+    title: Compose an Application UI from Declared Panels
+    release: "15.0"
+    status: planned
+    srds:
+      - srd004-declarative-ux
+    test_suite: test-rel15.0-declarative-ux
+    path: docs/specs/use-cases/rel15.0-uc001-declarative-ux.yaml
 
 test_suite_index:
   - id: test-rel00.0-application-contract-conformance
@@ -178,8 +203,23 @@ test_suite_index:
     srds:
       - srd003-application-consistency
     path: docs/specs/test-suites/test-rel14.0-application-consistency.yaml
+  - id: test-rel15.0-declarative-ux
+    title: Release 15.0 Declarative UX Test Suite
+    release: "15.0"
+    status: planned
+    test_case_count: 9
+    traces: [rel15.0-uc001-declarative-ux]
+    srds:
+      - srd004-declarative-ux
+    path: docs/specs/test-suites/test-rel15.0-declarative-ux.yaml
 
 coverage_gaps:
+  - id: release-15-declarative-ux
+    status: planned
+    description: |
+      srd004 is specified and TC1 is executable. TC2 through TC9 turn
+      implemented as GH-2156 through GH-2160 land. The cohere-demo and
+      agentic-wiki-mesh migrations are owned by those repositories.
   - id: release-14-application-normalization
     status: implemented
     description: |

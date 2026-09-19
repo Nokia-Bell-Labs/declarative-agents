@@ -1,0 +1,211 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel15.0-uc001-declarative-ux
+title: Compose an Application UI from Declared Panels
+release: "15.0"
+status: planned
+
+summary: |
+  A maintainer builds an application UI from ui.yaml, kit panels, and the
+  application's own domain panels, and deploys an observer whose UI the REST
+  tool serves from an embedded bundle. Shared panels read only the
+  presentation contract through one client, so the same panels run in every
+  application and under any base URL. Chatbot Mesh is the in-repository proof;
+  cohere-demo and agentic-wiki-mesh follow as external consumers.
+
+actor: A maintainer building or migrating an application user interface.
+
+trigger: |
+  An application adds a panel, adopts the UI kit, or deploys an observer; or a
+  contract owner changes a response field a kit panel reads.
+
+preconditions:
+  - srd033, srd020, srd021, and chatbot-mesh srd008 define the contract responses.
+  - srd003 governs the application manifest, UI assets, and shared-token policy.
+  - agent-core srd029 governs REST server bindings, including static_assets.
+
+endpoint_usage_review:
+  reviewed_at:
+    declarative-agents: bd71b931
+    cohere-demo: c67d082
+    agentic-wiki-mesh: 629a799
+  urls:
+    - url: /monitor-proxy/{agent}/monitor/state
+      used_by: [chatbot-mesh chatbot, cohere-demo chatbot, agentic-wiki-mesh chatbot]
+      class: contract
+    - url: /monitor-proxy/{agent}/monitor/events/stream
+      used_by: [chatbot-mesh chatbot, cohere-demo chatbot turnActivity, agentic-wiki-mesh chatbot turnActivity]
+      class: contract
+    - url: /monitor-proxy/{trace_backend}/query/traces/{trace_id}
+      used_by: [chatbot-mesh chatbot, cohere-demo chatbot, agentic-wiki-mesh chatbot]
+      class: contract
+    - url: /monitor-proxy/{trace_backend}/query/traces
+      used_by: [agentic-wiki-mesh chatbot]
+      class: contract
+    - url: /monitor/fleet and /monitor/state on the observer origin
+      used_by: [chatbot-mesh observer, cohere-demo observer, agentic-wiki-mesh observer]
+      class: contract
+    - url: /monitor-proxy/{agent}/monitor/machines and /monitor/tools/declared
+      used_by: [agentic-wiki-mesh chatbot machineViews]
+      class: contract
+    - url: /trace-proxy/{agent}/monitor/machines, /monitor/tools/declared, /query/traces
+      used_by: [cohere-demo observer declaredViews and api]
+      class: contract under a retired proxy name; migrates to /monitor-proxy per srd004 R2.3
+    - url: /api/v1/chat
+      used_by: [all three chatbots]
+      class: domain
+    - url: /api/v1/audit, /api/v1/export, /api/v1/harvest, /api/v1/search, /api/v1/summarize, /api/v1/translate
+      used_by: [cohere-demo chatbot]
+      class: domain
+    - url: /api/v1/documents, /api/v1/documents/query
+      used_by: [cohere-demo ProvenancePanel through documentsApi]
+      class: domain; ProvenancePanel leaves the kit panel set per srd004 R4.4
+    - url: /provisioning/api
+      used_by: [chatbot-mesh chatbot ProvisioningPanel]
+      class: domain
+
+flow:
+  - id: F1
+    text: |
+      The maintainer lists the panels the application needs and classifies
+      each as a kit panel or a domain panel. A panel is a kit panel only when
+      every endpoint it reads is in the presentation contract.
+    traces:
+      - srd004-declarative-ux R1
+      - srd004-declarative-ux R4.4
+  - id: F2
+    text: |
+      The maintainer declares the panels, sidebar groups, monitored agents,
+      trace backend, and branding in ui.yaml version 2 and validates it.
+    traces:
+      - srd004-declarative-ux R7.1
+      - srd004-declarative-ux R7.2
+      - srd004-declarative-ux R7.3
+  - id: F3
+    text: |
+      The application entrypoint supplies a registry of kit panels and domain
+      panels. The kit Vite plugin reads ui.yaml during the build, and the
+      generic shell renders routes and sidebar from it with the existing URL
+      scheme.
+    traces:
+      - srd004-declarative-ux R5
+      - srd004-declarative-ux R7.4
+  - id: F4
+    text: |
+      At run time every panel obtains the client from shell context. Reads of
+      other agents go through /monitor-proxy on the serving origin; a proxy 404
+      hides the panels that depend on that agent.
+    traces:
+      - srd004-declarative-ux R2
+      - srd004-declarative-ux R6
+  - id: F5
+    text: |
+      For an observer, the maintainer selects the embedded observer bundle in
+      rest.yaml, declares its config, and adds no UI files. The REST tool
+      serves the bundle and its ui-config.json.
+    traces:
+      - srd004-declarative-ux R9
+  - id: F6
+    text: |
+      The UI imports design tokens from the kit package. In this repository
+      the kit is a file dependency; external repositories pin the release
+      tarball.
+    traces:
+      - srd004-declarative-ux R8
+  - id: F7
+    text: |
+      When an owner SRD changes a field a kit panel reads, the fixture changes
+      in the same change and kit contract tests confirm every client and panel
+      still parses it.
+    traces:
+      - srd004-declarative-ux R3
+
+touchpoints:
+  - id: T1
+    target: applications/ui-kit/
+    reason: Package owning tokens, client, fixtures, shell, hooks, and kit panels.
+  - id: T2
+    target: applications/<application>/agents/<actor>/ui/ui.yaml
+    reason: Composition input of the generic shell.
+  - id: T3
+    target: applications/<application>/agents/<actor>/rest.yaml
+    reason: Declares the /monitor-proxy route and the static_assets binding or embedded bundle.
+  - id: T4
+    target: agent-core/internal/tools/rest/
+    reason: Serves embedded bundles and their declared config.
+  - id: T5
+    target: applications/<application>/agents/application.yaml
+    reason: Declares each UI asset, including embedded sources, and its shared-token policy.
+  - id: T6
+    target: srd004-declarative-ux AC1
+    reason: Closed contract and endpoint classification.
+  - id: T7
+    target: srd004-declarative-ux AC2
+    reason: One proxy convention and not-deployed handling.
+  - id: T8
+    target: srd004-declarative-ux AC3
+    reason: Fixture-based consumer contract tests.
+  - id: T9
+    target: srd004-declarative-ux AC4
+    reason: Panel manifest and kit isolation.
+  - id: T10
+    target: srd004-declarative-ux AC5
+    reason: Build-time composition from ui.yaml.
+  - id: T11
+    target: srd004-declarative-ux AC6
+    reason: Injectable client.
+  - id: T12
+    target: srd004-declarative-ux AC7
+    reason: ui.yaml version 2 and retirement of the cross-check.
+  - id: T13
+    target: srd004-declarative-ux AC8
+    reason: Kit ownership, tokens, and distribution.
+  - id: T14
+    target: srd004-declarative-ux AC9
+    reason: Embedded observer bundle.
+  - id: T15
+    target: test-rel15.0-declarative-ux
+    reason: Structural and executable evidence for this flow.
+
+success_criteria:
+  - id: S1
+    criterion: |
+      Every kit panel reads only contract endpoints and owner-defined fields,
+      and every URL the current UIs fetch has a contract or domain
+      classification.
+    traces:
+      - srd004-declarative-ux AC1
+      - srd004-declarative-ux AC4
+  - id: S2
+    criterion: |
+      The Chatbot Mesh chatbot takes its routes and sidebar from ui.yaml alone,
+      and adding a panel takes one ui.yaml entry and one registry line.
+    traces:
+      - srd004-declarative-ux AC5
+      - srd004-declarative-ux AC7
+  - id: S3
+    criterion: |
+      The Chatbot Mesh observer serves the embedded bundle and carries no UI
+      files.
+    traces:
+      - srd004-declarative-ux AC9
+  - id: S4
+    criterion: |
+      No shell, client, token, or observability panel code is duplicated under
+      applications/, and all of it is imported from the kit.
+    traces:
+      - srd004-declarative-ux AC6
+      - srd004-declarative-ux AC8
+  - id: S5
+    criterion: |
+      Cross-agent reads use one proxy name, and fixtures gate contract changes.
+    traces:
+      - srd004-declarative-ux AC2
+      - srd004-declarative-ux AC3
+
+out_of_scope:
+  - Migrating cohere-demo and agentic-wiki-mesh; their repositories own those issues.
+  - Changing monitor, fleet, or trace response schemas.
+  - Desktop shell and runtime panel loading.
+
+test_suite: test-rel15.0-declarative-ux
