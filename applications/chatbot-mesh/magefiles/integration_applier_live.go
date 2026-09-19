@@ -19,19 +19,16 @@ import (
 )
 
 const (
-	// The shared applier image (GH-1368): agent-core plus helm and kubectl, no
-	// baked chart. One repo serves every application's applier because the image
-	// content is application-agnostic; the per-run tag is the tested commit.
-	applierLiveImageRepository = "declarative-agents/applier"
-	applierLiveRelease         = "live"
+	applierLiveRelease = "live"
 
 	applierReadyWait = 3 * time.Minute
 )
 
 // applierLiveRollbackHook is test-only chart instrumentation. A post-upgrade
 // hook runs after Helm has waited for the ordinary resources and before the
-// upgrade command returns. For the reserved fixture value it uses the real
-// kubectl in the applier image to regress the chatbot Deployment. That makes
+// upgrade command returns. For the reserved fixture value it runs the real
+// kubectl from the pinned CLI donor image (the applier itself runs agent-core,
+// GH-2222) to regress the chatbot Deployment. That makes
 // the following declared kubectl rollout status fail deterministically, without
 // racing an out-of-band patch against Helm's own --wait.
 //
@@ -88,8 +85,9 @@ spec:
   restartPolicy: Never
   containers:
     - name: regress-chatbot
-      image: "{{ .Values.applier.image.repository }}:{{ .Values.applier.image.tag }}"
-      imagePullPolicy: {{ .Values.applier.image.pullPolicy }}
+      {{- $donor := .Values.applier.cliDonor.image }}
+      image: "{{ $donor.repository }}:{{ $donor.tag }}{{ with $donor.digest }}@{{ . }}{{ end }}"
+      imagePullPolicy: {{ $donor.pullPolicy | default "IfNotPresent" }}
       command: [kubectl]
       args:
         - patch
@@ -160,8 +158,8 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 	}
 	defer cleanupAssets()
 
-	// The chart reaches the applier pod as a mounted volume, not baked into the
-	// shared applier image (GH-1368): the staged chart is packaged to a tarball and
+	// The chart reaches the applier pod as a mounted volume, not baked into an
+	// image (GH-1368): the staged chart is packaged to a tarball and
 	// carried by a ConfigMap provisioned out-of-release (GH-1407), referenced by the
 	// chart's applier.chartArchiveConfigMap value. One coherent instrumented chart is
 	// both installed host-side and mounted at /chart, so a values change re-renders
@@ -175,20 +173,9 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 		return err
 	}
 
-	// The shared applier image is FROM the agent-core runtime built above (GH-1368):
-	// agent-core plus helm and kubectl, no baked chart.
-	fmt.Printf("applierLive: ensuring verified applier image %s on %s\n", images.Applier, images.Runtime)
-	if err := runApplierLivePhase("image-ensure", func() error {
-		_, ensureErr := kindrig.EnsureApplierImage(coreRoot, images.Runtime, images.Applier)
-		return ensureErr
-	}); err != nil {
-		return err
-	}
-	if err := runApplierLivePhase("image-probe", func() error {
-		return assertApplierImageCarriesItsTools(images.Applier)
-	}); err != nil {
-		return err
-	}
+	// The applier runs the agent-core runtime built above; its helm and kubectl
+	// come from the pinned CLI donor, loaded onto the node below and copied into
+	// the pod's read-only /opt/tools by the cli-donor init container (GH-2222).
 
 	// The applier tier stands up the full mesh (chatbot, rag, chroma, dolt,
 	// collector, observer), so the kind node needs every external dependency
@@ -270,8 +257,7 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 	}()
 
 	if err := runApplierLivePhase("image-loads", func() error {
-		if loadErr := loadKindImageWithCommands(
-			commands, cluster.Name, images.Applier); loadErr != nil {
+		if loadErr := kindrig.EnsureCLIDonorImage(commands.Run, cluster.Name); loadErr != nil {
 			return loadErr
 		}
 		if loadErr := loadKindImageWithCommands(
@@ -291,7 +277,7 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 
 	if err := runApplierLivePhase("helm-install", func() error {
 		return helmInstallApplierLive(
-			commands.Run, staged, chartArchive, images.Runtime, images.Applier, assets)
+			commands.Run, staged, chartArchive, images.Runtime, images.Runtime, assets)
 	}); err != nil {
 		return err
 	}
@@ -306,6 +292,20 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 			contextRun, func() error {
 				return waitApplierDeploymentReady(commands.Run)
 			})
+	}); err != nil {
+		return err
+	}
+	var helmVersion string
+	if err := runApplierLivePhase("cli-donor", func() error {
+		var verifyErr error
+		helmVersion, verifyErr = kindrig.VerifyCLIDonor(applierDeclaredHelmMajor,
+			func(args ...string) (string, error) {
+				exec := append([]string{"exec",
+					"deployment/" + applierLiveRelease + "-chatbot-mesh-applier", "-c", "applier", "--"}, args...)
+				output, runErr := commands.Run("kubectl", exec...)
+				return strings.TrimSpace(string(output)), runErr
+			})
+		return verifyErr
 	}); err != nil {
 		return err
 	}
@@ -326,10 +326,11 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 		commands.Run, applierLiveRelease, chartArchive, assets); err != nil {
 		return err
 	}
-	fmt.Printf("integration:applierLive PASS - revision %s the applier runs on kind from an image built on the runtime "+
-		"under test, reads a real Deployment's rollout, applies a values patch that moves the release to a new "+
-		"revision, compensates a post-upgrade verification failure with a real Helm rollback, and rejects a "+
-		"non-conforming patch against the real chart schema without touching it\n", images.Revision)
+	fmt.Printf("integration:applierLive PASS - revision %s the applier runs the agent-core runtime under test with "+
+		"helm %s from the pinned CLI donor on a read-only /opt/tools, reads a real Deployment's rollout, applies a "+
+		"values patch that moves the release to a new revision, compensates a post-upgrade verification failure "+
+		"with a real Helm rollback, and rejects a non-conforming patch against the real chart schema without "+
+		"touching it\n", images.Revision, helmVersion)
 	return nil
 }
 
@@ -500,49 +501,6 @@ func packageApplierChart(chartDir string) (string, func(), error) {
 	return archive, cleanup, nil
 }
 
-// applierImageProbe is one thing the image must carry for the applier's
-// declarations to work, and the command that proves it is there and runnable.
-type applierImageProbe struct {
-	what string
-	args []string
-	want string
-}
-
-// applierImageProbes are the assumptions the exec declarations make about their
-// own container. Each runs the binary rather than testing for the file, because
-// a wrong-architecture binary is present and unrunnable -- which is the failure
-// an unqualified build produces.
-func applierImageProbes() []applierImageProbe {
-	return []applierImageProbe{
-		{what: "helm", args: []string{"helm", "version", "--short"}, want: "v"},
-		{what: "kubectl", args: []string{"kubectl", "version", "--client"}, want: "Client Version"},
-		// The runtime the profile runs; the applier is an agent before it is a
-		// pair of CLIs. The chart is not baked into the image (GH-1368); it reaches
-		// the pod through the mounted out-of-release chart ConfigMap, verified
-		// host-side by assertApplierChartArchiveCarriesProfiles.
-		{what: "the agent binary", args: []string{"agent", "--help"}, want: "profile"},
-	}
-}
-
-// assertApplierImageCarriesItsTools runs each probe inside the built image. An
-// image missing any of them fails at runtime inside a pod, where the error names
-// a tool that is not there rather than an image that was built wrong.
-func assertApplierImageCarriesItsTools(image string) error {
-	for _, probe := range applierImageProbes() {
-		args := append([]string{"run", "--rm", "--entrypoint", probe.args[0], image}, probe.args[1:]...)
-		out, err := exec.Command("docker", args...).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("applier image does not carry %s: docker %s: %w\n%s",
-				probe.what, strings.Join(probe.args, " "), err, out)
-		}
-		if !strings.Contains(string(out), probe.want) {
-			return fmt.Errorf("applier image %s check did not report %q:\n%s", probe.what, probe.want, out)
-		}
-		fmt.Printf("applierLive: image carries %s\n", probe.what)
-	}
-	return assertApplierImageHelmMajor(image)
-}
-
 // assertApplierChartArchiveCarriesProfiles renders the packaged chart the applier
 // will mount at /chart, using the host helm, and requires every agent profile an
 // enabled Deployment mounts to appear in the profiles ConfigMap.
@@ -579,30 +537,9 @@ func assertApplierChartArchiveCarriesProfiles(archive string) error {
 	return nil
 }
 
-// assertApplierImageHelmMajor proves the helm inside the image is the major the
-// exec declarations are written for. GH-739 binds the declared flags to the
-// pinned HELM_VERSION at the source; this checks the binary that actually ships,
-// since a build arg override or a changed base could put a different one there.
-func assertApplierImageHelmMajor(image string) error {
-	out, err := exec.Command("docker", "run", "--rm", "--entrypoint", "helm", image,
-		"version", "--template", "{{.Version}}").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("read helm version from %s: %w\n%s", image, err, out)
-	}
-	version := strings.TrimSpace(string(out))
-	major := strings.TrimPrefix(strings.SplitN(version, ".", 2)[0], "v")
-	if major != applierDeclaredHelmMajor {
-		return fmt.Errorf("the applier image ships helm %s, but its exec declarations are written for helm %s; "+
-			"the flag spellings differ between majors and helm rejects an unknown flag (GH-739)",
-			version, applierDeclaredHelmMajor)
-	}
-	fmt.Printf("applierLive: image ships helm %s, matching the declared flags\n", version)
-	return nil
-}
-
 // applierDeclaredHelmMajor is the helm major exec-declarations.yaml is written
-// for. TestApplierHelmFlagsMatchTheShippedHelm holds it to the Dockerfile pin;
-// this constant is what the running image is checked against.
+// for. TestApplierHelmFlagsMatchTheShippedHelm holds it to the CLI donor pin
+// (kindrig.CLIDonorHelmVersion); kindrig.VerifyCLIDonor checks the running pod.
 const applierDeclaredHelmMajor = "3"
 
 // assertApplierServesItsSurface proves the applier is an agent that started,
