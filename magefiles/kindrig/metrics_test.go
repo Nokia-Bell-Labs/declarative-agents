@@ -43,7 +43,7 @@ func TestInstallMetricsServerLoadsPinnedImageAndWaitsForAPI(t *testing.T) {
 	runtimeImage := metricsServerRuntimeRepository + ":" + metricsServerImageVersion
 	want := []string{
 		"kubectl get apiservice " + metricsAPIService,
-		"docker pull --platform linux/" + runtime.GOARCH + " " + source,
+		"docker image inspect --format {{.Id}} " + source,
 		"docker tag " + source + " " + runtimeImage,
 		"kind load docker-image " + runtimeImage + " --name da-example",
 		"kubectl apply -f ",
@@ -121,4 +121,36 @@ func TestInstallMetricsServerLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cleanup() })
+}
+
+func TestInstallMetricsServerPullsOnlyAbsentImageAndCleansUpOnFailure(t *testing.T) {
+	source, err := metricsServerImage(runtime.GOARCH)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls []string
+	run := func(name string, args ...string) ([]byte, error) {
+		call := strings.Join(append([]string{name}, args...), " ")
+		calls = append(calls, call)
+		switch {
+		case strings.HasPrefix(call, "kubectl get apiservice"):
+			return []byte("NotFound"), errors.New("NotFound")
+		case strings.HasPrefix(call, "docker image inspect"):
+			return []byte("No such image"), errors.New("absent")
+		case strings.HasPrefix(call, "kubectl rollout status"):
+			return []byte("timed out"), errors.New("rollout failed")
+		}
+		return nil, nil
+	}
+	if _, err := InstallMetricsServer(run, "da-example"); err == nil ||
+		!strings.Contains(err.Error(), "rollout status") {
+		t.Fatalf("error = %v, want the failed rollout", err)
+	}
+	joined := strings.Join(calls, "\n")
+	if !strings.Contains(joined, "docker pull --platform linux/"+runtime.GOARCH+" "+source) {
+		t.Fatalf("absent image was not pulled: %v", calls)
+	}
+	if !strings.HasPrefix(calls[len(calls)-1], "kubectl delete -f ") {
+		t.Fatalf("failed install did not delete its manifest: %v", calls)
+	}
 }

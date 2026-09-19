@@ -4,10 +4,12 @@
 package kindrig
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPlatformKindConfigPinsNodeAndAdmitsIngress(t *testing.T) {
@@ -435,5 +437,38 @@ func TestDownPlatformDeletesOnlyThePlatform(t *testing.T) {
 	absent := &fakeKind{existing: []string{"da-chatbot-mesh-demo"}}
 	if err := DownPlatform(absent.run); err != nil || absent.issued("delete") {
 		t.Fatalf("absent platform: err=%v calls=%v", err, absent.calls)
+	}
+}
+
+func TestBoundedCommandRunnerFailsAStalledCommand(t *testing.T) {
+	stalled := func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	run := boundedCommandRunner(stalled, 20*time.Millisecond)
+	started := time.Now()
+	_, err := run("docker", "pull", "example@sha256:abc")
+	if err == nil || !strings.Contains(err.Error(), "docker pull example@sha256:abc") ||
+		!strings.Contains(err.Error(), "no result within 20ms") {
+		t.Fatalf("error = %v, want the stalled command and its bound named", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("bounded runner waited %s", elapsed)
+	}
+}
+
+func TestBoundedCommandRunnerPassesThroughResults(t *testing.T) {
+	want := errors.New("exit status 1")
+	run := boundedCommandRunner(func(context.Context, string, ...string) ([]byte, error) {
+		return []byte("output"), want
+	}, time.Minute)
+	if output, err := run("kubectl", "get", "ns"); !errors.Is(err, want) || string(output) != "output" {
+		t.Fatalf("output=%q err=%v, want the command's own result", output, err)
+	}
+}
+
+func TestPlatformDefaultsBoundEveryCommand(t *testing.T) {
+	if got := (PlatformOptions{}).withDefaults().commandTimeout; got != platformCommandTimeout {
+		t.Fatalf("default command timeout = %s, want %s", got, platformCommandTimeout)
 	}
 }

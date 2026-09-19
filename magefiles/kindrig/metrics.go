@@ -56,22 +56,17 @@ func InstallMetricsServer(run CommandRunner, cluster string) (func() error, erro
 	if err != nil {
 		return nil, err
 	}
-	commands := [][]string{
-		{"docker", "pull", "--platform", "linux/" + runtime.GOARCH, sourceImage},
-		{"docker", "tag", sourceImage, runtimeImage},
-		{"kind", "load", "docker-image", runtimeImage, "--name", cluster},
-		{"kubectl", "apply", "-f", path},
-		{"kubectl", "rollout", "status", "deployment/metrics-server",
-			"--namespace", "kube-system", "--timeout=180s"},
-		{"kubectl", "wait", "--for=condition=Available",
-			"apiservice/" + metricsAPIService, "--timeout=180s"},
-	}
-	for _, command := range commands {
-		if err := runMetricsCommand(run, command); err != nil {
-			_ = deleteMetricsManifest(run, path)
-			removeFile()
-			return nil, err
-		}
+	steps := append(pinnedImageSteps(run, cluster, sourceImage, runtimeImage),
+		installStep{"manifest-apply", []string{"kubectl", "apply", "-f", path}},
+		installStep{"rollout", []string{"kubectl", "rollout", "status", "deployment/metrics-server",
+			"--namespace", "kube-system", "--timeout=180s"}},
+		installStep{"api-available", []string{"kubectl", "wait", "--for=condition=Available",
+			"apiservice/" + metricsAPIService, "--timeout=180s"}},
+	)
+	if err := runInstallSteps(run, cluster, "metrics-server", steps); err != nil {
+		_ = deleteMetricsManifest(run, path)
+		removeFile()
+		return nil, err
 	}
 	return func() error {
 		defer removeFile()
@@ -96,16 +91,6 @@ func metricsServerImage(arch string) (string, error) {
 			metricsServerImageVersion, arch)
 	}
 	return metricsServerImageRepository + ":" + metricsServerImageVersion + "@" + digest, nil
-}
-
-func runMetricsCommand(run CommandRunner, command []string) error {
-	name, args := command[0], command[1:]
-	out, err := run(name, args...)
-	if err != nil {
-		return fmt.Errorf("%s %s: %w: %s",
-			name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
-	}
-	return nil
 }
 
 func writeMetricsManifest(manifest string) (string, func(), error) {
