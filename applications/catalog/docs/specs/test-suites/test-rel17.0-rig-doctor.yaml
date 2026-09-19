@@ -17,7 +17,7 @@ test_cases:
     command: mage validate
     assertions:
       - The rig-doctor profile passes agent-core strict configuration validation.
-      - The tool manifest holds only list_files, read, find, the diagnosis write, done, and the loop words.
+      - The tool manifest holds only list_files, read, find, the two captured-spool queries, the diagnosis write, done, and the loop words.
       - No exec, kubectl, or helm declaration is reachable from the profile.
   - id: rig-doctor-diagnosed
     verifies: [S3]
@@ -29,6 +29,15 @@ test_cases:
       - diagnosis.yaml carries probable_cause, confidence, findings, next_command, and unresolved.
       - Every evidence cite names a file that exists in the fixture and a line within its length.
       - The probable cause names the Deployment whose rollout counts show zero available replicas.
+  - id: rig-doctor-spool-queries
+    verifies: [S2, S3]
+    command: go test ./conformance -run '^TestRigDoctorQueriesTheCapturedSpool'
+    inputs:
+      evidence: testdata/conformance/rig-doctor/failing-rollout
+    assertions:
+      - The model dispatches query_list_traces and query_get_trace itself; both produce tool spans.
+      - The trace id and span names the queries return appear in the next prompt sent to the model.
+      - The run reaches Diagnosed.
   - id: rig-doctor-no-evidence
     verifies: [S4]
     command: go test ./conformance -run '^TestRigDoctorNoEvidence'

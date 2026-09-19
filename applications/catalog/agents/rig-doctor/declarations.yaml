@@ -1,7 +1,15 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
-# The rig-doctor's own word: the evidence gate that stops an empty directory
-# before any model call.
+# The rig-doctor's own words: the evidence gate that stops an empty directory
+# before any model call, and the two spool reads the model dispatches over the
+# captured trace tail.
+#
+# The spool words are external because $tool dispatch resolves only external
+# tools (registry.go ResolveExternalTool), and because exhaustiveness unions
+# the emitted signals of exactly that set when it decides whether a machine
+# can route TracesListed and TraceRetrieved. The collector declares the same
+# builtins internal, which is right there: it drives them as named machine
+# actions rather than letting a model choose them (GH-2291).
 unit: catalog-rig-doctor-declarations
 imports:
   - /opt/agent-core/tools/units/types-collections.yaml
@@ -29,3 +37,77 @@ tools:
       satisfied: Satisfied
       unsatisfied: Unsatisfied
 
+  - name: query_list_traces
+    type: builtin
+    init: spool_list_traces
+    category: boundary
+    visibility: external
+    signature:
+      emits: [TracesListed, CommandError]
+    description: List the captured traces, newest first, as summaries with service names, span counts, and durations.
+    parameters:
+      type: object
+      properties:
+        page_size:
+          type: integer
+          description: 'Summaries to return (default: 20, maximum: 100)'
+        offset:
+          type: integer
+          description: 'Summaries to skip before the page (default: 0)'
+      additionalProperties: false
+    output:
+      description: Paginated trace summaries.
+      schema:
+        type: object
+        properties:
+          traces: {type: array}
+          total: {type: integer}
+          offset: {type: integer}
+          page_size: {type: integer}
+          skipped_lines: {type: integer}
+    side_effects:
+      - {kind: filesystem_read, target: captured trace spool tail, state: read_only}
+    reversibility: {classification: reversible}
+    undo: {strategy: noop, description: Reading a spool changes nothing.}
+    errors:
+      - {signal: CommandError, condition: the captured spool cannot be read, state_after_failure: no output is returned}
+    config:
+      path: traces/collector.ndjson
+      page_size: 20
+      max_page_size: 100
+      offset: 0
+
+  - name: query_get_trace
+    type: builtin
+    init: spool_get_trace
+    category: boundary
+    visibility: external
+    signature:
+      emits: [TraceRetrieved, CommandError]
+    description: Read every span of one captured trace, by the trace_id a listing reported.
+    parameters:
+      type: object
+      properties:
+        trace_id:
+          type: string
+          description: The trace to read, as query_list_traces reported it.
+      required: [trace_id]
+      additionalProperties: false
+    output:
+      description: All spans for one trace.
+      schema:
+        type: object
+        properties:
+          trace_id: {type: string}
+          spans: {type: array}
+          span_count: {type: integer}
+          skipped_lines: {type: integer}
+    side_effects:
+      - {kind: filesystem_read, target: captured trace spool tail, state: read_only}
+    reversibility: {classification: reversible}
+    undo: {strategy: noop, description: Reading a spool changes nothing.}
+    errors:
+      - {signal: CommandError, condition: the captured spool cannot be read or trace_id is empty, state_after_failure: no output is returned}
+    config:
+      path: traces/collector.ndjson
+      trace_id: ""

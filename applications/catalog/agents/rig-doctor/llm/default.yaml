@@ -53,9 +53,10 @@ tools:
         (events, cluster-events, describe, pods, rollout, logs, traces,
         kind-logs), and every error the capture itself hit. Then read what the
         failure calls for: rollout counts to see which workload never became
-        available, events for the reason it did not, pod logs for what the
-        container said, and the trace queries when a request path is in
-        question.
+        available, events for the reason it did not, and pod logs for what the
+        container said. When a request path is in question, query_list_traces
+        summarizes the captured spans and query_get_trace opens one trace by
+        id; cite the trace id rather than a line for what they tell you.
 
         Write your diagnosis to diagnosis.yaml in the working directory, then
         call done. The file has this shape:

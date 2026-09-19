@@ -414,9 +414,11 @@ roles:
     selected_tool_families:
       - filesystem read
       - filesystem write
+      - spool query
       - llm
     runtime_dependencies:
       - agent-core filesystem tools
+      - agent-core spool query tools (srd044)
       - a model provider library (srd058)
     outputs:
       - diagnosis naming a probable cause with cited evidence

@@ -6,11 +6,13 @@ package conformance
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -19,6 +21,10 @@ import (
 
 // rigDoctorProfile is the shipped family entry point every case here boots.
 const rigDoctorProfile = "agents/rig-doctor/profile.yaml"
+
+// fixtureTraceID is the trace the failing-rollout fixture's captured spool
+// tail carries; both of its spans report the rollout that never came up.
+const fixtureTraceID = "7b1c0e2a4d6f8a9b0c1d2e3f40516273"
 
 // diagnosis is the document srd023 R3 requires the model to write.
 type diagnosis struct {
@@ -93,31 +99,62 @@ func toolCall(tool string, params map[string]any) string {
 // driven without a live model. It is the first scripted multi-turn loop in the
 // catalog: the executor's own conformance is live-gated.
 func scriptedProvider(t *testing.T, turns []string) (*httptest.Server, *atomic.Int32) {
+	server, calls, _ := scriptedProviderRecording(t, turns)
+	return server, calls
+}
+
+// scriptedProviderRecording also returns the prompts the loop sent, so a test
+// can prove a tool result was fed back to the model rather than only that the
+// tool ran.
+func scriptedProviderRecording(
+	t *testing.T, turns []string,
+) (*httptest.Server, *atomic.Int32, *promptLog) {
 	t.Helper()
 	var calls atomic.Int32
+	prompts := &promptLog{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/tags":
 			_, _ = w.Write([]byte(`{"models":[{"name":"qwen3.6:35b-mlx"}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/chat":
+			body, _ := io.ReadAll(r.Body)
+			prompts.add(string(body))
 			turn := int(calls.Add(1)) - 1
 			if turn >= len(turns) {
 				t.Errorf("model called %d times, script has %d turns", turn+1, len(turns))
 				turn = len(turns) - 1
 			}
-			body, _ := json.Marshal(map[string]any{
+			response, _ := json.Marshal(map[string]any{
 				"message":           map[string]string{"role": "assistant", "content": turns[turn]},
 				"eval_count":        8,
 				"prompt_eval_count": 16,
 			})
-			_, _ = w.Write(body)
+			_, _ = w.Write(response)
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	t.Cleanup(server.Close)
-	return server, &calls
+	return server, &calls, prompts
+}
+
+// promptLog records every prompt the loop sent the model.
+type promptLog struct {
+	mu      sync.Mutex
+	entries []string
+}
+
+func (p *promptLog) add(body string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.entries = append(p.entries, body)
+}
+
+func (p *promptLog) joined() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return strings.Join(p.entries, "\n")
 }
 
 // TestRigDoctorDiagnosed drives the shipped loop over the failing-rollout
@@ -149,6 +186,8 @@ func TestRigDoctorDiagnosed(t *testing.T) {
 		toolCall("read", map[string]any{"path": "manifest.yaml"}),
 		toolCall("read", map[string]any{"path": "namespace-da-helm-smoke-rollout.txt"}),
 		toolCall("read", map[string]any{"path": "namespace-da-helm-smoke-events.txt"}),
+		toolCall("query_list_traces", map[string]any{"page_size": 5}),
+		toolCall("query_get_trace", map[string]any{"trace_id": fixtureTraceID}),
 		toolCall("write", map[string]any{"path": "diagnosis.yaml", "content": written}),
 		toolCall("done", map[string]any{"summary": "diagnosis written"}),
 	})
@@ -160,8 +199,8 @@ func TestRigDoctorDiagnosed(t *testing.T) {
 	})
 	result.RequireExit(t, 0)
 	result.RequireTerminalState(t, "Diagnosed")
-	if got := calls.Load(); got != 5 {
-		t.Errorf("model turns = %d, want 5", got)
+	if got := calls.Load(); got != 7 {
+		t.Errorf("model turns = %d, want 7", got)
 	}
 
 	data, err := os.ReadFile(filepath.Join(evidence, "diagnosis.yaml"))
@@ -244,6 +283,7 @@ func TestRigDoctorReadOnlyManifest(t *testing.T) {
 	unmarshalShipped(t, filepath.Join("agents", "rig-doctor", "tools.yaml"), &selection)
 	want := map[string]bool{
 		"list_files": true, "evidence_present": true, "read": true, "find": true,
+		"query_list_traces": true, "query_get_trace": true,
 		"write": true, "invoke_llm": true, "parse_response": true,
 		"report_parse_error": true, "done": true,
 	}
@@ -282,5 +322,53 @@ func TestRigDoctorReadOnlyManifest(t *testing.T) {
 	})
 	if err != nil {
 		t.Error(err)
+	}
+}
+
+// TestRigDoctorQueriesTheCapturedSpool proves the spool words are dispatchable
+// by the model rather than only by a machine action. They are external, which
+// is what lets $tool resolve them at run time and what lets exhaustiveness
+// union TracesListed and TraceRetrieved into the loop state (GH-2291).
+func TestRigDoctorQueriesTheCapturedSpool(t *testing.T) {
+	t.Parallel()
+	evidence := stageEvidence(t, "failing-rollout")
+	provider, calls, prompts := scriptedProviderRecording(t, []string{
+		toolCall("query_list_traces", map[string]any{}),
+		toolCall("query_get_trace", map[string]any{"trace_id": fixtureTraceID}),
+		toolCall("write", map[string]any{"path": "diagnosis.yaml", "content": strings.Join([]string{
+			"probable_cause: The smoke-chatbot rollout never became available.",
+			"confidence: medium",
+			"findings:",
+			"  - claim: The captured rollout.wait span reports the deployment never became available.",
+			"    evidence:",
+			"      - path: traces/collector.ndjson",
+			"        line: 2",
+			"next_command: kubectl get deploy -n da-helm-smoke",
+			"unresolved:",
+			"  - Why the image the release asked for is absent.",
+			"",
+		}, "\n")}),
+		toolCall("done", map[string]any{"summary": "diagnosis written"}),
+	})
+
+	result := Run(t, RunConfig{
+		Profile:   rigDoctorProfile,
+		Directory: evidence,
+		Env:       []string{"OLLAMA_URL=" + provider.URL},
+	})
+	result.RequireExit(t, 0)
+	result.RequireTerminalState(t, "Diagnosed")
+	if got := calls.Load(); got != 4 {
+		t.Errorf("model turns = %d, want 4", got)
+	}
+	result.RequireToolSpans(t, "query_list_traces", "query_get_trace")
+
+	// The spool reads must come back through the conversation: a query that
+	// silently skipped every line would still produce spans and a terminal.
+	sent := prompts.joined()
+	for _, want := range []string{fixtureTraceID, "helm.install", "rollout.wait"} {
+		if !strings.Contains(sent, want) {
+			t.Errorf("the model was never shown %q from the captured spool", want)
+		}
 	}
 }
