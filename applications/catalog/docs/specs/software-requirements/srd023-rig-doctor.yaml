@@ -38,10 +38,10 @@ requirements:
   R2:
     title: Read-only diagnosis loop
     items:
-      - R2.1: The profile runs one model-driven loop whose tool manifest holds only filesystem reads (read, find, list_files), the spool trace queries, the diagnosis write, and done.
+      - R2.1: The profile runs one model-driven loop whose tool manifest holds only filesystem reads (list_files, read, find), the diagnosis write, and done; the captured spool tail is read as one of those files.
       - R2.2: The profile declares no exec word, no kubectl or helm access, and no network boundary other than the model provider.
-      - R2.3: The diagnosis write targets diagnosis.yaml inside the evidence directory and no other path.
-      - R2.4: Spool query words read traces/collector.ndjson relative to the evidence directory through a literal declared path, never an environment variable.
+      - R2.3: The profile declares one write word, whose workspace is the evidence directory, and a run writes diagnosis.yaml and nothing else.
+      - R2.4: Every path a word can reach lies inside the evidence directory the run is pointed at; no path comes from an environment variable.
   R3:
     title: Diagnosis output
     items:
@@ -51,15 +51,15 @@ requirements:
   R4:
     title: Terminal states
     items:
-      - R4.1: A run that writes a diagnosis satisfying R3 reaches Diagnosed.
-      - R4.2: A directory without a readable manifest.yaml, or with a manifest that lists no files, reaches NoEvidence with a message naming the directory, and writes no diagnosis.
-      - R4.3: Budget exhaustion, a provider failure, or a diagnosis that fails R3 validation reaches Failed; every run reaches a terminal state.
+      - R4.1: A run whose model writes the diagnosis and calls done reaches Diagnosed.
+      - R4.2: An evidence directory that is empty, or that cannot be listed, reaches NoEvidence before any model call and writes no diagnosis.
+      - R4.3: Budget exhaustion, a provider failure, or an infrastructure error reaches Failed; every run reaches a terminal state.
   R5:
     title: Portability and registration
     items:
       - R5.1: The profile closes every non-runtime reference and boots independently of any application chart or cluster.
       - R5.2: The family binds the root-cause-analyst sub-role (parent analyst) in the role-realization, taxonomy, and profile-system semantic models.
-      - R5.3: Conformance exercises the machine against a checked-in fixture evidence directory with a mock provider, so no test depends on a live model or cluster.
+      - R5.3: Conformance exercises the machine against a checked-in fixture evidence directory with a scripted provider, so no test depends on a live model or cluster, and checks the written diagnosis against the R3 schema.
 
 non_goals:
   - Remediate, restart, roll back, or otherwise change any cluster, release, or file outside diagnosis.yaml.
@@ -69,13 +69,13 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Catalog conformance boots the standalone profile and checks that its tool manifest holds only the R2.1 words and no exec, kubectl, or helm declaration.
+    criterion: Catalog boot smoke validates the standalone profile, and conformance checks that its tool manifest holds only the R2.1 words and no kubectl or helm access.
     traces: [R2.1, R2.2, R2.4, R5.1]
   - id: AC2
-    criterion: A fixture evidence directory with a failing rollout drives the mock-provider run to Diagnosed, and the written diagnosis.yaml satisfies the R3 schema with resolvable evidence cites.
+    criterion: A fixture evidence directory with a failing rollout drives the scripted-provider run to Diagnosed, and the written diagnosis.yaml satisfies the R3 schema with resolvable evidence cites.
     traces: [R1.1, R1.2, R1.3, R2.3, R3.1, R3.2, R3.3, R4.1, R5.3]
   - id: AC3
-    criterion: An empty directory reaches NoEvidence and an invalid diagnosis reaches Failed, each without writing outside the evidence directory.
+    criterion: An empty evidence directory reaches NoEvidence without calling the model and without writing a diagnosis.
     traces: [R4.2, R4.3, R2.3]
   - id: AC4
     criterion: The family inventory test finds the root-cause-analyst binding in all three semantic models.

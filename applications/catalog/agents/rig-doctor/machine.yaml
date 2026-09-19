@@ -1,0 +1,170 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: rig-doctor
+purpose: |-
+  The rig-doctor diagnoses one failed kind scenario from a captured evidence
+  directory. It gates on the evidence being there, then correlates events,
+  rollout counts, logs, and captured traces through a model loop, and writes
+  one diagnosis whose claims cite the files they came from.
+configuration:
+  machine: agents/rig-doctor/machine.yaml
+  tools: agents/rig-doctor/tools.yaml
+  llm_configs: agents/rig-doctor/llm/*.yaml
+invariants:
+- The evidence gate runs before any model call, so an empty directory costs no tokens
+- Every tool result is fed back to the LLM before the next reasoning step
+- Reads cannot leave the evidence directory and the only write is the diagnosis beside it
+- No cluster, kubectl, helm, or network boundary other than the model provider participates
+- Parse failures are reported to the LLM for self-correction
+- Infrastructure errors (CommandError) are terminal -- no recovery
+lifecycle: |-
+  1. Idle -> ListingEvidence (Seed): list_files over the evidence directory
+  2. ListingEvidence -> CheckingEvidence (ToolDone): evidence_present tests the
+     listing; a listing that cannot be produced at all is NoEvidence
+  3. CheckingEvidence -> Composing (Satisfied): invoke_llm with the diagnosis
+     prompt; an empty listing reaches NoEvidence without calling the model
+  4. Composing -> Parsing (LLMResponded): parse_response extracts a tool call
+  5. Parsing -> Composing (ToolDone): the $tool sentinel dispatches the read,
+     find, or write the model asked for
+  6. Composing -> Composing (ToolDone, ToolFailed): invoke_llm feeds the
+     tool result back
+  7. Parsing -> Composing (ParseFailed): report_parse_error to the LLM, or
+     BudgetExhausted when max_consecutive_parse_errors is reached
+  8. Parsing -> Diagnosed (TaskCompleted): the model called done after writing
+     the diagnosis
+  9. Composing -> Failed (BudgetExhausted): the loop ran out of budget
+  10. CommandError in any state -> Failed
+pipeline_diagram: |-
+  ```mermaid
+  flowchart TD
+    A[Idle] -->|Seed| B[ListingEvidence]
+    B -->|ToolDone| C[CheckingEvidence]
+    B -->|ToolFailed| N[NoEvidence]
+    C -->|Unsatisfied| N
+    C -->|Satisfied| D[Composing]
+    D -->|LLMResponded| E[Parsing]
+    E -->|ToolDone| F[Dispatch Tool]
+    F --> D
+    E -->|ParseFailed| G[Report Error]
+    G --> D
+    E -->|TaskCompleted| H[Diagnosed]
+    D -->|BudgetExhausted| I[Failed]
+  ```
+initial_state: Idle
+budget:
+  command_timeout: 10m
+  max_iterations: 40
+  max_consecutive_parse_errors: 5
+states:
+- name: Idle
+  meaning: Initial state before the evidence directory is inspected.
+- name: ListingEvidence
+  meaning: |
+    The evidence directory is being listed. The listing is the gate: a
+    diagnosis of nothing is worse than saying there is nothing to diagnose.
+- name: CheckingEvidence
+  meaning: |
+    The listing is being tested for content. An empty evidence directory
+    stops here rather than paying for a model call.
+- name: Composing
+  meaning: |
+    The LLM is being invoked or a tool result is being fed back. This is the
+    working state where the agent reads evidence and reasons about the cause.
+- name: Parsing
+  meaning: |
+    The raw LLM response is being parsed to extract a tool call. If parsing
+    fails, the error is reported back to the LLM.
+- name: Diagnosed
+  run_status: succeeded
+  meaning: Terminal. The model wrote the diagnosis and declared the work done.
+- name: NoEvidence
+  run_status: failed
+  meaning: |
+    Terminal. The evidence directory is empty or could not be listed, so
+    there is nothing to diagnose and no diagnosis is written.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. Budget exhaustion or an unrecoverable error occurred.
+terminal_states:
+- Diagnosed
+- NoEvidence
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A tool executed successfully.
+- name: ToolFailed
+  trigger: A tool executed but reported failure (recoverable).
+- name: Satisfied
+  trigger: The evidence listing found files to read.
+- name: Unsatisfied
+  trigger: The evidence listing is empty.
+- name: LLMResponded
+  trigger: The LLM returned a response (invoke_llm completed).
+- name: ParseFailed
+  trigger: The LLM response could not be parsed as a valid tool call.
+- name: TaskCompleted
+  trigger: The LLM called the done tool, declaring the diagnosis written.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+- name: BudgetExhausted
+  trigger: Iteration or parse-error budget limit reached.
+transitions:
+- state: Idle
+  signal: Seed
+  next: ListingEvidence
+  action: list_files
+  label: evidence
+- state: ListingEvidence
+  signal: ToolDone
+  next: CheckingEvidence
+  action: evidence_present
+- state: ListingEvidence
+  signal: ToolFailed
+  next: NoEvidence
+- state: ListingEvidence
+  signal: CommandError
+  next: Failed
+- state: CheckingEvidence
+  signal: Satisfied
+  next: Composing
+  action: invoke_llm
+- state: CheckingEvidence
+  signal: Unsatisfied
+  next: NoEvidence
+- state: CheckingEvidence
+  signal: CommandError
+  next: Failed
+- state: Composing
+  signal: LLMResponded
+  next: Parsing
+  action: parse_response
+- state: Parsing
+  signal: ToolDone
+  next: Composing
+  action: $tool
+- state: Parsing
+  signal: TaskCompleted
+  next: Diagnosed
+- state: Parsing
+  signal: ParseFailed
+  next: Composing
+  action: report_parse_error
+- state: Composing
+  signal: ToolDone
+  next: Composing
+  action: invoke_llm
+- state: Composing
+  signal: ToolFailed
+  next: Composing
+  action: invoke_llm
+- state: Composing
+  signal: BudgetExhausted
+  next: Failed
+- state: Composing
+  signal: CommandError
+  next: Failed
+- state: Parsing
+  signal: CommandError
+  next: Failed

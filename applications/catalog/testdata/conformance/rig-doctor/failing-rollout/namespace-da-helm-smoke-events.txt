@@ -1,0 +1,8 @@
+LAST SEEN   TYPE      REASON              OBJECT                                MESSAGE
+4m2s        Normal    Scheduled           pod/smoke-chatbot-6d4f8b9c7-nk2vq     Successfully assigned da-helm-smoke/smoke-chatbot-6d4f8b9c7-nk2vq to da-platform-control-plane
+3m58s       Normal    Pulling             pod/smoke-chatbot-6d4f8b9c7-nk2vq     Pulling image "chatbot-mesh:dev-8f21a3"
+3m55s       Warning   Failed              pod/smoke-chatbot-6d4f8b9c7-nk2vq     Failed to pull image "chatbot-mesh:dev-8f21a3": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/library/chatbot-mesh:dev-8f21a3": not found
+3m55s       Warning   Failed              pod/smoke-chatbot-6d4f8b9c7-nk2vq     Error: ErrImagePull
+2m10s       Warning   BackOff             pod/smoke-chatbot-6d4f8b9c7-nk2vq     Back-off pulling image "chatbot-mesh:dev-8f21a3"
+2m10s       Warning   Failed              pod/smoke-chatbot-6d4f8b9c7-nk2vq     Error: ImagePullBackOff
+4m1s        Normal    Started             pod/smoke-collector-7c9d5f6b8-x4lmt   Started container collector

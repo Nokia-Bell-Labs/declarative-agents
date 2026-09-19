@@ -9,7 +9,7 @@ traces: [rel17.0-uc001-rig-doctor]
 preconditions:
   - The catalog rig-doctor profile closes against agent-core shared tools.
   - conformance/testdata/rig-doctor holds a failing-rollout fixture and an empty fixture.
-  - The mock provider serves a scripted diagnosis for the failing-rollout fixture.
+  - A scripted provider serves a fixed diagnosis for the failing-rollout fixture.
 
 test_cases:
   - id: rig-doctor-closure
@@ -17,7 +17,7 @@ test_cases:
     command: mage validate
     assertions:
       - The rig-doctor profile passes agent-core strict configuration validation.
-      - The tool manifest holds only read, find, list_files, the spool trace queries, the diagnosis write, and done.
+      - The tool manifest holds only list_files, read, find, the diagnosis write, done, and the loop words.
       - No exec, kubectl, or helm declaration is reachable from the profile.
   - id: rig-doctor-diagnosed
     verifies: [S3]

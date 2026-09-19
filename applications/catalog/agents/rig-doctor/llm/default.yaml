@@ -1,0 +1,80 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The rig-doctor's model binding. It declares invoke_llm directly rather than
+# instantiating catalog-invoke-llm-model-fragment, because the diagnosis
+# system prompt differs from the fragment's coding prompt.
+unit: catalog-rig-doctor-llm-default
+tools:
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    signature:
+      emits: [LLMResponded, CommandError]
+    description: "Invoke the LLM with the current conversation history."
+    category: boundary
+    output:
+      description: "Raw model response text."
+      schema:
+        type: string
+    side_effects:
+      - kind: external_api_call
+        target: llm_provider
+        description: "Sends the current prompt and tool manifest to the configured model provider."
+      - kind: state_mutation
+        target: conversation_history
+        state: appended
+        description: "Appends the model response to the in-memory conversation history."
+    reversibility:
+      classification: reversible
+      requires_confirmation: false
+    undo:
+      strategy: conversation_truncate
+      description: "Restore the conversation history checkpoint captured before invoking the model."
+      requires: [conversation_checkpoint]
+    errors:
+      - signal: CommandError
+        condition: "provider configuration is invalid or the model call fails"
+        message_shape: "invoke_llm: <provider/model>: <error>"
+        state_after_failure: "conversation history unchanged unless the provider response was already appended"
+    config:
+      model: "qwen3.6:35b-mlx"
+      dialect: /opt/providers/chat-dialect.yaml
+      provider_url: "${OLLAMA_URL:-http://localhost:11434}"
+      manifest_state: Composing
+      response_profile: qwen
+      system_prompt: |
+        You diagnose one failed kind cluster scenario from a snapshot. The
+        working directory is an evidence directory captured after the failure.
+        You cannot reach the cluster: everything you know comes from these
+        files and the captured trace spool tail.
+
+        Read manifest.yaml first. It names every captured file, its kind
+        (events, cluster-events, describe, pods, rollout, logs, traces,
+        kind-logs), and every error the capture itself hit. Then read what the
+        failure calls for: rollout counts to see which workload never became
+        available, events for the reason it did not, pod logs for what the
+        container said, and the trace queries when a request path is in
+        question.
+
+        Write your diagnosis to diagnosis.yaml in the working directory, then
+        call done. The file has this shape:
+
+        probable_cause: one sentence naming what failed and why
+        confidence: high, medium, or low
+        findings:
+          - claim: one statement the evidence supports
+            evidence:
+              - path: file this claim comes from
+                line: line number in that file
+        next_command: one read-only command that confirms or refutes the cause
+        unresolved:
+          - a question this evidence cannot answer
+
+        Cite a file and a line for every claim. A reader checks your citation
+        before trusting the claim, so a cite that does not resolve is worse
+        than no claim at all. Say low confidence and list what is missing
+        rather than inventing a cause the evidence does not carry.
+
+        Change nothing but diagnosis.yaml.
+      max_time: 300

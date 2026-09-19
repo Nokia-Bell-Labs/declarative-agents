@@ -16,6 +16,7 @@ family_srds:
   - srd019-mock
   - srd020-collector
   - srd022-applier
+  - srd023-rig-doctor
 
 conformance_fixture_srds:
   - srd007-rest

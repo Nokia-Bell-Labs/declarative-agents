@@ -4,13 +4,19 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
+
+// rigDoctorProfileRel is the catalog family that reads a captured evidence
+// directory and writes the diagnosis beside it (srd023).
+const rigDoctorProfileRel = "agents/rig-doctor/profile.yaml"
 
 // diagnoseDemoScenario names the persistent demo cluster, whose release lives
 // in the default namespace, instead of a da-platform scenario namespace.
@@ -52,10 +58,12 @@ func diagnoseTraceSpool(root string) string {
 
 // Diagnose captures a read-only snapshot of one running scenario -- events,
 // describe output, rollout counts, pod logs, and the trace spool tail, indexed
-// by manifest.yaml -- into build/kind-evidence (eng01, srd023). Pass the
-// scenario name (helm-smoke, or demo for the persistent demo cluster). It
-// reports and never fails on what it finds: capture problems are recorded in
-// the manifest. Only an unusable argument or a missing cluster is an error.
+// by manifest.yaml -- into build/kind-evidence, then runs the catalog
+// rig-doctor over it (eng01, srd023). Pass the scenario name (helm-smoke, or
+// demo for the persistent demo cluster). It reports and never fails on what it
+// finds: capture problems are recorded in the manifest and a diagnosis that
+// does not come out leaves the evidence behind. Only an unusable argument or a
+// missing cluster is an error.
 func Diagnose(scenario string) error {
 	target, err := resolveDiagnoseTarget(scenario)
 	if err != nil {
@@ -87,5 +95,44 @@ func Diagnose(scenario string) error {
 			kindrig.EvidenceManifestFile, err)
 	}
 	fmt.Printf("diagnose: evidence for %s/%s in %s\n", target.cluster, target.namespace, dir)
+	if err := runRigDoctor(root, dir); err != nil {
+		fmt.Printf("diagnose: %v\n", err)
+		fmt.Printf("diagnose: the evidence stands on its own; read %s\n", dir)
+	}
+	return nil
+}
+
+// runRigDoctor runs the catalog rig-doctor over one evidence directory. The
+// agent exits 2 when a machine reaches a failure terminal, which for this
+// family means NoEvidence or a provider that could not be reached; both are
+// reported, neither fails the target (srd023 R4).
+func runRigDoctor(root, evidenceDir string) error {
+	coreRoot := demoCoreRoot(root)
+	if !agentCoreAvailable(coreRoot) {
+		return fmt.Errorf("skipping diagnosis: agent-core checkout not found at %s", coreRoot)
+	}
+	catalogRoot, err := resolveCatalogRoot("rig doctor", root)
+	if err != nil {
+		return fmt.Errorf("skipping diagnosis: %w", err)
+	}
+	binary, err := buildAgent(coreRoot)
+	if err != nil {
+		return err
+	}
+	profile := filepath.Join(catalogRoot, filepath.FromSlash(rigDoctorProfileRel))
+	cmd := exec.Command(binary, "--profile", profile,
+		"--directory", evidenceDir, "--core-root", coreRoot)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	runErr := cmd.Run()
+	var exitErr *exec.ExitError
+	if runErr != nil && !errors.As(runErr, &exitErr) {
+		return fmt.Errorf("run rig-doctor: %w", runErr)
+	}
+	diagnosis := filepath.Join(evidenceDir, "diagnosis.yaml")
+	if _, err := os.Stat(diagnosis); err != nil {
+		return fmt.Errorf("the rig-doctor wrote no diagnosis")
+	}
+	fmt.Printf("diagnose: diagnosis in %s\n", diagnosis)
 	return nil
 }
