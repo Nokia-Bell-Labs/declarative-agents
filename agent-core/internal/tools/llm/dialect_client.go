@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -151,6 +152,9 @@ func (c *dialectClient) send(request *http.Request) (dialect.Reply, error) {
 		return dialect.Reply{}, c.statusError(response.StatusCode, body)
 	}
 	reply, err := c.chat.ExtractReply(body)
+	if errors.Is(err, dialect.ErrNoText) {
+		return dialect.Reply{}, &providerError{kind: "response_content", message: err.Error()}
+	}
 	if err != nil {
 		return dialect.Reply{}, &providerError{kind: "response_decode", message: err.Error()}
 	}

@@ -95,3 +95,15 @@ func TestChatDialectLoadNamesThePath(t *testing.T) {
 
 	require.ErrorContains(t, err, missing)
 }
+
+func TestShippedChatDialectsLoad(t *testing.T) {
+	t.Parallel()
+	for provider, want := range map[string]string{"ollama": "none", "cohere": "bearer"} {
+		chat, err := Load(filepath.Join("..", "..", "..", "..", "tools", "providers", provider, FileName))
+
+		require.NoError(t, err, provider)
+		require.Equal(t, provider, chat.ProviderName)
+		require.Equal(t, want, chat.Auth.Type)
+		require.Equal(t, ProviderUnavailable, chat.FailureSignal(503))
+	}
+}

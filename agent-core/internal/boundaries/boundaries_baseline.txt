@@ -53,8 +53,8 @@ pkg:internal/tools/dolt files=6 loc=1357
 pkg:internal/tools/exec files=7 loc=664
 pkg:internal/tools/filesystem files=10 loc=1396
 pkg:internal/tools/lifecycle files=7 loc=1781
-pkg:internal/tools/llm files=16 loc=2074
-pkg:internal/tools/llm/dialect files=3 loc=525
+pkg:internal/tools/llm files=16 loc=2078
+pkg:internal/tools/llm/dialect files=3 loc=529
 pkg:internal/tools/otlp files=14 loc=3877
 pkg:internal/tools/pipeline files=2 loc=232
 pkg:internal/tools/registry files=3 loc=327

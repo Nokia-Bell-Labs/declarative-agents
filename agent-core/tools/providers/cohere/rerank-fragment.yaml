@@ -1,0 +1,76 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Cohere rerank (srd058 R1.3): the operation rerank on the client reranker,
+# emitting Reranked with results as {index, relevance_score} entries that
+# address the submitted documents by position.
+unit: provider-cohere-rerank
+params:
+- name: limits_ref
+  type: string
+  description: The importing agent's limits profile, whose network allowlist admits the provider.
+- name: query_selector
+  type: string
+  description: The selector the query text is read from, under body_source.
+- name: documents_selector
+  type: string
+  description: The selector the candidate documents are read from, under body_source.
+- name: body_source
+  type: string
+  enum: [command_state, previous_result]
+  default: command_state
+- name: top_n
+  type: integer
+  default: 8
+  description: How many results to keep; a deployment's composition budget.
+- name: base_url
+  type: string
+  default: https://api.cohere.com
+- name: model
+  type: string
+  default: rerank-v3.5
+rest:
+  version: v1
+  auth:
+    reranker_auth:
+      type: bearer
+      token_ref: COHERE_API_KEY
+  clients:
+    reranker:
+      base_url: $param(base_url)
+      auth_ref: reranker_auth
+      limits_ref: $param(limits_ref)
+      operations:
+        rerank:
+          method: POST
+          path: /v2/rerank
+          params:
+            body_schema:
+              type: object
+              required: [query, documents]
+              properties:
+                query: {type: string}
+                documents: {type: array}
+            body_source: $param(body_source)
+            input_mapping:
+              query: $param(query_selector)
+              documents: $param(documents_selector)
+          body:
+            model: $param(model)
+            query: "{{ params.query }}"
+            documents: "{{ params.documents }}"
+            top_n: $param(top_n)
+          success: {status: [200], signal: Reranked}
+          failures:
+          - {status: [401, 403], signal: ProviderUnauthorized}
+          - {status: [429], signal: ProviderThrottled}
+          - {status: [500, 502, 503, 504], signal: ProviderUnavailable}
+          response:
+            output:
+              results: $.results
+          side_effects:
+          - kind: external_api
+            target: cohere.rerank
+            state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop

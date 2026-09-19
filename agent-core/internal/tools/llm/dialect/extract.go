@@ -5,6 +5,7 @@ package dialect
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -74,6 +75,9 @@ func stepArray(items []interface{}, component string) []interface{} {
 	return kept
 }
 
+// ErrNoText marks a reply with no text from a dialect that requires text.
+var ErrNoText = errors.New("response contains no text")
+
 // Reply is what a dialect reads out of one response body.
 type Reply struct {
 	Text      string
@@ -116,7 +120,7 @@ func (c Chat) text(document interface{}) (string, error) {
 		}
 	}
 	if c.Response.TextRequired && text.Len() == 0 {
-		return "", fmt.Errorf("%s response contains no text at %s", c.ProviderName, c.Response.Text)
+		return "", fmt.Errorf("%s %w at %s", c.ProviderName, ErrNoText, c.Response.Text)
 	}
 	return text.String(), nil
 }

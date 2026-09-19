@@ -1,0 +1,65 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Ollama document embedding (srd058 R1.3): the operation embed_document on the
+# client document_embedder, emitting DocumentEmbedded with a flat vector under
+# embedding. Ollama embeds queries and documents alike.
+unit: provider-ollama-embed-document
+params:
+- name: limits_ref
+  type: string
+  description: The importing agent's limits profile, whose network allowlist admits the provider.
+- name: input_selector
+  type: string
+  description: The selector the text to embed is read from, under body_source.
+- name: body_source
+  type: string
+  enum: [command_state, previous_result]
+  default: command_state
+  description: Where input_selector reads.
+- name: base_url
+  type: string
+  default: http://127.0.0.1:11434
+- name: model
+  type: string
+  default: "qwen3-embedding:8b"
+rest:
+  version: v1
+  auth:
+    document_embedder_auth:
+      type: none
+  clients:
+    document_embedder:
+      base_url: $param(base_url)
+      auth_ref: document_embedder_auth
+      limits_ref: $param(limits_ref)
+      operations:
+        embed_document:
+          method: POST
+          path: /api/embeddings
+          params:
+            body_schema:
+              type: object
+              required: [input]
+              properties:
+                input: {type: string}
+            body_source: $param(body_source)
+            input_mapping:
+              input: $param(input_selector)
+          body:
+            model: $param(model)
+            prompt: "{{ params.input }}"
+          success: {status: [200], signal: DocumentEmbedded}
+          failures:
+          - {status: [401, 403], signal: ProviderUnauthorized}
+          - {status: [429], signal: ProviderThrottled}
+          - {status: [500, 502, 503, 504], signal: ProviderUnavailable}
+          response:
+            output:
+              embedding: $.embedding
+          side_effects:
+          - kind: external_api
+            target: ollama.embeddings
+            state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
