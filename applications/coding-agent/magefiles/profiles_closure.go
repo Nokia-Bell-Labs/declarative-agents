@@ -408,6 +408,11 @@ func (c *profileClosure) recordLibraries(asset closureAsset, document *yaml.Node
 				source: path.Join(path.Dir(asset.source), directory),
 				dest:   path.Join(path.Dir(asset.dest), directory),
 			}
+			// An absolute directory, such as a shipped provider library under
+			// /opt/agent-core, is supplied by the runtime image (srd058 R1.2).
+			if path.IsAbs(directory) {
+				declared = closureAsset{source: directory, dest: directory}
+			}
 			if previous, exists := c.libraries[name]; exists && previous != declared {
 				return fmt.Errorf("%s declares library root %q at %s, already declared at %s",
 					asset.source, name, declared.source, previous.source)
@@ -426,6 +431,9 @@ func (c *profileClosure) enqueueLibraryFile(asset closureAsset, ref, name, rest 
 	if !declared {
 		return fmt.Errorf("%s references %s: library root %q is not declared by the profile",
 			asset.source, ref, name)
+	}
+	if path.IsAbs(library.source) {
+		return nil
 	}
 	if err := c.enqueue(path.Join(library.source, rest), path.Join(library.dest, rest)); err != nil {
 		return fmt.Errorf("%s references %s: %w", asset.source, ref, err)
@@ -459,6 +467,8 @@ func runtimeYAMLReferences(document *yaml.Node) ([]string, error) {
 	nestedKeys := map[string]bool{
 		"profile": true, "point_machine": true, "point_tools": true,
 		"point_tool_declarations": true, "imports": true,
+		// invoke_llm's chat dialect is a file the tool reads (srd058 R2.3).
+		"dialect": true,
 	}
 	var visit func(*yaml.Node, int, []string) error
 	visit = func(node *yaml.Node, depth int, ancestors []string) error {

@@ -28,19 +28,19 @@ trigger: |
 
 preconditions:
   - A Chroma server is running against a persistence directory (chroma run --path <dir>), started by the harness or operator, not the agent.
-  - The configured chat provider is reachable; the canonical profile uses Ollama and checks it through ollama_ready.
+  - The chat and embedding provider is reachable; the canonical profile binds the Ollama library (srd058).
   - The configured embedding provider is reachable and serves the selected model family; the canonical default is Ollama.
   - agents/knowledge-manager/corpus-ingest profile validates and owns the Chroma and default Ollama REST definitions and the corpus selection.
 
 flow:
   - id: F1
-    text: The ingest machine runs chroma_ready and ollama_ready, failing fast when either server is unreachable.
+    text: The ingest machine runs chroma_ready, failing fast when Chroma is unreachable; a provider failure surfaces on the first embed.
   - id: F2
     text: For each corpus document the machine reads the file content and identity.
   - id: F3
     text: embed_document calls the configured REST client and globally unique document-embedding operation, maps the returned flat vector or one-row matrix into its Result output, and carries the document text and id forward.
   - id: F4
-    text: normalize_embedding preserves a non-empty flat numeric vector or unwraps exactly one non-empty numeric row while retaining the carried document and id. Invalid shapes fail before the create-or-get collection word, which then create-or-gets a plain collection with no server-side embedding function, resolves its id, and carries the normalized embedding, document, and id forward so single-hop threading reaches the add body.
+    text: normalize_document_embedding preserves a non-empty flat numeric vector or unwraps exactly one non-empty numeric row while retaining the carried document and id. Invalid shapes fail before the create-or-get collection word, which then create-or-gets a plain collection with no server-side embedding function, resolves its id, and carries the normalized embedding, document, and id forward so single-hop threading reaches the add body.
   - id: F5
     text: chroma_add threads the resolved collection id, the vector, and the carried document and id into the add request body via body_source previous_result and input_mapping, placing the vector in a single-token array element so it renders as the nested array Chroma expects.
   - id: F6
@@ -52,7 +52,7 @@ touchpoints:
     reason: The ingest profile is a configured Chroma retrieval boundary machine, not a Go package.
   - id: T2
     target: srd012-chroma-corpus-agents AC2
-    reason: chroma_ready, ollama_ready, chroma_collection, configurable embed_document, chroma_add, and chroma_count are the named REST vocabulary with create-or-get identity resolution.
+    reason: chroma_ready, chroma_collection, library-bound embed_document, chroma_add, and chroma_count are the named REST vocabulary with create-or-get identity resolution.
   - id: T3
     target: srd012-chroma-corpus-agents AC3
     reason: The embed-to-add vector step uses srd028 R12 body_source previous_result, input_mapping, carry_forward, and single-token reshape, with no model-authored vector.

@@ -59,11 +59,25 @@ schema:
 
         - field: provider
           type: string
-          required: true
+          required: false
           description: |
-            LLM provider backend. Supported values are ollama and cohere.
-            Determines which client implementation makes the inference call.
-            Omission remains an Ollama compatibility path.
+            Legacy provider name, ollama or cohere. It resolves to the shipped
+            library's chat dialect under the agent-core install root,
+            tools/providers/<provider>/chat-dialect.yaml, and omission with no
+            dialect resolves to Ollama's. Superseded by dialect (srd058 R3.2);
+            naming both is an error.
+
+        - field: dialect
+          type: string
+          required: false
+          description: |
+            Path of the chat dialect the call reads its request body, reply
+            selectors, failure map, auth profile, and parser profiles from
+            (srd058 R2). It resolves like an import: relative to the
+            declaring file, or under a library root, normally
+            /opt/providers/chat-dialect.yaml with the providers root the
+            profile declares. The loader makes the file a closure file.
+            provider_url is required with a dialect.
 
         - field: provider_url
           type: string
@@ -140,7 +154,7 @@ schema:
           description: |
             Context window size passed only to the Ollama provider.
             Controls how many tokens the model can consider.
-            The Cohere adapter omits this field from its request.
+            The Cohere dialect does not reference this field, so its request omits it.
 
         - field: temperature
           type: float
@@ -289,7 +303,8 @@ related_documents:
   - cfg-tool-declaration-format
   - srd017
   - srd048-cohere-adapter
+  - srd058-provider-libraries
 
 implementation:
-  - internal/model/llm/ollama
-  - internal/model/llm/cohere
+  - internal/tools/llm
+  - internal/tools/llm/dialect

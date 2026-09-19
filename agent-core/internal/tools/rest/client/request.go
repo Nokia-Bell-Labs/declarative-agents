@@ -319,6 +319,14 @@ func applyIdempotency(req *http.Request, operation Operation, params map[string]
 	}
 }
 
+// ApplyAuth sets the credential an auth profile names on req, resolving it
+// through resolver at the moment of the call. invoke_llm authenticates a chat
+// dialect's request with it, so a provider call and a REST operation share one
+// credential path (srd058 R3.5).
+func ApplyAuth(req *http.Request, auth AuthProfile, resolver CredentialResolver) error {
+	return applyAuth(req, auth, resolver)
+}
+
 func applyAuth(req *http.Request, auth AuthProfile, resolver CredentialResolver) error {
 	switch auth.Type {
 	case "", authNone:

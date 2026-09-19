@@ -39,7 +39,7 @@ tools:
         state_after_failure: "conversation history unchanged unless the provider response was already appended"
     config:
       model: "qwen3.6:35b-mlx"
-      provider: ollama
+      dialect: /opt/providers/chat-dialect.yaml
       provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       manifest_state: Composing
       response_profile: qwen

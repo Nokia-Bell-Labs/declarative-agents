@@ -1,113 +1,323 @@
 {
-  "commit": "e781bc6c",
+  "commit": "gh-2225 (srd058 corpus adoption, parent c8376118)",
   "roots": "per module: agents, tools, testdata (reusestats.Reuse); testdata fixtures count as importers",
   "rule": "a unit earns its place with two or more importers or one instantiation (GH-2079)",
   "agent-core": {
-    "imported_units": 94,
-    "shared_units": 9,
-    "single_importer_units": 85,
-    "instantiations": 0
+    "imported_units": 109,
+    "shared_units": 14,
+    "single_importer_units": 95,
+    "instantiations": 10
   },
   "applications/agent-architecture": {
-    "imported_units": 0,
+    "imported_units": 2,
     "shared_units": 0,
-    "single_importer_units": 0,
-    "instantiations": 0
+    "single_importer_units": 2,
+    "instantiations": 1
   },
   "applications/catalog": {
-    "imported_units": 6,
-    "shared_units": 3,
-    "single_importer_units": 3,
-    "instantiations": 0
+    "imported_units": 27,
+    "shared_units": 14,
+    "single_importer_units": 13,
+    "instantiations": 41
   },
   "applications/chatbot-mesh": {
-    "imported_units": 2,
-    "shared_units": 1,
-    "single_importer_units": 1,
-    "instantiations": 0
+    "imported_units": 12,
+    "shared_units": 10,
+    "single_importer_units": 2,
+    "instantiations": 16
   },
   "applications/coding-agent": {
-    "imported_units": 0,
+    "imported_units": 2,
     "shared_units": 0,
-    "single_importer_units": 0,
-    "instantiations": 0
+    "single_importer_units": 2,
+    "instantiations": 1
   },
   "reuse_total": {
-    "imported_units": 102,
-    "shared_units": 13,
-    "single_importer_units": 89,
-    "instantiations": 0
+    "imported_units": 152,
+    "shared_units": 38,
+    "single_importer_units": 114,
+    "instantiations": 69
   },
   "maintainability": {
-    "commit": "6c60362f",
-    "note": "stats:reuse maintainability block on the landing tree; declarations are unchanged from this upstream commit (GH-2111)",
+    "commit": "gh-2225 (srd058 corpus adoption, parent c8376118)",
+    "note": "stats:reuse maintainability block after the srd058 provider-library adoption (GH-2243)",
     "agent-core": {
-      "files": 179,
-      "median_lines": 34,
+      "files": 198,
+      "median_lines": 33,
       "p90_lines": 78,
-      "max_lines": 952,
+      "max_lines": 713,
       "files_over_300": 2,
-      "files_over_500": 2,
+      "files_over_500": 1,
+      "longest_files": [
+        {
+          "path": "tools/builtin/otlp/all.yaml",
+          "lines": 713
+        },
+        {
+          "path": "tools/builtin/rest/all.yaml",
+          "lines": 478
+        },
+        {
+          "path": "tools/builtin/dolt/all.yaml",
+          "lines": 224
+        },
+        {
+          "path": "tools/units/serve-lifecycle-declarations-fragment.yaml",
+          "lines": 179
+        },
+        {
+          "path": "tools/builtin/list-files.yaml",
+          "lines": 139
+        },
+        {
+          "path": "tools/units/types-collections.yaml",
+          "lines": 113
+        },
+        {
+          "path": "tools/builtin/filesystem/all.yaml",
+          "lines": 112
+        },
+        {
+          "path": "tools/builtin/extract-all.yaml",
+          "lines": 106
+        },
+        {
+          "path": "tools/machines/ollama-model-listing-machine-template.yaml",
+          "lines": 102
+        },
+        {
+          "path": "tools/builtin/checkpoint-rollback.yaml",
+          "lines": 100
+        }
+      ],
       "agents": 13,
       "median_files_per_agent": 5,
       "max_files_per_agent": 8,
       "median_import_fan_out": 1,
       "max_import_fan_out": 15,
       "median_unit_fan_in": 1,
-      "max_unit_fan_in": 34
+      "max_unit_fan_in": 38
     },
     "applications/agent-architecture": {
-      "files": 9,
+      "files": 10,
       "median_lines": 13,
-      "p90_lines": 352,
-      "max_lines": 352,
-      "files_over_300": 1,
+      "p90_lines": 167,
+      "max_lines": 242,
+      "files_over_300": 0,
       "files_over_500": 0,
+      "longest_files": [
+        {
+          "path": "agents/applier/exec-declarations.yaml",
+          "lines": 242
+        },
+        {
+          "path": "agents/applier/rest.yaml",
+          "lines": 167
+        },
+        {
+          "path": "agents/application.yaml",
+          "lines": 117
+        },
+        {
+          "path": "agents/applier/monitor-rest.yaml",
+          "lines": 26
+        },
+        {
+          "path": "testdata/integration/applier-values/rollback-trigger.yaml",
+          "lines": 20
+        },
+        {
+          "path": "testdata/integration/applier-values/conforming.yaml",
+          "lines": 13
+        },
+        {
+          "path": "agents/applier/profile.yaml",
+          "lines": 12
+        },
+        {
+          "path": "agents/applier/apply-profile.yaml",
+          "lines": 11
+        },
+        {
+          "path": "agents/applier/rollout-profile.yaml",
+          "lines": 10
+        },
+        {
+          "path": "testdata/integration/applier-values/non-conforming.yaml",
+          "lines": 8
+        }
+      ],
       "agents": 1,
-      "median_files_per_agent": 5,
-      "max_files_per_agent": 5,
+      "median_files_per_agent": 6,
+      "max_files_per_agent": 6,
       "median_import_fan_out": 1,
       "max_import_fan_out": 1,
       "median_unit_fan_in": 1,
       "max_unit_fan_in": 1
     },
     "applications/catalog": {
-      "files": 219,
-      "median_lines": 26,
-      "p90_lines": 225,
-      "max_lines": 805,
-      "files_over_300": 15,
-      "files_over_500": 3,
+      "files": 232,
+      "median_lines": 18,
+      "p90_lines": 194,
+      "max_lines": 568,
+      "files_over_300": 12,
+      "files_over_500": 2,
+      "longest_files": [
+        {
+          "path": "agents/knowledge-manager/documentation-curator/request-declarations.yaml",
+          "lines": 568
+        },
+        {
+          "path": "agents/scenario-critic/declarations.yaml",
+          "lines": 565
+        },
+        {
+          "path": "agents/observer/declarations.yaml",
+          "lines": 493
+        },
+        {
+          "path": "agents/knowledge-manager/documentation-curator/rest.yaml",
+          "lines": 488
+        },
+        {
+          "path": "agents/planner/machine.yaml",
+          "lines": 477
+        },
+        {
+          "path": "agents/critic/point.yaml",
+          "lines": 397
+        },
+        {
+          "path": "agents/knowledge-manager/corpus-ingest/declarations.yaml",
+          "lines": 385
+        },
+        {
+          "path": "agents/knowledge-manager/documentation-curator/declarations.yaml",
+          "lines": 328
+        },
+        {
+          "path": "agents/scenario-critic/machine.yaml",
+          "lines": 327
+        },
+        {
+          "path": "agents/planner/machine-passthrough.yaml",
+          "lines": 323
+        }
+      ],
       "agents": 26,
       "median_files_per_agent": 5,
-      "max_files_per_agent": 22,
+      "max_files_per_agent": 21,
       "median_import_fan_out": 1,
       "max_import_fan_out": 4,
       "median_unit_fan_in": 2,
-      "max_unit_fan_in": 5
+      "max_unit_fan_in": 20
     },
     "applications/chatbot-mesh": {
-      "files": 97,
-      "median_lines": 23,
-      "p90_lines": 276,
-      "max_lines": 767,
-      "files_over_300": 8,
-      "files_over_500": 6,
+      "files": 98,
+      "median_lines": 22,
+      "p90_lines": 224,
+      "max_lines": 651,
+      "files_over_300": 6,
+      "files_over_500": 3,
+      "longest_files": [
+        {
+          "path": "agents/creator/rest.yaml",
+          "lines": 651
+        },
+        {
+          "path": "agents/provisioning-workflow-orchestrator/rest.yaml",
+          "lines": 602
+        },
+        {
+          "path": "testdata/rig/declarations.yaml",
+          "lines": 563
+        },
+        {
+          "path": "agents/creator/request-declarations.yaml",
+          "lines": 427
+        },
+        {
+          "path": "agents/chatbot/request-declarations.yaml",
+          "lines": 424
+        },
+        {
+          "path": "agents/observer/rest.yaml",
+          "lines": 314
+        },
+        {
+          "path": "agents/applier/exec-declarations.yaml",
+          "lines": 266
+        },
+        {
+          "path": "agents/chatbot/request-fanout-declarations.yaml",
+          "lines": 243
+        },
+        {
+          "path": "agents/applier/rest.yaml",
+          "lines": 240
+        },
+        {
+          "path": "agents/chatbot/rest.yaml",
+          "lines": 224
+        }
+      ],
       "agents": 11,
       "median_files_per_agent": 9,
-      "max_files_per_agent": 12,
+      "max_files_per_agent": 13,
       "median_import_fan_out": 1,
       "max_import_fan_out": 3,
       "median_unit_fan_in": 2,
       "max_unit_fan_in": 5
     },
     "applications/coding-agent": {
-      "files": 27,
+      "files": 28,
       "median_lines": 21,
-      "p90_lines": 178,
-      "max_lines": 341,
-      "files_over_300": 1,
+      "p90_lines": 165,
+      "max_lines": 231,
+      "files_over_300": 0,
       "files_over_500": 0,
+      "longest_files": [
+        {
+          "path": "agents/applier/exec-declarations.yaml",
+          "lines": 231
+        },
+        {
+          "path": "agents/planner/rest.yaml",
+          "lines": 178
+        },
+        {
+          "path": "agents/applier/rest.yaml",
+          "lines": 165
+        },
+        {
+          "path": "agents/application.yaml",
+          "lines": 115
+        },
+        {
+          "path": "agents/critic/rest.yaml",
+          "lines": 83
+        },
+        {
+          "path": "agents/executor/rest.yaml",
+          "lines": 82
+        },
+        {
+          "path": "agents/role-server/declarations.yaml",
+          "lines": 59
+        },
+        {
+          "path": "agents/planner/request-machine.yaml",
+          "lines": 41
+        },
+        {
+          "path": "agents/planner/request-declarations.yaml",
+          "lines": 40
+        },
+        {
+          "path": "agents/role-server/machine.yaml",
+          "lines": 40
+        }
+      ],
       "agents": 4,
       "median_files_per_agent": 2,
       "max_files_per_agent": 6,
@@ -117,19 +327,61 @@
       "max_unit_fan_in": 1
     },
     "reuse_total": {
-      "files": 531,
-      "median_lines": 30,
-      "p90_lines": 179,
-      "max_lines": 952,
-      "files_over_300": 27,
-      "files_over_500": 11,
+      "files": 566,
+      "median_lines": 24,
+      "p90_lines": 139,
+      "max_lines": 713,
+      "files_over_300": 20,
+      "files_over_500": 6,
+      "longest_files": [
+        {
+          "path": "agent-core/tools/builtin/otlp/all.yaml",
+          "lines": 713
+        },
+        {
+          "path": "applications/chatbot-mesh/agents/creator/rest.yaml",
+          "lines": 651
+        },
+        {
+          "path": "applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/rest.yaml",
+          "lines": 602
+        },
+        {
+          "path": "applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml",
+          "lines": 568
+        },
+        {
+          "path": "applications/catalog/agents/scenario-critic/declarations.yaml",
+          "lines": 565
+        },
+        {
+          "path": "applications/chatbot-mesh/testdata/rig/declarations.yaml",
+          "lines": 563
+        },
+        {
+          "path": "applications/catalog/agents/observer/declarations.yaml",
+          "lines": 493
+        },
+        {
+          "path": "applications/catalog/agents/knowledge-manager/documentation-curator/rest.yaml",
+          "lines": 488
+        },
+        {
+          "path": "agent-core/tools/builtin/rest/all.yaml",
+          "lines": 478
+        },
+        {
+          "path": "applications/catalog/agents/planner/machine.yaml",
+          "lines": 477
+        }
+      ],
       "agents": 55,
       "median_files_per_agent": 5,
-      "max_files_per_agent": 22,
+      "max_files_per_agent": 21,
       "median_import_fan_out": 1,
       "max_import_fan_out": 15,
       "median_unit_fan_in": 1,
-      "max_unit_fan_in": 34
+      "max_unit_fan_in": 38
     }
   }
 }

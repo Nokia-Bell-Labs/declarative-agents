@@ -15,3 +15,6 @@ tool_declarations:
   - /opt/agent-core/tools/exec/build.yaml
   - /opt/agent-core/tools/exec/vet.yaml
   - /opt/agent-core/tools/exec/test.yaml
+# The provider library invoke_llm reads its chat dialect from (srd058 R1.1).
+libraries:
+  providers: /opt/agent-core/tools/providers/ollama

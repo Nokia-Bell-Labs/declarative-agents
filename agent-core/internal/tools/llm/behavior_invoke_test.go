@@ -92,9 +92,7 @@ func TestInvokeLLM_AliasReceiptRestoresConversationFromFreshRegistry(t *testing.
 	builder := invokeBuilder(
 		def,
 		catalog.LLMToolConfig{Model: "test-model"},
-		nil,
-		client,
-		"",
+		resolvedProvider{client: client},
 		InvokeLLMFactoryDeps{
 			History:                 history,
 			Registry:                core.NewRegistry(),
@@ -129,9 +127,7 @@ func TestInvokeLLM_AliasReceiptRestoresConversationFromFreshRegistry(t *testing.
 	freshBuilder := invokeBuilder(
 		def,
 		catalog.LLMToolConfig{},
-		nil,
-		nil,
-		"",
+		resolvedProvider{},
 		InvokeLLMFactoryDeps{
 			History: freshHistory,
 			ConversationRefResolver: fakeConversationReferenceResolver{conversations: map[string][]modelllm.Message{

@@ -344,7 +344,7 @@ releases:
       - The ingest and reader profiles are pure applications/catalog configuration over existing agent-core words.
       - Every Chroma add and query carries an agent-supplied embedding vector threaded from the Ollama embed word, never a model-authored or server-side vector.
       - The reader answer is grounded in chunks retrieved through embed_query -> chroma_query -> invoke_llm.
-      - The Chroma and Ollama servers are external preconditions surfaced through chroma_ready and ollama_ready, not started by the agent.
+      - The Chroma server is an external precondition surfaced through chroma_ready, and the embedding provider is the library the profile binds (srd058); neither is started by the agent.
 
   # Renumber decision (GH-332): the original single "09.0 Chatbot mesh" release
   # carried three use cases across five epics (#292-#296), and the observability

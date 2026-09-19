@@ -118,10 +118,11 @@ configuration:
     declarations; applications/chatbot-mesh/magefiles/integration_chroma.go mirrors
     that expansion in its preflight; applications/catalog/conformance/ollama.go
     mirrors ${OLLAMA_URL:-...} so a live gate probes the endpoint the profile
-    resolves rather than one a flag chose. The srd048 provider credential:
-    internal/model/llm/cohere resolves COHERE_API_KEY only when Chat executes,
-    behind an injectable lookup, because the credential must never enter
-    ToolDef configuration. A third-party convention:
+    resolves rather than one a flag chose. The srd048 provider credential,
+    now the token_ref of an srd058 chat dialect, which internal/tools/rest/credentials
+    resolves only when the call executes, behind
+    an injectable resolver, because the credential must never enter ToolDef
+    configuration. A third-party convention:
     applications/chatbot-mesh/magefiles/integration_helm.go reads SSL_CERT_FILE, the
     OS and Go name for the host CA bundle. Values a parent sets on a child it owns:
     magefiles/uidist.go reads the release-gate variable magefiles/tag.go sets on the

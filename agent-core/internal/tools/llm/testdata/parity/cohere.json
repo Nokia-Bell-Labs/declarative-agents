@@ -1,0 +1,110 @@
+{
+  "model": "command-a-03-2025",
+  "provider": "cohere",
+  "turns": [
+    {
+      "request": {
+        "Path": "/v2/chat",
+        "Authorization": "Bearer parity-key",
+        "Body": {
+          "messages": [
+            {
+              "content": "You answer briefly.",
+              "role": "system"
+            },
+            {
+              "content": "first question",
+              "role": "user"
+            }
+          ],
+          "model": "command-a-03-2025",
+          "seed": 42,
+          "stream": false,
+          "temperature": 0
+        }
+      },
+      "signal": "LLMResponded",
+      "output": "one",
+      "tokens_in": 21,
+      "tokens_out": 3,
+      "reply": "{\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"one\"}]},\"usage\":{\"tokens\":{\"input_tokens\":21,\"output_tokens\":3}}}"
+    },
+    {
+      "request": {
+        "Path": "/v2/chat",
+        "Authorization": "Bearer parity-key",
+        "Body": {
+          "messages": [
+            {
+              "content": "You answer briefly.",
+              "role": "system"
+            },
+            {
+              "content": "first question",
+              "role": "user"
+            },
+            {
+              "content": "one",
+              "role": "assistant"
+            },
+            {
+              "content": "second question",
+              "role": "user"
+            }
+          ],
+          "model": "command-a-03-2025",
+          "seed": 42,
+          "stream": false,
+          "temperature": 0
+        }
+      },
+      "signal": "LLMResponded",
+      "output": "two",
+      "tokens_in": 34,
+      "tokens_out": 4,
+      "reply": "{\"message\":{\"content\":[{\"type\":\"thinking\",\"thinking\":\"hm\"},{\"type\":\"text\",\"text\":\"tw\"},{\"type\":\"text\",\"text\":\"o\"}]},\"usage\":{\"tokens\":{\"input_tokens\":34,\"output_tokens\":4}}}"
+    },
+    {
+      "request": {
+        "Path": "/v2/chat",
+        "Authorization": "Bearer parity-key",
+        "Body": {
+          "messages": [
+            {
+              "content": "You answer briefly.",
+              "role": "system"
+            },
+            {
+              "content": "first question",
+              "role": "user"
+            },
+            {
+              "content": "one",
+              "role": "assistant"
+            },
+            {
+              "content": "second question",
+              "role": "user"
+            },
+            {
+              "content": "two",
+              "role": "assistant"
+            },
+            {
+              "content": "third question",
+              "role": "user"
+            }
+          ],
+          "model": "command-a-03-2025",
+          "seed": 42,
+          "stream": false,
+          "temperature": 0
+        }
+      },
+      "signal": "CommandError",
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "reply": "{\"message\":{\"content\":[]},\"usage\":{\"tokens\":{\"input_tokens\":40,\"output_tokens\":0}}}"
+    }
+  ]
+}

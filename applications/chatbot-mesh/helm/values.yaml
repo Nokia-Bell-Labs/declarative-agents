@@ -310,7 +310,9 @@ controlPlane:
     # ingest unit's own declared embeddingModel. srd002 R3.3 excludes any source
     # whose reported identity differs from the query vector's, so an ingest
     # embedding at another identity adds a source no turn can retrieve.
-    ingestEmbedding: {restRef: "", operation: "", model: ""}
+    # The provider is the library the ingest profile binds to the providers
+    # root (srd058), not a chart value.
+    ingestEmbedding: {model: ""}
     # Where the ingest child reaches an Ollama. A mesh running the in-cluster LLM
     # tier serves one; without it there is none, and the default leaves the child
     # on the loopback address a developer host answers.

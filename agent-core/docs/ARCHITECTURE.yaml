@@ -228,12 +228,13 @@ overview:
           may_depend_on:
             - internal/runtime/core
             - internal/model/llm
-            - internal/model/llm/ollama
-            - internal/model/llm/cohere
             - internal/model/prompt
             - internal/observability/tracing
             - internal/observability/telemetry/genai
             - internal/tools/catalog
+            - internal/tools/llm/dialect
+            - internal/tools/rest/client
+            - internal/tools/rest/credentials
             - internal/tools/undo
           must_not_depend_on:
             - cmd/agent
@@ -1538,10 +1539,8 @@ project_structure:
       role: Embedded monitor store, recorder ports, metric schema registry, and OpenTelemetry metric export for normalized samples
     - path: internal/model/llm/
       role: Model-boundary client, conversation, profiles, parse utilities, domain interfaces
-    - path: internal/model/llm/ollama/
-      role: Ollama client implementation used by model boundary tools
-    - path: internal/model/llm/cohere/
-      role: Cohere v2 Chat client implementation used by model boundary tools
+    - path: internal/tools/llm/dialect/
+      role: Chat dialect loader, body renderer, reply selectors, and failure map a provider library declares (srd058)
     - path: internal/model/prompt/
       role: Prompt struct, YAML loading, system prompt template, and manifest serialization
     - path: internal/tools/catalog/
@@ -1648,8 +1647,7 @@ implementation_status:
     - done: Telemetry (internal/observability/telemetry) — OTel providers, exporters, adapter, traceparent, replay
     - done: GenAI semconv (internal/observability/telemetry/genai) — constants, span builders, attribute helpers
     - done: Model boundary support (internal/model/llm) — Client, Conversation, profiles, parseutil, interfaces
-    - done: Ollama client implementation (internal/model/llm/ollama) — Chat, model validation, tracing
-    - done: Cohere client implementation (internal/model/llm/cohere) — v2 Chat, lazy bearer credentials, content-block normalization, and tracing
+    - done: Provider chat through shipped libraries (tools/providers/ollama, tools/providers/cohere) read by the dialect client (internal/tools/llm/dialect); the compiled Ollama and Cohere adapters retired at parity (srd058 R5.2)
     - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
     - done: Standard tool library behavior — file, build, model boundary, lifecycle adapters, config loading
     - done: Standard tool library package split — internal/tools/catalog, registry, exec, filesystem, llm, rest, service, otlp, lifecycle, control, compose, validation, and undo

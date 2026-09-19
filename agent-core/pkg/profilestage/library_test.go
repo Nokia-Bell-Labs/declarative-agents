@@ -106,3 +106,52 @@ func TestStageReportsAnUndeclaredLibraryRoot(t *testing.T) {
 
 	require.ErrorContains(t, err, `library root "nowhere" is declared by no staged profile`)
 }
+
+// TestStageFollowsAChatDialectThroughTheProvidersRoot is srd058 R1.2 and
+// R2.3: a tool's config.dialect is an edge like an import, so a library the
+// profile declares relative to itself travels with the staged tree.
+func TestStageFollowsAChatDialectThroughTheProvidersRoot(t *testing.T) {
+	t.Parallel()
+	source := t.TempDir()
+	writeDeclaration(t, source, "agents/one/profile.yaml",
+		"name: one\nmachine: machine.yaml\ntools: [tools.yaml]\ntool_declarations: [declarations.yaml]\nlibraries: {providers: ../../providers/ollama}\n")
+	writeDeclaration(t, source, "agents/one/declarations.yaml",
+		"tools:\n- name: ask\n  type: builtin\n  init: invoke_llm\n  config: {dialect: /opt/providers/chat-dialect.yaml}\n")
+	writeDeclaration(t, source, "providers/ollama/chat-dialect.yaml", "unit: ollama-chat-dialect\n")
+	destination := t.TempDir()
+
+	require.NoError(t, profilestage.Stage(destination, profilestage.Tree{
+		Source:      filepath.Join(source, "agents", "one"),
+		Destination: filepath.Join(destination, "agents", "one"),
+	}))
+
+	require.FileExists(t, filepath.Join(destination, "providers", "ollama", "chat-dialect.yaml"))
+	imported, err := profilestage.Imported(filepath.Join(source, "agents", "one"))
+	require.NoError(t, err)
+	require.Equal(t, []string{filepath.Join(source, "providers", "ollama", "chat-dialect.yaml")}, imported)
+}
+
+// TestStageLeavesAnAbsoluteProvidersRootToTheImage is srd058 R1.2: a profile
+// that declares the providers root at a shipped library under /opt/agent-core
+// reaches files the runtime image installs, so staging copies none of them.
+func TestStageLeavesAnAbsoluteProvidersRootToTheImage(t *testing.T) {
+	t.Parallel()
+	source := t.TempDir()
+	writeDeclaration(t, source, "agents/one/profile.yaml",
+		"name: one\nmachine: machine.yaml\ntools: [tools.yaml]\ntool_declarations: [declarations.yaml]\n"+
+			"libraries: {providers: /opt/agent-core/tools/providers/ollama}\n")
+	writeDeclaration(t, source, "agents/one/declarations.yaml",
+		"tools:\n- name: ask\n  type: builtin\n  init: invoke_llm\n  config: {dialect: /opt/providers/chat-dialect.yaml}\n")
+	destination := t.TempDir()
+
+	require.NoError(t, profilestage.Stage(destination, profilestage.Tree{
+		Source:      filepath.Join(source, "agents", "one"),
+		Destination: filepath.Join(destination, "agents", "one"),
+	}))
+
+	_, err := os.Stat(filepath.Join(destination, "opt"))
+	require.True(t, os.IsNotExist(err), "nothing of the shipped library is written into the staged tree")
+	imported, err := profilestage.Imported(filepath.Join(source, "agents", "one"))
+	require.NoError(t, err)
+	require.Empty(t, imported)
+}

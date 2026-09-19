@@ -60,6 +60,10 @@ overview: |
   srd056 for unit libraries: imports under the agent-core install root or a
   root the profile declares, read-only libraries, and rooted staging, which
   amends srd050 R1.2 and srd051 R1.5.
+  Release 22.0 covers srd058 for provider libraries: a providers library
+  root bound per run, a chat dialect that makes invoke_llm a template method,
+  embed and rerank stage fragments, and Ollama and Cohere as the first
+  conforming libraries replacing the compiled adapters.
   Release 99.0 covers srd037 dispatch planning and srd043
   application/catalog source-layout migration.
 
@@ -188,6 +192,11 @@ roadmap_summary:
     use_cases_done: 0
     use_cases_total: 1
     status: in_progress
+  - version: "22.0"
+    name: Provider libraries
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
   - version: "99.0"
     name: Architectural migrations and cleanup
     use_cases_done: 2
@@ -239,7 +248,7 @@ srd_index:
     path: docs/specs/software-requirements/srd008-telemetry.yaml
   - id: srd009-ollama-adapter
     title: Ollama LLM Adapter
-    summary: Production-ready Ollama adapter in internal/model/llm/ollama satisfying llm.Client. Model validation, tracing.
+    summary: Ollama chat behind llm.Client with model validation and tracing; the compiled adapter was retired by srd058 R5.2 and Ollama now ships as the tools/providers/ollama library.
     path: docs/specs/software-requirements/srd009-ollama-adapter.yaml
   - id: srd010-conversation
     title: Conversation Management
@@ -451,6 +460,11 @@ srd_index:
     summary: A profile that does one job, terminates, and declares no serve lifecycle, control or monitor server, or static assets; the child-process, service-endpoint, and workload forms that consume it unchanged, the evaluation-scoped in-process boundary it may not assume, and the binding discipline that makes shared behaviour a named profile with findings for the machines more than one profile reaches.
     status: specified
     path: docs/specs/software-requirements/srd057-capability-profiles.yaml
+  - id: srd058-provider-libraries
+    title: Provider Libraries and Template-Method Words
+    summary: A provider as a directory of YAML reached through a declared providers root and rebound with --library; a chat dialect that invoke_llm reads as a template method in place of compiled adapters; embed and rerank stage fragments over library REST fragments under a shared signal vocabulary; Ollama and Cohere as the first libraries, and a synthetic third provider that needs no Go.
+    status: implemented
+    path: docs/specs/software-requirements/srd058-provider-libraries.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -759,6 +773,12 @@ use_case_index:
     status: specified
     test_suite: test-rel21.0-capability-profiles
     path: docs/specs/use-cases/rel21.0-uc001-capability-profiles.yaml
+  - id: rel22.0-uc001-provider-libraries
+    title: A deployment changes and adds a model provider without editing an agent
+    release: "22.0"
+    status: implemented
+    test_suite: test-rel22.0-provider-libraries
+    path: docs/specs/use-cases/rel22.0-uc001-provider-libraries.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -967,6 +987,14 @@ test_suite_index:
     formal_test_cases: 5
     status: specified
     path: docs/specs/test-suites/test-rel21.0-capability-profiles.yaml
+  - id: test-rel22.0-provider-libraries
+    title: Test Suite for Release 22.0 Provider Libraries
+    release: "22.0"
+    traces:
+      - rel22.0-uc001-provider-libraries
+    formal_test_cases: 10
+    status: implemented
+    path: docs/specs/test-suites/test-rel22.0-provider-libraries.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"

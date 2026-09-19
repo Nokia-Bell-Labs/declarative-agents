@@ -13,6 +13,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/control"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
 )
 
 const (
@@ -31,6 +32,9 @@ type ResolvedModel struct {
 	Parser       modelllm.ResponseParser
 	Model        string
 	ProviderName string
+	// Profiles is the registry invoke_llm resolved its parser against, so a
+	// parse word naming a profile sees the bound library's profiles too.
+	Profiles *modelllm.ProfileRegistry
 }
 
 // ReferencePorts are checkpoint-backed conversation ports already resolved by
@@ -51,6 +55,9 @@ type FactoryDeps struct {
 	ParseRetries         *ParseErrorRetryTracker
 	ConversationRefs     ReferencePorts
 	Resolved             *ResolvedModel
+	// Credentials resolves chat-dialect credential references; nil reads the
+	// process environment.
+	Credentials credentials.Resolver
 }
 
 // RegisterFactories registers LLM builtin factories. done and nudge_reread
@@ -113,7 +120,7 @@ func invokeLLMFactory(deps FactoryDeps) toolregistry.BuiltinFactory {
 			History: history, Registry: deps.Registry, Tracer: deps.Tracer,
 			CaptureLevel: deps.CaptureLevel, ConversationRefProvider: deps.ConversationRefs.Provider,
 			ConversationRefResolver: deps.ConversationRefs.Resolver, Ctx: deps.Ctx,
-			OnResolved: applyResolved(deps.Resolved),
+			OnResolved: applyResolved(deps.Resolved), Credentials: deps.Credentials,
 		})
 	}
 }
@@ -126,6 +133,7 @@ func applyResolved(resolved *ResolvedModel) func(InvokeLLMResolvedConfig) {
 		resolved.Parser = cfg.Parser
 		resolved.Model = cfg.Model
 		resolved.ProviderName = cfg.ProviderName
+		resolved.Profiles = cfg.Profiles
 	}
 }
 
@@ -135,15 +143,9 @@ func parseResponseFactory(deps FactoryDeps) toolregistry.BuiltinFactory {
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		var parser modelllm.ResponseParser
-		if cfg.ResponseProfile != "" {
-			var err error
-			parser, err = resolveLLMParser(catalog.LLMToolConfig{ResponseProfile: cfg.ResponseProfile})
-			if err != nil {
-				return nil, err
-			}
-		} else if deps.Resolved != nil {
-			parser = deps.Resolved.Parser
+		parser, err := parseResponseParser(cfg, deps.Resolved)
+		if err != nil {
+			return nil, err
 		}
 		return &ParseResponseBuilder{
 			ToolName: def.Name, Registry: deps.Registry, Parser: parser, Tracer: deps.Tracer,
@@ -151,6 +153,22 @@ func parseResponseFactory(deps FactoryDeps) toolregistry.BuiltinFactory {
 			CaptureLevel: deps.CaptureLevel, Retry: deps.ParseRetries,
 		}, nil
 	}
+}
+
+// parseResponseParser is the parser a parse word validates with: the profile
+// it names, resolved against the registry invoke_llm used when there is one,
+// or else the parser invoke_llm resolved.
+func parseResponseParser(cfg catalog.ParseResponseConfig, resolved *ResolvedModel) (modelllm.ResponseParser, error) {
+	if cfg.ResponseProfile == "" {
+		if resolved == nil {
+			return nil, nil
+		}
+		return resolved.Parser, nil
+	}
+	if resolved != nil && resolved.Profiles != nil {
+		return resolveParser(resolved.Profiles, cfg.ResponseProfile, "", "")
+	}
+	return resolveLLMParser(catalog.LLMToolConfig{ResponseProfile: cfg.ResponseProfile})
 }
 
 func resetHistoryFactory(deps FactoryDeps) toolregistry.BuiltinFactory {

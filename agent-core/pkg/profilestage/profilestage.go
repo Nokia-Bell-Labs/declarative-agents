@@ -141,7 +141,10 @@ func declaredRootsOf(files []string) map[string]string {
 	libraries := map[string]string{}
 	for _, file := range files {
 		for name, directory := range declaredLibraries(file) {
-			libraries[name] = filepath.Clean(filepath.Join(filepath.Dir(file), directory))
+			libraries[name] = ""
+			if !filepath.IsAbs(directory) {
+				libraries[name] = filepath.Clean(filepath.Join(filepath.Dir(file), directory))
+			}
 		}
 	}
 	return libraries
@@ -149,15 +152,16 @@ func declaredRootsOf(files []string) map[string]string {
 
 // importedTarget resolves an edge for Imported: relative to the file, under a
 // declared root's directory, or not followed at all for agent-core's library,
-// which the image supplies, and for an undeclared root, which the loader
-// reports.
+// which the image supplies, for a root declared by an absolute directory, which
+// the runtime environment supplies, and for an undeclared root, which the
+// loader reports.
 func importedTarget(file, imported string, libraries map[string]string) (string, bool) {
 	if !filepath.IsAbs(imported) {
 		return filepath.Clean(filepath.Join(filepath.Dir(file), imported)), true
 	}
 	root, rest, ok := libraryReference(imported)
 	directory, declared := libraries[root]
-	if isAgentCoreLibraryPath(imported) || !ok || !declared {
+	if isAgentCoreLibraryPath(imported) || !ok || !declared || directory == "" {
 		return "", false
 	}
 	return filepath.Join(directory, rest), true
@@ -200,7 +204,13 @@ type stagedClosure struct {
 	libraries map[string]stagedFile
 }
 
-type stagedFile struct{ source, destination string }
+type stagedFile struct {
+	source, destination string
+	// provided marks a root declared by an absolute directory, such as a
+	// provider library under /opt/agent-core: the runtime environment supplies
+	// it where the profile says, so staging copies nothing from it (srd058 R1.2).
+	provided bool
+}
 
 func (c *stagedClosure) copyTree(tree Tree) error {
 	return filepath.WalkDir(tree.Source, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -242,6 +252,10 @@ func (c *stagedClosure) recordLibraries(source, destination string) {
 	for name, directory := range declaredLibraries(source) {
 		if c.libraries == nil {
 			c.libraries = map[string]stagedFile{}
+		}
+		if filepath.IsAbs(directory) {
+			c.libraries[name] = stagedFile{provided: true}
+			continue
 		}
 		c.libraries[name] = stagedFile{
 			source:      filepath.Clean(filepath.Join(filepath.Dir(source), directory)),
@@ -294,15 +308,9 @@ func (c *stagedClosure) stageImport(file stagedFile, imported string) error {
 	source := filepath.Clean(filepath.Join(filepath.Dir(file.source), imported))
 	destination := filepath.Clean(filepath.Join(filepath.Dir(file.destination), imported))
 	if filepath.IsAbs(imported) {
-		if isAgentCoreLibraryPath(imported) {
-			// The runtime image supplies agent-core's library (srd056 R3.3).
-			return nil
-		}
-		root, rest, ok := libraryReference(imported)
-		library, declared := c.libraries[root]
-		if !ok || !declared {
-			return fmt.Errorf("stage import %q of %s: library root %q is declared by no staged profile",
-				imported, file.source, root)
+		library, rest, err := c.libraryOf(file, imported)
+		if err != nil || library == nil {
+			return err
 		}
 		source = filepath.Join(library.source, rest)
 		destination = filepath.Join(library.destination, rest)
@@ -329,6 +337,26 @@ func (c *stagedClosure) stageImport(file stagedFile, imported string) error {
 	return nil
 }
 
+// libraryOf resolves a rooted import to the staged root it sits under. It
+// returns no root and no error for a file the runtime environment supplies:
+// agent-core's library (srd056 R3.3) and a root declared by an absolute
+// directory (srd058 R1.2).
+func (c *stagedClosure) libraryOf(file stagedFile, imported string) (*stagedFile, string, error) {
+	if isAgentCoreLibraryPath(imported) {
+		return nil, "", nil
+	}
+	root, rest, ok := libraryReference(imported)
+	library, declared := c.libraries[root]
+	if !ok || !declared {
+		return nil, "", fmt.Errorf("stage import %q of %s: library root %q is declared by no staged profile",
+			imported, file.source, root)
+	}
+	if library.provided {
+		return nil, "", nil
+	}
+	return &library, rest, nil
+}
+
 // declaredImports reads the edges a declaration file follows to other files:
 // the import list srd050 R1.3 places at the top level of a tool, REST, or type
 // unit, and the fragments its instantiate list applies (srd052 R2.1), which
@@ -347,6 +375,12 @@ func declaredImports(path string) ([]string, error) {
 	var file struct {
 		Imports     []string       `yaml:"imports"`
 		Instantiate instantiations `yaml:"instantiate"`
+		// A tool's config may name a file it reads when built, such as
+		// invoke_llm's chat dialect (srd058 R2.3); the loader resolves it like
+		// an import, so staging follows it like one.
+		// A profile's tools are selection paths rather than declarations,
+		// so the entries decode loosely.
+		Tools []interface{} `yaml:"tools"`
 		// A machine template's body instantiates its stages (srd054 R2.2).
 		Machine struct {
 			Instantiate instantiations `yaml:"instantiate"`
@@ -362,7 +396,19 @@ func declaredImports(path string) ([]string, error) {
 	for _, instantiation := range append(file.Instantiate, file.Machine.Instantiate...) {
 		edges = appendStagedEdge(edges, instantiation.Fragment)
 	}
+	for _, tool := range file.Tools {
+		edges = appendStagedEdge(edges, configDialect(tool))
+	}
 	return edges, nil
+}
+
+// configDialect reads config.dialect from one decoded tool declaration, or ""
+// when the entry is not a declaration or names no dialect.
+func configDialect(tool interface{}) string {
+	declaration, _ := tool.(map[string]interface{})
+	config, _ := declaration["config"].(map[string]interface{})
+	dialect, _ := config["dialect"].(string)
+	return dialect
 }
 
 // appendStagedEdge keeps the edges a stager follows: every non-empty import

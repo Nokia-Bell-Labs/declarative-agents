@@ -23,7 +23,7 @@ tools:
     undo: {strategy: conversation_truncate, requires: [conversation_checkpoint]}
     config:
       model: "gemma4:31b-cloud"
-      provider: ollama
+      dialect: /opt/providers/chat-dialect.yaml
       provider_url: "http://localhost:11434"
       manifest_state: Composing
       response_profile: gemma

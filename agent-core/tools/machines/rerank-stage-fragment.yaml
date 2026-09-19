@@ -1,0 +1,42 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The rerank stage (srd058 R4.1): reorder candidate documents by relevance at
+# the bound provider. The stage runs the rerank word the rerank-words fragment
+# produces over the library's rerank REST fragment; the importer instantiates
+# both beside this one and declares Reranked, the three provider failures, and
+# CommandError. A library that supplies no rerank fragment fails the load at
+# that instantiation, naming the missing path and the bound directory
+# (srd058 R1.3).
+unit: builtin-rerank-stage
+params:
+  - name: prefix
+    type: string
+    default: ""
+    description: Prefix on the states this stage declares, to keep two instantiations apart.
+  - name: from
+    type: string
+    description: The importer's state the stage is entered from.
+  - name: enter
+    type: string
+    description: The signal, seen in the from state, that enters the stage.
+  - name: next
+    type: string
+    description: The importer's state the stage leaves to once its result is ready.
+  - name: next_action
+    type: string
+    default: ""
+    description: The word the importer runs on leaving to next; empty runs none.
+  - name: failed
+    type: string
+    default: Failed
+    description: The state every provider or word failure leads to.
+stage:
+  states:
+    - {name: $param(prefix)Reranking, meaning: The candidates are being reranked at the bound provider.}
+  transitions:
+    - {state: $param(from), signal: $param(enter), next: $param(prefix)Reranking, action: rerank}
+    - {state: $param(prefix)Reranking, signal: Reranked, next: $param(next), action: $param(next_action)}
+    - {state: $param(prefix)Reranking, signal: ProviderUnauthorized, next: $param(failed)}
+    - {state: $param(prefix)Reranking, signal: ProviderThrottled, next: $param(failed)}
+    - {state: $param(prefix)Reranking, signal: ProviderUnavailable, next: $param(failed)}
+    - {state: $param(prefix)Reranking, signal: CommandError, next: $param(failed)}

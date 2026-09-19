@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-corpus-ingest-embed-rest
+# The document-embedding operation comes from the provider library the profile
+# binds to the providers root (srd058 R4.2). It reads the document text and its
+# path from the read_resource Result and carries both forward to the
+# collection step. The library bounds and addresses its own client.
+instantiate:
+  - fragment: /opt/providers/embed-document-fragment.yaml
+    args: {input_selector: $.raw, id_selector: $.path}
+rest:
+  version: v1

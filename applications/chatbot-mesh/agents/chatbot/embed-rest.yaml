@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: mesh-chatbot-embed-rest
+# The query-embedding operation comes from the provider library the profile
+# binds to the providers root (srd058 R4.2). It reads the chat message from the
+# request and carries it forward for the source selector and the answer. The
+# model is the mesh's embedding identity, the one declare_query_model puts into
+# command state for the per-RAG comparison (srd002 R3.3); the endpoint is the
+# library's own (OLLAMA_URL for Ollama).
+instantiate:
+  - fragment: /opt/providers/embed-query-fragment.yaml
+    args: {input_selector: $.message, model: "${CHATBOT_EMBEDDING_MODEL:-qwen3-embedding:8b}"}
+rest:
+  version: v1

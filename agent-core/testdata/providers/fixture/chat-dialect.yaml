@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A minimal provider library for loader and dialect tests (srd058 R1.3): a
+# bearer-authenticated chat endpoint whose reply text sits in typed content
+# blocks, as Cohere v2 returns it.
+unit: fixture-chat-dialect
+provider_name: fixture
+path: /v1/chat
+auth:
+  type: bearer
+  token_ref: FIXTURE_API_KEY
+body:
+  model: "{{ params.model }}"
+  messages: "{{ params.messages }}"
+  stream: false
+  temperature: "{{ params.temperature }}"
+  seed: "{{ params.seed }}"
+  options:
+    num_ctx: "{{ params.num_ctx }}"
+response:
+  text: $.message.content.type=text.text
+  text_required: true
+  input_tokens: $.usage.tokens.input_tokens
+  output_tokens: $.usage.tokens.output_tokens
+failures:
+- status: [401, 403]
+  signal: ProviderUnauthorized
+- status: [429]
+  signal: ProviderThrottled
+- status: [500, 502, 503, 504]
+  signal: ProviderUnavailable

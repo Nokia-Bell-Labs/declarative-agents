@@ -39,9 +39,10 @@ func TestOllamaTierRendersWithDefaults(t *testing.T) {
 			t.Errorf("default render missing %q (the LLM tier must render with defaults)", want)
 		}
 	}
-	// The embedding base_url points at the in-cluster Ollama Service.
-	if !strings.Contains(render, "base_url: http://t-chatbot-mesh-ollama:11434") {
-		t.Error("default render does not point the embedding client at the in-cluster Ollama Service")
+	// The chatbot's chat dialect and embed library both read OLLAMA_URL, which
+	// points at the in-cluster Ollama Service (srd058 R4.2).
+	if !strings.Contains(render, "- name: OLLAMA_URL\n              value: \"http://t-chatbot-mesh-ollama:11434\"") {
+		t.Error("default render does not point OLLAMA_URL at the in-cluster Ollama Service")
 	}
 	// Every declared model reaches the preload (named once in values).
 	for _, model := range []string{"qwen3-embedding:8b", "qwen2.5:3b", "ornith:9b"} {
@@ -312,8 +313,8 @@ func TestOllamaDisabledReproducesExternalEndpoint(t *testing.T) {
 			t.Errorf("disabled render still contains %q (no LLM tier must render when disabled)", absent)
 		}
 	}
-	if !strings.Contains(render, "base_url: http://ollama.example:11434") {
-		t.Error("disabled render does not point the embedding client at the external endpoint override")
+	if !strings.Contains(render, "- name: OLLAMA_URL\n              value: \"http://ollama.example:11434\"") {
+		t.Error("disabled render does not point OLLAMA_URL at the external endpoint override")
 	}
 	// External-tier rendering removes chart-owned Ollama resources and their
 	// preload gates, but retains every agent workload -- the same set the gate

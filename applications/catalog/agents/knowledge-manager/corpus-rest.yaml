@@ -17,78 +17,8 @@ rest:
       network:
         schemes: [http]
         hosts: [127.0.0.1]
-        ports: [8000, 11434]
+        ports: [8000]
   clients:
-    ollama:
-      base_url: http://127.0.0.1:11434
-      auth_ref: none
-      limits_ref: local_corpus
-      operations:
-        version:
-          method: GET
-          path: /api/version
-          params:
-            body_source: none
-          success: {status: [200], signal: OllamaReady}
-          response:
-            output:
-              version: $.version
-          side_effects:
-            - kind: external_api
-              target: ollama.version
-              state: read_only
-          reversibility:
-            classification: reversible
-            undo: noop
-        embed:
-          method: POST
-          path: /api/embeddings
-          params:
-            body_schema:
-              type: object
-              required: [input]
-              properties:
-                input: {type: string}
-                id: {type: string}
-            body_source: previous_result
-            input_mapping:
-              input: $.raw
-              id: $.path
-            carry_forward: [input, id]
-          body:
-            model: qwen3-embedding:8b
-            prompt: "{{ params.input }}"
-          success: {status: [200], signal: DocumentEmbedded}
-          response:
-            output:
-              embedding: $.embedding
-          side_effects:
-            - kind: external_api
-              target: ollama.embeddings
-              state: read_only
-          reversibility:
-            classification: reversible
-            undo: noop
-        embed_query:
-          method: POST
-          path: /api/embeddings
-          params:
-            body_source: previous_result
-            input_mapping: {}
-          body:
-            model: qwen3-embedding:8b
-            prompt: "What does this corpus describe?"
-          success: {status: [200], signal: QueryEmbedded}
-          response:
-            output:
-              embedding: $.embedding
-          side_effects:
-            - kind: external_api
-              target: ollama.embeddings
-              state: read_only
-          reversibility:
-            classification: reversible
-            undo: noop
     chroma:
       base_url: http://127.0.0.1:8000
       auth_ref: none

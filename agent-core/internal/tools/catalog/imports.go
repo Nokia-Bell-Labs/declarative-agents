@@ -59,6 +59,11 @@ type ToolImport struct {
 type LoadOptions struct {
 	TolerateNonToolFiles bool
 	ExpandEnv            bool
+	// KeepConfigFiles leaves config file references (configFileFields) as
+	// written instead of resolving and reading them. A corpus view loads
+	// declarations with no profile, so no library root is declared to resolve
+	// a rooted reference against.
+	KeepConfigFiles bool
 }
 
 // DeclarationSource returns the tool's loader-assigned provenance.
@@ -167,6 +172,9 @@ func (r *toolImportResolver) resolveFile(file ToolDefsFile, path string) ([]Tool
 	source := ToolSource{Unit: file.Unit, Path: path}
 	local := annotateToolSources(file.Tools, source)
 	if err := validateAndDefaultToolDefs(local); err != nil {
+		return nil, fmt.Errorf("tool unit %q at %s: %w", file.Unit, path, err)
+	}
+	if err := r.resolveConfigFiles(local, path); err != nil {
 		return nil, fmt.Errorf("tool unit %q at %s: %w", file.Unit, path, err)
 	}
 	if len(file.Imports) == 0 && len(file.Instantiate) == 0 {

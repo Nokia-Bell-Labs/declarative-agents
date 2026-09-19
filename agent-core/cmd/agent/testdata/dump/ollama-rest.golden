@@ -12,6 +12,8 @@ profile:
     - <agent-core>/testdata/integration/profiles/ollama-rest/declarations.yaml
   rest_definitions:
     - <agent-core>/testdata/integration/profiles/ollama-rest/rest.yaml
+  libraries:
+    providers: <agent-core>/tools/providers/ollama
 machine:
   name: ollama-rest-model-listing
   purpose: List live local Ollama models through the configured REST tool.
@@ -232,11 +234,11 @@ tools:
         - conversation_checkpoint
     init: invoke_llm
     config:
+      dialect: <agent-core>/tools/providers/ollama/chat-dialect.yaml
       llm_timeout: 120
       manifest_state: Composing
       max_time: 120
       model: gemma4:31b-cloud
-      provider: ollama
       provider_url: http://localhost:11434
       response_profile: gemma
       system_prompt: |
@@ -471,13 +473,13 @@ files:
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/declarations.yaml
     sha256: 46e4a19db54a38b5cd39ad84dc53ec0a9a3fabe0313f5b35b23e4596c1f18480
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/llm.yaml
-    sha256: 66f28ebcc72955c78b74c702618103dc4091b8808fa95c1f0a5b70ad1c64af6a
+    sha256: ec09b3b001b0a448c04f927a8ae4e2a2414e1f81e242fd43577fcdb18a5532c9
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/machine.yaml
     sha256: a318d0dd7995ee96e2467d0dfbd73f1d42e3fe1bfc2017bb766c82d90287a791
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/openapi.yaml
     sha256: 4fd398a63267be22bba1387ebf94b0a0d0d6cdcb02ff37b8aefa2fee4856b055
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/profile.yaml
-    sha256: bfe4ea3580753e0fff5d8a84da1246bb0a3cbf101acf5c65c1c87ab4066ebdaa
+    sha256: b588230a52d53b0f00f1a5e5401be98f74e93657e45c0257ca5db4a689936e8d
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/rest.yaml
     sha256: f6f1c61fd61eaf2afc3c7c8267ed47641039796e92c7d3b39fb929d8bc4eded9
   - path: <agent-core>/testdata/integration/profiles/ollama-rest/tools.yaml
@@ -493,6 +495,9 @@ files:
     root: agent-core
   - path: <agent-core>/tools/machines/ollama-model-listing-machine-template.yaml
     sha256: 4e18d96284ec07945a5a8e46eecb3b0ae0b58c3f98b71b11678a2166a59489c3
+    root: agent-core
+  - path: <agent-core>/tools/providers/ollama/chat-dialect.yaml
+    sha256: 28ecc9aa8359c4e7b1e0c531c99e1c26c81bd8e7c785ab76e53b7ad34db99b4f
     root: agent-core
   - path: <agent-core>/tools/units/types-core.yaml
     sha256: 0ed81677d3d2b86cf14fdba16967f44ab9335d75a46047759cd1532aa645436d

@@ -116,8 +116,8 @@ func TestCreatorIngestModelFollowsTheIngestUnit(t *testing.T) {
 	}
 }
 
-// An operator pointing the ingest at an in-cluster Ollama gets the allowlist
-// host derived from the URL, because the two are one configuration.
+// An operator pointing the ingest at an in-cluster Ollama sets the one
+// variable both its embedding library and its invoke_llm dialect read.
 func TestCreatorIngestOllamaURLCarriesItsHost(t *testing.T) {
 	out, ok := renderChart(t, "controlPlane.enabled=true",
 		"controlPlane.creator.ingestOllamaURL=http://t-chatbot-mesh-ollama:11434")
@@ -125,13 +125,11 @@ func TestCreatorIngestOllamaURLCarriesItsHost(t *testing.T) {
 		t.Fatalf("render failed:\n%s", out)
 	}
 	env := creatorContainerEnv(t, out)
-	for _, want := range []string{
-		`{name: CORPUS_INGEST_OLLAMA_URL, value: "http://t-chatbot-mesh-ollama:11434"}`,
-		`{name: CORPUS_INGEST_OLLAMA_HOST, value: "t-chatbot-mesh-ollama"}`,
-	} {
-		if !strings.Contains(env, want) {
-			t.Errorf("the creator container omits %s", want)
-		}
+	if want := `{name: OLLAMA_URL, value: "http://t-chatbot-mesh-ollama:11434"}`; !strings.Contains(env, want) {
+		t.Errorf("the creator container omits %s", want)
+	}
+	if strings.Contains(env, "CORPUS_INGEST_OLLAMA") {
+		t.Error("the creator still sets a corpus-ingest Ollama variable nothing reads")
 	}
 }
 
@@ -146,11 +144,8 @@ func TestCorpusIngestClientsTakeTheirAuthorityFromTheEnvironment(t *testing.T) {
 	declared := string(data)
 	for _, want := range []string{
 		"${CHROMA_URL:-http://127.0.0.1:8000}",
-		"${CORPUS_INGEST_OLLAMA_URL:-http://127.0.0.1:11434}",
 		"${CHROMA_HOST:-127.0.0.1}",
-		"${CORPUS_INGEST_OLLAMA_HOST:-127.0.0.1}",
 		"${CHROMA_PORT:-8000}",
-		"${CORPUS_INGEST_OLLAMA_PORT:-11434}",
 	} {
 		if !strings.Contains(declared, want) {
 			t.Errorf("corpus-rest.yaml does not reference %s", want)

@@ -151,6 +151,31 @@ func LibraryOverrides() map[string]string {
 	return cloneRoots(libraries.overrides)
 }
 
+// closureLoads serializes WithLibraryRoots: the registry is process-scoped, so
+// two closures loading at once would otherwise see each other's roots.
+var closureLoads sync.Mutex
+
+// WithLibraryRoots runs load with one closure's declared roots in force,
+// each replaced by its --library override when one is set, and restores the
+// previous set afterwards (srd056 R2.2, R2.3). A request-scoped profile loaded
+// while an agent runs uses it, so its rooted references resolve as they did
+// when the agent's own closure loaded.
+func WithLibraryRoots(declared map[string]string, load func() error) error {
+	closureLoads.Lock()
+	defer closureLoads.Unlock()
+	overrides := LibraryOverrides()
+	roots := make(map[string]string, len(declared))
+	for name, directory := range declared {
+		if override, ok := overrides[name]; ok {
+			directory = override
+		}
+		roots[name] = directory
+	}
+	previous := SetLibraryRoots(roots)
+	defer SetLibraryRoots(previous)
+	return load()
+}
+
 func cloneRoots(roots map[string]string) map[string]string {
 	if len(roots) == 0 {
 		return nil

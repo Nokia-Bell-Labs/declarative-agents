@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
@@ -50,6 +51,35 @@ func validateImportUsedness(
 	}
 	sort.Strings(diagnostics)
 	return fmt.Errorf("unused declaration imports: %s", strings.Join(diagnostics, "; "))
+}
+
+// requestMachineWords returns the declared tools this closure's
+// machine_request machines run. The agent serves those requests from its own
+// tool universe and REST collection, so a word only a request machine runs is
+// used (srd052 R3.1): the chatbot's embed stage, for one, runs only in its
+// request machine (srd058 R4.2). A request profile that does not load
+// contributes nothing here; the runtime reports it when a request arrives.
+func requestMachineWords(
+	machine core.MachineSpec, machinePath, profileDir string,
+	rest toolrest.Collection, universe []catalog.ToolDef,
+) []catalog.ToolDef {
+	machines, err := toolrest.LoadDeclaredMachines(machine, machinePath, profileDir, rest)
+	if err != nil || len(machines) < 2 {
+		return nil
+	}
+	actions := map[string]bool{}
+	for _, request := range machines[1:] {
+		for _, transition := range request.Transitions {
+			actions[transition.Action] = true
+		}
+	}
+	var words []catalog.ToolDef
+	for _, tool := range universe {
+		if actions[tool.Name] {
+			words = append(words, tool)
+		}
+	}
+	return words
 }
 
 func selectedToolSources(selected []catalog.ToolDef) map[string]bool {

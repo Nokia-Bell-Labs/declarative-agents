@@ -181,9 +181,12 @@ tool_declarations:
   - %s
 rest_definitions:
   - %s
+libraries:
+  providers: %s
 `, coreIntegrationProfilePath(rootDir, "ollama-rest/machine.yaml"), coreIntegrationProfilePath(rootDir, "ollama-rest/tools.yaml"),
 		yamlPathItems(ollamaLLMDeclarationPaths(rootDir)), llmPath,
-		coreIntegrationProfilePath(rootDir, "ollama-rest/declarations.yaml"), coreIntegrationProfilePath(rootDir, "ollama-rest/rest.yaml"))
+		coreIntegrationProfilePath(rootDir, "ollama-rest/declarations.yaml"), coreIntegrationProfilePath(rootDir, "ollama-rest/rest.yaml"),
+		abs(rootDir, "tools/providers/ollama"))
 	return os.WriteFile(profilePath, []byte(profile), 0o644)
 }
 

@@ -820,25 +820,25 @@ func chatbotRequiredModels(profilesRoot string) ([]string, error) {
 	return models, nil
 }
 
-// chatbotEmbedModelFromConfig reads the embedding model from the embedding client
-// embed_query operation in agents/chatbot/rest.yaml.
+// chatbotEmbedModelFromConfig reads the embedding model the chatbot's
+// embed-rest.yaml passes to the provider library's embed-query fragment
+// (srd058 R4.2).
 func chatbotEmbedModelFromConfig(profilesRoot string) (string, error) {
 	var cfg struct {
-		Rest struct {
-			Clients map[string]struct {
-				Operations map[string]struct {
-					Body struct {
-						Model string `yaml:"model"`
-					} `yaml:"body"`
-				} `yaml:"operations"`
-			} `yaml:"clients"`
-		} `yaml:"rest"`
+		Instantiate []struct {
+			Args struct {
+				Model string `yaml:"model"`
+			} `yaml:"args"`
+		} `yaml:"instantiate"`
 	}
-	path := filepath.Join(profilesRoot, "agents", "chatbot", "rest.yaml")
-	if err := readIntegrationYAML(path, "chatbot rest asset", &cfg); err != nil {
+	path := filepath.Join(profilesRoot, "agents", "chatbot", "embed-rest.yaml")
+	if err := readIntegrationYAML(path, "chatbot embed asset", &cfg); err != nil {
 		return "", err
 	}
-	model := resolveModelReference(cfg.Rest.Clients["embedding"].Operations["embed_query"].Body.Model)
+	var model string
+	if len(cfg.Instantiate) > 0 {
+		model = resolveModelReference(cfg.Instantiate[0].Args.Model)
+	}
 	if model == "" {
 		return "", fmt.Errorf("no embedding model in %s", path)
 	}

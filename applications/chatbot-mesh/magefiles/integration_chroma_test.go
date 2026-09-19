@@ -243,8 +243,8 @@ func TestStartRequiredChromaContainerClassifiesLaunchOutcome(t *testing.T) {
 
 func TestChromaRequiredModelsFromConfig(t *testing.T) {
 	root := t.TempDir()
-	writeChromaConfigFile(t, filepath.Join(root, corpusRestAsset),
-		"rest:\n  clients:\n    ollama:\n      operations:\n        embed:\n          body:\n            model: embed-model\n")
+	writeChromaConfigFile(t, filepath.Join(root, corpusEmbedAsset),
+		"instantiate:\n  - fragment: /opt/providers/embed-document-fragment.yaml\n    args: {model: embed-model}\n")
 	decl := "tools:\n  - name: read_resource\n  - name: invoke_llm\n    config:\n      model: chat-model\n"
 	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "profile.yaml"), "name: corpus-ingest\n")
 	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "declarations.yaml"), decl)
@@ -290,8 +290,8 @@ func TestChromaRequiredModelsUseDeclaredIntegrationOverride(t *testing.T) {
 
 func TestChromaRequiredModelsMissingInvokeLLM(t *testing.T) {
 	root := t.TempDir()
-	writeChromaConfigFile(t, filepath.Join(root, corpusRestAsset),
-		"rest:\n  clients:\n    ollama:\n      operations:\n        embed:\n          body:\n            model: embed-model\n")
+	writeChromaConfigFile(t, filepath.Join(root, corpusEmbedAsset),
+		"instantiate:\n  - fragment: /opt/providers/embed-document-fragment.yaml\n    args: {model: embed-model}\n")
 	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "profile.yaml"), "name: corpus-ingest\n")
 	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "declarations.yaml"), "tools:\n  - name: read_resource\n")
 	if _, err := chromaRequiredModels(root); err == nil {
@@ -324,7 +324,8 @@ func TestChromaModelInstalledTagTolerance(t *testing.T) {
 func TestAssertChromaIngestTrace(t *testing.T) {
 	trace := writeChromaTrace(t, []string{
 		spanLine("2026-07-18T02:00:00.100000000Z", "execute_tool chroma_ready", "chroma_ready"),
-		spanLine("2026-07-18T02:00:00.200000000Z", "execute_tool ollama_ready", "ollama_ready"),
+		spanLine("2026-07-18T02:00:00.200000000Z", "execute_tool embed_document", "embed_document"),
+		spanLine("2026-07-18T02:00:00.300000000Z", "execute_tool normalize_document_embedding", "normalize_document_embedding"),
 		spanLine("2026-07-18T02:00:00.900000000Z", "execute_tool chroma_count", "chroma_count"),
 	})
 	if err := assertChromaIngestTrace(trace); err != nil {
@@ -335,7 +336,8 @@ func TestAssertChromaIngestTrace(t *testing.T) {
 func TestAssertChromaIngestTraceMissingWord(t *testing.T) {
 	trace := writeChromaTrace(t, []string{
 		spanLine("2026-07-18T02:00:00.100000000Z", "execute_tool chroma_ready", "chroma_ready"),
-		spanLine("2026-07-18T02:00:00.200000000Z", "execute_tool ollama_ready", "ollama_ready"),
+		spanLine("2026-07-18T02:00:00.200000000Z", "execute_tool embed_document", "embed_document"),
+		spanLine("2026-07-18T02:00:00.300000000Z", "execute_tool normalize_document_embedding", "normalize_document_embedding"),
 	})
 	if err := assertChromaIngestTrace(trace); err == nil {
 		t.Fatal("expected ingest trace without chroma_count to fail")

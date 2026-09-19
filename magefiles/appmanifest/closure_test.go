@@ -478,3 +478,48 @@ func TestResolveRejectsUndeclaredAndConflictingLibraryRoots(t *testing.T) {
 		t.Fatalf("conflicting root error = %v", err)
 	}
 }
+
+// A tool's config.dialect is an edge like an import (srd058 R2.3). Through a
+// root declared relative to the profile the dialect is packaged; through a
+// root declared at a shipped library under /opt/agent-core it is left to the
+// runtime image, and two profiles naming that directory do not conflict
+// (srd058 R1.2).
+func TestResolveFollowsChatDialectsThroughTheProvidersRoot(t *testing.T) {
+	appRoot, catalogRoot, manifest := minimalClosureFixture(t, `name: root
+libraries: {providers: ../../providers/fixture}
+machine: machine.yaml
+tool_declarations: [declarations.yaml]
+`)
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/machine.yaml"), "name: root-machine\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/declarations.yaml"),
+		"tools:\n- name: ask\n  init: invoke_llm\n  config: {dialect: /opt/providers/chat-dialect.yaml}\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "providers/fixture/chat-dialect.yaml"), "unit: fixture\n")
+
+	inventory, err := Resolve(manifest, Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := inventoryFile(inventory, "providers/fixture/chat-dialect.yaml").Source; got != "catalog/providers/fixture/chat-dialect.yaml" {
+		t.Fatalf("dialect source = %q, want it packaged from the declared root", got)
+	}
+
+	appRoot, catalogRoot, manifest = minimalClosureFixture(t, `name: root
+libraries: {providers: /opt/agent-core/tools/providers/ollama}
+machine: request-profile.yaml
+tool_declarations: [declarations.yaml]
+`)
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/request-profile.yaml"),
+		"name: request\nlibraries: {providers: /opt/agent-core/tools/providers/ollama}\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/declarations.yaml"),
+		"tools:\n- name: ask\n  init: invoke_llm\n  config: {dialect: /opt/providers/chat-dialect.yaml}\n")
+
+	inventory, err = Resolve(manifest, Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot})
+	if err != nil {
+		t.Fatalf("a shipped library root declared twice at one directory: %v", err)
+	}
+	for _, path := range inventoryRuntimePaths(inventory) {
+		if strings.Contains(path, "chat-dialect.yaml") {
+			t.Fatalf("closure packages %s, which the runtime image provides", path)
+		}
+	}
+}

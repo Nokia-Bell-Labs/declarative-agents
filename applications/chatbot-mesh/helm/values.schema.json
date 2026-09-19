@@ -412,8 +412,6 @@
               "additionalProperties": false,
               "description": "Embedding identity the ingest child embeds with; empty follows the ingest unit's declared embeddingModel.",
               "properties": {
-                "restRef": {"type": "string"},
-                "operation": {"type": "string"},
                 "model": {"type": "string"}
               }
             },

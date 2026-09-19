@@ -3,11 +3,11 @@
 name: corpus-ingest
 purpose: |-
   The Chroma ingest profile loads a repository corpus into a local Chroma
-  collection. It checks the Chroma and Ollama servers, lists the configured
+  collection. It checks the Chroma server, lists the configured
   corpus once, then lets the model drive a per-document loop: the model chooses
   the next listed file to read (read_resource), or signals done. After each read the machine
-  sequences the deterministic embedding steps -- embed the document at the configured provider,
-  normalize a flat vector or one provider row, create-or-get the collection (which resolves the returned collection id and
+  sequences the deterministic embedding steps -- embed the document at the bound provider and
+  normalize a flat vector or one provider row (the embed-document stage, srd058 R4.1), create-or-get the collection (which resolves the returned collection id and
   carries the embedding, document, and id forward), and add the agent-supplied
   vector to Chroma -- before returning to the model for the next file. When the
   model is done the machine re-resolves the collection and verifies the count.
@@ -21,7 +21,8 @@ invariants:
   - MachineSpec owns sequencing between read, embed, vector normalization, and Chroma words.
   - The model chooses only which listed file to read, or when to stop; it never authors a path or embedding vector.
   - The model-visible manifest contains only read_resource and done.
-  - The Chroma and Ollama servers are external preconditions, surfaced through chroma_ready and ollama_ready, not started by the agent.
+  - The Chroma server is an external precondition, surfaced through chroma_ready, not started by the agent.
+  - The embedding provider is the library the profile binds to the providers root; its failures arrive as ProviderUnauthorized, ProviderThrottled, or ProviderUnavailable (srd058 R1.4).
 initial_state: Idle
 budget:
   command_timeout: 6m
@@ -32,8 +33,6 @@ states:
     meaning: Initial state before the ingest flow starts.
   - name: CheckingChroma
     meaning: The Chroma v2 heartbeat is being checked.
-  - name: CheckingOllama
-    meaning: The Ollama version endpoint is being checked.
   - name: DiscoveringCorpus
     meaning: Declared find traversal is producing trusted candidate paths.
   - name: ListingCorpus
@@ -42,10 +41,6 @@ states:
     meaning: The model is choosing a listed file or signalling done; and the machine routes a completed tool by its result signal.
   - name: Parsing
     meaning: The model response is being parsed into one tool request.
-  - name: Embedding
-    meaning: The document text is being embedded at the configured provider.
-  - name: NormalizingEmbedding
-    meaning: A flat provider vector is being preserved or exactly one provider row is being unwrapped.
   - name: ResolvingCollection
     meaning: The collection is being create-or-got and the embedding is carried forward.
   - name: Adding
@@ -72,8 +67,6 @@ signals:
     trigger: Loop initialization.
   - name: ChromaReady
     trigger: The Chroma heartbeat returned a configured success status.
-  - name: OllamaReady
-    trigger: The Ollama version endpoint returned a configured success status.
   - name: LLMResponded
     trigger: The model returned a response.
   - name: ToolDone
@@ -95,9 +88,15 @@ signals:
   - name: DocumentResourceDenied
     trigger: The model-selected path was outside the configured corpus resource.
   - name: DocumentEmbedded
-    trigger: The configured embedding provider returned a vector for the document.
-  - name: EmbeddingNormalized
+    trigger: The bound embedding provider returned a vector for the document.
+  - name: DocumentEmbeddingNormalized
     trigger: The provider result contains one validated flat document vector.
+  - name: ProviderUnauthorized
+    trigger: The embedding provider rejected the credential.
+  - name: ProviderThrottled
+    trigger: The embedding provider rate-limited the call.
+  - name: ProviderUnavailable
+    trigger: The embedding provider failed.
   - name: CollectionReady
     trigger: The collection was create-or-got and its id resolved.
   - name: DocumentAdded
@@ -115,16 +114,9 @@ transitions:
     action: chroma_ready
   - state: CheckingChroma
     signal: ChromaReady
-    next: CheckingOllama
-    action: ollama_ready
-  - state: CheckingChroma
-    signal: CommandError
-    next: Failed
-  - state: CheckingOllama
-    signal: OllamaReady
     next: DiscoveringCorpus
     action: list_resource_paths
-  - state: CheckingOllama
+  - state: CheckingChroma
     signal: CommandError
     next: Failed
   - state: DiscoveringCorpus
@@ -177,10 +169,6 @@ transitions:
     signal: CommandError
     next: Failed
   - state: Composing
-    signal: DocumentReady
-    next: Embedding
-    action: embed_document
-  - state: Composing
     signal: DocumentMissing
     next: Composing
     action: invoke_llm
@@ -192,20 +180,6 @@ transitions:
     signal: DocumentResourceDenied
     next: Composing
     action: invoke_llm
-  - state: Embedding
-    signal: DocumentEmbedded
-    next: NormalizingEmbedding
-    action: normalize_embedding
-  - state: Embedding
-    signal: CommandError
-    next: Failed
-  - state: NormalizingEmbedding
-    signal: EmbeddingNormalized
-    next: ResolvingCollection
-    action: resolve_collection
-  - state: NormalizingEmbedding
-    signal: CommandError
-    next: Failed
   - state: ResolvingCollection
     signal: CollectionReady
     next: Adding
@@ -233,3 +207,8 @@ transitions:
   - state: Counting
     signal: CommandError
     next: Failed
+# The embedding opening: a read document is embedded at the bound provider and
+# normalized to one flat vector before the collection step (srd058 R4.1).
+instantiate:
+  - fragment: /opt/agent-core/tools/machines/embed-document-stage-fragment.yaml
+    args: {from: Composing, enter: DocumentReady, next: ResolvingCollection, next_action: resolve_collection}

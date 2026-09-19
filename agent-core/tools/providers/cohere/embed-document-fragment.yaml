@@ -1,0 +1,80 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Cohere document embedding (srd058 R1.3): embed_document on document_embedder,
+# asking /v2/embed for a search_document vector; the embedding is one row the
+# embed stage normalizes.
+unit: provider-cohere-embed-document
+params:
+- name: input_selector
+  type: string
+  description: The selector the text to embed is read from, under body_source.
+- name: id_selector
+  type: string
+  default: $.id
+  description: The selector an optional record id is read from; the id is carried forward with the text when present.
+- name: body_source
+  type: string
+  enum: [command_state, previous_result]
+  default: previous_result
+  description: Where input_selector and id_selector read; a command_state caller passes $from(label) selectors for both.
+- name: base_url
+  type: string
+  default: ${COHERE_API_URL:-https://api.cohere.com}
+  description: The Cohere endpoint; a deployment may set COHERE_API_URL.
+- name: model
+  type: string
+  default: embed-v4.0
+rest:
+  version: v1
+  auth:
+    document_embedder_auth:
+      type: bearer
+      token_ref: COHERE_API_KEY
+  limits:
+    document_embedder_limits:
+      timeout: 60s
+      max_request_bytes: 1048576
+      max_response_bytes: 4194304
+      redirect:
+        mode: none
+  clients:
+    document_embedder:
+      base_url: $param(base_url)
+      auth_ref: document_embedder_auth
+      limits_ref: document_embedder_limits
+      operations:
+        embed_document:
+          method: POST
+          path: /v2/embed
+          params:
+            body_schema:
+              type: object
+              required: [input]
+              properties:
+                input: {type: string}
+                id: {}
+            body_source: $param(body_source)
+            input_mapping:
+              input: $param(input_selector)
+              id: $param(id_selector)
+            carry_forward: [input, id]
+          body:
+            model: $param(model)
+            input_type: search_document
+            embedding_types: [float]
+            texts: ["{{ params.input }}"]
+          success: {status: [200], signal: DocumentEmbedded}
+          failures:
+          - {status: [401, 403], signal: ProviderUnauthorized}
+          - {status: [429], signal: ProviderThrottled}
+          - {status: [500, 502, 503, 504], signal: ProviderUnavailable}
+          response:
+            output:
+              embedding: $.embeddings.float
+          side_effects:
+          - kind: external_api
+            target: cohere.embed
+            state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop

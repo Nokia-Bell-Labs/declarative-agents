@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -16,14 +15,13 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/cohere"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/ollama"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/prompt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry/genai"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
 )
 
 // Deterministic decoding defaults applied when invoke_llm config omits the
@@ -300,6 +298,9 @@ type InvokeLLMFactoryDeps struct {
 	ConversationRefResolver ConversationReferenceResolver
 	Ctx                     context.Context
 	OnResolved              func(InvokeLLMResolvedConfig)
+	// Credentials resolves a dialect's credential references at call time;
+	// nil resolves them from the process environment (srd058 R3.5).
+	Credentials credentials.Resolver
 }
 
 // InvokeLLMResolvedConfig exposes metadata needed by neighboring tools.
@@ -307,6 +308,9 @@ type InvokeLLMResolvedConfig struct {
 	Model        string
 	ProviderName string
 	Parser       modelllm.ResponseParser
+	// Profiles is the parser profile registry the call resolved against: the
+	// bound library's profiles ahead of the embedded ones (srd058 R3.4).
+	Profiles *modelllm.ProfileRegistry
 }
 
 // NewInvokeLLMBuilder creates the configured invoke_llm builder.
@@ -315,33 +319,29 @@ func NewInvokeLLMBuilder(def catalog.ToolDef, deps InvokeLLMFactoryDeps) (*Invok
 	if err != nil {
 		return nil, err
 	}
-	parser, err := resolveLLMParser(cfg)
-	if err != nil {
-		return nil, err
-	}
-	client, serverAddr, err := newLLMClient(cfg, deps.Tracer)
+	provider, err := resolveProvider(cfg, deps)
 	if err != nil {
 		return nil, err
 	}
 	if deps.OnResolved != nil {
-		deps.OnResolved(resolvedLLMConfig(cfg, parser))
+		deps.OnResolved(InvokeLLMResolvedConfig{
+			Model: cfg.Model, ProviderName: provider.name, Parser: provider.parser, Profiles: provider.profiles,
+		})
 	}
-	return invokeBuilder(def, cfg, parser, client, serverAddr, deps), nil
+	return invokeBuilder(def, cfg, provider, deps), nil
 }
 
 func invokeBuilder(
 	def catalog.ToolDef,
 	cfg catalog.LLMToolConfig,
-	parser modelllm.ResponseParser,
-	client modelllm.Client,
-	serverAddr string,
+	provider resolvedProvider,
 	deps InvokeLLMFactoryDeps,
 ) *InvokeLLMBuilder {
 	return &InvokeLLMBuilder{
 		ToolName: def.Name,
-		Client:   client, History: deps.History, Registry: deps.Registry,
-		Assembler: newLLMAssembler(cfg, parser), State: core.State(cfg.ManifestState),
-		Model: cfg.Model, ProviderName: cfg.Provider, ServerAddr: serverAddr,
+		Client:   provider.client, History: deps.History, Registry: deps.Registry,
+		Assembler: newLLMAssembler(cfg, provider.parser), State: core.State(cfg.ManifestState),
+		Model: cfg.Model, ProviderName: provider.name, ServerAddr: provider.serverAddr,
 		Tracer: tracerOrNoop(deps.Tracer), ContextLimit: cfg.ContextLimit, NumCtx: cfg.NumCtx,
 		Temperature: resolveTemperature(cfg), Seed: resolveSeed(cfg),
 		CallTimeout: invokeCallTimeout(cfg),
@@ -412,58 +412,11 @@ func newLLMAssembler(cfg catalog.LLMToolConfig, parser modelllm.ResponseParser) 
 	}
 }
 
-func newLLMClient(cfg catalog.LLMToolConfig, tracer tracing.Tracer) (modelllm.Client, string, error) {
-	if cfg.Provider != "ollama" && cfg.Provider != "cohere" {
-		return nil, "", fmt.Errorf("unsupported invoke_llm provider %q", cfg.Provider)
-	}
-	if cfg.ProviderURL == "" {
-		return nil, "", fmt.Errorf("invoke_llm config provider %q requires provider_url", cfg.Provider)
-	}
-	// Profiles that need preflight readiness declare a REST transition; adapter
-	// construction performs no hidden network probe.
-	var client modelllm.Client
-	var err error
-	switch cfg.Provider {
-	case "ollama":
-		client, err = ollama.NewAdapter(cfg.ProviderURL, cfg.Model,
-			ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
-			ollama.WithTracer(tracerOrNoop(tracer)),
-		)
-	case "cohere":
-		client, err = cohere.NewAdapter(cfg.ProviderURL, cfg.Model,
-			cohere.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
-			cohere.WithTracer(tracerOrNoop(tracer)),
-		)
-	}
-	return client, serverAddr(cfg.ProviderURL), err
-}
-
 func tracerOrNoop(tracer tracing.Tracer) tracing.Tracer {
 	if tracer == nil {
 		return tracing.NoopTracer{}
 	}
 	return tracer
-}
-
-func resolveLLMParser(cfg catalog.LLMToolConfig) (modelllm.ResponseParser, error) {
-	reg, err := modelllm.DefaultProfileRegistry()
-	if err != nil {
-		return nil, fmt.Errorf("load profiles: %w", err)
-	}
-	if cfg.ResponseProfile == "" {
-		return reg.ResolveProfile(cfg.Model), nil
-	}
-	parser, ok := reg.ResolveProfileName(cfg.ResponseProfile)
-	if !ok {
-		return nil, fmt.Errorf("invoke_llm response_profile %q not found", cfg.ResponseProfile)
-	}
-	return parser, nil
-}
-
-func resolvedLLMConfig(cfg catalog.LLMToolConfig, parser modelllm.ResponseParser) InvokeLLMResolvedConfig {
-	return InvokeLLMResolvedConfig{
-		Model: cfg.Model, ProviderName: cfg.Provider, Parser: parser,
-	}
 }
 
 func httpTimeout(cfg catalog.LLMToolConfig) time.Duration {

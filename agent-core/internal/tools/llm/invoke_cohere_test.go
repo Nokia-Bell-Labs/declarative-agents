@@ -74,7 +74,7 @@ func TestInvokeLLM_CohereCommandError(t *testing.T) {
 
 		result := builder.Build(core.Result{State: "Composing", Output: "prompt"}).Execute()
 		require.Equal(t, core.CommandError, result.Signal)
-		require.ErrorContains(t, result.Err, "COHERE_API_KEY is not resolved")
+		require.ErrorContains(t, result.Err, `"COHERE_API_KEY" is not resolved`)
 		require.Zero(t, calls)
 	})
 	t.Run("unreachable service", func(t *testing.T) {
@@ -116,12 +116,22 @@ func TestInvokeLLMProviderSelection(t *testing.T) {
 	}})
 	require.NoError(t, err)
 	require.Empty(t, cohereConfig.ProviderURL)
-	_, _, err = newLLMClient(cohereConfig, tracing.NoopTracer{})
+	_, err = resolveProvider(cohereConfig, InvokeLLMFactoryDeps{})
 	require.ErrorContains(t, err, `provider "cohere" requires provider_url`)
 
 	unknown := cohereConfig
 	unknown.Provider = "unknown"
 	unknown.ProviderURL = "http://provider.invalid"
-	_, _, err = newLLMClient(unknown, tracing.NoopTracer{})
+	_, err = resolveProvider(unknown, InvokeLLMFactoryDeps{})
 	require.ErrorContains(t, err, `unsupported invoke_llm provider "unknown"`)
+}
+
+func TestInvokeLLMMapsLegacyProvider(t *testing.T) {
+	t.Parallel()
+	for _, provider := range []string{"ollama", "cohere"} {
+		path, err := legacyDialect(provider)
+		require.NoError(t, err)
+		require.Equal(t, shippedDialect(t, provider), path,
+			"provider %s resolves to the shipped library's dialect under the install root", provider)
+	}
 }
