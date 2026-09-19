@@ -99,7 +99,14 @@ func UIDist() error {
 	}); err != nil {
 		return err
 	}
-	fmt.Printf("uiDist PASS: %d shipped UI dist tree(s) reproduce from a clean source build\n", len(uis))
+	for _, bundle := range embeddedUIBundles {
+		fmt.Printf("=== ui reproducibility: %s -> %s ===\n", bundle.source, bundle.embedded)
+		if err := rebuildAndDiffUIAgainst(bundle.source, bundle.embedded, runIn); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("uiDist PASS: %d shipped UI dist tree(s) and %d embedded bundle(s) reproduce from a clean source build\n",
+		len(uis), len(embeddedUIBundles))
 	return nil
 }
 
@@ -188,6 +195,13 @@ func rebuildAndDiffUI(appDir string) error {
 }
 
 func rebuildAndDiffUIWithRunner(appDir string, run uiRunner) error {
+	return rebuildAndDiffUIAgainst(appDir, filepath.Join(appDir, "dist"), run)
+}
+
+// rebuildAndDiffUIAgainst rebuilds appDir from source and compares the output
+// with trackedDist, which is appDir/dist for a shipped UI and the go:embed
+// directory for a bundle compiled into agent-core.
+func rebuildAndDiffUIAgainst(appDir, trackedDist string, run uiRunner) error {
 	tmp, err := os.MkdirTemp("", "uidist-")
 	if err != nil {
 		return err
@@ -220,8 +234,8 @@ func rebuildAndDiffUIWithRunner(appDir string, run uiRunner) error {
 	if err := run(build, "npm", "run", "build"); err != nil {
 		return fmt.Errorf("%s: npm run build failed: %w", appDir, err)
 	}
-	if diff := diffTrees(filepath.Join(appDir, "dist"), filepath.Join(build, "dist")); diff != "" {
-		return fmt.Errorf("%s: tracked dist differs from a clean source build; rebuild and commit dist:\n%s", appDir, diff)
+	if diff := diffTrees(trackedDist, filepath.Join(build, "dist")); diff != "" {
+		return fmt.Errorf("%s: tracked dist %s differs from a clean source build; rebuild and commit it:\n%s", appDir, trackedDist, diff)
 	}
 	return nil
 }

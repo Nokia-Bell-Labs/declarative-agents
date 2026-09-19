@@ -52,7 +52,15 @@ sections:
       package @declarative-agents/ui-kit (srd004 R8). The design tokens at
       applications/ui-kit/src/tokens.css are the worked case; a UI imports
       them as @declarative-agents/ui-kit/tokens.css through a file:
-      dependency on the kit. Runtime-internal assets that are
+      dependency on the kit. A platform UI that every agent of a kind
+      shares, such as the fleet observer, is built from its source under
+      applications/ui-kit/observer and committed as a built bundle under
+      agent-core/internal/tools/rest/bundles/<name>/, because agent-core is
+      its own Go module and go:embed reads only files inside it; mage
+      uikit:observer refreshes the copy and mage uiDist fails when it differs
+      from a clean rebuild. An agent selects the bundle by name in its
+      rest.yaml static_assets binding and carries no UI files, so the bundle
+      needs no ConfigMap delivery (srd004 R9). Runtime-internal assets that are
       never mounted into a served application, such as
       agent-core/internal/knowledge/documentation/ui, are part of the platform
       and this guideline does not reach them.

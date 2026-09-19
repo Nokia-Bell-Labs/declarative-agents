@@ -55,6 +55,10 @@ createRoot(document.getElementById("root")!).render(<AppShell config={config} re
 
 `AppShell` mounts the active panel from the registry by panel id, or, for a `@declarative-agents/ui-kit` panel with no registry entry, the kit panel its `export` names. A registry value is a component taking `PanelProps` or a whole kit panel, so `{...kitPanelRegistry, ...domainPanels}` works. Version 1 `routes[]` mount from the registry by route id and group under the sidebar group of the same id. A declared id with no component renders a placeholder rather than failing. The sidebar hides a kit panel whose manifest monitors agents that the monitor proxy reports all not deployed (srd004 R2.2); the shell probes each agent's `monitor/state` once on mount and re-probes absent agents every 60 seconds. The optional `client` prop points every panel at another base URL; the default is same-origin. `examples/minimal/` is a complete application of two kit panels composed only from its `ui.yaml`; `npm test` builds it.
 
+## Embedded observer
+
+`observer/` is the fleet observer SPA, composed only of kit panels (StatusBar, Topology, AgentCards, MachineView). It reads its title, monitored agents, trace backend, and role annotation from `ui-config.json`, which the REST tool serves from the `config` map of a `static_assets` binding that selects `bundle: observer` (srd004 R9, agent-core srd029 R5.9–R5.10). `mage uikit:observer` builds it and replaces the embedded copy in `agent-core/internal/tools/rest/bundles/observer/`; `mage uiDist` fails when that copy differs from a clean rebuild.
+
 ## Mage targets
 
 Table: ui-kit Mage targets
@@ -64,6 +68,7 @@ Table: ui-kit Mage targets
 | `mage uikit:build` | `npm ci`, then the Vite library build and declaration emit into `dist/` |
 | `mage uikit:test` | `npm ci`, type-check, and Vitest; `mage test` runs it too |
 | `mage uikit:pack` | build, then `npm pack` into `out/` |
+| `mage uikit:observer` | build the kit and the observer SPA and refresh the agent-core embedded bundle |
 | `mage uikit:release` | pack from a clean tree, check the `ui-kit/vX.Y.Z` tag against `package.json`, and print the tag and `gh release create` commands; it publishes nothing |
 
 A release bumps `version` in `package.json` and `KIT_VERSION` in `src/index.ts` together; a kit test fails when they differ.

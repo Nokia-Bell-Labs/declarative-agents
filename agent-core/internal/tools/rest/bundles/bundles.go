@@ -14,7 +14,8 @@ import (
 )
 
 // The observer bundle is the fleet observer SPA built from
-// applications/ui-kit/observer by mage uikit:observer.
+// applications/ui-kit/observer by mage uikit:observer; mage uiDist fails when
+// this copy differs from a clean rebuild.
 //
 //go:embed observer
 var observer embed.FS

@@ -208,3 +208,37 @@ func testUIKit() error {
 	fmt.Printf("=== %s tests ===\n", uiKitDir)
 	return uiKitTest(uiKitDir, runIn)
 }
+
+// embeddedUIBundle pairs a kit-built SPA with the go:embed directory agent-core
+// compiles it from (srd029 R5.9, applications srd004 R9). The built dist is
+// committed there because agent-core is its own Go module.
+type embeddedUIBundle struct {
+	source   string
+	embedded string
+}
+
+var embeddedUIBundles = []embeddedUIBundle{
+	{source: "applications/ui-kit/observer", embedded: "agent-core/internal/tools/rest/bundles/observer"},
+}
+
+// Observer builds the kit and the observer SPA and replaces the embedded
+// observer bundle in agent-core with the fresh dist.
+func (UIKit) Observer() error {
+	return buildEmbeddedBundle(embeddedUIBundles[0], runIn)
+}
+
+func buildEmbeddedBundle(bundle embeddedUIBundle, run uiRunner) error {
+	if err := uiKitBuild(uiKitDir, run); err != nil {
+		return err
+	}
+	if err := run(bundle.source, "npm", "ci", "--no-audit", "--prefer-offline"); err != nil {
+		return fmt.Errorf("%s: npm ci failed: %w", bundle.source, err)
+	}
+	if err := run(bundle.source, "npm", "run", "build"); err != nil {
+		return fmt.Errorf("%s: npm run build failed: %w", bundle.source, err)
+	}
+	if err := os.RemoveAll(bundle.embedded); err != nil {
+		return err
+	}
+	return copyDirExcluding(filepath.Join(bundle.source, "dist"), bundle.embedded, nil)
+}

@@ -57,7 +57,7 @@ pkg:internal/tools/otlp files=14 loc=3877
 pkg:internal/tools/pipeline files=2 loc=232
 pkg:internal/tools/registry files=3 loc=327
 pkg:internal/tools/rest files=26 loc=4907
-pkg:internal/tools/rest/bundles files=1 loc=49
+pkg:internal/tools/rest/bundles files=1 loc=50
 pkg:internal/tools/rest/client files=15 loc=2533
 pkg:internal/tools/rest/credentials files=1 loc=73
 pkg:internal/tools/rest/definition files=9 loc=1870
