@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
@@ -63,4 +64,19 @@ func TestInvokeLLMBuildsWithoutNetworkIO(t *testing.T) {
 		require.False(t, strings.HasSuffix(client.baseURL, "/"), "a trailing slash is trimmed")
 	}
 	require.Zero(t, calls.Load(), "construction probes nothing")
+}
+
+// A legacy provider on a host without the shipped library names the remedy
+// instead of failing on a bare missing file (GH-2257). Not parallel: it swaps
+// the process-wide install root while the parallel tests are paused.
+func TestLegacyProviderWithoutTheShippedLibraryNamesTheRemedy(t *testing.T) {
+	previous := corepath.InstallRoot()
+	corepath.SetInstallRoot(t.TempDir())
+	t.Cleanup(func() { corepath.SetInstallRoot(previous) })
+
+	_, err := legacyDialect("ollama")
+
+	require.ErrorContains(t, err, `provider "ollama"`)
+	require.ErrorContains(t, err, "not installed here")
+	require.ErrorContains(t, err, "--core-root")
 }

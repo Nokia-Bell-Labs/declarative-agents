@@ -141,6 +141,9 @@ func monitoredQwenProfileValues(rootDir, tmpDir string) map[string]string {
 		"MONITOR_DECLARATIONS_PATH": coreIntegrationProfilePath(rootDir, "monitor/declarations.yaml"),
 		"OLLAMA_REST_PATH":          coreIntegrationProfilePath(rootDir, "ollama-rest/rest.yaml"),
 		"MONITOR_REST_PATH":         filepath.Join(tmpDir, "monitor-rest.yaml"),
+		// The run binds the checkout's Ollama library, since it runs without
+		// --core-root (srd058 R1.1; GH-2257).
+		"PROVIDERS_PATH": abs(rootDir, "tools/providers/ollama"),
 	}
 }
 

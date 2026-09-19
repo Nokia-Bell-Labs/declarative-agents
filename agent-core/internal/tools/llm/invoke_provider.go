@@ -6,6 +6,7 @@ package llm
 import (
 	"fmt"
 	"net/http"
+	"os"
 
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
@@ -54,7 +55,11 @@ func legacyDialect(provider string) (string, error) {
 	}
 	path := corepath.InstallPrefix + "/tools/providers/" + provider + "/" + dialect.FileName
 	if mapped := corepath.Map(path); mapped != "" {
-		return mapped, nil
+		path = mapped
+	}
+	if _, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("invoke_llm provider %q maps to the shipped dialect %s, which is not installed here; "+
+			"run with --core-root <agent-core checkout> or declare dialect under a providers library root", provider, path)
 	}
 	return path, nil
 }
