@@ -856,7 +856,7 @@ releases:
     test_suites:
       - id: test-rel17.0-rig-doctor
         title: Rig doctor root-cause analyst conformance
-        cases: 6
+        cases: 7
         status: implemented
     proof:
       - mage validate

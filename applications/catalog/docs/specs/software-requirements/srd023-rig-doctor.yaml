@@ -38,10 +38,11 @@ requirements:
   R2:
     title: Read-only diagnosis loop
     items:
-      - R2.1: The profile runs one model-driven loop whose tool manifest holds only filesystem reads (list_files, read, find), the diagnosis write, and done; the captured spool tail is read as one of those files.
+      - R2.1: The profile runs one model-driven loop whose tool manifest holds only filesystem reads (list_files, read, find), the captured-spool queries (query_list_traces, query_get_trace), the diagnosis write, and done.
+      - R2.5: The spool queries are declared external, because dynamic dispatch resolves only external words and machine exhaustiveness unions the emitted signals of exactly that set; the loop state routes TracesListed and TraceRetrieved back through the model.
       - R2.2: The profile declares no exec word, no kubectl or helm access, and no network boundary other than the model provider.
       - R2.3: The profile declares one write word, whose workspace is the evidence directory, and a run writes diagnosis.yaml and nothing else.
-      - R2.4: Every path a word can reach lies inside the evidence directory the run is pointed at; no path comes from an environment variable.
+      - R2.4: Every path a word can reach lies inside the evidence directory the run is pointed at, the spool queries through a literal declared traces/collector.ndjson; no path comes from an environment variable.
   R3:
     title: Diagnosis output
     items:
@@ -70,7 +71,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: Catalog boot smoke validates the standalone profile, and conformance checks that its tool manifest holds only the R2.1 words and no kubectl or helm access.
-    traces: [R2.1, R2.2, R2.4, R5.1]
+    traces: [R2.1, R2.2, R2.4, R2.5, R5.1]
   - id: AC2
     criterion: A fixture evidence directory with a failing rollout drives the scripted-provider run to Diagnosed, and the written diagnosis.yaml satisfies the R3 schema with resolvable evidence cites.
     traces: [R1.1, R1.2, R1.3, R2.3, R3.1, R3.2, R3.3, R4.1, R5.3]
@@ -80,6 +81,9 @@ acceptance_criteria:
   - id: AC4
     criterion: The family inventory test finds the root-cause-analyst binding in all three semantic models.
     traces: [R5.2]
+  - id: AC6
+    criterion: A scripted run dispatches both spool queries by model choice and the spans they return reach the model in the next prompt.
+    traces: [R2.1, R2.4, R2.5]
   - id: AC5
     criterion: Rig capture writes a manifest that lists every captured file and records capture errors without aborting.
     traces: [R1.1, R1.4]

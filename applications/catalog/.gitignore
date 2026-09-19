@@ -4,3 +4,7 @@
 # written under the catalog root when integration and conformance gates run the collector.
 metrics/
 traces/
+
+# Checked-in evidence fixtures carry a captured spool tail at the same path the
+# rig capture writes (srd023 R1.3), so the rule above must not swallow them.
+!testdata/conformance/**/traces/

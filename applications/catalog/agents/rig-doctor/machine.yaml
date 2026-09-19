@@ -25,9 +25,10 @@ lifecycle: |-
      prompt; an empty listing reaches NoEvidence without calling the model
   4. Composing -> Parsing (LLMResponded): parse_response extracts a tool call
   5. Parsing -> Composing (ToolDone): the $tool sentinel dispatches the read,
-     find, or write the model asked for
-  6. Composing -> Composing (ToolDone, ToolFailed): invoke_llm feeds the
-     tool result back
+     find, spool query, or write the model asked for
+  6. Composing -> Composing (ToolDone, ToolFailed, TracesListed,
+     TraceRetrieved): invoke_llm feeds the tool result back, whichever signal
+     the dispatched word reports
   7. Parsing -> Composing (ParseFailed): report_parse_error to the LLM, or
      BudgetExhausted when max_consecutive_parse_errors is reached
   8. Parsing -> Diagnosed (TaskCompleted): the model called done after writing
@@ -102,6 +103,10 @@ signals:
   trigger: The evidence listing is empty.
 - name: LLMResponded
   trigger: The LLM returned a response (invoke_llm completed).
+- name: TracesListed
+  trigger: A captured-spool trace listing completed.
+- name: TraceRetrieved
+  trigger: A captured-spool trace detail read completed.
 - name: ParseFailed
   trigger: The LLM response could not be parsed as a valid tool call.
 - name: TaskCompleted
@@ -157,6 +162,14 @@ transitions:
   action: invoke_llm
 - state: Composing
   signal: ToolFailed
+  next: Composing
+  action: invoke_llm
+- state: Composing
+  signal: TracesListed
+  next: Composing
+  action: invoke_llm
+- state: Composing
+  signal: TraceRetrieved
   next: Composing
   action: invoke_llm
 - state: Composing
