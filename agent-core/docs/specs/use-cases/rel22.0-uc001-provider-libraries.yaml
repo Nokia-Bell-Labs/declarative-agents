@@ -1,0 +1,58 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel22.0-uc001-provider-libraries
+title: A deployment changes and adds a model provider without editing an agent
+status: specified
+
+summary: |
+  An operator runs an agent that chats through invoke_llm and embeds through
+  a stage fragment, with its profile declaring the providers root at the
+  shipped Ollama library. The operator reruns the same profile with
+  --library providers bound to the shipped Cohere library, and the agent
+  chats, embeds, and reports provider failures in the same signal vocabulary
+  without an edit to any machine, tool, REST, or fragment file. A library
+  author then adds a third provider as a directory of YAML: a chat dialect, an
+  embed fragment, and a parser profile. The operator binds it the same way,
+  and no Go change or agent declaration change follows.
+
+actor: An operator choosing a model provider per deployment, and a library author adding one
+
+trigger: |
+  A deployment must run the same agents against a different model provider,
+  or against a provider the runtime has never shipped.
+
+flow:
+  - F1: The profile declares libraries.providers at the shipped Ollama library; the agent's invoke_llm config names dialect /opt/providers/chat-dialect.yaml, and its machine instantiates the embed-query stage fragment with the library's embed_query REST fragment beside it.
+  - F2: invoke_llm renders the message history, builds the request from the dialect's body template with the conversation placed as a structured array, calls the provider, extracts text and usage by the dialect's selectors, parses the reply with the library's parser profile, and appends history.
+  - F3: The operator reruns with --library providers=<cohere library>. The token_ref the Cohere dialect names is resolved at call time, and the same machine emits LLMResponded and QueryEmbedded, or ProviderUnauthorized, ProviderThrottled, or ProviderUnavailable on a failing status.
+  - F4: The dump records the dialect and fragments by resolved path and root, and the program identity changes with the bound library.
+  - F5: A library author writes an OpenAI-shaped library directory; the operator binds it, and the conformance suite passes with no Go change and no agent declaration change.
+  - F6: A binding that lacks a file the agent needs fails at load, naming the missing path and the bound directory.
+
+touchpoints:
+  - T1: "srd058-provider-libraries R1 -- the provider library, its root, its vocabulary, and its auth"
+  - T2: "srd058-provider-libraries R2 -- the chat dialect declaration"
+  - T3: "srd058-provider-libraries R3 -- invoke_llm as a template method"
+  - T4: "srd058-provider-libraries R4 -- embed and rerank stage fragments"
+  - T5: "srd058-provider-libraries R5 -- first conforming libraries and the conformance suite"
+  - T6: "srd056-unit-libraries R2 -- declared roots and the --library override"
+
+success_criteria:
+  - id: S1
+    criterion: Rebinding --library providers switches a profile from Ollama to Cohere with no edit to any machine, tool, REST, or fragment file, and a missing dialect or fragment fails at load naming the path and the bound directory.
+    traces: [srd058-provider-libraries AC1]
+  - id: S2
+    criterion: The dialect path produces byte-equivalent requests and equivalent histories, signals, and spans to the compiled adapters for both shipped providers, and resolves credentials only at call time.
+    traces: [srd058-provider-libraries AC2]
+  - id: S3
+    criterion: The embed stage fragments and library REST fragments replace the hand-written embedding stages and Ollama embed blocks, and every provider operation emits the shared vocabulary, including failures on the Ollama path.
+    traces: [srd058-provider-libraries AC3]
+  - id: S4
+    criterion: A synthetic OpenAI-shaped library passes the conformance suite with zero Go and zero agent declaration changes.
+    traces: [srd058-provider-libraries AC4]
+
+out_of_scope:
+  - Streaming, provider tool-call APIs, batching, caching, failover, retries, and rate-limit policy.
+  - Non-bearer request signing; such providers bind through an OpenAI-compatible gateway.
+  - A shared reasoning-loop machine template.
+  - Migrating consumer repositories.

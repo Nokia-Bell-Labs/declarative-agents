@@ -1,0 +1,214 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd058-provider-libraries
+title: Provider Libraries and Template-Method Words
+
+problem: |
+  A model provider touches the corpus at three layers, and at every layer the
+  provider dialect is fused into the invariant around it. At the tool layer,
+  invoke_llm selects a compiled adapter from a provider literal
+  (internal/tools/llm/invoke.go), so adding a provider is a Go change the size
+  of srd048: an adapter package, an embedded parser profile, tests, and a new
+  case in the dispatch. At the declaration layer, the provider's REST dialect
+  is hand-written wherever it is needed: the Ollama embed block repeats 205
+  identical lines across the catalog knowledge-manager and chatbot-mesh
+  corpus-ingest agents, and cohere-demo declares the same /v2/chat operation
+  five times. At the machine layer, catalog corpus-ingest and corpus-reader
+  open with the same hand-written Chroma, Ollama, and embedding stages, and
+  neither imports anything.
+
+  The invariant at each layer is provider-neutral. The tool renders a message
+  history, performs one HTTP call, extracts text, parses a reply, and appends
+  history; only the request body, the response selectors, and the parser
+  differ by provider. The embed stage checks readiness, embeds, and hands a
+  vector on; only the operation dialect differs. srd052 fragments, srd054
+  machine templates, and srd056 library roots already express fixed skeletons
+  with declared holes, and the REST request-body renderer already places a
+  structured value when a scalar is exactly one `{{ params.<name> }}`
+  reference. What is missing is the provider as the unit that fills the
+  holes: one directory of declarations that a deployment binds, so that a
+  workload changes provider without editing any agent file and gains a
+  provider without any Go change.
+
+goals:
+  - G1: Define the provider library, one directory of YAML that fills every provider hole, resolved through a declared library root and rebound per run.
+  - G2: Restate invoke_llm as a template method whose provider-specific steps read a chat dialect declaration instead of selecting a compiled adapter.
+  - G3: Publish embed and rerank stage fragments whose operations come from the bound provider library under a fixed signal vocabulary.
+  - G4: Ship Ollama and Cohere as the first two conforming provider libraries and retire their compiled adapters at parity.
+  - G5: Keep srd048's credential boundary. Credentials are referenced by environment variable name, resolved at call time, and absent from YAML, output, and telemetry.
+  - G6: Add no substitution or templating mechanism. Every hole is filled by a mechanism that ships today.
+
+requirements:
+  R1:
+    title: The provider library
+    items:
+      - R1.1: >-
+          A provider library SHALL be a directory reached through a library
+          root named providers. A profile SHALL declare the root with its
+          default directory under srd056 R2.1, a run MAY rebind it with
+          --library providers=<dir> under srd056 R2.2, and a child-agent
+          profile SHALL declare its own under srd056 R2.3. The profile's
+          libraries entry SHALL be the only place a provider is named:
+          machine, tool, REST, and fragment declarations SHALL reach provider
+          content only through /opt/providers/... paths.
+      - R1.2: >-
+          The shipped libraries SHALL live under agent-core/tools/providers,
+          and a profile MAY declare the providers root by its rooted path
+          under /opt/agent-core. Staging SHALL treat files reached that way as
+          agent-core files, which the runtime image provides (srd056 R3.3),
+          and SHALL copy a library outside agent-core into the staged tree.
+      - R1.3: >-
+          A conforming library SHALL supply chat-dialect.yaml and MAY supply
+          embed-query-fragment.yaml, embed-document-fragment.yaml,
+          rerank-fragment.yaml, and a response parser profile. Each fragment
+          SHALL be a REST fragment (srd052 R1.1) producing one operation with
+          a fixed name, embed_query, embed_document, or rerank, and fragments
+          of one kind SHALL declare the same parameters in every library,
+          with provider-specific values given as defaults. A word, stage, or
+          instantiation that needs a file the bound library does not supply
+          SHALL fail at load, naming the missing path and the bound directory.
+      - R1.4: >-
+          Every operation a provider library declares SHALL emit only the
+          shared signal vocabulary: LLMResponded for chat, QueryEmbedded and
+          DocEmbedded for embed, Reranked for rerank, and the failure taxonomy
+          ProviderUnauthorized (401, 403), ProviderThrottled (429), and
+          ProviderUnavailable (5xx). The result shapes those signals carry
+          (embedding vectors, rerank results, and usage) SHALL be declared in
+          one type unit under agent-core/tools/units that every shipped
+          library imports.
+      - R1.5: >-
+          Provider authentication SHALL be declared as a REST auth profile
+          whose token_ref names an environment variable (rest-tool-format), or
+          as an explicit none. A library SHALL NOT carry a credential value.
+
+  R2:
+    title: Chat dialect declaration
+    items:
+      - R2.1: >-
+          chat-dialect.yaml SHALL declare the endpoint path, the request body
+          template, the response text selector, optional usage selectors, the
+          failure map from status classes to the R1.4 signals, the parser
+          profile name, and the auth profile. The body, failure map, and auth
+          profile SHALL use the REST format's grammar and SHALL be validated
+          by the REST definition validation. These fields SHALL be the only
+          provider-varying inputs to invoke_llm; the base URL and the model
+          stay in the ToolDef config, where a deployment sets them today.
+      - R2.2: >-
+          The body template SHALL be rendered by the REST request-body
+          renderer with invoke_llm supplying messages, model, and the declared
+          generation options as params. The conversation SHALL be placed by a
+          scalar that is exactly `{{ params.messages }}`, which the renderer
+          replaces with the structured message array. A dialect that
+          references messages inside a larger string SHALL fail at load.
+      - R2.3: >-
+          The dialect file SHALL be an ordinary unit: strict-decoded, staged
+          with the closure, a program identity asset under srd050 R2.7, and
+          recorded in the dump with its resolved path and root, so a program
+          identity names the dialect it ran with.
+
+  R3:
+    title: invoke_llm as a template method
+    items:
+      - R3.1: >-
+          invoke_llm SHALL run the fixed pipeline render messages, build
+          request, HTTP call, extract text, parse reply, append history. Build
+          request, extract text, and parse reply SHALL read the bound chat
+          dialect; render, HTTP, and append SHALL contain no provider
+          conditionals.
+      - R3.2: >-
+          ToolDef config SHALL accept `dialect: <path>` in place of
+          `provider:`. During migration `provider: ollama` and
+          `provider: cohere` SHALL resolve to the shipped dialect files, and
+          naming both fields SHALL be a config error.
+      - R3.3: >-
+          Conversation history, undo, capture, tracing, and the emitted
+          signals SHALL be unchanged: a machine that binds invoke_llm today
+          SHALL run unmodified against any conforming dialect.
+      - R3.4: >-
+          Response parser profiles SHALL resolve from the bound provider
+          library before the embedded registry, a library name winning on
+          collision, so a new provider ships its parser without a Go change.
+      - R3.5: >-
+          invoke_llm SHALL resolve the dialect's token_ref through the
+          credential resolver REST operations use, immediately before request
+          construction, and a missing or empty credential SHALL fail before
+          network I/O. The srd048 R3.5 fixed-name lookup SHALL retire with the
+          Cohere adapter, and srd048 R3.4 SHALL hold for every dialect.
+
+  R4:
+    title: Embed and rerank stage fragments
+    items:
+      - R4.1: >-
+          agent-core/tools/machines SHALL publish embed-query, embed-document,
+          and rerank stage fragments (srd052 R4) whose states call the R1.3
+          operation names and route the R1.4 success and failure signals, with
+          entry and exit signals as parameters. Because a fragment does not
+          instantiate another (srd052 R1.2), the importing agent SHALL
+          instantiate the library's REST fragment in its REST declarations
+          beside the stage.
+      - R4.2: >-
+          The stage fragments SHALL replace the hand-written embedding stages
+          in catalog corpus-ingest and corpus-reader, the library fragments
+          SHALL replace both duplicated Ollama embed REST blocks, and the
+          failure taxonomy SHALL apply to the Ollama path, which declares no
+          provider failures today.
+
+  R5:
+    title: First conforming libraries
+    items:
+      - R5.1: >-
+          agent-core/tools/providers/ollama and agent-core/tools/providers/cohere
+          SHALL ship as conforming libraries covering chat for both, embed for
+          both, and rerank for Cohere, with dialect content taken from the
+          compiled adapters and from cohere-demo's declared operations.
+      - R5.2: >-
+          The compiled Ollama and Cohere adapters SHALL be removed after a
+          capture-fixture parity run shows byte-equivalent requests and
+          equivalent histories, signals, and spans through the dialect path.
+      - R5.3: >-
+          A conformance suite SHALL bind a synthetic third library with an
+          OpenAI-shaped dialect and SHALL pass with zero Go changes and zero
+          agent declaration changes, which is the definition of adding a
+          provider. The suite SHALL check R1.4 for every shipped library.
+
+non_goals:
+  - Streaming responses, provider-side tool-call APIs, batching, or caching.
+  - Non-bearer request signing such as AWS SigV4; those providers bind through an OpenAI-compatible gateway.
+  - Provider failover, retries, or rate-limit policy.
+  - Forcing agents onto a shared reasoning-loop machine template; loop adoption is separate work on top of R3.3.
+  - Changing conversation, undo, or capture semantics.
+  - Structured parameters for srd052 fragments; no provider hole needs one at load time.
+  - Migrating consumer repositories; each consumer adopts the libraries through its own issue.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A deployment switches Ollama to Cohere by rebinding --library providers, with no edit to any machine, tool, REST, or fragment file, and a missing dialect or fragment fails at load naming the path and the bound directory.
+    traces: [R1.1, R1.2, R1.3, R2.3, R3.2]
+  - id: AC2
+    criterion: invoke_llm produces byte-equivalent requests and equivalent histories, signals, and spans through the ollama and cohere dialect files as through the compiled adapters, places the conversation as a structured array, and resolves credentials only at call time.
+    traces: [R1.5, R2.1, R2.2, R3.1, R3.3, R3.4, R3.5, R5.1, R5.2]
+  - id: AC3
+    criterion: The embed stage fragments replace both hand-written embedding openings and both Ollama embed REST copies, every provider operation emits the shared success and failure vocabulary, and mage stats:reuse records the removal.
+    traces: [R1.4, R4.1, R4.2]
+  - id: AC4
+    criterion: The synthetic third-provider conformance suite passes with zero Go and zero agent declaration changes.
+    traces: [R1.3, R1.4, R5.3]
+
+depends_on:
+  - srd_id: srd048-cohere-adapter
+    symbols_used: [credential boundary R3, parser profile precedent, R1.5 no embed or rerank in the adapter]
+  - srd_id: srd052-declaration-fragments
+    symbols_used: [REST fragments, instantiate, as prefix, stage fragments, no nested instantiation]
+  - srd_id: srd054-machine-templates
+    symbols_used: [tools/machines library location]
+  - srd_id: srd056-unit-libraries
+    symbols_used: [declared library roots, --library override, closure-scoped roots, rooted staging]
+  - srd_id: srd057-capability-profiles
+    symbols_used: [provider-neutral capability profiles as consumers]
+
+related_documents:
+  - cfg-llm-config-format
+  - cfg-rest-tool-format
+  - srd050-declaration-imports
+  - srd051-declaration-types
+

@@ -1,0 +1,126 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel22.0-provider-libraries
+title: Test Suite for Release 22.0 Provider Libraries
+release: "22.0"
+
+traces:
+  - rel22.0-uc001-provider-libraries
+
+preconditions:
+  - srd058-provider-libraries defines the provider library, the chat dialect, invoke_llm as a template method, the embed and rerank stage fragments, and the conformance suite.
+  - srd056 declared roots and the --library override, srd052 REST and stage fragments, and the REST request-body renderer are available and unchanged by this release.
+  - Fake HTTP servers answer the Ollama, Cohere, and OpenAI-shaped chat, embed, and rerank endpoints with recorded bodies and chosen statuses; no test reaches a real provider.
+
+test_cases:
+  - use_case: rel22.0-uc001-provider-libraries
+    name: A strict dialect loads and a bad one fails with its path
+    go_test: go test ./internal/tools/llm/... -run 'TestChatDialectLoadsStrictly|TestChatDialectRejectsUnknownField|TestChatDialectRejectsCredentialLiteral|TestChatDialectRejectsMessagesInsideString'
+    status: planned
+    description: Load a fixture dialect; then copies with an unknown field, a credential value in place of token_ref, and messages referenced inside a larger string.
+    expected:
+      valid_dialect_loads: true
+      unknown_field_rejected: true
+      credential_literal_rejected: true
+      embedded_messages_reference_rejected: true
+    traces: [rel22.0-uc001-provider-libraries S1, srd058-provider-libraries AC1, srd058-provider-libraries R1.5, srd058-provider-libraries R2.1, srd058-provider-libraries R2.2]
+
+  - use_case: rel22.0-uc001-provider-libraries
+    name: A missing library file fails at load naming path and directory
+    go_test: go test ./internal/load -run 'TestProviderLibraryMissingDialectNamesPathAndDirectory|TestProviderLibraryMissingFragmentNamesPathAndDirectory'
+    status: planned
+    description: Bind a providers root that lacks chat-dialect.yaml, then one that lacks rerank-fragment.yaml under a profile that instantiates the rerank stage.
+    expected:
+      load_fails: true
+      error_names_missing_path: true
+      error_names_bound_directory: true
+    traces: [rel22.0-uc001-provider-libraries S1, srd058-provider-libraries AC1, srd058-provider-libraries R1.3]
+
+  - use_case: rel22.0-uc001-provider-libraries
+    name: Rebinding the providers root switches provider with no declaration edit
+    go_test: go test ./internal/load ./internal/tools/llm/... -run 'TestLibraryRebindSwitchesProvider|TestDumpRecordsDialectRoot'
+    status: planned
+    description: Load one profile with its declared Ollama root and again with --library providers set to the Cohere library; compare the machine, tool, REST, and fragment bytes, the resolved dialect, the dump, and the program identity.
+    expected:
+      declaration_bytes_identical: true
+      resolved_dialect_differs: true
+      dump_records_dialect_path_and_root: true
+      program_identity_differs: true
+    traces: [rel22.0-uc001-provider-libraries S1, srd058-provider-libraries AC1, srd058-provider-libraries R1.1, srd058-provider-libraries R1.2, srd058-provider-libraries R2.3]
+
+  - use_case: rel22.0-uc001-provider-libraries
+    name: The dialect and provider fields do not combine
+    go_test: go test ./internal/tools/llm/... -run 'TestInvokeLLMRejectsProviderAndDialect|TestInvokeLLMMapsLegacyProvider'
+    status: planned
+    description: Configure invoke_llm with provider and dialect together; then with provider ollama and provider cohere alone.
+    expected:
+      both_fields_rejected: true
+      legacy_provider_resolves_to_shipped_dialect: true
+    traces: [rel22.0-uc001-provider-libraries S1, srd058-provider-libraries AC1, srd058-provider-libraries R3.2]
+
+  - use_case: rel22.0-uc001-provider-libraries
+    name: The dialect path matches the compiled adapters
+    go_test: go test ./internal/tools/llm/... -run 'TestProviderDialectParity'
+    status: planned
+    description: Run recorded multi-turn conversations through the Ollama and Cohere adapters and through their dialect files against the same fake servers; compare request bytes, histories, emitted signals, and span attributes.
+    expected:
+      request_bytes_identical: true
+      conversation_placed_as_array: true
+      histories_equal: true
+      signals_equal: true
+      span_attributes_equal: true
+    traces: [rel22.0-uc001-provider-libraries S2, srd058-provider-libraries AC2, srd058-provider-libraries R2.2, srd058-provider-libraries R3.1, srd058-provider-libraries R3.3, srd058-provider-libraries R5.1, srd058-provider-libraries R5.2]
+
+  - use_case: rel22.0-uc001-provider-libraries
+    name: Credentials resolve at call time and never leak
+    go_test: go test ./internal/tools/llm/... -run 'TestDialectCredentialResolvedAtCallTime|TestDialectMissingCredentialFailsBeforeNetwork|TestDialectCredentialAbsentFromDiagnostics'
+    status: planned
+    description: Call through a dialect whose token_ref names a variable set only through the injected resolver; then with the variable empty; then inspect output, errors, and spans.
+    expected:
+      bearer_sent_from_resolver: true
+      empty_credential_fails_before_network: true
+      credential_absent_from_output_errors_and_spans: true
+    traces: [rel22.0-uc001-provider-libraries S2, srd058-provider-libraries AC2, srd058-provider-libraries R1.5, srd058-provider-libraries R3.5]
+
+  - use_case: rel22.0-uc001-provider-libraries
+    name: A library parser profile wins over the embedded registry
+    go_test: go test ./internal/tools/llm/... -run 'TestLibraryParserProfileOverridesEmbedded'
+    status: planned
+    description: Bind a library whose parser profile shares a name with an embedded profile and changes one extraction rule.
+    expected:
+      library_profile_used: true
+    traces: [rel22.0-uc001-provider-libraries S2, srd058-provider-libraries AC2, srd058-provider-libraries R3.4]
+
+  - use_case: rel22.0-uc001-provider-libraries
+    name: Stage fragments splice with each library and route every failure
+    go_test: go test ./internal/runtime/core ./internal/load -run 'TestEmbedStageFragmentsSpliceWithEachLibrary|TestProviderFailureSignalsRouted'
+    status: planned
+    description: Instantiate the embed-query, embed-document, and rerank stages in a fixture machine beside each library's REST fragments; answer 200, 401, 429, and 503 from the fake server.
+    expected:
+      label_and_exhaustiveness_checks_pass: true
+      success_signals_emitted: [QueryEmbedded, DocEmbedded, Reranked]
+      failure_signals_emitted: [ProviderUnauthorized, ProviderThrottled, ProviderUnavailable]
+    traces: [rel22.0-uc001-provider-libraries S3, srd058-provider-libraries AC3, srd058-provider-libraries R1.4, srd058-provider-libraries R4.1]
+
+  - use_case: rel22.0-uc001-provider-libraries
+    name: No hand-written provider embedding remains
+    go_test: go test ./pkg/profileaudit ./internal/declstyle -run 'TestNoHandWrittenProviderEmbedding'
+    status: planned
+    description: Scan the monorepo's machines and REST declarations for provider embed operations and embedding stages declared outside a provider library; record mage stats:reuse before and after the adoption.
+    expected:
+      hand_written_embed_blocks: 0
+      hand_written_embedding_stages: 0
+      ollama_path_declares_failures: true
+    traces: [rel22.0-uc001-provider-libraries S3, srd058-provider-libraries AC3, srd058-provider-libraries R4.2]
+
+  - use_case: rel22.0-uc001-provider-libraries
+    name: A synthetic third provider needs no Go and no agent edit
+    go_test: go test ./internal/tools/llm/... ./internal/load -run 'TestSyntheticProviderConformance|TestSyntheticProviderTouchesOnlyItsLibrary'
+    status: planned
+    description: Bind the OpenAI-shaped testdata library to the unchanged chat and embed fixtures, run chat and embed against the fake OpenAI-shaped server, and check that the suite's only inputs are the library directory and the harness.
+    expected:
+      chat_and_embed_pass: true
+      shared_vocabulary_emitted: true
+      go_changes_required: 0
+      agent_declaration_changes_required: 0
+    traces: [rel22.0-uc001-provider-libraries S4, srd058-provider-libraries AC4, srd058-provider-libraries R1.3, srd058-provider-libraries R1.4, srd058-provider-libraries R5.3]

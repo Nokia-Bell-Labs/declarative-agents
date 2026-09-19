@@ -914,6 +914,59 @@ releases:
       - mage stats:reuse
       - mage audit
 
+  - version: "22.0"
+    name: Provider libraries
+    description: |
+      Release 21.0 standardized how a capability is served. Release 22.0 does
+      the same for the model provider behind it. Adding a provider today is a
+      compiled adapter, an embedded parser profile, and a new case in the
+      invoke_llm dispatch, and the Ollama embed block is written out twice
+      across two agents. A provider becomes one directory of YAML reached
+      through a declared providers root: a chat dialect that invoke_llm reads
+      as a template method, REST fragments for embed and rerank under one
+      signal vocabulary, and a parser profile. A deployment changes provider
+      by rebinding --library providers, and a new provider needs no Go.
+    status: in_progress
+    planned_work:
+      - id: gh-2224
+        summary: Specify provider libraries (srd058), its use case, and its suite.
+        status: implemented
+      - id: gh-2238
+        summary: The providers root, the shared result-type unit, and the strict chat-dialect loader.
+        status: planned
+      - id: gh-2239
+        summary: invoke_llm as a template method over the chat dialect, with dialect replacing provider.
+        status: planned
+      - id: gh-2240
+        summary: Ollama and Cohere libraries and the capture-fixture parity harness.
+        status: planned
+      - id: gh-2241
+        summary: Retire the compiled adapters and migrate provider users to dialect.
+        status: planned
+      - id: gh-2242
+        summary: Embed and rerank stage fragments in tools/machines.
+        status: planned
+      - id: gh-2243
+        summary: Adopt the stage and REST fragments in the catalog corpus agents and drop the duplicated embed blocks.
+        status: planned
+      - id: gh-2244
+        summary: The synthetic OpenAI-shaped third-provider conformance suite.
+        status: planned
+    srds:
+      - srd058-provider-libraries
+    use_cases:
+      - id: rel22.0-uc001-provider-libraries
+        summary: A deployment changes and adds a model provider without editing an agent.
+        status: specified
+    test_suites:
+      - id: test-rel22.0-provider-libraries
+        summary: Formal tests for the dialect loader, load failures, library rebinding, adapter parity, credentials, parser precedence, stage fragments, adoption, and the synthetic provider.
+        status: planned
+    proof:
+      - go test ./internal/tools/llm/... ./internal/load ./internal/runtime/core
+      - mage stats:reuse
+      - mage audit
+
   - version: "99.0"
     name: Architectural migrations and cleanup
     description: |
