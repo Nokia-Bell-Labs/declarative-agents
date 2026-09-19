@@ -153,6 +153,9 @@ func (r *toolImportResolver) resolveInstantiated(
 	if err := validateAndDefaultToolDefs(local); err != nil {
 		return nil, fmt.Errorf("fragment %s: %w", target, err)
 	}
+	if err := r.resolveConfigFiles(local, target); err != nil {
+		return nil, fmt.Errorf("fragment %s: %w", target, err)
+	}
 	imported, err := r.resolveImports(instantiated, target)
 	if err != nil {
 		return nil, err

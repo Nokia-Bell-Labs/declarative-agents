@@ -31,6 +31,13 @@ public Go APIs. Placement rules are defined in
   so a fragment edge that selects its variant by environment
   (`${NAME:-default}`, srd052 R4.3) stages every variant with the grammar the
   loader uses.
+  It also follows a tool's `config.dialect` edge (srd058 R2.3), and leaves a
+  library root declared by an absolute directory to the runtime image.
+- `internal/tools/llm/dialect` decodes and checks a provider library's
+  `chat-dialect.yaml` (srd058 R2): the request-body template, the response
+  selectors, the failure map, and the auth profile. It reuses the REST
+  definition types and validation, so a dialect is held to the rules a REST
+  operation is.
 - `agents/`, `tools/`, `docs/`, and `testdata/` remain configuration,
   specification, and fixture directories rather than Go package domains.
 - Each migration should preserve behavior first. Rename symbols or redesign APIs
@@ -152,6 +159,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/tools/filesystem`
 - `internal/tools/lifecycle`
 - `internal/tools/llm`
+- `internal/tools/llm/dialect`
 - `internal/tools/otlp`
 - `internal/tools/pipeline`
 - `internal/tools/registry`

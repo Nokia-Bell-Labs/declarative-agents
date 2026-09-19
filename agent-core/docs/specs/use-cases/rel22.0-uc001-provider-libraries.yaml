@@ -42,7 +42,7 @@ success_criteria:
     criterion: Rebinding --library providers switches a profile from Ollama to Cohere with no edit to any machine, tool, REST, or fragment file, and a missing dialect or fragment fails at load naming the path and the bound directory.
     traces: [srd058-provider-libraries AC1]
   - id: S2
-    criterion: The dialect path produces byte-equivalent requests and equivalent histories, signals, and spans to the compiled adapters for both shipped providers, and resolves credentials only at call time.
+    criterion: The dialect path produces the same request JSON documents and equivalent histories, signals, and spans to the compiled adapters for both shipped providers, and resolves credentials only at call time.
     traces: [srd058-provider-libraries AC2]
   - id: S3
     criterion: The embed stage fragments and library REST fragments replace the hand-written embedding stages and Ollama embed blocks, and every provider operation emits the shared vocabulary, including failures on the Ollama path.

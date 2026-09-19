@@ -70,7 +70,7 @@ requirements:
       - R1.4: >-
           Every operation a provider library declares SHALL emit only the
           shared signal vocabulary: LLMResponded for chat, QueryEmbedded and
-          DocEmbedded for embed, Reranked for rerank, and the failure taxonomy
+          DocumentEmbedded for embed, Reranked for rerank, and the failure taxonomy
           ProviderUnauthorized (401, 403), ProviderThrottled (429), and
           ProviderUnavailable (5xx). The result shapes those signals carry
           (embedding vectors, rerank results, and usage) SHALL be declared in
@@ -92,14 +92,19 @@ requirements:
           profile SHALL use the REST format's grammar and SHALL be validated
           by the REST definition validation. These fields SHALL be the only
           provider-varying inputs to invoke_llm; the base URL and the model
-          stay in the ToolDef config, where a deployment sets them today.
+          stay in the ToolDef config, where a deployment sets them today. A
+          chat failure the map names is reported in invoke_llm's error and
+          span, and invoke_llm still emits CommandError, so R3.3 holds.
       - R2.2: >-
-          The body template SHALL be rendered by the REST request-body
-          renderer with invoke_llm supplying messages, model, and the declared
-          generation options as params. The conversation SHALL be placed by a
-          scalar that is exactly `{{ params.messages }}`, which the renderer
-          replaces with the structured message array. A dialect that
-          references messages inside a larger string SHALL fail at load.
+          The body template SHALL use the REST request-body template grammar,
+          with invoke_llm supplying messages, model, and the generation
+          options as params. A scalar that is exactly one
+          `{{ params.<name> }}` reference SHALL take the param's value whole,
+          so the conversation is placed as the structured message array, and
+          a mapping entry whose whole value references a param the call does
+          not supply SHALL be omitted, so an unset option stays out of the
+          request. A dialect that references messages inside a larger string,
+          or a param invoke_llm does not supply, SHALL fail at load.
       - R2.3: >-
           The dialect file SHALL be an ordinary unit: strict-decoded, staged
           with the closure, a program identity asset under srd050 R2.7, and
@@ -163,8 +168,9 @@ requirements:
           compiled adapters and from cohere-demo's declared operations.
       - R5.2: >-
           The compiled Ollama and Cohere adapters SHALL be removed after a
-          capture-fixture parity run shows byte-equivalent requests and
-          equivalent histories, signals, and spans through the dialect path.
+          capture-fixture parity run shows the same request JSON documents
+          and equivalent histories, signals, and spans through the dialect
+          path.
       - R5.3: >-
           A conformance suite SHALL bind a synthetic third library with an
           OpenAI-shaped dialect and SHALL pass with zero Go changes and zero
@@ -185,7 +191,7 @@ acceptance_criteria:
     criterion: A deployment switches Ollama to Cohere by rebinding --library providers, with no edit to any machine, tool, REST, or fragment file, and a missing dialect or fragment fails at load naming the path and the bound directory.
     traces: [R1.1, R1.2, R1.3, R2.3, R3.2]
   - id: AC2
-    criterion: invoke_llm produces byte-equivalent requests and equivalent histories, signals, and spans through the ollama and cohere dialect files as through the compiled adapters, places the conversation as a structured array, and resolves credentials only at call time.
+    criterion: invoke_llm produces the same request JSON documents and equivalent histories, signals, and spans through the ollama and cohere dialect files as through the compiled adapters, places the conversation as a structured array, and resolves credentials only at call time.
     traces: [R1.5, R2.1, R2.2, R3.1, R3.3, R3.4, R3.5, R5.1, R5.2]
   - id: AC3
     criterion: The embed stage fragments replace both hand-written embedding openings and both Ollama embed REST copies, every provider operation emits the shared success and failure vocabulary, and mage stats:reuse records the removal.

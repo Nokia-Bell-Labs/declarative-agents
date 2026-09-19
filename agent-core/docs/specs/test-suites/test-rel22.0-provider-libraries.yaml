@@ -62,9 +62,9 @@ test_cases:
     name: The dialect path matches the compiled adapters
     go_test: go test ./internal/tools/llm/... -run 'TestProviderDialectParity'
     status: planned
-    description: Run recorded multi-turn conversations through the Ollama and Cohere adapters and through their dialect files against the same fake servers; compare request bytes, histories, emitted signals, and span attributes.
+    description: Run recorded multi-turn conversations through the Ollama and Cohere adapters and through their dialect files against the same fake servers; compare request JSON documents, histories, emitted signals, and span attributes.
     expected:
-      request_bytes_identical: true
+      request_documents_equal: true
       conversation_placed_as_array: true
       histories_equal: true
       signals_equal: true
@@ -98,7 +98,7 @@ test_cases:
     description: Instantiate the embed-query, embed-document, and rerank stages in a fixture machine beside each library's REST fragments; answer 200, 401, 429, and 503 from the fake server.
     expected:
       label_and_exhaustiveness_checks_pass: true
-      success_signals_emitted: [QueryEmbedded, DocEmbedded, Reranked]
+      success_signals_emitted: [QueryEmbedded, DocumentEmbedded, Reranked]
       failure_signals_emitted: [ProviderUnauthorized, ProviderThrottled, ProviderUnavailable]
     traces: [rel22.0-uc001-provider-libraries S3, srd058-provider-libraries AC3, srd058-provider-libraries R1.4, srd058-provider-libraries R4.1]
 

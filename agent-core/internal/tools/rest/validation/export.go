@@ -40,3 +40,9 @@ func ValidateMachineRequestEndpoint(name string, endpoint Endpoint) error {
 func ValidateMachineRequestSensitiveFields(mapping MachineRequestMapping) error {
 	return validateMachineRequestSensitiveFields(mapping)
 }
+
+// ValidateAuthProfile checks one auth profile the way a REST definition's auth
+// map is checked, for a declaration that carries a single profile (srd058 R2.1).
+func ValidateAuthProfile(name string, profile AuthProfile) error {
+	return validateAuthProfiles(map[string]AuthProfile{name: profile})
+}
