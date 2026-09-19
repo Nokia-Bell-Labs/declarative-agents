@@ -15,6 +15,11 @@ import (
 // tokens (srd004 R8.2, srd003 R5.3).
 const uiKitTokensSpecifier = uiKitPackageName + "/tokens.css"
 
+// canonicalUITokensPath is the kit's token file, the one CSS file under
+// applications/ that declares token values; every UI's tokens import must
+// resolve to it.
+const canonicalUITokensPath = uiKitDir + "/src/tokens.css"
+
 // resolveUITokenImport checks that a UI's App.css imports the kit tokens first
 // and redeclares none of them, then resolves the import through the UI's
 // file: dependency on the kit and the kit's exports map. It returns the token
