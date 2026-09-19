@@ -1,7 +1,9 @@
 import type { ContractEndpoint } from "../contract";
 import type { DeclaredTool, StateSnapshot } from "../api/monitorApi";
+import type { FleetResponse } from "../api/fleetApi";
 import type { CollectorTrace, CollectorTraceList } from "../api/traceApi";
 import monitorEventsStream from "./monitor-events-stream.json";
+import monitorFleet from "./monitor-fleet.json";
 import monitorMachines from "./monitor-machines.json";
 import monitorState from "./monitor-state.json";
 import monitorToolsDeclared from "./monitor-tools-declared.json";
@@ -23,9 +25,10 @@ export const fixtures = {
   "/monitor/machines": monitorMachines as unknown[],
   "/monitor/tools/declared": monitorToolsDeclared as DeclaredTool[],
   "/monitor/events/stream": monitorEventsStream as SSEFrame[],
+  "/monitor/fleet": monitorFleet as FleetResponse,
   "/query/traces": queryTraces as CollectorTraceList,
   "/query/traces/{trace_id}": queryTrace as CollectorTrace,
-} satisfies Partial<Record<ContractEndpoint, unknown>>;
+} satisfies Record<ContractEndpoint, unknown>;
 
 // fixtureFetch answers kit requests from the fixtures, so tests and panel
 // previews run a KitClient without a backend. Proxied paths resolve to the

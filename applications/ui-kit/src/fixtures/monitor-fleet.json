@@ -1,0 +1,263 @@
+{
+  "labels": {
+    "agent_machine_fanin": {
+      "available": true,
+      "output": {
+        "items": [
+          {
+            "index": 0,
+            "input": {
+              "metadata": {
+                "name": "chatbot-7d9c8b6f4-x2k9p"
+              }
+            },
+            "command_name": "read_agent",
+            "result": {
+              "signal": "AgentMonitorRead",
+              "structured_output": {
+                "body": {
+                  "name": "chatbot",
+                  "purpose": "Serve chat turns.",
+                  "states": [
+                    "Launching",
+                    "Serving"
+                  ],
+                  "terminal_states": [
+                    "Done"
+                  ],
+                  "transitions": [
+                    {
+                      "state": "Launching",
+                      "signal": "Launched",
+                      "next": "Serving",
+                      "action": "rest_server_launch"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "index": 0,
+            "input": {
+              "metadata": {
+                "name": "rag0-0"
+              }
+            },
+            "command_name": "read_agent",
+            "result": {
+              "signal": "CommandError",
+              "structured_output": {
+                "body": null
+              }
+            }
+          }
+        ],
+        "succeeded": 2,
+        "failed": 0,
+        "policy": "collect_all"
+      }
+    },
+    "agent_state_fanin": {
+      "available": true,
+      "output": {
+        "items": [
+          {
+            "index": 0,
+            "input": {
+              "metadata": {
+                "name": "chatbot-7d9c8b6f4-x2k9p"
+              }
+            },
+            "command_name": "read_agent",
+            "result": {
+              "signal": "AgentMonitorRead",
+              "structured_output": {
+                "body": {
+                  "run": {
+                    "state": "Serving",
+                    "status": "running"
+                  },
+                  "diagnostics": [],
+                  "errors": []
+                }
+              }
+            }
+          },
+          {
+            "index": 0,
+            "input": {
+              "metadata": {
+                "name": "rag0-0"
+              }
+            },
+            "command_name": "read_agent",
+            "result": {
+              "signal": "CommandError",
+              "structured_output": {
+                "body": null
+              }
+            }
+          }
+        ],
+        "succeeded": 2,
+        "failed": 0,
+        "policy": "collect_all"
+      }
+    },
+    "agent_tools_fanin": {
+      "available": true,
+      "output": {
+        "items": [
+          {
+            "index": 0,
+            "input": {
+              "metadata": {
+                "name": "chatbot-7d9c8b6f4-x2k9p"
+              }
+            },
+            "command_name": "read_agent",
+            "result": {
+              "signal": "AgentMonitorRead",
+              "structured_output": {
+                "body": {
+                  "tools": [
+                    {
+                      "name": "rest_server_launch"
+                    },
+                    {
+                      "name": "invoke_llm_fast"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "succeeded": 1,
+        "failed": 0,
+        "policy": "collect_all"
+      }
+    },
+    "agent_events_fanin": {
+      "available": true,
+      "output": {
+        "items": [
+          {
+            "index": 0,
+            "input": {
+              "metadata": {
+                "name": "chatbot-7d9c8b6f4-x2k9p"
+              }
+            },
+            "command_name": "read_agent",
+            "result": {
+              "signal": "AgentMonitorRead",
+              "structured_output": {
+                "body": {
+                  "recent_events": [
+                    {
+                      "signal": "Launched",
+                      "timestamp": "2026-09-19T15:50:00Z"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "succeeded": 1,
+        "failed": 0,
+        "policy": "collect_all"
+      }
+    },
+    "discover_mesh_pods": {
+      "available": true,
+      "output": {
+        "mapped": {
+          "pods": [
+            {
+              "metadata": {
+                "name": "chatbot-7d9c8b6f4-x2k9p",
+                "labels": {
+                  "app.kubernetes.io/name": "chatbot"
+                }
+              }
+            },
+            {
+              "metadata": {
+                "name": "rag0-0",
+                "labels": {
+                  "app.kubernetes.io/name": "rag0"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "list_mesh_deployments": {
+      "available": true,
+      "output": {
+        "deployments": [
+          {
+            "metadata": {
+              "name": "demo-chatbot-mesh-chatbot",
+              "annotations": {
+                "mesh.example/role": "chat front door"
+              }
+            },
+            "spec": {
+              "selector": {
+                "app.kubernetes.io/name": "chatbot"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "list_mesh_services": {
+      "available": true,
+      "output": {
+        "services": [
+          {
+            "metadata": {
+              "name": "demo-chatbot-mesh-chatbot"
+            },
+            "spec": {
+              "selector": {
+                "app.kubernetes.io/name": "chatbot"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "poll_pod_metrics": {
+      "available": true,
+      "output": {
+        "pod_metrics": [
+          {
+            "metadata": {
+              "name": "chatbot-7d9c8b6f4-x2k9p"
+            },
+            "containers": [
+              {
+                "usage": {
+                  "cpu": "2m",
+                  "memory": "8Mi"
+                }
+              },
+              {
+                "usage": {
+                  "cpu": "500u",
+                  "memory": "512Ki"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

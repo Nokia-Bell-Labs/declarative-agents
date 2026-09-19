@@ -6,6 +6,8 @@ import { createKitClient } from "../src/client/client";
 import { KitClientProvider } from "../src/client/context";
 import { fixtureFetch, fixtures } from "../src/fixtures";
 import { useAgentMonitor } from "../src/hooks/useAgentMonitor";
+import { useFleet } from "../src/hooks/useFleet";
+import { useTurnActivity } from "../src/hooks/useTurnActivity";
 import { useTrace, useTraceList } from "../src/hooks/useTrace";
 
 class FakeEventSource {
@@ -60,5 +62,36 @@ describe("trace hooks", () => {
     expect(idle.result.current.status).toBe("idle");
     const list = renderHook(() => useTraceList("collector", 50, 0), { wrapper: wrapper() });
     await waitFor(() => expect(list.result.current.status).toBe("ok"));
+  });
+});
+
+describe("useFleet", () => {
+  it("polls the fleet and the observer state", async () => {
+    const { result } = renderHook(() => useFleet(60_000), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.status).toBe("connected"));
+    expect(result.current.data.agents).toHaveLength(2);
+    expect(result.current.observerState).toBe("AwaitingRequest");
+  });
+});
+
+const MILESTONES = { embed_query: "embedding the question", render: "rendering" };
+
+describe("useTurnActivity", () => {
+  it("collects highlights only while active", async () => {
+    const { result, rerender } = renderHook(({ active }) => useTurnActivity("chatbot", MILESTONES, active), {
+      wrapper: wrapper(),
+      initialProps: { active: true },
+    });
+    const stream = FakeEventSource.last!;
+    expect(stream.url).toBe("/monitor-proxy/chatbot/monitor/events/stream");
+    act(() => {
+      stream.emit("run_event", JSON.stringify({ command_name: "embed_query" }));
+      stream.emit("run_event", JSON.stringify({ command_name: "unmapped" }));
+      stream.emit("run_event", "not json");
+      stream.emit("run_event", JSON.stringify({ command_name: "render" }));
+    });
+    expect(result.current.map((h) => h.label)).toEqual(["embedding the question", "rendering"]);
+    rerender({ active: false });
+    expect(stream.closed).toBe(true);
   });
 });

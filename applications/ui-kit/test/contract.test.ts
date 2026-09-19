@@ -21,10 +21,7 @@ describe("presentation contract", () => {
   });
 
   it("records a fixture for every contract endpoint (srd004 R3.2)", () => {
-    const recorded = new Set(Object.keys(fixtures));
-    for (const endpoint of Object.keys(fixtures)) expect(CONTRACT_ENDPOINTS).toContain(endpoint);
-    // /monitor/fleet is recorded with the fleet client (GH-2262).
-    expect(CONTRACT_ENDPOINTS.filter((endpoint) => !recorded.has(endpoint))).toEqual(["/monitor/fleet"]);
+    expect(Object.keys(fixtures).sort()).toEqual([...CONTRACT_ENDPOINTS].sort());
   });
 
   it("performs I/O only in the client module (srd004 R4.3, R6.1)", () => {
