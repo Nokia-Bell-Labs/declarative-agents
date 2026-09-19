@@ -96,12 +96,24 @@ collector:
 # mounts at /chart via applier.chartArchiveConfigMap.
 applier:
   enabled: false
-  # The shared applier image carries the agent-core runtime plus helm and kubectl
-  # (GH-1368); it bakes no chart. Built from agent-core/applier.Dockerfile.
+  # The applier runs the agent-core runtime image; helm and kubectl come from
+  # cliDonor below (GH-2222), and the chart from chartArchiveConfigMap (GH-1368).
   image:
-    repository: ghcr.io/nokia-bell-labs/declarative-agents/applier
+    repository: ghcr.io/nokia-bell-labs/declarative-agents/agent-core
     tag: "0.1.0"
     pullPolicy: IfNotPresent
+  # CLI donor (GH-2222): a cli-donor init container copies this image's helm and
+  # kubectl into a tools volume mounted read-only at /opt/tools and first on PATH,
+  # so the applier runs the plain agent-core image. The pin is the CLI version
+  # contract: helm 3.16.3 (the exec words use helm 3 flag spellings) and kubectl
+  # 1.31. Mirror the image into the cluster's registry where Docker Hub is
+  # unreachable; an empty repository means applier.image carries the CLIs.
+  cliDonor:
+    image:
+      repository: docker.io/alpine/k8s
+      tag: "1.31.4"
+      digest: sha256:9c4976d47656d78cf53a92b0203fc54ac45eae18a2b45001ac221c27da4c8036
+      pullPolicy: IfNotPresent
   # The ConfigMap carrying the packaged chart the applier's
   # `helm upgrade coding-agent /chart` word installs, delivered to the pod at
   # /chart as a mounted volume rather than baked into the image (GH-1368).

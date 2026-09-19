@@ -13,6 +13,11 @@ applier:
   # Loaded into the kind node by the target; never pulled.
   image:
     pullPolicy: Never
+  # The rig pulls the pinned donor once, retags it under this rig-local name,
+  # and kind-loads it (kindrig.EnsureCLIDonorImage), because a kind-loaded image
+  # does not keep its registry digest.
+  cliDonor:
+    image: {repository: kindrig/cli-donor, tag: "1.31.4", digest: "", pullPolicy: Never}
   resources:
     requests: {cpu: 50m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
