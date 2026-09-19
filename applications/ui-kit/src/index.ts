@@ -21,4 +21,5 @@ export { definePanel, type KitPanel, type PanelManifest, type PanelProps } from 
 export * from "./panels/StatusBar";
 export * from "./panels/FleetPanel";
 export * from "./panels/MachineView";
+export * from "./panels/TracePanel";
 export { kitPanelRegistry, kitPanels } from "./panels/registry";
