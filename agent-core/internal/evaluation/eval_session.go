@@ -11,6 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
@@ -298,7 +299,13 @@ func extractModelFromProfile(p catalog.AgentProfile) string {
 	}
 
 	for _, path := range paths {
-		defs, err := catalog.LoadToolDefs(path)
+		// The profile's library roots are in force for the load, so a rooted
+		// reference such as invoke_llm's chat dialect resolves (srd058 R1.1).
+		var defs []catalog.ToolDef
+		err := corepath.WithLibraryRoots(p.Libraries, func() (loadErr error) {
+			defs, loadErr = catalog.LoadToolDefs(path)
+			return loadErr
+		})
 		if err != nil {
 			continue
 		}
