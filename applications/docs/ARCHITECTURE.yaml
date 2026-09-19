@@ -146,6 +146,13 @@ components:
       REST serving definition, runtime destination, and canonical shared-token
       consumption in the composition manifest. No UI path is required when the
       application ships no UI.
+  - name: shared UI kit
+    path: applications/ui-kit/
+    responsibility: |
+      Planned in GH-2156. Own the npm package @declarative-agents/ui-kit: design tokens, the
+      injectable client, contract fixtures, the generic shell, shared hooks,
+      and the observability panels. Applications compose it with their domain
+      panels at build time from ui.yaml (srd004).
   - name: manifest-derived package resolver
     path: applications/<application>/magefiles/
     responsibility: |
@@ -320,6 +327,18 @@ design_decisions:
       - An implemented baseline does not overstate deployment maturity.
       - Root orchestration and human-facing status can be compared mechanically.
       - Transitional documentation has an exact, non-runnable state.
+  - id: 13
+    title: Panels bind to a closed presentation contract
+    decision: |
+      Shared panels read only the endpoints srd004 R1 lists, reach other agents
+      only through /monitor-proxy, and perform I/O only through one injectable
+      client. An application bundle is composed at build time from ui.yaml, kit
+      panels, and its domain panels. Design tokens and shared panels live once
+      in applications/ui-kit; external repositories pin its release tarball.
+    benefits:
+      - Shared panels cannot drift with one application's backend.
+      - ui.yaml is the composition input rather than a checked copy of the routes.
+      - The same bundle runs same-origin or under a shell with remote base URLs.
 
 technology_choices:
   - component: Structured documentation
@@ -474,6 +493,8 @@ implementation_status:
     - implemented: Chatbot Mesh reports five local implementations and two
         wrappers; Coding Agent and Agent Architecture are composition-only with
         four and one wrappers respectively.
+    - planned: Release 15.0 srd004 is specified; the UI kit, generic shell,
+        and embedded observer bundle are tracked by GH-2156 through GH-2160.
 
 related_documents:
   - doc: docs/pattern-language.yaml
@@ -501,6 +522,12 @@ related_documents:
     purpose: Completed cross-application normalization flow for the current runnable applications.
   - doc: docs/specs/test-suites/test-rel14.0-application-consistency.yaml
     purpose: Structural and capability-gated executable conformance evidence.
+  - doc: docs/specs/software-requirements/srd004-declarative-ux.yaml
+    purpose: Release 15.0 presentation contract, panel unit, build-time composition, UI kit, and embedded bundles.
+  - doc: docs/specs/use-cases/rel15.0-uc001-declarative-ux.yaml
+    purpose: Panel composition flow and the endpoint-usage review of all three repositories.
+  - doc: docs/specs/test-suites/test-rel15.0-declarative-ux.yaml
+    purpose: Release 15.0 structural and planned executable evidence.
   - doc: ../chatbot-mesh/docs/ARCHITECTURE.yaml
     purpose: Local-agent runnable application reference.
   - doc: ../coding-agent/docs/ARCHITECTURE.yaml

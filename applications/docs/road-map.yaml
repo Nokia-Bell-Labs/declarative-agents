@@ -282,3 +282,62 @@ releases:
         proves: Repository documentation, ownership, application audit, and root classification gates remain green.
       - command: cd magefiles && go test -run 'Test(ApplicationConsistency|ApplicationActor|ManifestDerived|ApplicationPromotion|ApplicationReadme|Release14)'
         proves: Cross-application Release 14 manifests, grammar, package assets, promotion, tokens, statuses, and matrix remain executable.
+  - version: "15.0"
+    name: Declarative UX
+    description: |
+      Pin the presentation contract shared panels read, make the panel the reuse
+      unit, compose application bundles from ui.yaml at build time, move design
+      tokens and observability panels into applications/ui-kit, and serve the
+      observer UI from a bundle embedded in the REST tool.
+    status: in-progress
+    parent: gh-2154-declarative-ux
+    dependencies:
+      - id: srd003-application-consistency
+        status: implemented
+        reason: Owns the application manifest, UI assets, and shared-token policy this release amends.
+      - id: catalog-srd021-observer
+        status: implemented
+        reason: Owns the /monitor/fleet response the embedded observer reads (GH-2170).
+    srds:
+      - srd004-declarative-ux
+    use_cases:
+      - id: rel15.0-uc001-declarative-ux
+        summary: |
+          Compose an application UI from ui.yaml, kit panels, and domain panels,
+          and serve the observer UI from an embedded bundle.
+        status: planned
+    test_suites:
+      - id: test-rel15.0-declarative-ux
+        summary: |
+          Trace the release documents, then verify the kit client, fixtures,
+          panels, shell, ui.yaml version 2, token ownership, embedded bundle,
+          and the absence of duplicated UI code.
+        status: planned
+        implemented_cases: [TC1]
+        planned_cases: [TC2, TC3, TC4, TC5, TC6, TC7, TC8, TC9]
+    implementation_sequence:
+      - order: 1
+        action: Specify srd004, the use case, the suite, and the index entries (GH-2155).
+        status: implemented
+      - order: 2
+        action: Scaffold the kit, move tokens, and add the client, fixtures, shell primitives, and hooks (GH-2156; GH-2259 to GH-2262).
+        status: planned
+      - order: 3
+        action: Extract the kit panels as a best-of merge (GH-2157; GH-2263 to GH-2266).
+        status: planned
+      - order: 4
+        action: Serve the observer from an embedded bundle and delete its UI tree (GH-2158; GH-2267 to GH-2269).
+        status: planned
+      - order: 5
+        action: Validate ui.yaml version 2 and run the chatbot-mesh chatbot on the generic shell (GH-2159; GH-2270 to GH-2272).
+        status: planned
+      - order: 6
+        action: Migrate the remaining monorepo UIs, add the duplication sweep, and version the kit 1.0.0 (GH-2160; GH-2273 to GH-2275).
+        status: planned
+    implementation_evidence:
+      - path: applications/docs/specs/software-requirements/srd004-declarative-ux.yaml
+        proves: Numbered contract, proxy, compatibility, panel, composition, client, ui.yaml, kit, and embedded-bundle requirements.
+      - path: applications/docs/specs/use-cases/rel15.0-uc001-declarative-ux.yaml
+        proves: Composition flow and the endpoint-usage review of all three repositories.
+      - path: applications/docs/specs/test-suites/test-rel15.0-declarative-ux.yaml
+        proves: Requirement-to-AC-to-test coverage with TC1 executable.

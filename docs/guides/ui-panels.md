@@ -9,7 +9,7 @@ Today the runtime treats the bundle as bytes on disk, `ui.yaml` is cross-checked
 
 ## The presentation contract
 
-Shared panels bind only to the platform monitor and trace surface: the monitor views (`state`, `machines`, `tools/declared`, `events/stream`), the fleet view, the trace queries, and the `monitor-proxy/{agent}/{path...}` convention where a proxy 404 means the agent is not deployed and its panel is hidden. Pinning this surface as a versioned contract is the first issue of the epic (GH-2155, planned). Until it lands, we treat those endpoints as frozen: UI code may consume them, backend changes to them are additive only.
+Shared panels bind only to the platform monitor and trace surface that `applications/docs/specs/software-requirements/srd004-declarative-ux.yaml` (R1) pins: `/monitor/state`, `/monitor/machines`, `/monitor/tools/declared`, `/monitor/events/stream`, `/monitor/fleet`, and the two `/query/traces` forms. srd004 names each endpoint's owning SRD and never restates a schema. Panels reach other agents only through `/monitor-proxy/{agent}/{path...}`; a proxy 404 means the agent is not deployed and its panels are hidden. The cohere-demo observer's `/trace-proxy` name is retired (R2.3). Within contract major version 1, owners change responses additively only, and the kit's recorded fixtures are the consumer contract tests (R3).
 
 ## The panel model
 
@@ -17,9 +17,9 @@ A panel is the reuse unit: a component plus a manifest naming its id, route, req
 
 | Source | Examples | Status |
 |---|---|---|
-| ui-kit package | trace waterfall, machine view, topology, agent card, status bar, fleet, provenance | planned (GH-2156, GH-2157) |
+| ui-kit package | trace waterfall, machine view, topology, agent card, status bar, fleet | planned (GH-2156, GH-2157) |
 | the platform, embedded in a tool | the observer UI served by the rest tool via `go:embed`, backed by the observer capability profile | planned (GH-2158, GH-2170) |
-| the application | domain panels an app keeps to itself | current practice |
+| the application | domain panels an app keeps to itself, including cohere-demo's provenance panel, which reads `/api/v1/documents` (srd004 R4.4) | current practice |
 
 Composition is build-time: an application lists panel packages and its own domain panels, and one bundle is built. `ui.yaml` becomes the composition input a generic shell renders routes and sidebar from (GH-2159, planned), replacing the cross-check test.
 
