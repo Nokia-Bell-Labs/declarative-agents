@@ -192,7 +192,7 @@ roadmap_summary:
       exemplar spans into the per-trace waterfall.
   - version: "17.0"
     name: Rig doctor root-cause analyst
-    status: planned
+    status: implemented
     scope: |
       Add the rig-doctor family (srd023) on the root-cause-analyst sub-role.
       Rig capture gains events, rollout counts, a trace spool tail, and a
@@ -402,7 +402,7 @@ srd_index:
     summary: Catalog root-cause-analyst that reads one captured kind evidence
       directory and the trace spool tail, never the live cluster, and writes a
       diagnosis whose every claim cites a captured file and line.
-    status: planned
+    status: implemented
     path: docs/specs/software-requirements/srd023-rig-doctor.yaml
 
 config_format_index: []
@@ -644,7 +644,7 @@ use_case_index:
     summary: The diagnose target captures a scenario snapshot with a manifest and
       runs the rig-doctor over it; the operator reads a cited diagnosis and runs
       the suggested read-only command.
-    status: planned
+    status: implemented
     path: docs/specs/use-cases/rel17.0-uc001-rig-doctor.yaml
   - id: rel99.0-uc001-observer-family
     title: The observer is a catalog-owned family adopted across applications
@@ -797,7 +797,7 @@ test_suite_index:
     title: Rig Doctor Root-Cause Analyst Conformance
     summary: Closure, mock-provider diagnosis, empty-evidence, capture-manifest,
       registration, and dependency-gated live cases for the rig-doctor.
-    status: planned
+    status: implemented
     path: docs/specs/test-suites/test-rel17.0-rig-doctor.yaml
   - id: test-rel99.0-observer
     title: Test Suite for Release 99.0 Observer Family Promotion

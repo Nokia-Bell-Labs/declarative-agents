@@ -838,7 +838,7 @@ releases:
 
   - id: "17.0"
     title: Rig doctor root-cause analyst
-    status: planned
+    status: implemented
     dependencies:
       - Release 13.0 collector family (spool trace query words)
       - repository-root kind rig failure-evidence capture (eng01)
@@ -848,16 +848,16 @@ releases:
       - {gh: 2288, title: "rig-doctor profile on root-cause-analyst, registration, and diagnose wiring", estimated_loc: "350 production and test"}
     specification:
       srd: srd023-rig-doctor
-      status: planned
+      status: implemented
     use_cases:
       - id: rel17.0-uc001-rig-doctor
         title: An operator runs mage diagnose after a failed scenario and reads a cited diagnosis
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel17.0-rig-doctor
         title: Rig doctor root-cause analyst conformance
         cases: 6
-        status: planned
+        status: implemented
     proof:
       - mage validate
       - mage conformance

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: rel17.0-uc001-rig-doctor
 title: An operator runs mage diagnose after a failed scenario and reads a cited diagnosis
-status: planned
+status: implemented
 
 summary: |
   After a kind scenario fails, an operator runs the application's diagnose

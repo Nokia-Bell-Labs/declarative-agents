@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: test-rel17.0-rig-doctor
 title: Rig Doctor Root-Cause Analyst Conformance
-status: planned
+status: implemented
 release: "17.0"
 traces: [rel17.0-uc001-rig-doctor]
 
