@@ -510,16 +510,20 @@ func TestReleaseAfterFailureCapturesEvidenceBeforeDelete(t *testing.T) {
 			Directory: dir, Namespaces: []string{"coding-agent-smoke"}, Run: commandRun,
 		})
 
-	if len(sequence) != 6 {
-		t.Fatalf("sequence = %v, want export, describe, list, two logs, delete", sequence)
+	if len(sequence) != 9 {
+		t.Fatalf("sequence = %v, want export, cluster events, describe, events, rollout, list, two logs, delete", sequence)
 	}
 	if !strings.HasPrefix(sequence[0], "kind export logs ") ||
 		!strings.HasPrefix(sequence[len(sequence)-1], "kind delete cluster ") {
 		t.Fatalf("evidence must precede deletion: %v", sequence)
 	}
 	for _, name := range []string{
+		"cluster-events.txt",
 		"namespace-coding-agent-smoke-describe.txt",
+		"namespace-coding-agent-smoke-events.txt",
+		"namespace-coding-agent-smoke-rollout.txt",
 		"namespace-coding-agent-smoke-pods.txt",
+		EvidenceManifestFile,
 		"namespace-coding-agent-smoke-pod-planner-0-logs.txt",
 		"namespace-coding-agent-smoke-pod-executor-0-logs.txt",
 	} {
