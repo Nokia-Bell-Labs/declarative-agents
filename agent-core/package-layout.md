@@ -126,8 +126,6 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/load`
 - `internal/model`
 - `internal/model/llm`
-- `internal/model/llm/cohere`
-- `internal/model/llm/ollama`
 - `internal/model/prompt`
 - `internal/observability`
 - `internal/observability/monitor`

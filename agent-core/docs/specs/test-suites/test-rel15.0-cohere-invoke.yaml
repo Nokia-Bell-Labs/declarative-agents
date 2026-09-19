@@ -15,7 +15,7 @@ preconditions:
 test_cases:
   - use_case: rel15.0-uc001-cohere-invoke
     name: Cohere constructor is inert and configuration selects the adapter
-    go_test: go test ./internal/tools/llm ./internal/model/llm/cohere -run 'Test(NewInvokeLLMBuilder_CohereNoProbe|NewAdapter_NoIO)'
+    go_test: go test ./internal/tools/llm -run 'Test(NewInvokeLLMBuilder_CohereNoProbe|InvokeLLMBuildsWithoutNetworkIO)'
     status: implemented
     description: |
       Build provider cohere against an unreachable URL without supplying an
@@ -29,7 +29,7 @@ test_cases:
 
   - use_case: rel15.0-uc001-cohere-invoke
     name: Cohere Chat sends the declared v2 request
-    go_test: go test ./internal/model/llm/cohere -run TestChat_Request
+    go_test: go test ./internal/tools/llm -run TestProviderDialectParity/cohere
     status: implemented
     description: |
       Execute Chat against httptest with an injected key. Inspect method, path,
@@ -44,7 +44,7 @@ test_cases:
 
   - use_case: rel15.0-uc001-cohere-invoke
     name: Cohere response joins text and maps usage
-    go_test: go test ./internal/model/llm/cohere -run TestChat_Response
+    go_test: go test ./internal/tools/llm ./internal/tools/llm/dialect -run 'Test(ProviderDialectParity|ExtractReplyJoinsSelectedTextAndReadsUsage)'
     status: implemented
     description: |
       Return multiple text blocks, a non-text block, and usage.tokens. The
@@ -58,7 +58,7 @@ test_cases:
 
   - use_case: rel15.0-uc001-cohere-invoke
     name: Credential and provider failures remain safe and single-attempt
-    go_test: go test ./internal/model/llm/cohere ./internal/tools/llm -run 'Test(Chat_Errors|InvokeLLM_CohereCommandError)'
+    go_test: go test ./internal/tools/llm -run 'Test(InvokeLLM_CohereCommandError|DialectMissingCredentialFailsBeforeNetwork|DialectCredentialAbsentFromDiagnostics|ProviderDialectFailureKeepsCommandError)'
     status: implemented
     description: |
       Exercise missing key, cancellation, connection failure, non-2xx,
@@ -100,7 +100,7 @@ test_cases:
 
   - use_case: rel15.0-uc001-cohere-invoke
     name: Cohere transport emits GenAI attributes with caller parenting
-    go_test: go test ./internal/model/llm/cohere ./internal/observability/telemetry/genai -run 'Test(Chat_Tracing|ProviderCohere)'
+    go_test: go test ./internal/tools/llm ./internal/observability/tracing ./internal/observability/telemetry/genai -run 'Test(InvokeLLMRunsTheDialectPipeline|ContextChildParentsOnTheCallerSpan|ProviderCohere)'
     status: implemented
     description: |
       Execute success and error calls under a caller span and inspect the
@@ -114,7 +114,7 @@ test_cases:
 
   - use_case: rel15.0-uc001-cohere-invoke
     name: Existing Ollama provider behavior remains compatible
-    go_test: go test ./internal/model/llm/ollama ./internal/tools/llm
+    go_test: go test ./internal/tools/llm
     status: implemented
     description: |
       Run the existing Ollama adapter and invoke_llm tests unchanged after the

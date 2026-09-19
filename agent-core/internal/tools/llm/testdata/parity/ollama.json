@@ -1,0 +1,119 @@
+{
+  "model": "qwen3:8b",
+  "provider": "ollama",
+  "turns": [
+    {
+      "request": {
+        "Path": "/api/chat",
+        "Authorization": "",
+        "Body": {
+          "messages": [
+            {
+              "content": "You answer briefly.",
+              "role": "system"
+            },
+            {
+              "content": "first question",
+              "role": "user"
+            }
+          ],
+          "model": "qwen3:8b",
+          "options": {
+            "num_ctx": 8192,
+            "seed": 42,
+            "temperature": 0
+          },
+          "stream": false
+        }
+      },
+      "signal": "LLMResponded",
+      "output": "one",
+      "tokens_in": 21,
+      "tokens_out": 3,
+      "reply": "{\"message\":{\"role\":\"assistant\",\"content\":\"one\"},\"prompt_eval_count\":21,\"eval_count\":3}"
+    },
+    {
+      "request": {
+        "Path": "/api/chat",
+        "Authorization": "",
+        "Body": {
+          "messages": [
+            {
+              "content": "You answer briefly.",
+              "role": "system"
+            },
+            {
+              "content": "first question",
+              "role": "user"
+            },
+            {
+              "content": "one",
+              "role": "assistant"
+            },
+            {
+              "content": "second question",
+              "role": "user"
+            }
+          ],
+          "model": "qwen3:8b",
+          "options": {
+            "num_ctx": 8192,
+            "seed": 42,
+            "temperature": 0
+          },
+          "stream": false
+        }
+      },
+      "signal": "LLMResponded",
+      "output": "two",
+      "tokens_in": 34,
+      "tokens_out": 4,
+      "reply": "{\"message\":{\"role\":\"assistant\",\"content\":\"two\"},\"prompt_eval_count\":34,\"eval_count\":4}"
+    },
+    {
+      "request": {
+        "Path": "/api/chat",
+        "Authorization": "",
+        "Body": {
+          "messages": [
+            {
+              "content": "You answer briefly.",
+              "role": "system"
+            },
+            {
+              "content": "first question",
+              "role": "user"
+            },
+            {
+              "content": "one",
+              "role": "assistant"
+            },
+            {
+              "content": "second question",
+              "role": "user"
+            },
+            {
+              "content": "two",
+              "role": "assistant"
+            },
+            {
+              "content": "third question",
+              "role": "user"
+            }
+          ],
+          "model": "qwen3:8b",
+          "options": {
+            "num_ctx": 8192,
+            "seed": 42,
+            "temperature": 0
+          },
+          "stream": false
+        }
+      },
+      "signal": "LLMResponded",
+      "tokens_in": 40,
+      "tokens_out": 0,
+      "reply": "{\"message\":{\"role\":\"assistant\",\"content\":\"\"},\"prompt_eval_count\":40,\"eval_count\":0}"
+    }
+  ]
+}

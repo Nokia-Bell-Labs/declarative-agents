@@ -8,9 +8,7 @@ import (
 	"net/http"
 
 	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/cohere"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/ollama"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm/dialect"
 )
@@ -26,31 +24,49 @@ type resolvedProvider struct {
 }
 
 // resolveProvider fills invoke_llm's provider holes from the bound chat
-// dialect, or, for a config that still names provider, from the compiled
-// adapter it names.
+// dialect. A config that still names provider resolves to the shipped
+// library's dialect, so a declaration written before srd058 keeps working
+// while it migrates (R3.2).
 func resolveProvider(cfg catalog.LLMToolConfig, deps InvokeLLMFactoryDeps) (resolvedProvider, error) {
-	if cfg.Dialect != "" {
-		return resolveDialect(cfg, deps)
+	if cfg.Dialect == "" {
+		path, err := legacyDialect(cfg.Provider)
+		if err != nil {
+			return resolvedProvider{}, err
+		}
+		cfg.Dialect = path
 	}
-	registry, err := modelllm.DefaultProfileRegistry()
-	if err != nil {
-		return resolvedProvider{}, fmt.Errorf("load profiles: %w", err)
+	if cfg.ProviderURL == "" {
+		return resolvedProvider{}, fmt.Errorf("invoke_llm config %s requires provider_url", dialectLabel(cfg))
 	}
-	parser, err := resolveParser(registry, cfg.ResponseProfile, "", cfg.Model)
-	if err != nil {
-		return resolvedProvider{}, err
+	return resolveDialect(cfg, deps)
+}
+
+// shippedProviders are the libraries agent-core installs; a legacy provider
+// value names one of them.
+var shippedProviders = map[string]bool{"ollama": true, "cohere": true}
+
+// legacyDialect is the shipped chat dialect a provider value names, under the
+// agent-core install root when one is set and where the runtime image
+// installs it otherwise.
+func legacyDialect(provider string) (string, error) {
+	if !shippedProviders[provider] {
+		return "", fmt.Errorf("unsupported invoke_llm provider %q; name a dialect instead", provider)
 	}
-	client, addr, err := newLLMClient(cfg, deps.Tracer)
-	if err != nil {
-		return resolvedProvider{}, err
+	path := corepath.InstallPrefix + "/tools/providers/" + provider + "/" + dialect.FileName
+	if mapped := corepath.Map(path); mapped != "" {
+		return mapped, nil
 	}
-	return resolvedProvider{client: client, name: cfg.Provider, serverAddr: addr, parser: parser, profiles: registry}, nil
+	return path, nil
+}
+
+func dialectLabel(cfg catalog.LLMToolConfig) string {
+	if cfg.Provider != "" {
+		return fmt.Sprintf("provider %q", cfg.Provider)
+	}
+	return fmt.Sprintf("dialect %q", cfg.Dialect)
 }
 
 func resolveDialect(cfg catalog.LLMToolConfig, deps InvokeLLMFactoryDeps) (resolvedProvider, error) {
-	if cfg.ProviderURL == "" {
-		return resolvedProvider{}, fmt.Errorf("invoke_llm config dialect %q requires provider_url", cfg.Dialect)
-	}
 	chat, err := dialect.Load(cfg.Dialect)
 	if err != nil {
 		return resolvedProvider{}, err
@@ -68,32 +84,6 @@ func resolveDialect(cfg catalog.LLMToolConfig, deps InvokeLLMFactoryDeps) (resol
 		client: client, name: chat.ProviderName, serverAddr: serverAddr(cfg.ProviderURL),
 		parser: parser, profiles: registry,
 	}, nil
-}
-
-func newLLMClient(cfg catalog.LLMToolConfig, tracer tracing.Tracer) (modelllm.Client, string, error) {
-	if cfg.Provider != "ollama" && cfg.Provider != "cohere" {
-		return nil, "", fmt.Errorf("unsupported invoke_llm provider %q", cfg.Provider)
-	}
-	if cfg.ProviderURL == "" {
-		return nil, "", fmt.Errorf("invoke_llm config provider %q requires provider_url", cfg.Provider)
-	}
-	// Profiles that need preflight readiness declare a REST transition; adapter
-	// construction performs no hidden network probe.
-	var client modelllm.Client
-	var err error
-	switch cfg.Provider {
-	case "ollama":
-		client, err = ollama.NewAdapter(cfg.ProviderURL, cfg.Model,
-			ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
-			ollama.WithTracer(tracerOrNoop(tracer)),
-		)
-	case "cohere":
-		client, err = cohere.NewAdapter(cfg.ProviderURL, cfg.Model,
-			cohere.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
-			cohere.WithTracer(tracerOrNoop(tracer)),
-		)
-	}
-	return client, serverAddr(cfg.ProviderURL), err
 }
 
 // resolveParser picks the reply parser: the config's response_profile, then

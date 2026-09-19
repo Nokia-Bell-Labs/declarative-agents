@@ -25,9 +25,10 @@ mode-specific Go code.
 Core runtime code lives in `internal/runtime/core`. It owns the state machine,
 command dispatch, tool registry, agentic loop, and YAML machine config.
 
-Model code lives in `internal/model/llm` and `internal/model/llm/ollama`. Those
-packages provide the LLM client interface, conversation types, model profiles,
-and the Ollama adapter.
+Model code lives in `internal/model/llm`, which provides the LLM client
+interface, conversation types, and model profiles. A model provider is not Go
+code: it is a library of YAML under `tools/providers` (a chat dialect plus embed
+and rerank fragments) that `internal/tools/llm/dialect` reads (srd058).
 
 Prompt and tool vocabulary code lives in `internal/model/prompt` and focused
 `internal/tools/*` packages. Prompt code loads YAML templates and serializes

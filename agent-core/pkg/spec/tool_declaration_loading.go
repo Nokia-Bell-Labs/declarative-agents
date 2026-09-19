@@ -39,6 +39,7 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 		catalog.LoadOptions{
 			TolerateNonToolFiles: true,
 			ExpandEnv:            false,
+			KeepConfigFiles:      true,
 		},
 		nil,
 	)

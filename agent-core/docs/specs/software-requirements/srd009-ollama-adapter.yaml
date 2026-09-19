@@ -99,6 +99,15 @@ depends_on:
   - srd_id: srd007-tracer-interface
     symbols_used: [Tracer, Event, Push, SetAttributes]
 
+implementation_status:
+  current: |
+    Superseded by srd058-provider-libraries R5.2. The compiled adapter in
+    internal/model/llm/ollama was removed after a capture-fixture parity run
+    (GH-2240). Ollama chat is now the tools/providers/ollama library, read by
+    the invoke_llm dialect client; provider: ollama and an omitted provider
+    resolve to its dialect. Construction without network I/O, tracing, and
+    failure reporting are held by internal/tools/llm tests.
+
 diagrams:
   requirements_trace: |
     ```mermaid

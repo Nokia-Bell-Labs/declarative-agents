@@ -20,14 +20,13 @@ import (
 // name the file the tool ran with and staging carries it.
 var configFileFields = []string{"dialect"}
 
-// ConfigFileFields lists the config fields resolved as closure files, for
-// walkers that follow a closure's edges without loading it.
-func ConfigFileFields() []string { return append([]string(nil), configFileFields...) }
-
 // resolveConfigFiles rewrites each config file reference in defs to the path
 // it resolves to and visits the file. declaring is the file whose text holds
 // the reference: the unit, or the fragment an instantiation came from.
 func (r *toolImportResolver) resolveConfigFiles(defs []ToolDef, declaring string) error {
+	if r.options.KeepConfigFiles {
+		return nil
+	}
 	for index := range defs {
 		for _, field := range configFileFields {
 			written, ok := defs[index].Config[field].(string)

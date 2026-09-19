@@ -59,6 +59,11 @@ type ToolImport struct {
 type LoadOptions struct {
 	TolerateNonToolFiles bool
 	ExpandEnv            bool
+	// KeepConfigFiles leaves config file references (configFileFields) as
+	// written instead of resolving and reading them. A corpus view loads
+	// declarations with no profile, so no library root is declared to resolve
+	// a rooted reference against.
+	KeepConfigFiles bool
 }
 
 // DeclarationSource returns the tool's loader-assigned provenance.

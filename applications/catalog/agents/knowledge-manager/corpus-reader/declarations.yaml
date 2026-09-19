@@ -213,7 +213,7 @@ tools:
         state_after_failure: conversation history is unchanged unless the provider response was already appended
     config:
       model: "ornith:9b"
-      provider: ollama
+      dialect: /opt/providers/chat-dialect.yaml
       provider_url: "http://localhost:11434"
       manifest_state: Answering
       response_profile: qwen

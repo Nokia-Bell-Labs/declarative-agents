@@ -12,3 +12,5 @@ tool_declarations:
   - declarations.yaml
 rest_definitions:
   - rest.yaml
+libraries:
+  providers: ../../../../tools/providers/ollama

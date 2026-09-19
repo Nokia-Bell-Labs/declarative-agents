@@ -248,7 +248,7 @@ srd_index:
     path: docs/specs/software-requirements/srd008-telemetry.yaml
   - id: srd009-ollama-adapter
     title: Ollama LLM Adapter
-    summary: Production-ready Ollama adapter in internal/model/llm/ollama satisfying llm.Client. Model validation, tracing.
+    summary: Ollama chat behind llm.Client with model validation and tracing; the compiled adapter was retired by srd058 R5.2 and Ollama now ships as the tools/providers/ollama library.
     path: docs/specs/software-requirements/srd009-ollama-adapter.yaml
   - id: srd010-conversation
     title: Conversation Management

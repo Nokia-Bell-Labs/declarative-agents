@@ -1,15 +1,16 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # The invoke_llm word the executor and the critic's benchmark grid bind to one
-# Ollama model. Every model variant shares this contract and system prompt and
-# differs only in the model, its response parser profile, its time budget, and
-# where the provider listens, so each variant file instantiates this once
-# (GH-2150).
+# model. Every model variant shares this contract and system prompt and differs
+# only in the model, its response parser profile, its time budget, and where
+# the provider listens, so each variant file instantiates this once (GH-2150).
+# The provider is whichever library the profile binds to the providers root
+# (srd058 R1.1); the shipped profiles bind Ollama.
 unit: catalog-invoke-llm-model-fragment
 params:
   - name: model
     type: string
-    description: The Ollama model tag to invoke.
+    description: The model to invoke at the bound provider.
   - name: response_profile
     type: string
     description: The response parser profile that extracts tool calls from this model's output.
@@ -19,7 +20,7 @@ params:
   - name: provider_url
     type: string
     default: "http://localhost:11434"
-    description: The Ollama endpoint.
+    description: The provider's base URL.
 tools:
   - name: invoke_llm
     type: builtin
@@ -55,7 +56,7 @@ tools:
         state_after_failure: "conversation history unchanged unless the provider response was already appended"
     config:
       model: "$param(model)"
-      provider: ollama
+      dialect: /opt/providers/chat-dialect.yaml
       provider_url: "$param(provider_url)"
       manifest_state: Composing
       response_profile: "$param(response_profile)"

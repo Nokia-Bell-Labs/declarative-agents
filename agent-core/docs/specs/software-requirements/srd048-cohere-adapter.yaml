@@ -114,11 +114,16 @@ depends_on:
 
 implementation_status:
   current: |
-    internal/model/llm/cohere implements Cohere v2 Chat behind llm.Client.
-    internal/tools/llm selects ollama or cohere, the embedded cohere response
-    profile handles command- models, and hermetic tests cover the wire,
-    credential, normalization, failure, and tracing contracts. P5.1 includes
-    the Cohere adapter import boundary.
+    Superseded by srd058-provider-libraries R5.2. The compiled adapter in
+    internal/model/llm/cohere was removed after a capture-fixture parity run
+    (GH-2240). Cohere v2 chat is now the tools/providers/cohere library: its
+    chat-dialect.yaml declares the request, the text-block join, usage, the
+    failure map, and the COHERE_API_KEY bearer reference that R3 requires, and
+    invoke_llm reads it through the dialect client. provider: cohere resolves
+    to that dialect. R1.5 holds: embed and rerank stay REST-declared, now as the
+    library's fragments. The wire, credential, normalization, failure, and
+    tracing contracts are held by internal/tools/llm tests against the
+    captured adapter requests in testdata/parity.
 
 related_documents:
   - cfg-llm-config-format

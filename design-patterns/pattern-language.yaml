@@ -867,8 +867,7 @@ patterns:
             - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm
             - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm
           provider_imports:
-            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/ollama
-            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm/cohere
+            - github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm/dialect
     consequences:
       benefits:
         - Model-agnostic evaluation and provider changes isolated to adapters.
@@ -918,21 +917,21 @@ patterns:
               artifact: go_test
               assertion: go_test
               test: TestExecutorShippedProfileWiring
-      - system: Reference implementation — model provider adapters
+      - system: Reference implementation — model provider libraries
         cite: reference-implementation
         kind: internal
-        note: Ollama and Cohere v2 are shipped model provider adapters behind the same invoke_llm boundary; both emit normalized chat results and GenAI tracing.
+        note: Ollama and Cohere v2 ship as provider libraries of YAML (agent-core/tools/providers) behind the same invoke_llm boundary; the dialect client reads either one, and both emit normalized chat results and GenAI tracing (srd058).
         evidence:
           classification: shipped
           checks:
-            - path: agent-core/internal/model/llm/ollama/adapter_tracing_test.go
+            - path: agent-core/internal/tools/llm/invoke_dialect_test.go
               artifact: go_test
               assertion: go_test
-              test: TestChat_EmitsSemconvInferenceSpan
-            - path: agent-core/internal/model/llm/cohere/tracing_test.go
+              test: TestInvokeLLMRunsTheDialectPipeline
+            - path: agent-core/internal/tools/llm/provider_golden_test.go
               artifact: go_test
               assertion: go_test
-              test: TestChat_Tracing
+              test: TestProviderDialectParity
       - system: Design intent — further provider adapters
         cite: reference-implementation
         kind: internal

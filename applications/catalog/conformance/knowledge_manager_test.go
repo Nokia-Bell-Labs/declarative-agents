@@ -357,6 +357,8 @@ tool_declarations:
   - /opt/agent-core/tools/builtin/done.yaml
   - %q
 rest_definitions: [%q]
+libraries:
+  providers: /opt/agent-core/tools/providers/ollama
 `, filepath.Join(ingestRoot, "machine.yaml"), filepath.Join(ingestRoot, "tools.yaml"),
 		filepath.Join(ingestRoot, "declarations.yaml"), providerRESTPath))
 
@@ -575,6 +577,8 @@ tool_declarations:
   - /opt/agent-core/tools/builtin/done.yaml
   - %q
 rest_definitions: [%q]
+libraries:
+  providers: /opt/agent-core/tools/providers/ollama
 `, filepath.Join(ingestRoot, "machine.yaml"), filepath.Join(ingestRoot, "tools.yaml"),
 		filepath.Join(ingestRoot, "declarations.yaml"), restPath))
 }

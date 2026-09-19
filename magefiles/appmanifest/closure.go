@@ -341,6 +341,13 @@ func (resolver *closureResolver) enqueueReference(item closureItem, reference st
 	if resolver.isRuntimeOwned(reference) {
 		return nil
 	}
+	if target, ok := resolver.runtimeLibraryReference(item, reference); ok {
+		if resolver.isRuntimeOwned(target) {
+			return nil
+		}
+		return fmt.Errorf("%s references %s through a library root at %s, which is not runtime-owned",
+			logicalSource(item.ownership, item.source), reference, target)
+	}
 	ownership, source, runtime, packagePath, err := resolver.referenceTarget(item, reference)
 	if err != nil {
 		return err
@@ -427,8 +434,7 @@ func (resolver *closureResolver) declareLibrary(item closureItem, name, director
 	}
 	library := declaredLibrary{profile: item, directory: path.Clean(filepath.ToSlash(directory))}
 	if previous, exists := declared[name]; exists {
-		if path.Join(path.Dir(previous.profile.runtime), previous.directory) !=
-			path.Join(path.Dir(item.runtime), library.directory) {
+		if previous.location() != library.location() {
 			return fmt.Errorf("%s declares library root %q at %s, already declared at %s by %s",
 				logicalSource(item.ownership, item.source), name, directory, previous.directory,
 				logicalSource(previous.profile.ownership, previous.profile.source))
@@ -437,6 +443,31 @@ func (resolver *closureResolver) declareLibrary(item closureItem, name, director
 	}
 	declared[name] = library
 	return nil
+}
+
+// location is where a declared root's directory sits at runtime: an absolute
+// directory as written, such as a shipped provider library under
+// /opt/agent-core (srd058 R1.2), and a relative one against its profile.
+func (library declaredLibrary) location() string {
+	if path.IsAbs(library.directory) {
+		return library.directory
+	}
+	return path.Join(path.Dir(library.profile.runtime), library.directory)
+}
+
+// runtimeLibraryReference reports a rooted reference whose root is declared
+// at an absolute directory, and where it lands. Such a root names files the
+// runtime provides, so the closure packages nothing from it.
+func (resolver *closureResolver) runtimeLibraryReference(item closureItem, reference string) (string, bool) {
+	name, rest, rooted := libraryReference(reference)
+	if !rooted {
+		return "", false
+	}
+	library, declared := resolver.libraries[item.rootID][name]
+	if !declared || !path.IsAbs(library.directory) {
+		return "", false
+	}
+	return path.Join(library.directory, rest), true
 }
 
 // libraryReference splits a rooted /opt/<name>/<rest> reference.
@@ -595,6 +626,9 @@ func collectYAMLReferences(document *yaml.Node) []yamlReference {
 						"point_tools", "point_tool_declarations", "includes", "imports")[key] ||
 					(key == "machine" && contains(ancestors, "machine_request")) ||
 					(key == "path" && contains(ancestors, "openapi")) ||
+					// A tool's config may name a file it reads when built,
+					// invoke_llm's chat dialect (srd058 R2.3).
+					(key == "dialect" && contains(ancestors, "config")) ||
 					fragment
 				if pathField {
 					allowDirectory := topLevelField && (key == "tool_config_dirs" || key == "rest_config_dirs")

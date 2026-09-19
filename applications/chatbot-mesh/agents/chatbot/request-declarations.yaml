@@ -102,7 +102,7 @@ tools:
       requires: [conversation_checkpoint]
     config:
       model: "${CHATBOT_TIER_MODEL:-qwen2.5:3b}"
-      provider: ollama
+      dialect: /opt/providers/chat-dialect.yaml
       provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       manifest_state: CapturingSourceSelection
       response_profile: qwen
@@ -263,7 +263,7 @@ tools:
         state_after_failure: conversation history is unchanged unless the provider response was already appended
     config:
       model: "${CHATBOT_TIER_MODEL:-qwen2.5:3b}"
-      provider: ollama
+      dialect: /opt/providers/chat-dialect.yaml
       provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       # manifest_state is the tool manifest the tier selector selects over and
       # the state parse_tier validates the chosen word against. It must be
@@ -351,7 +351,7 @@ tools:
         state_after_failure: conversation history is unchanged unless the provider response was already appended
     config:
       model: "${CHATBOT_FAST_MODEL:-qwen2.5:3b}"
-      provider: ollama
+      dialect: /opt/providers/chat-dialect.yaml
       provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       manifest_state: Answering
       response_profile: qwen
@@ -404,7 +404,7 @@ tools:
         state_after_failure: conversation history is unchanged unless the provider response was already appended
     config:
       model: "${CHATBOT_DEEP_MODEL:-ornith:9b}"
-      provider: ollama
+      dialect: /opt/providers/chat-dialect.yaml
       provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       manifest_state: Answering
       response_profile: qwen

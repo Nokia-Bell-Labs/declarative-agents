@@ -54,7 +54,7 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Ollama adapter construction performs no readiness I/O
-    go_test: TestNewAdapter_OptionsConfigureClientWithoutNetworkIO
+    go_test: TestInvokeLLMBuildsWithoutNetworkIO
     inputs:
       provider_url: "unserved loopback endpoint"
     expected:
@@ -65,7 +65,7 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Ollama adapter emits tracing around chat
-    go_test: TestChat_EmitsSemconvInferenceSpan
+    go_test: TestInvokeLLMRunsTheDialectPipeline
     inputs:
       tracer: "recording tracer"
       chat_request: "non-streaming /api/chat"
@@ -77,7 +77,7 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Ollama adapter reports HTTP and JSON failures
-    go_test: TestChat_HTTPError
+    go_test: TestProviderDialectFailureKeepsCommandError
     inputs:
       failures:
         - connection_refused
@@ -462,7 +462,7 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Ollama adapter options configure client without hidden checks
-    go_test: TestNewAdapter_OptionsConfigureClientWithoutNetworkIO
+    go_test: TestInvokeLLMBuildsWithoutNetworkIO
     inputs:
       http_client_timeout: 37s
       model_check: absent
@@ -479,7 +479,7 @@ test_cases:
       legacy_paths:
         - internal/llm/adapter.go
         - cmd/planner/ollama.go
-      import_path: internal/model/llm/ollama
+      retired_packages: [internal/model/llm/ollama, internal/model/llm/cohere]
     expected:
       legacy_generator_adapter_absent: true
       legacy_planner_adapter_absent: true

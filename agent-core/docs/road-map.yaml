@@ -612,7 +612,7 @@ releases:
         summary: Hermetic adapter, credential, provider-selection, parser, error, and GenAI tracing tests.
         status: implemented
     proof:
-      - go test ./internal/model/llm/cohere ./internal/tools/llm ./internal/model/llm ./internal/observability/telemetry/genai
+      - go test ./internal/tools/llm ./internal/model/llm ./internal/observability/telemetry/genai
       - mage audit
 
   - version: "16.0"

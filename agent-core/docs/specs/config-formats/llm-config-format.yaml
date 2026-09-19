@@ -61,10 +61,11 @@ schema:
           type: string
           required: false
           description: |
-            LLM provider backend. Supported values are ollama and cohere.
-            Determines which client implementation makes the inference call.
-            Omission, with no dialect, remains an Ollama compatibility path.
-            Superseded by dialect (srd058 R3.2); naming both is an error.
+            Legacy provider name, ollama or cohere. It resolves to the shipped
+            library's chat dialect under the agent-core install root,
+            tools/providers/<provider>/chat-dialect.yaml, and omission with no
+            dialect resolves to Ollama's. Superseded by dialect (srd058 R3.2);
+            naming both is an error.
 
         - field: dialect
           type: string
@@ -153,7 +154,7 @@ schema:
           description: |
             Context window size passed only to the Ollama provider.
             Controls how many tokens the model can consider.
-            The Cohere adapter omits this field from its request.
+            The Cohere dialect does not reference this field, so its request omits it.
 
         - field: temperature
           type: float
@@ -302,7 +303,8 @@ related_documents:
   - cfg-tool-declaration-format
   - srd017
   - srd048-cohere-adapter
+  - srd058-provider-libraries
 
 implementation:
-  - internal/model/llm/ollama
-  - internal/model/llm/cohere
+  - internal/tools/llm
+  - internal/tools/llm/dialect
