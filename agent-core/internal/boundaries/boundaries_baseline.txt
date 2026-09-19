@@ -11,6 +11,7 @@ import:pkg/profileaudit -> internal/load
 import:pkg/profileaudit -> internal/support/corepath
 import:pkg/profileaudit -> internal/tools/catalog
 import:pkg/profileaudit -> internal/typesys
+import:pkg/profilestage -> internal/support/envexpand
 import:pkg/profileaudit -> internal/tools/rest
 pkg:cmd/agent files=6 loc=1965
 pkg:internal/doltsql files=4 loc=274
@@ -37,10 +38,10 @@ pkg:internal/planning/plan files=3 loc=140
 pkg:internal/runtime files=1 loc=7
 pkg:internal/runtime/checkpoint files=2 loc=132
 pkg:internal/runtime/checkpoint/dolt files=2 loc=1216
-pkg:internal/runtime/core files=35 loc=6249
+pkg:internal/runtime/core files=35 loc=6274
 pkg:internal/support files=1 loc=7
 pkg:internal/support/corepath files=1 loc=237
-pkg:internal/support/envexpand files=1 loc=37
+pkg:internal/support/envexpand files=1 loc=76
 pkg:internal/support/execute files=1 loc=110
 pkg:internal/support/subprocess files=1 loc=254
 pkg:internal/support/yamlstrict files=1 loc=246
@@ -72,6 +73,6 @@ pkg:internal/tools/validation files=5 loc=1488
 pkg:internal/typesys files=4 loc=593
 pkg:internal/version files=1 loc=40
 pkg:pkg/profileaudit files=4 loc=1214
-pkg:pkg/profilestage files=1 loc=406
+pkg:pkg/profilestage files=2 loc=520
 pkg:pkg/spec files=31 loc=6406
 pkg:internal/fragments files=2 loc=279

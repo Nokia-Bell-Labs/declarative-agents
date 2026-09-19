@@ -115,6 +115,18 @@ requirements:
           The spliced machine SHALL be validated as one machine by the label
           and exhaustiveness checks of srd038 and srd006, so an instantiated
           stage is held to what a hand-written one is held to.
+      - R4.3: >-
+          A machine file's `instantiate[].fragment` path MAY carry
+          `${NAME:-default}` references, expanded at load time by the envexpand
+          rules tool declarations use (srd013 R5.6), so a deployment selects one
+          of several fixed stage variants whose topologies differ. Only the
+          fragment path SHALL be expanded; states, transitions, and arguments
+          stay literal, so the environment chooses among validated stages and
+          cannot rewrite a machine. A reference without a default, a malformed
+          reference, or a default variant whose file is missing SHALL fail the
+          load naming the path as written, and the selected variant SHALL be
+          spliced and validated under R4.2 and recorded in the dump by its
+          resolved path (GH-2235).
 
 non_goals:
   - Fragments instantiating other fragments; nesting waits for a release that needs it.
@@ -135,6 +147,9 @@ acceptance_criteria:
   - id: AC4
     criterion: A stage fragment splices into a machine under a prefix with parameterized entry and exit signals, and the result passes or fails the label and exhaustiveness checks exactly as the equivalent hand-written machine does.
     traces: [R4.1, R4.2]
+  - id: AC5
+    criterion: A machine instantiating stages/s-${X:-a}.yaml beside s-a.yaml and s-b.yaml loads stage a with X unset and stage b with X=b, each validating as one machine with the dump naming the resolved path; a variant whose spliced transitions are dead fails naming the resolved fragment; a templated path without a default, or whose default file is missing, fails naming the path; packaging stages every variant.
+    traces: [R4.3]
 
 depends_on:
   - srd_id: srd050-declaration-imports

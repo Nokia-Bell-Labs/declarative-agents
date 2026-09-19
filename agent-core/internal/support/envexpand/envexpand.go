@@ -8,8 +8,10 @@
 package envexpand
 
 import (
+	"fmt"
 	"os"
 	"regexp"
+	"strings"
 )
 
 // refPattern matches ${NAME} and ${NAME:-default} references. It is
@@ -33,4 +35,41 @@ func Expand(data []byte) []byte {
 		}
 		return nil
 	})
+}
+
+// Templated reports whether s carries a ${...} reference, well-formed or not.
+func Templated(s string) bool {
+	return strings.Contains(s, "${")
+}
+
+// Variant is a path that selects among files by environment: every reference
+// is ${NAME:-default}, so the default names the file a deployment gets when
+// NAME is unset, and Pattern is the path with each reference as a wildcard.
+type Variant struct {
+	Default string
+	Pattern string
+}
+
+// SelectVariant reads a path whose references select a variant (srd052 R4.3).
+// A reference without a default, or a ${ outside the reference grammar, is an
+// error: the default is what names the variant every deployment can rely on.
+func SelectVariant(path string) (Variant, error) {
+	matches := refPattern.FindAllStringSubmatch(path, -1)
+	for _, match := range matches {
+		if match[2] == "" {
+			return Variant{}, fmt.Errorf("reference %s needs the form ${NAME:-default}", match[0])
+		}
+	}
+	if strings.Contains(refPattern.ReplaceAllString(path, ""), "${") {
+		return Variant{}, fmt.Errorf("reference in %q is not ${NAME:-default}", path)
+	}
+	return Variant{
+		Default: refPattern.ReplaceAllString(path, "${3}"),
+		Pattern: refPattern.ReplaceAllString(path, "*"),
+	}, nil
+}
+
+// ExpandString is Expand for one string.
+func ExpandString(s string) string {
+	return string(Expand([]byte(s)))
 }

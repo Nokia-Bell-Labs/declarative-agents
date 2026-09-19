@@ -91,9 +91,18 @@ func Imported(root string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, imported := range imports {
-			if err := walk.follow(file, imported); err != nil {
-				return nil, err
+		for _, edge := range imports {
+			variants, err := variantEdges(edge, filepath.Dir(file), func(root string) (string, bool) {
+				directory, declared := walk.libraries[root]
+				return directory, declared
+			})
+			if err != nil {
+				return nil, fmt.Errorf("import of %s: %w", file, err)
+			}
+			for _, imported := range variants {
+				if err := walk.follow(file, imported); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -263,9 +272,18 @@ func (c *stagedClosure) followImports() error {
 		if err != nil {
 			return err
 		}
-		for _, imported := range imports {
-			if err := c.stageImport(file, imported); err != nil {
-				return err
+		for _, edge := range imports {
+			variants, err := variantEdges(edge, filepath.Dir(file.source), func(root string) (string, bool) {
+				library, declared := c.libraries[root]
+				return library.source, declared
+			})
+			if err != nil {
+				return fmt.Errorf("stage import of %s: %w", file.source, err)
+			}
+			for _, imported := range variants {
+				if err := c.stageImport(file, imported); err != nil {
+					return err
+				}
 			}
 		}
 	}

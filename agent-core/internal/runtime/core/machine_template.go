@@ -7,14 +7,12 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 )
 
@@ -106,14 +104,10 @@ func instantiatedTemplate(path string, instantiations []fragments.Instantiation)
 }
 
 func instantiationTarget(base string, instantiation fragments.Instantiation) (string, string, error) {
-	if strings.TrimSpace(instantiation.Fragment) == "" {
-		return "", "", fmt.Errorf("fragment path must be non-empty")
-	}
-	resolved, err := corepath.ImportTarget(base, instantiation.Fragment)
+	target, err := fragmentTarget(base, instantiation.Fragment)
 	if err != nil {
-		return "", "", fmt.Errorf("fragment path %q: %w", instantiation.Fragment, err)
+		return "", "", err
 	}
-	target := filepath.Clean(resolved)
 	data, err := os.ReadFile(target)
 	if err != nil {
 		return "", "", fmt.Errorf("read fragment %s: %w", target, err)
