@@ -4,6 +4,7 @@
 package kindrig
 
 import (
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -28,6 +29,10 @@ const (
 	platformHostPlaceholder    = "KINDRIG_CONFORMANCE_HOST"
 	platformTracingPlaceholder = "KINDRIG_PLATFORM_TRACING_CONFIG"
 	platformWaitTimeout        = "120s"
+	// platformCommandTimeout bounds each command the platform runner issues.
+	// Every kubectl wait the rig declares is shorter, so only a stalled command
+	// (a registry that never answers a pull) reaches it (GH-2226).
+	platformCommandTimeout = 5 * time.Minute
 )
 
 //go:embed platform-kind-config.yaml
@@ -52,9 +57,10 @@ type PlatformOptions struct {
 	// conformance, or a later caller-reported failure ends the platform.
 	EvidenceDirectory string
 
-	boot        func(CommandRunner, string) error
-	conformance func(CommandRunner, string) error
-	healthRun   CommandRunner
+	boot           func(CommandRunner, string) error
+	conformance    func(CommandRunner, string) error
+	healthRun      CommandRunner
+	commandTimeout time.Duration
 }
 
 // Platform is a running, conformance-checked da-platform cluster. Run is bound
@@ -312,7 +318,9 @@ func stagePlatformTracingConfig() (string, error) {
 
 // BootPlatform installs the cluster-wide infrastructure scenarios share: the
 // pinned Traefik ingress controller and the pinned metrics-server. Application
-// infrastructure (Dolt, Chroma, Ollama) stays in the application charts.
+// infrastructure (Dolt, Chroma, Ollama) stays in the application charts. Each
+// install logs one phase per step and pulls its image only when the pinned
+// digest is not already local; the platform runner bounds every command.
 func BootPlatform(run CommandRunner, cluster string) error {
 	if err := InstallIngress(run, cluster); err != nil {
 		return fmt.Errorf("install ingress: %w", err)
@@ -397,13 +405,17 @@ func (o PlatformOptions) withDefaults() PlatformOptions {
 	if o.KindRun == nil {
 		o.KindRun = DefaultRun
 	}
+	if o.commandTimeout == 0 {
+		o.commandTimeout = platformCommandTimeout
+	}
 	if o.Bind == nil {
+		timeout := o.commandTimeout
 		o.Bind = func(cluster string) (CommandRunner, func(), error) {
 			commands, cleanup, err := ClusterCommands(CaptureRun, cluster)
 			if err != nil {
 				return nil, nil, err
 			}
-			return commands.Run, cleanup, nil
+			return boundedCommandRunner(commands.RunContext, timeout), cleanup, nil
 		}
 	}
 	if o.boot == nil {
@@ -455,4 +467,23 @@ func writeTempManifest(pattern, manifest string) (string, func(), error) {
 		return "", nil, fmt.Errorf("close manifest: %w", err)
 	}
 	return path, cleanup, nil
+}
+
+// boundedCommandRunner runs each command under its own deadline, so a command
+// that never returns fails with the deadline named instead of stalling the
+// release that booted the platform (GH-2226).
+func boundedCommandRunner(
+	run func(context.Context, string, ...string) ([]byte, error),
+	timeout time.Duration,
+) CommandRunner {
+	return func(name string, args ...string) ([]byte, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		output, err := run(ctx, name, args...)
+		if ctx.Err() == context.DeadlineExceeded {
+			return output, fmt.Errorf("%s %s: no result within %s: %w",
+				name, strings.Join(args, " "), timeout, ctx.Err())
+		}
+		return output, err
+	}
 }

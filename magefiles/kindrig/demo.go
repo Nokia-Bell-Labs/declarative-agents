@@ -78,7 +78,8 @@ func DemoDown(run Runner, name string) error {
 // InstallIngress loads and installs the pinned minimal Traefik controller, then
 // observes its readiness. The caller supplies a runner bound to cluster.
 //
-// The image is host-pulled and kind-loaded before the manifest is applied. A
+// The image is host-pulled, only when its digest is not already local, and
+// kind-loaded before the manifest is applied. A
 // kind node behind a TLS-intercepting proxy may not trust the host's CA, while
 // the host container engine does; loading also makes repeated demo starts
 // independent of registry availability. Traefik watches standard Ingress
@@ -100,23 +101,12 @@ func InstallIngress(run CommandRunner, cluster string) error {
 	}
 	defer cleanup()
 
-	commands := [][]string{
-		{"docker", "pull", "--platform", "linux/" + runtime.GOARCH, sourceImage},
-		{"docker", "tag", sourceImage, runtimeImage},
-		{"kind", "load", "docker-image", runtimeImage, "--name", cluster},
-		{"kubectl", "apply", "-f", path},
-		{"kubectl", "rollout", "status", "deployment/traefik",
-			"--namespace", "traefik", "--timeout=180s"},
-	}
-	for _, command := range commands {
-		name, args := command[0], command[1:]
-		output, err := run(name, args...)
-		if err != nil {
-			return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "),
-				err, strings.TrimSpace(string(output)))
-		}
-	}
-	return nil
+	steps := append(pinnedImageSteps(run, cluster, sourceImage, runtimeImage),
+		installStep{"manifest-apply", []string{"kubectl", "apply", "-f", path}},
+		installStep{"rollout", []string{"kubectl", "rollout", "status", "deployment/traefik",
+			"--namespace", "traefik", "--timeout=180s"}},
+	)
+	return runInstallSteps(run, cluster, "traefik", steps)
 }
 
 func traefikImage(arch string) (string, error) {

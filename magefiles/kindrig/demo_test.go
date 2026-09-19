@@ -120,7 +120,7 @@ func TestTraefikManifestIsMinimalStandardIngressController(t *testing.T) {
 	}
 }
 
-func TestInstallIngressLoadsPinnedImageAndWaitsForDeployment(t *testing.T) {
+func TestInstallIngressReusesLocalPinnedImageAndWaitsForDeployment(t *testing.T) {
 	var calls []string
 	var applied string
 	run := func(name string, args ...string) ([]byte, error) {
@@ -143,7 +143,7 @@ func TestInstallIngressLoadsPinnedImageAndWaitsForDeployment(t *testing.T) {
 	}
 	runtimeImage := traefikRuntimeRepository + ":" + traefikImageVersion
 	wantCalls := []string{
-		"docker pull --platform linux/" + runtime.GOARCH + " " + image,
+		"docker image inspect --format {{.Id}} " + image,
 		"docker tag " + image + " " + runtimeImage,
 		"kind load docker-image " + runtimeImage + " --name da-example-demo",
 		"kubectl apply -f ",
@@ -172,5 +172,41 @@ func TestInstallIngressLive(t *testing.T) {
 	}
 	if err := InstallIngress(DefaultCommandRun, cluster); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestInstallIngressPullsPinnedImageOnlyWhenAbsent(t *testing.T) {
+	image, err := traefikImage(runtime.GOARCH)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls []string
+	run := func(name string, args ...string) ([]byte, error) {
+		call := strings.Join(append([]string{name}, args...), " ")
+		calls = append(calls, call)
+		if strings.HasPrefix(call, "docker image inspect") {
+			return []byte("No such image"), errors.New("absent")
+		}
+		return nil, nil
+	}
+	if err := InstallIngress(run, "da-example-demo"); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) < 2 || calls[1] != "docker pull --platform linux/"+runtime.GOARCH+" "+image {
+		t.Fatalf("absent image was not pulled after the inspect: %v", calls)
+	}
+}
+
+func TestInstallIngressNamesTheFailedStep(t *testing.T) {
+	run := func(name string, args ...string) ([]byte, error) {
+		if name == "kind" {
+			return []byte("node not found"), errors.New("load failed")
+		}
+		return nil, nil
+	}
+	err := InstallIngress(run, "da-example-demo")
+	if err == nil || !strings.Contains(err.Error(), "kind load docker-image") ||
+		!strings.Contains(err.Error(), "node not found") {
+		t.Fatalf("error = %v, want the failed load command and its output", err)
 	}
 }
