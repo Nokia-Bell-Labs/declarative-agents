@@ -238,14 +238,19 @@ requirements:
     items:
       - id: R7.1
         text: |
-          ui.yaml version 2 shall add version, panels, monitored_agents,
-          trace_backend, branding, and flags to the current fields. Each panels
-          entry carries id, package, export, route, sidebar_group, and config.
-          routes remains valid for routes that are not panels. A file without
-          version is version 1 and stays valid.
+          ui.yaml version 2 shall add version, panels, and branding to the
+          version 1 fields, which already carry monitored_agents,
+          trace_backend, and the presentation flags. Each panels entry carries
+          id, package, route, and optionally export, label, sidebar_group,
+          hidden, and config. For package @declarative-agents/ui-kit, export
+          names the kit panel manifest id and the shell mounts it without an
+          application registry entry; any other package requires a registry
+          entry keyed by the panel id. routes remains valid for routes that
+          are not panels. A file without version is version 1 and stays valid.
         evidence: |
-          The validator accepts every current ui.yaml unchanged and accepts a
-          version 2 fixture with every new field.
+          magefiles/uiyaml accepts every current ui.yaml unchanged and a
+          version 2 fixture with every new field, and the kit JSON Schema
+          applications/ui-kit/schema/ui.v2.schema.json agrees with it.
       - id: R7.2
         text: |
           The validator shall reject duplicate panel ids, route collisions, and

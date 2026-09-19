@@ -21,11 +21,36 @@ A panel is the reuse unit: a component plus a manifest naming its id, route, req
 | the platform, embedded in a tool | the observer UI served by the rest tool via `go:embed`, backed by the observer capability profile | planned (GH-2158, GH-2170) |
 | the application | domain panels an app keeps to itself, including cohere-demo's provenance panel, which reads `/api/v1/documents` (srd004 R4.4) | current practice |
 
-Composition is build-time: an application lists panel packages and its own domain panels, and one bundle is built. `ui.yaml` becomes the composition input a generic shell renders routes and sidebar from (GH-2159, planned), replacing the cross-check test.
+Composition is build-time: an application lists panel packages and its own domain panels, and one bundle is built. `ui.yaml` becomes the composition input a generic shell renders routes and sidebar from (GH-2159; the version 2 schema is specified below, the shell is planned), replacing the cross-check test.
 
 ## The kit package
 
 The kit lives at `applications/ui-kit` as the npm package `@declarative-agents/ui-kit` (GH-2259). UIs in this repository depend on it by `file:` path; external repositories depend on the `npm pack` tarball attached to the GitHub release `ui-kit/vX.Y.Z`, which `mage uikit:release` prepares from a clean tree. No registry, credential, or environment variable is involved. The kit README lists the Mage targets.
+
+## ui.yaml version 2
+
+`ui.yaml` is the composition input of the kit shell (srd004 R7). Version 2 adds `version`, `panels`, and `branding` to the version 1 fields; a file without `version` is version 1 and stays valid. `magefiles/uiyaml` validates it in Go, and `applications/ui-kit/schema/ui.v2.schema.json` carries the same structure for charts and the kit build.
+
+Table: ui.yaml fields
+
+| Field | Meaning |
+|---|---|
+| `version` | `2` to compose panels; absent means 1 |
+| `id`, `title`, `source_owner` | identity of the UI and its owning actor |
+| `sidebar.title`, `sidebar.groups.<id>.{label, order}` | navigation title and ordered sections |
+| `routes[].{id, path, label, action, resource}` | navigable paths that are not composed panels |
+| `panels[].id` | panel id and route id; also the application registry key |
+| `panels[].package` | `@declarative-agents/ui-kit` for a kit panel, any other name (for example `local`) for a domain panel |
+| `panels[].export` | for kit panels, the kit panel manifest id (`trace`, `fleet`, `machine-view`, `topology`, `agent-card`, `status-bar`) |
+| `panels[].route` | one lower-case segment such as `/traces`; the last URL segment selects the panel |
+| `panels[].{label, sidebar_group, hidden}` | sidebar entry, its group, and whether it is reachable by URL only |
+| `panels[].config` | map passed to the panel as `config` |
+| `monitored_agents[].{name, label}` | agents panels read through `/monitor-proxy/<name>/` |
+| `trace_backend.{name, query_path}` | agent whose proxy serves the trace queries |
+| `branding.{title, logo, accent}` | shell title and look |
+| `presentation` | application presentation flags |
+
+The validator rejects a duplicate id across routes and panels, two routes on one path, a `sidebar_group` not declared under `sidebar.groups`, panels without `version: 2`, and a kit panel without `export`. A chart must be able to render the file with plain templating: one document, no anchors or aliases, lists of flat maps (`uiyaml.CheckHelmRenderable`). `applications/chatbot-mesh/helm/templates/_chatbot-ui.tpl` is the worked example; `TestChatbotUIRendersAsValidUIYAML` validates its render.
 
 ## Design tokens
 
