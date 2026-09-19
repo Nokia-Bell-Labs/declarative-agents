@@ -36,20 +36,26 @@ func TestApplierLiveRollbackTriggerKeepsRollbackInsideRequestBudget(t *testing.T
 	}
 }
 
-func TestApplierLiveUsesSharedEnsurePath(t *testing.T) {
+// TestApplierLiveRunsAgentCoreWithCLIDonor guards GH-2222: the applier
+// runs the agent-core image and receives helm and kubectl from the pinned donor,
+// so no applier image is built, tagged, or loaded.
+func TestApplierLiveRunsAgentCoreWithCLIDonor(t *testing.T) {
 	body, err := os.ReadFile("integration_applier_live.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 	source := string(body)
-	if strings.Contains(source, "docker\", \"build\"") || strings.Contains(source, "docker build") {
-		t.Fatal("unlabeled docker build would retag declarative-agents/applier:<rev> without identity labels")
+	for _, forbidden := range []string{"EnsureApplierImage", "declarative-agents/applier", "docker build"} {
+		if strings.Contains(source, forbidden) {
+			t.Errorf("live applier still references %q", forbidden)
+		}
 	}
-	if !strings.Contains(source, "kindrig.EnsureApplierImage") {
-		t.Fatal("live applier must use the shared ensure path so concurrent lanes serialize on the tag")
+	for _, want := range []string{"kindrig.EnsureCLIDonorImage(", "kindrig.VerifyCLIDonor("} {
+		if !strings.Contains(source, want) {
+			t.Errorf("live applier lacks %s", want)
+		}
 	}
 }
-
 func TestApplierLiveChartArchiveStaysOutOfReleaseValues(t *testing.T) {
 	args := applierLiveValueArgs(
 		"/application", "runtime", "revision",

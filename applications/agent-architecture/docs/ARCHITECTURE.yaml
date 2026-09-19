@@ -312,8 +312,9 @@ design_decisions:
       browser UI is the one exception: its dist trees exceed the ConfigMap payload
       limit, so deploy/test tooling provisions deterministic shards outside the
       Helm release and an init container stages them into the curator workspace
-      at startup. The runtime image remains profile-free; only the applier image
-      carries its sanctioned CLIs (decision 9). srd001-helm-deployment
+      at startup. The runtime image remains profile-free and is the only image: the
+      applier runs it too and receives helm and kubectl from a pinned CLI donor
+      at pod start (decision 9). srd001-helm-deployment
       defines the topology, package, schema, and smoke; srd002-managed-application-services
       R4 through R6 apply by reference. The package, chart, and bounded kind
       integration targets are checked in.
@@ -332,8 +333,9 @@ design_decisions:
       applier alone: it binds helm and kubectl as exec tools, and the curator and
       collector profiles carry no deployment CLI. Authority is set by declared,
       validated config, never by the actuation surface, which is network-gated off
-      the serving pods. The applier image carries helm and kubectl, a recorded
-      divergence from the profile-free image invariant. The Agent Architecture has
+      the serving pods. The applier runs the profile-free agent-core image; a digest-pinned
+      CLI donor copies helm and kubectl into a read-only /opt/tools volume at pod
+      start, so no image diverges from the profile-free image invariant (GH-2222). The Agent Architecture has
       no control plane, so the caller is external, not an in-cluster creator,
       orchestrator, or panel. srd002-applier defines the actuation surface,
       machine, and authority boundary.

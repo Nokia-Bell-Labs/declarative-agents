@@ -39,10 +39,12 @@ const (
 	helmEvidenceCommandTimeout    = 10 * time.Second
 )
 
+// chatbotIntegrationImages names the commit-tagged agent-core runtime every
+// chatbot-mesh workload runs, the applier included: its helm and kubectl come
+// from the pinned CLI donor (GH-2222), so no applier image is built.
 type chatbotIntegrationImages struct {
 	Revision string
 	Runtime  string
-	Applier  string
 }
 
 func resolveChatbotIntegrationImages(repoRoot string) (chatbotIntegrationImages, error) {
@@ -51,13 +53,7 @@ func resolveChatbotIntegrationImages(repoRoot string) (chatbotIntegrationImages,
 	if err != nil {
 		return chatbotIntegrationImages{}, fmt.Errorf("resolve runtime image revision: %w", err)
 	}
-	applierImage, _, err := kindrig.CommitImage(applierLiveImageRepository, commit)
-	if err != nil {
-		return chatbotIntegrationImages{}, fmt.Errorf("resolve applier image revision: %w", err)
-	}
-	return chatbotIntegrationImages{
-		Revision: revision, Runtime: runtimeImage, Applier: applierImage,
-	}, nil
+	return chatbotIntegrationImages{Revision: revision, Runtime: runtimeImage}, nil
 }
 
 // applicationChartDir returns the chatbot-mesh Helm chart under the application, which

@@ -35,7 +35,7 @@ trigger: |
 
 preconditions:
   - The applier profile is deployed with its apply, control, and monitor servers, and its apply surface is network-gated off the serving and collector pods.
-  - The applier image carries the helm and kubectl CLIs, and its ServiceAccount can upgrade the release and read the coding role Deployments.
+  - The applier runs the agent-core image with the helm and kubectl CLIs delivered by the pinned CLI donor, and its ServiceAccount can upgrade the release and read the coding role Deployments.
   - The coding chart carries a values.schema.json encoding the deployment values constraints (srd004).
   - The apply surface is reachable only by the authorized operator or CI caller.
 
@@ -66,7 +66,7 @@ touchpoints:
     reason: The applier alone holds helm and kubectl, the apply surface is network-gated off the serving pods, and authority stays set by declared validated config.
   - id: T5
     target: srd006-applier AC5
-    reason: Deciding the values and owning lifecycle are non-goals; the applier image carries helm and kubectl as a recorded divergence.
+    reason: Deciding the values and owning lifecycle are non-goals; the applier receives helm and kubectl from the pinned CLI donor, so no image diverges.
 
 success_criteria:
   - id: S1
@@ -102,7 +102,7 @@ success_criteria:
       - srd006-applier R4.3
       - srd006-applier AC4
   - id: S6
-    criterion: The applier alone holds helm and kubectl bound as exec tools, the serving roles carry none, and the applier image carrying the CLIs is a recorded, sanctioned divergence from the binary-only image contract.
+    criterion: The applier alone holds helm and kubectl bound as exec tools, the serving roles carry none, and the applier receives the CLIs from the pinned CLI donor on a read-only /opt/tools, so no image diverges from the binary-only image contract.
     traces:
       - srd006-applier R4.1
       - srd006-applier R5.3

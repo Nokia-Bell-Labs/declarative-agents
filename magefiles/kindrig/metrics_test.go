@@ -45,7 +45,7 @@ func TestInstallMetricsServerLoadsPinnedImageAndWaitsForAPI(t *testing.T) {
 		"kubectl get apiservice " + metricsAPIService,
 		"docker image inspect --format {{.Id}} " + source,
 		"docker tag " + source + " " + runtimeImage,
-		"kind load docker-image " + runtimeImage + " --name da-example",
+		"node-import " + runtimeImage + " da-example-control-plane linux/" + runtime.GOARCH,
 		"kubectl apply -f ",
 		"kubectl rollout status deployment/metrics-server --namespace kube-system --timeout=180s",
 		"kubectl wait --for=condition=Available apiservice/" + metricsAPIService + " --timeout=180s",

@@ -46,9 +46,9 @@ collector:
 ingress:
   enabled: false
 
-# The applier image bundles helm, kubectl, and the chart (srd003 R1.3), not the
-# runtime image the smoke/swap tests kind-load. Disable it here so those tests do
-# not wait on an un-loaded image; the deployment-API flow is exercised by
+# The applier needs the chart ConfigMap and the kind-loaded CLI donor (GH-2222),
+# which only the live tier provisions. Disable it here so the smoke and swap tests
+# do not wait on them; the deployment-API flow is exercised by
 # Integration.ControlPlane with a fake deployment API.
 applier:
   enabled: false

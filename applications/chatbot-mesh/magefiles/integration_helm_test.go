@@ -218,7 +218,7 @@ func TestChatbotIntegrationImagesPropagateCheckoutRevision(t *testing.T) {
 	if len(images.Revision) != 12 {
 		t.Fatalf("revision = %q, want 12-character commit", images.Revision)
 	}
-	for _, image := range []string{images.Runtime, images.Applier} {
+	for _, image := range []string{images.Runtime} {
 		if !strings.HasSuffix(image, ":"+images.Revision) {
 			t.Errorf("image %q does not carry revision %s", image, images.Revision)
 		}

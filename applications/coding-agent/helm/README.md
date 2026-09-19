@@ -61,9 +61,11 @@ the planner, executor, and critic Deployments with `kubectl rollout status`, rol
 release back on a verify stall, and reports an apply-command failure as failed.
 
 The applier alone holds helm and kubectl; the serving roles carry no deployment CLI.
-It runs the shared applier image, a recorded divergence from the profile-free
-runtime image (srd003 R1.2): agent-core plus helm and kubectl, built from
-`agent-core/applier.Dockerfile` (GH-1368). The image bakes no chart; the chart it
+It runs the same profile-free agent-core image as the serving roles (srd003 R1.2).
+A `cli-donor` init container copies helm and kubectl from the digest-pinned
+`applier.cliDonor.image` into a volume mounted read-only at `/opt/tools` and first
+on the applier's `PATH` (GH-2222); where Docker Hub is unreachable, mirror the donor
+into the cluster's registry and pin the mirror's digest. No image bakes the chart; the chart it
 runs `helm upgrade coding-agent /chart` against is delivered to the pod at `/chart`
 as a mounted volume (`applier.chartArchive`, unpacked by an init container), so the
 bytes travel with the Helm release. The apply surface carries no inbound

@@ -4,33 +4,30 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
-// These bind the applier's declared helm flags to the helm the applier image
-// ships (GH-739).
+// These bind the applier's declared helm flags to the helm the applier runs,
+// which the pinned CLI donor delivers (GH-739, GH-2222).
 //
 // The flags are major-version-specific. helm 3 takes --atomic and --dry-run;
 // helm 4 deprecates both and spells them --rollback-on-failure and
 // --dry-run=client. Neither spelling works on the other major, so the
-// declarations and the pinned HELM_VERSION are one decision recorded in two
-// files, and nothing else holds them together.
+// declarations and the donor's helm version are one decision recorded in two
+// places, and nothing else holds them together.
 //
 // The failure this prevents is quiet and expensive. --atomic is what rolls a
 // failed upgrade back, and apply-machine.yaml routes Applying + ToolFailed
 // straight to Failed with no compensating rollback *because* of it. Bump the
-// image to helm 4 and the flag first warns, then eventually goes; the apply
+// donor to helm 4 and the flag first warns, then eventually goes; the apply
 // stops self-rolling-back and that leg leaves the release on a failed revision,
 // with every test still green -- integration:applier drives fake CLIs, which
 // accept any flags at all.
-
-// helmVersionPattern matches the pinned version in the shared applier Dockerfile.
-var helmVersionPattern = regexp.MustCompile(`(?m)^ARG HELM_VERSION=v(\d+)\.`)
 
 // helmFlagsByMajor is what each helm major calls the two behaviors the applier
 // depends on: rolling a failed upgrade back, and validating without applying.
@@ -39,24 +36,15 @@ var helmFlagsByMajor = map[int]struct{ rollback, dryRun string }{
 	4: {rollback: "--rollback-on-failure", dryRun: "--dry-run=client"},
 }
 
-// pinnedHelmMajor reads the helm major the applier image ships.
+// pinnedHelmMajor reads the helm major the applier runs: the version the
+// pinned CLI donor carries (GH-2222), which every chart's applier.cliDonor.image
+// references and kindrig.VerifyCLIDonor checks inside the running pod.
 func pinnedHelmMajor(t *testing.T) int {
 	t.Helper()
-	meshRoot := filepath.Dir(findChartDir(t))
-	// The applier image is the shared agent-core/applier.Dockerfile (GH-1368),
-	// two levels up from the application root.
-	dockerfile := filepath.Join(meshRoot, "..", "..", "agent-core", "applier.Dockerfile")
-	data, err := os.ReadFile(dockerfile)
+	version := strings.TrimPrefix(kindrig.CLIDonorHelmVersion, "v")
+	major, err := strconv.Atoi(strings.SplitN(version, ".", 2)[0])
 	if err != nil {
-		t.Fatalf("read agent-core/applier.Dockerfile: %v", err)
-	}
-	match := helmVersionPattern.FindSubmatch(data)
-	if match == nil {
-		t.Fatal("agent-core/applier.Dockerfile pins no ARG HELM_VERSION=vN.…; the flag guard cannot tell which helm ships")
-	}
-	major, err := strconv.Atoi(string(match[1]))
-	if err != nil {
-		t.Fatalf("parse helm major from %q: %v", match[1], err)
+		t.Fatalf("parse helm major from %q: %v", kindrig.CLIDonorHelmVersion, err)
 	}
 	return major
 }
@@ -68,7 +56,7 @@ func TestApplierHelmFlagsMatchTheShippedHelm(t *testing.T) {
 	major := pinnedHelmMajor(t)
 	want, known := helmFlagsByMajor[major]
 	if !known {
-		t.Fatalf("agent-core/applier.Dockerfile pins helm %d, whose flag spellings this guard does not know; "+
+		t.Fatalf("the CLI donor pins helm %d, whose flag spellings this guard does not know; "+
 			"decide what it calls the self-rollback and the dry-run, and add it to helmFlagsByMajor", major)
 	}
 

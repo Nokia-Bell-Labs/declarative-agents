@@ -9,10 +9,10 @@ It runs the runtime with a mounted profile whose request machines bind the helm 
 kubectl CLIs its image carries as exec words. It edits deployment values and triggers
 rollouts only; it submits no endpoint or credential to a running agent.
 
-Sanctioned image divergence (srd003 R1.2, srd006 R5.3): the shared applier image
-carries helm and kubectl alongside the agent-core runtime binary. Recorded here so
-the declarative-decomposition audit does not re-flag it. The chart is not baked
-into the image (GH-1368): it is delivered to the applier pod at /chart as a
+No image divergence (srd003 R1.2, srd006 R5.3): the applier runs the shared
+agent-core image, and helm and kubectl arrive at pod start from the pinned
+applier.cliDonor.image into a read-only /opt/tools (GH-2222). The chart is not
+baked into an image (GH-1368): it is delivered to the applier pod at /chart as a
 mounted volume (the packaged chart, unpacked by the stage-chart init container),
 so the bytes travel with the Helm release and one shared image serves every app.
 

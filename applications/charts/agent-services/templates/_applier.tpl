@@ -1,12 +1,20 @@
 {{/* Copyright (c) 2026 Nokia */}}
 {{/* SPDX-License-Identifier: BSD-3-Clause */}}
 {{/*
-The applier (srd006): the deployment-plane actuation agent. It runs the shared
-applier image (the agent-core runtime plus helm and kubectl) with a mounted
-profile whose request machines bind those CLIs as exec words, and it edits
-deployment values and triggers rollouts only. The chart it upgrades is not baked
-into the image (GH-1368): deployment tooling provisions it as a ConfigMap outside
-the release, and the stage-chart init container unpacks it at /chart.
+The applier (srd006): the deployment-plane actuation agent. It runs with a mounted
+profile whose request machines bind the helm and kubectl CLIs as exec words, and
+it edits deployment values and triggers rollouts only. The chart it upgrades is
+not baked into the image (GH-1368): deployment tooling provisions it as a
+ConfigMap outside the release, and the stage-chart init container unpacks it at
+/chart.
+
+With applier.cliDonor.image set, the CLIs arrive the same way (GH-2222): a
+cli-donor init container copies helm and kubectl from a stock, digest-pinned
+image into the tools emptyDir, mounted read-only at /opt/tools and first on
+PATH, so the applier container runs the plain agent-core image and the CLI
+versions are a values pin per environment. Read-only, the binaries the agent
+execs cannot be replaced at runtime. Without a donor, applier.image must carry
+the CLIs itself.
 
 Three applications hand-copied this workload and drifted (GH-2045); the copies
 converge here. Call with the root context and the app's own inputs:
@@ -29,6 +37,12 @@ components that may reach the apply port, default none).
 {{- $chartArchive := default "" $applier.chartArchiveConfigMap -}}
 {{- $workloads := .chartWorkloadKinds | default (list "deployments") -}}
 {{- $coreResources := .chartCoreResources | default (list "configmaps" "secrets" "services" "serviceaccounts") -}}
+{{- $donor := (($applier.cliDonor | default dict).image | default dict) -}}
+{{- $donorImage := "" -}}
+{{- if $donor.repository -}}
+{{- $donorImage = printf "%s:%s" $donor.repository $donor.tag -}}
+{{- with $donor.digest }}{{ $donorImage = printf "%s@%s" $donorImage . }}{{ end -}}
+{{- end -}}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -154,8 +168,24 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if $chartArchive }}
+      {{- if or $chartArchive $donorImage }}
       initContainers:
+      {{- end }}
+      {{- if $donorImage }}
+        # Copy the pinned helm and kubectl into the tools volume (GH-2222). cp -f
+        # replays safely on a pod restart; nothing from the donor stays resident.
+        - name: cli-donor
+          image: {{ $donorImage | quote }}
+          imagePullPolicy: {{ $donor.pullPolicy | default "IfNotPresent" }}
+          command: ["sh", "-c", "cp -f /usr/bin/helm /usr/bin/kubectl /tools/"]
+          {{- with $values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - {name: tools, mountPath: /tools}
+      {{- end }}
+      {{- if $chartArchive }}
         # Unpack the packaged chart into the shared /chart emptyDir so the
         # applier's `helm upgrade <release> /chart` word finds a chart directory.
         # --strip-components=1 drops the tarball's top-level chart directory so
@@ -212,6 +242,11 @@ spec:
             - {name: HELM_CACHE_HOME, value: /tmp/helm/cache}
             - {name: HELM_CONFIG_HOME, value: /tmp/helm/config}
             - {name: HELM_DATA_HOME, value: /tmp/helm/data}
+            {{- if $donorImage }}
+            # The donor's CLIs come first, so the exec words' bare helm and
+            # kubectl binaries resolve to the pinned copies.
+            - {name: PATH, value: "/opt/tools:/usr/local/bin:/usr/bin:/bin"}
+            {{- end }}
           ports:
             - {name: apply, containerPort: {{ $applier.ports.apply }}, protocol: TCP}
             - {name: control, containerPort: {{ $applier.ports.control }}, protocol: TCP}
@@ -226,6 +261,9 @@ spec:
             - {name: profiles, mountPath: {{ $values.profiles.mountPath }}, readOnly: true}
             - {name: work, mountPath: {{ $workDir }}}
             - {name: tmp, mountPath: /tmp}
+            {{- if $donorImage }}
+            - {name: tools, mountPath: /opt/tools, readOnly: true}
+            {{- end }}
             {{- if $chartArchive }}
             # The chart the stage-chart init container unpacked, at the /chart
             # path the helm_upgrade exec word references (GH-1368).
@@ -244,6 +282,10 @@ spec:
           emptyDir: {}
         - name: tmp
           emptyDir: {}
+        {{- if $donorImage }}
+        - name: tools
+          emptyDir: {}
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service

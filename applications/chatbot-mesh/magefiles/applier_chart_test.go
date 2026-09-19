@@ -15,8 +15,8 @@ import (
 // These cover the applier-enabled render (GH-733): that the Deployment, its
 // Service, and the profile keys it mounts agree with each other.
 //
-// helm/ci/kind-values.yaml disables the applier -- its image bundles helm,
-// kubectl, and the chart, and the smoke tests kind-load only the runtime image --
+// helm/ci/kind-values.yaml disables the applier -- it needs the chart ConfigMap
+// and the kind-loaded CLI donor, which only the live tier provisions --
 // so every cluster-level test in the application stands up a mesh without it. The
 // packaging path that carries the applier into a cluster is therefore proven
 // only here, at the render.

@@ -306,8 +306,10 @@ design_decisions:
       applier alone: it binds helm and kubectl as exec tools, and the planner,
       executor, and critic profiles carry no deployment CLI. Authority is set by
       declared, validated config, never by the actuation surface, which is
-      network-gated off the serving and collector pods. The applier image carries
-      helm and kubectl, a recorded divergence from the profile-free image invariant.
+      network-gated off the serving and collector pods. The applier runs the
+      profile-free agent-core image; a digest-pinned CLI donor copies helm and
+      kubectl into a read-only /opt/tools volume at pod start, so no image diverges
+      from the profile-free image invariant (GH-2222).
       The coding application has no control plane, so the caller is external, not an
       in-cluster creator, orchestrator, or panel.
     benefits:

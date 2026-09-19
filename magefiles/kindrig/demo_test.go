@@ -145,7 +145,7 @@ func TestInstallIngressReusesLocalPinnedImageAndWaitsForDeployment(t *testing.T)
 	wantCalls := []string{
 		"docker image inspect --format {{.Id}} " + image,
 		"docker tag " + image + " " + runtimeImage,
-		"kind load docker-image " + runtimeImage + " --name da-example-demo",
+		"node-import " + runtimeImage + " da-example-demo-control-plane linux/" + runtime.GOARCH,
 		"kubectl apply -f ",
 		"kubectl rollout status deployment/traefik --namespace traefik --timeout=180s",
 	}
@@ -199,13 +199,13 @@ func TestInstallIngressPullsPinnedImageOnlyWhenAbsent(t *testing.T) {
 
 func TestInstallIngressNamesTheFailedStep(t *testing.T) {
 	run := func(name string, args ...string) ([]byte, error) {
-		if name == "kind" {
+		if name == "sh" {
 			return []byte("node not found"), errors.New("load failed")
 		}
 		return nil, nil
 	}
 	err := InstallIngress(run, "da-example-demo")
-	if err == nil || !strings.Contains(err.Error(), "kind load docker-image") ||
+	if err == nil || !strings.Contains(err.Error(), "node-import") ||
 		!strings.Contains(err.Error(), "node not found") {
 		t.Fatalf("error = %v, want the failed load command and its output", err)
 	}

@@ -13,8 +13,8 @@ import (
 // These cover the applier-enabled render (srd002-applier): that the Deployment, its
 // Service, and the profile keys it mounts agree with each other.
 //
-// The chart disables the applier by default -- its image bundles helm, kubectl, and
-// the chart, and the smoke tests kind-load only the runtime image -- so every
+// The chart disables the applier by default -- it needs the chart ConfigMap and
+// the kind-loaded CLI donor, which only the live tier provisions -- so every
 // cluster-level test in the application stands up a mesh without it. The packaging
 // path that carries the applier into a cluster is therefore proven only here, at the
 // render.

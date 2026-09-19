@@ -34,7 +34,7 @@ trigger: |
 
 preconditions:
   - The applier profile is deployed with its state, apply, and rollout servers on the Service name and port the provisioner served.
-  - The applier image carries the helm and kubectl CLIs, and its ServiceAccount can upgrade the release and read the Deployment.
+  - The applier runs the agent-core image with the helm and kubectl CLIs delivered by the pinned CLI donor, and its ServiceAccount can upgrade the release and read the Deployment.
   - The chart carries a values.schema.json encoding the deployment values constraints.
   - The apply path is reached only by the creator, authenticated apart from the chat path.
 
@@ -65,7 +65,7 @@ touchpoints:
     reason: The actuation surface is authenticated apart from chat, reached only by the creator, and authority stays set by declared validated config.
   - id: T5
     target: srd006-applier AC5
-    reason: Deciding the values and owning lifecycle are non-goals; the applier image carries helm and kubectl as a recorded divergence.
+    reason: Deciding the values and owning lifecycle are non-goals; the applier receives helm and kubectl from the pinned CLI donor, so no image diverges.
   - id: T6
     target: srd003-chatbot-deployment AC4
     reason: The applier realizes the separately-authenticated deployment API that never submits an endpoint to a running agent.

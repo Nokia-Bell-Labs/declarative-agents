@@ -117,6 +117,7 @@
       "properties": {
         "enabled": {"type": "boolean"},
         "image": {"$ref": "#/definitions/image"},
+        "cliDonor": {"type": "object", "additionalProperties": false, "properties": {"image": {"type": "object", "additionalProperties": false, "required": ["repository", "tag"], "properties": {"repository": {"type": "string"}, "tag": {"type": "string"}, "digest": {"type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$"}, "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}}}}},
         "chartArchiveConfigMap": {"type": "string"},
         "ports": {
           "type": "object",

@@ -21,14 +21,14 @@ type CLEAN mg.Namespace
 
 // commitImageFamilies are the rig's commit-tagged local image repositories
 // (kindrig.CommitImage). clean:images considers nothing else, so :local tags,
-// third-party images, and every other repository are never touched.
+// third-party images, and every other repository are never touched. The
+// applier families retired with the CLI donor (GH-2222); their remaining local
+// copies are removed by hand with docker image rm.
 var commitImageFamilies = []string{
 	"declarative-agents/agent-core",
-	"declarative-agents/applier",
 	"declarative-agents/coding-agent-smoke",
 	"declarative-agents/coding-model-smoke",
 	"declarative-agents/agent-architecture-smoke",
-	"agentic-wiki-mesh/applier",
 }
 
 const (

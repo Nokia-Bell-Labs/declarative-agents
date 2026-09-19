@@ -32,8 +32,19 @@ func pinnedImageSteps(run CommandRunner, cluster, sourceImage, runtimeImage stri
 	}
 	return append(steps,
 		installStep{"image-tag", []string{"docker", "tag", sourceImage, runtimeImage}},
-		installStep{"image-load", []string{"kind", "load", "docker-image", runtimeImage, "--name", cluster}},
+		installStep{"image-load", nodeImportCommand(runtimeImage, cluster)},
 	)
+}
+
+// nodeImportCommand streams a host image into the kind node's containerd for
+// the host platform only. kind load imports with --all-platforms, which fails
+// when the host holds a multi-platform index with only its own platform's
+// layers, as Docker Desktop's containerd store does for a digest-pinned pull
+// (GH-2222).
+func nodeImportCommand(image, cluster string) []string {
+	return []string{"sh", "-c",
+		`docker save "$1" | docker exec -i "$2" ctr --namespace=k8s.io images import --platform="$3" --snapshotter=overlayfs -`,
+		"node-import", image, cluster + "-control-plane", "linux/" + runtime.GOARCH}
 }
 
 // runInstallSteps runs steps in order, logging one phase line per step, and
