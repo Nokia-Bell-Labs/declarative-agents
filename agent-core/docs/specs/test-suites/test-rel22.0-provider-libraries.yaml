@@ -115,11 +115,12 @@ test_cases:
 
   - use_case: rel22.0-uc001-provider-libraries
     name: A synthetic third provider needs no Go and no agent edit
-    go_test: go test ./internal/tools/llm ./internal/load -run 'TestSyntheticProviderConformance|TestSyntheticProviderFailuresUseTheSharedTaxonomy|TestSyntheticProviderTouchesOnlyItsLibrary'
+    go_test: go test ./internal/tools/llm ./internal/tools/rest ./internal/load -run 'TestSyntheticProviderConformance|TestSyntheticProviderFailuresUseTheSharedTaxonomy|TestSyntheticProviderEmbeddingIsIndexedOutOfItsArray|TestSyntheticProviderTouchesOnlyItsLibrary|TestEmbedStageFragmentsSpliceWithEachLibrary'
     status: implemented
-    description: Bind the OpenAI-shaped testdata library, a chat dialect with its own parser profile, to the unchanged invoke_llm word and the unchanged ollama-rest profile; run chat and every failure status against a fake OpenAI-shaped server; and check that the library is YAML only and that no declaration outside it names the provider. Embeddings in the OpenAI shape wait on array-indexing response selectors (GH-2246).
+    description: Bind the OpenAI-shaped testdata library, a chat dialect with its parser profile and two embed fragments, to the unchanged invoke_llm word, the unchanged embed stage words, and the unchanged ollama-rest profile; run chat, embedding, and every failure status against a fake OpenAI-shaped server; and check that the library is YAML only and that no declaration outside it names the provider. The embedding is read out of the data array by an indexing selector (srd038 R2.20).
     expected:
       chat_passes: true
+      embedding_indexed_out_of_data_array: true
       library_parser_profile_used: true
       shared_vocabulary_emitted: true
       go_changes_required: 0

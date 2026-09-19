@@ -104,11 +104,15 @@ func TestEmbedStageFragmentsSpliceWithEachLibrary(t *testing.T) {
 	core := agentCoreRoot(t)
 	corepath.SetInstallRoot(core)
 	cases := map[string][]string{
-		"ollama": {"embed-query", "embed-document"},
-		"cohere": {"embed-query", "embed-document", "rerank"},
+		"ollama":        {"embed-query", "embed-document"},
+		"cohere":        {"embed-query", "embed-document", "rerank"},
+		"openai-shaped": {"embed-query", "embed-document"},
 	}
 	for provider, stages := range cases {
 		library := filepath.Join(core, "tools", "providers", provider)
+		if provider == "openai-shaped" {
+			library = filepath.Join(core, "testdata", "providers", provider)
+		}
 		for _, name := range stages {
 			stage := providerStages[name]
 			closure, err := LoadClosure(writeProviderStageProfile(t, stage, library), Options{CoreRoot: core})

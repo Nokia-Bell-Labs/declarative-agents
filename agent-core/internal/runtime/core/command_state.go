@@ -174,20 +174,53 @@ func validSelectorComponent(component string) bool {
 	return true
 }
 
-// Resolve walks a parsed selector path against one decoded JSON object.
+// Resolve walks a parsed selector path against one decoded JSON object. A
+// component names a key where the walk stands on an object, and a component of
+// decimal digits indexes where it stands on an array, so $.data.0.embedding
+// reads the first member's embedding (srd038 R2.20). The index form resolves
+// only on an array, so no path that resolved before it changed meaning.
 func (s ParsedSelector) Resolve(source map[string]interface{}) (interface{}, bool) {
 	var current interface{} = source
 	for _, key := range s.Path {
-		container, ok := current.(map[string]interface{})
+		next, ok := selectorStep(current, key)
 		if !ok {
 			return nil, false
 		}
-		current, ok = container[key]
-		if !ok {
-			return nil, false
-		}
+		current = next
 	}
 	return current, true
+}
+
+func selectorStep(current interface{}, key string) (interface{}, bool) {
+	switch container := current.(type) {
+	case map[string]interface{}:
+		value, ok := container[key]
+		return value, ok
+	case []interface{}:
+		index, ok := selectorIndex(key)
+		if !ok || index >= len(container) {
+			return nil, false
+		}
+		return container[index], true
+	default:
+		return nil, false
+	}
+}
+
+// selectorIndex reads a component made only of decimal digits. A sign, a
+// space, or any other character makes it a key, never an index.
+func selectorIndex(key string) (int, bool) {
+	if key == "" || len(key) > 9 {
+		return 0, false
+	}
+	index := 0
+	for _, r := range key {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+		index = index*10 + int(r-'0')
+	}
+	return index, true
 }
 
 // ParseFromSelector splits a $from(label).dotted.path selector into its label and

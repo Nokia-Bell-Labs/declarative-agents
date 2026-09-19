@@ -1,0 +1,79 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The synthetic OpenAI-shaped provider's query embedding (srd058 R1.3, R5.3):
+# embed_query on query_embedder, POST /v1/embeddings. The vector sits in the
+# first member of the data array, which the response selector indexes
+# (srd038 R2.20); the stage reads it as a flat vector.
+unit: provider-openai-shaped-embed-query
+params:
+- name: input_selector
+  type: string
+  description: The selector the text to embed is read from, under body_source.
+- name: id_selector
+  type: string
+  default: $.id
+  description: The selector an optional record id is read from; the id is carried forward with the text when present.
+- name: body_source
+  type: string
+  enum: [command_state, previous_result]
+  default: previous_result
+  description: Where input_selector and id_selector read; a command_state caller passes $from(label) selectors for both.
+- name: base_url
+  type: string
+  default: ${OPENAI_API_URL:-https://api.openai.com}
+  description: The OpenAI-compatible endpoint; a deployment may set OPENAI_API_URL.
+- name: model
+  type: string
+  default: text-embedding-3-small
+rest:
+  version: v1
+  auth:
+    query_embedder_auth:
+      type: bearer
+      token_ref: OPENAI_API_KEY
+  limits:
+    query_embedder_limits:
+      timeout: 60s
+      max_request_bytes: 1048576
+      max_response_bytes: 4194304
+      redirect:
+        mode: none
+  clients:
+    query_embedder:
+      base_url: $param(base_url)
+      auth_ref: query_embedder_auth
+      limits_ref: query_embedder_limits
+      operations:
+        embed_query:
+          method: POST
+          path: /v1/embeddings
+          params:
+            body_schema:
+              type: object
+              required: [input]
+              properties:
+                input: {type: string}
+                id: {}
+            body_source: $param(body_source)
+            input_mapping:
+              input: $param(input_selector)
+              id: $param(id_selector)
+            carry_forward: [input, id]
+          body:
+            model: $param(model)
+            input: "{{ params.input }}"
+          success: {status: [200], signal: QueryEmbedded}
+          failures:
+          - {status: [401, 403], signal: ProviderUnauthorized}
+          - {status: [429], signal: ProviderThrottled}
+          - {status: [500, 502, 503, 504], signal: ProviderUnavailable}
+          response:
+            output:
+              embedding: $.data.0.embedding
+          side_effects:
+          - kind: external_api
+            target: openai.embeddings
+            state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
