@@ -167,11 +167,23 @@ func importedTarget(file, imported string, libraries map[string]string) (string,
 	return filepath.Join(directory, rest), true
 }
 
+// installedDependencies names the directory a UI's package manager fills. It
+// holds build inputs, including symlinks, not profile content: a closure ships
+// the UI's built dist, so staging and declaration discovery skip it (GH-2277).
+const installedDependencies = "node_modules"
+
+func isInstalledDependencies(entry fs.DirEntry) bool {
+	return entry.IsDir() && entry.Name() == installedDependencies
+}
+
 func declarationsUnder(root string, seen map[string]bool) ([]string, error) {
 	var found []string
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if isInstalledDependencies(entry) {
+			return filepath.SkipDir
 		}
 		if entry.IsDir() || !isYAML(path) {
 			return nil
@@ -222,6 +234,9 @@ func (c *stagedClosure) copyTree(tree Tree) error {
 			return err
 		}
 		destination := filepath.Join(tree.Destination, relative)
+		if isInstalledDependencies(entry) {
+			return filepath.SkipDir
+		}
 		if entry.IsDir() {
 			return os.MkdirAll(destination, 0o755)
 		}
