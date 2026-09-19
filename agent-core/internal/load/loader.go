@@ -64,19 +64,28 @@ func LoadClosure(profilePath string, options Options) (*Closure, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load profile: %w", err)
 	}
-	restoreRoots := registerLibraryRoots(profile)
-	defer restoreRoots()
-	if options.ProfileLoaded != nil {
-		if err := options.ProfileLoaded(profilePath, profile); err != nil {
-			return nil, err
+	// The profile's roots, with any --library override, are in force for the
+	// rest of the load and restored after it. The same lock serializes every
+	// closure load, so a request-scoped load never sees these roots nor this
+	// one its (srd056 R2.2, R2.3; GH-2251).
+	var closure *Closure
+	err = corepath.WithLibraryRoots(profile.Libraries, func() error {
+		if options.ProfileLoaded != nil {
+			if err := options.ProfileLoaded(profilePath, profile); err != nil {
+				return err
+			}
 		}
-	}
-
-	resolved, err := loadResolvedConfig(profile, filepath.Dir(profilePath), options, visit)
+		resolved, err := loadResolvedConfig(profile, filepath.Dir(profilePath), options, visit)
+		if err != nil {
+			return err
+		}
+		closure, err = assembleClosure(profilePath, profile, resolved, visited, assets, options.ResolveSelection == nil)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
-	return assembleClosure(profilePath, profile, resolved, visited, assets, options.ResolveSelection == nil)
+	return closure, nil
 }
 
 // assembleClosure fixes the closure's file inventory and captured bytes once
@@ -109,23 +118,6 @@ func fileRoots(files []string) map[string]string {
 		}
 	}
 	return roots
-}
-
-// registerLibraryRoots makes the profile's declared roots, with any --library
-// override applied, the roots every import in this closure resolves against,
-// and returns the function that restores the previous set. Roots are scoped to
-// the closure: a child profile declares its own (srd056 R2.2, R2.3).
-func registerLibraryRoots(profile catalog.AgentProfile) func() {
-	roots := make(map[string]string, len(profile.Libraries))
-	overrides := corepath.LibraryOverrides()
-	for name, directory := range profile.Libraries {
-		if override, ok := overrides[name]; ok {
-			directory = override
-		}
-		roots[name] = directory
-	}
-	previous := corepath.SetLibraryRoots(roots)
-	return func() { corepath.SetLibraryRoots(previous) }
 }
 
 type resolvedConfig struct {
