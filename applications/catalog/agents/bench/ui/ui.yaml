@@ -1,0 +1,21 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The bench UI composed on the ui-kit shell (srd004 R5, R7). Both panels are
+# the bench's own domain panels over /api/v1; the experiments panel is the
+# default, so / opens it, and it owns the session and point drill-downs below
+# /sessions/.
+version: 2
+id: bench-ui
+title: Bench
+source_owner: agents/bench
+sidebar:
+  title: Bench
+panels:
+  - id: experiments
+    package: local
+    route: /experiments
+    label: Experiments
+  - id: launch
+    package: local
+    route: /launch
+    label: Launch

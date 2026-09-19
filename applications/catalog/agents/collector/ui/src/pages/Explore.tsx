@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { useKitClient } from '@declarative-agents/ui-kit'
+import { PanelLink as Link, usePanelPath as usePath } from '@declarative-agents/ui-kit'
 import {
   getSpanStats,
   getSpanBreakdown,
@@ -33,6 +34,8 @@ function selectionFromCells(stats: SpanStatsResponse, a: Cell, b: Cell) {
 }
 
 export default function Explore() {
+  usePath() // folds a nested /traces/explore back to /explore
+  const client = useKitClient()
   const [stats, setStats] = useState<SpanStatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -43,19 +46,19 @@ export default function Explore() {
 
   useEffect(() => {
     setLoading(true)
-    getSpanStats({ group_by: 'service.name', time_buckets: 24 })
+    getSpanStats(client, { group_by: 'service.name', time_buckets: 24 })
       .then(data => {
         setStats(data)
         setError('')
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [client])
 
   function applySelection(a: Cell, b: Cell) {
     if (!stats) return
     setBreakdownError('')
-    getSpanBreakdown(selectionFromCells(stats, a, b))
+    getSpanBreakdown(client, selectionFromCells(stats, a, b))
       .then(setBreakdown)
       .catch(e => setBreakdownError(e.message))
   }
@@ -80,7 +83,7 @@ export default function Explore() {
   return (
     <div>
       <h1>Explore</h1>
-      <p style={{ color: 'var(--text-secondary)' }}>
+      <p className="muted">
         {stats.matched} spans. Drag a region of the heatmap to explain what makes it distinct.
       </p>
       <Heatmap
@@ -190,7 +193,7 @@ function BreakdownPanel({ breakdown, error }: { breakdown: SpanBreakdownResponse
   return (
     <div className="panel">
       <h2>Breakdown</h2>
-      <div style={{ color: 'var(--text-secondary)' }}>
+      <div className="muted">
         {breakdown.inside_total} in selection · {breakdown.outside_total} outside
       </div>
       {ranked.length === 0 ? (
@@ -247,7 +250,7 @@ function GroupPanel({ stats }: { stats: SpanStatsResponse }) {
         </table>
       )}
       {stats.dropped_groups > 0 && (
-        <div style={{ color: 'var(--text-secondary)' }}>
+        <div className="muted">
           +{stats.dropped_groups} more ({stats.dropped_span_total} spans)
         </div>
       )}

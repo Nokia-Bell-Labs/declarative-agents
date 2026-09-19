@@ -43,3 +43,4 @@ export * from "./panels/Topology";
 export * from "./panels/AgentCard";
 export { kitPanelRegistry, kitPanels } from "./panels/registry";
 export { kitPanelManifestById, kitPanelManifests } from "./panels/manifests";
+export { canonicalPanelPath, navigateTo, PanelLink, ShellRoutingProvider, usePanelPath } from "./shell/subPath";

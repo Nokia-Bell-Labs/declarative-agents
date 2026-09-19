@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router'
+import { useKitClient } from '@declarative-agents/ui-kit'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { getSession, listPoints, SessionDetail as SessionDetailType, Point } from '../api/client'
+import { PanelLink as Link } from '@declarative-agents/ui-kit'
 
-export default function SessionDetail() {
-  const { suite, ts } = useParams()
+export default function SessionDetail({ suite, ts }: { suite: string; ts: string }) {
+  const client = useKitClient()
 
   const [detail, setDetail] = useState<SessionDetailType | null>(null)
   const [points, setPoints] = useState<Point[]>([])
@@ -12,12 +13,11 @@ export default function SessionDetail() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!suite || !ts) return
-    Promise.all([getSession(suite, ts), listPoints(suite, ts)])
+    Promise.all([getSession(client, suite, ts), listPoints(client, suite, ts)])
       .then(([d, p]) => { setDetail(d); setPoints(p) })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [suite, ts])
+  }, [client, suite, ts])
 
   if (loading) return <div className="loading">Loading session...</div>
   if (error) return <div className="error">{error}</div>

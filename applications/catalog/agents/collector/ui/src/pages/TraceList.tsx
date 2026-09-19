@@ -1,39 +1,35 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
-import { listTraces, type TraceSummary } from '../api/client'
+import { relativeTime, useKitClient, type TraceListPage } from '@declarative-agents/ui-kit'
+import { listTraces } from '../api/client'
+import { navigateTo as navigate } from '@declarative-agents/ui-kit'
 
 const PAGE_SIZE = 20
 
+// The collector's own trace list (srd020 R6.1), read same-origin from
+// /query/traces through the kit client.
 export default function TraceList() {
-  const navigate = useNavigate()
-  const [traces, setTraces] = useState<TraceSummary[]>([])
-  const [total, setTotal] = useState(0)
+  const client = useKitClient()
+  const [page, setPage] = useState<TraceListPage | null>(null)
   const [offset, setOffset] = useState(0)
   const [filter, setFilter] = useState('')
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    setLoading(true)
-    listTraces(PAGE_SIZE, offset)
-      .then(data => {
-        setTraces(data.traces ?? [])
-        setTotal(data.total)
+    setPage(null)
+    listTraces(client, PAGE_SIZE, offset)
+      .then(next => {
+        setPage(next)
         setError('')
       })
       .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [offset])
+  }, [client, offset])
 
-  const filtered = filter
-    ? traces.filter(t =>
-        t.root_service?.toLowerCase().includes(filter.toLowerCase()) ||
-        t.trace_id?.toLowerCase().includes(filter.toLowerCase()) ||
-        t.root_span_name?.toLowerCase().includes(filter.toLowerCase()))
-    : traces
-
-  if (loading) return <div className="loading">Loading traces...</div>
   if (error) return <div className="error">{error}</div>
+  if (!page) return <div className="loading">Loading traces...</div>
+
+  const needle = filter.toLowerCase()
+  const rows = page.traces.filter(t =>
+    [t.rootService, t.traceId, t.rootSpanName].some(field => field.toLowerCase().includes(needle)))
 
   return (
     <div>
@@ -45,11 +41,9 @@ export default function TraceList() {
           value={filter}
           onChange={e => setFilter(e.target.value)}
         />
-        <span className="mono" style={{ color: 'var(--text-secondary)' }}>
-          {total} total
-        </span>
+        <span className="mono muted">{page.total} total</span>
       </div>
-      {filtered.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="empty">No traces found.</div>
       ) : (
         <div className="table-container">
@@ -65,14 +59,14 @@ export default function TraceList() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(t => (
-                <tr key={t.trace_id} onClick={() => navigate(`/traces/${t.trace_id}`)}>
-                  <td className="mono">{t.trace_id}</td>
-                  <td>{t.root_span_name}</td>
-                  <td>{t.root_service}</td>
-                  <td>{t.span_count}</td>
-                  <td className="mono">{formatTime(t.start_time)}</td>
-                  <td className="mono">{formatDuration(t.duration_ms)}</td>
+              {rows.map(t => (
+                <tr key={t.traceId} onClick={() => navigate(`/traces/${t.traceId}`)}>
+                  <td className="mono">{t.traceId}</td>
+                  <td>{t.rootSpanName}</td>
+                  <td>{t.rootService}</td>
+                  <td>{t.spanCount}</td>
+                  <td className="mono">{relativeTime(t.startTime)}</td>
+                  <td className="mono">{formatDuration(t.durationMs)}</td>
                 </tr>
               ))}
             </tbody>
@@ -84,9 +78,9 @@ export default function TraceList() {
           Prev
         </button>
         <span>
-          {offset + 1}&ndash;{Math.min(offset + PAGE_SIZE, total)} of {total}
+          {page.total === 0 ? 0 : offset + 1}&ndash;{Math.min(offset + PAGE_SIZE, page.total)} of {page.total}
         </span>
-        <button disabled={offset + PAGE_SIZE >= total} onClick={() => setOffset(offset + PAGE_SIZE)}>
+        <button disabled={offset + PAGE_SIZE >= page.total} onClick={() => setOffset(offset + PAGE_SIZE)}>
           Next
         </button>
       </div>
@@ -94,16 +88,7 @@ export default function TraceList() {
   )
 }
 
-function formatTime(iso: string): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const hms = d.toLocaleTimeString(undefined, { hour12: false })
-  const ms = String(d.getMilliseconds()).padStart(3, '0')
-  return `${hms}.${ms}`
-}
-
-function formatDuration(ms: number): string {
-  if (ms == null) return ''
+export function formatDuration(ms: number): string {
   if (ms < 1) return '<1ms'
   if (ms < 1000) return `${Math.round(ms)}ms`
   return `${(ms / 1000).toFixed(2)}s`

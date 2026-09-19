@@ -1,44 +1,52 @@
 @import "@declarative-agents/ui-kit/tokens.css";
 
-.app-header {
-  border-bottom: 1px solid var(--border);
-  padding: 0 24px;
-  background: var(--bg-primary);
+/* Shell frame: the kit AppShell renders .shell, .sidebar, .nav-item, and
+   .content but ships no styles for them. */
+.shell {
   display: flex;
-  align-items: stretch;
+  min-height: 100vh;
 }
 
-.app-nav {
+.sidebar {
+  flex: 0 0 200px;
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border);
+  padding: 16px 12px;
   display: flex;
-  gap: 0;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.nav-tab {
-  display: flex;
-  align-items: center;
-  padding: 12px 20px;
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 14px;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.nav-tab:hover {
+.sidebar-title {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 4px 12px 16px;
   color: var(--text-primary);
+}
+
+.nav-item {
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
   text-decoration: none;
 }
 
-.nav-tab-active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+.nav-item:hover {
+  background: var(--bg-secondary);
+  text-decoration: none;
+}
+
+.nav-item-active,
+.nav-item-active:hover {
+  background: var(--accent);
+  color: #ffffff;
   font-weight: 600;
 }
 
-.app-main {
-  max-width: 1200px;
-  margin: 0 auto;
+.content {
+  flex: 1;
+  min-width: 0;
   padding: 24px;
 }
 
@@ -65,6 +73,10 @@ h1 {
 
 .error {
   color: var(--danger);
+}
+
+.muted {
+  color: var(--text-secondary);
 }
 
 .back-link {
@@ -168,108 +180,17 @@ tbody tr:hover {
   cursor: default;
 }
 
-/* Waterfall */
-
-.waterfall-header {
+/* Trace detail header; the timeline itself is the kit's (.dak-trace). */
+.trace-stats {
   display: flex;
   gap: 24px;
-  align-items: baseline;
-  margin-bottom: 4px;
-}
-
-.waterfall-stat {
+  margin-bottom: 16px;
   font-size: 13px;
   color: var(--text-secondary);
 }
 
-.waterfall-stat strong {
+.trace-stats strong {
   color: var(--text-primary);
-}
-
-.waterfall {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 16px;
-}
-
-.waterfall-row {
-  display: grid;
-  grid-template-columns: 220px 1fr 80px;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 4px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-}
-
-.waterfall-row:hover {
-  background: var(--bg-tertiary);
-}
-
-.waterfall-label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.waterfall-indent {
-  flex-shrink: 0;
-}
-
-.waterfall-name {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.waterfall-bar-track {
-  height: 14px;
-  position: relative;
-  border-radius: 2px;
-}
-
-.waterfall-bar {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  border-radius: 2px;
-  min-width: 2px;
-}
-
-.bar-ok {
-  background: var(--accent);
-}
-
-.bar-error {
-  background: var(--danger);
-}
-
-.waterfall-duration {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-secondary);
-  text-align: right;
-}
-
-.waterfall-scale {
-  display: grid;
-  grid-template-columns: 220px 1fr 80px;
-  gap: 8px;
-  padding: 0 8px;
-  margin-bottom: 4px;
-}
-
-.waterfall-ticks {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-tertiary);
 }
 
 /* Explore page */

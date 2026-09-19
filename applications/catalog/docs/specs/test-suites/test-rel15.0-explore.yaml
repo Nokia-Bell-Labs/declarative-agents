@@ -92,11 +92,11 @@ test_cases:
     go_test: go test ./conformance -run TestCollectorExploreRouteDeclared
     status: implemented
     description: |
-      The collector ui/ux.yaml declares an /explore route and the actions that
+      The collector ui/ui.yaml declares an /explore panel and the actions that
       bind the stats and breakdown machine requests, so the served SPA exposes
       the Explore page.
     inputs:
-      file: agents/collector/ui/ux.yaml
+      file: agents/collector/ui/ui.yaml
     expected:
       explore_route_declared: true
     traces:
