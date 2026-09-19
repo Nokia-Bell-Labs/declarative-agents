@@ -171,6 +171,11 @@ func hasTestScript(dir string) (bool, error) {
 	return strings.TrimSpace(pkg.Scripts["test"]) != "", nil
 }
 
+func fileExists(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && !info.IsDir()
+}
+
 func isDir(p string) bool {
 	info, err := os.Stat(p)
 	return err == nil && info.IsDir()
@@ -240,6 +245,13 @@ func stageUIBuild(appDir, tmp string) (string, error) {
 	build := filepath.Join(buildRepo, rel)
 	if err := copyDirExcluding(appDir, build, map[string]bool{"node_modules": true, "dist": true}); err != nil {
 		return "", err
+	}
+	// The kit Vite plugin reads the UI's ui.yaml from beside the app directory
+	// (agents/<actor>/ui/ui.yaml for an app at agents/<actor>/ui/app).
+	if uiYAML := filepath.Join(filepath.Dir(absApp), "ui.yaml"); fileExists(uiYAML) {
+		if err := copyFile(uiYAML, filepath.Join(filepath.Dir(build), "ui.yaml")); err != nil {
+			return "", fmt.Errorf("stage %s: %w", uiYAML, err)
+		}
 	}
 	// UIs resolve the kit, and through it the canonical tokens, by a file: path
 	// relative to the repository, so the kit source is staged at the same place.

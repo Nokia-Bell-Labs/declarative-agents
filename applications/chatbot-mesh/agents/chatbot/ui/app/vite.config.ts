@@ -1,9 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { uiYaml } from "@declarative-agents/ui-kit/vite";
 
 export default defineConfig({
   base: "./",
-  plugins: [react()],
+  plugins: [react(), uiYaml({ path: "../ui.yaml" })],
+  resolve: { dedupe: ["react", "react-dom"] },
   build: {
     outDir: "dist",
     emptyOutDir: true,

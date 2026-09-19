@@ -313,8 +313,8 @@ releases:
           panels, shell, ui.yaml version 2, token ownership, embedded bundle,
           and the absence of duplicated UI code.
         status: planned
-        implemented_cases: [TC1, TC2, TC3, TC4, TC5]
-        planned_cases: [TC6, TC7, TC8, TC9]
+        implemented_cases: [TC1, TC2, TC3, TC4, TC5, TC6]
+        planned_cases: [TC7, TC8, TC9]
     implementation_sequence:
       - order: 1
         action: Specify srd004, the use case, the suite, and the index entries (GH-2155).
@@ -330,7 +330,7 @@ releases:
         status: planned
       - order: 5
         action: Validate ui.yaml version 2 and run the chatbot-mesh chatbot on the generic shell (GH-2159; GH-2270 to GH-2272).
-        status: planned
+        status: implemented
       - order: 6
         action: Migrate the remaining monorepo UIs, add the duplication sweep, and version the kit 1.0.0 (GH-2160; GH-2273 to GH-2275).
         status: planned

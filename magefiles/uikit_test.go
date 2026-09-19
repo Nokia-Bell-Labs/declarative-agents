@@ -179,3 +179,19 @@ func TestRebuildAndDiffUISkipsKitForIndependentUI(t *testing.T) {
 		t.Fatalf("kit built %d times for a UI that does not depend on it", kitCalls)
 	}
 }
+
+func TestStageUIBuildStagesTheAdjacentUIYAML(t *testing.T) {
+	t.Parallel()
+	root, _ := kitRepo(t, `"react":"^19.1.0"`)
+	app := filepath.Join(root, "applications", "demo", "agents", "demo", "ui", "app")
+	writeUIFile(t, filepath.Join(app, "package.json"), `{"scripts":{"build":"vite build"}}`)
+	writeUIFile(t, filepath.Join(filepath.Dir(app), "ui.yaml"), "id: demo\n")
+	tmp := t.TempDir()
+	build, err := stageUIBuild(app, tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !fileExists(filepath.Join(filepath.Dir(build), "ui.yaml")) {
+		t.Fatal("ui.yaml beside the app was not staged")
+	}
+}

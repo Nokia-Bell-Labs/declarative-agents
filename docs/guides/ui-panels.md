@@ -5,7 +5,7 @@
 
 Agent UIs are React single-page applications served by the agent itself: a `static_assets` REST binding (`agent-core/internal/tools/rest/definition/server.go`) serves a built Vite bundle from the path the agent's `rest.yaml` declares, with an SPA fallback. Each UI keeps a declarative descriptor, `ui/ui.yaml`, naming its routes, sidebar, and monitored agents. Placement rules live in `docs/engineering/eng02-agent-ui-placement.yaml`.
 
-Today the runtime treats the bundle as bytes on disk, `ui.yaml` is cross-checked against the app's routes by a test rather than honored by a shell, and the applications share one tokens file. The declarative UX epic (GH-2154) changes each of these; this guide documents the current mechanics and the target model so UI work written now converges toward it.
+Before the declarative UX epic the runtime treated the bundle as bytes on disk, a test cross-checked `ui.yaml` against a hand-written route table, and the applications shared one tokens file. The declarative UX epic (GH-2154) changes each of these; this guide documents the current mechanics and the target model so UI work written now converges toward it.
 
 ## The presentation contract
 
@@ -21,7 +21,7 @@ A panel is the reuse unit: a component plus a manifest naming its id, route, req
 | the platform, embedded in a tool | the observer UI served by the rest tool via `go:embed`, backed by the observer capability profile | planned (GH-2158, GH-2170) |
 | the application | domain panels an app keeps to itself, including cohere-demo's provenance panel, which reads `/api/v1/documents` (srd004 R4.4) | current practice |
 
-Composition is build-time: an application lists panel packages and its own domain panels, and one bundle is built. `ui.yaml` becomes the composition input a generic shell renders routes and sidebar from (GH-2159; the version 2 schema is specified below, the shell is planned), replacing the cross-check test.
+Composition is build-time: an application lists panel packages and its own domain panels, and one bundle is built. `ui.yaml` is the composition input the kit's `AppShell` renders routes and sidebar from (GH-2159, shipped): the kit Vite plugin bundles and validates it, and the application supplies a registry for its domain panels. The Chatbot Mesh chatbot is the worked case: `agents/chatbot/ui/ui.yaml` plus `app/src/panels.ts`, with no route table of its own.
 
 ## The kit package
 
