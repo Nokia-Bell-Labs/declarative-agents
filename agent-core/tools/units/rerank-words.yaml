@@ -1,0 +1,50 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The word the rerank stage runs (srd058 R4.1): rerank calls the rerank
+# operation the bound provider library's rerank-fragment.yaml produces on the
+# reranker client. It names no provider.
+unit: builtin-rerank-words
+imports:
+- types-provider.yaml
+tools:
+- name: rerank
+  type: builtin
+  init: rest_client_invoke
+  visibility: internal
+  category: boundary
+  description: Reorder candidate documents by relevance at the bound provider.
+  parameters:
+    type: object
+    properties:
+      query: {type: string}
+      documents: {type: array}
+  signature:
+    output: builtin-types-provider.RerankResult
+    emits: [Reranked, ProviderUnauthorized, ProviderThrottled, ProviderUnavailable, CommandError]
+  output:
+    description: The provider's ordering under mapped.results, each an index into the submitted documents and a relevance score.
+  side_effects:
+  - kind: external_api
+    target: rerank_provider
+    state: read_only
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Reranking does not mutate state.
+  errors:
+  - signal: ProviderUnauthorized
+    condition: The provider rejects the credential (401 or 403).
+    state_after_failure: No ordering is produced and no state changes.
+  - signal: ProviderThrottled
+    condition: The provider rate-limits the call (429).
+    state_after_failure: No ordering is produced and no state changes.
+  - signal: ProviderUnavailable
+    condition: The provider fails (500, 502, 503, or 504).
+    state_after_failure: No ordering is produced and no state changes.
+  - signal: CommandError
+    condition: The call fails on network, timeout, schema, or mapping.
+    state_after_failure: No ordering is produced and no state changes.
+  config:
+    rest_ref: reranker
+    operation: rerank

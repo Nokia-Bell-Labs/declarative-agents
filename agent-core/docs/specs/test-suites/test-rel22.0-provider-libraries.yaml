@@ -93,7 +93,7 @@ test_cases:
 
   - use_case: rel22.0-uc001-provider-libraries
     name: Stage fragments splice with each library and route every failure
-    go_test: go test ./internal/runtime/core ./internal/load -run 'TestEmbedStageFragmentsSpliceWithEachLibrary|TestProviderFailureSignalsRouted'
+    go_test: go test ./internal/load ./internal/tools/rest -run 'TestEmbedStageFragmentsSpliceWithEachLibrary|TestProviderFailureSignalsRouted'
     status: planned
     description: Instantiate the embed-query, embed-document, and rerank stages in a fixture machine beside each library's REST fragments; answer 200, 401, 429, and 503 from the fake server.
     expected:

@@ -1,13 +1,13 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # Shapes a provider library's operations publish, whichever provider is bound:
-# an embedding, a rerank ordering, and token usage (srd058 R1.4). Every shipped
-# provider library imports this unit, so a stage that reads a result reads the
-# same shape from each.
+# an embedding, a rerank ordering, and token usage (srd058 R1.4). The provider
+# words import this unit, so a stage that reads a result reads the same shape
+# from every library.
 unit: builtin-types-provider
 types:
 - name: Embedding
-  description: One embedding vector, as QueryEmbedded and DocumentEmbedded carry it.
+  description: One flat embedding vector.
   schema:
     type: object
     properties:
@@ -17,25 +17,44 @@ types:
           type: number
     required:
     - embedding
-- name: RerankResult
-  description: Documents reordered by relevance, as Reranked carries them; index addresses the request's documents.
+- name: EmbeddingResult
+  description: An embed word's Result, the provider's embedding under mapped.embedding; normalized, it is one flat vector.
   schema:
     type: object
     properties:
-      results:
-        type: array
-        items:
-          type: object
-          properties:
-            index:
-              type: integer
-            relevance_score:
-              type: number
-          required:
-          - index
-          - relevance_score
+      mapped:
+        type: object
+        properties:
+          embedding:
+            type: array
+        required:
+        - embedding
     required:
-    - results
+    - mapped
+- name: RerankResult
+  description: The rerank word's Result, documents reordered by relevance under mapped.results; index addresses the request's documents.
+  schema:
+    type: object
+    properties:
+      mapped:
+        type: object
+        properties:
+          results:
+            type: array
+            items:
+              type: object
+              properties:
+                index:
+                  type: integer
+                relevance_score:
+                  type: number
+              required:
+              - index
+              - relevance_score
+        required:
+        - results
+    required:
+    - mapped
 - name: TokenUsage
   description: Input and output token counts a provider reports for one call.
   schema:

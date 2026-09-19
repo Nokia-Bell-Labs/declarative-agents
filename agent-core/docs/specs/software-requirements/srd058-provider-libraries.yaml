@@ -74,8 +74,8 @@ requirements:
           ProviderUnauthorized (401, 403), ProviderThrottled (429), and
           ProviderUnavailable (5xx). The result shapes those signals carry
           (embedding vectors, rerank results, and usage) SHALL be declared in
-          one type unit under agent-core/tools/units that every shipped
-          library imports.
+          one type unit under agent-core/tools/units that the provider words
+          import, since REST units carry no types.
       - R1.5: >-
           Provider authentication SHALL be declared as a REST auth profile
           whose token_ref names an environment variable (rest-tool-format), or
@@ -145,12 +145,14 @@ requirements:
     items:
       - R4.1: >-
           agent-core/tools/machines SHALL publish embed-query, embed-document,
-          and rerank stage fragments (srd052 R4) whose states call the R1.3
-          operation names and route the R1.4 success and failure signals, with
-          entry and exit signals as parameters. Because a fragment does not
-          instantiate another (srd052 R1.2), the importing agent SHALL
-          instantiate the library's REST fragment in its REST declarations
-          beside the stage.
+          and rerank stage fragments (srd052 R4) whose states run fixed
+          provider words and route the R1.4 success and failure signals, with
+          the entry state and signal and the exit state as parameters. The
+          words, in agent-core/tools/units, call the R1.3 operations and, for
+          embeddings, normalize the result to one flat vector. Because a
+          fragment does not instantiate another (srd052 R1.2), the importing
+          agent SHALL import the words and instantiate the library's REST
+          fragment beside the stage.
       - R4.2: >-
           The stage fragments SHALL replace the hand-written embedding stages
           in catalog corpus-ingest and corpus-reader, the library fragments
