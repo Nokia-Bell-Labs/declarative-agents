@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strings"
 
+	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/yamlstrict"
 	restdef "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/definition"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/validation"
@@ -53,6 +54,10 @@ type Chat struct {
 	// ParserProfile names the response parser profile; empty keeps the
 	// model-based resolution invoke_llm applies today.
 	ParserProfile string `yaml:"parser_profile,omitempty"`
+	// ParserProfiles are the library's own parser profiles, consulted before
+	// the embedded registry, so a provider ships its parser as YAML
+	// (srd058 R3.4).
+	ParserProfiles []modelllm.ProfileSpec `yaml:"parser_profiles,omitempty"`
 }
 
 // Response names where the reply sits in a decoded response body.
@@ -112,7 +117,30 @@ func (c Chat) validate() error {
 	if err := c.Response.validate(); err != nil {
 		return err
 	}
+	if _, err := c.Profiles(); err != nil {
+		return err
+	}
 	return c.validateFailures()
+}
+
+// Profiles returns the parser profile registry this dialect resolves against:
+// the library's profiles ahead of the embedded ones. A named parser_profile
+// must be in it.
+func (c Chat) Profiles() (*modelllm.ProfileRegistry, error) {
+	embedded, err := modelllm.DefaultProfileRegistry()
+	if err != nil {
+		return nil, fmt.Errorf("load embedded parser profiles: %w", err)
+	}
+	registry, err := embedded.WithLibrary(c.Unit, c.ParserProfiles)
+	if err != nil {
+		return nil, err
+	}
+	if c.ParserProfile != "" {
+		if _, ok := registry.ResolveProfileName(c.ParserProfile); !ok {
+			return nil, fmt.Errorf("parser_profile %q is neither a library nor an embedded profile", c.ParserProfile)
+		}
+	}
+	return registry, nil
 }
 
 // validateAuth accepts the REST auth grammar and additionally requires every

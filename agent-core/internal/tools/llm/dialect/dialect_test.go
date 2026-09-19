@@ -75,6 +75,8 @@ func TestChatDialectRejectsInvalidDeclarations(t *testing.T) {
 		"none with credential": {"type: bearer", "type: none"},
 		"missing text":         {"text: $.message.content.type=text.text", "text: \"\""},
 		"bad selector":         {"text: $.message.content.type=text.text", "text: message.content"},
+		"unknown parser":       {"failures:", "parser_profile: nowhere\nfailures:"},
+		"nameless profile":     {"failures:", "parser_profiles:\n- {match_prefixes: [x-]}\nfailures:"},
 	}
 	for name, edit := range cases {
 		text := strings.Replace(fixtureText(t), edit[0], edit[1], 1)

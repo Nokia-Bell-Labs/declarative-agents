@@ -43,5 +43,5 @@ func TestOllamaMigrationRemovesLegacyAdapterPaths(t *testing.T) {
 		require.ErrorIs(t, err, os.ErrNotExist, path)
 	}
 
-	assertFileContains(t, filepath.Join(root, "internal/tools/llm/invoke.go"), "internal/model/llm/ollama")
+	assertFileContains(t, filepath.Join(root, "internal/tools/llm/invoke_provider.go"), "internal/model/llm/ollama")
 }

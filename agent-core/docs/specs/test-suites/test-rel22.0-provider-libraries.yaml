@@ -84,7 +84,7 @@ test_cases:
 
   - use_case: rel22.0-uc001-provider-libraries
     name: A library parser profile wins over the embedded registry
-    go_test: go test ./internal/tools/llm/... -run 'TestLibraryParserProfileOverridesEmbedded'
+    go_test: go test ./internal/model/llm ./internal/tools/llm/... -run 'TestLibraryParserProfileOverridesEmbedded|TestDialectLibraryParserProfileResolves'
     status: planned
     description: Bind a library whose parser profile shares a name with an embedded profile and changes one extraction rule.
     expected:

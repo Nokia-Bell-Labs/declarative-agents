@@ -168,8 +168,12 @@ func (c CheckpointRollbackConfig) HasTargetIteration() bool {
 
 // LLMToolConfig holds model-boundary settings from invoke_llm config.
 type LLMToolConfig struct {
-	Model           string `json:"model"`
-	Provider        string `json:"provider"`
+	Model    string `json:"model"`
+	Provider string `json:"provider"`
+	// Dialect is the path of the chat dialect the call reads its request,
+	// reply, failure, and auth shape from (srd058 R2), resolved by the loader
+	// like an import. It replaces Provider; naming both is a config error.
+	Dialect         string `json:"dialect"`
 	ProviderURL     string `json:"provider_url"`
 	OllamaURL       string `json:"ollama_url"`
 	ManifestState   string `json:"manifest_state"`

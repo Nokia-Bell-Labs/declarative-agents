@@ -11,11 +11,16 @@ import (
 
 // DecodeInvokeLLMConfig decodes and validates invoke_llm config.
 func DecodeInvokeLLMConfig(def catalog.ToolDef) (catalog.LLMToolConfig, error) {
-	cfg := catalog.LLMToolConfig{
-		Provider: "ollama",
-	}
+	var cfg catalog.LLMToolConfig
 	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 		return catalog.LLMToolConfig{}, err
+	}
+	if cfg.Dialect != "" && cfg.Provider != "" {
+		return catalog.LLMToolConfig{}, fmt.Errorf(
+			"invoke_llm config names both provider %q and dialect %q; a dialect replaces the provider", cfg.Provider, cfg.Dialect)
+	}
+	if cfg.Dialect == "" && cfg.Provider == "" {
+		cfg.Provider = "ollama"
 	}
 	if cfg.ProviderURL == "" {
 		cfg.ProviderURL = cfg.OllamaURL

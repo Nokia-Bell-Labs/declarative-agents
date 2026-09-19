@@ -16,12 +16,11 @@ const (
 	ParamTemperature = "temperature"
 	ParamSeed        = "seed"
 	ParamNumCtx      = "num_ctx"
-	ParamMaxTokens   = "max_tokens"
 )
 
 var knownParams = map[string]bool{
 	ParamMessages: true, ParamModel: true, ParamTemperature: true,
-	ParamSeed: true, ParamNumCtx: true, ParamMaxTokens: true,
+	ParamSeed: true, ParamNumCtx: true,
 }
 
 // templateReference is the REST request-body token, {{ params.<name> }}.

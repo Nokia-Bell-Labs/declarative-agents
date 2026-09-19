@@ -379,3 +379,58 @@ func MakeNativeTokenExtractor(token string) extractionStep {
 
 // Verify yamlProfile satisfies ResponseParser at compile time.
 var _ ResponseParser = (*yamlProfile)(nil)
+
+// WithLibrary returns a registry in which a provider library's parser profiles
+// come before this registry's own (srd058 R3.4). A library profile replaces an
+// embedded profile of the same name, a library default replaces the embedded
+// default, and a model matching a library prefix resolves to the library
+// profile even where an embedded prefix also matches. The library's profiles
+// are validated among themselves as embedded profiles are. source names the
+// library file in errors. The receiver is not modified.
+func (r *ProfileRegistry) WithLibrary(source string, specs []ProfileSpec) (*ProfileRegistry, error) {
+	library := &ProfileRegistry{}
+	for index, spec := range specs {
+		name := fmt.Sprintf("%s parser_profiles[%d]", source, index)
+		if spec.ProfileName == "" {
+			return nil, fmt.Errorf("profile %s: missing 'name' field", name)
+		}
+		if err := validateProfileSpec(name, spec); err != nil {
+			return nil, err
+		}
+		if err := validateProfileIdentity(library, name, spec); err != nil {
+			return nil, err
+		}
+		recordProfilePrefixes(library, name, spec)
+		if isDefaultProfile(spec) {
+			library.defaultSpec, library.defaultFile = spec, name
+		} else {
+			library.profiles = append(library.profiles, spec)
+		}
+		library.profileFiles[spec.ProfileName] = name
+	}
+	return r.merged(library), nil
+}
+
+func (r *ProfileRegistry) merged(library *ProfileRegistry) *ProfileRegistry {
+	out := &ProfileRegistry{
+		profiles:     append([]ProfileSpec(nil), library.profiles...),
+		defaultSpec:  r.defaultSpec,
+		defaultFile:  r.defaultFile,
+		profileFiles: map[string]string{},
+	}
+	if library.defaultFile != "" {
+		out.defaultSpec, out.defaultFile = library.defaultSpec, library.defaultFile
+	}
+	for name, file := range r.profileFiles {
+		out.profileFiles[name] = file
+	}
+	for name, file := range library.profileFiles {
+		out.profileFiles[name] = file
+	}
+	for _, spec := range r.profiles {
+		if _, replaced := library.profileFiles[spec.ProfileName]; !replaced {
+			out.profiles = append(out.profiles, spec)
+		}
+	}
+	return out
+}
