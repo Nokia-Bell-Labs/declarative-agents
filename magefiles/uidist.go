@@ -26,7 +26,7 @@ var uiSearchRoots = []string{
 
 const (
 	uiAuditLevel          = "high"
-	canonicalUITokensPath = "applications/catalog/ui/design-tokens.css"
+	canonicalUITokensPath = "applications/ui-kit/src/tokens.css"
 	uiConcurrency         = 3
 )
 
@@ -192,6 +192,9 @@ func rebuildAndDiffUIWithRunner(appDir string, run uiRunner) error {
 	if err != nil {
 		return err
 	}
+	if err := buildStagedUIKit(build, tmp, run); err != nil {
+		return fmt.Errorf("%s: %w", appDir, err)
+	}
 	// npm ci's implicit audit duplicates the two explicit policy audits below.
 	// Keep the clean install while preferring the shared download cache.
 	if err := run(build, "npm", "ci", "--no-audit", "--prefer-offline"); err != nil {
@@ -219,9 +222,9 @@ func rebuildAndDiffUIWithRunner(appDir string, run uiRunner) error {
 }
 
 // stageUIBuild preserves a package's repository-relative location and stages
-// the canonical token source beside it. Relative CSS imports therefore resolve
-// identically in a clean gate build and in the source checkout, while packaged
-// closures continue to consume the compiled token CSS from their tracked dist.
+// the UI kit beside it. The kit's file: dependency and its canonical tokens
+// therefore resolve identically in a clean gate build and in the source
+// checkout, while packaged closures consume the compiled CSS from tracked dist.
 func stageUIBuild(appDir, tmp string) (string, error) {
 	absApp, err := filepath.Abs(appDir)
 	if err != nil {
@@ -238,13 +241,30 @@ func stageUIBuild(appDir, tmp string) (string, error) {
 	if err := copyDirExcluding(appDir, build, map[string]bool{"node_modules": true, "dist": true}); err != nil {
 		return "", err
 	}
-	if err := copyFile(
-		filepath.Join(repoRoot, filepath.FromSlash(canonicalUITokensPath)),
-		filepath.Join(buildRepo, filepath.FromSlash(canonicalUITokensPath)),
+	// UIs resolve the kit, and through it the canonical tokens, by a file: path
+	// relative to the repository, so the kit source is staged at the same place.
+	if err := copyDirExcluding(
+		filepath.Join(repoRoot, filepath.FromSlash(uiKitDir)),
+		filepath.Join(buildRepo, filepath.FromSlash(uiKitDir)),
+		map[string]bool{"node_modules": true, "dist": true, uiKitOutDir: true},
 	); err != nil {
-		return "", fmt.Errorf("stage canonical UI tokens: %w", err)
+		return "", fmt.Errorf("stage %s: %w", uiKitDir, err)
 	}
 	return build, nil
+}
+
+// buildStagedUIKit builds the staged kit before a dependent UI installs it; the
+// kit ships no committed dist, so the dependent's npm ci needs a fresh one.
+func buildStagedUIKit(build, tmp string, run uiRunner) error {
+	dependent, err := uiKitDependent(build)
+	if err != nil || !dependent {
+		return err
+	}
+	kit := filepath.Join(tmp, "repo", filepath.FromSlash(uiKitDir))
+	if !isDir(kit) {
+		return fmt.Errorf("depends on %s but %s was not staged", uiKitPackageName, uiKitDir)
+	}
+	return uiKitBuild(kit, run)
 }
 
 func uiRepositoryLayout(absApp string) (root, rel string, ok bool) {

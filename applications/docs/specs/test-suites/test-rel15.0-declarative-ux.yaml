@@ -99,7 +99,7 @@ test_cases:
   - id: TC2
     use_case: rel15.0-uc001-declarative-ux
     name: Kit client honours the base URL, proxy convention, and not-deployed result
-    status: planned
+    status: implemented
     evidence_type: kit_test
     implemented_by: GH-2261
     command: |
@@ -118,7 +118,7 @@ test_cases:
   - id: TC3
     use_case: rel15.0-uc001-declarative-ux
     name: Contract fixtures parse through every client
-    status: planned
+    status: implemented
     evidence_type: kit_test
     implemented_by: GH-2261
     command: |

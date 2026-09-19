@@ -64,6 +64,10 @@ remains the authority for purpose, boundaries, and the ordered process.
   or UI unless separate evidence supports those capabilities.
 - `applications/catalog/` is a **reusable catalog module**. It owns canonical
   declarative blocks and conformance evidence. It is not a runnable application.
+- `applications/ui-kit/` is the **shared UI kit**, the npm package
+  `@declarative-agents/ui-kit`. It owns shared presentation code for
+  application UIs (srd004). It is a library, not an application, and has no
+  `agents/application.yaml`.
 
 The shared contract follows the [vision](docs/VISION.yaml) under [`docs/`](docs/).
 Application-local architecture and SRDs extend that contract with business
@@ -140,8 +144,9 @@ conformance evidence, migrates every consumer to the canonical path, and removes
 copies. Application-specific topology and bindings remain local.
 
 A UI claims shared design-token conformance only when it consumes
-[`catalog/ui/design-tokens.css`](catalog/ui/design-tokens.css) through a build
-import or a deterministic generated copy. A checked-in generated token block
+[`ui-kit/src/tokens.css`](ui-kit/src/tokens.css) through the build import
+`@import "@declarative-agents/ui-kit/tokens.css";` and a `file:` dependency on
+the kit, or through a deterministic generated copy. A checked-in generated token block
 must name the canonical source and have a byte-for-byte drift test. Visual
 similarity or a handwritten copy is not consumption.
 
@@ -200,6 +205,8 @@ local audit target, and root audit-only registration exist.
   UI evidence are implemented. `managed_service` remains partial because live
   lifecycle observations are dependency-gated.
 - `catalog/`: reusable catalog module, not a runnable application.
+- `ui-kit/`: shared UI kit library, not an application; see
+  [`ui-kit/README.md`](ui-kit/README.md).
 
 Prose Editor moved downstream to
 [`petar-djukic/declarative-agents`](https://github.com/petar-djukic/declarative-agents),

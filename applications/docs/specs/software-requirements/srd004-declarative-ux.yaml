@@ -282,9 +282,9 @@ requirements:
       - id: R8.2
         text: |
           The kit shall be the canonical home of the shared design tokens. This
-          transfers the token ownership that srd003 R5.3 and R7.1 assign to
-          applications/catalog/ui/design-tokens.css; srd003 is amended when the
-          file moves.
+          transfers the token ownership that srd003 R5.3 and R7.1 assigned to
+          applications/catalog/ui/design-tokens.css; srd003 carries the amended
+          text.
         evidence: |
           Every token-claiming UI imports @declarative-agents/ui-kit/tokens.css,
           and the drift test finds no other token block.

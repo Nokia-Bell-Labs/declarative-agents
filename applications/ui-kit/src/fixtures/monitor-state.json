@@ -1,0 +1,12 @@
+{
+  "run": {
+    "run_id": "run-7f3a",
+    "status": "running",
+    "state": "AwaitingRequest",
+    "signal": "Seed",
+    "iteration": 12,
+    "updated_at": "2026-09-19T15:54:07Z"
+  },
+  "diagnostics": [],
+  "errors": []
+}

@@ -1,4 +1,4 @@
-@import "../../../../../catalog/ui/design-tokens.css";
+@import "@declarative-agents/ui-kit/tokens.css";
 
 body {
   background: var(--bg-tertiary);

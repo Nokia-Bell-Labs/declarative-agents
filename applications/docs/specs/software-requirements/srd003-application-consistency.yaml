@@ -253,8 +253,10 @@ requirements:
       - id: R5.3
         text: |
           A UI that claims shared design tokens shall consume
-          applications/catalog/ui/design-tokens.css through a build import or a
-          deterministic generated copy. A checked-in generated token block shall
+          applications/ui-kit/src/tokens.css through the build import
+          @declarative-agents/ui-kit/tokens.css or a deterministic generated
+          copy (srd004 R8.2 moved the canonical source from
+          applications/catalog/ui/design-tokens.css). A checked-in generated token block shall
           carry canonical-source markers and a byte-for-byte drift test. A UI
           that does not consume the canonical values shall not claim shared-token
           conformance.
@@ -314,8 +316,9 @@ requirements:
       - id: R7.1
         text: |
           applications/catalog shall own canonical reusable profiles, machines,
-          declarations, tools, family requirements, canonical UI, and shared UI
-          tokens. It shall not own a consuming application's composition,
+          declarations, tools, family requirements, and canonical agent UI.
+          Shared UI tokens and shared presentation code belong to
+          applications/ui-kit (srd004 R8). It shall not own a consuming application's composition,
           deployment, credentials, scenario, or operator workflow.
         evidence: |
           Manifest ownership and source paths distinguish catalog roots from

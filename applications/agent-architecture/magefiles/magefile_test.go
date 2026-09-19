@@ -648,6 +648,11 @@ func copyTree(t *testing.T, source, destination string) {
 		}
 		target := filepath.Join(destination, relative)
 		if entry.IsDir() {
+			// Installed UI dependencies are not application sources, and the
+			// ui-kit file: link inside them is a symlink to a directory.
+			if entry.Name() == "node_modules" {
+				return filepath.SkipDir
+			}
 			return os.MkdirAll(target, 0o755)
 		}
 		data, err := os.ReadFile(path)

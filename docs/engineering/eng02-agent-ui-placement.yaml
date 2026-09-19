@@ -48,9 +48,11 @@ sections:
 
       Two categories are out of scope because no agent serves them. Shared
       presentation assets that several UIs import but no static_assets binding
-      hosts — applications/catalog/ui/design-tokens.css is the worked case —
-      may stay at application level, since they belong to the application's
-      look rather than to one agent's route. Runtime-internal assets that are
+      hosts live in the UI kit, applications/ui-kit, published as the npm
+      package @declarative-agents/ui-kit (srd004 R8). The design tokens at
+      applications/ui-kit/src/tokens.css are the worked case; a UI imports
+      them as @declarative-agents/ui-kit/tokens.css through a file:
+      dependency on the kit. Runtime-internal assets that are
       never mounted into a served application, such as
       agent-core/internal/knowledge/documentation/ui, are part of the platform
       and this guideline does not reach them.

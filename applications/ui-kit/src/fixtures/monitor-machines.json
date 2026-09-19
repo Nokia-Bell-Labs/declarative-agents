@@ -1,0 +1,1063 @@
+[
+  {
+    "initial_state": "AwaitingRequest",
+    "name": "chatbot-turn",
+    "signals": [
+      "Seed",
+      "RequestCaptured",
+      "BindingsDeclared",
+      "QueryEmbedded",
+      "QueryEmbeddingNormalized",
+      "ProviderUnauthorized",
+      "ProviderThrottled",
+      "ProviderRejected",
+      "ProviderUnavailable",
+      "QueryModelDeclared",
+      "KnowledgeTopologyDeclared",
+      "SourceSelectionComposed",
+      "SourceSelectionCaptured",
+      "SourcesParsed",
+      "SourcesSelected",
+      "SourcesPartiallySelected",
+      "SourcesEmpty",
+      "SourceSelectionReported",
+      "ViewAbsent",
+      "ViewPresent",
+      "TagsAbsent",
+      "TagsPresent",
+      "TagClausesRendered",
+      "ViewComposed",
+      "QueryResponded",
+      "QueryRejected",
+      "KnowledgeQueriesCollected",
+      "QueryResultsPartitioned",
+      "EmbeddingModelsPartitioned",
+      "ChunksFlattened",
+      "CandidatesAbsent",
+      "CandidatesPresent",
+      "RerankStatusDeclared",
+      "ChunksMarshalled",
+      "GroundingRendered",
+      "Composed",
+      "CitationsParsed",
+      "PageRequested",
+      "PageNotRequested",
+      "PageRequestMarshalled",
+      "PageWritten",
+      "PageRefused",
+      "PageUnavailable",
+      "PageStateDeclared",
+      "LLMResponded",
+      "ParseFailed",
+      "ResponseComposed",
+      "CommandError",
+      "CandidatesParsed",
+      "CandidatesReranked",
+      "RerankOrderEmpty",
+      "RerankOrderPresent",
+      "CandidatesReordered",
+      "GroundingDocumentsMarshalled",
+      "AnswerComposed",
+      "AnswerBlocksPartitioned",
+      "AnswerCaptured",
+      "CitationsFlattened"
+    ],
+    "states": [
+      {
+        "name": "AwaitingRequest"
+      },
+      {
+        "name": "CapturingRequest"
+      },
+      {
+        "name": "DeclaringBindings"
+      },
+      {
+        "name": "DefaultingCitations"
+      },
+      {
+        "name": "DeclaringModel"
+      },
+      {
+        "name": "DeclaringTopology"
+      },
+      {
+        "name": "ComposingSourceSelection"
+      },
+      {
+        "name": "SelectingSources"
+      },
+      {
+        "name": "CapturingSourceSelection"
+      },
+      {
+        "name": "ParsingSources"
+      },
+      {
+        "name": "ConstrainingSources"
+      },
+      {
+        "name": "SelectingAllSources"
+      },
+      {
+        "name": "ReportingSourceSelection"
+      },
+      {
+        "name": "CheckingView"
+      },
+      {
+        "name": "CheckingViewTags"
+      },
+      {
+        "name": "RenderingTagClauses"
+      },
+      {
+        "name": "ComposingWindowView"
+      },
+      {
+        "name": "ComposingTaggedView"
+      },
+      {
+        "name": "Retrieving"
+      },
+      {
+        "name": "PartitioningQueries"
+      },
+      {
+        "name": "PartitioningModels"
+      },
+      {
+        "name": "FlatteningChunks"
+      },
+      {
+        "name": "CheckingCandidates"
+      },
+      {
+        "name": "StagingRerank"
+      },
+      {
+        "name": "DeclaringRerankSkipped"
+      },
+      {
+        "name": "Rendering"
+      },
+      {
+        "name": "Composing"
+      },
+      {
+        "name": "StagingCompose"
+      },
+      {
+        "name": "CheckingPage"
+      },
+      {
+        "name": "MarshallingPage"
+      },
+      {
+        "name": "WritingPage"
+      },
+      {
+        "name": "DeclaringPageWritten"
+      },
+      {
+        "name": "DeclaringPageSkipped"
+      },
+      {
+        "name": "DeclaringPageNone"
+      },
+      {
+        "name": "Reporting"
+      },
+      {
+        "name": "Finalizing"
+      },
+      {
+        "name": "LLMResponded"
+      },
+      {
+        "name": "Failed"
+      },
+      {
+        "name": "EmbeddingQuery"
+      },
+      {
+        "name": "NormalizingQueryEmbedding"
+      },
+      {
+        "name": "Reranking"
+      },
+      {
+        "name": "CheckingRerankOrder"
+      },
+      {
+        "name": "ReorderingCandidates"
+      },
+      {
+        "name": "DeclaringRerankApplied"
+      },
+      {
+        "name": "DeclaringRerankDegraded"
+      },
+      {
+        "name": "MarshallingRankedChunks"
+      },
+      {
+        "name": "ComposingGrounded"
+      },
+      {
+        "name": "PartitioningAnswerBlocks"
+      },
+      {
+        "name": "CapturingAnswer"
+      },
+      {
+        "name": "FlatteningCitations"
+      },
+      {
+        "name": "MarshallingCitations"
+      },
+      {
+        "name": "ComposingResponse"
+      }
+    ],
+    "terminal_states": [
+      "LLMResponded",
+      "Failed"
+    ],
+    "transitions": [
+      {
+        "action": "capture_request",
+        "metric_labels": {},
+        "next": "CapturingRequest",
+        "signal": "Seed",
+        "state": "AwaitingRequest"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "AwaitingRequest"
+      },
+      {
+        "action": "declare_bindings",
+        "metric_labels": {},
+        "next": "DeclaringBindings",
+        "signal": "RequestCaptured",
+        "state": "CapturingRequest"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "CapturingRequest"
+      },
+      {
+        "action": "declare_default_citations",
+        "metric_labels": {},
+        "next": "DefaultingCitations",
+        "signal": "BindingsDeclared",
+        "state": "DeclaringBindings"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "DeclaringBindings"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "DefaultingCitations"
+      },
+      {
+        "action": "declare_knowledge_topology",
+        "metric_labels": {},
+        "next": "DeclaringTopology",
+        "signal": "QueryModelDeclared",
+        "state": "DeclaringModel"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "DeclaringModel"
+      },
+      {
+        "action": "compose_source_selection_prompt",
+        "metric_labels": {},
+        "next": "ComposingSourceSelection",
+        "signal": "KnowledgeTopologyDeclared",
+        "state": "DeclaringTopology"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "DeclaringTopology"
+      },
+      {
+        "action": "select_sources",
+        "metric_labels": {},
+        "next": "SelectingSources",
+        "signal": "SourceSelectionComposed",
+        "state": "ComposingSourceSelection"
+      },
+      {
+        "action": "select_all_sources",
+        "metric_labels": {},
+        "next": "SelectingAllSources",
+        "signal": "CommandError",
+        "state": "ComposingSourceSelection"
+      },
+      {
+        "action": "capture_source_selection",
+        "metric_labels": {},
+        "next": "CapturingSourceSelection",
+        "signal": "LLMResponded",
+        "state": "SelectingSources"
+      },
+      {
+        "action": "select_all_sources",
+        "metric_labels": {},
+        "next": "SelectingAllSources",
+        "signal": "CommandError",
+        "state": "SelectingSources"
+      },
+      {
+        "action": "parse_source_selection",
+        "metric_labels": {},
+        "next": "ParsingSources",
+        "signal": "SourceSelectionCaptured",
+        "state": "CapturingSourceSelection"
+      },
+      {
+        "action": "select_all_sources",
+        "metric_labels": {},
+        "next": "SelectingAllSources",
+        "signal": "CommandError",
+        "state": "CapturingSourceSelection"
+      },
+      {
+        "action": "constrain_source_selection",
+        "metric_labels": {},
+        "next": "ConstrainingSources",
+        "signal": "SourcesParsed",
+        "state": "ParsingSources"
+      },
+      {
+        "action": "select_all_sources",
+        "metric_labels": {},
+        "next": "SelectingAllSources",
+        "signal": "ParseFailed",
+        "state": "ParsingSources"
+      },
+      {
+        "action": "select_all_sources",
+        "metric_labels": {},
+        "next": "SelectingAllSources",
+        "signal": "CommandError",
+        "state": "ParsingSources"
+      },
+      {
+        "action": "report_source_selection",
+        "metric_labels": {},
+        "next": "ReportingSourceSelection",
+        "signal": "SourcesSelected",
+        "state": "ConstrainingSources"
+      },
+      {
+        "action": "report_source_selection",
+        "metric_labels": {},
+        "next": "ReportingSourceSelection",
+        "signal": "SourcesPartiallySelected",
+        "state": "ConstrainingSources"
+      },
+      {
+        "action": "select_all_sources",
+        "metric_labels": {},
+        "next": "SelectingAllSources",
+        "signal": "SourcesEmpty",
+        "state": "ConstrainingSources"
+      },
+      {
+        "action": "select_all_sources",
+        "metric_labels": {},
+        "next": "SelectingAllSources",
+        "signal": "CommandError",
+        "state": "ConstrainingSources"
+      },
+      {
+        "action": "report_source_selection",
+        "metric_labels": {},
+        "next": "ReportingSourceSelection",
+        "signal": "SourcesSelected",
+        "state": "SelectingAllSources"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "SelectingAllSources"
+      },
+      {
+        "action": "check_view",
+        "metric_labels": {},
+        "next": "CheckingView",
+        "signal": "SourceSelectionReported",
+        "state": "ReportingSourceSelection"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "ReportingSourceSelection"
+      },
+      {
+        "action": "knowledge_query",
+        "metric_labels": {},
+        "next": "Retrieving",
+        "signal": "ViewAbsent",
+        "state": "CheckingView"
+      },
+      {
+        "action": "check_view_tags",
+        "metric_labels": {},
+        "next": "CheckingViewTags",
+        "signal": "ViewPresent",
+        "state": "CheckingView"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "CheckingView"
+      },
+      {
+        "action": "compose_window_view",
+        "metric_labels": {},
+        "next": "ComposingWindowView",
+        "signal": "TagsAbsent",
+        "state": "CheckingViewTags"
+      },
+      {
+        "action": "render_tag_clauses",
+        "metric_labels": {},
+        "next": "RenderingTagClauses",
+        "signal": "TagsPresent",
+        "state": "CheckingViewTags"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "CheckingViewTags"
+      },
+      {
+        "action": "compose_tagged_view",
+        "metric_labels": {},
+        "next": "ComposingTaggedView",
+        "signal": "TagClausesRendered",
+        "state": "RenderingTagClauses"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "RenderingTagClauses"
+      },
+      {
+        "action": "knowledge_query_view",
+        "metric_labels": {},
+        "next": "Retrieving",
+        "signal": "ViewComposed",
+        "state": "ComposingWindowView"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "ComposingWindowView"
+      },
+      {
+        "action": "knowledge_query_view",
+        "metric_labels": {},
+        "next": "Retrieving",
+        "signal": "ViewComposed",
+        "state": "ComposingTaggedView"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "ComposingTaggedView"
+      },
+      {
+        "action": "partition_query_results",
+        "metric_labels": {},
+        "next": "PartitioningModels",
+        "signal": "KnowledgeQueriesCollected",
+        "state": "PartitioningQueries"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "PartitioningQueries"
+      },
+      {
+        "action": "partition_embedding_models",
+        "metric_labels": {},
+        "next": "FlatteningChunks",
+        "signal": "QueryResultsPartitioned",
+        "state": "PartitioningModels"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "PartitioningModels"
+      },
+      {
+        "action": "flatten_chunks",
+        "metric_labels": {},
+        "next": "CheckingCandidates",
+        "signal": "EmbeddingModelsPartitioned",
+        "state": "FlatteningChunks"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "FlatteningChunks"
+      },
+      {
+        "action": "check_candidates",
+        "metric_labels": {},
+        "next": "StagingRerank",
+        "signal": "ChunksFlattened",
+        "state": "CheckingCandidates"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "CheckingCandidates"
+      },
+      {
+        "action": "declare_rerank_skipped",
+        "metric_labels": {},
+        "next": "DeclaringRerankSkipped",
+        "signal": "CandidatesAbsent",
+        "state": "StagingRerank"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "StagingRerank"
+      },
+      {
+        "action": "marshal_chunks_unranked",
+        "metric_labels": {},
+        "next": "Rendering",
+        "signal": "RerankStatusDeclared",
+        "state": "DeclaringRerankSkipped"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "DeclaringRerankSkipped"
+      },
+      {
+        "action": "render_grounding",
+        "metric_labels": {},
+        "next": "Composing",
+        "signal": "ChunksMarshalled",
+        "state": "Rendering"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "Rendering"
+      },
+      {
+        "action": "compose_prompt",
+        "metric_labels": {},
+        "next": "StagingCompose",
+        "signal": "GroundingRendered",
+        "state": "Composing"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "Composing"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "StagingCompose"
+      },
+      {
+        "action": "check_page_requested",
+        "metric_labels": {},
+        "next": "CheckingPage",
+        "signal": "LLMResponded",
+        "state": "Reporting"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "Reporting"
+      },
+      {
+        "action": "marshal_page_request",
+        "metric_labels": {},
+        "next": "MarshallingPage",
+        "signal": "PageRequested",
+        "state": "CheckingPage"
+      },
+      {
+        "action": "declare_page_none",
+        "metric_labels": {},
+        "next": "DeclaringPageNone",
+        "signal": "PageNotRequested",
+        "state": "CheckingPage"
+      },
+      {
+        "action": "declare_page_none",
+        "metric_labels": {},
+        "next": "DeclaringPageNone",
+        "signal": "CommandError",
+        "state": "CheckingPage"
+      },
+      {
+        "action": "write_page",
+        "metric_labels": {},
+        "next": "WritingPage",
+        "signal": "PageRequestMarshalled",
+        "state": "MarshallingPage"
+      },
+      {
+        "action": "declare_page_skipped",
+        "metric_labels": {},
+        "next": "DeclaringPageSkipped",
+        "signal": "CommandError",
+        "state": "MarshallingPage"
+      },
+      {
+        "action": "declare_page_written",
+        "metric_labels": {},
+        "next": "DeclaringPageWritten",
+        "signal": "PageWritten",
+        "state": "WritingPage"
+      },
+      {
+        "action": "declare_page_skipped",
+        "metric_labels": {},
+        "next": "DeclaringPageSkipped",
+        "signal": "PageRefused",
+        "state": "WritingPage"
+      },
+      {
+        "action": "declare_page_skipped",
+        "metric_labels": {},
+        "next": "DeclaringPageSkipped",
+        "signal": "PageUnavailable",
+        "state": "WritingPage"
+      },
+      {
+        "action": "declare_page_skipped",
+        "metric_labels": {},
+        "next": "DeclaringPageSkipped",
+        "signal": "CommandError",
+        "state": "WritingPage"
+      },
+      {
+        "action": "compose_response",
+        "metric_labels": {},
+        "next": "Finalizing",
+        "signal": "PageStateDeclared",
+        "state": "DeclaringPageWritten"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "DeclaringPageWritten"
+      },
+      {
+        "action": "compose_response",
+        "metric_labels": {},
+        "next": "Finalizing",
+        "signal": "PageStateDeclared",
+        "state": "DeclaringPageSkipped"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "DeclaringPageSkipped"
+      },
+      {
+        "action": "compose_response",
+        "metric_labels": {},
+        "next": "Finalizing",
+        "signal": "PageStateDeclared",
+        "state": "DeclaringPageNone"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "DeclaringPageNone"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "LLMResponded",
+        "signal": "ResponseComposed",
+        "state": "Finalizing"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "Finalizing"
+      },
+      {
+        "action": "embed_query",
+        "metric_labels": {},
+        "next": "EmbeddingQuery",
+        "signal": "CitationsParsed",
+        "state": "DefaultingCitations"
+      },
+      {
+        "action": "normalize_query_embedding",
+        "metric_labels": {},
+        "next": "NormalizingQueryEmbedding",
+        "signal": "QueryEmbedded",
+        "state": "EmbeddingQuery"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "ProviderUnauthorized",
+        "state": "EmbeddingQuery"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "ProviderThrottled",
+        "state": "EmbeddingQuery"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "ProviderUnavailable",
+        "state": "EmbeddingQuery"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "EmbeddingQuery"
+      },
+      {
+        "action": "declare_query_model",
+        "metric_labels": {},
+        "next": "DeclaringModel",
+        "signal": "QueryEmbeddingNormalized",
+        "state": "NormalizingQueryEmbedding"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "NormalizingQueryEmbedding"
+      },
+      {
+        "action": "marshal_rerank_candidates",
+        "metric_labels": {},
+        "next": "Reranking",
+        "signal": "CandidatesPresent",
+        "state": "StagingRerank"
+      },
+      {
+        "action": "cohere_rerank",
+        "metric_labels": {},
+        "next": "CheckingRerankOrder",
+        "signal": "CandidatesParsed",
+        "state": "Reranking"
+      },
+      {
+        "action": "declare_rerank_degraded",
+        "metric_labels": {},
+        "next": "DeclaringRerankDegraded",
+        "signal": "CommandError",
+        "state": "Reranking"
+      },
+      {
+        "action": "check_rerank_order",
+        "metric_labels": {},
+        "next": "ReorderingCandidates",
+        "signal": "CandidatesReranked",
+        "state": "CheckingRerankOrder"
+      },
+      {
+        "action": "declare_rerank_degraded",
+        "metric_labels": {},
+        "next": "DeclaringRerankDegraded",
+        "signal": "ProviderUnauthorized",
+        "state": "CheckingRerankOrder"
+      },
+      {
+        "action": "declare_rerank_degraded",
+        "metric_labels": {},
+        "next": "DeclaringRerankDegraded",
+        "signal": "ProviderThrottled",
+        "state": "CheckingRerankOrder"
+      },
+      {
+        "action": "declare_rerank_degraded",
+        "metric_labels": {},
+        "next": "DeclaringRerankDegraded",
+        "signal": "ProviderRejected",
+        "state": "CheckingRerankOrder"
+      },
+      {
+        "action": "declare_rerank_degraded",
+        "metric_labels": {},
+        "next": "DeclaringRerankDegraded",
+        "signal": "ProviderUnavailable",
+        "state": "CheckingRerankOrder"
+      },
+      {
+        "action": "declare_rerank_degraded",
+        "metric_labels": {},
+        "next": "DeclaringRerankDegraded",
+        "signal": "CommandError",
+        "state": "CheckingRerankOrder"
+      },
+      {
+        "action": "reorder_candidates",
+        "metric_labels": {},
+        "next": "DeclaringRerankApplied",
+        "signal": "RerankOrderPresent",
+        "state": "ReorderingCandidates"
+      },
+      {
+        "action": "declare_rerank_degraded",
+        "metric_labels": {},
+        "next": "DeclaringRerankDegraded",
+        "signal": "RerankOrderEmpty",
+        "state": "ReorderingCandidates"
+      },
+      {
+        "action": "declare_rerank_degraded",
+        "metric_labels": {},
+        "next": "DeclaringRerankDegraded",
+        "signal": "CommandError",
+        "state": "ReorderingCandidates"
+      },
+      {
+        "action": "declare_rerank_applied",
+        "metric_labels": {},
+        "next": "MarshallingRankedChunks",
+        "signal": "CandidatesReordered",
+        "state": "DeclaringRerankApplied"
+      },
+      {
+        "action": "declare_rerank_degraded",
+        "metric_labels": {},
+        "next": "DeclaringRerankDegraded",
+        "signal": "CommandError",
+        "state": "DeclaringRerankApplied"
+      },
+      {
+        "action": "marshal_chunks_unranked",
+        "metric_labels": {},
+        "next": "Rendering",
+        "signal": "RerankStatusDeclared",
+        "state": "DeclaringRerankDegraded"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "DeclaringRerankDegraded"
+      },
+      {
+        "action": "marshal_chunks",
+        "metric_labels": {},
+        "next": "Rendering",
+        "signal": "RerankStatusDeclared",
+        "state": "MarshallingRankedChunks"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "MarshallingRankedChunks"
+      },
+      {
+        "action": "marshal_grounding_documents",
+        "metric_labels": {},
+        "next": "ComposingGrounded",
+        "signal": "Composed",
+        "state": "StagingCompose"
+      },
+      {
+        "action": "invoke_cohere_command",
+        "metric_labels": {},
+        "next": "PartitioningAnswerBlocks",
+        "signal": "GroundingDocumentsMarshalled",
+        "state": "ComposingGrounded"
+      },
+      {
+        "action": "invoke_llm_fast",
+        "metric_labels": {},
+        "next": "Reporting",
+        "signal": "CommandError",
+        "state": "ComposingGrounded"
+      },
+      {
+        "action": "partition_answer_blocks",
+        "metric_labels": {},
+        "next": "CapturingAnswer",
+        "signal": "AnswerComposed",
+        "state": "PartitioningAnswerBlocks"
+      },
+      {
+        "action": "invoke_llm_fast",
+        "metric_labels": {},
+        "next": "Reporting",
+        "signal": "ProviderUnauthorized",
+        "state": "PartitioningAnswerBlocks"
+      },
+      {
+        "action": "invoke_llm_fast",
+        "metric_labels": {},
+        "next": "Reporting",
+        "signal": "ProviderThrottled",
+        "state": "PartitioningAnswerBlocks"
+      },
+      {
+        "action": "invoke_llm_fast",
+        "metric_labels": {},
+        "next": "Reporting",
+        "signal": "ProviderRejected",
+        "state": "PartitioningAnswerBlocks"
+      },
+      {
+        "action": "invoke_llm_fast",
+        "metric_labels": {},
+        "next": "Reporting",
+        "signal": "ProviderUnavailable",
+        "state": "PartitioningAnswerBlocks"
+      },
+      {
+        "action": "invoke_llm_fast",
+        "metric_labels": {},
+        "next": "Reporting",
+        "signal": "CommandError",
+        "state": "PartitioningAnswerBlocks"
+      },
+      {
+        "action": "capture_answer",
+        "metric_labels": {},
+        "next": "FlatteningCitations",
+        "signal": "AnswerBlocksPartitioned",
+        "state": "CapturingAnswer"
+      },
+      {
+        "action": "invoke_llm_fast",
+        "metric_labels": {},
+        "next": "Reporting",
+        "signal": "CommandError",
+        "state": "CapturingAnswer"
+      },
+      {
+        "action": "flatten_citations",
+        "metric_labels": {},
+        "next": "MarshallingCitations",
+        "signal": "AnswerCaptured",
+        "state": "FlatteningCitations"
+      },
+      {
+        "action": "",
+        "metric_labels": {},
+        "next": "Failed",
+        "signal": "CommandError",
+        "state": "FlatteningCitations"
+      },
+      {
+        "action": "marshal_citations",
+        "metric_labels": {},
+        "next": "ComposingResponse",
+        "signal": "CitationsFlattened",
+        "state": "MarshallingCitations"
+      },
+      {
+        "action": "check_page_requested",
+        "metric_labels": {},
+        "next": "CheckingPage",
+        "signal": "CommandError",
+        "state": "MarshallingCitations"
+      },
+      {
+        "action": "check_page_requested",
+        "metric_labels": {},
+        "next": "CheckingPage",
+        "signal": "CitationsParsed",
+        "state": "ComposingResponse"
+      },
+      {
+        "action": "check_page_requested",
+        "metric_labels": {},
+        "next": "CheckingPage",
+        "signal": "CommandError",
+        "state": "ComposingResponse"
+      }
+    ]
+  }
+]

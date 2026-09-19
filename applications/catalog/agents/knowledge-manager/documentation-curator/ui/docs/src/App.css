@@ -1,4 +1,4 @@
-@import "../../../../../../ui/design-tokens.css";
+@import "@declarative-agents/ui-kit/tokens.css";
 
 .app-header {
   border-bottom: 1px solid var(--border);

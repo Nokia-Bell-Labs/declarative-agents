@@ -136,25 +136,84 @@ func TestShippedUIsImportCanonicalDesignTokens(t *testing.T) {
 		"applications/chatbot-mesh/agents/chatbot/ui/app",
 		"applications/chatbot-mesh/agents/observer/ui",
 	} {
-		app := filepath.Join(repoRoot, filepath.FromSlash(rel))
-		data, err := os.ReadFile(filepath.Join(app, "src", "App.css"))
+		cssPath := filepath.Join(repoRoot, filepath.FromSlash(rel), "src", "App.css")
+		data, err := os.ReadFile(cssPath)
 		if err != nil {
 			t.Fatal(err)
 		}
-		first := strings.SplitN(string(data), "\n", 2)[0]
-		const prefix = `@import "`
-		if !strings.HasPrefix(first, prefix) || !strings.HasSuffix(first, `";`) {
-			t.Errorf("%s: first CSS line does not import canonical tokens: %q", rel, first)
+		resolved, err := resolveUITokenImport(cssPath, data)
+		if err != nil {
+			t.Errorf("%s: %v", rel, err)
 			continue
 		}
-		imported := strings.TrimSuffix(strings.TrimPrefix(first, prefix), `";`)
-		resolved := filepath.Clean(filepath.Join(app, "src", filepath.FromSlash(imported)))
 		if resolved != canonical {
 			t.Errorf("%s: token import resolves to %s, want %s", rel, resolved, canonical)
 		}
-		if strings.Contains(string(data), "--bg-primary:") {
-			t.Errorf("%s: App.css contains a copied canonical token declaration", rel)
+	}
+}
+
+// TestNoTokenValuesOutsideKit enforces srd004 R8.2: the kit tokens file is the
+// only CSS under applications/ that declares canonical token values.
+func TestNoTokenValuesOutsideKit(t *testing.T) {
+	repoRoot, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonical := filepath.Join(repoRoot, filepath.FromSlash(canonicalUITokensPath))
+	err = filepath.WalkDir(filepath.Join(repoRoot, "applications"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
+		if d.IsDir() {
+			switch d.Name() {
+			case "node_modules", "dist", "testdata":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".css" || path == canonical {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(data), "--bg-primary:") {
+			t.Errorf("%s declares canonical token values; import %s instead", path, uiKitTokensSpecifier)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestResolveUITokenImportRejectsDrift(t *testing.T) {
+	t.Parallel()
+	root, app := kitRepo(t, `"@declarative-agents/ui-kit":"file:../../../../ui-kit"`)
+	writeUIFile(t, filepath.Join(root, filepath.FromSlash(uiKitDir), "package.json"),
+		`{"name":"@declarative-agents/ui-kit","version":"0.1.0","exports":{"./tokens.css":"./src/tokens.css"}}`)
+	css := filepath.Join(app, "src", "App.css")
+	good := "@import \"" + uiKitTokensSpecifier + "\";\n.card {}\n"
+	resolved, err := resolveUITokenImport(css, []byte(good))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(root, filepath.FromSlash(canonicalUITokensPath)); resolved != want {
+		t.Fatalf("resolved %s, want %s", resolved, want)
+	}
+	for _, tc := range []struct{ name, css string }{
+		{name: "relative source", css: "@import \"../../ui/design-tokens.css\";\n.card {}\n"},
+		{name: "copied declaration", css: good + ":root { --bg-primary: #000; }\n"},
+		{name: "import not first", css: ".card {}\n" + good},
+	} {
+		if _, err := resolveUITokenImport(css, []byte(tc.css)); err == nil {
+			t.Errorf("%s: drift accepted", tc.name)
+		}
+	}
+	_, unlinked := kitRepo(t, `"@declarative-agents/ui-kit":"^0.1.0"`)
+	if _, err := resolveUITokenImport(filepath.Join(unlinked, "src", "App.css"), []byte(good)); err == nil {
+		t.Error("a registry dependency on the kit was accepted inside the repository")
 	}
 }
 

@@ -23,9 +23,13 @@ A panel is the reuse unit: a component plus a manifest naming its id, route, req
 
 Composition is build-time: an application lists panel packages and its own domain panels, and one bundle is built. `ui.yaml` becomes the composition input a generic shell renders routes and sidebar from (GH-2159, planned), replacing the cross-check test.
 
+## The kit package
+
+The kit lives at `applications/ui-kit` as the npm package `@declarative-agents/ui-kit` (GH-2259). UIs in this repository depend on it by `file:` path; external repositories depend on the `npm pack` tarball attached to the GitHub release `ui-kit/vX.Y.Z`, which `mage uikit:release` prepares from a clean tree. No registry, credential, or environment variable is involved. The kit README lists the Mage targets.
+
 ## Design tokens
 
-The canonical tokens file is `applications/catalog/ui/design-tokens.css`, imported by relative path and enforced by the design-tokens drift test. It moves into the ui-kit package as the kit's first content (GH-2156, planned); consumers then import it from the package instead of by filesystem path, which is the supported form for repositories outside this one.
+The canonical tokens file is `applications/ui-kit/src/tokens.css` (GH-2260). Every UI imports it as `@import "@declarative-agents/ui-kit/tokens.css";` through its dependency on the kit — a `file:` path in this repository, the release tarball elsewhere — so no UI reaches it by filesystem path. The design-token drift tests (`magefiles/uidist_test.go`, `applications/catalog/conformance/design_tokens_drift_test.go`) resolve that import through `package.json` and the kit's exports map, and fail on any other `:root` token block under `applications/`.
 
 ## Rules that hold now
 
