@@ -118,7 +118,11 @@ func TestStageUIBuildStagesUIKitSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]bool{"package.json": true, filepath.Join("src", "index.ts"): true}
+	want := map[string]bool{
+		"package.json":                     true,
+		filepath.Join("src", "index.ts"):   true,
+		filepath.Join("src", "tokens.css"): true,
+	}
 	if !reflect.DeepEqual(files, want) {
 		t.Fatalf("staged kit files = %v, want %v (no node_modules, dist, or out)", files, want)
 	}

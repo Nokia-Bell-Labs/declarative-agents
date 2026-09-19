@@ -10,6 +10,7 @@
     "test": "tsx --test test/*.test.ts test/*.test.tsx"
   },
   "dependencies": {
+    "@declarative-agents/ui-kit": "file:../../../../ui-kit",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

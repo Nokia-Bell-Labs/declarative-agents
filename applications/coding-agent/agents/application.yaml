@@ -112,4 +112,4 @@ ui:
       runtime_path: agents/collector/ui/dist
       package_path: agents/collector/ui/dist
       rest_definition: agents/collector/rest.yaml
-      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+      shared_tokens: "canonical import: @declarative-agents/ui-kit/tokens.css (applications/ui-kit/src/tokens.css)"

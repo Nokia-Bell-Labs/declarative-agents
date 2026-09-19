@@ -11,6 +11,8 @@ The kit is a library: React 19 is a peer dependency, and the built `dist/` is no
 
 Inside this repository a UI depends on the kit by path, for example `"@declarative-agents/ui-kit": "file:../../../../ui-kit"`. Build the kit first with `mage uikit:build`; the `mage uidist` gate stages and builds it automatically for every UI that declares the dependency. A UI that mounts kit components adds `resolve: { dedupe: ["react", "react-dom"] }` to its Vite config so the linked kit and the application share one React instance.
 
+Every dependent UI's `package-lock.json` records the kit's `package.json` fields, so a change to the kit's version or dependencies is followed by `npm install` in each dependent UI and a commit of the refreshed lockfiles; otherwise `npm ci` in the `mage uidist` gate rejects the stale lock. The design tokens are the file `src/tokens.css`, exported as `@declarative-agents/ui-kit/tokens.css`; a UI imports them on the first line of its `App.css`.
+
 Repositories outside this one depend on the release tarball (srd004 R8.3):
 
 ```json

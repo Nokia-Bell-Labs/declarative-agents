@@ -57,7 +57,7 @@ requirements:
     title: Trace query UI
     items:
       - R6.1: The collector family SHALL ship a ui/ directory with a React SPA rendering trace list and per-trace waterfall from the collector_query surface.
-      - R6.2: The UI SHALL vendor the canonical design-token block and join the root uiDist reproducibility gate.
+      - R6.2: The UI SHALL import the canonical design tokens from the UI kit (applications/docs srd004 R8.2) and join the root uiDist reproducibility gate.
 
   R7:
     title: Served UI

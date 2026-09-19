@@ -13,6 +13,7 @@
     "test:e2e:machine-request": "tsx e2e/machine-request-docs.spec.ts --base-url=http://127.0.0.1:18081/ --artifact-dir=e2e-artifacts"
   },
   "dependencies": {
+    "@declarative-agents/ui-kit": "file:../../../../../../ui-kit",
     "highlight.js": "^11.11.1",
     "mermaid": "^11.15.0",
     "react": "^19.2.8",

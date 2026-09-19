@@ -23,8 +23,8 @@ trigger: |
 preconditions:
   - The shared srd001, srd002, srd003, pattern language, and role-realization
     model are available.
-  - applications/catalog is available as the canonical implementation and
-    shared UI-token owner.
+  - applications/catalog is available as the canonical implementation owner,
+    and applications/ui-kit as the shared UI-token owner (srd004 R8.2).
   - agent-core validators are available for referenced profile, machine, tool,
     ToolDef, and REST documents.
   - The maintainer records current evidence before changing a status claim.
@@ -154,7 +154,7 @@ touchpoints:
     target: applications/catalog/agents/
     reason: Canonical reusable implementation ownership and compatibility source.
   - id: T4
-    target: applications/catalog/ui/design-tokens.css
+    target: applications/ui-kit/src/tokens.css
     reason: Canonical shared UI-token source when a UI declares consumption.
   - id: T5
     target: applications/<application>/magefiles/

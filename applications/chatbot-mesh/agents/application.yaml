@@ -125,7 +125,7 @@ ui:
       runtime_path: agents/chatbot/ui/ui.yaml
       package_path: profiles/agents/chatbot/ui/ui.yaml
       rest_definition: agents/chatbot/rest.yaml
-      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+      shared_tokens: "canonical import: @declarative-agents/ui-kit/tokens.css (applications/ui-kit/src/tokens.css)"
     - id: chatbot
       owner: chatbot
       ownership: local
@@ -133,7 +133,7 @@ ui:
       runtime_path: agents/chatbot/ui/app/dist
       package_path: profiles/agents/chatbot/ui/app/dist
       rest_definition: agents/chatbot/rest.yaml
-      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+      shared_tokens: "canonical import: @declarative-agents/ui-kit/tokens.css (applications/ui-kit/src/tokens.css)"
     - id: observer
       owner: observer
       ownership: local
@@ -141,7 +141,7 @@ ui:
       runtime_path: agents/observer/ui/dist
       package_path: profiles/agents/observer/ui/dist
       rest_definition: agents/observer/rest.yaml
-      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+      shared_tokens: "canonical import: @declarative-agents/ui-kit/tokens.css (applications/ui-kit/src/tokens.css)"
     - id: collector
       owner: collector
       ownership: catalog
@@ -149,4 +149,4 @@ ui:
       runtime_path: collector-ui/ui/dist
       package_path: collector-ui/ui/dist
       rest_definition: agents/collector/rest.yaml
-      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+      shared_tokens: "canonical import: @declarative-agents/ui-kit/tokens.css (applications/ui-kit/src/tokens.css)"

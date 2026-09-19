@@ -144,8 +144,9 @@ conformance evidence, migrates every consumer to the canonical path, and removes
 copies. Application-specific topology and bindings remain local.
 
 A UI claims shared design-token conformance only when it consumes
-[`catalog/ui/design-tokens.css`](catalog/ui/design-tokens.css) through a build
-import or a deterministic generated copy. A checked-in generated token block
+[`ui-kit/src/tokens.css`](ui-kit/src/tokens.css) through the build import
+`@import "@declarative-agents/ui-kit/tokens.css";` and a `file:` dependency on
+the kit, or through a deterministic generated copy. A checked-in generated token block
 must name the canonical source and have a byte-for-byte drift test. Visual
 similarity or a handwritten copy is not consumption.
 

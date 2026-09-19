@@ -289,7 +289,7 @@ func TestApplicationPromotionAndUITokens(t *testing.T) {
 		}
 	}
 
-	canonicalTokens, err := filepath.Abs(filepath.Join(release14CatalogRoot(), "ui", "design-tokens.css"))
+	canonicalTokens, err := filepath.Abs(filepath.Join("..", filepath.FromSlash(canonicalUITokensPath)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -746,19 +746,13 @@ func inventoryRootIDs(inventory appmanifest.Inventory) map[string]bool {
 }
 
 func validateCanonicalTokenImport(canonical, path string, css []byte) error {
-	first := strings.SplitN(string(css), "\n", 2)[0]
-	const prefix = `@import "`
-	if !strings.HasPrefix(first, prefix) || !strings.HasSuffix(first, `";`) {
-		return fmt.Errorf("%s does not import canonical design tokens first", relativeToRepo(path))
+	resolved, err := resolveUITokenImport(path, css)
+	if err != nil {
+		return fmt.Errorf("%s: %w", relativeToRepo(path), err)
 	}
-	imported := strings.TrimSuffix(strings.TrimPrefix(first, prefix), `";`)
-	resolved := filepath.Clean(filepath.Join(filepath.Dir(path), filepath.FromSlash(imported)))
 	if resolved != filepath.Clean(canonical) {
 		return fmt.Errorf("%s token import resolves to %s, want %s",
 			relativeToRepo(path), resolved, relativeToRepo(canonical))
-	}
-	if strings.Contains(string(css), "--bg-primary:") {
-		return fmt.Errorf("%s contains copied canonical token values", relativeToRepo(path))
 	}
 	return nil
 }

@@ -26,7 +26,7 @@ var uiSearchRoots = []string{
 
 const (
 	uiAuditLevel          = "high"
-	canonicalUITokensPath = "applications/catalog/ui/design-tokens.css"
+	canonicalUITokensPath = "applications/ui-kit/src/tokens.css"
 	uiConcurrency         = 3
 )
 
@@ -222,9 +222,9 @@ func rebuildAndDiffUIWithRunner(appDir string, run uiRunner) error {
 }
 
 // stageUIBuild preserves a package's repository-relative location and stages
-// the canonical token source beside it. Relative CSS imports therefore resolve
-// identically in a clean gate build and in the source checkout, while packaged
-// closures continue to consume the compiled token CSS from their tracked dist.
+// the UI kit beside it. The kit's file: dependency and its canonical tokens
+// therefore resolve identically in a clean gate build and in the source
+// checkout, while packaged closures consume the compiled CSS from tracked dist.
 func stageUIBuild(appDir, tmp string) (string, error) {
 	absApp, err := filepath.Abs(appDir)
 	if err != nil {
@@ -241,22 +241,14 @@ func stageUIBuild(appDir, tmp string) (string, error) {
 	if err := copyDirExcluding(appDir, build, map[string]bool{"node_modules": true, "dist": true}); err != nil {
 		return "", err
 	}
-	if err := copyFile(
-		filepath.Join(repoRoot, filepath.FromSlash(canonicalUITokensPath)),
-		filepath.Join(buildRepo, filepath.FromSlash(canonicalUITokensPath)),
+	// UIs resolve the kit, and through it the canonical tokens, by a file: path
+	// relative to the repository, so the kit source is staged at the same place.
+	if err := copyDirExcluding(
+		filepath.Join(repoRoot, filepath.FromSlash(uiKitDir)),
+		filepath.Join(buildRepo, filepath.FromSlash(uiKitDir)),
+		map[string]bool{"node_modules": true, "dist": true, uiKitOutDir: true},
 	); err != nil {
-		return "", fmt.Errorf("stage canonical UI tokens: %w", err)
-	}
-	// A UI that depends on the kit resolves it by a file: path relative to the
-	// repository, so the kit source is staged at the same relative location.
-	if isDir(filepath.Join(repoRoot, filepath.FromSlash(uiKitDir))) {
-		if err := copyDirExcluding(
-			filepath.Join(repoRoot, filepath.FromSlash(uiKitDir)),
-			filepath.Join(buildRepo, filepath.FromSlash(uiKitDir)),
-			map[string]bool{"node_modules": true, "dist": true, uiKitOutDir: true},
-		); err != nil {
-			return "", fmt.Errorf("stage %s: %w", uiKitDir, err)
-		}
+		return "", fmt.Errorf("stage %s: %w", uiKitDir, err)
 	}
 	return build, nil
 }

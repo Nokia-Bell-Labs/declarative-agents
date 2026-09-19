@@ -29,7 +29,7 @@ The kit lives at `applications/ui-kit` as the npm package `@declarative-agents/u
 
 ## Design tokens
 
-The canonical tokens file is `applications/catalog/ui/design-tokens.css`, imported by relative path and enforced by the design-tokens drift test. It moves into the ui-kit package as the kit's first content (GH-2156, planned); consumers then import it from the package instead of by filesystem path, which is the supported form for repositories outside this one.
+The canonical tokens file is `applications/ui-kit/src/tokens.css` (GH-2260). Every UI imports it as `@import "@declarative-agents/ui-kit/tokens.css";` through its dependency on the kit — a `file:` path in this repository, the release tarball elsewhere — so no UI reaches it by filesystem path. The design-token drift tests (`magefiles/uidist_test.go`, `applications/catalog/conformance/design_tokens_drift_test.go`) resolve that import through `package.json` and the kit's exports map, and fail on any other `:root` token block under `applications/`.
 
 ## Rules that hold now
 

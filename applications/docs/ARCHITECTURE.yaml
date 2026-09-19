@@ -308,7 +308,7 @@ design_decisions:
       consumed by at least two applications. Promotion migrates every consumer
       and removes copies while local bindings remain application-owned. A UI
       claims shared design tokens only when its build imports the canonical
-      catalog source or a deterministic generated token block is protected by a
+      kit source (applications/ui-kit/src/tokens.css) or a deterministic generated token block is protected by a
       byte-for-byte drift test.
     benefits:
       - Speculative abstractions do not widen the catalog.

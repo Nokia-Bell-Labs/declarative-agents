@@ -5,13 +5,15 @@
   "license": "BSD-3-Clause",
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "src/tokens.css"
   ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/ui-kit.js"
-    }
+    },
+    "./tokens.css": "./src/tokens.css"
   },
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",

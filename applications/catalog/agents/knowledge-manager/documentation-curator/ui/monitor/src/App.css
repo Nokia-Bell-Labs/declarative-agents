@@ -1,4 +1,4 @@
-@import "../../../../../../ui/design-tokens.css";
+@import "@declarative-agents/ui-kit/tokens.css";
 
 h1 {
   font-size: 24px;
