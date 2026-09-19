@@ -6,7 +6,8 @@
   "type": "module",
   "files": [
     "dist",
-    "src/tokens.css"
+    "src/tokens.css",
+    "ui-config.d.ts"
   ],
   "exports": {
     ".": {
@@ -17,13 +18,21 @@
       "types": "./dist/fixtures/index.d.ts",
       "import": "./dist/fixtures.js"
     },
+    "./vite": {
+      "types": "./dist/shell/vite-plugin-ui-yaml.d.ts",
+      "import": "./dist/vite.js"
+    },
+    "./ui-config": {
+      "types": "./ui-config.d.ts"
+    },
     "./tokens.css": "./src/tokens.css",
     "./styles.css": "./dist/ui-kit.css"
   },
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && vitest run"
+    "test": "tsc -p tsconfig.json && vitest run && npm run test:example",
+    "test:example": "vite build --config examples/minimal/vite.config.ts --logLevel warn"
   },
   "peerDependencies": {
     "react": "^19.1.0",
@@ -41,5 +50,8 @@
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
   }
 }

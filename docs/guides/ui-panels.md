@@ -52,6 +52,8 @@ Table: ui.yaml fields
 
 The validator rejects a duplicate id across routes and panels, two routes on one path, a `sidebar_group` not declared under `sidebar.groups`, panels without `version: 2`, and a kit panel without `export`. A chart must be able to render the file with plain templating: one document, no anchors or aliases, lists of flat maps (`uiyaml.CheckHelmRenderable`). `applications/chatbot-mesh/helm/templates/_chatbot-ui.tpl` is the worked example; `TestChatbotUIRendersAsValidUIYAML` validates its render.
 
+The kit applies the same rules at build time. Its Vite plugin `@declarative-agents/ui-kit/vite` validates `ui.yaml` with `validateUIConfig`, the TypeScript mirror of `magefiles/uiyaml`, fails the build for a panel with no registry entry, and serves the file as `virtual:ui-config`; `AppShell` renders the sidebar and routes from it. The kit README section "Shell" shows the wiring, and `applications/ui-kit/examples/minimal/` is the smallest complete application.
+
 ## Design tokens
 
 The canonical tokens file is `applications/ui-kit/src/tokens.css` (GH-2260). Every UI imports it as `@import "@declarative-agents/ui-kit/tokens.css";` through its dependency on the kit — a `file:` path in this repository, the release tarball elsewhere — so no UI reaches it by filesystem path. The design-token drift tests (`magefiles/uidist_test.go`, `applications/catalog/conformance/design_tokens_drift_test.go`) resolve that import through `package.json` and the kit's exports map, and fail on any other `:root` token block under `applications/`.
