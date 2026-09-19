@@ -1,0 +1,23 @@
+{
+  "traces": [
+    {
+      "trace_id": "1ce19411c9ee09e10aa02c2a39bc7213",
+      "root_service": "chatbot",
+      "root_span_name": "machine_request chatbot_chat/chat",
+      "span_count": 44,
+      "start_time": "2026-09-19T15:54:07.777802167Z",
+      "duration_ms": 1885.363
+    },
+    {
+      "trace_id": "0000000000000000000000000000beat",
+      "root_service": "chroma",
+      "root_span_name": "heartbeat",
+      "span_count": 1,
+      "start_time": "2026-09-19T15:54:07.777802167Z",
+      "duration_ms": 0.4
+    }
+  ],
+  "total": 2,
+  "offset": 0,
+  "page_size": 50
+}

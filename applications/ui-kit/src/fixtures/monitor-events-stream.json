@@ -1,0 +1,10 @@
+[
+  {
+    "event": "run_event",
+    "data": "{\"run_id\": \"run-7f3a\", \"from_state\": \"Embedding\", \"to_state\": \"DeclaringModel\", \"signal\": \"QueryEmbedded\", \"command_name\": \"embed_query\", \"iteration\": 3, \"timestamp\": \"2026-09-19T15:54:07Z\"}"
+  },
+  {
+    "event": "metric_sample",
+    "data": "{\"name\": \"tool.duration\", \"kind\": \"histogram\", \"unit\": \"ms\", \"value\": 12.5, \"tool_name\": \"embed_query\", \"run_id\": \"run-7f3a\"}"
+  }
+]

@@ -11,9 +11,11 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false,
     lib: {
-      entry: resolve(__dirname, "src/index.ts"),
+      entry: {
+        "ui-kit": resolve(__dirname, "src/index.ts"),
+        fixtures: resolve(__dirname, "src/fixtures/index.ts"),
+      },
       formats: ["es"],
-      fileName: "ui-kit",
     },
     rollupOptions: {
       external: ["react", "react-dom", "react/jsx-runtime"],

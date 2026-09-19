@@ -313,8 +313,8 @@ releases:
           panels, shell, ui.yaml version 2, token ownership, embedded bundle,
           and the absence of duplicated UI code.
         status: planned
-        implemented_cases: [TC1]
-        planned_cases: [TC2, TC3, TC4, TC5, TC6, TC7, TC8, TC9]
+        implemented_cases: [TC1, TC2]
+        planned_cases: [TC3, TC4, TC5, TC6, TC7, TC8, TC9]
     implementation_sequence:
       - order: 1
         action: Specify srd004, the use case, the suite, and the index entries (GH-2155).

@@ -1,0 +1,17 @@
+[
+  {
+    "name": "capture_request",
+    "description": "Capture the chat request body.",
+    "emits": [
+      "RequestCaptured"
+    ]
+  },
+  {
+    "name": "invoke_llm_fast",
+    "description": "One model call.",
+    "emits": [
+      "LLMResponded",
+      "LLMFailed"
+    ]
+  }
+]
