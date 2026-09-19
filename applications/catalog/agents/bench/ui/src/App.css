@@ -1,52 +1,8 @@
 @import "@declarative-agents/ui-kit/tokens.css";
 
-/* Shell frame: the kit AppShell renders .shell, .sidebar, .nav-item, and
-   .content but ships no styles for them. */
-.shell {
-  display: flex;
-  min-height: 100vh;
-}
-
-.sidebar {
-  flex: 0 0 200px;
-  background: var(--bg-tertiary);
-  border-right: 1px solid var(--border);
-  padding: 16px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.sidebar-title {
-  font-size: 15px;
-  font-weight: 600;
-  padding: 4px 12px 16px;
-  color: var(--text-primary);
-}
-
-.nav-item {
-  padding: 8px 12px;
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  text-decoration: none;
-}
-
-.nav-item:hover {
-  background: var(--bg-secondary);
-  text-decoration: none;
-}
-
-.nav-item-active,
-.nav-item-active:hover {
-  background: var(--accent);
-  color: #ffffff;
-  font-weight: 600;
-}
-
-.content {
-  flex: 1;
-  min-width: 0;
+/* The kit shell (styles.css, .dak-shell) draws the frame, sidebar, and
+   content area edge to edge; bench panels read as padded documents. */
+.bench-page {
   padding: 24px;
 }
 

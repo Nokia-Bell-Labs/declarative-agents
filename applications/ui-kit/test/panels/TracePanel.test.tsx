@@ -6,7 +6,7 @@ import { toModel } from "../../src/api/traceApi";
 import { createKitClient } from "../../src/client/client";
 import { KitClientProvider } from "../../src/client/context";
 import { fixtures } from "../../src/fixtures";
-import { SpanDetail, TraceList, TracePanel, tracePanel, tracePanelManifest, TraceStoryOverlay, type DeclaredSurface } from "../../src/panels/TracePanel";
+import { SpanDetail, TraceList, TracePanel, tracePanel, tracePanelManifest, TraceStoryOverlay, TraceView, Waterfall, type DeclaredSurface } from "../../src/panels/TracePanel";
 import { FixtureProvider } from "./support";
 
 const TRACE_ID = fixtures["/query/traces/{trace_id}"].trace_id;
@@ -96,6 +96,47 @@ describe("TracePanel", () => {
     );
     await screen.findByTestId("trace-timeline");
     expect(seen).toEqual([`/monitor-proxy/tracer/query/traces/${TRACE_ID}`]);
+  });
+
+  it("reads same-origin when the backend is a path prefix", async () => {
+    const seen: string[] = [];
+    render(
+      <ClientWith
+        respond={(url) => {
+          seen.push(url.pathname);
+          return Response.json(fixtures["/query/traces/{trace_id}"]);
+        }}
+      >
+        <TracePanel traceId={TRACE_ID} backend="/" />
+      </ClientWith>,
+    );
+    await screen.findByTestId("trace-timeline");
+    expect(seen).toEqual([`/query/traces/${TRACE_ID}`]);
+  });
+
+  it("marks the recorded error spans in the timeline, the span tree, and the span content", async () => {
+    render(
+      <FixtureProvider>
+        <TracePanel traceId={TRACE_ID} />
+      </FixtureProvider>,
+    );
+    const sequence = await screen.findByTestId("trace-sequence");
+    const failed = within(sequence).getByText("flatten_citations").closest("button")!;
+    expect(failed.classList.contains("span-error")).toBe(true);
+    expect(within(failed).getByTestId("span-error").getAttribute("title")).toContain("resolved to <nil>");
+    expect(screen.getAllByTestId("trace-lane").some((lane) => lane.querySelector(".timeline-bar.span-error"))).toBe(true);
+    fireEvent.click(failed);
+    expect(within(screen.getByTestId("span-detail")).getByTestId("span-detail-status").textContent).toContain("resolved to <nil>");
+  });
+});
+
+describe("Waterfall", () => {
+  it("marks a failed span's row and bar", () => {
+    render(<Waterfall trace={trace} />);
+    const rows = screen.getAllByTestId("trace-row").filter((row) => row.classList.contains("span-error"));
+    expect(rows.length).toBe(trace.spans.filter((span) => span.status?.code === 2).length);
+    expect(rows[0].querySelector(".trace-bar.span-error")).toBeTruthy();
+    expect(within(rows[0]).getByTestId("span-error")).toBeTruthy();
   });
 });
 
@@ -206,6 +247,27 @@ describe("the mounted trace panel", () => {
     expect(screen.queryByTestId("trace-list")).toBeNull();
     fireEvent.click(screen.getByTestId("trace-back"));
     await screen.findByTestId("trace-list-row");
+  });
+});
+
+describe("TraceView", () => {
+  it("follows openTraceId and reports opens and the way back through onOpen", async () => {
+    const opened: Array<string | undefined> = [];
+    const view = (openTraceId?: string) => (
+      <FixtureProvider>
+        <TraceView openTraceId={openTraceId} onOpen={(id) => opened.push(id)} />
+      </FixtureProvider>
+    );
+    const { rerender } = render(view());
+    fireEvent.click(await screen.findByTestId("trace-list-row"));
+    // Controlled: the click is reported, the list stays until the prop moves.
+    expect(opened).toEqual([TRACE_ID]);
+    expect(screen.getByTestId("trace-list")).toBeTruthy();
+    rerender(view(TRACE_ID));
+    await screen.findByTestId("trace-timeline");
+    fireEvent.click(screen.getByTestId("trace-back"));
+    expect(opened).toEqual([TRACE_ID, undefined]);
+    expect(screen.getByTestId("trace-timeline")).toBeTruthy();
   });
 });
 

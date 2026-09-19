@@ -68,7 +68,7 @@
     "trace_backend": {
       "type": "object",
       "required": ["name"],
-      "properties": { "name": { "type": "string", "minLength": 1 }, "query_path": { "type": "string" } }
+      "properties": { "name": { "type": "string", "minLength": 1 }, "query_path": { "type": "string", "pattern": "^/(.*/)?query/traces/\\{trace_id\\}$" } }
     },
     "branding": {
       "type": "object",

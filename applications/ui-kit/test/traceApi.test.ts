@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createKitClient } from "../src/client/client";
-import { fetchTrace, fetchTraceList, fetchTraces, isSingleSpanTrace, readableTraces, toListPage, toModel, traceListPath, traceQueryPath } from "../src/api/traceApi";
+import { fetchTrace, fetchTraceList, fetchTraces, isErrorSpan, isSingleSpanTrace, readableTraces, toListPage, toModel, traceBackendLabel, traceListPath, traceQueryPath } from "../src/api/traceApi";
 import { fixtureFetch, fixtures } from "../src/fixtures";
 
 // Spans as the collector serves them: attributes are an array of typed pairs.
@@ -19,6 +19,15 @@ describe("trace paths", () => {
   it("reads the declared backend through the monitor proxy (srd004 R2.4)", () => {
     expect(traceQueryPath("collector", "abc/def")).toBe("/monitor-proxy/collector/query/traces/abc%2Fdef");
     expect(traceListPath("spool", 50, 0)).toBe("/monitor-proxy/spool/query/traces?page_size=50&offset=0");
+  });
+
+  it("reads a backend that starts with / as a same-origin path prefix (srd004 R2.4)", () => {
+    expect(traceQueryPath("/", "abc")).toBe("/query/traces/abc");
+    expect(traceListPath("/", 20, 40)).toBe("/query/traces?page_size=20&offset=40");
+    expect(traceQueryPath("/monitor-proxy/collector", "abc")).toBe(traceQueryPath("collector", "abc"));
+    expect(traceListPath("/monitor-proxy/collector/", 50, 0)).toBe(traceListPath("collector", 50, 0));
+    expect(traceBackendLabel("collector")).toBe("collector");
+    expect(traceBackendLabel("/")).toBe("at /query/traces");
   });
 });
 
@@ -45,6 +54,24 @@ describe("toModel", () => {
       { service: "chatbot", steps: [{ iteration: 1, command: "a", signal: "A" }, { iteration: 2, command: "b", signal: "B" }] },
       { service: "rag0", steps: [{ iteration: 1, command: "q", signal: "" }] },
     ]);
+  });
+
+  it("carries the span status in either spelling and marks code 2 as an error", () => {
+    const spans = [
+      { ...span("chatbot", "execute_tool a", { "command.name": "a" }, 0), status: { Code: 2, Description: "selector resolved to <nil>" } },
+      { ...span("chatbot", "execute_tool b", { "command.name": "b" }, 1), status: { code: 1 } },
+      { ...span("chatbot", "execute_tool c", { "command.name": "c" }, 2), status: { Code: 0, Description: "" } },
+      span("chatbot", "execute_tool d", { "command.name": "d" }, 3),
+    ];
+    const model = toModel({ trace_id: "t", span_count: 4, spans });
+    expect(model.spans.map((s) => s.status)).toEqual([{ code: 2, description: "selector resolved to <nil>" }, { code: 1 }, { code: 0 }, undefined]);
+    expect(model.spans.map(isErrorSpan)).toEqual([true, false, false, false]);
+  });
+
+  it("keeps the recorded error spans", () => {
+    const failed = toModel(fixtures["/query/traces/{trace_id}"]).spans.filter(isErrorSpan);
+    expect(failed.length).toBeGreaterThan(0);
+    expect(failed.find((s) => s.command === "flatten_citations")?.status?.description).toContain("flatten_citations");
   });
 
   it("models the recorded turn", () => {

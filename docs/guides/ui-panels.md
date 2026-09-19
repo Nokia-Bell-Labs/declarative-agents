@@ -46,13 +46,21 @@ Table: ui.yaml fields
 | `panels[].{label, sidebar_group, hidden}` | sidebar entry, its group, and whether it is reachable by URL only |
 | `panels[].config` | map passed to the panel as `config` |
 | `monitored_agents[].{name, label}` | agents panels read through `/monitor-proxy/<name>/` |
-| `trace_backend.{name, query_path}` | agent whose proxy serves the trace queries |
+| `trace_backend.{name, query_path}` | agent whose proxy serves the trace queries; `query_path`, an absolute path ending in `/query/traces/{trace_id}`, makes its prefix a same-origin backend |
 | `branding.{title, logo, accent}` | shell title and look |
 | `presentation` | application presentation flags |
 
-The validator rejects a duplicate id across routes and panels, two routes on one path, a `sidebar_group` not declared under `sidebar.groups`, panels without `version: 2`, and a kit panel without `export`. A chart must be able to render the file with plain templating: one document, no anchors or aliases, lists of flat maps (`uiyaml.CheckHelmRenderable`). `applications/chatbot-mesh/helm/templates/_chatbot-ui.tpl` is the worked example; `TestChatbotUIRendersAsValidUIYAML` validates its render.
+The validator rejects a duplicate id across routes and panels, two routes on one path, a `sidebar_group` not declared under `sidebar.groups`, panels without `version: 2`, a kit panel without `export`, and a `trace_backend.query_path` that is not an absolute path ending in `/query/traces/{trace_id}`. A chart must be able to render the file with plain templating: one document, no anchors or aliases, lists of flat maps (`uiyaml.CheckHelmRenderable`). `applications/chatbot-mesh/helm/templates/_chatbot-ui.tpl` is the worked example; `TestChatbotUIRendersAsValidUIYAML` validates its render.
 
 The kit applies the same rules at build time. Its Vite plugin `@declarative-agents/ui-kit/vite` validates `ui.yaml` with `validateUIConfig`, the TypeScript mirror of `magefiles/uiyaml`, fails the build for a panel with no registry entry, and serves the file as `virtual:ui-config`; `AppShell` renders the sidebar and routes from it. The kit README section "Shell" shows the wiring, and `applications/ui-kit/examples/minimal/` is the smallest complete application.
+
+## Trace panels and the shell
+
+The kit trace hooks and panels take a trace backend string (srd004 R2.4). A name such as `collector` reads `/monitor-proxy/collector/query/traces…`; a string that starts with `/` is a same-origin prefix under which `/query/traces` lives, so `/` reads the origin root and `/monitor-proxy/collector` reads the same URLs as `collector`. `AppShell` passes panels `traceBackend`: the prefix of `trace_backend.query_path` when it is set (`/` for `/query/traces/{trace_id}`), otherwise `trace_backend.name`. The collector UI, served beside its own `/query/*`, uses the same-origin form.
+
+`TraceView` keeps the open trace itself unless the application passes `onOpen`; then `openTraceId` decides what it shows and a row click or the way back is reported through `onOpen`. The collector's traces panel drives it from the URL with `usePanelPath` and `navigateTo`, so `/traces/{trace_id}` is a deep link. Spans carry the collector's OpenTelemetry status; a span with status code 2 is marked as an error in the timeline, the span tree, and the span content, which shows the status description.
+
+The shell styles ship in `styles.css` under the `dak-shell` root that `PanelFrame` renders: the frame, sidebar, sidebar title, nav items and groups, the content area, and the placeholder for an unregistered panel, colored only through the tokens. An application keeps only its own extras, such as the chatbot's nav badge or a padded page class.
 
 ## Design tokens
 
@@ -60,4 +68,4 @@ The canonical tokens file is `applications/ui-kit/src/tokens.css` (GH-2260). Eve
 
 ## Rules
 
-UI code reads and writes only through the kit client, whose base URL is injectable, so the same panel runs same-origin and under a desktop shell later. A component a second application would want goes into the kit, not into an app's `src/`. `magefiles/ui_duplication_test.go` enforces this: it fails on a local copy of the panel path helpers, the monitor, trace, or fleet clients, the machine layout, the status bar, or sub-path routing; on `/trace-proxy` anywhere under `applications/`; and on a raw `fetch` or `EventSource` in a UI that uses the kit. Domain panels stay in their application; the epic does not unify them. Open kit gaps are tracked in GH-2282.
+UI code reads and writes only through the kit client, whose base URL is injectable, so the same panel runs same-origin and under a desktop shell later. A component a second application would want goes into the kit, not into an app's `src/`. `magefiles/ui_duplication_test.go` enforces this: it fails on a local copy of the panel path helpers, the monitor, trace, or fleet clients, the machine layout, the status bar, or sub-path routing; on `/trace-proxy` anywhere under `applications/`; on an unscoped stylesheet rule for a class the kit shell styles (`.shell`, `.sidebar`, `.nav-item`, `.content`, and their kin); and on a raw `fetch` or `EventSource` in a UI that uses the kit. Domain panels stay in their application; the epic does not unify them.

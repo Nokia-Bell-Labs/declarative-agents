@@ -72,6 +72,10 @@ export interface UIConfig {
   [extension: string]: unknown;
 }
 
+// TRACE_QUERY_SUFFIX ends every trace_backend.query_path; the prefix before it
+// is the same-origin trace backend (srd004 R2.4, R7.1).
+export const TRACE_QUERY_SUFFIX = "/query/traces/{trace_id}";
+
 // One lower-case segment: the shell's URL scheme treats the last segment as
 // the panel slot (srd004 R5.3).
 const ROUTE_PATTERN = /^\/[a-z0-9][a-z0-9-]*$/;
@@ -214,7 +218,13 @@ export function validateUIConfig(doc: unknown): string[] {
     else if (agents.has(name)) add(`monitored agent ${q(name)} is listed twice`);
     agents.add(name);
   }
-  if (isMapping(doc.trace_backend) && text(doc.trace_backend.name).trim() === "") add("trace_backend has no name");
+  if (isMapping(doc.trace_backend)) {
+    if (text(doc.trace_backend.name).trim() === "") add("trace_backend has no name");
+    const queryPath = text(doc.trace_backend.query_path);
+    if (queryPath !== "" && !(queryPath.startsWith("/") && queryPath.endsWith(TRACE_QUERY_SUFFIX))) {
+      add(`trace_backend query_path ${q(queryPath)} must be an absolute path ending in ${TRACE_QUERY_SUFFIX}`);
+    }
+  }
 
   return problems.sort();
 }
@@ -251,6 +261,18 @@ export function routingFromConfig(config: UIConfig): ShellRouting {
   ];
 
   return { routes, groups, defaultPanel: sidebarOrder(routes, groups).find((route) => !route.hidden)?.id ?? routes[0]?.id ?? "" };
+}
+
+// traceBackendFromConfig is the trace backend the shell passes panels as
+// PanelProps.traceBackend (srd004 R2.4): the same-origin prefix of
+// trace_backend.query_path ("/" when the prefix is empty), otherwise
+// trace_backend.name.
+export function traceBackendFromConfig(config: UIConfig): string | undefined {
+  const backend = config.trace_backend;
+  if (!backend) return undefined;
+  const queryPath = backend.query_path ?? "";
+  if (queryPath.endsWith(TRACE_QUERY_SUFFIX)) return queryPath.slice(0, -TRACE_QUERY_SUFFIX.length) || "/";
+  return backend.name || undefined;
 }
 
 // shellTitle is the sidebar title: branding first, then the sidebar's own

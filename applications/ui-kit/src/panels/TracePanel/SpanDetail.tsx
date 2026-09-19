@@ -1,4 +1,4 @@
-import type { TraceModel, TraceSpan } from "../../api/traceApi";
+import { isErrorSpan, type TraceModel, type TraceSpan } from "../../api/traceApi";
 import type { Continuation } from "./traceGroups";
 import { spanAnswer } from "./traceLayout";
 
@@ -118,7 +118,7 @@ export function SpanDetail({
   };
   entries.sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]));
   return (
-    <div className="span-detail" role="dialog" aria-label="Span content" data-testid="span-detail">
+    <div className={`span-detail${isErrorSpan(span) ? " span-error" : ""}`} role="dialog" aria-label="Span content" data-testid="span-detail">
       <div className="span-detail-head">
         <span className="span-detail-title">{span.command ?? span.name}</span>
         <span className="trace-svc">{span.service}</span>
@@ -126,11 +126,17 @@ export function SpanDetail({
           +{((span.startUs - model.startUs) / 1000).toFixed(0)} ms · {(span.durationUs / 1000).toFixed(1)} ms
         </span>
         {span.signal && <span className="walk-signal">{span.signal}</span>}
+        {isErrorSpan(span) && <span className="span-error-mark">error</span>}
         {span.target && <span className="timeline-seq-target">→ {span.target}</span>}
         <button type="button" className="trace-overlay-close" aria-label="close span content" onClick={onClose}>
           ✕
         </button>
       </div>
+      {isErrorSpan(span) && (
+        <div className="span-detail-status" data-testid="span-detail-status">
+          Status error{span.status?.description ? `: ${span.status.description}` : ""}
+        </div>
+      )}
       {links.length > 0 && onFollow && (
         <div className="span-detail-links">
           {links.map((link) => (

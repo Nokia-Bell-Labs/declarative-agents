@@ -6,7 +6,7 @@ import { kitPanelRegistry } from "../panels/registry";
 import { PanelFrame } from "./PanelFrame";
 import { Sidebar } from "./Sidebar";
 import { ShellRoutingProvider } from "./subPath";
-import { routingFromConfig, shellTitle, KIT_PACKAGE, type UIConfig, type UIPanel } from "./uiConfig";
+import { routingFromConfig, shellTitle, traceBackendFromConfig, KIT_PACKAGE, type UIConfig, type UIPanel } from "./uiConfig";
 import { useAgentPresence } from "./useAgentPresence";
 import { usePanelLocation } from "./usePanelLocation";
 
@@ -67,7 +67,7 @@ function ShellBody({ config, registry }: { config: UIConfig; registry: PanelRegi
             key={active}
             config={panels.get(active)?.config}
             monitoredAgents={config.monitored_agents ?? []}
-            traceBackend={config.trace_backend?.name}
+            traceBackend={traceBackendFromConfig(config)}
           />
         ) : (
           <div className="dak-shell-placeholder" role="status" data-testid="panel-placeholder">

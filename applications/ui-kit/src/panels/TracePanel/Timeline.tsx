@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { TraceModel, TraceSpan } from "../../api/traceApi";
 import { useTraceReader } from "./options";
 import { SpanDetail } from "./SpanDetail";
-import { StepGroupList, type SpanSelection } from "./SpanRows";
+import { errorClass, SpanErrorMark, StepGroupList, type SpanSelection } from "./SpanRows";
 import { continuations, stepGroups } from "./traceGroups";
 import { FAILURE_SIGNAL, serviceColor, timelineLanes, timelineSequence } from "./traceLayout";
 import { FULL_WINDOW, WindowBrush, type BrushWindow } from "./WindowBrush";
@@ -67,13 +67,13 @@ export function Timeline({ trace, body = "sequence" }: { trace: TraceModel; body
               <button
                 type="button"
                 key={`${lane.name}:${s.id}`}
-                className={`timeline-bar${selected === s.id ? " timeline-bar-selected" : ""}`}
+                className={`timeline-bar${selected === s.id ? " timeline-bar-selected" : ""}${errorClass(s)}`}
                 style={{
                   left: `${((Math.max(s.startUs, startUs) - startUs) / width) * 100}%`,
                   width: `${Math.max(0.4, ((Math.min(s.startUs + s.durationUs, endUs) - Math.max(s.startUs, startUs)) / width) * 100)}%`,
                   background: lane.external ? EXTERNAL_BAR : serviceColor(trace.services, s.service),
                 }}
-                title={`${s.command ?? s.name} — ${(s.durationUs / 1000).toFixed(1)} ms${s.target ? ` → ${s.target}` : ""}`}
+                title={`${s.command ?? s.name} — ${(s.durationUs / 1000).toFixed(1)} ms${s.target ? ` → ${s.target}` : ""}${s.status?.description ? ` — error: ${s.status.description}` : ""}`}
                 onClick={() => toggle(s.id)}
               />
             ))}
@@ -90,12 +90,13 @@ export function Timeline({ trace, body = "sequence" }: { trace: TraceModel; body
           <div className="trace-head timeline-seq-head">The window, top to bottom — each call and what it caused</div>
           <div className="timeline-sequence" data-testid="trace-sequence">
             {timelineSequence(trace, startUs, endUs).map(({ span: s, offsetUs }) => (
-              <button type="button" key={s.id} className={`timeline-seq-row${selected === s.id ? " timeline-seq-selected" : ""}`} onClick={() => toggle(s.id)}>
+              <button type="button" key={s.id} className={`timeline-seq-row${selected === s.id ? " timeline-seq-selected" : ""}${errorClass(s)}`} onClick={() => toggle(s.id)}>
                 <span className="timeline-seq-offset">+{(offsetUs / 1000).toFixed(0)} ms</span>
                 <span className="trace-svc" style={{ color: serviceColor(trace.services, s.service) }}>
                   {s.service}
                 </span>
                 <span className="timeline-seq-call">{s.command ?? s.name}</span>
+                <SpanErrorMark span={s} />
                 {s.target && <span className="timeline-seq-target">→ {s.target}</span>}
                 {s.signal && <span className={`walk-signal${FAILURE_SIGNAL.test(s.signal) ? " walk-signal-failed" : ""}`}>{s.signal}</span>}
                 <span className="trace-ms">{(s.durationUs / 1000).toFixed(1)} ms</span>

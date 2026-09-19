@@ -51,6 +51,11 @@ var (
 // the caller, so a tokens-only consumer is not a kit-client UI.
 var uiKitModuleImport = regexp.MustCompile(`["'](` + regexp.QuoteMeta(uiKitPackageName) + `(?:/[\w./-]+)?)["']`)
 
+// uiKitShellRule matches an unscoped rule for a class the kit shell styles
+// under .dak-shell (GH-2282). A compound selector such as
+// ".nav-item-active .nav-badge" is an application extra, not a copy.
+var uiKitShellRule = regexp.MustCompile(`(?m)^\s*\.(shell|sidebar|sidebar-title|nav-item|nav-item-active|nav-group|nav-group-label|content)(?::hover)?\s*[{,]`)
+
 // uiTraceProxyRoute is the retired per-application trace proxy (srd004 R2.3).
 const uiTraceProxyRoute = "/trace-proxy"
 
@@ -99,7 +104,8 @@ func sweepUIDuplication(applications string) ([]string, error) {
 		if uiKitOwnedNames[name] || (isUIScript(name) && uiKitOwnedStems[stem]) {
 			report(path, "file name "+name+" belongs to the ui-kit; import it from "+uiKitPackageName)
 		}
-		if !isUIScript(name) && !isRestDeclaration(name) {
+		isStylesheet := filepath.Ext(name) == ".css"
+		if !isUIScript(name) && !isRestDeclaration(name) && !isStylesheet {
 			return nil
 		}
 		data, err := os.ReadFile(path)
@@ -107,6 +113,12 @@ func sweepUIDuplication(applications string) ([]string, error) {
 			return err
 		}
 		source := string(data)
+		if isStylesheet {
+			for _, m := range uiKitShellRule.FindAllStringSubmatch(source, -1) {
+				report(path, "styles ."+m[1]+"; the kit ships the shell styles in styles.css under .dak-shell")
+			}
+			return nil
+		}
 		if isUIScript(name) {
 			for _, m := range uiKitOwnedHelper.FindAllStringSubmatch(source, -1) {
 				report(path, "defines "+m[1]+"; import it from "+uiKitPackageName)
@@ -246,7 +258,9 @@ func TestSweepUIDuplicationReportsEachShape(t *testing.T) {
 		"app/observer-rest.yaml":              "path: /trace-proxy/x\n",
 		"app/ui/vite.config.ts":               "export default { server: { proxy: { '/trace-proxy': 'x' } } }\n",
 		"tokens/ui/package.json":              kitDep,
-		"tokens/ui/src/App.css":               "@import \"" + uiKitPackageName + "/tokens.css\";\n",
+		"tokens/ui/src/App.css":               "@import \"" + uiKitPackageName + "/tokens.css\";\n.nav-item-active .nav-badge { color: red; }\n.bench-page { padding: 24px; }\n",
+		"app/ui/src/App.css":                  ".shell {\n  display: flex;\n}\n.nav-item:hover { color: red; }\n",
+		"ui-kit/src/shell/shell.css":          ".dak-shell .nav-item { color: red; }\n.nav-item { color: red; }\n",
 		"tokens/ui/src/apiClient.ts":          "export const r = () => fetch('/docs')\n",
 		"plain/ui/package.json":               `{"dependencies":{"react":"^19"}}`,
 		"plain/ui/src/api.ts":                 "export const r = () => fetch('/x')\n",
@@ -273,6 +287,8 @@ func TestSweepUIDuplicationReportsEachShape(t *testing.T) {
 	want := []string{
 		"app/observer-rest.yaml",
 		"app/rest.yaml",
+		"app/ui/src/App.css",
+		"app/ui/src/App.css",
 		"app/ui/src/StatusBar.tsx",
 		"app/ui/src/machineCollapse.tsx",
 		"app/ui/src/machineLayout.ts",

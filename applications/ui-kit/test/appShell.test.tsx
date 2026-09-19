@@ -49,7 +49,8 @@ describe("AppShell (srd004 R5)", () => {
     const mounted = screen.getByTestId("mounted");
     expect(mounted.textContent).toBe("chat panel");
     expect(mounted.getAttribute("data-agents")).toBe("chatbot,rag0");
-    expect(mounted.getAttribute("data-backend")).toBe("collector");
+    // The fixture's query_path makes the proxy prefix the trace backend.
+    expect(mounted.getAttribute("data-backend")).toBe("/monitor-proxy/collector");
 
     act(() => {
       fireEvent.click(screen.getByText("Help"));

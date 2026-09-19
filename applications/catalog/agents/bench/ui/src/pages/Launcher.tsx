@@ -70,7 +70,7 @@ export default function Launcher() {
   }
 
   return (
-    <div>
+    <div className="bench-page">
       <h1>Launch Experiment</h1>
       <p className="launcher-subtitle">
         Configure and launch an evaluation suite through the bench agent.

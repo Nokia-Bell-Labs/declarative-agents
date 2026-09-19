@@ -1,0 +1,22 @@
+/* The kit shell (srd004 R5): PanelFrame, Sidebar, and the unregistered-panel
+   placeholder, scoped under .dak-shell and colored only through the kit
+   tokens. Taken from the chatbot-mesh chatbot App.css, the most complete of
+   the copies each shell application carried before GH-2282. */
+
+.dak-shell { display: flex; height: 100vh; width: 100%; }
+
+.dak-shell .sidebar { width: 220px; flex: 0 0 220px; background: var(--bg-tertiary); border-right: 1px solid var(--border); padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+.dak-shell .sidebar-title { font-size: 15px; font-weight: 600; padding: 4px 12px 16px; color: var(--text-primary); }
+
+/* The nav items are anchors so a panel can be opened in a new tab or its link
+   copied; the reset keeps them looking like buttons. */
+.dak-shell .nav-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; border: none; background: transparent; color: var(--text-secondary); font-size: 14px; text-align: left; padding: 8px 12px; border-radius: 6px; cursor: pointer; text-decoration: none; }
+.dak-shell .nav-item:hover { background: var(--bg-secondary); text-decoration: none; }
+.dak-shell .nav-item-active, .dak-shell .nav-item-active:hover { background: var(--accent); color: var(--bg-primary); font-weight: 600; }
+
+.dak-shell .nav-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.dak-shell .nav-group-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); padding: 4px 12px 2px; }
+
+.dak-shell .content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
+
+.dak-shell .dak-shell-placeholder { margin: auto; padding: 24px; max-width: 520px; text-align: center; font-size: 14px; color: var(--text-tertiary); border: 1px dashed color-mix(in srgb, var(--text-tertiary) 50%, transparent); border-radius: 8px; }

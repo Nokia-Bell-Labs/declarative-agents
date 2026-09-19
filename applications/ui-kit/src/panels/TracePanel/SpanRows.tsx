@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from "react";
-import type { TraceModel, TraceSpan } from "../../api/traceApi";
+import { isErrorSpan, type TraceModel, type TraceSpan } from "../../api/traceApi";
 import type { TraceReader } from "./options";
 import { continuations, type Continuation, type ServiceGroup, type StepGroup } from "./traceGroups";
 import { CATEGORY_COLORS, FAILURE_SIGNAL, serviceColor, spanAnswer } from "./traceLayout";
@@ -18,6 +18,22 @@ function activate(onSelect: () => void) {
 
 function Signal({ signal }: { signal: string }) {
   return <span className={`walk-signal${FAILURE_SIGNAL.test(signal) ? " walk-signal-failed" : ""}`}>{signal}</span>;
+}
+
+// SpanErrorMark flags a span whose status is an error (OTel status code 2);
+// its title carries the status description.
+export function SpanErrorMark({ span }: { span: TraceSpan }) {
+  if (!isErrorSpan(span)) return null;
+  return (
+    <span className="span-error-mark" data-testid="span-error" title={span.status?.description || "the span ended with an error status"}>
+      error
+    </span>
+  );
+}
+
+// errorClass appends span-error to a row or bar class for a failed span.
+export function errorClass(span: TraceSpan): string {
+  return isErrorSpan(span) ? " span-error" : "";
 }
 
 export function SpanRow({
@@ -43,7 +59,7 @@ export function SpanRow({
   return (
     <div
       id={`span-row-${span.id}`}
-      className={`span-row timeline-seq-row${selected ? " timeline-seq-selected" : ""}`}
+      className={`span-row timeline-seq-row${selected ? " timeline-seq-selected" : ""}${errorClass(span)}`}
       data-testid="trace-call"
       data-category={category}
       data-command={span.command ?? ""}
@@ -61,6 +77,7 @@ export function SpanRow({
         {span.service}
       </span>
       <span className="timeline-seq-call">{span.command ?? span.name}</span>
+      <SpanErrorMark span={span} />
       {state && (
         <span className="span-state" data-testid="span-state" title="the machine state this word ran in">
           {state}

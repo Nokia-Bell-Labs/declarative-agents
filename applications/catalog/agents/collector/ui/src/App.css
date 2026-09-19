@@ -1,52 +1,9 @@
 @import "@declarative-agents/ui-kit/tokens.css";
 
-/* Shell frame: the kit AppShell renders .shell, .sidebar, .nav-item, and
-   .content but ships no styles for them. */
-.shell {
-  display: flex;
-  min-height: 100vh;
-}
-
-.sidebar {
-  flex: 0 0 200px;
-  background: var(--bg-tertiary);
-  border-right: 1px solid var(--border);
-  padding: 16px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.sidebar-title {
-  font-size: 15px;
-  font-weight: 600;
-  padding: 4px 12px 16px;
-  color: var(--text-primary);
-}
-
-.nav-item {
-  padding: 8px 12px;
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  text-decoration: none;
-}
-
-.nav-item:hover {
-  background: var(--bg-secondary);
-  text-decoration: none;
-}
-
-.nav-item-active,
-.nav-item-active:hover {
-  background: var(--accent);
-  color: #ffffff;
-  font-weight: 600;
-}
-
-.content {
-  flex: 1;
-  min-width: 0;
+/* The kit shell (styles.css, .dak-shell) draws the frame, sidebar, and
+   content area edge to edge; the traces panel is the kit TraceView, which
+   pads itself, and the Explore page pads as a document. */
+.explore-page {
   padding: 24px;
 }
 
@@ -79,45 +36,6 @@ h1 {
   color: var(--text-secondary);
 }
 
-.back-link {
-  display: inline-block;
-  margin-bottom: 12px;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.back-link:hover {
-  color: var(--accent);
-}
-
-/* Trace list: filter + table */
-
-.filter-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.filter-input {
-  padding: 8px 12px;
-  font-size: 14px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  outline: none;
-  min-width: 240px;
-}
-
-.filter-input:focus {
-  border-color: var(--accent);
-}
-
-.table-container {
-  overflow-x: auto;
-}
-
 table {
   width: 100%;
   border-collapse: collapse;
@@ -142,58 +60,7 @@ tbody td {
   white-space: nowrap;
 }
 
-tbody tr {
-  cursor: pointer;
-}
-
-tbody tr:hover {
-  background: var(--bg-tertiary);
-}
-
-.pagination {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-  margin-top: 16px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.pagination button {
-  padding: 6px 14px;
-  font-size: 13px;
-  font-family: inherit;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--bg-primary);
-  color: var(--accent);
-  cursor: pointer;
-}
-
-.pagination button:hover:not(:disabled) {
-  background: var(--bg-tertiary);
-}
-
-.pagination button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-/* Trace detail header; the timeline itself is the kit's (.dak-trace). */
-.trace-stats {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 16px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.trace-stats strong {
-  color: var(--text-primary);
-}
-
-/* Explore page */
+/* Explore page tables and panels */
 .explore-panels {
   display: flex;
   gap: 24px;

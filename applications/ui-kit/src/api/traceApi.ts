@@ -1,8 +1,9 @@
 import { proxyPath, type KitClient } from "../client/client";
 
 // The trace data layer: the collector's query surface (catalog srd020 R5) read
-// through the proxy of the agent ui.yaml names as the trace backend (srd004
-// R2.4). Merged from cohere-demo (get-by-id, several-at-once) and
+// through the proxy of the agent ui.yaml names as the trace backend, or from a
+// same-origin path prefix when the UI is served beside the query surface
+// (srd004 R2.4). Merged from cohere-demo (get-by-id, several-at-once) and
 // agentic-wiki-mesh (the paged list). Presentation helpers built on TraceModel
 // ship with TracePanel.
 
@@ -21,6 +22,15 @@ export interface TraceSpan {
   signal?: string;
   // Every collected attribute, so a detail view needs no second fetch.
   attributes?: Record<string, unknown>;
+  // The OpenTelemetry span status; code 2 is an error (SPAN_STATUS_ERROR).
+  status?: { code: number; description?: string };
+}
+
+// SPAN_STATUS_ERROR is the OpenTelemetry status code of a failed span.
+export const SPAN_STATUS_ERROR = 2;
+
+export function isErrorSpan(span: TraceSpan): boolean {
+  return span.status?.code === SPAN_STATUS_ERROR;
 }
 
 // One step of a request-scoped machine's walk: the command an iteration ran and
@@ -57,6 +67,13 @@ export interface CollectorAttribute {
   Value: { Type: string; Value: unknown };
 }
 
+export interface CollectorSpanStatus {
+  Code?: number;
+  Description?: string;
+  code?: number;
+  description?: string;
+}
+
 export interface CollectorSpan {
   span_id: string;
   parent_span_id?: string;
@@ -64,7 +81,9 @@ export interface CollectorSpan {
   service: string;
   start_time: string;
   end_time: string;
-  status?: { code?: number; description?: string };
+  // The collector serializes the Go OTel status as {Code, Description}; the
+  // lower-case form is tolerated for other producers.
+  status?: CollectorSpanStatus;
   attributes?: CollectorAttribute[];
 }
 
@@ -113,12 +132,35 @@ export type TraceListState =
   | { status: "ok"; page: TraceListPage }
   | { status: "unavailable"; reason: string };
 
+// A trace backend is one of two forms (srd004 R2.4). A string that starts
+// with "/" is a same-origin path prefix under which /query/traces lives: "/"
+// is the origin root, and "/monitor-proxy/collector" reads the same URLs as
+// the agent name "collector". Any other string is an agent name reached
+// through the monitor proxy.
+function tracePath(backend: string, path: string): string {
+  if (!backend.startsWith("/")) return proxyPath(backend, path);
+  return `${backend.replace(/\/+$/, "")}/${path}`;
+}
+
 export function traceQueryPath(backend: string, traceId: string): string {
-  return proxyPath(backend, `query/traces/${encodeURIComponent(traceId)}`);
+  return tracePath(backend, `query/traces/${encodeURIComponent(traceId)}`);
 }
 
 export function traceListPath(backend: string, pageSize: number, offset: number): string {
-  return proxyPath(backend, `query/traces?page_size=${pageSize}&offset=${offset}`);
+  return tracePath(backend, `query/traces?page_size=${pageSize}&offset=${offset}`);
+}
+
+// traceBackendLabel names a backend in a notice: the agent, or the path the
+// same-origin form reads.
+export function traceBackendLabel(backend: string): string {
+  return backend.startsWith("/") ? `at ${tracePath(backend, "query/traces")}` : backend;
+}
+
+function spanStatus(status: CollectorSpanStatus | undefined): TraceSpan["status"] {
+  const code = status?.Code ?? status?.code;
+  if (typeof code !== "number") return undefined;
+  const description = status?.Description ?? status?.description;
+  return description ? { code, description } : { code };
 }
 
 function attributeMap(span: CollectorSpan): Record<string, unknown> {
@@ -151,6 +193,8 @@ function mergeAdapterDuplicates(spans: TraceSpan[]): void {
     if (!parent || parent.name !== span.name) continue;
     parent.attributes = { ...(span.attributes ?? {}), ...(parent.attributes ?? {}) };
     if (parent.target === undefined) parent.target = span.target;
+    // A failed wire call fails the model call it belongs to.
+    if (!isErrorSpan(parent) && isErrorSpan(span)) parent.status = span.status;
     absorbed.add(span.id);
   }
   if (absorbed.size === 0) return;
@@ -180,6 +224,7 @@ export function toModel(trace: CollectorTrace): TraceModel {
       target: nonEmpty(attributes["server.address"]),
       signal: nonEmpty(attributes["command.signal"]),
       attributes,
+      status: spanStatus(s.status),
     };
   });
   spans.sort((a, b) => a.startUs - b.startUs);

@@ -6,6 +6,14 @@ import TraceViewer from './TraceViewer'
 // The experiments panel owns the session list and its drill-downs below
 // /sessions/; the shell also mounts it at / as the default panel.
 export default function Experiments() {
+  return (
+    <div className="bench-page">
+      <ExperimentsView />
+    </div>
+  )
+}
+
+function ExperimentsView() {
   const [head, suite, ts, points, pointId, ...rest] = usePath().split('/').slice(1).map(decodeURIComponent)
   if (head !== 'sessions' || !suite || !ts || rest.length > 0) return <Dashboard />
   if (points === undefined) return <SessionDetail suite={suite} ts={ts} />
