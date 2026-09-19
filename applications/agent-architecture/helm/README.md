@@ -28,10 +28,13 @@ directory with no source checkout present.
 
 ## Enable the applier
 
-The applier is disabled by default: it runs the shared applier image (agent-core
-plus helm and kubectl, built from `agent-core/applier.Dockerfile`; GH-1368) rather
-than the profile-free runtime image the curator and collector use, so every other
-cluster test installs the mesh without it. The image bakes no chart; the chart it
+The applier is disabled by default, so every other cluster test installs the
+mesh without it. It runs the same profile-free agent-core image as the curator
+and collector. A `cli-donor` init container copies helm and kubectl from the
+digest-pinned `applier.cliDonor.image` into a volume mounted read-only at
+`/opt/tools` and first on the applier's `PATH` (GH-2222). Where Docker Hub is
+unreachable, mirror the donor into the cluster's registry and pin the mirror's
+digest. No image bakes the chart; the chart it
 runs `helm upgrade agent-architecture /chart` against is delivered to the pod at
 `/chart` from the ConfigMap named by `applier.chartArchiveConfigMap`, unpacked
 by an init container. Provision that ConfigMap outside the Helm release so its

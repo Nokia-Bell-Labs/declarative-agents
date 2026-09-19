@@ -65,10 +65,8 @@ collector:
 
 # The applier (srd002-applier): the deployment-plane actuator that realizes a
 # decided values patch against the chart on Kubernetes. Disabled by default -- it
-# runs the shared applier image (agent-core plus helm and kubectl, a sanctioned
-# divergence from the profile-free runtime image, srd001 R1.2; GH-1368), which is
-# not the runtime image the curator and collector smoke tests kind-load, so the
-# live tier enables it explicitly (ci/kind-applier-values.yaml) and supplies the
+# needs the chart ConfigMap and the kind-loaded CLI donor (GH-2222), which only the
+# live tier provisions, so the live tier enables it explicitly (ci/kind-applier-values.yaml) and supplies the
 # chart it mounts at /chart via applier.chartArchiveConfigMap.
 applier:
   enabled: false

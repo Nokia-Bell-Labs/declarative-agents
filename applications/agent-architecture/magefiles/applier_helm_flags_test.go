@@ -4,15 +4,15 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
-// These bind the applier's declared helm flags to the helm the applier image ships
+// These bind the applier's declared helm flags to the helm the CLI donor delivers
 // (srd002-applier R5.3), and pin the design decision the live tier exposed: the
 // apply must not wait.
 //
@@ -30,8 +30,6 @@ import (
 // (apply-machine.yaml). The apply therefore returns immediately and the kubectl
 // rollout status verify word catches a stall and compensates it with helm_rollback.
 
-var helmVersionPattern = regexp.MustCompile(`(?m)^ARG HELM_VERSION=v(\d+)\.`)
-
 var helmDryRunByMajor = map[int]string{
 	3: "--dry-run",
 	4: "--dry-run=client",
@@ -41,21 +39,13 @@ var helmUpgradeForbiddenFlags = []string{"--atomic", "--wait", "--rollback-on-fa
 
 func pinnedHelmMajor(t *testing.T) int {
 	t.Helper()
-	appRoot := filepath.Dir(findChartDir(t))
-	// The applier image is the shared agent-core/applier.Dockerfile (GH-1368),
-	// two levels up from the application root.
-	dockerfile := filepath.Join(appRoot, "..", "..", "agent-core", "applier.Dockerfile")
-	data, err := os.ReadFile(dockerfile)
+	// The applier runs the helm the pinned CLI donor carries (GH-2222), which the
+	// chart's applier.cliDonor.image references and kindrig.VerifyCLIDonor checks
+	// inside the running pod.
+	version := strings.TrimPrefix(kindrig.CLIDonorHelmVersion, "v")
+	major, err := strconv.Atoi(strings.SplitN(version, ".", 2)[0])
 	if err != nil {
-		t.Fatalf("read agent-core/applier.Dockerfile: %v", err)
-	}
-	match := helmVersionPattern.FindSubmatch(data)
-	if match == nil {
-		t.Fatal("agent-core/applier.Dockerfile pins no ARG HELM_VERSION=vN.…; the flag guard cannot tell which helm ships")
-	}
-	major, err := strconv.Atoi(string(match[1]))
-	if err != nil {
-		t.Fatalf("parse helm major from %q: %v", match[1], err)
+		t.Fatalf("parse helm major from %q: %v", kindrig.CLIDonorHelmVersion, err)
 	}
 	return major
 }
@@ -68,7 +58,7 @@ func TestApplierHelmFlagsMatchTheShippedHelm(t *testing.T) {
 	major := pinnedHelmMajor(t)
 	wantDryRun, known := helmDryRunByMajor[major]
 	if !known {
-		t.Fatalf("agent-core/applier.Dockerfile pins helm %d, whose dry-run spelling this guard does not know; "+
+		t.Fatalf("the CLI donor pins helm %d, whose dry-run spelling this guard does not know; "+
 			"decide what it calls validate-without-applying, and add it to helmDryRunByMajor", major)
 	}
 

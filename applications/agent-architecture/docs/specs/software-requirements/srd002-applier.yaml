@@ -34,10 +34,10 @@ problem: |
   values.schema.json (srd001 R2) and the rollout phase read from a CLI exit
   code. The requirements must name the actuation surface, the validate-then-apply
   and verify-then-rollback machine, the authority boundary that keeps helm and
-  kubectl off the serving pods, and the sanctioned divergence of the shared
-  applier image -- agent-core plus helm and kubectl, with the chart delivered as a
-  mounted volume rather than baked in -- separately from the agent-core runtime
-  the applier builds on. Because the Agent
+  kubectl off the serving pods, and how the applier receives its CLIs without an image of its
+  own: it runs the shared agent-core image, a digest-pinned CLI donor delivers
+  helm and kubectl at pod start into a read-only volume, and the chart arrives as
+  a mounted volume rather than baked in (GH-2222). Because the Agent
   Architecture has no control plane, the applier is a standalone actuator with no
   panel state view and no in-cluster caller.
 
@@ -51,7 +51,7 @@ goals:
   - id: G4
     text: Hold helm and kubectl authority in the applier alone; the curator and collector carry none, and authority is set by declared, validated config.
   - id: G5
-    text: Run the applier on the shared applier image -- agent-core plus the helm and kubectl CLIs -- a recorded, sanctioned divergence from the profile-free, binary-only image contract, and deliver the chart to the applier pod as a mounted volume rather than baking it into the image.
+    text: Run the applier on the shared agent-core image, receive the helm and kubectl CLIs at pod start from a digest-pinned CLI donor into a read-only volume, and deliver the chart to the applier pod as a mounted volume, so no image diverges from the profile-free, binary-only image contract.
 
 requirements:
   - id: R1
@@ -100,7 +100,7 @@ requirements:
       - id: R5.2
         text: The applier shall not select workload profiles or own agent lifecycle; those remain the packaging and chart's (srd001).
       - id: R5.3
-        text: The applier shall run the shared applier image -- agent-core plus the helm and kubectl CLIs -- a sanctioned divergence from the profile-free, binary-only image contract (srd001 R1.2), recorded so the declarative-decomposition audit does not re-flag it; the chart shall be delivered to the applier pod as a mounted volume rather than baked into the image.
+        text: The applier shall run the shared agent-core image and receive the helm and kubectl CLIs at pod start from a digest-pinned CLI donor image (applier.cliDonor.image) that an init container copies into a volume mounted read-only at /opt/tools and placed first on the applier's PATH, so the binaries it execs cannot be replaced at runtime; the chart shall be delivered to the applier pod as a mounted volume rather than baked into an image. No image diverges from the profile-free, binary-only image contract (srd001 R1.2, GH-2222).
 
 acceptance_criteria:
   - id: AC1
@@ -116,7 +116,7 @@ acceptance_criteria:
     criterion: The applier alone holds helm and kubectl bound as exec tools, the curator and collector carry none, authority is set by declared validated config and never by this surface (agent-core srd028 V30), and the apply surface is unreachable from the serving pods at the network layer.
     traces: [R4.1, R4.2, R4.3]
   - id: AC5
-    criterion: Deciding the values (the operator or CI caller) and profile selection or lifecycle (packaging and chart) are non-goals, and the applier runs the shared applier image (agent-core plus helm and kubectl) as a recorded, sanctioned divergence from the binary-only image contract, with the chart delivered to the applier pod as a mounted volume rather than baked into the image.
+    criterion: Deciding the values (the operator or CI caller) and profile selection or lifecycle (packaging and chart) are non-goals, and the applier runs the shared agent-core image with helm and kubectl delivered at pod start from the pinned CLI donor into a read-only /opt/tools, and the chart delivered to the applier pod as a mounted volume, so no image diverges from the binary-only image contract.
     traces: [R5.1, R5.2, R5.3]
 
 depends_on:
@@ -155,10 +155,9 @@ implementation_status:
       applier Deployment, image, and NetworkPolicy that keep the apply surface
       off the serving pods, and an integration target that drives a values patch
       through validate, apply, verify, and rollback against the packaged chart on
-      the kind rig (srd001 R3). The applier running the shared applier image --
-      agent-core plus helm and kubectl, with the chart delivered to the pod as a
-      mounted volume rather than baked in -- is a recorded divergence from the
-      profile-free image contract. The code lands in
+      the kind rig (srd001 R3). The applier runs the shared agent-core image;
+      helm and kubectl arrive at pod start from a pinned CLI donor into a
+      read-only volume, and the chart as a mounted volume (GH-2222). The code lands in
       later sub-issues of the release; this document and its use case and test
       suite land first.
 
@@ -176,7 +175,7 @@ diagrams:
       R2 --> AC2["AC2: schema dry-run then values-file apply"]
       R3 --> AC3["AC3: rollout verify and rollback"]
       R4 --> AC4["AC4: applier holds the CLIs, authority by declared config"]
-      R5 --> AC5["AC5: not the decision or lifecycle; sanctioned CLI image"]
+      R5 --> AC5["AC5: not the decision or lifecycle; CLIs from a pinned donor"]
     ```
   actuation_machine: |
     ```mermaid
@@ -195,6 +194,4 @@ non_goals:
   - The applier shall not decide the values change; the authorized operator or CI caller decides it and submits it as the apply
     request's values-plane content.
   - The applier shall not select workload profiles or own agent lifecycle; those remain the packaging and chart's (srd001).
-  - The applier shall run the shared applier image -- agent-core plus the helm and kubectl CLIs -- a sanctioned divergence from
-    the profile-free, binary-only image contract (srd001 R1.2), recorded so the declarative-decomposition audit does not re-flag
-    it; the chart shall be delivered to the applier pod as a mounted volume rather than baked into the image.
+  - The applier shall run the shared agent-core image and receive the helm and kubectl CLIs at pod start from a digest-pinned CLI donor image (applier.cliDonor.image) that an init container copies into a volume mounted read-only at /opt/tools and placed first on the applier's PATH, so the binaries it execs cannot be replaced at runtime; the chart shall be delivered to the applier pod as a mounted volume rather than baked into an image. No image diverges from the profile-free, binary-only image contract (srd001 R1.2, GH-2222).

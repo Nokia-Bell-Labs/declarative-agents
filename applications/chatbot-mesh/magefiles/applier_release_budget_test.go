@@ -31,7 +31,7 @@ func TestApplierReleaseFitsSecretBudgetWithExternalUIAssets(t *testing.T) {
 	defer cleanupChart()
 
 	const runtimeImage = "declarative-agents/agent-core:budget"
-	const applierImage = "declarative-agents/applier:budget"
+	const applierImage = "declarative-agents/agent-core:budget"
 	fullArchive, cleanupFull, err := packageApplierChart(staged)
 	if err != nil {
 		t.Fatal(err)
@@ -144,7 +144,7 @@ func TestExternalUIRenderReferencesButDoesNotStoreAssets(t *testing.T) {
 	valueArgs := applierLiveValueArgs(
 		staged,
 		"declarative-agents/agent-core:render",
-		"declarative-agents/applier:render",
+		"declarative-agents/agent-core:render",
 		assets,
 	)
 	args := append([]string{"template", releaseName, staged}, valueArgs...)

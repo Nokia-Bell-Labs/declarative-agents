@@ -22,7 +22,7 @@ traces:
 
 preconditions:
   - agent-core is available for the request runtime, REST server, monitor, and exec tools.
-  - The applier profile is deployed with its apply, control, and monitor servers; its image carries helm and kubectl.
+  - The applier profile is deployed with its apply, control, and monitor servers; it runs the agent-core image with helm and kubectl on a read-only /opt/tools from the pinned CLI donor.
   - The coding chart carries a values.schema.json, and the apply surface is network-gated off the serving and collector pods.
 
 test_cases:
@@ -145,9 +145,10 @@ test_cases:
     integration_target: mage integration:applierLive
     status: implemented
     description: |
-      What the fake CLIs cannot stand in for. The applier image is built on the
-      coding runtime under test, loaded into kind, and the coding chart installed
-      with the applier enabled; a values patch then goes through the apply endpoint
+      What the fake CLIs cannot stand in for. The applier runs the agent-core
+      runtime with helm and kubectl from the pinned CLI donor, loaded into kind,
+      and the coding chart installed with the applier enabled; inside the pod, helm
+      reports the donor's version and a write to /opt/tools fails; a values patch then goes through the apply endpoint
       and the release moves to a new revision, which is the evidence a 200 is not --
       the fake tier returns one of those without helm existing.
 
@@ -160,7 +161,7 @@ test_cases:
       leaving the release untouched. Bounded host and in-pod probes classify a
       Kubernetes API or pod-network loss apart from the semantic proof.
     inputs:
-      cluster: kind with the applier image built and loaded
+      cluster: kind with the agent-core runtime and the pinned CLI donor loaded
       patch: a conforming coding values patch
       rollback_trigger: a patch that forces a post-upgrade verification failure
       rejected: a non-conforming coding values patch

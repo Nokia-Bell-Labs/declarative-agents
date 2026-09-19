@@ -353,7 +353,7 @@ func applierLiveDependencyImages(chartDir string) ([]string, error) {
 }
 
 // stageApplierLiveChart gives only this live tier a deterministic post-upgrade
-// regression hook. Both the host-side install and /chart in the applier image
+// regression hook. Both the host-side install and the chart the applier mounts at /chart
 // use this same staged directory, so Helm records and rolls back one coherent
 // instrumented chart.
 func stageApplierLiveChart(chartDir, profilesRoot string) (string, func(), error) {

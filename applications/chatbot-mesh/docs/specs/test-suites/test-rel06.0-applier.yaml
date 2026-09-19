@@ -19,7 +19,7 @@ traces:
 
 preconditions:
   - agent-core is available for the request runtime, REST server, and exec tools.
-  - The applier profile is deployed with its state, apply, and rollout servers on the Service the provisioner served; its image carries helm and kubectl.
+  - The applier profile is deployed with its state, apply, and rollout servers on the Service the provisioner served; it runs the agent-core image with helm and kubectl on a read-only /opt/tools from the pinned CLI donor.
   - The chart carries a values.schema.json, and the apply path is reached only by the creator, authenticated apart from chat.
 
 test_cases:
@@ -115,8 +115,8 @@ test_cases:
     go_test: TestApplierServiceTargetsItsDeployment, TestApplierMountsEveryProfileItStarts, TestApplierRendersItsWholeSurface
     status: done
     description: |
-      helm/ci/kind-values.yaml disables the applier, because its image bundles helm,
-      kubectl, and the chart while the smoke tests kind-load only the runtime image.
+      helm/ci/kind-values.yaml disables the applier, because it needs the chart
+      ConfigMap and the kind-loaded CLI donor, which only the live tier provisions.
       Every cluster-level test therefore stands up a mesh without it, and the
       packaging path that would carry the applier into a cluster is proven here.
 
@@ -180,16 +180,17 @@ test_cases:
     integration_target: mage integration:applierLive (GH-735, GH-751)
     status: done
     description: |
-      What the fake CLIs cannot stand in for. The applier image is built on the
-      runtime under test, loaded into kind, and the mesh installed with the
-      applier enabled; a values patch then goes through the apply endpoint and
+      What the fake CLIs cannot stand in for. The applier runs the agent-core
+      runtime under test with helm and kubectl from the pinned CLI donor, loaded
+      into kind, and the mesh installed with the applier enabled; inside the pod,
+      helm reports the donor's version and a write to /opt/tools fails; a values patch then goes through the apply endpoint and
       the release moves to a new revision, which is the evidence a 200 is not --
       the fake tier returns one of those without helm existing.
 
       The compensating leg is live too. The tier stages a test-only post-upgrade
       hook and permissions into both the installed chart and the chart at /chart.
       A reserved valid parameter patch activates the hook. Helm first waits for
-      the ordinary upgrade, then the hook uses the applier image's real kubectl
+      the ordinary upgrade, then the hook runs the donor image's real kubectl
       to regress the chatbot Deployment before helm upgrade returns. The
       applier's subsequent declared kubectl rollout status therefore times out
       deterministically, reaches RollingBack, and invokes real helm rollback.
@@ -230,7 +231,7 @@ test_cases:
       Role now covers what the chart it manages holds, and every rule traces to
       an observed denial.
     inputs:
-      cluster: kind with the applier image built and loaded
+      cluster: kind with the agent-core runtime and the pinned CLI donor loaded
       patch: testdata/integration/applier-values/conforming.yaml
       rollback_trigger: testdata/integration/applier-values/rollback-trigger.yaml
       rejected: testdata/integration/applier-values/non-conforming.yaml
