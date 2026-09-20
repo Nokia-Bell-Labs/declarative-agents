@@ -122,7 +122,15 @@ tools:
       emits: [DiagnosisPathReady]
     description: Name the diagnosis file the read-back gate reads.
     parameters: {type: object, properties: {}, additionalProperties: false}
-    output: {description: The diagnosis path as a read request.}
+    output:
+      description: The diagnosis path as a read request.
+      schema:
+        type: object
+        properties:
+          parameters:
+            type: object
+            properties:
+              path: {type: string}
     errors:
       - {signal: CommandError, condition: the path payload cannot be composed, state_after_failure: no read is attempted}
     config:

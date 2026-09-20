@@ -3,12 +3,11 @@
 # The checks the catalog's own specification corpus gates on (GH-2310).
 #
 # A spec_corpus check with no `checks` list runs every check the validator
-# knows. This one names its checks, because two families of finding are not
-# yet actionable against this corpus: the tool-corpus checks report words the
-# loader could not follow a declaration path to, which the runtime resolves
-# correctly and boot smoke already gates (GH-2330). Adding a check here is a
-# one-line change once its findings are clean, as uncovered-req-item was
-# once its 11 findings were closed (GH-2329).
+# knows. This one names the checks the catalog gates on, so adding one is a
+# deliberate edit here once its findings are clean: uncovered-req-item joined
+# when its 11 findings were closed (GH-2329), and the tool-corpus checks when
+# the loader learned to follow the declaration paths a word's config and an
+# agent directory name (GH-2330).
 id: catalog-corpus-charter
 title: Catalog Specification Corpus Checks
 checks:
@@ -34,6 +33,10 @@ checks:
       # A test suite and its cases name a use case that exists.
       - test-case-missing-use-case
       - test-suite-missing-uc-trace
+      # Every selected word is declared, and every declared word carries its
+      # contract fields (GH-2330).
+      - tool-selection-undeclared
+      - tool-contract-incomplete
       # Documentation specs point at files that exist.
       - docspec-broken-example-path
       - docspec-broken-implementation-path

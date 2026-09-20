@@ -91,3 +91,7 @@ tools:
     condition: git cannot be started
     message_shape: 'commit_workspace_baseline: <error>'
     state_after_failure: baseline commit is absent
+  output:
+    description: Plain-text git commit confirmation for the baseline commit.
+    schema:
+      type: string

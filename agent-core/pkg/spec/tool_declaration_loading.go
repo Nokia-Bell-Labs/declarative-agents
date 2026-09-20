@@ -14,6 +14,7 @@ import (
 
 func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaration, []string, error) {
 	declFiles, requiredSet := toolDeclarationFiles(rootDir)
+	readable, unresolved := partitionDeclarationFiles(declFiles, requiredSet)
 
 	// Declarations record an absolute source, so the root must be absolute too
 	// for the relative form findings quote to come out clean.
@@ -23,10 +24,32 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 	}
 
 	decls := make(map[string]ToolDeclaration)
-	var unresolved []string
-	var readable []string
+	loaded, err := loadInto(decls, readable, absRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// A word that runs a nested machine names that machine's vocabulary in its
+	// own config, which is the only place those declarations are written down.
+	// They cannot be in the first pass: the file list is built before any
+	// declaration is parsed, so the corpus reads what it just loaded and
+	// follows what that names (GH-2330).
+	nested := configNamedDeclarationFiles(loaded, rootDir, seenPaths(readable))
+	if _, err := loadInto(decls, nested, absRoot); err != nil {
+		return nil, nil, err
+	}
+
+	sort.Strings(unresolved)
+	return decls, unresolved, nil
+}
+
+// partitionDeclarationFiles splits the candidate files into the readable ones
+// and the named-but-missing ones. A path a profile named explicitly is the one
+// an operator can get wrong, so an unreadable one is reported rather than
+// skipped (GH-1525 R3).
+func partitionDeclarationFiles(declFiles []string, requiredSet map[string]bool) (readable, unresolved []string) {
 	for _, path := range declFiles {
-		if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
 			if requiredSet[path] {
 				unresolved = append(unresolved, path)
 			}
@@ -34,8 +57,19 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 		}
 		readable = append(readable, path)
 	}
+	return readable, unresolved
+}
+
+// loadInto parses paths and folds their words into decls, returning what it
+// loaded so a caller can follow what those declarations themselves name.
+func loadInto(
+	decls map[string]ToolDeclaration, paths []string, absRoot string,
+) ([]catalog.ToolDef, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
 	loaded, err := catalog.LoadToolDeclarationsWithOptions(
-		readable,
+		paths,
 		catalog.LoadOptions{
 			TolerateNonToolFiles: true,
 			ExpandEnv:            false,
@@ -44,12 +78,64 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 		nil,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	mergeToolDeclarations(decls, loaded, absRoot)
+	return loaded, nil
+}
 
-	sort.Strings(unresolved)
-	return decls, unresolved, nil
+func seenPaths(paths []string) map[string]bool {
+	seen := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		seen[filepath.Clean(path)] = true
+	}
+	return seen
+}
+
+// configNamedDeclarationFiles returns the declaration files loaded words name
+// in their own config, by the *_tool_declarations convention the nested-machine
+// words follow. Paths resolve the way a profile's do: an installed core path
+// maps onto the configured agent-core root, and a relative one resolves
+// against the module root, which is what the runtime passes as --directory.
+// Files already loaded, and files that do not exist, are skipped: a config
+// naming a path this corpus cannot see is reported by the unresolved-path
+// check rather than failing the load.
+func configNamedDeclarationFiles(loaded []catalog.ToolDef, rootDir string, seen map[string]bool) []string {
+	var files []string
+	for _, def := range loaded {
+		for key, value := range def.Config {
+			if !strings.HasSuffix(key, "_tool_declarations") {
+				continue
+			}
+			for _, named := range configStringSlice(value) {
+				path := filepath.Clean(resolveProfilePath(rootDir, named))
+				if seen[path] {
+					continue
+				}
+				if _, err := os.Stat(path); err != nil {
+					continue
+				}
+				seen[path] = true
+				files = append(files, path)
+			}
+		}
+	}
+	sort.Strings(files)
+	return files
+}
+
+func configStringSlice(value any) []string {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if text, ok := item.(string); ok && strings.TrimSpace(text) != "" {
+			out = append(out, text)
+		}
+	}
+	return out
 }
 
 // toolDeclarationFiles lists every declaration file to load, and the subset a
@@ -69,9 +155,17 @@ func toolDeclarationFiles(rootDir string) ([]string, map[string]bool) {
 
 	requiredSet := make(map[string]bool)
 	for _, pd := range collectProfileDirs(resolveProfileAssetsRoot(rootDir)) {
-		override := filepath.Join(pd.Dir, "builtin.yaml")
-		if _, err := os.Stat(override); err == nil {
-			declFiles = append(declFiles, override)
+		// builtin.yaml and declarations.yaml are the conventional names an
+		// agent directory ships its own words under. A directory with a
+		// machine but no profile.yaml -- a family fragment another profile
+		// composes -- has nothing to name them, so the corpus reads what the
+		// directory ships or sees a family that selects undeclared words
+		// (GH-2330).
+		for _, conventional := range []string{"builtin.yaml", "declarations.yaml"} {
+			path := filepath.Join(pd.Dir, conventional)
+			if _, err := os.Stat(path); err == nil {
+				declFiles = append(declFiles, path)
+			}
 		}
 		declFiles = append(declFiles, yamlFilesInDir(filepath.Join(pd.Dir, "llm"))...)
 		named := declarationFilesFromProfile(filepath.Join(pd.Dir, "profile.yaml"))
