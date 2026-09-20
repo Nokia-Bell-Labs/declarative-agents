@@ -1,0 +1,109 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: applier-deploy-request
+purpose: |-
+  Install or upgrade one release from the host through the same write,
+  validate, apply, verify, and compensate shape the apply machine uses
+  (srd022 R6.1). Day-0 semantics live in the declared words rather than in
+  this graph (R6.4): the apply word carries --install, --create-namespace,
+  and --atomic, so Helm deletes a failed first install and rolls back a
+  failed upgrade before the machine ever sees ToolFailed. A ToolFailed out
+  of Applying therefore names a state Helm has already compensated, and the
+  machine's own compensation covers the one case Helm leaves standing, a
+  verify stall after an apply that succeeded.
+
+  The machine does not probe for release existence. An exec word reports
+  exit status alone, so a probe cannot separate an absent release from an
+  unreachable API server, and acting on that misread could route destructive
+  compensation against a release this run did not create. Compensation is
+  rollback in both worlds: after an upgrade it restores the prior revision,
+  and after a first install there is no prior revision, so the rollback
+  fails and the run reaches Failed with the release left in place for
+  inspection or an explicit undeploy (R6.3).
+initial_state: AwaitingRequest
+budget:
+  command_timeout: 10m
+  max_iterations: 12
+pipeline_diagram: |-
+  ```mermaid
+  flowchart TD
+    A[AwaitingRequest] -->|Seed| B[Writing]
+    B -->|ToolDone| C[Validating]
+    B -->|ToolFailed| F[Failed]
+    C -->|ToolDone| D[Applying]
+    C -->|ToolFailed| R[Rejected]
+    D -->|ToolDone| E[Verifying]
+    D -->|ToolFailed| F
+    E -->|ToolDone| G[Deployed]
+    E -->|ToolFailed| H[RollingBack]
+    H -->|ToolDone| I[Compensated]
+    H -->|ToolFailed| F
+  ```
+states:
+  - name: AwaitingRequest
+    meaning: "Seeded by a host deploy target with the decided values document."
+  - name: Writing
+    meaning: "Writing the decided overrides to the workspace values file the apply words read."
+  - name: Validating
+    meaning: "Rendering the release with a dry run, so a values document the chart rejects never mutates the cluster."
+  - name: Applying
+    meaning: "Applying the validated values with install semantics. A failure here is one Helm has already compensated under --atomic."
+  - name: Verifying
+    meaning: "Waiting for every Deployment in the release namespace to become available."
+  - name: RollingBack
+    meaning: "Compensating a verify stall. A first install has no prior revision, so this fails and the release is left for inspection."
+  - name: Deployed
+    run_status: succeeded
+    meaning: "Terminal. The release applied and every Deployment became available."
+  - name: Rejected
+    run_status: failed
+    meaning: "Terminal. Validation rejected the values before anything was applied."
+  - name: Compensated
+    run_status: failed
+    meaning: "Terminal. Verification stalled and the rollback restored the prior revision."
+  - name: Failed
+    run_status: failed
+    meaning: "Terminal. The write failed, the apply failed after Helm compensated, or compensation itself failed."
+terminal_states:
+  - Deployed
+  - Rejected
+  - Compensated
+  - Failed
+signals:
+  - name: Seed
+    trigger: "A host deploy target starts a request-scoped run."
+  - name: ToolDone
+    trigger: "A boundary word completed."
+  - name: ToolFailed
+    trigger: "A boundary word failed."
+  - name: CommandError
+    trigger: "Infrastructure-level error, not a word failure."
+  - name: BudgetExhausted
+    trigger: "Iteration or timeout budget reached."
+transitions:
+  - {state: AwaitingRequest, signal: Seed,       next: Writing,     action: write_overrides}
+  - {state: Writing,         signal: ToolDone,   next: Validating,  action: helm_dry_run}
+  - {state: Writing,         signal: ToolFailed, next: Failed}
+  - {state: Validating,      signal: ToolDone,   next: Applying,    action: helm_upgrade}
+  - {state: Validating,      signal: ToolFailed, next: Rejected}
+  - {state: Applying,        signal: ToolDone,   next: Verifying,   action: verify_rollout}
+  - {state: Applying,        signal: ToolFailed, next: Failed}
+  - {state: Verifying,       signal: ToolDone,   next: Deployed}
+  - {state: Verifying,       signal: ToolFailed, next: RollingBack, action: helm_rollback}
+  - {state: RollingBack,     signal: ToolDone,   next: Compensated}
+  - {state: RollingBack,     signal: ToolFailed, next: Failed}
+  # A run that stops mid-sequence reaches no terminal at all unless every
+  # non-terminal state routes the signals the engine raises (srd022 R6.1;
+  # the rig-doctor learned this as GH-2294).
+  - {state: AwaitingRequest, signal: CommandError,     next: Failed}
+  - {state: Writing,         signal: CommandError,     next: Failed}
+  - {state: Validating,      signal: CommandError,     next: Failed}
+  - {state: Applying,        signal: CommandError,     next: Failed}
+  - {state: Verifying,       signal: CommandError,     next: Failed}
+  - {state: RollingBack,     signal: CommandError,     next: Failed}
+  - {state: AwaitingRequest, signal: BudgetExhausted,  next: Failed}
+  - {state: Writing,         signal: BudgetExhausted,  next: Failed}
+  - {state: Validating,      signal: BudgetExhausted,  next: Failed}
+  - {state: Applying,        signal: BudgetExhausted,  next: Failed}
+  - {state: Verifying,       signal: BudgetExhausted,  next: Failed}
+  - {state: RollingBack,     signal: BudgetExhausted,  next: Failed}

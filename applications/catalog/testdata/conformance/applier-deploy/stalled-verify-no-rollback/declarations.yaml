@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fails verification and compensation, which is the first-install case: no prior revision to roll back to.
+unit: catalog-applier-deploy-stalled-verify-no-rollback
+tools:
+  - name: verify_rollout
+    type: exec
+    binary: sh
+    args: [-c, "exit 1"]
+    category: boundary
+    visibility: internal
+    description: Failing verification double.
+    signature:
+      emits: [ToolDone, ToolFailed]
+    side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
+    reversibility: {classification: reversible, requires_confirmation: false}
+    undo: {strategy: noop, description: A failing double mutates nothing.}
+    errors: [{signal: ToolFailed, condition: The double always fails, state_after_failure: No external state changed.}]
+  - name: helm_rollback
+    type: exec
+    binary: sh
+    args: [-c, "exit 1"]
+    category: boundary
+    visibility: internal
+    description: Failing compensation double, standing for a release with no prior revision.
+    signature:
+      emits: [ToolDone, ToolFailed]
+    side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
+    reversibility: {classification: reversible, requires_confirmation: false}
+    undo: {strategy: noop, description: A failing double mutates nothing.}
+    errors: [{signal: ToolFailed, condition: The double always fails, state_after_failure: No external state changed.}]

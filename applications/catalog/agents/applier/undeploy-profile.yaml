@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The host-side undeploy variant (srd022 R6.5). It needs no workspace write,
+# so it selects the standalone boundaries alone.
+name: applier-undeploy-request
+machine: undeploy-machine.yaml
+tools:
+  - undeploy-tools.yaml
+tool_declarations:
+  - standalone-declarations.yaml

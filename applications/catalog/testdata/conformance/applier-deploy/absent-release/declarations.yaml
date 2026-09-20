@@ -1,0 +1,18 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Redeclares the history probe so it fails, standing for a release that is not installed.
+unit: catalog-applier-undeploy-absent-release
+tools:
+  - name: helm_history
+    type: exec
+    binary: sh
+    args: [-c, "exit 1"]
+    category: boundary
+    visibility: internal
+    description: Failing release-history double.
+    signature:
+      emits: [ToolDone, ToolFailed]
+    side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
+    reversibility: {classification: reversible, requires_confirmation: false}
+    undo: {strategy: noop, description: A failing double mutates nothing.}
+    errors: [{signal: ToolFailed, condition: The double always fails, state_after_failure: No external state changed.}]

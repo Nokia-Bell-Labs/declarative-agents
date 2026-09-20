@@ -1,0 +1,72 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: applier-undeploy-request
+purpose: |-
+  Remove one release from the host, reporting an already-absent release as a
+  success rather than a failure, because a teardown of nothing has the
+  outcome the caller wanted (srd022 R6.5).
+
+  This machine does probe, and the probe carries the exit-status ambiguity
+  the deploy machine refuses: helm_history failing could mean the release is
+  absent or that the cluster cannot be reached. It is tolerable in this one
+  place because the failure direction is benign, since nothing is mutated on
+  a false Absent, and because the caller confirms the cluster is running
+  before it starts this run, which removes the unreachable case in practice.
+  Both halves have to hold; a caller that skips the cluster check turns a
+  network fault into a silent report that the release is gone.
+initial_state: AwaitingRequest
+budget:
+  command_timeout: 5m
+  max_iterations: 6
+pipeline_diagram: |-
+  ```mermaid
+  flowchart TD
+    A[AwaitingRequest] -->|Seed| B[Probing]
+    B -->|ToolDone| C[Uninstalling]
+    B -->|ToolFailed| D[Absent]
+    C -->|ToolDone| E[Removed]
+    C -->|ToolFailed| F[Failed]
+  ```
+states:
+  - name: AwaitingRequest
+    meaning: "Seeded by a host undeploy target."
+  - name: Probing
+    meaning: "Reading the release history to learn whether there is anything to remove."
+  - name: Uninstalling
+    meaning: "Removing the release and waiting for its objects to go."
+  - name: Removed
+    run_status: succeeded
+    meaning: "Terminal. The release existed and was removed."
+  - name: Absent
+    run_status: succeeded
+    meaning: "Terminal. No release was there to remove, which is the outcome a teardown wanted."
+  - name: Failed
+    run_status: failed
+    meaning: "Terminal. The release existed and the uninstall failed."
+terminal_states:
+  - Removed
+  - Absent
+  - Failed
+signals:
+  - name: Seed
+    trigger: "A host undeploy target starts a request-scoped run."
+  - name: ToolDone
+    trigger: "A boundary word completed."
+  - name: ToolFailed
+    trigger: "A boundary word failed."
+  - name: CommandError
+    trigger: "Infrastructure-level error, not a word failure."
+  - name: BudgetExhausted
+    trigger: "Iteration or timeout budget reached."
+transitions:
+  - {state: AwaitingRequest, signal: Seed,       next: Probing,      action: helm_history}
+  - {state: Probing,         signal: ToolDone,   next: Uninstalling, action: helm_uninstall}
+  - {state: Probing,         signal: ToolFailed, next: Absent}
+  - {state: Uninstalling,    signal: ToolDone,   next: Removed}
+  - {state: Uninstalling,    signal: ToolFailed, next: Failed}
+  - {state: AwaitingRequest, signal: CommandError,    next: Failed}
+  - {state: Probing,         signal: CommandError,    next: Failed}
+  - {state: Uninstalling,    signal: CommandError,    next: Failed}
+  - {state: AwaitingRequest, signal: BudgetExhausted, next: Failed}
+  - {state: Probing,         signal: BudgetExhausted, next: Failed}
+  - {state: Uninstalling,    signal: BudgetExhausted, next: Failed}

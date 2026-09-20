@@ -67,6 +67,71 @@ func TestCanonicalApplierMachineContracts(t *testing.T) {
 	}
 }
 
+// The host-side deploy variant keeps the apply machine's shape, so day-0 and
+// day-2 differ in the declared words alone (srd022 R6.4). Pinning the whole
+// table is what fails if someone reintroduces a release-existence branch.
+func TestCanonicalApplierDeployMachineContracts(t *testing.T) {
+	t.Parallel()
+	type machine struct {
+		TerminalStates []string            `yaml:"terminal_states"`
+		Transitions    []applierTransition `yaml:"transitions"`
+	}
+
+	var deploy machine
+	readRoleYAML(t, "agents/applier/deploy-machine.yaml", &deploy)
+	wantDeployTerminals := []string{"Deployed", "Rejected", "Compensated", "Failed"}
+	if strings.Join(deploy.TerminalStates, ",") != strings.Join(wantDeployTerminals, ",") {
+		t.Fatalf("deploy terminals = %v, want %v", deploy.TerminalStates, wantDeployTerminals)
+	}
+	for _, want := range []applierTransition{
+		{State: "AwaitingRequest", Signal: "Seed", Next: "Writing", Action: "write_overrides"},
+		{State: "Writing", Signal: "ToolDone", Next: "Validating", Action: "helm_dry_run"},
+		{State: "Writing", Signal: "ToolFailed", Next: "Failed"},
+		{State: "Validating", Signal: "ToolDone", Next: "Applying", Action: "helm_upgrade"},
+		{State: "Validating", Signal: "ToolFailed", Next: "Rejected"},
+		{State: "Applying", Signal: "ToolDone", Next: "Verifying", Action: "verify_rollout"},
+		{State: "Applying", Signal: "ToolFailed", Next: "Failed"},
+		{State: "Verifying", Signal: "ToolDone", Next: "Deployed"},
+		{State: "Verifying", Signal: "ToolFailed", Next: "RollingBack", Action: "helm_rollback"},
+		{State: "RollingBack", Signal: "ToolDone", Next: "Compensated"},
+		{State: "RollingBack", Signal: "ToolFailed", Next: "Failed"},
+	} {
+		if !containsApplierTransition(deploy.Transitions, want) {
+			t.Errorf("deploy machine misses transition %#v", want)
+		}
+	}
+
+	// A first install has no prior revision, so compensation is rollback in both
+	// worlds and a failed rollback is terminal. An uninstall here would remove a
+	// release the run cannot show it created (srd022 R6.3).
+	for _, forbidden := range deploy.Transitions {
+		if forbidden.Action == "helm_uninstall" {
+			t.Errorf("deploy machine compensates with helm_uninstall in %s/%s", forbidden.State, forbidden.Signal)
+		}
+		if forbidden.Action == "helm_history" {
+			t.Errorf("deploy machine probes release existence in %s/%s", forbidden.State, forbidden.Signal)
+		}
+	}
+
+	var undeploy machine
+	readRoleYAML(t, "agents/applier/undeploy-machine.yaml", &undeploy)
+	wantUndeployTerminals := []string{"Removed", "Absent", "Failed"}
+	if strings.Join(undeploy.TerminalStates, ",") != strings.Join(wantUndeployTerminals, ",") {
+		t.Fatalf("undeploy terminals = %v, want %v", undeploy.TerminalStates, wantUndeployTerminals)
+	}
+	for _, want := range []applierTransition{
+		{State: "AwaitingRequest", Signal: "Seed", Next: "Probing", Action: "helm_history"},
+		{State: "Probing", Signal: "ToolDone", Next: "Uninstalling", Action: "helm_uninstall"},
+		{State: "Probing", Signal: "ToolFailed", Next: "Absent"},
+		{State: "Uninstalling", Signal: "ToolDone", Next: "Removed"},
+		{State: "Uninstalling", Signal: "ToolFailed", Next: "Failed"},
+	} {
+		if !containsApplierTransition(undeploy.Transitions, want) {
+			t.Errorf("undeploy machine misses transition %#v", want)
+		}
+	}
+}
+
 func containsApplierTransition(got []applierTransition, want applierTransition) bool {
 	for _, item := range got {
 		if item == want {
@@ -78,7 +143,10 @@ func containsApplierTransition(got []applierTransition, want applierTransition) 
 
 func TestCanonicalApplierSelectionsAreNameOnly(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"tools.yaml", "apply-tools.yaml", "rollout-tools.yaml"} {
+	for _, name := range []string{
+		"tools.yaml", "apply-tools.yaml", "rollout-tools.yaml",
+		"deploy-tools.yaml", "undeploy-tools.yaml",
+	} {
 		data, err := os.ReadFile(ProfilePath("agents/applier/" + name))
 		if err != nil {
 			t.Fatal(err)
