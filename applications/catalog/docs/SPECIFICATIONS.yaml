@@ -199,6 +199,15 @@ roadmap_summary:
       manifest; mage diagnose captures a snapshot and runs the rig-doctor
       over it. The diagnosis loop reads files only and cites evidence for
       every claim.
+  - version: "18.0"
+    name: Host-side deployer
+    status: planned
+    scope: |
+      Add deploy and undeploy machines to the applier family (srd022 R6) and
+      run them from the developer's machine. The mage target renders the
+      declarations with this application's chart, release, namespace, and
+      kubeconfig, seeds the machine with the values document, and gates on
+      the terminal state. Day-0 and day-2 differ in the rendered words alone.
   - version: "99.0"
     name: Observer family promotion
     status: planned
@@ -394,7 +403,9 @@ srd_index:
     title: Canonical Deployment Applier Family
     summary: Shared lifecycle host, request-machine sequencing, name-only
       selections, and ToolDefs used by three application-owned wrappers whose
-      endpoints, charts, rollout commands, and authority remain local.
+      endpoints, charts, rollout commands, and authority remain local, plus
+      the host-side deploy and undeploy machines that install a release from
+      the developer's machine through the same declared sequence.
     status: implemented
     path: docs/specs/software-requirements/srd022-applier.yaml
   - id: srd023-rig-doctor
@@ -646,6 +657,13 @@ use_case_index:
       the suggested read-only command.
     status: implemented
     path: docs/specs/use-cases/rel17.0-uc001-rig-doctor.yaml
+  - id: rel18.0-uc001-host-side-deploy
+    title: An operator runs mage deploy and the applier's deploy machine installs the release
+    summary: The deploy target renders the applier's declarations with this
+      application's coordinates, seeds the deploy machine with the values
+      document, and gates the build on the terminal state.
+    status: planned
+    path: docs/specs/use-cases/rel18.0-uc001-host-side-deploy.yaml
   - id: rel99.0-uc001-observer-family
     title: The observer is a catalog-owned family adopted across applications
     summary: The fleet observer becomes a catalog-owned family generalized from
@@ -799,6 +817,13 @@ test_suite_index:
       registration, and dependency-gated live cases for the rig-doctor.
     status: implemented
     path: docs/specs/test-suites/test-rel17.0-rig-doctor.yaml
+  - id: test-rel18.0-host-side-deploy
+    title: Host-Side Deployer Conformance
+    summary: Closure, terminal-state, compensation, rendering-guard, and
+      build-gating cases for the deploy and undeploy machines, with one live
+      case for the atomic install contract.
+    status: planned
+    path: docs/specs/test-suites/test-rel18.0-host-side-deploy.yaml
   - id: test-rel99.0-observer
     title: Test Suite for Release 99.0 Observer Family Promotion
     summary: Specification-graph cases for the generalized observer-family SRD,

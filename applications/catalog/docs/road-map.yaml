@@ -869,6 +869,42 @@ releases:
       - The diagnosis loop declares no exec, kubectl, or helm word.
       - Every diagnosis claim cites a captured file and line.
       - A diagnosis that cannot be read back is repaired rather than reported.
+
+  - id: "18.0"
+    title: Host-side deployer
+    status: planned
+    dependencies:
+      - Release 16.0 canonical applier family
+      - Release 17.0 rig-doctor mage-target agent harness
+    planned_work:
+      - {gh: 2300, title: "Specify the host-side deployer: srd022 R6, rel18.0 use case, test suite, road map", estimated_loc: "0 (documentation)"}
+      - {gh: 2301, title: "Catalog applier deploy and undeploy machines with standalone conformance", estimated_loc: "200 YAML and 260 test"}
+      - {gh: 2302, title: "Host-side deploy declaration rendering and the kindrig deploy harness", estimated_loc: "250 production and 240 test"}
+      - {gh: 2304, title: "Migrate coding-agent demo:up to mage deploy and add mage undeploy", estimated_loc: "180 production and 140 test"}
+    specification:
+      srd: srd022-applier
+      status: implemented
+    use_cases:
+      - id: rel18.0-uc001-host-side-deploy
+        title: An operator runs mage deploy and the applier's deploy machine installs the release
+        status: planned
+    test_suites:
+      - id: test-rel18.0-host-side-deploy
+        title: Host-side deployer conformance
+        cases: 11
+        status: planned
+    proof:
+      - mage validate
+      - mage conformance
+      - go test ./conformance -run Applier
+      - cd ../.. && mage test
+      - cd ../.. && mage audit
+    success_markers:
+      - The deploy path declares no model word, so a deploy costs no tokens.
+      - Day-0 and day-2 differ in the rendered words alone, never in the transition graph.
+      - No rendered argv carries a placeholder coordinate or a --reuse-values flag.
+      - A first install that fails leaves no release behind.
+      - The deploy target gates its build on the machine's terminal state.
       - A busy provider costs two retries, not the evidence already read.
 
   - id: "99.0"

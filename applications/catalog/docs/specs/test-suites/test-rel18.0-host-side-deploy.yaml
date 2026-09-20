@@ -1,0 +1,85 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel18.0-host-side-deploy
+title: Host-Side Deployer Conformance
+status: planned
+release: "18.0"
+traces: [rel18.0-uc001-host-side-deploy]
+
+preconditions:
+  - The catalog applier deploy and undeploy profiles close against agent-core shared tools.
+  - Standalone exec doubles stand in for every Helm and kubectl word, so no case needs a cluster.
+  - Fixture profiles redeclare one failing word each, so every terminal is reachable offline.
+  - No case needs a model provider; the deploy machine declares no model word.
+
+test_cases:
+  - id: deploy-closure
+    verifies: [S1]
+    command: mage validate
+    assertions:
+      - The deploy and undeploy profiles pass agent-core strict configuration validation.
+      - Neither selection holds invoke_llm, parse_response, report_parse_error, or done.
+      - Both profiles boot with no chart, no cluster, and no provider.
+  - id: deploy-reaches-deployed
+    verifies: [S1]
+    command: go test ./conformance -run '^TestApplierDeployReachesDeployed'
+    assertions:
+      - The run reaches the Deployed terminal.
+      - write_overrides, helm_dry_run, helm_upgrade, and verify_rollout each produce one tool span, in that order.
+      - The run records no model call.
+  - id: deploy-rejects-a-failed-dry-run
+    verifies: [S5]
+    command: go test ./conformance -run '^TestApplierDeployRejectsAFailedDryRun'
+    assertions:
+      - A failing dry run reaches the Rejected terminal.
+      - helm_upgrade produces no span, so validation precedes mutation.
+  - id: deploy-rolls-back-a-stalled-verify
+    verifies: [S5]
+    command: go test ./conformance -run '^TestApplierDeployRollsBackAStalledVerify'
+    assertions:
+      - A failing verify_rollout reaches the Compensated terminal through helm_rollback.
+      - helm_uninstall produces no span, so the machine removes nothing it did not create.
+  - id: deploy-fails-when-rollback-fails
+    verifies: [S5]
+    command: go test ./conformance -run '^TestApplierDeployFailsWhenRollbackFails'
+    assertions:
+      - A failing verify_rollout whose rollback also fails reaches the Failed terminal.
+      - The run reports a terminal state rather than stopping mid-compensation.
+  - id: undeploy-removes-and-reports-absent
+    verifies: [S7]
+    command: go test ./conformance -run '^TestApplierUndeployRemovesAndReportsAbsent'
+    assertions:
+      - A present release reaches Removed through helm_uninstall.
+      - A failing helm_history probe reaches Absent, and helm_uninstall produces no span.
+      - Both terminals carry a succeeded run status, so a teardown of nothing exits zero.
+  - id: deploy-declares-no-model-word
+    verifies: [S1]
+    command: go test ./conformance -run '^TestApplierDeployDeclaresNoModelWord'
+    assertions:
+      - Reading the deploy and undeploy selections finds no model word by name.
+      - The guard fails when a later change adds one.
+  - id: deploy-rendering-resolves-every-coordinate
+    verifies: [S2]
+    command: cd ../.. && go test ./magefiles/kindrig -run '^TestRenderDeployDeclarations'
+    assertions:
+      - Every placeholder token is replaced, and each resolved coordinate appears in its expected argv position.
+      - A coordinate the caller does not supply returns an error naming the token it left behind.
+  - id: deploy-rendered-argv-guards
+    verifies: [S2, S3]
+    command: cd ../.. && go test ./magefiles/kindrig -run '^TestRenderedDeployArgv'
+    assertions:
+      - Walking every rendered ToolDef argv finds no placeholder token.
+      - Walking every rendered ToolDef argv finds no --reuse-values flag.
+  - id: deploy-gates-on-a-failure-terminal
+    verifies: [S6]
+    command: cd ../.. && go test ./magefiles/kindrig -run '^TestDeployGatesOnAFailureTerminal'
+    assertions:
+      - An agent run that exits non-zero makes the deploy target return an error.
+      - An agent run that exits zero returns no error, so only a failure terminal fails the build.
+  - id: deploy-atomic-contract-live
+    verifies: [S4, S5]
+    command: cd ../../../coding-agent && mage deploy
+    assertions:
+      - A first install that fails leaves no release behind, because the apply word carries --atomic.
+      - A failed upgrade against a healthy release leaves the prior revision serving.
+      - This case needs a running cluster and is the live proof that closes the release.
