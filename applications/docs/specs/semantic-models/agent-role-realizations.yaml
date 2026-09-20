@@ -235,6 +235,11 @@ bindings:
       classification: configuration_variant
       inherits: specification-critic
       execution_scope: repository-audit
+    - actor: specification-critic-corpus-audit
+      profile: applications/catalog/agents/specification-critic/corpus-audit-profile.yaml
+      classification: configuration_variant
+      inherits: specification-critic
+      execution_scope: corpus-audit
     - actor: jurist
       profile: applications/catalog/agents/jurist/profile.yaml
       classification: wrapper
