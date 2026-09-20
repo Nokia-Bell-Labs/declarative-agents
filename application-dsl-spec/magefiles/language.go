@@ -31,6 +31,10 @@ var bareNounWords = map[string]bool{
 
 var wordPattern = regexp.MustCompile(`[A-Za-z][A-Za-z-]*`)
 
+// backtickSpanPattern removes keyname mentions before the bare-noun scan: a
+// statement about the `application` keyname names a keyname, not the concept.
+var backtickSpanPattern = regexp.MustCompile("`[^`]*`")
+
 // rfc2119Levels are the requirement levels a statement may carry.
 var rfc2119Levels = map[string]bool{
 	"MUST":       true,
@@ -125,7 +129,7 @@ func validateLanguage(language languageFile) error {
 		if strings.TrimSpace(statement.Statement) == "" {
 			findings = append(findings, fmt.Errorf("%s: statement text is required", label))
 		}
-		for _, word := range wordPattern.FindAllString(statement.Statement, -1) {
+		for _, word := range wordPattern.FindAllString(backtickSpanPattern.ReplaceAllString(statement.Statement, " "), -1) {
 			if bareNounWords[strings.ToLower(word)] {
 				findings = append(findings, fmt.Errorf(
 					"%s: bare noun %q in normative text; use a class or instance term (chapter 02)",

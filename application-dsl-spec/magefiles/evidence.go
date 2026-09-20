@@ -136,9 +136,80 @@ func runFixtureCheck(path string, entry acceptanceEntry) error {
 // fixtureChecks registers every document check a fixture entry may name.
 // Grammar chapters add checks as their statements land.
 var fixtureChecks = map[string]func(string) error{
-	"yaml_mapping":             checkYAMLMapping,
-	"machine_expansion_shape":  checkMachineExpansionShape,
-	"expansion_names_fragment": checkExpansionNamesFragment,
+	"yaml_mapping":                  checkYAMLMapping,
+	"machine_expansion_shape":       checkMachineExpansionShape,
+	"expansion_names_fragment":      checkExpansionNamesFragment,
+	"application_required_keynames": checkApplicationRequiredKeynames,
+	"profile_required_keynames":     checkProfileRequiredKeynames,
+	"machine_body_keynames":         checkMachineBodyKeynames,
+}
+
+// checkApplicationRequiredKeynames enforces R-APP-001: the application-profile
+// document carries its identity, capability, and root keynames, and every
+// root names what it is and where it lives.
+func checkApplicationRequiredKeynames(path string) error {
+	doc, err := readYAMLMapping(path)
+	if err != nil {
+		return err
+	}
+	for _, keyname := range []string{"schema_version", "application", "ownership", "capabilities", "roots"} {
+		if _, ok := doc[keyname]; !ok {
+			return fmt.Errorf("keyname %q is absent", keyname)
+		}
+	}
+	roots, ok := doc["roots"].([]any)
+	if !ok || len(roots) == 0 {
+		return errors.New("roots must be a non-empty sequence")
+	}
+	for index, raw := range roots {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("roots[%d] must be a mapping", index)
+		}
+		for _, keyname := range []string{"id", "ownership", "source"} {
+			value, _ := entry[keyname].(string)
+			if strings.TrimSpace(value) == "" {
+				return fmt.Errorf("roots[%d] keyname %q is absent or empty", index, keyname)
+			}
+		}
+	}
+	return nil
+}
+
+// checkProfileRequiredKeynames enforces R-PROF-001: an agent-profile document
+// names itself and references its machine-profile.
+func checkProfileRequiredKeynames(path string) error {
+	doc, err := readYAMLMapping(path)
+	if err != nil {
+		return err
+	}
+	for _, keyname := range []string{"name", "machine"} {
+		value, _ := doc[keyname].(string)
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("keyname %q is absent or not a string", keyname)
+		}
+	}
+	return nil
+}
+
+// checkMachineBodyKeynames enforces R-MACH-001: a machine-profile document
+// that declares its own body names itself and carries states and transitions
+// as sequences.
+func checkMachineBodyKeynames(path string) error {
+	doc, err := readYAMLMapping(path)
+	if err != nil {
+		return err
+	}
+	name, _ := doc["name"].(string)
+	if strings.TrimSpace(name) == "" {
+		return errors.New(`keyname "name" is absent or not a string`)
+	}
+	for _, keyname := range []string{"states", "transitions"} {
+		if _, ok := doc[keyname].([]any); !ok {
+			return fmt.Errorf("keyname %q is absent or not a sequence", keyname)
+		}
+	}
+	return nil
 }
 
 // checkFixture dispatches a named document check against a fixture file.

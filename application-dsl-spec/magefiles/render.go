@@ -20,6 +20,13 @@ const renderOutputDir = "generated-files"
 // anchor, and each statement has exactly one.
 var citationPattern = regexp.MustCompile(`\{\{statement ([A-Z0-9-]+)\}\}`)
 
+// keynameTablePattern matches a generated keyname-table placeholder. The
+// grammar chapters do not transcribe schemas by hand: a yaml source is a
+// config-format specification whose schema list becomes the table, and a go
+// source is a struct whose yaml tags become the table, so a keyname added to
+// the live schema appears in the rendered chapter without an edit here.
+var keynameTablePattern = regexp.MustCompile(`\{\{keyname-table (yaml|go):([^ }#]+)(?:#([A-Za-z0-9_]+))?\}\}`)
+
 // All renders the chapters (default entry point, mirroring design-patterns).
 func All() error {
 	return Render()
@@ -81,6 +88,15 @@ func renderChapters(sourceDir, outputDir string, language languageFile) error {
 			}
 			cited[id]++
 			return renderStatement(statement)
+		})
+		rendered = keynameTablePattern.ReplaceAllStringFunc(rendered, func(match string) string {
+			parts := keynameTablePattern.FindStringSubmatch(match)
+			table, err := renderKeynameTable(filepath.Join(sourceDir, ".."), parts[1], parts[2], parts[3])
+			if err != nil {
+				findings = append(findings, fmt.Errorf("%s: keyname table %s: %w", chapter, parts[2], err))
+				return match
+			}
+			return table
 		})
 		target := filepath.Join(outputDir, chapter)
 		if err := os.WriteFile(target, []byte(rendered), 0o644); err != nil {

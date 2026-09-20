@@ -177,6 +177,56 @@ statements:
         path: applications/coding-agent/magefiles/integration_coding_loop_test.go
         test: TestFreshWorkspaceIsPortableAndIsolated
 
+  - id: R-APP-001
+    target: document
+    level: MUST
+    statement: >-
+      An application-profile document MUST carry the `schema_version`,
+      `application`, `ownership`, `capabilities`, and `roots` keynames, and
+      every `roots` entry MUST carry `id`, `ownership`, and `source`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/application-keynames/valid.yaml
+        check: application_required_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/application-keynames/invalid.yaml
+        check: application_required_keynames
+        verdict: invalid
+
+  - id: R-PROF-001
+    target: document
+    level: MUST
+    statement: >-
+      An agent-profile document MUST carry the `name` and `machine` keynames,
+      each a non-empty string; `machine` references the machine-profile
+      document the agent-instance executes.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/profile-keynames/valid.yaml
+        check: profile_required_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/profile-keynames/invalid.yaml
+        check: profile_required_keynames
+        verdict: invalid
+
+  - id: R-MACH-001
+    target: document
+    level: MUST
+    statement: >-
+      A machine-profile document that declares its own body MUST carry the
+      `name` keyname, and its `states` and `transitions` MUST be sequences.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-keynames/valid.yaml
+        check: machine_body_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-keynames/invalid.yaml
+        check: machine_body_keynames
+        verdict: invalid
+
   - id: R-MODEL-002
     target: document
     level: MUST

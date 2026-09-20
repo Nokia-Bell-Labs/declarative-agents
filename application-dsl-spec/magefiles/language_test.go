@@ -131,6 +131,17 @@ func TestBareNounBanPermitsCompoundTerms(t *testing.T) {
 	}
 }
 
+// TestBareNounBanPermitsBacktickedKeynames proves a statement about the
+// `application` or `machine` keyname is a keyname mention, not a bare noun.
+func TestBareNounBanPermitsBacktickedKeynames(t *testing.T) {
+	language := validLanguage()
+	language.Statements[0].Statement = "An application-profile document MUST carry the " +
+		"`application` and `machine` keynames."
+	if err := validateLanguage(language); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestRepositoryLanguageFileIsValid gates the tracked language.yaml itself, so
 // a schema break fails go test as well as mage audit.
 func TestRepositoryLanguageFileIsValid(t *testing.T) {
