@@ -1,0 +1,161 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The planner's execution stage: take a task that has been planned, write it
+# out, run the executor over it, vet, build and test the result, and either
+# retry it or mark it done or failed before asking the graph what remains.
+#
+# Both planner variants run this stage identically. They differ only in where
+# it hands control back: the LLM variant captures a failure context and resets
+# conversation history before retrying, and returns to Extracting for the next
+# task, while the pass-through variant retries the executor directly and has no
+# next task to extract. Those six edges stay with each host rather than
+# becoming parameters, because a stage with ten parameters is two stages
+# (eng03).
+#
+# The stage is a fragment because it is one concern and both machines that
+# splice it were over the execution constitution's file length (E11, GH-2378).
+unit: catalog-planner-execution-stage
+params:
+  - name: prefix
+    type: string
+    default: ""
+    description: Prefix on the states this stage declares, to keep two expansions apart.
+  - name: failed
+    type: string
+    default: Failed
+    description: The importer's state an infrastructure failure leads to.
+stage:
+  states:
+    - name: $param(prefix)MarkingExecuting
+      meaning: Advancing the planned task's nodes to Executing as a focused graph mutation.
+    - name: $param(prefix)FormattingTask
+      meaning: Serializing the current plan into task-file write parameters.
+    - name: $param(prefix)MaterializingTask
+      meaning: Writing doc/task.yaml through the shared write word.
+    - name: $param(prefix)InvokingExecutor
+      meaning: Running the executor through the shared self_invoke boundary.
+    - name: $param(prefix)Vetting
+      meaning: Running go vet on the workspace.
+    - name: $param(prefix)Building
+      meaning: Running go build on the workspace.
+    - name: $param(prefix)Testing
+      meaning: Running go test on the workspace.
+    - name: $param(prefix)IncrementingRetry
+      meaning: Incrementing the latest labelled retry count with jq.
+    - name: $param(prefix)CheckingRetryLimit
+      meaning: Comparing the visible retry count with the declared limit.
+    - name: $param(prefix)Exhausted
+      meaning: Retry limit reached; query graph state before routing onward.
+    - name: $param(prefix)MarkingTaskFailed
+      meaning: Advancing the exhausted task's nodes to Failed before querying remaining work.
+    - name: $param(prefix)MarkingTaskDone
+      meaning: Mutating only the completed task's graph nodes to Done.
+    - name: $param(prefix)QueryingRemainingWork
+      meaning: Reading graph state so the machine can route ready, done, or blocked work.
+  transitions:
+    - state: $param(prefix)MarkingExecuting
+      signal: NodesMarkedExecuting
+      next: $param(prefix)FormattingTask
+      action: format_task_file
+      label: task_file
+    - state: $param(prefix)MarkingExecuting
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)FormattingTask
+      signal: TaskFileFormatted
+      next: $param(prefix)MaterializingTask
+      action: write
+    - state: $param(prefix)FormattingTask
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)MaterializingTask
+      signal: ToolDone
+      next: $param(prefix)InvokingExecutor
+      action: invoke_executor
+    - state: $param(prefix)MaterializingTask
+      signal: ToolFailed
+      next: $param(failed)
+    - state: $param(prefix)MaterializingTask
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)InvokingExecutor
+      signal: ToolDone
+      next: $param(prefix)Vetting
+      action: vet
+    - state: $param(prefix)InvokingExecutor
+      signal: ToolFailed
+      next: $param(prefix)Vetting
+      action: vet
+    - state: $param(prefix)InvokingExecutor
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)Vetting
+      signal: ToolDone
+      next: $param(prefix)Building
+      action: build
+    - state: $param(prefix)Vetting
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)Building
+      signal: ToolDone
+      next: $param(prefix)Testing
+      action: test
+    - state: $param(prefix)Building
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)Testing
+      signal: ToolDone
+      next: $param(prefix)MarkingTaskDone
+      action: mark_task_done
+    - state: $param(prefix)Testing
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)IncrementingRetry
+      signal: ToolDone
+      next: $param(prefix)CheckingRetryLimit
+      action: check_retry_limit
+    - state: $param(prefix)IncrementingRetry
+      signal: ToolFailed
+      next: $param(failed)
+    - state: $param(prefix)IncrementingRetry
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)CheckingRetryLimit
+      signal: RetriesExhausted
+      next: $param(prefix)MarkingTaskFailed
+      action: mark_task_failed
+    - state: $param(prefix)CheckingRetryLimit
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)MarkingTaskFailed
+      signal: TaskFailed
+      next: $param(prefix)Exhausted
+      action: remaining_work
+    - state: $param(prefix)MarkingTaskFailed
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)Exhausted
+      signal: AllDone
+      next: Completed
+    - state: $param(prefix)Exhausted
+      signal: Blocked
+      next: Stalled
+    - state: $param(prefix)Exhausted
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)MarkingTaskDone
+      signal: TaskCompleted
+      next: $param(prefix)QueryingRemainingWork
+      action: remaining_work
+    - state: $param(prefix)MarkingTaskDone
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)QueryingRemainingWork
+      signal: AllDone
+      next: Completed
+    - state: $param(prefix)QueryingRemainingWork
+      signal: Blocked
+      next: Stalled
+    - state: $param(prefix)QueryingRemainingWork
+      signal: CommandError
+      next: $param(failed)

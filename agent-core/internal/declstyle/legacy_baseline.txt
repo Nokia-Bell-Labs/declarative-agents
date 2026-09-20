@@ -32,10 +32,7 @@ long-declaration-file:applications/catalog/agents/knowledge-manager/corpus-inges
 long-declaration-file:applications/catalog/agents/knowledge-manager/documentation-curator/declarations.yaml
 long-declaration-file:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml
 long-declaration-file:applications/catalog/agents/knowledge-manager/documentation-curator/rest.yaml
-long-declaration-file:applications/catalog/agents/planner/machine-passthrough.yaml
-long-declaration-file:applications/catalog/agents/planner/machine.yaml
 long-declaration-file:applications/catalog/agents/scenario-critic/declarations.yaml
-long-declaration-file:applications/catalog/agents/scenario-critic/machine.yaml
 long-declaration-file:applications/catalog/agents/units/types-curator.yaml
 long-declaration-file:applications/chatbot-mesh/agents/chatbot/request-declarations.yaml
 long-declaration-file:applications/chatbot-mesh/agents/creator/request-declarations.yaml
