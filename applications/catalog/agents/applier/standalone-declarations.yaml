@@ -97,3 +97,31 @@ tools:
     reversibility: {classification: reversible, requires_confirmation: false}
     undo: {strategy: noop, description: The standalone count read mutates nothing.}
     errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]
+
+  - name: helm_history
+    type: exec
+    binary: sh
+    args: [-c, "exit 0"]
+    category: boundary
+    visibility: internal
+    description: Standalone release-history read double.
+    signature:
+      emits: [ToolDone, ToolFailed]
+    side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
+    reversibility: {classification: reversible, requires_confirmation: false}
+    undo: {strategy: noop, description: Reading a release history mutates nothing.}
+    errors: [{signal: ToolFailed, condition: The release does not exist or the command fails, state_after_failure: No external state changed.}]
+
+  - name: helm_uninstall
+    type: exec
+    binary: sh
+    args: [-c, "exit 0"]
+    category: boundary
+    visibility: internal
+    description: Standalone release removal double.
+    signature:
+      emits: [ToolDone, ToolFailed]
+    side_effects: [{kind: child_process, state: simulated, target: conformance_double}]
+    reversibility: {classification: irreversible, requires_confirmation: true}
+    undo: {strategy: irreversible, description: Removing a release is terminal for the standalone request.}
+    errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]

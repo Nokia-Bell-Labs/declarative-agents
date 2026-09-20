@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The host-side deploy variant (srd022 R6). It declares no rest_definitions:
+# a host deploy target seeds it through --request, so it hosts no listener and
+# awaits no lifecycle exit.
+name: applier-deploy-request
+machine: deploy-machine.yaml
+tools:
+  - deploy-tools.yaml
+tool_declarations:
+  - apply-declarations.yaml
+  - standalone-declarations.yaml

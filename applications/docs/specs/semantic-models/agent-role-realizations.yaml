@@ -339,6 +339,16 @@ bindings:
       classification: configuration_variant
       inherits: deployment-applier
       execution_scope: rollout-read
+    - actor: applier-deploy-request
+      profile: applications/catalog/agents/applier/deploy-profile.yaml
+      classification: configuration_variant
+      inherits: deployment-applier
+      execution_scope: request
+    - actor: applier-undeploy-request
+      profile: applications/catalog/agents/applier/undeploy-profile.yaml
+      classification: configuration_variant
+      inherits: deployment-applier
+      execution_scope: request
     - actor: lifecycle-exit
       profile: applications/catalog/agents/lifecycle-exit/profile.yaml
       classification: infrastructure_adapter

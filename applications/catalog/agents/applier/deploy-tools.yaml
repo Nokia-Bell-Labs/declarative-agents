@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Name-only selection. These are the apply machine's five words: the deploy
+# variant reuses them by name so an application wrapper that replaces a word
+# replaces it for both paths, and keeps its own file so the deploy selection
+# can diverge without touching the deployed day-2 path.
+tools:
+  - write_overrides
+  - helm_dry_run
+  - helm_upgrade
+  - verify_rollout
+  - helm_rollback
