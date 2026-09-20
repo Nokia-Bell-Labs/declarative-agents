@@ -33,19 +33,19 @@ flow:
 success_criteria:
   - id: S1
     criterion: Helm renders the collector agent and no Jaeger manifest under default and CI values.
-    traces: [srd003-helm-topology R3.4]
+    traces: [srd003-helm-topology R3.4, srd003-helm-topology AC3]
   - id: S2
     criterion: Every role exports OTLP to the collector with a distinct service name.
-    traces: [srd003-helm-topology R3.3]
+    traces: [srd003-helm-topology R3.3, srd003-helm-topology AC3]
   - id: S3
     criterion: The schema fixture matrix proves valid spool default, valid overrides, and invalid telemetry rejection.
-    traces: [srd004-helm-package-validation R1.1, srd004-helm-package-validation R1.2, srd004-helm-package-validation R1.3]
+    traces: [srd004-helm-package-validation R1.1, srd004-helm-package-validation R1.2, srd004-helm-package-validation R1.3, srd004-helm-package-validation AC1]
   - id: S4
     criterion: The live smoke finds all role service names under the submitted trace ID via the collector query surface.
-    traces: [srd005-live-helm-smoke R3.3]
+    traces: [srd005-live-helm-smoke R3.3, srd005-live-helm-smoke AC1]
   - id: S5
     criterion: Catalog-root discovery resolves applications/catalog from relative and absolute startup directories without environment overrides.
-    traces: [srd004-helm-package-validation R1.1, srd004-helm-package-validation R1.2, srd004-helm-package-validation R1.3]
+    traces: [srd004-helm-package-validation R1.1, srd004-helm-package-validation R1.2, srd004-helm-package-validation R1.3, srd004-helm-package-validation AC1]
 
 out_of_scope:
   - Metrics ingress; the coding chart exports no metrics pipeline.

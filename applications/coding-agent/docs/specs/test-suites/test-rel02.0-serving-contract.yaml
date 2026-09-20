@@ -43,3 +43,12 @@ test_cases:
       remote_order: planner then executor then critic
       trace_connection: caller trace id appears in all three role trace files
     traces: [srd001-serving-contract AC2, srd001-serving-contract AC3]
+
+  - use_case: rel02.0-uc001-remote-coding-request
+    name: Local batch coding loop remains valid
+    integration_target: mage integration:codingLoop
+    go_test: go test ./magefiles -run '^TestCodingLoopStagesGenerateOnceAndPreserveExactWorkspace$'
+    status: implemented
+    expected_outputs:
+      loop_outcome: the batch planner, executor, and critic stages pass unchanged alongside the serving profiles
+    traces: [srd001-serving-contract AC4]

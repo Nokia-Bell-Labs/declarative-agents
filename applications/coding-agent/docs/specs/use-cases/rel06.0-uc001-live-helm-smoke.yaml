@@ -37,16 +37,16 @@ flow:
 success_criteria:
   - id: S1
     criterion: All three deployed role health endpoints are truthful and reachable.
-    traces: [srd005-live-helm-smoke R3.1]
+    traces: [srd005-live-helm-smoke R3.1, srd005-live-helm-smoke AC1]
   - id: S2
     criterion: The shared workspace and critic verdict prove remote role composition.
-    traces: [srd005-live-helm-smoke R3.2]
+    traces: [srd005-live-helm-smoke R3.2, srd005-live-helm-smoke AC1]
   - id: S3
     criterion: The collector agent contains all three role service names under the submitted trace ID.
-    traces: [srd005-live-helm-smoke R3.3]
+    traces: [srd005-live-helm-smoke R3.3, srd005-live-helm-smoke AC1]
   - id: S4
     criterion: Skip, classification, diagnostics, and cleanup behavior are bounded and explicit.
-    traces: [srd005-live-helm-smoke R1.1, srd005-live-helm-smoke R1.2, srd005-live-helm-smoke R1.3, srd005-live-helm-smoke R4.1, srd005-live-helm-smoke R4.2, srd005-live-helm-smoke R4.3]
+    traces: [srd005-live-helm-smoke R1.1, srd005-live-helm-smoke R1.2, srd005-live-helm-smoke R1.3, srd005-live-helm-smoke R4.1, srd005-live-helm-smoke R4.2, srd005-live-helm-smoke R4.3, srd005-live-helm-smoke AC2, srd005-live-helm-smoke AC3]
 
 out_of_scope:
   - Production model performance and GPU sizing.
