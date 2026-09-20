@@ -9,6 +9,7 @@ func Validate(g *Graph, corpus *Corpus) []Finding {
 	all = append(all, checkBrokenTouchpoints(corpus)...)
 	all = append(all, checkBrokenCitations(g, corpus)...)
 	all = append(all, checkBareTouchpoints(g, corpus)...)
+	all = append(all, checkGroupLevelCitations(corpus)...)
 	all = append(all, checkOrphanedTestSuites(g)...)
 	all = append(all, checkUncoveredReqItems(g)...)
 	all = append(all, checkUncoveredACs(g)...)
