@@ -1,0 +1,139 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: eng03-declaration-standard-library
+title: "The Declaration Standard Library and the Structure of YAML"
+
+introduction: |
+  The runtime composes agents from YAML units: imports (srd050), type units
+  (srd051), parameterized fragments and stage fragments (srd052), machine
+  templates (srd054), library roots (srd056), and provider libraries (srd058).
+  The mechanics live in the guides (composition-model, fragments,
+  capability-profiles). What the mechanics do not decide is judgment: when a
+  block of YAML deserves a unit, which reuse form fits, where the unit lives,
+  and what a file must look like so the next reader can follow it. Those
+  decisions accumulated case by case across releases 18.0 to 22.0, and their
+  outcomes are consistent enough to state as rules.
+
+  This guideline fixes the conventions. It names the shelves of the standard
+  library and what belongs on each, states the admission rule an abstraction
+  must meet, sets the structure rules for any declaration file, and gives the
+  ladder for choosing among fragment, template, stage, provider library, and
+  capability profile. It binds authors in this repository and is the reference
+  we point consumer repositories at when their declarations drift.
+
+sections:
+  - title: "The shelves"
+    content: |
+      The standard library is agent-core/tools/, published as a library root
+      and imported as /opt/agent-core/tools/... (srd056). Each directory holds
+      one kind of thing, and a unit goes on the shelf that names its kind, not
+      the shelf nearest its first consumer. The shelf table:
+
+      | Shelf | Contents |
+      |---|---|
+      | tools/builtin/ | Builtin tool words, one word per file, grouped by family |
+      | tools/exec/ | Exec words for external processes |
+      | tools/machines/ | Whole-machine templates and stage fragments |
+      | tools/rest/units/ | REST declaration fragments |
+      | tools/units/ | Type units, declaration fragments, and word units |
+      | tools/providers/<name>/ | Provider libraries: chat dialect, embed and rerank fragments |
+
+      An application keeps its own shelf at applications/<app>/agents/units/
+      for units shared among that application's agents and nowhere else. A
+      unit used by one agent lives beside that agent. Nothing lives in a
+      shared location speculatively.
+
+  - title: "Admission: a unit earns its place"
+    content: |
+      A unit earns a shared location with two or more importers, or one
+      instantiation (GH-2079). The declstyle single-importer gate enforces
+      this (GH-2107): a unit reached by exactly one import and never
+      instantiated fails the build, because such a unit is an include by
+      another name. Type-only units and the published tools/ library are
+      exempt, the latter because its importers live outside this repository.
+
+      The rule orders work. Write the second consumer first, then extract:
+      extraction ahead of a second consumer produces an abstraction shaped by
+      one caller, and the gate deletes it. The one sanctioned exception is a
+      provider library, which ships complete (see the ladder below) because
+      its second consumer is by construction another deployment, not another
+      file in this repository.
+
+  - title: "Structure of a declaration file"
+    content: |
+      One unit per file, and the file starts with a comment stating what the
+      unit is for and the requirement or issue it satisfies, then names
+      itself: `unit:` with a lowercase kebab name that says what the unit is.
+      A unit outside the standard library carries its home as a prefix
+      (catalog-invoke-llm-model-fragment), a provider entry carries
+      provider-<name>- (provider-cohere-chat-dialect), and a word or type
+      unit on the builtin shelf carries builtin-. Imports are explicit
+      relative paths or /opt/<root> paths under a declared library root;
+      nothing is searched for, and a path outside the importing file's
+      directory or a declared root is a load error.
+
+      Substitution is hygienic and scalar-valued: a `$param(name)` reference
+      replaces a scalar, never a mapping key or list structure. The one
+      structured placement is `{{ params.messages }}` in a chat dialect body,
+      written as a whole scalar exactly once. We do not use YAML anchors or
+      merge keys anywhere: anchors compose before validation and leave no
+      provenance, while instantiation composes under strict decode and
+      records itself in the dump.
+
+      Comments in a declaration state constraints the YAML cannot: why a
+      limit has its value, which requirement an operation satisfies, what a
+      knob must not become. A comment that restates the field below it is
+      noise and does not survive review.
+
+  - title: "The ladder: choosing a reuse form"
+    content: |
+      Repetition is the trigger; the shape of what varies picks the form.
+      Take the first rung that fits.
+
+      1. Values vary, structure does not: a parameterized fragment
+         (`params:` + `instantiate:`). The invoke-llm model fragment and its
+         twenty model-variant instantiations are the reference case.
+      2. A run of states and transitions recurs inside differing machines: a
+         stage fragment, spliced under a name prefix and validated as part of
+         the whole (embed-query, embed-document, rerank).
+      3. A whole machine recurs: a machine template whose instance file is
+         only `instantiate:` plus args (serve-machine-template).
+      4. The variation is a model provider's dialect: an entry in a provider
+         library under tools/providers/<name>/, never a provider conditional
+         in a shared body. A provider library ships complete: chat dialect,
+         embed fragments, rerank where the provider offers it, the shared
+         word and type vocabulary imported from tools/units, and credentials
+         as a token_ref name only.
+      5. The unit of reuse is a whole behavior more than one profile reaches:
+         a capability profile (srd057), consumed by binding, never by copying
+         its files.
+
+      What stays hand-written is also a decision: a machine whose emitted
+      signals or stage order genuinely differ from every sibling is not
+      duplication, and forcing it under a template obscures it. Record the
+      reason in the machine's header comment when declining an extraction a
+      reader would expect.
+
+  - title: "Shared vocabularies"
+    content: |
+      Names that cross a reuse boundary come from a shared unit, not from
+      convention. The word units in tools/units (builtin-embed-query-words,
+      builtin-embed-document-words, builtin-rerank-words) fix the success
+      signals (QueryEmbedded, DocEmbedded, Reranked) and the provider failure
+      taxonomy: ProviderUnauthorized (401, 403), ProviderThrottled (429), and
+      ProviderUnavailable (5xx). The type unit builtin-types-provider fixes
+      the result shapes those words publish. A new operation family that two
+      libraries will implement starts by adding its words and types under
+      tools/units, because two libraries that invent their own signal names
+      cannot be swapped by a library rebind, which is the point of having
+      libraries.
+
+  - title: "Promotion"
+    content: |
+      A unit moves up one shelf at a time, pulled by its second consumer: from
+      beside an agent to the application's units/ when a second agent in the
+      application needs it, and from an application to agent-core/tools when a
+      second application does. The move renames its prefix to the new home and
+      leaves no copy behind. mage stats:reuse measures the outcome; a
+      promotion that does not reduce the duplication count did not need to
+      happen, and the release proof blocks record the trend.
