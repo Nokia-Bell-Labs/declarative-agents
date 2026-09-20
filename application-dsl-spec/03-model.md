@@ -5,55 +5,53 @@
 
 ## 3.1 Three levels
 
-The language describes a system at three levels, each declared by its own
-document family. The application level declares composition: an
-application-profile names the agent-profiles that make up the application and
-how many agent-instances each one seeds. The agent level declares behaviour:
-an agent-profile binds a machine-profile, tool selections, and referenced
-documents into one runnable unit. The machine level declares control: a
-machine-profile gives the states, signals, and transitions that drive an
-agent-instance's loop.
+The language defines a three-level system, each with its own document family.
+At the application level, an application-profile declares composition,
+specifying agent-profile names and their respective agent-instance counts. The
+agent level defines behavior, binding a machine-profile, tool selections, and
+referenced documents into an executable unit via an agent-profile. The machine
+level controls operation, with a machine-profile detailing states, signals,
+and transitions for an agent-instance's loop.
 
-The levels reference downward only. An application-profile names
-agent-profiles; an agent-profile names a machine-profile and its documents; a
-machine-profile names nothing above itself. Chapter 05 through chapter 07
-give each level's grammar.
+Levels reference downward only. An application-profile names agent-profiles;
+an agent-profile names a machine-profile and its associated documents; a
+machine-profile names nothing above itself. The detailed grammar for these
+levels is in Chapter 05 through Chapter 07.
 
 ## 3.2 From class to instance
 
-Instantiation takes a class and produces a running instance: an
-application-profile yields an application-instance, whose seeded
-agent-profiles yield agent-instances, each executing a machine-instance. An
-agent-instance binds its identity and workspace at instantiation (section
-2.1); the lifecycle primitives that create and destroy instances and
-workspaces are chapter 04's subject. Nothing at the class level changes when
-instances come and go — documents are immutable inputs to instantiation.
+Instantiation transforms a class into a running instance: an
+application-profile produces an application-instance, creating agent-instances
+from its seeded agent-profiles, each executing a machine-instance. An
+agent-instance binds its identity and workspace during instantiation (section
+2.1); lifecycle primitives for creating/destroying instances and workspaces
+are in chapter 04. The class level remains unchanged as instances are created
+or terminated — documents serve as immutable inputs to instantiation.
 
 ## 3.3 From class to class: expansion
 
-Expansion is the language's only class-to-class construction. A
-machine-profile document may be built from reusable units at load time, under
-the `expand:` keyname, in two forms that its target's body kind selects.
+Expansion is the language's sole mechanism for class-to-class construction. A
+machine-profile document assembles from reusable units at load time using the
+`expand:` keyname, with form determined by its target's body kind.
 
-Splicing: a machine-profile that declares its own body may expand
-stage-fragments, whose parameterized states and transitions are appended to
-the declared lists. The spliced result is validated as one machine-profile.
+Splicing lets a machine-profile declare its body and expand stage-fragments,
+adding their parameterized states and transitions to the declared lists. The
+spliced machine-profile is then validated as a unified whole.
 
-Template application: a machine-profile document may instead carry no body at
-all and expand exactly one machine-template, whose `machine` body becomes the
-document's body with the entry's arguments substituted. A machine-template
-may itself expand stage-fragments; it may not expand another
-machine-template.
+A machine-profile document can omit its body and expand a single
+machine-template, where the template's `machine` body replaces the document's
+body with substituted arguments. A machine-template can expand stage-fragments
+but not another machine-template.
 
-Both forms finish before validation, so a processor sees only complete
-machine-profiles. Expansion never crosses to the instance side: no identity,
-no workspace, no running state is involved.
+Both forms finish before validation, ensuring processors encounter only
+complete machine-profiles. Expansion stays within its designated scope,
+avoiding interaction with the instance side, identity, workspace, or running
+state.
 
 {{statement R-MODEL-001}}
 
 {{statement R-MODEL-002}}
 
-The expanded machine-profile is validated exactly as a hand-written one, with
-diagnostics that name both the unit and the expanding document; the processor
-obligations, and the fixture suites that exercise invalid expansions, are
-chapter 09's subject.
+The expanded machine-profile is validated like a hand-written one, with
+diagnostics naming both the unit and the expanding document. Chapter 09 covers
+processor obligations and fixture suites that exercise invalid expansions.
