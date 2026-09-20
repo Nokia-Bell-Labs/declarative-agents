@@ -15,7 +15,7 @@ preconditions:
 test_cases:
   - use_case: rel18.0-uc001-declaration-fragments
     name: A fragment with params and one body loads
-    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateProducesPrefixedTypedTools|TestInstantiateRESTFragmentTwiceWithPrefixes|TestFragmentBodyIsDecodedOnlyAfterSubstitution'
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestExpandProducesPrefixedTypedTools|TestExpandRESTFragmentTwiceWithPrefixes|TestFragmentBodyIsDecodedOnlyAfterSubstitution'
     status: implemented
     description: Load a fragment carrying unit, params of every allowed type, and a tools body; then one with a rest body.
     expected:
@@ -44,7 +44,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: An expand entry names fragment, args, and an optional prefix
-    go_test: go test ./internal/tools/catalog -run 'TestInstantiateProducesPrefixedTypedTools|TestPlainUnitCannotBeInstantiated'
+    go_test: go test ./internal/tools/catalog -run 'TestExpandProducesPrefixedTypedTools|TestPlainUnitCannotBeExpanded'
     status: implemented
     description: Expand with and without as; resolve fragment relative to the importing file, including from a re-rooted directory.
     expected:
@@ -54,7 +54,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: Argument faults name importer, fragment, and parameter
-    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateArgumentFaultsNameImporterFragmentAndParameter|TestRESTArgumentFaultsNameImporterFragmentAndParameter'
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestExpandArgumentFaultsNameImporterFragmentAndParameter|TestRESTArgumentFaultsNameImporterFragmentAndParameter'
     status: implemented
     description: Omit a required argument, supply an unknown one, pass a string for an integer, and pass a value outside an enum; a parameter with a default may be omitted.
     expected:
@@ -76,7 +76,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: The expanded document takes the hand-written validation path
-    go_test: go test ./internal/tools/catalog -run 'TestInstantiatedUnitTakesTheHandWrittenPath'
+    go_test: go test ./internal/tools/catalog -run 'TestExpandedUnitTakesTheHandWrittenPath'
     status: implemented
     description: Expand a fragment producing a tool with a misspelled field, then one whose per-tool hook rejects its config.
     expected:
@@ -87,7 +87,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: A prefix makes repeated expansion possible
-    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateProducesPrefixedTypedTools|TestInstantiateRESTFragmentTwiceWithPrefixes'
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestExpandProducesPrefixedTypedTools|TestExpandRESTFragmentTwiceWithPrefixes'
     status: implemented
     description: "Expand one fragment twice with as: cohere and as: openai, then read both produced names."
     expected:
@@ -106,7 +106,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: Repeated expansion without a prefix is the existing duplicate error
-    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestRepeatedInstantiationWithoutPrefixIsADuplicate|TestRepeatedRESTInstantiationWithoutPrefixIsTheConflictError'
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestRepeatedExpansionWithoutPrefixIsADuplicate|TestRepeatedRESTExpansionWithoutPrefixIsTheConflictError'
     status: implemented
     description: Expand one fragment twice with identical args and no as.
     expected:
@@ -115,7 +115,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: An unselected expansion is an unused import
-    go_test: go test ./internal/load -run 'TestLoadClosureReportsAnUnselectedInstantiationAsUnused|TestLoadClosureReportsAnUnreferencedRESTInstantiationAsUnused'
+    go_test: go test ./internal/load -run 'TestLoadClosureReportsAnUnselectedExpansionAsUnused|TestLoadClosureReportsAnUnreferencedRESTExpansionAsUnused'
     status: implemented
     description: Expand a fragment whose produced tools tools.yaml never selects; then select one of them.
     expected:
@@ -126,7 +126,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: The dump lists every expansion
-    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsEveryInstantiation|TestLoadClosureDumpsRESTInstantiationsBesideToolOnes|TestDumpGolden'
+    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsEveryExpansion|TestLoadClosureDumpsRESTExpansionsBesideToolOnes|TestDumpGolden'
     status: implemented
     description: Dump a profile with two expansions and compare the expansions section across two runs.
     expected:
@@ -147,7 +147,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: A spliced machine is checked as one machine
-    go_test: go test ./internal/runtime/core ./internal/load ./cmd/agent -run 'TestSplicedStageIsValidatedAsOneMachine|TestSplicingTheSamePrefixTwiceIsTheDuplicateStateError|TestLoadClosureDumpsMachineStageInstantiations|TestDumpGolden'
+    go_test: go test ./internal/runtime/core ./internal/load ./cmd/agent -run 'TestSplicedStageIsValidatedAsOneMachine|TestSplicingTheSamePrefixTwiceIsTheDuplicateStateError|TestLoadClosureDumpsMachineStageExpansions|TestDumpGolden'
     status: implemented
     description: Splice a stage whose transition reads a label the importing machine never publishes, then one with an unhandled signal, then a correct one.
     expected:

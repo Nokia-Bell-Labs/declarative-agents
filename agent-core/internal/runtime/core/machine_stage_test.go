@@ -72,17 +72,17 @@ transitions:
 	require.Len(t, spec.Transitions, 7)
 	require.Equal(t, "embed_query", spec.Transitions[1].Action)
 	require.Equal(t, "Embed_result", spec.Transitions[1].Label)
-	require.Empty(t, spec.Instantiate, "the spliced machine carries its stages as states and transitions")
+	require.Empty(t, spec.Expand, "the spliced machine carries its stages as states and transitions")
 	require.Equal(t, []string{"machine.yaml", "run.yaml", "run.yaml"}, visited,
-		"the closure sees the machine and the fragment for each instantiation")
+		"the closure sees the machine and the fragment for each expansion")
 
-	instantiations := spec.Instantiations()
-	require.Len(t, instantiations, 2)
-	require.Equal(t, filepath.Join(root, "units", "run.yaml"), instantiations[0].Fragment)
-	require.Equal(t, map[string]string{"prefix": "Embed", "enter": "Embed", "word": "embed_query"}, instantiations[0].Args)
+	expansions := spec.Expansions()
+	require.Len(t, expansions, 2)
+	require.Equal(t, filepath.Join(root, "units", "run.yaml"), expansions[0].Fragment)
+	require.Equal(t, map[string]string{"prefix": "Embed", "enter": "Embed", "word": "embed_query"}, expansions[0].Args)
 	require.Equal(t, []string{"signals/EmbedDone", "states/EmbedRunning",
 		"transitions/EmbedRunning:CommandError", "transitions/EmbedRunning:EmbedDone", "transitions/Ready:Embed"},
-		instantiations[0].Produces)
+		expansions[0].Produces)
 }
 
 // TestSplicedStageIsValidatedAsOneMachine is srd052 R4.2: a stage naming a
@@ -143,7 +143,7 @@ transitions:
 	_, err := core.LoadMachineClosure(filepath.Join(root, "machine.yaml"), nil)
 
 	require.ErrorContains(t, err, `parameter "word" is required`)
-	require.ErrorContains(t, err, `instantiates "units/run.yaml"`)
+	require.ErrorContains(t, err, `expands "units/run.yaml"`)
 	require.ErrorContains(t, err, "run.yaml")
 }
 
@@ -155,10 +155,10 @@ func TestMachineImportsAreRejectedWithTheReason(t *testing.T) {
 
 	_, err := core.LoadMachineClosure(filepath.Join(root, "machine.yaml"), nil)
 
-	require.ErrorContains(t, err, "a machine imports nothing; a stage fragment is instantiated")
+	require.ErrorContains(t, err, "a machine imports nothing; a stage fragment is expanded")
 }
 
-func TestParseMachineSpecRefusesInstantiateWithoutAFile(t *testing.T) {
+func TestParseMachineSpecRefusesExpandWithoutAFile(t *testing.T) {
 	t.Parallel()
 	_, err := core.ParseMachineSpec([]byte(machineHead + "expand:\n  - {fragment: x.yaml, args: {}}\ntransitions:\n  - {state: Ready, signal: Seed, next: Done}\n"))
 

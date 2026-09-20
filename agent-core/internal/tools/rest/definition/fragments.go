@@ -14,23 +14,23 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/fragments"
 )
 
-// Instantiating REST-definition fragments (srd052 R2). The fragment's expanded
-// bytes are filled, its produced names are prefixed when the instantiation
+// Expanding REST-definition fragments (srd052 R2). The fragment's expanded
+// bytes are filled, its produced names are prefixed when the expansion
 // says so, and the result is parsed and merged like a hand-written unit at the
 // fragment's own path.
 
-// DeclarationInstantiation is one application of a REST fragment: where it
+// DeclarationExpansion is one application of a REST fragment: where it
 // came from, what filled it, and what it produced as family/name (srd052 R3.2).
-type DeclarationInstantiation struct {
+type DeclarationExpansion struct {
 	Fragment string
 	As       string
 	Args     map[string]string
 	Produces []string
 }
 
-// DeclarationInstantiations returns every instantiation in traversal order.
-func (d Definition) DeclarationInstantiations() []DeclarationInstantiation {
-	return append([]DeclarationInstantiation(nil), d.instantiations...)
+// DeclarationExpansions returns every expansion in traversal order.
+func (d Definition) DeclarationExpansions() []DeclarationExpansion {
+	return append([]DeclarationExpansion(nil), d.expansions...)
 }
 
 // restFamilies are the named-entry families a REST body declares, with the
@@ -59,10 +59,10 @@ func validateFragmentUnit(file DefinitionFile, path string, imported bool) error
 		return nil
 	}
 	if imported {
-		return fmt.Errorf("REST fragment %s is instantiated, not imported (srd052 R2.6)", path)
+		return fmt.Errorf("REST fragment %s is expanded, not imported (srd052 R2.6)", path)
 	}
-	if file.hasInstantiate {
-		return fmt.Errorf("REST fragment %s instantiates another fragment; nesting is not supported (srd052 R1.2)", path)
+	if file.hasExpand {
+		return fmt.Errorf("REST fragment %s expands another fragment; nesting is not supported (srd052 R1.2)", path)
 	}
 	if file.Unit == "" {
 		return fmt.Errorf("REST fragment %s must declare unit", path)
@@ -73,60 +73,60 @@ func validateFragmentUnit(file DefinitionFile, path string, imported bool) error
 	return nil
 }
 
-func (r *importResolver) loadInstantiations(file DefinitionFile, path string) error {
-	for _, instantiation := range file.Instantiate {
-		if err := r.instantiate(path, instantiation); err != nil {
-			return fmt.Errorf("REST unit %q at %s instantiates %q: %w",
-				file.Unit, path, instantiation.Fragment, err)
+func (r *importResolver) loadExpansions(file DefinitionFile, path string) error {
+	for _, expansion := range file.Expand {
+		if err := r.expand(path, expansion); err != nil {
+			return fmt.Errorf("REST unit %q at %s expands %q: %w",
+				file.Unit, path, expansion.Fragment, err)
 		}
 	}
 	return nil
 }
 
-func (r *importResolver) instantiate(path string, instantiation fragments.Instantiation) error {
-	if strings.TrimSpace(instantiation.Fragment) == "" {
+func (r *importResolver) expand(path string, expansion fragments.Expansion) error {
+	if strings.TrimSpace(expansion.Fragment) == "" {
 		return fmt.Errorf("fragment path must be non-empty")
 	}
-	target, err := declarationImportTarget(path, instantiation.Fragment)
+	target, err := declarationImportTarget(path, expansion.Fragment)
 	if err != nil {
-		return fmt.Errorf("fragment path %q: %w", instantiation.Fragment, err)
+		return fmt.Errorf("fragment path %q: %w", expansion.Fragment, err)
 	}
 	fragment, source, err := r.readUnit(target, false)
 	if err != nil {
 		return err
 	}
 	if !fragment.IsFragment() {
-		return fmt.Errorf("%s declares no params, so it is imported, not instantiated", target)
+		return fmt.Errorf("%s declares no params, so it is imported, not expanded", target)
 	}
-	args, err := fragments.ResolveArgs(fragment.Params, instantiation.Args)
+	args, err := fragments.ResolveArgs(fragment.Params, expansion.Args)
 	if err != nil {
 		return fmt.Errorf("fragment %s: %w", target, err)
 	}
-	instantiated, err := r.substitute(target, args, instantiation.As)
+	expanded, err := r.substitute(target, args, expansion.As)
 	if err != nil {
 		return err
 	}
-	if err := r.loadFragmentImports(instantiated, target); err != nil {
+	if err := r.loadFragmentImports(expanded, target); err != nil {
 		return err
 	}
 	values := make(map[string]string, len(args))
 	for name, arg := range args {
 		values[name] = arg.Value
 	}
-	r.order = append(r.order, declarationUnit{source: source, rest: instantiated.Rest})
+	r.order = append(r.order, declarationUnit{source: source, rest: expanded.Rest})
 	r.imports = append(r.imports, DeclarationImport{Importer: r.sources[path], Imported: source, Args: values})
-	r.instantiations = append(r.instantiations, DeclarationInstantiation{
-		Fragment: target, As: instantiation.As, Args: values, Produces: producedNames(instantiated.Rest),
+	r.expansions = append(r.expansions, DeclarationExpansion{
+		Fragment: target, As: expansion.As, Args: values, Produces: producedNames(expanded.Rest),
 	})
 	return nil
 }
 
 // loadFragmentImports resolves the fragment's own imports from the fragment's
 // path, with the fragment on the stack so a cycle through it is reported.
-func (r *importResolver) loadFragmentImports(instantiated DefinitionFile, target string) error {
+func (r *importResolver) loadFragmentImports(expanded DefinitionFile, target string) error {
 	r.visiting[target] = len(r.stack)
 	r.stack = append(r.stack, target)
-	err := r.loadImports(instantiated, target)
+	err := r.loadImports(expanded, target)
 	r.stack = r.stack[:len(r.stack)-1]
 	delete(r.visiting, target)
 	return err
@@ -155,18 +155,18 @@ func (r *importResolver) substitute(
 	encoder := yaml.NewEncoder(&output)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(&document); err != nil {
-		return DefinitionFile{}, fmt.Errorf("fragment %s: encode instantiation: %w", target, err)
+		return DefinitionFile{}, fmt.Errorf("fragment %s: encode expansion: %w", target, err)
 	}
-	instantiated, err := parseDefinitionFileExpanded(output.Bytes())
+	expanded, err := parseDefinitionFileExpanded(output.Bytes())
 	if err != nil {
 		return DefinitionFile{}, fmt.Errorf("fragment %s: %w", target, err)
 	}
-	return instantiated, nil
+	return expanded, nil
 }
 
 // prefixRESTNames renames every name the fragment's rest body produces to
 // <prefix>_<name>, and rewrites the fragment's own references to them, so one
-// fragment can be instantiated more than once and each result still resolves
+// fragment can be expanded more than once and each result still resolves
 // (srd052 R2.5). Produced names are the family entries and, because the
 // closure holds them unique across every client and server, the operation
 // and endpoint names nested under clients and servers. References to names

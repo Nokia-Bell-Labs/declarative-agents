@@ -85,9 +85,9 @@ func TestStageFragmentVariantIsSelectedByEnvironment(t *testing.T) {
 			require.NoError(t, err)
 			require.Contains(t, spec.States.Names(), test.state)
 			require.Len(t, spec.States, 4, "one variant is spliced, never both")
-			instantiations := spec.Instantiations()
-			require.Len(t, instantiations, 1)
-			require.Equal(t, filepath.Join(root, "stages", test.fragment), instantiations[0].Fragment,
+			expansions := spec.Expansions()
+			require.Len(t, expansions, 1)
+			require.Equal(t, filepath.Join(root, "stages", test.fragment), expansions[0].Fragment,
 				"the dump names the resolved variant")
 		})
 	}

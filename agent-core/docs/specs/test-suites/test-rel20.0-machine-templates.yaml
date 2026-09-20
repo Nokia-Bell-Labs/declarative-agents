@@ -79,7 +79,7 @@ test_cases:
 
   - use_case: rel20.0-uc001-machine-templates
     name: The target body kind selects replace or splice
-    go_test: go test ./internal/runtime/core -run 'TestInstantiateTargetBodyKindSelectsReplaceOrSplice|TestMachineTemplateSplicesItsStagesRelativeToItself'
+    go_test: go test ./internal/runtime/core -run 'TestExpandTargetBodyKindSelectsReplaceOrSplice|TestMachineTemplateSplicesItsStagesRelativeToItself'
     status: implemented
     description: Expand a machine body, a stage body, and a tools body from a machine file.
     expected:
@@ -195,7 +195,7 @@ test_cases:
 
   - use_case: rel20.0-uc002-agent-blueprints
     name: A machine mapping expands a template directly
-    go_test: go test ./internal/tools/catalog ./internal/load -run 'TestBlueprintMachineMappingInstantiatesTemplate'
+    go_test: go test ./internal/tools/catalog ./internal/load -run 'TestBlueprintMachineMappingExpandsTemplate'
     status: planned
     description: "Give the blueprint machine: {fragment: <template>, args: {server: $param(server)}} and load two instances with different server arguments."
     expected:
@@ -226,7 +226,7 @@ test_cases:
 
   - use_case: rel20.0-uc002-agent-blueprints
     name: The dump renders the resolved profile and lists the blueprint
-    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsBlueprintInstantiation|TestDumpGolden'
+    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsBlueprintExpansion|TestDumpGolden'
     status: planned
     description: Dump control-blueprint twice and read its profile and expansions sections.
     expected:

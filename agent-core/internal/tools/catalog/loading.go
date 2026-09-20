@@ -206,7 +206,7 @@ func readToolDefsFile(
 	// applies, so an address that differs between a local run and a deployment
 	// is an environment reference rather than a literal the deployment cannot
 	// reach (srd013 R5.6). The expanded bytes are returned as well: a fragment
-	// is instantiated from them, not from the decoded file (srd052 R2.4).
+	// is expanded from them, not from the decoded file (srd052 R2.4).
 	expanded := data
 	if options.ExpandEnv {
 		expanded = envexpand.Expand(data)
@@ -252,7 +252,7 @@ func parseToolDefsFileRaw(
 	file.hasTypes = hasTypes
 	file.hasImports = yamlstrict.FieldPresent(root, "imports")
 	file.hasParams = hasParams
-	file.hasInstantiate = yamlstrict.FieldPresent(root, "expand")
+	file.hasExpand = yamlstrict.FieldPresent(root, "expand")
 	// A unit is a fragment or it is not; half of one declares nothing
 	// (srd052 R1.3).
 	if file.hasParams && !file.hasTools && !file.hasTypes {
@@ -277,19 +277,19 @@ func decodeToolDefsFile(expanded []byte, fragment bool) (ToolDefsFile, error) {
 		return file, yamlstrict.Unmarshal(expanded, &file)
 	}
 	var header struct {
-		Unit        string                    `yaml:"unit,omitempty"`
-		Imports     []string                  `yaml:"imports,omitempty"`
-		Params      []fragments.Param         `yaml:"params,omitempty"`
-		Instantiate []fragments.Instantiation `yaml:"expand,omitempty"`
-		Tools       yaml.Node                 `yaml:"tools,omitempty"`
-		Types       yaml.Node                 `yaml:"types,omitempty"`
+		Unit    string                `yaml:"unit,omitempty"`
+		Imports []string              `yaml:"imports,omitempty"`
+		Params  []fragments.Param     `yaml:"params,omitempty"`
+		Expand  []fragments.Expansion `yaml:"expand,omitempty"`
+		Tools   yaml.Node             `yaml:"tools,omitempty"`
+		Types   yaml.Node             `yaml:"types,omitempty"`
 	}
 	if err := yamlstrict.Unmarshal(expanded, &header); err != nil {
 		return ToolDefsFile{}, err
 	}
 	return ToolDefsFile{
 		Unit: header.Unit, Imports: header.Imports,
-		Params: header.Params, Instantiate: header.Instantiate,
+		Params: header.Params, Expand: header.Expand,
 	}, nil
 }
 

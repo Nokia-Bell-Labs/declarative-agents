@@ -48,9 +48,9 @@ func declaredWordsOnDisk(t *testing.T, root string) map[string]string {
 				continue
 			}
 			// A fragment names its words with `$param(...)`, and those names
-			// are placeholders until an instantiation supplies arguments
-			// (srd052 R2.3). The word the corpus holds is the instantiated
-			// one, declared wherever the instantiation is, so the template
+			// are placeholders until an expansion supplies arguments
+			// (srd052 R2.3). The word the corpus holds is the expanded
+			// one, declared wherever the expansion is, so the template
 			// itself declares nothing the corpus could reach.
 			if strings.Contains(tool.Name, "$param(") {
 				continue

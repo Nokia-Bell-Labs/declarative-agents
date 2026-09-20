@@ -16,7 +16,7 @@ import (
 
 // Machine templates in the closure (srd054 R3.1, R3.2): the template is a file
 // of the closure and an asset of the program digest, and the dump labels the
-// instantiation.
+// expansion.
 
 const usednessTemplate = `unit: usedness-template
 params:

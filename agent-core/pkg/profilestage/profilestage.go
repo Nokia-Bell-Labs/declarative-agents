@@ -374,8 +374,8 @@ func (c *stagedClosure) libraryOf(file stagedFile, imported string) (*stagedFile
 
 // declaredImports reads the edges a declaration file follows to other files:
 // the import list srd050 R1.3 places at the top level of a tool, REST, or type
-// unit, and the fragments its instantiate list applies (srd052 R2.1), which
-// includes a machine's stage fragments. An instantiation is an import edge
+// unit, and the fragments its expand list applies (srd052 R2.1), which
+// includes a machine's stage fragments. An expansion is an import edge
 // whose unit is filled in on the way, so a stager that copied imports and not
 // fragments would stage a tree that fails at startup the same way. A file that
 // is not a declaration decodes to nothing and imports nothing.
@@ -384,21 +384,21 @@ func declaredImports(path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read staged declaration %s: %w", path, err)
 	}
-	type instantiations []struct {
+	type expansions []struct {
 		Fragment string `yaml:"fragment"`
 	}
 	var file struct {
-		Imports     []string       `yaml:"imports"`
-		Instantiate instantiations `yaml:"expand"`
+		Imports []string   `yaml:"imports"`
+		Expand  expansions `yaml:"expand"`
 		// A tool's config may name a file it reads when built, such as
 		// invoke_llm's chat dialect (srd058 R2.3); the loader resolves it like
 		// an import, so staging follows it like one.
 		// A profile's tools are selection paths rather than declarations,
 		// so the entries decode loosely.
 		Tools []interface{} `yaml:"tools"`
-		// A machine template's body instantiates its stages (srd054 R2.2).
+		// A machine template's body expands its stages (srd054 R2.2).
 		Machine struct {
-			Instantiate instantiations `yaml:"expand"`
+			Expand expansions `yaml:"expand"`
 		} `yaml:"machine"`
 	}
 	if yaml.Unmarshal(data, &file) != nil {
@@ -408,8 +408,8 @@ func declaredImports(path string) ([]string, error) {
 	for _, edge := range file.Imports {
 		edges = appendStagedEdge(edges, edge)
 	}
-	for _, instantiation := range append(file.Instantiate, file.Machine.Instantiate...) {
-		edges = appendStagedEdge(edges, instantiation.Fragment)
+	for _, expansion := range append(file.Expand, file.Machine.Expand...) {
+		edges = appendStagedEdge(edges, expansion.Fragment)
 	}
 	for _, tool := range file.Tools {
 		edges = appendStagedEdge(edges, configDialect(tool))

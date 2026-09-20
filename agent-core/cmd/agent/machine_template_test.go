@@ -15,7 +15,7 @@ import (
 )
 
 // TestStartupWiringFaultNamesTemplateAndInstance is srd054 R2.5: a machine
-// that fails the startup wiring checks after instantiation is reported with the
+// that fails the startup wiring checks after expansion is reported with the
 // template that holds the fault beside the instance that selected it.
 func TestStartupWiringFaultNamesTemplateAndInstance(t *testing.T) {
 	root := repoRootFromTest(t)

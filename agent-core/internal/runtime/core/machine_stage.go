@@ -20,7 +20,7 @@ import (
 )
 
 // Machine stage fragments (srd052 R4). A stage is a fragment whose body
-// declares states, signals, and transitions; a machine instantiates it with
+// declares states, signals, and transitions; a machine expands it with
 // arguments, and the loader splices the result into the machine's own lists
 // before validating the whole as one machine. Every state a spliced
 // transition names that the stage does not itself declare must already be
@@ -34,9 +34,9 @@ type StageSpec struct {
 	Transitions []TransitionSpec `yaml:"transitions"`
 }
 
-// MachineInstantiation records one fragment a machine instantiated, for the
-// dump (srd052 R3.2): a stage spliced into it, or the template it instantiates.
-type MachineInstantiation struct {
+// MachineExpansion records one fragment a machine expanded, for the
+// dump (srd052 R3.2): a stage spliced into it, or the template it expands.
+type MachineExpansion struct {
 	Kind     string
 	Fragment string
 	As       string
@@ -44,20 +44,20 @@ type MachineInstantiation struct {
 	Produces []string
 }
 
-// Instantiation kinds a machine records (srd054 R3.2).
+// Expansion kinds a machine records (srd054 R3.2).
 const (
-	InstantiationKindStage   = "stage"
-	InstantiationKindMachine = "machine"
+	ExpansionKindStage   = "stage"
+	ExpansionKindMachine = "machine"
 )
 
-// Instantiations returns the stage fragments spliced into the machine.
-func (m MachineSpec) Instantiations() []MachineInstantiation {
-	return append([]MachineInstantiation(nil), m.instantiations...)
+// Expansions returns the stage fragments spliced into the machine.
+func (m MachineSpec) Expansions() []MachineExpansion {
+	return append([]MachineExpansion(nil), m.expansions...)
 }
 
 // LoadMachineClosure reads a machine file and validates it as one machine. A
-// machine that instantiates a machine template is replaced by the template's
-// instantiation (srd054); a machine that instantiates stage fragments has them
+// machine that expands a machine template is replaced by the template's
+// expansion (srd054); a machine that expands stage fragments has them
 // spliced in (srd052 R4). visit, when set, sees the machine file and each
 // fragment file, so a closure records them.
 func LoadMachineClosure(path string, visit func(string, []byte) error) (MachineSpec, error) {
@@ -65,9 +65,9 @@ func LoadMachineClosure(path string, visit func(string, []byte) error) (MachineS
 	if err != nil {
 		return MachineSpec{}, err
 	}
-	if kind, kindErr := fragmentBodyKind(data); kindErr == nil && kind == InstantiationKindMachine {
+	if kind, kindErr := fragmentBodyKind(data); kindErr == nil && kind == ExpansionKindMachine {
 		return MachineSpec{}, fmt.Errorf("machine spec %s is a machine template: a template is "+
-			"instantiated by a machine file, not loaded as a machine (srd054 R1.4)", path)
+			"expanded by a machine file, not loaded as a machine (srd054 R1.4)", path)
 	}
 	spec, err := decodeMachineSpec(data)
 	if err != nil {
@@ -75,20 +75,20 @@ func LoadMachineClosure(path string, visit func(string, []byte) error) (MachineS
 	}
 	if len(spec.Imports) > 0 {
 		return MachineSpec{}, fmt.Errorf(
-			"machine spec %s imports %q: a machine imports nothing; a stage fragment is instantiated", path, spec.Imports)
+			"machine spec %s imports %q: a machine imports nothing; a stage fragment is expanded", path, spec.Imports)
 	}
-	template, err := instantiatedTemplate(path, spec.Instantiate)
+	template, err := expandedTemplate(path, spec.Expand)
 	if err != nil {
 		return MachineSpec{}, fmt.Errorf("machine spec %s: %w", path, err)
 	}
 	if template != "" {
-		return loadMachineInstance(path, data, spec.Instantiate[0], template, visit)
+		return loadMachineInstance(path, data, spec.Expand[0], template, visit)
 	}
 	if err := spliceStages(&spec, path, visit); err != nil {
 		return MachineSpec{}, err
 	}
 	if err := validateSpec(spec); err != nil {
-		if len(spec.instantiations) > 0 {
+		if len(spec.expansions) > 0 {
 			return MachineSpec{}, fmt.Errorf("machine spec %s after splicing %s: %w",
 				path, strings.Join(splicedFragments(spec), ", "), err)
 		}
@@ -97,15 +97,15 @@ func LoadMachineClosure(path string, visit func(string, []byte) error) (MachineS
 	return spec, nil
 }
 
-// spliceStages splices every stage fragment spec instantiates, resolving their
-// paths against the file at base, and clears the instantiation list.
+// spliceStages splices every stage fragment spec expands, resolving their
+// paths against the file at base, and clears the expansion list.
 func spliceStages(spec *MachineSpec, base string, visit func(string, []byte) error) error {
-	for _, instantiation := range spec.Instantiate {
-		if err := spliceStageFragment(spec, base, instantiation, visit); err != nil {
-			return fmt.Errorf("machine spec %s instantiates %q: %w", base, instantiation.Fragment, err)
+	for _, expansion := range spec.Expand {
+		if err := spliceStageFragment(spec, base, expansion, visit); err != nil {
+			return fmt.Errorf("machine spec %s expands %q: %w", base, expansion.Fragment, err)
 		}
 	}
-	spec.Instantiate = nil
+	spec.Expand = nil
 	return nil
 }
 
@@ -136,10 +136,10 @@ type stageFile struct {
 }
 
 func spliceStageFragment(
-	spec *MachineSpec, machinePath string, instantiation fragments.Instantiation,
+	spec *MachineSpec, machinePath string, expansion fragments.Expansion,
 	visit func(string, []byte) error,
 ) error {
-	target, err := fragmentTarget(machinePath, instantiation.Fragment)
+	target, err := fragmentTarget(machinePath, expansion.Fragment)
 	if err != nil {
 		return err
 	}
@@ -147,11 +147,11 @@ func spliceStageFragment(
 	if err != nil {
 		return err
 	}
-	args, err := fragments.ResolveArgs(header.Params, instantiation.Args)
+	args, err := fragments.ResolveArgs(header.Params, expansion.Args)
 	if err != nil {
 		return fmt.Errorf("fragment %s: %w", target, err)
 	}
-	stage, err := instantiateStage(data, target, args)
+	stage, err := expandStage(data, target, args)
 	if err != nil {
 		return err
 	}
@@ -162,8 +162,8 @@ func spliceStageFragment(
 	spec.States = append(spec.States, stage.Stage.States...)
 	spec.Signals = append(spec.Signals, stage.Stage.Signals...)
 	spec.Transitions = append(spec.Transitions, stage.Stage.Transitions...)
-	spec.instantiations = append(spec.instantiations, MachineInstantiation{
-		Kind: InstantiationKindStage, Fragment: target, As: instantiation.As, Args: values,
+	spec.expansions = append(spec.expansions, MachineExpansion{
+		Kind: ExpansionKindStage, Fragment: target, As: expansion.As, Args: values,
 		Produces: stageProduces(stage.Stage),
 	})
 	return nil
@@ -190,9 +190,9 @@ func readStageHeader(target string, visit func(string, []byte) error) (stageHead
 	return header, data, nil
 }
 
-// instantiateStage fills the fragment's bytes and decodes the result strictly,
+// expandStage fills the fragment's bytes and decodes the result strictly,
 // the way a hand-written machine is decoded (srd052 R2.3, R2.4).
-func instantiateStage(data []byte, target string, args map[string]fragments.Arg) (stageFile, error) {
+func expandStage(data []byte, target string, args map[string]fragments.Arg) (stageFile, error) {
 	var document yaml.Node
 	if err := yaml.Unmarshal(data, &document); err != nil {
 		return stageFile{}, fmt.Errorf("fragment %s: %w", target, err)
@@ -208,7 +208,7 @@ func instantiateStage(data []byte, target string, args map[string]fragments.Arg)
 	encoder := yaml.NewEncoder(&output)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(&document); err != nil {
-		return stageFile{}, fmt.Errorf("fragment %s: encode instantiation: %w", target, err)
+		return stageFile{}, fmt.Errorf("fragment %s: encode expansion: %w", target, err)
 	}
 	var stage stageFile
 	if err := yamlstrict.Unmarshal(output.Bytes(), &stage); err != nil {
@@ -233,14 +233,14 @@ func stageProduces(stage StageSpec) []string {
 }
 
 func splicedFragments(spec MachineSpec) []string {
-	paths := make([]string, 0, len(spec.instantiations))
-	for _, instantiation := range spec.instantiations {
-		paths = append(paths, instantiation.Fragment)
+	paths := make([]string, 0, len(spec.expansions))
+	for _, expansion := range spec.expansions {
+		paths = append(paths, expansion.Fragment)
 	}
 	return paths
 }
 
-// fragmentTarget resolves the file an instantiation names, relative to the file
+// fragmentTarget resolves the file an expansion names, relative to the file
 // at base. A path carrying ${NAME:-default} references selects one of several
 // fixed variants by environment (srd052 R4.3): only the path is expanded, by
 // the envexpand rules tool declarations use, so the environment chooses a

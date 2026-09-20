@@ -11,7 +11,7 @@ import (
 
 // The shipped monitor REST pair (srd057 R1). The monitor server fragment names
 // its server `monitor` in every agent, so the pair is the same everywhere and
-// arrives by import beside the serve-lifecycle instantiation.
+// arrives by import beside the serve-lifecycle expansion.
 
 const monitorRestUnit = "/opt/agent-core/tools/units/monitor-rest-declarations.yaml"
 
@@ -27,7 +27,7 @@ func TestMonitorRestUnitSuppliesThePairBesideTheLifecycle(t *testing.T) {
 	require.ElementsMatch(t, []string{
 		"launch_probe_requests", "launch_probe_control", "await_probe_control", "stop_probe_requests",
 		"launch_monitor_rest", "stop_monitor_rest",
-	}, toolNames(defs), "the import and the instantiation compose without colliding")
+	}, toolNames(defs), "the import and the expansion compose without colliding")
 }
 
 func TestMonitorRestUnitWiresBothWordsToTheMonitorServerWithTypedContracts(t *testing.T) {

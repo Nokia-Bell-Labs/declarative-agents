@@ -13,7 +13,7 @@ import (
 )
 
 // The shipped serve-lifecycle fragment (srd057 R1). A serving agent's four
-// lifecycle words are one instantiation, and the names they arrive under are
+// lifecycle words are one expansion, and the names they arrive under are
 // arguments, so the machine that references them needs no change. The install
 // root is process-scoped, so these tests do not run in parallel.
 

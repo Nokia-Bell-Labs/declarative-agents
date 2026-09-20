@@ -132,15 +132,15 @@ func newInstantiationDump(
 		entry.Produces = append(entry.Produces, produced...)
 	}
 	for _, tool := range universe {
-		if instantiation, ok := tool.Instantiation(); ok {
+		if instantiation, ok := tool.Expansion(); ok {
 			record(instantiationKindTool, instantiation.Fragment, instantiation.As, instantiation.Args, tool.Name)
 		}
 	}
-	for _, instantiation := range rest.DeclarationInstantiations() {
+	for _, instantiation := range rest.DeclarationExpansions() {
 		record(instantiationKindREST, instantiation.Fragment, instantiation.As, instantiation.Args,
 			instantiation.Produces...)
 	}
-	for _, instantiation := range machine.Instantiations() {
+	for _, instantiation := range machine.Expansions() {
 		record(instantiation.Kind, instantiation.Fragment, instantiation.As, instantiation.Args,
 			instantiation.Produces...)
 	}

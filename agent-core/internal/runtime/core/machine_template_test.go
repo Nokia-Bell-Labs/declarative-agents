@@ -14,7 +14,7 @@ import (
 )
 
 // Machine templates (srd054): a whole machine as a fragment, and a machine file
-// that instantiates it.
+// that expands it.
 
 const checkTemplate = `unit: check-template
 params:
@@ -49,16 +49,16 @@ func TestMachineTemplateInstanceEqualsTheHandWrittenMachine(t *testing.T) {
 	require.Equal(t, "core-control-template", instance.Name, "the instance's name replaces the template's")
 	instance.Name = control.Name
 	require.Equal(t, canonicalMachine(t, control), canonicalMachine(t, instance),
-		"an instantiated machine is the hand-written machine apart from its name")
+		"an expanded machine is the hand-written machine apart from its name")
 	require.Equal(t, []string{"machine.yaml", "control-machine-template.yaml"}, visited)
 	require.Equal(t, filepath.Join(root, "units", "control-machine-template.yaml"), instance.TemplatePath(),
 		"the template path resolves against the instance, as a stage path does")
-	instantiations := instance.Instantiations()
-	require.Len(t, instantiations, 1)
-	require.Equal(t, core.InstantiationKindMachine, instantiations[0].Kind)
+	expansions := instance.Expansions()
+	require.Len(t, expansions, 1)
+	require.Equal(t, core.ExpansionKindMachine, expansions[0].Kind)
 	require.Equal(t, map[string]string{"launch": "launch_agent_control", "await": "await_agent_control"},
-		instantiations[0].Args)
-	require.Equal(t, []string{"machine/core-control-template"}, instantiations[0].Produces)
+		expansions[0].Args)
+	require.Equal(t, []string{"machine/core-control-template"}, expansions[0].Produces)
 }
 
 func TestMachineInstanceCarriesOnlyItsHeader(t *testing.T) {
@@ -116,10 +116,10 @@ func TestMachineTemplateSplicesItsStagesRelativeToItself(t *testing.T) {
 	}
 	require.Equal(t, "embed_query", entered.Action, "the template's argument passed through to the stage")
 	kinds := []string{}
-	for _, instantiation := range spec.Instantiations() {
-		kinds = append(kinds, instantiation.Kind)
+	for _, expansion := range spec.Expansions() {
+		kinds = append(kinds, expansion.Kind)
 	}
-	require.Equal(t, []string{core.InstantiationKindMachine, core.InstantiationKindStage}, kinds)
+	require.Equal(t, []string{core.ExpansionKindMachine, core.ExpansionKindStage}, kinds)
 }
 
 func TestMachineTemplateCannotNestOrBeLoadedAsAMachine(t *testing.T) {
@@ -133,14 +133,14 @@ func TestMachineTemplateCannotNestOrBeLoadedAsAMachine(t *testing.T) {
 	})
 
 	_, err := core.LoadMachineClosure(filepath.Join(root, "machine.yaml"), nil)
-	require.ErrorContains(t, err, "instantiates no template")
+	require.ErrorContains(t, err, "expands no template")
 
 	_, err = core.LoadMachineSpec(filepath.Join(root, "units", "check.yaml"))
 	require.ErrorContains(t, err, "is a machine template")
 	require.ErrorContains(t, err, filepath.Join(root, "units", "check.yaml"))
 }
 
-func TestInstantiateTargetBodyKindSelectsReplaceOrSplice(t *testing.T) {
+func TestExpandTargetBodyKindSelectsReplaceOrSplice(t *testing.T) {
 	t.Parallel()
 	root := writeStageFixture(t, map[string]string{
 		"units/tools.yaml": "unit: words\nparams:\n- {name: word, type: string}\ntools:\n- {name: $param(word), binary: echo}\n",
@@ -167,7 +167,7 @@ func TestMachineTemplateFaultsNameTemplateAndInstance(t *testing.T) {
 	require.ErrorContains(t, err, filepath.Join(root, "units", "check.yaml"))
 
 	_, err = core.LoadMachineClosure(filepath.Join(root, "leftover", "machine.yaml"), nil)
-	require.Error(t, err, "the instantiated machine takes the hand-written structural checks")
+	require.Error(t, err, "the expanded machine takes the hand-written structural checks")
 	require.ErrorContains(t, err, filepath.Join(root, "leftover", "machine.yaml"))
 	require.ErrorContains(t, err, filepath.Join(root, "units", "orphan.yaml"))
 }

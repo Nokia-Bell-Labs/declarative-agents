@@ -25,7 +25,7 @@ type DeclarationSource struct {
 type declarationSource = DeclarationSource
 
 // DeclarationImport is one authored dependency between REST units. Args is
-// set when the edge is an instantiation rather than an import (srd052 R3.1).
+// set when the edge is an expansion rather than an import (srd052 R3.1).
 type DeclarationImport struct {
 	Importer DeclarationSource
 	Imported DeclarationSource
@@ -38,17 +38,17 @@ type declarationUnit struct {
 }
 
 type importResolver struct {
-	visit          FileVisitor
-	loaded         map[string]bool
-	files          map[string]DefinitionFile
-	raw            map[string][]byte
-	visiting       map[string]int
-	units          map[string]declarationSource
-	sources        map[string]declarationSource
-	stack          []string
-	order          []declarationUnit
-	imports        []DeclarationImport
-	instantiations []DeclarationInstantiation
+	visit      FileVisitor
+	loaded     map[string]bool
+	files      map[string]DefinitionFile
+	raw        map[string][]byte
+	visiting   map[string]int
+	units      map[string]declarationSource
+	sources    map[string]declarationSource
+	stack      []string
+	order      []declarationUnit
+	imports    []DeclarationImport
+	expansions []DeclarationExpansion
 }
 
 // LoadDefinitionClosure resolves and compiles REST roots and their imports as
@@ -72,7 +72,7 @@ func LoadDefinitionClosure(paths []string, visit FileVisitor) (Definition, error
 		return Definition{}, err
 	}
 	merged.declarationImports = append([]DeclarationImport(nil), resolver.imports...)
-	merged.instantiations = append([]DeclarationInstantiation(nil), resolver.instantiations...)
+	merged.expansions = append([]DeclarationExpansion(nil), resolver.expansions...)
 	return merged, nil
 }
 
@@ -97,7 +97,7 @@ func (r *importResolver) load(path string, imported bool) error {
 	if err := r.loadImports(file, path); err != nil {
 		return err
 	}
-	if err := r.loadInstantiations(file, path); err != nil {
+	if err := r.loadExpansions(file, path); err != nil {
 		return err
 	}
 	r.stack = r.stack[:len(r.stack)-1]
