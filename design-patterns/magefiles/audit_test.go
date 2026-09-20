@@ -355,12 +355,19 @@ func TestRepositoryReferenceImplementationEvidence(t *testing.T) {
 	}
 }
 
+// normalizeProse collapses all whitespace runs to single spaces so content
+// pins match hard-wrapped chapters regardless of where lines break (GH-2405).
+
+func normalizeProse(text string) string {
+	return strings.Join(strings.Fields(text), " ")
+}
+
 func TestApprovalGateChapterUsesCurrentCLIAndLabelsScope(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "10-approval-gate.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	chapter := string(data)
+	chapter := normalizeProse(string(data))
 	for _, required := range []string{
 		"bin/agent --profile",
 		"--resume-checkpoint \"$RUN_ID\"",
@@ -368,7 +375,7 @@ func TestApprovalGateChapterUsesCurrentCLIAndLabelsScope(t *testing.T) {
 		"--resume-signal Rejected",
 		"conformance fixture",
 		"design intent",
-		"no rollback runs",
+		"bypassing rollback",
 	} {
 		if !strings.Contains(chapter, required) {
 			t.Errorf("Approval Gate chapter missing %q", required)
@@ -492,7 +499,7 @@ func TestAgentAsDataUsesCanonicalFamiliesAndLabelsConceptualRoles(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	chapter := string(chapterData)
+	chapter := normalizeProse(string(chapterData))
 	for _, stale := range []string{
 		"(`generator`)", "(`evaluator`)", "generator and evaluator profiles",
 		"Generator profiles", "bench/evaluator",
@@ -547,7 +554,7 @@ func TestAgentAsDataUsesCanonicalFamiliesAndLabelsConceptualRoles(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(introduction), "example of a code **generator** agent") {
+	if !strings.Contains(normalizeProse(string(introduction)), "a **generator** agent example") {
 		t.Fatal("conceptual generator example was removed instead of labelled")
 	}
 }
@@ -557,13 +564,13 @@ func TestInferenceBoundaryUsesLoadableProfilesAndSeparatesProviderChanges(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	chapter := string(data)
+	chapter := normalizeProse(string(data))
 	for _, required := range []string{
 		"`profile.yaml`, `profile-qwen35b.yaml`, and `profile-qwen27b.yaml`",
 		"`qwen3.6:35b-mlx`",
 		"`qwen3.6:27b-mlx`",
 		"Ollama and Cohere v2 are the shipped provider adapters",
-		"requires a new adapter",
+		"a new adapter behind the existing interface",
 	} {
 		if !strings.Contains(chapter, required) {
 			t.Errorf("Inference Boundary missing %q", required)
@@ -585,7 +592,7 @@ func TestPhaseScopedToolsetUsesDerivedAvailabilityModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	chapter := string(chapterData)
+	chapter := normalizeProse(string(chapterData))
 	for _, required := range []string{
 		"`$tool` transitions",
 		"emitted signals",
