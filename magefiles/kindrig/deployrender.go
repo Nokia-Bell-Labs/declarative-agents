@@ -171,6 +171,23 @@ type RenderedProfile struct {
 	RenderedDeclarations string
 }
 
+// DeployWorkspace is the directory the machine writes its values document into
+// and the apply words read it back from.
+//
+// It is exported because a caller may need the overrides file before the run
+// starts: chatbot-mesh measures its projected release Secret against the
+// rendered values before anything reaches the cluster, and the machine writes
+// that file as its first transition, which is too late (GH-1475, GH-2345).
+// One owner for the path keeps that caller from repeating the literal.
+func DeployWorkspace(applicationRoot, release string) string {
+	return filepath.Join(DeployRenderDirectory(applicationRoot, release), "work")
+}
+
+// DeployOverridesPath is the values document inside that workspace.
+func DeployOverridesPath(applicationRoot, release string) string {
+	return filepath.Join(DeployWorkspace(applicationRoot, release), overridesFileName)
+}
+
 // DeployRenderDirectory is where one release's rendered declarations land.
 func DeployRenderDirectory(applicationRoot, release string) string {
 	return filepath.Join(applicationRoot, "build", "deploy", release)

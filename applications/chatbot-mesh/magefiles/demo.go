@@ -132,46 +132,25 @@ func (Demo) Up() error {
 		})
 }
 
-// demoValueArgs builds the demo install arguments. The browser demo reuses the
-// host Ollama and its cached models, keeping it within a laptop budget and
-// independent of in-pod model-registry trust; integration:helmLLMTier separately
-// proves the optional self-contained in-cluster tier (GH-1321). The external UI
-// asset values keep the release Secret inside its budget (GH-1475).
-func demoValueArgs(staged, image string, assets []externalUIAsset) []string {
-	repository, tag := splitImageRef(image)
-	args := []string{
-		"--values", filepath.Join(staged, "ci", chatbotDemoValuesFile),
-		"--set", "image.repository=" + repository,
-		"--set-string", "image.tag=" + tag,
-		"--set", "image.pullPolicy=Never",
-		"--set", "ingress.enabled=true",
-		"--set", "ingress.className=" + chatbotDemoIngressClass,
-		"--set", "ingress.host=" + chatbotDemoHost,
-	}
-	return append(args, externalUIAssetValueArgs(assets)...)
-}
-
-// installDemoRelease measures the projected release Secret before contacting the
-// cluster, then upgrades or installs. Without the gate an over-budget release
-// reaches the API server and fails there as an opaque Secret size error, after
-// the cluster and images are already built (GH-1475).
+// installDemoRelease runs the Helm step through the catalog applier's deploy
+// machine, so day-0 here and day-2 in the cluster are the same declared
+// sequence (srd022 R6).
+//
+// demo:up has already staged the chart, externalized the UI assets, and
+// packaged the archive, so it hands that staging over rather than making the
+// deploy path repeat it. The release-budget gate still runs first, inside
+// deployStagedRelease, before anything reaches the cluster (GH-1475).
 func installDemoRelease(
-	run helmLLMCommandRunner,
+	_ helmLLMCommandRunner,
 	staged, chartArchive, image string,
 	assets []externalUIAsset,
 ) error {
-	valueArgs := demoValueArgs(staged, image, assets)
-	measured, err := measureHelmReleaseBudget(chatbotDemoRelease, staged, chartArchive, valueArgs)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("demo: release budget PASS - %s\n", measured.String())
-	args := append([]string{"upgrade", "--install", chatbotDemoRelease, staged}, valueArgs...)
-	args = append(args, "--wait", "--timeout", helmLLMInstallTimeout.String())
-	if output, err := run("helm", args...); err != nil {
-		return fmt.Errorf("helm demo install: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-	return nil
+	return deployStagedRelease(&stagedRelease{
+		Staged:       staged,
+		ChartArchive: chartArchive,
+		Image:        image,
+		Assets:       assets,
+	})
 }
 
 // Down deletes only the chatbot-mesh demo cluster.

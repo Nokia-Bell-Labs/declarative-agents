@@ -102,7 +102,7 @@ func runDeployMachine(request DeployRequest, verb string, succeeded ...string) e
 	}
 
 	destination := DeployRenderDirectory(request.ApplicationRoot, request.Coordinates.Release)
-	workspace := filepath.Join(destination, "work")
+	workspace := DeployWorkspace(request.ApplicationRoot, request.Coordinates.Release)
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		return fmt.Errorf("%s: create workspace %s: %w", verb, workspace, err)
 	}
