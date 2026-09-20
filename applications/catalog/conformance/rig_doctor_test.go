@@ -500,3 +500,87 @@ func TestRigDoctorRefusesADiagnosisWithoutFindings(t *testing.T) {
 	})
 	result.RequireTerminalState(t, "Failed")
 }
+
+// failingProvider answers the first failures count of chat calls with a 503,
+// then serves turns. It stands in for a provider that is busy rather than
+// misconfigured, which the runtime reports as the same CommandError either
+// way (srd009 R4.3).
+func failingProvider(
+	t *testing.T, failures int, turns []string,
+) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/tags" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"models":[{"name":"qwen3.6:35b-mlx"}]}`))
+			return
+		}
+		if r.Method != http.MethodPost || r.URL.Path != "/api/chat" {
+			http.NotFound(w, r)
+			return
+		}
+		attempt := int(calls.Add(1))
+		if attempt <= failures {
+			http.Error(w, "model is loading", http.StatusServiceUnavailable)
+			return
+		}
+		turn := attempt - failures - 1
+		if turn >= len(turns) {
+			turn = len(turns) - 1
+		}
+		w.Header().Set("Content-Type", "application/json")
+		response, _ := json.Marshal(map[string]any{
+			"message":           map[string]string{"role": "assistant", "content": turns[turn]},
+			"eval_count":        8,
+			"prompt_eval_count": 16,
+		})
+		_, _ = w.Write(response)
+	}))
+	t.Cleanup(server.Close)
+	return server, &calls
+}
+
+// TestRigDoctorRetriesAFailedModelCall is the GH-2297 regression: two failed
+// calls no longer discard the evidence already read, because the machine
+// spends two retries before giving up.
+func TestRigDoctorRetriesAFailedModelCall(t *testing.T) {
+	t.Parallel()
+	evidence := stageEvidence(t, "failing-rollout")
+	provider, calls := failingProvider(t, 2, []string{
+		toolCall("write", map[string]any{"path": "diagnosis.yaml", "content": validDiagnosis}),
+		toolCall("done", map[string]any{"summary": "diagnosis written"}),
+	})
+
+	result := Run(t, RunConfig{
+		Profile:   rigDoctorProfile,
+		Directory: evidence,
+		Env:       []string{"OLLAMA_URL=" + provider.URL},
+	})
+	result.RequireExit(t, 0)
+	result.RequireTerminalState(t, "Diagnosed")
+	if got := calls.Load(); got != 4 {
+		t.Errorf("provider calls = %d, want 4: two failures, then write and done", got)
+	}
+}
+
+// TestRigDoctorGivesUpOnAnUnreachableProvider bounds the retry: a provider
+// that never answers costs three attempts, not a whole budget.
+func TestRigDoctorGivesUpOnAnUnreachableProvider(t *testing.T) {
+	t.Parallel()
+	evidence := stageEvidence(t, "failing-rollout")
+	provider, calls := failingProvider(t, 1000, nil)
+
+	result := Run(t, RunConfig{
+		Profile:   rigDoctorProfile,
+		Directory: evidence,
+		Env:       []string{"OLLAMA_URL=" + provider.URL},
+	})
+	result.RequireTerminalState(t, "Failed")
+	if got := calls.Load(); got != 3 {
+		t.Errorf("provider calls = %d, want exactly 3 attempts", got)
+	}
+	if _, err := os.Stat(filepath.Join(evidence, "diagnosis.yaml")); !os.IsNotExist(err) {
+		t.Errorf("an unreachable provider wrote a diagnosis: %v", err)
+	}
+}

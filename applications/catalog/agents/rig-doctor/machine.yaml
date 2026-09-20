@@ -13,6 +13,7 @@ configuration:
 invariants:
 - The evidence gate runs before any model call, so an empty directory costs no tokens
 - The diagnosis is read back and decoded before the run succeeds, so an unreadable one is repaired rather than reported
+- A failed model call is retried twice before the run gives up, so a busy provider does not discard the evidence already read
 - Every tool result is fed back to the LLM before the next reasoning step
 - Reads cannot leave the evidence directory and the only write is the diagnosis beside it
 - No cluster, kubectl, helm, or network boundary other than the model provider participates
@@ -38,9 +39,12 @@ lifecycle: |-
      diagnosis decoded as YAML, names a cause, and carries findings
   10. A missing, undecodable, or incomplete diagnosis -> Composing: the failure
      goes back to the model for repair rather than passing
-  11. Composing -> Failed (BudgetExhausted): the loop ran out of budget
-  12. CommandError while seeding or reading -> Failed
-  13. BudgetExhausted in any non-terminal state -> Failed, so a run that stops
+  11. Composing -> RetryingModel -> RetryingModelLast (CommandError): a failed
+     model call is retried twice, and each retry rejoins Parsing on a
+     response; a third failure reaches Failed
+  12. Composing -> Failed (BudgetExhausted): the loop ran out of budget
+  13. CommandError while seeding or reading -> Failed
+  14. BudgetExhausted in any non-terminal state -> Failed, so a run that stops
      mid-gate still reports a terminal
 pipeline_diagram: |-
   ```mermaid
@@ -62,8 +66,22 @@ pipeline_diagram: |-
     R -->|missing or undecodable| D
     C2 -->|DiagnosisIncomplete| D
     C3 -->|DiagnosisIncomplete| D
+    D -->|CommandError| T1[RetryingModel]
+    T1 -->|CommandError| T2[RetryingModelLast]
+    T1 -->|LLMResponded| E
+    T2 -->|LLMResponded| E
+    T2 -->|CommandError| I
     D -->|BudgetExhausted| I[Failed]
   ```
+instantiate:
+  - fragment: diagnosis-gate-fragment.yaml
+    args:
+      from: Parsing
+      enter: TaskCompleted
+      accepted: Diagnosed
+      repair: Composing
+      repair_action: invoke_llm
+      failed: Failed
 initial_state: Idle
 budget:
   command_timeout: 10m
@@ -80,6 +98,14 @@ states:
   meaning: |
     The listing is being tested for content. An empty evidence directory
     stops here rather than paying for a model call.
+- name: RetryingModel
+  meaning: |
+    The first model call failed. The evidence already read is worth one more
+    attempt, so the call is repeated rather than the run discarded.
+- name: RetryingModelLast
+  meaning: |
+    The retry failed too. One final attempt runs; a third failure is a
+    provider the run cannot reach, and it reaches Failed.
 - name: Composing
   meaning: |
     The LLM is being invoked or a tool result is being fed back. This is the
@@ -88,19 +114,6 @@ states:
   meaning: |
     The raw LLM response is being parsed to extract a tool call. If parsing
     fails, the error is reported back to the LLM.
-- name: SeedingDiagnosisRead
-  meaning: |
-    The model declared the work done. The gate names the file it should have
-    written, so the read that follows cannot be pointed anywhere else.
-- name: ReadingDiagnosis
-  meaning: |
-    The written diagnosis is being read back and decoded. A file that is
-    missing, undecodable, or not the allowed one returns to the model for
-    repair rather than passing as a diagnosis nobody can read.
-- name: CheckingCause
-  meaning: The decoded diagnosis is being checked for a probable cause.
-- name: CheckingFindings
-  meaning: The decoded diagnosis is being checked for at least one finding.
 - name: Diagnosed
   run_status: succeeded
   meaning: |
@@ -194,60 +207,6 @@ transitions:
   next: Composing
   action: $tool
 - state: Parsing
-  signal: TaskCompleted
-  next: SeedingDiagnosisRead
-  action: seed_diagnosis_path
-- state: SeedingDiagnosisRead
-  signal: DiagnosisPathReady
-  next: ReadingDiagnosis
-  action: read_diagnosis
-  label: diagnosis
-- state: SeedingDiagnosisRead
-  signal: CommandError
-  next: Failed
-- state: ReadingDiagnosis
-  signal: DocumentReady
-  next: CheckingCause
-  action: diagnosis_states_a_cause
-- state: ReadingDiagnosis
-  signal: DocumentMissing
-  next: Composing
-  action: invoke_llm
-- state: ReadingDiagnosis
-  signal: DocumentParseFailed
-  next: Composing
-  action: invoke_llm
-- state: ReadingDiagnosis
-  signal: DocumentResourceDenied
-  next: Composing
-  action: invoke_llm
-- state: ReadingDiagnosis
-  signal: CommandError
-  next: Failed
-- state: CheckingCause
-  signal: CausePresent
-  next: CheckingFindings
-  action: diagnosis_cites_findings
-- state: CheckingCause
-  signal: DiagnosisIncomplete
-  next: Composing
-  action: invoke_llm
-- state: CheckingCause
-  signal: CommandError
-  next: Composing
-  action: invoke_llm
-- state: CheckingFindings
-  signal: FindingsPresent
-  next: Diagnosed
-- state: CheckingFindings
-  signal: DiagnosisIncomplete
-  next: Composing
-  action: invoke_llm
-- state: CheckingFindings
-  signal: CommandError
-  next: Composing
-  action: invoke_llm
-- state: Parsing
   signal: ParseFailed
   next: Composing
   action: report_parse_error
@@ -273,23 +232,38 @@ transitions:
 # The budget can run out anywhere in the read-back chain, and a run that stops
 # mid-gate reaches no terminal at all unless each of its states routes the
 # signal the engine raises (srd023 R4.3, GH-2294).
-- state: SeedingDiagnosisRead
-  signal: BudgetExhausted
-  next: Failed
-- state: ReadingDiagnosis
-  signal: BudgetExhausted
-  next: Failed
-- state: CheckingCause
-  signal: BudgetExhausted
-  next: Failed
-- state: CheckingFindings
-  signal: BudgetExhausted
-  next: Failed
 - state: Parsing
   signal: BudgetExhausted
   next: Failed
+# A model call that fails is retried twice before the run gives up. The
+# runtime reports every provider failure as CommandError (srd009 R4.3), so a
+# hung endpoint and a misconfigured one arrive as one signal; the machine
+# cannot tell them apart and spends three bounded attempts rather than
+# discarding an evidence read that already cost tokens (GH-2297).
 - state: Composing
   signal: CommandError
+  next: RetryingModel
+  action: invoke_llm
+- state: RetryingModel
+  signal: LLMResponded
+  next: Parsing
+  action: parse_response
+- state: RetryingModel
+  signal: CommandError
+  next: RetryingModelLast
+  action: invoke_llm
+- state: RetryingModel
+  signal: BudgetExhausted
+  next: Failed
+- state: RetryingModelLast
+  signal: LLMResponded
+  next: Parsing
+  action: parse_response
+- state: RetryingModelLast
+  signal: CommandError
+  next: Failed
+- state: RetryingModelLast
+  signal: BudgetExhausted
   next: Failed
 - state: Parsing
   signal: CommandError

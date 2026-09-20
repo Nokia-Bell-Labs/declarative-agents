@@ -1,0 +1,68 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The diagnosis read-back gate (srd023 R4.1, R4.4): a run reports success only
+# for a diagnosis that was read back, decoded as YAML, and found to name a
+# cause and carry findings. Anything missing, undecodable, or incomplete
+# returns to the importer's repair state with the reason, so the model fixes
+# it rather than the run reporting a file nobody can read (GH-2294).
+#
+# The stage is a fragment because the words it sequences are one concern and
+# the machine that imports it is already long (execution constitution E11).
+unit: catalog-rig-doctor-diagnosis-gate
+params:
+  - name: prefix
+    type: string
+    default: ""
+    description: Prefix on the states this stage declares, to keep two instantiations apart.
+  - name: from
+    type: string
+    description: The importer's state the stage is entered from.
+  - name: enter
+    type: string
+    description: The signal, seen in the from state, that enters the stage.
+  - name: accepted
+    type: string
+    description: The importer's state a diagnosis that passes the gate leads to.
+  - name: repair
+    type: string
+    description: The importer's state a rejected diagnosis returns to for repair.
+  - name: repair_action
+    type: string
+    description: The word the importer runs on returning for repair.
+  - name: failed
+    type: string
+    default: Failed
+    description: The state an infrastructure failure or an exhausted budget leads to.
+stage:
+  states:
+    - name: $param(prefix)SeedingDiagnosisRead
+      meaning: |
+        The model declared the work done. The gate names the file it should
+        have written, so the read that follows cannot be pointed elsewhere.
+    - name: $param(prefix)ReadingDiagnosis
+      meaning: |
+        The written diagnosis is being read back and decoded. A file that is
+        missing, undecodable, or not the allowed one returns for repair.
+    - {name: $param(prefix)CheckingCause, meaning: The decoded diagnosis is being checked for a probable cause.}
+    - {name: $param(prefix)CheckingFindings, meaning: The decoded diagnosis is being checked for at least one finding.}
+  transitions:
+    - {state: $param(from), signal: $param(enter), next: $param(prefix)SeedingDiagnosisRead, action: seed_diagnosis_path}
+    - {state: $param(prefix)SeedingDiagnosisRead, signal: DiagnosisPathReady, next: $param(prefix)ReadingDiagnosis, action: read_diagnosis, label: diagnosis}
+    - {state: $param(prefix)SeedingDiagnosisRead, signal: CommandError, next: $param(failed)}
+    - {state: $param(prefix)SeedingDiagnosisRead, signal: BudgetExhausted, next: $param(failed)}
+    - {state: $param(prefix)ReadingDiagnosis, signal: DocumentReady, next: $param(prefix)CheckingCause, action: diagnosis_states_a_cause}
+    - {state: $param(prefix)ReadingDiagnosis, signal: DocumentMissing, next: $param(repair), action: $param(repair_action)}
+    - {state: $param(prefix)ReadingDiagnosis, signal: DocumentParseFailed, next: $param(repair), action: $param(repair_action)}
+    - {state: $param(prefix)ReadingDiagnosis, signal: DocumentResourceDenied, next: $param(repair), action: $param(repair_action)}
+    - {state: $param(prefix)ReadingDiagnosis, signal: CommandError, next: $param(failed)}
+    - {state: $param(prefix)ReadingDiagnosis, signal: BudgetExhausted, next: $param(failed)}
+    - {state: $param(prefix)CheckingCause, signal: CausePresent, next: $param(prefix)CheckingFindings, action: diagnosis_cites_findings}
+    - {state: $param(prefix)CheckingCause, signal: DiagnosisIncomplete, next: $param(repair), action: $param(repair_action)}
+    # A key the document omits faults the predicate rather than reading as
+    # empty, and an absent field is as repairable as a blank one.
+    - {state: $param(prefix)CheckingCause, signal: CommandError, next: $param(repair), action: $param(repair_action)}
+    - {state: $param(prefix)CheckingCause, signal: BudgetExhausted, next: $param(failed)}
+    - {state: $param(prefix)CheckingFindings, signal: FindingsPresent, next: $param(accepted)}
+    - {state: $param(prefix)CheckingFindings, signal: DiagnosisIncomplete, next: $param(repair), action: $param(repair_action)}
+    - {state: $param(prefix)CheckingFindings, signal: CommandError, next: $param(repair), action: $param(repair_action)}
+    - {state: $param(prefix)CheckingFindings, signal: BudgetExhausted, next: $param(failed)}

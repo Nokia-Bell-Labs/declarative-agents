@@ -53,6 +53,18 @@ test_cases:
     assertions:
       - A decodable diagnosis carrying no findings never reaches Diagnosed.
       - A model that never repairs exhausts its budget and reaches the Failed terminal.
+  - id: rig-doctor-retries-a-failed-model-call
+    verifies: [S3, S5]
+    command: go test ./conformance -run '^TestRigDoctorRetriesAFailedModelCall'
+    assertions:
+      - A provider that fails twice and then answers reaches Diagnosed.
+      - The run spends four provider calls: two failures, then the write and the done.
+  - id: rig-doctor-gives-up-on-an-unreachable-provider
+    verifies: [S5]
+    command: go test ./conformance -run '^TestRigDoctorGivesUpOnAnUnreachableProvider'
+    assertions:
+      - A provider that never answers costs exactly three attempts.
+      - The run reaches Failed and writes no diagnosis.
   - id: rig-doctor-no-evidence
     verifies: [S4]
     command: go test ./conformance -run '^TestRigDoctorNoEvidence'
