@@ -24,9 +24,14 @@ imports:
 # from ${APPLIER_WORK_DIR:-/work}; neither exists on a developer's machine, so
 # both arrive here as rendered paths.
 #
-# These are helm 3 spellings. helm 4 renamed --atomic and rejects an unknown
-# flag outright, so the harness checks the local helm's major version before it
-# runs the agent rather than letting every word fail one at a time.
+# These are helm 3's spellings, which is what the applier's pinned CLI donor
+# carries. helm 4 accepts all of them and warns about two: --atomic is
+# deprecated for --rollback-on-failure, and a bare --dry-run for
+# --dry-run=client. A bare --dry-run still simulates under helm 4, which is
+# what the machine's Validating state depends on. So the harness reports a
+# mismatched local major and runs anyway; it gates on nothing here. The
+# spellings move together with the donor pin, never on their own, because the
+# other major's names are what helm rejects outright.
 tools:
   - name: helm_history
     type: exec

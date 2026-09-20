@@ -14,10 +14,17 @@ import (
 	"strings"
 )
 
-// The deploy words carry helm 3 spellings. helm 4 renamed --atomic and rejects
-// an unknown flag outright, so every word would fail one at a time against a
-// helm 4 on PATH. Checking once, up front, names the cause instead.
-const supportedHelmMajor = "3"
+// The deploy words are written in helm 3's spellings. helm 4 still accepts all
+// of them: it deprecates --atomic in favour of --rollback-on-failure and
+// prefers --dry-run=client over a bare --dry-run, and warns about both rather
+// than refusing them. A bare --dry-run also still simulates under helm 4,
+// which is the part that matters, since helm 4 redefines --dry-run as a string
+// whose default is "none".
+//
+// So the local major is worth a word to the operator and is not worth gating
+// on. A later helm will drop the deprecated spellings, and the warning is what
+// makes that arrive as a sentence rather than as six failing words.
+const declaredHelmMajor = "3"
 
 var helmVersionPattern = regexp.MustCompile(`v(\d+)\.\d+`)
 
@@ -82,7 +89,9 @@ func runDeployMachine(request DeployRequest, verb string, succeeded ...string) e
 	if !Exists(CaptureRun, request.Cluster) {
 		return fmt.Errorf("%s: cluster %s is not running", verb, request.Cluster)
 	}
-	if err := checkHelmMajor(request.HelmVersion); err != nil {
+	// A version mismatch is reported and does not stop the run; only a probe
+	// that could not execute at all aborts, since that means helm is unusable.
+	if err := warnOnHelmMajor(request.HelmVersion); err != nil {
 		return fmt.Errorf("%s: %w", verb, err)
 	}
 	if request.Agent.Binary == "" || request.Agent.Profile == "" {
@@ -177,9 +186,15 @@ func (a DeployAgent) run(verb, profile, workspace, request string, succeeded []s
 		verb, filepath.Dir(profile))
 }
 
-// checkHelmMajor reports whether the helm on PATH speaks the flags the deploy
-// words carry.
-func checkHelmMajor(probe func() (string, error)) error {
+// warnOnHelmMajor tells the operator when the local helm is not the major the
+// deploy words were written for. It does not gate: every flag still parses, so
+// refusing to run would block a deploy that works.
+//
+// A probe that cannot run at all is a different matter and is returned as an
+// error, because it means helm is missing or unusable and every word is about
+// to fail anyway. An unrecognizable version string is only a warning: helm
+// answered, so it is there, and the words will run.
+func warnOnHelmMajor(probe func() (string, error)) error {
 	if probe == nil {
 		probe = localHelmVersion
 	}
@@ -189,12 +204,17 @@ func checkHelmMajor(probe func() (string, error)) error {
 	}
 	match := helmVersionPattern.FindStringSubmatch(version)
 	if len(match) < 2 {
-		return fmt.Errorf("helm version %q is not recognizable; the deploy words need helm %s", strings.TrimSpace(version), supportedHelmMajor)
+		fmt.Printf("deploy: local helm version %q is not recognizable; the deploy words are written for helm %s\n",
+			strings.TrimSpace(version), declaredHelmMajor)
+		return nil
 	}
-	if match[1] != supportedHelmMajor {
-		return fmt.Errorf(
-			"local helm is major version %s and the deploy words carry helm %s spellings (--atomic among them); install helm %s or update the words and this check together",
-			match[1], supportedHelmMajor, supportedHelmMajor)
+	if match[1] != declaredHelmMajor {
+		fmt.Printf(
+			"deploy: local helm is major version %s and the deploy words are written for helm %s. "+
+				"helm %s accepts them and warns: --atomic is deprecated for --rollback-on-failure, "+
+				"and a bare --dry-run for --dry-run=client. A later helm will drop them, and the "+
+				"words move together with the applier's pinned CLI donor, not on their own.\n",
+			match[1], declaredHelmMajor, match[1])
 	}
 	return nil
 }

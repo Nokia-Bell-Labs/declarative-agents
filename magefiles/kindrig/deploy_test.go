@@ -4,7 +4,10 @@
 package kindrig
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,23 +68,76 @@ func TestDeployRefusesWhenTheClusterIsNotRunning(t *testing.T) {
 	}
 }
 
-func TestDeployRejectsAnUnsupportedHelmMajor(t *testing.T) {
+// helm 4 accepts every flag the deploy words carry -- it deprecates --atomic
+// and a bare --dry-run and warns -- so a mismatched major is reported and the
+// run continues. Gating here would block a deploy that works.
+func TestDeployWarnsButRunsOnAnotherHelmMajor(t *testing.T) {
 	t.Parallel()
-	err := checkHelmMajor(helmVersion("v4.0.1+gabc123"))
-	if err == nil {
-		t.Fatal("helm 4 = nil, want a rejection")
-	}
-	for _, want := range []string{"major version 4", "--atomic"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error = %v, want it to mention %q", err, want)
+	warning := captureStdout(t, func() {
+		if err := warnOnHelmMajor(helmVersion("v4.2.4+g3900f43")); err != nil {
+			t.Errorf("helm 4 = %v, want the run to continue", err)
+		}
+	})
+	for _, want := range []string{"major version 4", "--rollback-on-failure", "--dry-run=client"} {
+		if !strings.Contains(warning, want) {
+			t.Errorf("warning = %q, want it to mention %q", warning, want)
 		}
 	}
-	if err := checkHelmMajor(helmVersion("v3.16.3+gf5b8d2e")); err != nil {
-		t.Errorf("helm 3 = %v, want acceptance", err)
+
+	quiet := captureStdout(t, func() {
+		if err := warnOnHelmMajor(helmVersion("v3.16.3+gf5b8d2e")); err != nil {
+			t.Errorf("helm 3 = %v, want acceptance", err)
+		}
+	})
+	if quiet != "" {
+		t.Errorf("helm 3 printed %q, want silence", quiet)
 	}
-	if err := checkHelmMajor(helmVersion("not a version")); err == nil {
-		t.Error("unrecognizable version = nil, want a rejection")
+}
+
+// An unrecognizable version string still means helm answered, so the words will
+// run and the operator only needs telling.
+func TestDeployWarnsOnAnUnrecognizableHelmVersion(t *testing.T) {
+	t.Parallel()
+	warning := captureStdout(t, func() {
+		if err := warnOnHelmMajor(helmVersion("not a version")); err != nil {
+			t.Errorf("unrecognizable version = %v, want the run to continue", err)
+		}
+	})
+	if !strings.Contains(warning, "not recognizable") {
+		t.Errorf("warning = %q, want it to name the unreadable version", warning)
 	}
+}
+
+// A probe that cannot execute is different: helm is missing or unusable, and
+// every word is about to fail anyway.
+func TestDeployFailsWhenTheHelmProbeCannotRun(t *testing.T) {
+	t.Parallel()
+	err := warnOnHelmMajor(func() (string, error) { return "", errors.New("exec: helm: not found") })
+	if err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("probe failure = %v, want the error surfaced", err)
+	}
+}
+
+// captureStdout collects what a function prints, so the warning's wording is
+// asserted rather than assumed.
+func captureStdout(t *testing.T, run func()) string {
+	t.Helper()
+	original := os.Stdout
+	read, write, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = write
+	done := make(chan string, 1)
+	go func() {
+		var buffer bytes.Buffer
+		_, _ = io.Copy(&buffer, read)
+		done <- buffer.String()
+	}()
+	run()
+	_ = write.Close()
+	os.Stdout = original
+	return <-done
 }
 
 // Unlike a diagnosis, which reports and never gates, a deploy that did not come
