@@ -59,34 +59,12 @@ func (Demo) Up() error {
 			if err := Package(); err != nil {
 				return err
 			}
-			destination, err := os.MkdirTemp("", "coding-agent-demo-chart-*")
-			if err != nil {
+			// The Helm step runs through the catalog applier's deploy
+			// machine, so day-0 here and day-2 in the cluster are the same
+			// declared sequence (srd022 R6). The ingress and health checks
+			// below are not the Helm step and stay imperative.
+			if err := Deploy(); err != nil {
 				return err
-			}
-			defer func() { _ = os.RemoveAll(destination) }()
-			archive, err := packageHelmChart(
-				filepath.Join(roots.Application, "helm"),
-				filepath.Join(roots.Application, filepath.FromSlash(defaultProfileOutput)),
-				destination)
-			if err != nil {
-				return err
-			}
-			repository, tag := splitCodingImageRef(images.Agent)
-			collectorRepository, collectorTag := splitCodingImageRef(codingHelmCollectorImage)
-			ctx, cancel := context.WithTimeout(context.Background(), codingHelmInstallTimeout)
-			output, err := environment.run(ctx, "helm",
-				"upgrade", "--install", codingDemoRelease, archive,
-				"--namespace", codingHelmNamespace,
-				"--values", filepath.Join(roots.Application, "helm", "ci", "kind-values.yaml"),
-				"--set", "image.repository="+repository,
-				"--set-string", "image.tag="+tag,
-				"--set", "collector.image.repository="+collectorRepository,
-				"--set-string", "collector.image.tag="+collectorTag,
-				"--wait", "--timeout", codingHelmInstallTimeout.String())
-			cancel()
-			if err != nil {
-				return fmt.Errorf("helm demo install: %w: %s",
-					err, strings.TrimSpace(string(output)))
 			}
 			run := func(name string, args ...string) ([]byte, error) {
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)

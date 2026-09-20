@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: rel18.0-uc001-host-side-deploy
 title: An operator runs mage deploy and the applier's deploy machine installs the release
-status: planned
+status: implemented
 
 summary: |
   An operator brings an application up on a running cluster with one target.

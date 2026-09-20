@@ -241,7 +241,7 @@ roadmap_summary:
       every claim.
   - version: "18.0"
     name: Host-side deployer
-    status: planned
+    status: implemented
     scope: |
       Add deploy and undeploy machines to the applier family (srd022 R6) and
       run them from the developer's machine. The mage target renders the
@@ -702,7 +702,7 @@ use_case_index:
     summary: The deploy target renders the applier's declarations with this
       application's coordinates, seeds the deploy machine with the values
       document, and gates the build on the terminal state.
-    status: planned
+    status: implemented
     path: docs/specs/use-cases/rel18.0-uc001-host-side-deploy.yaml
   - id: rel99.0-uc001-observer-family
     title: The observer is a catalog-owned family adopted across applications
@@ -862,7 +862,7 @@ test_suite_index:
     summary: Closure, terminal-state, compensation, rendering-guard, and
       build-gating cases for the deploy and undeploy machines, with one live
       case for the atomic install contract.
-    status: planned
+    status: implemented
     path: docs/specs/test-suites/test-rel18.0-host-side-deploy.yaml
   - id: test-rel99.0-observer
     title: Test Suite for Release 99.0 Observer Family Promotion

@@ -101,21 +101,18 @@ func runDeployMachine(request DeployRequest, verb string, succeeded ...string) e
 		defer request.Agent.Cleanup()
 	}
 
-	kubeconfig, releaseKubeconfig, err := Kubeconfig(CaptureRun, request.Cluster)
-	if err != nil {
-		return fmt.Errorf("%s: %w", verb, err)
-	}
-	defer releaseKubeconfig()
-
-	workspace := filepath.Join(DeployRenderDirectory(request.ApplicationRoot, request.Coordinates.Release), "work")
+	destination := DeployRenderDirectory(request.ApplicationRoot, request.Coordinates.Release)
+	workspace := filepath.Join(destination, "work")
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		return fmt.Errorf("%s: create workspace %s: %w", verb, workspace, err)
+	}
+	kubeconfig, err := stageKubeconfig(request.Cluster, destination)
+	if err != nil {
+		return fmt.Errorf("%s: %w", verb, err)
 	}
 	coordinates := request.Coordinates
 	coordinates.Kubeconfig = kubeconfig
 	coordinates.OverridesPath = filepath.Join(workspace, overridesFileName)
-
-	destination := DeployRenderDirectory(request.ApplicationRoot, coordinates.Release)
 	declarations, err := RenderDeployDeclarations(
 		filepath.Join(request.CatalogRoot, "agents", "applier", "deploy-declarations.yaml"),
 		coordinates, destination)
@@ -141,6 +138,36 @@ func runDeployMachine(request DeployRequest, verb string, succeeded ...string) e
 	}
 	fmt.Printf("%s: rendered %s\n", verb, destination)
 	return request.Agent.run(verb, profile, workspace, seed, succeeded)
+}
+
+// stageKubeconfig copies the cluster's kubeconfig into the render directory
+// and returns that path.
+//
+// kindrig.Kubeconfig writes to a temporary directory it deletes when the run
+// returns, and the rendered argv names whatever path it was given. Pointing the
+// words at the temporary copy left every rendered command in
+// build/deploy/<release> referring to a file that no longer existed, so the
+// one thing the render directory exists for -- reading and re-running the exact
+// command that ran -- failed with an unrelated "cluster unreachable". Staging
+// it beside the declarations keeps the rendered argv reproducible after the run.
+//
+// The file carries cluster credentials, so it is written 0600, and every
+// application's build tree is gitignored.
+func stageKubeconfig(cluster, destination string) (string, error) {
+	source, release, err := Kubeconfig(CaptureRun, cluster)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	data, err := os.ReadFile(source)
+	if err != nil {
+		return "", fmt.Errorf("read kubeconfig for %s: %w", cluster, err)
+	}
+	staged := filepath.Join(destination, "kubeconfig")
+	if err := os.WriteFile(staged, data, 0o600); err != nil {
+		return "", fmt.Errorf("stage kubeconfig %s: %w", staged, err)
+	}
+	return staged, nil
 }
 
 // writeDeployRequest writes the seed the machine starts from. write_overrides

@@ -202,3 +202,43 @@ func TestWriteDeployRequestCarriesPathAndContent(t *testing.T) {
 		t.Errorf("content = %q, want the tag to stay quoted", seed.Parameters.Content)
 	}
 }
+
+// The render directory exists so a developer can read and re-run the exact
+// command that ran. Pointing the words at kindrig's temporary kubeconfig, which
+// is deleted when the run returns, left every rendered argv naming a file that
+// no longer existed; re-running one failed with an unrelated cluster-unreachable
+// error. The staged copy lives beside the declarations (GH-2304).
+func TestStagedKubeconfigOutlivesTheRun(t *testing.T) {
+	t.Parallel()
+	destination := t.TempDir()
+	source := filepath.Join(t.TempDir(), "config")
+	if err := os.WriteFile(source, []byte("apiVersion: v1\nkind: Config\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	staged := filepath.Join(destination, "kubeconfig")
+	if err := os.WriteFile(staged, []byte("apiVersion: v1\nkind: Config\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The temporary original going away must not affect the staged copy.
+	if err := os.Remove(source); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(staged)
+	if err != nil {
+		t.Fatalf("staged kubeconfig did not survive: %v", err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Errorf("staged kubeconfig mode = %o, want 600; it carries cluster credentials", mode)
+	}
+	coordinates := completeCoordinates(t)
+	coordinates.Kubeconfig = staged
+	rendered, err := RenderDeployDeclarations(shippedDeployDeclarations(t), coordinates, destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, args := range renderArgs(t, rendered) {
+		if !containsArg(args, staged) {
+			t.Errorf("%s argv = %v, want the staged kubeconfig %q", name, args, staged)
+		}
+	}
+}

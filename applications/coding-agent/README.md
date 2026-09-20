@@ -240,7 +240,19 @@ The shared ENG01 operator verbs are:
 mage doctor      # read-only tool/version and Docker Desktop resource checks
 mage demo:up     # create/reuse da-coding-agent-demo and print .localhost URLs
 mage demo:down   # delete only da-coding-agent-demo
+mage deploy      # install or upgrade the demo release on a running cluster
+mage undeploy    # remove the demo release, reporting an absent one as success
 ```
+
+`mage deploy` runs the Helm step through the catalog applier's deploy machine
+rather than an imperative helm call, so the first install and a day-2 rollout
+follow one declared sequence: write the decided values, validate them with a
+dry run, apply with install semantics, verify every Deployment, and roll back a
+stall. `mage demo:up` calls it for the Helm step and keeps owning the cluster,
+the ingress, and the health checks around it. Both verbs need the cluster
+already running and gate on the machine's terminal state, so a release that did
+not come up fails the build. The rendered declarations and the exact argv that
+ran are left in `build/deploy/<release>/`.
 
 Requested demos fail with actionable guidance when tools, versions, the Docker
 daemon, or host resources are unavailable; integrations retain their documented

@@ -872,7 +872,7 @@ releases:
 
   - version: "18.0"
     title: Host-side deployer
-    status: planned
+    status: implemented
     dependencies:
       - Release 16.0 canonical applier family
       - Release 17.0 rig-doctor mage-target agent harness
@@ -887,12 +887,12 @@ releases:
     use_cases:
       - id: rel18.0-uc001-host-side-deploy
         title: An operator runs mage deploy and the applier's deploy machine installs the release
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel18.0-host-side-deploy
         title: Host-side deployer conformance
         cases: 11
-        status: planned
+        status: implemented
     proof:
       - mage validate
       - mage conformance
