@@ -9,26 +9,26 @@ traces:
   - rel20.0-uc002-agent-blueprints
 
 preconditions:
-  - srd054-machine-templates defines the machine template and instance formats, instantiation, validation, and closure, identity, dump, and staging behavior.
+  - srd054-machine-templates defines the machine template and instance formats, expansion, validation, and closure, identity, dump, and staging behavior.
   - srd055-agent-blueprints defines the blueprint and instance formats, path resolution, the machine mapping, and identity, dump, staging, and audit behavior.
-  - srd052 fragments, stage splicing, and the instantiations dump section; srd006 and srd038 machine validation; and pkg/profilestage and pkg/profileaudit are available.
+  - srd052 fragments, stage splicing, and the expansions dump section; srd006 and srd038 machine validation; and pkg/profilestage and pkg/profileaudit are available.
 
 test_cases:
   - use_case: rel20.0-uc001-machine-templates
     name: A template with params and a machine body loads through an instance
     go_test: go test ./internal/runtime/core -run 'TestMachineTemplateInstanceEqualsTheHandWrittenMachine|TestMachineTemplateBodyHoldsNoParamsUnitOrImports'
     status: implemented
-    description: Load control-template, whose machine.yaml instantiates a template holding the control machine as a machine body; then a template carrying a nested params.
+    description: Load control-template, whose machine.yaml expands a template holding the control machine as a machine body; then a template carrying a nested params.
     expected:
       loads: true
       nested_params_rejected: true
     traces: [rel20.0-uc001-machine-templates S1, srd054-machine-templates AC1, srd054-machine-templates R1.1]
 
   - use_case: rel20.0-uc001-machine-templates
-    name: An instance carries only unit, one instantiate, name, and purpose
+    name: An instance carries only unit, one expand, name, and purpose
     go_test: go test ./internal/runtime/core -run 'TestMachineInstanceCarriesOnlyItsHeader'
     status: implemented
-    description: Add states to an instance, add an as to its entry, add a second instantiate entry, and override name and purpose.
+    description: Add states to an instance, add an as to its entry, add a second expand entry, and override name and purpose.
     expected:
       extra_field_error_names_field_and_instance: true
       as_rejected: true
@@ -40,7 +40,7 @@ test_cases:
     name: A template may splice stages and nesting stops at one level
     go_test: go test ./internal/runtime/core -run 'TestMachineTemplateSplicesItsStagesRelativeToItself|TestMachineTemplateCannotNestOrBeLoadedAsAMachine|TestMachineInstanceCarriesOnlyItsHeader'
     status: implemented
-    description: Instantiate a template whose body instantiates a stage fragment; then a template instantiating a template; then an instance instantiating a stage beside its template.
+    description: Expand a template whose body expands a stage fragment; then a template expanding a template; then an instance expanding a stage beside its template.
     expected:
       stage_inside_template_spliced: true
       template_in_template_rejected: true
@@ -60,7 +60,7 @@ test_cases:
     name: Template arguments follow srd052 and pass through to stages
     go_test: go test ./internal/runtime/core -run 'TestMachineTemplateFaultsNameTemplateAndInstance|TestMachineTemplateSplicesItsStagesRelativeToItself'
     status: implemented
-    description: Omit a required argument, supply an unknown one, leave a reference unfilled; then pass an argument through to a stage instantiation in the body and to an action name.
+    description: Omit a required argument, supply an unknown one, leave a reference unfilled; then pass an argument through to a stage expansion in the body and to an action name.
     expected:
       argument_faults_match_srd052: true
       reference_in_action_name_substituted: true
@@ -81,7 +81,7 @@ test_cases:
     name: The target body kind selects replace or splice
     go_test: go test ./internal/runtime/core -run 'TestInstantiateTargetBodyKindSelectsReplaceOrSplice|TestMachineTemplateSplicesItsStagesRelativeToItself'
     status: implemented
-    description: Instantiate a machine body, a stage body, and a tools body from a machine file.
+    description: Expand a machine body, a stage body, and a tools body from a machine file.
     expected:
       machine_body_replaces: true
       stage_body_splices: true
@@ -89,10 +89,10 @@ test_cases:
     traces: [rel20.0-uc001-machine-templates S2, srd054-machine-templates AC2, srd054-machine-templates R2.3]
 
   - use_case: rel20.0-uc001-machine-templates
-    name: An instantiated machine takes the hand-written validation path
+    name: An expanded machine takes the hand-written validation path
     go_test: go test ./internal/runtime/core -run 'TestMachineTemplateInstanceEqualsTheHandWrittenMachine|TestMachineTemplateFaultsNameTemplateAndInstance'
     status: implemented
-    description: Compare the parsed control-template machine with the parsed control machine; instantiate a template with an unreachable state and one missing a required policy.
+    description: Compare the parsed control-template machine with the parsed control machine; expand a template with an unreachable state and one missing a required policy.
     expected:
       parsed_specs_equal_except_name: true
       structural_checks_apply: true
@@ -101,7 +101,7 @@ test_cases:
     traces: [rel20.0-uc001-machine-templates S2, srd054-machine-templates AC2, srd054-machine-templates R2.4]
 
   - use_case: rel20.0-uc001-machine-templates
-    name: Diagnostics in an instantiated machine name template and instance
+    name: Diagnostics in an expanded machine name template and instance
     go_test: go test ./internal/runtime/core ./cmd/agent -run 'TestMachineTemplateFaultsNameTemplateAndInstance|TestStartupWiringFaultNamesTemplateAndInstance'
     status: implemented
     description: Misspell a label a transition in the template reads, then run --validate-config on the instance profile.
@@ -122,13 +122,13 @@ test_cases:
     traces: [rel20.0-uc001-machine-templates S3, srd054-machine-templates AC3, srd054-machine-templates R3.1]
 
   - use_case: rel20.0-uc001-machine-templates
-    name: The dump renders the instantiated machine and labels instantiation kinds
+    name: The dump renders the expanded machine and labels expansion kinds
     go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureCarriesTheMachineTemplate|TestDumpGolden'
     status: implemented
-    description: Dump control-template twice and read its machine and instantiations sections.
+    description: Dump control-template twice and read its machine and expansions sections.
     expected:
-      machine_section: instantiated machine
-      instantiation_kinds: "machine, stage"
+      machine_section: expanded machine
+      expansion_kinds: "machine, stage"
       two_dumps_identical: true
     traces: [rel20.0-uc001-machine-templates S3, srd054-machine-templates AC3, srd054-machine-templates R3.2]
 
@@ -145,7 +145,7 @@ test_cases:
     name: A blueprint with params and a profile body loads through an instance
     go_test: go test ./internal/tools/catalog -run 'TestBlueprintInstanceLoads'
     status: planned
-    description: Load control-blueprint, whose profile.yaml instantiates a blueprint holding every AgentProfile field.
+    description: Load control-blueprint, whose profile.yaml expands a blueprint holding every AgentProfile field.
     expected:
       loads: true
       every_profile_field_accepted: true
@@ -166,7 +166,7 @@ test_cases:
     name: A blueprint cannot nest and is refused where a profile is expected
     go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition ./cmd/agent -run 'TestBlueprintCannotNest|TestBlueprintNamedAsProfileFails|TestMachineRequestNamingBlueprintFails'
     status: planned
-    description: Instantiate a blueprint from a blueprint; pass a blueprint to --profile, to a child-agent profile reference, and to a machine_request profile binding.
+    description: Expand a blueprint from a blueprint; pass a blueprint to --profile, to a child-agent profile reference, and to a machine_request profile binding.
     expected:
       nesting_rejected: true
       error_names_referrer_and_blueprint: true
@@ -194,12 +194,12 @@ test_cases:
     traces: [rel20.0-uc002-agent-blueprints S2, srd055-agent-blueprints AC2, srd055-agent-blueprints R2.2]
 
   - use_case: rel20.0-uc002-agent-blueprints
-    name: A machine mapping instantiates a template directly
+    name: A machine mapping expands a template directly
     go_test: go test ./internal/tools/catalog ./internal/load -run 'TestBlueprintMachineMappingInstantiatesTemplate'
     status: planned
     description: "Give the blueprint machine: {fragment: <template>, args: {server: $param(server)}} and load two instances with different server arguments."
     expected:
-      template_instantiated_without_instance_file: true
+      template_expanded_without_instance_file: true
       arguments_pass_through: true
       instances_differ_by_argument: true
     traces: [rel20.0-uc002-agent-blueprints S2, srd055-agent-blueprints AC2, srd055-agent-blueprints R2.3]
@@ -228,10 +228,10 @@ test_cases:
     name: The dump renders the resolved profile and lists the blueprint
     go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsBlueprintInstantiation|TestDumpGolden'
     status: planned
-    description: Dump control-blueprint twice and read its profile and instantiations sections.
+    description: Dump control-blueprint twice and read its profile and expansions sections.
     expected:
       profile_section: resolved instance
-      instantiation_kind: profile
+      expansion_kind: profile
       two_dumps_identical: true
     traces: [rel20.0-uc002-agent-blueprints S3, srd055-agent-blueprints AC3, srd055-agent-blueprints R3.2]
 

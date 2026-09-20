@@ -29,7 +29,7 @@ requirements:
       - R1.7: "A labeled $tool transition records label as the stable workflow-step address and records the dynamically selected tool separately as the command name."
       - R1.8: "external_labels (list of strings, optional) names command-state labels the runtime seeds rather than any transition publishing them. Each entry satisfies the transition-label grammar and widens the machine's label universe for selector validation. The REST machine_request seed label is the first user."
       - R1.9: >-
-          instantiate (list, optional) names stage fragments the machine
+          expand (list, optional) names stage fragments the machine
           splices in (srd052 R4). Each entry carries fragment, a path relative
           to the machine file, and args. A stage fragment declares params and a
           stage body of states, signals, and transitions; the loader fills the
@@ -37,8 +37,8 @@ requirements:
           and transitions to the machine's lists, and validates the whole as
           one machine, so a spliced transition is held to R2 exactly as a
           hand-written one is. A machine declares no imports: a stage is
-          instantiated, and a machine has no other unit kind to import. An
-          instantiate entry whose fragment has a machine body instead makes
+          expanded, and a machine has no other unit kind to import. An
+          expand entry whose fragment has a machine body instead makes
           the file an instance of a machine template, which replaces the
           machine rather than splicing into it (srd054).
 
@@ -85,9 +85,9 @@ requirements:
       - R4.3: File read errors and YAML parse errors are wrapped with context.
       - R4.4: >-
           LoadMachineClosure(path, visit) reads the machine file and every stage
-          fragment it instantiates through visit, splices, and validates.
+          fragment it expands through visit, splices, and validates.
           LoadMachineSpec is that with no visitor. ParseMachineSpec refuses a
-          document that instantiates, because its fragments are named relative
+          document that expands, because its fragments are named relative
           to a file it does not have.
 
   R5:
@@ -141,7 +141,7 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
 
   - id: AC4
-    criterion: LoadMachineSpec reads and parses YAML files, splicing any stage fragments the machine instantiates and validating the result as one machine. ParseMachineSpec parses bytes with validation and refuses a document that instantiates. Errors include context, naming the fragment where one is involved.
+    criterion: LoadMachineSpec reads and parses YAML files, splicing any stage fragments the machine expands and validating the result as one machine. ParseMachineSpec parses bytes with validation and refuses a document that expands. Errors include context, naming the fragment where one is involved.
     traces: [R4.1, R4.2, R4.3, R4.4]
   - id: AC5
     criterion: A trusted command-state array drives sequential or positively bounded parallel named-action dispatches with per-item trace, checkpoint, receipt, cancellation, rollback visibility, deterministic input-order join output, and checkpoint-resume progress; fail-fast waits for all started children and collect-all retains every outcome.

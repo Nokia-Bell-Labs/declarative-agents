@@ -14,13 +14,13 @@ problem: |
 
   A blueprint is the profile-level template. It declares an agent once with
   typed parameters, names its machine template and units by paths relative to
-  itself, and is instantiated by a profile file that carries a name, the
+  itself, and is expanded by a profile file that carries a name, the
   arguments, and any fields that genuinely differ. Several agents become one
   agent with arguments, and the profile file that `--profile` names stays the
   unit of deployment.
 
 goals:
-  - G1: Let a whole agent profile be declared once as a fragment with typed parameters and instantiated per agent.
+  - G1: Let a whole agent profile be declared once as a fragment with typed parameters and expanded per agent.
   - G2: Let a blueprint carry its machine template and units with it, so an instance does not need to know where they live.
   - G3: Keep the instance the program's identity, while every blueprint and template it reaches is part of that identity's digest.
   - G4: Resolve, dump, stage, and audit a blueprint instance as a hand-written profile is.
@@ -42,7 +42,7 @@ requirements:
           field wholesale; a list is replaced, never merged. The entry SHALL
           NOT carry `as`. An instance MAY carry `unit`.
       - R1.3: >-
-          A blueprint SHALL NOT instantiate another blueprint. A blueprint
+          A blueprint SHALL NOT expand another blueprint. A blueprint
           named by `--profile`, by a child-agent profile reference, or by a
           REST `machine_request` profile binding SHALL be a load error naming
           the referring file and the blueprint, because a blueprint holds
@@ -65,7 +65,7 @@ requirements:
           A blueprint body's `machine` MAY be a path to a machine file or a
           machine template instance (srd054 R1.2), or a mapping carrying
           `fragment` and `args` that names a machine template directly. The
-          mapping SHALL be instantiated as if an instance file with those
+          mapping SHALL be expanded as if an instance file with those
           arguments stood beside the blueprint, and its argument values MAY be
           `$param` references to the blueprint's own parameters.
       - R2.4: >-
@@ -84,7 +84,7 @@ requirements:
           resolved profile reaches.
       - R3.2: >-
           The canonical dump's `profile` section SHALL render the resolved
-          instance, and `instantiations` SHALL list the blueprint with
+          instance, and `expansions` SHALL list the blueprint with
           `kind: profile`, the blueprint path, the arguments, and the instance
           name, beside any machine, stage, tool, and REST rows.
       - R3.3: >-
@@ -99,17 +99,17 @@ requirements:
 
 non_goals:
   - Merging list fields between blueprint and instance. An instance field replaces the blueprint's; an instance that needs a merged list states the whole list.
-  - Blueprints instantiating blueprints.
+  - Blueprints expanding blueprints.
   - Deriving request machines or REST surfaces from a blueprint. Those stay per-agent until a measured duplication calls for them.
   - Machines invoked as tools by other machines, and loader words.
   - Committing any resolved profile.
 
 acceptance_criteria:
   - id: AC1
-    criterion: A blueprint with params and a profile body loads through an instance carrying name and one instantiate entry; an instance field replaces the blueprint field wholesale; an as on the entry, a nested blueprint, and a blueprint named by --profile, a child-agent reference, or a machine_request binding each fail naming the referring file and the blueprint.
+    criterion: A blueprint with params and a profile body loads through an instance carrying name and one expand entry; an instance field replaces the blueprint field wholesale; an as on the entry, a nested blueprint, and a blueprint named by --profile, a child-agent reference, or a machine_request binding each fail naming the referring file and the blueprint.
     traces: [R1.1, R1.2, R1.3]
   - id: AC2
-    criterion: Argument faults fail as they do for srd052 fragments; blueprint paths resolve against the blueprint and instance paths against the instance; a machine mapping instantiates a template directly with passed-through arguments; and a resolved profile missing a required field fails naming instance and blueprint.
+    criterion: Argument faults fail as they do for srd052 fragments; blueprint paths resolve against the blueprint and instance paths against the instance; a machine mapping expands a template directly with passed-through arguments; and a resolved profile missing a required field fails naming instance and blueprint.
     traces: [R2.1, R2.2, R2.3, R2.4]
   - id: AC3
     criterion: The identity profile is the instance and its digest changes when the blueprint or a reached template changes; the dump renders the resolved profile and lists the blueprint row with kind profile; a staged instance loads with no checkout present; and profileaudit resolves a blueprint-based child profile.
@@ -117,7 +117,7 @@ acceptance_criteria:
 
 depends_on:
   - srd_id: srd052-declaration-fragments
-    symbols_used: [fragment format, params, instantiate, $param substitution, argument checks, instantiations dump section]
+    symbols_used: [fragment format, params, expand, $param substitution, argument checks, expansions dump section]
   - srd_id: srd054-machine-templates
     symbols_used: [machine template, machine instance, template body kind]
   - srd_id: srd050-declaration-imports

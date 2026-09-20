@@ -724,7 +724,7 @@ stage_fragments: |
   error. The spliced machine is then validated as one machine by every
   machine check -- referential integrity, labels (srd038), exhaustiveness
   (srd006 R2.10) -- and the dump renders the spliced result under `machine`
-  with the fragment, arguments, and produced names under `instantiations`.
+  with the fragment, arguments, and produced names under `expansions`.
   A machine declares no `imports`; a stage is expanded, and a machine
   has no other unit kind to import.
 
@@ -765,7 +765,7 @@ machine_templates: |
   a hand-written machine passes, and a diagnostic names both the template and
   the instance. The template and its stages are closure files and program
   identity assets; the dump renders the expanded machine under `machine`
-  and lists instantiations with `kind: machine` or `kind: stage`. A profile or
+  and lists expansions with `kind: machine` or `kind: stage`. A profile or
   a `machine_request` binding that names a template file directly is a load
   error, because a template is not a machine until its arguments arrive
   (srd054 R1.4). Landed with GH-2114; testdata/integration/profiles/

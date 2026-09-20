@@ -82,7 +82,7 @@ schema:
       A blueprint's body: the fields above, with `$param(name)` references in
       scalar values (srd055 R1.1).
   - field: expand
-    type: "[]instantiation"
+    type: "[]expansion"
     required: false
     description: |
       On a blueprint instance, exactly one entry carrying `fragment` and

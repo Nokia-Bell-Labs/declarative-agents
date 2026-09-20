@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 id: rel20.0-uc002-agent-blueprints
-title: A profile instantiates an agent blueprint
+title: A profile expands an agent blueprint
 status: specified
 
 summary: |
@@ -9,7 +9,7 @@ summary: |
   wired in. They declare the agent once as a blueprint whose profile body names
   its machine template and units relative to itself, and replace each agent's
   profile with an instance carrying a name, the arguments, and only the fields
-  that differ. The loader resolves the blueprint, instantiates the machine
+  that differ. The loader resolves the blueprint, expands the machine
   template it names, overlays the instance's fields, and treats the result as
   a hand-written profile for validation, identity, dump, staging, and audit.
 
@@ -20,9 +20,9 @@ trigger: |
   a `profile` body.
 
 flow:
-  - F1: The loader reads the instance header, rejects an as on the entry and a blueprint that instantiates a blueprint, and refuses a blueprint named directly where a profile is expected.
+  - F1: The loader reads the instance header, rejects an as on the entry and a blueprint that expands a blueprint, and refuses a blueprint named directly where a profile is expected.
   - F2: It checks the arguments and substitutes them into the blueprint's text under srd052's rules, then decodes the profile body strictly.
-  - F3: It resolves the blueprint's paths against the blueprint's directory, instantiating a machine template named by a machine mapping, and overlays each field present on the instance, resolved against the instance's directory.
+  - F3: It resolves the blueprint's paths against the blueprint's directory, expanding a machine template named by a machine mapping, and overlays each field present on the instance, resolved against the instance's directory.
   - F4: It validates the resolved profile by the hand-written profile rules, naming instance and blueprint on failure.
   - F5: It records the instance as the program identity with the blueprint and templates in its digest, lists the blueprint in the dump, stages the blueprint edges, and lets profileaudit resolve a blueprint-based child.
 
@@ -36,7 +36,7 @@ success_criteria:
     criterion: An instance loads from a blueprint with its fields replacing the blueprint's wholesale; a prefix, nesting, and a blueprint named where a profile is expected each fail naming the referring file.
     traces: [srd055-agent-blueprints AC1]
   - id: S2
-    criterion: Blueprint and instance paths resolve against their own files, a machine mapping instantiates a template with passed-through arguments, and a resolved profile missing a required field names instance and blueprint.
+    criterion: Blueprint and instance paths resolve against their own files, a machine mapping expands a template with passed-through arguments, and a resolved profile missing a required field names instance and blueprint.
     traces: [srd055-agent-blueprints AC2]
   - id: S3
     criterion: The instance is the identity and the blueprint moves its digest, the dump lists the blueprint row, a staged instance loads, and profileaudit resolves a blueprint-based child.
@@ -44,6 +44,6 @@ success_criteria:
 
 out_of_scope:
   - Merging list fields between blueprint and instance.
-  - Blueprints instantiating blueprints.
+  - Blueprints expanding blueprints.
   - Deriving request machines or REST surfaces from a blueprint.
   - Committing resolved profiles.

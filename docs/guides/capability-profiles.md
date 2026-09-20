@@ -5,7 +5,7 @@
 
 A capability profile does one job and terminates. Its machine runs from an initial state to a terminal state, it owns no serving lifecycle, no control or monitor servers, and no deployment identity. The serving concerns live in whatever hosts it. This separation is what lets the same behavior appear as a tool inside one agent and as a standalone agent in another application without a rewrite.
 
-Two profiles in the tree model the shape. `applications/coding-agent/agents/executor/` is a request-scoped capability: the role servers around it bind it with `machine_request` and map its terminal states to HTTP statuses. `applications/catalog/agents/runtime-state-reader/` is the monitoring capability as a 110-line agent whose machine is a 14-line instantiation of a shared template.
+Two profiles in the tree model the shape. `applications/coding-agent/agents/executor/` is a request-scoped capability: the role servers around it bind it with `machine_request` and map its terminal states to HTTP statuses. `applications/catalog/agents/runtime-state-reader/` is the monitoring capability as a 110-line agent whose machine is a 14-line expansion of a shared template.
 
 srd057 defines the capability profile, the consumption forms it supports, and the binding discipline that keeps shared behaviour a named profile. This guide is the working companion to it.
 
