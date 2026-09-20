@@ -45,3 +45,5 @@ Table: GH-2171 cleave outcomes
 | Document read, scenario rigs | Owned by the consumer repositories (petar-djukic/cohere-demo#738, petar-djukic/agentic-wiki-mesh#125). |
 
 The fleet observer is not among them, and the reason is worth recording. Its poll loop never reaches a terminal state, and the loop is driven by the lifecycle await itself: `AwaitTimedOut` routes to `Discovering`, so the interval timer and the service lifecycle are one machine by design. R1.1 rules that out, and the forms that remain would each spawn a process per poll interval. What the observer shares instead is its whole agent: the catalog owns its machine, words, and selection, and a mesh wraps them with its own REST surface (GH-2170), the way the applications wrap the catalog's applier.
+
+Where a unit lives, what earns it a shared location, and which reuse form fits a given repetition are conventions, not mechanics: [eng03-declaration-standard-library](../engineering/eng03-declaration-standard-library.yaml) states them.
