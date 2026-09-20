@@ -1,0 +1,33 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: chatbot-mesh-legacy-group-citations
+title: "Chatbot Mesh Legacy Group Citations"
+purpose: |
+  Citations that name a requirement group rather than an item, predating the
+  group-level-citation check (GH-2339). A group survives a rewrite unchanged,
+  so a citation naming one can go on resolving while the requirement it names
+  has come to mean something else; an item is renumbered or removed instead,
+  which checkBrokenCitations already reports.
+
+  Retargeting one of these is a judgement about which item its prose meant,
+  not a rewrite, so they are grandfathered rather than migrated in bulk. This
+  baseline only stops the count growing. Delete an entry when its use case
+  moves to an item; never add one. GH-2365 tracks the migration.
+citations:
+  - {use_case: rel07.0-uc001-collector-ingress, srd: srd003-chatbot-deployment, group: R5}
+  - {use_case: rel07.0-uc001-collector-ingress, srd: srd007-collector-agent, group: R1}
+  - {use_case: rel07.0-uc001-collector-ingress, srd: srd007-collector-agent, group: R2}
+  - {use_case: rel07.0-uc001-collector-ingress, srd: srd007-collector-agent, group: R3}
+  - {use_case: rel07.0-uc001-collector-ingress, srd: srd007-collector-agent, group: R4}
+  - {use_case: rel07.0-uc001-collector-ingress, srd: srd007-collector-agent, group: R5}
+  - {use_case: rel07.0-uc001-collector-ingress, srd: srd007-collector-agent, group: R6}
+  - {use_case: rel08.0-uc001-mesh-observer, srd: srd003-chatbot-deployment, group: R5}
+  - {use_case: rel08.0-uc001-mesh-observer, srd: srd008-observer-agent, group: R1}
+  - {use_case: rel08.0-uc001-mesh-observer, srd: srd008-observer-agent, group: R2}
+  - {use_case: rel08.0-uc001-mesh-observer, srd: srd008-observer-agent, group: R3}
+  - {use_case: rel08.0-uc001-mesh-observer, srd: srd008-observer-agent, group: R4}
+  - {use_case: rel08.0-uc001-mesh-observer, srd: srd008-observer-agent, group: R5}
+  - {use_case: rel08.0-uc001-mesh-observer, srd: srd008-observer-agent, group: R6}
+  - {use_case: rel09.0-uc001-canonical-collector, srd: srd003-chatbot-deployment, group: R5}
+  - {use_case: rel09.0-uc001-canonical-collector, srd: srd007-collector-agent, group: R1}
+  - {use_case: rel09.0-uc001-canonical-collector, srd: srd007-collector-agent, group: R2}
