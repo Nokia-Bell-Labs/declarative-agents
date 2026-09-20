@@ -220,6 +220,10 @@ tools:
     reversibility: {classification: reversible}
     undo: {strategy: noop, description: Discovery changes nothing.}
     errors: [{signal: ToolFailed, condition: find traversal fails, state_after_failure: No state changes.}]
+    output:
+      description: Newline-separated corpus-relative document paths, sorted under the C locale.
+      schema:
+        type: string
 
   - name: list_resource
     type: builtin
