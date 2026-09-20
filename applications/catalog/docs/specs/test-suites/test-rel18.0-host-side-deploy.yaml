@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: test-rel18.0-host-side-deploy
 title: Host-Side Deployer Conformance
-status: planned
+status: implemented
 release: "18.0"
 traces: [rel18.0-uc001-host-side-deploy]
 
