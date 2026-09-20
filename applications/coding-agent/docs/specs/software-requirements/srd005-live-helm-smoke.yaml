@@ -11,55 +11,45 @@ problem: |
   remain bounded, diagnostic, and safe for developer clusters.
 
 requirements:
-  - id: R1
+  R1:
     title: Prerequisites and ownership
     items:
-      - id: R1.1
-        text: The target shall skip only when Docker, kind, Helm, kubectl, required checkouts, Docker health, or required pre-pulled images are unavailable.
-      - id: R1.2
-        text: The target shall use the shared kind rig and a pinned node configuration, own only clusters it creates, and use a temporary kubeconfig.
-      - id: R1.3
-        text: Smoke-owned namespace, Helm release, workspace PV, forwards, temporary files, and owned cluster shall be cleaned in all terminal paths.
-  - id: R2
+      - R1.1: The target shall skip only when Docker, kind, Helm, kubectl, required checkouts, Docker health, or required pre-pulled images are unavailable.
+      - R1.2: The target shall use the shared kind rig and a pinned node configuration, own only clusters it creates, and use a temporary kubeconfig.
+      - R1.3: Smoke-owned namespace, Helm release, workspace PV, forwards, temporary files, and owned cluster shall be cleaned in all terminal paths.
+
+  R2:
     title: Real packaged topology
     items:
-      - id: R2.1
-        text: The target shall install only the validated packaged .tgz.
-      - id: R2.2
-        text: It shall build and load the same shared agent-core-toolchain recipe referenced by production values (agent-core/toolchain.Dockerfile layered on agent-core, GH-1368), containing Go 1.26 and golangci-lint v2.12.2 for canonical build, lint, and test validation.
-      - id: R2.3
-        text: A deterministic Ollama-compatible in-cluster service shall provide model responses without replacing any agent, REST, workspace, critic, or telemetry behavior.
-      - id: R2.4
-        text: A kind-only RWX hostPath fixture shall provide one writable shared workspace to all three roles.
-  - id: R3
+      - R2.1: The target shall install only the validated packaged .tgz.
+      - R2.2: It shall build and load the same shared agent-core-toolchain recipe referenced by production values (agent-core/toolchain.Dockerfile layered on agent-core, GH-1368), containing Go 1.26 and golangci-lint v2.12.2 for canonical build, lint, and test validation.
+      - R2.3: A deterministic Ollama-compatible in-cluster service shall provide model responses without replacing any agent, REST, workspace, critic, or telemetry behavior.
+      - R2.4: A kind-only RWX hostPath fixture shall provide one writable shared workspace to all three roles.
+
+  R3:
     title: End-to-end evidence
     items:
-      - id: R3.1
-        text: Planner, executor, and critic rollouts and their real lifecycle health endpoints shall become ready.
-      - id: R3.2
-        text: One planner request shall remotely execute the canonical executor, mutate the shared workspace, pass Go tests, and receive canonical critic acceptance.
-      - id: R3.3
-        text: The collector agent shall retain the supplied trace identifier with coding-planner, coding-executor, and coding-critic service spans.
-  - id: R4
+      - R3.1: Planner, executor, and critic rollouts and their real lifecycle health endpoints shall become ready.
+      - R3.2: One planner request shall remotely execute the canonical executor, mutate the shared workspace, pass Go tests, and receive canonical critic acceptance.
+      - R3.3: The collector agent shall retain the supplied trace identifier with coding-planner, coding-executor, and coding-critic service spans.
+
+  R4:
     title: Failure classification
     items:
-      - id: R4.1
-        text: Docker and Kubernetes ready paths shall be bounded before semantic operations and rechecked after failures.
-      - id: R4.2
-        text: An unhealthy ready path shall report infrastructure unavailable; healthy ready paths shall preserve the semantic operation failure.
-      - id: R4.3
-        text: Failure diagnostics shall share one deadline and include Helm status/history, workloads, events, and targeted role, collector, and model logs.
+      - R4.1: Docker and Kubernetes ready paths shall be bounded before semantic operations and rechecked after failures.
+      - R4.2: An unhealthy ready path shall report infrastructure unavailable; healthy ready paths shall preserve the semantic operation failure.
+      - R4.3: Failure diagnostics shall share one deadline and include Helm status/history, workloads, events, and targeted role, collector, and model logs.
 
 acceptance_criteria:
   - id: AC1
     criterion: Healthy prerequisites produce a full packaged-chart planner-to-critic pass through build, v2 lint, and test using the production image recipe, followed by cleanup.
-    traces: [R1, R2, R3]
+    traces: [R1.1, R1.2, R1.3, R2.1, R2.2, R2.3, R2.4, R3.1, R3.2, R3.3]
   - id: AC2
     criterion: Missing external prerequisites print a specific SKIP without cluster mutation.
     traces: [R1.1]
   - id: AC3
     criterion: Deterministic tests distinguish infrastructure and semantic failures and prove bounded diagnostics.
-    traces: [R4]
+    traces: [R4.1, R4.2, R4.3]
 
 goals:
   - id: G1

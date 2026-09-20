@@ -45,13 +45,13 @@ flow:
 
 touchpoints:
   - id: T1
-    target: srd004-planner R1, R2, R3, AC1, AC2, AC3
+    target: applications/catalog srd004-planner R1, R2, R3, AC1, AC2, AC3
     reason: The planner traverses requirements, materializes the task, delegates through child-profile execution, and records the outcome.
   - id: T2
-    target: srd002-executor R1, R2, R3, AC1, AC2, AC3
+    target: applications/catalog srd002-executor R1, R2, R3, AC1, AC2, AC3
     reason: The executor receives the task and workspace, edits through declared tools, validates, and returns its explicit outcome.
   - id: T3
-    target: srd003-critic R1, R2, R3, AC1, AC2, AC3
+    target: applications/catalog srd003-critic R1, R2, R3, AC1, AC2, AC3
     reason: The critic evaluates the produced change through suite points and oracles and returns the gating session report.
   - id: T4
     target: architecture-coding-agent-example components
@@ -67,29 +67,29 @@ success_criteria:
   - id: S1
     criterion: The real executor changes the isolated workspace for the supplied task, its declared validation command succeeds, and it returns a traceable successful result.
     traces:
-      - srd002-executor R1.1
-      - srd002-executor R3.1
-      - srd002-executor R3.2
-      - srd002-executor AC1
-      - srd002-executor AC3
+      - applications/catalog srd002-executor R1.1
+      - applications/catalog srd002-executor R3.1
+      - applications/catalog srd002-executor R3.2
+      - applications/catalog srd002-executor AC1
+      - applications/catalog srd002-executor AC3
   - id: S2
     criterion: The real planner materializes the task from SRD context and delegates it to the real executor profile without a shell-script or fake agent binary.
     traces:
-      - srd004-planner R1.1
-      - srd004-planner R1.2
-      - srd004-planner R2.1
-      - srd004-planner R3.1
-      - srd004-planner AC1
-      - srd004-planner AC3
+      - applications/catalog srd004-planner R1.1
+      - applications/catalog srd004-planner R1.2
+      - applications/catalog srd004-planner R2.1
+      - applications/catalog srd004-planner R3.1
+      - applications/catalog srd004-planner AC1
+      - applications/catalog srd004-planner AC3
   - id: S3
     criterion: The canonical critic evaluates the produced change in place and emits a machine-readable accepted or rejected verdict whose value gates the application outcome.
     traces:
-      - srd003-critic R1.1
-      - srd003-critic R1.2
-      - srd003-critic R3.1
-      - srd003-critic R3.2
-      - srd003-critic AC1
-      - srd003-critic AC3
+      - applications/catalog srd003-critic R1.1
+      - applications/catalog srd003-critic R1.2
+      - applications/catalog srd003-critic R3.1
+      - applications/catalog srd003-critic R3.2
+      - applications/catalog srd003-critic AC1
+      - applications/catalog srd003-critic AC3
   - id: S4
     criterion: All three stages use profiles from one checkout-derived package-time closure while every process runs the same shared profile-free agent-core-toolchain image with the pinned Go and golangci-lint v2 toolchain.
     traces:

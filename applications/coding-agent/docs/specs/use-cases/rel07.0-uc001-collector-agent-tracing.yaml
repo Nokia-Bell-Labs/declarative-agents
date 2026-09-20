@@ -39,13 +39,13 @@ success_criteria:
     traces: [srd003-helm-topology R3.3]
   - id: S3
     criterion: The schema fixture matrix proves valid spool default, valid overrides, and invalid telemetry rejection.
-    traces: [srd004-helm-package-validation R1]
+    traces: [srd004-helm-package-validation R1.1, srd004-helm-package-validation R1.2, srd004-helm-package-validation R1.3]
   - id: S4
     criterion: The live smoke finds all role service names under the submitted trace ID via the collector query surface.
     traces: [srd005-live-helm-smoke R3.3]
   - id: S5
     criterion: Catalog-root discovery resolves applications/catalog from relative and absolute startup directories without environment overrides.
-    traces: [srd004-helm-package-validation R1]
+    traces: [srd004-helm-package-validation R1.1, srd004-helm-package-validation R1.2, srd004-helm-package-validation R1.3]
 
 out_of_scope:
   - Metrics ingress; the coding chart exports no metrics pipeline.
@@ -61,7 +61,7 @@ touchpoints:
     target: srd003-helm-topology R3.3
     reason: S2 traces this requirement in the existing success criteria.
   - id: T3
-    target: srd004-helm-package-validation R1
+    target: srd004-helm-package-validation R1.1, R1.2, R1.3
     reason: S3 traces this requirement in the existing success criteria.
   - id: T4
     target: srd005-live-helm-smoke R3.3
