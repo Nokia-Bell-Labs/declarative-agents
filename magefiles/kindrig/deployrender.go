@@ -100,6 +100,40 @@ func (c DeployCoordinates) Validate() error {
 	return fmt.Errorf("deploy coordinates: %s", strings.Join(problems, "; "))
 }
 
+// The coordinates an undeploy does not read. The undeploy words name a
+// release and a namespace and read nothing else, but every field on
+// DeployCoordinates is required so a rendered argv is never half-resolved,
+// and the rendered unit carries the apply words whether or not the undeploy
+// profile selects them. These are what those unread fields render to, and
+// they say what they are, because the argv a failed teardown gets read from
+// should not invite anyone to look for a chart that was never packaged.
+const (
+	undeployNamesNoChart  = "undeploy-names-no-chart"
+	undeployReadsNoValues = "undeploy-reads-no-values"
+)
+
+// UndeployCoordinates names what an undeploy actually addresses and fills the
+// rest with placeholders.
+//
+// It is shared rather than repeated per application because the three
+// applications were already writing the same two literals, and a teardown that
+// packages a chart to satisfy a required field is the defect this replaces:
+// agent-architecture's shared builder also provisioned curator UI shard
+// ConfigMaps, so an undeploy created objects on its way to deleting a release
+// (GH-2343, GH-2350).
+//
+// Kubeconfig and OverridesPath stay empty, as they do for a deploy: Undeploy
+// fills both from the cluster and the workspace it owns.
+func UndeployCoordinates(release, namespace, timeout string) DeployCoordinates {
+	return DeployCoordinates{
+		Release:    release,
+		Namespace:  namespace,
+		ChartPath:  undeployNamesNoChart,
+		ValuesPath: undeployReadsNoValues,
+		Timeout:    timeout,
+	}
+}
+
 // byToken maps each placeholder to its resolved value. Substitution replaces
 // whole YAML scalars rather than text, so a token that contains another cannot
 // be partly rewritten and the map needs no ordering.

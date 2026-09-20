@@ -47,19 +47,13 @@ func Undeploy() error {
 	}
 	// An undeploy removes a release: it stages no chart, externalizes no UI
 	// assets, and measures no budget, because none of that is needed to delete
-	// something. The chart coordinate is a bare token the undeploy words never
-	// read, and it names what it is so a rendered argv reads honestly.
+	// something. kindrig owns what the unread coordinates render to.
 	return kindrig.Undeploy(kindrig.DeployRequest{
 		Cluster:         chatbotDemoCluster,
 		ApplicationRoot: root,
 		CatalogRoot:     agent.catalogRoot,
-		Coordinates: kindrig.DeployCoordinates{
-			Release:    chatbotDemoRelease,
-			Namespace:  chatbotDemoNamespace,
-			ChartPath:  "undeploy-names-no-chart",
-			ValuesPath: "undeploy-reads-no-values",
-			Timeout:    helmLLMInstallTimeout.String(),
-		},
+		Coordinates: kindrig.UndeployCoordinates(
+			chatbotDemoRelease, chatbotDemoNamespace, helmLLMInstallTimeout.String()),
 		Agent: agent.agent,
 	})
 }

@@ -261,6 +261,41 @@ func TestDeployCoordinatesRejectANulByte(t *testing.T) {
 	}
 }
 
+// An undeploy addresses a release and a namespace. The rest are placeholders,
+// and they still have to satisfy Validate, because the rendered unit carries
+// the apply words whether or not the undeploy profile selects them.
+func TestUndeployCoordinatesValidateAndNameNoChart(t *testing.T) {
+	t.Parallel()
+	coordinates := UndeployCoordinates("coding-demo", "coding", "5m0s")
+	// Validate runs inside the render, after the harness has filled the two
+	// fields it owns, so that is the form the assertion has to take.
+	filled := coordinates
+	filled.Kubeconfig = "/tmp/kubeconfig/config"
+	filled.OverridesPath = "/repo/build/deploy/coding-demo/work/overrides.yaml"
+	if err := filled.Validate(); err != nil {
+		t.Fatalf("undeploy coordinates = %v, want valid once the harness fills its own", err)
+	}
+	if coordinates.Release != "coding-demo" || coordinates.Namespace != "coding" {
+		t.Errorf("coordinates = %+v, want the release and namespace an undeploy addresses", coordinates)
+	}
+	// The placeholders say what they are. A teardown is read from the argv it
+	// ran, and a path there would send the reader looking for a chart that was
+	// never packaged.
+	for name, value := range map[string]string{
+		"chart":  coordinates.ChartPath,
+		"values": coordinates.ValuesPath,
+	} {
+		if !strings.HasPrefix(value, "undeploy-") {
+			t.Errorf("%s = %q, want a placeholder that names itself", name, value)
+		}
+	}
+	// Deploy and Undeploy fill these from the cluster and the workspace they
+	// own, so a caller that filled them would be guessing.
+	if coordinates.Kubeconfig != "" || coordinates.OverridesPath != "" {
+		t.Errorf("coordinates = %+v, want kubeconfig and overrides left to the harness", coordinates)
+	}
+}
+
 func TestDeployCoordinatesRejectEveryEmptyField(t *testing.T) {
 	t.Parallel()
 	complete := completeCoordinates(t)

@@ -52,7 +52,8 @@ func Undeploy() error {
 		Cluster:         demoCluster,
 		ApplicationRoot: resolved.Application,
 		CatalogRoot:     resolved.Catalog,
-		Coordinates:     deployCoordinates(resolved, chartPlaceholderForUndeploy),
+		Coordinates: kindrig.UndeployCoordinates(
+			demoRelease, demoNamespace, smokeInstallTimeout.String()),
 		Agent: kindrig.DeployAgent{
 			Binary:   binary,
 			Profile:  filepath.Join(resolved.Catalog, filepath.FromSlash(applierUndeployProfileRel)),
@@ -61,16 +62,6 @@ func Undeploy() error {
 		},
 	})
 }
-
-// The undeploy words name a release and a namespace, never a chart, but
-// DeployCoordinates rejects an empty field so every rendered argv is complete,
-// and the rendered unit carries the apply words whether or not this profile
-// selects them. This is what their unused chart coordinate renders to.
-//
-// It is a bare token because nothing reads it, not because the renderer needs
-// one: RenderDeployDeclarations substitutes YAML nodes and quotes what needs
-// quoting, so any string would render (GH-2349).
-const chartPlaceholderForUndeploy = "undeploy-names-no-chart"
 
 // deployRequest resolves everything one deploy needs, and reports the curator
 // UI shards it provisioned so the caller can name them in the overrides.
