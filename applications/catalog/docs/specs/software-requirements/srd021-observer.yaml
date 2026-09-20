@@ -68,10 +68,6 @@ acceptance_criteria:
     criterion: The specification names coding-agent, agent-architecture, and the chatbot-mesh as adopters binding the family as monitor/fleet-observer, and defers the realization rows to the adoption implementation because the inventory gate requires existing profile paths.
     traces: [R2.2, R2.3, R4.1, R4.2, R4.3]
 
-depends_on:
-  - srd_id: srd033-monitor
-    provider: agent-core
-    symbols_used: [monitor read-state views, REST client get, REST server launch/await/stop]
 
 related_documents:
   - srd008-observer-agent
@@ -82,3 +78,11 @@ implementation_status:
     - "The generalized catalog observer profile, tools, declarations, REST definitions, and UX, promoted from applications/chatbot-mesh/agents/observer."
     - "bindings.catalog and per-application deployment_realizations rows in agent-role-realizations.yaml, added when the catalog observer profile and per-application workloads exist."
     - "Coding-agent and agent-architecture adoption of the family against their release selectors; chatbot-mesh observer rebinding to the catalog family."
+
+# These SRDs live in the agent-core corpus, not this one; they are
+# platform dependencies rather than in-corpus depends_on (GH-2310).
+platform_dependencies:
+  - srd_id: srd033-monitor
+    provider: agent-core
+    provider: agent-core
+    symbols_used: [monitor read-state views, REST client get, REST server launch/await/stop]

@@ -121,13 +121,6 @@ acceptance_criteria:
     criterion: The Explore page renders the heatmap, drag-selects a region, shows the ranked divergence and the selection-scoped exemplar traces linking into the waterfall, and reproduces from a clean uiDist build.
     traces: [R9.1, R9.2, R9.3]
 
-depends_on:
-  - srd_id: srd042-otlp-receiver-tools
-    symbols_used: [otlp_receiver_launch, await_spans, spool_spans, relay_spans, otlp_receiver_stop]
-  - srd_id: srd044-spool-query-tools
-    symbols_used: [spool_list_traces, spool_get_trace]
-  - srd_id: srd045-span-analytics-tools
-    symbols_used: [spool_span_heatmap, spool_span_group_by, spool_span_breakdown]
 
 related_documents:
   - srd007-collector-agent
@@ -138,3 +131,16 @@ implementation_status:
     - "applications/catalog/agents/collector/ owns the canonical collector family."
     - "applications/catalog/conformance/collector_test.go proves receive-spool-exit in spool mode."
     - "applications/docs/specs/semantic-models/agent-role-realizations.yaml carries the catalog binding."
+
+# These SRDs live in the agent-core corpus, not this one; they are
+# platform dependencies rather than in-corpus depends_on (GH-2310).
+platform_dependencies:
+  - srd_id: srd042-otlp-receiver-tools
+    provider: agent-core
+    symbols_used: [otlp_receiver_launch, await_spans, spool_spans, relay_spans, otlp_receiver_stop]
+  - srd_id: srd044-spool-query-tools
+    provider: agent-core
+    symbols_used: [spool_list_traces, spool_get_trace]
+  - srd_id: srd045-span-analytics-tools
+    provider: agent-core
+    symbols_used: [spool_span_heatmap, spool_span_group_by, spool_span_breakdown]

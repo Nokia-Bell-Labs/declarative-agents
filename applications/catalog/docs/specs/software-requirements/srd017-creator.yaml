@@ -11,6 +11,6 @@ note: |
 
 problem: See canonical_path.
 goals: []
-requirements: []
+requirements: {}
 non_goals: []
 acceptance_criteria: []

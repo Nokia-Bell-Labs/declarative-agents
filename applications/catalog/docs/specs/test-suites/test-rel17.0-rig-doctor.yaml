@@ -13,16 +13,26 @@ preconditions:
   - A scripted provider serves a fixed diagnosis for the failing-rollout fixture.
 
 test_cases:
-  - id: rig-doctor-closure
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig doctor closure
+    id: rig-doctor-closure
     verifies: [S2]
-    command: mage validate
+    traces:
+      - rel17.0-uc001-rig-doctor S2
+    go_test: mage validate
+    status: implemented
     assertions:
       - The rig-doctor profile passes agent-core strict configuration validation.
       - The tool manifest holds only list_files, read, find, the two captured-spool queries, the diagnosis write, done, and the loop words.
       - No exec, kubectl, or helm declaration is reachable from the profile.
-  - id: rig-doctor-diagnosed
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig doctor diagnosed
+    id: rig-doctor-diagnosed
     verifies: [S3]
-    command: go test ./conformance -run '^TestRigDoctorDiagnosed'
+    traces:
+      - rel17.0-uc001-rig-doctor S3
+    go_test: go test ./conformance -run '^TestRigDoctorDiagnosed'
+    status: implemented
     inputs:
       evidence: conformance/testdata/rig-doctor/failing-rollout
     assertions:
@@ -30,69 +40,122 @@ test_cases:
       - diagnosis.yaml carries probable_cause, confidence, findings, next_command, and unresolved.
       - Every evidence cite names a file that exists in the fixture and a line within its length.
       - The probable cause names the Deployment whose rollout counts show zero available replicas.
-  - id: rig-doctor-spool-queries
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig doctor spool queries
+    id: rig-doctor-spool-queries
     verifies: [S2, S3]
-    command: go test ./conformance -run '^TestRigDoctorQueriesTheCapturedSpool'
+    traces:
+      - rel17.0-uc001-rig-doctor S2
+      - rel17.0-uc001-rig-doctor S3
+    go_test: go test ./conformance -run '^TestRigDoctorQueriesTheCapturedSpool'
+    status: implemented
     inputs:
       evidence: testdata/conformance/rig-doctor/failing-rollout
     assertions:
       - The model dispatches query_list_traces and query_get_trace itself; both produce tool spans.
       - The trace id and span names the queries return appear in the next prompt sent to the model.
       - The run reaches Diagnosed.
-  - id: rig-doctor-repairs-its-diagnosis
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig doctor repairs its diagnosis
+    id: rig-doctor-repairs-its-diagnosis
     verifies: [S3]
-    command: go test ./conformance -run '^TestRigDoctorRepairs'
+    traces:
+      - rel17.0-uc001-rig-doctor S3
+    go_test: go test ./conformance -run '^TestRigDoctorRepairs'
+    status: implemented
     inputs:
       evidence: testdata/conformance/rig-doctor/failing-rollout
     assertions:
       - Undecodable YAML is read back, returned to the model with the reason, and the repaired write reaches Diagnosed.
       - A done call with nothing written returns for repair rather than reporting success.
-  - id: rig-doctor-refuses-an-incomplete-diagnosis
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig doctor refuses an incomplete diagnosis
+    id: rig-doctor-refuses-an-incomplete-diagnosis
     verifies: [S3]
-    command: go test ./conformance -run '^TestRigDoctorRefusesADiagnosisWithoutFindings'
+    traces:
+      - rel17.0-uc001-rig-doctor S3
+    go_test: go test ./conformance -run '^TestRigDoctorRefusesADiagnosisWithoutFindings'
+    status: implemented
     assertions:
       - A decodable diagnosis carrying no findings never reaches Diagnosed.
       - A model that never repairs exhausts its budget and reaches the Failed terminal.
-  - id: rig-doctor-retries-a-failed-model-call
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig doctor retries a failed model call
+    id: rig-doctor-retries-a-failed-model-call
     verifies: [S3, S5]
-    command: go test ./conformance -run '^TestRigDoctorRetriesAFailedModelCall'
+    traces:
+      - rel17.0-uc001-rig-doctor S3
+      - rel17.0-uc001-rig-doctor S5
+    go_test: go test ./conformance -run '^TestRigDoctorRetriesAFailedModelCall'
+    status: implemented
     assertions:
       - A provider that fails twice with a mapped status and then answers reaches Diagnosed, driven by ProviderUnavailable.
       - The run spends four provider calls: two failures, then the write and the done.
-  - id: rig-doctor-does-not-retry-a-rejected-credential
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig doctor does not retry a rejected credential
+    id: rig-doctor-does-not-retry-a-rejected-credential
     verifies: [S5]
-    command: go test ./conformance -run '^TestRigDoctorDoesNotRetryARejectedCredential'
+    traces:
+      - rel17.0-uc001-rig-doctor S5
+    go_test: go test ./conformance -run '^TestRigDoctorDoesNotRetryARejectedCredential'
+    status: implemented
     assertions:
       - A provider answering 401 costs exactly one attempt.
       - The run reaches Failed.
-  - id: rig-doctor-gives-up-on-an-unreachable-provider
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig doctor gives up on an unreachable provider
+    id: rig-doctor-gives-up-on-an-unreachable-provider
     verifies: [S5]
-    command: go test ./conformance -run '^TestRigDoctorGivesUpOnAnUnreachableProvider'
+    traces:
+      - rel17.0-uc001-rig-doctor S5
+    go_test: go test ./conformance -run '^TestRigDoctorGivesUpOnAnUnreachableProvider'
+    status: implemented
     assertions:
       - A provider that never answers costs exactly three attempts.
       - The run reaches Failed and writes no diagnosis.
-  - id: rig-doctor-no-evidence
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig doctor no evidence
+    id: rig-doctor-no-evidence
     verifies: [S4]
-    command: go test ./conformance -run '^TestRigDoctorNoEvidence'
+    traces:
+      - rel17.0-uc001-rig-doctor S4
+    go_test: go test ./conformance -run '^TestRigDoctorNoEvidence'
+    status: implemented
     inputs:
       evidence: conformance/testdata/rig-doctor/empty
     assertions:
       - The run reaches NoEvidence.
       - No diagnosis.yaml is written.
-  - id: rig-capture-manifest
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig capture manifest
+    id: rig-capture-manifest
     verifies: [S1]
-    command: cd ../.. && go test ./magefiles/kindrig -run '^TestCaptureEvidence'
+    traces:
+      - rel17.0-uc001-rig-doctor S1
+    go_test: cd ../.. && go test ./magefiles/kindrig -run '^TestCaptureEvidence'
+    status: implemented
     assertions:
       - The manifest lists every captured file with its kind.
       - A failing kubectl command is recorded as a capture error and later files are still captured.
-  - id: rig-doctor-registration
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig doctor registration
+    id: rig-doctor-registration
     verifies: [S6]
-    command: go test ./conformance -run '^TestFamily'
+    traces:
+      - rel17.0-uc001-rig-doctor S6
+    go_test: go test ./conformance -run '^TestFamily'
+    status: implemented
     assertions:
       - The root-cause-analyst binding appears in the role-realization, taxonomy, and profile-system models.
-  - id: rig-doctor-live
+  - use_case: rel17.0-uc001-rig-doctor
+    name: Rig doctor live
+    id: rig-doctor-live
     verifies: [S3, S5]
-    command: cd ../chatbot-mesh && mage diagnose helm-smoke
+    traces:
+      - rel17.0-uc001-rig-doctor S3
+      - rel17.0-uc001-rig-doctor S5
+    go_test: cd ../chatbot-mesh && mage diagnose
+    status: implemented
     assertions:
       - With a Deployment broken by an unpullable image tag, the target exits zero and prints the evidence and diagnosis paths.
       - The diagnosis names the broken Deployment and cites the ErrImagePull or ImagePullBackOff event.

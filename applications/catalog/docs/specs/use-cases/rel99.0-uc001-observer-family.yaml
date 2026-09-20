@@ -27,7 +27,7 @@ touchpoints:
   - T1: "srd021-observer R1 -- generalized namespace and label selector defaults, no new environment variable"
   - T2: "srd021-observer R3 -- carried topology, fan-in, resource, and served-UX capabilities"
   - T3: "srd021-observer R4 -- coding-agent, agent-architecture, and chatbot-mesh adoption"
-  - T4: "srd008-observer-agent -- the mesh observer the family generalizes"
+  - T4: "srd021-observer R1 -- the chatbot-mesh observer this family generalizes, whose own SRD is srd008-observer-agent in that application corpus"
 
 success_criteria:
   - id: S1
