@@ -1,0 +1,30 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# go_test evidence selectors that match no test function, recorded when the
+# selector guard was written (GH-2375). `go test -run` exits zero when nothing
+# matches, so each of these lines is a requirement whose formal evidence runs
+# no test and reports as passing.
+#
+# This baseline stops the count growing. It does not excuse the entries: the
+# blueprint and capability-profile releases have no tests at all, which GH-2385
+# tracks. Delete a line when its tests are written, or when the evidence is
+# retargeted at tests that exist; never add one.
+#
+# Format: <test-suite file> <the -run selector, verbatim>
+test-rel17.0-declaration-imports.yaml TestDeclarationImportEntryPaths|TestControlImportsDump
+test-rel20.0-machine-templates.yaml TestBlueprintInstanceLoads
+test-rel20.0-machine-templates.yaml TestBlueprintInstanceOverridesReplaceWholesale|TestBlueprintEntryRejectsAs
+test-rel20.0-machine-templates.yaml TestBlueprintCannotNest|TestBlueprintNamedAsProfileFails|TestMachineRequestNamingBlueprintFails
+test-rel20.0-machine-templates.yaml TestBlueprintArgumentFaults
+test-rel20.0-machine-templates.yaml TestBlueprintPathsResolveAgainstTheirFiles
+test-rel20.0-machine-templates.yaml TestBlueprintMachineMappingExpandsTemplate
+test-rel20.0-machine-templates.yaml TestResolvedBlueprintProfileRequiresMachineAndTools
+test-rel20.0-machine-templates.yaml TestBlueprintInstanceProgramIdentity
+test-rel20.0-machine-templates.yaml TestStageFollowsBlueprintEdges
+test-rel20.0-machine-templates.yaml TestInspectResolvesBlueprintChildProfile
+test-rel21.0-capability-profiles.yaml TestCapabilityProfileLoadsAndTerminates|TestCapabilityProfileDeclaresNoServingAssets
+test-rel21.0-capability-profiles.yaml TestCapabilityProfileIsReachedOnlyByPath
+test-rel21.0-capability-profiles.yaml TestMachineRequestBindsACapabilityProfile|TestSelfInvokeRunsACapabilityProfile|TestServingWrapperHostsACapabilityProfile
+test-rel21.0-capability-profiles.yaml TestRunPointRequiresItsPointMachine
+test-rel21.0-capability-profiles.yaml TestAuditReportsAMachineReachedByTwoProfiles|TestAuditReportsAnOverrideWhoseMachineIsShared|TestAuditIsSilentForAPrivateMachine
