@@ -172,7 +172,7 @@ sections:
 
 references:
   - "agent-core/internal/tools/rest/server_routes.go (serveStaticAssets: http.Dir(cfg.Root) resolves the root against the process working directory)"
-  - "agent-core/internal/tools/rest/definition.go (StaticAssetsConfig: root, index, spa)"
+  - "agent-core/internal/tools/rest/definition/server.go (StaticAssetsConfig: root, index, spa)"
   - "applications/catalog/agents/bench/rest.yaml (conforming placement exemplar)"
   - "applications/catalog/agents/knowledge-manager/documentation-curator/rest.yaml (multi-surface UI under one ui directory)"
   - "applications/chatbot-mesh/agents/chatbot/rest.yaml (the ${VAR:-default} root form)"

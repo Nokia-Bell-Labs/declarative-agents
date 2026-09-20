@@ -277,6 +277,9 @@ func checkDocumentPlacement(root string) error {
 				"%s: document type %s missing required field %s",
 				candidate, matched.documentType, field))
 		}
+		// Presence is not resolution: a references entry that named a file
+		// which had moved read as current until GH-2341.
+		failures = append(failures, documentReferenceFailures(root, candidate)...)
 	}
 	if len(failures) != 0 {
 		return fmt.Errorf("document placement violations:\n%s", strings.Join(failures, "\n"))

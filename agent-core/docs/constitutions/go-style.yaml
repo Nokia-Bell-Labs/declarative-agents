@@ -176,7 +176,6 @@ review_checklist:
 - Tests cover observable behavior.
 - Profile-driven behavior stays in YAML unless Go code is the required runtime boundary.
 references:
-- .cursor/rules/go-style.mdc
 - docs/ARCHITECTURE.yaml
 - docs/specs/semantic-models/tool-language.yaml
 - docs/specs/config-formats/runtime-contract.yaml
