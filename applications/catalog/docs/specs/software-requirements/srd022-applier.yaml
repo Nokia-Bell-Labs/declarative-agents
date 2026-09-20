@@ -55,11 +55,22 @@ requirements:
       - R5.2: Applications must package the canonical closure and local wrapper with source provenance and no copied promoted file.
       - R5.3: The family path and machine, signal, terminal, request, and selection contracts are part of the current root v0.* compatibility surface.
       - R5.4: Repository statistics must count applier once under applications/catalog and classify application appliers as composition wrappers.
+  R6:
+    title: Host-side deploy and undeploy machines
+    items:
+      - R6.1: The family must host a deploy machine that sequences write, validate, apply with install semantics, verify, and rollback -- the apply machine's shape -- with terminal outcomes Deployed, Rejected, Compensated, and Failed.
+      - R6.2: The deploy machine must declare no model word, so a deploy runs as declared transitions alone, costs no tokens, and follows one fixed sequence.
+      - R6.3: The apply words must carry --atomic, so Helm deletes a failed first install and rolls back a failed upgrade before the machine routes the failure; a verify stall must compensate by rollback, successful compensation reaches Compensated, and failed compensation, including a first install that has no prior revision, reaches Failed with the release left in place.
+      - R6.4: The machine must not branch on release existence; day-0 and day-2 must differ in the declared words alone, never in the transition graph.
+      - R6.5: An undeploy path must uninstall the release and reach a terminal state that separates an absent release from a failed uninstall, and its caller must confirm the cluster is running before it trusts an absence probe.
+      - R6.6: Chart path, release, namespace, kubeconfig, and value overlays must reach the deploy words as rendered declarations the caller produces, never from process environment, and a rendered argv must carry no placeholder coordinate.
+      - R6.7: The deploy words must not carry --reuse-values, so we reproduce a deploy from the chart, the checked-in values overlay, and the request document alone.
 
 non_goals:
   - Own any consuming application's chart, endpoint, deployment topology, credentials, RBAC, or operator workflow.
   - Implement Helm, kubectl, REST, lifecycle, or filesystem runtime behavior.
   - Require one application to adopt another application's state-read extension.
+  - Provision a cluster; the deploy machine owns the Helm step alone, never kindrig or gcprig.
 
 acceptance_criteria:
   - id: AC1
@@ -74,6 +85,12 @@ acceptance_criteria:
   - id: AC4
     criterion: Deterministic package, duplicate, release, role-binding, and statistics audits prove one implementation owner and current root v0 compatibility.
     traces: [R5.2, R5.3, R5.4]
+  - id: AC5
+    criterion: Catalog conformance drives the deploy machine over standalone exec doubles to Deployed, to Rejected on a validation failure, to Compensated on a verify failure whose rollback succeeds, and to Failed when compensation itself fails, and drives the undeploy machine to Removed and to Absent.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+  - id: AC6
+    criterion: A guard test scans every rendered deploy argv and fails when a placeholder chart path, release, namespace, or kubeconfig survives rendering, and a second guard fails when --reuse-values appears.
+    traces: [R6.6, R6.7]
 
 depends_on:
   - srd_id: srd001-agent-functional-blocks

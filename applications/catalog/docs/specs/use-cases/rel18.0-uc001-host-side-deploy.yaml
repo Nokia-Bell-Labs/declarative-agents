@@ -1,0 +1,77 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel18.0-uc001-host-side-deploy
+title: An operator runs mage deploy and the applier's deploy machine installs the release
+status: planned
+
+summary: |
+  An operator brings an application up on a running cluster with one target.
+  The target renders the applier's deploy declarations with this
+  application's chart, release, namespace, and kubeconfig, seeds the deploy
+  machine with the values document, and gates on the terminal state. The same
+  machine that owns day-2 rollouts inside the cluster owns the first install
+  from the developer's machine, so we keep one deployment mechanism rather
+  than one per application and one per environment.
+
+actor: A developer or release operator bringing up a demo or a cloud environment.
+trigger: The operator runs mage deploy, or a demo target that delegates to it, against a running cluster.
+
+preconditions:
+  - The target cluster is running, and the target confirms it before any Helm word executes.
+  - The catalog applier deploy and undeploy profiles close against agent-core shared tools.
+  - The local Helm major version matches the spellings the rendered words carry.
+  - No model provider is needed; the deploy machine declares no model word.
+
+flow:
+  - id: F1
+    text: The operator runs mage deploy with no arguments, and the target reads its coordinates from checked-in configuration rather than from process environment.
+  - id: F2
+    text: The target confirms the cluster is running and resolves a private kubeconfig for it.
+  - id: F3
+    text: The target packages the chart and resolves the release, namespace, values overlay, and timeout, failing when any coordinate is empty.
+  - id: F4
+    text: The target renders the deploy declarations into build, replacing every placeholder coordinate, and fails when a placeholder survives.
+  - id: F5
+    text: The target writes the values document as a request file and runs the deploy profile with the rendered declarations.
+  - id: F6
+    text: The machine writes the overrides, validates them with a dry run, applies them with install semantics, and verifies every Deployment in the release's namespace.
+  - id: F7
+    text: A validation failure reaches Rejected before any mutation, and a verify stall compensates by rollback.
+  - id: F8
+    text: The target reports the terminal state and exits non-zero when that state is a failure, so the build fails rather than continuing against a release that did not come up.
+
+touchpoints:
+  - id: T1
+    target: srd022-applier R1
+    reason: The deploy machine reuses the canonical request-machine sequencing this requirement fixes.
+  - id: T2
+    target: srd022-applier R3
+    reason: Chart, release, namespace, and rollout coordinates stay application-owned, now as rendered declarations.
+  - id: T3
+    target: srd022-applier R4
+    reason: Validation precedes mutation and a verification failure reaches compensation.
+  - id: T4
+    target: srd022-applier R6
+    reason: Defines the deploy and undeploy machines, the atomic contract, and the rendering rules this flow exercises.
+
+success_criteria:
+  - id: S1
+    criterion: The deploy and undeploy tool selections hold no model word, so a deploy consumes no tokens.
+  - id: S2
+    criterion: Every rendered deploy argv carries a resolved chart path, release, namespace, and kubeconfig, and no placeholder token survives rendering.
+  - id: S3
+    criterion: No rendered deploy argv carries --reuse-values, so a deploy restates its values from the chart, the overlay, and the request document.
+  - id: S4
+    criterion: A first install that fails leaves no release behind, because the apply word carries --atomic.
+  - id: S5
+    criterion: A verify stall after an upgrade reaches Compensated through rollback, and one after a first install reaches Failed with the release left in place for inspection.
+  - id: S6
+    criterion: mage deploy exits non-zero on a failure terminal, unlike mage diagnose, which reports and never gates.
+  - id: S7
+    criterion: mage undeploy removes a present release and reports Absent for a release that is already gone, exiting zero in both cases.
+
+out_of_scope:
+  - Cluster provisioning; the deploy machine owns the Helm step alone, and kindrig and gcprig keep the bootstrap layer.
+  - The chatbot-mesh and agent-architecture demo migrations; they adopt the target after coding-agent proves it.
+  - GKE, which adopts the same target once the cloud bootstrap exists.
+  - Retiring the helm install path in the chatbot-mesh integration smoke, which carries release-budget and telemetry concerns of its own.
