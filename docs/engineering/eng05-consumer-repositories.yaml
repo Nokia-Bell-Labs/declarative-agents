@@ -1,0 +1,71 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: eng05-consumer-repositories
+title: "Consumer Repositories and the Pin"
+
+introduction: |
+  A consumer repository builds an application on this one: it requires the
+  agent-core, applications/catalog, and magefiles Go modules at a pinned
+  commit, wraps catalog capabilities in its own profiles, and composes its
+  interfaces from the ui-kit release tarball. Two such repositories exist
+  today and more are expected. Each recent platform change reached them the
+  same way — a pin bump, a set of mechanical migrations, adoption of the new
+  shared form, verification — and each time the duties were restated in the
+  migration issues because no document held them. This guideline states what
+  a consumer repository owes, so a migration issue can cite it instead of
+  restating it, and so drift in a consumer has a named rule to point at.
+
+sections:
+  - title: "The pin"
+    content: |
+      A consumer pins all three modules at one commit, resolved from a named
+      release tag (eng06). Releases tag the repository root, and Go does not
+      resolve a root tag for a module in a subdirectory, so the tag is never
+      written into go.mod directly: a deps:pin target resolves the tag to its
+      commit, pins the three modules there, asserts they agree, and records
+      the release name in a go.mod comment. A consumer without that target
+      ports it before its next bump; a bump left half-applied is worse than
+      no bump, which is why the reference implementation restores go.mod and
+      go.sum when any step fails.
+
+  - title: "The bump"
+    content: |
+      Each pin bump carries the same four mechanical migrations in the
+      consumer's own declarations, because every release tightens the
+      schemas: YAML quoting, tool signatures, receipt shapes, and transition
+      exhaustiveness. Beyond those, a bump adopts whatever shared form the
+      release replaced hand-written declarations with, and the upstream
+      monorepo's own applications are the worked examples — a consumer
+      migrates the way chatbot-mesh migrated, not by inventing a second
+      shape. Compatibility mappings (a legacy field the loader still accepts)
+      exist to keep a bump green, not to be a destination: the follow-up that
+      moves off them is filed in the bump PR.
+
+  - title: "Verification"
+    content: |
+      A consumer's mage audit runs only the tests its suites name, so audit
+      green is not test green: every bump and migration runs the full go
+      test ./... as required evidence. Live integration tiers are part of
+      that evidence, not a luxury — the request-path library-root defect in
+      release 22.0 was invisible to every unit and audit layer and was
+      caught only live. A consumer that cannot run its live tier records
+      that in the PR rather than letting silence imply it ran.
+
+  - title: "Recurrence"
+    content: |
+      A consumer keeps one open recurring pin issue. The bump PR closes it,
+      and whoever closes it opens a fresh copy with the pinned release
+      updated, so the next bump always has an open issue and the pin history
+      reads from the issue chain. Larger adoptions are epics whose children
+      close the recurring issue as a side effect, never silently.
+
+  - title: "Drift"
+    content: |
+      The norms that bind declarations and interfaces here bind them in
+      consumers: eng03 for what a unit is, where it lives, and which reuse
+      form fits; eng04 for what an application UI may contain. A consumer
+      carries no local copy of a standard-library unit, no fork of a kit
+      client or panel, and no hand-written form of an operation the bound
+      provider library ships. When a consumer needs something the platform
+      does not offer, the gap files upstream; the consumer does not patch
+      its pinned copy.
