@@ -21,7 +21,7 @@ type ToolDefsFile struct {
 	Unit           string                    `yaml:"unit,omitempty"`
 	Imports        []string                  `yaml:"imports,omitempty"`
 	Params         []fragments.Param         `yaml:"params,omitempty"`
-	Instantiate    []fragments.Instantiation `yaml:"instantiate,omitempty"`
+	Instantiate    []fragments.Instantiation `yaml:"expand,omitempty"`
 	Tools          []ToolDef                 `yaml:"tools,omitempty"`
 	Types          []typesys.TypeDecl        `yaml:"types,omitempty"`
 	hasTools       bool

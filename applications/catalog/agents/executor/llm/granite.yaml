@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-executor-llm-granite
 # The executor bound to granite4.1:30b (catalog-invoke-llm-model-fragment).
-instantiate:
+expand:
   - fragment: ../../units/invoke-llm-model-fragment.yaml
     args:
       model: "granite4.1:30b"

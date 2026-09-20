@@ -4,7 +4,7 @@ unit: catalog-corpus-reader-embed-rest
 # The query-embedding operation comes from the provider library the profile
 # binds to the providers root (srd058 R4.2). It reads the composed question.
 # The library bounds and addresses its own client.
-instantiate:
+expand:
   - fragment: /opt/providers/embed-query-fragment.yaml
     args: {input_selector: $.text}
 rest:

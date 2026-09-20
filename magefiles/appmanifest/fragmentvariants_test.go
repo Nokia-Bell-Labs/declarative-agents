@@ -17,7 +17,7 @@ func variantFixture(t *testing.T, fragment string, units ...string) (string, str
 	appRoot, catalogRoot, manifest := minimalClosureFixture(t,
 		"name: root\ntool_declarations: [declarations.yaml]\n")
 	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/declarations.yaml"),
-		"unit: root\ninstantiate:\n  - fragment: "+fragment+"\n    args: {stage: embed}\n")
+		"unit: root\nexpand:\n  - fragment: "+fragment+"\n    args: {stage: embed}\n")
 	for _, unit := range units {
 		writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/units", unit), "fragment: "+unit+"\n")
 	}
@@ -121,7 +121,7 @@ func TestYAMLTemplateTokensRecordTheEnvexpandGrammar(t *testing.T) {
 func TestResolveStagesEveryVariantOfATemplatedMachineStage(t *testing.T) {
 	appRoot, catalogRoot, manifest := minimalClosureFixture(t, "name: root\nmachine: machine.yaml\n")
 	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/machine.yaml"),
-		"name: root\ninstantiate:\n  - fragment: stages/rerank-${PROVIDER:-none}.yaml\n"+
+		"name: root\nexpand:\n  - fragment: stages/rerank-${PROVIDER:-none}.yaml\n"+
 			"    args: {entry: Checking, exit: Rendering}\nstates: []\n")
 	for _, stage := range []string{"rerank-none.yaml", "rerank-cohere.yaml", "compose.yaml"} {
 		writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/stages", stage), "unit: "+stage+"\n")

@@ -154,7 +154,7 @@ machine:
     - {state: Serving, signal: ExitRequested, next: Done}
 `)
 	writeAgentFixture(t, filepath.Join(agentsDir, "alpha", "machine.yaml"),
-		"unit: alpha-machine\nname: alpha\ninstantiate:\n  - fragment: ../units/serve-template.yaml\n    args: {word: go}\n")
+		"unit: alpha-machine\nname: alpha\nexpand:\n  - fragment: ../units/serve-template.yaml\n    args: {word: go}\n")
 	writeAgentFixture(t, filepath.Join(agentsDir, "alpha", "tools.yaml"), "tools:\n  - go\n")
 
 	section, err := scanAgents(agentsDir, profileCountLines)

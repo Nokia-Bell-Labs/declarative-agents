@@ -87,7 +87,7 @@ func parseDefinitionFileExpanded(expanded []byte) (DefinitionFile, error) {
 	file.hasRest = yamlstrict.FieldPresent(root, "rest")
 	file.hasImports = yamlstrict.FieldPresent(root, "imports")
 	file.hasParams = yamlstrict.FieldPresent(root, "params")
-	file.hasInstantiate = yamlstrict.FieldPresent(root, "instantiate")
+	file.hasInstantiate = yamlstrict.FieldPresent(root, "expand")
 	// A unit is a fragment or it is not; half of one declares nothing
 	// (srd052 R1.3).
 	if file.hasParams && !file.hasRest {
@@ -116,7 +116,7 @@ func decodeDefinitionFile(expanded []byte, fragment bool) (DefinitionFile, error
 		Unit        string                    `yaml:"unit,omitempty"`
 		Imports     []string                  `yaml:"imports,omitempty"`
 		Params      []fragments.Param         `yaml:"params,omitempty"`
-		Instantiate []fragments.Instantiation `yaml:"instantiate,omitempty"`
+		Instantiate []fragments.Instantiation `yaml:"expand,omitempty"`
 		Rest        yaml.Node                 `yaml:"rest"`
 	}
 	if err := yamlstrict.Unmarshal(expanded, &header); err != nil {

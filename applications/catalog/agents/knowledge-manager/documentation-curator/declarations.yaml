@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-knowledge-manager-documentation-curator-declarations
-instantiate:
+expand:
   - fragment: ../../units/monitor-control-fragment.yaml
     args: {profile: monitor, route: control_exit}
 tools:

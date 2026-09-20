@@ -269,11 +269,11 @@ func TestStageCarriesAnInstantiatedFragment(t *testing.T) {
 	t.Parallel()
 	source := t.TempDir()
 	writeDeclaration(t, source, "agents/rag/declarations.yaml",
-		"unit: rag\ninstantiate:\n- {fragment: ../units/embed.yaml, args: {provider: cohere}}\ntools: []\n")
+		"unit: rag\nexpand:\n- {fragment: ../units/embed.yaml, args: {provider: cohere}}\ntools: []\n")
 	writeDeclaration(t, source, "agents/units/embed.yaml",
 		"unit: embed\nparams:\n- {name: provider, type: string}\ntools: []\n")
 	writeDeclaration(t, source, "agents/rag/machine.yaml",
-		"name: rag\ninstantiate:\n- {fragment: ../units/stage.yaml, args: {prefix: Embed}}\nstates: []\n")
+		"name: rag\nexpand:\n- {fragment: ../units/stage.yaml, args: {prefix: Embed}}\nstates: []\n")
 	writeDeclaration(t, source, "agents/units/stage.yaml",
 		"unit: stage\nparams:\n- {name: prefix, type: string}\nstage: {transitions: []}\n")
 	root := t.TempDir()

@@ -41,7 +41,7 @@ func instantiateProviderFragment(t *testing.T, fragment providerFragment) Collec
 	dir := t.TempDir()
 	path := filepath.Join(dir, "provider-rest.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`unit: probe-provider-rest
-instantiate:
+expand:
 - fragment: /opt/providers/`+fragment.file+`
   args: {`+fragment.args+`}
 rest: {version: v1}

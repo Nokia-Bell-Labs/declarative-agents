@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-runtime-state-reader-declarations
-instantiate:
+expand:
   - fragment: ../units/monitor-control-fragment.yaml
     args: {profile: runtime-state-reader, route: exit}
 tools:

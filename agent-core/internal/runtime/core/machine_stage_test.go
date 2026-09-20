@@ -53,7 +53,7 @@ func TestLoadMachineClosureSplicesAStageTwice(t *testing.T) {
 	t.Parallel()
 	root := writeStageFixture(t, map[string]string{
 		"units/run.yaml": runStage,
-		"machine.yaml": machineHead + `instantiate:
+		"machine.yaml": machineHead + `expand:
   - {fragment: units/run.yaml, args: {prefix: Embed, enter: Embed, word: embed_query}}
   - {fragment: units/run.yaml, args: {prefix: Rerank, enter: Rerank, word: rerank}}
 transitions:
@@ -98,7 +98,7 @@ budget: {command_timeout: 1m, max_iterations: 5}
 states: [Ready, {name: Done, run_status: succeeded}]
 terminal_states: [Done]
 signals: [Seed, Embed, CommandError]
-instantiate:
+expand:
   - {fragment: units/run.yaml, args: {prefix: Embed, enter: Embed, word: embed_query}}
 transitions:
   - {state: Ready, signal: Seed, next: Done}
@@ -116,7 +116,7 @@ func TestSplicingTheSamePrefixTwiceIsTheDuplicateStateError(t *testing.T) {
 	t.Parallel()
 	root := writeStageFixture(t, map[string]string{
 		"units/run.yaml": runStage,
-		"machine.yaml": machineHead + `instantiate:
+		"machine.yaml": machineHead + `expand:
   - {fragment: units/run.yaml, args: {prefix: Embed, enter: Embed, word: a}}
   - {fragment: units/run.yaml, args: {prefix: Embed, enter: Rerank, word: b}}
 transitions:
@@ -133,7 +133,7 @@ func TestStageArgumentFaultsNameFragmentAndParameter(t *testing.T) {
 	t.Parallel()
 	root := writeStageFixture(t, map[string]string{
 		"units/run.yaml": runStage,
-		"machine.yaml": machineHead + `instantiate:
+		"machine.yaml": machineHead + `expand:
   - {fragment: units/run.yaml, args: {prefix: Embed, enter: Embed}}
 transitions:
   - {state: Ready, signal: Seed, next: Done}
@@ -160,7 +160,7 @@ func TestMachineImportsAreRejectedWithTheReason(t *testing.T) {
 
 func TestParseMachineSpecRefusesInstantiateWithoutAFile(t *testing.T) {
 	t.Parallel()
-	_, err := core.ParseMachineSpec([]byte(machineHead + "instantiate:\n  - {fragment: x.yaml, args: {}}\ntransitions:\n  - {state: Ready, signal: Seed, next: Done}\n"))
+	_, err := core.ParseMachineSpec([]byte(machineHead + "expand:\n  - {fragment: x.yaml, args: {}}\ntransitions:\n  - {state: Ready, signal: Seed, next: Done}\n"))
 
 	require.ErrorContains(t, err, "must be loaded from its file")
 }
@@ -169,7 +169,7 @@ func TestHalfDeclaredStageFragmentFails(t *testing.T) {
 	t.Parallel()
 	root := writeStageFixture(t, map[string]string{
 		"units/half.yaml": "unit: half\nparams:\n- {name: p, type: string}\n",
-		"machine.yaml": machineHead + `instantiate:
+		"machine.yaml": machineHead + `expand:
   - {fragment: units/half.yaml, args: {p: x}}
 transitions:
   - {state: Ready, signal: Seed, next: Done}

@@ -20,7 +20,7 @@ purpose: |-
 
   - The creator alone holds the deployment-API authority; it is the only agent that declares a deployment-API client, and the bearer credential is deployment-realized (a mounted Secret), never a runtime-supplied one.
   - The creator forwards the provisioning-workflow-orchestrator's decided values-plane document to the deployment API as the apply content; it authors no values decision (that is the provisioning-workflow-orchestrator's).
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
     args:
       workflow: creator

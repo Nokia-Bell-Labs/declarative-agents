@@ -36,7 +36,7 @@ func writeTemplateClosureFixture(t *testing.T) string {
 	writeLoadFixture(t, root, "declarations.yaml", "tools:\n  - name: selected\n    binary: echo\n")
 	writeLoadFixture(t, root, "template.yaml", usednessTemplate)
 	writeLoadFixture(t, root, "machine.yaml",
-		"unit: usedness-instance\nname: usedness-instance\ninstantiate:\n  - {fragment: template.yaml, args: {word: selected}}\n")
+		"unit: usedness-instance\nname: usedness-instance\nexpand:\n  - {fragment: template.yaml, args: {word: selected}}\n")
 	return root
 }
 

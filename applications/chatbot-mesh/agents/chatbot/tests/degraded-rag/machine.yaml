@@ -12,6 +12,6 @@ purpose: |-
 
   The drive runs on the way into Checking so its signal decides the terminal
   state; routing straight to a terminal would pass regardless of the result.
-instantiate:
+expand:
   - fragment: ../chat-turn-critic-machine-template.yaml
     args: {drive: drive_chat_turn}

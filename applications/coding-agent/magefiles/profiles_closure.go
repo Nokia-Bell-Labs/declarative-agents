@@ -481,7 +481,7 @@ func runtimeYAMLReferences(document *yaml.Node) ([]string, error) {
 				(key == "machine" && slices.Contains(ancestors, "machine_request")) ||
 				// An instantiation is an import edge whose unit is filled in on the
 				// way (srd052 R2.1); its fragment travels with the instantiating file.
-				(key == "fragment" && slices.Contains(ancestors, "instantiate"))
+				(key == "fragment" && slices.Contains(ancestors, "expand"))
 			if isReference {
 				if values, ok := referenceScalars(value); ok {
 					for _, value := range values {

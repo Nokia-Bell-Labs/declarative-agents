@@ -16,7 +16,7 @@ summary: |
 actor: A profile author collapsing several agents into one agent with arguments
 
 trigger: |
-  A profile file lists one `instantiate` entry whose target is a fragment with
+  A profile file lists one `expand` entry whose target is a fragment with
   a `profile` body.
 
 flow:

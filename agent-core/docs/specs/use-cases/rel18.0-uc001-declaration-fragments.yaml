@@ -15,7 +15,7 @@ summary: |
 actor: A profile author replacing hand-copied declaration blocks with one template
 
 trigger: |
-  A declaration file lists an `instantiate` entry naming a fragment, a set of
+  A declaration file lists an `expand` entry naming a fragment, a set of
   arguments, and optionally a name prefix.
 
 flow:

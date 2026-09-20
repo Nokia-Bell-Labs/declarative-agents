@@ -628,7 +628,7 @@ func collectYAMLReferences(document *yaml.Node) []yamlReference {
 				// An instantiation is an import edge whose unit is filled in
 				// on the way (srd052 R2.1); the fragment travels with the
 				// declaration or machine that instantiates it.
-				fragment := key == "fragment" && contains(ancestors, "instantiate")
+				fragment := key == "fragment" && contains(ancestors, "expand")
 				pathField := topLevelField ||
 					stringSet("profile", "subject_profile", "point_machine",
 						"point_tools", "point_tool_declarations", "includes", "imports")[key] ||

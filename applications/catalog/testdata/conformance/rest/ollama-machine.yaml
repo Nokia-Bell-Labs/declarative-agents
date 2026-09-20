@@ -8,7 +8,7 @@ purpose: |-
   The machine lets the model choose the OpenAPI-backed ollama_list_models word,
   then feeds the live REST result back so the final answer names observed
   models instead of guessing.
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/ollama-model-listing-machine-template.yaml
     args:
       machine: testdata/conformance/rest/ollama-machine.yaml

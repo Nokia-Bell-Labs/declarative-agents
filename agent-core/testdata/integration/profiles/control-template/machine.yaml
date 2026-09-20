@@ -2,6 +2,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: control-template
 name: core-control-template
-instantiate:
+expand:
   - fragment: ../../units/control-machine-template.yaml
     args: {launch: launch_agent_control, await: await_agent_control}

@@ -252,7 +252,7 @@ func parseToolDefsFileRaw(
 	file.hasTypes = hasTypes
 	file.hasImports = yamlstrict.FieldPresent(root, "imports")
 	file.hasParams = hasParams
-	file.hasInstantiate = yamlstrict.FieldPresent(root, "instantiate")
+	file.hasInstantiate = yamlstrict.FieldPresent(root, "expand")
 	// A unit is a fragment or it is not; half of one declares nothing
 	// (srd052 R1.3).
 	if file.hasParams && !file.hasTools && !file.hasTypes {
@@ -280,7 +280,7 @@ func decodeToolDefsFile(expanded []byte, fragment bool) (ToolDefsFile, error) {
 		Unit        string                    `yaml:"unit,omitempty"`
 		Imports     []string                  `yaml:"imports,omitempty"`
 		Params      []fragments.Param         `yaml:"params,omitempty"`
-		Instantiate []fragments.Instantiation `yaml:"instantiate,omitempty"`
+		Instantiate []fragments.Instantiation `yaml:"expand,omitempty"`
 		Tools       yaml.Node                 `yaml:"tools,omitempty"`
 		Types       yaml.Node                 `yaml:"types,omitempty"`
 	}

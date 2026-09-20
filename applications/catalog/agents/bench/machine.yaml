@@ -16,7 +16,7 @@ purpose: |-
 
   - The bench never calls an LLM directly.
   - REST routes and UI assets are owned by the bench profile.
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
     args:
       workflow: bench

@@ -244,7 +244,7 @@ rest:
           - 0
 files:
   - path: <agent-core>/testdata/integration/profiles/control-template/machine.yaml
-    sha256: c2c4d8af763a57f895a3d926558a1a39e1fc3ae8862341b5a3aadf95dc0321f1
+    sha256: 8a2001e866f903bce8bc23bec704cf95c35f649430ce85c05d77ac899bee896b
   - path: <agent-core>/testdata/integration/profiles/control-template/profile.yaml
     sha256: 32239e7f3104551b5554c919e81e7379a7578c4c8a8b0717cc3f7df9fb31a270
   - path: <agent-core>/testdata/integration/profiles/control/declarations.yaml

@@ -40,13 +40,13 @@ requirements:
           hold a nested `params`.
       - R1.2: >-
           A machine instance SHALL be a machine file carrying `unit`, exactly
-          one `instantiate` entry whose target is a machine template, and
+          one `expand` entry whose target is a machine template, and
           optionally `name` and `purpose`, which replace the template's values.
           Any other top-level field on an instance SHALL be a load error naming
           the field and the instance path. The entry SHALL NOT carry `as`: an
           instance produces one machine, so there is nothing to prefix.
       - R1.3: >-
-          A machine template's body MAY carry `instantiate` listing stage
+          A machine template's body MAY carry `expand` listing stage
           fragments, which splice under srd052 R4 after the template's
           arguments are substituted. A template SHALL NOT instantiate another
           machine template, and an instance SHALL NOT instantiate a stage
@@ -73,7 +73,7 @@ requirements:
           the body, so a template can pass its own arguments through to a
           stage.
       - R2.2: >-
-          The instance's `instantiate` fragment path SHALL resolve against the
+          The instance's `expand` fragment path SHALL resolve against the
           instance file's directory, or under a declared library root when
           srd056 permits it. Relative paths inside the template body,
           including stage fragment paths, SHALL resolve against the template

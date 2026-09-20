@@ -21,7 +21,7 @@ type MachineSpec struct {
 	// decoded so the error for it can say what a machine may do instead.
 	Unit            string                    `yaml:"unit,omitempty"`
 	Imports         []string                  `yaml:"imports,omitempty"`
-	Instantiate     []fragments.Instantiation `yaml:"instantiate,omitempty"`
+	Instantiate     []fragments.Instantiation `yaml:"expand,omitempty"`
 	Name            string                    `yaml:"name"`
 	Purpose         string                    `yaml:"purpose,omitempty"`
 	Invariants      []string                  `yaml:"invariants,omitempty"`

@@ -21,7 +21,7 @@ const serveLifecycleFragment = "/opt/agent-core/tools/units/serve-lifecycle-decl
 
 func serveLifecycleArgs(extra string) string {
 	return `unit: probe
-instantiate:
+expand:
 - fragment: ` + serveLifecycleFragment + `
   args:
     agent: probe
@@ -82,7 +82,7 @@ func TestServeLifecycleFragmentWiresEachWordToItsRestDefinition(t *testing.T) {
 func TestServeLifecycleFragmentRequiresEveryWordName(t *testing.T) {
 	installedAgentCore(t)
 	missing := `unit: probe
-instantiate:
+expand:
 - fragment: ` + serveLifecycleFragment + `
   args: {agent: probe, launch_requests: launch_probe_requests}
 tools:

@@ -4,7 +4,7 @@ unit: control-fragments-program
 imports:
   - ../../units/control-types.yaml
   - ../../../../tools/builtin/lifecycle/exit-agent.yaml
-instantiate:
+expand:
   - fragment: ../../units/control-tool-fragment.yaml
     as: primary
     args: {server: alpha_agent_control, route: alpha_exit}

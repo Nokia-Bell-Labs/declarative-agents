@@ -7,7 +7,7 @@
 unit: mesh-provisioning-workflow-orchestrator-declarations
 imports:
   - /opt/agent-core/tools/units/monitor-rest-declarations.yaml
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/units/serve-lifecycle-declarations-fragment.yaml
     args:
       agent: "provisioning-workflow-orchestrator"

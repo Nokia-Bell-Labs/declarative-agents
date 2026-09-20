@@ -15,10 +15,9 @@ obligations:
       (R-PROF-001), and every published machine-profile satisfies the
       machine-profile grammar (R-MACH-001), so a canonical reference never
       imports a non-conforming document.
-    - Published units expand cleanly: a stage-fragment or machine-template
-      the catalog ships composes under the expansion statements (R-MODEL-001,
-      R-MODEL-002), and the catalog's conformance suite exercises the
-      expansions its blocks declare.
+    - A stage-fragment or machine-template the catalog ships composes under
+      the expansion statements (R-MODEL-001, R-MODEL-002), and the catalog's
+      conformance suite exercises the expansions its blocks declare.
   compatibility:
     - A root that references the catalog does so through the canonical
       ownership and compatible_release keynames of the application-profile

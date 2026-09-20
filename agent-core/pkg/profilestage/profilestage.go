@@ -389,7 +389,7 @@ func declaredImports(path string) ([]string, error) {
 	}
 	var file struct {
 		Imports     []string       `yaml:"imports"`
-		Instantiate instantiations `yaml:"instantiate"`
+		Instantiate instantiations `yaml:"expand"`
 		// A tool's config may name a file it reads when built, such as
 		// invoke_llm's chat dialect (srd058 R2.3); the loader resolves it like
 		// an import, so staging follows it like one.
@@ -398,7 +398,7 @@ func declaredImports(path string) ([]string, error) {
 		Tools []interface{} `yaml:"tools"`
 		// A machine template's body instantiates its stages (srd054 R2.2).
 		Machine struct {
-			Instantiate instantiations `yaml:"instantiate"`
+			Instantiate instantiations `yaml:"expand"`
 		} `yaml:"machine"`
 	}
 	if yaml.Unmarshal(data, &file) != nil {

@@ -16,7 +16,7 @@ summary: |
 actor: A profile author replacing copied machines with one template
 
 trigger: |
-  A machine file lists one `instantiate` entry whose target is a fragment with
+  A machine file lists one `expand` entry whose target is a fragment with
   a `machine` body.
 
 flow:

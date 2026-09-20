@@ -30,7 +30,7 @@ func TestBenchMachineIsServeTemplateInstance(t *testing.T) {
 			t.Errorf("bench machine.yaml declares %q; the serve template owns the lifecycle", key)
 		}
 	}
-	instances, _ := machine["instantiate"].([]interface{})
+	instances, _ := machine["expand"].([]interface{})
 	if len(instances) != 1 {
 		t.Fatalf("bench machine.yaml instantiates %d fragments, want 1", len(instances))
 	}

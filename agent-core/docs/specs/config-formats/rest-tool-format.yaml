@@ -1151,7 +1151,7 @@ fragment_files:
   description: |
     A REST definition file MAY be a fragment (srd052-declaration-fragments):
     `params` beside the `rest` root declares typed parameters, and an
-    importing REST file's `instantiate` list applies the fragment with
+    importing REST file's `expand` list applies the fragment with
     arguments. The two fields sit beside `unit` and `imports` (srd050) and
     follow the same rules as in cfg-tool-declaration-format: scalar-only
     substitution of `$param(name)`, and the instantiated definition compiled
@@ -1190,7 +1190,7 @@ fragment_files:
 
     # agents/observer/rest.yaml -- the importer
     unit: observer-rest
-    instantiate:
+    expand:
     - fragment: ../units/http-json-api.yaml
       as: metrics
       args: {service: metrics, base_url: http://metrics:9090}
@@ -1203,7 +1203,7 @@ fragment_files:
     # its own limits profile metrics_default and traces_default
 
 library_imports: |
-  REST `imports` and `instantiate` fragment paths follow the import path forms
+  REST `imports` and `expand` fragment paths follow the import path forms
   of cfg-tool-declaration-format `library_imports` (srd056-unit-libraries R1):
   relative to the declaring file, or absolute under `/opt/agent-core` or a root
   the profile declares. An `openapi.path` keeps its existing base, the REST file

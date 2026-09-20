@@ -6,7 +6,7 @@ unit: runtime-state-reader-machine
 purpose: |-
   Launches the runtime-state reader over embedded monitor REST and keeps it serving
   until a configured control exit request stops the owned listener.
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/monitor-service-machine-template.yaml
     args:
       profile: runtime-state-reader

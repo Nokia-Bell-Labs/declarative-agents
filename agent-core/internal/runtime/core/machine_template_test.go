@@ -64,9 +64,9 @@ func TestMachineTemplateInstanceEqualsTheHandWrittenMachine(t *testing.T) {
 func TestMachineInstanceCarriesOnlyItsHeader(t *testing.T) {
 	t.Parallel()
 	for name, instance := range map[string]string{
-		"extra field": "unit: i\nstates: [Ready]\ninstantiate:\n  - {fragment: units/check.yaml, args: {word: go}}\n",
-		"prefix":      "unit: i\ninstantiate:\n  - {fragment: units/check.yaml, as: x, args: {word: go}}\n",
-		"stage beside template": "unit: i\ninstantiate:\n  - {fragment: units/check.yaml, args: {word: go}}\n" +
+		"extra field": "unit: i\nstates: [Ready]\nexpand:\n  - {fragment: units/check.yaml, args: {word: go}}\n",
+		"prefix":      "unit: i\nexpand:\n  - {fragment: units/check.yaml, as: x, args: {word: go}}\n",
+		"stage beside template": "unit: i\nexpand:\n  - {fragment: units/check.yaml, args: {word: go}}\n" +
 			"  - {fragment: units/run.yaml, args: {prefix: Embed, enter: Seed, word: go}}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -82,7 +82,7 @@ func TestMachineInstanceCarriesOnlyItsHeader(t *testing.T) {
 
 	root := writeStageFixture(t, map[string]string{
 		"units/check.yaml": checkTemplate,
-		"machine.yaml": "unit: i\nname: renamed\npurpose: Renamed.\ninstantiate:\n" +
+		"machine.yaml": "unit: i\nname: renamed\npurpose: Renamed.\nexpand:\n" +
 			"  - {fragment: units/check.yaml, args: {word: go}}\n",
 	})
 	spec, err := core.LoadMachineClosure(filepath.Join(root, "machine.yaml"), nil)
@@ -95,13 +95,13 @@ func TestMachineTemplateSplicesItsStagesRelativeToItself(t *testing.T) {
 	t.Parallel()
 	template := checkTemplate[:len(checkTemplate)-len("  transitions:\n    - {state: Ready, signal: Seed, next: Done, action: $param(word)}\n    - {state: Ready, signal: CommandError, next: Failed}\n")] +
 		"  signals: [Seed, Embed, CommandError]\n" +
-		"  instantiate:\n    - {fragment: stages/run.yaml, args: {prefix: $param(prefix), enter: Embed, word: $param(word)}}\n" +
+		"  expand:\n    - {fragment: stages/run.yaml, args: {prefix: $param(prefix), enter: Embed, word: $param(word)}}\n" +
 		"  transitions:\n    - {state: Ready, signal: Seed, next: Done}\n"
 	template = replaceOnce(t, template, "  signals: [Seed, CommandError]\n", "")
 	root := writeStageFixture(t, map[string]string{
 		"library/check.yaml":      template,
 		"library/stages/run.yaml": runStage,
-		"agents/one/machine.yaml": "unit: one\ninstantiate:\n  - {fragment: ../../library/check.yaml, args: {word: embed_query}}\n",
+		"agents/one/machine.yaml": "unit: one\nexpand:\n  - {fragment: ../../library/check.yaml, args: {word: embed_query}}\n",
 	})
 
 	spec, err := core.LoadMachineClosure(filepath.Join(root, "agents", "one", "machine.yaml"), nil)
@@ -125,11 +125,11 @@ func TestMachineTemplateSplicesItsStagesRelativeToItself(t *testing.T) {
 func TestMachineTemplateCannotNestOrBeLoadedAsAMachine(t *testing.T) {
 	t.Parallel()
 	nesting := replaceOnce(t, checkTemplate, "  transitions:\n",
-		"  instantiate:\n    - {fragment: check.yaml, args: {word: go}}\n  transitions:\n")
+		"  expand:\n    - {fragment: check.yaml, args: {word: go}}\n  transitions:\n")
 	root := writeStageFixture(t, map[string]string{
 		"units/check.yaml":  checkTemplate,
 		"units/nested.yaml": nesting,
-		"machine.yaml":      "unit: i\ninstantiate:\n  - {fragment: units/nested.yaml, args: {word: go}}\n",
+		"machine.yaml":      "unit: i\nexpand:\n  - {fragment: units/nested.yaml, args: {word: go}}\n",
 	})
 
 	_, err := core.LoadMachineClosure(filepath.Join(root, "machine.yaml"), nil)
@@ -144,7 +144,7 @@ func TestInstantiateTargetBodyKindSelectsReplaceOrSplice(t *testing.T) {
 	t.Parallel()
 	root := writeStageFixture(t, map[string]string{
 		"units/tools.yaml": "unit: words\nparams:\n- {name: word, type: string}\ntools:\n- {name: $param(word), binary: echo}\n",
-		"machine.yaml":     machineHead + "instantiate:\n  - {fragment: units/tools.yaml, args: {word: go}}\ntransitions:\n  - {state: Ready, signal: Seed, next: Done}\n",
+		"machine.yaml":     machineHead + "expand:\n  - {fragment: units/tools.yaml, args: {word: go}}\ntransitions:\n  - {state: Ready, signal: Seed, next: Done}\n",
 	})
 
 	_, err := core.LoadMachineClosure(filepath.Join(root, "machine.yaml"), nil)
@@ -158,8 +158,8 @@ func TestMachineTemplateFaultsNameTemplateAndInstance(t *testing.T) {
 	root := writeStageFixture(t, map[string]string{
 		"units/check.yaml":      checkTemplate,
 		"units/orphan.yaml":     unreachable,
-		"missing/machine.yaml":  "unit: i\ninstantiate:\n  - {fragment: ../units/check.yaml, args: {}}\n",
-		"leftover/machine.yaml": "unit: i\ninstantiate:\n  - {fragment: ../units/orphan.yaml, args: {word: go}}\n",
+		"missing/machine.yaml":  "unit: i\nexpand:\n  - {fragment: ../units/check.yaml, args: {}}\n",
+		"leftover/machine.yaml": "unit: i\nexpand:\n  - {fragment: ../units/orphan.yaml, args: {word: go}}\n",
 	})
 
 	_, err := core.LoadMachineClosure(filepath.Join(root, "missing", "machine.yaml"), nil)
@@ -206,7 +206,7 @@ func TestMachineTemplateBodyHoldsNoParamsUnitOrImports(t *testing.T) {
 			t.Parallel()
 			root := writeStageFixture(t, map[string]string{
 				"units/check.yaml": replaceOnce(t, checkTemplate, "  name: check\n", "  name: check\n"+edit),
-				"machine.yaml":     "unit: i\ninstantiate:\n  - {fragment: units/check.yaml, args: {word: go}}\n",
+				"machine.yaml":     "unit: i\nexpand:\n  - {fragment: units/check.yaml, args: {word: go}}\n",
 			})
 			_, err := core.LoadMachineClosure(filepath.Join(root, "machine.yaml"), nil)
 			require.Error(t, err)

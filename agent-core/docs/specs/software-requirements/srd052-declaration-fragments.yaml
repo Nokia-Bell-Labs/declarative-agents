@@ -50,7 +50,7 @@ requirements:
     title: Instantiation
     items:
       - R2.1: >-
-          An importing file SHALL list instantiations under `instantiate`,
+          An importing file SHALL list instantiations under `expand`,
           beside `imports`, each carrying `fragment` (a path relative to the
           importing file under the same rules as an import), `args` (a mapping
           from parameter name to value), and optionally `as` (a name prefix).

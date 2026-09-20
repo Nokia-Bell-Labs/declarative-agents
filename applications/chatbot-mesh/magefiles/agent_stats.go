@@ -70,7 +70,7 @@ type agentMachineDoc struct {
 	Transitions []yaml.Node `yaml:"transitions"`
 	Instantiate []struct {
 		Fragment string `yaml:"fragment"`
-	} `yaml:"instantiate"`
+	} `yaml:"expand"`
 }
 
 // agentToolsDoc captures the tool selection list in tools.yaml. Declarations

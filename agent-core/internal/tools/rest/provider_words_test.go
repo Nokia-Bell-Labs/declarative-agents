@@ -47,7 +47,7 @@ func buildProviderWord(t *testing.T, provider string, word providerWord, baseURL
 	t.Cleanup(func() { corepath.SetLibraryRoots(nil) })
 	path := filepath.Join(t.TempDir(), "provider-rest.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`unit: probe-provider-rest
-instantiate:
+expand:
 - fragment: /opt/providers/`+word.fragment+`
   args: {base_url: "`+baseURL+`", `+word.args+`}
 rest: {version: v1}

@@ -5,7 +5,7 @@
 # profiles whose machines launch no monitor server, and an instantiation none
 # of whose definitions a closure selects is an unused import (srd052 R3.1).
 unit: mesh-provisioning-workflow-orchestrator-monitor-rest
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/rest/units/monitor-server-fragment.yaml
     args: {address: "${PROVISIONING_WORKFLOW_ORCHESTRATOR_BIND_HOST:-127.0.0.1}:18102", limits_ref: local_provisioning_workflow_orchestrator_monitor, queue_name: provisioning_workflow_orchestrator_monitor}
 rest:

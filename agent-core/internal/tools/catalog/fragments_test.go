@@ -54,7 +54,7 @@ func TestInstantiateProducesPrefixedTypedTools(t *testing.T) {
 	defs, err := loadFragmentRoot(t, map[string]string{
 		"units/embed.yaml": embedFragment,
 		"declarations.yaml": `unit: rag
-instantiate:
+expand:
 - fragment: units/embed.yaml
   as: cohere
   args: {provider: cohere}
@@ -92,7 +92,7 @@ func TestInstantiateArgumentFaultsNameImporterFragmentAndParameter(t *testing.T)
 	} {
 		_, err := loadFragmentRoot(t, map[string]string{
 			"units/embed.yaml":  embedFragment,
-			"declarations.yaml": "unit: rag\ninstantiate:\n- fragment: units/embed.yaml\n  args: " + tc.args + "\ntools: []\n",
+			"declarations.yaml": "unit: rag\nexpand:\n- fragment: units/embed.yaml\n  args: " + tc.args + "\ntools: []\n",
 		})
 		require.ErrorContains(t, err, tc.want, name)
 		require.ErrorContains(t, err, `tool unit "rag"`, name)
@@ -113,7 +113,7 @@ func TestPlainUnitCannotBeInstantiated(t *testing.T) {
 	t.Parallel()
 	_, err := loadFragmentRoot(t, map[string]string{
 		"units/plain.yaml":  "unit: plain\ntools:\n- name: x\n  binary: echo\n",
-		"declarations.yaml": "unit: rag\ninstantiate:\n- {fragment: units/plain.yaml, args: {}}\ntools: []\n",
+		"declarations.yaml": "unit: rag\nexpand:\n- {fragment: units/plain.yaml, args: {}}\ntools: []\n",
 	})
 	require.ErrorContains(t, err, "declares no params, so it is imported, not instantiated")
 }
@@ -135,8 +135,8 @@ func TestFragmentCannotNest(t *testing.T) {
 	t.Parallel()
 	_, err := loadFragmentRoot(t, map[string]string{
 		"units/inner.yaml":  embedFragment,
-		"units/outer.yaml":  "unit: outer\nparams:\n- {name: p, type: string}\ninstantiate:\n- {fragment: inner.yaml, args: {provider: cohere}}\ntools: []\n",
-		"declarations.yaml": "unit: rag\ninstantiate:\n- {fragment: units/outer.yaml, args: {p: x}}\ntools: []\n",
+		"units/outer.yaml":  "unit: outer\nparams:\n- {name: p, type: string}\nexpand:\n- {fragment: inner.yaml, args: {provider: cohere}}\ntools: []\n",
+		"declarations.yaml": "unit: rag\nexpand:\n- {fragment: units/outer.yaml, args: {p: x}}\ntools: []\n",
 	})
 	require.ErrorContains(t, err, "nesting is not supported")
 }
@@ -147,7 +147,7 @@ func TestReferenceInMappingNameIsLeftAndReported(t *testing.T) {
 	t.Parallel()
 	_, err := loadFragmentRoot(t, map[string]string{
 		"units/bad.yaml":    "unit: bad\nparams:\n- {name: p, type: string}\ntools:\n- name: x\n  binary: echo\n  config:\n    $param(p)_key: 1\n",
-		"declarations.yaml": "unit: rag\ninstantiate:\n- {fragment: units/bad.yaml, args: {p: v}}\ntools: []\n",
+		"declarations.yaml": "unit: rag\nexpand:\n- {fragment: units/bad.yaml, args: {p: v}}\ntools: []\n",
 	})
 	require.ErrorContains(t, err, "$param( survives substitution")
 	require.ErrorContains(t, err, "line 8")
@@ -157,7 +157,7 @@ func TestRepeatedInstantiationWithoutPrefixIsADuplicate(t *testing.T) {
 	t.Parallel()
 	_, err := loadFragmentRoot(t, map[string]string{
 		"units/embed.yaml":  embedFragment,
-		"declarations.yaml": "unit: rag\ninstantiate:\n- {fragment: units/embed.yaml, args: {provider: cohere}}\n- {fragment: units/embed.yaml, args: {provider: cohere}}\ntools: []\n",
+		"declarations.yaml": "unit: rag\nexpand:\n- {fragment: units/embed.yaml, args: {provider: cohere}}\n- {fragment: units/embed.yaml, args: {provider: cohere}}\ntools: []\n",
 	})
 	require.ErrorContains(t, err, `duplicate imported tool "embed": instantiations 1 and 2`)
 }
@@ -169,7 +169,7 @@ func TestInstantiatedUnitTakesTheHandWrittenPath(t *testing.T) {
 	t.Parallel()
 	_, err := loadFragmentRoot(t, map[string]string{
 		"units/typo.yaml":   "unit: typo\nparams:\n- {name: p, type: string}\ntools:\n- name: x\n  binary: echo\n  descripton: $param(p)\n",
-		"declarations.yaml": "unit: rag\ninstantiate:\n- {fragment: units/typo.yaml, args: {p: v}}\ntools: []\n",
+		"declarations.yaml": "unit: rag\nexpand:\n- {fragment: units/typo.yaml, args: {p: v}}\ntools: []\n",
 	})
 	require.ErrorContains(t, err, `unknown field "descripton"`)
 }
@@ -179,7 +179,7 @@ func TestFragmentImportsResolveFromTheFragment(t *testing.T) {
 	defs, err := loadFragmentRoot(t, map[string]string{
 		"units/shared.yaml": "unit: shared\ntools:\n- name: shared_tool\n  binary: echo\n",
 		"units/frag.yaml":   "unit: frag\nimports: [shared.yaml]\nparams:\n- {name: p, type: string}\ntools:\n- name: own\n  binary: $param(p)\n",
-		"declarations.yaml": "unit: rag\ninstantiate:\n- {fragment: units/frag.yaml, as: a, args: {p: echo}}\ntools: []\n",
+		"declarations.yaml": "unit: rag\nexpand:\n- {fragment: units/frag.yaml, as: a, args: {p: echo}}\ntools: []\n",
 	})
 	require.NoError(t, err)
 	names := []string{}
@@ -198,14 +198,14 @@ func TestFragmentBodyIsDecodedOnlyAfterSubstitution(t *testing.T) {
 	t.Parallel()
 	defs, err := loadFragmentRoot(t, map[string]string{
 		"units/capped.yaml": "unit: capped\nparams:\n- {name: cap, type: integer}\ntools:\n- name: run\n  binary: echo\n  output_cap: $param(cap)\n",
-		"declarations.yaml": "unit: rag\ninstantiate:\n- {fragment: units/capped.yaml, args: {cap: 512}}\ntools: []\n",
+		"declarations.yaml": "unit: rag\nexpand:\n- {fragment: units/capped.yaml, args: {cap: 512}}\ntools: []\n",
 	})
 	require.NoError(t, err)
 	require.Equal(t, 512, defs[0].OutputCap)
 
 	_, err = loadFragmentRoot(t, map[string]string{
 		"units/typo.yaml":   "unit: typo\nparams:\n- {name: cap, type: integer}\nimprots: []\ntools: []\n",
-		"declarations.yaml": "unit: rag\ninstantiate:\n- {fragment: units/typo.yaml, args: {cap: 1}}\ntools: []\n",
+		"declarations.yaml": "unit: rag\nexpand:\n- {fragment: units/typo.yaml, args: {cap: 1}}\ntools: []\n",
 	})
 	require.ErrorContains(t, err, `field improts not found`, "the header is still strict")
 }

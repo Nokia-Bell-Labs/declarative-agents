@@ -27,7 +27,7 @@ tools:
     binary: echo
 `)
 	writeLoadFixture(t, root, "rest.yaml", `unit: host-rest
-instantiate:
+expand:
   - fragment: /opt/providers/embed-query-fragment.yaml
     args: {input_selector: $.text}
 rest:
@@ -56,7 +56,7 @@ states: [Idle, {name: Done, run_status: succeeded}, {name: Failed, run_status: f
 terminal_states: [Done, Failed]
 signals: [Seed, QueryEmbedded, QueryEmbeddingNormalized, ProviderUnauthorized, ProviderThrottled, ProviderUnavailable, CommandError]
 transitions: []
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/embed-query-stage-fragment.yaml
     args: {from: Idle, enter: Seed, next: Done}
 `)

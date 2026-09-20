@@ -666,7 +666,7 @@ func TestReferenceEvidenceReadsAMachineInstanceThroughItsTemplate(t *testing.T) 
 		"unit: approve\nparams: []\nmachine:\n  name: approve\n  states: [Idle, Done]\n  transitions:\n"+
 			"    - {state: Idle, signal: Seed, next: Done, action: suspend}\n")
 	writeAuditFixture(t, filepath.Join(root, "conformance", "machine.yaml"),
-		"name: approval\ninstantiate:\n  - fragment: /opt/agent-core/tools/machines/approve.yaml\n    args: {}\n")
+		"name: approval\nexpand:\n  - fragment: /opt/agent-core/tools/machines/approve.yaml\n    args: {}\n")
 	check := evidenceCheck{
 		Path: "conformance/machine.yaml", Artifact: "machine",
 		Assertion: "yaml_transition", Match: map[string]string{"state": "Idle", "signal": "Seed", "action": "suspend"},
