@@ -31,6 +31,13 @@
 #                                      verdict (valid or invalid)
 #                 assertion: go_test   a named Go test that must exist and
 #                                      pass, path relative to this directory
+#                 assertion: rig       a named Go test in the wider repository
+#                                      (path relative to the repository root)
+#                                      anchoring a runtime or population
+#                                      statement; the audit verifies the
+#                                      reference resolves to a declared test,
+#                                      and the repository's test and
+#                                      integration gates execute it
 #
 language:
   id: application-dsl
@@ -95,6 +102,80 @@ statements:
         path: fixtures/document/machine-expansion/double-expansion.yaml
         check: machine_expansion_shape
         verdict: invalid
+
+  - id: R-LCM-001
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST bind an agent-instance to exactly one
+      workspace at instantiation and MUST release the binding when the
+      agent-instance terminates.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
+
+  - id: R-LCM-002
+    target: runtime
+    level: MUST
+    statement: >-
+      Terminating an agent-instance MUST NOT decommission its workspace; a
+      later agent-instance MAY bind the same workspace and resume its
+      identity.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestCodingLoopStagesGenerateOnceAndPreserveExactWorkspace
+
+  - id: R-POP-001
+    target: population
+    level: MUST
+    statement: >-
+      Every agent-instance in a conforming population MUST realize an
+      agent-profile that a governing application-profile names among its
+      roots.
+    acceptance:
+      - assertion: rig
+        path: applications/chatbot-mesh/magefiles/application_manifest_test.go
+        test: TestApplicationManifestDeclaresExactProductionRoots
+
+  - id: R-POP-002
+    target: population
+    level: MUST
+    statement: >-
+      In a conforming population, a deployment authority MUST rest with
+      exactly one agent-profile's instances, and an agent-instance that
+      decides operations MUST NOT hold the deployment authority those
+      operations act through.
+    acceptance:
+      - assertion: rig
+        path: applications/chatbot-mesh/magefiles/creator_ingest_chart_test.go
+        test: TestCreatorCarriesTheIngestChromaAuthority
+      - assertion: rig
+        path: applications/chatbot-mesh/magefiles/provisioning_workflow_orchestrator_state_test.go
+        test: TestCreatorStateReadIsProvisioningWorkflowOrchestratorFacing
+
+  - id: R-POP-003
+    target: population
+    level: MUST
+    statement: >-
+      A workspace MUST be bound by at most one agent-instance at any time.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
+
+  - id: R-POP-004
+    target: population
+    level: MAY
+    statement: >-
+      A conforming population MAY contain orphan workspaces; a workspace with
+      no bound agent-instance is a legal state that only an explicit
+      decommission removes.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
 
   - id: R-MODEL-002
     target: document

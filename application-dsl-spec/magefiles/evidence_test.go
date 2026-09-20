@@ -84,6 +84,44 @@ func TestEvidencePathMayNotEscapeModule(t *testing.T) {
 	}
 }
 
+func TestRigEvidenceResolvesDeclaredRepositoryTest(t *testing.T) {
+	repo := t.TempDir()
+	module := filepath.Join(repo, "application-dsl-spec")
+	writeEvidenceFile(t, repo, "applications/x/magefiles/rig_test.go",
+		"package main\n\nimport \"testing\"\n\nfunc TestRigProves(t *testing.T) {}\n")
+	entry := acceptanceEntry{
+		Assertion: "rig",
+		Path:      "applications/x/magefiles/rig_test.go",
+		Test:      "TestRigProves",
+	}
+	if err := runAcceptanceEntry(module, entry); err != nil {
+		t.Fatalf("rig reference failed: %v", err)
+	}
+	entry.Test = "TestRenamed"
+	if err := runAcceptanceEntry(module, entry); err == nil ||
+		!strings.Contains(err.Error(), "is not declared") {
+		t.Fatalf("renamed rig test error = %v, want is not declared", err)
+	}
+	entry.Path = "applications/x/magefiles/missing_test.go"
+	if err := runAcceptanceEntry(module, entry); err == nil {
+		t.Fatal("missing rig file produced passing evidence")
+	}
+}
+
+func TestRigEvidenceMayNotEscapeRepository(t *testing.T) {
+	repo := t.TempDir()
+	module := filepath.Join(repo, "application-dsl-spec")
+	entry := acceptanceEntry{
+		Assertion: "rig",
+		Path:      "../outside_test.go",
+		Test:      "TestOutside",
+	}
+	err := runAcceptanceEntry(module, entry)
+	if err == nil || !strings.Contains(err.Error(), "escapes the repository") {
+		t.Fatalf("escape error = %v, want escapes the repository", err)
+	}
+}
+
 func TestGoTestEvidenceRequiresDeclaredTest(t *testing.T) {
 	dir := t.TempDir()
 	path := writeEvidenceFile(t, dir, "sample_test.go",

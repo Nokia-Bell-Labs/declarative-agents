@@ -156,9 +156,9 @@ func validateAcceptanceEntry(entry acceptanceEntry) error {
 		if entry.Verdict != "valid" && entry.Verdict != "invalid" {
 			return fmt.Errorf("fixture verdict must be valid or invalid, got %q", entry.Verdict)
 		}
-	case "go_test":
+	case "go_test", "rig":
 		if !strings.HasPrefix(entry.Test, "Test") {
-			return fmt.Errorf("go_test entries require a Test* function, got %q", entry.Test)
+			return fmt.Errorf("%s entries require a Test* function, got %q", entry.Assertion, entry.Test)
 		}
 	default:
 		return fmt.Errorf("unknown acceptance assertion %q", entry.Assertion)

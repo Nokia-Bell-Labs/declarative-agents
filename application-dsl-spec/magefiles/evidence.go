@@ -41,6 +41,11 @@ func runAcceptanceEvidence(moduleRoot string, language languageFile) error {
 }
 
 func runAcceptanceEntry(moduleRoot string, entry acceptanceEntry) error {
+	// A rig entry references the wider repository, so it resolves against the
+	// module's parent rather than the module.
+	if entry.Assertion == "rig" {
+		return runRigEvidence(filepath.Join(moduleRoot, ".."), entry)
+	}
 	path, err := resolveModulePath(moduleRoot, entry.Path)
 	if err != nil {
 		return err
@@ -53,6 +58,30 @@ func runAcceptanceEntry(moduleRoot string, entry acceptanceEntry) error {
 	default:
 		return fmt.Errorf("unknown acceptance assertion %q", entry.Assertion)
 	}
+}
+
+// runRigEvidence verifies a rig reference: the repository test file exists and
+// declares the named test. Rig entries anchor runtime- and population-target
+// statements to integration evidence that the repository's test and
+// integration gates execute; the audit proves the reference cannot rot, not
+// the run, because those suites need clusters and rigs the audit does not own.
+func runRigEvidence(repositoryRoot string, entry acceptanceEntry) error {
+	root, err := filepath.Abs(repositoryRoot)
+	if err != nil {
+		return fmt.Errorf("resolve repository root: %w", err)
+	}
+	path, err := filepath.Abs(filepath.Join(root, filepath.Clean(filepath.FromSlash(entry.Path))))
+	if err != nil {
+		return fmt.Errorf("resolve rig path %q: %w", entry.Path, err)
+	}
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("rig path %q escapes the repository", entry.Path)
+	}
+	if _, err := os.Stat(path); err != nil {
+		return fmt.Errorf("rig path %q: %w", entry.Path, err)
+	}
+	return checkGoTestDeclared(path, entry.Test)
 }
 
 // resolveModulePath resolves relative against moduleRoot and rejects paths
