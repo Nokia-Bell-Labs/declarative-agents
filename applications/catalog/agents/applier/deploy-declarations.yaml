@@ -1,0 +1,200 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-applier-deploy-declarations
+imports:
+  - /opt/agent-core/tools/units/types-core.yaml
+# The host-side deploy words, carrying placeholder coordinates (srd022 R6.6).
+# This file is a template: kindrig.RenderDeployDeclarations replaces every DA_
+# token with one application's resolved chart, release, namespace, kubeconfig,
+# values overlay, overrides path, and timeout, and writes the result into
+# build/deploy/<release>/ before the agent runs. It is valid YAML that
+# agent-core accepts as it stands, so the shipped form validates, but no
+# profile selects it: an unrendered word would address a release named
+# DA_RELEASE.
+#
+# Rendering exists because exec args are fully static. ExecBuilder.Build maps
+# parameters only from the previous result by name, and the runtime's vars map
+# carries directory and request alone, consumed to root builtin filesystem and
+# OTLP tools rather than substituted into argv. In-cluster the same problem is
+# solved at chart-render time by profiles-configmap.yaml; host-side there is no
+# chart render, so the mage target renders.
+#
+# Every coordinate is a flag on the word, never an environment variable. The
+# in-cluster words read their kubeconfig from the pod and their values file
+# from ${APPLIER_WORK_DIR:-/work}; neither exists on a developer's machine, so
+# both arrive here as rendered paths.
+#
+# These are helm 3 spellings. helm 4 renamed --atomic and rejects an unknown
+# flag outright, so the harness checks the local helm's major version before it
+# runs the agent rather than letting every word fail one at a time.
+tools:
+  - name: helm_history
+    type: exec
+    binary: helm
+    args: [history, DA_RELEASE, --namespace, DA_NAMESPACE, --kubeconfig, DA_KUBECONFIG, --max, "1"]
+    category: boundary
+    visibility: internal
+    description: Read the release's most recent revision, so an undeploy can tell an installed release from one that is already gone.
+    signature:
+      output: builtin-types-core.ExecResult
+      emits: [ToolDone, ToolFailed]
+    output:
+      description: helm history process result.
+    side_effects:
+      - kind: child_process
+        state: read_only
+        target: helm
+        description: Runs `helm history` as a child process; reads release metadata and mutates nothing.
+    reversibility:
+      classification: reversible
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the release does not exist, or the kubeconfig or API server makes the read impossible
+        message_shape: <captured helm output>
+        state_after_failure: no cluster state changed; the undeploy machine reads this as an absent release, which is why its caller confirms the cluster is running first
+    undo:
+      strategy: noop
+      description: A history read mutates nothing.
+
+  - name: helm_dry_run
+    type: exec
+    binary: helm
+    args: [upgrade, --install, DA_RELEASE, DA_CHART, --namespace, DA_NAMESPACE, --create-namespace, --kubeconfig, DA_KUBECONFIG, --values, DA_VALUES, -f, DA_OVERRIDES, --atomic, --dry-run]
+    category: boundary
+    visibility: internal
+    description: Render the release with install semantics without applying it, so a values document the chart rejects never reaches the cluster.
+    signature:
+      output: builtin-types-core.ExecResult
+      emits: [ToolDone, ToolFailed]
+    output:
+      description: helm upgrade --install --dry-run process result.
+    side_effects:
+      - kind: child_process
+        state: read_only
+        target: helm
+        description: Runs `helm upgrade --install --dry-run` as a child process; renders only, mutates no cluster state.
+    reversibility:
+      classification: reversible
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: helm renders with a non-zero exit (schema or template rejection)
+        message_shape: <captured helm output>
+        state_after_failure: no cluster state changed; the deploy machine reaches Rejected
+    undo:
+      strategy: noop
+      description: A dry run mutates no cluster state.
+
+  - name: helm_upgrade
+    type: exec
+    binary: helm
+    args: [upgrade, --install, DA_RELEASE, DA_CHART, --namespace, DA_NAMESPACE, --create-namespace, --kubeconfig, DA_KUBECONFIG, --values, DA_VALUES, -f, DA_OVERRIDES, --atomic, --wait, --timeout, DA_TIMEOUT]
+    category: boundary
+    visibility: internal
+    description: Install the release, or upgrade it in place when it exists, creating the namespace if it is absent.
+    signature:
+      output: builtin-types-core.ExecResult
+      emits: [ToolDone, ToolFailed]
+    output:
+      description: helm upgrade --install process result.
+    side_effects:
+      - kind: child_process
+        target: helm
+        description: Runs `helm upgrade --install --atomic --wait` as a child process; installs or upgrades the release and rolls its Deployments.
+    reversibility:
+      classification: compensatable
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the apply exits non-zero; --atomic deletes a failed first install and rolls a failed upgrade back to the prior revision
+        message_shape: <captured helm output>
+        state_after_failure: helm has already compensated, so the deploy machine reaches Failed without compensating again
+    undo:
+      strategy: compensating_action
+      description: helm_rollback returns the release to its prior revision when a verify stall follows an apply that succeeded.
+
+  - name: verify_rollout
+    type: exec
+    binary: kubectl
+    args: [wait, --for=condition=Available, deployment, --all, --namespace, DA_NAMESPACE, --kubeconfig, DA_KUBECONFIG, --timeout, DA_TIMEOUT]
+    category: boundary
+    visibility: internal
+    description: Wait for every Deployment in the release namespace to become available, because one static word cannot name an application's Deployments individually.
+    signature:
+      output: builtin-types-core.ExecResult
+      emits: [ToolDone, ToolFailed]
+    output:
+      description: kubectl wait process result.
+    side_effects:
+      - kind: child_process
+        state: read_only
+        target: kubectl
+        description: Runs `kubectl wait` as a child process; reads Deployment conditions and mutates nothing.
+    reversibility:
+      classification: reversible
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: a Deployment does not reach Available before the timeout
+        message_shape: <captured kubectl output>
+        state_after_failure: the rollout is incomplete; the deploy machine compensates by rollback
+    undo:
+      strategy: noop
+      description: A condition wait mutates nothing.
+
+  - name: helm_rollback
+    type: exec
+    binary: helm
+    args: [rollback, DA_RELEASE, --namespace, DA_NAMESPACE, --kubeconfig, DA_KUBECONFIG]
+    category: boundary
+    visibility: internal
+    description: Return the release to its prior revision after a verify stall. A first install has no prior revision, so this fails there and the release is left standing for inspection.
+    signature:
+      output: builtin-types-core.ExecResult
+      emits: [ToolDone, ToolFailed]
+    output:
+      description: helm rollback process result.
+    side_effects:
+      - kind: child_process
+        target: helm
+        description: Runs `helm rollback` as a child process; returns the release to its prior revision.
+    reversibility:
+      classification: irreversible
+      requires_confirmation: true
+    errors:
+      - signal: ToolFailed
+        condition: the rollback exits non-zero, which includes a first install that has no prior revision to return to
+        message_shape: <captured helm output>
+        state_after_failure: the release stays on the failed revision and needs an operator, which is why the machine reaches Failed rather than removing it
+    undo:
+      strategy: irreversible
+      description: A rollback is itself a one-way compensating action.
+
+  - name: helm_uninstall
+    type: exec
+    binary: helm
+    args: [uninstall, DA_RELEASE, --namespace, DA_NAMESPACE, --kubeconfig, DA_KUBECONFIG, --wait]
+    category: boundary
+    visibility: internal
+    description: Remove the release and wait for its objects to go, for an explicit undeploy.
+    signature:
+      output: builtin-types-core.ExecResult
+      emits: [ToolDone, ToolFailed]
+    output:
+      description: helm uninstall process result.
+    side_effects:
+      - kind: child_process
+        target: helm
+        description: Runs `helm uninstall --wait` as a child process; removes the release and its objects.
+    reversibility:
+      classification: irreversible
+      requires_confirmation: true
+    errors:
+      - signal: ToolFailed
+        condition: the uninstall exits non-zero
+        message_shape: <captured helm output>
+        state_after_failure: the release may remain and needs operator attention
+    undo:
+      strategy: irreversible
+      description: Removing a release is one-way; reinstalling is a new deploy.

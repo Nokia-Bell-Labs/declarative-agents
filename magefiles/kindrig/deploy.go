@@ -1,0 +1,208 @@
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
+
+package kindrig
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+)
+
+// The deploy words carry helm 3 spellings. helm 4 renamed --atomic and rejects
+// an unknown flag outright, so every word would fail one at a time against a
+// helm 4 on PATH. Checking once, up front, names the cause instead.
+const supportedHelmMajor = "3"
+
+var helmVersionPattern = regexp.MustCompile(`v(\d+)\.\d+`)
+
+// DeployAgent locates the agent a deploy target runs, mirroring DiagnoseAgent.
+type DeployAgent struct {
+	Binary   string
+	Profile  string
+	CoreRoot string
+	// Cleanup releases whatever holds the binary, once the run is over.
+	Cleanup func()
+}
+
+// DeployRequest is one application's deploy or undeploy.
+type DeployRequest struct {
+	// Cluster is the running cluster this release goes to. It is confirmed
+	// before any Helm word runs.
+	Cluster string
+	// ApplicationRoot is where build/deploy/<release> is rendered.
+	ApplicationRoot string
+	// Coordinates are this application's resolved deploy coordinates. The
+	// caller leaves Kubeconfig and OverridesPath empty; Deploy fills both from
+	// the cluster and the workspace it owns.
+	Coordinates DeployCoordinates
+	// Overrides is the decided values document, seeded through --request and
+	// written to the workspace by write_overrides.
+	Overrides string
+	// Agent runs the machine. A zero value is an error: unlike a diagnosis, a
+	// deploy that does not run has produced nothing.
+	Agent DeployAgent
+	// CatalogRoot is the shipped catalog this run binds its machine from.
+	CatalogRoot string
+	// HelmVersion overrides the local helm version probe. Tests set it.
+	HelmVersion func() (string, error)
+}
+
+// Deploy installs or upgrades one release by running the catalog applier's
+// deploy machine host-side (srd022 R6).
+//
+// Unlike Diagnose, which reports and never gates, this gates: a failure
+// terminal fails the caller's build, because a deploy that did not come up is
+// not a result anyone should build on.
+func Deploy(request DeployRequest) error {
+	return runDeployMachine(request, "deploy", "Deployed")
+}
+
+// Undeploy removes one release. An already-absent release reaches Absent,
+// which is a success terminal, so a teardown of nothing exits zero.
+func Undeploy(request DeployRequest) error {
+	return runDeployMachine(request, "undeploy", "Removed", "Absent")
+}
+
+// runDeployMachine preflights the cluster and the local helm, renders this
+// application's coordinates, and runs the named machine.
+func runDeployMachine(request DeployRequest, verb string, succeeded ...string) error {
+	if strings.TrimSpace(request.Cluster) == "" {
+		return fmt.Errorf("%s: no cluster named", verb)
+	}
+	// The undeploy machine reads a failing helm_history as an absent release.
+	// That is only safe once an unreachable cluster has been ruled out, so this
+	// check is part of the machine's correctness contract rather than a
+	// convenience (srd022 R6.5).
+	if !Exists(CaptureRun, request.Cluster) {
+		return fmt.Errorf("%s: cluster %s is not running", verb, request.Cluster)
+	}
+	if err := checkHelmMajor(request.HelmVersion); err != nil {
+		return fmt.Errorf("%s: %w", verb, err)
+	}
+	if request.Agent.Binary == "" || request.Agent.Profile == "" {
+		return fmt.Errorf("%s: no agent resolved; a deploy that does not run has produced nothing", verb)
+	}
+	if request.Agent.Cleanup != nil {
+		defer request.Agent.Cleanup()
+	}
+
+	kubeconfig, releaseKubeconfig, err := Kubeconfig(CaptureRun, request.Cluster)
+	if err != nil {
+		return fmt.Errorf("%s: %w", verb, err)
+	}
+	defer releaseKubeconfig()
+
+	workspace := filepath.Join(DeployRenderDirectory(request.ApplicationRoot, request.Coordinates.Release), "work")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		return fmt.Errorf("%s: create workspace %s: %w", verb, workspace, err)
+	}
+	coordinates := request.Coordinates
+	coordinates.Kubeconfig = kubeconfig
+	coordinates.OverridesPath = filepath.Join(workspace, overridesFileName)
+
+	destination := DeployRenderDirectory(request.ApplicationRoot, coordinates.Release)
+	declarations, err := RenderDeployDeclarations(
+		filepath.Join(request.CatalogRoot, "agents", "applier", "deploy-declarations.yaml"),
+		coordinates, destination)
+	if err != nil {
+		return fmt.Errorf("%s: %w", verb, err)
+	}
+	profile, err := RenderDeployProfile(RenderedProfile{
+		Name:                 "applier-" + verb + "-request",
+		Release:              coordinates.Release,
+		Namespace:            coordinates.Namespace,
+		MachinePath:          filepath.Join(request.CatalogRoot, "agents", "applier", verb+"-machine.yaml"),
+		ToolsPath:            filepath.Join(request.CatalogRoot, "agents", "applier", verb+"-tools.yaml"),
+		ApplyDeclarations:    filepath.Join(request.CatalogRoot, "agents", "applier", "apply-declarations.yaml"),
+		RenderedDeclarations: declarations,
+	}, destination)
+	if err != nil {
+		return fmt.Errorf("%s: %w", verb, err)
+	}
+
+	seed, err := writeDeployRequest(destination, request.Overrides)
+	if err != nil {
+		return fmt.Errorf("%s: %w", verb, err)
+	}
+	fmt.Printf("%s: rendered %s\n", verb, destination)
+	return request.Agent.run(verb, profile, workspace, seed, succeeded)
+}
+
+// writeDeployRequest writes the seed the machine starts from. write_overrides
+// reads path and content out of the parameters object by name.
+func writeDeployRequest(destination, overrides string) (string, error) {
+	body, err := json.Marshal(map[string]any{
+		"parameters": map[string]string{
+			"path":    overridesFileName,
+			"content": overrides,
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("encode deploy request: %w", err)
+	}
+	path := filepath.Join(destination, "request.json")
+	if err := os.WriteFile(path, body, 0o644); err != nil {
+		return "", fmt.Errorf("write deploy request %s: %w", path, err)
+	}
+	return path, nil
+}
+
+// run executes the agent and gates on its exit status. The agent exits non-zero
+// on a failure terminal, and for a deploy that is the build's answer.
+func (a DeployAgent) run(verb, profile, workspace, request string, succeeded []string) error {
+	cmd := exec.Command(a.Binary,
+		"--profile", profile,
+		"--directory", workspace,
+		"--request", request,
+		"--core-root", a.CoreRoot)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	runErr := cmd.Run()
+	if runErr == nil {
+		fmt.Printf("%s: reached one of %s\n", verb, strings.Join(succeeded, ", "))
+		return nil
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(runErr, &exitErr) {
+		return fmt.Errorf("run %s agent: %w", verb, runErr)
+	}
+	return fmt.Errorf(
+		"%s: the machine reached a failure terminal; read the run above and the rendered argv in %s",
+		verb, filepath.Dir(profile))
+}
+
+// checkHelmMajor reports whether the helm on PATH speaks the flags the deploy
+// words carry.
+func checkHelmMajor(probe func() (string, error)) error {
+	if probe == nil {
+		probe = localHelmVersion
+	}
+	version, err := probe()
+	if err != nil {
+		return err
+	}
+	match := helmVersionPattern.FindStringSubmatch(version)
+	if len(match) < 2 {
+		return fmt.Errorf("helm version %q is not recognizable; the deploy words need helm %s", strings.TrimSpace(version), supportedHelmMajor)
+	}
+	if match[1] != supportedHelmMajor {
+		return fmt.Errorf(
+			"local helm is major version %s and the deploy words carry helm %s spellings (--atomic among them); install helm %s or update the words and this check together",
+			match[1], supportedHelmMajor, supportedHelmMajor)
+	}
+	return nil
+}
+
+func localHelmVersion() (string, error) {
+	out, err := exec.Command("helm", "version", "--short").CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("run helm version: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
