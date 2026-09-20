@@ -1,0 +1,79 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: eng07-configuration-discipline
+title: "Configuration Discipline"
+
+introduction: |
+  Configuration reaches this system on three planes — build tools,
+  declarations, and runtime Go — and each treats the process environment
+  differently. The rules are consistent in practice: build tools take flags
+  and optional config files, declarations expand deployment-supplied
+  variables at load under specified rules, and runtime Go does not read the
+  environment at all outside one named exception. But the rules are stated
+  only obliquely — srd048 R3.5 cites "the go-style environment ban" in
+  passing, the demo.yaml pattern lives in one application's magefile, and
+  the expansion rules sit inside the config-format specs — so each plane's
+  discipline is rediscovered in review. This guideline states the three
+  planes' rules and the reasoning they share: configuration is declared or
+  passed, never ambient, because ambient state is invisible to the dump,
+  the program identity, and the reader.
+
+sections:
+  - title: "Build tools and magefiles"
+    content: |
+      A mage target takes its configuration as arguments and flags, with an
+      optional per-application config file for developer convenience: the
+      demo.yaml pattern (GH-1228), where every field is optional, an absent
+      file means the literal defaults, and the file is read from the
+      application root. A magefile does not branch on ambient environment
+      variables to select behavior. The narrow exceptions are integration
+      points whose own contract is an environment variable — a tool cache
+      path, a CI toggle read by a named constant — and each one is a named
+      constant beside a comment, never an inline os.Getenv in logic.
+
+  - title: "Declarations"
+    content: |
+      A declaration names deployment-supplied values with ${VAR:-default}
+      expansion, under the rules the config-format specs state: expansion
+      happens at load, before authority comparison, and an
+      environment-overridable timeout must carry a finite default
+      (machine-format; rest-tool-format environment_expansion). The default
+      is the local-development value, so a checked-out repository runs with
+      no environment prepared. Credentials never appear as values:
+      a declaration carries an auth reference whose token_ref is the name
+      of a variable, resolution happens at request time, and the monitor
+      surface serves the authored reference, never a resolved value
+      (srd033 R9.6).
+
+  - title: "Runtime Go"
+    content: |
+      Runtime Go reads no process environment: what a command needs arrives
+      through its ToolDef configuration, resolved from the declaration
+      plane. The one named exception is the credential lookup that a
+      token_ref triggers at call time (srd048 R3.5), and it is injectable so
+      tests replace it. A second exception is added by naming it in the SRD
+      that needs it, not by writing os.Getenv where it is convenient; an
+      unnamed environment read is a defect even when it works, because the
+      dump and the program identity no longer describe the run.
+
+  - title: "Deployment"
+    content: |
+      Helm charts and deployment templates are where the environment is
+      legitimately produced: a chart maps its values knobs onto the
+      variables the declarations expand and the flags the binary takes.
+      Two rules keep that honest. A values knob maps to a real variable,
+      flag, or library binding — a knob that silently no-ops is removed,
+      not documented around (eng04 set this for provider knobs). And a
+      chart does not rewrite declarations at render time to change
+      behavior; behavior selection is a flag or a library binding, so the
+      declaration a deployment runs is the declaration the repository
+      shows.
+
+references:
+  - "agent-core/docs/specs/software-requirements/srd048-cohere-adapter.yaml (R3.5: the named exception to the go-style environment ban)"
+  - "agent-core/docs/specs/software-requirements/srd033-monitor-rest-api.yaml (R9.6: the monitor serves authored credential references, never resolved values)"
+  - "agent-core/docs/specs/config-formats/rest-tool-format.yaml (environment_expansion rules)"
+  - "agent-core/docs/specs/config-formats/machine-format.yaml (finite defaults for environment-overridable timeouts)"
+  - "applications/agent-architecture/magefiles/magefile.go (the demo.yaml pattern)"
+  - "docs/engineering/eng04-ui-kit-reuse.yaml (values knobs map to real bindings)"
+  - "GH-1228 (the demo.yaml decision: optional file, literal defaults, no environment variables)"
