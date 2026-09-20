@@ -12,6 +12,7 @@ configuration:
   llm_configs: agents/rig-doctor/llm/*.yaml
 invariants:
 - The evidence gate runs before any model call, so an empty directory costs no tokens
+- The diagnosis is read back and decoded before the run succeeds, so an unreadable one is repaired rather than reported
 - Every tool result is fed back to the LLM before the next reasoning step
 - Reads cannot leave the evidence directory and the only write is the diagnosis beside it
 - No cluster, kubectl, helm, or network boundary other than the model provider participates
@@ -31,10 +32,16 @@ lifecycle: |-
      the dispatched word reports
   7. Parsing -> Composing (ParseFailed): report_parse_error to the LLM, or
      BudgetExhausted when max_consecutive_parse_errors is reached
-  8. Parsing -> Diagnosed (TaskCompleted): the model called done after writing
-     the diagnosis
-  9. Composing -> Failed (BudgetExhausted): the loop ran out of budget
-  10. CommandError in any state -> Failed
+  8. Parsing -> SeedingDiagnosisRead (TaskCompleted): the model called done,
+     and the gate reads back what it claims to have written
+  9. ReadingDiagnosis -> CheckingCause -> CheckingFindings -> Diagnosed: the
+     diagnosis decoded as YAML, names a cause, and carries findings
+  10. A missing, undecodable, or incomplete diagnosis -> Composing: the failure
+     goes back to the model for repair rather than passing
+  11. Composing -> Failed (BudgetExhausted): the loop ran out of budget
+  12. CommandError while seeding or reading -> Failed
+  13. BudgetExhausted in any non-terminal state -> Failed, so a run that stops
+     mid-gate still reports a terminal
 pipeline_diagram: |-
   ```mermaid
   flowchart TD
@@ -48,7 +55,13 @@ pipeline_diagram: |-
     F --> D
     E -->|ParseFailed| G[Report Error]
     G --> D
-    E -->|TaskCompleted| H[Diagnosed]
+    E -->|TaskCompleted| R[ReadingDiagnosis]
+    R -->|DocumentReady| C2[CheckingCause]
+    C2 -->|CausePresent| C3[CheckingFindings]
+    C3 -->|FindingsPresent| H[Diagnosed]
+    R -->|missing or undecodable| D
+    C2 -->|DiagnosisIncomplete| D
+    C3 -->|DiagnosisIncomplete| D
     D -->|BudgetExhausted| I[Failed]
   ```
 initial_state: Idle
@@ -75,9 +88,24 @@ states:
   meaning: |
     The raw LLM response is being parsed to extract a tool call. If parsing
     fails, the error is reported back to the LLM.
+- name: SeedingDiagnosisRead
+  meaning: |
+    The model declared the work done. The gate names the file it should have
+    written, so the read that follows cannot be pointed anywhere else.
+- name: ReadingDiagnosis
+  meaning: |
+    The written diagnosis is being read back and decoded. A file that is
+    missing, undecodable, or not the allowed one returns to the model for
+    repair rather than passing as a diagnosis nobody can read.
+- name: CheckingCause
+  meaning: The decoded diagnosis is being checked for a probable cause.
+- name: CheckingFindings
+  meaning: The decoded diagnosis is being checked for at least one finding.
 - name: Diagnosed
   run_status: succeeded
-  meaning: Terminal. The model wrote the diagnosis and declared the work done.
+  meaning: |
+    Terminal. The model wrote a diagnosis that was read back, decoded, and
+    found to name a cause and carry findings.
 - name: NoEvidence
   run_status: failed
   meaning: |
@@ -107,6 +135,22 @@ signals:
   trigger: A captured-spool trace listing completed.
 - name: TraceRetrieved
   trigger: A captured-spool trace detail read completed.
+- name: DiagnosisPathReady
+  trigger: The read-back gate composed the diagnosis path.
+- name: DocumentReady
+  trigger: The written diagnosis was read back and decoded as YAML.
+- name: DocumentMissing
+  trigger: The model declared the work done without writing a diagnosis.
+- name: DocumentParseFailed
+  trigger: The written diagnosis is not decodable YAML.
+- name: DocumentResourceDenied
+  trigger: The written file is not the diagnosis the gate allows.
+- name: CausePresent
+  trigger: The diagnosis names a probable cause.
+- name: FindingsPresent
+  trigger: The diagnosis carries at least one finding.
+- name: DiagnosisIncomplete
+  trigger: The diagnosis decoded but lacks a required field.
 - name: ParseFailed
   trigger: The LLM response could not be parsed as a valid tool call.
 - name: TaskCompleted
@@ -151,7 +195,58 @@ transitions:
   action: $tool
 - state: Parsing
   signal: TaskCompleted
+  next: SeedingDiagnosisRead
+  action: seed_diagnosis_path
+- state: SeedingDiagnosisRead
+  signal: DiagnosisPathReady
+  next: ReadingDiagnosis
+  action: read_diagnosis
+  label: diagnosis
+- state: SeedingDiagnosisRead
+  signal: CommandError
+  next: Failed
+- state: ReadingDiagnosis
+  signal: DocumentReady
+  next: CheckingCause
+  action: diagnosis_states_a_cause
+- state: ReadingDiagnosis
+  signal: DocumentMissing
+  next: Composing
+  action: invoke_llm
+- state: ReadingDiagnosis
+  signal: DocumentParseFailed
+  next: Composing
+  action: invoke_llm
+- state: ReadingDiagnosis
+  signal: DocumentResourceDenied
+  next: Composing
+  action: invoke_llm
+- state: ReadingDiagnosis
+  signal: CommandError
+  next: Failed
+- state: CheckingCause
+  signal: CausePresent
+  next: CheckingFindings
+  action: diagnosis_cites_findings
+- state: CheckingCause
+  signal: DiagnosisIncomplete
+  next: Composing
+  action: invoke_llm
+- state: CheckingCause
+  signal: CommandError
+  next: Composing
+  action: invoke_llm
+- state: CheckingFindings
+  signal: FindingsPresent
   next: Diagnosed
+- state: CheckingFindings
+  signal: DiagnosisIncomplete
+  next: Composing
+  action: invoke_llm
+- state: CheckingFindings
+  signal: CommandError
+  next: Composing
+  action: invoke_llm
 - state: Parsing
   signal: ParseFailed
   next: Composing
@@ -173,6 +268,24 @@ transitions:
   next: Composing
   action: invoke_llm
 - state: Composing
+  signal: BudgetExhausted
+  next: Failed
+# The budget can run out anywhere in the read-back chain, and a run that stops
+# mid-gate reaches no terminal at all unless each of its states routes the
+# signal the engine raises (srd023 R4.3, GH-2294).
+- state: SeedingDiagnosisRead
+  signal: BudgetExhausted
+  next: Failed
+- state: ReadingDiagnosis
+  signal: BudgetExhausted
+  next: Failed
+- state: CheckingCause
+  signal: BudgetExhausted
+  next: Failed
+- state: CheckingFindings
+  signal: BudgetExhausted
+  next: Failed
+- state: Parsing
   signal: BudgetExhausted
   next: Failed
 - state: Composing

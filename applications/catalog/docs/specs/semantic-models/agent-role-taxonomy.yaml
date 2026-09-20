@@ -431,6 +431,7 @@ roles:
       - Confirm no exec, kubectl, or helm word is reachable from the profile.
       - Confirm the only write targets the diagnosis beside the evidence.
       - Confirm an empty evidence directory reaches NoEvidence without a diagnosis.
+      - Confirm an undecodable or incomplete diagnosis returns to the model instead of reaching Diagnosed.
 
   - id: deployment-applier
     title: Deployment applier

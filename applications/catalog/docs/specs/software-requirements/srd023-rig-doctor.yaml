@@ -52,9 +52,10 @@ requirements:
   R4:
     title: Terminal states
     items:
-      - R4.1: A run whose model writes the diagnosis and calls done reaches Diagnosed.
+      - R4.1: A run reaches Diagnosed only after the diagnosis it wrote is read back, decodes as YAML, names a probable cause, and carries at least one finding.
+      - R4.4: A diagnosis that is missing, undecodable, or incomplete returns to the model with the reason so it repairs and calls done again; the gate reads back only the declared diagnosis path, never a file the model names.
       - R4.2: An evidence directory that is empty, or that cannot be listed, reaches NoEvidence before any model call and writes no diagnosis.
-      - R4.3: Budget exhaustion, a provider failure, or an infrastructure error reaches Failed; every run reaches a terminal state.
+      - R4.3: Budget exhaustion, a provider failure, or an infrastructure error reaches Failed, from the read-back gate as much as from the loop, so a run that stops mid-gate still reports a terminal state.
   R5:
     title: Portability and registration
     items:
@@ -81,6 +82,9 @@ acceptance_criteria:
   - id: AC4
     criterion: The family inventory test finds the root-cause-analyst binding in all three semantic models.
     traces: [R5.2]
+  - id: AC7
+    criterion: A scripted run that writes undecodable YAML, and one that calls done having written nothing, each repair and reach Diagnosed; a model that never repairs exhausts its budget and reaches Failed rather than stopping mid-gate.
+    traces: [R4.1, R4.3, R4.4]
   - id: AC6
     criterion: A scripted run dispatches both spool queries by model choice and the spans they return reach the model in the next prompt.
     traces: [R2.1, R2.4, R2.5]
