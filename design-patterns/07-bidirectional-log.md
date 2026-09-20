@@ -3,31 +3,72 @@
 
 # Bidirectional Log
 
-This chapter presents the Bidirectional Log pattern, which treats the recorded execution as a bidirectional log persisted one commit per step. Forward traversal is normal execution; backward traversal is rollback — a git-style revert of the persisted state followed by a reverse walk that replays each step's receipt through the owning tool's Undo. The chapter covers the typed checkpoint port, the Dolt-backed history, receipt-driven undo, the two-part rollback, and the handling of irreversible tools.
+A Bidirectional Log treats the recorded execution as a two-way log, persisted
+one commit per step. Forward traversal follows normal execution; backward
+traversal is rollback: a git-style revert of the persisted state, then a
+reverse walk replaying each step's receipt through the owning tool's Undo.
+Components include a typed checkpoint port, Dolt-backed history,
+receipt-driven undo, a two-part rollback mechanism, and an explicit story for
+irreversible tools.
 
 ## Intent
 
-Record execution as an ordered log persisted one commit per step, so recovery from a mistaken step is mechanical rather than probabilistic: rewind the persisted state with a git-style revert, then reverse the external effects by replaying each step's receipt through its tool's Undo.
+Record execution as an ordered log, persisted one commit per step, enabling
+mechanical recovery from a mistaken step. Rewind the persisted state with a
+git-style revert, then reverse external effects by replaying each step's
+receipt through the tool's Undo mechanism.
 
 ## Reference implementation status
 
-The runtime ships the typed checkpoint port, Dolt commit-per-step history and `Revert`, receipt persistence, reverse receipt walking, and the internal `checkpoint_rollback` lifecycle tool. Focused tests cover DB rewind and clean or partially failed receipt reversal.
+The runtime includes the typed checkpoint port, Dolt commit-per-step history,
+and `Revert`, along with receipt persistence, reverse receipt walking, and the
+internal `checkpoint_rollback` lifecycle tool. Tests cover DB rewind and clean
+or partially failed receipt reversal.
 
-No production coding-agent profile routes validation failure into `checkpoint_rollback`, and the deployment confirmation flow exists only as the Approval Gate conformance/design material in Chapter 10. Automatic coding retry, gated deployment recovery, and generated compensation for mixed API plans are design intent.
+No production coding-agent profile routes validation failure into
+`checkpoint_rollback`. The deployment confirmation flow exists only in Chapter
+10's Approval Gate conformance/design material. Automatic coding retry, gated
+deployment recovery, and generated compensation for mixed API plans are part
+of the design intent.
 
 ## Motivation
 
-An execution is not an append-only log. Logs record the past; an execution is a record the engine traverses both ways. Forward traversal is normal execution: dispatch a tool, record $(state, signal, tool, result)$ together with the tool's opaque receipt, commit the step, and advance. Backward traversal is undo: revert the persisted state to a target step, then hand each reverted entry's restored result back to its tool's `Undo` in reverse order. Both directions read the same record. Because every entry carries the tool's receipt — everything needed to reverse that one step — no separate undo log exists.
+Executions differ from append-only logs. Logs record the past, but executions
+are bidirectional records the engine traverses. Forward traversal is normal
+execution: dispatch a tool, record $(state, signal, tool, result)$ and its
+receipt, commit, and advance. Backward traversal is undo: revert state to a
+target step, then pass restored results to each tool's `Undo` in reverse
+order. Both directions use the same record. As each entry includes the tool's
+receipt—holding all reversal data—no separate undo log is needed.
 
-This matters because agents make mistakes. The model picks the wrong tool, writes broken code, misreads a requirement. Without rollback the only recovery is to restart or to ask the model to fix its own errors, which compounds mistakes rather than correcting them. With rollback the engine retracts the last N steps — reverting the database, replaying receipts to reverse files and resources — and continues down a different path.
+Agents make mistakes: the model selects the wrong tool, writes faulty code, or
+misinterprets requirements. Without rollback, recovery requires restarting or
+asking the model to self-correct, which often worsens errors. With rollback,
+the engine retracts the last N steps—reverting the database, replaying
+receipts to reverse files and resources—and proceeds differently.
 
 ## Applicability
 
-Bidirectional Log fits agents whose actions have side effects that may need undoing — file writes, state mutations, provisioned resources. It is particularly valuable when recovery should be mechanical rather than a second LLM attempt layered on a contaminated history, when speculative execution is useful (try a reversible plan, roll back if unsatisfactory), and when irreversible effects need to be recorded for audit. It presumes persisted state is versioned step by step (the Dolt backend commits each step) and that external effects are reversible from a receipt. Agents with no side effects, or whose side effects are naturally idempotent, gain little from the pattern.
+Bidirectional Log suits agents whose actions produce reversible side effects
+like file writes, state mutations, or resource provisioning. It's useful when
+recovery is automated, speculative execution is beneficial, or irreversible
+effects need logging. This pattern requires versioned, incrementally persisted
+state (e.g., Dolt commits each step) and undoable external effects via
+receipts. Agents with no side effects or inherently idempotent actions gain
+little from this approach.
 
 ## Structure
 
-A correct rollback separates two concerns bound to the same step index, shown as a package diagram in Fig. 19. **Persisted state** is the resumable Position — machine state, signal, iteration, budget counters, and the folded conversation — together with the ordered Execution log, each entry carrying its result digest and the tool's opaque receipt. It is saved through one typed checkpoint port and versioned commit-per-step by the Dolt backend. **External effects** are the world outside the database — files, provisioned resources — which no snapshot captures; they are reversed by replaying each step's receipt through the owning tool's `Undo`. Rewinding persisted state while leaving external effects in place, or the reverse, is incomplete: a rollback reverts the database to a step and then walks the receipts back to that same step.
+A correct rollback separates two concerns bound to the same step index (Fig.
+19). **Persisted state** includes resumable position (machine state, signal,
+iteration, budget counters, folded conversation) and the ordered execution log
+(result digest, tool's opaque receipt). This state is saved via a typed
+checkpoint port and versioned commit-per-step by the Dolt backend. **External
+effects** refer to the world outside the database (files, provisioned
+resources), not captured by snapshots; they are reversed by replaying receipts
+through the tool's `Undo`. Rewinding persisted state without external effects,
+or vice versa, is incomplete: rollback reverts the database to a step and
+walks receipts back to that step.
 
 ![](figures/fig-20-rollback-layers.png)
 
@@ -38,19 +79,36 @@ A correct rollback separates two concerns bound to the same step index, shown as
 
 #### Receipt
 
-The Receipt is an opaque string a tool encodes during `Execute`, carrying enough to reverse the effect without the original object — a file path and prior content, a resource identifier, a commit hash. The tool owns the receipt's schema and is its only decoder; the engine and the checkpoint adapters persist it verbatim and never interpret it.
+The Receipt is an opaque string encoded by a tool during `Execute`, containing
+data to reverse the effect without the original object—a file path, prior
+content, a resource identifier, and a commit hash. The tool controls the
+receipt's schema and decodes it exclusively; the engine and checkpoint
+adapters store it verbatim without interpretation.
 
 #### Checkpoint port
 
-The Checkpoint port is the typed, two-method persistence seam: `Save(Position, Execution)` records the resumable position and the ordered log as one unit, and `Load` restores them. Adapters own serialization and storage. The default persistent adapter is the Dolt backend, which commits each step; `NoopCheckpoint` disables persistence with no overhead.
+The Checkpoint port, a typed, two-method persistence seam, includes `Save
+(Position, Execution)` to record resumable position and ordered log as one
+unit, and `Load` to restore them. Adapters handle serialization and storage.
+The default adapter is Dolt, committing each step; `NoopCheckpoint` disables
+persistence without overhead.
 
 #### Execution
 
-The Execution is the ordered dispatch log — each entry an iteration, state pair, signal, command, result digest, and receipt — preserved in dispatch order for forward inspection and reverse traversal, and versioned as Dolt commit-per-step history.
+The Execution maintains an ordered dispatch log, recording each iteration,
+state pair, signal, command, result digest, and receipt in dispatch order to
+enable forward inspection and reverse traversal. This log is versioned as a
+Dolt commit-per-step history, ensuring a detailed, traceable record of each
+step.
 
 #### Lifecycle tool
 
-Rollback runs as a declared lifecycle tool (`checkpoint_rollback`), not engine code and not part of the domain machine; keeping it a tool separates *what the agent does* from *how it recovers*. It performs the two-part rollback — Dolt `Revert` for persisted state, then the reverse receipt walk — and reads the reversibility tier of Chapter 4:
+Rollback, a dedicated lifecycle tool (`checkpoint_rollback`), operates
+separately from engine code and the domain machine. This separation keeps *the
+agent's actions* and *its recovery mechanisms* distinct. The rollback process
+has two stages: executing Dolt `Revert` to restore persisted state, then
+performing a reverse receipt walk. This method aligns with the reversibility
+tier in Chapter 4.
 
 | Reversibility tier | Undo behaviour |
 |---|---|
@@ -63,18 +121,36 @@ Rollback runs as a declared lifecycle tool (`checkpoint_rollback`), not engine c
 
 ### The lifecycle tool
 
-Rollback is a declared tool dispatched by a minimal lifecycle machine over the run's Execution and Dolt commit history. The state machine diagram in Fig. 20 shows it: from **Reverting** (a git-style `Revert(run_id, step_index)` rewinds persisted state to the target step), the tool walks the later entries in reverse, each **Undone** (reversible/compensatable) or **Skipped** (irreversible, logged); **Done** returns a resumable position to the primary machine.
+Rollback, invoked by a minimal lifecycle machine, traverses the run's
+Execution and Dolt commit history. Fig. 20's state machine shows this: from
+the **Reverting** state (`Revert (run_id, step_index)` rewinds persisted
+state), it walks entries in reverse, marking them **Undone**
+(reversible/compensatable) or **Skipped** (irreversible, logged). The **Done**
+state then returns a resumable position.
 
 ![](figures/fig-21-rollback-lifecycle.png)
 
 | **Figure 20.** State machine diagram. The lifecycle tool reverts persisted state to the target step, then walks the later entries backward, undoing reversible tools through their receipts and skipping irreversible ones. {wide 0.7} |
 | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 
-A lifecycle tool pays off three ways: it is small enough to validate exhaustively; different rollback strategies are just different lifecycle tools; and it reads the execution and commit history and calls tool `Undo`, but never dispatches a domain tool, so it cannot accidentally advance the domain machine.
+A lifecycle tool has three advantages. It is small enough to validate
+exhaustively. Each rollback strategy is its own lifecycle tool. And it drives
+`Undo` from the execution and commit history without ever dispatching a domain
+tool, so the domain machine cannot progress by accident.
 
 ### Reversal by tier
 
-Each reverted entry is processed by its tier. **Reversible: local undo.** The tool's `Undo` decodes the receipt and restores exactly what it changed (restore file content, write back a prior value). **Compensatable: corrective action.** Exact reversal is impossible, but `Undo` derives a corrective action from the receipt that restores equivalent state (delete a created resource); the receipt carries the resource identifier, and semantic differences are documented (a re-created resource gets a new ID). **Irreversible: skip and log.** An email sent or deployment published cannot be undone; the entry is logged explicitly in the rollback report with tool, iteration, and reason. Per-entry tier classification, not a global setting, lets a single rollback handle mixed tiers.
+Each reverted entry is processed according to its tier. **Reversible: local
+undo.** The tool's `Undo` decodes the receipt and restores exactly what it
+changed (restore file content, write back a prior value). **Compensatable.
+Corrective action.** Exact reversal is impossible, but `Undo` derives a
+corrective action from the receipt that restores equivalent state (delete a
+created resource). The receipt carries the resource identifier, and semantic
+differences are documented (a re-created resource gets a new ID).
+**Irreversible. Skip and log.** An email sent or deployment published cannot
+be undone; the entry is logged explicitly in the rollback report with tool,
+iteration, and reason. Per-entry tier classification, not a global setting,
+allows a single rollback to handle mixed tiers.
 
 ## Consequences
 
@@ -82,70 +158,138 @@ Each reverted entry is processed by its tier. **Reversible: local undo.** The to
 
 #### Mechanical recovery
 
-Reverting the database to a step and replaying receipts to reverse external effects is deterministic, not a probabilistic second attempt; fresh continuation gives the model the pre-error context without the contamination of failed tries.
+Reverting the database to a step and replaying receipts reverses external
+effects deterministically, not probabilistically. This ensures fresh
+continuation provides the model with pre-error context, uncontaminated by
+failed tries.
 
 #### Cheap exploration
 
-When a plan is all reversible, the agent executes speculatively and rolls back automatically, leaving no residue.
+The agent speculatively executes entirely reversible plans and automatically
+rolls them back, ensuring no residue remains.
 
 #### Auditable irreversibility
 
-Skipped irreversible entries appear in the rollback report, so operators see exactly which effects persist.
+Skipped irreversible entries appear in the rollback report, showing operators
+which effects persist.
 
 #### One persistence seam
 
-Position and Execution ride a single typed port into Dolt, so the ordered, versioned history that rollback and inspection traverse comes from the same commit-per-step store rather than a bespoke snapshot format.
+Position and Execution use the same typed port into Dolt, ensuring the
+ordered, versioned history for rollback and inspection comes from a single
+commit-per-step store rather than a separate snapshot format.
 
 ### Liabilities
 
 #### Commit overhead
 
-Committing every step has cost, so persistence is opt-in; `NoopCheckpoint` keeps disabled runs free of it.
+Committing each step costs resources, so persistence is optional;
+`NoopCheckpoint` prevents disabled runs from incurring this overhead.
 
 #### An irreversibility floor
 
-Once an irreversible tool commits its external effect, the receipt walk cannot reverse it; `Revert` rewinds only the database, so the irreversible effect is permanent.
+An irreversible tool's external effect cannot be reversed by the receipt walk;
+`Revert` rewinds only the database, leaving the external effect permanent.
 
 #### Two-part coordination
 
-Rewinding persisted state and replaying receipts must target the same step index. This is simpler than coordinating three independent state layers, but the revert and the receipt walk still have to agree on where the rollback stops.
+Rewinding persisted state and replaying receipts must target the same step
+index, simplifying the process versus managing three separate state layers.
+The revert and receipt walk must still align at the rollback's conclusion.
 
 ## Implementation
 
 ### Receipts and undo paths
 
-**Live undo** applies within the same process: the tool object is still in memory and its `Undo` reverses the effect directly from the in-memory result, fast and precise. **Post-restart undo** applies after a process boundary (suspend then resume elsewhere): no original object remains, so `Load` restores the receipt-bearing result and a fresh tool instance's `Undo` consumes the receipt. Every state-mutating tool encodes a receipt during `Execute`; read-only tools return an empty receipt and a no-op `Undo`. Enforcement is split: the lifecycle validator checks receipt *presence* for reversible state-mutating tools, while receipt *sufficiency* — that the encoded receipt actually reverses the effect — is verified by each tool's own round-trip test, not by the engine. Static tier declaration enables planning; the presence check and the tool's round-trip test together keep the declaration honest.
+**Live undo** operates within the same process. The tool stays in memory,
+letting `Undo` directly reverse the in-memory result for speed and precision.
+**Post-restart undo** handles process boundaries like suspend and resume:
+`Load` restores the receipt-bearing result, and a new tool instance's `Undo`
+uses the receipt. State-mutating tools encode a receipt during `Execute`;
+read-only tools return an empty receipt and a no-op `Undo`. Enforcement is
+split. The lifecycle validator checks receipt *presence* for reversible
+state-mutating tools, while receipt *sufficiency* — the receipt's ability to
+reverse the effect — is verified by the tool's round-trip test rather than the
+engine. Static tier declaration enables planning; the presence check and
+round-trip test ensure honesty.
 
 ### Commit-per-step history
 
-The Dolt backend commits each dispatched step, so the execution log is a versioned history rather than a set of periodic snapshots. `Save` records the Position — machine state, signal, budget counters, and the folded conversation — and the appended Execution entry as one unit, in a single commit; the port persists on every step, so no policy decides when to snapshot. Suspend persists through the same port before the run exits, and resume `Load`s the Position and Execution and re-enters the machine at the restored position.
+The Dolt backend commits each dispatched step, ensuring the execution log is a
+versioned history rather than periodic snapshots. `Save` records the
+Position—machine state, signal, budget counters, and folded conversation—and
+the appended Execution entry as one unit in a single commit. The port persists
+on every step, removing the need for a snapshot policy. Suspend persists
+through the same port before exit, and `Load` resumes by restoring the
+Position and Execution, re-entering the machine at the restored position.
 
 ### Rollback: revert then replay
 
-Rolling back to step $k$ is two moves over the same index. First, the Dolt adapter's `Revert(run_id, k)` rewinds persisted state — Position and Execution — to that step. Second, the lifecycle tool walks entries $k{+}1 \ldots n$ in reverse, handing each reverted entry's restored result to its tool's receipt-consuming `Undo`, skipping and logging irreversible entries in the rollback report. Rollback returns the machine position at step $k$, from which execution resumes as a *fresh continuation*, not a replay: replaying would reproduce the same mistake. Discarded entries survive only in the rollback report.
+Rolling back to step $k$ involves two moves over the same index. First,
+`Revert (run_id, k)` rewinds the persisted state — Position and Execution — to
+step $k$. Second, the lifecycle tool walks entries $k{+}1 \ldots n$ in
+reverse, handing each reverted entry's result to `Undo`, while skipping and
+logging irreversible entries in the rollback report. The process returns the
+machine position at step $k$, enabling execution to resume as a *fresh
+continuation* rather than a replaying. Discarded entries are preserved only in
+the rollback report.
 
 ### Planning with reversibility
 
-Tier classification turns into active planning strategies: **speculative execution** for all-reversible plans; **commitment phases** that explore with reversible tools and cross into irreversible commitment only when evidence suffices, guarded by a confirmation state; and **saga-style compensation** [@garcia-molina-sagas-1987] for mixed plans, where the lifecycle tool derives the compensation order from the execution (reverse of dispatch) rather than hardcoding it.
+Dynamic planning strategies include **speculative execution** for
+all-reversible plans, **commitment phases** using reversible tools until
+sufficient evidence triggers irreversible commitment (protected by a
+confirmation state), and **saga-style compensation**
+[@garcia-molina-sagas-1987] for mixed plans, where the lifecycle tool derives
+compensation order from execution (reverse of dispatch) rather than hardcoding
+it.
 
 ## Relationships in the Pattern Language
 
-Bidirectional Log sits within Machine Interpreter and requires Machine Interpreter and Tool Contract: rollback needs a closed execution record plus tool-level receipt-driven undo and reversibility declarations. It enables Approval Gate, which checkpoints before an external decision, and a complete Operator Port may expose rollback and lifecycle operations through the running machine. The complete grammar is maintained in `pattern-language.yaml`.
+Bidirectional Log integrates with the Machine Interpreter, requiring both the
+Machine Interpreter and Tool Contract for operation. Rollback relies on a
+closed execution record, receipt-driven undo mechanisms at the tool level, and
+explicit reversibility declarations. This integration supports the Approval
+Gate, which checkpoints before external decisions, and a fully implemented
+Operator Port exposes rollback and lifecycle operations directly through the
+running machine. The system's complete grammar is in `pattern-language.yaml`.
 
 ## Design intent scenarios
 
-**Automatic coding recovery.** A future coding profile could route validation failure into `checkpoint_rollback`, restore files through receipts, and retry with clean context. No production profile wires this transition.
+**Automatic coding recovery.** A future coding profile could route validation
+failures to `checkpoint_rollback`, restore files via receipts, and retry with
+a clean context. No production profile currently implements this transition.
 
-**Gated deployment recovery.** A future deployed Approval Gate could set a rollback floor before an irreversible deploy and restore reversible pre-deploy effects after a failed verification. The shipped approval material is a conformance fixture and does not deploy or roll back rejection.
+**Gated deployment recovery.** A deployed Approval Gate could set a rollback
+floor before irreversible deploys and restore reversible pre-deploy effects
+after failed verifications. The shipped approval material is a conformance
+fixture rather than deploying or rolling back rejections.
 
-**Generated API compensation.** A future planner could derive compensation order for mixed resource creation and irreversible notifications from the execution. No shipped profile demonstrates this orchestration.
+**Generated API compensation.** A future planner may derive compensation
+orders for mixed resource creation and irreversible notifications from
+execution. No shipped profile shows this orchestration.
 
 ## Known Uses
 
-**Reference rollback mechanics.** The Dolt checkpoint adapter versions each dispatch, reverts persisted Position and Execution to a selected step, and keeps receipts separate from redacted tool output. The lifecycle receipt walker invokes tool-owned `Undo` in reverse order, continues past classified failures, and reports skipped effects.
+**Reference rollback mechanics.** The Dolt checkpoint adapter processes each
+dispatch, reverts the persisted Position and Execution to a designated step,
+and maintains receipts separately from the redacted tool output. The lifecycle
+receipt walker executes `Undo` in reverse sequence, handles previously
+classified failures, and logs skipped effects.
 
-**Database transactions and rollback** [@gray-1978]. The canonical model of a durable, reversible sequence of operations with a commit boundary, where rollback restores the prior consistent state, is more than an analogue here: the Dolt backend literally commits each step and reverts to a prior consistent state.
+**Database transactions and rollback** [@gray-1978]. The canonical model of a
+durable, reversible sequence of operations with a commit boundary, where
+rollback restores the prior consistent state, is more than an analogue. The
+Dolt backend literally commits each step and reverts to a prior consistent
+state.
 
-**Memento pattern** [@gamma-gof-1994]. Capturing an object's state so it can be restored later without violating encapsulation is exactly the Receipt each tool encodes during `Execute`: the tool owns the schema, the engine and the Dolt adapter store it opaquely, and only the originating tool decodes it on `Undo`. The encapsulation boundary the pattern prescribes is enforced rather than assumed.
+**Memento pattern** [@gamma-gof-1994]. Each tool encodes a Receipt during
+`Execute`, capturing an object's state for later restoration while hiding
+internal workings. The tool holds the schema, the engine and Dolt adapter
+store it opaquely, and only the originating tool decodes it on `Undo`. The
+pattern's encapsulation boundary is enforced rather than assumed.
 
-**Event Sourcing** [@fowler-event-sourcing-2005]. Modelling state as a replayable and reversible log of events matches the Dolt commit-per-step execution directly: it is the same kind of traversable log, read forward to run and reverted backward to undo.
+**Event Sourcing** [@fowler-event-sourcing-2005] models state as a replayable,
+reversible event log, aligning with Dolt's commit-per-step execution. This
+approach offers a traversable log for executing operations forward and
+reverting them backward, mirroring Dolt's commit-per-step functionality.

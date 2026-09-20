@@ -3,28 +3,54 @@
 
 # Convergence Taxonomy
 
-This chapter presents the Convergence Taxonomy pattern, which reads a completed execution and assigns one of four convergence types — Clean, Recovery, Stuck, or Divergent — based on transition patterns. Each type points to a distinct root cause. The chapter covers the classification rules, the classifier's interface with the execution record, and how the taxonomy drives remediation.
+The Convergence Taxonomy assigns one of four convergence types — Clean,
+Recovery, Stuck, or Divergent — to a completed execution based on its
+transition patterns. Each type indicates a distinct root cause, so
+classification rules, the classifier's interface with the execution record,
+and remediation all stem from this four-way split.
 
 ## Intent
 
-Classify a completed execution into one of four convergence types by reading its transition patterns so every outcome has an actionable root cause without re-running the agent.
+Classify a completed execution into one of four convergence types from its
+transition patterns, so every outcome has an actionable root cause without
+re-running the agent.
 
 
 ## Motivation
 
-Evaluation that reports only pass or fail says *what* happened, never *why*. When a dashboard shows a middling success rate, three questions follow: is the model too weak, are the tasks too hard, or is the harness misconfigured? Pass/fail cannot distinguish them. Teams then debug the wrong layer: retuning prompts when the model was cycling on identical calls, upgrading the model when most tasks succeeded first-try and only the rest needed correction cycles, or raising the budget when the agent was diverging into unrelated calls.
+Pass/fail evaluation reveals only *what* happened, not *why*. A middling
+success rate raises three questions: insufficient model, overly challenging
+tasks, or improper harness setup? Pass/fail metrics cannot differentiate these
+scenarios. Teams often debug the wrong layer: retuning prompts for cycling
+models, upgrading models when most tasks succeed on first attempt, or
+increasing budget for agents straying into unrelated calls.
 
-Each mode has a different fix. Cycling (**Stuck**) wants a prompt or model change; budget exhaustion after productive correction wants more budget; aimless exploration (**Divergent**) wants tighter machine or tool constraints; correct first-attempt execution (**Clean**) wants nothing. Convergence classification gives each mode a name, a detection rule, and a remediation. It is mechanical (no LLM in the classifier) and deterministic: the same execution always yields the same type.
+Each mode requires a distinct remediation. **Stuck** mode needs a prompt or
+model change. Budget exhaustion after productive correction requires more
+budget; **Divergent** mode, marked by aimless exploration, needs tighter
+constraints; **Clean** mode, with correct first execution, needs no
+intervention. Convergence classification assigns each mode a name, detection
+rule, and remediation. This process is mechanical, LLM-free, and
+deterministic: identical executions yield identical types.
 
 
 ## Applicability
 
-The Convergence Taxonomy fits evaluation runs that produce structured traces with identifiable state transitions. The pattern becomes more valuable when evaluation spans many task-model pairs and per-run diagnosis needs automation; when model comparison matters (distinguishing whether a model wins by producing more Clean runs or by recovering from more failures); and when regression detection is needed (a shift from Clean to Recovery signals prompt degradation even at constant pass rate). It is less useful when traces lack state-transition information, or when the four outcome types are too coarse for the failure modes in question — auth errors, rate limits, and outages cut across all four types and need separate detection.
+The Convergence Taxonomy applies to evaluation runs yielding structured traces
+with discernible state transitions. Its value increases when evaluations span
+multiple task-model pairs, per-run diagnosis requires automation, model
+comparison is essential (e.g., distinguishing if a model wins by producing
+more Clean runs or recovering from more failures), or regression detection is
+needed (a shift from Clean to Recovery signals degradation despite constant
+pass rate). It is less useful when traces lack state-transition information or
+when the four outcome types are too coarse for the failure modes in
+question — auth errors, rate limits, and outages cut across all four types
+and need separate detection.
 
 
 ## Structure
 
-An execution is classified by four participants, drawn as a class diagram in Fig. 29.
+Four distinct participants characterize an execution, as shown in Fig. 29.
 
 ![](figures/fig-30-classifier-class.png)
 
@@ -35,11 +61,14 @@ An execution is classified by four participants, drawn as a class diagram in Fig
 
 #### Execution
 
-The trace, the $(state, signal, tool, result)$ tuples from one run (Chapter 2), and the classifier's sole input; no access to model, tools, or workspace is needed.
+The trace, comprising $(state, signal, tool, result)$ tuples from one run
+(Chapter 2), is the classifier's sole input. It does not need the model,
+tools, or workspace.
 
 #### Classifier
 
-A pure, inference-free function from execution to type: it scans transitions, counts cycles, detects repetition, and checks the terminal state.
+A pure, inference-free function scans transitions, counts cycles, detects
+repetition, and checks the terminal state from execution to type.
 
 #### ConvergenceType
 
@@ -54,19 +83,34 @@ The four-valued taxonomy:
 
 #### EvalHarness
 
-Collects types across a grid of (model × task × profile), aggregating per-type rates and deltas so regressions surface at the taxonomy level, not the binary level.
+Collects types across a grid of (model × task × profile), aggregating per-type
+rates and deltas to surface regressions at the taxonomy level, not the binary
+level.
 
 
 ## Collaborations
 
-Classification reads the execution's state-visit sequence and applies three detectors: a **cycle** counter (each Validating→Composing return is one retry), a **repetition** detector (the same $(state, tool)$ pair recurring past a threshold in the late entries), and a **terminal-state** check. It then applies the decision tree in Fig. 30: Succeeded with no cycles is **Clean**, Succeeded with cycles is **Recovery**, Failed with repetition is **Stuck**, Failed without is **Divergent**.
+Classification reads the execution's state-visit sequence, applying three
+detectors: a **cycle** counter (each Validating→Composing return counts as one
+retry), a **repetition** detector (identifies recurring $(state, tool)$ pairs
+past a threshold in late entries), and a **terminal-state** check. It then
+applies the decision tree in Fig. 30, classifying outcomes as: **Clean**
+(Succeeded with no cycles), **Recovery** (Succeeded with cycles), **Stuck**
+(Failed with repetition), or **Divergent** (Failed without repetition).
 
 ![](figures/fig-31-classifier-decision-tree.png)
 
 | **Figure 30.** Activity diagram. The decision-tree classifier maps each run to exactly one convergence type from its terminal state, cycle count, and repetition flag. |
 |:---:|
 
-Classification is exhaustive; every completed-or-exhausted execution maps to exactly one type. Runs that fail outside the taxonomy (infrastructure crash, timeout before any dispatch) are recorded as infrastructure errors before the classifier runs. Across a grid, per-(model, profile) Clean/Recovery/Stuck/Divergent rates sum to 1.0 and pass rate is Clean + Recovery, so two models at 70% pass can differ markedly (55/15 vs. 40/30 Clean/Recovery), and a prompt change that holds pass rate but shifts 10% from Clean to Recovery exposes a degradation invisible to the headline number.
+Classification is exhaustive; every completed or exhausted execution maps to
+exactly one type. Runs failing outside the taxonomy (infrastructure crash,
+timeout before dispatch) are recorded as infrastructure errors before
+classification. Across a grid, per-(model, profile)
+Clean/Recovery/Stuck/Divergent rates sum to 1.0, with pass rate defined as
+Clean + Recovery. Thus, two models at 70% pass can differ markedly (55/15 vs.
+40/30 Clean/Recovery), and a prompt change maintaining pass rate but shifting
+10% from Clean to Recovery reveals degradation unseen in the headline number.
 
 
 ## Consequences
@@ -75,11 +119,15 @@ Classification is exhaustive; every completed-or-exhausted execution maps to exa
 
 #### Actionable diagnostics
 
-Each type points to a different fix (Clean none, Recovery a budget tweak, Stuck a prompt/model change, Divergent tighter constraints), so teams stop guessing which layer to debug.
+Each type points to a distinct resolution (Clean: no action; Recovery: budget
+adjustment; Stuck. Prompt or model alteration; Divergent. Tighter
+constraints), enabling teams to cease speculative debugging.
 
 #### Quantitative comparison
 
-Equal pass rates with different distributions reveal quality differences binary metrics hide, and types can be cost-weighted (Clean cheapest, Stuck/Divergent most expensive).
+Equal pass rates, despite differing distributions, reveal quality differences
+binary metrics miss. These types can be cost-weighted: Clean is cheapest,
+Stuck/Divergent most costly.
 
 #### Regression sensitivity
 
@@ -93,24 +141,40 @@ No inference; same execution, same type, cacheable and diffable.
 
 #### Granularity
 
-Four types can be too coarse. A rate-limited agent looks Divergent but needs infrastructure scaling, not machine changes; subtypes add classifier complexity.
+Four types can be too coarse. A rate-limited agent seems Divergent but needs
+infrastructure scaling rather than machine changes; adding subtypes raises
+classifier complexity.
 
 #### Threshold sensitivity
 
-The repetition detector's window and count are sensitive (too aggressive over-calls Stuck, too lenient under-calls it) and need empirical tuning.
+The repetition detector's window and count need careful calibration to avoid
+oversensitivity (false positives, over-calling Stuck) or leniency (missed
+instances, under-calling it). Empirical tuning is essential.
 
 #### Execution dependency
 
-Agents that log only final outputs, or whose machines lack distinct phases, cannot be classified.
+Agents logging only final outputs or lacking distinct machine phases cannot be classified.
 
 #### Confidence level
 
-This pattern has the lightest external corroboration in the language. The four-type taxonomy and its detection rules come primarily from the reference implementation, so they should be treated as tentative until validated across more independent agent systems. The mechanism is included because the diagnostic value is high and the classifier is deterministic, but the class names and thresholds are more likely to evolve than the structural patterns earlier in the language.
+This pattern has the least external validation in the language framework. The
+four-type taxonomy and its detection rules, derived mainly from the reference
+implementation, remain tentative until verified across more independent agent
+systems. Its inclusion is justified by the classifier's high diagnostic value
+and deterministic nature; however, its class names and thresholds are more
+prone to evolution than earlier structural patterns.
 
 
 ## Implementation
 
-Classification reads only the state component of each entry (`visits = [(e.state, e.signal) for e in execution.entries]`; for OTel traces, the equivalent `agent.state` attributes on `execute_tool` spans, Chapter 8). Cycle counting scans linearly, incrementing on each Validating→Composing return (consecutive retries count separately). Repetition is detected by a sliding window (N identical late dispatches) or a histogram (one $(state, tool)$ pair exceeding a fraction of all dispatches), or both. The classifier is then a four-branch decision:
+Classification reads the state component of each entry, extracting `visits =
+[(e.state, e.signal) for e in execution.entries]` or, for OTel traces, the
+equivalent `agent.state` attributes on `execute_tool` spans (Chapter 8). Cycle
+counting increments the count on each Validating-to-Composing transition,
+treating consecutive retries as separate counts. Repetition detection uses a
+sliding window to identify N identical late dispatches, a histogram to flag
+$(state, tool)$ pairs exceeding a fraction of all dispatches, or both. The
+classifier then decides based on four distinct branches.
 
 ```
 classify(execution):
@@ -120,27 +184,63 @@ classify(execution):
     if terminal == Failed:    return Stuck if repeated else Divergent
 ```
 
-It runs in microseconds with no external dependencies. Grid evaluation (Chapter 9) invokes it after each generator run, storing the type beside the pass/fail verdict and metrics. A report groups by type. To illustrate, consider two models that reach the same pass rate by different routes:
+It runs in microseconds with no external dependencies. Grid evaluation
+(Chapter 9) invokes it after each generator run, storing the type alongside
+the pass/fail verdict and metrics. A report groups by type. Consider two
+models reaching the same pass rate via different routes:
 
 | Model | Clean | Recovery | Stuck | Divergent | Pass |
 |-------|-------|----------|-------|-----------|------|
 | Model A | 58% | 14% | 12% | 16% | 72% |
 | Model B | 51% | 21% | 9% | 19% | 72% |
 
-Both reach the same 72% pass rate (Clean + Recovery), but Model A wins more first attempts while Model B recovers more; Model A's higher Stuck and Model B's higher Divergent point to different failure behaviours under one headline number.
+Both achieve a 72% pass rate (Clean + Recovery). Model A secures more first
+attempts, while Model B recovers better. Model A's higher Stuck rate and Model
+B's higher Divergent rate reveal distinct failure behaviors, despite equal
+overall performance.
 
 
 ## Relationships in the Pattern Language
 
-Convergence Taxonomy sits within Machine Interpreter and requires Machine Interpreter and Transition Spans: it needs structured state-transition evidence and stable trace attributes to classify a run. It does not change the machine; it reads completed executions and feeds evaluation, reporting, and remediation. The complete grammar is maintained in `pattern-language.yaml`.
+Convergence Taxonomy, a Machine Interpreter component, relies on the Machine
+Interpreter and Transition Spans. It requires structured state-transition
+evidence and stable trace attributes to classify runs without modifying the
+machine. It processes completed executions, providing evaluation, reporting,
+and remediation. The full grammar specification is in `pattern-language.yaml`.
 
 
 ## Known Uses
 
-**Bench convergence reports.** The reference evaluator ships a variant of this pattern. Rather than the four-type state-visit classifier described above, it reads the per-tool metric snapshots recorded during a run and classifies each tool's progression into one of six classes (`CLEAN`, `CONVERGED`, `IMPROVING`, `FLAT`, `REGRESSING`, `NO_DATA`), then derives a single overall class per run plus a text timeline (for example `2ok/3fail` → `PASS`). Grid reports aggregate these into a `CleanRate` and two derived rates that reuse this chapter's vocabulary: `RecoveryRate` (converged runs over runs that hit a failure) and `StuckRate` (flat-or-regressing runs over the same), surfacing quality differences a bare pass rate hides.
+**Bench convergence reports.** The reference evaluator uses this pattern
+variant. It reads per-tool metric snapshots, categorizes each tool's
+progression into six classes (`CLEAN`, `CONVERGED`, `IMPROVING`, `FLAT`,
+`REGRESSING`, `NO_DATA`), and derives a single overall class per run,
+generating a text timeline (e.g., `2ok/3fail` → `PASS`). Grid reports
+aggregate these classifications into `CleanRate`, `RecoveryRate` (converged
+runs over runs with failures), and `StuckRate` (flat-or-regressing runs over
+the same), revealing quality differences a simple pass rate would obscure.
 
-**Planned diagnostics (design intent, not yet shipped).** The four-type colored badges (green Clean, yellow Recovery, orange Stuck, red Divergent) and a baseline-comparison CI regression gate that fires on distribution shifts (Clean down, Stuck up) are the pattern's intended end state, not current behavior: the shipped classifier exposes per-run classes and aggregate derived rates, but no per-run Recovery/Stuck badge and no thresholded gate. Realizing them means first aligning the taxonomy across the eval-harness spec (srd019 R4.4), the classifier, and this chapter so all three name the same classes.
+**Planned diagnostics (design intent rather than yet shipped).** The
+four-colored badges (green Clean, yellow Recovery, orange Stuck, red
+Divergent) and a CI regression gate triggering on distribution shifts (Clean
+down, Stuck up) represent the pattern's goal rather than current behavior. The
+shipped classifier provides per-run classes and aggregate rates, but lacks
+per-run Recovery/Stuck badges and thresholded gates. Implementing these
+requires aligning the taxonomy across the eval-harness spec (srd019 R4.4), the
+classifier, and this chapter to ensure consistent class naming.
 
-**Classify-then-remediate precedents.** The **circuit breaker** [@nygard-2018] runs a small state classifier (closed/open/half-open) derived from observed outcomes and drives a distinct action per state, the same "classify state, choose remedy" discipline the taxonomy applies to a completed run. The **Result / Either monad** [@wadler-monads-1995] carries outcomes as a small closed set of typed cases the caller must handle exhaustively, mirroring the exhaustiveness the four-type taxonomy enforces.
+**Classify-then-remediate precedents.** The **circuit breaker** [@nygard-2018]
+runs a state classifier (closed/open/half-open) from observed outcomes and
+drives a distinct action per state, following the "classify state, choose
+remedy" discipline applied by the taxonomy to a completed run. The **Result /
+Either monad** [@wadler-monads-1995] carries outcomes as a typed set of cases,
+requiring exhaustive handling by the caller, mirroring the exhaustiveness
+enforced by the four-type taxonomy.
 
-**Trace-based diagnosis.** Process-mining research directly supports classifying executions from their traces without re-running them: **process mining** [@van-der-aalst-process-mining-2016] extracts and diagnoses process behaviour from event logs, and **conformance checking** [@van-der-aalst-conformance-2012] compares observed traces against expected process models to identify deviations, strengthening the classifier's use of transition patterns as diagnostic evidence.
+**Trace-based diagnosis.** Process-mining techniques directly classify
+executions from traces without re-running them: **process mining**
+[@van-der-aalst-process-mining-2016] extracts and diagnoses process behavior
+from event logs, while **conformance checking**
+[@van-der-aalst-conformance-2012] compares observed traces against expected
+models to identify deviations, strengthening the classifier's use of
+transition patterns as diagnostic evidence.
