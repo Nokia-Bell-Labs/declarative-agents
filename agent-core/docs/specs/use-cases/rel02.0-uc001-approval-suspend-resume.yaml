@@ -51,9 +51,9 @@ flow:
   - F9: Approved and rejected outcomes route through explicit MachineSpec signals, preserving auditability (srd024 R2).
 
 touchpoints:
-  - T1: "srd035-checkpoint-port R1, R2, R4, R6 -- typed Save/Load, Position and Execution, conversation folded into the snapshot, and the single resume path"
-  - T2: "srd036-dolt-state-persistence R1, R4, R5 -- the Dolt adapter behind the database/sql seam, commit-per-step and branch-per-run, and Load reconstruction across processes"
-  - T3: "srd024-blocking-input-tools R1, R2 -- the approval gate behaves as a boundary tool emitting a declared suspend signal"
+  - T1: "srd035-checkpoint-port R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R4.1, R4.2, R4.3, R6.1, R6.2, R6.3, R6.4, R6.5 -- typed Save/Load, Position and Execution, conversation folded into the snapshot, and the single resume path"
+  - T2: "srd036-dolt-state-persistence R1.1, R1.2, R1.3, R1.4, R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R5.1, R5.2, R5.3, R5.4, R5.5 -- the Dolt adapter behind the database/sql seam, commit-per-step and branch-per-run, and Load reconstruction across processes"
+  - T3: "srd024-blocking-input-tools R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R2.3, R2.4 -- the approval gate behaves as a boundary tool emitting a declared suspend signal"
   - T4: "sm-rollback-lifecycle -- checkpoint, suspend, and resume data flow over the typed port"
 
 success_criteria:

@@ -32,14 +32,14 @@ flow:
   - F7: A predicate whose operand does not resolve, or does not coerce, emits CommandError, which the machine routes to a failure state distinct from the unsatisfied branch (srd041 R3.4, R4.2).
 
 touchpoints:
-  - T1: "srd041-value-predicate-tool R1 -- operands, operator, and both signals are typed configuration decoded at registration"
-  - T2: "srd041-value-predicate-tool R2 -- the operator set is closed and enumerable from the specification"
-  - T3: "srd041-value-predicate-tool R3 -- operand typing is declared, so a string-typed value compares numerically rather than lexicographically"
-  - T4: "srd041-value-predicate-tool R4 -- an infrastructure fault emits CommandError and never the unsatisfied signal"
-  - T5: "srd041-value-predicate-tool R5 -- the word is pure: no side effects, noop undo"
-  - T6: "srd022-builtin-tools R2 -- the init name resolves through BuiltinRegistry"
-  - T7: "srd022-builtin-tools R3 -- config decodes into a typed struct at registration, failing with the tool name"
-  - T8: "srd038-command-state-store R2 -- operand selectors resolve through the existing dotted-path selector grammar rather than a parallel one"
+  - T1: "srd041-value-predicate-tool R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8 -- operands, operator, and both signals are typed configuration decoded at registration"
+  - T2: "srd041-value-predicate-tool R2.1, R2.2, R2.3, R2.4, R2.5 -- the operator set is closed and enumerable from the specification"
+  - T3: "srd041-value-predicate-tool R3.1, R3.2, R3.3, R3.4, R3.5 -- operand typing is declared, so a string-typed value compares numerically rather than lexicographically"
+  - T4: "srd041-value-predicate-tool R4.1, R4.2, R4.3, R4.4 -- an infrastructure fault emits CommandError and never the unsatisfied signal"
+  - T5: "srd041-value-predicate-tool R5.1, R5.2, R5.3 -- the word is pure: no side effects, noop undo"
+  - T6: "srd022-builtin-tools R2.1, R2.2, R2.3, R2.4 -- the init name resolves through BuiltinRegistry"
+  - T7: "srd022-builtin-tools R3.1, R3.2, R3.3, R3.4, R3.5, R3.6 -- config decodes into a typed struct at registration, failing with the tool name"
+  - T8: "srd038-command-state-store R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.20 -- operand selectors resolve through the existing dotted-path selector grammar rather than a parallel one"
 
 success_criteria:
   - id: S1

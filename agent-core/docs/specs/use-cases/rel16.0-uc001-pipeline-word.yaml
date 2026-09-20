@@ -30,11 +30,11 @@ flow:
   - F7: A failing stage ends the run as CommandError naming the stage; later stages do not run.
 
 touchpoints:
-  - T1: "srd049-pipeline-word R1 -- declaration, stage config, eager registration"
-  - T2: "srd049-pipeline-word R2 -- closed stage vocabulary and family co-selection"
-  - T3: "srd049-pipeline-word R3 -- chaining, selectors, and injected dependencies"
-  - T4: "srd049-pipeline-word R4 -- failure separation"
-  - T5: "srd038-command-state-store R1, R2 -- selector semantics inside stages"
+  - T1: "srd049-pipeline-word R1.1, R1.2, R1.3, R1.4, R1.5, R1.6 -- declaration, stage config, eager registration"
+  - T2: "srd049-pipeline-word R2.1, R2.2, R2.3, R2.4 -- closed stage vocabulary and family co-selection"
+  - T3: "srd049-pipeline-word R3.1, R3.2, R3.3, R3.4 -- chaining, selectors, and injected dependencies"
+  - T4: "srd049-pipeline-word R4.1, R4.2, R4.3 -- failure separation"
+  - T5: "srd038-command-state-store R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.20 -- selector semantics inside stages"
 
 success_criteria:
   - id: S1

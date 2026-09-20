@@ -32,15 +32,15 @@ flow:
   - F8: Missing credential, cancellation, transport, status, decoding, or content failure produces a safe CommandError and no retry.
 
 touchpoints:
-  - T1: "srd048-cohere-adapter R1 -- adapter behind the unchanged llm.Client boundary"
-  - T2: "srd048-cohere-adapter R2 -- Cohere v2 request and cancellation"
-  - T3: "srd048-cohere-adapter R3 -- lazy process credential and secret boundary"
-  - T4: "srd048-cohere-adapter R4 -- content-block and usage normalization"
-  - T5: "srd048-cohere-adapter R5 -- declarative provider and response-profile selection"
-  - T6: "srd048-cohere-adapter R6 -- errors and GenAI telemetry"
-  - T7: "srd017-llm-extensions R2 -- supported provider and parser-profile selection"
-  - T8: "srd015-genai-semconv R3 -- Cohere provider identity"
-  - T9: "srd015-genai-semconv R5 -- inference and usage attributes"
+  - T1: "srd048-cohere-adapter R1.1, R1.2, R1.3, R1.4, R1.5 -- adapter behind the unchanged llm.Client boundary"
+  - T2: "srd048-cohere-adapter R2.1, R2.2, R2.3, R2.4, R2.5 -- Cohere v2 request and cancellation"
+  - T3: "srd048-cohere-adapter R3.1, R3.2, R3.3, R3.4, R3.5 -- lazy process credential and secret boundary"
+  - T4: "srd048-cohere-adapter R4.1, R4.2, R4.3, R4.4, R4.5, R4.6 -- content-block and usage normalization"
+  - T5: "srd048-cohere-adapter R5.1, R5.2, R5.3, R5.4, R5.5, R5.6 -- declarative provider and response-profile selection"
+  - T6: "srd048-cohere-adapter R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7 -- errors and GenAI telemetry"
+  - T7: "srd017-llm-extensions R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9 -- supported provider and parser-profile selection"
+  - T8: "srd015-genai-semconv R3.1, R3.2, R3.3 -- Cohere provider identity"
+  - T9: "srd015-genai-semconv R5.1, R5.2, R5.3, R5.4, R5.5, R5.6 -- inference and usage attributes"
 
 success_criteria:
   - id: S1

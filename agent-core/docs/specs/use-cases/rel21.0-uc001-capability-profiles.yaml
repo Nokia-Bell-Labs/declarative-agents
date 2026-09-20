@@ -29,10 +29,10 @@ flow:
   - F5: The consistency check reports each machine file that more than one profile reaches and each override whose machine another profile reaches, naming the machine and every reaching profile, as findings rather than load errors.
 
 touchpoints:
-  - T1: "srd057-capability-profiles R1 -- the capability profile"
-  - T2: "srd057-capability-profiles R2 -- consumption forms"
-  - T3: "srd057-capability-profiles R3 -- binding discipline and visibility"
-  - T4: "srd055-agent-blueprints R1 -- the serving wrapper as a blueprint instance"
+  - T1: "srd057-capability-profiles R1.1, R1.2, R1.3 -- the capability profile"
+  - T2: "srd057-capability-profiles R2.1, R2.2, R2.3, R2.4 -- consumption forms"
+  - T3: "srd057-capability-profiles R3.1, R3.2, R3.3 -- binding discipline and visibility"
+  - T4: "srd055-agent-blueprints R1.1, R1.2, R1.3 -- the serving wrapper as a blueprint instance"
 
 success_criteria:
   - id: S1
