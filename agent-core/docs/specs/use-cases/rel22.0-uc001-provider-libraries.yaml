@@ -30,12 +30,12 @@ flow:
   - F6: A binding that lacks a file the agent needs fails at load, naming the missing path and the bound directory.
 
 touchpoints:
-  - T1: "srd058-provider-libraries R1 -- the provider library, its root, its vocabulary, and its auth"
-  - T2: "srd058-provider-libraries R2 -- the chat dialect declaration"
-  - T3: "srd058-provider-libraries R3 -- invoke_llm as a template method"
-  - T4: "srd058-provider-libraries R4 -- embed and rerank stage fragments"
-  - T5: "srd058-provider-libraries R5 -- first conforming libraries and the conformance suite"
-  - T6: "srd056-unit-libraries R2 -- declared roots and the --library override"
+  - T1: "srd058-provider-libraries R1.1, R1.2, R1.3, R1.4, R1.5 -- the provider library, its root, its vocabulary, and its auth"
+  - T2: "srd058-provider-libraries R2.1, R2.4, R2.5, R2.2, R2.3 -- the chat dialect declaration"
+  - T3: "srd058-provider-libraries R3.1, R3.2, R3.3, R3.4, R3.5 -- invoke_llm as a template method"
+  - T4: "srd058-provider-libraries R4.1, R4.2 -- embed and rerank stage fragments"
+  - T5: "srd058-provider-libraries R5.1, R5.2, R5.3 -- first conforming libraries and the conformance suite"
+  - T6: "srd056-unit-libraries R2.1, R2.2, R2.3, R2.4 -- declared roots and the --library override"
 
 success_criteria:
   - id: S1

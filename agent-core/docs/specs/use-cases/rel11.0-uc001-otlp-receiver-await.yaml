@@ -40,17 +40,17 @@ flow:
   - F13: "`spool_list_metrics` and `spool_get_metric` read the metric spool back by name and run identity without mutation (srd042 R9.4)."
 
 touchpoints:
-  - T1: "srd042-otlp-receiver-tools R0 -- transport words stay separate and MachineSpec owns their sentence"
-  - T2: "srd042-otlp-receiver-tools R1 -- declared launch binds OTLP/gRPC and returns without waiting"
-  - T3: "srd042-otlp-receiver-tools R2 -- complete requests enter a bounded concurrent FIFO queue"
-  - T4: "srd042-otlp-receiver-tools R3 -- await returns one batch or a distinct timeout, stop, or fault signal"
-  - T5: "srd042-otlp-receiver-tools R4 -- deterministic spool matches existing stdouttrace NDJSON readers"
-  - T6: "srd042-otlp-receiver-tools R5 -- declared relay preserves protobuf identity"
-  - T7: "srd042-otlp-receiver-tools R6 -- stop owns listener and waiter cleanup"
-  - T8: "srd042-otlp-receiver-tools R7 -- file-only process telemetry prevents ingress self-export"
-  - T9: "srd042-otlp-receiver-tools R8 -- the receiver accepts trace and metric exports on one gRPC listener"
-  - T10: "srd008-telemetry R9 -- integration evidence keeps stable service and run identity"
-  - T11: "srd042-otlp-receiver-tools R9 -- metric intake, spool, and query mirror the trace words without a separate backend"
+  - T1: "srd042-otlp-receiver-tools R0.1, R0.2, R0.3, R0.4, R0.5 -- transport words stay separate and MachineSpec owns their sentence"
+  - T2: "srd042-otlp-receiver-tools R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7 -- declared launch binds OTLP/gRPC and returns without waiting"
+  - T3: "srd042-otlp-receiver-tools R2.1, R2.2, R2.3, R2.4, R2.5, R2.6 -- complete requests enter a bounded concurrent FIFO queue"
+  - T4: "srd042-otlp-receiver-tools R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10 -- await returns one batch or a distinct timeout, stop, or fault signal"
+  - T5: "srd042-otlp-receiver-tools R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7, R4.8 -- deterministic spool matches existing stdouttrace NDJSON readers"
+  - T6: "srd042-otlp-receiver-tools R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7 -- declared relay preserves protobuf identity"
+  - T7: "srd042-otlp-receiver-tools R6.1, R6.2, R6.3, R6.4, R6.5 -- stop owns listener and waiter cleanup"
+  - T8: "srd042-otlp-receiver-tools R7.1, R7.2, R7.3, R7.4 -- file-only process telemetry prevents ingress self-export"
+  - T9: "srd042-otlp-receiver-tools R8.1, R8.2, R8.3 -- the receiver accepts trace and metric exports on one gRPC listener"
+  - T10: "srd008-telemetry R9.1, R9.2, R9.3, R9.4, R9.5, R9.6, R9.7 -- integration evidence keeps stable service and run identity"
+  - T11: "srd042-otlp-receiver-tools R9.1, R9.2, R9.3, R9.4, R9.5 -- metric intake, spool, and query mirror the trace words without a separate backend"
 
 success_criteria:
   - id: S1

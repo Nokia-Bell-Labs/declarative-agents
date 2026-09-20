@@ -32,19 +32,19 @@ flow:
   - F11: An integration launcher composes file and OTLP export, assigns bounded run identity and a stable service name, and propagates the shared endpoint with a child-specific service name (srd008, srd018).
 
 touchpoints:
-  - T1: "srd001-core-types R1, R2, R3, R4, R5 -- State, Signal, Command, Result, Cost, Builder, CommandResolver types"
-  - T2: "srd002-state-machine R1, R2, R3 -- TransitionTable, StateMachine, Step, TerminalFunc"
-  - T3: "srd003-command-dispatch R1, R2, R3 -- Dispatch, SafeExecute, FillDuration, ForceErrorSignal"
-  - T4: "srd004-tool-registry R1, R2, R3, R4, R5 -- ToolSpec, Registry, Manifest, PhaseMatch"
-  - T5: "srd005-agentic-loop R1, R2, R3, R4, R5, R6 -- Budget, RunResult, LoopHooks, LoopParams, Loop, ValidateBuilders"
-  - T6: "srd006-yaml-machine-config R1, R2, R3, R4 -- MachineSpec, validation, BuildTransitionTable, LoadMachineSpec"
-  - T7: "srd007-tracer-interface R1, R2 -- Tracer interface, minimal dependencies"
-  - T8: "srd008-telemetry R1, R2, R3, R4, R5, R6, R7, R9 -- ExporterConfig, Trace, NewRoot, file/OTLP exporters, TraceAdapter, declared OTLP replay, retained integration telemetry"
-  - T9: "srd010-conversation R1, R2, R4, R5, R6, R7 -- Message, Conversation, append-only history, assembly, system prompt, reset"
-  - T10: "srd011-prompt-schema R1, R2, R3, R4, R5, R6, R7 -- Prompt, YAML loading, defaults, validation, assembly"
-  - T11: "srd012-system-prompt-template R1, R2, R3, R4, R5, R6 -- embedded system template, PromptData, Envelope, rendering, manifest serialization"
-  - T12: "srd015-genai-semconv R1, R2, R3, R4, R5 -- GenAI attribute constants, operation names, providers, span names, attribute builders"
-  - T13: "srd018-cli-flag-contract R1, R2, R7 -- canonical live telemetry flags and child propagation"
+  - T1: "srd001-core-types R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R3.1, R3.2, R4.1, R4.2, R4.3, R5.1, R5.2 -- State, Signal, Command, Result, Cost, Builder, CommandResolver types"
+  - T2: "srd002-state-machine R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R3.1, R3.2, R3.3, R3.4, R3.5 -- TransitionTable, StateMachine, Step, TerminalFunc"
+  - T3: "srd003-command-dispatch R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R3.1, R3.2 -- Dispatch, SafeExecute, FillDuration, ForceErrorSignal"
+  - T4: "srd004-tool-registry R1.1, R1.2, R2.1, R2.2, R2.3, R2.4, R2.5, R3.1, R3.2, R4.1, R4.2, R5.1 -- ToolSpec, Registry, Manifest, PhaseMatch"
+  - T5: "srd005-agentic-loop R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R2.3, R2.4, R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R4.1, R4.2, R4.3, R4.4, R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9, R5.10, R5.11, R5.12, R6.1 -- Budget, RunResult, LoopHooks, LoopParams, Loop, ValidateBuilders"
+  - T6: "srd006-yaml-machine-config R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R3.1, R3.2, R3.3, R3.4, R3.5, R4.1, R4.2, R4.3, R4.4 -- MachineSpec, validation, BuildTransitionTable, LoadMachineSpec"
+  - T7: "srd007-tracer-interface R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R2.1, R2.2 -- Tracer interface, minimal dependencies"
+  - T8: "srd008-telemetry R1.1, R1.2, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R3.1, R3.1b, R3.2, R3.3, R3.4, R3.5, R4.1, R4.2, R5.1, R5.2, R5.3, R6.1, R6.2, R6.3, R7.1, R7.2, R7.3, R7.4, R9.1, R9.2, R9.3, R9.4, R9.5, R9.6, R9.7 -- ExporterConfig, Trace, NewRoot, file/OTLP exporters, TraceAdapter, declared OTLP replay, retained integration telemetry"
+  - T9: "srd010-conversation R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R2.3, R4.1, R4.2, R4.3, R4.4, R5.1, R5.2, R5.3, R6.1, R6.2, R6.3, R7.1, R7.2, R7.3 -- Message, Conversation, append-only history, assembly, system prompt, reset"
+  - T10: "srd011-prompt-schema R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R2.4, R3.1, R3.2, R3.3, R3.4, R3.5, R4.1, R4.2, R4.3, R5.1, R5.2, R5.3, R5.4, R6.1, R6.2, R6.3, R6.4, R7.1, R7.2 -- Prompt, YAML loading, defaults, validation, assembly"
+  - T11: "srd012-system-prompt-template R1.1, R1.2, R1.3, R2.1, R2.2, R2.3, R2.4, R3.1, R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R5.1, R5.2, R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7 -- embedded system template, PromptData, Envelope, rendering, manifest serialization"
+  - T12: "srd015-genai-semconv R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R2.1, R3.1, R3.2, R3.3, R4.1, R4.2, R4.3, R4.4, R5.1, R5.2, R5.3, R5.4, R5.5, R5.6 -- GenAI attribute constants, operation names, providers, span names, attribute builders"
+  - T13: "srd018-cli-flag-contract R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9, R1.10, R2.1, R2.2, R2.3, R2.4, R2.5, R7.1, R7.2, R7.3, R7.4 -- canonical live telemetry flags and child propagation"
 
 success_criteria:
   - id: S1

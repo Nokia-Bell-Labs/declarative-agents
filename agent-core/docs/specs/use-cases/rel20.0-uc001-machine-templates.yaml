@@ -27,9 +27,9 @@ flow:
   - F5: It visits the instance, the template, and each stage file, so they enter the closure, the program digest, the dump's expansions with their kinds, and a staged tree.
 
 touchpoints:
-  - T1: "srd054-machine-templates R1 -- template and instance format"
-  - T2: "srd054-machine-templates R2 -- expansion and validation"
-  - T3: "srd054-machine-templates R3 -- closure, identity, provenance, and staging"
+  - T1: "srd054-machine-templates R1.1, R1.2, R1.3, R1.4 -- template and instance format"
+  - T2: "srd054-machine-templates R2.1, R2.2, R2.3, R2.4, R2.5 -- expansion and validation"
+  - T3: "srd054-machine-templates R3.1, R3.2, R3.3 -- closure, identity, provenance, and staging"
 
 success_criteria:
   - id: S1

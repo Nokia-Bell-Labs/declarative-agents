@@ -24,11 +24,11 @@ flow:
   - F5: The maintainer adds regression tests for registry errors and shared parse-time/dispatch-time availability behavior without changing MachineSpec execution or response envelope syntax (srd037 R5).
 
 touchpoints:
-  - T1: "srd037-tool-dispatch-simplification R1 -- MachineSpec, Registry, Builder, Command, and Dispatch semantics stay intact"
-  - T2: "srd037-tool-dispatch-simplification R2 -- registry registration failures become returned startup errors for configuration-originated mistakes"
-  - T3: "srd037-tool-dispatch-simplification R3 -- builtin registration shares one helper while exec registration remains separate"
-  - T4: "srd037-tool-dispatch-simplification R4 -- manifest, parse_response, and dynamic $tool dispatch use one availability rule"
-  - T5: "srd037-tool-dispatch-simplification R5 -- code-task tests prove the narrowed behavior change"
+  - T1: "srd037-tool-dispatch-simplification R1.1, R1.2, R1.3, R1.4 -- MachineSpec, Registry, Builder, Command, and Dispatch semantics stay intact"
+  - T2: "srd037-tool-dispatch-simplification R2.1, R2.2, R2.3, R2.4 -- registry registration failures become returned startup errors for configuration-originated mistakes"
+  - T3: "srd037-tool-dispatch-simplification R3.1, R3.2, R3.3, R3.4 -- builtin registration shares one helper while exec registration remains separate"
+  - T4: "srd037-tool-dispatch-simplification R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7 -- manifest, parse_response, and dynamic $tool dispatch use one availability rule"
+  - T5: "srd037-tool-dispatch-simplification R5.1, R5.2, R5.3 -- code-task tests prove the narrowed behavior change"
 
 success_criteria:
   - id: S1

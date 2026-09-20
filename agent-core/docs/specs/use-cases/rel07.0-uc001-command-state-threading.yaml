@@ -26,11 +26,11 @@ flow:
   - F6: If word 1 is a REST command, it translates configured body and header redaction selectors into typed paths through its emitted Result shape while preserving its immediate marker response; core removes those paths before the live Entry becomes selectable and the checkpoint adapter reapplies removal before Save, so word 3 cannot select them live or after resume (srd038 R5).
 
 touchpoints:
-  - T1: "srd038-command-state-store R1 -- read-only forward view over the execution log, rehydrated from tool_outputs after restart"
-  - T2: "srd038-command-state-store R2 -- $from label addressing, most-recent-wins, run-scoped, no absolute indices"
-  - T3: "srd038-command-state-store R3 -- declared-param-only authority boundary; no transport, no receipts"
-  - T4: "srd028-rest-client-tools R13 -- REST body_source command_state consumes the store through $from selectors"
-  - T5: "srd038-command-state-store R5 -- versioned typed redaction before live Entry construction and defense-in-depth enforcement before persistence"
+  - T1: "srd038-command-state-store R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9 -- read-only forward view over the execution log, rehydrated from tool_outputs after restart"
+  - T2: "srd038-command-state-store R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.20 -- $from label addressing, most-recent-wins, run-scoped, no absolute indices"
+  - T3: "srd038-command-state-store R3.1, R3.2, R3.3, R3.4 -- declared-param-only authority boundary; no transport, no receipts"
+  - T4: "srd028-rest-client-tools R13.1, R13.2, R13.3, R13.4, R13.5 -- REST body_source command_state consumes the store through $from selectors"
+  - T5: "srd038-command-state-store R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9, R5.10 -- versioned typed redaction before live Entry construction and defense-in-depth enforcement before persistence"
 
 success_criteria:
   - id: S1
