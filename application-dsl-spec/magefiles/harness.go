@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -83,6 +84,66 @@ func checkFixtureOwnership(moduleRoot string, language languageFile) error {
 		return err
 	}
 	return errors.Join(findings...)
+}
+
+// constitutionsDir is where component constitutions bind themselves to the
+// specification, relative to the repository root.
+const constitutionsDir = "docs/constitutions"
+
+// citationIDPattern finds statement identifiers inside constitution prose;
+// statementIDPattern is anchored for validating whole ids and cannot scan.
+var citationIDPattern = regexp.MustCompile(`\bR-[A-Z][A-Z0-9]*-[0-9]{3}\b`)
+
+// checkConstitutionCitations enforces the one-way binding from the other
+// side: every constitution cites at least one statement identifier, and every
+// identifier it cites resolves, so a renumbered or deleted statement cannot
+// leave a constitution claiming conformance to nothing. A repository without
+// the constitutions directory passes vacuously; the specification module does
+// not require its consumers to exist.
+func checkConstitutionCitations(repositoryRoot string, language languageFile) error {
+	dir := filepath.Join(repositoryRoot, filepath.FromSlash(constitutionsDir))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("list %s: %w", constitutionsDir, err)
+	}
+	ids := make(map[string]bool, len(language.Statements))
+	for _, statement := range language.Statements {
+		ids[statement.ID] = true
+	}
+
+	var findings []error
+	checked := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+		checked++
+		slug := constitutionsDir + "/" + entry.Name()
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			findings = append(findings, fmt.Errorf("%s: %w", slug, err))
+			continue
+		}
+		citations := citationIDPattern.FindAllString(string(data), -1)
+		if len(citations) == 0 {
+			findings = append(findings, fmt.Errorf("%s: cites no statement identifier", slug))
+		}
+		for _, citation := range citations {
+			if !ids[citation] {
+				findings = append(findings, fmt.Errorf("%s: citation %s resolves to no statement", slug, citation))
+			}
+		}
+	}
+	if len(findings) > 0 {
+		return errors.Join(findings...)
+	}
+	if checked > 0 {
+		fmt.Printf("validated statement citations in %d constitutions\n", checked)
+	}
+	return nil
 }
 
 func uniqueStrings(values []string) int {

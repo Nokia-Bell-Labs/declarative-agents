@@ -21,6 +21,9 @@ func Audit() error {
 	if err := checkFixtureOwnership(".", language); err != nil {
 		return err
 	}
+	if err := checkConstitutionCitations("..", language); err != nil {
+		return err
+	}
 	if err := runAcceptanceEvidence(".", language); err != nil {
 		return err
 	}

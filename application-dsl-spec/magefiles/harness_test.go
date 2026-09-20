@@ -68,6 +68,53 @@ func TestFixtureOwnershipReportsOrphansAndSharedFixtures(t *testing.T) {
 	}
 }
 
+func TestConstitutionCitations(t *testing.T) {
+	language := validLanguage()
+
+	t.Run("missing directory passes vacuously", func(t *testing.T) {
+		if err := checkConstitutionCitations(t.TempDir(), language); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("resolvable citation passes", func(t *testing.T) {
+		repo := t.TempDir()
+		writeEvidenceFile(t, repo, "docs/constitutions/agent-core.yaml",
+			"id: agent-core\nobligations:\n  - Upholds R-INTRO-001.\n")
+		if err := checkConstitutionCitations(repo, language); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("citation-free constitution fails", func(t *testing.T) {
+		repo := t.TempDir()
+		writeEvidenceFile(t, repo, "docs/constitutions/empty.yaml", "id: empty\n")
+		err := checkConstitutionCitations(repo, language)
+		if err == nil || !strings.Contains(err.Error(), "cites no statement identifier") {
+			t.Fatalf("citation error = %v, want cites no statement identifier", err)
+		}
+	})
+	t.Run("unresolvable citation fails", func(t *testing.T) {
+		repo := t.TempDir()
+		writeEvidenceFile(t, repo, "docs/constitutions/ghost.yaml",
+			"id: ghost\nobligations:\n  - Upholds R-GHOST-999.\n")
+		err := checkConstitutionCitations(repo, language)
+		if err == nil || !strings.Contains(err.Error(), "R-GHOST-999 resolves to no statement") {
+			t.Fatalf("citation error = %v, want unresolvable R-GHOST-999", err)
+		}
+	})
+}
+
+// TestRepositoryConstitutionsCiteResolvableStatements gates the tracked
+// constitutions against the tracked language.
+func TestRepositoryConstitutionsCiteResolvableStatements(t *testing.T) {
+	language, err := loadLanguage(filepath.Join("..", languagePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkConstitutionCitations(filepath.Join("..", ".."), language); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestRepositoryFixtureSuitesAreCoveredAndOwned gates the tracked suites, so
 // a suite regression fails go test as well as mage audit.
 func TestRepositoryFixtureSuitesAreCoveredAndOwned(t *testing.T) {
