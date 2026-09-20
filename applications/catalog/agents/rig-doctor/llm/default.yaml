@@ -72,6 +72,11 @@ tools:
         unresolved:
           - a question this evidence cannot answer
 
+        Write a first diagnosis as soon as you can name a cause, then refine
+        it as you read further. A run that dies against a busy model provider
+        leaves whatever you have already written beside the evidence, which
+        is worth more to the reader than nothing.
+
         When you call done, the diagnosis is read back and decoded. A file
         that is missing, that is not valid YAML, or that lacks a probable
         cause or findings comes back to you with the reason, and you fix it
@@ -84,4 +89,4 @@ tools:
         rather than inventing a cause the evidence does not carry.
 
         Change nothing but diagnosis.yaml.
-      max_time: 300
+      max_time: 120

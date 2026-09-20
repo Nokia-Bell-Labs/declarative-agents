@@ -14,6 +14,21 @@ context: |
   into it. The repository-root rig capture and each application's
   `mage diagnose` target produce the directory; this family consumes it.
 
+design_notes: |
+  invoke_llm reports every provider failure as CommandError (srd009 R4.3), so
+  a hung endpoint and a misconfigured one reach the machine as one signal and
+  it cannot retry the first without retrying the second. The vocabulary for
+  the distinction already exists: the provider-library words emit
+  ProviderUnavailable, ProviderThrottled, and ProviderUnauthorized, and the
+  rerank and embed stages route them separately (srd058 R4.1). invoke_llm is
+  the outlier, and teaching it those signals is the fix that would serve
+  every model-driven family rather than this one.
+
+  We did not do that here. It changes what an existing word emits, which
+  every machine routing invoke_llm would then have to handle, and this family
+  needed a bound today. Three bounded attempts is the local answer; the
+  runtime answer is GH-2298.
+
 problem: |
   Today a person reconstructs the failure by hand from kubectl events,
   rollout status, pod logs, and the NDJSON trace spool. The rig captures no
@@ -55,7 +70,8 @@ requirements:
       - R4.1: A run reaches Diagnosed only after the diagnosis it wrote is read back, decodes as YAML, names a probable cause, and carries at least one finding.
       - R4.4: A diagnosis that is missing, undecodable, or incomplete returns to the model with the reason so it repairs and calls done again; the gate reads back only the declared diagnosis path, never a file the model names.
       - R4.2: An evidence directory that is empty, or that cannot be listed, reaches NoEvidence before any model call and writes no diagnosis.
-      - R4.3: Budget exhaustion, a provider failure, or an infrastructure error reaches Failed, from the read-back gate as much as from the loop, so a run that stops mid-gate still reports a terminal state.
+      - R4.3: Budget exhaustion or an infrastructure error reaches Failed, from the read-back gate as much as from the loop, so a run that stops mid-gate still reports a terminal state.
+      - R4.5: A failed model call is retried twice before the run gives up, so a busy provider does not discard evidence the run already paid to read; a third failure reaches Failed and writes no diagnosis.
   R5:
     title: Portability and registration
     items:
@@ -82,6 +98,9 @@ acceptance_criteria:
   - id: AC4
     criterion: The family inventory test finds the root-cause-analyst binding in all three semantic models.
     traces: [R5.2]
+  - id: AC8
+    criterion: A provider that fails twice and then answers reaches Diagnosed; one that never answers costs exactly three attempts and reaches Failed with no diagnosis written.
+    traces: [R4.3, R4.5]
   - id: AC7
     criterion: A scripted run that writes undecodable YAML, and one that calls done having written nothing, each repair and reach Diagnosed; a model that never repairs exhausts its budget and reaches Failed rather than stopping mid-gate.
     traces: [R4.1, R4.3, R4.4]
