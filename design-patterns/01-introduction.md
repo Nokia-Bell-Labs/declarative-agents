@@ -3,42 +3,106 @@
 
 # Introduction
 
-Every agent has a bug that will surface only the first time a probabilistic tool like an large language model (LLM) returns an output no one expected. A problem like this is certain to occur, but impossible to find by reading the code. In an agent, the harness is code that wraps around the LLM tool. A reviewer can read it, but cannot trace every path through a loop that branches on every tool outcome, including from probabilistic tools. 
+Agents have a bug that surfaces only when a probabilistic tool like an LLM
+returns an unexpected output for the first time. This problem is inevitable
+but undetectable by code review. In an agent, the harness is code wrapping the
+LLM tool. A reviewer can read it but cannot trace every path through loops
+branching on tool outcomes, including probabilistic ones.
 
-This monograph describes an alternative, where the harness's control flow is expressed as a finite-state machine in a data file and interpreted by a fixed engine at runtime. The machine defines what the agent is allowed to accept at each phase — which tools are available in a phase and which tool outcomes are valid — and rejects everything else. An unexpected tool output that would silently fall through imperative code hits a wall. If no transition exists, the engine stops or routes to an explicit error state. 
+This monograph describes an alternative where the harness's control flow is
+expressed as a finite-state machine in a data file and interpreted by a fixed
+engine at runtime. The machine defines what the agent can accept at each
+phase—which tools are available and which outcomes are valid—rejecting
+everything else. Unexpected tool outputs that would silently fall through
+imperative code are blocked. If no transition exists, the engine stops or
+routes to an explicit error state.
 
-More practically, when the agent's behaviour needs to change — a new or updated tool, tighter constraints, a new check, a different routing — the adjustment is an edit to the data file, not a code change.
+When the agent's behaviour needs to change ( a new or updated tool, tighter
+constraints, a new check, or different routing ) the adjustment edits the data
+file, not the code.
+
 ## Declarative agents
 
-The recent idea of an "agent" arrived in stages, each adding capability and each adding a new class of failure:
+
+The recent idea of an "agent" arrived in stages, each adding capability and
+new failure classes.
 
 1. **Chatbots.** An LLM is wrapped in an interactive chat application. It accumulates a transcript but takes no action in the world, so its mistakes stay in the chat. 
 2. **Tool-connected models.** The wrapper wires an LLM model to tools — file writes, shell commands, API calls, other models — often through a protocol such as the Model Context Protocol [@anthropic-mcp-2024]. Now the model *acts*, and because models make mistakes, the errors have real-world consequences — consequences that compound when agents compose into multi-agent systems [@kim-scaling-agents-2025]. 
 3. **Harnesses.** The software wrapper routes a model's responses to tool calls and practically improves the performance of code-generating agents with an explicit feedback to the model when things fail [@ning-code-as-harness-2026].
 
-A harness does not fully solve the problem of real-world consequences, but it is a step in the right direction. Here we argue that the harness can be taken further if it is declarative.
+A harness does not fully solve real-world consequences, but it is a step
+forward. We argue that a declarative harness can be taken further.
 
-A deployed agent's behaviour is the product of two factors: **harness × model.** The model (LLM)  supplies inference. The harness supplies everything else. It manages the environment, draws the boundary between the model and the system so that a bad action cannot reach the system unchecked, and makes the available actions explicit so the model knows what it may do and the operator knows what it might. Since we cannot edit the LLM, the harness is where risk can be managed [@meta-harness-2026] [@autoharness-2026] [@harbor-harness-optimization-2026].
+A deployed agent's behaviour is **harness × model.** The model (LLM) supplies
+inference; the harness supplies everything else. It manages the environment,
+draws the boundary between the model and the system to prevent unchecked bad
+actions, and makes available actions explicit so the model knows what it may
+do and the operator knows what it might. As we cannot edit the LLM, the
+harness is where risk can be managed [@meta-harness-2026] [@autoharness-2026]
+[@harbor-harness-optimization-2026].
 
-Harnesses evolve constantly. The only way to know what a new model will do inside an existing harness is to run it — observe the results, find where the harness blocks what it should allow or allows what it should block, and adjust. A model swap may mean changing which tools are visible in a given phase, how many retries are allowed, or what validation runs before the agent may declare success. Adding a new capability — a new tool, a new workflow phase — triggers the same cycle: edit, run, observe.
+Harnesses evolve constantly. To know what a new model will do inside an
+existing harness, run it, observe results, identify where the harness blocks
+or allows incorrectly, and adjust. A model swap may change visible tools,
+retry limits, or validation steps. Adding a new capability triggers the same
+cycle: edit, run, observe.
 
-The way to make a harness adjustable is to separate the control flow from the code that implements it. Every agent runs the same loop — observe, decide, act, validate — and that loop is a state machine whether or not it is written as one. Writing it explicitly, as a transition table, interpreted by a fixed engine, makes the control flow a data file: readable and changeable without touching the binary. An agent built this way — its machine, its tools, and its model binding all expressed as data — is a **declarative agent**.
+Making a harness adjustable requires separating control flow from its
+implementation code. Each agent runs the same loop (observe, decide, act,
+validate)which functions as a state machine, regardless of its explicit
+implementation. Writing it as a transition table, interpreted by a fixed
+engine, turns the control flow into a data file, enabling readability and
+modification without altering the binary. An agent structured this way (with
+its machine, tools, and model binding expressed as data)is a **declarative
+agent**.
 
-Harness as data is easy to adjust. When the control flow is imperative code — buried in callbacks, tangled with the rest of the system — every adjustment is a code change that carries the risk of breaking unrelated behaviour, and that must pass through the full development cycle before it reaches production. When the control flow is a data file, the adjustment is a configuration change. The imperative logic is untouched, the full control flow is readable in the transition table, and the change can be deployed without rebuilding the binary.
+Harness data is easy to adjust. Imperative control flow (buried in callbacks,
+tangled with the system)requires code changes that risk breaking unrelated
+behavior and must pass the full development cycle before reaching production.
+Data-file control flow allows configuration changes without altering
+imperative logic, keeps the full flow readable in the transition table, and
+deploys without rebuilding the binary.
 
-Fig. 1 shows the architecture. The Engine is a fixed binary. It reads the Machine — a state machine transition table — and dispatches Tools by name. The tool Registry keeps track of tools, which are the agent's verbs: `read`, `write`, `test`, `invoke_llm`. One tool, `invoke_llm`, crosses the model boundary and returns probabilistic results. Other tool are deterministic. The Model is external to the agent. The engine reaches it only through its tool, and swapping the model is a configuration change that touches neither the engine nor the other tools.
+Fig. 1 shows the architecture. The Engine, a fixed binary, reads the Machine
+(a state machine transition table) and dispatches Tools by name. The Registry
+tracks tools (`read`, `write`, `test`, `invoke_llm`), which are the agent's
+verbs. `invoke_llm` crosses the model boundary, returning probabilistic
+results; other tools are deterministic. The Model is external, accessed only
+via its tool. Swapping the model is a configuration change that does not
+affect the Engine or other tools.
 
 ![](figures/fig-01-architecture.png)
 
 | **Figure 1.** Component diagram. The Engine reads the Machine and dispatches Tools via the Registry. |
 | :--------------------------------------------------------------------------------------------------: |
 
-The data representation carries a second benefit. Each state corresponds to a phase of execution; in each execution phase, the agent runs a tool; each tool produces an outcome; and each outcome maps to the next state. The full set of (state, outcome) → next-state mappings is the transition table. Because the table is finite data, a loader can run static checks on it before the agent starts — reachability, terminal reachability, determinism, and completeness [@harel-statecharts-1987] [@pnueli-translation-validation-1998]. 
+The data representation has a second benefit: each state corresponds to an
+execution phase, where the agent runs a tool, producing an outcome that maps
+to the next state. The full set of (state, outcome) → next-state mappings
+forms the transition table. As the table is finite, a loader can perform
+static checks before the agent starts—reachability, terminal reachability,
+determinism, and completeness [@harel-statecharts-1987]
+[@pnueli-translation-validation-1998].
+
 ## Related work
 
-The move from imperative code to declarative data is the path most systems orchestration already took. Cluster management was once workflow scripts that issued commands in a sequence. It is now declarative. An operator writes the desired state as data and a fixed control loop reconciles reality to it. Kubernetes is the familiar case — a data object describes what should be true, and the system, not a script, decides the steps to make it so [@burns-borg-omega-kubernetes-2016]. 
 
-In the agentic space, there are two general approaches. Agentic frameworks such as LangGraph and Temporal, use an imperative approach. LangGraph nodes and edge conditions are Python functions [@langgraph-2024]. Temporal gives durable execution and human-in-the-loop waits, but workflows are impertaive workflows [@temporal-2024]. Declarative approaches with generic state machine tools such as XState and BPMN know nothing about agents. XState implements Harel statecharts for application control flow [@xstate-2024] [@harel-statecharts-1987]; BPMN models business processes [@omg-bpmn-2011]. 
+Most systems orchestration has already shifted from imperative code to
+declarative data. Cluster management evolved from sequential command scripts
+to declarative configurations. Now, operators define the desired state as
+data, and a control loop enforces it. Kubernetes exemplifies this: a data
+object specifies the desired state, and the system determines the steps to
+achieve it [@burns-borg-omega-kubernetes-2016].
+
+In agentic space, two general approaches exist. Agentic frameworks like
+LangGraph and Temporal use an imperative approach. LangGraph nodes and edge
+conditions are Python functions [@langgraph-2024]. Temporal provides durable
+execution and human-in-the-loop waits, but workflows remain imperative
+[@temporal-2024]. Declarative approaches, such as XState and BPMN, are generic
+state machine tools unaware of agents. XState implements Harel statecharts for
+application control flow [@xstate-2024] [@harel-statecharts-1987]; BPMN models
+business processes [@omg-bpmn-2011].
 
 Table I summarizes the differences.
 
@@ -57,10 +121,14 @@ Table I summarizes the differences.
 | Footprint                        |  library  | cluster  |  library   |   server   | binary + YAML |
 ## A declarative agent
 
-We use an example of a code **generator** agent throughout the monograph. It can read files, write code, run the tests, and loop until validation passes. It can be defined in three parts.
+We use a **generator** agent example throughout the monograph. It reads files,
+writes code, runs tests, and loops until validation passes. It comprises three
+parts.
+
 ### The machine
 
-The **machine** is the transition table, the agent's whole control flow as data:
+
+The **machine** is the transition table, the agent's control flow as data.
 
 ```yaml
 # machine.yaml
@@ -118,11 +186,29 @@ tool_config_dirs:
   - /opt/agent-core/tools/exec/go
 ```
 
-Now introduce a bug: delete the `ValidatingTest` transition for `ToolFailed`. It is tempting, because the happy path (`ToolDone` to `Succeeded`) still looks complete. The agent never starts. The engine loads the machine and the tool declarations, checks that every signal each tool can emit has a corresponding transition in every state where that tool can be dispatched, and finds a gap: `test` declares it can emit `ToolFailed`, but the machine has no transition for it. The engine rejects the machine before the model is called even once. The bug is a load-time error, not a silent dead end found the first time a test fails in production.
+Introduce a bug: delete the `ValidatingTest` transition for `ToolFailed`.
+Though the happy path (`ToolDone` to `Succeeded`) appears complete, the agent
+never starts. The engine loads machine and tool declarations, checks that each
+tool's signals have corresponding transitions in dispatchable states. And
+finds a gap: `test` can emit `ToolFailed`, but the machine lacks a transition
+for it. The engine rejects the machine before the model is called. The bug is
+a load-time error, not a silent dead end found when a test fails in
+production.
+
 ## Design patterns for declarative agents
 
-The chapters that follow describe eleven design patterns for building declarative agents, organized in the style of the Gang of Four [@gamma-gof-1994]. Each pattern isolates one recurring problem in agent construction — expressing the loop, scoping tools per phase, swapping models, rolling back effects, delegating to sub-agents, classifying outcomes — and names a solution that transfers across teams, frameworks, and model generations. The patterns come from a working implementation; the reference harness whose coding agent appears throughout these chapters.
+
+The following chapters describe eleven design patterns for building
+declarative agents, organized like the Gang of Four [@gamma-gof-1994]. Each
+pattern isolates a recurring problem in agent construction — expressing the
+loop, scoping tools per phase, swapping models, rolling back effects,
+delegating to sub-agents, classifying outcomes — and names a transferable
+solution across teams, frameworks, and model generations. These patterns
+derive from a working implementation, demonstrated by the reference harness's
+coding agent throughout these chapters.
+
 ### Pattern catalog
+
 
 
 | **Table II.** Pattern catalog. |
@@ -145,13 +231,39 @@ The chapters that follow describe eleven design patterns for building declarativ
 
 The catalogue has four groups.
 
-**The core idea** (Chapters 2--4). **Machine Interpreter** (Chapter 2) makes the agent loop an explicit state machine interpreted by a fixed engine. **Agent-as-Data** (Chapter 3) extends that to the whole agent — machine, tools, and model binding as a single dataset. **Tool Contract** (Chapter 4) specifies the typed interface each tool exposes to the machine: parameters, emittable signals, and reversibility.
+**The core idea** (Chapters 2--4). **Machine Interpreter** (Chapter 2) makes
+the agent loop an explicit state machine interpreted by a fixed engine.
+**Agent-as-Data** (Chapter 3) extends that to the whole agent — machine,
+tools, and model binding as a single dataset. **Tool Contract** (Chapter 4)
+specifies the typed interface each tool exposes to the machine: parameters,
+emittable signals, and reversibility.
 
-**Operational patterns** (Chapters 5--8). **Phase-Scoped Toolset** declares which tools the model may call in each phase, making agent-computer interfaces explicit while allowing the harness to verify tool reachability before the agent runs [@yang-swe-agent-2024]. **Inference Boundary** isolates model inference behind a single tool. **Bidirectional Log** adds bidirectional traversal for undo and recovery. **Transition Spans** map execution onto OpenTelemetry spans.
+**Operational patterns** (Chapters 5--8). **Phase-Scoped Toolset** declares
+which tools the model may call in each phase, making agent-computer interfaces
+explicit while allowing the harness to verify tool reachability before the
+agent runs [@yang-swe-agent-2024]. **Inference Boundary** isolates model
+inference behind a single tool. **Bidirectional Log** adds bidirectional
+traversal for undo and recovery. **Transition Spans** map execution onto
+OpenTelemetry spans.
 
-**Composition and oversight** (Chapters 9--10). **Boundary Tool** composes agents hierarchically through non-terminal tools. **Approval Gate** makes human oversight a first-class machine transition.
+**Composition and oversight** (Chapters 9--10). **Boundary Tool** composes
+agents hierarchically through non-terminal tools. **Approval Gate** makes
+human oversight a first-class machine transition.
 
-**Diagnostics** (Chapters 11--12). **Convergence Taxonomy** turns execution traces into an actionable diagnosis, classifying how each run converged rather than reporting a bare pass or fail, so every outcome points to a distinct root cause and remedy. **Operator Port** attaches live observers to a running machine, making agent state queryable and signals injectable without modifying the machine or tools.
+**Diagnostics** (Chapters 11--12). **Convergence Taxonomy** turns execution
+traces into an actionable diagnosis, classifying how each run converged rather
+than reporting a bare pass or fail, so every outcome points to a distinct root
+cause and remedy. **Operator Port** attaches live observers to a running
+machine, making agent state queryable and signals injectable without modifying
+the machine or tools.
+
 ### How to read each chapter
 
-Every pattern chapter follows the Gang of Four structure: **Intent** states the purpose in one sentence, **Motivation** presents the problem scenario, **Applicability** lists when to use and when not to use the pattern, **Structure** names the participants and shows their relationships, **Collaborations** describes the runtime interactions, **Consequences** lists benefits and liabilities, **Implementation** provides specific guidance and code examples, and **Known Uses** grounds the pattern in working deployments. 
+
+Every pattern chapter follows the Gang of Four structure: **Intent** states
+the purpose in one sentence, **Motivation** presents the problem scenario,
+**Applicability** lists when to use and when not to use the pattern,
+**Structure** names the participants and shows their relationships,
+**Collaborations** describes the runtime interactions, **Consequences** lists
+benefits and liabilities, **Implementation** provides specific guidance and
+code examples, and **Known Uses** grounds the pattern in working deployments.

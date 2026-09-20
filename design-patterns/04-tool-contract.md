@@ -3,30 +3,63 @@
 
 # Tool Contract
 
-This chapter presents the Tool Contract pattern, which specifies each tool as a typed contract: one atomic operation with declared inputs, emittable signals, side effects, and an Undo operation. The chapter covers how contracts enable static validation and reversibility, and how boundary tools — those that cross into non-deterministic actors — declare their variance explicitly.
+A Tool Contract defines each tool as a typed contract, encapsulating an atomic
+operation with inputs, signals, side effects, and Undo. These contracts enable
+static validation and ensure reversibility, while boundary tools declare their
+variance when interacting with non-deterministic actors.
 
 ## Intent
 
-Specify each tool as a typed contract — inputs, emittable signals, side effects, and an Undo — so the machine can validate it, the engine can dispatch it, and rollback can reverse it from the declaration and the tool's receipt.
+Specify each tool as a typed contract: inputs, emittable signals, side
+effects, and an Undo. This allows the machine to validate, the engine to
+dispatch, and rollback to reverse it from the declaration and the tool's
+receipt.
 
 
 ## Motivation
 
-An agent's capability is bounded by its tool set. A model can reason about any task it can express in language, but it can act only through the tools the harness provides. If the tools are ambiguous in scope, silent about side effects, or undeclared in their failure modes, the model's planning is built on sand. No prompt engineering compensates for a tool that sometimes writes files without saying so.
+An agent's capability is bounded by its tool set. A model can reason about any
+task it can express in language but acts only through tools the harness
+provides. If tools are ambiguous in scope, silent on side effects, or
+undeclared in failure modes, the model's planning is unreliable. No prompt
+engineering compensates for a tool that sometimes writes files without saying
+so.
 
-Current frameworks define tools as function signatures with docstrings. Signatures tell the model what arguments to pass; docstrings describe, in prose, what the tool does. Neither states how the tool changes the world, whether that change can be undone, which tools precede or follow it, or how it fails mid-execution. The model infers all of this from experience, and infers differently across contexts, sessions, and model versions.
+Frameworks define tools as function signatures with docstrings. Signatures
+specify model arguments, and docstrings describe the tool's function. Neither
+details external state changes, reversibility, tool sequence, or failure
+modes. The model infers these aspects from experience, causing variability
+across contexts, sessions, and versions.
 
-One principle governs the fix: **each tool does exactly one agent-visible thing.** "Cut" is one operation; "cut the bread into slices and arrange them on the plate" is several independently meaningful effects. Atomicity is judged at the selectable contract and rollback boundaries, not by counting implementation helpers, subprocesses, validation branches, parsing loops, or formatting stages needed to construct one result. If a mode flag selects distinct domain operations or a tool hides separately selectable effects, it is several tools in one interface. Multi-step workflow behaviour emerges later, through composition by the machine (Chapter 2); the tool author's job is to define atomic contracts.
+One principle governs the fix: **each tool does exactly one agent-visible
+thing.** "Cut" is one operation; "cut the bread into slices and arrange them
+on the plate" comprises several independently meaningful effects. Atomicity is
+judged at selectable contract and rollback boundaries, not by counting
+implementation helpers, subprocesses, validation branches, parsing loops, or
+formatting stages needed to construct one result. A mode flag selecting
+distinct domain operations or a tool hiding separately selectable effects
+constitutes several tools in one interface. Multi-step workflow behavior
+emerges later through composition by the machine (Chapter 2); the tool author
+defines atomic contracts.
 
 
 ## Applicability
 
-Tool Contract fits any agent where tools are implemented by developers, selected by a model, and potentially reversed by a rollback engine — three audiences served by one definition. The discipline pays off when tools compose into multi-step sequences, when the tool set spans teams or model generations, or when typed contracts let developers, models, and engines agree on what a tool produces without re-derivation. For a one-off script with a single hard-coded tool and no selection, composition, or reversal, the contract surface is unnecessary.
+Tool Contract suits any agent where developers implement tools, a model
+selects them, and a rollback engine potentially reverses them—three audiences
+covered by one definition. The discipline pays off when tools compose into
+multi-step sequences, the tool set spans teams or model generations, or typed
+contracts let developers, models, and engines agree on a tool's output without
+re-derivation. For a one-off script with a single hard-coded tool and no
+selection, composition, or reversal, the contract surface is unnecessary.
 
 
 ## Structure
 
-Four tool categories emerge from two axes, atomic vs. composed and internal vs. boundary. The class diagram in Fig. 9 shows them as a taxonomy under a common `Tool`. The composed category is always an anti-pattern: its presence signals incomplete decomposition.
+Four tool categories emerge from the intersection of atomic vs. composed and
+internal vs. boundary axes. Fig. 9's class diagram shows these as a taxonomy
+under a common `Tool`. The composed category is an anti-pattern, signaling
+incomplete decomposition.
 
 ![](figures/fig-10-tool-taxonomy.png)
 
@@ -37,11 +70,23 @@ Four tool categories emerge from two axes, atomic vs. composed and internal vs. 
 
 #### Well-formed tool
 
-A well-formed tool does one thing, is deterministic (no inference inside an atomic operation), has structured input and output, declares its side effects, knows its own reversibility, and fails loudly with an error signal carrying enough information to route recovery. A bad tool does multiple things on a flag, needs an LLM to interpret its output, hides side effects, or is named for its implementation (`run-python-script`) rather than its function (`parse-csv`).
+A well-formed tool does one thing, keeps inference out of the atomic
+operation, takes structured input and returns structured output, declares its
+side effects, knows its own reversibility, and signals failure with an error
+carrying enough information for recovery. A bad tool performs multiple actions
+based on a flag, requires an LLM to interpret its output, hides side effects,
+or is named after its implementation (`run-python-script`) rather than its
+function (`parse-csv`).
 
 #### Tool contract
 
-The tool contract is the structured requirements document behind each tool, not a docstring but a specification with six mandatory parts. Its three consumers each read a different subset: the agent reads Problem, Goals, and Non-goals to *select*; the developer reads Requirements and Acceptance Criteria to *implement*; the rollback engine reads Reversibility and side effects to *reverse*. The class diagram in Fig. 10 shows the contract's composition and these reading dependencies.
+The tool contract, distinct from a docstring, is a structured requirements
+document with six mandatory sections. Each of its three consumers focuses on
+specific subsets: the agent evaluates Problem, Goals, and Non-goals to
+*select*. The developer consults Requirements and Acceptance Criteria to
+*implement*; the rollback engine reviews Reversibility and side effects to
+*reverse*. Fig. 10 illustrates the contract's composition and these reading
+dependencies.
 
 ![](figures/fig-11-tool-contract.png)
 
@@ -53,7 +98,16 @@ The tool contract is the structured requirements document behind each tool, not 
 
 ### The tool cycle
 
-At runtime a tool is one iteration of the machine's dispatch cycle: the machine dispatches a tool, the tool executes an effect and emits a signal, and that signal drives the next transition. The activity diagram in Fig. 11 shows the loop. A tool must not hide a workflow loop, branch among separately selectable domain operations, or dispatch undeclared child tools. Internal bounded iteration and conditionals that validate input, implement a protocol, enforce policy, parse/format one result, or continue a single atomic recovery operation are implementation details, provided they do not introduce another contract or rollback boundary. A non-terminal boundary tool may also hide a sub-machine behind its declared atomic interface.
+At runtime, a tool represents one iteration of the machine's dispatch cycle:
+the machine dispatches a tool, that tool executes an effect and emits a
+signal, and this signal drives the next transition. The activity diagram in
+Fig. 11 shows the loop. A tool must not hide a workflow loop, branch among
+separately selectable domain operations, or dispatch undeclared child tools.
+Internal bounded iteration and conditionals that validate input, implement a
+protocol, enforce policy, parse/format one result, or continue a single atomic
+recovery operation are implementation details, provided they do not introduce
+another contract or rollback boundary. A non-terminal boundary tool may also
+hide a sub-machine behind its declared atomic interface.
 
 ![](figures/fig-12-tool-cycle.png)
 
@@ -62,18 +116,38 @@ At runtime a tool is one iteration of the machine's dispatch cycle: the machine 
 
 ### Evaluating a contract: the four-question test
 
-A completed contract passes four questions, each targeting a different consumer. Any "no" is a gap that surfaces later, as a runtime failure, a misuse, a composition ambiguity, or a rollback failure.
+A contract is complete when it answers four consumer-specific questions. If
+any answer is "no," a gap exists, later causing runtime failure, misuse,
+composition ambiguity, or rollback failure.
 
 1. **Implementable?** Could a developer build it without asking questions?
 2. **Selectable?** Could the agent decide when to use it from Problem, Goals, and Non-goals alone?
 3. **Composable?** Is its output schema precise enough to feed the next tool without ambiguity?
 4. **Failure-defined?** If it fails mid-execution, does the contract say what state the world is in?
 
-The activity diagram in Fig. 12 shows the gate: pass all four or the contract is incomplete, and any failure routes back to revision. Partial passes are meaningless. An implementable-but-not-composable tool fails in production just as surely, only later and more expensively.
+The activity diagram in Fig. 12 illustrates the gate: all four components must
+pass, or the contract remains incomplete, with any failure route directing
+back to revision. Partial passes hold no significance. An
+implementable-but-not-composable tool will inevitably fail in production,
+though this occurs later and at greater cost.
 
-Composite tools violate the pattern's core rule: each tool should do exactly one thing. When a tool needs "and" to describe its operation, such as create a resource and configure it, the composition belongs in the machine's transition table rather than inside the tool. Hiding that sequence inside a tool prevents static validation, makes reuse harder, and obscures rollback boundaries. During a tool-set audit, a composite tool is evidence of incomplete decomposition and should be split unless it is explicitly a non-terminal boundary tool.
+Composite tools violate the pattern's core rule: each tool should do one
+thing. When a tool uses "and" to describe its operation, like creating and
+configuring a resource, the composition belongs in the machine's transition
+table, not inside the tool. Hiding this sequence inside a tool prevents static
+validation, hinders reuse, and obscures rollback boundaries. During a tool-set
+audit, a composite tool indicates incomplete decomposition and should be split
+unless it is explicitly a non-terminal boundary tool.
 
-An audit must distinguish this contract-level composition from implementation structure. The presence of `net/http`, `exec.Command`, a directory walk, a parser, or a loop is evidence to inspect, not itself a finding. Before recommending an external executable, the audit must prove behavioral equivalence (including security, observability, receipts, errors, portability, and performance), runtime provisioning, and an executable test path. Test-only orchestration is outside this pattern unless the harness itself is the product under review; replacing an independent observer with the system's own words can make conformance circular.
+The audit must differentiate between contract-level composition and
+implementation structure. `net/http`, `exec.Command`, directory walks,
+parsers, or loops indicate inspection need but do not alone constitute
+findings. Before suggesting external executables, the audit must demonstrate
+behavioral equivalence in security, observability, receipts, errors,
+portability, performance, runtime provisioning, and executable test paths.
+Test-only orchestration is excluded unless the harness is the product under
+review; using the system's own mechanisms for conformance verification can
+introduce circularity.
 
 ![](figures/fig-13-contract-gate.png)
 
@@ -87,81 +161,174 @@ An audit must distinguish this contract-level composition from implementation st
 
 #### A uniform, testable inventory
 
-Every tool is one verb with one signal set, independently testable and independently reversible. Composition lives in the machine, never inside a tool.
+Each tool is defined by a single verb and its corresponding signal set, both
+independently testable and reversible. Composition resides within the machine,
+not within any tool.
 
 #### Reliable planning
 
-Precise output schemas and declared predecessors/successors let the agent plan multi-step sequences without trial and error.
+Precise output schemas and declared predecessors/successors let the agent plan
+multi-step sequences, avoiding trial and error.
 
 #### Safe reversal
 
-Declared reversibility tiers tell the rollback walk exactly what each tool's receipt can undo, what it can compensate, or what to only log.
+Reversibility tiers guide the rollback walk, detailing undo capabilities for
+each tool's receipt and marking actions for compensation or logging.
 
 ### Liabilities
 
 #### A larger tool set
 
-Decomposition produces more, smaller tools; the burden shifts from understanding hidden internals to selecting among a richer set, mitigated by declared relationships and non-goals.
+Decomposition creates more, smaller tools, moving the challenge from
+understanding hidden internals to selecting from a richer set, aided by
+declared relationships and clarity from identified non-goals.
 
 #### Specification overhead
 
-Each tool needs a full contract, not a docstring. The payoff is that the contract serves three audiences at once; the cost is real up front.
+Each tool requires a full contract rather than just a docstring. The payoff is
+the contract serving three distinct audiences at once, but the cost is real
+and upfront.
 
 
 ## Implementation
 
 ### Validation boundaries
 
-The complete contract is an audit standard, not an unconditional runtime-startup gate. The public specification audit checks every selected declaration for problem, goals, requirements, non-goals, schemas, reversibility, undo, and relationships, and treats an incomplete migrated contract as an error. It is the one statement of that check: a signature discharges the blocks the load-time defaults fill, the audit reads the same discharge table the loader applies, and there is no second authoring-time checker to hold in agreement with it.
+The complete contract is an audit standard rather than a runtime-startup gate.
+The public specification audit checks every selected declaration for problems,
+goals, requirements, non-goals, schemas, reversibility, undo, and
+relationships, treating incomplete migrated contracts as errors. It is the
+sole statement of this check: a signature discharges blocks filled by
+load-time defaults, the audit reads the same discharge table the loader
+applies, and no second authoring-time checker exists to agree with it.
 
-Ordinary agent startup enforces the subset needed for safe execution: parse-retry budgets must have retry and exhaustion routes, every declared emitted signal must be routable by the loaded machine, and state-mutating reversible or compensatable tools must declare receipt-consuming undo. Startup does not reject a declaration solely because descriptive contract sections are incomplete. CI and profile audits must run the broader checks before release.
+Agent startup enforces the subset needed for safe execution: parse-retry
+budgets require retry and exhaustion routes, declared emitted signals must be
+routable by the loaded machine, and state-mutating reversible or compensatable
+tools must declare receipt-consuming undo. Startup does not reject
+declarations due to incomplete descriptive contract sections. CI and profile
+audits must run broader checks before release.
 
 ### Contract sections
 
-Every contract has six mandatory sections. **Problem.** Why the tool exists; the gap it fills; one paragraph. **Goals.** Numbered, measurable success conditions forming the acceptance boundary. **Requirements.** Grouped "must" statements covering input formats, output structure, side effects, undo, and error signals. **Non-goals.** Scope bounds that tell the agent when *not* to use it ("does not transform data"). **Acceptance criteria.** Specific input/output/side-effect scenarios that double as tests and as examples the agent reads. **Reversibility.** One of three tiers (below), with the undo or compensation mechanism. Satisfying only one consumer is insufficient: perfect schema but no problem statement leaves the agent unable to select; detailed goals but no undo spec leaves the rollback engine blind.
+Every contract has six mandatory sections: **Problem.** Why the tool exists;
+the gap it fills (one paragraph). **Goals.** Numbered, measurable success
+conditions forming the acceptance boundary. **Requirements.** Grouped "must"
+statements covering input formats, output structure, side effects, undo, and
+error signals. **Non-goals.** Scope bounds that tell the agent when *not* to
+use it("does not transform data"). **Acceptance criteria.** Specific
+input/output/side-effect scenarios doubling as tests and agent examples.
+**Reversibility.** One of three tiers, with the undo or compensation
+mechanism. Satisfying only one consumer is insufficient: perfect schema but no
+problem statement leaves the agent unable to select; detailed goals but no
+undo spec leaves the rollback engine blind.
 
 ### Reversibility tiers
 
-Every tool falls into one of three tiers, which govern what the agent must do before dispatch and what the rollback engine can do after. The class diagram in Fig. 13 shows them as subclasses of `Tool`.
+Tools fall into three tiers, each defining dispatch prerequisites and rollback
+capabilities. Fig. 13 shows these tiers as `Tool` subclasses, clarifying their
+roles and interactions.
 
 ![](figures/fig-14-reversibility-tiers.png)
 
 | **Figure 13.** Class diagram. Three reversibility tiers as subtypes of `Tool`, each with its own undo behaviour. |
 |:---:|
 
-**Reversible** tools undo their own effects from their receipt (a file write whose receipt carries the prior content to restore); rollback cleans up automatically, so they can be executed speculatively. **Compensatable** tools cannot literally undo but can issue a corrective action restoring equivalent state (delete a created resource); the contract must specify the compensation and any semantic differences. **Irreversible** tools cannot be undone (sending email, publishing a deployment); the agent must confirm before dispatch, the machine should route through a confirmation state, and rollback skips and logs them. Omitting the reversibility section is *not* the same as declaring irreversibility. Omission leaves the engine not knowing what to do; explicit irreversibility tells it to skip and log.
+**Reversible** tools undo their effects automatically upon receipt, like a
+file write that restores prior content. This enables speculative execution.
+**Compensatable** tools lack direct undo capability but can issue corrective
+actions to restore an equivalent state, such as deleting a created resource.
+The contract must explicitly define compensation and semantic differences.
+**Irreversible** tools, like sending an email or publishing a deployment,
+cannot be undone. The agent must confirm before dispatch, the machine routes
+through a confirmation state, and rollback skips and logs these actions.
+Omitting the reversibility section does *not* imply irreversibility. Omission
+leaves the engine without guidance, while explicit irreversibility instructs
+it to skip and log the action.
 
-Reversibility is a planning constraint: plans of only reversible tools can be executed speculatively and rolled back, while plans including irreversible steps require commitment. Machines that separate reversible exploration from irreversible commitment give the agent maximum flexibility.
+Reversibility constrains planning: speculative execution and rollback work
+only with reversible tools, while irreversible steps require commitment.
+Machines separating reversible exploration from irreversible commitment
+maximize agent flexibility.
 
 ### Tool relationships
 
-No tool exists alone; each contract declares three relationship types. **Predecessors.** Which tools typically precede it. **Successors.** Which typically follow. **Overlaps.** Which tools do similar things and how they differ (`write` vs. `patch`), preventing misuse where a more specific tool exists. The object diagram in Fig. 14 shows a relationship graph over specific tool instances.
+No tool operates in isolation. Each contract explicitly declares three
+relationship types: **Predecessors**, tools that typically come before it in a
+workflow. **Successors**, tools that usually follow it; and **Overlaps**,
+tools performing similar functions but differing in specifics (`write` vs.
+`patch`), which helps avoid using a less specialized tool. Fig. 14 illustrates
+these connections in an object diagram.
 
 ![](figures/fig-15-tool-relationships.png)
 
 | **Figure 14.** Object diagram. Declared predecessor/successor links form well-tested composition paths; an `«overlaps»` link relates tools with similar capabilities. |
 |:---:|
 
-Relationships are advisory for the agent but informative for static analysis: a machine validator can warn when a tool is dispatched with no declared predecessor reachable, or when a declared successor is unreachable (a dead path). Tool set audits use predecessor/successor chains to test *coherence*, checking that every gap the agent might hit is either filled by a tool or explicitly excluded by a non-goal. Treating the tool set as a designed system (typed tools, an explicit machine, declared composition rules, and coherence audits) turns tool design from an ad hoc activity into a systematic one.
+Relationships advise the agent but inform static analysis: a validator warns
+when a tool lacks a reachable declared predecessor or has an unreachable
+successor (a dead path). Audits use predecessor/successor chains to test
+*coherence*, ensuring every potential gap is filled by a tool or explicitly
+excluded as a non-goal. Treating the tool set as a designed system (typed
+tools, explicit machine, declared composition rules, coherence audits)
+systematizes tool design.
 
 ### Tools are configured, not coded
 
-A tool implementation is a generic interpreter; its declaration (YAML) is the program it interprets. The same shell executor runs `build`, `test`, or `lint` depending on its configured command. This separation holds at every layer of the architecture: the engine interprets `machine.yaml`, the machine interprets its transition table, each tool interprets its declaration, and boundary tools interpret actor configuration (LLM config, UI config, child profile). Compiled code provides capability (serve HTTP, invoke an LLM, run a shell command); configuration provides specificity (what to serve, which model, what command). One binary serves N agents. The test: can the same code serve a different agent by changing only YAML? If not, the tool has absorbed policy that belongs in its declaration.
+A tool implementation is a generic interpreter, with its YAML declaration as
+the program it interprets. For example, a shell executor can run `build`,
+`test`, or `lint` based on its configured command. This separation principle
+is consistent across the architecture: the engine interprets `machine.yaml`,
+the machine interprets its transition table, each tool interprets its
+declaration, and boundary tools interpret actor configuration (LLM config, UI
+config, child profile). Compiled code provides capability (serve HTTP, invoke
+an LLM, run a shell command), while configuration provides specificity (what
+to serve, which model, what command). A single binary can serve N agents. The
+test is simple: can the same code serve a different agent by modifying only
+the YAML? If not, the tool has absorbed policy that belongs in its
+declaration.
 
 
 ## Relationships in the Pattern Language
 
-Tool Contract sits within Machine Interpreter and requires Machine Interpreter: contracts are useful because a machine can validate and dispatch them. It enables Agent-as-Data, Phase-Scoped Toolset, Inference Boundary, Bidirectional Log, Boundary Tool, and Approval Gate by making tool inputs, emittable signals, visibility, boundary kind, and reversibility explicit enough for those later patterns to read. The complete grammar is maintained in `pattern-language.yaml`.
+The Tool Contract, residing in the Machine Interpreter, requires its presence
+to enable the machine to validate and dispatch contracts effectively. This
+mechanism supports Agent-as-Data, Phase-Scoped Toolset, Inference Boundary,
+Bidirectional Log, Boundary Tool, and Approval Gate by explicitly defining
+tool inputs, emittable signals, visibility, boundary kind, and reversibility.
+The complete grammar is in `pattern-language.yaml`.
 
 
 ## Known Uses
 
-In the working implementation, runtime startup checks machine/tool signal wiring, parse-retry routes, and receipt compatibility before execution. Full contract completeness is enforced by authoring and specification-audit checks rather than by ordinary startup. Reversibility tiers declared in each contract drive receipt-driven undo (Chapter 7): a reversible tool's Undo decodes its receipt, a compensatable tool issues a corrective call derived from it, irreversible tools are skipped and logged, all from the declaration, with the `checkpoint_rollback` lifecycle tool doing the walk and no special-casing in the engine.
+The working implementation verifies machine/tool signal wiring, parse-retry
+routes, and receipt compatibility at runtime startup before execution.
+Contract completeness is enforced via authoring and specification-audit checks
+rather than ordinary startup. Reversibility tiers declared in contracts drive
+receipt-driven undo (Chapter 7): reversible tools decode receipts for Undo,
+compensatable tools issue corrective calls, irreversible tools are skipped and
+logged, all per declaration, with `checkpoint_rollback` handling the process
+and no engine special-casing.
 
-**Design by Contract** [@meyer-dbc-1997]. Preconditions, postconditions, and invariants as first-class specifications are the direct ancestor of a typed tool contract, moving behaviour from prose into a checkable interface.
+**Design by Contract** [@meyer-dbc-1997] introduces preconditions,
+postconditions, and invariants as first-class specifications, shifting
+behaviour from informal descriptions to a checkable interface. This provides a
+verifiable framework for clarity and enforceability.
 
-**Command pattern** [@gamma-gof-1994]. An operation encapsulated as an object with `execute` and `undo` is the structural core of a reversible tool; the reversibility tier tells the rollback which undo to run, and the receipt the tool encoded during `execute` is what that undo consumes.
+**Command pattern** [@gamma-gof-1994]. An operation, encapsulated as an object
+with `execute` and `undo`, forms the structural core of a reversible tool. The
+reversibility tier directs rollback to the correct undo, which consumes the
+receipt encoded by the tool during `execute`.
 
-**OpenAPI** [@openapi-spec-2024] **and the Model Context Protocol** [@anthropic-mcp-2024]. Both give tools typed request/response contracts and declared behaviour: OpenAPI describes services precisely enough that tool declarations can be generated from a spec and then edited, and MCP standardizes exposing tools to models with typed inputs.
+**OpenAPI** [@openapi-spec-2024] and **the Model Context Protocol**
+[@anthropic-mcp-2024] provide tools with typed request/response contracts and
+declared behavior. OpenAPI enables generating and editing tool declarations
+from a spec, while MCP standardizes how tools are exposed to models, ensuring
+typed inputs.
 
-**SWE-agent** [@yang-swe-agent-2024] **and ReAct** [@yao-react-2023]. Empirical agent work confirms the payoff: SWE-agent shows that tool and environment interfaces are decisive for software-engineering agents, and ReAct establishes the reasoning-and-acting loop in which a model chooses actions from observations, precisely the actions a Tool Contract makes explicit and machine-checkable.
+**SWE-agent** [@yang-swe-agent-2024] **and ReAct** [@yao-react-2023].
+Empirical agent work confirms the payoff: SWE-agent shows that tool and
+environment interfaces are decisive for software-engineering agents. ReAct
+establishes the reasoning-and-acting loop in which a model chooses actions
+from observations — the same actions a Tool Contract makes explicit and
+machine-checkable.

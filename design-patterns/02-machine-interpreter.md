@@ -3,16 +3,26 @@
 
 # Machine Interpreter
 
-Every developer who has written an agent has also written a state machine — they just didn't write it that way. The Machine Interpreter pattern makes this explicit: states, tools, and transitions move into a data file; a fixed engine does the rest.
+Developers who've written agents have also written state machines, just not
+explicitly. The Machine Interpreter pattern formalizes this: states, tools,
+and transitions move into a data file; a fixed engine handles the rest.
+
 ## Intent
 
-Separate control flow from execution: express the agent loop as a transition table so that behaviour is data, not code.
+Separate control flow from execution by expressing the agent loop as a
+transition table, so that behaviour is data, not code.
 
 ## Motivation
 
-Every agent runs the same loop: dispatch a tool, handle the result, repeat. The LLM is one tool among many, invoked when the loop calls for it. Some tools run because the LLM requested them; others are hardcoded into the loop regardless of what the model said. 
+Agents follow the same loop: dispatch a tool, process the outcome, and repeat.
+The LLM is a tool activated when needed. Some tools execute based on the LLM's
+request; others are hardcoded, independent of its input.
 
-A coding agent that can read, write, and edit files, written as a typical imperative loop:
+A coding agent that reads, writes, and edits files using a standard imperative
+loop provides a clear, efficient file-processing approach. Executing
+operations sequentially ensures systematic file handling without unnecessary
+complexity or ambiguity. This framework avoids convoluted logic, maintaining
+clarity and efficiency.
 
 ```
 while not done and steps < budget:
@@ -37,13 +47,28 @@ while not done and steps < budget:
     steps += 1
 ```
 
-The `if/elif` branches are implicit states — they handle *read*, *write*, *edit*, and *completion*. What triggers each branch and where control goes afterward is scattered through the conditions. A reader has to trace every path through the loop to recover the state machine.
+The `if/elif` branches handle *read*, *write*, *edit*, and *completion*
+operations, representing implicit states. Each branch's trigger and subsequent
+control flow are scattered across conditions, requiring readers to trace every
+loop path to reconstruct the state machine.
+
 ## Applicability
 
-The Machine Interpreter fits workflows that are sequences of discrete operations branching on outcomes — LLM agents, CI pipelines, evaluation harnesses, migration scripts. The pattern becomes more valuable as the number of these conditions that apply grows: operations that recur across multiple workflows, executions that need to survive process boundaries, workflows where different actors contribute (a machine author defines the flow; an LLM chooses tools at runtime), and cases where pre-run validation, reversibility, or audit trails matter. 
+
+The Machine Interpreter suits workflows with discrete, branching operations,
+like LLM agents, CI pipelines, evaluation harnesses, and migration scripts.
+Its utility grows with more relevant conditions: recurring operations across
+workflows, executions persisting across process boundaries, multi-actor
+workflows (e.g., a machine author defining the flow and an LLM selecting tools
+at runtime), and scenarios needing pre-run validation, reversibility, or audit
+trails.
+
 ## Structure
 
-The Machine Interpreter has three primary structural elements (Machine, Engine, and Tools) connected by a dispatch cycle. The class diagram in Fig. 3 shows their roles and relationships.
+
+The Machine Interpreter has three core components: Machine, Engine, and Tools,
+interconnected via a dispatch cycle. Fig. 3 shows their roles and
+relationships.
 
 ![](figures/fig-03-state-interpreter-class.png)
 
@@ -54,52 +79,93 @@ The Machine Interpreter has three primary structural elements (Machine, Engine, 
 
 #### Machine (Transition Table)
 
-A pure data structure mapping `(state, signal)` to `(next_state, tool)`, with no logic, conditionals, or loops. 
+A pure data structure maps ` (state, signal)` to ` (next_state, tool)`,
+lacking logic, conditionals, or loops.
 
-A **state** is a node in the execution graph, identified by name and used as a lookup key. States carry no behaviour — they are inert markers of position. The machine declares each state as either **non-terminal** (execution continues after the tool completes) or **terminal** (execution halts). The machine also specifies which state to enter on startup and which states signal successful or failed completion.
+A **state** is a node in the execution graph, identified by name and looked up
+by it. States carry no behaviour. The machine declares each state
+**non-terminal** (execution continues after the tool completes) or
+**terminal** (execution halts), specifies the startup state, and defines
+states signaling successful or failed completion.
 
-A **signal** is the typed outcome a tool returns, used to route the next state transition. Each tool declares the finite set of signals it can emit; the machine must handle every possible signal. An unhandled signal is a static load-time error, caught before execution begins. This closed-world assumption about outcomes is what allows static validation.
+A **signal** represents a tool's typed outcome, determining the next state
+transition. Each tool declares its possible signals, and the machine must
+handle all of them. Unhandled signals cause static load-time errors, detected
+before execution begins, enabling static validation through a closed-world
+assumption.
 
 #### Engine (Loop, Interpreter, Runtime)
 
-The engine is a fixed, generic state machine execution loop. It operates in steps: look up `(current_state, last_signal)` in the machine; if the next state is terminal, halt; otherwise resolve the tool name through the registry, call its `Execute` method, record the result, and loop with the returned signal. Behaviour comes entirely from the machine and the tools it references, never from engine logic. 
+The engine is a fixed, generic state machine execution loop. It operates by
+looking up the ` (current_state, last_signal)` pair, halting if the next state
+is terminal, or resolving the tool name via the registry, calling `Execute`,
+recording the result, and looping with the returned signal. Behaviour derives
+entirely from the state machine and referenced tools, with no embedded engine
+logic.
 
 #### Tool (Command, Action)
 
-A tool is an operation: it accepts parameters, performs work (possibly with side effects), and returns a result carrying a signal. Every tool declares its **signature**: the types of inputs it accepts, the set of signals it can emit, the type of its output, and what external state it may affect. Every tool implements two methods: `Execute` (perform the operation and return a signal) and `Undo` (reverse the operation given the recorded result). Read-only tools make `Undo` a no-op; stateful tools record enough information in the result to undo their mutations.
+A tool operates as an action: it takes parameters, executes tasks, and
+produces a result with a signal. Every tool declares its **signature**,
+detailing input types, emitted signals, output type, and modifiable external
+state. Each tool implements `Execute` (performing the operation and returning
+a signal) and `Undo` (reversing the operation using the recorded result).
+Read-only tools make `Undo` a no-op; stateful tools ensure the result contains
+enough information to undo changes.
 
-Tools are categorized by the predictability of their outcome, which shapes how the machine handles variance:
+Tools are classified by their result predictability, which directly affects
+how the machine handles variability.
 
 - A **deterministic tool** — `write_file`, `run_build`, `run_tests` — produces the same signal given identical inputs. The machine can rely on this and design transitions accordingly.
 - A **boundary tool** — `invoke_llm`, `rest_await_event`, `run_agent` — crosses a boundary to an external actor: a language model, a human, or another system. Its response is not predictable from inputs alone. Boundary tools are the primary source of variance in execution. To handle this variance, the machine requires that every signal a boundary tool can emit appear explicitly in the transition table, giving the machine control over every possible outcome.
 
-A tool may also be **non-terminal**: its `Execute` runs an entire sub-machine, and the parent machine receives a single signal when the sub-machine completes. This enables hierarchical composition (Chapter 9).
+A **non-terminal** tool executes an entire sub-machine via its `Execute`
+function, signaling the parent machine upon completion. This supports
+hierarchical composition (Chapter 9).
 
 #### Registry (Tool Set)
 
-The registry is the set of all available tool implementations. The machine references tools by symbolic name; the registry resolves names to implementations at load time. During validation, the engine checks that every tool name referenced in the machine has a corresponding implementation in the registry, and that every signal each tool declares to emit is handled by the machine. This mutual validation catches wiring errors before execution.
+The registry contains all available tool implementations. The machine
+references tools by symbolic name, and the registry resolves these names to
+implementations at load time. During validation, the engine ensures each tool
+name in the machine has a corresponding implementation in the registry and
+that the machine handles every signal each tool declares to emit. This mutual
+validation catches wiring errors before execution.
 
 
 ## Collaborations
 
 ### The engine cycle
 
-The sequence diagram in Fig. 4 traces one dispatch cycle. The engine asks the machine to look up the current `(state, signal)`. If the next state is terminal, the engine stops and returns the execution — the recorded path of `(state, signal, tool, result)` tuples. Otherwise it resolves the tool name through the registry, calls `Execute`, records the result, and loops with the returned signal.
+Fig. 4 shows a single dispatch cycle. The engine retrieves the current `
+(state, signal)` pair from the machine. If the next state is terminal, the
+engine halts and returns the execution path of ` (state, signal, tool,
+result)` tuples. Otherwise, it resolves the tool name via the registry,
+invokes `Execute`, records the result, and continues with the returned signal.
 
 ![](figures/fig-04-engine-cycle.png)
 
 | **Figure 4.** Sequence diagram. One dispatch cycle: the Engine consults the Machine, resolves the tool through the Registry, calls Execute, and routes the returned signal back to the lookup. {wide 0.6} |
 |:---:|
 
-The tool never knows the machine's state; the machine never knows the tool's internals. The engine is the only participant that touches both, and it does so generically.
+The tool operates independently of the machine's state, the machine unaware of
+the tool's internal mechanisms. The engine, as the sole intermediary,
+interacts with both generically.
 
 ### Rollback
 
-Rollback walks the execution backward, calling `Undo` on each tool with its recorded result. The tool decides what undoing means, whether deleting a created file, reverting a mutation, or issuing a compensating call; read-only tools make `Undo` a no-op. The engine only enforces reverse ordering.
+Rollback walks the execution backward, calling `Undo` on each tool with its
+recorded result. The tool decides what undoing means, whether deleting a
+created file, reverting a mutation, or issuing a compensating call; read-only
+tools make `Undo` a no-op. The engine only enforces reverse ordering.
 
 ### Resume
 
-Because the engine's position reduces to two values (current state and last signal), execution can be serialized after any tool completes. Resumption restores the position and re-enters the loop at step 2. It requires the full engine stack (machine, registry, LLM adapter), since the next dispatch may invoke any tool.
+The engine's position is defined by two values: the current state and the last
+signal. This allows execution to be serialized after any tool completes.
+Resumption restores the position and re-enters the loop at step 2. The full
+engine stack (machine, registry, LLM adapter) is required, as the next
+dispatch may invoke any tool.
 
 
 ## Consequences
@@ -108,65 +174,105 @@ Because the engine's position reduces to two values (current state and last sign
 
 #### Static validation
 
-The machine is checkable before execution: every referenced state--signal pair exists, every tool name resolves, and every signal a tool emits is handled in every state where it can be dispatched, eliminating a class of runtime errors.
+The machine ensures checkability before execution: every referenced
+state-signal pair exists, every tool name resolves, and every emitted signal
+is handled in every dispatchable state, eliminating a class of runtime errors.
 
 #### Auditable execution
 
-The execution is a structured record: each entry names the tool, transition, and signal. The path reconstructs without re-running anything, serving as a compliance artifact and a deterministic replay log.
+The execution is a detailed record, with each entry specifying the tool,
+transition, and signal. This path reconstructs the sequence without
+re-execution, serving as both a compliance artifact and a deterministic replay
+log.
 
 #### Reversibility
 
-With `Undo` per tool and recorded order, the engine walks the execution backward; combined with environment checkpointing, this gives full rollback to any prior point.
+`Undo` per tool and recorded order let the engine walk execution backward;
+with environment checkpointing, this enables full rollback to any prior point.
 
 #### Serializability
 
-Machine, execution, and engine position are all data, so execution can be persisted and resumed in another process, machine, or time.
+Machine, execution, and engine position are data, enabling execution
+persistence and resumption across processes, machines, or time.
 
 #### Composability
 
-Machines share registries. A generation machine and an evaluation machine reuse `build`, `test`, `write`. New workflows are new machines, not new code, and they compose hierarchically through non-terminal tools.
+Machines share registries, enabling reuse of `build`, `test`, `write` across
+generation and evaluation machines. New workflows are instantiated as new
+machines, not new code, and compose hierarchically via non-terminal tools.
 
 #### Dual authorship
 
-A machine can be human-authored for determinism or LLM-driven for adaptivity. The `$tool` slot lets the model choose tools at runtime while the machine still constrains the signals handled afterward. The model speaks the language; the machine enforces its syntax.
+A machine can be designed with human-authored determinism or LLM-driven
+adaptivity. The `$tool` slot lets the model choose tools at runtime, with the
+machine controlling subsequent signals. The model works within the language
+framework, and the machine enforces its syntax.
 
 ### Liabilities
 
 #### Indirection
 
-Understanding a workflow means reading machine and tools separately; the path is in no single file. The machine-as-data model is disorienting until internalized.
+Understanding a workflow requires examining the machine and tools separately,
+as the path is not contained in any single file. The machine-as-data model may
+initially confuse, but repeated exposure clarifies it.
 
 #### Signal explosion
 
-Finer-grained tools mean more signals, and the machine must handle every state--signal combination, which is verbose for large machines. Mitigate by grouping signals, encapsulating sub-workflows in non-terminal tools, and generating machine skeletons from tool declarations.
+Finer-grained tools increase signals, requiring the machine to handle every
+state-signal combination, which becomes verbose for large machines. Mitigate
+by grouping signals, encapsulating sub-workflows in non-terminal tools, and
+generating machine skeletons from tool declarations.
 
 #### Implicit data flow
 
-The machine declares control flow but not data flow. Data passes through the result channel and the builder, untyped by the machine; type-checking it requires an analysis layer beyond the machine.
+The machine declares control flow, not data flow. Data traverses the result
+channel and the builder, untyped by the machine; type-checking requires an
+external analysis layer.
 
 
 ## Relationship to Known Patterns
 
-The Machine Interpreter is a compound pattern that repurposes each referenced pattern's core mechanism while changing its dispatch model.
+The Machine Interpreter repurposes each referenced pattern's core mechanism,
+changing its dispatch model.
 
 #### GoF [@gamma-gof-1994]
 
-Each tool is a **Command** (`Execute`/`Undo`), but selected by a data-driven table rather than imperative code. The machine is the **State** pattern inverted, with states as inert labels and behaviour living in dispatched tools rather than a class hierarchy. The engine is an **Interpreter** over a flat transition table that executes side-effectful commands instead of evaluating expressions. Tools are interchangeable **Strategies** selected by the machine. The execution is a **Memento** capturing enough to reverse or replay without exposing tool internals.
+**Command** (`Execute`/`Undo`) tools are selected via a data-driven table
+rather than imperative code. The **State** pattern is inverted: states are
+inert labels, behavior resides in dispatched tools rather than a class
+hierarchy. The engine acts as an **Interpreter**, processing a flat transition
+table to execute side-effectful commands rather than evaluate expressions.
+Tools serve as interchangeable **Strategies** chosen by the machine. Execution
+is captured as a **Memento**, retaining data to reverse or replay actions
+without exposing tool internals.
 
 #### Post-GoF
 
-The split mirrors **Functional Core, Imperative Shell** [@bernhardt-fcis-2012]. The machine is the pure core, tools the effectful shell. Non-terminal tools give the hierarchical composition of **Harel Statecharts** [@harel-statecharts-1987] without nesting inside one machine. The transition table is an informal **Action Language** [@bultan-action-lang-2000], open to reachability and invariant analysis.
+The split mirrors **Functional Core, Imperative Shell**
+[@bernhardt-fcis-2012]. The machine is the pure core, tools the effectful
+shell. Non-terminal tools provide **Harel Statecharts**
+[@harel-statecharts-1987] hierarchical composition without nesting inside one
+machine. The transition table uses an informal **Action Language**
+[@bultan-action-lang-2000], enabling reachability and invariant analysis.
 
 #### Related
 
-The execution-plus-`Undo` generalizes the **Saga** pattern [@garcia-molina-sagas-1987], adding static validation. Versus a BPMN-style **Workflow Engine** [@van-der-aalst-workflow-1998], signals replace explicit edges, trading built-in parallelism for static validation and reversibility. Unlike the **Blackboard** pattern, the machine, not an opportunistic controller, decides what runs next.
+The execution-plus-`Undo` mechanism extends the **Saga** pattern
+[@garcia-molina-sagas-1987], incorporating static validation. Compared to a
+**Workflow Engine** [@van-der-aalst-workflow-1998], it uses signals instead of
+explicit edges, prioritizing static validation and reversibility over built-in
+parallelism. Unlike the **Blackboard** pattern, the machine determines the
+next step rather than an opportunistic controller.
 
 
 ## Implementation
 
 ### The machine is data, not code
 
-The machine must load, serialize, and validate without executing code. If it requires code to express, it has absorbed logic that belongs in tools. The canonical generator machine, the same one used throughout this book, as a YAML transition table:
+The machine must load, serialize, and validate without executing code. If it
+requires code, it has absorbed logic that belongs in tools. The canonical
+generator machine, used throughout this book, is represented as a YAML
+transition table:
 
 ```yaml
 name: generator
@@ -188,7 +294,14 @@ transitions:
   - {state: ValidatingTest,  signal: ToolFailed,    next: Composing,   action: invoke_llm}
 ```
 
-From `Composing`, the seed invokes the model; the response is parsed; a tool call is dispatched dynamically through `$tool` and fed back; a completion routes through explicit build, lint, and test states; passing every validation succeeds, while a failed validation or tool returns to `Composing` so the model can react, and an exhausted budget routes to `Failed`. Every legal run is an execution in the language this machine defines. Fig. 5 renders the same table as a state machine.
+From the `Composing` state, the seed invokes the model, parses its response,
+and dynamically dispatches a tool call via `$tool`, feeding it back into the
+system. The completion routes through build, lint, and test states. If
+validation checks pass, the process succeeds; otherwise, failed validation or
+tool execution returns the system to `Composing`, allowing the model to react.
+Budget exhaustion transitions the system to the `Failed` state. Every legal
+run constitutes an execution in the language defined by this state machine.
+Fig. 5 illustrates this process as a state machine diagram.
 
 ![](figures/fig-05-canonical-machine.png)
 
@@ -197,11 +310,17 @@ From `Composing`, the seed invokes the model; the response is parsed; a tool cal
 
 ### Tools are opaque; signals are closed
 
-The machine knows only a tool's name and emittable signals, never its implementation. So tools can be swapped (mock, logging wrapper, remote delegate), implemented in any language or process, and reused across machines unchanged. Each tool's signal set is a closed tool set the machine is validated against at load time. An unhandled signal is a machine error caught before any tool runs.
+The machine knows only a tool's name and emittable signals, never its
+implementation. Tools can thus be swapped (mock, logging wrapper, remote
+delegate), implemented in any language or process, and reused across machines
+unchanged. Each tool's signal set is a closed set validated at load time. An
+unhandled signal is a machine error caught before any tool runs.
 
 ### The engine is fixed
 
-The engine loop is identical for all workflows and holds no domain logic; if conditionals accumulate there, they belong in a tool or the machine. It exposes four operations:
+The engine loop, identical across all workflows and devoid of domain logic,
+must avoid conditionals, which should reside in a tool or the machine. This
+loop exposes four operations:
 
 | Operation | Function | Dependencies |
 |---|---|---|
@@ -210,21 +329,33 @@ The engine loop is identical for all workflows and holds no domain logic; if con
 | **Rollback** | Rewind persisted state with Dolt `Revert`, then reverse external effects through receipts | Checkpoint port, run ID, target step |
 | **History** | Format a loaded run's execution log | Checkpoint port, run ID |
 
-Resume re-enters the loop and needs the full machine and registry; Rollback rewinds persisted state and reverses external effects through receipts without loading a machine, which justifies separate entry points.
+Resume re-enters the loop, requiring the full machine and registry. Rollback
+rewinds persisted state, reverses external effects using receipts, and avoids
+loading a machine, justifying separate entry points.
 
 ### Data flow and tool construction
 
-The machine declares control flow but says nothing about data flow. A **builder** bridges one tool's output to the next tool's input: it constructs a tool instance from the previous tool's result, separating tool *selection* (the machine's job) from tool *construction* (data flow). This keeps tools decoupled — each tool takes typed parameters without knowing which tool produced them.
+The machine declares control flow but not data flow. A **builder** bridges
+tools by creating a tool instance from the previous result, connecting output
+to input. This design separates tool *selection* (machine's role) from
+*construction* (data flow), keeping tools decoupled. Each tool accepts typed
+parameters without knowing their origin.
 
 ### Dynamic dispatch and recursive composition
 
-The `$tool` slot resolves the tool name at runtime from the preceding result; the machine still defines which signals are handled afterward. The model picks any tool in the registry, but the machine must handle whatever signal it returns. Dispatch is identical to the static case once resolved.
+The `$tool` slot resolves the tool name at runtime from the preceding result,
+the machine defining which signals are handled afterward. The model selects
+any tool from the registry, the machine handling the returned signal. Once
+resolved, dispatch mirrors the static case.
 
-Each machine stays flat and independently validatable; hierarchy emerges from non-terminal tools composing sub-machines. Rollback composes the same way — undoing a non-terminal tool walks the recorded child execution backward. Boundary Tool (Chapter 9) covers the composition model in detail.
+Machines stay flat and independently validatable; hierarchy comes from
+non-terminal tools composing sub-machines. Rollback mirrors this—undoing a
+non-terminal tool reverses the recorded child execution. For more on this
+model, see the Boundary Tool section in Chapter 9.
 
 ### Boundary tools and side-effect declarations
 
-Three types of boundary tool recur, each configured through data rather than compiled:
+Three types of boundary tools recur, each configured via data rather than compilation.
 
 | Actor type | Example tool | Shaping mechanism |
 |---|---|---|
@@ -235,30 +366,68 @@ Three types of boundary tool recur, each configured through data rather than com
 
 ## Relationships in the Pattern Language
 
-Machine Interpreter is the root of the language. It contains Agent-as-Data, Tool Contract, Bidirectional Log, Transition Spans, Boundary Tool, Approval Gate, Convergence Taxonomy, and Operator Port as specialized consequences of making the loop explicit. It enables the full set of downstream patterns: Agent-as-Data, Tool Contract, Phase-Scoped Toolset, Inference Boundary, Bidirectional Log, Transition Spans, Boundary Tool, Approval Gate, Convergence Taxonomy, and Operator Port. The complete grammar is maintained in `pattern-language.yaml`.
+Machine Interpreter underpins the language, embedding Agent-as-Data, Tool
+Contract, Bidirectional Log, Transition Spans, Boundary Tool, Approval Gate,
+Convergence Taxonomy, and Operator Port as direct outcomes of explicit loop
+design. It supports all downstream patterns: Agent-as-Data, Tool Contract,
+Phase-Scoped Toolset, Inference Boundary, Bidirectional Log, Transition Spans,
+Boundary Tool, Approval Gate, Convergence Taxonomy, and Operator Port. The
+full grammar is in `pattern-language.yaml`.
 
 
 ## Known Uses
 
-**LangGraph** [@langgraph-2024]. Represents agent workflows as directed graphs of Python nodes with callable edge conditions. Its wide adoption shows developers prefer declaring transitions over nesting conditionals, though its conditions, being code, cannot be statically analyzed without execution.
+**LangGraph** [@langgraph-2024] represents agent workflows as directed graphs
+of Python nodes with callable edge conditions. Developers favor declaring
+transitions over nesting conditionals, as shown by its widespread adoption,
+though its conditions, being code, require execution for static analysis.
 
-**StateFlow** [@wu-stateflow-2024]. Models task solving as an explicit state machine with outcome-driven transitions, and reports measurable gains over unstructured loops on multi-step benchmarks. That is empirical evidence that making the machine explicit improves agent performance, not just clarity.
+**StateFlow** [@wu-stateflow-2024] models task solving as a state machine with
+transitions driven by outcomes. It outperforms unstructured loops on
+multi-step benchmarks, providing empirical evidence that explicit state
+machines improve agent performance rather than just clarity.
 
-**Donna** [@tiendil-donna-2025]. Markdown-defined workflows compiled into finite-state machines for coding agents; the runtime validates reachability before execution, showing machines can be compiled from higher-level notations while preserving static validation.
+**Donna** [@tiendil-donna-2025] shows that Markdown-defined workflows can
+compile into finite-state machines, enabling coding agents. The runtime
+validates reachability before execution, demonstrating that machines from
+higher-level notations keep static validation. This preserves validation
+checks when moving from abstract workflows to executable state machines.
 
-**Jido** [@jido-2025]. Builds agent systems around explicit state transformations, signal routing, directives, and an FSM execution strategy, while keeping AI/LLM integration optional; it demonstrates dual authorship within one framework.
+**Jido** [@jido-2025] builds agent systems on explicit state transformations,
+signal routing, directives, and FSM execution, with optional AI/LLM
+integration. This design enables Jido to demonstrate dual authorship in a
+single framework.
 
-**Lean4Agent** [@lean4agent-2026]. Formal verification of agent workflows in dependent type theory: structural well-formedness is machine validation, semantic soundness checks tool pre/post-conditions, and trajectory analysis verifies executions, the upper bound of the pattern's verifiability.
+**Lean4Agent** [@lean4agent-2026] formally verifies agent workflows within
+dependent type theory. Machine validation ensures structural well-formedness,
+semantic soundness checks pre/post-conditions, and trajectory analysis
+verifies executions, establishing the pattern's verifiability upper bound.
 
-**XState** [@xstate-2024]. A widely adopted statechart interpreter for application control flow, demonstrating the interpreter-over-data structure in production front-end and back-end systems.
+**XState** [@xstate-2024] is a widely adopted statechart interpreter for
+managing application control flow, exemplifying the interpreter-over-data
+structure in production systems.
 
-**SCXML** [@w3c-scxml-2015]. A W3C executable state-machine notation, a direct precedent for serializing reactive control flow as data interpreted by a conforming processor rather than hand-written code.
+**SCXML** [@w3c-scxml-2015], a W3C executable state-machine notation,
+serializes reactive control flow as data for interpretation by a conforming
+processor, avoiding hand-written code.
 
-**BPMN engines** [@omg-bpmn-2011]. Business processes modelled as data and executed by a fixed engine, the same separation of flow-as-data from a generic runtime carried into enterprise workflow tooling.
+**BPMN engines** [@omg-bpmn-2011] model business processes as data, executed
+by a fixed engine. This mirrors the separation of flow-as-data from a generic
+runtime, a principle adopted in enterprise workflow tooling.
 
-**AWS Step Functions** [@aws-step-functions-2024]. Serverless workflows declared in the Amazon States Language and executed by a fixed service, a production-scale example of JSON state machines as operational control flow.
+**AWS Step Functions** [@aws-step-functions-2024] are serverless workflows
+defined in Amazon States Language, executed by a dedicated service,
+exemplifying JSON state machines as operational control flow at production
+scale.
 
-**Redux** [@redux-2015]. UI state managed as a reducer over `(state, action) -> state`, the same table-driven transition discipline the pattern applies, here in front-end engineering.
+**Redux** [@redux-2015] manages UI state via a reducer function, ` (state,
+action) -> state`, applying its table-driven transition discipline to
+front-end engineering.
 
-**TLA+** [@lamport-tla-2002] **and translation validation** [@pnueli-translation-validation-1998]. Two formal bookends of pre-run analysis: TLA+ specifies behaviour as states and actions and model-checks over reachable behaviours, while translation validation checks a generated artifact against source-level intent, analogous to load-time verification that the machine faithfully covers every declared tool outcome.
+**TLA+** [@lamport-tla-2002] and **translation validation**
+[@pnueli-translation-validation-1998] are two formal pillars of pre-run
+analysis. TLA+ models behavior as states and actions, enabling model-checking
+of reachable behaviors, while translation validation ensures a generated
+artifact matches its source-level intent, similar to load-time verification
+confirming the machine accurately reflects declared tool outcomes.
 
