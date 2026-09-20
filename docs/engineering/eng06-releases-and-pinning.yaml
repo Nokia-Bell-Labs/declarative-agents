@@ -1,0 +1,71 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: eng06-releases-and-pinning
+title: "Releases and Pinning"
+
+introduction: |
+  This repository cuts two kinds of release: the repository release, a
+  v0.YYYYMMDD.N tag at the root that consumers pin their Go modules to, and
+  the ui-kit release, a ui-kit/vX.Y.Z tag carrying the npm tarball external
+  interfaces depend on. The gates and the mechanics live in magefiles (Tag,
+  TagDryRun, uikit:release); what they do not state is discipline: what a
+  release tag may point at, what must be green before one exists, how the
+  two families relate, and why a root tag is resolved rather than written
+  into a consumer's go.mod. Each of these was decided in practice, and one
+  — where a version tag may point — was decided the hard way, when a tag on
+  a fork's sync-merge commit collided with the repository release of the
+  same tree and forced a version skip. This guideline states the rules.
+
+sections:
+  - title: "The repository release"
+    content: |
+      A repository release is v0.YYYYMMDD.N, dated by the day it is cut and
+      numbered within the day. mage tag creates it: it takes the repository
+      release lock, runs every declared release gate — audit, lint, the test
+      registry, the platform lane, and the application integration lanes —
+      against one clean, pinned commit, and tags on success. mage tagDryRun
+      runs the exact same gates without tagging, and a dry run against the
+      candidate commit is the accepted gate evidence when the tag is then
+      created on that same commit. A failed gate stops the release; the fix
+      goes through the normal issue and PR flow, never inline.
+
+  - title: "What a tag may point at"
+    content: |
+      A version tag points at a commit reachable from this repository's
+      main, and nowhere else. A mirror or fork that carries the same tree
+      through its own merge commits does not receive this repository's
+      version tags on those commits: the same version name pointing at
+      different objects in different remotes breaks fetching, confuses the
+      module proxy story, and once forced a version skip. A fork that wants
+      to mark a sync uses its own naming, not the v0. family. The tag is
+      annotated, and its message carries the grouped changelog since the
+      previous release and the gate evidence.
+
+  - title: "Root tags and Go modules"
+    content: |
+      The release tags the repository root, and the Go modules live in
+      subdirectories, so Go tooling cannot resolve the tag for any module: a
+      consumer never writes v0.YYYYMMDD.N into go.mod. The tag is resolved
+      to its commit and the modules are pinned at that commit, with the
+      release name recorded in a go.mod comment (eng05). This indirection is
+      the accepted cost of tagging releases at the root, where the release
+      is the whole repository state the gates validated, not one module.
+
+  - title: "The ui-kit release"
+    content: |
+      The ui-kit family is separate: ui-kit/vX.Y.Z, semantic within the
+      presentation contract's major version, carrying the npm pack tarball
+      that external repositories depend on. mage uikit:release prepares it
+      from a clean tree and prints the tag and release commands; it
+      publishes nothing itself, and a kit release is cut only when asked
+      for. Interfaces inside this repository depend on the kit by file:
+      path and are unaffected by kit releases. The two families move
+      independently: a repository release does not imply a kit release, and
+      a consumer bumps each against its own named tag.
+
+references:
+  - "magefiles/tag.go (Tag and TagDryRun, the release gates, the repository release lock, date-based naming)"
+  - "magefiles/uikit.go (uikit:release tarball preparation)"
+  - "docs/engineering/eng05-consumer-repositories.yaml (the consumer side of the pin)"
+  - "docs/guides/ui-panels.md (kit package and release-tarball consumption)"
+  - "Go Modules Reference, https://go.dev/ref/mod (module paths and version resolution for subdirectory modules)"
