@@ -166,19 +166,6 @@ func TestChatbotBudgetReadsTheWorkspaceOverrides(t *testing.T) {
 	}
 }
 
-// The undeploy coordinates are bare tokens the undeploy words never read, and
-// they must carry no YAML metacharacter: the renderer substitutes into YAML
-// without quoting, so a colon or a bracket renders a file that will not parse
-// (GH-2349).
-func TestChatbotUndeployPlaceholdersAreYAMLSafe(t *testing.T) {
-	t.Parallel()
-	for _, value := range []string{"undeploy-names-no-chart", "undeploy-reads-no-values"} {
-		if strings.ContainsAny(value, ":#{}[]&*!|>'\"%@`,") {
-			t.Errorf("placeholder %q carries a YAML metacharacter", value)
-		}
-	}
-}
-
 func containsValue(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {

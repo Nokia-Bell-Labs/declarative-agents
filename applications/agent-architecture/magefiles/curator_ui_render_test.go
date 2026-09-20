@@ -65,3 +65,42 @@ func TestHelmCuratorUIOmittedWithoutShards(t *testing.T) {
 		}
 	}
 }
+
+// TestHelmCuratorResolvesItsStaticAssetRoots proves the curator container runs
+// with its working directory at the workspace the UI shards unpack into.
+//
+// The curator's static_assets roots are literal, profile-relative paths, and
+// serveStaticAssets opens them under http.Dir(root) — resolved against the
+// process working directory, never joined to the profile or the agent
+// directory. The agent-core image declares WorkingDir /, so without an
+// explicit workingDir the roots addressed /agents/... while the shards unpack
+// to /work/agents/..., and the documentation and monitor UIs answered 404
+// while the API answered 200 (GH-2348).
+//
+// The working directory has to match the init container's unpack target, so
+// this asserts the pair rather than the literal alone: a chart that moved the
+// unpack and not the working directory would reintroduce the same 404.
+func TestHelmCuratorResolvesItsStaticAssetRoots(t *testing.T) {
+	chart := preparedTestChart(t)
+	render := helmTemplate(t, chart, "--set", "curatorUI.shards[0]=smoke-curator-ui-000")
+	if !strings.Contains(render, "workingDir: /work") {
+		t.Error("curator container declares no workingDir; its static_assets roots resolve against the process working directory, which the image sets to /")
+	}
+	if !strings.Contains(render, "tar -xzf - -C /work") {
+		t.Error("the UI shards no longer unpack into /work; the working directory above has to follow them")
+	}
+	if !strings.Contains(render, "- {name: workspace, mountPath: /work}") {
+		t.Error("the curator no longer mounts the workspace at /work")
+	}
+}
+
+// A render without shards still sets the working directory. The UI is what
+// needs it, but a container whose working directory depends on whether an
+// optional value was supplied is a container that behaves differently in the
+// tier that does not exercise the UI, which is where this defect hid.
+func TestHelmCuratorWorkingDirectoryDoesNotDependOnTheShards(t *testing.T) {
+	chart := preparedTestChart(t)
+	if render := helmTemplate(t, chart); !strings.Contains(render, "workingDir: /work") {
+		t.Error("curator working directory is conditional on curatorUI.shards")
+	}
+}

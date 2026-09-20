@@ -147,10 +147,23 @@ sections:
       | Serving agent | Application | Source location | Conforms |
       |---------------|-------------|-----------------|----------|
       | bench | catalog | agents/bench/ui | yes |
-      | documentation-curator | catalog | agents/knowledge-manager/documentation-curator/ui | yes |
+      | documentation-curator | catalog | agents/knowledge-manager/documentation-curator/ui | yes — literal roots against a chart-set working directory, the collector's exception (GH-2348) |
       | collector | catalog | agents/collector/ui | yes — literal ui/dist root is a sanctioned exception (srd020 R7.4) |
       | chatbot | chatbot-mesh | ux/ (application top level) | no — moves to agents/chatbot/ui |
       | observer | chatbot-mesh | none — the observer bundle compiled into agent-core | yes — out of scope as a platform bundle (srd004 R9.4) |
+
+      The documentation-curator is the collector's case rather than the
+      ${VAR:-default} case, and this was recorded only after its UIs served 404
+      in a cluster (GH-2348). Its browser UIs are too large for the shared
+      profiles tree, so they ship as their own sharded ConfigMaps that an init
+      container unpacks into the curator's workspace, exactly the held-out
+      shape the exemption above describes. Its roots are literal and
+      profile-relative, and its chart sets the container's working directory to
+      the unpack path so they resolve; the chart had been relying on
+      --directory, which sets the agent's workspace and not the process working
+      directory the static_assets handler reads. A held-out UI therefore owes
+      two things together — a literal root and a chart-set workingDir — and
+      neither is evidence of the other.
 
       The chatbot-mesh cases migrated under GH-1316, which moved ux/ to
       agents/chatbot/ui (with ux.yaml becoming ui.yaml) and renamed the
@@ -179,3 +192,5 @@ references:
   - "GH-1316 (chatbot-mesh ux/ to agents/chatbot/ui migration)"
   - "agent-core/docs/specs/software-requirements/srd013 R5.6/R5.7 (mounted-declaration ${VAR:-default} parameterization)"
   - "applications/catalog/docs/specs/software-requirements/srd020-collector.yaml R7.4 (collector static_assets root: literal, profile-directory-relative, no new environment variable)"
+  - "applications/agent-architecture/helm/templates/curator.yaml (a held-out UI: literal roots with the container workingDir set to the unpack path)"
+  - "GH-2348 (documentation-curator UIs served 404: literal root against the image's / working directory)"

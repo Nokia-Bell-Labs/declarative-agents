@@ -34,11 +34,10 @@ func Deploy() error {
 // Undeploy removes the coding-agent demo release. A release that is already
 // gone reaches Absent, which is a success, so running this twice exits zero.
 func Undeploy() error {
-	request, err := codingDeployRequest()
+	request, err := codingUndeployRequest()
 	if err != nil {
 		return err
 	}
-	request.Agent.Profile = filepath.Join(request.CatalogRoot, filepath.FromSlash(applierUndeployProfileRel))
 	return kindrig.Undeploy(request)
 }
 
@@ -71,6 +70,39 @@ func codingDeployRequest() (kindrig.DeployRequest, error) {
 		Agent: kindrig.DeployAgent{
 			Binary:   binary,
 			Profile:  filepath.Join(roots.Profiles, filepath.FromSlash(applierDeployProfileRel)),
+			CoreRoot: roots.Core,
+			Cleanup:  cleanup,
+		},
+	}, nil
+}
+
+// codingUndeployRequest resolves what a teardown needs, which is the cluster,
+// the roots, and an agent.
+//
+// It does not reuse codingDeployRequest. That builder packages the Helm chart
+// into the render tree, and an undeploy removes a release without reading a
+// chart, so every teardown built an artifact it then ignored. The same shape
+// was a real defect next door, where agent-architecture's shared builder also
+// provisioned curator UI shard ConfigMaps and an undeploy created objects on
+// its way to deleting a release (GH-2343, GH-2350).
+func codingUndeployRequest() (kindrig.DeployRequest, error) {
+	roots, err := resolveIntegrationRoots()
+	if err != nil {
+		return kindrig.DeployRequest{}, err
+	}
+	binary, cleanup, err := buildAgent(roots.Core)
+	if err != nil {
+		return kindrig.DeployRequest{}, fmt.Errorf("undeploy: %w", err)
+	}
+	return kindrig.DeployRequest{
+		Cluster:         codingDemoCluster,
+		ApplicationRoot: roots.Application,
+		CatalogRoot:     roots.Profiles,
+		Coordinates: kindrig.UndeployCoordinates(
+			codingDemoRelease, codingHelmNamespace, codingHelmInstallTimeout.String()),
+		Agent: kindrig.DeployAgent{
+			Binary:   binary,
+			Profile:  filepath.Join(roots.Profiles, filepath.FromSlash(applierUndeployProfileRel)),
 			CoreRoot: roots.Core,
 			Cleanup:  cleanup,
 		},

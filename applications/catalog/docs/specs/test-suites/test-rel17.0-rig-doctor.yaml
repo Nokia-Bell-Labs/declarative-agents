@@ -154,7 +154,7 @@ test_cases:
     traces:
       - rel17.0-uc001-rig-doctor S3
       - rel17.0-uc001-rig-doctor S5
-    go_test: cd ../chatbot-mesh && mage diagnose
+    go_test: cd ../chatbot-mesh && mage diagnose helm-smoke
     status: implemented
     assertions:
       - With a Deployment broken by an unpullable image tag, the target exits zero and prints the evidence and diagnosis paths.

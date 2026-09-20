@@ -196,13 +196,19 @@ func exerciseCuratorWindow(environment smokeEnvironment) error {
 		if err != nil {
 			return err
 		}
-		forward, err := forwardService(environment, service, controlLocal+":18082", documentationLocal+":18081")
+		monitorLocal, err := freeLocalPort()
+		if err != nil {
+			return err
+		}
+		forward, err := forwardService(environment, service, controlLocal+":18082",
+			documentationLocal+":18081", monitorLocal+":18084")
 		if err != nil {
 			lastErr = err
 			continue
 		}
 		controlURL := "http://127.0.0.1:" + controlLocal
 		documentationURL := "http://127.0.0.1:" + documentationLocal
+		monitorURL := "http://127.0.0.1:" + monitorLocal
 		// Record the addressed pod's identity and restart state *before* the
 		// exit request so we can prove this process actually terminates rather
 		// than trusting the HTTP acknowledgement alone.
@@ -212,7 +218,7 @@ func exerciseCuratorWindow(environment smokeEnvironment) error {
 			lastErr = err
 			continue
 		}
-		if err := runCuratorWindow(controlURL, documentationURL); err != nil {
+		if err := runCuratorWindow(controlURL, documentationURL, monitorURL); err != nil {
 			forward.stop()
 			lastErr = err
 			continue
@@ -229,14 +235,68 @@ func exerciseCuratorWindow(environment smokeEnvironment) error {
 	return fmt.Errorf("curator control window not caught in 4 attempts: %w", lastErr)
 }
 
-func runCuratorWindow(controlURL, documentationURL string) error {
+func runCuratorWindow(controlURL, documentationURL, monitorURL string) error {
 	if err := waitHTTP200(controlURL+"/api/lifecycle/health", 20*time.Second); err != nil {
 		return err
 	}
 	if err := driveCuratorDocuments(documentationURL); err != nil {
 		return err
 	}
+	if err := verifyCuratorUI(documentationURL, monitorURL); err != nil {
+		return err
+	}
 	return requestCuratorExit(controlURL)
+}
+
+// verifyCuratorUI asks for the served interfaces themselves, not the APIs
+// beside them.
+//
+// A release that installs is not evidence that a UI route resolves. The
+// curator served its API on 200 and its documentation UI on 404 for an unknown
+// length of time, because the static_assets root resolved against the process
+// working directory and nothing in this smoke ever requested the UI (GH-2348).
+// The index has to come back with HTML in it: a 200 carrying the API's JSON
+// would mean the route matched something else.
+func verifyCuratorUI(documentationURL, monitorURL string) error {
+	for label, base := range map[string]string{
+		"documentation UI": documentationURL,
+		"monitor UI":       monitorURL,
+	} {
+		body, err := getHTTP200(base+"/", 20*time.Second)
+		if err != nil {
+			return fmt.Errorf("%s: %w", label, err)
+		}
+		if !strings.Contains(strings.ToLower(string(body)), "<!doctype html") {
+			return fmt.Errorf("%s at %s/ returned 200 without an HTML index; the static_assets root resolved to something else", label, base)
+		}
+	}
+	return nil
+}
+
+// getHTTP200 is waitHTTP200 that keeps the body, for a check that has to look
+// at what came back rather than only at the status.
+func getHTTP200(url string, timeout time.Duration) ([]byte, error) {
+	deadline := time.Now().Add(timeout)
+	client := &http.Client{Timeout: 3 * time.Second}
+	var lastErr error
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(url)
+		if err == nil {
+			body, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK && readErr == nil {
+				return body, nil
+			}
+			lastErr = fmt.Errorf("GET %s status %d", url, resp.StatusCode)
+			if readErr != nil {
+				lastErr = readErr
+			}
+		} else {
+			lastErr = err
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return nil, fmt.Errorf("no HTTP 200 from %s within %s: %w", url, timeout, lastErr)
 }
 
 const curatorServiceName = "knowledge-manager-curator"
