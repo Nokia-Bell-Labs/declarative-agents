@@ -13,28 +13,28 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
-// TestSpecGoTestEvidenceSelectorsMatchATest requires every `-run` selector
-// named as formal go_test evidence to match at least one test function in the
-// packages the command names.
+// TestSpecGoTestEvidenceSelectorsMatchATest requires every `-run` selector on
+// an implemented test case to match at least one test function in the packages
+// the command names.
 //
 // `go test -run 'TestThatDoesNotExist'` exits zero. No tests run, nothing
-// fails, and the evidence reports as passing while asserting nothing. Two
-// entries in test-rel20.0-machine-templates.yaml were in that state and had
-// been since srd055 was written: they named TestBlueprint functions that exist
-// nowhere, so a requirement was recorded as covered by a command that tested
-// nothing (GH-2375).
+// fails, and the evidence reports as passing while asserting nothing. That is
+// the defect: a case marked implemented whose command tests nothing. The
+// rel06.0 suite held one, a `cd ../magefiles` resolving to a directory that
+// does not exist (GH-2375).
 //
-// This is the same defect class as GH-2333 one layer down. That guard checks a
-// Mage target resolves; this one checks a Go selector does.
+// A planned case is exempt, and that is the point rather than a concession. A
+// suite records the tests a release will have; a case it marks planned names a
+// test nobody has written yet, which is what planned means. srd055's
+// blueprints are planned in the SRD's own implementation status, so its suite
+// naming TestBlueprint functions that do not exist is the corpus being
+// accurate (GH-2385).
 func TestSpecGoTestEvidenceSelectorsMatchATest(t *testing.T) {
 	root := repositoryRootForEvidence(t)
-	baseline, err := loadEmptySelectorBaseline(filepath.Join(root, emptySelectorBaselinePath))
-	if err != nil {
-		t.Fatalf("read %s: %v", emptySelectorBaselinePath, err)
-	}
-	seen := map[string]bool{}
 	checked := 0
 	for _, corpus := range []string{
 		filepath.Join("agent-core", "docs", "specs", "test-suites"),
@@ -57,7 +57,7 @@ func TestSpecGoTestEvidenceSelectorsMatchATest(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", entry.Name(), err)
 			}
-			for _, evidence := range goTestEvidenceCommands(string(data)) {
+			for _, evidence := range implementedGoTestCommands(t, entry.Name(), data) {
 				base, packages, selector, ok := parseGoTestEvidence(evidence)
 				if !ok || selector == "" {
 					continue // no -run selector: the command runs a whole package
@@ -71,20 +71,10 @@ func TestSpecGoTestEvidenceSelectorsMatchATest(t *testing.T) {
 				checked++
 				names, err := testFunctionNames(filepath.Join(moduleRoot, base), packages)
 				if err != nil {
-					key := entry.Name() + " " + selector
-					seen[key] = true
-					if baseline[key] {
-						continue
-					}
 					t.Errorf("%s: evidence %q: %v", entry.Name(), evidence, err)
 					continue
 				}
 				if !matchesAny(pattern, names) {
-					key := entry.Name() + " " + selector
-					seen[key] = true
-					if baseline[key] {
-						continue
-					}
 					t.Errorf("%s: formal evidence %q matches no test function in %s; "+
 						"go test -run exits zero when nothing matches, so this evidence asserts nothing",
 						entry.Name(), evidence, strings.Join(packages, " "))
@@ -92,42 +82,9 @@ func TestSpecGoTestEvidenceSelectorsMatchATest(t *testing.T) {
 			}
 		}
 	}
-	for key := range baseline {
-		if !seen[key] {
-			t.Errorf("%s grandfathers %q, whose selector now resolves or no longer exists; delete the line",
-				emptySelectorBaselinePath, key)
-		}
-	}
 	if checked == 0 {
 		t.Fatal("no go_test selectors were checked; the guard is a no-op")
 	}
-}
-
-// emptySelectorBaselinePath lists the selectors that matched nothing when this
-// guard was written. They are grandfathered so the count cannot grow, not
-// excused: each line is a requirement whose formal evidence runs no test, and
-// GH-2385 tracks writing the tests that would let the line be deleted.
-const emptySelectorBaselinePath = "agent-core/docs/specs/legacy-empty-test-selectors.txt"
-
-// loadEmptySelectorBaseline reads "<suite file> <selector>" lines. An absent
-// file is an empty baseline.
-func loadEmptySelectorBaseline(path string) (map[string]bool, error) {
-	data, err := os.ReadFile(path) // #nosec G304 -- repository-owned path
-	if err != nil {
-		if os.IsNotExist(err) {
-			return map[string]bool{}, nil
-		}
-		return nil, err
-	}
-	entries := map[string]bool{}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		entries[line] = true
-	}
-	return entries, nil
 }
 
 // matchesAny reports whether the selector matches a test name. go test splits
@@ -142,22 +99,30 @@ func matchesAny(pattern *regexp.Regexp, names []string) bool {
 	return false
 }
 
-// goTestEvidenceCommands returns the inline value of every `go_test:` line
-// that runs go test rather than mage.
-func goTestEvidenceCommands(doc string) []string {
-	var values []string
-	for _, line := range strings.Split(doc, "\n") {
-		trimmed := strings.TrimSpace(line)
-		value, ok := strings.CutPrefix(trimmed, "go_test:")
-		if !ok {
+// implementedGoTestCommands returns the go test commands of every test case
+// the suite does not mark planned. A case with no status is checked: silence
+// is not a claim that the test is unwritten.
+func implementedGoTestCommands(t *testing.T, name string, data []byte) []string {
+	t.Helper()
+	var suite struct {
+		TestCases []struct {
+			Status string `yaml:"status"`
+			GoTest string `yaml:"go_test"`
+		} `yaml:"test_cases"`
+	}
+	if err := yaml.Unmarshal(data, &suite); err != nil {
+		t.Fatalf("parse %s: %v", name, err)
+	}
+	var commands []string
+	for _, testCase := range suite.TestCases {
+		if strings.EqualFold(testCase.Status, "planned") {
 			continue
 		}
-		value = strings.TrimSpace(value)
-		if strings.Contains(value, "go test ") {
-			values = append(values, value)
+		if strings.Contains(testCase.GoTest, "go test ") {
+			commands = append(commands, strings.TrimSpace(testCase.GoTest))
 		}
 	}
-	return values
+	return commands
 }
 
 var goTestRunSelector = regexp.MustCompile(`-run\s+'([^']*)'|-run\s+"([^"]*)"`)
@@ -337,5 +302,44 @@ func TestParseGoTestEvidenceSplitsTheCorpusShapes(t *testing.T) {
 				testCase.evidence, base, packages, selector,
 				testCase.base, testCase.packages, testCase.selector)
 		}
+	}
+}
+
+// A planned case names a test nobody has written yet, and that is what planned
+// means; an implemented one claims the command proves something. The guard has
+// to tell them apart, or it either excuses a real defect or reports a corpus
+// that is telling the truth (GH-2385).
+func TestPlannedCasesAreExemptAndImplementedOnesAreNot(t *testing.T) {
+	t.Parallel()
+	suite := []byte(`
+test_cases:
+  - name: written
+    status: implemented
+    go_test: go test ./internal/load -run 'TestReal'
+  - name: not written yet
+    status: planned
+    go_test: go test ./internal/load -run 'TestNotWrittenYet'
+  - name: status omitted
+    go_test: go test ./internal/load -run 'TestUnstated'
+  - name: not a go test
+    status: implemented
+    go_test: mage audit
+`)
+	commands := implementedGoTestCommands(t, "fixture.yaml", suite)
+	joined := strings.Join(commands, "\n")
+	if strings.Contains(joined, "TestNotWrittenYet") {
+		t.Error("a planned case was checked; a planned test is one nobody has written")
+	}
+	if !strings.Contains(joined, "TestReal") {
+		t.Error("an implemented case was skipped")
+	}
+	if !strings.Contains(joined, "TestUnstated") {
+		t.Error("a case with no status was skipped; silence is not a claim that the test is unwritten")
+	}
+	if strings.Contains(joined, "mage audit") {
+		t.Error("a mage command was collected as go test evidence")
+	}
+	if len(commands) != 2 {
+		t.Errorf("collected %d commands, want 2: %v", len(commands), commands)
 	}
 }
