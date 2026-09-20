@@ -563,7 +563,7 @@ use_case_index:
     test_suite: test-rel01.0
     path: docs/specs/use-cases/rel01.0-uc001-generator-coding.yaml
   - id: rel01.0-uc002-evaluator-benchmark
-    title: Evaluator runs generator across models and collects results
+    title: Evaluator runs generator profiles and collects results
     release: "01.0"
     status: done
     test_suite: test-rel01.0
@@ -575,7 +575,7 @@ use_case_index:
     test_suite: test-rel01.0
     path: docs/specs/use-cases/rel01.0-uc003-bench-visualization.yaml
   - id: rel02.0-uc001-approval-suspend-resume
-    title: Agent suspends at approval gate and resumes from checkpoint
+    title: Agent suspends at approval gate and resumes from the checkpoint port
     release: "02.0"
     status: done
     test_suite: test-rel02.0-lifecycle
@@ -701,7 +701,7 @@ use_case_index:
     test_suite: test-rel10.0-value-predicate
     path: docs/specs/use-cases/rel10.0-uc001-value-predicate-branch.yaml
   - id: rel11.0-uc001-otlp-receiver-await
-    title: A persistent machine receives, records, and relays OTLP trace batches
+    title: A persistent machine receives, records, and relays OTLP trace and metric batches
     release: "11.0"
     status: implemented
     test_suite: test-rel11.0-otlp-receiver
@@ -822,7 +822,7 @@ test_suite_index:
     formal_test_cases: 38
     path: docs/specs/test-suites/test-rel01.0.yaml
   - id: test-rel02.0-lifecycle
-    title: Test Suite for Release 02.0 Rollback Lifecycle
+    title: Test Suite for Release 02.0 Checkpoint Port and Dolt Persistence
     release: "02.0"
     traces:
       - rel02.0-uc001-approval-suspend-resume

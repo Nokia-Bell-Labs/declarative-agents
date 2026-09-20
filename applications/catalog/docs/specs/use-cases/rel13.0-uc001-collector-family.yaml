@@ -24,7 +24,7 @@ flow:
 touchpoints:
   - T1: "srd020-collector R1 -- default spool mode, no relay"
   - T2: "srd020-collector R3 -- conformance coverage exercises OTLP builtins"
-  - T3: "srd042-otlp-receiver-tools -- receiver launch, await, spool, stop"
+  - T3: "srd020-collector R2 -- the OTLP receiver, await, spool, and stop words the family binds, declared as a platform dependency on agent-core srd042-otlp-receiver-tools"
 
 success_criteria:
   - id: S1

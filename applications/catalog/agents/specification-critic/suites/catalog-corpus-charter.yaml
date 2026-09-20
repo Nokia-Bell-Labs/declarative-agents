@@ -1,0 +1,39 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The checks the catalog's own specification corpus gates on (GH-2310).
+#
+# A spec_corpus check with no `checks` list runs every check the validator
+# knows. This one names its checks, because two families of finding are not
+# yet actionable against this corpus: uncovered-req-item reports real
+# authoring gaps in srd020 and srd006 (GH-2329), and the tool-corpus checks
+# report words the loader could not follow a declaration path to, which the
+# runtime resolves correctly and boot smoke already gates (GH-2330). Adding a
+# check here is a one-line change once its findings are clean.
+id: catalog-corpus-charter
+title: Catalog Specification Corpus Checks
+checks:
+  - id: catalog-spec-corpus
+    kind: spec_corpus
+    severity: error
+    checks:
+      # The traceability chain: a use case may not cite an SRD or a
+      # requirement group that does not exist.
+      - broken-touchpoint
+      - broken-citation
+      # The four SPECIFICATIONS.yaml indexes and the road map agree with the
+      # documents they name.
+      - index-broken-path
+      - index-missing-use-case
+      - index-missing-test-suite
+      - roadmap-missing-use-case
+      - roadmap-summary-missing-release
+      - index-document-mismatch
+      - release-without-test-suite
+      # A test suite and its cases name a use case that exists.
+      - test-case-missing-use-case
+      - test-suite-missing-uc-trace
+      # Documentation specs point at files that exist.
+      - docspec-broken-example-path
+      - docspec-broken-implementation-path
+      - docspec-broken-related-document
+      - docspec-broken-requirement-source

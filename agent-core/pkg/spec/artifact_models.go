@@ -70,6 +70,7 @@ func (s *SRD) ItemIDs() []string {
 type UseCase struct {
 	ID              string             `yaml:"id"`
 	Title           string             `yaml:"title"`
+	Status          string             `yaml:"status"`
 	Summary         string             `yaml:"summary"`
 	Actor           string             `yaml:"actor"`
 	Trigger         string             `yaml:"trigger"`
@@ -91,6 +92,7 @@ type SuccessCriterion struct {
 type TestSuite struct {
 	ID            string     `yaml:"id"`
 	Title         string     `yaml:"title"`
+	Status        string     `yaml:"status"`
 	Release       string     `yaml:"release"`
 	Traces        []string   `yaml:"traces"`
 	Preconditions []string   `yaml:"preconditions"`

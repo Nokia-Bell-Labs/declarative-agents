@@ -1,0 +1,39 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The catalog's corpus load, identical to the shipped declaration except for
+# the charter it binds: this module gates on its own checks, named in
+# suites/catalog-corpus-charter.yaml (GH-2310).
+unit: specification-critic-corpus-load
+imports:
+- /opt/agent-core/tools/units/types-spec-validation.yaml
+tools:
+- name: load_corpus
+  type: builtin
+  init: load_corpus
+  visibility: internal
+  config:
+    suite_paths:
+    - agents/specification-critic/suites/catalog-corpus-charter.yaml
+  emits:
+  - ToolDone
+  - CommandError
+  signature:
+    output: builtin-types-spec-validation.LoadedCorpus
+    emits: [ToolDone, CommandError]
+  description: Load the catalog specification corpus from the project directory.
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: validation_state
+    state: corpus_loaded
+    description: Loads specification documents into validation state.
+  undo:
+    strategy: session_state_restore
+    description: Restore validation state to the snapshot before loading the corpus.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'load_corpus: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Loaded corpus summary and the declared search plans consumed by the specification-critic machine.

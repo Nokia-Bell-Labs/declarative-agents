@@ -118,10 +118,6 @@ depends_on:
     symbols_used: [R1]
   - srd_id: srd007-rest
     symbols_used: [R1, R2, R3]
-  - srd_id: srd028-rest-client-tools
-    symbols_used: [R12]
-  - srd_id: srd022-builtin-tools
-    symbols_used: [R7.12]
 
 diagrams:
   requirements_trace: |
@@ -141,3 +137,13 @@ diagrams:
       R5 --> AC5["AC5: Lifecycle and persistence checkable"]
       R6 --> AC6["AC6: Outcomes checkable"]
     ```
+
+# These SRDs live in the agent-core corpus, not this one; they are
+# platform dependencies rather than in-corpus depends_on (GH-2310).
+platform_dependencies:
+  - srd_id: srd028-rest-client-tools
+    provider: agent-core
+    symbols_used: [R12]
+  - srd_id: srd022-builtin-tools
+    provider: agent-core
+    symbols_used: [R7.12]

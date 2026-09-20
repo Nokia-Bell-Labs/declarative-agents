@@ -134,6 +134,41 @@ roadmap_summary:
       proves ingest count; deterministic conformance executes the shipped reader
       through provider embedding, Chroma query, grounded answer, and failure.
 
+  - version: "09.0"
+    name: RAG server and single-RAG chatbot turn
+    use_cases_done: 2
+    use_cases_total: 2
+    status: done
+  - version: "09.1"
+    name: Tier selection and multi-RAG fan-out
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
+  - version: "09.2"
+    name: Observability
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
+  - version: "09.3"
+    name: Mesh deployment and tiered swap
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
+  - version: "09.4"
+    name: Control plane
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
+  - version: "09.5"
+    name: In-cluster LLM tier
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
+  - version: "10.0"
+    name: Reference-architecture role alignment
+    use_cases_done: 3
+    use_cases_total: 3
+    status: done
   - version: "11.0"
     name: Scenario Critic test rig
     status: in-progress
@@ -190,6 +225,11 @@ roadmap_summary:
       (release 13.0), and the Explore UI page renders a duration heatmap,
       drag-selects a region, shows the ranked attribute divergence, and links
       exemplar spans into the per-trace waterfall.
+  - version: "16.0"
+    name: Canonical applier family
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
   - version: "17.0"
     name: Rig doctor root-cause analyst
     status: implemented
@@ -489,13 +529,13 @@ use_case_index:
     status: planned
     path: docs/specs/use-cases/rel07.0-uc003-planner-generator-profile-boundary.yaml
   - id: rel07.0-uc004-bench-evaluator-profile-boundary
-    title: Bench to Evaluator Profile Boundary
+    title: Bench to Critic Profile Boundary
     summary: Bench launches the critic role from a human/operator boundary action;
       the historical use-case id retains the former evaluator name.
     status: implemented
     path: docs/specs/use-cases/rel07.0-uc004-bench-evaluator-profile-boundary.yaml
   - id: rel07.0-uc005-monitor-control-profile-boundary
-    title: Monitor Control Profile Boundary
+    title: Runtime State Reader and Control Profile Boundary
     summary: Monitor/control profile boundary and lifecycle tracer evidence.
     status: implemented
     path: docs/specs/use-cases/rel07.0-uc005-monitor-control-profile-boundary.yaml
@@ -553,7 +593,7 @@ use_case_index:
     path: docs/specs/use-cases/rel09.1-uc001-routed-fanout.yaml
     canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel01.0-uc001-routed-fanout.yaml
   - id: rel09.2-uc001-observability
-    title: Observability Panel Shows Per-Agent State and a Cross-Agent Trace Waterfall (Relocated)
+    title: Observability Panel and Cross-Agent Trace Waterfall (Relocated)
     summary: Pointer-only historical identifier; the canonical use case and
       traces live with applications/chatbot-mesh release 02.0.
     status: relocated
@@ -720,14 +760,14 @@ test_suite_index:
     status: implemented
     path: docs/specs/test-suites/test-rel08.0-corpus-agents.yaml
   - id: test-rel09.0-chatbot-mesh
-    title: Test Suite for Release 09.0 RAG Server and Single-RAG Chatbot Turn (Relocated)
+    title: Test Suite for Release 09.0 RAG Server and Chatbot Turn (Relocated)
     summary: Pointer-only historical identifier; the canonical suite and proof
       commands live with applications/chatbot-mesh release 00.0.
     status: relocated
     path: docs/specs/test-suites/test-rel09.0-chatbot-mesh.yaml
     canonical_path: applications/chatbot-mesh/docs/specs/test-suites/test-rel00.0-chatbot-mesh.yaml
   - id: test-rel09.1-routing-fanout
-    title: Test Suite for Release 09.1 Tier Selection and Multi-RAG Fan-Out (Relocated)
+    title: Test Suite for Release 09.1 Tier Selection and Fan-Out (Relocated)
     summary: Pointer-only historical identifier; the canonical suite and proof
       commands live with applications/chatbot-mesh release 01.0.
     status: relocated

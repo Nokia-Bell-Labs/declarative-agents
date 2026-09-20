@@ -154,6 +154,9 @@ func bootSmoke(root, coreRoot string) error {
 	if err := bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles); err != nil {
 		return err
 	}
+	if err := validateSpecificationCorpus(defaultSmokeRun, binary, root, coreRoot); err != nil {
+		return err
+	}
 	return validateTestEvidence(
 		defaultSmokeRun,
 		stageCatalogTestEvidenceProfile,

@@ -48,8 +48,10 @@ touchpoints:
     target: srd022-applier R5
     reason: Defines portability, release, and ownership evidence.
   - id: T6
-    target: srd003-application-consistency R5
-    reason: Defines canonical-reference and composition-wrapper consistency.
+    target: srd022-applier R5
+    reason: Defines canonical-reference and composition-wrapper consistency, which
+      the applications corpus states as srd003-application-consistency R5 and this
+      SRD carries as a platform dependency.
 
 success_criteria:
   - id: S1

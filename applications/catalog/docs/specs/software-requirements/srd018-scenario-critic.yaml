@@ -132,8 +132,6 @@ depends_on:
     symbols_used: [R1]
   - srd_id: srd019-mock
     symbols_used: [R1, R2]
-  - srd_id: srd006-yaml-machine-config
-    symbols_used: [R5]
 
 diagrams:
   requirements_trace: |
@@ -176,3 +174,10 @@ diagrams:
       Subject -->|failure| Children
       Delay -->|HealthTimeout| Children
     ```
+
+# These SRDs live in the agent-core corpus, not this one; they are
+# platform dependencies rather than in-corpus depends_on (GH-2310).
+platform_dependencies:
+  - srd_id: srd006-yaml-machine-config
+    provider: agent-core
+    symbols_used: [R5]

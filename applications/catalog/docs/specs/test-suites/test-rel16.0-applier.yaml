@@ -12,35 +12,68 @@ preconditions:
   - Each wrapper owns its REST and rollout declarations.
 
 test_cases:
-  - id: applier-catalog-closure
+  - use_case: rel16.0-uc001-applier-family
+    name: Applier catalog closure
+    id: applier-catalog-closure
     verifies: [S1]
-    command: mage validate
+    traces:
+      - rel16.0-uc001-applier-family S1
+    go_test: mage validate
+    status: implemented
     assertions:
       - The catalog applier profile and request variants pass agent-core strict configuration validation.
       - The apply and rollout selections are name-only.
-  - id: applier-machine-contract
+  - use_case: rel16.0-uc001-applier-family
+    name: Applier machine contract
+    id: applier-machine-contract
     verifies: [S1, S3, S4, S5]
-    command: go test ./conformance -run '^TestCanonicalApplier'
+    traces:
+      - rel16.0-uc001-applier-family S1
+      - rel16.0-uc001-applier-family S3
+      - rel16.0-uc001-applier-family S4
+      - rel16.0-uc001-applier-family S5
+    go_test: go test ./conformance -run '^TestCanonicalApplier'
+    status: implemented
     assertions:
       - Validate precedes apply and verify.
       - Verification failure reaches rollback.
       - Terminal outcomes remain distinct.
-  - id: applier-wrapper-ownership
+  - use_case: rel16.0-uc001-applier-family
+    name: Applier wrapper ownership
+    id: applier-wrapper-ownership
     verifies: [S2, S6]
-    command: go test ./conformance -run '^TestApplierPromotion'
+    traces:
+      - rel16.0-uc001-applier-family S2
+      - rel16.0-uc001-applier-family S6
+    go_test: go test ./conformance -run '^TestApplierPromotion'
+    status: implemented
     assertions:
       - Every wrapper references canonical machines and shared ToolDefs.
       - REST and exec declarations remain local.
       - No promoted asset has an application-local byte copy.
-  - id: applier-consumers
+  - use_case: rel16.0-uc001-applier-family
+    name: Applier consumers
+    id: applier-consumers
     verifies: [S2, S3, S4, S5, S6]
-    command: mage audit
+    traces:
+      - rel16.0-uc001-applier-family S2
+      - rel16.0-uc001-applier-family S3
+      - rel16.0-uc001-applier-family S4
+      - rel16.0-uc001-applier-family S5
+      - rel16.0-uc001-applier-family S6
+    go_test: mage audit
+    status: implemented
     assertions:
       - Fake, render, authority, package, rollout, and rollback tests pass in all consumers.
       - Applicable live kind tests remain dependency gated.
-  - id: applier-statistics
+  - use_case: rel16.0-uc001-applier-family
+    name: Applier statistics
+    id: applier-statistics
     verifies: [S6]
-    command: mage stats
+    traces:
+      - rel16.0-uc001-applier-family S6
+    go_test: mage stats
+    status: implemented
     assertions:
       - Catalog counts applier once.
       - Application appliers are composition wrappers and contribute no additional canonical agent.

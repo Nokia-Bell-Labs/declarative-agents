@@ -223,3 +223,97 @@ func TestValidate_DocSpecExamplePaths_Fixture(t *testing.T) {
 	findings := checkDocSpecExamplePaths(c)
 	assert.Empty(t, findings, "fixture example paths should exist")
 }
+
+// A release that reaches the road map without reaching the summary leaves the
+// index describing a smaller project than the one that exists (GH-2310).
+func TestValidate_RoadmapSummaryCoverage(t *testing.T) {
+	corpus := &Corpus{
+		Roadmap: Roadmap{Releases: []Release{
+			{Version: "01.0"}, {Version: "02.0"}, {Version: "03.0"},
+		}},
+		SpecIndex: SpecIndex{RoadmapSummary: []RoadmapEntry{
+			{Version: "01.0"}, {Version: "03.0"},
+		}},
+	}
+	findings := checkRoadmapSummaryCoverage(corpus)
+	require.Len(t, findings, 1)
+	assert.Equal(t, "roadmap-summary-missing-release", findings[0].Check)
+	assert.Equal(t, "error", findings[0].Level)
+	assert.Contains(t, findings[0].Message, "02.0")
+}
+
+func TestValidate_RoadmapSummaryCoverage_Complete(t *testing.T) {
+	corpus := &Corpus{
+		Roadmap:   Roadmap{Releases: []Release{{Version: "01.0"}}},
+		SpecIndex: SpecIndex{RoadmapSummary: []RoadmapEntry{{Version: "01.0"}}},
+	}
+	assert.Empty(t, checkRoadmapSummaryCoverage(corpus))
+}
+
+// A corpus with no road map is not a corpus with an empty road map: a module
+// that ships no releases has nothing to summarize.
+func TestValidate_RoadmapSummaryCoverage_NoRoadmap(t *testing.T) {
+	assert.Empty(t, checkRoadmapSummaryCoverage(&Corpus{}))
+}
+
+func TestValidate_IndexDocumentAgreement(t *testing.T) {
+	corpus := &Corpus{
+		SpecIndex: SpecIndex{
+			UseCaseIndex: []UseCaseEntry{
+				{ID: "uc-title", Title: "Indexed title", Status: "implemented"},
+				{ID: "uc-status", Title: "Agreed", Status: "implemented"},
+				{ID: "uc-agreed", Title: "Agreed", Status: "implemented"},
+			},
+			TestSuiteIndex: []TestSuiteEntry{
+				{ID: "ts-title", Title: "Indexed suite", Release: "01.0"},
+			},
+		},
+		UseCases: map[string]UseCase{
+			"uc-title":  {ID: "uc-title", Title: "Document title", Status: "implemented"},
+			"uc-status": {ID: "uc-status", Title: "Agreed", Status: "planned"},
+			"uc-agreed": {ID: "uc-agreed", Title: "Agreed", Status: "implemented"},
+		},
+		TestSuites: map[string]TestSuite{
+			"ts-title": {ID: "ts-title", Title: "Document suite", Release: "01.0"},
+		},
+	}
+	findings := checkIndexDocumentAgreement(corpus)
+	require.Len(t, findings, 3)
+	for _, finding := range findings {
+		assert.Equal(t, "index-document-mismatch", finding.Check)
+		assert.Equal(t, "error", finding.Level)
+	}
+	messages := findings[0].Message + findings[1].Message + findings[2].Message
+	assert.Contains(t, messages, "Document title")
+	assert.Contains(t, messages, "planned")
+	assert.Contains(t, messages, "Document suite")
+}
+
+// Silence is not disagreement: an index that summarizes less than the document
+// states, and a document that omits a field the index carries, are both
+// legitimate. Only two present and different values are a mismatch.
+func TestValidate_IndexDocumentAgreement_SilenceIsNotMismatch(t *testing.T) {
+	corpus := &Corpus{
+		SpecIndex: SpecIndex{
+			UseCaseIndex: []UseCaseEntry{
+				{ID: "index-silent", Title: "", Status: ""},
+				{ID: "document-silent", Title: "Indexed", Status: "implemented"},
+			},
+		},
+		UseCases: map[string]UseCase{
+			"index-silent":    {ID: "index-silent", Title: "Document title", Status: "implemented"},
+			"document-silent": {ID: "document-silent"},
+		},
+	}
+	assert.Empty(t, checkIndexDocumentAgreement(corpus))
+}
+
+// An index entry naming a document that does not exist is reported by
+// index-missing-use-case; this check does not repeat it.
+func TestValidate_IndexDocumentAgreement_MissingDocument(t *testing.T) {
+	corpus := &Corpus{
+		SpecIndex: SpecIndex{UseCaseIndex: []UseCaseEntry{{ID: "absent", Title: "Indexed"}}},
+		UseCases:  map[string]UseCase{},
+	}
+	assert.Empty(t, checkIndexDocumentAgreement(corpus))
+}

@@ -724,7 +724,7 @@ releases:
       - Run mage tag from a clean main checkout after all release gates pass.
       - Push v0.20260727.0, applications/catalog/v0.20260727.0, and agent-profiles/v0.20260727.0 together.
 
-  - id: "13.0"
+  - version: "13.0"
     title: Collector family promotion
     status: implemented
     dependencies:
@@ -748,7 +748,7 @@ releases:
       - mage conformance
       - cd ../.. && mage audit
 
-  - id: "14.0"
+  - version: "14.0"
     title: Served collector trace UI
     status: implemented
     dependencies:
@@ -776,7 +776,7 @@ releases:
       - mage conformance
       - cd ../.. && mage audit
 
-  - id: "15.0"
+  - version: "15.0"
     title: Collector Explore panel
     status: implemented
     related_agent_core_release: "13.0"
@@ -805,7 +805,7 @@ releases:
       - cd ../.. && mage uiDist
       - cd ../.. && mage audit
 
-  - id: "16.0"
+  - version: "16.0"
     title: Canonical applier family
     status: implemented
     dependencies:
@@ -836,7 +836,7 @@ releases:
       - Package provenance distinguishes canonical and local closure members.
       - Duplicate and statistics audits prevent copied forks and double counting.
 
-  - id: "17.0"
+  - version: "17.0"
     title: Rig doctor root-cause analyst
     status: implemented
     dependencies:
@@ -870,7 +870,7 @@ releases:
       - Every diagnosis claim cites a captured file and line.
       - A diagnosis that cannot be read back is repaired rather than reported.
 
-  - id: "18.0"
+  - version: "18.0"
     title: Host-side deployer
     status: planned
     dependencies:
@@ -907,7 +907,7 @@ releases:
       - The deploy target gates its build on the machine's terminal state.
       - A busy provider costs two retries, not the evidence already read.
 
-  - id: "99.0"
+  - version: "99.0"
     title: Observer family promotion
     status: planned
     dependencies:
