@@ -46,6 +46,12 @@ requirements:
       - R3.6: Detect depends_on violations referencing non-existent SRDs.
       - R3.7: Detect releases without test suites.
       - R3.8: Findings carry check identifier, severity level, human-readable message, and available provenance.
+      - R3.9: Detect releases in the road map that have no roadmap_summary row in SPECIFICATIONS.yaml.
+      - R3.10: >-
+          Detect index entries whose title, status, or release disagrees with
+          the document they name. Silence on either side is not disagreement:
+          an index may summarize less than a document states, and a document
+          may omit a field the index carries.
 
   R4:
     title: Corpus loading
@@ -84,8 +90,8 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3]
 
   - id: AC3
-    criterion: Validate detects orphaned SRDs, broken touchpoints and citations, uncovered items and ACs, depends_on violations, and releases without test suites.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
+    criterion: Validate detects orphaned SRDs, broken touchpoints and citations, uncovered items and ACs, depends_on violations, releases without test suites, releases missing a roadmap_summary row, and index entries disagreeing with their documents.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10]
 
   - id: AC4
     criterion: LoadCorpus discovers and parses all artifacts from the standard directory layout.

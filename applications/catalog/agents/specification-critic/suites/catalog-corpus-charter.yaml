@@ -26,6 +26,8 @@ checks:
       - index-missing-use-case
       - index-missing-test-suite
       - roadmap-missing-use-case
+      - roadmap-summary-missing-release
+      - index-document-mismatch
       - release-without-test-suite
       # A test suite and its cases name a use case that exists.
       - test-case-missing-use-case

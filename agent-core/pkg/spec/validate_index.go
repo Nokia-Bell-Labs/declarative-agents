@@ -266,3 +266,80 @@ func checkDocSpecExamplePaths(corpus *Corpus) []Finding {
 
 // checkMachineDiagnostics runs core.DiagnoseMachineSpec on each loaded
 // machine and surfaces its diagnostics as findings.
+
+// checkRoadmapSummaryCoverage verifies that every release in road-map.yaml has
+// a row in SPECIFICATIONS.yaml's roadmap_summary. The two are maintained by
+// hand, and a release that reaches the road map without reaching the summary
+// leaves the index quietly describing a smaller project than the one that
+// exists (GH-2310).
+func checkRoadmapSummaryCoverage(corpus *Corpus) []Finding {
+	if len(corpus.Roadmap.Releases) == 0 {
+		return nil
+	}
+	summarized := make(map[string]bool, len(corpus.SpecIndex.RoadmapSummary))
+	for _, entry := range corpus.SpecIndex.RoadmapSummary {
+		summarized[entry.Version] = true
+	}
+	var findings []Finding
+	for _, release := range corpus.Roadmap.Releases {
+		if release.Version == "" || summarized[release.Version] {
+			continue
+		}
+		findings = append(findings, Finding{
+			Check: "roadmap-summary-missing-release",
+			Level: "error",
+			Message: fmt.Sprintf(
+				"road-map.yaml release %s has no roadmap_summary row in SPECIFICATIONS.yaml",
+				release.Version),
+		})
+	}
+	return findings
+}
+
+// checkIndexDocumentAgreement verifies that what SPECIFICATIONS.yaml says
+// about a use case or test suite matches what that document says about
+// itself. An index is only useful while it agrees with what it indexes, and
+// nothing else compares the two (GH-2310).
+func checkIndexDocumentAgreement(corpus *Corpus) []Finding {
+	var findings []Finding
+	for _, entry := range corpus.SpecIndex.UseCaseIndex {
+		document, ok := corpus.UseCases[entry.ID]
+		if !ok {
+			continue // index-missing-use-case reports this
+		}
+		findings = append(findings,
+			indexFieldMismatch("use_case_index", entry.ID, "title", entry.Title, document.Title)...)
+		findings = append(findings,
+			indexFieldMismatch("use_case_index", entry.ID, "status", entry.Status, document.Status)...)
+	}
+	for _, entry := range corpus.SpecIndex.TestSuiteIndex {
+		document, ok := corpus.TestSuites[entry.ID]
+		if !ok {
+			continue // index-missing-test-suite reports this
+		}
+		findings = append(findings,
+			indexFieldMismatch("test_suite_index", entry.ID, "title", entry.Title, document.Title)...)
+		findings = append(findings,
+			indexFieldMismatch("test_suite_index", entry.ID, "release", entry.Release, document.Release)...)
+	}
+	return findings
+}
+
+// indexFieldMismatch reports one disagreeing field. Silence on either side is
+// not disagreement: an index may summarize less than the document states, and
+// a document that omits a field is not contradicting the index that carries
+// one. Only two present and different values are a mismatch; the checks that
+// require an entry to exist at all are separate.
+func indexFieldMismatch(index, id, field, indexed, documented string) []Finding {
+	indexed, documented = strings.TrimSpace(indexed), strings.TrimSpace(documented)
+	if indexed == "" || documented == "" || indexed == documented {
+		return nil
+	}
+	return []Finding{{
+		Check: "index-document-mismatch",
+		Level: "error",
+		Message: fmt.Sprintf(
+			"SPECIFICATIONS.yaml %s entry %s states %s %q but the document states %q",
+			index, id, field, indexed, documented),
+	}}
+}
