@@ -192,7 +192,7 @@ func resolveSelectedTools(
 	return selection, selected, nil
 }
 
-// loadMachine loads the machine and every stage fragment it instantiates
+// loadMachine loads the machine and every stage fragment it expands
 // through the closure's visitor, so the fragments land in Files and Assets
 // like any other declaration (srd052 R4).
 func loadMachine(path string, visit catalog.FileVisitor) (core.MachineSpec, error) {

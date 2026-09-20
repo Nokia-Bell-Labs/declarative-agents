@@ -33,12 +33,19 @@ type Result struct {
 	ToolRefs         int     `json:"tool_refs"`
 	// ImportedUnits is the number of distinct files something imports.
 	// SharedUnits have two or more importing files; SingleImporterUnits have
-	// one, which is an include by another name. Instantiations counts
-	// instantiate entries, a fragment applied with arguments (srd052).
+	// one, which is an include by another name. Expansions counts `expand`
+	// entries, a fragment applied with arguments (srd052).
+	//
+	// The JSON key stays "expansions" on purpose. It is a metrics series
+	// with a committed baseline at docs/stats/reuse-units-baseline.json, and
+	// renaming it would make every historical figure incomparable for a
+	// vocabulary gain no reader of the JSON needs. The Go field follows the
+	// specification; the wire name is a contract (GH-2362). Do not "finish"
+	// this rename.
 	ImportedUnits       int              `json:"imported_units"`
 	SharedUnits         int              `json:"shared_units"`
 	SingleImporterUnits int              `json:"single_importer_units"`
-	Instantiations      int              `json:"instantiations"`
+	Expansions          int              `json:"instantiations"`
 	Maintainability     Maintainability  `json:"maintainability"`
 	TopBlocks           []DuplicateBlock `json:"top_blocks"`
 }
@@ -174,11 +181,11 @@ func (c *collector) collectFile(path string) (int, error) {
 	return lines, nil
 }
 
-// collectUnitEdges records the top-level imports and instantiate entries of
+// collectUnitEdges records the top-level imports and expand entries of
 // one declaration file (srd050 R1.2, srd052 R2.1). An import path is relative
 // to the importing file, so the same unit reached from two directories
 // resolves to one key; a library-rooted path is its own key (srd056 R1.1).
-// Only scalar import entries and instantiate entries naming a fragment count;
+// Only scalar import entries and expand entries naming a fragment count;
 // anything else is not an edge the loader follows.
 func (c *collector) collectUnitEdges(root *yaml.Node, path string) {
 	directory := filepath.Dir(path)
@@ -189,20 +196,20 @@ func (c *collector) collectUnitEdges(root *yaml.Node, path string) {
 			}
 		}
 	}
-	c.collectInstantiations(mappingValue(root, "expand"), directory, path)
-	// A machine template's body instantiates its stages (srd054 R2.2).
+	c.collectExpansions(mappingValue(root, "expand"), directory, path)
+	// A machine template's body expands its stages (srd054 R2.2).
 	if machine := mappingValue(root, "machine"); machine != nil && machine.Kind == yaml.MappingNode {
-		c.collectInstantiations(mappingValue(machine, "expand"), directory, path)
+		c.collectExpansions(mappingValue(machine, "expand"), directory, path)
 	}
 }
 
-func (c *collector) collectInstantiations(instantiate *yaml.Node, directory, path string) {
-	if instantiate == nil || instantiate.Kind != yaml.SequenceNode {
+func (c *collector) collectExpansions(expand *yaml.Node, directory, path string) {
+	if expand == nil || expand.Kind != yaml.SequenceNode {
 		return
 	}
-	for _, entry := range instantiate.Content {
+	for _, entry := range expand.Content {
 		if fragment := scalarMappingValue(entry, "fragment"); fragment != "" {
-			c.result.Instantiations++
+			c.result.Expansions++
 			c.recordImporter(unitKey(directory, fragment), path)
 		}
 	}

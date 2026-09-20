@@ -17,7 +17,7 @@ summary: |
 actor: A profile author who imports shared units instead of restating them
 
 trigger: |
-  A declaration file, an instantiation, a machine template instance, a
+  A declaration file, an expansion, a machine template instance, a
   blueprint machine mapping, or a profile-level list names a path under
   `/opt/<root>/`.
 

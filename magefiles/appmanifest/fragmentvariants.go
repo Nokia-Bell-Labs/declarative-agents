@@ -55,7 +55,7 @@ func untokenized(reference string) string {
 	return templateTokenPattern.ReplaceAllString(reference, "manifest_value")
 }
 
-// fragmentVariants expands an instantiate -> fragment path whose templates
+// fragmentVariants expands an expand -> fragment path whose templates
 // select a variant at deploy time into every file in the owning root it can
 // name, because the binding is chosen where the chart is installed. Each
 // template becomes a single-segment wildcard. It fails, naming the path, when a
@@ -73,7 +73,7 @@ func (resolver *closureResolver) fragmentVariants(
 		}
 		template := templates[index]
 		if template.name == "" || !template.hasDefault {
-			return nil, fmt.Errorf("%s instantiates templated fragment %s: %s needs the form ${NAME:-default} "+
+			return nil, fmt.Errorf("%s expands templated fragment %s: %s needs the form ${NAME:-default} "+
 				"so the chart can name the variant a deployment gets when NAME is unset",
 				origin, restoreTemplates(reference, templates), template.text)
 		}
@@ -92,7 +92,7 @@ func (resolver *closureResolver) fragmentVariants(
 	wildcard := templateTokenPattern.ReplaceAllString(reference, "\x00")
 	ownership, sourcePattern, err := resolver.variantSourcePattern(item, reference, wildcard)
 	if err != nil {
-		return nil, fmt.Errorf("%s instantiates templated fragment %s: %w", origin, written, err)
+		return nil, fmt.Errorf("%s expands templated fragment %s: %w", origin, written, err)
 	}
 	root := resolver.applicationRoot
 	if ownership == "catalog" {
@@ -101,7 +101,7 @@ func (resolver *closureResolver) fragmentVariants(
 	globPattern := strings.ReplaceAll(sourcePattern, "\x00", "*")
 	matches, err := filepath.Glob(filepath.Join(root, filepath.FromSlash(globPattern)))
 	if err != nil {
-		return nil, fmt.Errorf("%s instantiates templated fragment %s: %w", origin, written, err)
+		return nil, fmt.Errorf("%s expands templated fragment %s: %w", origin, written, err)
 	}
 	capture := regexp.MustCompile("^" + strings.ReplaceAll(regexp.QuoteMeta(sourcePattern), "\x00", "([^/]*)") + "$")
 	var variants []string
@@ -123,11 +123,11 @@ func (resolver *closureResolver) fragmentVariants(
 	}
 	sort.Strings(variants)
 	if len(variants) == 0 {
-		return nil, fmt.Errorf("%s instantiates templated fragment %s: no file matches %s",
+		return nil, fmt.Errorf("%s expands templated fragment %s: no file matches %s",
 			origin, written, globPattern)
 	}
 	if !contains(variants, defaultVariant) {
-		return nil, fmt.Errorf("%s instantiates templated fragment %s: the default variant %s is missing "+
+		return nil, fmt.Errorf("%s expands templated fragment %s: the default variant %s is missing "+
 			"(found %s)", origin, written, defaultVariant, strings.Join(variants, ", "))
 	}
 	return variants, nil

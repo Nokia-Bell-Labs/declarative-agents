@@ -666,10 +666,10 @@ fragment_files:
         string, integer, number, boolean. A file with `params` and no body,
         or a body with a `$param(` reference and no `params`, fails to load.
     - field: expand
-      type: "[]instantiation"
+      type: "[]expansion"
       required: false
       description: |
-        Instantiates fragments into this file's closure. Each entry carries
+        Expands fragments into this file's closure. Each entry carries
         `fragment`, a path relative to this file under the import rules;
         `args`, a mapping from parameter name to value; and optionally `as`,
         a prefix applied as `<as>_` to every name the expansion produces

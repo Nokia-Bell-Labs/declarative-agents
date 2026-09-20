@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// variantFixture is a catalog root whose declarations instantiate a fragment
+// variantFixture is a catalog root whose declarations expand a fragment
 // selected by environment, with the given unit files beside it (GH-2232).
 func variantFixture(t *testing.T, fragment string, units ...string) (string, string, Manifest) {
 	t.Helper()
@@ -86,7 +86,7 @@ func TestResolveRejectsTemplatedFragmentsItCannotStage(t *testing.T) {
 	}
 }
 
-// Only instantiate -> fragment paths expand. A template in any other path field
+// Only expand -> fragment paths expand. A template in any other path field
 // keeps today's single manifest_value reading and fails as a dangling path.
 func TestResolveKeepsNonFragmentTemplatesUnexpanded(t *testing.T) {
 	appRoot, catalogRoot, manifest := minimalClosureFixture(t,

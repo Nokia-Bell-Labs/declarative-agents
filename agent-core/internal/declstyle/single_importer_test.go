@@ -17,7 +17,7 @@ import (
 )
 
 // classSingleImporterUnit marks a unit reached by exactly one import edge and
-// never instantiated. Such a unit is an include by another name: it adds a
+// never expanded. Such a unit is an include by another name: it adds a
 // file, a unit header, and an edge, and removes no duplication, so the fragment
 // rule folds it back into its importer (GH-2079, GH-2107).
 //
@@ -47,14 +47,14 @@ func placeholderSafe(data []byte) []byte {
 type unitGraph struct {
 	units        map[string]bool
 	importers    map[string]map[string]bool
-	instantiated map[string]bool
+	expanded     map[string]bool
 	profileRoots map[string]bool
 }
 
 func newUnitGraph() *unitGraph {
 	return &unitGraph{
 		units: map[string]bool{}, importers: map[string]map[string]bool{},
-		instantiated: map[string]bool{}, profileRoots: map[string]bool{},
+		expanded: map[string]bool{}, profileRoots: map[string]bool{},
 	}
 }
 
@@ -70,7 +70,7 @@ func singleImporterEntries(paths []string, coreModule, repo string) ([]string, e
 	var entries []string
 	library := filepath.Join(coreModule, "tools") + string(filepath.Separator)
 	for unit := range graph.units {
-		if len(graph.importers[unit]) != 1 || graph.instantiated[unit] || graph.profileRoots[unit] {
+		if len(graph.importers[unit]) != 1 || graph.expanded[unit] || graph.profileRoots[unit] {
 			continue
 		}
 		// agent-core's library is published for importers outside this
@@ -114,9 +114,9 @@ func (g *unitGraph) addFile(path, coreModule string) error {
 			g.addImporter(target, path)
 		}
 	}
-	g.markInstantiated(topValue(root, "expand"), resolve)
+	g.markExpanded(topValue(root, "expand"), resolve)
 	if machine := topValue(root, "machine"); machine != nil && machine.Kind == yaml.MappingNode {
-		g.markInstantiated(topValue(machine, "expand"), resolve)
+		g.markExpanded(topValue(machine, "expand"), resolve)
 	}
 	g.markProfileRoots(root, resolve)
 	return nil
@@ -133,14 +133,14 @@ func (g *unitGraph) addImporter(unit, importer string) {
 	g.importers[unit][filepath.Clean(importer)] = true
 }
 
-func (g *unitGraph) markInstantiated(instantiate *yaml.Node, resolve func(string) (string, bool)) {
-	if instantiate == nil || instantiate.Kind != yaml.SequenceNode {
+func (g *unitGraph) markExpanded(expand *yaml.Node, resolve func(string) (string, bool)) {
+	if expand == nil || expand.Kind != yaml.SequenceNode {
 		return
 	}
-	for _, entry := range instantiate.Content {
+	for _, entry := range expand.Content {
 		if fragment := topValue(entry, "fragment"); fragment != nil && fragment.Kind == yaml.ScalarNode {
 			if target, ok := resolve(fragment.Value); ok {
-				g.instantiated[target] = true
+				g.expanded[target] = true
 			}
 		}
 	}
@@ -228,7 +228,7 @@ func TestSingleImporterUnitClassification(t *testing.T) {
 	entries, err := singleImporterEntries(paths, filepath.Join(root, "core"), root)
 	require.NoError(t, err)
 	// shared and shared-rest have two importers (one through a templated file),
-	// fragment is instantiated, root is also a profile root, types holds only
+	// fragment is expanded, root is also a profile root, types holds only
 	// types, the core library is exempt, and unused and the declaration files
 	// have no importer: lonely and templated are the only single-importer units.
 	require.Equal(t, []string{

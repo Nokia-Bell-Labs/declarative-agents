@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Fragments in the closure: usedness of an instantiation and its provenance
+// Fragments in the closure: usedness of an expansion and its provenance
 // in the dump (srd052 R3).
 
 const echoFragment = `unit: echo-frag
@@ -23,7 +23,7 @@ tools:
   args: ["$param(word)"]
 `
 
-func TestLoadClosureReportsAnUnselectedInstantiationAsUnused(t *testing.T) {
+func TestLoadClosureReportsAnUnselectedExpansionAsUnused(t *testing.T) {
 	root := writeUsednessClosureFixture(t, "other")
 	writeLoadFixture(t, root, "frag.yaml", echoFragment)
 	writeLoadFixture(t, root, "declarations.yaml", `unit: root
@@ -38,11 +38,11 @@ tools:
 
 	require.ErrorContains(t, err, "unused declaration imports")
 	require.ErrorContains(t, err, `tool fragment "echo-frag"`)
-	require.ErrorContains(t, err, "instantiated with (word=hello)")
+	require.ErrorContains(t, err, "expanded with (word=hello)")
 	require.ErrorContains(t, err, `by unit "root"`)
 }
 
-func TestLoadClosureDumpsEveryInstantiation(t *testing.T) {
+func TestLoadClosureDumpsEveryExpansion(t *testing.T) {
 	root := writeUsednessClosureFixture(t, "hi_say, bye_say")
 	writeLoadFixture(t, root, "frag.yaml", echoFragment)
 	writeLoadFixture(t, root, "declarations.yaml", `unit: root
@@ -60,7 +60,7 @@ tools: []
 
 	require.Equal(t, first.String(), second.String())
 	dump := first.String()
-	require.Contains(t, dump, "instantiations:\n")
+	require.Contains(t, dump, "expansions:\n")
 	require.Contains(t, dump, "as: bye\n    args:\n      word: goodbye\n    produces:\n      - bye_say\n")
 	require.Contains(t, dump, "as: hi\n    args:\n      word: hello\n    produces:\n      - hi_say\n")
 	require.Less(t, bytes.Index(first.Bytes(), []byte("as: bye")), bytes.Index(first.Bytes(), []byte("as: hi")),
@@ -78,7 +78,7 @@ rest:
       base_url: $param(url)
 `
 
-func TestLoadClosureReportsAnUnreferencedRESTInstantiationAsUnused(t *testing.T) {
+func TestLoadClosureReportsAnUnreferencedRESTExpansionAsUnused(t *testing.T) {
 	root := writeUsednessClosureFixture(t, "other")
 	writeLoadFixture(t, root, "declarations.yaml", "tools:\n  - name: other\n    binary: echo\n")
 	writeLoadFixture(t, root, "client-frag.yaml", clientFragment)
@@ -93,10 +93,10 @@ rest: {version: v1}
 
 	require.ErrorContains(t, err, "unused declaration imports")
 	require.ErrorContains(t, err, `REST fragment "client-frag"`)
-	require.ErrorContains(t, err, "instantiated with (url=http://spare)")
+	require.ErrorContains(t, err, "expanded with (url=http://spare)")
 }
 
-func TestLoadClosureDumpsRESTInstantiationsBesideToolOnes(t *testing.T) {
+func TestLoadClosureDumpsRESTExpansionsBesideToolOnes(t *testing.T) {
 	root := writeUsednessClosureFixture(t, "call")
 	writeLoadFixture(t, root, "client-frag.yaml", clientFragment)
 	writeLoadFixture(t, root, "rest.yaml", `unit: rest-root
@@ -119,11 +119,11 @@ rest: {version: v1}
 	var dump bytes.Buffer
 	require.NoError(t, DumpConfig(closure, &dump))
 
-	require.Contains(t, dump.String(), "instantiations:\n")
+	require.Contains(t, dump.String(), "expansions:\n")
 	require.Contains(t, dump.String(), "as: main\n    args:\n      url: http://main\n    produces:\n      - clients/main_api\n")
 }
 
-func TestLoadClosureDumpsMachineStageInstantiations(t *testing.T) {
+func TestLoadClosureDumpsMachineStageExpansions(t *testing.T) {
 	root := writeUsednessClosureFixture(t, "other")
 	writeLoadFixture(t, root, "declarations.yaml", "tools:\n  - name: other\n    binary: echo\n    emits: [Done]\n")
 	writeLoadFixture(t, root, "stage.yaml", `unit: run-stage

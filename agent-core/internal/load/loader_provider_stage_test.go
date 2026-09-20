@@ -14,8 +14,8 @@ import (
 )
 
 // The embed and rerank stage fragments splice with every shipped provider
-// library (srd058 R4.1). The importer instantiates a stage from agent-core,
-// imports its words, and instantiates the bound library's REST fragment; the
+// library (srd058 R4.1). The importer expands a stage from agent-core,
+// imports its words, and expands the bound library's REST fragment; the
 // spliced machine passes the checks a hand-written one does. The root
 // registries are process-scoped, so these tests do not run in parallel.
 

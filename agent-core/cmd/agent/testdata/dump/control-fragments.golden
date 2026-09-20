@@ -130,7 +130,7 @@ types:
             type: integer
           type: array
       type: object
-instantiations:
+expansions:
   - kind: rest
     fragment: <agent-core>/testdata/integration/units/control-rest-fragment.yaml
     as: alpha

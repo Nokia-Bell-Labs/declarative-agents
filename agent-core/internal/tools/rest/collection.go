@@ -133,14 +133,14 @@ func (c Collection) DeclarationImports() []restdef.DeclarationImport {
 	return imports
 }
 
-// DeclarationInstantiations returns every REST fragment instantiation in the
+// DeclarationExpansions returns every REST fragment expansion in the
 // collection, in traversal order (srd052 R3.2).
-func (c Collection) DeclarationInstantiations() []restdef.DeclarationInstantiation {
-	var instantiations []restdef.DeclarationInstantiation
+func (c Collection) DeclarationExpansions() []restdef.DeclarationExpansion {
+	var expansions []restdef.DeclarationExpansion
 	for _, declaration := range c.declarations {
-		instantiations = append(instantiations, declaration.DeclarationInstantiations()...)
+		expansions = append(expansions, declaration.DeclarationExpansions()...)
 	}
-	return instantiations
+	return expansions
 }
 
 // DeclarationSource returns the owner of one top-level REST declaration.

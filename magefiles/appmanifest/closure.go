@@ -596,7 +596,7 @@ func cleanJoined(base, reference string) (string, error) {
 }
 
 // yamlReference is one path a closure source names; fragment marks an
-// instantiate -> fragment path, the one kind whose templates select variants.
+// expand -> fragment path, the one kind whose templates select variants.
 type yamlReference struct {
 	value    string
 	fragment bool
@@ -625,9 +625,9 @@ func collectYAMLReferences(document *yaml.Node) []yamlReference {
 				topLevelField := depth == 0 && stringSet(
 					"machine", "tools", "tool_declarations", "tool_config_dirs",
 					"rest_definitions", "rest_config_dirs")[key]
-				// An instantiation is an import edge whose unit is filled in
+				// An expansion is an import edge whose unit is filled in
 				// on the way (srd052 R2.1); the fragment travels with the
-				// declaration or machine that instantiates it.
+				// declaration or machine that expands it.
 				fragment := key == "fragment" && contains(ancestors, "expand")
 				pathField := topLevelField ||
 					stringSet("profile", "subject_profile", "point_machine",

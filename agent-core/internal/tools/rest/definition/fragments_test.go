@@ -30,7 +30,7 @@ rest:
         list: {method: GET, path: /items}
 `
 
-func TestInstantiateRESTFragmentTwiceWithPrefixes(t *testing.T) {
+func TestExpandRESTFragmentTwiceWithPrefixes(t *testing.T) {
 	root := t.TempDir()
 	fragment := writeImportFixture(t, root, "units/api.yaml", apiFragment)
 	top := writeImportFixture(t, root, "rest.yaml", `unit: top
@@ -55,15 +55,15 @@ rest: {}
 	require.True(t, ok)
 	require.Equal(t, DeclarationSource{Unit: "http-json-api", Path: fragment}, source)
 
-	instantiations := def.DeclarationInstantiations()
-	require.Len(t, instantiations, 2)
-	require.Equal(t, "traces", instantiations[1].As)
-	require.Equal(t, []string{"clients/traces_api", "limits/traces_local"}, instantiations[1].Produces)
+	expansions := def.DeclarationExpansions()
+	require.Len(t, expansions, 2)
+	require.Equal(t, "traces", expansions[1].As)
+	require.Equal(t, []string{"clients/traces_api", "limits/traces_local"}, expansions[1].Produces)
 	require.Len(t, def.DeclarationImports(), 2)
 	require.Equal(t, map[string]string{"base_url": "http://traces:4318", "max_bytes": "65536"}, def.DeclarationImports()[1].Args)
 }
 
-func TestRepeatedRESTInstantiationWithoutPrefixIsTheConflictError(t *testing.T) {
+func TestRepeatedRESTExpansionWithoutPrefixIsTheConflictError(t *testing.T) {
 	root := t.TempDir()
 	writeImportFixture(t, root, "units/api.yaml", apiFragment)
 	top := writeImportFixture(t, root, "rest.yaml", `unit: top
@@ -91,7 +91,7 @@ func TestRESTArgumentFaultsNameImporterFragmentAndParameter(t *testing.T) {
 		_, err := LoadDefinitionClosure([]string{top}, nil)
 		require.ErrorContains(t, err, tc.want, name)
 		require.ErrorContains(t, err, `REST unit "top-`+name+`"`, name)
-		require.ErrorContains(t, err, `instantiates "units/api.yaml"`, name)
+		require.ErrorContains(t, err, `expands "units/api.yaml"`, name)
 	}
 }
 
@@ -102,7 +102,7 @@ func TestRESTFragmentUnderImportsIsRejected(t *testing.T) {
 
 	_, err := LoadDefinitionClosure([]string{top}, nil)
 
-	require.ErrorContains(t, err, "is instantiated, not imported")
+	require.ErrorContains(t, err, "is expanded, not imported")
 }
 
 func TestHalfDeclaredRESTFragmentFails(t *testing.T) {

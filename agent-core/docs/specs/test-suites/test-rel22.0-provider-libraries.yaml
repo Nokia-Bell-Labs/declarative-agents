@@ -29,7 +29,7 @@ test_cases:
     name: A missing library file fails at load naming path and directory
     go_test: go test ./internal/load -run 'TestProviderLibraryMissingDialectNamesPathAndDirectory|TestProviderLibraryMissingFragmentNamesPathAndDirectory'
     status: implemented
-    description: Bind a providers root that lacks chat-dialect.yaml, then one that lacks rerank-fragment.yaml under a profile that instantiates the rerank stage.
+    description: Bind a providers root that lacks chat-dialect.yaml, then one that lacks rerank-fragment.yaml under a profile that expands the rerank stage.
     expected:
       load_fails: true
       error_names_missing_path: true
@@ -95,7 +95,7 @@ test_cases:
     name: Stage fragments splice with each library and route every failure
     go_test: go test ./internal/load ./internal/tools/rest -run 'TestEmbedStageFragmentsSpliceWithEachLibrary|TestProviderFailureSignalsRouted'
     status: implemented
-    description: Instantiate the embed-query, embed-document, and rerank stages in a fixture machine beside each library's REST fragments; answer 200, 401, 429, and 503 from the fake server.
+    description: Expand the embed-query, embed-document, and rerank stages in a fixture machine beside each library's REST fragments; answer 200, 401, 429, and 503 from the fake server.
     expected:
       label_and_exhaustiveness_checks_pass: true
       success_signals_emitted: [QueryEmbedded, DocumentEmbedded, Reranked]

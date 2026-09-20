@@ -261,11 +261,11 @@ func TestStageRefusesATreeDestinationOutsideTheRoot(t *testing.T) {
 	require.ErrorContains(t, err, "outside the staged root")
 }
 
-// TestStageCarriesAnInstantiatedFragment: an instantiation is an import edge
+// TestStageCarriesAnExpandedFragment: an expansion is an import edge
 // whose unit is filled in on the way (srd052 R2.1), so the fragment travels
-// with the declaration that instantiates it, and a machine's stage fragment
+// with the declaration that expands it, and a machine's stage fragment
 // travels with the machine.
-func TestStageCarriesAnInstantiatedFragment(t *testing.T) {
+func TestStageCarriesAnExpandedFragment(t *testing.T) {
 	t.Parallel()
 	source := t.TempDir()
 	writeDeclaration(t, source, "agents/rag/declarations.yaml",
@@ -284,9 +284,9 @@ func TestStageCarriesAnInstantiatedFragment(t *testing.T) {
 	}))
 
 	require.FileExists(t, filepath.Join(root, "agents", "units", "embed.yaml"),
-		"the tool fragment the declaration instantiates travels with it")
+		"the tool fragment the declaration expands travels with it")
 	require.FileExists(t, filepath.Join(root, "agents", "units", "stage.yaml"),
-		"the stage fragment the machine instantiates travels with it")
+		"the stage fragment the machine expands travels with it")
 	imported, err := profilestage.Imported(filepath.Join(source, "agents", "rag"))
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{

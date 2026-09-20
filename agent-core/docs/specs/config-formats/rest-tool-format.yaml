@@ -1154,7 +1154,7 @@ fragment_files:
     importing REST file's `expand` list applies the fragment with
     arguments. The two fields sit beside `unit` and `imports` (srd050) and
     follow the same rules as in cfg-tool-declaration-format: scalar-only
-    substitution of `$param(name)`, and the instantiated definition compiled
+    substitution of `$param(name)`, and the expanded definition compiled
     through ValidateDefinition like a hand-written one. When `as` is given,
     every name the fragment's `rest` body produces -- the clients, servers,
     openapi, auth, limits, retry_policies, response_mappings, and
@@ -1163,7 +1163,7 @@ fragment_files:
     `<as>_<name>`, and the fragment's own references to those names
     (`limits_ref`, `auth_ref`, `retry_ref`, `response_ref`,
     `require_auth_ref`, `document_resources`, `bind`) follow, so each
-    instantiation resolves on its own. A tool that reaches a produced endpoint
+    expansion resolves on its own. A tool that reaches a produced endpoint
     names the prefixed form, `routes: [alpha_exit]`. A reference to a name the fragment does
     not declare is left for the importer's closure to supply. Landed with
     GH-2082.

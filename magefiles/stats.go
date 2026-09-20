@@ -118,7 +118,7 @@ func sumReuseResults(
 		total.ImportedUnits += result.ImportedUnits
 		total.SharedUnits += result.SharedUnits
 		total.SingleImporterUnits += result.SingleImporterUnits
-		total.Instantiations += result.Instantiations
+		total.Expansions += result.Expansions
 		addModuleBlocks(groups, module, result.TopBlocks)
 	}
 	total.DuplicationRatio = statsRatio(total.DuplicatedLines, total.TotalLines)

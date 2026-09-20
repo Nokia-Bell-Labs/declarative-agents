@@ -49,7 +49,7 @@ func loadFragmentRoot(t *testing.T, files map[string]string) ([]ToolDef, error) 
 	return LoadToolDefs(filepath.Join(root, "declarations.yaml"))
 }
 
-func TestInstantiateProducesPrefixedTypedTools(t *testing.T) {
+func TestExpandProducesPrefixedTypedTools(t *testing.T) {
 	t.Parallel()
 	defs, err := loadFragmentRoot(t, map[string]string{
 		"units/embed.yaml": embedFragment,
@@ -75,14 +75,14 @@ tools: []
 	require.Equal(t, "Embed with cohere.", cohere.Description)
 	require.Equal(t, 1024, cohere.Config["dims"], "a whole-scalar integer hole decodes as an integer")
 	require.Equal(t, 3072, openai.Config["dims"])
-	instantiation, ok := openai.Instantiation()
+	expansion, ok := openai.Expansion()
 	require.True(t, ok)
-	require.Equal(t, "openai", instantiation.As)
-	require.Equal(t, map[string]string{"provider": "openai", "dims": "3072"}, instantiation.Args)
+	require.Equal(t, "openai", expansion.As)
+	require.Equal(t, map[string]string{"provider": "openai", "dims": "3072"}, expansion.Args)
 	require.Equal(t, "embed-provider", openai.DeclarationSource().Unit)
 }
 
-func TestInstantiateArgumentFaultsNameImporterFragmentAndParameter(t *testing.T) {
+func TestExpandArgumentFaultsNameImporterFragmentAndParameter(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ args, want string }{
 		"missing": {"{}", `parameter "provider" is required`},
@@ -96,7 +96,7 @@ func TestInstantiateArgumentFaultsNameImporterFragmentAndParameter(t *testing.T)
 		})
 		require.ErrorContains(t, err, tc.want, name)
 		require.ErrorContains(t, err, `tool unit "rag"`, name)
-		require.ErrorContains(t, err, `instantiates "units/embed.yaml"`, name)
+		require.ErrorContains(t, err, `expands "units/embed.yaml"`, name)
 	}
 }
 
@@ -106,16 +106,16 @@ func TestFragmentUnderImportsIsRejected(t *testing.T) {
 		"units/embed.yaml":  embedFragment,
 		"declarations.yaml": "unit: rag\nimports: [units/embed.yaml]\ntools: []\n",
 	})
-	require.ErrorContains(t, err, "is instantiated, not imported")
+	require.ErrorContains(t, err, "is expanded, not imported")
 }
 
-func TestPlainUnitCannotBeInstantiated(t *testing.T) {
+func TestPlainUnitCannotBeExpanded(t *testing.T) {
 	t.Parallel()
 	_, err := loadFragmentRoot(t, map[string]string{
 		"units/plain.yaml":  "unit: plain\ntools:\n- name: x\n  binary: echo\n",
 		"declarations.yaml": "unit: rag\nexpand:\n- {fragment: units/plain.yaml, args: {}}\ntools: []\n",
 	})
-	require.ErrorContains(t, err, "declares no params, so it is imported, not instantiated")
+	require.ErrorContains(t, err, "declares no params, so it is imported, not expanded")
 }
 
 func TestHalfDeclaredFragmentFails(t *testing.T) {
@@ -153,19 +153,19 @@ func TestReferenceInMappingNameIsLeftAndReported(t *testing.T) {
 	require.ErrorContains(t, err, "line 8")
 }
 
-func TestRepeatedInstantiationWithoutPrefixIsADuplicate(t *testing.T) {
+func TestRepeatedExpansionWithoutPrefixIsADuplicate(t *testing.T) {
 	t.Parallel()
 	_, err := loadFragmentRoot(t, map[string]string{
 		"units/embed.yaml":  embedFragment,
 		"declarations.yaml": "unit: rag\nexpand:\n- {fragment: units/embed.yaml, args: {provider: cohere}}\n- {fragment: units/embed.yaml, args: {provider: cohere}}\ntools: []\n",
 	})
-	require.ErrorContains(t, err, `duplicate imported tool "embed": instantiations 1 and 2`)
+	require.ErrorContains(t, err, `duplicate imported tool "embed": expansions 1 and 2`)
 }
 
-// TestInstantiatedUnitTakesTheHandWrittenPath: strict decoding applies to what
+// TestExpandedUnitTakesTheHandWrittenPath: strict decoding applies to what
 // the arguments produced, so a misspelled field in the fragment body fails the
 // way it would in any declaration file.
-func TestInstantiatedUnitTakesTheHandWrittenPath(t *testing.T) {
+func TestExpandedUnitTakesTheHandWrittenPath(t *testing.T) {
 	t.Parallel()
 	_, err := loadFragmentRoot(t, map[string]string{
 		"units/typo.yaml":   "unit: typo\nparams:\n- {name: p, type: string}\ntools:\n- name: x\n  binary: echo\n  descripton: $param(p)\n",

@@ -32,5 +32,5 @@ transitions:
 
 	require.NoError(t, err)
 	require.Contains(t, spec.States.Names(), "EmbedRunning")
-	require.Equal(t, filepath.Join(installRoot, "tools", "machines", "run.yaml"), spec.Instantiations()[0].Fragment)
+	require.Equal(t, filepath.Join(installRoot, "tools", "machines", "run.yaml"), spec.Expansions()[0].Fragment)
 }

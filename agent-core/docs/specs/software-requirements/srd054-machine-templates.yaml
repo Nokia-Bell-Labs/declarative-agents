@@ -21,13 +21,13 @@ problem: |
 
   In the terms of srd052, a stage fragment is a function template spliced
   into a larger body. A machine template is a class template: the whole
-  machine is the fragment, and a machine file becomes one instantiation of it.
+  machine is the fragment, and a machine file becomes one expansion of it.
 
 goals:
-  - G1: Let a whole machine be declared once as a fragment with typed parameters and instantiated by a machine file that carries only its arguments.
-  - G2: Keep instantiation inside srd052's rules, so a machine template adds a body kind and no second substitution or argument model.
-  - G3: Validate an instantiated machine exactly as a hand-written one, with diagnostics that name both the template and the instance.
-  - G4: Make templates visible to the closure, the program identity, the dump, and staging as instantiations are for tools and REST definitions.
+  - G1: Let a whole machine be declared once as a fragment with typed parameters and expanded by a machine file that carries only its arguments.
+  - G2: Keep expansion inside srd052's rules, so a machine template adds a body kind and no second substitution or argument model.
+  - G3: Validate an expanded machine exactly as a hand-written one, with diagnostics that name both the template and the instance.
+  - G4: Make templates visible to the closure, the program identity, the dump, and staging as expansions are for tools and REST definitions.
 
 requirements:
   R1:
@@ -48,13 +48,13 @@ requirements:
       - R1.3: >-
           A machine template's body MAY carry `expand` listing stage
           fragments, which splice under srd052 R4 after the template's
-          arguments are substituted. A template SHALL NOT instantiate another
-          machine template, and an instance SHALL NOT instantiate a stage
+          arguments are substituted. A template SHALL NOT expand another
+          machine template, and an instance SHALL NOT expand a stage
           fragment beside its template. Each violation SHALL be a load error
           naming the file and the offending entry. This is the one exception
           to srd052 R1.2, and nesting stops at one level.
       - R1.4: >-
-          A template SHALL only be instantiated. A profile naming a template
+          A template SHALL only be expanded. A profile naming a template
           file as its `machine`, and a REST `machine_request` binding naming
           one, SHALL be load errors naming the referring file and the
           template, because a template holds unfilled references and is not a
@@ -62,14 +62,14 @@ requirements:
           srd052 R2.6).
 
   R2:
-    title: Instantiation
+    title: Expansion
     items:
       - R2.1: >-
           Argument checking, `$param(name)` substitution, and leftover
           detection SHALL be srd052 R2.2 and R2.3 unchanged, applied to the
           template's text before the body is decoded. A reference MAY stand
           in any scalar value of the body, including action names, signal
-          names, labels, and the arguments of a stage instantiation inside
+          names, labels, and the arguments of a stage expansion inside
           the body, so a template can pass its own arguments through to a
           stage.
       - R2.2: >-
@@ -80,7 +80,7 @@ requirements:
           file's directory, so a template can live beside its stages without
           the instance knowing where they are.
       - R2.3: >-
-          The loader SHALL tell a machine instantiation from a stage splice by
+          The loader SHALL tell a machine expansion from a stage splice by
           the target's body kind: a `machine` body replaces the instance's
           machine, and a `stage` body splices into it. A target with any other
           body kind SHALL be a load error naming the target and its body kind.
@@ -91,7 +91,7 @@ requirements:
           takes: the structural checks, the required machine policy, the label
           and selector path checks (srd038), and exhaustiveness (srd006).
       - R2.5: >-
-          Every diagnostic raised while validating an instantiated machine
+          Every diagnostic raised while validating an expanded machine
           SHALL name the template path and the instance path, and a diagnostic
           that points at a line SHALL point into the template.
 
@@ -102,12 +102,12 @@ requirements:
           Loading an instance SHALL visit the instance, the template, and every
           stage fragment the template splices, so each is a file of the
           closure and an asset of the program identity digest; changing a
-          template SHALL change the digest of every program that instantiates
+          template SHALL change the digest of every program that expands
           it.
       - R3.2: >-
-          The canonical dump SHALL render the instantiated machine under
-          `machine` and list the template instantiation under
-          `instantiations` with `kind: machine`, the template path, the
+          The canonical dump SHALL render the expanded machine under
+          `machine` and list the template expansion under
+          `expansions` with `kind: machine`, the template path, the
           arguments, and the produced machine name. Stage rows SHALL carry
           `kind: stage`.
       - R3.3: >-
@@ -118,25 +118,25 @@ requirements:
 
 non_goals:
   - Overriding anything on an instance other than `name` and `purpose`. A machine is an instance of a template or it is hand-written; partial overrides wait for a release that needs them.
-  - Templates instantiating templates, and stages instantiating stages.
+  - Templates expanding templates, and stages expanding stages.
   - Conditional or computed machine structure. Arguments fill scalar holes; a template is one fixed shape.
   - Machines invoked as tools by other machines, and loader words. Both follow once agent blueprints (srd055) exist.
-  - Committing any instantiated machine.
+  - Committing any expanded machine.
 
 acceptance_criteria:
   - id: AC1
-    criterion: A template with params and a machine body loads through an instance carrying unit, one instantiate entry, and optionally name and purpose; any other instance field, an as on the entry, a nested params, a template instantiating a template, an instance instantiating a stage beside its template, and a profile or machine_request naming a template directly each fail naming the file and the offending field or entry.
+    criterion: A template with params and a machine body loads through an instance carrying unit, one expand entry, and optionally name and purpose; any other instance field, an as on the entry, a nested params, a template expanding a template, an instance expanding a stage beside its template, and a profile or machine_request naming a template directly each fail naming the file and the offending field or entry.
     traces: [R1.1, R1.2, R1.3, R1.4]
   - id: AC2
-    criterion: Argument faults and leftover references fail as they do for srd052 fragments; a reference passes through to a stage inside the template; template-relative and instance-relative paths resolve against their own files; a target's body kind selects replace or splice and an unknown kind fails; the instantiated machine equals the equivalent hand-written machine apart from name and purpose; and a misspelled label inside a template fails naming both template and instance.
+    criterion: Argument faults and leftover references fail as they do for srd052 fragments; a reference passes through to a stage inside the template; template-relative and instance-relative paths resolve against their own files; a target's body kind selects replace or splice and an unknown kind fails; the expanded machine equals the equivalent hand-written machine apart from name and purpose; and a misspelled label inside a template fails naming both template and instance.
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
   - id: AC3
-    criterion: Changing a template changes the program digest of its instances; the dump renders the instantiated machine and lists the template and stage instantiations with their kinds; and a staged tree containing an instance loads with no checkout present.
+    criterion: Changing a template changes the program digest of its instances; the dump renders the expanded machine and lists the template and stage expansions with their kinds; and a staged tree containing an instance loads with no checkout present.
     traces: [R3.1, R3.2, R3.3]
 
 depends_on:
   - srd_id: srd052-declaration-fragments
-    symbols_used: [fragment format, params, instantiate, $param substitution, argument checks, stage fragments, instantiations dump section]
+    symbols_used: [fragment format, params, expand, $param substitution, argument checks, stage fragments, expansions dump section]
   - srd_id: srd006-yaml-machine-config
     symbols_used: [MachineSpec, structural validation, exhaustiveness]
   - srd_id: srd038-command-state-store
@@ -153,7 +153,7 @@ related_documents:
 implementation_status:
   complete:
     - GH-2114 implements machine templates in the machine closure loader (R1, R2, R3), with a control-template fixture whose instance equals the control machine apart from its name; startup wiring faults name the template beside the instance. A reference left after substitution reports its line in the template; a strict-decode fault in a template body reports the line of the re-encoded body rather than the template (R2.5, partial).
-    - GH-2115 extracts the serve machine shared by catalog's applier and the four chatbot-mesh serve agents into agent-core's library at tools/machines/serve-machine-template.yaml, instantiated by each through its install path.
+    - GH-2115 extracts the serve machine shared by catalog's applier and the four chatbot-mesh serve agents into agent-core's library at tools/machines/serve-machine-template.yaml, expanded by each through its install path.
     - >-
       GH-2116 migrates the remaining groups that were one shape: the test-
       evidence audit, lifecycle approval, and Ollama model-listing machines

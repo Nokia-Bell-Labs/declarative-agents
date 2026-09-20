@@ -9,7 +9,7 @@ traces:
 
 preconditions:
   - srd056-unit-libraries defines import path forms, declared library roots, read-only libraries, closure, dump, and staging behavior, and the service-library convention.
-  - srd050 imports as amended by srd056, srd051 type units, srd052 instantiation, srd054 machine template instances, srd055 blueprint machine mappings, and pkg/profilestage are available.
+  - srd050 imports as amended by srd056, srd051 type units, srd052 expansion, srd054 machine template instances, srd055 blueprint machine mappings, and pkg/profilestage are available.
 
 test_cases:
   - use_case: rel20.0-uc003-unit-libraries
@@ -27,7 +27,7 @@ test_cases:
     name: Rooted paths work in every form srd050 governs
     go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition ./internal/runtime/core ./internal/load -run 'TestToolImportsAndFragmentsResolveUnderTheAgentCoreLibrary|TestRESTImportsAndFragmentsResolveUnderTheAgentCoreLibrary|TestLoadMachineClosureSplicesAStageFromTheAgentCoreLibrary|TestProfileDeclaresLibraryRootsAndMapsItsOwnPaths|TestLoadClosureRejectsAnAbsoluteImportOutsideALibraryRoot'
     status: implemented
-    description: Name a rooted path in an instantiate fragment, a machine template instance, a blueprint machine mapping, and a profile tool_declarations list; then put an unrooted absolute path in the profile list and in an import.
+    description: Name a rooted path in an expand fragment, a machine template instance, a blueprint machine mapping, and a profile tool_declarations list; then put an unrooted absolute path in the profile list and in an import.
     expected:
       each_form_resolves: true
       profile_absolute_path_accepted: true

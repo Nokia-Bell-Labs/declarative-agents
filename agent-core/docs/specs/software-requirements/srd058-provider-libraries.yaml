@@ -65,7 +65,7 @@ requirements:
           a fixed name, embed_query, embed_document, or rerank, and fragments
           of one kind SHALL declare the same parameters in every library,
           with provider-specific values given as defaults. A word, stage, or
-          instantiation that needs a file the bound library does not supply
+          expansion that needs a file the bound library does not supply
           SHALL fail at load, naming the missing path and the bound directory.
       - R1.4: >-
           Every operation a provider library declares SHALL emit only the
@@ -172,8 +172,8 @@ requirements:
           the entry state and signal and the exit state as parameters. The
           words, in agent-core/tools/units, call the R1.3 operations and, for
           embeddings, normalize the result to one flat vector. Because a
-          fragment does not instantiate another (srd052 R1.2), the importing
-          agent SHALL import the words and instantiate the library's REST
+          fragment does not expand another (srd052 R1.2), the importing
+          agent SHALL import the words and expand the library's REST
           fragment beside the stage.
       - R4.2: >-
           The stage fragments SHALL replace the hand-written embedding stages
@@ -231,7 +231,7 @@ depends_on:
   - srd_id: srd048-cohere-adapter
     symbols_used: [credential boundary R3, parser profile precedent, R1.5 no embed or rerank in the adapter]
   - srd_id: srd052-declaration-fragments
-    symbols_used: [REST fragments, instantiate, as prefix, stage fragments, no nested instantiation]
+    symbols_used: [REST fragments, expand, as prefix, stage fragments, no nested expansion]
   - srd_id: srd054-machine-templates
     symbols_used: [tools/machines library location]
   - srd_id: srd056-unit-libraries
