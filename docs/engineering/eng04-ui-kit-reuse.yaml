@@ -85,3 +85,12 @@ sections:
       against a named release, absorbing the additive contract changes the
       release notes state. Vendored token copies in consumers come from the
       pinned kit, never edited in place.
+
+references:
+  - "applications/docs/specs/software-requirements/srd004-declarative-ux.yaml (the presentation contract and panel composition model; the full path matters, other srd004 files exist)"
+  - "docs/guides/ui-panels.md (panel model, kit package, ui.yaml v2 mechanics)"
+  - "docs/engineering/eng02-agent-ui-placement.yaml (where a served UI lives)"
+  - "docs/engineering/eng03-declaration-standard-library.yaml (the vocabulary-growth pattern the contract section mirrors)"
+  - "applications/ui-kit/README.md (kit consumption, linking, and release mechanics)"
+  - "magefiles/uiyaml/uiyaml.go (CheckHelmRenderable, the chart-renderability rule composition norms depend on)"
+  - "magefiles/ui_duplication_test.go (the denylist gate promotions must extend)"

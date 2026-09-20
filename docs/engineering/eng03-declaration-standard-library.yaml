@@ -137,3 +137,18 @@ sections:
       leaves no copy behind. mage stats:reuse measures the outcome; a
       promotion that does not reduce the duplication count did not need to
       happen, and the release proof blocks record the trend.
+
+references:
+  - "agent-core/docs/specs/software-requirements/srd050-declaration-imports.yaml (named units and explicit imports)"
+  - "agent-core/docs/specs/software-requirements/srd051-declaration-types.yaml (type units)"
+  - "agent-core/docs/specs/software-requirements/srd052-declaration-fragments.yaml (parameterized fragments, stage fragments, hygienic substitution)"
+  - "agent-core/docs/specs/software-requirements/srd054-machine-templates.yaml (whole-machine templates)"
+  - "agent-core/docs/specs/software-requirements/srd056-unit-libraries.yaml (library roots and the published tools/ library)"
+  - "agent-core/docs/specs/software-requirements/srd057-capability-profiles.yaml (capability profiles and consumption forms)"
+  - "agent-core/docs/specs/software-requirements/srd058-provider-libraries.yaml (provider libraries and the chat dialect)"
+  - "docs/guides/composition-model.md (how a profile composes)"
+  - "docs/guides/fragments.md (fragment and template mechanics)"
+  - "docs/guides/capability-profiles.md (capability profile mechanics)"
+  - "agent-core/internal/declstyle/single_importer_test.go (the single-importer gate this guideline's admission rule cites)"
+  - "GH-2079 (a unit earns its place with two or more importers or one instantiation)"
+  - "GH-2107 (the declstyle single-importer class and its build gate)"

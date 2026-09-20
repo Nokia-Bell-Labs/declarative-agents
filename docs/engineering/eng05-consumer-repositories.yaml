@@ -69,3 +69,11 @@ sections:
       provider library ships. When a consumer needs something the platform
       does not offer, the gap files upstream; the consumer does not patch
       its pinned copy.
+
+references:
+  - "docs/engineering/eng03-declaration-standard-library.yaml (unit norms consumers inherit)"
+  - "docs/engineering/eng04-ui-kit-reuse.yaml (interface norms consumers inherit)"
+  - "magefiles/tag.go (the release tagging the pin section resolves against)"
+  - "GH-2245 (the request-path adoption whose defect only live tiers caught)"
+  - "GH-2250 (the request-profile load error that adoption surfaced)"
+  - "cohere-demo deps:pin reference implementation, https://github.com/petar-djukic/cohere-demo/blob/main/magefiles/deps.go"
