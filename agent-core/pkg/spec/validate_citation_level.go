@@ -4,13 +4,14 @@
 package spec
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // A citation names a requirement group (R2) or an item inside one (R2.1).
@@ -25,8 +26,7 @@ import (
 // So a citation is required to name an item (GH-2339).
 var groupOnlyCitation = regexp.MustCompile(`^R\d+$`)
 
-// legacyGroupCitationsFile lists the citations that predate this rule, one
-// "<use case> <srd> <group>" per line.
+// legacyGroupCitationsFile lists the citations that predate this rule.
 //
 // The corpus carries 538 of them across 72 use cases, and retargeting one is
 // a judgement about which item its prose meant rather than a rewrite, so they
@@ -34,7 +34,29 @@ var groupOnlyCitation = regexp.MustCompile(`^R\d+$`)
 // declarations. The baseline stops the count growing; it does not shrink it.
 // An entry that no longer matches any citation is reported, so the file cannot
 // outlive what it excuses.
-const legacyGroupCitationsFile = "docs/specs/legacy-group-citations.txt"
+const legacyGroupCitationsFile = "docs/specs/legacy-group-citations.yaml"
+
+// legacyGroupCitations is the baseline document. It is YAML and declared in
+// the document-type registry rather than a bare list, because every tracked
+// file under a docs path has to name a document type: a text baseline there
+// matched none, and main went red when the placement check and the baseline
+// landed in the same week (GH-2372).
+type legacyGroupCitations struct {
+	Citations []legacyGroupCitation `yaml:"citations"`
+}
+
+// legacyGroupCitation is one grandfathered citation.
+type legacyGroupCitation struct {
+	UseCase string `yaml:"use_case"`
+	SRD     string `yaml:"srd"`
+	Group   string `yaml:"group"`
+}
+
+// key is the form the check compares against, so the document's three fields
+// and the check's lookup cannot drift apart.
+func (c legacyGroupCitation) key() string {
+	return c.UseCase + " " + c.SRD + " " + c.Group
+}
 
 // checkGroupLevelCitations reports a touchpoint citing a bare requirement
 // group rather than an item within it, and a baseline line that no longer
@@ -131,27 +153,23 @@ func staleGroupCitationBaselineEntries(cited []string, baseline map[string]bool)
 // needs no file to say so.
 func loadLegacyGroupCitations(rootDir string) (map[string]bool, error) {
 	path := filepath.Join(rootDir, filepath.FromSlash(legacyGroupCitationsFile))
-	file, err := os.Open(path) // #nosec G304 -- corpus-relative path owned by the repository
+	data, err := os.ReadFile(path) // #nosec G304 -- corpus-relative path owned by the repository
 	if err != nil {
 		if os.IsNotExist(err) {
 			return map[string]bool{}, nil
 		}
 		return nil, err
 	}
-	defer func() { _ = file.Close() }()
-
-	entries := map[string]bool{}
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		if fields := strings.Fields(line); len(fields) == 3 {
-			entries[strings.Join(fields, " ")] = true
-			continue
-		}
-		return nil, fmt.Errorf("line %q is not <use case> <srd> <group>", line)
+	var document legacyGroupCitations
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		return nil, err
 	}
-	return entries, scanner.Err()
+	entries := make(map[string]bool, len(document.Citations))
+	for _, citation := range document.Citations {
+		if citation.UseCase == "" || citation.SRD == "" || citation.Group == "" {
+			return nil, fmt.Errorf("citation %+v needs use_case, srd, and group", citation)
+		}
+		entries[citation.key()] = true
+	}
+	return entries, nil
 }
