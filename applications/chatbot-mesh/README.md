@@ -165,7 +165,19 @@ The shared ENG01 operator verbs are:
 mage doctor      # read-only tool/version and Docker Desktop resource checks
 mage demo:up     # create/reuse da-chatbot-mesh-demo and print .localhost URLs
 mage demo:down   # delete only da-chatbot-mesh-demo
+mage deploy      # install or upgrade the demo release on a running cluster
+mage undeploy    # remove the demo release, reporting an absent one as success
 ```
+
+`mage deploy` runs the Helm step through the catalog applier's deploy machine
+rather than an imperative helm call, so the first install and a day-2 rollout
+follow one declared sequence. It measures the projected release Secret against
+the values it is about to apply before anything reaches the cluster, stages the
+chart, and provisions the out-of-release UI ConfigMaps the chart mounts.
+`demo:up` calls it for the Helm step and hands over the staging it already did.
+Both verbs need the cluster running and gate on the machine's terminal state.
+The rendered declarations and the exact argv that ran are left in
+`build/deploy/<release>/`.
 
 `demo:up` is an explicit request, so missing or outdated tools and insufficient
 Docker Desktop resources fail with remediation instead of producing an

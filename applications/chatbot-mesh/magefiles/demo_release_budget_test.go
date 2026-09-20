@@ -46,6 +46,18 @@ func packageDemoBudgetArchive(t *testing.T, staged string) string {
 
 const demoBudgetImage = "declarative-agents/agent-core:budget"
 
+// budgetValueArgs measures the way the deploy path measures: the checked-in
+// overlay plus the overrides document the machine will write. Measuring any
+// other way would stop guarding the release that actually installs.
+func budgetValueArgs(t *testing.T, staged string, assets []externalUIAsset) []string {
+	t.Helper()
+	root := t.TempDir()
+	if err := writeDeployOverrides(root, chatbotDeployOverrides(demoBudgetImage, assets)); err != nil {
+		t.Fatal(err)
+	}
+	return chatbotBudgetValueArgs(root, staged)
+}
+
 // TestDemoReleaseFitsTheSecretBudget is the regression guard: the release the
 // demo installs must fit, measured the same way the install gate measures it.
 func TestDemoReleaseFitsTheSecretBudget(t *testing.T) {
@@ -62,7 +74,7 @@ func TestDemoReleaseFitsTheSecretBudget(t *testing.T) {
 	archive := packageDemoBudgetArchive(t, staged)
 
 	measured, err := measureHelmReleaseBudget(
-		chatbotDemoRelease, staged, archive, demoValueArgs(staged, demoBudgetImage, assets))
+		chatbotDemoRelease, staged, archive, budgetValueArgs(t, staged, assets))
 	if err != nil {
 		t.Fatalf("demo release does not fit its budget: %v", err)
 	}
@@ -82,7 +94,7 @@ func TestDemoReleaseNeedsExternalUIAssets(t *testing.T) {
 	staged, archive := stageDemoBudgetChart(t)
 
 	measured, err := measureHelmReleaseBudget(
-		chatbotDemoRelease, staged, archive, demoValueArgs(staged, demoBudgetImage, nil))
+		chatbotDemoRelease, staged, archive, budgetValueArgs(t, staged, nil))
 	if err == nil {
 		t.Fatalf("release-resident UIs unexpectedly fit the demo budget: %s", measured.String())
 	}

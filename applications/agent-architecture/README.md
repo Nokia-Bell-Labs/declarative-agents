@@ -238,6 +238,20 @@ This composition also deploys into a persistent kind cluster:
     mage doctor    # preflight: toolchain versions and Docker resources
     mage demo:up   # create or reuse the cluster, build images, install the chart
     mage demo:down # delete only this demo's cluster
+    mage deploy    # install or upgrade the release on a running cluster
+    mage undeploy  # remove the release, reporting an absent one as success
+
+`mage deploy` runs the Helm step through the catalog applier's deploy machine
+rather than an imperative helm call, so the first install and a day-2 rollout
+follow one declared sequence: write the decided values, validate them with a
+dry run, apply with install semantics, verify every Deployment, and roll back a
+stall. It also provisions the curator UI shard ConfigMaps, which live outside
+the release and must exist before the chart renders references to them.
+`mage demo:up` calls it for the Helm step and keeps owning the cluster, the
+namespace reset, and the image load. Both verbs need the cluster already
+running and gate on the machine's terminal state, so a release that did not
+come up fails the build. The rendered declarations and the exact argv that ran
+are left in `build/deploy/<release>/`.
 
 `mage demo:up` prints the port-forward command for the curator's control and
 documentation ports. Chart packaging and the applier overlay are documented
