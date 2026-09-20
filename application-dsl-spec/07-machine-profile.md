@@ -5,11 +5,11 @@
 
 ## 7.1 The document
 
-A machine-profile is a `machine.yaml`: the declarative control of an
-agent-instance's loop. Its states, signals, and transitions are the whole of
-the behaviour — a machine-instance does nothing a transition does not
-declare. A machine-profile document either carries this body itself or is
-constructed by expansion (chapter 03).
+A machine-profile is a `machine.yaml` file that declaratively controls an
+agent-instance's loop. Its states, signals, and transitions define all
+behavior — a machine-instance only acts as declared by transitions. A
+machine-profile either contains this body directly or is built through
+expansion (chapter 03).
 
 ## 7.2 Keynames
 
@@ -19,17 +19,16 @@ constructed by expansion (chapter 03).
 
 ## 7.3 Request machines
 
-A request machine is a machine-profile bound to a REST endpoint: each
-accepted request seeds one request-scoped machine-instance whose terminal
-signals map to the response status. The binding grammar and its obligations
-are specified by agent-core srd030 (machine request REST binding); the
-machine-profile it binds is grammatically an ordinary machine-profile under
-this chapter.
+A request machine binds a machine-profile to a REST endpoint: each accepted
+request creates a request-scoped machine-instance, whose terminal signals
+determine the response status. The binding rules and requirements are defined
+in agent-core srd030 (machine request REST binding); the bound machine-profile
+is grammatically standard under this chapter.
 
 ## 7.4 Fragments and templates
 
-A machine-profile that declares its own body may splice stage-fragments, and
-a bodiless machine-profile document applies exactly one machine-template;
-both run under the expansion keyname at load time, governed by R-MODEL-001
-and R-MODEL-002. The expanded result is subject to every keyname and
-validation rule in this chapter, exactly as a hand-written machine-profile.
+A machine-profile with a declared body splices stage-fragments; a bodiless one
+applies one machine-template. Both execute under the expansion keyname during
+load time, per R-MODEL-001 and R-MODEL-002. The expanded result follows all
+keynames and validation rules in this chapter, like a hand-written
+machine-profile.

@@ -5,41 +5,38 @@
 
 ## 8.1 The population target
 
-A population is the set of running instances a mesh holds at a moment:
-application-instances, their agent-instances, and the workspaces those
-agent-instances bind or leave waiting. The invariants in this chapter hold
-over the whole set, not over any single instance, which is what separates the
-population target from the runtime target: a conforming runtime can still
-participate in a non-conforming population if something outside it starts an
-agent-instance no application-profile declares.
+A population comprises active instances in a mesh at any moment, including
+application-instances, their agent-instances, and workspaces these agents bind
+to or leave waiting. The invariants in this chapter apply to the entire set,
+distinguishing the population target from the runtime target. A conforming
+runtime can engage with a non-conforming population if an external entity
+starts an agent-instance not defined by any application-profile.
 
 ## 8.2 Closure
 
-The population is closed under the declarations. Every running agent-instance
-traces to an agent-profile that a governing application-profile names among
-its roots; there is no way into the population except through a declared
-root.
+The population is closed under the declarations: every running agent-instance
+traces to an agent-profile explicitly named among the roots of a governing
+application-profile. There is no way into the population except through a declared root.
 
 {{statement R-POP-001}}
 
 ## 8.3 Authority
 
-Deciding and acting are held apart. One agent-profile's instances decide what
-the population should look like; a different agent-profile's instances hold
-the deployment authority that changes it, and nothing else reaches that
-authority. The reference split is the provisioning-workflow-orchestrator,
-which decides operations, and the creator, which alone reaches the deployment
+Deciding and acting are distinct roles. One agent-profile's instances
+determine the desired state, while another's hold exclusive authority to
+modify it. The provisioning-workflow-orchestrator exemplifies this separation
+by making operational decisions, and the creator alone reaches the deployment
 interface and never decides (chatbot-mesh srd004 and srd005).
 
 {{statement R-POP-002}}
 
 ## 8.4 Workspace exclusivity and orphans
 
-Workspaces make the population's history durable, and two invariants keep
-that sound. Exclusivity: a workspace has at most one bound agent-instance at
-a time, so an identity never acts from two places at once. Orphan legality: a
-workspace with no bound agent-instance is a normal state, not a leak — it is
-how identity survives between instantiations, and only an explicit
+Workspaces ensure durable population history through two invariants.
+Exclusivity limits a workspace to one bound agent-instance at a time,
+preventing concurrent identity actions from multiple locations. Orphan
+legality makes a workspace without a bound agent-instance a normal state —
+it is how identity survives between instantiations, and only an explicit
 decommission removes it.
 
 {{statement R-POP-003}}
@@ -48,7 +45,7 @@ decommission removes it.
 
 ## 8.5 Cardinality
 
-An application-profile declares how many agent-instances each root seeds, and
-the population's counts follow the declaration. The grammar that declares
-cardinality is chapter 05's subject, and its population statement lands with
-that grammar so the two cannot drift apart.
+An application-profile declares how many agent-instances each root seeds, with
+population counts following this declaration. Chapter 05 covers the grammar
+for declaring cardinality, and its population statement aligns with this
+grammar to prevent drift.
