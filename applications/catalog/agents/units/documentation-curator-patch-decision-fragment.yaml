@@ -1,0 +1,84 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A curator patch decision that carries a reason: reject a pending patch, or
+# reopen a rejected one. Both call the documentation API with the same request
+# shape, the same reason parameter, and the same failure contract, and differ
+# only in which operation they name and what they say about it.
+#
+# doc_patch_approve is written out rather than expanded here: it takes a note
+# where these take a reason, and a mapping name is never substituted
+# (srd052 R2.3).
+#
+# The words are a fragment because the file that declares them was over the
+# execution constitution's length (E11, GH-2379).
+unit: catalog-documentation-curator-patch-decision
+params:
+  - name: name
+    type: string
+    description: The word's name, which is also the documentation API operation it calls.
+  - name: description
+    type: string
+    description: What the word does, for the tool catalogue.
+  - name: output_description
+    type: string
+    description: What the word returns.
+  - name: applied_state
+    type: string
+    description: The patch state the call leaves behind.
+  - name: undo_description
+    type: string
+    description: How the decision is undone.
+  - name: state_after_failure
+    type: string
+    description: What remote state a failed call may have recorded.
+tools:
+  - name: $param(name)
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: $param(description)
+    parameters:
+      type: object
+      properties:
+        params:
+          type: object
+          properties:
+            patch_id:
+              type: string
+            decided_by:
+              type: string
+            reason:
+              type: string
+    signature:
+      emits:
+      - RESTResponded
+      - RESTDomainFailed
+      - RESTMissing
+      - CommandError
+    output:
+      description: $param(output_description)
+      schema:
+        type: object
+        properties:
+          patch_id:
+            type: string
+          status:
+            type: string
+          decided_by:
+            type: string
+    side_effects:
+    - kind: external_api
+      target: documentation.patch
+      state: $param(applied_state)
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: $param(undo_description)
+    errors:
+    - signal: CommandError
+      condition: REST config, schema, network, timeout, or response mapping failure.
+      state_after_failure: $param(state_after_failure)
+    config:
+      rest_ref: documentation
+      operation: $param(name)

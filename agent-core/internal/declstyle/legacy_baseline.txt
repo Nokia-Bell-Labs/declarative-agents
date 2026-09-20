@@ -29,7 +29,6 @@
 long-declaration-file:applications/catalog/agents/collector/query-declarations.yaml
 long-declaration-file:applications/catalog/agents/critic/point.yaml
 long-declaration-file:applications/catalog/agents/knowledge-manager/corpus-ingest/declarations.yaml
-long-declaration-file:applications/catalog/agents/knowledge-manager/documentation-curator/declarations.yaml
 long-declaration-file:applications/catalog/agents/knowledge-manager/documentation-curator/request-declarations.yaml
 long-declaration-file:applications/catalog/agents/knowledge-manager/documentation-curator/rest.yaml
 long-declaration-file:applications/catalog/agents/scenario-critic/declarations.yaml
