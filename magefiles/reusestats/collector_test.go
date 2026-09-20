@@ -178,7 +178,7 @@ func TestCollectCountsTemplateMachineActions(t *testing.T) {
 	root := t.TempDir()
 	writeReuseFixture(t, root, "template.yaml", "unit: serve\nparams:\n  - {name: word, type: string}\nmachine:\n  transitions:\n"+
 		"    - {state: Idle, signal: Seed, next: Serving, action: launch}\n    - {state: Serving, signal: Tick, next: Serving, action: $tool}\n")
-	writeReuseFixture(t, root, "instance.yaml", "unit: one\ninstantiate:\n  - fragment: template.yaml\n    args: {word: go}\n")
+	writeReuseFixture(t, root, "instance.yaml", "unit: one\nexpand:\n  - fragment: template.yaml\n    args: {word: go}\n")
 
 	result := mustCollect(t, root, ".")
 

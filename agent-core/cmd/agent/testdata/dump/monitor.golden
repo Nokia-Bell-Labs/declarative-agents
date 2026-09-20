@@ -327,7 +327,7 @@ files:
   - path: <agent-core>/testdata/integration/profiles/monitor/declarations.yaml
     sha256: b5ad1c9006a7b12c66f1ed0cc7b1e825cead927a0acc32beb9a0e032edb21b23
   - path: <agent-core>/testdata/integration/profiles/monitor/machine.yaml
-    sha256: a8b9034017d70438932b4defce3aef2972887c0bd65dbb1e525c22fd5111bb6b
+    sha256: 9a2e9e2697b00ca17f61a7f400d2b497803df23393184be808f042abf46ff78c
   - path: <agent-core>/testdata/integration/profiles/monitor/profile.yaml
     sha256: 3084e376fc7740cdb41e4ff80bd2d74c5d4e5abf1471630ffc595e9009ced05f
   - path: <agent-core>/testdata/integration/profiles/monitor/rest.yaml

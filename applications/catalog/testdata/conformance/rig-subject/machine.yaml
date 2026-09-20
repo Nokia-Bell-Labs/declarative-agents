@@ -8,7 +8,7 @@ purpose: |-
   reads one REST dependency, so a dependency failure surfaces as a mapped
   response rather than preventing the agent from starting. The rig points that
   dependency at a scenario's mock.
-instantiate:
+expand:
   - fragment: ../../../agents/units/rest-service-machine-template.yaml
     args:
       launch: launch_subject_rest

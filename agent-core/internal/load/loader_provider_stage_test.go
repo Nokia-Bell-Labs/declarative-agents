@@ -69,7 +69,7 @@ states: [Idle, {name: Done, run_status: succeeded}, {name: Failed, run_status: f
 terminal_states: [Done, Failed]
 signals: %s]
 transitions: []
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/%s
     args: {from: Idle, enter: Seed, next: Done}
 `, signals, stage.stage))
@@ -84,7 +84,7 @@ instantiate:
 	writeLoadFixture(t, root, "declarations.yaml",
 		"unit: probe-words\nimports: [/opt/agent-core/tools/units/"+stage.words+"]\ntools: []\n")
 	writeLoadFixture(t, root, "rest.yaml", `unit: probe-rest
-instantiate:
+expand:
   - fragment: /opt/providers/`+stage.fragment+`
     args: {`+stage.args+`}
 rest: {version: v1}

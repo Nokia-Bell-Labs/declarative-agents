@@ -244,7 +244,7 @@ func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
 		Instantiate []struct {
 			Fragment string            `yaml:"fragment"`
 			Args     map[string]string `yaml:"args"`
-		} `yaml:"instantiate"`
+		} `yaml:"expand"`
 	}
 	readKnowledgeYAML(t,
 		filepath.Join("..", "agents", "knowledge-manager", "corpus-ingest", "machine.yaml"),

@@ -91,13 +91,13 @@ sections:
       Take the first rung that fits.
 
       1. Values vary, structure does not: a parameterized fragment
-         (`params:` + `instantiate:`). The invoke-llm model fragment and its
+         (`params:` + `expand:`). The invoke-llm model fragment and its
          twenty model-variant instantiations are the reference case.
       2. A run of states and transitions recurs inside differing machines: a
          stage fragment, spliced under a name prefix and validated as part of
          the whole (embed-query, embed-document, rerank).
       3. A whole machine recurs: a machine template whose instance file is
-         only `instantiate:` plus args (serve-machine-template).
+         only `expand:` plus args (serve-machine-template).
       4. The variation is a model provider's dialect: an entry in a provider
          library under tools/providers/<name>/, never a provider conditional
          in a shared body. A provider library ships complete: chat dialect,

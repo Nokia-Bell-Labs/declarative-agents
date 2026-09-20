@@ -46,9 +46,9 @@ func TestStageFollowsMachineTemplateEdges(t *testing.T) {
 	t.Parallel()
 	source := t.TempDir()
 	writeDeclaration(t, source, "agents/one/machine.yaml",
-		"unit: one\ninstantiate:\n- {fragment: ../units/serve.yaml, args: {word: go}}\n")
+		"unit: one\nexpand:\n- {fragment: ../units/serve.yaml, args: {word: go}}\n")
 	writeDeclaration(t, source, "agents/units/serve.yaml",
-		"unit: serve\nparams:\n- {name: word, type: string}\nmachine:\n  name: serve\n  instantiate:\n  - {fragment: stages/run.yaml, args: {word: $param(word)}}\n")
+		"unit: serve\nparams:\n- {name: word, type: string}\nmachine:\n  name: serve\n  expand:\n  - {fragment: stages/run.yaml, args: {word: $param(word)}}\n")
 	writeDeclaration(t, source, "agents/units/stages/run.yaml", "unit: run\nparams:\n- {name: word, type: string}\nstage: {}\n")
 	destination := t.TempDir()
 

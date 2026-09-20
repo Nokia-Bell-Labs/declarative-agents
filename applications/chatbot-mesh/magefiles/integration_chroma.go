@@ -170,7 +170,7 @@ func chromaEmbedModelFromConfig(profilesRoot string) (string, error) {
 			Args struct {
 				Model string `yaml:"model"`
 			} `yaml:"args"`
-		} `yaml:"instantiate"`
+		} `yaml:"expand"`
 	}
 	path := filepath.Join(profilesRoot, corpusEmbedAsset)
 	if err := readIntegrationYAML(path, "corpus embed asset", &cfg); err != nil {

@@ -8,7 +8,7 @@ purpose: |-
 
   The drive runs on the way into Checking so its signal decides the terminal
   state; routing straight to a terminal would pass regardless of the result.
-instantiate:
+expand:
   - fragment: ../subject-verdict-machine-template.yaml
     args:
       answered: Passed

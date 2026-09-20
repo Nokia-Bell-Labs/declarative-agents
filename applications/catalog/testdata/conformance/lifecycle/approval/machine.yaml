@@ -7,7 +7,7 @@ purpose: |-
   Reference approval-gate lifecycle machine.
   The first run suspends before a risky action. A later run resumes the saved
   checkpoint with an Approved or Rejected signal.
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/lifecycle-approval-machine-template.yaml
     args:
       machine: testdata/conformance/lifecycle/approval/machine.yaml

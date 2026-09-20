@@ -569,7 +569,7 @@ func readMachineDoc(root, path string) (map[string]any, error) {
 	if _, hasStates := doc["states"]; hasStates {
 		return doc, nil
 	}
-	instantiate, _ := doc["instantiate"].([]any)
+	instantiate, _ := doc["expand"].([]any)
 	if len(instantiate) != 1 {
 		return doc, nil
 	}

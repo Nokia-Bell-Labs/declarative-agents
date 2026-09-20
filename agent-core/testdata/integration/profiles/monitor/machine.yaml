@@ -4,7 +4,7 @@ name: monitor-rest-profile
 # An instance of agent-core's monitor-service machine template (srd054).
 unit: core-monitor-machine
 purpose: Serve embedded monitor state until a control exit request arrives.
-instantiate:
+expand:
   - fragment: ../../../../tools/machines/monitor-service-machine-template.yaml
     args:
       profile: monitor

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-critic-llm-nemotron
 # The critic bound to nemotron-cascade-2:30b (catalog-invoke-llm-model-fragment).
-instantiate:
+expand:
   - fragment: ../../units/invoke-llm-model-fragment.yaml
     args:
       model: "nemotron-cascade-2:30b"

@@ -10,7 +10,7 @@ type DefinitionFile struct {
 	Unit           string                    `yaml:"unit,omitempty"`
 	Imports        []string                  `yaml:"imports,omitempty"`
 	Params         []fragments.Param         `yaml:"params,omitempty"`
-	Instantiate    []fragments.Instantiation `yaml:"instantiate,omitempty"`
+	Instantiate    []fragments.Instantiation `yaml:"expand,omitempty"`
 	Rest           Definition                `yaml:"rest"`
 	hasRest        bool
 	hasImports     bool

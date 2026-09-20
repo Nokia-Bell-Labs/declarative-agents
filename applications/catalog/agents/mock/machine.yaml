@@ -8,7 +8,7 @@ purpose: |-
   records every request it received, standing in for a real upstream service
   while a subject agent is exercised. Serves until a control exit request
   stops the owned listener.
-instantiate:
+expand:
   - fragment: ../units/rest-service-machine-template.yaml
     args:
       launch: launch_mock_rest

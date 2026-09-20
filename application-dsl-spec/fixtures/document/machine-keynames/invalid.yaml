@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-001: transitions is a mapping, not a sequence.
+name: worker
+states:
+  - {name: Idle, meaning: Waiting for work.}
+transitions:
+  Idle: {signal: Seed, next: Idle}

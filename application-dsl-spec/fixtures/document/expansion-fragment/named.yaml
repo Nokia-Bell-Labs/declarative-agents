@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MODEL-002: every expansion entry names its fragment.
+name: worker
+states:
+  - {name: Idle, meaning: Waiting for work.}
+transitions:
+  - {state: Idle, signal: Seed, next: Idle}
+expand:
+  - fragment: ../../units/control-stage-fragment.yaml
+    args: {prefix: Patient}

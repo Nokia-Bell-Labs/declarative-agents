@@ -322,7 +322,7 @@ rest_definitions: [rest.yaml]
 	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/units/frag.yaml"),
 		"unit: frag\nparams:\n  - {name: p, type: string}\ntools: []\n")
 	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/declarations.yaml"), `includes: [included.yaml]
-instantiate:
+expand:
   - {fragment: ../units/frag.yaml, args: {p: v}}
 tools:
   - name: child

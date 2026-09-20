@@ -114,9 +114,9 @@ func (g *unitGraph) addFile(path, coreModule string) error {
 			g.addImporter(target, path)
 		}
 	}
-	g.markInstantiated(topValue(root, "instantiate"), resolve)
+	g.markInstantiated(topValue(root, "expand"), resolve)
 	if machine := topValue(root, "machine"); machine != nil && machine.Kind == yaml.MappingNode {
-		g.markInstantiated(topValue(machine, "instantiate"), resolve)
+		g.markInstantiated(topValue(machine, "expand"), resolve)
 	}
 	g.markProfileRoots(root, resolve)
 	return nil
@@ -220,7 +220,7 @@ func TestSingleImporterUnitClassification(t *testing.T) {
 	write("units/types.yaml", "unit: lonely-types\ntypes: []\n")
 	write("a/declarations.yaml", "unit: a\nimports: [../units/shared.yaml, ../units/lonely.yaml, ../units/root.yaml]\ntools: []\n")
 	write("b/declarations.yaml", "unit: b\nimports: [../units/shared.yaml, /opt/agent-core/tools/units/words.yaml, ../units/types.yaml]\n"+
-		"instantiate: [{fragment: ../units/fragment.yaml, args: {}}]\ntools: []\n")
+		"expand: [{fragment: ../units/fragment.yaml, args: {}}]\ntools: []\n")
 	write("b/profile.yaml", "name: b\nmachine: machine.yaml\ntool_declarations: [declarations.yaml, ../units/root.yaml]\n")
 
 	paths, err := discoverLegacyDeclarationFiles([]string{root})

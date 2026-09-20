@@ -59,7 +59,7 @@ stage:
 `
 
 func envStageMachine(fragment string) string {
-	return machineHead + "instantiate:\n  - fragment: " + fragment + "\n    args: {enter: Embed}\n" +
+	return machineHead + "expand:\n  - fragment: " + fragment + "\n    args: {enter: Embed}\n" +
 		"transitions:\n  - {state: Ready, signal: Seed, next: Done}\n"
 }
 

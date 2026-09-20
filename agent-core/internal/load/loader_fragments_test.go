@@ -27,7 +27,7 @@ func TestLoadClosureReportsAnUnselectedInstantiationAsUnused(t *testing.T) {
 	root := writeUsednessClosureFixture(t, "other")
 	writeLoadFixture(t, root, "frag.yaml", echoFragment)
 	writeLoadFixture(t, root, "declarations.yaml", `unit: root
-instantiate:
+expand:
 - {fragment: frag.yaml, as: hi, args: {word: hello}}
 tools:
   - name: other
@@ -46,7 +46,7 @@ func TestLoadClosureDumpsEveryInstantiation(t *testing.T) {
 	root := writeUsednessClosureFixture(t, "hi_say, bye_say")
 	writeLoadFixture(t, root, "frag.yaml", echoFragment)
 	writeLoadFixture(t, root, "declarations.yaml", `unit: root
-instantiate:
+expand:
 - {fragment: frag.yaml, as: hi, args: {word: hello}}
 - {fragment: frag.yaml, as: bye, args: {word: goodbye}}
 tools: []
@@ -83,7 +83,7 @@ func TestLoadClosureReportsAnUnreferencedRESTInstantiationAsUnused(t *testing.T)
 	writeLoadFixture(t, root, "declarations.yaml", "tools:\n  - name: other\n    binary: echo\n")
 	writeLoadFixture(t, root, "client-frag.yaml", clientFragment)
 	writeLoadFixture(t, root, "rest.yaml", `unit: rest-root
-instantiate:
+expand:
 - {fragment: client-frag.yaml, as: spare, args: {url: "http://spare"}}
 rest: {version: v1}
 `)
@@ -100,7 +100,7 @@ func TestLoadClosureDumpsRESTInstantiationsBesideToolOnes(t *testing.T) {
 	root := writeUsednessClosureFixture(t, "call")
 	writeLoadFixture(t, root, "client-frag.yaml", clientFragment)
 	writeLoadFixture(t, root, "rest.yaml", `unit: rest-root
-instantiate:
+expand:
 - {fragment: client-frag.yaml, as: main, args: {url: "http://main"}}
 rest: {version: v1}
 `)
@@ -140,7 +140,7 @@ initial_state: Idle
 states: [Idle, {name: Done, run_status: succeeded}]
 terminal_states: [Done]
 signals: [Seed, Go, Done]
-instantiate:
+expand:
   - {fragment: stage.yaml, args: {prefix: Run}}
 transitions: [{state: Idle, signal: Seed, next: Done}]
 `)

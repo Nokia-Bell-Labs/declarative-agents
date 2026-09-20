@@ -27,7 +27,7 @@ func TestStartupWiringFaultNamesTemplateAndInstance(t *testing.T) {
 	brokenTemplate := filepath.Join(directory, "template.yaml")
 	require.NoError(t, os.WriteFile(brokenTemplate, []byte(strings.Replace(string(template), dropped, "", 1)), 0o644))
 	instance := filepath.Join(directory, "machine.yaml")
-	require.NoError(t, os.WriteFile(instance, []byte("unit: broken\ninstantiate:\n"+
+	require.NoError(t, os.WriteFile(instance, []byte("unit: broken\nexpand:\n"+
 		"  - {fragment: template.yaml, args: {launch: launch_agent_control, await: await_agent_control}}\n"), 0o644))
 
 	closure, err := internalload.LoadClosure(

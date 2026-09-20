@@ -32,7 +32,7 @@ func installedAgentCore(t *testing.T) {
 func monitorInstantiation(t *testing.T) string {
 	t.Helper()
 	return writeImportFixture(t, t.TempDir(), "monitor-rest.yaml", `unit: probe-monitor-rest
-instantiate:
+expand:
 - fragment: `+monitorServerFragment+`
   args: {address: "127.0.0.1:19999", limits_ref: probe_monitor, queue_name: probe_monitor}
 rest:
@@ -81,7 +81,7 @@ func TestMonitorServerFragmentBindsWhereItsArgumentsSay(t *testing.T) {
 func TestMonitorServerFragmentRequiresItsAddress(t *testing.T) {
 	installedAgentCore(t)
 	top := writeImportFixture(t, t.TempDir(), "monitor-rest.yaml", `unit: probe-monitor-rest
-instantiate:
+expand:
 - fragment: `+monitorServerFragment+`
   args: {limits_ref: probe_monitor, queue_name: probe_monitor}
 rest: {}

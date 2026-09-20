@@ -6,7 +6,7 @@
 # instantiation none of whose definitions a closure selects is an unused import
 # (srd052 R3.1).
 unit: catalog-bench-monitor-rest
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/rest/units/monitor-server-fragment.yaml
     args: {address: "127.0.0.1:8082", limits_ref: local_bench_monitor, queue_name: bench_monitor}
 rest:

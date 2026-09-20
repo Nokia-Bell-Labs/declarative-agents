@@ -4,7 +4,7 @@ name: ollama-rest-model-listing
 # An instance of agent-core's Ollama model-listing machine template (srd054).
 unit: core-ollama-model-listing-machine
 purpose: List live local Ollama models through the configured REST tool.
-instantiate:
+expand:
   - fragment: ../../../../tools/machines/ollama-model-listing-machine-template.yaml
     args:
       machine: machine.yaml

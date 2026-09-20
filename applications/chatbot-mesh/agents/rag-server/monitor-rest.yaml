@@ -5,7 +5,7 @@
 # profiles whose machines launch no monitor server, and an instantiation none
 # of whose definitions a closure selects is an unused import (srd052 R3.1).
 unit: mesh-rag-server-monitor-rest
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/rest/units/monitor-server-fragment.yaml
     args: {address: "${RAG_BIND_HOST:-127.0.0.1}:18087", limits_ref: local_rag_monitor, queue_name: chroma_rag_monitor}
 rest:

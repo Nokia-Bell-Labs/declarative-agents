@@ -25,7 +25,7 @@ import (
 
 // instanceFields are the only top-level fields an instance may carry
 // (srd054 R1.2).
-var instanceFields = []string{"unit", "instantiate", "name", "purpose"}
+var instanceFields = []string{"unit", "expand", "name", "purpose"}
 
 // templateHeader is what a template declares before its arguments arrive.
 type templateHeader struct {

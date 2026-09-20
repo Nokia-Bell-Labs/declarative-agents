@@ -45,7 +45,7 @@ requirements:
           amended to say exactly this.
       - R1.2: >-
           The two forms SHALL apply wherever srd050's import rules apply: tool
-          and REST `imports`, `instantiate` fragment paths (srd052 R2.1),
+          and REST `imports`, `expand` fragment paths (srd052 R2.1),
           machine template instances (srd054 R2.2), and a blueprint's machine
           mapping (srd055 R2.3). Profile-level paths SHALL accept the rooted
           form in addition to what they accept today: a profile is the

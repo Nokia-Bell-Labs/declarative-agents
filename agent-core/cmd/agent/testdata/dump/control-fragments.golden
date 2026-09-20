@@ -385,13 +385,13 @@ rest:
           - 0
 files:
   - path: <agent-core>/testdata/integration/profiles/control-fragments/declarations.yaml
-    sha256: ba4c3a347e037fcdadf6e9bc005ad3ad62e611f1a7aae803e7fe6f81c654ee2f
+    sha256: daa1457a7405d0f6dd78e9698fa6540ea7554a855bab83b6e0591b4b17d1ecc9
   - path: <agent-core>/testdata/integration/profiles/control-fragments/machine.yaml
-    sha256: b01beab8ab2ad2ff8cd2f17f474379ef01a7dda7af02dc3dd04054db9b52444a
+    sha256: 8cf440540d539d9c063aa4699b63b5280f2127940ad1ae3dcfd96c00c7456efb
   - path: <agent-core>/testdata/integration/profiles/control-fragments/profile.yaml
     sha256: a434ab8817769851c98aeae8879bc6795ca46e7e13e5fe9410f94d5ca961c5e2
   - path: <agent-core>/testdata/integration/profiles/control-fragments/rest.yaml
-    sha256: fda647b4aed34f4247124fc469106ab8edb35181ae07ba0e23627eef3949d35d
+    sha256: 8b95ca667bd01337938feee1a219c6725330b7eac6c6b6650bbcd354577844de
   - path: <agent-core>/testdata/integration/profiles/control-fragments/tools.yaml
     sha256: 295aa1982468ea69317d16ea7ac0d187540045eb22f82a77ed245cdca5e22f56
   - path: <agent-core>/testdata/integration/units/control-rest-fragment.yaml

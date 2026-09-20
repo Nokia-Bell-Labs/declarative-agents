@@ -209,6 +209,6 @@ transitions:
     next: Failed
 # The embedding opening: a read document is embedded at the bound provider and
 # normalized to one flat vector before the collection step (srd058 R4.1).
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/embed-document-stage-fragment.yaml
     args: {from: Composing, enter: DocumentReady, next: ResolvingCollection, next_action: resolve_collection}

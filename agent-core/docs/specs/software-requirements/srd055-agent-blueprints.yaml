@@ -36,7 +36,7 @@ requirements:
           `rest_definitions`, `rest_config_dirs`, and `directory`, plus any
           field a later profile format adds.
       - R1.2: >-
-          A profile instance SHALL carry `name` and exactly one `instantiate`
+          A profile instance SHALL carry `name` and exactly one `expand`
           entry whose target is a blueprint, and MAY carry any AgentProfile
           field. A field present on the instance SHALL replace the blueprint's
           field wholesale; a list is replaced, never merged. The entry SHALL

@@ -829,7 +829,7 @@ func chatbotEmbedModelFromConfig(profilesRoot string) (string, error) {
 			Args struct {
 				Model string `yaml:"model"`
 			} `yaml:"args"`
-		} `yaml:"instantiate"`
+		} `yaml:"expand"`
 	}
 	path := filepath.Join(profilesRoot, "agents", "chatbot", "embed-rest.yaml")
 	if err := readIntegrationYAML(path, "chatbot embed asset", &cfg); err != nil {

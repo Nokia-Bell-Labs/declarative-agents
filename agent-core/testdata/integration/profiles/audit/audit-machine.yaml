@@ -5,6 +5,6 @@ unit: core-audit-machine
 name: core-test-evidence-audit
 purpose: |-
   Audit Agent Core formal test claims through declared subprocesses.
-instantiate:
+expand:
   - fragment: ../../../../tools/machines/test-evidence-audit-machine-template.yaml
     args: {report: format_report}
