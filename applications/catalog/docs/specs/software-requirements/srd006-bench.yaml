@@ -66,6 +66,10 @@ acceptance_criteria:
     criterion: Bench outputs and terminal outcomes are checkable by mounted execution or integration targets, including overlapping runs, the declared bound, and the listed outcomes.
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
 
+  - id: AC4
+    criterion: The agent executable carries no bench package, HTTP server, action channel, or child launcher, and the shipped bench profile serves its UI, routes, and children on the stock binary from a working directory that is not an agent-core checkout.
+    traces: [R2.4]
+
 depends_on:
   - srd_id: srd001-agent-functional-blocks
     symbols_used: [R1]

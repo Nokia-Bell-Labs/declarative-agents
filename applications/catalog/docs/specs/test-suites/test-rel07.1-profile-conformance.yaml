@@ -294,6 +294,7 @@ test_cases:
       - srd006-bench AC1
       - srd006-bench AC2
       - srd006-bench AC3
+      - srd006-bench AC4
       - sm-agent-role-taxonomy bench
 
   - family: lifecycle

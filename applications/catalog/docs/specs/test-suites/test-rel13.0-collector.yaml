@@ -90,6 +90,27 @@ test_cases:
       - srd020-collector AC2
 
   - use_case: rel13.0-uc001-collector-family
+    name: Monitor views carry no span payloads while the query surface serves them
+    go_test: go test ./conformance -run TestCollectorMonitorServesNoSpanPayloads
+    status: implemented
+    description: |
+      Seed a spool, launch the collector, and read every monitor view. Each
+      answers 200 and none carries fixture span content, while the query
+      surface returns the same spool's traces. The two surfaces are scoped
+      apart rather than one merely being quiet.
+    inputs:
+      spool: seeded with 2 traces (3 spans)
+      monitor_views: machine, machines, tools/declared, state, tools, metrics, events
+    expected:
+      monitor_status: 200
+      span_content_in_monitor: none
+      query_returns_traces: true
+    traces:
+      - srd020-collector R2.1
+      - srd020-collector R2.2
+      - srd020-collector AC9
+
+  - use_case: rel13.0-uc001-collector-family
     name: Query list traces returns paginated summaries from seeded spool
     go_test: go test ./conformance -run TestCollectorQueryListTraces
     status: implemented
@@ -108,6 +129,7 @@ test_cases:
     traces:
       - srd020-collector R5.1
       - srd020-collector R5.3
+      - srd020-collector AC9
 
   - use_case: rel13.0-uc001-collector-family
     name: Query get trace returns spans for one trace from seeded spool
@@ -126,6 +148,7 @@ test_cases:
       span_count: 2
     traces:
       - srd020-collector R5.2
+      - srd020-collector AC9
 
   - use_case: rel13.0-uc001-collector-family
     name: Canonical design-token import covers collector UI App.css
@@ -143,6 +166,7 @@ test_cases:
       drift: none
     traces:
       - srd020-collector R6.1
+      - srd020-collector AC10
 
   - use_case: rel13.0-uc001-collector-family
     name: Collector UI dist reproduces from a clean source build
@@ -157,3 +181,4 @@ test_cases:
       dist_diff: none
     traces:
       - srd020-collector R6.2
+      - srd020-collector AC10
