@@ -6,9 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
@@ -84,38 +82,13 @@ func deployDemo(environment smokeEnvironment, resolved roots) error {
 	if err := runSmokeCommand(environment, 30*time.Second, "kubectl", "create", "namespace", demoNamespace); err != nil {
 		return err
 	}
-	archiveDir, err := os.MkdirTemp("", "agent-architecture-demo-chart-*")
-	if err != nil {
+	// The Helm step, the chart packaging it needs, and the curator UI shard
+	// provisioning it depends on all run through the deploy machine, so day-0
+	// here and day-2 in the cluster are the same declared sequence (srd022 R6).
+	// The cluster, the namespace reset above, and the image load stay
+	// imperative; none of them is the Helm step.
+	if err := Deploy(); err != nil {
 		return err
-	}
-	defer func() { _ = os.RemoveAll(archiveDir) }()
-	archive, err := packageHelmChart(filepath.Join(resolved.Application, "helm"), resolved.Catalog, archiveDir)
-	if err != nil {
-		return err
-	}
-	// Provision the curator UI shard ConfigMaps out-of-release (GH-1402) so the
-	// demo curator serves its documentation UI from the unpacked shards.
-	shardNames, err := provisionCuratorUIShards(environment, resolved.Catalog, demoNamespace, demoRelease)
-	if err != nil {
-		return fmt.Errorf("provision curator UI shards: %w", err)
-	}
-	repository, tag := splitImageRef(smokeCollectorImage)
-	ctx, cancel = context.WithTimeout(context.Background(), smokeInstallTimeout)
-	defer cancel()
-	args := []string{
-		"upgrade", "--install", demoRelease, archive,
-		"--namespace", demoNamespace,
-		"--values", filepath.Join(resolved.Application, "helm", "ci", "kind-values.yaml"),
-		"--set", "image.repository=" + repository,
-		"--set-string", "image.tag=" + tag,
-		"--set", "collector.image.repository=" + repository,
-		"--set-string", "collector.image.tag=" + tag,
-	}
-	args = append(args, curatorUIShardSetArgs(shardNames)...)
-	args = append(args, "--wait", "--timeout", smokeInstallTimeout.String())
-	output, err := environment.run(ctx, "helm", args...)
-	if err != nil {
-		return fmt.Errorf("helm demo install: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return nil
 }
