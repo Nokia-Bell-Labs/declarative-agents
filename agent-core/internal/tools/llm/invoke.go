@@ -46,6 +46,7 @@ type invokeLLMCmd struct {
 	view                    core.CommandStateView
 	tracer                  tracing.Tracer
 	contextLimit            int
+	providerFailureSignals  bool
 	numCtx                  int
 	temperature             float64
 	seed                    int
@@ -100,10 +101,28 @@ func (c *invokeLLMCmd) Execute() core.Result {
 	}
 	chatResp, duration, err := c.chat(messages)
 	if err != nil {
-		return core.Result{Signal: core.CommandError, Err: err, Output: err.Error(), Cost: core.Cost{Duration: duration}}
+		return core.Result{
+			Signal: c.failureSignal(err), Err: err, Output: err.Error(),
+			Cost: core.Cost{Duration: duration},
+		}
 	}
 	c.history.Append(modelllm.Message{Role: modelllm.Assistant, Content: chatResp.Content})
 	return c.chatResult(chatResp, duration)
+}
+
+// failureSignal reports the signal a failed call answers with. Without the
+// opt-in, and for a fault the dialect does not classify -- an unmapped status,
+// a credential that will not resolve, an answer that will not decode -- it
+// stays CommandError, because none of those describe the provider's state
+// (srd058 R2.4).
+func (c *invokeLLMCmd) failureSignal(err error) core.Signal {
+	if !c.providerFailureSignals {
+		return core.CommandError
+	}
+	if signal := ProviderFailureSignal(err); signal != "" {
+		return core.Signal(signal)
+	}
+	return core.CommandError
 }
 
 func (c *invokeLLMCmd) ensureContext() {
@@ -274,6 +293,7 @@ type InvokeLLMBuilder struct {
 	ServerAddr              string
 	Tracer                  tracing.Tracer
 	ContextLimit            int
+	ProviderFailureSignals  bool
 	NumCtx                  int
 	Temperature             float64
 	Seed                    int
@@ -346,6 +366,7 @@ func invokeBuilder(
 		Temperature: resolveTemperature(cfg), Seed: resolveSeed(cfg),
 		CallTimeout: invokeCallTimeout(cfg),
 		Metrics:     def.Metrics, CaptureLevel: deps.CaptureLevel,
+		ProviderFailureSignals:  cfg.ProviderFailureSignals,
 		ConversationRefProvider: deps.ConversationRefProvider, Ctx: deps.Ctx,
 		ConversationRefResolver: deps.ConversationRefResolver,
 		UserPromptFrom:          cfg.UserPromptFrom,
@@ -384,7 +405,8 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 		client:   b.Client, history: b.History, registry: b.Registry, assembler: b.Assembler,
 		state: state, model: b.Model, providerName: b.ProviderName, serverAddr: b.ServerAddr,
 		userMessage: res.Output, promptFrom: b.UserPromptFrom, tracer: tracerOrNoop(b.Tracer), contextLimit: b.ContextLimit,
-		numCtx: b.NumCtx, temperature: b.Temperature, seed: b.Seed,
+		providerFailureSignals: b.ProviderFailureSignals,
+		numCtx:                 b.NumCtx, temperature: b.Temperature, seed: b.Seed,
 		callTimeout: b.CallTimeout, metrics: b.Metrics, captureLevel: b.CaptureLevel,
 		conversationRefProvider: b.ConversationRefProvider,
 		conversationRefResolver: b.ConversationRefResolver, ctx: ctx,

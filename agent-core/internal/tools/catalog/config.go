@@ -191,6 +191,12 @@ type LLMToolConfig struct {
 	// dispatches, which the manifest of the state it runs in would otherwise offer
 	// the chat-LLM vocabulary (including itself).
 	AnswerOnly bool `json:"answer_only"`
+	// ProviderFailureSignals opts into the shared failure taxonomy for chat
+	// (srd058 R2.4): a mapped error status and a transport failure reach the
+	// machine as ProviderUnauthorized, ProviderThrottled, or
+	// ProviderUnavailable instead of CommandError. Omitted keeps the older
+	// behavior, so a machine that does not route the signals is unaffected.
+	ProviderFailureSignals bool `json:"provider_failure_signals"`
 	// ContextLimit is a hard preflight ceiling over the assembled prompt's
 	// estimated tokens. Zero disables the local precheck.
 	ContextLimit int `json:"context_limit"`
