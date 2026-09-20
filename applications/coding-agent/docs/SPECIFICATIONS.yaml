@@ -57,6 +57,12 @@ roadmap_summary:
     use_cases_total: 1
     status: implemented
 
+  - version: "99.0"
+    name: Fleet observer adoption
+    use_cases_done: 0
+    use_cases_total: 0
+    status: planned
+
 foundation_document_index:
   - id: coding-agent-example
     title: Coding Agent Application Vision

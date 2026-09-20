@@ -28,6 +28,7 @@ var supportedSpecCorpusCheckIDs = map[string]bool{
 	"docspec-broken-implementation-path": true,
 	"docspec-broken-related-document":    true,
 	"docspec-broken-requirement-source":  true,
+	"group-level-citation":               true,
 	"index-broken-path":                  true,
 	"index-document-mismatch":            true,
 	"index-missing-test-suite":           true,

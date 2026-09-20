@@ -34,7 +34,7 @@ flow:
 success_criteria:
   - id: S1
     criterion: The rendered topology contains exactly one real workload for each application role.
-    traces: [srd003-helm-topology R1, srd003-helm-topology AC1]
+    traces: [srd003-helm-topology R1.1, srd003-helm-topology R1.2, srd003-helm-topology R1.3, srd003-helm-topology R1.4, srd003-helm-topology R1.5, srd003-helm-topology AC1]
   - id: S2
     criterion: Role profile changes produce role-scoped rollout checksums.
     traces: [srd003-helm-topology AC2]
@@ -51,7 +51,7 @@ test_suite: test-rel04.0-helm-topology
 
 touchpoints:
   - id: T1
-    target: srd003-helm-topology R1
+    target: srd003-helm-topology R1.1, R1.2, R1.3, R1.4, R1.5
     reason: S1 traces this requirement in the existing success criteria.
   - id: T2
     target: srd003-helm-topology AC1

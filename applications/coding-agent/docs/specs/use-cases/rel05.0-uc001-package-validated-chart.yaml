@@ -31,13 +31,13 @@ flow:
 success_criteria:
   - id: S1
     criterion: Invalid values fail before Kubernetes output is produced.
-    traces: [srd004-helm-package-validation R1, srd004-helm-package-validation AC1]
+    traces: [srd004-helm-package-validation R1.1, srd004-helm-package-validation R1.2, srd004-helm-package-validation R1.3, srd004-helm-package-validation AC1]
   - id: S2
     criterion: Package tampering is rejected before chart staging.
-    traces: [srd004-helm-package-validation R2, srd004-helm-package-validation AC2]
+    traces: [srd004-helm-package-validation R2.1, srd004-helm-package-validation R2.2, srd004-helm-package-validation R2.3, srd004-helm-package-validation AC2]
   - id: S3
     criterion: The archive includes every generated role asset and renders independently.
-    traces: [srd004-helm-package-validation R3, srd004-helm-package-validation AC3]
+    traces: [srd004-helm-package-validation R3.1, srd004-helm-package-validation R3.2, srd004-helm-package-validation R3.3, srd004-helm-package-validation AC3]
 
 out_of_scope:
   - Live Kubernetes installation.
@@ -48,19 +48,19 @@ test_suite: test-rel05.0-helm-package-validation
 
 touchpoints:
   - id: T1
-    target: srd004-helm-package-validation R1
+    target: srd004-helm-package-validation R1.1, R1.2, R1.3
     reason: S1 traces this requirement in the existing success criteria.
   - id: T2
     target: srd004-helm-package-validation AC1
     reason: S1 traces this requirement in the existing success criteria.
   - id: T3
-    target: srd004-helm-package-validation R2
+    target: srd004-helm-package-validation R2.1, R2.2, R2.3
     reason: S2 traces this requirement in the existing success criteria.
   - id: T4
     target: srd004-helm-package-validation AC2
     reason: S2 traces this requirement in the existing success criteria.
   - id: T5
-    target: srd004-helm-package-validation R3
+    target: srd004-helm-package-validation R3.1, R3.2, R3.3
     reason: S3 traces this requirement in the existing success criteria.
   - id: T6
     target: srd004-helm-package-validation AC3

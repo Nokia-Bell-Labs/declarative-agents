@@ -46,7 +46,7 @@ success_criteria:
     traces: [srd005-live-helm-smoke R3.3]
   - id: S4
     criterion: Skip, classification, diagnostics, and cleanup behavior are bounded and explicit.
-    traces: [srd005-live-helm-smoke R1, srd005-live-helm-smoke R4]
+    traces: [srd005-live-helm-smoke R1.1, srd005-live-helm-smoke R1.2, srd005-live-helm-smoke R1.3, srd005-live-helm-smoke R4.1, srd005-live-helm-smoke R4.2, srd005-live-helm-smoke R4.3]
 
 out_of_scope:
   - Production model performance and GPU sizing.
@@ -66,8 +66,8 @@ touchpoints:
     target: srd005-live-helm-smoke R3.3
     reason: S3 traces this requirement in the existing success criteria.
   - id: T4
-    target: srd005-live-helm-smoke R1
+    target: srd005-live-helm-smoke R1.1, R1.2, R1.3
     reason: S4 traces this requirement in the existing success criteria.
   - id: T5
-    target: srd005-live-helm-smoke R4
+    target: srd005-live-helm-smoke R4.1, R4.2, R4.3
     reason: S4 traces this requirement in the existing success criteria.

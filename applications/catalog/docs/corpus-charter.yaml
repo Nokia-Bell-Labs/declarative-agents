@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # The checks the catalog's own specification corpus gates on (GH-2310).
+# Every module keeps its charter at docs/corpus-charter.yaml so the shared
+# specification-critic profile binds the audited module's own gate (GH-2346).
 #
 # A spec_corpus check with no `checks` list runs every check the validator
 # knows. This one names the checks the catalog gates on, so adding one is a

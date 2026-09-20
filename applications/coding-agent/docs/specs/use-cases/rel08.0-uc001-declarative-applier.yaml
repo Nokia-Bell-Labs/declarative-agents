@@ -79,20 +79,28 @@ success_criteria:
     criterion: A non-conforming values patch is rejected by the chart-schema dry-run with a client error and no rollout.
     traces:
       - srd006-applier R2.1
-      - srd004-helm-package-validation R1
+      - srd004-helm-package-validation R1.1
+      - srd004-helm-package-validation R1.2
+      - srd004-helm-package-validation R1.3
       - srd006-applier AC2
   - id: S3
     criterion: A valid patch is materialized as an overrides file and applied with helm upgrade --reuse-values, returning without waiting, re-rendering the prepared role topology, with no per-field --set construction.
     traces:
       - srd006-applier R2.2
-      - srd003-helm-topology R1
+      - srd003-helm-topology R1.1
+      - srd003-helm-topology R1.2
+      - srd003-helm-topology R1.3
+      - srd003-helm-topology R1.4
+      - srd003-helm-topology R1.5
       - srd006-applier AC2
   - id: S4
     criterion: The planner, executor, and critic Deployments' rollout is verified via kubectl rollout status and its phase reported, and a verify stall rolls the release back and restores the prior computed release while an apply-command failure is reported as failed, proven on the kind rig.
     traces:
       - srd006-applier R3.1
       - srd006-applier R3.2
-      - srd005-live-helm-smoke R3
+      - srd005-live-helm-smoke R3.1
+      - srd005-live-helm-smoke R3.2
+      - srd005-live-helm-smoke R3.3
       - srd006-applier AC3
   - id: S5
     criterion: The patch submits no endpoint or credential to a running agent, the apply surface is reached only by the operator or CI caller and network-gated off the serving pods, and authority stays set by declared validated config.

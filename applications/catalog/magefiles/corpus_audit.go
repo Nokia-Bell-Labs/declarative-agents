@@ -22,7 +22,7 @@ const corpusAuditProfileRel = "agents/specification-critic/corpus-audit-profile.
 // error names the audit rather than repeating them.
 //
 // The charter names the checks that gate rather than running every check the
-// validator knows: agents/specification-critic/suites/catalog-corpus-charter.yaml
+// validator knows: docs/corpus-charter.yaml
 // records which are excluded and why.
 func validateSpecificationCorpus(run profileSmokeRunner, binary, root, coreRoot string) error {
 	profile := filepath.Join(root, filepath.FromSlash(corpusAuditProfileRel))

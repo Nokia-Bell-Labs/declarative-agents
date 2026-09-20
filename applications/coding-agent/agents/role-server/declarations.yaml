@@ -9,6 +9,15 @@ tools:
     signature:
       emits: [ServerLaunched, CommandError]
     description: Launch the role's declared machine-request listener.
+    output:
+      description: Structured server launch result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          route_count: {type: integer}
+          bindings: {type: array, items: {type: string}}
     category: boundary
     side_effects: [{kind: network_listen, target: role_requests, state: listener_started}]
     reversibility: {classification: compensatable}
@@ -22,6 +31,15 @@ tools:
     signature:
       emits: [ServerLaunched, CommandError]
     description: Launch the role's real lifecycle health and exit listener.
+    output:
+      description: Structured server launch result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          route_count: {type: integer}
+          bindings: {type: array, items: {type: string}}
     category: boundary
     side_effects: [{kind: network_listen, target: role_control, state: listener_started}]
     reversibility: {classification: compensatable}
@@ -35,6 +53,17 @@ tools:
     signature:
       emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
     description: Keep the profile alive while selecting declared lifecycle events.
+    output:
+      description: Structured selected lifecycle event.
+      schema:
+        type: object
+        properties:
+          source: {type: string}
+          route: {type: string}
+          method: {type: string}
+          signal: {type: string}
+          request_id: {type: string}
+          payload: {type: object}
     category: boundary
     side_effects: [{kind: state_mutation, target: role_control_queue, state: selected_event_consumed}]
     reversibility: {classification: irreversible}
@@ -52,6 +81,16 @@ tools:
     signature:
       emits: [ServerStopped, CommandError]
     description: Drain and stop the role's request listener during lifecycle exit.
+    output:
+      description: Structured server stop result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          drained_events: {type: integer}
+          dropped_events: {type: integer}
+          status: {type: string}
     category: boundary
     side_effects: [{kind: network_listener_shutdown, target: role_requests, state: listener_stopped}]
     reversibility: {classification: reversible}
