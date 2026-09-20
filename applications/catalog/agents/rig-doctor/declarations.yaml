@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # The rig-doctor's own words: the evidence gate that stops an empty directory
-# before any model call, and the two spool reads the model dispatches over the
-# captured trace tail.
+# before any model call, the two spool reads the model dispatches over the
+# captured trace tail, and the read-back gate that checks the diagnosis the
+# model claims to have written (GH-2294).
 #
 # The spool words are external because $tool dispatch resolves only external
 # tools (registry.go ResolveExternalTool), and because exhaustiveness unions
@@ -111,3 +112,86 @@ tools:
     config:
       path: traces/collector.ndjson
       trace_id: ""
+
+  - name: seed_diagnosis_path
+    type: builtin
+    init: compose
+    category: response
+    visibility: internal
+    signature:
+      emits: [DiagnosisPathReady]
+    description: Name the diagnosis file the read-back gate reads.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: The diagnosis path as a read request.}
+    errors:
+      - {signal: CommandError, condition: the path payload cannot be composed, state_after_failure: no read is attempted}
+    config:
+      signal: DiagnosisPathReady
+      inputs: {}
+      template: '{"parameters": {"path": "diagnosis.yaml"}}'
+
+  - name: read_diagnosis
+    type: builtin
+    init: read_resource
+    category: boundary
+    visibility: internal
+    signature:
+      emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    description: Read the written diagnosis back and decode it as YAML.
+    parameters: {type: object, properties: {path: {type: string}}, required: [path]}
+    output: {description: The decoded diagnosis., schema: {type: object}}
+    side_effects:
+      - {kind: filesystem_read, target: written diagnosis, state: read_only}
+    reversibility: {classification: reversible}
+    undo: {strategy: noop, description: Reading the diagnosis changes nothing.}
+    errors:
+      - {signal: CommandError, condition: the evidence directory cannot be read, state_after_failure: no diagnosis is accepted}
+    config:
+      resource: diagnosis
+      resources:
+        diagnosis:
+          root: .
+          include: ["diagnosis.yaml"]
+          extensions: [yaml]
+          modes: [raw_yaml, parsed_yaml]
+          max_bytes: 1048576
+
+  - name: diagnosis_states_a_cause
+    type: builtin
+    init: value_predicate
+    category: word
+    visibility: internal
+    signature:
+      output: builtin-types-collections.Comparison
+      emits: [CausePresent, DiagnosisIncomplete, CommandError]
+    description: Branch on whether the diagnosis names a probable cause.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: The probable-cause presence comparison.}
+    errors:
+      - {signal: CommandError, condition: the diagnosis carries no probable_cause key at all, state_after_failure: the document is not accepted}
+    config:
+      left: $.parsed.probable_cause
+      op: non_empty
+      operand_type: string
+      satisfied: CausePresent
+      unsatisfied: DiagnosisIncomplete
+
+  - name: diagnosis_cites_findings
+    type: builtin
+    init: value_predicate
+    category: word
+    visibility: internal
+    signature:
+      output: builtin-types-collections.Comparison
+      emits: [FindingsPresent, DiagnosisIncomplete, CommandError]
+    description: Branch on whether the diagnosis carries at least one finding.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: The findings presence comparison.}
+    errors:
+      - {signal: CommandError, condition: the diagnosis carries no findings key at all, state_after_failure: the document is not accepted}
+    config:
+      left: $from(diagnosis).parsed.findings
+      op: non_empty
+      operand_type: string
+      satisfied: FindingsPresent
+      unsatisfied: DiagnosisIncomplete

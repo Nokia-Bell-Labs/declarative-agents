@@ -72,6 +72,12 @@ tools:
         unresolved:
           - a question this evidence cannot answer
 
+        When you call done, the diagnosis is read back and decoded. A file
+        that is missing, that is not valid YAML, or that lacks a probable
+        cause or findings comes back to you with the reason, and you fix it
+        and call done again. Watch the indentation of the evidence entries:
+        `line` aligns with the `path` above it, under one `-`.
+
         Cite a file and a line for every claim. A reader checks your citation
         before trusting the claim, so a cite that does not resolve is worse
         than no claim at all. Say low confidence and list what is missing

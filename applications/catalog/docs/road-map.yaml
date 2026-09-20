@@ -856,7 +856,7 @@ releases:
     test_suites:
       - id: test-rel17.0-rig-doctor
         title: Rig doctor root-cause analyst conformance
-        cases: 7
+        cases: 9
         status: implemented
     proof:
       - mage validate
@@ -868,6 +868,7 @@ releases:
       - Capture records a manifest of every file and every capture error.
       - The diagnosis loop declares no exec, kubectl, or helm word.
       - Every diagnosis claim cites a captured file and line.
+      - A diagnosis that cannot be read back is repaired rather than reported.
 
   - id: "99.0"
     title: Observer family promotion

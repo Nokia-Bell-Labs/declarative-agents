@@ -22,5 +22,11 @@ tools:
   - parse_response
   - report_parse_error
 
+  # Read-back gate -- direct transition actions after TaskCompleted
+  - seed_diagnosis_path
+  - read_diagnosis
+  - diagnosis_states_a_cause
+  - diagnosis_cites_findings
+
   # Completion -- emits TaskCompleted via parse_response
   - done

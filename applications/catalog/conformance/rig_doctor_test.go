@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -109,6 +110,20 @@ func scriptedProvider(t *testing.T, turns []string) (*httptest.Server, *atomic.I
 func scriptedProviderRecording(
 	t *testing.T, turns []string,
 ) (*httptest.Server, *atomic.Int32, *promptLog) {
+	return scriptedProviderTurns(t, turns, false)
+}
+
+// scriptedProviderLooping repeats its last turn forever, which is how a test
+// drives a model that never takes the repair it is offered.
+func scriptedProviderLooping(
+	t *testing.T, turns []string,
+) (*httptest.Server, *atomic.Int32, *promptLog) {
+	return scriptedProviderTurns(t, turns, true)
+}
+
+func scriptedProviderTurns(
+	t *testing.T, turns []string, repeatLast bool,
+) (*httptest.Server, *atomic.Int32, *promptLog) {
 	t.Helper()
 	var calls atomic.Int32
 	prompts := &promptLog{}
@@ -122,7 +137,9 @@ func scriptedProviderRecording(
 			prompts.add(string(body))
 			turn := int(calls.Add(1)) - 1
 			if turn >= len(turns) {
-				t.Errorf("model called %d times, script has %d turns", turn+1, len(turns))
+				if !repeatLast {
+					t.Errorf("model called %d times, script has %d turns", turn+1, len(turns))
+				}
 				turn = len(turns) - 1
 			}
 			response, _ := json.Marshal(map[string]any{
@@ -286,6 +303,8 @@ func TestRigDoctorReadOnlyManifest(t *testing.T) {
 		"query_list_traces": true, "query_get_trace": true,
 		"write": true, "invoke_llm": true, "parse_response": true,
 		"report_parse_error": true, "done": true,
+		"seed_diagnosis_path": true, "read_diagnosis": true,
+		"diagnosis_states_a_cause": true, "diagnosis_cites_findings": true,
 	}
 	for _, name := range selection.Tools {
 		if !want[name] {
@@ -371,4 +390,113 @@ func TestRigDoctorQueriesTheCapturedSpool(t *testing.T) {
 			t.Errorf("the model was never shown %q from the captured spool", want)
 		}
 	}
+}
+
+// validDiagnosis is a diagnosis that passes the read-back gate: decodable
+// YAML naming a cause and carrying one cited finding.
+const validDiagnosis = `probable_cause: The smoke-chatbot image tag does not exist.
+confidence: high
+findings:
+  - claim: smoke-chatbot reports zero available replicas.
+    evidence:
+      - path: namespace-da-helm-smoke-rollout.txt
+        line: 2
+next_command: kubectl describe deploy smoke-chatbot -n da-helm-smoke
+unresolved:
+  - Whether the image was ever built.
+`
+
+// malformedDiagnosis reproduces what a real model wrote during GH-2290: the
+// evidence entry's line key sits one column short of its sibling path, so the
+// document does not decode as YAML at all.
+const malformedDiagnosis = `probable_cause: The smoke-chatbot image tag does not exist.
+confidence: high
+findings:
+   - claim: smoke-chatbot reports zero available replicas.
+     evidence:
+        - path: namespace-da-helm-smoke-rollout.txt
+         line: 2
+next_command: kubectl describe deploy smoke-chatbot -n da-helm-smoke
+unresolved:
+  - Whether the image was ever built.
+`
+
+// TestRigDoctorRepairsAnUndecodableDiagnosis is the GH-2294 regression: the
+// model writes YAML that does not parse, the gate reads it back and returns
+// it, and the repaired write reaches Diagnosed (srd023 R4.4).
+func TestRigDoctorRepairsAnUndecodableDiagnosis(t *testing.T) {
+	t.Parallel()
+	evidence := stageEvidence(t, "failing-rollout")
+	provider, calls, prompts := scriptedProviderRecording(t, []string{
+		toolCall("write", map[string]any{"path": "diagnosis.yaml", "content": malformedDiagnosis}),
+		toolCall("done", map[string]any{"summary": "diagnosis written"}),
+		toolCall("write", map[string]any{"path": "diagnosis.yaml", "content": validDiagnosis}),
+		toolCall("done", map[string]any{"summary": "diagnosis repaired"}),
+	})
+
+	result := Run(t, RunConfig{
+		Profile:   rigDoctorProfile,
+		Directory: evidence,
+		Env:       []string{"OLLAMA_URL=" + provider.URL},
+	})
+	result.RequireExit(t, 0)
+	result.RequireTerminalState(t, "Diagnosed")
+	if got := calls.Load(); got != 4 {
+		t.Errorf("model turns = %d, want 4: write, done, repair, done", got)
+	}
+	if sent := prompts.joined(); !strings.Contains(sent, "parse") && !strings.Contains(sent, "yaml") {
+		t.Errorf("the model was never told why its diagnosis was rejected")
+	}
+	data, err := os.ReadFile(filepath.Join(evidence, "diagnosis.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var written diagnosis
+	if err := yaml.Unmarshal(data, &written); err != nil {
+		t.Fatalf("the accepted diagnosis does not decode: %v", err)
+	}
+}
+
+// TestRigDoctorRepairsAMissingDiagnosis covers done called with nothing
+// written: the gate returns it rather than reporting a run that produced no
+// diagnosis as a success.
+func TestRigDoctorRepairsAMissingDiagnosis(t *testing.T) {
+	t.Parallel()
+	evidence := stageEvidence(t, "failing-rollout")
+	provider, calls, _ := scriptedProviderRecording(t, []string{
+		toolCall("done", map[string]any{"summary": "nothing written"}),
+		toolCall("write", map[string]any{"path": "diagnosis.yaml", "content": validDiagnosis}),
+		toolCall("done", map[string]any{"summary": "diagnosis written"}),
+	})
+
+	result := Run(t, RunConfig{
+		Profile:   rigDoctorProfile,
+		Directory: evidence,
+		Env:       []string{"OLLAMA_URL=" + provider.URL},
+	})
+	result.RequireTerminalState(t, "Diagnosed")
+	if got := calls.Load(); got != 3 {
+		t.Errorf("model turns = %d, want 3: done, write, done", got)
+	}
+}
+
+// TestRigDoctorRefusesADiagnosisWithoutFindings proves the gate checks the
+// decoded shape, not only that the bytes parse.
+func TestRigDoctorRefusesADiagnosisWithoutFindings(t *testing.T) {
+	t.Parallel()
+	evidence := stageEvidence(t, "failing-rollout")
+	bare := "probable_cause: Something failed.\nconfidence: low\nfindings: []\n" +
+		"next_command: kubectl get pods -n da-helm-smoke\nunresolved: []\n"
+	provider, _, _ := scriptedProviderLooping(t, []string{
+		toolCall("write", map[string]any{"path": "diagnosis.yaml", "content": bare}),
+		toolCall("done", map[string]any{"summary": "diagnosis written"}),
+	})
+
+	result := Run(t, RunConfig{
+		Profile:   rigDoctorProfile,
+		Directory: evidence,
+		Env:       []string{"OLLAMA_URL=" + provider.URL},
+		Timeout:   3 * time.Minute,
+	})
+	result.RequireTerminalState(t, "Failed")
 }
