@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MODEL-001: no body, exactly one machine-template expansion.
+unit: control-template
+name: control
+expand:
+  - fragment: ../../units/control-machine-template.yaml
+    args: {server: agent, exit_signal: ExitRequested}

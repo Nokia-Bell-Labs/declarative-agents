@@ -95,6 +95,18 @@ func TestValidateLanguageRejectsSchemaViolations(t *testing.T) {
 			mutate: func(l *languageFile) { l.Statements = nil },
 			want:   "no statements",
 		},
+		"bare noun in normative text": {
+			mutate: func(l *languageFile) {
+				l.Statements[0].Statement = "An agent MUST bind one workspace."
+			},
+			want: `bare noun "agent"`,
+		},
+		"bare plural noun in normative text": {
+			mutate: func(l *languageFile) {
+				l.Statements[0].Statement = "All machines MUST declare states."
+			},
+			want: `bare noun "machines"`,
+		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -105,6 +117,17 @@ func TestValidateLanguageRejectsSchemaViolations(t *testing.T) {
 				t.Fatalf("validateLanguage error = %v, want %q", err, test.want)
 			}
 		})
+	}
+}
+
+// TestBareNounBanPermitsCompoundTerms proves the chapter 02 vocabulary passes
+// the scan: hyphenated class, instance, and unit terms are not bare nouns.
+func TestBareNounBanPermitsCompoundTerms(t *testing.T) {
+	language := validLanguage()
+	language.Statements[0].Statement = "An agent-instance MUST bind exactly one workspace; " +
+		"a machine-profile document MAY expand a machine-template."
+	if err := validateLanguage(language); err != nil {
+		t.Fatal(err)
 	}
 }
 

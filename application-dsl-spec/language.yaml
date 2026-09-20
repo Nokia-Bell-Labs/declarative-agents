@@ -34,7 +34,7 @@
 #
 language:
   id: application-dsl
-  title: Application DSL Specification
+  title: "Libretto: A Declarative Language for Applications, Agents, and Machines"
   version: 0.1.0
   conformance_targets:
     - document
@@ -69,3 +69,46 @@ statements:
       - assertion: go_test
         path: magefiles/evidence_test.go
         test: TestFixtureCheckRejectsNonMappingRoot
+
+  - id: R-MODEL-001
+    target: document
+    level: MUST
+    statement: >-
+      A machine-profile document MUST either declare its own states and
+      transitions or expand exactly one machine-template; a machine-profile
+      document that expands a machine-template MUST NOT declare its own
+      states or transitions.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/body.yaml
+        check: machine_expansion_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/template-instance.yaml
+        check: machine_expansion_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/no-body-no-expansion.yaml
+        check: machine_expansion_shape
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/double-expansion.yaml
+        check: machine_expansion_shape
+        verdict: invalid
+
+  - id: R-MODEL-002
+    target: document
+    level: MUST
+    statement: >-
+      Every expansion entry in a machine-profile document MUST name its
+      source unit under the fragment keyname; argument bindings MAY accompany
+      the name under the args keyname.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/expansion-fragment/named.yaml
+        check: expansion_names_fragment
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/expansion-fragment/unnamed.yaml
+        check: expansion_names_fragment
+        verdict: invalid

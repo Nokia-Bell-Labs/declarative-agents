@@ -115,6 +115,68 @@ func TestRepositoryFixtureEvidencePasses(t *testing.T) {
 	}
 }
 
+func TestMachineExpansionShape(t *testing.T) {
+	tests := map[string]struct {
+		content string
+		valid   bool
+	}{
+		"body with states and transitions": {
+			content: "states: [{name: A}]\ntransitions: [{state: A, signal: S, next: A}]\n",
+			valid:   true,
+		},
+		"body with spliced stage-fragments": {
+			content: "states: [{name: A}]\ntransitions: [{state: A, signal: S, next: A}]\n" +
+				"expand:\n  - fragment: u.yaml\n  - fragment: v.yaml\n",
+			valid: true,
+		},
+		"single template expansion without body": {
+			content: "unit: t\nexpand:\n  - fragment: u.yaml\n",
+			valid:   true,
+		},
+		"states without transitions": {
+			content: "states: [{name: A}]\n",
+			valid:   false,
+		},
+		"no body and no expansion": {
+			content: "name: hollow\n",
+			valid:   false,
+		},
+		"no body and two expansions": {
+			content: "expand:\n  - fragment: u.yaml\n  - fragment: v.yaml\n",
+			valid:   false,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := writeEvidenceFile(t, t.TempDir(), "machine.yaml", test.content)
+			err := checkFixture("machine_expansion_shape", path)
+			if test.valid && err != nil {
+				t.Fatalf("check failed on a conforming document: %v", err)
+			}
+			if !test.valid && err == nil {
+				t.Fatal("check passed a non-conforming document")
+			}
+		})
+	}
+}
+
+func TestExpansionNamesFragment(t *testing.T) {
+	named := writeEvidenceFile(t, t.TempDir(), "named.yaml",
+		"expand:\n  - fragment: u.yaml\n    args: {p: 1}\n")
+	if err := checkFixture("expansion_names_fragment", named); err != nil {
+		t.Fatalf("check failed on a named fragment: %v", err)
+	}
+	unnamed := writeEvidenceFile(t, t.TempDir(), "unnamed.yaml",
+		"expand:\n  - args: {p: 1}\n")
+	if err := checkFixture("expansion_names_fragment", unnamed); err == nil {
+		t.Fatal("check passed an expansion entry without a fragment name")
+	}
+	vacuous := writeEvidenceFile(t, t.TempDir(), "vacuous.yaml", "name: x\n")
+	if err := checkFixture("expansion_names_fragment", vacuous); err != nil {
+		t.Fatalf("check failed on a document without expansions: %v", err)
+	}
+}
+
 func TestUnknownFixtureCheckDoesNotClaimNonMappingRejection(t *testing.T) {
 	// checkFixture must fail on unknown kinds rather than fall through to any
 	// default behaviour.

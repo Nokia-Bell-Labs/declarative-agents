@@ -19,6 +19,18 @@ const languagePath = "language.yaml"
 // are never renumbered or reused: constitutions, tests, and commits cite them.
 var statementIDPattern = regexp.MustCompile(`^R-[A-Z][A-Z0-9]*-[0-9]{3}$`)
 
+// bareNounWords are the nouns chapter 02 bans from normative text: a
+// statement names the class or the instance (agent-profile, agent-instance),
+// never the bare noun. Compound terms like machine-template pass because the
+// scan matches whole hyphenated tokens.
+var bareNounWords = map[string]bool{
+	"application": true, "applications": true,
+	"agent": true, "agents": true,
+	"machine": true, "machines": true,
+}
+
+var wordPattern = regexp.MustCompile(`[A-Za-z][A-Za-z-]*`)
+
 // rfc2119Levels are the requirement levels a statement may carry.
 var rfc2119Levels = map[string]bool{
 	"MUST":       true,
@@ -112,6 +124,13 @@ func validateLanguage(language languageFile) error {
 		}
 		if strings.TrimSpace(statement.Statement) == "" {
 			findings = append(findings, fmt.Errorf("%s: statement text is required", label))
+		}
+		for _, word := range wordPattern.FindAllString(statement.Statement, -1) {
+			if bareNounWords[strings.ToLower(word)] {
+				findings = append(findings, fmt.Errorf(
+					"%s: bare noun %q in normative text; use a class or instance term (chapter 02)",
+					label, word))
+			}
 		}
 		if len(statement.Acceptance) == 0 {
 			findings = append(findings, fmt.Errorf("%s: at least one acceptance entry is required", label))

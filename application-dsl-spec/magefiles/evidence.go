@@ -104,11 +104,12 @@ func runFixtureCheck(path string, entry acceptanceEntry) error {
 	return nil
 }
 
-// fixtureChecks registers every document check a fixture entry may name. The
-// scaffold ships the well-formedness floor; grammar chapters add checks as
-// their statements land.
+// fixtureChecks registers every document check a fixture entry may name.
+// Grammar chapters add checks as their statements land.
 var fixtureChecks = map[string]func(string) error{
-	"yaml_mapping": checkYAMLMapping,
+	"yaml_mapping":             checkYAMLMapping,
+	"machine_expansion_shape":  checkMachineExpansionShape,
+	"expansion_names_fragment": checkExpansionNamesFragment,
 }
 
 // checkFixture dispatches a named document check against a fixture file.
@@ -138,6 +139,80 @@ func checkYAMLMapping(path string) error {
 		return errors.New("root node is not a mapping")
 	}
 	return nil
+}
+
+// checkMachineExpansionShape enforces R-MODEL-001: a machine-profile document
+// either declares its own states and transitions (and may splice
+// stage-fragments beside them) or carries no body and expands exactly one
+// machine-template.
+func checkMachineExpansionShape(path string) error {
+	doc, err := readYAMLMapping(path)
+	if err != nil {
+		return err
+	}
+	_, hasStates := doc["states"]
+	_, hasTransitions := doc["transitions"]
+	entries, hasExpansion := doc["expand"]
+	switch {
+	case hasStates && hasTransitions:
+		return nil
+	case hasStates || hasTransitions:
+		return errors.New("a declared body requires both states and transitions")
+	case !hasExpansion:
+		return errors.New("no body and no expansion")
+	}
+	list, ok := entries.([]any)
+	if !ok {
+		return errors.New("expand must be a sequence")
+	}
+	if len(list) != 1 {
+		return fmt.Errorf("a bodiless machine-profile document must expand exactly one machine-template, got %d entries", len(list))
+	}
+	return nil
+}
+
+// checkExpansionNamesFragment enforces R-MODEL-002: every expansion entry
+// names its source unit under fragment. A document with no expansion
+// satisfies the statement vacuously.
+func checkExpansionNamesFragment(path string) error {
+	doc, err := readYAMLMapping(path)
+	if err != nil {
+		return err
+	}
+	entries, ok := doc["expand"]
+	if !ok {
+		return nil
+	}
+	list, ok := entries.([]any)
+	if !ok {
+		return errors.New("expand must be a sequence")
+	}
+	for index, raw := range list {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("expand[%d] must be a mapping", index)
+		}
+		fragment, _ := entry["fragment"].(string)
+		if strings.TrimSpace(fragment) == "" {
+			return fmt.Errorf("expand[%d] does not name a fragment", index)
+		}
+	}
+	return nil
+}
+
+func readYAMLMapping(path string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("parse fixture: %w", err)
+	}
+	if doc == nil {
+		return nil, errors.New("fixture holds no YAML mapping")
+	}
+	return doc, nil
 }
 
 // runGoTestEvidence proves the named test exists in the file at path and
