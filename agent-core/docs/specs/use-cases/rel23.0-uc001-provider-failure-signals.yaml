@@ -1,0 +1,60 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel23.0-uc001-provider-failure-signals
+title: A machine retries a busy model provider and gives up on a misconfigured one
+status: planned
+
+summary: |
+  An agent's machine tells a provider that is briefly unavailable apart from
+  one it cannot use at all, because invoke_llm reports them as different
+  signals. The profile opts into the failure taxonomy its dialect already
+  declares, routes ProviderUnavailable and ProviderThrottled to a bounded
+  retry, and leaves ProviderUnauthorized and CommandError terminal. A profile
+  that does not opt in runs unchanged.
+
+actor: A profile author deciding how an agent should answer a failing provider
+
+trigger: |
+  A model call fails. The provider is loading a model, is rate limiting, has
+  rejected the credential, or was never reachable, and the machine must decide
+  whether another attempt is worth anything.
+
+flow:
+  - F1: The profile's invoke_llm ToolDef opts into the failure taxonomy and declares ProviderUnavailable, ProviderThrottled, and ProviderUnauthorized among its emitted signals.
+  - F2: The provider answers 503. invoke_llm maps the status through the dialect's failure map and emits ProviderUnavailable; the machine routes it to a retry.
+  - F3: The provider does not answer at all and the call reaches its deadline. The failure carries no status, and invoke_llm emits ProviderUnavailable, because a provider that never answered is unavailable whatever the transport said.
+  - F4: The provider answers 401. invoke_llm emits ProviderUnauthorized and the machine terminates, since a rejected credential does not improve on a second ask.
+  - F5: The provider answers an error status its dialect does not map. invoke_llm emits CommandError rather than guessing which failure it was.
+  - F6: A credential cannot be resolved, or a successful answer cannot be decoded. Both emit CommandError, because neither describes the provider's state.
+  - F7: A profile that never opts in sees exactly the signals it saw before, and its machine needs no edit.
+  - F8: A profile that opts in without declaring the signals fails at load, naming the word and what it did not declare.
+
+touchpoints:
+  - T1: "srd058-provider-libraries R1.4 -- the shared failure taxonomy the dialects already map to"
+  - T2: "srd058-provider-libraries R2.4 -- the opt-in, the transport rule, and what stays CommandError"
+  - T3: "srd058-provider-libraries R2.5 -- declared emits remain the authority on what a machine routes"
+  - T4: "srd058-provider-libraries R3.3 -- an unopted machine runs unmodified"
+  - T5: "srd009-ollama-adapter R4.3 -- what an unavailable backend surfaces as"
+  - T6: "srd009-ollama-adapter R6.3 -- the adapter does not retry, so the caller needs to know whether to"
+
+success_criteria:
+  - id: S1
+    criterion: With the opt-in, a mapped error status reaches the machine as the signal the dialect names for it.
+    traces: [srd058-provider-libraries AC8]
+  - id: S2
+    criterion: With the opt-in, a transport failure carrying no status reaches the machine as ProviderUnavailable, including a call that exceeds its deadline.
+    traces: [srd058-provider-libraries AC8]
+  - id: S3
+    criterion: An unmapped error status, a pre-exchange fault, and a decode fault each remain CommandError.
+    traces: [srd058-provider-libraries AC8]
+  - id: S4
+    criterion: Without the opt-in every path emits what it emitted before, and the shipped profiles that bind invoke_llm run unmodified.
+    traces: [srd058-provider-libraries AC8]
+  - id: S5
+    criterion: A ToolDef whose opt-in and declared emits disagree fails at load, naming the word and the missing signals.
+    traces: [srd058-provider-libraries AC8]
+
+out_of_scope:
+  - Retrying inside the adapter or inside invoke_llm; a retry is a machine's decision (srd009 R6.3).
+  - Migrating the shipped profiles that bind invoke_llm; each adopts the opt-in when its own behavior calls for it.
+  - Classifying provider failures for embed and rerank, which already emit the taxonomy.

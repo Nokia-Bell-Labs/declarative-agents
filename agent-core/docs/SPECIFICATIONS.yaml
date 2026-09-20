@@ -197,6 +197,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: done
+  - version: "23.0"
+    name: Provider failure signals
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
   - version: "99.0"
     name: Architectural migrations and cleanup
     use_cases_done: 2
@@ -779,6 +784,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel22.0-provider-libraries
     path: docs/specs/use-cases/rel22.0-uc001-provider-libraries.yaml
+  - id: rel23.0-uc001-provider-failure-signals
+    title: A machine retries a busy model provider and gives up on a misconfigured one
+    release: "23.0"
+    status: planned
+    test_suite: test-rel23.0-provider-failure-signals
+    path: docs/specs/use-cases/rel23.0-uc001-provider-failure-signals.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -995,6 +1006,14 @@ test_suite_index:
     formal_test_cases: 10
     status: implemented
     path: docs/specs/test-suites/test-rel22.0-provider-libraries.yaml
+  - id: test-rel23.0-provider-failure-signals
+    title: Test Suite for Release 23.0 Provider Failure Signals
+    release: "23.0"
+    traces:
+      - rel23.0-uc001-provider-failure-signals
+    formal_test_cases: 6
+    status: planned
+    path: docs/specs/test-suites/test-rel23.0-provider-failure-signals.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"
@@ -1040,6 +1059,14 @@ go_test_coverage:
     ./... -v | grep -c '=== RUN'` for the current test function count.
 
 srd_to_use_case_mapping:
+  - use_case: rel23.0-uc001-provider-failure-signals
+    srd: srd058-provider-libraries
+    why_required: The opt-in, the transport rule, the faults that stay CommandError, and the declared-emits agreement are R2.4 and R2.5 over the R1.4 taxonomy.
+    coverage: Full. Covers AC8 via S1 through S5.
+  - use_case: rel23.0-uc001-provider-failure-signals
+    srd: srd009-ollama-adapter
+    why_required: R4.3 states what an unavailable backend surfaces as, and R6.3 leaves retry to the caller, which is why the caller must be told whether retrying is worth anything.
+    coverage: Partial. Covers R4.3 and R6.3; the adapter itself is unchanged.
   - use_case: rel00.0-uc001-domain-agent-integration
     srd: srd001-core-types
     why_required: Domain agent uses State, Signal, Command, Result, Cost, Builder types from internal/runtime/core.

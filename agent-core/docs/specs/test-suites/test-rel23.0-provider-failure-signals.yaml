@@ -1,0 +1,75 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel23.0-provider-failure-signals
+title: Test Suite for Release 23.0 Provider Failure Signals
+release: "23.0"
+
+traces:
+  - rel23.0-uc001-provider-failure-signals
+
+preconditions:
+  - srd058-provider-libraries R2.4 and R2.5 define the opt-in, the transport rule, what stays CommandError, and the declared-emits agreement.
+  - The shipped dialects already map statuses to the R1.4 taxonomy; no dialect file changes in this release.
+  - Fake HTTP servers answer chat with chosen statuses, and one accepts a connection and never answers, so the deadline path is exercised without a real provider.
+
+test_cases:
+  - use_case: rel23.0-uc001-provider-failure-signals
+    name: A mapped error status reaches the machine as its declared signal
+    go_test: go test ./internal/tools/llm/... -run 'TestInvokeLLMEmitsMappedProviderFailure'
+    status: planned
+    description: With the opt-in, a fake provider answers 503, 429, and 401 in turn.
+    expected:
+      unavailable_signal: ProviderUnavailable
+      throttled_signal: ProviderThrottled
+      unauthorized_signal: ProviderUnauthorized
+    traces: [rel23.0-uc001-provider-failure-signals S1, srd058-provider-libraries AC8, srd058-provider-libraries R2.4]
+
+  - use_case: rel23.0-uc001-provider-failure-signals
+    name: A transport failure with no status is ProviderUnavailable
+    go_test: go test ./internal/tools/llm/... -run 'TestInvokeLLMEmitsUnavailableOnTransportFailure'
+    status: planned
+    description: With the opt-in, one case refuses the connection and one accepts it and never answers, so the call reaches its deadline. This is the failure that motivated the release; it carries no HTTP status.
+    expected:
+      refused_connection_signal: ProviderUnavailable
+      deadline_exceeded_signal: ProviderUnavailable
+    traces: [rel23.0-uc001-provider-failure-signals S2, srd058-provider-libraries AC8, srd058-provider-libraries R2.4]
+
+  - use_case: rel23.0-uc001-provider-failure-signals
+    name: Unmapped, pre-exchange, and decode faults stay CommandError
+    go_test: go test ./internal/tools/llm/... -run 'TestInvokeLLMKeepsCommandErrorForUnclassifiedFailures'
+    status: planned
+    description: With the opt-in, a status the dialect does not map, a credential that cannot be resolved, and a 200 whose body does not decode.
+    expected:
+      unmapped_status_signal: CommandError
+      credential_fault_signal: CommandError
+      decode_fault_signal: CommandError
+    traces: [rel23.0-uc001-provider-failure-signals S3, srd058-provider-libraries AC8, srd058-provider-libraries R2.4]
+
+  - use_case: rel23.0-uc001-provider-failure-signals
+    name: Without the opt-in every failure stays CommandError
+    go_test: go test ./internal/tools/llm/... -run 'TestInvokeLLMDefaultsToCommandError'
+    status: planned
+    description: The same 503, 401, and deadline cases run against a ToolDef that does not opt in.
+    expected:
+      every_signal: CommandError
+    traces: [rel23.0-uc001-provider-failure-signals S4, srd058-provider-libraries AC8, srd058-provider-libraries R3.3]
+
+  - use_case: rel23.0-uc001-provider-failure-signals
+    name: Shipped profiles that bind invoke_llm are unaffected
+    go_test: cd ../applications/catalog && mage bootSmoke
+    status: planned
+    description: Every shipped catalog profile validates unchanged, which is the evidence that the default is genuinely off rather than merely documented.
+    expected:
+      profiles_boot: true
+    traces: [rel23.0-uc001-provider-failure-signals S4, srd058-provider-libraries R3.3]
+
+  - use_case: rel23.0-uc001-provider-failure-signals
+    name: An opt-in that does not declare its signals fails at load
+    go_test: go test ./internal/tools/catalog/... -run 'TestProviderFailureOptInRequiresDeclaredEmits'
+    status: planned
+    description: A ToolDef opts in while declaring only LLMResponded and CommandError.
+    expected:
+      load_fails: true
+      message_names_word: true
+      message_names_missing_signals: true
+    traces: [rel23.0-uc001-provider-failure-signals S5, srd058-provider-libraries AC8, srd058-provider-libraries R2.5]
