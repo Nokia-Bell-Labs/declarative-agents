@@ -58,13 +58,27 @@ func newDialectClient(chat dialect.Chat, baseURL string, httpClient *http.Client
 }
 
 // providerError carries the span's error.type: the HTTP status for a provider
-// answer, or a short kind for a failure before or after the exchange.
+// answer, or a short kind for a failure before or after the exchange. signal
+// is the shared failure vocabulary the dialect maps that answer to, empty for
+// a fault that does not describe the provider's state (srd058 R2.4).
 type providerError struct {
 	kind    string
 	message string
+	signal  string
 }
 
 func (e *providerError) Error() string { return e.message }
+
+// ProviderFailureSignal returns the failure signal err describes, or empty
+// when the error is not a classified provider failure. A caller that opted
+// into the taxonomy emits it in place of CommandError.
+func ProviderFailureSignal(err error) string {
+	var failure *providerError
+	if errors.As(err, &failure) {
+		return failure.signal
+	}
+	return ""
+}
 
 // Chat builds, sends, and reads one chat request.
 func (c *dialectClient) Chat(ctx context.Context, messages []modelllm.Message, opts modelllm.ChatOptions) (modelllm.ChatResponse, error) {
@@ -139,8 +153,12 @@ func dialectParams(messages []modelllm.Message, opts modelllm.ChatOptions) map[s
 func (c *dialectClient) send(request *http.Request) (dialect.Reply, error) {
 	response, err := c.http.Do(request)
 	if err != nil {
+		// A refused connection, a timeout, and a cancelled context carry no
+		// status to map, and all three say the same thing: the provider did
+		// not answer (srd058 R2.4).
 		return dialect.Reply{}, &providerError{kind: "connection",
-			message: fmt.Sprintf("%s chat request failed: %v", c.chat.ProviderName, err)}
+			message: fmt.Sprintf("%s chat request failed: %v", c.chat.ProviderName, err),
+			signal:  dialect.ProviderUnavailable}
 	}
 	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(response.Body, maxDialectResponseBytes+1))
@@ -176,11 +194,12 @@ func (c *dialectClient) statusError(status int, body []byte) error {
 		}
 	}
 	signal := c.chat.FailureSignal(status)
-	if signal == "" {
-		signal = "unmapped"
+	described := signal
+	if described == "" {
+		described = "unmapped"
 	}
-	return &providerError{kind: strconv.Itoa(status), message: fmt.Sprintf(
-		"%s %s returned status %d (%s): %s", c.chat.ProviderName, c.chat.Path, status, signal, diagnostic)}
+	return &providerError{kind: strconv.Itoa(status), signal: signal, message: fmt.Sprintf(
+		"%s %s returned status %d (%s): %s", c.chat.ProviderName, c.chat.Path, status, described, diagnostic)}
 }
 
 func recordDialectFailure(tracer tracing.Tracer, err error) error {

@@ -564,6 +564,35 @@ func TestRigDoctorRetriesAFailedModelCall(t *testing.T) {
 	}
 }
 
+// TestRigDoctorDoesNotRetryARejectedCredential proves the routing added in
+// GH-2298: a 401 is ProviderUnauthorized, which cannot improve on a second
+// ask, so the run fails on the first one.
+func TestRigDoctorDoesNotRetryARejectedCredential(t *testing.T) {
+	t.Parallel()
+	evidence := stageEvidence(t, "failing-rollout")
+	var calls atomic.Int32
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/tags" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"models":[{"name":"qwen3.6:35b-mlx"}]}`))
+			return
+		}
+		calls.Add(1)
+		http.Error(w, "bad key", http.StatusUnauthorized)
+	}))
+	t.Cleanup(provider.Close)
+
+	result := Run(t, RunConfig{
+		Profile:   rigDoctorProfile,
+		Directory: evidence,
+		Env:       []string{"OLLAMA_URL=" + provider.URL},
+	})
+	result.RequireTerminalState(t, "Failed")
+	if got := calls.Load(); got != 1 {
+		t.Errorf("provider calls = %d, want 1: a rejected credential is not retried", got)
+	}
+}
+
 // TestRigDoctorGivesUpOnAnUnreachableProvider bounds the retry: a provider
 // that never answers costs three attempts, not a whole budget.
 func TestRigDoctorGivesUpOnAnUnreachableProvider(t *testing.T) {

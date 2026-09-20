@@ -94,7 +94,29 @@ requirements:
           provider-varying inputs to invoke_llm; the base URL and the model
           stay in the ToolDef config, where a deployment sets them today. A
           chat failure the map names is reported in invoke_llm's error and
-          span, and invoke_llm still emits CommandError, so R3.3 holds.
+          span, and invoke_llm emits CommandError unless the ToolDef opts in
+          under R2.4, so R3.3 holds for every machine that does not.
+      - R2.4: >-
+          A ToolDef SHALL be able to opt into the R1.4 failure taxonomy for
+          chat. With the opt-in, invoke_llm SHALL emit the signal the dialect
+          map names for the answer's status, and SHALL emit ProviderUnavailable
+          for a transport failure that carries no status at all: a refused
+          connection, a timeout, or a cancelled context. An error status the
+          map does not name SHALL remain CommandError rather than be guessed
+          at, and a fault before the exchange -- rendering the request,
+          resolving a credential -- or one decoding a successful answer SHALL
+          remain CommandError, because neither describes the provider's state.
+          Without the opt-in every path SHALL emit exactly what it emits
+          today, so a pinned consumer is unaffected until it asks. A
+          classified failure SHALL carry its detail as output and no error
+          value, the shape a status-mapped REST result already takes, because
+          dispatch rewrites an error-bearing result to CommandError and would
+          otherwise undo the classification before a machine saw it.
+      - R2.5: >-
+          A ToolDef that opts in SHALL declare the signals it will emit, and a
+          load where the opt-in and the declared emits disagree SHALL fail
+          naming the word and the missing signals. The declaration stays the
+          authority on what a machine must route.
       - R2.2: >-
           The body template SHALL use the REST request-body template grammar,
           with invoke_llm supplying messages, model, and the generation
@@ -192,6 +214,9 @@ acceptance_criteria:
   - id: AC1
     criterion: A deployment switches Ollama to Cohere by rebinding --library providers, with no edit to any machine, tool, REST, or fragment file, and a missing dialect or fragment fails at load naming the path and the bound directory.
     traces: [R1.1, R1.2, R1.3, R2.3, R3.2]
+  - id: AC8
+    criterion: With the opt-in, a mapped error status and a transport timeout each reach the machine as the signal the dialect names, while an unmapped status, a credential fault, and a decode fault stay CommandError; without it every path emits what it emitted before.
+    traces: [R2.4, R2.5, R3.3]
   - id: AC2
     criterion: invoke_llm produces the same request JSON documents and equivalent histories, signals, and spans through the ollama and cohere dialect files as through the compiled adapters, places the conversation as a structured array, and resolves credentials only at call time.
     traces: [R1.5, R2.1, R2.2, R3.1, R3.3, R3.4, R3.5, R5.1, R5.2]

@@ -10,7 +10,7 @@ tools:
     init: invoke_llm
     visibility: internal
     signature:
-      emits: [LLMResponded, CommandError]
+      emits: [LLMResponded, ProviderUnavailable, ProviderThrottled, ProviderUnauthorized, CommandError]
     description: "Invoke the LLM with the current conversation history."
     category: boundary
     output:
@@ -33,11 +33,27 @@ tools:
       description: "Restore the conversation history checkpoint captured before invoking the model."
       requires: [conversation_checkpoint]
     errors:
+      - signal: ProviderUnavailable
+        condition: "the provider answered 5xx, refused the connection, or never answered"
+        message_shape: "<provider> chat request failed: <error>"
+        state_after_failure: "conversation history unchanged; the call may be worth repeating"
+      - signal: ProviderThrottled
+        condition: "the provider answered 429"
+        message_shape: "<provider> <path> returned status 429 (ProviderThrottled): <body>"
+        state_after_failure: "conversation history unchanged; the call may be worth repeating"
+      - signal: ProviderUnauthorized
+        condition: "the provider rejected the credential with 401 or 403"
+        message_shape: "<provider> <path> returned status <status> (ProviderUnauthorized): <body>"
+        state_after_failure: "conversation history unchanged; repeating the call cannot help"
       - signal: CommandError
-        condition: "provider configuration is invalid or the model call fails"
+        condition: "provider configuration is invalid, an error status is unmapped, or a response cannot be decoded"
         message_shape: "invoke_llm: <provider/model>: <error>"
         state_after_failure: "conversation history unchanged unless the provider response was already appended"
     config:
+      # The dialect's failure taxonomy reaches the machine, so a provider that
+      # is loading a model or rate limiting is retried while a rejected
+      # credential is not (srd058 R2.4, srd023 R4.5).
+      provider_failure_signals: true
       model: "qwen3.6:35b-mlx"
       dialect: /opt/providers/chat-dialect.yaml
       provider_url: "${OLLAMA_URL:-http://localhost:11434}"

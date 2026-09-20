@@ -808,6 +808,9 @@ func validateRuntimeToolWiring(
 	if err := catalog.ValidateToolEmits(machine, defs); err != nil {
 		return err
 	}
+	if err := catalog.ValidateProviderFailureOptIn(defs); err != nil {
+		return err
+	}
 	if err := catalog.ValidateSelectorLabelsStrict(machine, defs, runtimeLabels...); err != nil {
 		return err
 	}

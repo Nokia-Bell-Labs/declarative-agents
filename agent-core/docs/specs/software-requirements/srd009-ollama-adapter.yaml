@@ -45,7 +45,7 @@ requirements:
     items:
       - R4.1: NewAdapter SHALL NOT call GET /api/tags or perform any other hidden readiness probe.
       - R4.2: A profile that requires model readiness SHALL declare the probe as a REST word and route its signals in MachineSpec.
-      - R4.3: Without a declared preflight, an unavailable backend SHALL surface from Chat as invoke_llm CommandError.
+      - R4.3: Without a declared preflight, an unavailable backend SHALL surface from Chat as invoke_llm CommandError, unless the ToolDef opts into the provider failure signals of srd058 R2.4, in which case it surfaces as ProviderUnavailable.
       - R4.4: The adapter SHALL NOT auto-pull models.
 
   R5:
@@ -60,7 +60,7 @@ requirements:
     items:
       - R6.1: Connection failures, non-200 HTTP status, and malformed JSON each produce distinct error messages.
       - R6.2: Chat propagates context cancellation via http.NewRequestWithContext.
-      - R6.3: The adapter does not retry. Retry logic belongs to the caller.
+      - R6.3: The adapter does not retry. Retry logic belongs to the caller, which is why the failure a caller sees must say whether retrying is worth anything (srd058 R2.4).
 
 non_goals:
   - Streaming responses.
