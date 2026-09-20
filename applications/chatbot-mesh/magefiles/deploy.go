@@ -48,8 +48,7 @@ func Undeploy() error {
 	// An undeploy removes a release: it stages no chart, externalizes no UI
 	// assets, and measures no budget, because none of that is needed to delete
 	// something. The chart coordinate is a bare token the undeploy words never
-	// read; it must stay free of YAML metacharacters, which the renderer does
-	// not quote (GH-2349).
+	// read, and it names what it is so a rendered argv reads honestly.
 	return kindrig.Undeploy(kindrig.DeployRequest{
 		Cluster:         chatbotDemoCluster,
 		ApplicationRoot: root,

@@ -67,9 +67,9 @@ func Undeploy() error {
 // and the rendered unit carries the apply words whether or not this profile
 // selects them. This is what their unused chart coordinate renders to.
 //
-// It is a bare token on purpose. RenderDeployDeclarations substitutes into YAML
-// without quoting, so a value carrying a colon or a bracket renders a file the
-// runtime cannot parse.
+// It is a bare token because nothing reads it, not because the renderer needs
+// one: RenderDeployDeclarations substitutes YAML nodes and quotes what needs
+// quoting, so any string would render (GH-2349).
 const chartPlaceholderForUndeploy = "undeploy-names-no-chart"
 
 // deployRequest resolves everything one deploy needs, and reports the curator

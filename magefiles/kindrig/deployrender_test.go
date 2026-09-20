@@ -161,6 +161,106 @@ func TestRenderDeployDeclarationsRejectsAnUnresolvedPlaceholder(t *testing.T) {
 	}
 }
 
+// The GH-2349 guard. Every coordinate is a caller-supplied string and several
+// are paths, so the renderer cannot assume any of them is safe to drop into a
+// YAML document as text. The loud failures are the metacharacters; the silent
+// one is a value a schema reads as a type other than a string.
+func TestRenderDeployDeclarationsSurvivesHostileCoordinates(t *testing.T) {
+	t.Parallel()
+	coordinates := DeployCoordinates{
+		Release:       "release: with a colon",
+		Namespace:     "yes",
+		ChartPath:     "/tmp/chart/#hash/coding-agent-1.0.0.tgz",
+		Kubeconfig:    "@leading-at",
+		ValuesPath:    "/repo/helm/[bracketed]/kind-values.yaml",
+		OverridesPath: "{braced}, and comma",
+		Timeout:       "1.0",
+	}
+	rendered, err := RenderDeployDeclarations(shippedDeployDeclarations(t), coordinates, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// renderArgs parses the rendered file, so a document the runtime could not
+	// load fails here rather than three steps later in a deploy.
+	args := renderArgs(t, rendered)
+
+	// Every value has to come back as the exact string that went in. A
+	// substring match would pass on a namespace that arrived as the boolean
+	// true and was formatted back into the argv as "true".
+	for _, want := range []struct {
+		word  string
+		value string
+	}{
+		{"helm_history", coordinates.Release},
+		{"helm_history", coordinates.Namespace},
+		{"helm_history", coordinates.Kubeconfig},
+		{"helm_upgrade", coordinates.ChartPath},
+		{"helm_upgrade", coordinates.ValuesPath},
+		{"helm_upgrade", coordinates.OverridesPath},
+		{"helm_upgrade", coordinates.Timeout},
+	} {
+		if !carriesExactly(args[want.word], want.value) {
+			t.Errorf("%s argv = %v, want an element equal to %q", want.word, args[want.word], want.value)
+		}
+	}
+}
+
+// A coordinate inside a longer value cannot be substituted by node, so the
+// renderer says so rather than rendering a word that is half resolved.
+func TestRenderDeployDeclarationsRejectsAnEmbeddedCoordinate(t *testing.T) {
+	t.Parallel()
+	source := filepath.Join(t.TempDir(), "deploy-declarations.yaml")
+	body := "tools:\n  - name: helm_future\n    args: [upgrade, --timeout=DA_TIMEOUT]\n"
+	if err := os.WriteFile(source, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := RenderDeployDeclarations(source, completeCoordinates(t), t.TempDir())
+	if err == nil {
+		t.Fatal("render = nil, want an error naming the embedded coordinate")
+	}
+	if !strings.Contains(err.Error(), "--timeout=DA_TIMEOUT") {
+		t.Errorf("error = %v, want it to name the value carrying the coordinate", err)
+	}
+}
+
+// The renderer keeps the template's comments, and the DA_ tokens they name
+// are prose about the template rather than coordinates to resolve. Text
+// substitution used to rewrite them, leaving a rendered file whose own
+// explanation claimed an unrendered word would address a release by its
+// resolved name.
+func TestRenderedDeployDeclarationsKeepTheTemplateProse(t *testing.T) {
+	t.Parallel()
+	rendered, err := RenderDeployDeclarations(shippedDeployDeclarations(t), completeCoordinates(t), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(rendered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "srd022 R6.6") {
+		t.Error("rendered declarations dropped the template's comments; a failed deploy is read from this file")
+	}
+	if !strings.Contains(string(body), "a release named\n# DA_RELEASE") {
+		t.Error("rendered declarations rewrote a DA_ token inside prose; only scalars carry coordinates")
+	}
+}
+
+// A NUL cannot reach a child process, so the caller learns at the call site
+// rather than from a word that ran against a truncated argument.
+func TestDeployCoordinatesRejectANulByte(t *testing.T) {
+	t.Parallel()
+	coordinates := completeCoordinates(t)
+	coordinates.Namespace = "coding\x00truncated"
+	err := coordinates.Validate()
+	if err == nil {
+		t.Fatal("validate = nil, want an error naming the namespace")
+	}
+	if !strings.Contains(err.Error(), "namespace") || !strings.Contains(err.Error(), "NUL") {
+		t.Errorf("error = %v, want it to name the namespace and the NUL byte", err)
+	}
+}
+
 func TestDeployCoordinatesRejectEveryEmptyField(t *testing.T) {
 	t.Parallel()
 	complete := completeCoordinates(t)
@@ -247,6 +347,17 @@ func TestRenderDeployProfileBindsTheShippedMachine(t *testing.T) {
 	if len(profile.ToolDeclarations) != 2 {
 		t.Errorf("tool_declarations = %v, want the apply declarations and the rendered ones", profile.ToolDeclarations)
 	}
+}
+
+// carriesExactly is the strict form of containsArg: the argv element has to
+// be the value, not merely contain it.
+func carriesExactly(args []string, want string) bool {
+	for _, arg := range args {
+		if arg == want {
+			return true
+		}
+	}
+	return false
 }
 
 func containsArg(args []string, want string) bool {
