@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: rel23.0-uc001-provider-failure-signals
 title: A machine retries a busy model provider and gives up on a misconfigured one
-status: planned
+status: implemented
 
 summary: |
   An agent's machine tells a provider that is briefly unavailable apart from

@@ -990,28 +990,28 @@ releases:
       failure that carries no status as ProviderUnavailable, which is the case
       that costs a run today. Without the opt-in nothing changes, so a pinned
       consumer migrates when it chooses.
-    status: planned
+    status: done
     planned_work:
       - id: gh-2305
         summary: Specify the opt-in, the transport rule, and what stays CommandError.
-        status: planned
+        status: implemented
       - id: gh-2306
         summary: invoke_llm emits the dialect's failure signals when a ToolDef opts in.
-        status: planned
+        status: implemented
       - id: gh-2307
         summary: The rig-doctor retries on ProviderUnavailable instead of CommandError.
-        status: planned
+        status: implemented
     srds:
       - srd058-provider-libraries
       - srd009-ollama-adapter
     use_cases:
       - id: rel23.0-uc001-provider-failure-signals
         summary: A machine retries a busy model provider and gives up on a misconfigured one.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel23.0-provider-failure-signals
         summary: Formal tests for mapped statuses, the transport rule, the faults that stay CommandError, the default-off path, and the declared-emits agreement.
-        status: planned
+        status: implemented
     follow_up:
     proof:
       - go test ./internal/tools/llm/... ./internal/tools/catalog

@@ -16,7 +16,7 @@ test_cases:
   - use_case: rel23.0-uc001-provider-failure-signals
     name: A mapped error status reaches the machine as its declared signal
     go_test: go test ./internal/tools/llm/... -run 'TestInvokeLLMEmitsMappedProviderFailure'
-    status: planned
+    status: implemented
     description: With the opt-in, a fake provider answers 503, 429, and 401 in turn.
     expected:
       unavailable_signal: ProviderUnavailable
@@ -27,7 +27,7 @@ test_cases:
   - use_case: rel23.0-uc001-provider-failure-signals
     name: A transport failure with no status is ProviderUnavailable
     go_test: go test ./internal/tools/llm/... -run 'TestInvokeLLMEmitsUnavailableOnTransportFailure'
-    status: planned
+    status: implemented
     description: With the opt-in, one case refuses the connection and one accepts it and never answers, so the call reaches its deadline. This is the failure that motivated the release; it carries no HTTP status.
     expected:
       refused_connection_signal: ProviderUnavailable
@@ -37,7 +37,7 @@ test_cases:
   - use_case: rel23.0-uc001-provider-failure-signals
     name: Unmapped, pre-exchange, and decode faults stay CommandError
     go_test: go test ./internal/tools/llm/... -run 'TestInvokeLLMKeepsCommandErrorForUnclassifiedFailures'
-    status: planned
+    status: implemented
     description: With the opt-in, a status the dialect does not map, a credential that cannot be resolved, and a 200 whose body does not decode.
     expected:
       unmapped_status_signal: CommandError
@@ -48,7 +48,7 @@ test_cases:
   - use_case: rel23.0-uc001-provider-failure-signals
     name: Without the opt-in every failure stays CommandError
     go_test: go test ./internal/tools/llm/... -run 'TestInvokeLLMDefaultsToCommandError'
-    status: planned
+    status: implemented
     description: The same 503, 401, and deadline cases run against a ToolDef that does not opt in.
     expected:
       every_signal: CommandError
@@ -57,7 +57,7 @@ test_cases:
   - use_case: rel23.0-uc001-provider-failure-signals
     name: Shipped profiles that bind invoke_llm are unaffected
     go_test: cd ../applications/catalog && mage bootSmoke
-    status: planned
+    status: implemented
     description: Every shipped catalog profile validates unchanged, which is the evidence that the default is genuinely off rather than merely documented.
     expected:
       profiles_boot: true
@@ -66,7 +66,7 @@ test_cases:
   - use_case: rel23.0-uc001-provider-failure-signals
     name: An opt-in that does not declare its signals fails at load
     go_test: go test ./internal/tools/catalog/... -run 'TestProviderFailureOptInRequiresDeclaredEmits'
-    status: planned
+    status: implemented
     description: A ToolDef opts in while declaring only LLMResponded and CommandError.
     expected:
       load_fails: true
