@@ -224,7 +224,7 @@ rest.yaml is shared with its request profile, which launches no monitor server
 */}}
 {{- define "chatbot-mesh.chatbotMonitorRest" -}}
 unit: mesh-chatbot-monitor-rest
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/rest/units/monitor-server-fragment.yaml
     args: {address: "0.0.0.0:{{ .Values.chatbot.ports.monitor }}", limits_ref: local_chatbot_monitor, queue_name: chatbot_monitor}
 rest:

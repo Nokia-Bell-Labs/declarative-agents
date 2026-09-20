@@ -161,6 +161,14 @@ document_types:
     - grammar_check
     - bibliography
     purpose: Defines the connected pattern grammar for a repository scope.
+  legacy_group_citations:
+    location: docs/specs/legacy-group-citations.yaml
+    required_fields:
+    - id
+    - title
+    - purpose
+    - citations
+    purpose: Grandfathers citations naming a requirement group rather than an item, so the group-level-citation check stops the count growing without migrating the corpus in bulk.
   engineering_guideline:
     location: docs/engineering/engNN-short-name.yaml
     required_fields:

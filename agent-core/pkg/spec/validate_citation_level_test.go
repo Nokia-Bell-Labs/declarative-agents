@@ -4,6 +4,7 @@
 package spec
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,14 +28,36 @@ func corpusCiting(root string, touchpoints map[string][]string) *Corpus {
 	return corpus
 }
 
+// writeBaseline writes the baseline document. Each line is "<use case> <srd>
+// <group>", which the helper turns into the document's three fields, so a test
+// reads as the citation it grandfathers rather than as YAML.
 func writeBaseline(t *testing.T, root string, lines ...string) {
 	t.Helper()
 	dir := filepath.Join(root, "docs", "specs")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := "# test baseline\n" + strings.Join(lines, "\n") + "\n"
-	if err := os.WriteFile(filepath.Join(dir, "legacy-group-citations.txt"), []byte(body), 0o644); err != nil {
+	body := "id: test\ntitle: test\npurpose: test\ncitations:\n"
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) != 3 {
+			t.Fatalf("baseline line %q is not <use case> <srd> <group>", line)
+		}
+		body += fmt.Sprintf("  - {use_case: %s, srd: %s, group: %s}\n", fields[0], fields[1], fields[2])
+	}
+	if err := os.WriteFile(filepath.Join(dir, "legacy-group-citations.yaml"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeRawBaseline writes the file verbatim, for the malformed cases.
+func writeRawBaseline(t *testing.T, root, body string) {
+	t.Helper()
+	dir := filepath.Join(root, "docs", "specs")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "legacy-group-citations.yaml"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -121,7 +144,10 @@ func TestGroupLevelCitationsTreatAnAbsentBaselineAsEmpty(t *testing.T) {
 func TestGroupLevelCitationsRejectAMalformedBaseline(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeBaseline(t, root, "rel13.0-uc001-collector-family srd020-collector")
+	// A citation missing its group: the document parses, but the entry cannot
+	// name a citation, which is worse than a parse error because it would
+	// silently excuse nothing.
+	writeRawBaseline(t, root, "id: test\ntitle: test\npurpose: test\ncitations:\n  - {use_case: rel13.0-uc001-collector-family, srd: srd020-collector}\n")
 	corpus := corpusCiting(root, map[string][]string{
 		"rel13.0-uc001-collector-family": {"T3: srd020-collector R2 -- grandfathered"},
 	})
@@ -147,9 +173,9 @@ func TestShippedBaselineMatchesTheShippedCorpus(t *testing.T) {
 	if len(entries) == 0 {
 		t.Fatal("shipped baseline is empty; the guard would be a no-op here")
 	}
-	for line := range entries {
-		if fields := strings.Fields(line); len(fields) != 3 || !strings.HasPrefix(fields[1], "srd") {
-			t.Errorf("baseline line %q is not <use case> <srd> <group>", line)
+	for key := range entries {
+		if fields := strings.Fields(key); len(fields) != 3 || !strings.HasPrefix(fields[1], "srd") {
+			t.Errorf("baseline entry %q is not <use case> <srd> <group>", key)
 		}
 	}
 }
