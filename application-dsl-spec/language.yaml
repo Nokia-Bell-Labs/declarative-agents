@@ -227,6 +227,18 @@ statements:
         check: machine_body_keynames
         verdict: invalid
 
+  - id: R-CONF-001
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST accept every fixture document whose
+      declared verdict is valid and MUST reject every fixture document whose
+      declared verdict is invalid.
+    acceptance:
+      - assertion: go_test
+        path: magefiles/evidence_test.go
+        test: TestRepositoryFixtureEvidencePasses
+
   - id: R-MODEL-002
     target: document
     level: MUST

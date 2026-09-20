@@ -15,6 +15,12 @@ func Audit() error {
 	if err := validateLanguage(language); err != nil {
 		return err
 	}
+	if err := checkFixtureCoverage(language); err != nil {
+		return err
+	}
+	if err := checkFixtureOwnership(".", language); err != nil {
+		return err
+	}
 	if err := runAcceptanceEvidence(".", language); err != nil {
 		return err
 	}
