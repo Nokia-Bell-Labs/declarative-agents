@@ -7,7 +7,7 @@ unit: mesh-corpus-ingest-embed-rest
 # mesh's embedding identity, which the creator sets per ingest so the vectors
 # match the RAG unit that serves them; the endpoint is the library's own
 # (OLLAMA_URL for Ollama).
-instantiate:
+expand:
   - fragment: /opt/providers/embed-document-fragment.yaml
     args: {input_selector: $.raw, id_selector: $.path, model: "${CORPUS_EMBEDDING_MODEL:-qwen3-embedding:8b}"}
 rest:

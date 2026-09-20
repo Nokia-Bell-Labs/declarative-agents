@@ -27,11 +27,11 @@ flow:
   - F7: A legacy-only profile continues to load includes with one warning per including file, while a closure mixing imports and includes fails.
 
 touchpoints:
-  - T1: "srd050-declaration-imports R1, R2 -- syntax, graph resolution, provenance"
-  - T2: "srd050-declaration-imports R3 -- tool merge and override"
-  - T3: "srd050-declaration-imports R4 -- REST merge and OpenAPI compilation"
-  - T4: "srd050-declaration-imports R5 -- import-edge usedness"
-  - T5: "srd050-declaration-imports R6 -- compatibility and shared diagnostics"
+  - T1: "srd050-declaration-imports R1.1, R1.2, R1.3, R1.4, R1.6, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9 -- syntax, graph resolution, provenance"
+  - T2: "srd050-declaration-imports R3.1, R3.2, R3.3, R3.4, R3.5, R3.6 -- tool merge and override"
+  - T3: "srd050-declaration-imports R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7 -- REST merge and OpenAPI compilation"
+  - T4: "srd050-declaration-imports R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8 -- import-edge usedness"
+  - T5: "srd050-declaration-imports R6.3, R6.4, R6.5 -- compatibility and shared diagnostics"
 
 success_criteria:
   - id: S1

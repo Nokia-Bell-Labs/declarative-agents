@@ -45,7 +45,7 @@ requirements:
           amended to say exactly this.
       - R1.2: >-
           The two forms SHALL apply wherever srd050's import rules apply: tool
-          and REST `imports`, `instantiate` fragment paths (srd052 R2.1),
+          and REST `imports`, `expand` fragment paths (srd052 R2.1),
           machine template instances (srd054 R2.2), and a blueprint's machine
           mapping (srd055 R2.3). Profile-level paths SHALL accept the rooted
           form in addition to what they accept today: a profile is the
@@ -77,7 +77,7 @@ requirements:
           them; a child-agent profile declares its own. An import under
           `/opt/<name>` where no root of that name is declared in the closure
           SHALL be a load error naming the prefix and the profile. A profile
-          and a blueprint it instantiates that declare one root name with two
+          and a blueprint it expands that declare one root name with two
           different directories SHALL be a load error naming both.
       - R2.4: >-
           A library SHALL be read-only to its importers. A tool declared in a
@@ -128,7 +128,7 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: A unit imports an agent-core type unit by its /opt/agent-core path and loads from a checkout with --core-root and from a staged tree; an absolute path outside any root fails with srd050's wording; the same forms work for instantiate, machine template instances, and blueprint machine mappings, and profile-level lists accept rooted paths while still accepting other absolute paths.
+    criterion: A unit imports an agent-core type unit by its /opt/agent-core path and loads from a checkout with --core-root and from a staged tree; an absolute path outside any root fails with srd050's wording; the same forms work for expand, machine template instances, and blueprint machine mappings, and profile-level lists accept rooted paths while still accepting other absolute paths.
     traces: [R1.1, R1.2, R1.3]
   - id: AC2
     criterion: A profile declaring a root resolves imports under /opt/<name> to the declared directory; --library overrides it and an undeclared name fails at startup; an undeclared prefix, a reserved or malformed name, and a conflicting redeclaration fail naming the profile; an override and an escaping relative import inside a root each fail naming the root and file.
@@ -146,7 +146,7 @@ depends_on:
   - srd_id: srd051-declaration-types
     symbols_used: [type units, unit reachability]
   - srd_id: srd052-declaration-fragments
-    symbols_used: [instantiate fragment path]
+    symbols_used: [expand fragment path]
   - srd_id: srd054-machine-templates
     symbols_used: [machine template instance path]
   - srd_id: srd055-agent-blueprints

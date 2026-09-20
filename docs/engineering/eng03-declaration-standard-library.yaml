@@ -46,9 +46,9 @@ sections:
   - title: "Admission: a unit earns its place"
     content: |
       A unit earns a shared location with two or more importers, or one
-      instantiation (GH-2079). The declstyle single-importer gate enforces
+      expansion (GH-2079). The declstyle single-importer gate enforces
       this (GH-2107): a unit reached by exactly one import and never
-      instantiated fails the build, because such a unit is an include by
+      expanded fails the build, because such a unit is an include by
       another name. Type-only units and the published tools/ library are
       exempt, the latter because its importers live outside this repository.
 
@@ -77,7 +77,7 @@ sections:
       structured placement is `{{ params.messages }}` in a chat dialect body,
       written as a whole scalar exactly once. We do not use YAML anchors or
       merge keys anywhere: anchors compose before validation and leave no
-      provenance, while instantiation composes under strict decode and
+      provenance, while expansion composes under strict decode and
       records itself in the dump.
 
       Comments in a declaration state constraints the YAML cannot: why a
@@ -91,13 +91,13 @@ sections:
       Take the first rung that fits.
 
       1. Values vary, structure does not: a parameterized fragment
-         (`params:` + `instantiate:`). The invoke-llm model fragment and its
-         twenty model-variant instantiations are the reference case.
+         (`params:` + `expand:`). The invoke-llm model fragment and its
+         twenty model-variant expansions are the reference case.
       2. A run of states and transitions recurs inside differing machines: a
          stage fragment, spliced under a name prefix and validated as part of
          the whole (embed-query, embed-document, rerank).
       3. A whole machine recurs: a machine template whose instance file is
-         only `instantiate:` plus args (serve-machine-template).
+         only `expand:` plus args (serve-machine-template).
       4. The variation is a model provider's dialect: an entry in a provider
          library under tools/providers/<name>/, never a provider conditional
          in a shared body. A provider library ships complete: chat dialect,
@@ -150,5 +150,5 @@ references:
   - "docs/guides/fragments.md (fragment and template mechanics)"
   - "docs/guides/capability-profiles.md (capability profile mechanics)"
   - "agent-core/internal/declstyle/single_importer_test.go (the single-importer gate this guideline's admission rule cites)"
-  - "GH-2079 (a unit earns its place with two or more importers or one instantiation)"
+  - "GH-2079 (a unit earns its place with two or more importers or one expansion)"
   - "GH-2107 (the declstyle single-importer class and its build gate)"

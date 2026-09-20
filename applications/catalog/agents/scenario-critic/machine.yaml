@@ -22,6 +22,9 @@ budget:
   # child stop. All collection traversal is bounded by this global budget.
   max_iterations: 5000
   max_duration: 15m
+expand:
+  - fragment: ../units/scenario-critic-bringup-stage-fragment.yaml
+    args: {}
 states:
   - name: Idle
     meaning: Initial state before scenario discovery.
@@ -29,14 +32,6 @@ states:
     meaning: Enumerating scenarios under the configured roots.
   - name: AdvancingScenario
     meaning: Taking the next scenario from the work list, or finding the list exhausted.
-  - name: StartingMocks
-    meaning: Starting each declared fixture mock sequentially through MachineSpec iteration.
-  - name: StartingSubject
-    meaning: Starting the agent under test with each mock's runtime address injected.
-  - name: ProbingHealth
-    meaning: Performing one REST health request against the started subject.
-  - name: WaitingToRetry
-    meaning: Waiting one declared interval before the next health probe.
   - name: RunningValidators
     meaning: Running each validator sequentially through MachineSpec iteration.
   - name: RecordingValidators
@@ -163,78 +158,6 @@ transitions:
 
   # Every failure edge below records a verdict naming its cause, then tears the
   # scenario's children down before the loop continues (srd018 R1.5, R6.2).
-  - state: StartingMocks
-    signal: MocksStarted
-    next: StartingSubject
-    action: start_scenario_subject
-    label: subject
-  - state: StartingMocks
-    signal: CommandError
-    next: MarkingFailure
-    action: fail_scenario_start
-
-  - state: StartingSubject
-    signal: SubjectStarted
-    next: ProbingHealth
-    action: probe_subject_health
-  - state: StartingSubject
-    signal: CommandError
-    next: MarkingFailure
-    action: fail_scenario_start
-
-  - state: ProbingHealth
-    signal: Healthy
-    next: RunningValidators
-    action: run_scenario_validator
-    label: validator_result
-    for_each:
-      items: $from(current_scenario).validators
-      as: validator
-      mode: parallel
-      max_concurrency: 4
-      failure: collect_all
-      continue_on: [ValidatorCompleted, ValidatorIncomplete]
-      abort_on: [CommandError]
-      join:
-        next: RunningValidators
-        label: validators_joined
-        signals:
-          all_success: ValidatorsCompleted
-          partial: CommandError
-          failed: CommandError
-          empty: CommandError
-  - state: ProbingHealth
-    signal: HealthUnavailable
-    next: WaitingToRetry
-    action: wait_health_retry
-  - state: ProbingHealth
-    signal: CommandError
-    next: WaitingToRetry
-    action: wait_health_retry
-  - state: ProbingHealth
-    signal: BudgetExhausted
-    next: MarkingFailure
-    action: fail_scenario_unhealthy
-
-  - state: WaitingToRetry
-    signal: HealthRetryReady
-    next: ProbingHealth
-    action: probe_subject_health
-  - state: WaitingToRetry
-    signal: HealthTimeout
-    next: MarkingFailure
-    action: fail_scenario_unhealthy
-  - state: WaitingToRetry
-    signal: CommandError
-    next: MarkingFailure
-    action: fail_scenario_start
-  - state: WaitingToRetry
-    signal: BudgetExhausted
-    next: MarkingFailure
-    action: fail_scenario_unhealthy
-
-  # The join owns collection traversal; this thin word only records its ordered
-  # item outputs for verdict and session reporting.
   - state: RunningValidators
     signal: ValidatorsCompleted
     next: RecordingValidators

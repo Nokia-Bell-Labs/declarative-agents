@@ -27,13 +27,13 @@ flow:
   - F7: A runtime request containing SQL, connection, database, schema, or commit_message is refused before database execution, and a failed mutation creates no commit (srd047 R2, R7).
 
 touchpoints:
-  - T1: "srd047-dolt-boundary-word R1 -- separate general-purpose provision, query, and write words"
-  - T2: "srd047-dolt-boundary-word R2 -- trusted SQL authority and caller-bound declared params"
-  - T3: "srd047-dolt-boundary-word R3 -- idempotent database and schema provisioning"
-  - T4: "srd047-dolt-boundary-word R4 -- bounded read-only query"
-  - T5: "srd047-dolt-boundary-word R5 -- one commit per successful configured write"
-  - T6: "srd047-dolt-boundary-word R6 -- signals, lifecycle declarations, traces, and errors"
-  - T7: "srd047-dolt-boundary-word R7 -- checkpoint isolation and real-Dolt integration proof"
+  - T1: "srd047-dolt-boundary-word R1.1, R1.2, R1.3, R1.4, R1.5 -- separate general-purpose provision, query, and write words"
+  - T2: "srd047-dolt-boundary-word R2.1, R2.2, R2.3, R2.4, R2.5, R2.6 -- trusted SQL authority and caller-bound declared params"
+  - T3: "srd047-dolt-boundary-word R3.1, R3.2, R3.3, R3.4, R3.5, R3.6 -- idempotent database and schema provisioning"
+  - T4: "srd047-dolt-boundary-word R4.1, R4.2, R4.3, R4.4, R4.5 -- bounded read-only query"
+  - T5: "srd047-dolt-boundary-word R5.1, R5.2, R5.3, R5.4, R5.5, R5.6 -- one commit per successful configured write"
+  - T6: "srd047-dolt-boundary-word R6.1, R6.2, R6.3, R6.4, R6.5 -- signals, lifecycle declarations, traces, and errors"
+  - T7: "srd047-dolt-boundary-word R7.1, R7.2, R7.3, R7.4, R7.5, R7.6 -- checkpoint isolation and real-Dolt integration proof"
 
 success_criteria:
   - id: S1

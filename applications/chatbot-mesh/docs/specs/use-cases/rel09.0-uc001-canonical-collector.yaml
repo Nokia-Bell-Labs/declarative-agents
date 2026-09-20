@@ -25,9 +25,9 @@ flow:
   - F6: The collector program is sourced from the catalog root, not from a local agents/collector directory.
 
 touchpoints:
-  - "srd007-collector-agent R1 -- persistent bounded intake with query surface"
-  - "srd007-collector-agent R2 -- complete integration identity in spool"
-  - "srd003-chatbot-deployment R5 -- trace evidence through collector query surface"
+  - "srd007-collector-agent R1.1, R1.2, R1.3, R1.4 -- persistent bounded intake with query surface"
+  - "srd007-collector-agent R2.1, R2.2, R2.3, R2.4 -- complete integration identity in spool"
+  - "srd003-chatbot-deployment R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9, R5.10, R5.11 -- trace evidence through collector query surface"
 
 success_criteria:
   - id: S1

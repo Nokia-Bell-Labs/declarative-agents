@@ -114,7 +114,7 @@ types:
     description: Plain text a word publishes as its whole result.
     schema:
       type: string
-instantiations:
+expansions:
   - kind: machine
     fragment: <agent-core>/tools/machines/lifecycle-approval-machine-template.yaml
     args:
@@ -237,7 +237,7 @@ tools:
 rest: {}
 files:
   - path: <agent-core>/testdata/integration/profiles/lifecycle/machine.yaml
-    sha256: 8b9b5a8d43aca38de0019fad5d454d45d1e19948563804eb22039cd1a2a770e2
+    sha256: fa96a3a179cb1109ffa02e3cb81b7c66e7af0515fc0362777bd249acfbfd5792
   - path: <agent-core>/testdata/integration/profiles/lifecycle/profile.yaml
     sha256: 83ef6c0f58c750bc0a75a52e8730501298bba657ae386a5b077478fa821e0830
   - path: <agent-core>/testdata/integration/profiles/lifecycle/tools.yaml

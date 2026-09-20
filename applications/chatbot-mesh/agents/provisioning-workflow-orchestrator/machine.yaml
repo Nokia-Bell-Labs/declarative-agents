@@ -19,7 +19,7 @@ purpose: |-
 
   - The creator is a declared rest.yaml client; every instance operation is a request to it, never a direct deployment-API call.
   - The provisioning-workflow-orchestrator holds no deployment-API credentials; its intent endpoint is served on a separate service and port, reached apart from the chat path (the authentication boundary is deployment-realized).
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
     args:
       workflow: provisioning_workflow_orchestrator

@@ -54,6 +54,9 @@ initial_state: Idle
 budget:
   max_iterations: 100
   command_timeout: 16m
+expand:
+  - fragment: ../units/planner-execution-stage-fragment.yaml
+    args: {}
 states:
 - name: Idle
   meaning: Initial state before planning begins.
@@ -67,32 +70,6 @@ states:
   meaning: Advancing selected aggregate-task nodes to Planning as a separate graph mutation.
 - name: InitializingRetry
   meaning: Seeding retry count zero in labelled command state for the aggregate task.
-- name: MarkingExecuting
-  meaning: Advancing selected nodes to Executing as a focused graph mutation.
-- name: FormattingTask
-  meaning: Serializing the current plan into task-file write parameters.
-- name: MaterializingTask
-  meaning: Writing doc/task.yaml through the shared write word.
-- name: InvokingExecutor
-  meaning: Running the executor through the shared self_invoke boundary.
-- name: Vetting
-  meaning: Running go vet on the workspace.
-- name: Building
-  meaning: Running go build on the workspace.
-- name: Testing
-  meaning: Running go test on the workspace.
-- name: IncrementingRetry
-  meaning: Incrementing the latest labelled retry count with jq.
-- name: CheckingRetryLimit
-  meaning: Comparing the visible retry count with the declared limit.
-- name: Exhausted
-  meaning: Retry limit reached; query graph state before stalling.
-- name: MarkingTaskFailed
-  meaning: Advancing exhausted aggregate-task nodes to Failed before querying remaining work.
-- name: MarkingTaskDone
-  meaning: Mutating only the aggregate task's graph nodes to Done.
-- name: QueryingRemainingWork
-  meaning: Reading graph state before preserving pass-through completion routing.
 - name: Completed
   run_status: succeeded
   meaning: Terminal. All tasks in the graph are done.
@@ -190,134 +167,28 @@ transitions:
 - state: MarkingPlanning
   signal: CommandError
   next: Failed
-- state: MarkingExecuting
-  signal: NodesMarkedExecuting
-  next: FormattingTask
-  action: format_task_file
-  label: task_file
-- state: MarkingExecuting
-  signal: CommandError
-  next: Failed
-- state: FormattingTask
-  signal: TaskFileFormatted
-  next: MaterializingTask
-  action: write
-- state: FormattingTask
-  signal: CommandError
-  next: Failed
-- state: MaterializingTask
-  signal: ToolDone
-  next: InvokingExecutor
-  action: invoke_executor
-- state: MaterializingTask
-  signal: ToolFailed
-  next: Failed
-- state: MaterializingTask
-  signal: CommandError
-  next: Failed
-- state: InvokingExecutor
-  signal: ToolDone
-  next: Vetting
-  action: vet
-- state: InvokingExecutor
-  signal: ToolFailed
-  next: Vetting
-  action: vet
-- state: InvokingExecutor
-  signal: CommandError
-  next: Failed
-- state: Vetting
-  signal: ToolDone
-  next: Building
-  action: build
 - state: Vetting
   signal: ToolFailed
   next: IncrementingRetry
   action: increment_retry
   label: retry_count
-- state: Vetting
-  signal: CommandError
-  next: Failed
-- state: Building
-  signal: ToolDone
-  next: Testing
-  action: test
 - state: Building
   signal: ToolFailed
   next: IncrementingRetry
   action: increment_retry
   label: retry_count
-- state: Building
-  signal: CommandError
-  next: Failed
-- state: Testing
-  signal: ToolDone
-  next: MarkingTaskDone
-  action: mark_task_done
 - state: Testing
   signal: ToolFailed
   next: IncrementingRetry
   action: increment_retry
   label: retry_count
-- state: Testing
-  signal: CommandError
-  next: Failed
-- state: IncrementingRetry
-  signal: ToolDone
-  next: CheckingRetryLimit
-  action: check_retry_limit
-- state: IncrementingRetry
-  signal: ToolFailed
-  next: Failed
-- state: IncrementingRetry
-  signal: CommandError
-  next: Failed
 - state: CheckingRetryLimit
   signal: RetryAvailable
   next: InvokingExecutor
   action: invoke_executor
-- state: CheckingRetryLimit
-  signal: RetriesExhausted
-  next: MarkingTaskFailed
-  action: mark_task_failed
-- state: CheckingRetryLimit
-  signal: CommandError
-  next: Failed
-- state: MarkingTaskFailed
-  signal: TaskFailed
-  next: Exhausted
-  action: remaining_work
-- state: MarkingTaskFailed
-  signal: CommandError
-  next: Failed
 - state: Exhausted
   signal: WorkRemaining
   next: Stalled
-- state: Exhausted
-  signal: AllDone
-  next: Completed
-- state: Exhausted
-  signal: Blocked
-  next: Stalled
-- state: Exhausted
-  signal: CommandError
-  next: Failed
-- state: MarkingTaskDone
-  signal: TaskCompleted
-  next: QueryingRemainingWork
-  action: remaining_work
-- state: MarkingTaskDone
-  signal: CommandError
-  next: Failed
 - state: QueryingRemainingWork
   signal: WorkRemaining
   next: Completed
-- state: QueryingRemainingWork
-  signal: AllDone
-  next: Completed
-- state: QueryingRemainingWork
-  signal: Blocked
-  next: Stalled
-- state: QueryingRemainingWork
-  signal: CommandError
-  next: Failed

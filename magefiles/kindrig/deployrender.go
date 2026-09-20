@@ -4,12 +4,15 @@
 package kindrig
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Exec args are fully static: ExecBuilder.Build maps parameters only from the
@@ -28,10 +31,10 @@ const (
 )
 
 // deployPlaceholderPattern matches any token the renderer is responsible for.
-// The check after substitution scans for it rather than trusting the
-// replacement list, because the failure that matters is a word added later
-// whose coordinate nobody remembered to resolve (the in-cluster equivalent
-// cost GH-217 a leaked release name).
+// The walk scans every scalar for it rather than trusting the replacement
+// list, because the failure that matters is a word added later whose
+// coordinate nobody remembered to resolve (the in-cluster equivalent cost
+// GH-217 a leaked release name).
 var deployPlaceholderPattern = regexp.MustCompile(`DA_[A-Z_]+`)
 
 // DeployCoordinates is everything one application's deploy words need
@@ -56,9 +59,15 @@ type DeployCoordinates struct {
 
 // Validate reports every empty field at once, so a caller fixes its wiring in
 // one pass instead of one field per run.
+//
+// It also rejects a NUL byte, which is the one class of value that cannot
+// reach a child process at all: exec argv strings are NUL-terminated, so the
+// kernel would silently truncate the argument and the word would run against
+// a coordinate nobody wrote. Everything else a caller can produce is the
+// renderer's problem rather than the caller's, because substitution goes
+// through YAML nodes and quotes what needs quoting.
 func (c DeployCoordinates) Validate() error {
-	var missing []string
-	for name, value := range map[string]string{
+	fields := map[string]string{
 		"release":    c.Release,
 		"namespace":  c.Namespace,
 		"chart path": c.ChartPath,
@@ -66,36 +75,78 @@ func (c DeployCoordinates) Validate() error {
 		"values":     c.ValuesPath,
 		"overrides":  c.OverridesPath,
 		"timeout":    c.Timeout,
-	} {
-		if strings.TrimSpace(value) == "" {
+	}
+	var missing, unusable []string
+	for name, value := range fields {
+		switch {
+		case strings.TrimSpace(value) == "":
 			missing = append(missing, name)
+		case strings.ContainsRune(value, 0):
+			unusable = append(unusable, name)
 		}
 	}
-	if len(missing) == 0 {
+	var problems []string
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		problems = append(problems, fmt.Sprintf("%s not resolved", strings.Join(missing, ", ")))
+	}
+	if len(unusable) > 0 {
+		sort.Strings(unusable)
+		problems = append(problems, fmt.Sprintf("%s carry a NUL byte and cannot reach an argv", strings.Join(unusable, ", ")))
+	}
+	if len(problems) == 0 {
 		return nil
 	}
-	sort.Strings(missing)
-	return fmt.Errorf("deploy coordinates: %s not resolved", strings.Join(missing, ", "))
+	return fmt.Errorf("deploy coordinates: %s", strings.Join(problems, "; "))
 }
 
-// substitutions maps each placeholder to its resolved value. Longer tokens are
-// applied before shorter ones by the replacement order below, so a token that
-// contains another cannot be partly rewritten. None of the current seven
-// collide; the ordering is kept so an eighth cannot introduce the bug quietly.
-func (c DeployCoordinates) substitutions() []struct{ token, value string } {
-	pairs := []struct{ token, value string }{
-		{"DA_KUBECONFIG", c.Kubeconfig},
-		{"DA_NAMESPACE", c.Namespace},
-		{"DA_OVERRIDES", c.OverridesPath},
-		{"DA_RELEASE", c.Release},
-		{"DA_TIMEOUT", c.Timeout},
-		{"DA_VALUES", c.ValuesPath},
-		{"DA_CHART", c.ChartPath},
+// The coordinates an undeploy does not read. The undeploy words name a
+// release and a namespace and read nothing else, but every field on
+// DeployCoordinates is required so a rendered argv is never half-resolved,
+// and the rendered unit carries the apply words whether or not the undeploy
+// profile selects them. These are what those unread fields render to, and
+// they say what they are, because the argv a failed teardown gets read from
+// should not invite anyone to look for a chart that was never packaged.
+const (
+	undeployNamesNoChart  = "undeploy-names-no-chart"
+	undeployReadsNoValues = "undeploy-reads-no-values"
+)
+
+// UndeployCoordinates names what an undeploy actually addresses and fills the
+// rest with placeholders.
+//
+// It is shared rather than repeated per application because the three
+// applications were already writing the same two literals, and a teardown that
+// packages a chart to satisfy a required field is the defect this replaces:
+// agent-architecture's shared builder also provisioned curator UI shard
+// ConfigMaps, so an undeploy created objects on its way to deleting a release
+// (GH-2343, GH-2350).
+//
+// Kubeconfig and OverridesPath stay empty, as they do for a deploy: Undeploy
+// fills both from the cluster and the workspace it owns.
+func UndeployCoordinates(release, namespace, timeout string) DeployCoordinates {
+	return DeployCoordinates{
+		Release:    release,
+		Namespace:  namespace,
+		ChartPath:  undeployNamesNoChart,
+		ValuesPath: undeployReadsNoValues,
+		Timeout:    timeout,
 	}
-	sort.SliceStable(pairs, func(i, j int) bool {
-		return len(pairs[i].token) > len(pairs[j].token)
-	})
-	return pairs
+}
+
+// byToken maps each placeholder to its resolved value. Substitution replaces
+// whole YAML scalars rather than text, so a token that contains another cannot
+// be partly rewritten and the map needs no ordering.
+func (c DeployCoordinates) byToken() map[string]string {
+	return map[string]string{
+		"DA_KUBECONFIG": c.Kubeconfig,
+		"DA_NAMESPACE":  c.Namespace,
+		"DA_OVERRIDES":  c.OverridesPath,
+		"DA_RELEASE":    c.Release,
+		"DA_TIMEOUT":    c.Timeout,
+		"DA_VALUES":     c.ValuesPath,
+		"DA_CHART":      c.ChartPath,
+	}
 }
 
 // RenderDeployDeclarations resolves the placeholder deploy declarations into
@@ -103,6 +154,15 @@ func (c DeployCoordinates) substitutions() []struct{ token, value string } {
 //
 // It renders into the application's build tree rather than a temporary
 // directory: a developer reading a failed deploy needs the exact argv that ran.
+//
+// Substitution replaces whole YAML scalar nodes rather than text. Text
+// replacement put every caller one metacharacter away from a render the
+// runtime cannot parse, and the placeholder scan could not catch it because
+// the tokens really were gone: a chart coordinate reading
+// "(no chart: undeploy removes a release)" produced a declarations file that
+// failed to load (GH-2349). A node carries a value rather than a spelling, so
+// a colon, a leading @ or #, or a word a schema would read as a boolean
+// survives as the string it was.
 func RenderDeployDeclarations(source string, coordinates DeployCoordinates, destination string) (string, error) {
 	if err := coordinates.Validate(); err != nil {
 		return "", err
@@ -111,23 +171,106 @@ func RenderDeployDeclarations(source string, coordinates DeployCoordinates, dest
 	if err != nil {
 		return "", fmt.Errorf("read deploy declarations %s: %w", source, err)
 	}
-	rendered := string(template)
-	for _, pair := range coordinates.substitutions() {
-		rendered = strings.ReplaceAll(rendered, pair.token, pair.value)
+	var document yaml.Node
+	if err := yaml.Unmarshal(template, &document); err != nil {
+		return "", fmt.Errorf("parse deploy declarations %s: %w", source, err)
 	}
-	if survivors := deployPlaceholderPattern.FindAllString(rendered, -1); len(survivors) > 0 {
+	resolution := resolveDeployPlaceholders(&document, coordinates.byToken())
+	if len(resolution.embedded) > 0 {
+		return "", fmt.Errorf(
+			"deploy declarations %s embed a coordinate in a larger value (%s); a coordinate has to be an argument on its own, because the renderer substitutes YAML nodes rather than text",
+			source, strings.Join(uniqueSorted(resolution.embedded), ", "))
+	}
+	if len(resolution.unresolved) > 0 {
 		return "", fmt.Errorf(
 			"deploy declarations %s left %s unresolved; every coordinate a word reads must be a field on DeployCoordinates",
-			source, strings.Join(uniqueSorted(survivors), ", "))
+			source, strings.Join(uniqueSorted(resolution.unresolved), ", "))
+	}
+	rendered, err := encodeDeployDocument(&document)
+	if err != nil {
+		return "", fmt.Errorf("encode rendered deploy declarations from %s: %w", source, err)
 	}
 	if err := os.MkdirAll(destination, 0o755); err != nil {
 		return "", fmt.Errorf("create deploy render directory %s: %w", destination, err)
 	}
 	path := filepath.Join(destination, "deploy-declarations.yaml")
-	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
+	if err := os.WriteFile(path, rendered, 0o644); err != nil {
 		return "", fmt.Errorf("write rendered deploy declarations %s: %w", path, err)
 	}
 	return path, nil
+}
+
+// deployResolution is what one walk of the template found: the tokens no
+// coordinate answers, and the scalars that carry a token inside a longer
+// value. Both are collected rather than returned on the first hit, so a
+// caller fixes its template in one pass.
+type deployResolution struct {
+	unresolved []string
+	embedded   []string
+}
+
+// resolveDeployPlaceholders rewrites every scalar that is exactly a
+// placeholder token, and reports the ones it could not.
+//
+// A rewritten scalar is emitted double-quoted. Quoting is not always required
+// — most coordinates are ordinary paths — but forcing it does two things a
+// conditional would not. It makes the rendered argv legible, because the
+// quoted arguments are exactly the ones the renderer decided and the bare
+// ones are the flags the catalog wrote. And it settles the value's type here
+// rather than in whichever schema version reads the file next, so a namespace
+// spelled "yes" or a timeout spelled "1.0" cannot arrive as a bool or a float.
+func resolveDeployPlaceholders(node *yaml.Node, resolved map[string]string) deployResolution {
+	var resolution deployResolution
+	var walk func(*yaml.Node)
+	walk = func(current *yaml.Node) {
+		if current == nil {
+			return
+		}
+		if current.Kind == yaml.ScalarNode {
+			tokens := deployPlaceholderPattern.FindAllString(current.Value, -1)
+			switch {
+			case len(tokens) == 0:
+			case len(tokens) == 1 && tokens[0] == current.Value:
+				value, known := resolved[current.Value]
+				if !known {
+					resolution.unresolved = append(resolution.unresolved, current.Value)
+					break
+				}
+				current.Value = value
+				current.Tag = "!!str"
+				current.Style = yaml.DoubleQuotedStyle
+			default:
+				resolution.embedded = append(resolution.embedded, current.Value)
+			}
+		}
+		for _, child := range current.Content {
+			walk(child)
+		}
+	}
+	walk(node)
+	return resolution
+}
+
+// encodeDeployDocument writes the resolved document back out at the
+// repository's two-space indent.
+//
+// The round trip keeps the template's comments, which is why the rendered
+// file still explains what it is and where it came from. It also leaves the
+// DA_ tokens those comments name intact: they are prose about the template,
+// and the text substitution this replaced used to rewrite them into a
+// sentence claiming an unrendered word would address a release by its
+// resolved name.
+func encodeDeployDocument(document *yaml.Node) ([]byte, error) {
+	var buffer bytes.Buffer
+	encoder := yaml.NewEncoder(&buffer)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(document); err != nil {
+		return nil, err
+	}
+	if err := encoder.Close(); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 // RenderDeployProfile writes a profile that binds the catalog's machine and

@@ -42,6 +42,7 @@ var nestedTestModules = []string{
 	"magefiles",
 	"agent-core/magefiles",
 	"design-patterns/magefiles",
+	"application-dsl-spec/magefiles",
 }
 
 // testTargets is the single registry of module directories the root Test gate

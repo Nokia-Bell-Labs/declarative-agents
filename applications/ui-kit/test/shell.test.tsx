@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { PanelFrame } from "../src/shell/PanelFrame";
@@ -104,5 +104,77 @@ describe("shell styles (GH-2282)", () => {
 
   it("colors only through the kit tokens", () => {
     expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+  });
+});
+
+// GH-2292: a sidebar carries content that is not a panel — a chat history
+// under one entry, an action that opens an overlay rather than routing, a link
+// to another origin. None can be declared in panels[], so the application with
+// the most sidebar content was the one not mounting AppShell at all.
+//
+// This block cleans up after each case. The suite above queries the whole
+// document and has no auto-cleanup, so a render that outlived its test would
+// be counted by the next one.
+describe("Sidebar slots", () => {
+  afterEach(cleanup);
+
+  it("renders sidebarExtra under the entry it names and sidebarFooter after all of them", () => {
+    const { container } = render(
+      <Sidebar
+        title="Chatbot"
+        routes={routing.routes}
+        active="chat"
+        href={(id) => `/ui/${id}`}
+        onNavigate={() => undefined}
+        sidebarExtra={(route) => (route.id === "chat" ? <span data-testid="history">history for {route.label}</span> : null)}
+        sidebarFooter={<a href="https://observer.example">Fleet observer</a>}
+      />,
+    );
+    const view = within(container);
+    // The extra renders for the entry it names and for no other, and a hidden
+    // route gets none at all.
+    expect(view.getAllByTestId("history")).toHaveLength(1);
+    expect(view.getByTestId("history").textContent).toBe("history for Chat");
+    // The footer comes after every panel entry, so a link to another origin
+    // cannot land between two panels.
+    expect(view.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/ui/chat",
+      "/ui/observability",
+      "https://observer.example",
+    ]);
+  });
+
+  it("keeps the extra inside its entry's group when the routes are grouped", () => {
+    const { container } = render(
+      <Sidebar
+        title="Chatbot"
+        routes={routing.routes}
+        active="chat"
+        href={(id) => `/ui/${id}`}
+        onNavigate={() => undefined}
+        groups={[
+          { id: "chat", label: "Talk", order: 1 },
+          { id: "observability", label: "Observe", order: 2 },
+        ]}
+        sidebarExtra={(route) => <span data-testid={`extra-${route.id}`} />}
+        sidebarFooter={<span data-testid="footer" />}
+      />,
+    );
+    // Grouped rendering is a separate branch, so it needs its own evidence
+    // that the extra follows its entry into the group rather than being lost.
+    const group = within(container).getByText("Talk").parentElement;
+    expect(group?.querySelector('[data-testid="extra-chat"]')).not.toBeNull();
+    expect(group?.querySelector('[data-testid="extra-observability"]')).toBeNull();
+    expect(within(container).getByTestId("footer")).not.toBeNull();
+  });
+
+  it("renders the entries alone when neither slot is given", () => {
+    const { container } = render(
+      <Sidebar title="Chatbot" routes={routing.routes} active="chat" href={(id) => `/ui/${id}`} onNavigate={() => undefined} />,
+    );
+    expect(within(container).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/ui/chat",
+      "/ui/observability",
+    ]);
   });
 });

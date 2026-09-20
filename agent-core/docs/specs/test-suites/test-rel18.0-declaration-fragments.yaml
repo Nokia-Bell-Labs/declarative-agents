@@ -8,14 +8,14 @@ traces:
   - rel18.0-uc001-declaration-fragments
 
 preconditions:
-  - srd052-declaration-fragments defines the fragment format, instantiation, hygienic substitution, usedness, provenance, and stage splicing.
+  - srd052-declaration-fragments defines the fragment format, expansion, hygienic substitution, usedness, provenance, and stage splicing.
   - srd050 imports and closure usedness, srd051 type units and the schema subset, and the canonical dump are available.
   - Machine stage cases additionally require the srd038 label checks and srd006 exhaustiveness checks.
 
 test_cases:
   - use_case: rel18.0-uc001-declaration-fragments
     name: A fragment with params and one body loads
-    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateProducesPrefixedTypedTools|TestInstantiateRESTFragmentTwiceWithPrefixes|TestFragmentBodyIsDecodedOnlyAfterSubstitution'
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestExpandProducesPrefixedTypedTools|TestExpandRESTFragmentTwiceWithPrefixes|TestFragmentBodyIsDecodedOnlyAfterSubstitution'
     status: implemented
     description: Load a fragment carrying unit, params of every allowed type, and a tools body; then one with a rest body.
     expected:
@@ -24,13 +24,13 @@ test_cases:
     traces: [rel18.0-uc001-declaration-fragments S1, srd052-declaration-fragments AC1, srd052-declaration-fragments R1.1]
 
   - use_case: rel18.0-uc001-declaration-fragments
-    name: A fragment may import units but may not instantiate a fragment
+    name: A fragment may import units but may not expand a fragment
     go_test: go test ./internal/tools/catalog -run 'TestFragmentImportsResolveFromTheFragment|TestFragmentCannotNest'
     status: implemented
-    description: Load a fragment importing a type unit, then one whose instantiate list names another fragment.
+    description: Load a fragment importing a type unit, then one whose expand list names another fragment.
     expected:
       type_import_accepted: true
-      nested_instantiate_rejected: true
+      nested_expand_rejected: true
     traces: [rel18.0-uc001-declaration-fragments S1, srd052-declaration-fragments AC1, srd052-declaration-fragments R1.2]
 
   - use_case: rel18.0-uc001-declaration-fragments
@@ -43,10 +43,10 @@ test_cases:
     traces: [rel18.0-uc001-declaration-fragments S1, srd052-declaration-fragments AC1, srd052-declaration-fragments R1.3]
 
   - use_case: rel18.0-uc001-declaration-fragments
-    name: An instantiate entry names fragment, args, and an optional prefix
-    go_test: go test ./internal/tools/catalog -run 'TestInstantiateProducesPrefixedTypedTools|TestPlainUnitCannotBeInstantiated'
+    name: An expand entry names fragment, args, and an optional prefix
+    go_test: go test ./internal/tools/catalog -run 'TestExpandProducesPrefixedTypedTools|TestPlainUnitCannotBeExpanded'
     status: implemented
-    description: Instantiate with and without as; resolve fragment relative to the importing file, including from a re-rooted directory.
+    description: Expand with and without as; resolve fragment relative to the importing file, including from a re-rooted directory.
     expected:
       fragment_resolved_relative_to_importer: true
       as_optional: true
@@ -54,7 +54,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: Argument faults name importer, fragment, and parameter
-    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateArgumentFaultsNameImporterFragmentAndParameter|TestRESTArgumentFaultsNameImporterFragmentAndParameter'
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestExpandArgumentFaultsNameImporterFragmentAndParameter|TestRESTArgumentFaultsNameImporterFragmentAndParameter'
     status: implemented
     description: Omit a required argument, supply an unknown one, pass a string for an integer, and pass a value outside an enum; a parameter with a default may be omitted.
     expected:
@@ -75,10 +75,10 @@ test_cases:
     traces: [rel18.0-uc001-declaration-fragments S2, srd052-declaration-fragments AC2, srd052-declaration-fragments R2.3]
 
   - use_case: rel18.0-uc001-declaration-fragments
-    name: The instantiated document takes the hand-written validation path
-    go_test: go test ./internal/tools/catalog -run 'TestInstantiatedUnitTakesTheHandWrittenPath'
+    name: The expanded document takes the hand-written validation path
+    go_test: go test ./internal/tools/catalog -run 'TestExpandedUnitTakesTheHandWrittenPath'
     status: implemented
-    description: Instantiate a fragment producing a tool with a misspelled field, then one whose per-tool hook rejects its config.
+    description: Expand a fragment producing a tool with a misspelled field, then one whose per-tool hook rejects its config.
     expected:
       strict_decode_applies: true
       per_tool_hooks_apply: true
@@ -86,10 +86,10 @@ test_cases:
     traces: [rel18.0-uc001-declaration-fragments S2, srd052-declaration-fragments AC2, srd052-declaration-fragments R2.4]
 
   - use_case: rel18.0-uc001-declaration-fragments
-    name: A prefix makes repeated instantiation possible
-    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestInstantiateProducesPrefixedTypedTools|TestInstantiateRESTFragmentTwiceWithPrefixes'
+    name: A prefix makes repeated expansion possible
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestExpandProducesPrefixedTypedTools|TestExpandRESTFragmentTwiceWithPrefixes'
     status: implemented
-    description: "Instantiate one fragment twice with as: cohere and as: openai, then read both produced names."
+    description: "Expand one fragment twice with as: cohere and as: openai, then read both produced names."
     expected:
       names_prefixed: "<as>_<name>"
       both_selectable: true
@@ -99,25 +99,25 @@ test_cases:
     name: A fragment under imports is rejected
     go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestFragmentUnderImportsIsRejected|TestRESTFragmentUnderImportsIsRejected'
     status: implemented
-    description: List a fragment file under imports rather than instantiate.
+    description: List a fragment file under imports rather than expand.
     expected:
       error_names_importer_and_fragment: true
     traces: [rel18.0-uc001-declaration-fragments S3, srd052-declaration-fragments AC2, srd052-declaration-fragments R2.6]
 
   - use_case: rel18.0-uc001-declaration-fragments
-    name: Repeated instantiation without a prefix is the existing duplicate error
-    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestRepeatedInstantiationWithoutPrefixIsADuplicate|TestRepeatedRESTInstantiationWithoutPrefixIsTheConflictError'
+    name: Repeated expansion without a prefix is the existing duplicate error
+    go_test: go test ./internal/tools/catalog ./internal/tools/rest/definition -run 'TestRepeatedExpansionWithoutPrefixIsADuplicate|TestRepeatedRESTExpansionWithoutPrefixIsTheConflictError'
     status: implemented
-    description: Instantiate one fragment twice with identical args and no as.
+    description: Expand one fragment twice with identical args and no as.
     expected:
       error: srd050 duplicate-name error, not a fragment-specific one
     traces: [rel18.0-uc001-declaration-fragments S3, srd052-declaration-fragments AC2, srd052-declaration-fragments R2.7]
 
   - use_case: rel18.0-uc001-declaration-fragments
-    name: An unselected instantiation is an unused import
-    go_test: go test ./internal/load -run 'TestLoadClosureReportsAnUnselectedInstantiationAsUnused|TestLoadClosureReportsAnUnreferencedRESTInstantiationAsUnused'
+    name: An unselected expansion is an unused import
+    go_test: go test ./internal/load -run 'TestLoadClosureReportsAnUnselectedExpansionAsUnused|TestLoadClosureReportsAnUnreferencedRESTExpansionAsUnused'
     status: implemented
-    description: Instantiate a fragment whose produced tools tools.yaml never selects; then select one of them.
+    description: Expand a fragment whose produced tools tools.yaml never selects; then select one of them.
     expected:
       unselected_fails_as_unused_import: true
       evidence: importing file, fragment path, arguments
@@ -125,12 +125,12 @@ test_cases:
     traces: [rel18.0-uc001-declaration-fragments S4, srd052-declaration-fragments AC3, srd052-declaration-fragments R3.1]
 
   - use_case: rel18.0-uc001-declaration-fragments
-    name: The dump lists every instantiation
-    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsEveryInstantiation|TestLoadClosureDumpsRESTInstantiationsBesideToolOnes|TestDumpGolden'
+    name: The dump lists every expansion
+    go_test: go test ./internal/load ./cmd/agent -run 'TestLoadClosureDumpsEveryExpansion|TestLoadClosureDumpsRESTExpansionsBesideToolOnes|TestDumpGolden'
     status: implemented
-    description: Dump a profile with two instantiations and compare the instantiations section across two runs.
+    description: Dump a profile with two expansions and compare the expansions section across two runs.
     expected:
-      section: instantiations
+      section: expansions
       entries_carry: fragment, args, produced names
       two_dumps_identical: true
     traces: [rel18.0-uc001-declaration-fragments S4, srd052-declaration-fragments AC3, srd052-declaration-fragments R3.2]
@@ -139,7 +139,7 @@ test_cases:
     name: A stage fragment splices under a prefix with parameterized entry and exit
     go_test: go test ./internal/runtime/core -run 'TestLoadMachineClosureSplicesAStageTwice|TestStageArgumentFaultsNameFragmentAndParameter'
     status: implemented
-    description: Instantiate a stage fragment into a machine with entry and exit signals passed as arguments and read the resulting states and transitions.
+    description: Expand a stage fragment into a machine with entry and exit signals passed as arguments and read the resulting states and transitions.
     expected:
       states_prefixed: true
       entry_exit_from_args: true
@@ -147,7 +147,7 @@ test_cases:
 
   - use_case: rel18.0-uc001-declaration-fragments
     name: A spliced machine is checked as one machine
-    go_test: go test ./internal/runtime/core ./internal/load ./cmd/agent -run 'TestSplicedStageIsValidatedAsOneMachine|TestSplicingTheSamePrefixTwiceIsTheDuplicateStateError|TestLoadClosureDumpsMachineStageInstantiations|TestDumpGolden'
+    go_test: go test ./internal/runtime/core ./internal/load ./cmd/agent -run 'TestSplicedStageIsValidatedAsOneMachine|TestSplicingTheSamePrefixTwiceIsTheDuplicateStateError|TestLoadClosureDumpsMachineStageExpansions|TestDumpGolden'
     status: implemented
     description: Splice a stage whose transition reads a label the importing machine never publishes, then one with an unhandled signal, then a correct one.
     expected:
@@ -160,7 +160,7 @@ test_cases:
     name: A stage fragment path selects its variant by environment
     go_test: go test ./internal/runtime/core ./internal/support/envexpand ./pkg/profilestage -run 'TestStageFragmentVariantIsSelectedByEnvironment|TestSelectedStageVariantIsValidatedAsOneMachine|TestTemplatedStagePathsThatCannotSelectAVariantFail|TestSelectVariant|TestStageCarriesEveryVariantOfAnEnvironmentSelectedStage|TestStageRefusesAVariantPathItCannotStage'
     status: implemented
-    description: Instantiate stages/s-${X:-a}.yaml beside s-a.yaml and s-b.yaml, load with X unset and with X=b, then select a variant whose splice leaves a transition to an undeclared state, then use a path without a default and one whose default file is missing. Stage the machine's tree and package it with appmanifest (TestResolveStagesEveryVariantOfATemplatedMachineStage in magefiles).
+    description: Expand stages/s-${X:-a}.yaml beside s-a.yaml and s-b.yaml, load with X unset and with X=b, then select a variant whose splice leaves a transition to an undeclared state, then use a path without a default and one whose default file is missing. Stage the machine's tree and package it with appmanifest (TestResolveStagesEveryVariantOfATemplatedMachineStage in magefiles).
     expected:
       unset_selects_default: true
       bound_selects_variant: true

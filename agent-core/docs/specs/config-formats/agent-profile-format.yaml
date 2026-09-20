@@ -81,8 +81,8 @@ schema:
     description: |
       A blueprint's body: the fields above, with `$param(name)` references in
       scalar values (srd055 R1.1).
-  - field: instantiate
-    type: "[]instantiation"
+  - field: expand
+    type: "[]expansion"
     required: false
     description: |
       On a blueprint instance, exactly one entry carrying `fragment` and
@@ -116,11 +116,11 @@ blueprints: |
       rest_definitions:
         - ../$param(agent)/rest.yaml
 
-  and each agent's profile.yaml instantiates it, carrying a name, the
+  and each agent's profile.yaml expands it, carrying a name, the
   arguments, and any field that differs:
 
     name: rag-server
-    instantiate:
+    expand:
       - fragment: ../units/serve-agent-blueprint.yaml
         args: {agent: rag-server, server: rag}
     tool_declarations:

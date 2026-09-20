@@ -16,16 +16,16 @@ problem: |
   In the terms of a programming language, the declarations have `#include`
   and default members but no function templates. A fragment is that template:
   a declaration unit with declared, typed parameters that an importer
-  instantiates with arguments. The loader performs the instantiation before
-  strict decoding, so every existing validation runs on the instantiated
+  expands with arguments. The loader performs the expansion before
+  strict decoding, so every existing validation runs on the expanded
   result and nothing generated is ever committed.
 
 goals:
-  - G1: Let a declaration unit declare typed parameters and be instantiated by an importer with arguments.
+  - G1: Let a declaration unit declare typed parameters and be expanded by an importer with arguments.
   - G2: Keep substitution hygienic, so an argument fills a hole in a shape and can never add structure to it.
-  - G3: Validate an instantiation the way a constrained generic is validated, naming the fragment, the parameter, and the importer on failure.
-  - G4: Validate the instantiated result through the same path as a hand-written unit, so a fragment can produce nothing a hand-written file could not.
-  - G5: Record provenance, so the dump and the usedness rule see instantiations as they see imports.
+  - G3: Validate an expansion the way a constrained generic is validated, naming the fragment, the parameter, and the importer on failure.
+  - G4: Validate the expanded result through the same path as a hand-written unit, so a fragment can produce nothing a hand-written file could not.
+  - G5: Record provenance, so the dump and the usedness rule see expansions as they see imports.
 
 requirements:
   R1:
@@ -39,7 +39,7 @@ requirements:
           number, or boolean.
       - R1.2: >-
           A fragment file MAY import type units and other non-fragment units
-          under srd050 R1.2, and SHALL NOT instantiate other fragments. Nesting
+          under srd050 R1.2, and SHALL NOT expand other fragments. Nesting
           is outside this release.
       - R1.3: >-
           A file carrying `params` and no body, or a body and no `params`,
@@ -47,10 +47,10 @@ requirements:
           not; a file that is half of one declares nothing.
 
   R2:
-    title: Instantiation
+    title: Expansion
     items:
       - R2.1: >-
-          An importing file SHALL list instantiations under `instantiate`,
+          An importing file SHALL list expansions under `expand`,
           beside `imports`, each carrying `fragment` (a path relative to the
           importing file under the same rules as an import), `args` (a mapping
           from parameter name to value), and optionally `as` (a name prefix).
@@ -70,23 +70,23 @@ requirements:
           environment expansion, whose pattern is `${NAME}`, nor with
           selectors, which begin `$.` or `$from(`.
       - R2.4: >-
-          Instantiation SHALL happen in the loader before strict decoding, and
-          the instantiated document SHALL then be decoded and validated by the
+          Expansion SHALL happen in the loader before strict decoding, and
+          the expanded document SHALL then be decoded and validated by the
           same path as a hand-written unit: strict decode, per-tool hooks,
-          tool validation, REST definition validation. No instantiated output
+          tool validation, REST definition validation. No expanded output
           SHALL be committed to the repository.
       - R2.5: >-
-          Instantiated names MUST be unique in the closure under the existing
-          duplicate rules. When `as` is given, every name the instantiation
+          Expanded names MUST be unique in the closure under the existing
+          duplicate rules. When `as` is given, every name the expansion
           produces SHALL be prefixed `<as>_`, so one fragment can be
-          instantiated more than once in one closure.
+          expanded more than once in one closure.
       - R2.6: >-
-          A fragment SHALL only be instantiated. Listing a fragment under
+          A fragment SHALL only be expanded. Listing a fragment under
           `imports` SHALL be a load error naming the importing file and the
           fragment, because a fragment's body holds unfilled references and
           is not a declaration until its arguments arrive.
       - R2.7: >-
-          Instantiating one fragment twice with the same arguments and no
+          Expanding one fragment twice with the same arguments and no
           distinguishing `as` SHALL fail with the existing duplicate-name error
           of srd050 R3, not one of its own.
 
@@ -94,14 +94,23 @@ requirements:
     title: Usedness and provenance
     items:
       - R3.1: >-
-          An instantiation whose produced definitions are all unselected SHALL
+          An expansion whose produced definitions are all unselected SHALL
           be an unused import under srd050 R5, reported with the same evidence:
           the importing file, the fragment path, and the arguments.
       - R3.2: >-
           Every produced definition SHALL record the fragment path and the
           arguments that produced it, and the canonical dump SHALL carry an
-          `instantiations` section listing, for each instantiation, the
+          `expansions` section listing, for each expansion, the
           fragment, the arguments, and the names produced.
+      - R3.3: >-
+          The dump key is `expansions`, following the operation's name. The
+          reuse-statistics JSON reports the same count under the key
+          `instantiations` and SHALL keep it: that key is a metrics series with
+          a committed baseline, and renaming it would make every historical
+          figure incomparable for a vocabulary gain no reader of the JSON
+          needs. The two surfaces differ because a diagnostic dump is read by a
+          person against this specification, while a metrics key is read by a
+          series. The divergence is deliberate, not an unfinished rename.
 
   R4:
     title: Machine stage fragments
@@ -113,10 +122,10 @@ requirements:
           machine decides how the stage is reached and left.
       - R4.2: >-
           The spliced machine SHALL be validated as one machine by the label
-          and exhaustiveness checks of srd038 and srd006, so an instantiated
+          and exhaustiveness checks of srd038 and srd006, so an expanded
           stage is held to what a hand-written one is held to.
       - R4.3: >-
-          A machine file's `instantiate[].fragment` path MAY carry
+          A machine file's `expand[].fragment` path MAY carry
           `${NAME:-default}` references, expanded at load time by the envexpand
           rules tool declarations use (srd013 R5.6), so a deployment selects one
           of several fixed stage variants whose topologies differ. Only the
@@ -129,26 +138,29 @@ requirements:
           resolved path (GH-2235).
 
 non_goals:
-  - Fragments instantiating other fragments; nesting waits for a release that needs it.
+  - Fragments expanding other fragments; nesting waits for a release that needs it.
   - Conditional or computed structure. A fragment is a fixed shape; arguments fill scalar holes in it.
-  - Loader words that resolve, typecheck, instantiate, or dump as builtin tools, and machines as tools for other machines. Both build on this and are specified separately.
-  - Committing any instantiated or generated declaration.
+  - Loader words that resolve, typecheck, expand, or dump as builtin tools, and machines as tools for other machines. Both build on this and are specified separately.
+  - Committing any expanded or generated declaration.
 
 acceptance_criteria:
   - id: AC1
-    criterion: A fragment declaring params and one body loads, a fragment with params and no body fails naming the file, and a fragment instantiating another fragment fails.
+    criterion: A fragment declaring params and one body loads, a fragment with params and no body fails naming the file, and a fragment expanding another fragment fails.
     traces: [R1.1, R1.2, R1.3]
   - id: AC2
-    criterion: An instantiation supplying every required argument produces definitions under the same validation as a hand-written unit; a missing argument, an unknown argument, a wrong type, and a value outside an enum each fail naming importer, fragment, and parameter; a `$param(` in a mapping name is not substituted and fails; a leftover reference fails naming the fragment and line; two instantiations with distinct `as` coexist and two without fail as duplicates; a fragment listed under imports fails.
+    criterion: An expansion supplying every required argument produces definitions under the same validation as a hand-written unit; a missing argument, an unknown argument, a wrong type, and a value outside an enum each fail naming importer, fragment, and parameter; a `$param(` in a mapping name is not substituted and fails; a leftover reference fails naming the fragment and line; two expansions with distinct `as` coexist and two without fail as duplicates; a fragment listed under imports fails.
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
   - id: AC3
-    criterion: An instantiation none of whose definitions is selected fails as an unused import with the fragment and arguments named, and the dump lists every instantiation with fragment, arguments, and produced names.
+    criterion: An expansion none of whose definitions is selected fails as an unused import with the fragment and arguments named, and the dump lists every expansion with fragment, arguments, and produced names.
     traces: [R3.1, R3.2]
+  - id: AC6
+    criterion: The canonical dump names the section `expansions`, and the reuse-statistics JSON reports the same count under `instantiations`; neither key follows the other.
+    traces: [R3.3]
   - id: AC4
     criterion: A stage fragment splices into a machine under a prefix with parameterized entry and exit signals, and the result passes or fails the label and exhaustiveness checks exactly as the equivalent hand-written machine does.
     traces: [R4.1, R4.2]
   - id: AC5
-    criterion: A machine instantiating stages/s-${X:-a}.yaml beside s-a.yaml and s-b.yaml loads stage a with X unset and stage b with X=b, each validating as one machine with the dump naming the resolved path; a variant whose spliced transitions are dead fails naming the resolved fragment; a templated path without a default, or whose default file is missing, fails naming the path; packaging stages every variant.
+    criterion: A machine expanding stages/s-${X:-a}.yaml beside s-a.yaml and s-b.yaml loads stage a with X unset and stage b with X=b, each validating as one machine with the dump naming the resolved path; a variant whose spliced transitions are dead fails naming the resolved fragment; a templated path without a default, or whose default file is missing, fails naming the path; packaging stages every variant.
     traces: [R4.3]
 
 depends_on:
@@ -170,7 +182,7 @@ related_documents:
 
 implementation_status:
   complete:
-    - GH-2081 implements tool-declaration fragments and the substitution engine (R1, R2, R3 for the tools body), with the control-fragments profile instantiating one fragment twice and dumping deterministically.
+    - GH-2081 implements tool-declaration fragments and the substitution engine (R1, R2, R3 for the tools body), with the control-fragments profile expanding one fragment twice and dumping deterministically.
     - GH-2082 implements REST-definition fragments through the REST import resolver (R1, R2, R3 for the rest body); a prefix renames every produced entry and the fragment's own references to them, and a fragment's body is decoded only after its arguments arrive.
     - GH-2083 implements machine stage fragments (R4): a stage is spliced into the importing machine's lists and the whole is validated as one machine; control-fragments splices its patient control stage from a fragment.
   planned:

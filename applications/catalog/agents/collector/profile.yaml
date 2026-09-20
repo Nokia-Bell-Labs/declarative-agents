@@ -7,7 +7,7 @@ tools:
 tool_declarations:
   - declarations.yaml
   - query-declarations.yaml
-  - /opt/agent-core/tools/builtin/otlp/all.yaml
+  - /opt/agent-core/tools/builtin/otlp/receiver.yaml
   - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
 rest_definitions:
   - rest.yaml

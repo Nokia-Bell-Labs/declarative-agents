@@ -46,10 +46,10 @@ flow:
   - F13: After done, machine-declared validation runs build → lint → test. All oracle tests pass, transitioning to Succeeded (srd006, srd013).
 
 touchpoints:
-  - T1: "srd006-yaml-machine-config R1, R2, R3, R4 -- MachineSpec loading, $tool dispatch, transition validation"
-  - T2: "srd009-ollama-adapter R1, R2, R4 -- configured adapter, Ollama Chat API request, model availability"
-  - T3: "srd013-standard-tool-library R1, R2, R3, R5, R8, R9 -- file tools, build tools, LLM commands, declarations, validation, done"
-  - T4: "srd017-llm-extensions R2, R4 -- qwen profile resolution, thinking-block stripping, envelope extraction"
+  - T1: "srd006-yaml-machine-config R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R3.1, R3.2, R3.3, R3.4, R3.5, R4.1, R4.2, R4.3, R4.4 -- MachineSpec loading, $tool dispatch, transition validation"
+  - T2: "srd009-ollama-adapter R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R2.3, R2.4, R4.1, R4.2, R4.3, R4.4 -- configured adapter, Ollama Chat API request, model availability"
+  - T3: "srd013-standard-tool-library R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R2.1, R2.2, R2.3, R2.4, R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R8.1, R8.2, R8.3, R9.1, R9.2 -- file tools, build tools, LLM commands, declarations, validation, done"
+  - T4: "srd017-llm-extensions R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R4.1, R4.2, R4.3, R4.4, R4.5 -- qwen profile resolution, thinking-block stripping, envelope extraction"
   - T5: "cfg-runtime-contract -- profile-first invocation and compatibility flags"
   - T6: "cfg-tool-declaration-format -- builtin, exec, and llm tool declarations"
   - T7: "cfg-tool-selection-format -- tools.yaml name-list filtering"

@@ -18,7 +18,7 @@ func variantMachineSource(t *testing.T, fragment string, variants ...string) str
 	t.Helper()
 	source := t.TempDir()
 	writeDeclaration(t, source, "agents/rag/machine.yaml",
-		"name: rag\ninstantiate:\n- fragment: "+fragment+"\n  args: {prefix: Rerank}\nstates: []\n")
+		"name: rag\nexpand:\n- fragment: "+fragment+"\n  args: {prefix: Rerank}\nstates: []\n")
 	for _, variant := range variants {
 		writeDeclaration(t, source, "agents/stages/"+variant,
 			"unit: stage\nparams:\n- {name: prefix, type: string}\nstage: {transitions: []}\n")

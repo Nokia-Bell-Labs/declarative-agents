@@ -16,7 +16,7 @@ import (
 // The shipped provider libraries' REST fragments (srd058 R1.3, R1.4, R5.1).
 // Each produces one operation under a fixed name on its own client, emits the
 // shared success signal and failure taxonomy, and passes REST validation when
-// instantiated. The install and library roots are process-scoped, so these
+// expanded. The install and library roots are process-scoped, so these
 // tests do not run in parallel.
 
 type providerFragment struct {
@@ -32,7 +32,7 @@ var shippedProviderFragments = []providerFragment{
 	{"cohere", "rerank-fragment.yaml", "reranker", "rerank", "Reranked", "query_selector: $from(ask).question, documents_selector: $from(search).documents, top_n: 5"},
 }
 
-func instantiateProviderFragment(t *testing.T, fragment providerFragment) Collection {
+func expandProviderFragment(t *testing.T, fragment providerFragment) Collection {
 	t.Helper()
 	library, err := filepath.Abs(filepath.Join("..", "..", "..", "tools", "providers", fragment.provider))
 	require.NoError(t, err)
@@ -41,7 +41,7 @@ func instantiateProviderFragment(t *testing.T, fragment providerFragment) Collec
 	dir := t.TempDir()
 	path := filepath.Join(dir, "provider-rest.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`unit: probe-provider-rest
-instantiate:
+expand:
 - fragment: /opt/providers/`+fragment.file+`
   args: {`+fragment.args+`}
 rest: {version: v1}
@@ -53,7 +53,7 @@ rest: {version: v1}
 
 func TestProviderFragmentsProduceTheirFixedOperations(t *testing.T) {
 	for _, fragment := range shippedProviderFragments {
-		collection := instantiateProviderFragment(t, fragment)
+		collection := expandProviderFragment(t, fragment)
 
 		client, ok := collection.Clients[fragment.client]
 		require.True(t, ok, "%s/%s produces client %s", fragment.provider, fragment.file, fragment.client)
@@ -76,7 +76,7 @@ func TestProviderFragmentsProduceTheirFixedOperations(t *testing.T) {
 
 func TestProviderFragmentsNameCredentialsOnly(t *testing.T) {
 	for _, fragment := range shippedProviderFragments {
-		collection := instantiateProviderFragment(t, fragment)
+		collection := expandProviderFragment(t, fragment)
 		auth := collection.Auth[collection.Clients[fragment.client].AuthRef]
 		switch fragment.provider {
 		case "ollama":
@@ -89,7 +89,7 @@ func TestProviderFragmentsNameCredentialsOnly(t *testing.T) {
 }
 
 func TestCohereRerankFragmentTakesItsBudget(t *testing.T) {
-	collection := instantiateProviderFragment(t, shippedProviderFragments[4])
+	collection := expandProviderFragment(t, shippedProviderFragments[4])
 
 	operation := collection.Clients["reranker"].Operations["rerank"]
 	require.Equal(t, 5, operation.Body["top_n"], "an integer parameter fills an integer field")
@@ -102,8 +102,8 @@ func TestProviderFragmentEndpointsFollowTheEnvironment(t *testing.T) {
 	t.Setenv("OLLAMA_URL", "http://ollama.mesh.svc:11434")
 	t.Setenv("COHERE_API_URL", "https://cohere.gateway.example")
 
-	ollama := instantiateProviderFragment(t, shippedProviderFragments[0])
-	cohere := instantiateProviderFragment(t, shippedProviderFragments[2])
+	ollama := expandProviderFragment(t, shippedProviderFragments[0])
+	cohere := expandProviderFragment(t, shippedProviderFragments[2])
 
 	require.Equal(t, "http://ollama.mesh.svc:11434", ollama.Clients["query_embedder"].BaseURL)
 	require.Equal(t, "https://cohere.gateway.example", cohere.Clients["query_embedder"].BaseURL)
@@ -111,7 +111,7 @@ func TestProviderFragmentEndpointsFollowTheEnvironment(t *testing.T) {
 
 func TestEmbedFragmentsCarryTheTextAndId(t *testing.T) {
 	for _, fragment := range shippedProviderFragments[:4] {
-		collection := instantiateProviderFragment(t, fragment)
+		collection := expandProviderFragment(t, fragment)
 
 		params := collection.Clients[fragment.client].Operations[fragment.operation].Params
 		require.Equal(t, []string{"input", "id"}, params.CarryForward, "%s/%s", fragment.provider, fragment.file)

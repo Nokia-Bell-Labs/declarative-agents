@@ -110,7 +110,7 @@ func Leftover(doc *yaml.Node) (int, bool) {
 }
 
 // RemoveField drops one top-level mapping entry from a document, which is how
-// an instantiated fragment sheds its params before it is read as a unit.
+// an expanded fragment sheds its params before it is read as a unit.
 func RemoveField(doc *yaml.Node, name string) {
 	root := doc
 	if root != nil && root.Kind == yaml.DocumentNode && len(root.Content) > 0 {

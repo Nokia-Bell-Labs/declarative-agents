@@ -19,6 +19,7 @@ var subModules = []string{
 	agentCoreModule,
 	"applications/catalog",
 	"design-patterns",
+	"application-dsl-spec",
 }
 
 // applicationModules are runnable application modules that participate in the root
@@ -62,7 +63,9 @@ func statsParticipants() []string {
 // the paper's prose, figures, and templates rather than agent declarations, and
 // dispatching to it forced a cross-module import that broke every target in
 // that directory whenever the Go workspace was disabled (GH-1989).
-var reuseExcludedModules = []string{"design-patterns"}
+// application-dsl-spec likewise owns specification prose, statements, and
+// fixtures rather than agent declarations.
+var reuseExcludedModules = []string{"design-patterns", "application-dsl-spec"}
 
 // reuseParticipants lists every module the root reuse-metrics target dispatches
 // to: the stats participants minus the modules that own no agent YAML.

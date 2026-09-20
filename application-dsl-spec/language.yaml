@@ -1,0 +1,257 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# =============================================================================
+# language.yaml
+# Application DSL Specification — normative statements
+# =============================================================================
+#
+# WHAT THIS FILE IS
+# -----------------
+# This is the machine-readable companion to the prose chapters in this
+# directory. Every requirement the specification makes is a statement here,
+# and nothing normative exists only in prose. The chapters cite statements
+# with `{{statement <id>}}` placeholders; the render target expands each
+# citation in place with a stable anchor, and the audit target fails when a
+# citation does not resolve, when a statement is never cited, or when a
+# statement's acceptance evidence is missing or failing.
+#
+# HOW TO READ EACH STATEMENT
+# --------------------------
+#   id          stable identifier, R-<CHAPTER TAG>-<NNN>. Identifiers are
+#               never renumbered or reused; constitutions, tests, and commits
+#               cite them.
+#   target      which conformance target the statement binds — one of the
+#               names under language.conformance_targets (chapter 01).
+#   level       RFC 2119 requirement level: MUST, MUST NOT, SHOULD,
+#               SHOULD NOT, or MAY.
+#   statement   the normative text itself.
+#   acceptance  at least one evidence entry proving the statement is checked:
+#                 assertion: fixture   a document under fixtures/ with the
+#                                      named check applied and an expected
+#                                      verdict (valid or invalid)
+#                 assertion: go_test   a named Go test that must exist and
+#                                      pass, path relative to this directory
+#                 assertion: rig       a named Go test in the wider repository
+#                                      (path relative to the repository root)
+#                                      anchoring a runtime or population
+#                                      statement; the audit verifies the
+#                                      reference resolves to a declared test,
+#                                      and the repository's test and
+#                                      integration gates execute it
+#
+language:
+  id: application-dsl
+  title: "Libretto: A Declarative Language for Applications, Agents, and Machines"
+  version: 0.1.0
+  conformance_targets:
+    - document
+    - processor
+    - runtime
+    - population
+
+statements:
+  - id: R-INTRO-001
+    target: document
+    level: MUST
+    statement: >-
+      A conforming document MUST be a single YAML document whose root node is
+      a mapping.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/root-mapping/valid.yaml
+        check: yaml_mapping
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/root-mapping/invalid.yaml
+        check: yaml_mapping
+        verdict: invalid
+
+  - id: R-INTRO-002
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject a document whose root node is not a
+      mapping.
+    acceptance:
+      - assertion: go_test
+        path: magefiles/evidence_test.go
+        test: TestFixtureCheckRejectsNonMappingRoot
+
+  - id: R-MODEL-001
+    target: document
+    level: MUST
+    statement: >-
+      A machine-profile document MUST either declare its own states and
+      transitions or expand exactly one machine-template; a machine-profile
+      document that expands a machine-template MUST NOT declare its own
+      states or transitions.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/body.yaml
+        check: machine_expansion_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/template-instance.yaml
+        check: machine_expansion_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/no-body-no-expansion.yaml
+        check: machine_expansion_shape
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/double-expansion.yaml
+        check: machine_expansion_shape
+        verdict: invalid
+
+  - id: R-LCM-001
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST bind an agent-instance to exactly one
+      workspace at instantiation and MUST release the binding when the
+      agent-instance terminates.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
+
+  - id: R-LCM-002
+    target: runtime
+    level: MUST
+    statement: >-
+      Terminating an agent-instance MUST NOT decommission its workspace; a
+      later agent-instance MAY bind the same workspace and resume its
+      identity.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestCodingLoopStagesGenerateOnceAndPreserveExactWorkspace
+
+  - id: R-POP-001
+    target: population
+    level: MUST
+    statement: >-
+      Every agent-instance in a conforming population MUST realize an
+      agent-profile that a governing application-profile names among its
+      roots.
+    acceptance:
+      - assertion: rig
+        path: applications/chatbot-mesh/magefiles/application_manifest_test.go
+        test: TestApplicationManifestDeclaresExactProductionRoots
+
+  - id: R-POP-002
+    target: population
+    level: MUST
+    statement: >-
+      In a conforming population, a deployment authority MUST rest with
+      exactly one agent-profile's instances, and an agent-instance that
+      decides operations MUST NOT hold the deployment authority those
+      operations act through.
+    acceptance:
+      - assertion: rig
+        path: applications/chatbot-mesh/magefiles/creator_ingest_chart_test.go
+        test: TestCreatorCarriesTheIngestChromaAuthority
+      - assertion: rig
+        path: applications/chatbot-mesh/magefiles/provisioning_workflow_orchestrator_state_test.go
+        test: TestCreatorStateReadIsProvisioningWorkflowOrchestratorFacing
+
+  - id: R-POP-003
+    target: population
+    level: MUST
+    statement: >-
+      A workspace MUST be bound by at most one agent-instance at any time.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
+
+  - id: R-POP-004
+    target: population
+    level: MAY
+    statement: >-
+      A conforming population MAY contain orphan workspaces; a workspace with
+      no bound agent-instance is a legal state that only an explicit
+      decommission removes.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
+
+  - id: R-APP-001
+    target: document
+    level: MUST
+    statement: >-
+      An application-profile document MUST carry the `schema_version`,
+      `application`, `ownership`, `capabilities`, and `roots` keynames, and
+      every `roots` entry MUST carry `id`, `ownership`, and `source`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/application-keynames/valid.yaml
+        check: application_required_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/application-keynames/invalid.yaml
+        check: application_required_keynames
+        verdict: invalid
+
+  - id: R-PROF-001
+    target: document
+    level: MUST
+    statement: >-
+      An agent-profile document MUST carry the `name` and `machine` keynames,
+      each a non-empty string; `machine` references the machine-profile
+      document the agent-instance executes.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/profile-keynames/valid.yaml
+        check: profile_required_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/profile-keynames/invalid.yaml
+        check: profile_required_keynames
+        verdict: invalid
+
+  - id: R-MACH-001
+    target: document
+    level: MUST
+    statement: >-
+      A machine-profile document that declares its own body MUST carry the
+      `name` keyname, and its `states` and `transitions` MUST be sequences.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-keynames/valid.yaml
+        check: machine_body_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-keynames/invalid.yaml
+        check: machine_body_keynames
+        verdict: invalid
+
+  - id: R-CONF-001
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST accept every fixture document whose
+      declared verdict is valid and MUST reject every fixture document whose
+      declared verdict is invalid.
+    acceptance:
+      - assertion: go_test
+        path: magefiles/evidence_test.go
+        test: TestRepositoryFixtureEvidencePasses
+
+  - id: R-MODEL-002
+    target: document
+    level: MUST
+    statement: >-
+      Every expansion entry in a machine-profile document MUST name its
+      source unit under the fragment keyname; argument bindings MAY accompany
+      the name under the args keyname.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/expansion-fragment/named.yaml
+        check: expansion_names_fragment
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/expansion-fragment/unnamed.yaml
+        check: expansion_names_fragment
+        verdict: invalid

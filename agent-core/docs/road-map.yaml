@@ -693,20 +693,20 @@ releases:
     name: Parameterized declaration fragments
     description: |
       Release 18.0 gives declarations function templates. A fragment is a
-      unit with declared, typed parameters; an importer instantiates it with
+      unit with declared, typed parameters; an importer expands it with
       arguments, the loader substitutes them into scalar values before strict
       decoding, and the result is validated exactly as a hand-written unit.
       Three fragment kinds land in order of cost: tool declarations, REST
       definitions, and machine stages. Nothing generated is committed; the
-      canonical dump lists every instantiation.
+      canonical dump lists every expansion.
 
       The metric that judges the release landed first: stats:reuse counts
-      imported, shared, and single-importer units and instantiations, and a
-      unit earns its place with two importers or one instantiation.
+      imported, shared, and single-importer units and expansions, and a
+      unit earns its place with two importers or one expansion.
     status: implemented
     planned_work:
       - id: gh-2084
-        summary: Count imported, shared, single-importer units and instantiations in stats:reuse.
+        summary: Count imported, shared, single-importer units and expansions in stats:reuse.
         status: implemented
       - id: gh-2080
         summary: Specify fragments -- srd052, use case, test suite, and the config-format fields.
@@ -727,11 +727,11 @@ releases:
       - srd052-declaration-fragments
     use_cases:
       - id: rel18.0-uc001-declaration-fragments
-        summary: A profile instantiates parameterized fragments in place of hand-copied blocks.
+        summary: A profile expands parameterized fragments in place of hand-copied blocks.
         status: implemented
     test_suites:
       - id: test-rel18.0-declaration-fragments
-        summary: Formal tests for the fragment format, instantiation and substitution, usedness and provenance, and stage splicing.
+        summary: Formal tests for the fragment format, expansion and substitution, usedness and provenance, and stage splicing.
         status: implemented
     proof:
       - go test ./internal/tools/catalog ./internal/tools/rest/definition ./internal/load ./internal/runtime/core
@@ -782,7 +782,7 @@ releases:
       agents. Of 62 machine files, 26 share an identical state set with
       another; the ten-state serve machine alone is written five times. A
       machine template declares a whole machine once as a fragment, and a
-      machine file becomes one instantiation of it. An agent blueprint
+      machine file becomes one expansion of it. An agent blueprint
       declares a whole profile once, naming its machine template and units
       relative to itself, and each agent's profile becomes an instance
       carrying a name, arguments, and only the fields that differ.
@@ -830,17 +830,17 @@ releases:
       - srd056-unit-libraries
     use_cases:
       - id: rel20.0-uc001-machine-templates
-        summary: A machine file instantiates a whole-machine template.
+        summary: A machine file expands a whole-machine template.
         status: implemented
       - id: rel20.0-uc002-agent-blueprints
-        summary: A profile instantiates an agent blueprint.
+        summary: A profile expands an agent blueprint.
         status: specified
       - id: rel20.0-uc003-unit-libraries
         summary: A unit imports from the agent-core root or a declared library root.
         status: implemented
     test_suites:
       - id: test-rel20.0-machine-templates
-        summary: Formal tests for template and blueprint formats, instantiation and path resolution, validation, and closure, identity, dump, staging, and audit provenance. The twelve template cases are implemented; the eleven blueprint cases wait on gh-2123.
+        summary: Formal tests for template and blueprint formats, expansion and path resolution, validation, and closure, identity, dump, staging, and audit provenance. The twelve template cases are implemented; the eleven blueprint cases wait on gh-2123.
         status: in_progress
       - id: test-rel20.0-unit-libraries
         summary: Formal tests for import path forms, declared roots, read-only libraries, rooted closure and dump provenance, staging, and the service-library convention. Ten cases are implemented; the two service-library cases wait on gh-2121, which needs a second consumer before a library exists to measure.
@@ -876,7 +876,7 @@ releases:
         summary: Specify capability profiles (srd057), the consumption forms, the binding discipline, and their use case and suite.
         status: implemented
       - id: gh-2166
-        summary: The serve-lifecycle declaration fragment, so a wrapper's lifecycle words are one instantiation.
+        summary: The serve-lifecycle declaration fragment, so a wrapper's lifecycle words are one expansion.
         status: implemented
       - id: gh-2167
         summary: Adopt the monitor server fragment in the agents whose monitor server is the shipped one.

@@ -22,4 +22,4 @@ Counting files per change from git history mostly measures migrations, so we lis
 | Add a knowledge source | topology declarations, REST client, chart |
 | Add a tool to an agent | declarations, tool selection, machine transition |
 
-The target for the first row, once provider wiring is a fragment, is one new fragment file plus one instantiate line.
+The target for the first row, once provider wiring is a fragment, is one new fragment file plus one expand line.

@@ -17,7 +17,7 @@ purpose: |-
 
   - The query vector is supplied by the caller in the request body; no embedding is computed here.
   - The Chroma server is an external precondition; the request path assumes an ingested collection.
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
     args:
       workflow: rag_server

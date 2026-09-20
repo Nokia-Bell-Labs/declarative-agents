@@ -14,8 +14,8 @@ import (
 )
 
 // The embed and rerank stage fragments splice with every shipped provider
-// library (srd058 R4.1). The importer instantiates a stage from agent-core,
-// imports its words, and instantiates the bound library's REST fragment; the
+// library (srd058 R4.1). The importer expands a stage from agent-core,
+// imports its words, and expands the bound library's REST fragment; the
 // spliced machine passes the checks a hand-written one does. The root
 // registries are process-scoped, so these tests do not run in parallel.
 
@@ -69,7 +69,7 @@ states: [Idle, {name: Done, run_status: succeeded}, {name: Failed, run_status: f
 terminal_states: [Done, Failed]
 signals: %s]
 transitions: []
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/%s
     args: {from: Idle, enter: Seed, next: Done}
 `, signals, stage.stage))
@@ -84,7 +84,7 @@ instantiate:
 	writeLoadFixture(t, root, "declarations.yaml",
 		"unit: probe-words\nimports: [/opt/agent-core/tools/units/"+stage.words+"]\ntools: []\n")
 	writeLoadFixture(t, root, "rest.yaml", `unit: probe-rest
-instantiate:
+expand:
   - fragment: /opt/providers/`+stage.fragment+`
     args: {`+stage.args+`}
 rest: {version: v1}

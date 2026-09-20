@@ -23,7 +23,7 @@ func TestRESTImportsAndFragmentsResolveUnderTheAgentCoreLibrary(t *testing.T) {
 	t.Cleanup(func() { corepath.SetInstallRoot("") })
 	top := writeImportFixture(t, t.TempDir(), "rest.yaml", `unit: top
 imports: [/opt/agent-core/tools/units/limits.yaml]
-instantiate:
+expand:
 - {fragment: /opt/agent-core/tools/units/api.yaml, as: metrics, args: {base_url: "http://metrics:9090"}}
 rest: {}
 `)

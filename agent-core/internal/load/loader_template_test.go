@@ -16,7 +16,7 @@ import (
 
 // Machine templates in the closure (srd054 R3.1, R3.2): the template is a file
 // of the closure and an asset of the program digest, and the dump labels the
-// instantiation.
+// expansion.
 
 const usednessTemplate = `unit: usedness-template
 params:
@@ -36,7 +36,7 @@ func writeTemplateClosureFixture(t *testing.T) string {
 	writeLoadFixture(t, root, "declarations.yaml", "tools:\n  - name: selected\n    binary: echo\n")
 	writeLoadFixture(t, root, "template.yaml", usednessTemplate)
 	writeLoadFixture(t, root, "machine.yaml",
-		"unit: usedness-instance\nname: usedness-instance\ninstantiate:\n  - {fragment: template.yaml, args: {word: selected}}\n")
+		"unit: usedness-instance\nname: usedness-instance\nexpand:\n  - {fragment: template.yaml, args: {word: selected}}\n")
 	return root
 }
 

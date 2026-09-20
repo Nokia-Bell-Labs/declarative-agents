@@ -27,13 +27,13 @@ flow:
   - F8: Startup, control launch, await, or lifecycle failure emits CommandError or another declared failure signal and moves the machine to Failed.
 
 touchpoints:
-  - T1: "srd020-bench-web-ui R6 -- bench does not mount documentation API routes"
-  - T2: "srd027-rest-tool-runtime R5 and R10 -- rest_server_launch starts configured listeners and rest_await_event waits for lifecycle control"
-  - T3: "srd027-rest-tool-runtime R2, R3 -- documentation REST tooling is defined by ToolDef and REST YAML"
-  - T4: "srd028-rest-client-tools R1, R2, R6 -- doc_* words call configured REST operations and emit REST result signals"
+  - T1: "srd020-bench-web-ui R6.1, R6.2 -- bench does not mount documentation API routes"
+  - T2: "srd027-rest-tool-runtime R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7 and R10.1, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7, R10.8 -- rest_server_launch starts configured listeners and rest_await_event waits for lifecycle control"
+  - T3: "srd027-rest-tool-runtime R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R3.1, R3.2, R3.3, R3.4, R3.5, R3.6 -- documentation REST tooling is defined by ToolDef and REST YAML"
+  - T4: "srd028-rest-client-tools R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R6.8 -- doc_* words call configured REST operations and emit REST result signals"
   - T5: "knowledge-manager/documentation-curator/profile.yaml -- profile-owned documentation application under AGENT_CATALOG_ROOT"
   - T6: "knowledge-manager/documentation-curator/ui/docs -- profile-owned React source and built assets"
-  - T7: "srd029-rest-server-tools R7 and R11 -- lifecycle control endpoints enqueue events for MachineSpec routing and shutdown releases the owned documentation listener"
+  - T7: "srd029-rest-server-tools R7.1, R7.2, R7.3, R7.4, R7.5, R7.6 and R11.1, R11.2, R11.3, R11.4, R11.5, R11.6, R11.7, R11.8 -- lifecycle control endpoints enqueue events for MachineSpec routing and shutdown releases the owned documentation listener"
 
 success_criteria:
   - id: S1

@@ -67,7 +67,7 @@ touchpoints:
   - T1: "Dockerfile -- runtime image contents"
   - T2: "README.md -- mounted-profile container command"
   - T3: "mage docker -- release-image build wrapper"
-  - T4: "srd034-external-agent-profiles R1, R2, R3, R4 -- ownership and mounted runtime contract"
+  - T4: "srd034-external-agent-profiles R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R2.3, R2.4, R3.1, R3.2, R3.3, R3.4, R4.1, R4.2, R4.3, R4.4, R4.5 -- ownership and mounted runtime contract"
   - T5: "knowledge-manager/documentation-curator/profile.yaml -- profile-relative asset example under /profiles/agents"
   - T6: "knowledge-manager/documentation-curator/ui/ux.yaml -- profile-local UX config example under /profiles/agents"
 

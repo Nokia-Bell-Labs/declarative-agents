@@ -58,6 +58,11 @@ initial_state: Idle
 budget:
   command_timeout: 16m
   max_consecutive_parse_errors: 5
+expand:
+  - fragment: ../units/planner-plan-stage-fragment.yaml
+    args: {}
+  - fragment: ../units/planner-issue-stage-fragment.yaml
+    args: {}
 states:
 - name: Idle
   meaning: Initial state before planning begins.
@@ -69,28 +74,8 @@ states:
     A neutral NoTask result routes through the remaining_work graph query.
 - name: MarkingPlanning
   meaning: Advancing only the extracted task nodes to Planning.
-- name: Resetting
-  meaning: Clearing conversation history before a new task's LLM call.
 - name: InitializingFailureContext
   meaning: Seeding empty labelled failure context for a newly extracted task.
-- name: PromptAssembly
-  meaning: Rendering profile-owned prompt sections from labelled planner context.
-- name: ProjectingPromptContext
-  meaning: Publishing prompt-neutral task and SRD fields for profile composition.
-- name: PlanInvoking
-  meaning: Calling the LLM to generate an implementation plan.
-- name: PlanParsing
-  meaning: Parsing the LLM response as a YAML implementation plan.
-- name: ReportingParseError
-  meaning: Feeding an invalid plan response back to the LLM and tracking the explicit parse retry budget.
-- name: IssueFormatting
-  meaning: Formatting the parsed plan as tracker-neutral issue parameters.
-- name: IssueBodyWriting
-  meaning: Writing the issue body to the configured workspace file.
-- name: IssueCreating
-  meaning: Creating an issue through the tracker exec word selected by the profile.
-- name: IssueRecording
-  meaning: Recording the configured tracker's issue ID in planner state.
 - name: QueryingRemainingWork
   meaning: Reading graph state so the machine can route ready, done, or blocked work.
 - name: Completed
@@ -183,91 +168,10 @@ transitions:
 - state: Extracting
   signal: CommandError
   next: Failed
-- state: Resetting
-  signal: ToolDone
-  next: ProjectingPromptContext
-  action: project_planner_context
-  label: planner_context
-- state: Resetting
-  signal: CommandError
-  next: Failed
-- state: ProjectingPromptContext
-  signal: PlannerContextProjected
-  next: PromptAssembly
-  action: compose_planner_prompt
-- state: ProjectingPromptContext
-  signal: CommandError
-  next: Failed
-- state: PromptAssembly
-  signal: PromptReady
-  next: PlanInvoking
-  action: invoke_llm
-- state: PromptAssembly
-  signal: CommandError
-  next: Failed
-- state: PlanInvoking
-  signal: LLMResponded
-  next: PlanParsing
-  action: parse_plan
-- state: PlanInvoking
-  signal: CommandError
-  next: Failed
-- state: PlanParsing
-  signal: PlanReady
-  next: IssueFormatting
-  action: format_issue
-  label: issue_input
-- state: PlanParsing
-  signal: ParseFailed
-  next: ReportingParseError
-  action: report_parse_error
-- state: PlanParsing
-  signal: CommandError
-  next: Failed
-- state: ReportingParseError
-  signal: ToolDone
-  next: PlanInvoking
-  action: invoke_llm
-- state: ReportingParseError
-  signal: BudgetExhausted
-  next: Failed
-- state: ReportingParseError
-  signal: CommandError
-  next: Failed
-- state: IssueFormatting
-  signal: IssueFormatted
-  next: IssueBodyWriting
-  action: write
-- state: IssueFormatting
-  signal: CommandError
-  next: Failed
-- state: IssueBodyWriting
-  signal: ToolDone
-  next: IssueCreating
-  action: create_tracker_issue
-- state: IssueBodyWriting
-  signal: ToolFailed
-  next: Failed
-- state: IssueBodyWriting
-  signal: CommandError
-  next: Failed
-- state: IssueCreating
-  signal: ToolDone
-  next: IssueRecording
-  action: record_tracker_issue
-- state: IssueCreating
-  signal: ToolFailed
-  next: Failed
-- state: IssueCreating
-  signal: CommandError
-  next: Failed
 - state: IssueRecording
   signal: Materialized
   next: Extracting
   action: extract_task
-- state: IssueRecording
-  signal: CommandError
-  next: Failed
 - state: QueryingRemainingWork
   signal: WorkRemaining
   next: Extracting

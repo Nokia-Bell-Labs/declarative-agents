@@ -33,11 +33,11 @@ flow:
   - F14: Browser, server, or machine failures produce a structured Puppeteer failure report with screenshot, console output, network log, and captured trace metadata.
 
 touchpoints:
-  - T1: "srd030-machine-request-rest-binding R1, R2 -- one accepted HTTP request runs one configured MachineSpec sentence"
-  - T2: "srd030-machine-request-rest-binding R3, R4, R6 -- request input, terminal response extraction, and trace recording"
-  - T3: "srd031-declarative-document-resources R1, R2 -- document resources connect request machines to docs/"
-  - T4: "srd031-declarative-document-resources R3, R5 -- path safety and raw or parsed YAML response modes"
-  - T5: "srd031-declarative-document-resources R6 -- Knowledge Manager UI assets and action placement are human actor configuration"
+  - T1: "srd030-machine-request-rest-binding R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8 -- one accepted HTTP request runs one configured MachineSpec sentence"
+  - T2: "srd030-machine-request-rest-binding R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10, R3.11, R4.1, R4.2, R4.3, R4.6, R4.7, R4.8, R4.9, R4.4, R4.5, R6.1, R6.2, R6.3, R6.4, R6.5, R6.6 -- request input, terminal response extraction, and trace recording"
+  - T3: "srd031-declarative-document-resources R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R2.4, R2.5 -- document resources connect request machines to docs/"
+  - T4: "srd031-declarative-document-resources R3.1, R3.2, R3.3, R3.4, R3.5, R5.1, R5.2, R5.3, R5.4, R5.5, R5.6 -- path safety and raw or parsed YAML response modes"
+  - T5: "srd031-declarative-document-resources R6.1, R6.2, R6.3, R6.4, R6.5 -- Knowledge Manager UI assets and action placement are human actor configuration"
   - T6: "rel03.0-uc006-documentation-curator -- direct-host smoke behavior retained beside the machine_request successor proof"
   - T7: "applications/catalog profile integration suite -- concrete browser orchestration for the profile-owned tracer bullet"
 

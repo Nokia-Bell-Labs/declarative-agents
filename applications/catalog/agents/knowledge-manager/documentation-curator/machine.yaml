@@ -12,7 +12,7 @@ purpose: |-
   routes are declared in rest.yaml, documentation workflow policy is executed
   by request-machine.yaml, and every listener binds only to configured
   loopback addresses.
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
     args:
       workflow: documentation_curator

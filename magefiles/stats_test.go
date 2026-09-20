@@ -124,7 +124,7 @@ func TestSumReuseResultsAggregatesAndRanksDeterministically(t *testing.T) {
 		"module-b": {
 			TotalLines: 80, DuplicatedLines: 20, CeremonyLines: 6, BehaviorLines: 3,
 			DistinctToolDefs: 4, ToolRefs: 7,
-			ImportedUnits: 5, SharedUnits: 1, SingleImporterUnits: 4, Instantiations: 2,
+			ImportedUnits: 5, SharedUnits: 1, SingleImporterUnits: 4, Expansions: 2,
 			TopBlocks: []reusestats.DuplicateBlock{{
 				Hash: "shared", Lines: 5, Count: 2, Files: []string{"b.yaml"},
 			}},
@@ -132,7 +132,7 @@ func TestSumReuseResultsAggregatesAndRanksDeterministically(t *testing.T) {
 		"module-a": {
 			TotalLines: 20, DuplicatedLines: 5, CeremonyLines: 2, BehaviorLines: 1,
 			DistinctToolDefs: 2, ToolRefs: 3,
-			ImportedUnits: 3, SharedUnits: 2, SingleImporterUnits: 1, Instantiations: 1,
+			ImportedUnits: 3, SharedUnits: 2, SingleImporterUnits: 1, Expansions: 1,
 			TopBlocks: []reusestats.DuplicateBlock{{
 				Hash: "shared", Lines: 5, Count: 3, Files: []string{"a.yaml"},
 			}},
@@ -156,7 +156,7 @@ func TestSumReuseResultsAggregatesAndRanksDeterministically(t *testing.T) {
 		t.Fatalf("count reuse total = %#v", got)
 	}
 	if got.ImportedUnits != 8 || got.SharedUnits != 3 ||
-		got.SingleImporterUnits != 5 || got.Instantiations != 3 {
+		got.SingleImporterUnits != 5 || got.Expansions != 3 {
 		t.Fatalf("unit reuse total = %#v", got)
 	}
 	// The maintainability fold reads all samples: the median of 10, 20, 400 is

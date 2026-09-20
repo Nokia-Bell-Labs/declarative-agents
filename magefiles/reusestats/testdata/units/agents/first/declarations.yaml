@@ -5,7 +5,7 @@ imports:
 - ../../units/types-shared.yaml
 - ../../units/types-only-first.yaml
 - ../../units/types-shared.yaml
-instantiate:
+expand:
 - fragment: ../../units/embed-provider.yaml
   as: cohere
   args:

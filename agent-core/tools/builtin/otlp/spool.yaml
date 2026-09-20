@@ -1,0 +1,155 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Write delivered telemetry to the spool, replay a batch into it, and relay it onward.
+unit: builtin-otlp-spool
+tools:
+- name: load_otlp_batch
+  type: builtin
+  init: load_otlp_batch
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [BatchLoaded, CommandError]
+  description: Read and decode one trusted OTLP protobuf-JSON trace batch.
+  parameters: {type: object, properties: {}, additionalProperties: false}
+  output:
+    description: Trusted OTLP protobuf-JSON batch and metadata.
+    schema:
+      type: object
+      properties:
+        path: {type: string}
+        span_count: {type: integer}
+        batch: {type: object}
+      required: [path, span_count, batch]
+  side_effects:
+  - kind: filesystem_read
+    target: configured OTLP batch path
+    state: read_only
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Loading a batch changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the configured file cannot be read or decoded as an ExportTraceServiceRequest
+    message_shape: 'tool <name>: read|decode OTLP batch <path>: <cause>'
+    state_after_failure: relay is not invoked
+  config:
+    path: traces/replay.otlp.json
+- name: relay_spans
+  type: builtin
+  init: relay_spans
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [SpansRelayed, CommandError]
+  description: Export a selected complete trace batch unchanged to one trusted OTLP/gRPC endpoint.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Upstream endpoint and completely accepted span count.
+    schema:
+      type: object
+      properties:
+        endpoint: {type: string}
+        span_count: {type: integer}
+      required: [endpoint, span_count]
+  side_effects:
+  - kind: external_api
+    target: configured OTLP/gRPC endpoint
+    state: upstream may retain accepted spans
+  reversibility:
+    classification: irreversible
+    requires_confirmation: true
+  undo:
+    strategy: irreversible
+    description: OTLP has no operation that retracts accepted spans.
+  errors:
+  - signal: CommandError
+    condition: batch selection, connection, timeout, RPC, or upstream partial success fails
+    message_shape: 'tool <name>: relay spans to <endpoint>: <cause>'
+    state_after_failure: local spool evidence and command-state batch remain available for declared retry
+  config:
+    endpoint: jaeger:4317
+    receiver_address: 0.0.0.0:4317
+    batch_source: $.batch
+    timeout: 10s
+- name: spool_spans
+  type: builtin
+  init: spool_spans
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [SpansSpooled, CommandError]
+  description: Append a selected OTLP batch as complete stdouttrace-compatible NDJSON span lines.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Spool result plus the unchanged selected OTLP batch.
+    schema:
+      type: object
+      properties:
+        path: {type: string}
+        span_count: {type: integer}
+        bytes_written: {type: integer}
+        batch: {type: object}
+      required: [path, span_count, bytes_written, batch]
+  side_effects:
+  - kind: filesystem_write
+    target: configured spool path
+    state: appends durable audit evidence and may rotate bounded generations
+  reversibility:
+    classification: irreversible
+    requires_confirmation: true
+  undo:
+    strategy: irreversible
+    description: Appended audit evidence is retained.
+  errors:
+  - signal: CommandError
+    condition: batch selection, encoding, rotation, append, or sync fails
+    message_shape: 'tool <name>: <spool operation>: <cause>'
+    state_after_failure: relay is not invoked and the source batch remains in command state
+  config:
+    path: traces/collector.ndjson
+    batch_source: $.batch
+    max_bytes: 10485760
+    max_files: 3
+- name: spool_metrics
+  type: builtin
+  init: spool_metrics
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [MetricsSpooled, CommandError]
+  description: Append a selected OTLP metric batch as complete NDJSON metric lines carrying resource, scope, and data-point identity.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Metric spool result plus the unchanged selected OTLP batch.
+    schema:
+      type: object
+      properties:
+        path: {type: string}
+        metric_count: {type: integer}
+        data_point_count: {type: integer}
+        bytes_written: {type: integer}
+        batch: {type: object}
+      required: [path, metric_count, data_point_count, bytes_written, batch]
+  side_effects:
+  - kind: filesystem_write
+    target: configured metric spool path
+    state: appends durable audit evidence and may rotate bounded generations
+  reversibility:
+    classification: irreversible
+    requires_confirmation: true
+  undo:
+    strategy: irreversible
+    description: Appended audit evidence is retained.
+  errors:
+  - signal: CommandError
+    condition: batch selection, encoding, rotation, append, or sync fails
+    message_shape: 'tool <name>: <spool operation>: <cause>'
+    state_after_failure: the source batch remains in command state
+  config:
+    path: metrics/collector.ndjson
+    batch_source: $.batch
+    max_bytes: 10485760
+    max_files: 3

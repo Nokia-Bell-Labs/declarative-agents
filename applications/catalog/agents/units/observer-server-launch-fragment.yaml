@@ -1,0 +1,75 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Launching one of the observer's REST servers. The control and monitor
+# launches differ only in which server they name (E11, GH-2382).
+unit: catalog-observer-server-launch
+params:
+  - name: name
+    type: string
+    description: The word's name.
+  - name: description
+    type: string
+    description: What the launch does.
+  - name: rest_ref
+    type: string
+    description: The REST server definition this launch binds.
+  - name: server_target
+    type: string
+    description: The side-effect target naming the listener.
+  - name: output_description
+    type: string
+    description: What the launch returns.
+  - name: error_condition
+    type: string
+    description: What can go wrong.
+  - name: state_after_failure
+    type: string
+    description: What is left behind by a failed launch.
+  - name: undo_description
+    type: string
+    description: How the launch is undone.
+tools:
+  - name: $param(name)
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: $param(description)
+    parameters:
+      type: object
+      properties: {}
+    signature:
+      emits:
+      - ServerLaunched
+      - CommandError
+    output:
+      description: $param(output_description)
+      schema:
+        type: object
+        properties:
+          server:
+            type: string
+          address:
+            type: string
+          route_count:
+            type: integer
+          bindings:
+            type: array
+    side_effects:
+    - kind: network_listen
+      target: $param(server_target)
+      state: listener_started
+    - kind: state_mutation
+      target: rest_server_state
+      state: routes_registered
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: $param(undo_description)
+    errors:
+    - signal: CommandError
+      condition: $param(error_condition)
+      state_after_failure: $param(state_after_failure)
+    config:
+      rest_ref: $param(rest_ref)

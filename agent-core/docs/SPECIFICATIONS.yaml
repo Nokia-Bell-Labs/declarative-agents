@@ -47,15 +47,15 @@ overview: |
   Release 17.0 covers srd050 for named declaration units, explicit tool and
   REST imports, deterministic merge diagnostics, and closure usedness.
   Release 18.0 covers srd052 for parameterized declaration fragments: typed
-  parameters, hygienic instantiation before strict decoding, provenance in
+  parameters, hygienic expansion before strict decoding, provenance in
   the dump, and machine stage splicing.
   Release 19.0 covers srd051 R6.14 and R6.15: boundary and stateful_internal
   tools declare a signature naming their signals, which discharges their
   descriptive prose while their effect blocks stay explicit, and every tool
   states a category.
   Release 20.0 covers srd054 for machine templates, whole machines declared
-  once as fragments and instantiated by machine files, and srd055 for agent
-  blueprints, whole profiles instantiated per agent with their machine
+  once as fragments and expanded by machine files, and srd055 for agent
+  blueprints, whole profiles expanded per agent with their machine
   templates and units resolved relative to the blueprint. It also covers
   srd056 for unit libraries: imports under the agent-core install root or a
   root the profile declares, read-only libraries, and rooted staging, which
@@ -442,17 +442,17 @@ srd_index:
     path: docs/specs/software-requirements/srd050-declaration-imports.yaml
   - id: srd052-declaration-fragments
     title: Parameterized Declaration Fragments
-    summary: Declaration units with typed parameters, instantiated by importers with arguments; scalar-only substitution before strict decoding, the hand-written validation path, closure usedness and dump provenance for instantiations, and machine stage fragments spliced under a prefix.
+    summary: Declaration units with typed parameters, expanded by importers with arguments; scalar-only substitution before strict decoding, the hand-written validation path, closure usedness and dump provenance for expansions, and machine stage fragments spliced under a prefix.
     status: specified
     path: docs/specs/software-requirements/srd052-declaration-fragments.yaml
   - id: srd054-machine-templates
     title: Machine Templates
-    summary: Whole machines as fragments with a machine body, instantiated by machine files carrying unit, one instantiation, name, and purpose; stage splicing inside a template, validation as a hand-written machine with template and instance named, and closure, digest, dump, and staging provenance.
+    summary: Whole machines as fragments with a machine body, expanded by machine files carrying unit, one expansion, name, and purpose; stage splicing inside a template, validation as a hand-written machine with template and instance named, and closure, digest, dump, and staging provenance.
     status: specified
     path: docs/specs/software-requirements/srd054-machine-templates.yaml
   - id: srd055-agent-blueprints
     title: Agent Blueprints
-    summary: Whole agent profiles as fragments with a profile body, instantiated per agent with wholesale field overrides; blueprint-relative path resolution, direct machine template instantiation, the instance as program identity with blueprint and templates in its digest, and dump, staging, and audit provenance.
+    summary: Whole agent profiles as fragments with a profile body, expanded per agent with wholesale field overrides; blueprint-relative path resolution, direct machine template expansion, the instance as program identity with blueprint and templates in its digest, and dump, staging, and audit provenance.
     status: specified
     path: docs/specs/software-requirements/srd055-agent-blueprints.yaml
   - id: srd056-unit-libraries
@@ -749,19 +749,19 @@ use_case_index:
     test_suite: test-rel17.0-declaration-imports
     path: docs/specs/use-cases/rel17.0-uc001-declaration-imports.yaml
   - id: rel18.0-uc001-declaration-fragments
-    title: A profile instantiates parameterized declaration fragments
+    title: A profile expands parameterized declaration fragments
     release: "18.0"
     status: specified
     test_suite: test-rel18.0-declaration-fragments
     path: docs/specs/use-cases/rel18.0-uc001-declaration-fragments.yaml
   - id: rel20.0-uc001-machine-templates
-    title: A machine file instantiates a whole-machine template
+    title: A machine file expands a whole-machine template
     release: "20.0"
     status: implemented
     test_suite: test-rel20.0-machine-templates
     path: docs/specs/use-cases/rel20.0-uc001-machine-templates.yaml
   - id: rel20.0-uc002-agent-blueprints
-    title: A profile instantiates an agent blueprint
+    title: A profile expands an agent blueprint
     release: "20.0"
     status: specified
     test_suite: test-rel20.0-machine-templates

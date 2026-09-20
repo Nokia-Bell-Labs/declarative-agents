@@ -15,7 +15,7 @@ import (
 )
 
 // TestStartupWiringFaultNamesTemplateAndInstance is srd054 R2.5: a machine
-// that fails the startup wiring checks after instantiation is reported with the
+// that fails the startup wiring checks after expansion is reported with the
 // template that holds the fault beside the instance that selected it.
 func TestStartupWiringFaultNamesTemplateAndInstance(t *testing.T) {
 	root := repoRootFromTest(t)
@@ -27,7 +27,7 @@ func TestStartupWiringFaultNamesTemplateAndInstance(t *testing.T) {
 	brokenTemplate := filepath.Join(directory, "template.yaml")
 	require.NoError(t, os.WriteFile(brokenTemplate, []byte(strings.Replace(string(template), dropped, "", 1)), 0o644))
 	instance := filepath.Join(directory, "machine.yaml")
-	require.NoError(t, os.WriteFile(instance, []byte("unit: broken\ninstantiate:\n"+
+	require.NoError(t, os.WriteFile(instance, []byte("unit: broken\nexpand:\n"+
 		"  - {fragment: template.yaml, args: {launch: launch_agent_control, await: await_agent_control}}\n"), 0o644))
 
 	closure, err := internalload.LoadClosure(

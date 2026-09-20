@@ -1,0 +1,63 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The planner's issue stage: turn a plan the model could not produce into a
+# tracker issue, write its body, create it, and record the number on the
+# graph node so the next run does not re-file it.
+#
+# It is a stage because reporting a failure to a tracker is one concern and
+# the machine that splices it was over the file-length constitution (E11,
+# GH-2378).
+#
+# The edge out of IssueRecording stays with each host: the full planner goes
+# on to execute the task, and the plan-only variant extracts the next one.
+unit: catalog-planner-issue-stage
+params:
+  - name: prefix
+    type: string
+    default: ""
+    description: Prefix on the states this stage declares, to keep two expansions apart.
+  - name: failed
+    type: string
+    default: Failed
+    description: The importer's state an infrastructure failure leads to.
+stage:
+  states:
+    - name: $param(prefix)IssueFormatting
+      meaning: Formatting the parsed plan as tracker-neutral issue parameters.
+    - name: $param(prefix)IssueBodyWriting
+      meaning: Writing the issue body to the configured workspace file.
+    - name: $param(prefix)IssueCreating
+      meaning: Creating an issue through the tracker exec word selected by the profile.
+    - name: $param(prefix)IssueRecording
+      meaning: Recording the configured tracker's issue ID in planner state.
+  transitions:
+    - state: $param(prefix)IssueFormatting
+      signal: IssueFormatted
+      next: $param(prefix)IssueBodyWriting
+      action: write
+    - state: $param(prefix)IssueFormatting
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)IssueBodyWriting
+      signal: ToolDone
+      next: $param(prefix)IssueCreating
+      action: create_tracker_issue
+    - state: $param(prefix)IssueBodyWriting
+      signal: ToolFailed
+      next: $param(failed)
+    - state: $param(prefix)IssueBodyWriting
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)IssueCreating
+      signal: ToolDone
+      next: $param(prefix)IssueRecording
+      action: record_tracker_issue
+    - state: $param(prefix)IssueCreating
+      signal: ToolFailed
+      next: $param(failed)
+    - state: $param(prefix)IssueCreating
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)IssueRecording
+      signal: CommandError
+      next: $param(failed)

@@ -31,14 +31,14 @@ flow:
   - F8: A scenario whose mock fixture scripts a failure response exercises the subject's failure path, and the validator asserts the subject's clean failure terminal, so the scenario still passes.
 
 touchpoints:
-  - T1: "srd039-mock-endpoint-binding R2 -- the mock serves canned, scripted responses from the scenario fixture"
-  - T2: "srd039-mock-endpoint-binding R3 -- the validator reads the mock request log to assert the subject's outbound calls"
-  - T3: "srd040-service-child-tools R1 -- serve-mode children start with injected environment and a reported base URL"
-  - T4: "srd040-service-child-tools R2 -- children are health-checked within a declared bound"
-  - T5: "srd040-service-child-tools R3 -- children stop cleanly with no surviving process group"
-  - T6: "srd040-service-child-tools R4 -- each validator is a visible child dispatch with an ordered join"
-  - T7: "srd040-service-child-tools R5 -- scenarios are discovered as data under declared roots"
-  - T8: "srd028-rest-client-tools R2 -- the subject's dependency base_url resolves through declared config with environment expansion"
+  - T1: "srd039-mock-endpoint-binding R2.1, R2.2, R2.3, R2.4, R2.5 -- the mock serves canned, scripted responses from the scenario fixture"
+  - T2: "srd039-mock-endpoint-binding R3.1, R3.2, R3.3 -- the validator reads the mock request log to assert the subject's outbound calls"
+  - T3: "srd040-service-child-tools R1.1, R1.2, R1.3, R1.4, R1.5 -- serve-mode children start with injected environment and a reported base URL"
+  - T4: "srd040-service-child-tools R2.1, R2.2, R2.3, R2.4 -- children are health-checked within a declared bound"
+  - T5: "srd040-service-child-tools R3.1, R3.2, R3.3, R3.4 -- children stop cleanly with no surviving process group"
+  - T6: "srd040-service-child-tools R4.1, R4.2, R4.3, R4.4, R4.5 -- each validator is a visible child dispatch with an ordered join"
+  - T7: "srd040-service-child-tools R5.1, R5.2, R5.3, R5.4 -- scenarios are discovered as data under declared roots"
+  - T8: "srd028-rest-client-tools R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7 -- the subject's dependency base_url resolves through declared config with environment expansion"
 
 success_criteria:
   - id: S1

@@ -19,7 +19,7 @@ type declarationEdge struct {
 	kind     string
 	importer declarationOwner
 	imported declarationOwner
-	// args names the arguments when the edge is an instantiation, so the
+	// args names the arguments when the edge is an expansion, so the
 	// diagnostic says which application of a fragment went unused (srd052 R3.1).
 	args string
 }
@@ -298,7 +298,7 @@ func unusedImportDiagnostics(
 
 func unusedEdgeDiagnostic(kind string, edge declarationEdge) string {
 	if edge.args != "" {
-		return fmt.Sprintf("%s fragment %q at %s instantiated with (%s) by unit %q at %s",
+		return fmt.Sprintf("%s fragment %q at %s expanded with (%s) by unit %q at %s",
 			kind, edge.imported.unit, edge.imported.path, edge.args,
 			edge.importer.unit, edge.importer.path)
 	}

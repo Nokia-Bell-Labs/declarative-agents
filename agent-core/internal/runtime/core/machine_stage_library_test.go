@@ -21,7 +21,7 @@ func TestLoadMachineClosureSplicesAStageFromTheAgentCoreLibrary(t *testing.T) {
 	corepath.SetInstallRoot(installRoot)
 	t.Cleanup(func() { corepath.SetInstallRoot("") })
 	root := writeStageFixture(t, map[string]string{
-		"machine.yaml": machineHead + `instantiate:
+		"machine.yaml": machineHead + `expand:
   - {fragment: /opt/agent-core/tools/machines/run.yaml, args: {prefix: Embed, enter: Embed, word: embed_query}}
 transitions:
   - {state: Ready, signal: Seed, next: Done}
@@ -32,5 +32,5 @@ transitions:
 
 	require.NoError(t, err)
 	require.Contains(t, spec.States.Names(), "EmbedRunning")
-	require.Equal(t, filepath.Join(installRoot, "tools", "machines", "run.yaml"), spec.Instantiations()[0].Fragment)
+	require.Equal(t, filepath.Join(installRoot, "tools", "machines", "run.yaml"), spec.Expansions()[0].Fragment)
 }

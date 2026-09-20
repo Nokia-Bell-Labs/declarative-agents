@@ -23,7 +23,7 @@ func TestToolImportsAndFragmentsResolveUnderTheAgentCoreLibrary(t *testing.T) {
 	t.Cleanup(func() { corepath.SetInstallRoot("") })
 	top := writeToolImportFixture(t, t.TempDir(), "agents/rag/declarations.yaml", `unit: rag
 imports: [/opt/agent-core/tools/units/words.yaml]
-instantiate:
+expand:
 - {fragment: /opt/agent-core/tools/units/embed.yaml, as: cohere, args: {provider: cohere}}
 tools: []
 `)
@@ -40,7 +40,7 @@ tools: []
 func TestToolFragmentOutsideALibraryRootIsRejected(t *testing.T) {
 	elsewhere := writeToolImportFixture(t, t.TempDir(), "embed.yaml", embedFragment)
 	top := writeToolImportFixture(t, t.TempDir(), "declarations.yaml",
-		"unit: rag\ninstantiate:\n- {fragment: "+elsewhere+", args: {provider: cohere}}\ntools: []\n")
+		"unit: rag\nexpand:\n- {fragment: "+elsewhere+", args: {provider: cohere}}\ntools: []\n")
 
 	_, err := newToolImportResolver(nil).loadRoots([]string{top})
 

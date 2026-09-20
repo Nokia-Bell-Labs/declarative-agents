@@ -18,17 +18,17 @@ var toolUnitName = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 
 // ToolDefsFile is the top-level YAML structure for declaration files.
 type ToolDefsFile struct {
-	Unit           string                    `yaml:"unit,omitempty"`
-	Imports        []string                  `yaml:"imports,omitempty"`
-	Params         []fragments.Param         `yaml:"params,omitempty"`
-	Instantiate    []fragments.Instantiation `yaml:"instantiate,omitempty"`
-	Tools          []ToolDef                 `yaml:"tools,omitempty"`
-	Types          []typesys.TypeDecl        `yaml:"types,omitempty"`
-	hasTools       bool
-	hasTypes       bool
-	hasImports     bool
-	hasParams      bool
-	hasInstantiate bool
+	Unit       string                `yaml:"unit,omitempty"`
+	Imports    []string              `yaml:"imports,omitempty"`
+	Params     []fragments.Param     `yaml:"params,omitempty"`
+	Expand     []fragments.Expansion `yaml:"expand,omitempty"`
+	Tools      []ToolDef             `yaml:"tools,omitempty"`
+	Types      []typesys.TypeDecl    `yaml:"types,omitempty"`
+	hasTools   bool
+	hasTypes   bool
+	hasImports bool
+	hasParams  bool
+	hasExpand  bool
 }
 
 // IsTypeUnit reports a declaration file that carries types instead of tools
@@ -37,7 +37,7 @@ type ToolDefsFile struct {
 func (f ToolDefsFile) IsTypeUnit() bool { return f.hasTypes && !f.hasTools }
 
 // IsFragment reports a declaration file with declared parameters, which is
-// only ever instantiated and never imported plainly (srd052 R1.1, R2.6).
+// only ever expanded and never imported plainly (srd052 R1.1, R2.6).
 func (f ToolDefsFile) IsFragment() bool { return f.hasParams }
 
 // ToolSource identifies the declaration unit and file that owns one tool.
@@ -47,8 +47,8 @@ type ToolSource struct {
 }
 
 // ToolImport is one authored dependency between declaration units. Args is
-// set when the edge is an instantiation rather than an import, carrying the
-// arguments so an unused-instantiation diagnostic can name them (srd052 R3.1).
+// set when the edge is an expansion rather than an import, carrying the
+// arguments so an unused-expansion diagnostic can name them (srd052 R3.1).
 type ToolImport struct {
 	Importer ToolSource
 	Imported ToolSource
@@ -177,7 +177,7 @@ func (r *toolImportResolver) resolveFile(file ToolDefsFile, path string) ([]Tool
 	if err := r.resolveConfigFiles(local, path); err != nil {
 		return nil, fmt.Errorf("tool unit %q at %s: %w", file.Unit, path, err)
 	}
-	if len(file.Imports) == 0 && len(file.Instantiate) == 0 {
+	if len(file.Imports) == 0 && len(file.Expand) == 0 {
 		if hasToolOverride(local) {
 			return nil, fmt.Errorf("tool unit %q at %s declares override without an imported target", file.Unit, path)
 		}
@@ -190,19 +190,19 @@ func (r *toolImportResolver) resolveFile(file ToolDefsFile, path string) ([]Tool
 	return applyLocalTools(dependencies, local, source)
 }
 
-// resolveDependencies gathers what a unit imports and what it instantiates.
-// Both arrive as imported tools: an instantiation is an import whose unit was
+// resolveDependencies gathers what a unit imports and what it expands.
+// Both arrive as imported tools: an expansion is an import whose unit was
 // filled in on the way (srd052 R2.4).
 func (r *toolImportResolver) resolveDependencies(file ToolDefsFile, path string) ([]ToolDef, error) {
 	imported, err := r.resolveImports(file, path)
 	if err != nil {
 		return nil, err
 	}
-	instantiated, err := r.resolveInstantiations(file, path)
+	expanded, err := r.resolveExpansions(file, path)
 	if err != nil {
 		return nil, err
 	}
-	merged, err := mergeImportedTools(imported, instantiated)
+	merged, err := mergeImportedTools(imported, expanded)
 	if err != nil {
 		return nil, fmt.Errorf("tool unit %q at %s: %w", file.Unit, path, err)
 	}
@@ -309,7 +309,7 @@ func (r *toolImportResolver) registerUnit(unit, path string) error {
 }
 
 func (r *toolImportResolver) registerEdges(file ToolDefsFile, path string) {
-	if len(file.Imports) > 0 || len(file.Instantiate) > 0 {
+	if len(file.Imports) > 0 || len(file.Expand) > 0 {
 		r.hasImportEdges = true
 	}
 }

@@ -1,0 +1,86 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The planner's plan stage: clear history, assemble the prompt, project the
+# context it may read, call the model, and parse what comes back. A parse
+# error routes to the importer's reporting state rather than failing the run.
+#
+# This is the concern the pass-through variant does not have: it executes
+# extracted tasks directly and never asks a model for a plan. Naming it a
+# stage is what makes the two variants read as a difference in composition
+# rather than in bulk (E11, GH-2378).
+unit: catalog-planner-plan-stage
+params:
+  - name: prefix
+    type: string
+    default: ""
+    description: Prefix on the states this stage declares, to keep two expansions apart.
+  - name: failed
+    type: string
+    default: Failed
+    description: The importer's state an infrastructure failure leads to.
+stage:
+  states:
+    - name: $param(prefix)Resetting
+      meaning: Clearing conversation history before a new task's LLM call.
+    - name: $param(prefix)PromptAssembly
+      meaning: Assembling the prompt for the task in hand.
+    - name: $param(prefix)ProjectingPromptContext
+      meaning: Publishing prompt-neutral task and SRD fields for profile composition.
+    - name: $param(prefix)PlanInvoking
+      meaning: Calling the LLM to generate an implementation plan.
+    - name: $param(prefix)PlanParsing
+      meaning: Parsing the LLM response as a YAML implementation plan.
+    - name: $param(prefix)ReportingParseError
+      meaning: Feeding an invalid plan response back to the LLM and tracking the explicit parse retry budget.
+  transitions:
+    - state: $param(prefix)Resetting
+      signal: ToolDone
+      next: $param(prefix)ProjectingPromptContext
+      action: project_planner_context
+      label: planner_context
+    - state: $param(prefix)Resetting
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)ProjectingPromptContext
+      signal: PlannerContextProjected
+      next: $param(prefix)PromptAssembly
+      action: compose_planner_prompt
+    - state: $param(prefix)ProjectingPromptContext
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)PromptAssembly
+      signal: PromptReady
+      next: $param(prefix)PlanInvoking
+      action: invoke_llm
+    - state: $param(prefix)PromptAssembly
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)PlanInvoking
+      signal: LLMResponded
+      next: $param(prefix)PlanParsing
+      action: parse_plan
+    - state: $param(prefix)PlanInvoking
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)PlanParsing
+      signal: PlanReady
+      next: IssueFormatting
+      action: format_issue
+      label: issue_input
+    - state: $param(prefix)PlanParsing
+      signal: ParseFailed
+      next: $param(prefix)ReportingParseError
+      action: report_parse_error
+    - state: $param(prefix)PlanParsing
+      signal: CommandError
+      next: $param(failed)
+    - state: $param(prefix)ReportingParseError
+      signal: ToolDone
+      next: $param(prefix)PlanInvoking
+      action: invoke_llm
+    - state: $param(prefix)ReportingParseError
+      signal: BudgetExhausted
+      next: $param(failed)
+    - state: $param(prefix)ReportingParseError
+      signal: CommandError
+      next: $param(failed)

@@ -367,6 +367,10 @@ func TestPlannerTrackerCommandIsProfileConfiguredExec(t *testing.T) {
 	}
 }
 
+// readPlannerYAML decodes a planner machine with its stage expansions spliced
+// in, so a test asserts the machine the runtime builds rather than the file on
+// disk. The variants splice a shared execution stage under E11 (GH-2378), and
+// a test reading the file alone would see a machine missing half its states.
 func readPlannerYAML(t *testing.T, name string, target any) {
 	t.Helper()
 	path := filepath.Join("..", "agents", "planner", name)
@@ -374,9 +378,86 @@ func readPlannerYAML(t *testing.T, name string, target any) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := yaml.Unmarshal(data, target); err != nil {
+	if err := yaml.Unmarshal(expandPlannerStages(t, path, data), target); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// expandPlannerStages splices each expanded stage's states and transitions
+// into the document, so a test asserts the machine the runtime builds rather
+// than the file on disk. The variants splice a shared execution stage under
+// E11 (GH-2378), and a test reading the file alone sees a machine missing half
+// its states.
+//
+// Substitution is textual over the fragment's bytes, which is what the loader
+// does for scalars. No stage here substitutes inside a mapping name, so the
+// rule that forbids it (srd052 R2.3) is not in play.
+func expandPlannerStages(t *testing.T, path string, data []byte) []byte {
+	t.Helper()
+	var doc struct {
+		Expand []struct {
+			Fragment string            `yaml:"fragment"`
+			Args     map[string]string `yaml:"args"`
+		} `yaml:"expand"`
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Expand) == 0 {
+		return data
+	}
+	whole := map[string]any{}
+	if err := yaml.Unmarshal(data, &whole); err != nil {
+		t.Fatal(err)
+	}
+	states, _ := whole["states"].([]any)
+	transitions, _ := whole["transitions"].([]any)
+
+	for _, expansion := range doc.Expand {
+		raw, err := os.ReadFile(filepath.Join(filepath.Dir(path), filepath.FromSlash(expansion.Fragment)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var declared struct {
+			Params []struct {
+				Name    string `yaml:"name"`
+				Default string `yaml:"default"`
+			} `yaml:"params"`
+		}
+		if err := yaml.Unmarshal(raw, &declared); err != nil {
+			t.Fatal(err)
+		}
+		args := map[string]string{}
+		for _, param := range declared.Params {
+			args[param.Name] = param.Default
+		}
+		for name, value := range expansion.Args {
+			args[name] = value
+		}
+		text := string(raw)
+		for name, value := range args {
+			text = strings.ReplaceAll(text, "$param("+name+")", value)
+		}
+		var fragment struct {
+			Stage struct {
+				States      []any `yaml:"states"`
+				Transitions []any `yaml:"transitions"`
+			} `yaml:"stage"`
+		}
+		if err := yaml.Unmarshal([]byte(text), &fragment); err != nil {
+			t.Fatal(err)
+		}
+		states = append(states, fragment.Stage.States...)
+		transitions = append(transitions, fragment.Stage.Transitions...)
+	}
+
+	whole["states"] = states
+	whole["transitions"] = transitions
+	spliced, err := yaml.Marshal(whole)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return spliced
 }
 
 func containsPlannerWord(words []string, want string) bool {

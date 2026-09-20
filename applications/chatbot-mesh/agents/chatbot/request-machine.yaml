@@ -165,6 +165,6 @@ transitions:
   - {state: Finalizing, signal: CommandError, next: Failed}
 # The question is embedded once at the bound provider and normalized to one
 # flat vector before the model identity is declared (srd058 R4.1).
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/embed-query-stage-fragment.yaml
     args: {from: AwaitingRequest, enter: Seed, next: DeclaringModel, next_action: declare_query_model}

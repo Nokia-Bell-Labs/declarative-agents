@@ -3,7 +3,7 @@
 
 // Package fragments holds the parameter and substitution rules of a
 // parameterized declaration fragment (srd052). A fragment declares typed
-// parameters; an importer instantiates it with arguments; substitution fills
+// parameters; an importer expands it with arguments; substitution fills
 // scalar holes and nothing else. The loader owns where this runs; this package
 // owns what an argument may be and where it may land.
 package fragments
@@ -24,8 +24,8 @@ type Param struct {
 	Description string   `yaml:"description,omitempty"`
 }
 
-// Instantiation is one importer's application of a fragment (srd052 R2.1).
-type Instantiation struct {
+// Expansion is one importer's application of a fragment (srd052 R2.1).
+type Expansion struct {
 	Fragment string            `yaml:"fragment"`
 	As       string            `yaml:"as,omitempty"`
 	Args     map[string]string `yaml:"args,omitempty"`

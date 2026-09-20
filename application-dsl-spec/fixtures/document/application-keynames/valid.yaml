@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-001: a minimal application-profile with required keynames.
+schema_version: 1
+application: example
+ownership: agent-owning
+capabilities:
+  runnable_module:
+    status: implemented
+    evidence:
+      - go test ./...
+roots:
+  - id: worker
+    ownership: local
+    source: agents/worker/profile.yaml

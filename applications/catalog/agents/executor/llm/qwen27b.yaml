@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-executor-llm-qwen27b
 # The executor bound to qwen3.6:27b-mlx (catalog-invoke-llm-model-fragment).
-instantiate:
+expand:
   - fragment: ../../units/invoke-llm-model-fragment.yaml
     args:
       model: "qwen3.6:27b-mlx"

@@ -111,6 +111,6 @@ transitions:
 # The embedding opening: the composed question is embedded at the bound
 # provider and normalized to one flat vector before the collection step
 # (srd058 R4.1).
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/embed-query-stage-fragment.yaml
     args: {from: ComposingQuestion, enter: QuestionReady, next: ResolvingCollection, next_action: resolve_collection}

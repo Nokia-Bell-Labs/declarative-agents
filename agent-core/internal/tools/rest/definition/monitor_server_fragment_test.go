@@ -14,7 +14,7 @@ import (
 
 // The shipped monitor server fragment (srd057 R1). Every agent serves the same
 // eight monitor views and differs only in where it binds, so the server is one
-// instantiation. The install root is process-scoped, so these tests do not run
+// expansion. The install root is process-scoped, so these tests do not run
 // in parallel.
 
 const monitorServerFragment = "/opt/agent-core/tools/rest/units/monitor-server-fragment.yaml"
@@ -29,10 +29,10 @@ func installedAgentCore(t *testing.T) {
 	t.Cleanup(func() { corepath.SetInstallRoot("") })
 }
 
-func monitorInstantiation(t *testing.T) string {
+func monitorExpansion(t *testing.T) string {
 	t.Helper()
 	return writeImportFixture(t, t.TempDir(), "monitor-rest.yaml", `unit: probe-monitor-rest
-instantiate:
+expand:
 - fragment: `+monitorServerFragment+`
   args: {address: "127.0.0.1:19999", limits_ref: probe_monitor, queue_name: probe_monitor}
 rest:
@@ -45,7 +45,7 @@ rest:
 func TestMonitorServerFragmentProducesTheEightViews(t *testing.T) {
 	installedAgentCore(t)
 
-	def, err := LoadDefinitionClosure([]string{monitorInstantiation(t)}, nil)
+	def, err := LoadDefinitionClosure([]string{monitorExpansion(t)}, nil)
 
 	require.NoError(t, err)
 	server, ok := def.Servers["monitor"]
@@ -69,7 +69,7 @@ func TestMonitorServerFragmentProducesTheEightViews(t *testing.T) {
 func TestMonitorServerFragmentBindsWhereItsArgumentsSay(t *testing.T) {
 	installedAgentCore(t)
 
-	def, err := LoadDefinitionClosure([]string{monitorInstantiation(t)}, nil)
+	def, err := LoadDefinitionClosure([]string{monitorExpansion(t)}, nil)
 
 	require.NoError(t, err)
 	server := def.Servers["monitor"]
@@ -81,7 +81,7 @@ func TestMonitorServerFragmentBindsWhereItsArgumentsSay(t *testing.T) {
 func TestMonitorServerFragmentRequiresItsAddress(t *testing.T) {
 	installedAgentCore(t)
 	top := writeImportFixture(t, t.TempDir(), "monitor-rest.yaml", `unit: probe-monitor-rest
-instantiate:
+expand:
 - fragment: `+monitorServerFragment+`
   args: {limits_ref: probe_monitor, queue_name: probe_monitor}
 rest: {}

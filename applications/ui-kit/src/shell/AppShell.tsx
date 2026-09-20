@@ -1,7 +1,8 @@
-import { useMemo, useState, type ComponentType } from "react";
+import { useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { createKitClient, type KitClient } from "../client/client";
 import { KitClientProvider } from "../client/context";
 import type { KitPanel, PanelProps } from "../panels/manifest";
+import type { PanelRoute } from "./paths";
 import { kitPanelRegistry } from "../panels/registry";
 import { PanelFrame } from "./PanelFrame";
 import { Sidebar } from "./Sidebar";
@@ -19,22 +20,36 @@ export interface AppShellProps {
   registry?: PanelRegistry;
   // Defaults to a same-origin client (srd004 R6.1).
   client?: KitClient;
+  // Sidebar content that is not a panel, passed through to Sidebar: rendered
+  // under each entry and after all of them (GH-2292).
+  sidebarExtra?(route: PanelRoute): ReactNode;
+  sidebarFooter?: ReactNode;
 }
 
 // AppShell is the generic application shell (srd004 R5): sidebar and routes
 // come from ui.yaml alone, panels mount from the application registry or, for
 // kit panels, from the kit registry by export, and the URL scheme is the
 // shared splitPanelPath one (R5.3).
-export function AppShell({ config, registry = {}, client }: AppShellProps) {
+export function AppShell({ config, registry = {}, client, sidebarExtra, sidebarFooter }: AppShellProps) {
   const [fallback] = useState(() => createKitClient());
   return (
     <KitClientProvider client={client ?? fallback}>
-      <ShellBody config={config} registry={registry} />
+      <ShellBody config={config} registry={registry} sidebarExtra={sidebarExtra} sidebarFooter={sidebarFooter} />
     </KitClientProvider>
   );
 }
 
-function ShellBody({ config, registry }: { config: UIConfig; registry: PanelRegistry }) {
+function ShellBody({
+  config,
+  registry,
+  sidebarExtra,
+  sidebarFooter,
+}: {
+  config: UIConfig;
+  registry: PanelRegistry;
+  sidebarExtra?(route: PanelRoute): ReactNode;
+  sidebarFooter?: ReactNode;
+}) {
   const routing = useMemo(() => routingFromConfig(config), [config]);
   const location = usePanelLocation(routing);
   const panels = useMemo(() => new Map((config.panels ?? []).map((panel) => [panel.id, panel])), [config]);
@@ -59,6 +74,8 @@ function ShellBody({ config, registry }: { config: UIConfig; registry: PanelRegi
             active={active}
             href={location.href}
             onNavigate={location.navigate}
+            sidebarExtra={sidebarExtra}
+            sidebarFooter={sidebarFooter}
           />
         }
       >

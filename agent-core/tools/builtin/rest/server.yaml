@@ -1,0 +1,167 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# REST server lifecycle words and the event await.
+unit: builtin-rest-server
+tools:
+  - name: rest_server_launch
+    type: builtin
+    init: rest_server_launch
+    category: boundary
+    description: Launch configured REST server routes without blocking on requests.
+    parameters:
+      type: object
+      properties: {}
+    signature:
+      emits: [ServerLaunched, CommandError]
+    output:
+      description: Structured server launch result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          route_count: {type: integer}
+          bindings: {type: array, items: {type: string}}
+    side_effects:
+      - kind: network_listen
+        target: configured_rest_server
+        state: listener_started
+      - kind: state_mutation
+        target: rest_server_state
+        state: server_registered
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Validate the launch receipt and stop only its process-local owned listener; absence in a fresh process is already compensated.
+      payload: rest_server_launch
+      captures: [strategy, declaration, server, address, ownership]
+      requires: [receipt]
+    errors:
+      - signal: CommandError
+        condition: Config decode, bind, route conflict, machine_request setup, or schema failure.
+        message_shape: "rest_server_launch: <stage>: <redacted diagnostic>"
+        state_after_failure: Partial launch cleans up owned listener state.
+    config:
+      rest_ref: ""
+  - name: rest_server_await
+    type: builtin
+    init: rest_server_await
+    category: boundary
+    description: Await inbound events from a configured REST server queue.
+    parameters:
+      type: object
+      properties: {}
+    signature:
+      emits: [AwaitTimedOut, ServerStopped, CommandError]
+    output:
+      description: Structured inbound event result.
+      schema:
+        type: object
+        properties:
+          source: {type: string}
+          route: {type: string}
+          signal: {type: string}
+          request_id: {type: string}
+          payload: {type: object}
+    side_effects:
+      - kind: state_mutation
+        target: rest_server_queue
+        state: event_consumed
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: queue_event_restore
+      description: Restore the receipt-recorded event to the front of its server queue.
+      payload: rest_await_event
+      captures: [source, event]
+    errors:
+      - signal: CommandError
+        condition: Missing server, queue closed, timeout, or payload decode failure.
+        message_shape: "rest_server_await: <stage>: <redacted diagnostic>"
+        state_after_failure: Queue state remains according to server policy.
+    config:
+      rest_ref: ""
+  - name: rest_await_event
+    type: builtin
+    init: rest_await_event
+    category: boundary
+    description: Await one inbound REST event from configured server sources.
+    parameters:
+      type: object
+      properties: {}
+    signature:
+      emits: [AwaitTimedOut, ServerStopped, CommandError]
+    output:
+      description: Structured selected REST event.
+      schema:
+        type: object
+        properties:
+          source: {type: string}
+          route: {type: string}
+          method: {type: string}
+          signal: {type: string}
+          request_id: {type: string}
+          payload: {type: object}
+    side_effects:
+      - kind: state_mutation
+        target: rest_server_queue
+        state: selected_event_consumed
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: queue_event_restore
+      description: Restore the receipt-recorded event to the front of its source server queue.
+      payload: rest_await_event
+      captures: [source, event]
+    errors:
+      - signal: CommandError
+        condition: Missing sources, unknown configured server, queue closed, stopped-source failure, or payload decode failure.
+        message_shape: "rest_await_event: <stage>: <redacted diagnostic>"
+        state_after_failure: Filtered events remain queued in REST server state.
+    config:
+      rest_ref: ""
+      sources: []
+      timeout: 30s
+      stopped_behavior: emit_server_stopped
+  - name: rest_server_stop
+    type: builtin
+    init: rest_server_stop
+    category: boundary
+    description: Stop a configured REST server and drain or fail queued events.
+    parameters:
+      type: object
+      properties: {}
+    signature:
+      emits: [ServerStopped, CommandError]
+    output:
+      description: Structured server stop result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          drained_events: {type: integer}
+          dropped_events: {type: integer}
+          status: {type: string}
+    side_effects:
+      - kind: network_listener_shutdown
+        target: configured_rest_server
+        state: listener_stopped
+      - kind: state_mutation
+        target: rest_server_state
+        state: server_stopped
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: server_shutdown_or_user_action_compensation
+      description: The receipt records shutdown loss; MachineSpec must relaunch the trusted server definition.
+      payload: boundary_compensation
+      captures: [server, address, drained_events, dropped_events, relaunch_requirement]
+    errors:
+      - signal: CommandError
+        condition: Missing server, shutdown timeout, cleanup failure, or drain failure.
+        message_shape: "rest_server_stop: <stage>: <redacted diagnostic>"
+        state_after_failure: Server state reports partial shutdown when cleanup fails.
+    config:
+      rest_ref: ""

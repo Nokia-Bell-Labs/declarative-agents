@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -123,9 +124,9 @@ func mustCollect(t *testing.T, base string, roots ...string) Result {
 }
 
 // TestCollectCountsUnitEdges pins the reuse acceptance rule of GH-2079: a
-// unit earns its place with two importers or an instantiation. The fixture
+// unit earns its place with two importers or an expansion. The fixture
 // has one unit two files import, one unit one file imports twice (one
-// importer, not two), and one fragment instantiated once, which is also an
+// importer, not two), and one fragment expanded once, which is also an
 // importer edge of that fragment.
 func TestCollectCountsUnitEdges(t *testing.T) {
 	result := mustCollect(t, ".", "testdata/units")
@@ -139,15 +140,15 @@ func TestCollectCountsUnitEdges(t *testing.T) {
 	if result.SingleImporterUnits != 2 {
 		t.Fatalf("SingleImporterUnits = %d, want 2", result.SingleImporterUnits)
 	}
-	if result.Instantiations != 1 {
-		t.Fatalf("Instantiations = %d, want 1", result.Instantiations)
+	if result.Expansions != 1 {
+		t.Fatalf("Expansions = %d, want 1", result.Expansions)
 	}
 }
 
 func TestCollectWithoutImportsReportsNoUnits(t *testing.T) {
 	result := mustCollect(t, ".", "testdata/fixture")
 	if result.ImportedUnits != 0 || result.SharedUnits != 0 ||
-		result.SingleImporterUnits != 0 || result.Instantiations != 0 {
+		result.SingleImporterUnits != 0 || result.Expansions != 0 {
 		t.Fatalf("fixture without imports reported units: %#v", result)
 	}
 }
@@ -178,11 +179,37 @@ func TestCollectCountsTemplateMachineActions(t *testing.T) {
 	root := t.TempDir()
 	writeReuseFixture(t, root, "template.yaml", "unit: serve\nparams:\n  - {name: word, type: string}\nmachine:\n  transitions:\n"+
 		"    - {state: Idle, signal: Seed, next: Serving, action: launch}\n    - {state: Serving, signal: Tick, next: Serving, action: $tool}\n")
-	writeReuseFixture(t, root, "instance.yaml", "unit: one\ninstantiate:\n  - fragment: template.yaml\n    args: {word: go}\n")
+	writeReuseFixture(t, root, "instance.yaml", "unit: one\nexpand:\n  - fragment: template.yaml\n    args: {word: go}\n")
 
 	result := mustCollect(t, root, ".")
 
 	if result.ToolRefs != 1 {
 		t.Fatalf("ToolRefs = %d, want 1 from the template body ($tool excluded)", result.ToolRefs)
+	}
+}
+
+// The GH-2362 guard, and the reason the field and its tag disagree.
+//
+// The dump surface took the expansion vocabulary; this metrics key did not,
+// because it is a series with a committed baseline and renaming it makes every
+// historical figure incomparable. A later rename pass reading only the Go
+// field would "finish the job" and silently break that series, so the wire
+// name is asserted rather than left to a comment (srd052 R3.3, AC6).
+func TestReuseStatisticsKeepTheInstantiationsWireKey(t *testing.T) {
+	t.Parallel()
+	field, ok := reflect.TypeOf(Result{}).FieldByName("Expansions")
+	if !ok {
+		t.Fatal("Result has no Expansions field; the Go vocabulary should follow the specification")
+	}
+	if got := field.Tag.Get("json"); got != "instantiations" {
+		t.Errorf("Expansions json tag = %q, want \"instantiations\": the key is a metrics series with a committed baseline at docs/stats/reuse-units-baseline.json", got)
+	}
+	// And the emitted document carries it, not merely the struct tag.
+	encoded, err := json.Marshal(Result{Expansions: 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"instantiations":7`) {
+		t.Errorf("encoded result = %s, want it to carry \"instantiations\"", encoded)
 	}
 }

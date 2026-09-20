@@ -21,14 +21,14 @@ Only the machine and one tools entry are required. Paths under `/opt/agent-core/
 
 ```mermaid
 graph LR
-  T[machine templates<br/>agent-core/tools/machines] -->|instantiate| M[machine.yaml]
-  F[declaration fragments<br/>units/*.yaml] -->|instantiate / imports| D[declarations.yaml]
+  T[machine templates<br/>agent-core/tools/machines] -->|expand| M[machine.yaml]
+  F[declaration fragments<br/>units/*.yaml] -->|expand / imports| D[declarations.yaml]
   CP[capability profile] -->|self_invoke| D
   CP -->|machine_request| R[rest.yaml]
   CP -->|hosted by| W[serving wrapper / blueprint instance]
 ```
 
-Reuse operates at three layers. At the fragment layer, machines instantiate parameterized templates and declaration files import or instantiate shared units (see [fragments.md](fragments.md)). At the path layer, several profiles reference the same files directly; the four coding-agent server profiles share one `role-server/{machine,tools,declarations}.yaml` and differ only in `rest.yaml`. At the profile layer, a whole profile becomes a unit another agent consumes — a capability profile (see [capability-profiles.md](capability-profiles.md)).
+Reuse operates at three layers. At the fragment layer, machines expand parameterized templates and declaration files import or expand shared units (see [fragments.md](fragments.md)). At the path layer, several profiles reference the same files directly; the four coding-agent server profiles share one `role-server/{machine,tools,declarations}.yaml` and differ only in `rest.yaml`. At the profile layer, a whole profile becomes a unit another agent consumes — a capability profile (see [capability-profiles.md](capability-profiles.md)).
 
 There is no profile-includes-profile mechanism, and that is a decision rather than a gap: composition stays at the fragment and path layers, where the closure remains inspectable and content-hashable.
 

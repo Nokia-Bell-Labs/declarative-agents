@@ -22,7 +22,7 @@ signals:
   - {name: ServerStopped, trigger: Server stopped.}
   - {name: AgentExited, trigger: exit_agent requested shutdown.}
   - {name: CommandError, trigger: Runtime failure.}
-instantiate:
+expand:
   - fragment: ../../units/control-stage-fragment.yaml
     args:
       prefix: Patient

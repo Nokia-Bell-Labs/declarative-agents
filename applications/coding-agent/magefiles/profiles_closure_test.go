@@ -462,7 +462,7 @@ machine: machine.yaml
 tool_declarations: [declarations.yaml]
 `)
 	writeTestFile(t, filepath.Join(root, "agents/planner/machine.yaml"),
-		"unit: planner\ninstantiate: {fragment: /opt/shared/machines/serve.yaml, args: {}}\n")
+		"unit: planner\nexpand: {fragment: /opt/shared/machines/serve.yaml, args: {}}\n")
 	writeTestFile(t, filepath.Join(root, "agents/planner/declarations.yaml"),
 		"imports: [/opt/shared/units/x.yaml, /opt/agent-core/tools/units/types-core.yaml]\ntools: []\n")
 	writeTestFile(t, filepath.Join(root, "agents/lib/units/x.yaml"), "unit: x\ntools: []\n")

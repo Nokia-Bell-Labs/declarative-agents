@@ -647,12 +647,12 @@ declaration_files:
 fragment_files:
   description: |
     A tool declaration file MAY be a fragment: a unit with declared, typed
-    parameters that another file instantiates with arguments
+    parameters that another file expands with arguments
     (srd052-declaration-fragments). The two file-level fields below sit
     beside `unit` and `imports` (srd050). A fragment is only ever
-    instantiated; listing one under `imports` is a load error. Substitution
+    expanded; listing one under `imports` is a load error. Substitution
     replaces `$param(name)` inside scalar values only, never inside mapping
-    names or list structure, and the instantiated document is decoded and
+    names or list structure, and the expanded document is decoded and
     validated exactly as a hand-written file would be. Nothing generated is
     committed. Arriving with GH-2081.
   fields:
@@ -665,15 +665,15 @@ fragment_files:
         optionally `enum`, `default`, and `description`. `type` is one of
         string, integer, number, boolean. A file with `params` and no body,
         or a body with a `$param(` reference and no `params`, fails to load.
-    - field: instantiate
-      type: "[]instantiation"
+    - field: expand
+      type: "[]expansion"
       required: false
       description: |
-        Instantiates fragments into this file's closure. Each entry carries
+        Expands fragments into this file's closure. Each entry carries
         `fragment`, a path relative to this file under the import rules;
         `args`, a mapping from parameter name to value; and optionally `as`,
-        a prefix applied as `<as>_` to every name the instantiation produces
-        so one fragment can be instantiated more than once. Every parameter
+        a prefix applied as `<as>_` to every name the expansion produces
+        so one fragment can be expanded more than once. Every parameter
         without a default must be supplied; an unknown argument, a wrong type,
         or a value outside an enum fails naming this file, the fragment, and
         the parameter.
@@ -702,7 +702,7 @@ fragment_files:
     unit: rag
     imports:
     - ../units/types-core.yaml
-    instantiate:
+    expand:
     - fragment: ../units/embed-provider.yaml
       as: cohere
       args: {provider: cohere, model: embed-english-v3.0}
@@ -713,7 +713,7 @@ fragment_files:
     # produces cohere_embed_query and openai_embed_query
 
 library_imports: |
-  An import path, and a fragment path under `instantiate`, is relative to the
+  An import path, and a fragment path under `expand`, is relative to the
   declaring file or absolute under a library root (srd056-unit-libraries R1).
   `/opt/agent-core/...` names agent-core's library: the Standard Tool Library,
   its type units, and its machine templates. It maps through `--core-root` in

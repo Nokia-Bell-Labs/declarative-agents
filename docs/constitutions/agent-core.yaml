@@ -1,0 +1,38 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Agent Core Constitution
+
+id: agent-core
+title: Agent Core Constitution
+purpose: >-
+  We bind the agent-core runtime and its document processors to the Libretto
+  specification (application-dsl-spec/). Each obligation cites the statement
+  it upholds by identifier; this constitution introduces no grammar of its
+  own, and the dependency is one-way — the specification never cites this
+  file.
+obligations:
+  processing:
+    - The profile and machine loaders realize the processor target. They
+      reject a document whose root node is not a mapping (R-INTRO-002) and
+      validate an expanded machine-profile exactly as a hand-written one,
+      enforcing the expansion shape (R-MODEL-001) and named fragments
+      (R-MODEL-002).
+    - Loaded agent-profiles carry their binding keynames (R-PROF-001), and
+      machine-profile bodies carry name, states, and transitions as the
+      grammar requires (R-MACH-001).
+  activation:
+    - Activation takes exactly one agent-profile per agent-instance and binds
+      exactly one workspace for the instance's whole life (R-LCM-001).
+    - Termination releases the workspace binding without decommissioning the
+      workspace, so a later agent-instance can rebind it and resume its
+      identity (R-LCM-002).
+    - The runtime never binds a workspace that another agent-instance holds
+      (R-POP-003).
+  attribute_reporting:
+    - Instance attributes reach observers through the runtime's reporting
+      surface (the monitor API and the loop recorder), and are never written
+      back into profile documents, keeping the property/attribute split of
+      the specification's chapter 02.
+references:
+  - application-dsl-spec/language.yaml
+  - application-dsl-spec/04-lifecycle.md

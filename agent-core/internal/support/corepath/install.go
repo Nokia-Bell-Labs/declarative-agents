@@ -60,7 +60,7 @@ func UnderInstallPrefix(path string) bool {
 var ErrOutsideLibraryRoot = errors.New("absolute import path is not under a library root")
 
 // ImportTarget resolves a path a declaration at importer imports or
-// instantiates (srd056 R1). A relative path resolves against the importer's
+// expands (srd056 R1). A relative path resolves against the importer's
 // directory, and may not leave the library root the importer sits in unless it
 // lands in another root (R2.4). An absolute path under InstallPrefix names
 // agent-core's library: it maps through InstallRoot when one is set and is

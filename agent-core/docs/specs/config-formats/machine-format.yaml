@@ -686,7 +686,7 @@ examples:
       invariants, and lifecycle narrative.
 
 stage_fragments: |
-  A machine MAY instantiate stage fragments (srd052 R4, srd006 R1.9). A stage
+  A machine MAY expand stage fragments (srd052 R4, srd006 R1.9). A stage
   fragment is a unit whose body is `stage` rather than a whole machine:
 
     unit: control-stage-fragment
@@ -708,7 +708,7 @@ stage_fragments: |
 
   The importing machine lists it beside its own transitions:
 
-    instantiate:
+    expand:
       - fragment: ../../units/control-stage-fragment.yaml
         args: {prefix: Patient, from: Awaiting, enter: AwaitTimedOut,
                launch: patient_launch_agent_control, await: patient_await_agent_control}
@@ -724,8 +724,8 @@ stage_fragments: |
   error. The spliced machine is then validated as one machine by every
   machine check -- referential integrity, labels (srd038), exhaustiveness
   (srd006 R2.10) -- and the dump renders the spliced result under `machine`
-  with the fragment, arguments, and produced names under `instantiations`.
-  A machine declares no `imports`; a stage is instantiated, and a machine
+  with the fragment, arguments, and produced names under `expansions`.
+  A machine declares no `imports`; a stage is expanded, and a machine
   has no other unit kind to import.
 
 machine_templates: |
@@ -747,25 +747,25 @@ machine_templates: |
         ...
 
   A machine file becomes an instance of it by carrying a unit, exactly one
-  instantiation, and optionally its own name and purpose:
+  expansion entry, and optionally its own name and purpose:
 
     unit: control-template
     name: control-template
-    instantiate:
+    expand:
       - fragment: ../../units/control-machine-template.yaml
         args: {server: agent, exit_signal: ExitRequested}
 
   Any other field on an instance is a load error naming the field, as is an
   `as` on the entry (srd054 R1.2). The target's body kind selects the
   behavior: a `machine` body replaces the instance's machine and a `stage`
-  body splices into it. A template body MAY itself instantiate stages, whose
+  body splices into it. A template body MAY itself expand stages, whose
   paths resolve against the template's directory; a template cannot
-  instantiate a template, and an instance cannot splice a stage beside its
-  template (srd054 R1.3). The instantiated machine is validated by every check
+  expand a template, and an instance cannot splice a stage beside its
+  template (srd054 R1.3). The expanded machine is validated by every check
   a hand-written machine passes, and a diagnostic names both the template and
   the instance. The template and its stages are closure files and program
-  identity assets; the dump renders the instantiated machine under `machine`
-  and lists instantiations with `kind: machine` or `kind: stage`. A profile or
+  identity assets; the dump renders the expanded machine under `machine`
+  and lists expansions with `kind: machine` or `kind: stage`. A profile or
   a `machine_request` binding that names a template file directly is a load
   error, because a template is not a machine until its arguments arrive
   (srd054 R1.4). Landed with GH-2114; testdata/integration/profiles/

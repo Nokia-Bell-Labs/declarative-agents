@@ -74,7 +74,7 @@ pipeline_diagram: |-
     T2 -->|still no answer| I
     D -->|BudgetExhausted| I[Failed]
   ```
-instantiate:
+expand:
   - fragment: model-retry-fragment.yaml
     args:
       from: Composing

@@ -6,6 +6,6 @@ name: specification-critic-test-evidence-audit
 purpose: |-
   Load formal test claims, inventory and run Go tests through declared
   subprocesses, reduce the results deterministically, and report findings.
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/test-evidence-audit-machine-template.yaml
     args: {report: format_report}

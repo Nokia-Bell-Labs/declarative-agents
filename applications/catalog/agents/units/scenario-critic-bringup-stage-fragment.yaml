@@ -1,0 +1,101 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The rig bring-up stage: start the scenario's mocks, start the subject under
+# test, and probe its health, waiting and retrying until it answers or the
+# budget runs out. The health probe fans validators out over the scenario in
+# parallel and joins them back, which is why its transition carries a for_each.
+#
+# It is a stage because bringing a rig up is one concern, separable from
+# discovering scenarios, running validators over a live subject, and tearing
+# the rig down again. The machine that splices it was over the file-length
+# constitution (E11, GH-2378).
+unit: catalog-scenario-critic-bringup-stage
+params:
+  - name: prefix
+    type: string
+    default: ""
+    description: Prefix on the states this stage declares, to keep two expansions apart.
+  - name: failed
+    type: string
+    default: Failed
+    description: The importer's state an infrastructure failure leads to.
+stage:
+  states:
+    - name: $param(prefix)StartingMocks
+      meaning: Starting each declared fixture mock sequentially through MachineSpec iteration.
+    - name: $param(prefix)StartingSubject
+      meaning: Starting the agent under test with each mock's runtime address injected.
+    - name: $param(prefix)ProbingHealth
+      meaning: Performing one REST health request against the started subject.
+    - name: $param(prefix)WaitingToRetry
+      meaning: Waiting one declared interval before the next health probe.
+  transitions:
+    - action: start_scenario_subject
+      label: subject
+      next: $param(prefix)StartingSubject
+      signal: MocksStarted
+      state: $param(prefix)StartingMocks
+    - action: fail_scenario_start
+      next: MarkingFailure
+      signal: CommandError
+      state: $param(prefix)StartingMocks
+    - action: probe_subject_health
+      next: $param(prefix)ProbingHealth
+      signal: SubjectStarted
+      state: $param(prefix)StartingSubject
+    - action: fail_scenario_start
+      next: MarkingFailure
+      signal: CommandError
+      state: $param(prefix)StartingSubject
+    - action: run_scenario_validator
+      for_each:
+        abort_on:
+        - CommandError
+        as: validator
+        continue_on:
+        - ValidatorCompleted
+        - ValidatorIncomplete
+        failure: collect_all
+        items: $from(current_scenario).validators
+        join:
+          label: validators_joined
+          next: RunningValidators
+          signals:
+            all_success: ValidatorsCompleted
+            empty: CommandError
+            failed: CommandError
+            partial: CommandError
+        max_concurrency: 4
+        mode: parallel
+      label: validator_result
+      next: RunningValidators
+      signal: Healthy
+      state: $param(prefix)ProbingHealth
+    - action: wait_health_retry
+      next: $param(prefix)WaitingToRetry
+      signal: HealthUnavailable
+      state: $param(prefix)ProbingHealth
+    - action: wait_health_retry
+      next: $param(prefix)WaitingToRetry
+      signal: CommandError
+      state: $param(prefix)ProbingHealth
+    - action: fail_scenario_unhealthy
+      next: MarkingFailure
+      signal: BudgetExhausted
+      state: $param(prefix)ProbingHealth
+    - action: probe_subject_health
+      next: $param(prefix)ProbingHealth
+      signal: HealthRetryReady
+      state: $param(prefix)WaitingToRetry
+    - action: fail_scenario_unhealthy
+      next: MarkingFailure
+      signal: HealthTimeout
+      state: $param(prefix)WaitingToRetry
+    - action: fail_scenario_start
+      next: MarkingFailure
+      signal: CommandError
+      state: $param(prefix)WaitingToRetry
+    - action: fail_scenario_unhealthy
+      next: MarkingFailure
+      signal: BudgetExhausted
+      state: $param(prefix)WaitingToRetry

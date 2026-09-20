@@ -30,7 +30,7 @@ func LoadDefinitionWithVisitor(path string, visit FileVisitor) (Definition, erro
 }
 
 // readDefinitionFile reads one file and returns it decoded beside its
-// environment-expanded bytes, which a fragment is instantiated from
+// environment-expanded bytes, which a fragment is expanded from
 // (srd052 R2.4).
 func readDefinitionFile(path string, visit FileVisitor) (DefinitionFile, []byte, error) {
 	data, err := os.ReadFile(path)
@@ -87,7 +87,7 @@ func parseDefinitionFileExpanded(expanded []byte) (DefinitionFile, error) {
 	file.hasRest = yamlstrict.FieldPresent(root, "rest")
 	file.hasImports = yamlstrict.FieldPresent(root, "imports")
 	file.hasParams = yamlstrict.FieldPresent(root, "params")
-	file.hasInstantiate = yamlstrict.FieldPresent(root, "instantiate")
+	file.hasExpand = yamlstrict.FieldPresent(root, "expand")
 	// A unit is a fragment or it is not; half of one declares nothing
 	// (srd052 R1.3).
 	if file.hasParams && !file.hasRest {
@@ -105,7 +105,7 @@ func parseDefinitionFileExpanded(expanded []byte) (DefinitionFile, error) {
 // decodeDefinitionFile decodes a file strictly. A fragment's body is left
 // undecoded: it holds $param references where typed fields stand, and it is
 // only a definition once its arguments arrive (srd052 R2.4). Its header --
-// unit, imports, params, instantiate -- is still checked strictly, and an
+// unit, imports, params, expand -- is still checked strictly, and an
 // unknown top-level field is still rejected.
 func decodeDefinitionFile(expanded []byte, fragment bool) (DefinitionFile, error) {
 	if !fragment {
@@ -113,17 +113,17 @@ func decodeDefinitionFile(expanded []byte, fragment bool) (DefinitionFile, error
 		return file, yamlstrict.Unmarshal(expanded, &file)
 	}
 	var header struct {
-		Unit        string                    `yaml:"unit,omitempty"`
-		Imports     []string                  `yaml:"imports,omitempty"`
-		Params      []fragments.Param         `yaml:"params,omitempty"`
-		Instantiate []fragments.Instantiation `yaml:"instantiate,omitempty"`
-		Rest        yaml.Node                 `yaml:"rest"`
+		Unit    string                `yaml:"unit,omitempty"`
+		Imports []string              `yaml:"imports,omitempty"`
+		Params  []fragments.Param     `yaml:"params,omitempty"`
+		Expand  []fragments.Expansion `yaml:"expand,omitempty"`
+		Rest    yaml.Node             `yaml:"rest"`
 	}
 	if err := yamlstrict.Unmarshal(expanded, &header); err != nil {
 		return DefinitionFile{}, err
 	}
 	return DefinitionFile{
 		Unit: header.Unit, Imports: header.Imports,
-		Params: header.Params, Instantiate: header.Instantiate,
+		Params: header.Params, Expand: header.Expand,
 	}, nil
 }

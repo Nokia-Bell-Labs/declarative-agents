@@ -5,7 +5,6 @@ profile:
   tools:
     - <agent-core>/testdata/integration/profiles/otlp-replay/tools.yaml
   tool_declarations:
-    - <agent-core>/tools/builtin/otlp/all.yaml
     - <agent-core>/testdata/integration/profiles/otlp-replay/declarations.yaml
 machine:
   name: otlp-replay
@@ -181,11 +180,8 @@ files:
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/machine.yaml
     sha256: b84a930d1e764db0889db7a8c0e075d79202a1f446f497cd60173bcb5a786793
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/profile.yaml
-    sha256: 0f086b8e0c799a7de4c91e678d946cba4b8006b04b8a40f5ce1a22a93b96ef15
+    sha256: 8e03cc08cc293ad5a2e2f6fb3e6d52b5ddef4dfa288925359157f12a21689b9f
   - path: <agent-core>/testdata/integration/profiles/otlp-replay/tools.yaml
     sha256: 356f28070da55b76a0f0951d7445750f2390f6bf36be02fb79787929b21c00f9
   - path: <agent-core>/testdata/integration/units/otlp-replay-types.yaml
     sha256: ea964d685a28846ac3afbf2367bdf48fbc73667f2c2862df1f1205bc195218db
-  - path: <agent-core>/tools/builtin/otlp/all.yaml
-    sha256: ecff02e2abba05c96da87367204614fe7e026518382356b200f8f589e9979ad6
-    root: agent-core

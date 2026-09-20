@@ -415,7 +415,7 @@ func TestValidateConfigRejectsImplicitParseRetryPolicy(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "template.yaml"), []byte(patched), 0o644))
 	machine := filepath.Join(dir, "machine.yaml")
 	require.NoError(t, os.WriteFile(machine, []byte(
-		"name: monitor-rest-profile\ninstantiate:\n"+
+		"name: monitor-rest-profile\nexpand:\n"+
 			"  - fragment: template.yaml\n    args: {profile: monitor, machine: machine.yaml, tools: tools.yaml}\n"), 0o644))
 	profile := filepath.Join(dir, "profile.yaml")
 	require.NoError(t, os.WriteFile(profile, []byte(fmt.Sprintf(

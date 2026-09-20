@@ -16,7 +16,7 @@ purpose: |-
 
   - RAG and LLM endpoints are declared rest.yaml clients; the turn selects among declared words and clients only.
   - The chat turn is stateless; the browser sends the conversation history with each request.
-instantiate:
+expand:
   - fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
     args:
       workflow: chatbot
