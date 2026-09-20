@@ -26,8 +26,6 @@
 # GH-2009 flips the type system strict once this file has no entries.
 
 # Declaration files over 300 lines when the length class landed (GH-2111).
-long-declaration-file:agent-core/tools/builtin/otlp/all.yaml
-long-declaration-file:agent-core/tools/builtin/rest/all.yaml
 long-declaration-file:applications/catalog/agents/collector/query-declarations.yaml
 long-declaration-file:applications/catalog/agents/critic/point.yaml
 long-declaration-file:applications/catalog/agents/knowledge-manager/corpus-ingest/declarations.yaml

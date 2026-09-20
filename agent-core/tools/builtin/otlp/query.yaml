@@ -1,0 +1,212 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Read traces and metrics back out of the spool.
+unit: builtin-otlp-query
+tools:
+- name: spool_list_traces
+  type: builtin
+  init: spool_list_traces
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [TracesListed, CommandError]
+  description: Read the NDJSON trace spool and return paginated trace summaries, newest first.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Paginated trace summaries and spool health metadata.
+    schema:
+      type: object
+      properties:
+        traces:
+          type: array
+          items:
+            type: object
+            properties:
+              trace_id: {type: string}
+              root_service: {type: string}
+              root_span_name: {type: string}
+              span_count: {type: integer}
+              start_time: {type: string}
+              duration_ms: {type: integer}
+        total: {type: integer}
+        offset: {type: integer}
+        page_size: {type: integer}
+        skipped_lines: {type: integer}
+      required: [traces, total, offset, page_size, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the configured spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  config:
+    path: traces/collector.ndjson
+    page_size: 20
+    max_page_size: 100
+    offset: 0
+- name: spool_get_trace
+  type: builtin
+  init: spool_get_trace
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [TraceRetrieved, CommandError]
+  description: Read all spans for one trace from the NDJSON spool, returning the fields a waterfall UI needs.
+  parameters: {type: object, properties: {}}
+  output:
+    description: All spans for one trace with waterfall fields.
+    schema:
+      type: object
+      properties:
+        trace_id: {type: string}
+        spans:
+          type: array
+          items:
+            type: object
+            properties:
+              span_id: {type: string}
+              parent_span_id: {type: string}
+              service: {type: string}
+              name: {type: string}
+              start_time: {type: string}
+              end_time: {type: string}
+              status:
+                type: object
+                properties:
+                  code: {type: integer}
+                  description: {type: string}
+              attributes: {type: array}
+        span_count: {type: integer}
+        skipped_lines: {type: integer}
+      required: [trace_id, spans, span_count, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: trace id is missing or the configured spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  config:
+    path: traces/collector.ndjson
+    trace_id: ""
+- name: spool_list_metrics
+  type: builtin
+  init: spool_list_metrics
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [MetricsListed, CommandError]
+  description: Read the NDJSON metric spool and return paginated metric summaries by name.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Paginated metric summaries and spool health metadata.
+    schema:
+      type: object
+      properties:
+        metrics:
+          type: array
+          items:
+            type: object
+            properties:
+              name: {type: string}
+              type: {type: string}
+              unit: {type: string}
+              record_count: {type: integer}
+              data_point_count: {type: integer}
+              services: {type: array}
+        total: {type: integer}
+        offset: {type: integer}
+        page_size: {type: integer}
+        skipped_lines: {type: integer}
+      required: [metrics, total, offset, page_size, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured metric spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the configured metric spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  config:
+    path: metrics/collector.ndjson
+    page_size: 20
+    max_page_size: 100
+    offset: 0
+- name: spool_get_metric
+  type: builtin
+  init: spool_get_metric
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [MetricRetrieved, CommandError]
+  description: Read one bounded page of spooled records for one metric name from the NDJSON metric spool.
+  parameters: {type: object, properties: {}}
+  output:
+    description: One bounded page of spooled records for one metric name; total reports all matching records.
+    schema:
+      type: object
+      properties:
+        metric_name: {type: string}
+        records:
+          type: array
+          items:
+            type: object
+            properties:
+              name: {type: string}
+              type: {type: string}
+              unit: {type: string}
+              data_point_count: {type: integer}
+              service: {type: string}
+              resource:
+                type: array
+                items: {type: object}
+              metric: {type: object}
+        record_count: {type: integer}
+        page_record_count: {type: integer}
+        total: {type: integer}
+        data_point_count: {type: integer}
+        offset: {type: integer}
+        page_size: {type: integer}
+        skipped_lines: {type: integer}
+      required: [metric_name, records, record_count, page_record_count, total, data_point_count, offset, page_size, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured metric spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: metric name is missing or the configured metric spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  config:
+    path: metrics/collector.ndjson
+    metric_name: ""
+    page_size: 20
+    max_page_size: 100
+    offset: 0

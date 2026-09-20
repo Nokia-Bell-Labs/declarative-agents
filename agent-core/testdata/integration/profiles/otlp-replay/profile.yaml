@@ -5,5 +5,4 @@ machine: machine.yaml
 tools:
   - tools.yaml
 tool_declarations:
-  - /opt/agent-core/tools/builtin/otlp/all.yaml
   - declarations.yaml

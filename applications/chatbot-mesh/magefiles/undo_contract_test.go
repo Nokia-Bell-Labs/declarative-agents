@@ -68,10 +68,13 @@ func TestMutationUndoContractsStaySemanticallyAligned(t *testing.T) {
 		{"../agents/provisioning-workflow-orchestrator/request-declarations.yaml", "request_rollout_values", "irreversible", "irreversible", "", true},
 		{"../agents/creator/request-declarations.yaml", "apply_instance", "irreversible", "irreversible", "", true},
 		{"../agents/creator/request-declarations.yaml", "run_corpus_ingest", "irreversible", "irreversible", "", true},
-		{"../../../agent-core/tools/builtin/otlp/all.yaml", "await_spans", "irreversible", "irreversible", "", true},
-		{"../../../agent-core/tools/builtin/otlp/all.yaml", "spool_spans", "irreversible", "irreversible", "", true},
-		{"../../../agent-core/tools/builtin/otlp/all.yaml", "relay_spans", "irreversible", "irreversible", "", true},
-		{"../../../agent-core/tools/builtin/otlp/all.yaml", "otlp_receiver_stop", "irreversible", "irreversible", "", true},
+		// The OTLP words moved from one index into per-family units under E11
+		// (GH-2377); otlp/all.yaml is now imports and declares nothing. Each row
+		// names the unit that declares the word, as every row above does.
+		{"../../../agent-core/tools/builtin/otlp/receiver.yaml", "await_spans", "irreversible", "irreversible", "", true},
+		{"../../../agent-core/tools/builtin/otlp/spool.yaml", "spool_spans", "irreversible", "irreversible", "", true},
+		{"../../../agent-core/tools/builtin/otlp/spool.yaml", "relay_spans", "irreversible", "irreversible", "", true},
+		{"../../../agent-core/tools/builtin/otlp/receiver.yaml", "otlp_receiver_stop", "irreversible", "irreversible", "", true},
 	}
 
 	for _, tc := range cases {

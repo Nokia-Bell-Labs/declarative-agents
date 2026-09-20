@@ -1,0 +1,173 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Bind and release an OTLP receiver, and await what it delivers.
+unit: builtin-otlp-receiver
+tools:
+- name: otlp_receiver_launch
+  type: builtin
+  init: otlp_receiver_launch
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [ReceiverLaunched, CommandError]
+  description: Bind a declared OTLP/gRPC receiver for trace and metric exports and return without waiting for traffic.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Bound receiver identity and queue policy.
+    schema:
+      type: object
+      properties:
+        receiver: {type: string}
+        address: {type: string}
+        queue_capacity: {type: integer}
+        overflow_policy: {type: string}
+      required: [receiver, address, queue_capacity, overflow_policy]
+  side_effects:
+  - kind: network_listen
+    target: configured OTLP/gRPC address
+    state: named receiver remains live until stop or undo
+  reversibility:
+    classification: compensatable
+  undo:
+    strategy: receiver_stop
+    description: Decode the launch receipt and stop the named listener when it is still running.
+    captures: [receiver, address]
+    requires: [receipt]
+  errors:
+  - signal: CommandError
+    condition: config is invalid, the receiver is live, or the address cannot bind
+    message_shape: 'tool <name>: bind OTLP receiver <receiver>: <cause>'
+    state_after_failure: no newly bound receiver remains
+  config:
+    receiver: ingress
+    address: ${COLLECTOR_RECEIVER_ADDRESS:-0.0.0.0:4317}
+    queue_capacity: 16
+    overflow_policy: reject
+    shutdown_timeout: 5s
+    drain_policy: preserve
+- name: otlp_receiver_stop
+  type: builtin
+  init: otlp_receiver_stop
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [ReceiverStopped, CommandError]
+  description: Stop a named OTLP receiver, reject new exports, and unblock waiting commands.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Final receiver queue and drop state.
+    schema:
+      type: object
+      properties:
+        receiver: {type: string}
+        address: {type: string}
+        status: {type: string}
+        queued_batches: {type: integer}
+        dropped_on_stop: {type: integer}
+        dropped_batches: {type: integer}
+        dropped_spans: {type: integer}
+        queued_metrics: {type: integer}
+        dropped_metrics_on_stop: {type: integer}
+        dropped_metric_batches: {type: integer}
+        dropped_data_points: {type: integer}
+        drain_policy: {type: string}
+      required: [receiver, address, status, queued_batches, drain_policy]
+  side_effects:
+  - kind: network_listen
+    target: configured OTLP/gRPC address
+    state: releases the listener and marks receiver stopped
+  reversibility:
+    classification: irreversible
+    requires_confirmation: true
+  undo:
+    strategy: irreversible
+    description: A stopped listener is relaunched by a later explicit launch word.
+  errors:
+  - signal: CommandError
+    condition: the named receiver was never launched or graceful shutdown exceeds its bound
+    message_shape: 'tool <name>: shutdown OTLP receiver <receiver>: <cause>'
+    state_after_failure: forced stop still releases the listener when graceful shutdown times out
+  config:
+    receiver: ingress
+    shutdown_timeout: 5s
+    drain_policy: preserve
+- name: await_spans
+  type: builtin
+  init: await_spans
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [SpansReceived, AwaitTimedOut, ReceiverStopped, CommandError]
+  description: Wait for and consume one complete FIFO trace batch from a named OTLP receiver.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Complete OTLP batch plus bounded metadata used by declared decisions.
+    schema:
+      type: object
+      properties:
+        batch: {type: object}
+        batch_id: {type: string}
+        span_count: {type: integer}
+        service_names: {type: array}
+        trace_ids: {type: array}
+        resource_attributes: {type: object}
+        received_at: {type: string}
+      required: [batch, batch_id, span_count, service_names, trace_ids, resource_attributes]
+  side_effects:
+  - kind: state_mutation
+    target: configured receiver
+    state: consumes one FIFO batch
+  reversibility:
+    classification: irreversible
+    requires_confirmation: true
+  undo:
+    strategy: irreversible
+    description: A consumed concurrent queue item cannot be restored in original order.
+  errors:
+  - signal: CommandError
+    condition: receiver is absent or context cancellation is not the declared timeout
+    message_shape: 'tool <name>: OTLP receiver <receiver>: <cause>'
+    state_after_failure: no batch is returned
+  config:
+    receiver: ingress
+    timeout: 30s
+- name: await_metrics
+  type: builtin
+  init: await_metrics
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [MetricsReceived, AwaitTimedOut, ReceiverStopped, CommandError]
+  description: Wait for and consume one complete FIFO metric batch from a named OTLP receiver.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Complete OTLP metric batch plus bounded metadata used by declared decisions.
+    schema:
+      type: object
+      properties:
+        batch: {type: object}
+        batch_id: {type: string}
+        data_point_count: {type: integer}
+        service_names: {type: array}
+        metric_names: {type: array}
+        resource_attributes: {type: object}
+        received_at: {type: string}
+      required: [batch, batch_id, data_point_count, service_names, metric_names, resource_attributes]
+  side_effects:
+  - kind: state_mutation
+    target: configured receiver
+    state: consumes one FIFO metric batch
+  reversibility:
+    classification: irreversible
+    requires_confirmation: true
+  undo:
+    strategy: irreversible
+    description: A consumed concurrent queue item cannot be restored in original order.
+  errors:
+  - signal: CommandError
+    condition: receiver is absent or context cancellation is not the declared timeout
+    message_shape: 'tool <name>: OTLP receiver <receiver>: <cause>'
+    state_after_failure: no batch is returned
+  config:
+    receiver: ingress
+    timeout: 30s
