@@ -64,7 +64,10 @@ func TestRegisterSpecFactoriesConfiguresCharterSuitePaths(t *testing.T) {
 	loadBuilder := builder.(*LoadCorpusBuilder)
 	require.Equal(t, "/work", loadBuilder.VS.Directory)
 	require.Equal(t, "/work", loadBuilder.VS.TargetDirectory)
-	require.Equal(t, []string{"a.yaml", "b.yaml", "c.yaml", "d.yaml"}, loadBuilder.VS.SuitePaths)
+	require.Equal(t,
+		[]string{"/work/a.yaml", "/work/b.yaml", "/work/c.yaml", "/work/d.yaml"},
+		loadBuilder.VS.SuitePaths,
+		"relative charter paths resolve against the directory var (GH-2346)")
 }
 
 func TestValidateSpecsRunsLoadedCharters(t *testing.T) {

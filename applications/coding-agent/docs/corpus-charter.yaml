@@ -1,0 +1,46 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The checks the coding-agent's specification corpus gates on (GH-2346).
+# Every module keeps its charter at docs/corpus-charter.yaml so the shared
+# specification-critic profile binds the audited module's own gate. The
+# roster matches the catalog's, plus group-level-citation: the corpus was
+# enumerated to item citations when it first loaded (GH-2352), so the gate
+# holds that state. Excluded until their findings close (GH-2400):
+# untraced-success-criterion, uncovered-ac, tool-undo-mismatch, and
+# tool-declaration-path-unresolved.
+id: coding-agent-corpus-charter
+title: Coding-Agent Specification Corpus Checks
+checks:
+  - id: coding-agent-spec-corpus
+    kind: spec_corpus
+    severity: error
+    checks:
+      # The traceability chain: a use case may not cite an SRD or a
+      # requirement group that does not exist.
+      - broken-touchpoint
+      - broken-citation
+      # Citations name requirement items, not groups (GH-2365).
+      - group-level-citation
+      # Every requirement item is covered by an acceptance criterion.
+      - uncovered-req-item
+      # The SPECIFICATIONS.yaml indexes and the road map agree with the
+      # documents they name.
+      - index-broken-path
+      - index-missing-use-case
+      - index-missing-test-suite
+      - roadmap-missing-use-case
+      - roadmap-summary-missing-release
+      - index-document-mismatch
+      - release-without-test-suite
+      # A test suite and its cases name a use case that exists.
+      - test-case-missing-use-case
+      - test-suite-missing-uc-trace
+      # Every selected word is declared, and every declared word carries its
+      # contract fields.
+      - tool-selection-undeclared
+      - tool-contract-incomplete
+      # Documentation specs point at files that exist.
+      - docspec-broken-example-path
+      - docspec-broken-implementation-path
+      - docspec-broken-related-document
+      - docspec-broken-requirement-source

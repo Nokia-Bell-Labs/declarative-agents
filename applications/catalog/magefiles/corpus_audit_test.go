@@ -72,7 +72,7 @@ func TestCatalogCharterGatesTheTraceabilityChecks(t *testing.T) {
 			Checks []string `yaml:"checks"`
 		} `yaml:"checks"`
 	}
-	path := filepath.Join("..", "agents", "specification-critic", "suites", "catalog-corpus-charter.yaml")
+	path := filepath.Join("..", "docs", "corpus-charter.yaml")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)

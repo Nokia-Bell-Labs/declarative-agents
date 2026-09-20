@@ -4,6 +4,7 @@
 package validation
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -237,12 +238,31 @@ func applySpecValidationConfig(s *SpecState, def catalog.ToolDef, vars map[strin
 	paths = append(paths, splitSuitePaths(vars["suite_paths"])...)
 	paths = append(paths, splitSuitePaths(vars["charter_suites"])...)
 	if len(paths) > 0 {
-		s.SuitePaths = paths
+		s.SuitePaths = resolveSuitePaths(paths, vars["directory"])
 	}
 	if cfg.CorpusOptional || truthyVar(vars["corpus_optional"]) {
 		s.CorpusOptional = true
 	}
 	return nil
+}
+
+// resolveSuitePaths anchors relative charter paths to the audited module root
+// so the same profile gates every module regardless of the process working
+// directory. Absolute paths, including /opt/agent-core installs, keep their
+// meaning (the otlp load factory sets the precedent).
+func resolveSuitePaths(paths []string, directory string) []string {
+	if directory == "" {
+		return paths
+	}
+	resolved := make([]string, len(paths))
+	for i, path := range paths {
+		if filepath.IsAbs(path) {
+			resolved[i] = path
+		} else {
+			resolved[i] = filepath.Join(directory, path)
+		}
+	}
+	return resolved
 }
 
 func truthyVar(value string) bool {

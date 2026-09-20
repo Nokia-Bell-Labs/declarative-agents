@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 # The catalog's corpus load, identical to the shipped declaration except for
-# the charter it binds: this module gates on its own checks, named in
-# suites/catalog-corpus-charter.yaml (GH-2310).
+# the charter it binds: each module gates on its own checks, named in its
+# docs/corpus-charter.yaml, resolved against the audited directory (GH-2310,
+# GH-2346).
 unit: specification-critic-corpus-load
 imports:
 - /opt/agent-core/tools/units/types-spec-validation.yaml
@@ -13,7 +14,7 @@ tools:
   visibility: internal
   config:
     suite_paths:
-    - agents/specification-critic/suites/catalog-corpus-charter.yaml
+    - docs/corpus-charter.yaml
   emits:
   - ToolDone
   - CommandError

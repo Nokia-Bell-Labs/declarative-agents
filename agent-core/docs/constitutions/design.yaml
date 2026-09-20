@@ -267,6 +267,13 @@ document_types:
     format: json
     required_fields: []
     purpose: Records deterministic generated metrics before a measured migration.
+  corpus_charter:
+    location: docs/corpus-charter.yaml
+    required_fields:
+    - id
+    - title
+    - checks
+    purpose: Names the specification-corpus checks this module's audit gates on.
 manual_invariant_schema:
   purpose: |
     A judge may adjudicate a manual pattern invariant only after the invariant
