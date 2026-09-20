@@ -102,7 +102,7 @@ swappable.
 
 The shipped `executor`, `critic`, `bench`, and `jurist` profile families share
 a common binary reference. In other parts of this monograph, the terms
-*generator* and *evaluator* are used to describe conceptual roles. But they do
+*generator* and *evaluator* describe conceptual roles. But they do
 actually not correspond to any existing profile family names in the current
 catalog.
 
