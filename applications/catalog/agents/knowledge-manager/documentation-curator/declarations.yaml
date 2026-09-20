@@ -2,6 +2,22 @@
 # SPDX-License-Identifier: BSD-3-Clause
 unit: catalog-knowledge-manager-documentation-curator-declarations
 expand:
+  - fragment: ../../units/documentation-curator-patch-decision-fragment.yaml
+    args:
+      name: doc_patch_reject
+      description: Reject a pending documentation patch through the configured documentation API.
+      output_description: Documentation patch rejection response.
+      applied_state: patch_rejected
+      undo_description: Reopen the pending patch when the service supports it.
+      state_after_failure: Remote patch state may record the rejection attempt.
+  - fragment: ../../units/documentation-curator-patch-decision-fragment.yaml
+    args:
+      name: doc_patch_reopen
+      description: Reopen a rejected documentation patch through the configured documentation API.
+      output_description: Documentation patch reopen response.
+      applied_state: patch_reopened
+      undo_description: Reject the reopened patch when review should remain closed.
+      state_after_failure: Remote patch state may record the reopen attempt.
   - fragment: ../../units/monitor-control-fragment.yaml
     args: {profile: monitor, route: control_exit}
 tools:
@@ -243,86 +259,3 @@ tools:
     config:
       rest_ref: documentation
       operation: doc_patch_approve
-
-  - name: doc_patch_reject
-    type: builtin
-    init: rest_client_invoke
-    category: boundary
-    description: Reject a pending documentation patch through the configured documentation API.
-    parameters:
-      type: object
-      properties:
-        params:
-          type: object
-          properties:
-            patch_id: {type: string}
-            decided_by: {type: string}
-            reason: {type: string}
-    signature:
-      emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
-    output:
-      description: Documentation patch rejection response.
-      schema:
-        type: object
-        properties:
-          patch_id: {type: string}
-          status: {type: string}
-          decided_by: {type: string}
-    side_effects:
-      - kind: external_api
-        target: documentation.patch
-        state: patch_rejected
-    reversibility:
-      classification: compensatable
-    undo:
-      strategy: compensating_action
-      description: Reopen the pending patch when the service supports it.
-    errors:
-      - signal: CommandError
-        condition: REST config, schema, network, timeout, or response mapping failure.
-        state_after_failure: Remote patch state may record the rejection attempt.
-    config:
-      rest_ref: documentation
-      operation: doc_patch_reject
-
-  - name: doc_patch_reopen
-    type: builtin
-    init: rest_client_invoke
-    category: boundary
-    description: Reopen a rejected documentation patch through the configured documentation API.
-    parameters:
-      type: object
-      properties:
-        params:
-          type: object
-          properties:
-            patch_id: {type: string}
-            decided_by: {type: string}
-            reason: {type: string}
-    signature:
-      emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
-    output:
-      description: Documentation patch reopen response.
-      schema:
-        type: object
-        properties:
-          patch_id: {type: string}
-          status: {type: string}
-          decided_by: {type: string}
-    side_effects:
-      - kind: external_api
-        target: documentation.patch
-        state: patch_reopened
-    reversibility:
-      classification: compensatable
-    undo:
-      strategy: compensating_action
-      description: Reject the reopened patch when review should remain closed.
-    errors:
-      - signal: CommandError
-        condition: REST config, schema, network, timeout, or response mapping failure.
-        state_after_failure: Remote patch state may record the reopen attempt.
-    config:
-      rest_ref: documentation
-      operation: doc_patch_reopen
-

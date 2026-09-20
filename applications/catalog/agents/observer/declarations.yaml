@@ -1,85 +1,68 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: mesh-observer-declarations
-tools:
-  - name: launch_observer_control
-    type: builtin
-    init: rest_server_launch
-    visibility: internal
-    category: boundary
-    description: Launch the observer's lifecycle control REST server.
-    parameters:
-      type: object
-      properties: {}
-    signature:
-      emits: [ServerLaunched, CommandError]
-    output:
-      description: Control REST server launch result.
-      schema:
-        type: object
-        properties:
-          server: {type: string}
-          address: {type: string}
-          route_count: {type: integer}
-          bindings: {type: array}
-    side_effects:
-      - kind: network_listen
-        target: observer_control_server
-        state: listener_started
-      - kind: state_mutation
-        target: rest_server_state
-        state: routes_registered
-    reversibility:
-      classification: compensatable
-    undo:
-      strategy: compensating_action
-      description: Stop the control REST server if the launch command owns the listener.
-    errors:
-      - signal: CommandError
-        condition: Control REST server config, bind, route, or schema failure.
-        state_after_failure: No control route is exposed.
-    config:
+expand:
+  - fragment: ../units/observer-agent-read-fragment.yaml
+    args:
+      name: read_agent_machine
+      description: Read one discovered agent's declared machine from its monitor surface.
+      output_description: One agent's declared machine.
+  - fragment: ../units/observer-agent-read-fragment.yaml
+    args:
+      name: read_agent_state
+      description: Read one discovered agent's current run state from its monitor surface.
+      output_description: One agent's run state.
+  - fragment: ../units/observer-agent-read-fragment.yaml
+    args:
+      name: read_agent_tools
+      description: Read one discovered agent's tool vocabulary from its monitor surface.
+      output_description: One agent's tool vocabulary.
+  - fragment: ../units/observer-agent-read-fragment.yaml
+    args:
+      name: read_agent_events
+      description: Read one discovered agent's recent run events from its monitor surface.
+      output_description: One agent's recent run events.
+  - fragment: ../units/observer-server-launch-fragment.yaml
+    args:
+      name: launch_observer_control
+      description: Launch the observer's lifecycle control REST server.
       rest_ref: observer_control
-
-  - name: launch_observer_monitor
-    type: builtin
-    init: rest_server_launch
-    visibility: internal
-    category: boundary
-    description: Launch the observer's monitor REST server with read-state and stream endpoints.
-    parameters:
-      type: object
-      properties: {}
-    signature:
-      emits: [ServerLaunched, CommandError]
-    output:
-      description: Monitor REST server launch result.
-      schema:
-        type: object
-        properties:
-          server: {type: string}
-          address: {type: string}
-          route_count: {type: integer}
-          bindings: {type: array}
-    side_effects:
-      - kind: network_listen
-        target: observer_monitor_server
-        state: listener_started
-      - kind: state_mutation
-        target: rest_server_state
-        state: routes_registered
-    reversibility:
-      classification: compensatable
-    undo:
-      strategy: compensating_action
-      description: Stop the monitor REST server if the launch command owns the listener.
-    errors:
-      - signal: CommandError
-        condition: Monitor REST server config, bind, route, or schema failure.
-        state_after_failure: No monitor route is exposed.
-    config:
+      server_target: observer_control_server
+      output_description: Control REST server launch result.
+      error_condition: Control REST server config, bind, route, or schema failure.
+      state_after_failure: No control route is exposed.
+      undo_description: Stop the control REST server if the launch command owns the listener.
+  - fragment: ../units/observer-server-launch-fragment.yaml
+    args:
+      name: launch_observer_monitor
+      description: Launch the observer's monitor REST server with read-state and stream endpoints.
       rest_ref: observer_monitor
-
+      server_target: observer_monitor_server
+      output_description: Monitor REST server launch result.
+      error_condition: Monitor REST server config, bind, route, or schema failure.
+      state_after_failure: No monitor route is exposed.
+      undo_description: Stop the monitor REST server if the launch command owns the listener.
+  - fragment: ../units/observer-server-stop-fragment.yaml
+    args:
+      name: stop_observer_monitor
+      description: Stop the observer's monitor REST server.
+      rest_ref: observer_monitor
+      server_target: observer_monitor_server
+      output_description: Monitor REST server stop result.
+      error_condition: Monitor REST server is missing, shutdown times out, or cleanup fails.
+      state_after_failure: Monitor listener state may be partially stopped.
+      undo_description: The receipt records shutdown loss; MachineSpec must relaunch the monitor definition.
+  - fragment: ../units/observer-server-stop-fragment.yaml
+    args:
+      name: stop_observer_control
+      description: Stop the observer's lifecycle control REST server.
+      rest_ref: observer_control
+      server_target: observer_control_server
+      output_description: Control REST server stop result.
+      error_condition: Control REST server is missing, shutdown times out, or cleanup fails.
+      state_after_failure: Control listener state may be partially stopped.
+      undo_description: The receipt records shutdown loss; MachineSpec must relaunch the control definition.
+tools:
   - name: discover_mesh_pods
     type: builtin
     init: rest_client_get
@@ -229,146 +212,6 @@ tools:
   # pod, so the join counts every dispatched item as succeeded. Reachability is
   # each item's own recorded result signal, which the join keeps per item, and
   # that is what the fleet view reads (machine.yaml says the same).
-  - name: read_agent_machine
-    type: builtin
-    init: rest_client_get
-    category: boundary
-    description: Read one discovered agent's declared machine from its monitor surface.
-    parameters:
-      type: object
-      properties: {}
-    signature:
-      emits: [AgentMonitorRead, CommandError]
-    output:
-      description: One agent's declared machine.
-      schema:
-        type: object
-        properties:
-          status: {type: integer}
-          body: {type: object}
-          selected_authority: {type: string}
-    side_effects:
-      - kind: external_api
-        target: agent.monitor
-        state: read_only
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Read-only operation; no undo needed.
-    errors:
-      - signal: CommandError
-        condition: Network, timeout, target resolution, or mapping failure for this agent.
-        state_after_failure: The fan-in records this agent as unreachable and continues with the others.
-    config:
-      rest_ref: agent_monitor
-      operation: read_agent_machine
-
-  - name: read_agent_state
-    type: builtin
-    init: rest_client_get
-    category: boundary
-    description: Read one discovered agent's current run state from its monitor surface.
-    parameters:
-      type: object
-      properties: {}
-    signature:
-      emits: [AgentMonitorRead, CommandError]
-    output:
-      description: One agent's run state.
-      schema:
-        type: object
-        properties:
-          status: {type: integer}
-          body: {type: object}
-          selected_authority: {type: string}
-    side_effects:
-      - kind: external_api
-        target: agent.monitor
-        state: read_only
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Read-only operation; no undo needed.
-    errors:
-      - signal: CommandError
-        condition: Network, timeout, target resolution, or mapping failure for this agent.
-        state_after_failure: The fan-in records this agent as unreachable and continues with the others.
-    config:
-      rest_ref: agent_monitor
-      operation: read_agent_state
-
-  - name: read_agent_tools
-    type: builtin
-    init: rest_client_get
-    category: boundary
-    description: Read one discovered agent's tool vocabulary from its monitor surface.
-    parameters:
-      type: object
-      properties: {}
-    signature:
-      emits: [AgentMonitorRead, CommandError]
-    output:
-      description: One agent's tool vocabulary.
-      schema:
-        type: object
-        properties:
-          status: {type: integer}
-          body: {type: object}
-          selected_authority: {type: string}
-    side_effects:
-      - kind: external_api
-        target: agent.monitor
-        state: read_only
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Read-only operation; no undo needed.
-    errors:
-      - signal: CommandError
-        condition: Network, timeout, target resolution, or mapping failure for this agent.
-        state_after_failure: The fan-in records this agent as unreachable and continues with the others.
-    config:
-      rest_ref: agent_monitor
-      operation: read_agent_tools
-
-  - name: read_agent_events
-    type: builtin
-    init: rest_client_get
-    category: boundary
-    description: Read one discovered agent's recent run events from its monitor surface.
-    parameters:
-      type: object
-      properties: {}
-    signature:
-      emits: [AgentMonitorRead, CommandError]
-    output:
-      description: One agent's recent run events.
-      schema:
-        type: object
-        properties:
-          status: {type: integer}
-          body: {type: object}
-          selected_authority: {type: string}
-    side_effects:
-      - kind: external_api
-        target: agent.monitor
-        state: read_only
-    reversibility:
-      classification: reversible
-    undo:
-      strategy: noop
-      description: Read-only operation; no undo needed.
-    errors:
-      - signal: CommandError
-        condition: Network, timeout, target resolution, or mapping failure for this agent.
-        state_after_failure: The fan-in records this agent as unreachable and continues with the others.
-    config:
-      rest_ref: agent_monitor
-      operation: read_agent_events
-
   - name: await_observer_control
     type: builtin
     init: rest_await_event
@@ -411,83 +254,3 @@ tools:
           signals: [ExitRequested]
       timeout: ${OBSERVER_POLL_INTERVAL:-10s}
       stopped_behavior: emit_server_stopped
-
-  - name: stop_observer_monitor
-    type: builtin
-    init: rest_server_stop
-    visibility: internal
-    category: boundary
-    description: Stop the observer's monitor REST server.
-    parameters:
-      type: object
-      properties: {}
-    signature:
-      emits: [ServerStopped, CommandError]
-    output:
-      description: Monitor REST server stop result.
-      schema:
-        type: object
-        properties:
-          server: {type: string}
-          address: {type: string}
-          status: {type: string}
-    side_effects:
-      - kind: network_listener_shutdown
-        target: observer_monitor_server
-        state: listener_stopped
-      - kind: state_mutation
-        target: rest_server_state
-        state: server_stopped
-    reversibility:
-      classification: compensatable
-    undo:
-      strategy: server_shutdown_or_user_action_compensation
-      description: The receipt records shutdown loss; MachineSpec must relaunch the monitor definition.
-      payload: boundary_compensation
-      captures: [server, address, relaunch_requirement]
-    errors:
-      - signal: CommandError
-        condition: Monitor REST server is missing, shutdown times out, or cleanup fails.
-        state_after_failure: Monitor listener state may be partially stopped.
-    config:
-      rest_ref: observer_monitor
-
-  - name: stop_observer_control
-    type: builtin
-    init: rest_server_stop
-    visibility: internal
-    category: boundary
-    description: Stop the observer's lifecycle control REST server.
-    parameters:
-      type: object
-      properties: {}
-    signature:
-      emits: [ServerStopped, CommandError]
-    output:
-      description: Control REST server stop result.
-      schema:
-        type: object
-        properties:
-          server: {type: string}
-          address: {type: string}
-          status: {type: string}
-    side_effects:
-      - kind: network_listener_shutdown
-        target: observer_control_server
-        state: listener_stopped
-      - kind: state_mutation
-        target: rest_server_state
-        state: server_stopped
-    reversibility:
-      classification: compensatable
-    undo:
-      strategy: server_shutdown_or_user_action_compensation
-      description: The receipt records shutdown loss; MachineSpec must relaunch the control definition.
-      payload: boundary_compensation
-      captures: [server, address, relaunch_requirement]
-    errors:
-      - signal: CommandError
-        condition: Control REST server is missing, shutdown times out, or cleanup fails.
-        state_after_failure: Control listener state may be partially stopped.
-    config:
-      rest_ref: observer_control

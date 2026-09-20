@@ -70,6 +70,13 @@ budget:
   command_timeout: 16m
   max_iterations: 100
   max_consecutive_parse_errors: 5
+expand:
+  - fragment: ../units/planner-plan-stage-fragment.yaml
+    args: {}
+  - fragment: ../units/planner-issue-stage-fragment.yaml
+    args: {}
+  - fragment: ../units/planner-execution-stage-fragment.yaml
+    args: {}
 states:
 - name: Idle
   meaning: Initial state before planning begins.
@@ -85,54 +92,8 @@ states:
   meaning: Seeding retry count zero in labelled command state for the extracted task.
 - name: InitializingFailureContext
   meaning: Seeding an empty labelled failure context for the newly extracted task.
-- name: Resetting
-  meaning: Clearing conversation history before a new task's LLM call.
-- name: PromptAssembly
-  meaning: Rendering profile-owned prompt sections from labelled planner and failure context.
-- name: ProjectingPromptContext
-  meaning: Publishing prompt-neutral task and SRD fields for profile composition.
-- name: PlanInvoking
-  meaning: Calling the LLM to generate an implementation plan.
-- name: PlanParsing
-  meaning: Parsing the LLM response as a YAML implementation plan.
-- name: ReportingParseError
-  meaning: Feeding an invalid plan response back to the LLM and tracking the explicit parse retry budget.
-- name: IssueFormatting
-  meaning: Formatting the parsed plan as tracker-neutral issue parameters.
-- name: IssueBodyWriting
-  meaning: Writing the issue body to the configured workspace file.
-- name: IssueCreating
-  meaning: Creating an issue through the tracker exec word selected by the profile.
-- name: IssueRecording
-  meaning: Recording the configured tracker's issue ID in planner state.
-- name: MarkingExecuting
-  meaning: Advancing current task nodes to Executing as a focused graph mutation.
-- name: FormattingTask
-  meaning: Serializing the current plan into declared write parameters.
-- name: MaterializingTask
-  meaning: Writing doc/task.yaml through the shared write word.
-- name: InvokingExecutor
-  meaning: Running the executor through the shared self_invoke boundary.
-- name: Vetting
-  meaning: Running go vet on the workspace.
-- name: Building
-  meaning: Running go build on the workspace.
-- name: Testing
-  meaning: Running go test on the workspace.
-- name: IncrementingRetry
-  meaning: Incrementing the latest labelled retry count with jq.
 - name: CapturingFailure
   meaning: Publishing the preceding validation failure for the next retry prompt.
-- name: CheckingRetryLimit
-  meaning: Comparing the visible retry count with the declared limit.
-- name: Exhausted
-  meaning: Retry limit reached; query the graph before routing onward.
-- name: MarkingTaskFailed
-  meaning: Advancing exhausted current-task nodes to Failed before querying remaining work.
-- name: MarkingTaskDone
-  meaning: Mutating only the successfully validated task's graph nodes to Done.
-- name: QueryingRemainingWork
-  meaning: Reading graph state so the machine can route ready, done, or blocked work.
 - name: Completed
   run_status: succeeded
   meaning: Terminal. All tasks in the graph are done.
@@ -249,163 +210,21 @@ transitions:
 - state: Extracting
   signal: CommandError
   next: Failed
-- state: Resetting
-  signal: ToolDone
-  next: ProjectingPromptContext
-  action: project_planner_context
-  label: planner_context
-- state: Resetting
-  signal: CommandError
-  next: Failed
-- state: ProjectingPromptContext
-  signal: PlannerContextProjected
-  next: PromptAssembly
-  action: compose_planner_prompt
-- state: ProjectingPromptContext
-  signal: CommandError
-  next: Failed
-- state: PromptAssembly
-  signal: PromptReady
-  next: PlanInvoking
-  action: invoke_llm
-- state: PromptAssembly
-  signal: CommandError
-  next: Failed
-- state: PlanInvoking
-  signal: LLMResponded
-  next: PlanParsing
-  action: parse_plan
-- state: PlanInvoking
-  signal: CommandError
-  next: Failed
-- state: PlanParsing
-  signal: PlanReady
-  next: IssueFormatting
-  action: format_issue
-  label: issue_input
-- state: PlanParsing
-  signal: ParseFailed
-  next: ReportingParseError
-  action: report_parse_error
-- state: PlanParsing
-  signal: CommandError
-  next: Failed
-- state: ReportingParseError
-  signal: ToolDone
-  next: PlanInvoking
-  action: invoke_llm
-- state: ReportingParseError
-  signal: BudgetExhausted
-  next: Failed
-- state: ReportingParseError
-  signal: CommandError
-  next: Failed
-- state: IssueFormatting
-  signal: IssueFormatted
-  next: IssueBodyWriting
-  action: write
-- state: IssueFormatting
-  signal: CommandError
-  next: Failed
-- state: IssueBodyWriting
-  signal: ToolDone
-  next: IssueCreating
-  action: create_tracker_issue
-- state: IssueBodyWriting
-  signal: ToolFailed
-  next: Failed
-- state: IssueBodyWriting
-  signal: CommandError
-  next: Failed
-- state: IssueCreating
-  signal: ToolDone
-  next: IssueRecording
-  action: record_tracker_issue
-- state: IssueCreating
-  signal: ToolFailed
-  next: Failed
-- state: IssueCreating
-  signal: CommandError
-  next: Failed
-- state: IssueRecording
-  signal: Materialized
-  next: MarkingExecuting
-  action: mark_nodes_executing
-- state: IssueRecording
-  signal: CommandError
-  next: Failed
-- state: MarkingExecuting
-  signal: NodesMarkedExecuting
-  next: FormattingTask
-  action: format_task_file
-  label: task_file
-- state: MarkingExecuting
-  signal: CommandError
-  next: Failed
-- state: FormattingTask
-  signal: TaskFileFormatted
-  next: MaterializingTask
-  action: write
-- state: FormattingTask
-  signal: CommandError
-  next: Failed
-- state: MaterializingTask
-  signal: ToolDone
-  next: InvokingExecutor
-  action: invoke_executor
-- state: MaterializingTask
-  signal: ToolFailed
-  next: Failed
-- state: MaterializingTask
-  signal: CommandError
-  next: Failed
-- state: InvokingExecutor
-  signal: ToolDone
-  next: Vetting
-  action: vet
-- state: InvokingExecutor
-  signal: ToolFailed
-  next: Vetting
-  action: vet
-- state: InvokingExecutor
-  signal: CommandError
-  next: Failed
-- state: Vetting
-  signal: ToolDone
-  next: Building
-  action: build
 - state: Vetting
   signal: ToolFailed
   next: CapturingFailure
   action: capture_planner_failure
   label: failure_context
-- state: Vetting
-  signal: CommandError
-  next: Failed
-- state: Building
-  signal: ToolDone
-  next: Testing
-  action: test
 - state: Building
   signal: ToolFailed
   next: CapturingFailure
   action: capture_planner_failure
   label: failure_context
-- state: Building
-  signal: CommandError
-  next: Failed
-- state: Testing
-  signal: ToolDone
-  next: MarkingTaskDone
-  action: mark_task_done
 - state: Testing
   signal: ToolFailed
   next: CapturingFailure
   action: capture_planner_failure
   label: failure_context
-- state: Testing
-  signal: CommandError
-  next: Failed
 - state: CapturingFailure
   signal: FailureCaptured
   next: IncrementingRetry
@@ -414,64 +233,19 @@ transitions:
 - state: CapturingFailure
   signal: CommandError
   next: Failed
-- state: IncrementingRetry
-  signal: ToolDone
-  next: CheckingRetryLimit
-  action: check_retry_limit
-- state: IncrementingRetry
-  signal: ToolFailed
-  next: Failed
-- state: IncrementingRetry
-  signal: CommandError
-  next: Failed
 - state: CheckingRetryLimit
   signal: RetryAvailable
   next: Resetting
   action: reset_history
-- state: CheckingRetryLimit
-  signal: RetriesExhausted
-  next: MarkingTaskFailed
-  action: mark_task_failed
-- state: CheckingRetryLimit
-  signal: CommandError
-  next: Failed
-- state: MarkingTaskFailed
-  signal: TaskFailed
-  next: Exhausted
-  action: remaining_work
-- state: MarkingTaskFailed
-  signal: CommandError
-  next: Failed
 - state: Exhausted
   signal: WorkRemaining
   next: Extracting
   action: extract_task
-- state: Exhausted
-  signal: AllDone
-  next: Completed
-- state: Exhausted
-  signal: Blocked
-  next: Stalled
-- state: Exhausted
-  signal: CommandError
-  next: Failed
-- state: MarkingTaskDone
-  signal: TaskCompleted
-  next: QueryingRemainingWork
-  action: remaining_work
-- state: MarkingTaskDone
-  signal: CommandError
-  next: Failed
 - state: QueryingRemainingWork
   signal: WorkRemaining
   next: Extracting
   action: extract_task
-- state: QueryingRemainingWork
-  signal: AllDone
-  next: Completed
-- state: QueryingRemainingWork
-  signal: Blocked
-  next: Stalled
-- state: QueryingRemainingWork
-  signal: CommandError
-  next: Failed
+- state: IssueRecording
+  signal: Materialized
+  next: MarkingExecuting
+  action: mark_nodes_executing

@@ -1,0 +1,78 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Stopping one of the observer's REST servers. The control and monitor stops
+# differ only in which server they name (E11, GH-2382).
+unit: catalog-observer-server-stop
+params:
+  - name: name
+    type: string
+    description: The word's name.
+  - name: description
+    type: string
+    description: What the stop does.
+  - name: rest_ref
+    type: string
+    description: The REST server definition this stop releases.
+  - name: server_target
+    type: string
+    description: The side-effect target naming the listener.
+  - name: output_description
+    type: string
+    description: What the stop returns.
+  - name: error_condition
+    type: string
+    description: What can go wrong.
+  - name: state_after_failure
+    type: string
+    description: What is left behind by a failed stop.
+  - name: undo_description
+    type: string
+    description: How the stop is compensated.
+tools:
+  - name: $param(name)
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    category: boundary
+    description: $param(description)
+    parameters:
+      type: object
+      properties: {}
+    signature:
+      emits:
+      - ServerStopped
+      - CommandError
+    output:
+      description: $param(output_description)
+      schema:
+        type: object
+        properties:
+          server:
+            type: string
+          address:
+            type: string
+          status:
+            type: string
+    side_effects:
+    - kind: network_listener_shutdown
+      target: $param(server_target)
+      state: listener_stopped
+    - kind: state_mutation
+      target: rest_server_state
+      state: server_stopped
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: server_shutdown_or_user_action_compensation
+      description: $param(undo_description)
+      payload: boundary_compensation
+      captures:
+      - server
+      - address
+      - relaunch_requirement
+    errors:
+    - signal: CommandError
+      condition: $param(error_condition)
+      state_after_failure: $param(state_after_failure)
+    config:
+      rest_ref: $param(rest_ref)

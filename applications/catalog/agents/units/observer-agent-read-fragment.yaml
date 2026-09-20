@@ -1,0 +1,59 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# One observer read against a discovered agent's monitor surface. The four
+# reads differ only in which operation they name and what they say about it:
+# the request, the contract, the failure modes and the undo are one shape.
+#
+# The words are a fragment because the file that declares them was over the
+# execution constitution's length (E11, GH-2382).
+unit: catalog-observer-agent-read
+params:
+  - name: name
+    type: string
+    description: The word's name, which is also the monitor operation it calls.
+  - name: description
+    type: string
+    description: What the read does, for the tool catalogue.
+  - name: output_description
+    type: string
+    description: What the read returns.
+tools:
+  - name: $param(name)
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: $param(description)
+    parameters:
+      type: object
+      properties: {}
+    signature:
+      emits:
+      - AgentMonitorRead
+      - CommandError
+    output:
+      description: $param(output_description)
+      schema:
+        type: object
+        properties:
+          status:
+            type: integer
+          body:
+            type: object
+          selected_authority:
+            type: string
+    side_effects:
+    - kind: external_api
+      target: agent.monitor
+      state: read_only
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Read-only operation; no undo needed.
+    errors:
+    - signal: CommandError
+      condition: Network, timeout, target resolution, or mapping failure for this agent.
+      state_after_failure: The fan-in records this agent as unreachable and continues with the others.
+    config:
+      rest_ref: agent_monitor
+      operation: $param(name)

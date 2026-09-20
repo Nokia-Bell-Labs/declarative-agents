@@ -141,7 +141,7 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 			var machine struct {
 				Transitions []machineTransition `yaml:"transitions"`
 			}
-			unmarshalShipped(t, filepath.Join("agents", "planner", machinePath), &machine)
+			unmarshalShippedMachine(t, filepath.Join("agents", "planner", machinePath), &machine)
 
 			if machinePath == "machine.yaml" {
 				requireTransition(t, machine.Transitions, "Extracting", "TaskExtracted", "MarkingPlanning", "mark_nodes_planning")
@@ -185,10 +185,13 @@ func stopPlannerAfterIssueFormatting(t *testing.T, profile string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The IssueFormatting transition lives in a spliced stage, so the fixture
+	// is rewritten from the expanded machine and the copy carries no expand.
 	var machine map[string]interface{}
-	if err := yaml.Unmarshal(data, &machine); err != nil {
+	if err := yaml.Unmarshal(expandMachineStages(t, machinePath, data), &machine); err != nil {
 		t.Fatal(err)
 	}
+	delete(machine, "expand")
 	transitions, ok := machine["transitions"].([]interface{})
 	if !ok {
 		t.Fatal("planner fixture has no transitions")
@@ -561,6 +564,93 @@ func requireCopyFS(t *testing.T, destination, source string) {
 	t.Helper()
 	if err := os.CopyFS(destination, os.DirFS(source)); err != nil {
 		t.Fatalf("copy planner proof corpus: %v", err)
+	}
+}
+
+// expandMachineStages splices each expanded stage's states and transitions into
+// a machine document, so a conformance assertion sees the machine the runtime
+// builds. The planner variants splice shared stages under E11 (GH-2378), and a
+// test reading the file alone sees a machine missing half its transitions.
+//
+// Substitution is textual over the fragment's bytes, which is what the loader
+// does for scalars. No stage here substitutes inside a mapping name (srd052
+// R2.3).
+func expandMachineStages(t *testing.T, path string, data []byte) []byte {
+	t.Helper()
+	var doc struct {
+		Expand []struct {
+			Fragment string            `yaml:"fragment"`
+			Args     map[string]string `yaml:"args"`
+		} `yaml:"expand"`
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Expand) == 0 {
+		return data
+	}
+	whole := map[string]any{}
+	if err := yaml.Unmarshal(data, &whole); err != nil {
+		t.Fatal(err)
+	}
+	states, _ := whole["states"].([]any)
+	transitions, _ := whole["transitions"].([]any)
+	for _, expansion := range doc.Expand {
+		raw, err := os.ReadFile(filepath.Join(filepath.Dir(path), filepath.FromSlash(expansion.Fragment)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var declared struct {
+			Params []struct {
+				Name    string `yaml:"name"`
+				Default string `yaml:"default"`
+			} `yaml:"params"`
+		}
+		if err := yaml.Unmarshal(raw, &declared); err != nil {
+			t.Fatal(err)
+		}
+		args := map[string]string{}
+		for _, param := range declared.Params {
+			args[param.Name] = param.Default
+		}
+		for name, value := range expansion.Args {
+			args[name] = value
+		}
+		text := string(raw)
+		for name, value := range args {
+			text = strings.ReplaceAll(text, "$param("+name+")", value)
+		}
+		var fragment struct {
+			Stage struct {
+				States      []any `yaml:"states"`
+				Transitions []any `yaml:"transitions"`
+			} `yaml:"stage"`
+		}
+		if err := yaml.Unmarshal([]byte(text), &fragment); err != nil {
+			t.Fatal(err)
+		}
+		states = append(states, fragment.Stage.States...)
+		transitions = append(transitions, fragment.Stage.Transitions...)
+	}
+	whole["states"] = states
+	whole["transitions"] = transitions
+	spliced, err := yaml.Marshal(whole)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return spliced
+}
+
+// unmarshalShippedMachine reads a shipped machine with its stages spliced in.
+func unmarshalShippedMachine(t *testing.T, rel string, out any) {
+	t.Helper()
+	path := ProfilePath(rel)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read shipped %s: %v", rel, err)
+	}
+	if err := yaml.Unmarshal(expandMachineStages(t, path, data), out); err != nil {
+		t.Fatalf("unmarshal shipped %s: %v", rel, err)
 	}
 }
 
