@@ -1,0 +1,87 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: eng04-ui-kit-reuse
+title: "The UI Kit and the Structure of Agent-Served Interfaces"
+
+introduction: |
+  Every user interface this runtime serves is composed from shared parts: the
+  panel is the reuse unit, applications compose panels through ui.yaml, and
+  the shared parts live in the applications/ui-kit package (srd004,
+  declarative-ux). The mechanics live in the ui-panels guide, placement in
+  eng02, and the presentation contract in srd004. What none of them state is
+  judgment: when a component belongs in the kit rather than an application,
+  what a conforming application UI may and may not contain, how the contract
+  grows, and how a panel is promoted. This guideline states those norms, as
+  eng03 does for declarations. It binds UI authors in this repository and is
+  the reference we point consumer repositories at when their interfaces
+  drift.
+
+sections:
+  - title: "The kit boundary"
+    content: |
+      The kit owns what is generic to observing and operating agents: the
+      panel families in kitPanelRegistry, the monitor, trace, and fleet
+      clients, the shell and its layout, and the design tokens. An
+      application owns its domain panels — views whose meaning comes from the
+      application's data, such as cohere-demo's provenance panel — and
+      nothing else. The dividing question is whether a second application
+      could use the component without knowing this application's domain; a
+      yes puts it in the kit.
+
+      Promotion is evidential, as it is for declarations (eng03): a domain
+      panel moves into the kit when a second application adopts it, not when
+      one imagines a second application. A promotion carries three parts or
+      it is not done: the component and its manifest enter the kit registry,
+      the application deletes its copy, and ui_duplication_test gains a
+      pattern that fails the next local copy. The gate is a denylist, not a
+      counter, so extending it at each promotion is what keeps it honest.
+
+  - title: "What a conforming application UI contains"
+    content: |
+      An application UI is a composition, and its size measures its
+      conformance. It contains a ui.yaml (version 2) as its only route
+      table, a registry file naming its domain panels, the domain panel
+      components, and at most a small stylesheet of its own extras. It does
+      not contain a route table in code, a copy of any kit client or panel,
+      a raw fetch or EventSource where the kit client exists, an unscoped
+      rule for a class the kit shell styles, or a :root token block —
+      tokens are imported from the kit through its exports map, never by
+      filesystem path. ui_duplication_test and the token drift tests enforce
+      each of these; a UI that fights the tests is misplaced, not
+      exceptional.
+
+      All data access goes through the kit client with its injectable base
+      URL, and other agents are reached only through /monitor-proxy. A panel
+      that needs an endpoint the proxy does not carry has found a contract
+      gap, not a reason for a direct URL.
+
+  - title: "Growing the contract"
+    content: |
+      Panels bind only the endpoints srd004 R1 pins. The contract grows the
+      way the declaration vocabularies grow (eng03): the endpoint enters
+      srd004 first, named to its owning SRD, and the kit's recorded fixtures
+      cover it before a panel reads it. Within a major version owners change
+      responses additively. A panel that wants a response field that does
+      not exist requests it from the owning surface; it does not scrape,
+      derive, or fork the client.
+
+  - title: "Composition norms"
+    content: |
+      ui.yaml stays chart-renderable: one document, no anchors or aliases,
+      lists of flat maps, so a Helm template can emit it and
+      uiyaml.CheckHelmRenderable stays true. Kit panels are named by
+      package and export; domain panels by the application's registry key
+      under a non-kit package name. A panel reachable but not navigable is
+      hidden, not omitted. Branding carries the application's identity;
+      panels carry none, which is what makes them portable.
+
+  - title: "Distribution"
+    content: |
+      Inside this repository a UI depends on the kit by file: path; outside
+      it, by the npm pack tarball attached to the ui-kit/vX.Y.Z release,
+      which mage uikit:release prepares from a clean tree. No registry,
+      credential, or environment variable is involved. A consumer repository
+      updates the kit the way it updates the declaration pin: deliberately,
+      against a named release, absorbing the additive contract changes the
+      release notes state. Vendored token copies in consumers come from the
+      pinned kit, never edited in place.
