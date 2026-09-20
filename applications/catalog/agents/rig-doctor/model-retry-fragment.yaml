@@ -1,0 +1,59 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The bounded model retry (srd023 R4.5): a provider that did not answer, or
+# asked us to slow down, is worth two more attempts, because the evidence the
+# run has already read cost tokens and a busy provider is an ordinary
+# condition (GH-2297). A rejected credential and an infrastructure fault are
+# not retried: neither improves on a second ask (GH-2298).
+#
+# The stage is a fragment because the machine that imports it is already long
+# (execution constitution E11).
+unit: catalog-rig-doctor-model-retry
+params:
+  - name: prefix
+    type: string
+    default: ""
+    description: Prefix on the states this stage declares, to keep two instantiations apart.
+  - name: from
+    type: string
+    description: The importer's state a failed model call is seen in.
+  - name: answered
+    type: string
+    description: The importer's state a retry that answers leads to.
+  - name: answered_action
+    type: string
+    description: The word the importer runs on a response.
+  - name: retry_action
+    type: string
+    description: The word each attempt runs, normally the model call itself.
+  - name: failed
+    type: string
+    default: Failed
+    description: The state a third failure, a rejected credential, or an infrastructure fault leads to.
+stage:
+  states:
+    - name: $param(prefix)RetryingModel
+      meaning: |
+        The first model call failed. The evidence already read is worth one
+        more attempt, so the call is repeated rather than the run discarded.
+    - name: $param(prefix)RetryingModelLast
+      meaning: |
+        The retry failed too. One final attempt runs; a third failure is a
+        provider the run cannot reach, and it reaches the failed state.
+  transitions:
+    - {state: $param(from), signal: ProviderUnavailable, next: $param(prefix)RetryingModel, action: $param(retry_action)}
+    - {state: $param(from), signal: ProviderThrottled, next: $param(prefix)RetryingModel, action: $param(retry_action)}
+    - {state: $param(from), signal: ProviderUnauthorized, next: $param(failed)}
+    - {state: $param(from), signal: CommandError, next: $param(failed)}
+    - {state: $param(prefix)RetryingModel, signal: LLMResponded, next: $param(answered), action: $param(answered_action)}
+    - {state: $param(prefix)RetryingModel, signal: ProviderUnavailable, next: $param(prefix)RetryingModelLast, action: $param(retry_action)}
+    - {state: $param(prefix)RetryingModel, signal: ProviderThrottled, next: $param(prefix)RetryingModelLast, action: $param(retry_action)}
+    - {state: $param(prefix)RetryingModel, signal: ProviderUnauthorized, next: $param(failed)}
+    - {state: $param(prefix)RetryingModel, signal: CommandError, next: $param(failed)}
+    - {state: $param(prefix)RetryingModel, signal: BudgetExhausted, next: $param(failed)}
+    - {state: $param(prefix)RetryingModelLast, signal: LLMResponded, next: $param(answered), action: $param(answered_action)}
+    - {state: $param(prefix)RetryingModelLast, signal: ProviderUnavailable, next: $param(failed)}
+    - {state: $param(prefix)RetryingModelLast, signal: ProviderThrottled, next: $param(failed)}
+    - {state: $param(prefix)RetryingModelLast, signal: ProviderUnauthorized, next: $param(failed)}
+    - {state: $param(prefix)RetryingModelLast, signal: CommandError, next: $param(failed)}
+    - {state: $param(prefix)RetryingModelLast, signal: BudgetExhausted, next: $param(failed)}

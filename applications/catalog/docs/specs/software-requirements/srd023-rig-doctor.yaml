@@ -24,10 +24,10 @@ design_notes: |
   the outlier, and teaching it those signals is the fix that would serve
   every model-driven family rather than this one.
 
-  We did not do that here. It changes what an existing word emits, which
-  every machine routing invoke_llm would then have to handle, and this family
-  needed a bound today. Three bounded attempts is the local answer; the
-  runtime answer is GH-2298.
+  That is now what happens: the word emits the taxonomy when a ToolDef opts in
+  (srd058 R2.4), and this family opts in. The retry chain that GH-2297 drove
+  from CommandError is driven by ProviderUnavailable and ProviderThrottled,
+  and a rejected credential no longer costs three attempts to report.
 
 problem: |
   Today a person reconstructs the failure by hand from kubectl events,
@@ -71,7 +71,7 @@ requirements:
       - R4.4: A diagnosis that is missing, undecodable, or incomplete returns to the model with the reason so it repairs and calls done again; the gate reads back only the declared diagnosis path, never a file the model names.
       - R4.2: An evidence directory that is empty, or that cannot be listed, reaches NoEvidence before any model call and writes no diagnosis.
       - R4.3: Budget exhaustion or an infrastructure error reaches Failed, from the read-back gate as much as from the loop, so a run that stops mid-gate still reports a terminal state.
-      - R4.5: A failed model call is retried twice before the run gives up, so a busy provider does not discard evidence the run already paid to read; a third failure reaches Failed and writes no diagnosis.
+      - R4.5: A model call that reports ProviderUnavailable or ProviderThrottled is retried twice before the run gives up, so a busy provider does not discard evidence the run already paid to read; a third failure reaches Failed and writes no diagnosis. ProviderUnauthorized and CommandError reach Failed at once, because a rejected credential and an infrastructure fault do not improve on a second ask.
   R5:
     title: Portability and registration
     items:
@@ -99,7 +99,7 @@ acceptance_criteria:
     criterion: The family inventory test finds the root-cause-analyst binding in all three semantic models.
     traces: [R5.2]
   - id: AC8
-    criterion: A provider that fails twice and then answers reaches Diagnosed; one that never answers costs exactly three attempts and reaches Failed with no diagnosis written.
+    criterion: A provider that fails twice and then answers reaches Diagnosed; one that never answers costs exactly three attempts and reaches Failed with no diagnosis written; one that rejects the credential costs one.
     traces: [R4.3, R4.5]
   - id: AC7
     criterion: A scripted run that writes undecodable YAML, and one that calls done having written nothing, each repair and reach Diagnosed; a model that never repairs exhausts its budget and reaches Failed rather than stopping mid-gate.

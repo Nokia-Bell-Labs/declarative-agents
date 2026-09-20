@@ -107,7 +107,11 @@ requirements:
           resolving a credential -- or one decoding a successful answer SHALL
           remain CommandError, because neither describes the provider's state.
           Without the opt-in every path SHALL emit exactly what it emits
-          today, so a pinned consumer is unaffected until it asks.
+          today, so a pinned consumer is unaffected until it asks. A
+          classified failure SHALL carry its detail as output and no error
+          value, the shape a status-mapped REST result already takes, because
+          dispatch rewrites an error-bearing result to CommandError and would
+          otherwise undo the classification before a machine saw it.
       - R2.5: >-
           A ToolDef that opts in SHALL declare the signals it will emit, and a
           load where the opt-in and the declared emits disagree SHALL fail

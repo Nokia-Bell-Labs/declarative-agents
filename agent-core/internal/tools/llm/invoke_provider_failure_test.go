@@ -72,7 +72,14 @@ func TestInvokeLLMEmitsMappedProviderFailure(t *testing.T) {
 		result := failureBuilder(t, server.URL, true, 0).
 			Build(core.Result{State: "Composing", Output: "hi"}).Execute()
 		require.Equal(t, tc.want, result.Signal, "status %d", tc.status)
-		require.Error(t, result.Err)
+		require.Contains(t, result.Output, "returned status")
+		// A classified failure must not carry Err: the dispatcher rewrites an
+		// error-bearing result to CommandError, which would undo the
+		// classification before any machine saw it.
+		require.NoError(t, result.Err, "status %d", tc.status)
+		forced := result
+		core.ForceErrorSignal(&forced)
+		require.Equal(t, tc.want, forced.Signal, "the signal survives dispatch")
 	}
 }
 

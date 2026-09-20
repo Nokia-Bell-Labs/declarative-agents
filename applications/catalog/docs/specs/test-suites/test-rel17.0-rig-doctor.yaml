@@ -57,8 +57,14 @@ test_cases:
     verifies: [S3, S5]
     command: go test ./conformance -run '^TestRigDoctorRetriesAFailedModelCall'
     assertions:
-      - A provider that fails twice and then answers reaches Diagnosed.
+      - A provider that fails twice with a mapped status and then answers reaches Diagnosed, driven by ProviderUnavailable.
       - The run spends four provider calls: two failures, then the write and the done.
+  - id: rig-doctor-does-not-retry-a-rejected-credential
+    verifies: [S5]
+    command: go test ./conformance -run '^TestRigDoctorDoesNotRetryARejectedCredential'
+    assertions:
+      - A provider answering 401 costs exactly one attempt.
+      - The run reaches Failed.
   - id: rig-doctor-gives-up-on-an-unreachable-provider
     verifies: [S5]
     command: go test ./conformance -run '^TestRigDoctorGivesUpOnAnUnreachableProvider'

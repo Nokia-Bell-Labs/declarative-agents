@@ -101,28 +101,30 @@ func (c *invokeLLMCmd) Execute() core.Result {
 	}
 	chatResp, duration, err := c.chat(messages)
 	if err != nil {
-		return core.Result{
-			Signal: c.failureSignal(err), Err: err, Output: err.Error(),
-			Cost: core.Cost{Duration: duration},
-		}
+		return c.failureResult(err, duration)
 	}
 	c.history.Append(modelllm.Message{Role: modelllm.Assistant, Content: chatResp.Content})
 	return c.chatResult(chatResp, duration)
 }
 
-// failureSignal reports the signal a failed call answers with. Without the
-// opt-in, and for a fault the dialect does not classify -- an unmapped status,
-// a credential that will not resolve, an answer that will not decode -- it
-// stays CommandError, because none of those describe the provider's state
-// (srd058 R2.4).
-func (c *invokeLLMCmd) failureSignal(err error) core.Signal {
-	if !c.providerFailureSignals {
-		return core.CommandError
+// failureResult reports a failed call. Without the opt-in, and for a fault the
+// dialect does not classify -- an unmapped status, a credential that will not
+// resolve, an answer that will not decode -- it stays CommandError, because
+// none of those describe the provider's state (srd058 R2.4).
+//
+// A classified failure carries its detail in Output and leaves Err unset, the
+// same shape the REST client returns a status-mapped signal in: the dispatcher
+// rewrites any result carrying an error to CommandError
+// (core.ForceErrorSignal), so a classified signal and a non-nil Err cannot
+// both survive. The error is already on the span, recorded where it happened.
+func (c *invokeLLMCmd) failureResult(err error, duration time.Duration) core.Result {
+	cost := core.Cost{Duration: duration}
+	if c.providerFailureSignals {
+		if signal := ProviderFailureSignal(err); signal != "" {
+			return core.Result{Signal: core.Signal(signal), Output: err.Error(), Cost: cost}
+		}
 	}
-	if signal := ProviderFailureSignal(err); signal != "" {
-		return core.Signal(signal)
-	}
-	return core.CommandError
+	return core.Result{Signal: core.CommandError, Err: err, Output: err.Error(), Cost: cost}
 }
 
 func (c *invokeLLMCmd) ensureContext() {
