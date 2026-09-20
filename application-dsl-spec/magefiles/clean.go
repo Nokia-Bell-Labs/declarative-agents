@@ -23,7 +23,7 @@ func Clean() error {
 	for _, entry := range entries {
 		path := filepath.Join(renderOutputDir, entry.Name())
 		fmt.Printf("rm %s\n", path)
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 			errs = append(errs, fmt.Errorf("remove %s: %w", path, err))
 		}
 	}
