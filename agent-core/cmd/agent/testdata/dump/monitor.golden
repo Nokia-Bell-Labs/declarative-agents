@@ -86,7 +86,7 @@ machine:
   budget:
     max_iterations: 6
     command_timeout: 1m
-instantiations:
+expansions:
   - kind: machine
     fragment: <agent-core>/tools/machines/monitor-service-machine-template.yaml
     args:

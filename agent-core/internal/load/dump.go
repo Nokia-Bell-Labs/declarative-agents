@@ -21,14 +21,14 @@ import (
 )
 
 type dumpDocument struct {
-	Version        int                  `yaml:"dump_version"`
-	Profile        catalog.AgentProfile `yaml:"profile"`
-	Machine        core.MachineSpec     `yaml:"machine"`
-	Types          []dumpType           `yaml:"types,omitempty"`
-	Instantiations []dumpInstantiation  `yaml:"instantiations,omitempty"`
-	Tools          []catalog.ToolDef    `yaml:"tools"`
-	Rest           restDump             `yaml:"rest"`
-	Files          []dumpFile           `yaml:"files"`
+	Version    int                  `yaml:"dump_version"`
+	Profile    catalog.AgentProfile `yaml:"profile"`
+	Machine    core.MachineSpec     `yaml:"machine"`
+	Types      []dumpType           `yaml:"types,omitempty"`
+	Expansions []dumpExpansion      `yaml:"expansions,omitempty"`
+	Tools      []catalog.ToolDef    `yaml:"tools"`
+	Rest       restDump             `yaml:"rest"`
+	Files      []dumpFile           `yaml:"files"`
 }
 
 // dumpType renders one declared type under its unit.Name address. Tool schemas
@@ -41,9 +41,9 @@ type dumpType struct {
 	Schema      map[string]any `yaml:"schema,omitempty"`
 }
 
-// dumpInstantiation renders one application of a fragment: where it came
+// dumpExpansion renders one application of a fragment: where it came
 // from, what filled it, and what it produced (srd052 R3.2).
-type dumpInstantiation struct {
+type dumpExpansion struct {
 	// Kind is what the fragment's body is: tool, rest, stage, or machine
 	// (srd054 R3.2).
 	Kind     string            `yaml:"kind"`
@@ -84,9 +84,9 @@ func DumpConfig(closure *Closure, writer io.Writer) error {
 	}
 	data, err := canonicalYAML(dumpDocument{
 		Version: 1, Profile: closure.Profile, Machine: closure.Machine,
-		Types:          newTypeDump(closure.Types),
-		Instantiations: newInstantiationDump(closure.ToolUniverse, closure.Rest, closure.Machine),
-		Tools:          tools, Rest: newRestDump(closure.Rest), Files: files,
+		Types:      newTypeDump(closure.Types),
+		Expansions: newExpansionDump(closure.ToolUniverse, closure.Rest, closure.Machine),
+		Tools:      tools, Rest: newRestDump(closure.Rest), Files: files,
 	})
 	if err != nil {
 		return err
@@ -115,45 +115,45 @@ func newTypeDump(registry *typesys.Registry) []dumpType {
 	return types
 }
 
-// newInstantiationDump groups the universe's tools by the fragment
+// newExpansionDump groups the universe's tools by the fragment
 // application that produced them, sorted by fragment path then prefix, with
 // produced names sorted, so a dump is byte-identical across runs.
-func newInstantiationDump(
+func newExpansionDump(
 	universe []catalog.ToolDef, rest toolrest.Collection, machine core.MachineSpec,
-) []dumpInstantiation {
-	byKey := map[string]*dumpInstantiation{}
+) []dumpExpansion {
+	byKey := map[string]*dumpExpansion{}
 	record := func(kind, fragment, as string, args map[string]string, produced ...string) {
 		key := fragment + "\x00" + as
 		entry, exists := byKey[key]
 		if !exists {
-			entry = &dumpInstantiation{Kind: kind, Fragment: fragment, As: as, Args: args}
+			entry = &dumpExpansion{Kind: kind, Fragment: fragment, As: as, Args: args}
 			byKey[key] = entry
 		}
 		entry.Produces = append(entry.Produces, produced...)
 	}
 	for _, tool := range universe {
-		if instantiation, ok := tool.Expansion(); ok {
-			record(instantiationKindTool, instantiation.Fragment, instantiation.As, instantiation.Args, tool.Name)
+		if expansion, ok := tool.Expansion(); ok {
+			record(expansionKindTool, expansion.Fragment, expansion.As, expansion.Args, tool.Name)
 		}
 	}
-	for _, instantiation := range rest.DeclarationExpansions() {
-		record(instantiationKindREST, instantiation.Fragment, instantiation.As, instantiation.Args,
-			instantiation.Produces...)
+	for _, expansion := range rest.DeclarationExpansions() {
+		record(expansionKindREST, expansion.Fragment, expansion.As, expansion.Args,
+			expansion.Produces...)
 	}
-	for _, instantiation := range machine.Expansions() {
-		record(instantiation.Kind, instantiation.Fragment, instantiation.As, instantiation.Args,
-			instantiation.Produces...)
+	for _, expansion := range machine.Expansions() {
+		record(expansion.Kind, expansion.Fragment, expansion.As, expansion.Args,
+			expansion.Produces...)
 	}
-	return sortedInstantiations(byKey)
+	return sortedExpansions(byKey)
 }
 
-// sortedInstantiations orders rows by fragment path then prefix, with produced
+// sortedExpansions orders rows by fragment path then prefix, with produced
 // names sorted, so a dump is byte-identical across runs.
-func sortedInstantiations(byKey map[string]*dumpInstantiation) []dumpInstantiation {
+func sortedExpansions(byKey map[string]*dumpExpansion) []dumpExpansion {
 	if len(byKey) == 0 {
 		return nil
 	}
-	entries := make([]dumpInstantiation, 0, len(byKey))
+	entries := make([]dumpExpansion, 0, len(byKey))
 	for _, entry := range byKey {
 		sort.Strings(entry.Produces)
 		entries = append(entries, *entry)
@@ -185,8 +185,8 @@ func dumpFiles(closure *Closure) ([]dumpFile, error) {
 }
 
 const (
-	instantiationKindTool = "tool"
-	instantiationKindREST = "rest"
+	expansionKindTool = "tool"
+	expansionKindREST = "rest"
 )
 
 func newRestDump(collection toolrest.Collection) restDump {

@@ -114,7 +114,7 @@ types:
     description: Plain text a word publishes as its whole result.
     schema:
       type: string
-instantiations:
+expansions:
   - kind: machine
     fragment: <agent-core>/tools/machines/lifecycle-approval-machine-template.yaml
     args:

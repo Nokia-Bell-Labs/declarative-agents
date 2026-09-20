@@ -102,6 +102,15 @@ requirements:
           arguments that produced it, and the canonical dump SHALL carry an
           `expansions` section listing, for each expansion, the
           fragment, the arguments, and the names produced.
+      - R3.3: >-
+          The dump key is `expansions`, following the operation's name. The
+          reuse-statistics JSON reports the same count under the key
+          `instantiations` and SHALL keep it: that key is a metrics series with
+          a committed baseline, and renaming it would make every historical
+          figure incomparable for a vocabulary gain no reader of the JSON
+          needs. The two surfaces differ because a diagnostic dump is read by a
+          person against this specification, while a metrics key is read by a
+          series. The divergence is deliberate, not an unfinished rename.
 
   R4:
     title: Machine stage fragments
@@ -144,6 +153,9 @@ acceptance_criteria:
   - id: AC3
     criterion: An expansion none of whose definitions is selected fails as an unused import with the fragment and arguments named, and the dump lists every expansion with fragment, arguments, and produced names.
     traces: [R3.1, R3.2]
+  - id: AC6
+    criterion: The canonical dump names the section `expansions`, and the reuse-statistics JSON reports the same count under `instantiations`; neither key follows the other.
+    traces: [R3.3]
   - id: AC4
     criterion: A stage fragment splices into a machine under a prefix with parameterized entry and exit signals, and the result passes or fails the label and exhaustiveness checks exactly as the equivalent hand-written machine does.
     traces: [R4.1, R4.2]

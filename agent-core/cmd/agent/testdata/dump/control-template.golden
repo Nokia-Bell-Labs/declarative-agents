@@ -79,7 +79,7 @@ machine:
   budget:
     max_iterations: 5
     command_timeout: 1m
-instantiations:
+expansions:
   - kind: machine
     fragment: <agent-core>/testdata/integration/units/control-machine-template.yaml
     args:

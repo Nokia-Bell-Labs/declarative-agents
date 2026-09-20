@@ -142,7 +142,7 @@ types:
     description: Plain text a word publishes as its whole result.
     schema:
       type: string
-instantiations:
+expansions:
   - kind: machine
     fragment: <agent-core>/tools/machines/ollama-model-listing-machine-template.yaml
     args:

@@ -60,7 +60,7 @@ tools: []
 
 	require.Equal(t, first.String(), second.String())
 	dump := first.String()
-	require.Contains(t, dump, "instantiations:\n")
+	require.Contains(t, dump, "expansions:\n")
 	require.Contains(t, dump, "as: bye\n    args:\n      word: goodbye\n    produces:\n      - bye_say\n")
 	require.Contains(t, dump, "as: hi\n    args:\n      word: hello\n    produces:\n      - hi_say\n")
 	require.Less(t, bytes.Index(first.Bytes(), []byte("as: bye")), bytes.Index(first.Bytes(), []byte("as: hi")),
@@ -119,7 +119,7 @@ rest: {version: v1}
 	var dump bytes.Buffer
 	require.NoError(t, DumpConfig(closure, &dump))
 
-	require.Contains(t, dump.String(), "instantiations:\n")
+	require.Contains(t, dump.String(), "expansions:\n")
 	require.Contains(t, dump.String(), "as: main\n    args:\n      url: http://main\n    produces:\n      - clients/main_api\n")
 }
 
