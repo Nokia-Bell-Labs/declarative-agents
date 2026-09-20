@@ -1,0 +1,71 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# =============================================================================
+# language.yaml
+# Application DSL Specification — normative statements
+# =============================================================================
+#
+# WHAT THIS FILE IS
+# -----------------
+# This is the machine-readable companion to the prose chapters in this
+# directory. Every requirement the specification makes is a statement here,
+# and nothing normative exists only in prose. The chapters cite statements
+# with `{{statement <id>}}` placeholders; the render target expands each
+# citation in place with a stable anchor, and the audit target fails when a
+# citation does not resolve, when a statement is never cited, or when a
+# statement's acceptance evidence is missing or failing.
+#
+# HOW TO READ EACH STATEMENT
+# --------------------------
+#   id          stable identifier, R-<CHAPTER TAG>-<NNN>. Identifiers are
+#               never renumbered or reused; constitutions, tests, and commits
+#               cite them.
+#   target      which conformance target the statement binds — one of the
+#               names under language.conformance_targets (chapter 01).
+#   level       RFC 2119 requirement level: MUST, MUST NOT, SHOULD,
+#               SHOULD NOT, or MAY.
+#   statement   the normative text itself.
+#   acceptance  at least one evidence entry proving the statement is checked:
+#                 assertion: fixture   a document under fixtures/ with the
+#                                      named check applied and an expected
+#                                      verdict (valid or invalid)
+#                 assertion: go_test   a named Go test that must exist and
+#                                      pass, path relative to this directory
+#
+language:
+  id: application-dsl
+  title: Application DSL Specification
+  version: 0.1.0
+  conformance_targets:
+    - document
+    - processor
+    - runtime
+    - population
+
+statements:
+  - id: R-INTRO-001
+    target: document
+    level: MUST
+    statement: >-
+      A conforming document MUST be a single YAML document whose root node is
+      a mapping.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/root-mapping/valid.yaml
+        check: yaml_mapping
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/root-mapping/invalid.yaml
+        check: yaml_mapping
+        verdict: invalid
+
+  - id: R-INTRO-002
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject a document whose root node is not a
+      mapping.
+    acceptance:
+      - assertion: go_test
+        path: magefiles/evidence_test.go
+        test: TestFixtureCheckRejectsNonMappingRoot
