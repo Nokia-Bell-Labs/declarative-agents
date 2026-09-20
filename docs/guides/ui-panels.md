@@ -69,3 +69,5 @@ The canonical tokens file is `applications/ui-kit/src/tokens.css` (GH-2260). Eve
 ## Rules
 
 UI code reads and writes only through the kit client, whose base URL is injectable, so the same panel runs same-origin and under a desktop shell later. A component a second application would want goes into the kit, not into an app's `src/`. `magefiles/ui_duplication_test.go` enforces this: it fails on a local copy of the panel path helpers, the monitor, trace, or fleet clients, the machine layout, the status bar, or sub-path routing; on `/trace-proxy` anywhere under `applications/`; on an unscoped stylesheet rule for a class the kit shell styles (`.shell`, `.sidebar`, `.nav-item`, `.content`, and their kin); and on a raw `fetch` or `EventSource` in a UI that uses the kit. Domain panels stay in their application; the epic does not unify them.
+
+When a component belongs in the kit, what a conforming application UI contains, and how a panel is promoted are conventions, not mechanics: [eng04-ui-kit-reuse](../engineering/eng04-ui-kit-reuse.yaml) states them.

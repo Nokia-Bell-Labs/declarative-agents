@@ -27,7 +27,9 @@ introduction: |
   one form. We state the runtime resolution rule the convention rests on, so
   the placement and the path that reaches it stay coupled, and we record the
   current inventory so the non-conforming cases are visible and tracked to
-  migration rather than forgotten.
+  migration rather than forgotten. This guideline covers where a served UI
+  lives; what it may contain and when a component belongs in the shared kit
+  is eng04-ui-kit-reuse.
 
 sections:
   - title: "The rule"
