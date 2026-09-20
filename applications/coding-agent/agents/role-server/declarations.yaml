@@ -66,8 +66,12 @@ tools:
           payload: {type: object}
     category: boundary
     side_effects: [{kind: state_mutation, target: role_control_queue, state: selected_event_consumed}]
-    reversibility: {classification: irreversible}
-    undo: {strategy: noop, description: Consumed lifecycle events are not restored.}
+    reversibility: {classification: reversible}
+    undo:
+      strategy: queue_event_restore
+      description: Restore the receipt-recorded event to the front of its source server queue.
+      payload: rest_await_event
+      captures: [source, event]
     config:
       sources:
         - {server: role_control, routes: [exit], signals: [ExitRequested]}
