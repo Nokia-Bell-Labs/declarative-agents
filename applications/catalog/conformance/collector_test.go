@@ -837,3 +837,66 @@ func TestCollectorUIRootLiteral(t *testing.T) {
 		t.Fatalf("collector rest.yaml introduces a new UI environment variable")
 	}
 }
+
+// TestCollectorMonitorServesNoSpanPayloads pins the monitor surface's scope:
+// it reads lifecycle and machine state, and a caller who wants span content
+// goes to the query surface for it (srd020 R2.2, R2.3). Without this the
+// requirement rested on the REST declaration alone, and a monitor_view added
+// later could widen the surface with nothing to notice.
+func TestCollectorMonitorServesNoSpanPayloads(t *testing.T) {
+	t.Parallel()
+	RequireCoreRoot(t)
+	controlAddr := FreeAddr(t)
+	monitorAddr := FreeAddr(t)
+	queryAddr := FreeAddr(t)
+	receiverAddr := FreeAddr(t)
+
+	profilePath := CopyShippedProfile(t, filepath.Join("agents", "collector", "profile.yaml"), map[string]string{
+		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}":                         controlAddr,
+		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":                         monitorAddr,
+		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":                           queryAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_MONITOR_PORT:-18192}": monitorAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}":   queryAddr,
+		"0.0.0.0:4317": receiverAddr,
+	})
+	// The spool carries trace-aaa, whose span names the query surface returns.
+	seedCollectorSpool(t, filepath.Join(filepath.Dir(profilePath), "traces", "collector.ndjson"))
+
+	server := Serve(t, ServeConfig{Profile: profilePath, Env: collectorEnv(receiverAddr)})
+	server.WaitHealthy("http://"+controlAddr+"/api/lifecycle/health", 15*time.Second)
+
+	// Every monitor read answers, and none of them carries span content.
+	for _, path := range []string{
+		"/monitor/machine", "/monitor/machines", "/monitor/tools/declared",
+		"/monitor/state", "/monitor/tools", "/monitor/metrics", "/monitor/events",
+	} {
+		body, _, status := getBody(t, "http://"+monitorAddr+path)
+		if status != http.StatusOK {
+			t.Errorf("GET %s status = %d, want 200", path, status)
+			continue
+		}
+		// Fixture data values, not schema field names: the declared-tools
+		// view legitimately names span_count and root_span_name because the
+		// spool query words declare those output fields.
+		for _, spanContent := range []string{"trace-aaa", "trace-bbb", "svc-a", "svc-b"} {
+			if strings.Contains(body, spanContent) {
+				t.Errorf("GET %s carries span content %q; span payloads belong to the query surface",
+					path, spanContent)
+			}
+		}
+	}
+
+	// The same content the monitor withholds is what the query surface exists
+	// to serve, so the assertion above is scope rather than absence.
+	traces, _, status := getBody(t, "http://"+queryAddr+"/query/traces?page_size=5")
+	if status != http.StatusOK ||
+		!strings.Contains(traces, "trace-aaa") || !strings.Contains(traces, "trace-bbb") {
+		t.Fatalf("GET /query/traces status = %d, body = %q; want the spooled traces", status, traces)
+	}
+
+	if status := server.Post("http://"+controlAddr+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
+		t.Fatalf("exit POST status = %d", status)
+	}
+	server.WaitExit(35 * time.Second)
+}
