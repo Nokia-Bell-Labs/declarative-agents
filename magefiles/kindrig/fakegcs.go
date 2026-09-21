@@ -50,7 +50,7 @@ func InstallFakeGCS(run CommandRunner, cluster string) (func() error, error) {
 	if strings.TrimSpace(cluster) == "" {
 		return nil, fmt.Errorf("install fake-gcs-server: kind cluster name is required")
 	}
-	status, err := fakeGCSStatus(run)
+	status, err := fakeGCSStatus(run, cluster)
 	if err == nil && status == "True" {
 		return func() error { return nil }, nil
 	}
@@ -77,20 +77,21 @@ func InstallFakeGCS(run CommandRunner, cluster string) (func() error, error) {
 			"--namespace", fakeGCSNamespace, "--timeout=180s"}},
 	)
 	if err := runInstallSteps(run, cluster, "fake-gcs-server", steps); err != nil {
-		_ = deleteFakeGCSManifest(run, path)
+		_ = deleteFakeGCSManifest(run, cluster, path)
 		removeFile()
 		return nil, err
 	}
 	return func() error {
 		defer removeFile()
-		return deleteFakeGCSManifest(run, path)
+		return deleteFakeGCSManifest(run, cluster, path)
 	}, nil
 }
 
-func fakeGCSStatus(run CommandRunner) (string, error) {
-	out, err := run("kubectl", "get", "deployment", fakeGCSDeployment,
+func fakeGCSStatus(run CommandRunner, cluster string) (string, error) {
+	command := inCluster(cluster, []string{"kubectl", "get", "deployment", fakeGCSDeployment,
 		"--namespace", fakeGCSNamespace,
-		"-o", `jsonpath={.status.conditions[?(@.type=="Available")].status}`)
+		"-o", `jsonpath={.status.conditions[?(@.type=="Available")].status}`})
+	out, err := run(command[0], command[1:]...)
 	status := strings.TrimSpace(string(out))
 	if err != nil {
 		return status, fmt.Errorf("%w: %s", err, status)
@@ -132,8 +133,9 @@ func writeFakeGCSManifest(manifest string) (string, func(), error) {
 	return path, cleanup, nil
 }
 
-func deleteFakeGCSManifest(run CommandRunner, path string) error {
-	out, err := run("kubectl", "delete", "-f", path, "--ignore-not-found")
+func deleteFakeGCSManifest(run CommandRunner, cluster, path string) error {
+	command := inCluster(cluster, []string{"kubectl", "delete", "-f", path, "--ignore-not-found"})
+	out, err := run(command[0], command[1:]...)
 	if err != nil {
 		return fmt.Errorf("delete fake-gcs manifest: %w: %s", err, strings.TrimSpace(string(out)))
 	}

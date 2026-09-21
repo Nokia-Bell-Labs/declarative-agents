@@ -35,7 +35,7 @@ func InstallMetricsServer(run CommandRunner, cluster string) (func() error, erro
 	if strings.TrimSpace(cluster) == "" {
 		return nil, fmt.Errorf("install metrics-server: kind cluster name is required")
 	}
-	status, err := metricsAPIStatus(run)
+	status, err := metricsAPIStatus(run, cluster)
 	if err == nil && status == "True" {
 		return func() error { return nil }, nil
 	}
@@ -64,19 +64,20 @@ func InstallMetricsServer(run CommandRunner, cluster string) (func() error, erro
 			"apiservice/" + metricsAPIService, "--timeout=180s"}},
 	)
 	if err := runInstallSteps(run, cluster, "metrics-server", steps); err != nil {
-		_ = deleteMetricsManifest(run, path)
+		_ = deleteMetricsManifest(run, cluster, path)
 		removeFile()
 		return nil, err
 	}
 	return func() error {
 		defer removeFile()
-		return deleteMetricsManifest(run, path)
+		return deleteMetricsManifest(run, cluster, path)
 	}, nil
 }
 
-func metricsAPIStatus(run CommandRunner) (string, error) {
-	out, err := run("kubectl", "get", "apiservice", metricsAPIService,
-		"-o", `jsonpath={.status.conditions[?(@.type=="Available")].status}`)
+func metricsAPIStatus(run CommandRunner, cluster string) (string, error) {
+	command := inCluster(cluster, []string{"kubectl", "get", "apiservice", metricsAPIService,
+		"-o", `jsonpath={.status.conditions[?(@.type=="Available")].status}`})
+	out, err := run(command[0], command[1:]...)
 	status := strings.TrimSpace(string(out))
 	if err != nil {
 		return status, fmt.Errorf("%w: %s", err, status)
@@ -112,8 +113,9 @@ func writeMetricsManifest(manifest string) (string, func(), error) {
 	return path, cleanup, nil
 }
 
-func deleteMetricsManifest(run CommandRunner, path string) error {
-	out, err := run("kubectl", "delete", "-f", path, "--ignore-not-found")
+func deleteMetricsManifest(run CommandRunner, cluster, path string) error {
+	command := inCluster(cluster, []string{"kubectl", "delete", "-f", path, "--ignore-not-found"})
+	out, err := run(command[0], command[1:]...)
 	if err != nil {
 		return fmt.Errorf("delete metrics-server manifest: %w: %s",
 			err, strings.TrimSpace(string(out)))

@@ -125,8 +125,8 @@ func TestInstallIngressReusesLocalPinnedImageAndWaitsForDeployment(t *testing.T)
 	var applied string
 	run := func(name string, args ...string) ([]byte, error) {
 		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
-		if name == "kubectl" && len(args) == 3 && args[0] == "apply" {
-			data, err := os.ReadFile(args[2])
+		if name == "kubectl" && appliedManifestPath(args) != "" {
+			data, err := os.ReadFile(appliedManifestPath(args))
 			if err != nil {
 				return nil, err
 			}
@@ -146,8 +146,8 @@ func TestInstallIngressReusesLocalPinnedImageAndWaitsForDeployment(t *testing.T)
 		"docker image inspect --format {{.Id}} " + image,
 		"docker tag " + image + " " + runtimeImage,
 		"node-import " + runtimeImage + " da-example-demo-control-plane linux/" + runtime.GOARCH,
-		"kubectl apply -f ",
-		"kubectl rollout status deployment/traefik --namespace traefik --timeout=180s",
+		"kubectl --context kind-da-example-demo apply -f ",
+		"kubectl --context kind-da-example-demo rollout status deployment/traefik --namespace traefik --timeout=180s",
 	}
 	if len(calls) != len(wantCalls) {
 		t.Fatalf("calls=%v want %d", calls, len(wantCalls))
