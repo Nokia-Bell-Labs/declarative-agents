@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Agent-as-Data
 
 Agent-as-Data packages the complete agent definition—machine, tool selection,

@@ -65,21 +65,14 @@ type patternInvariantSummary struct {
 	manual     int
 }
 
-// Audit first validates repository-wide document placement, actor-role
-// realization, and chart conformance, warms the agent build cache once, then
-// runs mage audit in each sub-module and participating example module
-// concurrently.
+// Audit runs the repository-wide gates this module holds, warms the agent
+// build cache once, then runs mage audit in each sub-module and participating
+// example module concurrently.
 func Audit() error {
-	if err := runDocumentPlacementAudit(); err != nil {
+	if err := runRepositoryGateTests(); err != nil {
 		return err
 	}
 	if err := runPatternInvariantAudit(); err != nil {
-		return err
-	}
-	if err := runAgentRoleRealizationAudit(); err != nil {
-		return err
-	}
-	if err := runChartConformanceAudit(); err != nil {
 		return err
 	}
 	if err := warmAgentBuild(); err != nil {
@@ -88,39 +81,23 @@ func Audit() error {
 	return auditSubModules(auditParticipants(), os.Stat, runMageAudit)
 }
 
-func runDocumentPlacementAudit() error {
-	cmd := exec.Command("go", "test", ".", "-count=1", "-run", "^TestDocumentPlacement")
+// runRepositoryGateTests runs this module's whole test suite: document
+// placement, chart conformance, actor-role realization, copyright headers,
+// gofmt, the values-overlay classification, and every gate added here later.
+//
+// Audit used to name four of them with -run selections. Everything else in
+// the package was then outside the gate an operator and CI actually run, and
+// three of those tests were red on main for an unknown number of days with no
+// signal: a copyright header pass, a gofmt pass, and an overlay list that
+// #2433 had outgrown (GH-2459). Running the package is also cheaper than
+// four selections, because the package builds once.
+func runRepositoryGateTests() error {
+	cmd := exec.Command("go", "test", ".", "-count=1")
 	cmd.Dir = "magefiles"
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("document placement audit: %w", err)
-	}
-	return nil
-}
-
-// runChartConformanceAudit renders every application chart under every
-// checked-in values overlay and checks the rendered manifests and the
-// checked-in kind configurations against the ENG01 chart rules
-// (srd005-chart-conformance).
-func runChartConformanceAudit() error {
-	cmd := exec.Command("go", "test", ".", "-count=1", "-run", "^TestChartConformance")
-	cmd.Dir = "magefiles"
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("chart conformance audit: %w", err)
-	}
-	return nil
-}
-
-func runAgentRoleRealizationAudit() error {
-	cmd := exec.Command("go", "test", ".", "-run", "^TestAgentRoleRealization")
-	cmd.Dir = "magefiles"
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("agent role-realization audit: %w", err)
+		return fmt.Errorf("repository gate tests: %w", err)
 	}
 	return nil
 }

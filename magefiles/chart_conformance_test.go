@@ -4,12 +4,16 @@
 package main
 
 import (
+	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/chartconf"
+	"gopkg.in/yaml.v3"
 )
 
 // TestChartConformance is the gate the repository audit runs. It renders every
@@ -101,33 +105,136 @@ func kindConfigFindings(t *testing.T, root string) []chartconf.Finding {
 // cluster-scoped fixtures. Rendering a chart with a cluster configuration as
 // its values file does not fail loudly, it renders something meaningless, so
 // the classification is checked against the real directories.
+//
+// The expectation is derived rather than listed. A restated directory
+// listing is a drift instrument (the boundaries constitution), and this one
+// drifted: #2433 added gcp-values.yaml and the list beside it stayed as it
+// was, so main carried a red test nobody was running. What matters is that
+// every file in ci/ is accounted for — classified as an overlay, or excluded
+// for a reason the excluder can name — so a new file cannot be skipped in
+// silence.
 func TestValuesOverlayClassification(t *testing.T) {
 	root, err := findRepositoryRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := map[string][]string{
-		"agent-architecture": {"kind-applier-values.yaml", "kind-values.yaml"},
-		"chatbot-mesh": {"gcp-values.yaml", "kind-applier-values.yaml",
-			"kind-llm-values.yaml", "kind-values.yaml"},
-		"coding-agent": {"kind-applier-values.yaml", "kind-values.yaml", "small-values.yaml"},
+	directories, err := filepath.Glob(filepath.Join(root, "applications", "*", "helm", "ci"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	for application, want := range expected {
-		overlays, err := valuesOverlays(filepath.Join(root, "applications", application, "helm"))
+	if len(directories) == 0 {
+		t.Fatal("no application ci directories found; the classification is unchecked")
+	}
+	for _, ci := range directories {
+		chart := filepath.Dir(ci)
+		application := filepath.Base(filepath.Dir(chart))
+		overlays, unexplained, err := classifyCIDirectory(chart)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(overlays) != len(want) {
-			t.Errorf("%s: overlays %v, want %v", application, overlays, want)
-			continue
+		if len(overlays) == 0 {
+			t.Errorf("%s: no values overlay classified at all", application)
 		}
-		for i := range want {
-			if overlays[i] != want[i] {
-				t.Errorf("%s: overlays %v, want %v", application, overlays, want)
-				break
-			}
+		for _, name := range unexplained {
+			t.Errorf("%s/%s is neither a values overlay nor a recognizable cluster "+
+				"document, so it is skipped for no stated reason", application, name)
 		}
 	}
+}
+
+// The check can fail: a document that is neither an overlay nor a
+// recognizable cluster document is reported rather than quietly skipped.
+func TestValuesOverlayClassificationReportsAnUnexplainedDocument(t *testing.T) {
+	chart := t.TempDir()
+	ci := filepath.Join(chart, "ci")
+	if err := os.MkdirAll(ci, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, content string) {
+		if err := os.WriteFile(filepath.Join(ci, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("kind-values.yaml", "image:\n  tag: \"x\"\n")
+	write("kind-demo-config.yaml", "apiVersion: kind.x-k8s.io/v1alpha4\nkind: Cluster\n")
+	write("stray.yaml", "first: 1\n---\nsecond: 2\n")
+
+	overlays, unexplained, err := classifyCIDirectory(chart)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(overlays) != 1 || overlays[0] != "kind-values.yaml" {
+		t.Errorf("overlays = %v, want the one values file", overlays)
+	}
+	if len(unexplained) != 1 || unexplained[0] != "stray.yaml" {
+		t.Errorf("unexplained = %v, want the multi-document stray", unexplained)
+	}
+}
+
+// classifyCIDirectory splits a chart's ci/ documents into the values
+// overlays and the ones nothing explains. A document excluded for a reason —
+// a kind cluster configuration, a Kubernetes object — is in neither list,
+// because it is accounted for.
+func classifyCIDirectory(chart string) (overlays, unexplained []string, err error) {
+	overlays, err = valuesOverlays(chart)
+	if err != nil {
+		return nil, nil, err
+	}
+	classified := map[string]bool{}
+	for _, overlay := range overlays {
+		classified[overlay] = true
+	}
+	entries, err := filepath.Glob(filepath.Join(chart, "ci", "*.yaml"))
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, entry := range entries {
+		name := filepath.Base(entry)
+		if classified[name] {
+			continue
+		}
+		content, readErr := os.ReadFile(entry)
+		if readErr != nil {
+			return nil, nil, readErr
+		}
+		if excludedBecause(string(content)) == "" {
+			unexplained = append(unexplained, name)
+		}
+	}
+	return overlays, unexplained, nil
+}
+
+// excludedBecause names why a ci/ file is not a values overlay, or returns
+// empty when nothing explains it. A Kubernetes manifest may carry several
+// documents — coding-agent's kind-workspace.yaml is a PersistentVolume and
+// its claim — so every document is read, and all of them must name an
+// apiVersion and a kind. A file that is none of these is the anomaly worth
+// reporting rather than skipping.
+func excludedBecause(content string) string {
+	if chartconf.IsKindConfig(content) {
+		return "kind cluster configuration"
+	}
+	decoder := yaml.NewDecoder(strings.NewReader(content))
+	kinds := 0
+	for {
+		var document struct {
+			APIVersion string `yaml:"apiVersion"`
+			Kind       string `yaml:"kind"`
+		}
+		err := decoder.Decode(&document)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil || document.APIVersion == "" || document.Kind == "" {
+			return ""
+		}
+		kinds++
+	}
+	if kinds == 0 {
+		return ""
+	}
+	return "Kubernetes manifest"
 }
 
 func TestIsChartValuesRejectsNonValuesDocuments(t *testing.T) {

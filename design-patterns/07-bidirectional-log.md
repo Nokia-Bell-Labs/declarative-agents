@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Bidirectional Log
 
 A Bidirectional Log records execution as a two-way log, persisting one commit
