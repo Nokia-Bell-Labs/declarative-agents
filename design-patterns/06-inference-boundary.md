@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Inference Boundary
 
 The Inference Boundary gathers every inference operation behind a single tool

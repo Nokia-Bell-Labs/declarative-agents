@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Convergence Taxonomy
 
 The Convergence Taxonomy maps a completed execution to one of four convergence

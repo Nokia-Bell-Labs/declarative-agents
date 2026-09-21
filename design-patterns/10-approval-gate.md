@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Approval Gate
 
 An Approval Gate stops execution at a specified machine state, creates a

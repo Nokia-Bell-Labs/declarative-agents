@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 # Boundary Tool
 
 Boundary Tool composes agents through non-terminal boundary tools. A parent

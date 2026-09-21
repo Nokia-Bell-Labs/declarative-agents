@@ -270,28 +270,44 @@ func (a DeployAgent) run(verb, profile, workspace, request string, succeeded []s
 // to fail anyway. An unrecognizable version string is only a warning: helm
 // answered, so it is there, and the words will run.
 func warnOnHelmMajor(probe func() (string, error)) error {
+	warning, err := helmMajorWarning(probe)
+	if err != nil {
+		return err
+	}
+	if warning != "" {
+		fmt.Println(warning)
+	}
+	return nil
+}
+
+// helmMajorWarning is what warnOnHelmMajor has to say, as a value: empty when
+// the local helm is the declared major. Returning the sentence rather than
+// printing it is what makes it observable — a proof that read it off stdout
+// had to swap the process-global os.Stdout, which two parallel tests then did
+// at once and read each other's output (GH-2460).
+func helmMajorWarning(probe func() (string, error)) (string, error) {
 	if probe == nil {
 		probe = localHelmVersion
 	}
 	version, err := probe()
 	if err != nil {
-		return err
+		return "", err
 	}
 	match := helmVersionPattern.FindStringSubmatch(version)
 	if len(match) < 2 {
-		fmt.Printf("deploy: local helm version %q is not recognizable; the deploy words are written for helm %s\n",
-			strings.TrimSpace(version), declaredHelmMajor)
-		return nil
+		return fmt.Sprintf(
+			"deploy: local helm version %q is not recognizable; the deploy words are written for helm %s",
+			strings.TrimSpace(version), declaredHelmMajor), nil
 	}
-	if match[1] != declaredHelmMajor {
-		fmt.Printf(
-			"deploy: local helm is major version %s and the deploy words are written for helm %s. "+
-				"helm %s accepts them and warns: --atomic is deprecated for --rollback-on-failure, "+
-				"and a bare --dry-run for --dry-run=client. A later helm will drop them, and the "+
-				"words move together with the applier's pinned CLI donor, not on their own.\n",
-			match[1], declaredHelmMajor, match[1])
+	if match[1] == declaredHelmMajor {
+		return "", nil
 	}
-	return nil
+	return fmt.Sprintf(
+		"deploy: local helm is major version %s and the deploy words are written for helm %s. "+
+			"helm %s accepts them and warns: --atomic is deprecated for --rollback-on-failure, "+
+			"and a bare --dry-run for --dry-run=client. A later helm will drop them, and the "+
+			"words move together with the applier's pinned CLI donor, not on their own.",
+		match[1], declaredHelmMajor, match[1]), nil
 }
 
 func localHelmVersion() (string, error) {

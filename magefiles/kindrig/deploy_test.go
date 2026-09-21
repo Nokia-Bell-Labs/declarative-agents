@@ -73,24 +73,22 @@ func TestDeployRefusesWhenTheClusterIsNotRunning(t *testing.T) {
 // run continues. Gating here would block a deploy that works.
 func TestDeployWarnsButRunsOnAnotherHelmMajor(t *testing.T) {
 	t.Parallel()
-	warning := captureStdout(t, func() {
-		if err := warnOnHelmMajor(helmVersion("v4.2.4+g3900f43")); err != nil {
-			t.Errorf("helm 4 = %v, want the run to continue", err)
-		}
-	})
+	warning, err := helmMajorWarning(helmVersion("v4.2.4+g3900f43"))
+	if err != nil {
+		t.Errorf("helm 4 = %v, want the run to continue", err)
+	}
 	for _, want := range []string{"major version 4", "--rollback-on-failure", "--dry-run=client"} {
 		if !strings.Contains(warning, want) {
 			t.Errorf("warning = %q, want it to mention %q", warning, want)
 		}
 	}
 
-	quiet := captureStdout(t, func() {
-		if err := warnOnHelmMajor(helmVersion("v3.16.3+gf5b8d2e")); err != nil {
-			t.Errorf("helm 3 = %v, want acceptance", err)
-		}
-	})
+	quiet, err := helmMajorWarning(helmVersion("v3.16.3+gf5b8d2e"))
+	if err != nil {
+		t.Errorf("helm 3 = %v, want acceptance", err)
+	}
 	if quiet != "" {
-		t.Errorf("helm 3 printed %q, want silence", quiet)
+		t.Errorf("helm 3 said %q, want silence", quiet)
 	}
 }
 
@@ -98,13 +96,38 @@ func TestDeployWarnsButRunsOnAnotherHelmMajor(t *testing.T) {
 // run and the operator only needs telling.
 func TestDeployWarnsOnAnUnrecognizableHelmVersion(t *testing.T) {
 	t.Parallel()
-	warning := captureStdout(t, func() {
-		if err := warnOnHelmMajor(helmVersion("not a version")); err != nil {
-			t.Errorf("unrecognizable version = %v, want the run to continue", err)
-		}
-	})
+	warning, err := helmMajorWarning(helmVersion("not a version"))
+	if err != nil {
+		t.Errorf("unrecognizable version = %v, want the run to continue", err)
+	}
 	if !strings.Contains(warning, "not recognizable") {
 		t.Errorf("warning = %q, want it to name the unreadable version", warning)
+	}
+	if !strings.Contains(warning, "not a version") {
+		t.Errorf("warning = %q, want it to quote what helm answered", warning)
+	}
+}
+
+// warnOnHelmMajor still prints what helmMajorWarning says, and still returns
+// a probe failure rather than printing it. This is the one case that reads
+// stdout, so it does not run in parallel with anything that also does.
+func TestWarnOnHelmMajorPrintsTheWarning(t *testing.T) {
+	printed := captureStdout(t, func() {
+		if err := warnOnHelmMajor(helmVersion("v4.2.4+g3900f43")); err != nil {
+			t.Errorf("helm 4 = %v, want the run to continue", err)
+		}
+	})
+	if !strings.Contains(printed, "major version 4") {
+		t.Errorf("printed = %q, want the warning on stdout", printed)
+	}
+
+	silent := captureStdout(t, func() {
+		if err := warnOnHelmMajor(helmVersion("v3.16.3+gf5b8d2e")); err != nil {
+			t.Errorf("helm 3 = %v, want acceptance", err)
+		}
+	})
+	if silent != "" {
+		t.Errorf("helm 3 printed %q, want silence", silent)
 	}
 }
 
@@ -118,6 +141,13 @@ func TestDeployFailsWhenTheHelmProbeCannotRun(t *testing.T) {
 	}
 }
 
+// captureStdout swaps the process-global os.Stdout, so a test that calls it
+// must not run in parallel with another that does: two swaps at once and each
+// test reads the other's output, which is how a warning about an
+// unrecognizable version came back from a test asserting the helm 4 sentence
+// (GH-2460). Everything that only needs the wording asserts on
+// helmMajorWarning's return value instead, and does not come here at all.
+//
 // captureStdout collects what a function prints, so the warning's wording is
 // asserted rather than assumed.
 func captureStdout(t *testing.T, run func()) string {
