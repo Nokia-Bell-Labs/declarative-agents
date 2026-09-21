@@ -5,9 +5,12 @@
 # specification-critic profile binds the audited module's own gate. The
 # roster matches the catalog's, plus group-level-citation: the corpus was
 # enumerated to item citations when it first loaded (GH-2352), so the gate
-# holds that state. Excluded until their findings close (GH-2400):
-# untraced-success-criterion, uncovered-ac, tool-undo-mismatch, and
-# tool-declaration-path-unresolved.
+# holds that state. untraced-success-criterion, uncovered-ac, and
+# tool-undo-mismatch joined when their findings closed (GH-2400).
+# tool-declaration-path-unresolved stays out: agents/applier profiles
+# reference ../../catalog/applier/..., a path that exists only in the staged
+# deployment layout (profiles_deployment.go projects the applier beside a
+# staged catalog checkout), so the source tree cannot resolve it.
 id: coding-agent-corpus-charter
 title: Coding-Agent Specification Corpus Checks
 checks:
@@ -21,8 +24,12 @@ checks:
       - broken-citation
       # Citations name requirement items, not groups (GH-2365).
       - group-level-citation
-      # Every requirement item is covered by an acceptance criterion.
+      # Every requirement item is covered by an acceptance criterion, every
+      # acceptance criterion by a test case, and every success criterion
+      # traces an acceptance criterion (GH-2400).
       - uncovered-req-item
+      - uncovered-ac
+      - untraced-success-criterion
       # The SPECIFICATIONS.yaml indexes and the road map agree with the
       # documents they name.
       - index-broken-path
@@ -39,6 +46,7 @@ checks:
       # contract fields.
       - tool-selection-undeclared
       - tool-contract-incomplete
+      - tool-undo-mismatch
       # Documentation specs point at files that exist.
       - docspec-broken-example-path
       - docspec-broken-implementation-path
