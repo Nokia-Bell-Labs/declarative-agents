@@ -275,6 +275,47 @@ func TestBlueprintBodyShape(t *testing.T) {
 	}
 }
 
+func TestMachineInstanceHeader(t *testing.T) {
+	tests := map[string]struct {
+		content string
+		valid   bool
+	}{
+		"header and one expansion": {
+			content: "unit: i\nname: control\npurpose: Serve.\nexpand:\n  - fragment: t.yaml\n    args: {word: go}\n",
+			valid:   true,
+		},
+		"a declared body is a splice, not an application": {
+			content: "states: [{name: A}]\ntransitions: [{state: A, signal: S, next: A}]\n" +
+				"expand:\n  - fragment: s.yaml\n",
+			valid: true,
+		},
+		"no expansion at all": {
+			content: "name: worker\nstates: [{name: A}]\n",
+			valid:   true,
+		},
+		"keyname standing beside the expansion": {
+			content: "unit: i\nsignals: [Seed]\nexpand:\n  - fragment: t.yaml\n",
+			valid:   false,
+		},
+		"entry prefixes what it produces": {
+			content: "unit: i\nexpand:\n  - fragment: t.yaml\n    as: x\n",
+			valid:   false,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := writeEvidenceFile(t, t.TempDir(), "machine.yaml", test.content)
+			err := checkFixture("machine_instance_header", path)
+			if test.valid && err != nil {
+				t.Fatalf("check failed on a conforming document: %v", err)
+			}
+			if !test.valid && err == nil {
+				t.Fatal("check passed a non-conforming document")
+			}
+		})
+	}
+}
+
 func TestExpansionNamesFragment(t *testing.T) {
 	named := writeEvidenceFile(t, t.TempDir(), "named.yaml",
 		"expand:\n  - fragment: u.yaml\n    args: {p: 1}\n")

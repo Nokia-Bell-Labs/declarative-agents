@@ -144,6 +144,7 @@ var fixtureChecks = map[string]func(string) error{
 	"profile_expansion_shape":       checkProfileExpansionShape,
 	"blueprint_body_shape":          checkBlueprintBodyShape,
 	"machine_body_keynames":         checkMachineBodyKeynames,
+	"machine_instance_header":       checkMachineInstanceHeader,
 }
 
 // checkApplicationRequiredKeynames enforces R-APP-001: the application-profile
@@ -260,6 +261,49 @@ func checkMachineBodyKeynames(path string) error {
 	for _, keyname := range []string{"states", "transitions"} {
 		if _, ok := doc[keyname].([]any); !ok {
 			return fmt.Errorf("keyname %q is absent or not a sequence", keyname)
+		}
+	}
+	return nil
+}
+
+// machineInstanceHeaderKeynames are the only keynames a machine-profile
+// document may carry once it leaves its body to a machine-template: the
+// template supplies the rest, and a field beside it would contend with what
+// the template produces (srd054 R1.2).
+var machineInstanceHeaderKeynames = map[string]bool{
+	"unit": true, "name": true, "purpose": true, "expand": true,
+}
+
+// checkMachineInstanceHeader enforces R-MACH-002. A document declaring a body
+// is splicing rather than applying a machine-template, so R-MODEL-001 owns it
+// and this check passes it through.
+func checkMachineInstanceHeader(path string) error {
+	doc, err := readYAMLMapping(path)
+	if err != nil {
+		return err
+	}
+	entries, expands := doc["expand"]
+	_, declaresStates := doc["states"]
+	_, declaresTransitions := doc["transitions"]
+	if !expands || declaresStates || declaresTransitions {
+		return nil
+	}
+	for keyname := range doc {
+		if !machineInstanceHeaderKeynames[keyname] {
+			return fmt.Errorf("keyname %q stands beside an expansion that replaces the body", keyname)
+		}
+	}
+	list, ok := entries.([]any)
+	if !ok {
+		return errors.New("expand must be a sequence")
+	}
+	for index, raw := range list {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("expand[%d] must be a mapping", index)
+		}
+		if _, renamed := entry["as"]; renamed {
+			return fmt.Errorf(`expand[%d] carries "as", which produces one machine and has nothing to prefix`, index)
 		}
 	}
 	return nil

@@ -40,8 +40,8 @@ spliced machine-profile is then validated as a unified whole.
 
 A machine-profile document can omit its body and expand a single
 machine-template, where the template's `machine` body replaces the document's
-body with substituted arguments. A machine-template can expand stage-fragments
-but not another machine-template.
+body with substituted arguments. A machine-template can itself expand
+stage-fragments, and nesting stops there.
 
 Both forms finish before validation, ensuring processors encounter only
 complete machine-profiles. Expansion stays within its designated scope,
@@ -54,6 +54,13 @@ state.
 
 R-MODEL-002 holds wherever an expansion entry appears, not only in a
 machine-profile document; chapter 06 applies it to the agent-profile case.
+
+Which form an entry takes is not visible in the document that carries it. A
+splice and an application are written the same way, and they differ only in
+the body kind of the unit they name, so the processor resolves the target
+before it can act on either.
+
+{{statement R-MODEL-003}}
 
 The expanded machine-profile is validated like a hand-written one, with
 diagnostics naming both the unit and the expanding document. Chapter 09 covers

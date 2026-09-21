@@ -29,6 +29,11 @@ is grammatically standard under this chapter.
 
 A machine-profile with a declared body splices stage-fragments; a bodiless one
 applies one machine-template. Both execute under the expansion keyname during
-load time, per R-MODEL-001 and R-MODEL-002. The expanded result follows all
-keynames and validation rules in this chapter, like a hand-written
-machine-profile.
+load time, per R-MODEL-001 and R-MODEL-002. A bodiless document carries its
+header and its expansion and nothing else: the template supplies the body, and
+a keyname beside it would contend with what the template produces.
+
+{{statement R-MACH-002}}
+
+The expanded result follows all keynames and validation rules in this chapter,
+like a hand-written machine-profile.

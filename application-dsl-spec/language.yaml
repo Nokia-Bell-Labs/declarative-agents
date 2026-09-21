@@ -81,10 +81,9 @@ statements:
     target: document
     level: MUST
     statement: >-
-      A machine-profile document MUST either declare its own states and
-      transitions or expand exactly one machine-template; a machine-profile
-      document that expands a machine-template MUST NOT declare its own
-      states or transitions.
+      A machine-profile document MUST either declare both `states` and
+      `transitions`, or declare neither and carry exactly one expansion
+      entry.
     acceptance:
       - assertion: fixture
         path: fixtures/document/machine-expansion/body.yaml
@@ -260,6 +259,42 @@ statements:
         path: fixtures/document/machine-keynames/invalid.yaml
         check: machine_body_keynames
         verdict: invalid
+
+  - id: R-MACH-002
+    target: document
+    level: MUST
+    statement: >-
+      A machine-profile document that declares no body MUST carry only the
+      `unit`, `name`, `purpose`, and `expand` keynames, and its expansion
+      entry MUST NOT carry the `as` keyname.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-instance-header/valid.yaml
+        check: machine_instance_header
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-instance-header/invalid.yaml
+        check: machine_instance_header
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestMachineInstanceCarriesOnlyItsHeader
+
+  - id: R-MODEL-003
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST select expansion behavior by the body kind
+      of each expansion target, replacing the expanding document's body for a
+      `machine` body and splicing for a `stage` body, and MUST reject a
+      machine-template that expands another machine-template.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestExpandTargetBodyKindSelectsReplaceOrSplice
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestMachineTemplateCannotNestOrBeLoadedAsAMachine
 
   - id: R-CONF-001
     target: processor
