@@ -169,6 +169,27 @@ func Parse(rendered string) ([]Document, error) {
 	return documents, nil
 }
 
+// ImageReferences returns every container image a render declares, once
+// each, sorted. The conformance rules read the same containers to judge
+// them; the pin survey reads them to ask what they are pinned to, so the
+// chart half of its inventory is derived from the charts rather than
+// restated in a list that could disagree with them (srd006 R1.1).
+func ImageReferences(documents []Document) []string {
+	seen := map[string]bool{}
+	var images []string
+	for _, document := range documents {
+		for _, container := range document.containers() {
+			if container.Image == "" || seen[container.Image] {
+				continue
+			}
+			seen[container.Image] = true
+			images = append(images, container.Image)
+		}
+	}
+	sort.Strings(images)
+	return images
+}
+
 // Check applies every rendered-manifest rule to one chart-and-overlay render.
 // Findings come back sorted, so two runs over the same render report in the
 // same order.

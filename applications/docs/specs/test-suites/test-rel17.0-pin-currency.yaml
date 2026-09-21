@@ -3,15 +3,15 @@
 id: test-rel17.0-pin-currency
 title: Release 17.0 Pin Currency Test Suite
 release: "17.0"
-status: planned
+status: implemented
 test_case_count: 9
 
 overview: |
-  TC1 parses and traces the Release 17.0 documents and is executable now. TC2
-  through TC9 name the tests the pin survey adds; each turns implemented when
-  its command exists and passes. Every case runs without a network: the
-  registry cases drive an httptest server, so the suite proves the client's
-  behaviour rather than any upstream project's release cadence.
+  TC1 parses and traces the Release 17.0 documents. TC2 through TC9 run the
+  pin survey GH-2416 added. Every case runs without a network: the registry
+  cases drive an httptest server, so the suite proves the client's behaviour
+  rather than any upstream project's release cadence, which would make the
+  suite fail on somebody else's release day.
 
 traces:
   - rel17.0-uc001-pin-currency
@@ -113,7 +113,7 @@ test_cases:
   - id: TC2
     use_case: rel17.0-uc001-pin-currency
     name: The inventory derives chart pins and declares the rest
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2416
     command: |
@@ -130,7 +130,7 @@ test_cases:
   - id: TC3
     use_case: rel17.0-uc001-pin-currency
     name: A declared entry that no longer describes its location fails
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2416
     command: |
@@ -145,7 +145,7 @@ test_cases:
   - id: TC4
     use_case: rel17.0-uc001-pin-currency
     name: A re-pushed tag is reported as moved, ahead of staleness
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2416
     command: |
@@ -161,7 +161,7 @@ test_cases:
   - id: TC5
     use_case: rel17.0-uc001-pin-currency
     name: A newer release is reported with both versions
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2416
     command: |
@@ -177,7 +177,7 @@ test_cases:
   - id: TC6
     use_case: rel17.0-uc001-pin-currency
     name: Version comparison applies to semantic versions only
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2416
     command: |
@@ -193,7 +193,7 @@ test_cases:
   - id: TC7
     use_case: rel17.0-uc001-pin-currency
     name: An unreachable registry reports unknown, never current
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2416
     command: |
@@ -210,7 +210,7 @@ test_cases:
   - id: TC8
     use_case: rel17.0-uc001-pin-currency
     name: The target reports and writes nothing
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2416
     command: |
@@ -227,7 +227,7 @@ test_cases:
   - id: TC9
     use_case: rel17.0-uc001-pin-currency
     name: Authentication and reference parsing reach the real registries
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2416
     command: |

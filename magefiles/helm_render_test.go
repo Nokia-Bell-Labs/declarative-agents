@@ -5,13 +5,10 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/helmlib"
 )
 
 func TestApplicationKindRendersHaveTypeMeta(t *testing.T) {
@@ -39,35 +36,11 @@ func TestApplicationKindRendersHaveTypeMeta(t *testing.T) {
 
 func stageKindRenderChart(t *testing.T, root, application string) string {
 	t.Helper()
-	source := filepath.Join(root, "applications", application, "helm")
-	chart := filepath.Join(t.TempDir(), application)
-	if err := os.CopyFS(chart, os.DirFS(source)); err != nil {
-		t.Fatalf("copy chart: %v", err)
+	chart, cleanup, err := stageChartForRender(root, application)
+	if err != nil {
+		t.Fatalf("stage chart: %v", err)
 	}
-	// The app charts depend on the shared library chart, which Helm resolves only
-	// from the chart's own charts/ directory (GH-2045).
-	if err := helmlib.Vendor(root, chart); err != nil {
-		t.Fatalf("vendor library chart: %v", err)
-	}
-	switch application {
-	case "agent-architecture":
-		manifest := "mount_path: /profiles\nroles:\n  - role: curator\n    profile: profile.yaml\n" +
-			"  - role: collector\n    profile: profile.yaml\n  - role: applier\n    profile: profile.yaml\n"
-		writeFile(t, filepath.Join(chart, "profiles", "prepared-manifest.yaml"), manifest)
-		for _, role := range []string{"curator", "collector"} {
-			writeFile(t, filepath.Join(chart, "profiles", role, "profile.yaml"), "fixture: true\n")
-		}
-	case "coding-agent":
-		manifest := "profile: profile.yaml\nfiles:\n  - profile.yaml\nconfig_maps:\n  - index: 0\n    files:\n      - profile.yaml\n"
-		for _, role := range []string{"planner", "executor", "critic", "collector"} {
-			writeFile(t, filepath.Join(chart, "profiles", "manifests", role+".yaml"), manifest)
-			writeFile(t, filepath.Join(chart, "profiles", role, "profile.yaml"), "fixture: true\n")
-		}
-	}
-	// The applier closure is staged for every chart that globs it, because a
-	// values overlay can turn the applier on and the template fails closed
-	// without it (GH-2408).
-	writeFile(t, filepath.Join(chart, "profiles", "applier", "profile.yaml"), "fixture: true\n")
+	t.Cleanup(cleanup)
 	return chart
 }
 

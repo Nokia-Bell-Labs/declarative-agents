@@ -258,3 +258,24 @@ func TestParseSkipsDocumentsCarryingNoKind(t *testing.T) {
 		t.Fatalf("expected one ConfigMap, got %d: %v", len(documents), documents)
 	}
 }
+
+// The pin survey derives its chart inventory from this, so it must return
+// every image once and in a stable order (srd006 R1.1).
+func TestImageReferencesAreUniqueAndOrdered(t *testing.T) {
+	rendered := deployment(pinnedThirdParty, "IfNotPresent", "/healthz") +
+		"---\n" + deployment(repositoryImage, "IfNotPresent", "/healthz")
+	documents, err := Parse(rendered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	images := ImageReferences(documents)
+	if len(images) != 2 {
+		t.Fatalf("images = %v, want two distinct", images)
+	}
+	if images[0] > images[1] {
+		t.Fatalf("images not sorted: %v", images)
+	}
+	if ImageReferences(nil) != nil {
+		t.Error("an empty render should yield no images")
+	}
+}
