@@ -41,6 +41,13 @@ func GcpDeploy() error {
 	if err != nil {
 		return err
 	}
+	// Build before pushing, the way demo:up builds before loading. Without
+	// this the deploy only works on a commit whose image the operator
+	// happened to build by hand, and fails with a docker daemon error
+	// rather than a sentence (GH-2439).
+	if err := buildSmokeRuntimeImage(demoCoreRoot(root), images.Runtime); err != nil {
+		return err
+	}
 	pushed, err := gcprig.PushAgentCore(gcprig.DefaultRun, config, images.Runtime, images.Revision)
 	if err != nil {
 		return err
