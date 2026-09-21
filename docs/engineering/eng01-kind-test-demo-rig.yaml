@@ -13,10 +13,11 @@ introduction: |
   paths. Nothing in that rig is specific to chatbot-mesh, and each new
   application would otherwise re-invent it with small divergences.
 
-  This guideline standardizes the rig. It fixes the toolchain, the
-  cluster lifecycle, image delivery, network access, the mage verbs
-  every application exposes, and failure evidence capture. We assume docker
-  as the container engine and kind (Kubernetes in Docker) as the cluster
+  This guideline standardizes the rig and the persistent local application
+  platform. It fixes the toolchain, platform and application lifecycles,
+  durable object-storage boundary, image delivery, network access, Mage verbs,
+  and failure evidence capture. We assume docker as the container engine and
+  kind (Kubernetes in Docker) as the cluster
   runtime; helm delivers the charts. Podman support is deferred but the
   design keeps the engine behind an interface so it can be added without
   reworking the rig. ENG08 is this rig's cloud twin: the same charts and
@@ -63,9 +64,12 @@ sections:
     content: |
       The rig has two tiers (GH-2215). The cluster-services tier is one
       shared cluster, `da-platform`, that owns the kind node, the Traefik
-      ingress controller, metrics-server, and storage provisioning. The
-      application tier runs each integration scenario as a Helm release in
-      its own namespace, `da-<scenario>`, on that cluster. A kind node costs
+      ingress controller, one fake-GCS object-storage endpoint,
+      metrics-server, and storage provisioning. The application tier runs
+      each manifest-selected application as one Helm release in its stable
+      namespace, `da-<application>`, on that cluster. Integration scenarios
+      use run-scoped releases or data prefixes inside that application
+      boundary. A kind node costs
       about 1.3 GiB before any application pod, and releases paid that tax
       eight to nine times with three lanes concurrent; one control plane
       per release replaces those bootstraps.
@@ -75,35 +79,31 @@ sections:
       (`kindest/node:vX.Y.Z@sha256:...`) and declares any `extraMounts` or
       `extraPortMappings`. Creating a cluster without a configuration file
       is not permitted; the file is what makes two machines produce the same
-      cluster.
+      cluster. The platform configuration maps ingress ports and mounts the
+      fake-GCS filesystem from one stable host path. Pod, node, and
+      `da-platform` recreation therefore do not define object retention.
 
       Table 2: Checked-in kind configurations
 
       | Configuration | Cluster | Purpose |
       |---------------|---------|---------|
-      | `magefiles/kindrig/platform-kind-config.yaml` | `da-platform` | Shared tier; ingress-ready label, control-plane tracing, no host ports |
+      | `magefiles/kindrig/platform-kind-config.yaml` | `da-platform` | Canonical application platform; ingress ports, control-plane tracing, and the stable object-data mount |
       | `applications/chatbot-mesh/testdata/kind-policy-config.yaml` | `da-chatbot-mesh-policy` | Cluster-mutating policy proof; default CNI disabled for Calico |
-      | `applications/<application>/helm/ci/kind-demo-config.yaml` | `da-<application>-demo` | Persistent demo; ingress host ports 80 and 443 |
 
-      The platform cluster lives for one release. The release creates
-      `da-platform` fresh in a gate after the root audit, reuses it across
-      every application gate, and deletes it on every exit path, capturing
-      its evidence when the release failed. A `da-platform` already listed
-      when the release starts is a leftover from an interrupted run: the
-      release deletes it and creates its own, so no state survives from one
-      release to the next. Reusing leftovers let one interrupted run pin idle
-      clusters in the Docker VM through every later run, which starved
-      concurrent release lanes of memory (GH-2134, GH-2137).
+      `da-platform` is the canonical application and interactive-demo mode.
+      `platform:up` creates it or reuses it after conformance and leaves it
+      running. `platform:down` stops platform compute but preserves the stable
+      object-data host path. `platform:reset` is the separate destructive
+      operation that deletes that path; no release, scenario, or application
+      teardown calls reset implicitly.
 
-      Outside a release, an application integration target reuses a running
-      `da-platform` without taking ownership once its data plane answers, or
-      starts its own and deletes it when the target finishes. An
+      A release may recreate platform compute for hermetic execution, but it
+      preserves the configured object-data path and isolates assertions by
+      application bucket and run identity rather than treating cluster
+      deletion as data deletion. A developer platform is therefore reusable
+      after a release once `platform:up` re-establishes conformance. An
       `integration:all` aggregate acquires the platform once and its
-      scenarios reuse it. A developer keeps a platform running between runs
-      with `mage platform:up`, which reuses a healthy platform, prunes
-      unreferenced node images, and reruns conformance, and removes it with
-      `mage platform:down`. A release deletes a developer platform like any
-      leftover; the developer runs `platform:up` again afterwards.
+      namespaced scenarios reuse it.
 
       A scenario namespace is created by `PrepareScenarioNamespace` and torn
       down by its release on every exit path: Helm uninstall, workload
@@ -120,12 +120,15 @@ sections:
       | Guarantee | Mechanism before GH-2215 | Mechanism now |
       |-----------|--------------------------|---------------|
       | No leftover state between scenarios | Cluster delete and create | Namespace, claim, and controller deletion plus data-plane recheck |
-      | No leftover state between releases | Cluster delete and create | Cluster delete and create, once per release |
+      | No test-state collision between releases | Cluster delete and create | Run identity, application bucket/prefix identity, namespace cleanup, and optional platform-compute recreation without implicit data deletion |
       | Cluster-scoped configuration per scenario | Per-scenario kind configuration | Cluster-mutating scenarios keep owned clusters |
 
-      Demo clusters stay per application. `demo:up` creates or reuses the
-      named demo cluster and leaves it running for a person to use; only
-      `demo:down` deletes it.
+      The retained-data boundary is not the namespace boundary. Each
+      application receives an application-specific bucket from the shared
+      object service and may use prefixes within it. `app:down` removes the
+      release and namespace but leaves that bucket. `app:purge` is the only
+      application verb that deletes its retained objects. One application's
+      down or purge never selects another application's namespace or bucket.
 
       Readiness is observed, never assumed. Targets wait with
       `kubectl wait --for=condition=Ready` and `kubectl rollout status`
@@ -155,7 +158,8 @@ sections:
       Platform failures and application failures must not read alike. After
       `da-platform` boots, and before any application gate runs, a
       conformance suite proves the tier; a failure there stops the release as
-      a platform failure and deletes the cluster with its evidence.
+      a platform failure and captures its evidence. A run that owns platform
+      compute may stop it, but it preserves the stable object-data host path.
 
       Table 5: Platform conformance checks
 
@@ -164,6 +168,8 @@ sections:
       | Readiness | kube-proxy Ready, CoreDNS rolled out, and the API server answers `/readyz` |
       | Storage | The local-path provisioner binds a claim |
       | Ingress route | Traefik routes an Ingress to a Service, probed through the node's port 80 |
+      | Object storage | Fake GCS writes and reads an object through the stable filesystem backend |
+      | Bucket separation | Two application-specific buckets retain distinct objects through a service restart |
       | Namespace churn | A full scenario-namespace teardown leaves no namespace and deletes the bound volume |
 
       The check workload reuses the kind-loaded Traefik image as its echo
@@ -308,10 +314,11 @@ sections:
     content: |
       Tests and demos reach the cluster differently. Integration tests
       use `kubectl port-forward` because the forward lives and dies with
-      the test process and needs no cluster add-ons. Demos use an
-      ingress: the scenario's kind configuration maps host ports to the
-      ingress controller through `extraPortMappings`, the demo target
-      installs one minimal Traefik controller, and every agent in the mesh is reachable
+      the test process. Interactive applications use the shared platform
+      ingress: the platform kind configuration maps host ports to the
+      ingress controller through `extraPortMappings`, `platform:up`
+      installs one minimal Traefik controller, and every externally exposed
+      agent is reachable
       at a stable `localhost:<port>/<agent>` path the README can print.
       The implemented demos pin Traefik by version and per-architecture image
       digest and use `.localhost` hostnames, which resolve to loopback without
@@ -334,6 +341,13 @@ sections:
       forever. A chart that needs one for production exposes it behind a
       values switch that the kind overlay turns off.
 
+      Traefik is only the external HTTP boundary. Internal agent REST calls
+      use Kubernetes Service DNS. Agent Core exports OTLP directly to the
+      collector Service in the same application namespace. Collectors reach
+      the object service directly and vector clients reach their declared
+      vector Service directly. Internal REST, OTLP, object-storage, and
+      vector-query traffic never detour through Traefik.
+
   - title: "Standard mage verbs"
     content: |
       Every application exposes the same verbs with the same contracts, so a
@@ -345,23 +359,38 @@ sections:
       |------|----------|
       | doctor | Checks toolchain presence, versions, and host resources; reports, never mutates |
       | diagnose | Captures a scenario snapshot into an evidence directory and runs the catalog rig-doctor over it; reads the cluster, never mutates it, and exits zero whatever the diagnosis says |
-      | demo:up | Creates or reuses the cluster, deploys the chart, prints the localhost URLs; fails on missing tools |
-      | demo:down | Deletes the demo cluster and nothing else |
+      | demo:up | Compatibility wrapper over platform:up plus app:up; deploys the selected application and prints its localhost URLs |
+      | demo:down | Compatibility wrapper over app:down; removes application compute and preserves retained data |
       | integration:* | One verb per proof (smoke, swap, policy); skips on missing tools; a namespaced proof reuses a running da-platform or starts and deletes its own, a cluster-mutating proof creates and deletes its own cluster; prints a one-line PASS statement naming what was proven |
 
-      The repository root exposes the platform-tier verbs. They are not per
-      application, because every application shares the one platform.
+      The repository root exposes platform and application verbs. Platform
+      verbs own shared compute. Application verbs are thin wrappers over the
+      reusable `magefiles/apprig` package and derive release, namespace,
+      routes, collector, and bucket identity from `agents/application.yaml`.
+      Downstream repositories import a released root Mage module and expose
+      the same thin verbs rather than copying lifecycle implementations.
 
       Table 8: Platform-tier verbs at the repository root
 
       | Verb | Contract |
       |------|----------|
-      | platform:up | Creates da-platform, or reuses a healthy one and prunes its node images; runs conformance; leaves it running |
-      | platform:down | Deletes da-platform and nothing else |
+      | platform:up | Creates da-platform, or reuses a healthy one and prunes its node images; runs ingress, object, storage, and data-plane conformance; leaves it running |
+      | platform:down | Stops da-platform compute and preserves the stable object-data host path |
+      | platform:reset | Deletes da-platform compute and the stable local object-data host path after explicit destructive confirmation |
       | clean:images | Removes commit-tagged rig images beyond the newest given number of revisions per family |
       | clean:imagesDryRun | Lists what clean:images would remove |
       | bump | Resolves every pin against its registry and reports integrity and currency; reaches the network, writes nothing, and exits zero whatever it finds |
       | tag:verify | Refuses a release tag whose annotation is missing, degenerate, or under the substance bar, or that is not reachable from main; mutates nothing and names one reason per failure |
+
+      Table 9: Application-tier verbs at the repository root
+
+      | Verb | Contract |
+      |------|----------|
+      | app:up | Validates one application manifest, creates or upgrades its release in its stable namespace, binds its application-specific bucket, and observes readiness |
+      | app:status | Reports platform dependency, release, workload, route, collector, bucket binding, and retained-data status without mutation |
+      | app:down | Removes the selected application's release and namespace while preserving its bucket data |
+      | app:diagnose | Captures application and platform evidence without mutation and names which authority owns each failed boundary |
+      | app:purge | Explicitly deletes only the selected application's retained objects; never runs as part of down |
 
       The cluster-lifecycle code (create from configuration, reuse
       detection, image load, teardown, log export) moves from the
@@ -374,13 +403,34 @@ sections:
 
   - title: "Persistent integration observability"
     content: |
-      Integration telemetry enters one host-level OTLP ingress that starts
-      before scenario processes and kind clusters. The ingress is a contract,
-      not a required Collector image: it accepts OTLP gRPC and HTTP, spools
-      traces behind a bounded query surface and routes metrics to a
-      Prometheus-compatible backend, exposes health and query endpoints, and
-      retains both signals after a scenario tears down. The checked-in
-      collector-agent stack is the reference implementation.
+      The repository names two observability modes rather than presenting two
+      competing platform designs.
+
+      In persistent-platform mode, every application retains its collector
+      gateway. Agent Core exports OTLP directly to that namespace-local
+      collector. The collector writes a local WAL before its first upload,
+      persists immutable trace and metric objects into the application's
+      application-specific bucket, serves application-scoped REST queries, and
+      may relay OTLP when declared. The WAL records the final object key,
+      stable batch identity, checksum, and upload state before any remote
+      attempt; retries reuse that identity. An object envelope minimally names
+      schema version, signal, application, namespace, run, collector instance,
+      stable batch identity, receive time, payload format, and checksum.
+
+      `app:down` removes the collector with the rest of application compute.
+      Retained bucket data is then not a live query service: the collector REST
+      API is unavailable. Redeploying the collector against the same bucket
+      restores application-scoped query access to the same immutable history.
+      This release adds no permanent platform query service or
+      cross-application telemetry index.
+
+      In hermetic integration-evidence mode, telemetry may additionally enter
+      one host-level OTLP ingress that starts before scenario processes and
+      kind clusters. The ingress is a contract, not a required Collector image:
+      it accepts OTLP gRPC and HTTP, spools traces behind a bounded query
+      surface, routes metrics to a Prometheus-compatible backend, and retains
+      deterministic test evidence after a scenario tears down. It is not the
+      durable application query authority.
 
       The stack has explicit `up`, `status`, `reset`, and `down` Mage verbs.
       `up` is idempotent and reuses a healthy operator-owned stack. A scenario
@@ -396,10 +446,10 @@ sections:
       commit, and a unique run id on every signal. Scaled roles append their
       instance identity so concurrent RAG units and repeated runs are distinct.
 
-      A kind chart may keep its chart-local collector as a gateway, but the
-      integration values overlay sends that gateway to the host ingress. The
-      chart's production defaults remain self-contained and retain their local
-      collector agent. The platform kind configuration enables API-server and
+      A kind chart keeps its application collector as a gateway. A hermetic
+      integration values overlay may relay that gateway to the host ingress;
+      persistent-platform defaults remain self-contained and object-backed.
+      The platform kind configuration enables API-server and
       kubelet tracing to the host ingress at `host.docker.internal:4317`
       with static resource attributes (`k8s.cluster.name=da-platform`),
       since one control plane serves every scenario on it. helm and kubectl
@@ -432,11 +482,19 @@ sections:
       Successful runs keep the existing convention of a single PASS line
       stating what was proven, so transcript grep remains the audit trail.
 
+      Evidence names the ownership boundary. An application-local failure
+      names its release, namespace, route, collector, or bucket binding and
+      leaves peer applications running. A shared Traefik, object-service,
+      metrics-server, storage-provisioner, DNS, or API failure is reported as
+      a platform failure. Captures record whether retained data exists even
+      when its application query API is unavailable.
+
       The same capture runs on demand. `mage diagnose <scenario>` resolves the
-      cluster and the `da-<scenario>` namespace from its argument, or the
-      application's own demo cluster when the argument is `demo`, captures
-      events, cluster events, describe output, rollout counts, pod logs, and
-      the trace spool tail while the cluster keeps running, and writes a
+      cluster and the `da-<scenario>` namespace from its argument, or resolves
+      the selected application's stable namespace on `da-platform` when the
+      argument is `demo`, captures events, cluster events, describe output,
+      rollout counts, pod logs, and the trace spool tail while the cluster
+      keeps running, and writes a
       `manifest.yaml` naming each file, its kind, and each capture error. A
       failed kubectl command becomes a recorded capture error, not an abort.
       The catalog rig-doctor (srd023) then reads that directory, and only

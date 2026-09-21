@@ -517,3 +517,84 @@ releases:
         proves: The four rules with one named reason per failure, and the bar stated once.
       - command: mage tag:verify v0.20260919.1
         proves: The most recent real-summary tag passes and the degenerate v0.20260919.0 is refused naming R2.1.
+
+  - version: "19.0"
+    name: Persistent application platform
+    description: |
+      Replace competing demo, integration, and host-observability assumptions
+      with one persistent local/cloud platform contract. Share ingress and the
+      object-storage service while each application retains one namespace,
+      release, collector, application-specific bucket, lifecycle authority,
+      and immutable telemetry history.
+    status: planned
+    parent: gh-2474-shared-platform
+    dependencies:
+      - id: srd003-application-consistency
+        status: implemented
+        reason: Supplies the normalized application manifest and one composition authority.
+      - id: eng01-kind-test-demo-rig
+        status: implemented
+        reason: Supplies the local platform, scenario, readiness, and evidence baseline amended by GH-2476.
+      - id: eng08-gcp-demo-rig
+        status: implemented
+        reason: Supplies the cloud bootstrap and workload-identity baseline amended by GH-2476.
+      - id: agent-core-srd008-telemetry
+        status: implemented
+        reason: Supplies OTLP export and persistent integration identity.
+      - id: agent-core-srd059-objectstore-tools
+        status: implemented
+        reason: Supplies provider-neutral bucket access across fake GCS, GCS, and S3.
+    srds:
+      - srd008-persistent-application-platform
+    use_cases:
+      - id: rel19.0-uc001-persistent-application-platform
+        summary: |
+          Run two applications on one platform, remove and redeploy one, and
+          prove that compute, retained data, and query availability follow
+          their separate lifecycle boundaries.
+        status: planned
+    test_suites:
+      - id: test-rel19.0-persistent-application-platform
+        summary: |
+          Trace the release documents, then prove protocol paths,
+          two-application lifecycle, local/cloud parity, WAL-first immutable
+          objects, query restoration, failure isolation, and reusable runner
+          adoption.
+        status: planned
+        implemented_cases: [TC1]
+        planned_cases: [TC2, TC3, TC4, TC5, TC6, TC7, TC8]
+    implementation_sequence:
+      - order: 1
+        action: Specify ownership, lifecycle, storage, query, threat, routing, and apprig boundaries (GH-2476).
+        status: implemented
+      - order: 2
+        action: Add collector WAL and immutable object-bucket persistence (GH-2475).
+        status: planned
+      - order: 3
+        action: Add application-scoped object-backed query and retention (GH-2478).
+        status: planned
+      - order: 4
+        action: Wire durable collector configuration through the shared agent-services chart (GH-2484).
+        status: planned
+      - order: 5
+        action: Make ingress and filesystem-backed fake GCS persistent platform services (GH-2477).
+        status: planned
+      - order: 6
+        action: Add the manifest-driven magefiles/apprig lifecycle runner (GH-2479).
+        status: planned
+      - order: 7
+        action: Migrate Chatbot Mesh, Coding Agent, and Agent Architecture (GH-2482, GH-2483, GH-2480).
+        status: planned
+    implementation_evidence:
+      - path: applications/docs/specs/software-requirements/srd008-persistent-application-platform.yaml
+        proves: Numbered ownership, platform, collector, lifecycle, parity, object, query, routing, and runner requirements.
+      - path: applications/docs/specs/use-cases/rel19.0-uc001-persistent-application-platform.yaml
+        proves: Complete two-application lifecycle from platform creation through teardown, recovery, purge, and reset.
+      - path: applications/docs/specs/test-suites/test-rel19.0-persistent-application-platform.yaml
+        proves: Requirement-to-acceptance and acceptance-to-test closure with planned implementation owners.
+      - path: docs/engineering/eng01-kind-test-demo-rig.yaml
+        proves: Canonical local platform, exception modes, application verbs, persistence, and query availability.
+      - path: docs/engineering/eng08-gcp-demo-rig.yaml
+        proves: Cloud application buckets, workload identity, bucket IAM, and cluster-independent retention.
+      - command: mage audit
+        proves: Structured documents parse and reciprocal traceability remains valid.
