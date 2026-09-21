@@ -341,3 +341,58 @@ releases:
         proves: Composition flow and the endpoint-usage review of all three repositories.
       - path: applications/docs/specs/test-suites/test-rel15.0-declarative-ux.yaml
         proves: Requirement-to-AC-to-test coverage with TC1 executable.
+
+  - version: "16.0"
+    name: Chart conformance gate
+    description: |
+      Turn the ENG01 chart rules from prose a reviewer holds in their head
+      into numbered requirements a gate cites. Render every application
+      chart under every checked-in values overlay, check the rendered
+      manifests, and give an accepted violation one checked-in place that
+      shrinks.
+    status: planned
+    parent: gh-2047-chart-conformance
+    dependencies:
+      - id: srd003-application-consistency
+        status: implemented
+        reason: Owns the application manifest and the helm_managed capability gate this release reads.
+      - id: eng01-kind-test-demo-rig
+        status: implemented
+        reason: States the rules this release numbers and gates; GH-2407 adds the rule table to it.
+    srds:
+      - srd005-chart-conformance
+    use_cases:
+      - id: rel16.0-uc001-chart-conformance
+        summary: |
+          An engineer adds a workload whose image floats, the audit fails
+          naming the chart, the overlay, the resource and the rule, and the
+          exception baseline carries what must stand.
+        status: planned
+    test_suites:
+      - id: test-rel16.0-chart-conformance
+        summary: |
+          Trace the release documents, then verify render coverage, each
+          numbered rule, the baseline's three behaviours, the shape of a
+          finding, and the pinning of the seeded violations.
+        status: planned
+        implemented_cases: [TC1]
+        planned_cases: [TC2, TC3, TC4, TC5, TC6, TC7, TC8, TC9, TC10]
+    implementation_sequence:
+      - order: 1
+        action: Add the ENG01 rule table and specify srd005, the use case, the suite, and the index entries (GH-2407).
+        status: planned
+      - order: 2
+        action: Add the chart conformance module, its exception baseline, and the root audit wiring (GH-2408).
+        status: planned
+      - order: 3
+        action: Pin the floating image tags and shrink the baseline (GH-2409).
+        status: planned
+    implementation_evidence:
+      - path: docs/engineering/eng01-kind-test-demo-rig.yaml
+        proves: Numbered chart conformance rules C1 through C6 and the exception-baseline contract.
+      - path: applications/docs/specs/software-requirements/srd005-chart-conformance.yaml
+        proves: Numbered rendering, pinning, policy, service, readiness, baseline, and reporting requirements.
+      - path: applications/docs/specs/use-cases/rel16.0-uc001-chart-conformance.yaml
+        proves: The flow from a changed chart to a named finding to a shrinking baseline.
+      - path: applications/docs/specs/test-suites/test-rel16.0-chart-conformance.yaml
+        proves: Requirement-to-AC-to-test coverage with TC1 executable.

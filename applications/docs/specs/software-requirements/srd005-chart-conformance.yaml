@@ -1,0 +1,224 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd005-chart-conformance
+title: Chart Conformance Against the Rig Guideline
+status: planned
+
+problem: |
+  ENG01 states the rules an application chart must satisfy — images pinned
+  and never floating, pull policies that keep a kind node off the registry,
+  no load balancer a kind cluster cannot provide, readiness observed rather
+  than assumed — and nothing enforces them. Review is the only gate, and
+  review already missed three images that ship on a floating tag. A chart
+  renders differently under each values overlay, so reading the templates
+  does not answer whether the rules hold; only the rendered manifests do.
+  There is also no way to accept a violation on purpose: a chart that must
+  break a rule for a stated reason cannot say so, and a rule that has been
+  fixed cannot prove it stays fixed.
+
+goals:
+  - "G1: Restate the gateable ENG01 chart rules as numbered requirements a check can cite."
+  - "G2: Gate the rules on rendered manifests, once per chart and values overlay, rather than on template text."
+  - "G3: Give an accepted violation one checked-in place to live, and make that place shrink."
+  - "G4: Report a violation as the chart, the overlay, the resource, and the rule, so a reader can act without re-rendering."
+
+applicability:
+  baseline: |
+    R1 through R5 apply to every application chart in this repository and to
+    every checked-in values overlay that chart renders under. R6 applies to
+    every checked-in kind configuration. R7 governs the exception baseline
+    and applies whenever any other requirement is suspended.
+  capability_gates:
+    helm_managed: R1 through R5 apply only to an application that ships a chart.
+    kind_demo: R6 applies only to an application that carries a kind configuration.
+
+requirements:
+  R1:
+    title: Image tags do not float
+    applicability: helm_managed
+    items:
+      - id: R1.1
+        text: |
+          No image reference in a rendered manifest shall resolve to the tag
+          `latest` or to no tag at all.
+        evidence: |
+          Rendering every chart under every checked-in values overlay yields
+          no container, init container, or pod-template image whose tag is
+          `latest` or absent.
+      - id: R1.2
+        text: |
+          A values file shall not carry a floating tag that an overlay is
+          expected to replace. The default render is subject to the same
+          rule as every overlay render.
+        evidence: |
+          The chart's own defaults render without a floating tag, so an
+          operator installing the chart unmodified receives pinned images.
+
+  R2:
+    title: Third-party images carry digests
+    applicability: helm_managed
+    items:
+      - id: R2.1
+        text: |
+          Every image not built from this checkout shall carry a digest
+          alongside its tag. The tag names the version for a reader; the
+          digest is what the cluster resolves.
+        evidence: |
+          Each third-party image reference in a rendered manifest carries a
+          `sha256:` digest, and removing the digest from a values file fails
+          the gate.
+      - id: R2.2
+        text: |
+          Every image built from this checkout shall carry a commit-shaped
+          tag and shall not carry a digest, because the digest is not known
+          until the image is built.
+        evidence: |
+          Repository-built image references are distinguished from
+          third-party ones by repository prefix, and each class is checked
+          against its own rule rather than one rule applied to both.
+
+  R3:
+    title: Pull policies keep a loaded node off the registry
+    applicability: helm_managed
+    items:
+      - id: R3.1
+        text: |
+          Every container shall set `imagePullPolicy` to `IfNotPresent` or
+          `Never`. `Always` shall not appear in a rendered manifest.
+        evidence: |
+          No rendered container carries `imagePullPolicy: Always`, so an
+          image a kind node already holds is used rather than re-fetched.
+
+  R4:
+    title: No service type a kind cluster cannot provide
+    applicability: helm_managed
+    items:
+      - id: R4.1
+        text: |
+          No Service of type `LoadBalancer` shall render from any chart or
+          values overlay. A chart that needs one in production shall put it
+          behind a values switch that every checked-in overlay leaves off.
+        evidence: |
+          No rendered Service declares `type: LoadBalancer`, and a chart
+          that introduces one behind a switch renders without it under
+          every checked-in overlay.
+
+  R5:
+    title: Readiness is declared where traffic arrives
+    applicability: helm_managed
+    items:
+      - id: R5.1
+        text: |
+          Every workload a Service selects shall declare a readiness probe
+          on the container that serves the selected port.
+        evidence: |
+          Each rendered Service's selector resolves to a workload whose
+          serving container carries a readiness probe, so the Service does
+          not route to a pod that has not reported it can serve.
+
+  R6:
+    title: Kind node images are pinned by version and digest
+    applicability: kind_demo
+    items:
+      - id: R6.1
+        text: |
+          Every checked-in kind configuration shall pin its node image by
+          version and digest, in the form `kindest/node:vX.Y.Z@sha256:...`.
+        evidence: |
+          Each kind configuration file carries a node image with both a
+          version tag and a digest, so two machines create the same cluster.
+
+  R7:
+    title: The exception baseline shrinks
+    applicability: runnable_module
+    items:
+      - id: R7.1
+        text: |
+          An accepted violation shall be recorded in one checked-in
+          exception baseline. Each entry shall name the chart, the values
+          overlay, the resource, the requirement it suspends, the issue
+          that will remove it, and why it stands.
+        evidence: |
+          The baseline parses, every entry carries all six fields, and a
+          violation listed in it does not fail the gate.
+      - id: R7.2
+        text: |
+          A violation absent from the baseline shall fail the gate. The
+          baseline shall not be written by the gate that reads it.
+        evidence: |
+          Introducing a violation fails the gate, and the gate produces no
+          edit to the baseline file.
+      - id: R7.3
+        text: |
+          A baseline entry whose violation no longer reproduces shall fail
+          the gate, naming the entry to remove.
+        evidence: |
+          Fixing a violation while leaving its baseline entry in place fails
+          with a message identifying the stale entry, so the file cannot
+          accumulate exceptions that no longer apply.
+
+  R8:
+    title: A finding names where it is
+    applicability: helm_managed
+    items:
+      - id: R8.1
+        text: |
+          A reported violation shall name the chart, the values overlay, the
+          rendered resource kind and name, the offending value, and the
+          requirement it breaks.
+        evidence: |
+          A seeded violation produces a message carrying all five, so a
+          reader locates it without re-rendering the chart.
+
+non_goals:
+  - Rendering charts against a live cluster. The gate reads manifests and needs no Kubernetes.
+  - Judging whether an application template should instead call the shared library chart. That classification is tracked separately.
+  - Refreshing pinned digests when an upstream release appears. Pin maintenance is its own concern.
+  - Governing charts outside this repository. A consumer repository owns its own conformance.
+  - Linting chart template style, values schema shape, or documentation. Existing per-application gates own those.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: |
+      Every application chart renders under its own defaults and under each
+      of its checked-in values overlays, and each rendered manifest is
+      checked against R1 through R5.
+    traces:
+      - R1.1
+      - R1.2
+      - R3.1
+      - R4.1
+      - R5.1
+  - id: AC2
+    criterion: |
+      Third-party images carry a digest and repository-built images carry a
+      commit-shaped tag, each checked against its own rule.
+    traces:
+      - R2.1
+      - R2.2
+  - id: AC3
+    criterion: |
+      Every checked-in kind configuration pins its node image by version and
+      digest.
+    traces:
+      - R6.1
+  - id: AC4
+    criterion: |
+      The exception baseline suspends a named violation, fails on an
+      unlisted one, and fails on an entry that no longer reproduces.
+    traces:
+      - R7.1
+      - R7.2
+      - R7.3
+  - id: AC5
+    criterion: |
+      A violation is reported as chart, overlay, resource, value, and
+      requirement.
+    traces:
+      - R8.1
+
+use_case_traces:
+  - rel16.0-uc001-chart-conformance
+
+test_suite_traces:
+  - test-rel16.0-chart-conformance

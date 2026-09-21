@@ -1,0 +1,263 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel16.0-chart-conformance
+title: Release 16.0 Chart Conformance Test Suite
+release: "16.0"
+status: planned
+test_case_count: 10
+
+overview: |
+  TC1 parses and traces the Release 16.0 documents and is executable now. TC2
+  through TC9 name the tests the conformance module adds; TC10 names the
+  proof that the seeded violations are gone. Each case turns implemented when
+  its command exists and passes. Every case but TC1 runs under the repository
+  root audit.
+
+traces:
+  - rel16.0-uc001-chart-conformance
+
+srds:
+  - srd005-chart-conformance
+
+preconditions:
+  - Run commands from the repository root.
+  - Python 3 with PyYAML, Go, Mage, and Helm are available.
+  - A planned case is not passing evidence until its command exists and passes.
+
+test_cases:
+  - id: TC1
+    use_case: rel16.0-uc001-chart-conformance
+    name: Release 16.0 documents parse and trace reciprocally
+    status: implemented
+    evidence_type: executable_structural
+    command: |
+      python3 - <<'PY'
+      from pathlib import Path
+      import yaml
+
+      root = Path("applications/docs")
+      paths = {
+          "srd": root / "specs/software-requirements/srd005-chart-conformance.yaml",
+          "use_case": root / "specs/use-cases/rel16.0-uc001-chart-conformance.yaml",
+          "suite": root / "specs/test-suites/test-rel16.0-chart-conformance.yaml",
+          "index": root / "SPECIFICATIONS.yaml",
+          "roadmap": root / "road-map.yaml",
+          "guideline": Path("docs/engineering/eng01-kind-test-demo-rig.yaml"),
+      }
+      docs = {name: yaml.safe_load(path.read_text()) for name, path in paths.items()}
+      required = {
+          "srd": {"id", "title", "problem", "goals", "requirements",
+                  "non_goals", "acceptance_criteria"},
+          "use_case": {"id", "title", "summary", "actor", "trigger", "flow",
+                       "touchpoints", "success_criteria", "out_of_scope"},
+          "suite": {"id", "title", "release", "traces", "preconditions",
+                    "test_cases"},
+          "guideline": {"id", "title", "introduction", "sections", "references"},
+      }
+      for name, fields in required.items():
+          assert not fields - set(docs[name]), (name, fields - set(docs[name]))
+
+      srd, use_case, suite = docs["srd"], docs["use_case"], docs["suite"]
+      assert use_case["test_suite"] == suite["id"]
+      assert use_case["id"] in suite["traces"]
+      assert use_case["id"] in srd["use_case_traces"]
+      assert suite["id"] in srd["test_suite_traces"]
+
+      item_ids = {
+          item["id"]
+          for group in srd["requirements"].values()
+          for item in group["items"]
+      }
+      ac_traces = {t for ac in srd["acceptance_criteria"] for t in ac["traces"]}
+      assert item_ids <= ac_traces, sorted(item_ids - ac_traces)
+      ac_ids = {ac["id"] for ac in srd["acceptance_criteria"]}
+      case_traces = {
+          t.rsplit(" ", 1)[-1]
+          for case in suite["test_cases"]
+          for t in case.get("traces", [])
+          if t.startswith(srd["id"] + " ")
+      }
+      assert ac_ids <= case_traces, sorted(ac_ids - case_traces)
+      assert len(suite["test_cases"]) == suite["test_case_count"]
+
+      titles = [section["title"] for section in docs["guideline"]["sections"]]
+      assert "Chart conformance rules" in titles, titles
+      rules = next(s for s in docs["guideline"]["sections"]
+                   if s["title"] == "Chart conformance rules")["content"]
+      for rule in ("C1", "C2", "C3", "C4", "C5", "C6"):
+          assert f"| {rule} |" in rules, rule
+      assert srd["id"] in rules
+
+      index = docs["index"]
+      assert any(e["id"] == srd["id"] for e in index["srd_index"])
+      assert any(e["id"] == use_case["id"] for e in index["use_case_index"])
+      assert any(e["id"] == suite["id"] for e in index["test_suite_index"])
+      assert any(e["version"] == "16.0" for e in index["roadmap_summary"])
+      release = next(r for r in docs["roadmap"]["releases"] if r["version"] == "16.0")
+      assert any(e["id"] == use_case["id"] for e in release["use_cases"])
+      assert any(e["id"] == suite["id"] for e in release["test_suites"])
+      print("validated Release 16.0 chart conformance trace closure")
+      PY
+    expected:
+      yaml_parses: true
+      design_constitution_fields_present: true
+      requirement_to_acceptance_criterion_closure: true
+      reciprocal_srd_use_case_suite_traces: true
+      guideline_carries_every_numbered_rule: true
+      specification_and_roadmap_indexes_present: true
+    traces:
+      - rel16.0-uc001-chart-conformance S1
+      - srd005-chart-conformance AC1
+
+  - id: TC2
+    use_case: rel16.0-uc001-chart-conformance
+    name: Every chart renders under its defaults and every checked-in overlay
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2408
+    command: |
+      cd magefiles && go test . -run TestChartConformance
+    expected:
+      every_application_chart_rendered: true
+      library_chart_vendored_before_render: true
+      overlays_discovered_not_hardcoded: true
+      defaults_render_checked_alongside_overlays: true
+      non_values_files_in_ci_not_treated_as_overlays: true
+    traces:
+      - rel16.0-uc001-chart-conformance S1
+      - srd005-chart-conformance AC1
+
+  - id: TC3
+    use_case: rel16.0-uc001-chart-conformance
+    name: A floating tag fails the gate
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2408
+    command: |
+      cd magefiles && go test . -run TestChartConformance
+    expected:
+      latest_tag_reported: true
+      absent_tag_reported: true
+      floating_tag_in_defaults_reported: true
+    traces:
+      - rel16.0-uc001-chart-conformance S2
+      - srd005-chart-conformance AC1
+
+  - id: TC4
+    use_case: rel16.0-uc001-chart-conformance
+    name: Third-party images need digests and repository images need commit tags
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2408
+    command: |
+      cd magefiles && go test . -run TestChartConformance
+    expected:
+      third_party_image_without_digest_reported: true
+      repository_image_classified_by_prefix: true
+      repository_image_not_required_to_carry_digest: true
+    traces:
+      - rel16.0-uc001-chart-conformance S2
+      - srd005-chart-conformance AC2
+
+  - id: TC5
+    use_case: rel16.0-uc001-chart-conformance
+    name: Pull policy and service type stay inside what kind provides
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2408
+    command: |
+      cd magefiles && go test . -run TestChartConformance
+    expected:
+      image_pull_policy_always_reported: true
+      load_balancer_service_reported: true
+      switched_off_load_balancer_not_reported: true
+    traces:
+      - rel16.0-uc001-chart-conformance S1
+      - srd005-chart-conformance AC1
+
+  - id: TC6
+    use_case: rel16.0-uc001-chart-conformance
+    name: A selected workload declares readiness
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2408
+    command: |
+      cd magefiles && go test . -run TestChartConformance
+    expected:
+      service_selector_resolved_to_workload: true
+      workload_without_readiness_probe_reported: true
+      unselected_workload_not_required_to_declare_one: true
+    traces:
+      - rel16.0-uc001-chart-conformance S1
+      - srd005-chart-conformance AC1
+
+  - id: TC7
+    use_case: rel16.0-uc001-chart-conformance
+    name: Kind configurations pin the node image by version and digest
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2408
+    command: |
+      cd magefiles && go test . -run TestChartConformance
+    expected:
+      every_checked_in_kind_configuration_read: true
+      node_image_without_digest_reported: true
+      node_image_without_version_reported: true
+    traces:
+      - rel16.0-uc001-chart-conformance S3
+      - srd005-chart-conformance AC3
+
+  - id: TC8
+    use_case: rel16.0-uc001-chart-conformance
+    name: The exception baseline suspends, refuses, and expires
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2408
+    command: |
+      cd magefiles && go test . -run TestChartConformance
+    expected:
+      listed_violation_does_not_fail: true
+      unlisted_violation_fails: true
+      entry_whose_violation_no_longer_reproduces_fails: true
+      gate_writes_no_edit_to_the_baseline: true
+      entry_missing_issue_or_reason_rejected: true
+    traces:
+      - rel16.0-uc001-chart-conformance S4
+      - srd005-chart-conformance AC4
+
+  - id: TC9
+    use_case: rel16.0-uc001-chart-conformance
+    name: A finding names chart, overlay, resource, value, and rule
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2408
+    command: |
+      cd magefiles && go test . -run TestChartConformance
+    expected:
+      message_names_chart: true
+      message_names_overlay: true
+      message_names_resource_kind_and_name: true
+      message_names_offending_value: true
+      message_names_requirement_id: true
+    traces:
+      - rel16.0-uc001-chart-conformance S5
+      - srd005-chart-conformance AC5
+
+  - id: TC10
+    use_case: rel16.0-uc001-chart-conformance
+    name: The seeded violations are pinned and the baseline holds no floating tag
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2409
+    command: |
+      mage audit
+    expected:
+      ollama_pinned_in_both_charts: true
+      dolt_pinned: true
+      remaining_third_party_images_carry_digests: true
+      baseline_holds_no_floating_tag_entry: true
+      demo_comes_up_on_the_pinned_images: true
+    traces:
+      - rel16.0-uc001-chart-conformance S2
+      - srd005-chart-conformance AC1
+      - srd005-chart-conformance AC2

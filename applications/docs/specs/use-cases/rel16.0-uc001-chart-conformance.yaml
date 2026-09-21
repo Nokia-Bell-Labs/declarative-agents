@@ -1,0 +1,159 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel16.0-uc001-chart-conformance
+title: Add a Workload and Learn at Audit Time That Its Image Floats
+release: "16.0"
+status: planned
+
+summary: |
+  An engineer adds a workload to an application chart and gives its image a
+  convenient tag. The repository audit renders every chart under every
+  checked-in values overlay, checks the rendered manifests against the ENG01
+  chart rules, and fails naming the chart, the overlay, the resource, the
+  image, and the rule. The engineer pins the image and the audit passes. A
+  violation that must stand goes in the exception baseline with the issue
+  that will remove it, and the baseline shrinks from there.
+
+actor: An engineer changing an application chart or its values.
+
+trigger: |
+  A chart gains a workload, an image reference changes, a values overlay is
+  added or edited, or a kind configuration is written.
+
+preconditions:
+  - ENG01 carries the numbered chart conformance rules and srd005 owns them.
+  - Helm is on the host; the audit states which rules did not run when it is absent.
+  - Each application chart carries its values overlays under helm/ci/.
+
+flow:
+  - id: F1
+    text: |
+      The engineer adds a workload to an application chart, or edits an
+      image reference or a values overlay, and runs the repository audit.
+    traces:
+      - srd005-chart-conformance R1
+  - id: F2
+    text: |
+      The audit vendors the shared library chart into each application
+      chart, then renders every chart once under its own defaults and once
+      per checked-in values overlay.
+    traces:
+      - srd005-chart-conformance R1.2
+      - srd005-chart-conformance R2.2
+  - id: F3
+    text: |
+      Each rendered manifest is checked against the rules: tags do not
+      float, third-party images carry digests, pull policies keep a loaded
+      node off the registry, no Service asks kind for a load balancer, and
+      every selected workload declares readiness.
+    traces:
+      - srd005-chart-conformance R1.1
+      - srd005-chart-conformance R2.1
+      - srd005-chart-conformance R3.1
+      - srd005-chart-conformance R4.1
+      - srd005-chart-conformance R5.1
+  - id: F4
+    text: |
+      Every checked-in kind configuration is checked for a node image pinned
+      by version and digest.
+    traces:
+      - srd005-chart-conformance R6.1
+  - id: F5
+    text: |
+      A finding absent from the exception baseline fails the audit, naming
+      the chart, the overlay, the resource, the offending value, and the
+      rule. The engineer reads it without re-rendering anything.
+    traces:
+      - srd005-chart-conformance R7.2
+      - srd005-chart-conformance R8.1
+  - id: F6
+    text: |
+      A violation that must stand is added to the exception baseline with
+      the issue that will remove it and the reason it stands, and the audit
+      passes.
+    traces:
+      - srd005-chart-conformance R7.1
+  - id: F7
+    text: |
+      When the issue lands and the violation stops reproducing, the audit
+      fails on the stale baseline entry until it is removed, so the file
+      records only exceptions that still apply.
+    traces:
+      - srd005-chart-conformance R7.3
+
+touchpoints:
+  - id: T1
+    target: docs/engineering/eng01-kind-test-demo-rig.yaml
+    reason: States the numbered chart conformance rules the gate cites.
+  - id: T2
+    target: applications/<application>/helm/
+    reason: The chart and the values overlays rendered and checked.
+  - id: T3
+    target: applications/charts/agent-services/
+    reason: Shared library chart vendored into each application chart before rendering.
+  - id: T4
+    target: magefiles/audit.go
+    reason: Repository audit that dispatches the conformance check.
+  - id: T5
+    target: docs/chart-conformance-baseline.yaml
+    reason: Checked-in exception baseline the gate reads and never writes.
+  - id: T6
+    target: srd005-chart-conformance AC1
+    reason: Rendering coverage across charts and overlays.
+  - id: T7
+    target: srd005-chart-conformance AC2
+    reason: Digest and commit-tag classification.
+  - id: T8
+    target: srd005-chart-conformance AC3
+    reason: Kind node image pinning.
+  - id: T9
+    target: srd005-chart-conformance AC4
+    reason: Baseline suspension, unlisted failure, and stale-entry failure.
+  - id: T10
+    target: srd005-chart-conformance AC5
+    reason: Finding names chart, overlay, resource, value, and rule.
+  - id: T11
+    target: test-rel16.0-chart-conformance
+    reason: Structural and executable evidence for this flow.
+
+success_criteria:
+  - id: S1
+    criterion: |
+      Every application chart and every checked-in values overlay is
+      rendered and checked; no chart is covered by its defaults alone.
+    traces:
+      - srd005-chart-conformance AC1
+  - id: S2
+    criterion: |
+      No image in any rendered manifest floats, every third-party image
+      carries a digest, and every repository-built image carries a
+      commit-shaped tag.
+    traces:
+      - srd005-chart-conformance AC1
+      - srd005-chart-conformance AC2
+  - id: S3
+    criterion: |
+      Every checked-in kind configuration pins its node image by version and
+      digest.
+    traces:
+      - srd005-chart-conformance AC3
+  - id: S4
+    criterion: |
+      The exception baseline shrinks: an unlisted violation fails, and a
+      listed one that no longer reproduces fails until its entry is removed.
+    traces:
+      - srd005-chart-conformance AC4
+  - id: S5
+    criterion: |
+      A failure names the chart, the overlay, the resource, the value, and
+      the rule, and an engineer acts on it without re-rendering.
+    traces:
+      - srd005-chart-conformance AC5
+
+out_of_scope:
+  - Deciding whether an application template should call the shared library chart instead of rendering its own workload.
+  - Refreshing a pinned digest when an upstream release appears.
+  - Running any chart against a live cluster; the gate reads manifests only.
+  - Charts owned by consumer repositories.
+
+test_suite: test-rel16.0-chart-conformance
