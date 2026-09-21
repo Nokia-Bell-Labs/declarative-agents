@@ -72,8 +72,10 @@ roadmap_summary:
     status: planned
     evidence: |
       ENG01 carries the numbered chart rules, srd005 owns them, and the
-      ten-case suite traces them. TC1 is executable; TC2 through TC10 turn
-      implemented as GH-2408 and GH-2409 land.
+      ten-case suite traces them. TC1 through TC9 are executable: the gate
+      renders every chart under every checked-in overlay and reconciles
+      against a seeded baseline. TC10 turns implemented when GH-2409 empties
+      that baseline.
 
 foundation_document_index:
   - id: application-composition-pattern-language
@@ -242,7 +244,7 @@ test_suite_index:
   - id: test-rel16.0-chart-conformance
     title: Release 16.0 Chart Conformance Test Suite
     release: "16.0"
-    status: planned
+    status: partial
     test_case_count: 10
     traces: [rel16.0-uc001-chart-conformance]
     srds:
@@ -253,11 +255,12 @@ coverage_gaps:
   - id: release-16-chart-conformance
     status: planned
     description: |
-      The rules are specified and TC1 is executable. The gate itself is
-      GH-2408 and the three floating image tags it fails on are GH-2409;
-      until both land, the conformance evidence is the documents alone.
-      Classifying an application template as an un-migrated library
-      candidate stays outside this release and is tracked in GH-2410.
+      The rules are specified and the gate runs. It found fifty violations
+      across five upstream images and eight init containers with no stated
+      pull policy; all fifty are baselined against GH-2409, which empties the
+      file. Until it does, the charts conform by exception rather than by
+      construction. Classifying an application template as an un-migrated
+      library candidate stays outside this release and is tracked in GH-2410.
   - id: release-15-declarative-ux
     status: implemented
     description: |

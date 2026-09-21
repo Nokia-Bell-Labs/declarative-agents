@@ -69,13 +69,16 @@ requirements:
           the gate.
       - id: R2.2
         text: |
-          Every image built from this checkout shall carry a commit-shaped
-          tag and shall not carry a digest, because the digest is not known
-          until the image is built.
+          Every image built from this checkout shall carry a non-floating
+          tag and shall not be required to carry a digest, because the
+          digest is not known until the image is built. The tag may name a
+          release, a commit revision, or a fail-closed sentinel a run
+          replaces.
         evidence: |
           Repository-built image references are distinguished from
           third-party ones by repository prefix, and each class is checked
-          against its own rule rather than one rule applied to both.
+          against its own rule rather than one rule applied to both. A
+          repository-built image without a digest does not fail the gate.
 
   R3:
     title: Pull policies keep a loaded node off the registry

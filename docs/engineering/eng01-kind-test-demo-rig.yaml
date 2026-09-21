@@ -210,14 +210,18 @@ sections:
       | Rule | Statement | Surface |
       |------|-----------|---------|
       | C1 | No image reference resolves to a floating tag: neither `latest` nor an absent tag | rendered manifest |
-      | C2 | Every third-party image carries a digest alongside its tag; every image built from this checkout carries a commit-shaped tag | values file and rendered manifest |
+      | C2 | Every third-party image carries a digest alongside its tag; an image built from this checkout carries a non-floating tag and no digest | values file and rendered manifest |
       | C3 | Every container sets `imagePullPolicy` to `IfNotPresent` or `Never`; `Always` is not permitted | rendered manifest |
       | C4 | No Service of type `LoadBalancer` renders from any chart or values overlay | rendered manifest |
       | C5 | Every workload a Service selects declares a readiness probe | rendered manifest |
       | C6 | Every kind configuration pins its node image by version and digest | checked-in kind configuration |
 
       C2 covers every image the cluster pulls, not only the images the host
-      pulls and retags for a kind load. The two carry the same risk: a tag
+      pulls and retags for a kind load. An image built from this checkout is
+      exempt from the digest half: its digest does not exist until it is
+      built, and its tag names a release, the commit under test, or a
+      fail-closed sentinel a run replaces. C1 already keeps that tag from
+      floating. The two carry the same risk: a tag
       that moves upstream changes what installs, and neither the chart nor
       the lock file records that it moved. The alpine/k8s CLI donor already
       carries a digest in all three application charts; C2 extends that to

@@ -375,15 +375,15 @@ releases:
           numbered rule, the baseline's three behaviours, the shape of a
           finding, and the pinning of the seeded violations.
         status: planned
-        implemented_cases: [TC1]
-        planned_cases: [TC2, TC3, TC4, TC5, TC6, TC7, TC8, TC9, TC10]
+        implemented_cases: [TC1, TC2, TC3, TC4, TC5, TC6, TC7, TC8, TC9]
+        planned_cases: [TC10]
     implementation_sequence:
       - order: 1
         action: Add the ENG01 rule table and specify srd005, the use case, the suite, and the index entries (GH-2407).
         status: planned
       - order: 2
         action: Add the chart conformance module, its exception baseline, and the root audit wiring (GH-2408).
-        status: planned
+        status: implemented
       - order: 3
         action: Pin the floating image tags and shrink the baseline (GH-2409).
         status: planned
@@ -395,4 +395,12 @@ releases:
       - path: applications/docs/specs/use-cases/rel16.0-uc001-chart-conformance.yaml
         proves: The flow from a changed chart to a named finding to a shrinking baseline.
       - path: applications/docs/specs/test-suites/test-rel16.0-chart-conformance.yaml
-        proves: Requirement-to-AC-to-test coverage with TC1 executable.
+        proves: Requirement-to-AC-to-test coverage with TC1 through TC9 executable.
+      - path: magefiles/chartconf/
+        proves: Every numbered rule, the shrink-only baseline, and the shape of a finding, checked from rendered YAML without helm.
+      - path: magefiles/chart_conformance_test.go
+        proves: Every chart rendered under its defaults and each checked-in overlay, every kind configuration read, and the baseline reconciled.
+      - path: docs/chart-conformance-baseline.yaml
+        proves: The fifty violations the charts carried when the gate first ran, each naming GH-2409.
+      - command: cd magefiles && go test . -run TestChartConformance
+        proves: The gate passes against the seeded baseline and fails on an unlisted or a stale entry.

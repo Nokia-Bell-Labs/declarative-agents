@@ -65,9 +65,10 @@ type patternInvariantSummary struct {
 	manual     int
 }
 
-// Audit first validates repository-wide document placement and actor-role
-// realization, warms the agent build cache once, then runs mage audit in each
-// sub-module and participating example module concurrently.
+// Audit first validates repository-wide document placement, actor-role
+// realization, and chart conformance, warms the agent build cache once, then
+// runs mage audit in each sub-module and participating example module
+// concurrently.
 func Audit() error {
 	if err := runDocumentPlacementAudit(); err != nil {
 		return err
@@ -76,6 +77,9 @@ func Audit() error {
 		return err
 	}
 	if err := runAgentRoleRealizationAudit(); err != nil {
+		return err
+	}
+	if err := runChartConformanceAudit(); err != nil {
 		return err
 	}
 	if err := warmAgentBuild(); err != nil {
@@ -91,6 +95,21 @@ func runDocumentPlacementAudit() error {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("document placement audit: %w", err)
+	}
+	return nil
+}
+
+// runChartConformanceAudit renders every application chart under every
+// checked-in values overlay and checks the rendered manifests and the
+// checked-in kind configurations against the ENG01 chart rules
+// (srd005-chart-conformance).
+func runChartConformanceAudit() error {
+	cmd := exec.Command("go", "test", ".", "-count=1", "-run", "^TestChartConformance")
+	cmd.Dir = "magefiles"
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("chart conformance audit: %w", err)
 	}
 	return nil
 }

@@ -51,7 +51,8 @@ func stageKindRenderChart(t *testing.T, root, application string) string {
 	}
 	switch application {
 	case "agent-architecture":
-		manifest := "mount_path: /profiles\nroles:\n  - role: curator\n    profile: profile.yaml\n  - role: collector\n    profile: profile.yaml\n"
+		manifest := "mount_path: /profiles\nroles:\n  - role: curator\n    profile: profile.yaml\n" +
+			"  - role: collector\n    profile: profile.yaml\n  - role: applier\n    profile: profile.yaml\n"
 		writeFile(t, filepath.Join(chart, "profiles", "prepared-manifest.yaml"), manifest)
 		for _, role := range []string{"curator", "collector"} {
 			writeFile(t, filepath.Join(chart, "profiles", role, "profile.yaml"), "fixture: true\n")
@@ -63,6 +64,10 @@ func stageKindRenderChart(t *testing.T, root, application string) string {
 			writeFile(t, filepath.Join(chart, "profiles", role, "profile.yaml"), "fixture: true\n")
 		}
 	}
+	// The applier closure is staged for every chart that globs it, because a
+	// values overlay can turn the applier on and the template fails closed
+	// without it (GH-2408).
+	writeFile(t, filepath.Join(chart, "profiles", "applier", "profile.yaml"), "fixture: true\n")
 	return chart
 }
 
