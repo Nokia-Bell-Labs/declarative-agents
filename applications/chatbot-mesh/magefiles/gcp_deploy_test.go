@@ -4,6 +4,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -56,5 +57,24 @@ func TestGcpDeployOverridesShape(t *testing.T) {
 func TestGcpValuesFileNamesTheOverlay(t *testing.T) {
 	if gcpValuesFile != "gcp-values.yaml" {
 		t.Fatalf("gcpValuesFile = %q", gcpValuesFile)
+	}
+}
+
+// The GKE path builds its runtime image before pushing, the way demo:up
+// builds before loading: without it the deploy only works on a commit whose
+// image the operator happened to build by hand (GH-2439).
+func TestGcpDeployBuildsBeforePushing(t *testing.T) {
+	source, err := os.ReadFile("gcp_deploy.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(source)
+	build := strings.Index(text, "buildSmokeRuntimeImage")
+	push := strings.Index(text, "gcprig.PushAgentCore")
+	if build < 0 {
+		t.Fatal("gcpDeploy does not build the runtime image")
+	}
+	if push < 0 || build > push {
+		t.Fatal("gcpDeploy pushes before it builds")
 	}
 }
