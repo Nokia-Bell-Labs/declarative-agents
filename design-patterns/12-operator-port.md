@@ -3,91 +3,91 @@
 
 # Operator Port
 
-An Operator Port integrates an observation and control surface with a running
-engine, maintaining three elements: the shipped monitor profile, runtime-only
-lifecycle-control conformance, and signal-injection and rollback design
-intent.
+An Operator Port couples an observation surface and a control surface with a
+running engine, while preserving three elements: the shipped monitor profile,
+runtime-only lifecycle-control conformance, and signal-injection plus rollback
+design intent.
 
 ## Intent
 
-Attach a control-plane server to the running engine so observers can query
-the execution state and controllers can inject signals, all within the
-declared state space.
+The goal is to attach a control-plane server to the running engine so that
+observers can query execution state and controllers can inject signals, all
+within the declared state space.
 
 ## Reference implementation status
 
-The shipped `applications/catalog/agents/runtime-state-reader` adapter handles
-read routes for the root machine, declared machines, state, tools, metrics,
-recent events, event SSE, and OpenAPI. It lacks its own control route;
-agent-core injects the `POST /api/lifecycle/exit` endpoint (GH-1264) into
-every agent, emitting `ExitRequested`, with the profile's control await
-selecting this route. The listener binds to `127.0.0.1:0`; supervisors
-retrieve the address from REST launch output.
+The shipped `applications/catalog/agents/runtime-state-reader` adapter
+implements read routes for the root machine, declared machines, state, tools,
+metrics, recent events, event SSE, and OpenAPI. It does not expose its own
+control route; instead, `agent-core` injects the `POST /api/lifecycle/exit`
+endpoint—GH-1264— into every agent, emitting `ExitRequested` and allowing the
+profile's control logic to await this route. The listener binds to
+`127.0.0.1:0`, and supervisors retrieve the address from the
+REST launch output.
 
-The REST runtime includes conformance-tested `lifecycle_control` and
-`inject_signal` bindings, though no production profile selects them. Design
-intent retains arbitrary signal injection, pause/resume/rollback control,
+The REST runtime contains conformance-tested `lifecycle_control` and
+`inject_signal` bindings, although no production profile selects them. Design
+intent preserves arbitrary signal injection, pause/resume/rollback control,
 PID-file discovery, coding-agent rollback, multi-agent polling, and checkpoint
 restoration by a lifecycle agent.
 
-
 ## Motivation
 
-Imperative agents lack transparency during runtime: the developer's only
-insight is through log output they chose to emit, and control is limited to
-basic commands (SIGSTOP to pause, SIGKILL to abort, or restart to "roll
-back"). There is no mechanism to query "what state is the agent in?" or
-instruct "roll back to the last checkpoint" without terminating the process.
+Imperative agents currently lack transparency during runtime: developers
+receive only the log output they choose to emit, and control is limited to
+SIGSTOP—pause—, SIGKILL—abort—, or a restart that effectively "rolls back."
+Consequently, there is no way to ask "what state is the agent in?" or to
+command "roll back to the last checkpoint" without terminating the process.
 
-Machine Interpreters change this because the state space is finite and
-declared. At any moment the engine occupies one named state, holds one pending
-signal, and keeps a bounded history. These are inherent properties of the
-design, not debug artifacts. Declared state is queryable; enumerated signals
-are injectable; and because the machine defines its response to every signal
-in every state, an injected valid signal produces a predictable,
-machine-guaranteed response. Operator Port exploits this through three modes
-(in-process recording, HTTP read access, and HTTP signal injection) without
-touching the machine, tools, or business logic.
-
+Machine Interpreters change this picture because the state space is finite and
+declared. At any instant the engine occupies a named state, holds a single
+pending signal, and maintains a bounded history—properties that belong to the
+design, not to debugging artifacts. Declared state becomes queryable;
+enumerated signals become injectable; and because the machine defines a
+response to every signal in every state, an injected valid signal yields a
+predictable, machine-guaranteed reaction. Operator Port exploits these
+guarantees through three modes—in-process recording, HTTP read access, and
+HTTP signal injection— without touching the machine, tools, or business logic.
 
 ## Applicability
 
-The Operator Port suits agents operating over minutes to hours, providing live
-progress updates instead of post-hoc logs. Its utility grows when operators
+Operator Port fits agents that run for minutes to hours, because it delivers
+live progress updates, not post-hoc logs. Its value grows when operators
 intervene mid-execution—pausing before irreversible steps, rolling back to
 checkpoints, or injecting termination—and when a parent supervises multiple
-children, requiring per-child state monitoring without log scraping. For
-agents completing tasks in seconds, post-hoc trace analysis (Chapter 11)
-suffices. The control plane handles administrative intervention, and
-operational signals stay within it.
-
+children, requiring per-child state monitoring without scraping logs. For
+agents that finish in seconds, post-hoc trace analysis (Chapter 11) remains
+sufficient. The control plane therefore handles administrative intervention,
+while operational signals stay confined to it.
 
 ## Structure
 
-External consumers interact with the engine via three attachment modes (Fig. 31).
+External consumers interact with the engine via three attachment modes (Fig. 31).
 
 ![](figures/fig-32-runtime-probe-components.png)
 
-| **Figure 31.** Component diagram. The MonitorRecorder feeds engine events into a bounded Store the read plane exposes; the control plane enqueues signals and commands consumed by the next dispatch; persisted ops drive checkpointing. |
+| Figure 31. Component diagram. The MonitorRecorder feeds engine events into a bounded Store; the read plane exposes them, while the control plane enqueues signals and commands consumed by the next dispatch; persisted ops drive checkpointing. |
 |:---:|
 
 ### Participants
 
 #### MonitorRecorder
 
-The engine notifies an in-process observer after every dispatch by appending a
-RunEvent to the Store, involving serialization only, with no computation
-performed.
+After each dispatch, the engine notifies an in-process observer by appending a
+`RunEvent` to the Store; this step involves only serialization and performs no
+computation.
 
 #### Store
 
-A bounded in-memory ring of the most recent N events serves REST reads, SSE
-streaming, and OTel metric export, dropping the oldest events when full.
+A bounded in-memory ring holds the most recent N events, serves REST reads,
+SSE streaming, and OTel metric export, and discards the oldest events when
+full.
 
 #### RestServer
 
-The system exposes HTTP routes declared in the profile, with paths and
-bindings defined within the profile, not tied to a fixed server API.
+The system exposes HTTP routes declared in the profile; both paths and
+bindings are defined inside the profile, avoiding any dependence on a fixed
+server API.
 
 #### EventQueue
 
@@ -98,24 +98,23 @@ broader lifecycle control relies on runtime conformance tests.
 #### LifecycleTool
 
 A proposed separate agent would operate on persisted checkpoints after the
-live process exits. No production lifecycle-tool profile ships.
+live process exits. No production lifecycle-tool profile ships today.
 
 #### LoopHooks
 
 Policy callbacks (before/after dispatch, on state change, on budget threshold)
-observe but never alter the transition, the lightest mode, with no network or
-serialization.
-
+observe but never alter the transition; this represents the lightest mode,
+requiring no network or serialization.
 
 ## Collaborations
 
-After each dispatch, the engine transfers a RunEvent to the recorder,
-including state, signal, tool, result, iteration, timestamp, and remaining
-budget, once the transition is committed. The store keeps a bounded recent
-window of these events, offering snapshot and SSE bindings for further
+After each dispatch, the engine transfers a `RunEvent` to the recorder,
+capturing state, signal, tool, result, iteration, timestamp, and remaining
+budget once the transition is committed. The Store keeps a bounded recent
+window of these events and offers snapshot and SSE bindings for downstream
 processing.
 
-The shipped monitor profile declares these observability routes:
+The shipped monitor profile declares the following observability routes:
 
 | Method and path | Binding and view |
 |---|---|
@@ -128,77 +127,48 @@ The shipped monitor profile declares these observability routes:
 | `GET /monitor/events/stream` | `stream_events`: event SSE |
 | `GET /monitor/openapi` | `static_metadata`: generated route description |
 
-The profile lacks an exit route. The agent-core injects `POST
-/api/lifecycle/exit` (`lifecycle_control`, `ExitRequested`) into every served
-agent, enabling the operator port to expose shutdown control without profile
-redundancy, while the monitor server focuses on observability. The REST
-runtime includes `emit_signal` and `lifecycle_control` bindings. Tests verify
-queueing, policy validation, and lifecycle action mapping, though binding
-names do not match endpoint paths, and no production profile uses arbitrary
-injection, pause, resume, or rollback.
+The profile does not declare an exit route. `agent-core` therefore injects
+`POST /api/lifecycle/exit` (`lifecycle_control`, `ExitRequested`) into every
+served agent, enabling the Operator Port to expose shutdown control without
+profile redundancy, while the monitor server remains focused on observability.
+The REST runtime also includes `emit_signal` and `lifecycle_control` bindings.
+Tests verify queueing, policy validation, and lifecycle action mapping, even
+though binding names do not match endpoint paths and no production profile
+employs arbitrary injection, pause, resume, or rollback.
 
-Fig. 32's signal injection represents the complete pattern and current
-conformance behavior, distinct from the shipped monitor profile's HTTP
-surface. A profile selecting the binding must explicitly declare the path,
+Fig. 32's signal injection illustrates the complete pattern and current
+conformance behavior, which differs from the shipped monitor profile's HTTP
+surface. A profile that selects the binding must explicitly declare the path,
 allowed signal, and machine transition.
 
 ![](figures/fig-33-signal-injection.png)
 
-| **Figure 32.** Sequence diagram of the generic injection binding. The shipped monitor profile relies on the injected exit route and selects no injection binding of its own. {wide} |
+| Figure 32. Sequence diagram of the generic injection binding. The shipped monitor profile relies on the injected exit route and selects no injection binding of its own. |
 |:---:|
 
 The lifecycle agent, responsible for browsing checkpoint history and restoring
 terminated runs, adheres to the design intent. But the shipped monitor surface
-lacks a production profile with this functionality.
-
+lacks a production profile that provides this functionality.
 
 ## Consequences
 
 ### Benefits
 
-#### Live inspection without stopping
-
-Operators see current state, history, and resource use via non-blocking reads.
-
-#### Control through declared transitions
-
-For profiles selecting a control binding, injected signals follow the same
-machine rules as internal ones; there is no backdoor, and the machine enforces
-the authorization policy.
-
-#### Machine-validated safety
-
-The runtime rejects invalid signals in the current state. The
-`RollbackRequested` signal exemplifies design intent, yet no shipped profile
-declares it.
-
-#### Independent of business logic
-
-The probe does not interact with the machine, tools, or prompts; the agent
-operates independently, executing identically regardless of its presence.
+* Live inspection without stopping -- Operators can view current state, recent history, and resource usage through non-blocking reads.  
+* Control through declared transitions -- For profiles that select a control binding, injected signals follow the same machine rules as internal ones; there is no backdoor, and the machine enforces the authorization policy.  
+* Machine-validated safety -- The runtime rejects invalid signals in the current state; the `RollbackRequested` signal exemplifies design intent, even though no shipped profile declares it.  
+* Independence from business logic -- The probe does not interact with the machine, tools, or prompts; the agent operates identically whether the probe is present or not.
 
 ### Liabilities
 
-#### Memory overhead
-
-The ring's memory consumption scales with its capacity, which grows as tool
-results increase, trading depth for memory usage.
-
-#### Network attack surface
-
-HTTP endpoints must use localhost binding or authentication middleware; the
-pattern offers attachment points rather than security.
-
-#### Observer effect
-
-Per-dispatch recording adds bounded, non-zero latency, measurable when agents
-dispatch hundreds of tools per second.
-
+* Memory overhead -- The ring's memory consumption grows with its capacity, which in turn expands as tool results increase; this trades depth for memory usage.  
+* Network attack surface -- HTTP endpoints must bind to localhost or be protected by authentication middleware; the pattern supplies attachment points rather than security guarantees.  
+* Observer effect -- Per-dispatch recording adds bounded, non-zero latency, which becomes measurable when agents dispatch hundreds of tools per second.
 
 ## Implementation
 
-The monitor uses a profile-owned, opt-in model, activating the recorder and
-listener when its machine, tools, and REST definition are selected. The
+The monitor follows a profile-owned, opt-in model, activating the recorder and
+listener only when its machine, tools, and REST definition are selected. The
 checked-in server requests an ephemeral loopback port:
 
 ```yaml
@@ -215,64 +185,61 @@ servers:
       # (lifecycle_control, ExitRequested) into every served agent.
 ```
 
-The `launch_rest_server` function outputs the bound `address`, which
-supervisors like the CLI proof use to build the base URL, eliminating
+The `launch_rest_server` function prints the bound `address`; supervisors such
+as the CLI proof read this output to build the base URL, thereby eliminating
 PID/profile discovery files or fixed ports.
 
-Monitor state reads access the live in-memory store, offering no durable
-history. Declared-machines reads serve the trusted profile closure, including
-the root and distinct `machine_request` MachineSpecs, without asserting those
-machines are running. Checkpointing is handled separately via the typed
-checkpoint port. The monitor functions independently of the bench: monitor
-routes observe live runs or declarations, while bench evaluates completed
-trace artifacts (Chapter 11).
-
+Monitor state reads access the live in-memory store and provide no durable
+history. Declared-machines reads serve the trusted profile closure, exposing
+the root and distinct `machine_request` `MachineSpecs` without asserting that
+those machines are currently running. Checkpointing is handled separately via
+the typed checkpoint port. Thus the monitor operates independently of the
+bench: monitor routes observe live runs or declarations, while the bench
+evaluates completed trace artifacts (Chapter 11).
 
 ## Relationships in the Pattern Language
 
-Operator Port, part of the Machine Interpreter, depends on the Machine
-Interpreter, Bidirectional Log, and Approval Gate for safe live control,
-requiring explicit state, rollback, and suspend/resume decisions. It overlaps
-with Transition Spans, both exposing execution state, but differs in its live,
-bidirectional operation versus Transition Spans' telemetry role. The grammar
-is defined in `pattern-language.yaml`.
-
+Operator Port, as part of the Machine Interpreter, depends on the Machine
+Interpreter, Bidirectional Log, and Approval Gate to achieve safe live
+control. It requires explicit state, rollback, and suspend/resume decisions.
+It overlaps with Transition Spans, because both expose execution state, yet
+Operator Port differs by providing live, bidirectional operation whereas
+Transition Spans focus on telemetry. The grammar for this pattern resides in
+`pattern-language.yaml`.
 
 ## Known Uses
 
-**Shipped runtime-state-reader profile.** The `agents/runtime-state-reader`
-starts in the Connecting state, synchronizing with the network and
-establishing pairwise links via control messages. Transitioning to the Waiting
-state, it processes packets or timer events, moving to the Sending state on
-timer events to transmit packets. Upon hardware confirmation, it returns to
-Waiting, allowing packet reception even in Sending to handle errors. The
-Disconnecting state releases resources. The runtime-state-reader serves routes
-for profile-owned root-machine, declared-machines, state, metrics, event, SSE,
-and OpenAPI, with shutdown controlled by `/api/lifecycle/exit` from
-agent-core. The CLI proof extracts the ephemeral loopback address from launch
-output, reads declarations, live state, and metrics, posts
-`/api/lifecycle/exit`, and verifies a successful terminal state.
+Shipped runtime-state-reader profile. The `agents/runtime-state-reader` starts
+in the *Connecting* state, synchronizes with the network, and establishes
+pairwise links via control messages. It moves to *Waiting*, processes packets
+or timer events, and transitions to *Sending* on timer events to transmit
+packets. After hardware confirmation, it returns to *Waiting*, allowing packet
+reception even while in *Sending* to handle errors. The *Disconnecting* state
+releases resources. The profile serves routes for the root-machine,
+declared-machines, state, metrics, events, SSE, and OpenAPI; shutdown is
+controlled by `/api/lifecycle/exit` injected by `agent-core`. The CLI proof
+extracts the ephemeral loopback address from launch output, reads
+declarations, live state, and metrics, posts `/api/lifecycle/exit`, and
+verifies a successful terminal state.
 
-**Long-running coding-agent intervention (design intent).** The shipped
-profile lacks functionality to monitor coding transitions, identify cycles, or
-inject `RollbackRequested`.
+Long-running coding-agent intervention (design intent). The shipped profile
+lacks functionality to monitor coding transitions, identify cycles, or inject
+`RollbackRequested`.
 
-**Multi-agent supervision (design intent).** Polling many child monitors,
-issuing generic lifecycle-control actions, and restoring crashed children via
-a lifecycle agent are not shipped orchestration behaviors.
+Multi-agent supervision (design intent). Polling many child monitors, issuing
+generic lifecycle-control actions, and restoring crashed children via a
+lifecycle agent are not shipped orchestration behaviors.
 
-**Control planes over running processes** recur in systems where live
-processes expose declared inspection and control endpoints. **Kubernetes
-liveness and readiness probes** [@k8s-probes] let a control plane query and
-act on a workload without killing it. **Temporal signals and queries**
-[@temporal-2024] expose handlers for inspection and external steering,
-preserving workflow state and history. **Erlang/OTP system messages**
-[@erlang-sys-2024] provide processes standardized debug, trace, suspend,
-resume, and status operations without altering process logic.
+Control planes over running processes recur in systems that expose declared
+inspection and control endpoints. *Kubernetes* liveness and readiness probes
+[@k8s-probes] let a control plane query and act on a workload without killing
+it. *Temporal* signals and queries [@temporal-2024] expose handlers for
+inspection and external steering, preserving workflow state and history.
+*Erlang/OTP* system messages [@erlang-sys-2024] provide standardized debug,
+trace, suspend, resume, and status operations without altering process logic.
 
-**Disciplined runtime injection.** **Chaos Engineering** [@basiri-chaos-2016]
-injects controlled signals into a running system, validating each against the
-machine to observe and steer its behavior. For observation, the
-**OpenTelemetry** [@otel-spec-2024] feed exports live gauges and counters,
-offering real-time dashboards of in-progress runs and post-hoc traces from
-Chapter 8.
+Disciplined runtime injection. *Chaos Engineering* [@basiri-chaos-2016]
+injects controlled signals into a running system, validates each against the
+machine, and observes the resulting behavior. For observation, *OpenTelemetry*
+[@otel-spec-2024] exports live gauges and counters, offering real-time
+dashboards of in-progress runs and post-hoc traces (see Chapter 8).

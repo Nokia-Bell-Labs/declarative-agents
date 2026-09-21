@@ -79,7 +79,7 @@ affect the Engine or other tools.
 
 The data representation has a second benefit: each state corresponds to an
 execution phase, where the agent runs a tool, producing an outcome that maps
-to the next state. The full set of (state, outcome) → next-state mappings
+to the next state. The full set of (state, outcome) -> next-state mappings
 forms the transition table. As the table is finite, a loader can perform
 static checks before the agent starts—reachability, terminal reachability,
 determinism, and completeness [@harel-statecharts-1987]
