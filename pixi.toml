@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The Python the repository's gates run. Audits must not depend on whichever
+# interpreter happens to be first on a developer's PATH: installing an
+# unrelated tool can put one there that lacks PyYAML and fail mage audit with
+# a bare traceback (GH-2446). Every platform a contributor or a runner uses is
+# listed, so the lockfile resolves the same environment everywhere.
+[workspace]
+name = "declarative-agents"
+version = "0.1.0"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "osx-64", "linux-64", "linux-aarch64"]
+
+[dependencies]
+python = ">=3.14.7,<3.15"
+pyyaml = ">=6.0.3,<7"

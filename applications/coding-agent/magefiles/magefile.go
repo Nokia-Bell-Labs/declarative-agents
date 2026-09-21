@@ -119,12 +119,36 @@ if errors:
     raise SystemExit("\n".join(errors))
 print(f"audit: parsed and validated {len(paths)} coding-agent YAML documents")
 `
-	cmd := exec.Command("python3", "-c", validator, root)
+	cmd, err := repositoryPython(root, "-c", validator, root)
+	if err != nil {
+		return err
+	}
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("audit coding-agent docs: %w", err)
 	}
 	return nil
+}
+
+// repositoryPython runs the interpreter pixi resolves from the repository's
+// pixi.toml, never the ambient python3. The audit needs PyYAML, and whichever
+// interpreter happens to lead a developer's PATH may not carry it: installing
+// an unrelated tool once put a Homebrew python ahead of the system one and
+// failed this gate with a bare import traceback (GH-2446). A declared,
+// locked environment is the repository's rule for Python.
+func repositoryPython(applicationRoot string, args ...string) (*exec.Cmd, error) {
+	manifest := filepath.Join(applicationRoot, "..", "..", "pixi.toml")
+	if _, err := os.Stat(manifest); err != nil {
+		return nil, fmt.Errorf(
+			"audit coding-agent docs: no pixi manifest at %s: %w", manifest, err)
+	}
+	if _, err := exec.LookPath("pixi"); err != nil {
+		return nil, fmt.Errorf(
+			"audit coding-agent docs: pixi is not installed; " +
+				"install it from https://pixi.sh and run pixi install")
+	}
+	pixiArgs := append([]string{"run", "--manifest-path", manifest, "python3"}, args...)
+	return exec.Command("pixi", pixiArgs...), nil
 }
 
 func bootSmokeProfiles(binary, coreRoot string, profiles []string) error {
