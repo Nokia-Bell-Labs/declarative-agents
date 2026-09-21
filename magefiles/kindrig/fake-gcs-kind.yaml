@@ -1,0 +1,71 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels: {app.kubernetes.io/name: fake-gcs, app.kubernetes.io/managed-by: kindrig}
+  name: fake-gcs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels: {app.kubernetes.io/name: fake-gcs, app.kubernetes.io/managed-by: kindrig}
+  name: fake-gcs
+  namespace: fake-gcs
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: fake-gcs}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: fake-gcs, app.kubernetes.io/managed-by: kindrig}
+    spec:
+      # Kubernetes injects Docker-link service variables, and this service's
+      # name renders as FAKE_GCS_PORT=tcp://<ip>:4443 -- which fake-gcs-server
+      # reads as its own FAKE_GCS_* configuration and refuses as a port
+      # number. The container is configured by its declared args alone.
+      enableServiceLinks: false
+      containers:
+        - name: fake-gcs
+          image: KINDRIG_FAKEGCS_IMAGE
+          imagePullPolicy: Never
+          args:
+            # Plain HTTP for the in-cluster endpoint; the objectstore words
+            # read through the JSON API on the same base (storage.WithJSONReads
+            # in agent-core), so no XML public-host tuning is required. The
+            # public-host still names the service DNS so any self-referential
+            # URL the server returns resolves in-cluster.
+            - -scheme
+            - http
+            - -port
+            - "4443"
+            - -public-host
+            - fake-gcs.fake-gcs.svc
+            # Objects live in memory: a scenario's teardown removes the
+            # namespace, and rig storage is not the proof's subject. Bucket
+            # seeding via -data stays available by mounting a preload volume.
+            - -backend
+            - memory
+          ports:
+            - name: http
+              containerPort: 4443
+          readinessProbe:
+            httpGet:
+              path: /storage/v1/b
+              port: http
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels: {app.kubernetes.io/name: fake-gcs, app.kubernetes.io/managed-by: kindrig}
+  name: fake-gcs
+  namespace: fake-gcs
+spec:
+  selector: {app.kubernetes.io/name: fake-gcs}
+  ports:
+    - name: http
+      port: 4443
+      targetPort: http
