@@ -29,6 +29,7 @@ var undoStrategiesByReversibility = map[string]map[string]bool{
 		"owned_artifact_removal_and_evaluator_session_restore": true,
 		"owned_artifact_removal_and_point_context_restore":     true,
 		"queue_event_restore":                                  true,
+		"object_snapshot_restore":                              true,
 		"validation_state_restore":                             true,
 	},
 	"compensatable": {

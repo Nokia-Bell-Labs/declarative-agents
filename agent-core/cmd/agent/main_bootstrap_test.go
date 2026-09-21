@@ -209,6 +209,7 @@ func TestBuiltinFactoryCatalogSelectsEntriesByInit(t *testing.T) {
 	require.True(t, byName["compose"].SelectedBy(map[string]bool{"render_each": true}))
 	require.True(t, byName["control"].SelectedBy(map[string]bool{"self_invoke": true}))
 	require.True(t, byName["dolt"].SelectedBy(map[string]bool{"dolt_query": true}))
+	require.True(t, byName["objectstore"].SelectedBy(map[string]bool{"object_write": true}))
 	require.True(t, byName["llm"].SelectedBy(map[string]bool{"done": true}))
 	require.True(t, byName["llm"].SelectedBy(map[string]bool{"nudge_reread": true}))
 	require.False(t, byName["control"].SelectedBy(map[string]bool{"done": true}))
@@ -243,6 +244,7 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 		"analyze_evaluation_session", "list_evaluation_points", "read_evaluation_trace",
 		"load_corpus", "validate_specs",
 		"format_report", "rest_server_launch", "rest_server_stop",
+		"object_read", "object_write", "object_list",
 	} {
 		require.True(t, covered[init], "catalog should cover init %q", init)
 	}
