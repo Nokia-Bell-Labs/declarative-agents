@@ -39,6 +39,7 @@ bin/agent --profile "$AGENT_CATALOG_ROOT/agents/executor/profile.yaml" --core-ro
 | [`applications/agent-architecture/`](applications/agent-architecture/) | Standalone presentation composition that runs the canonical catalog documentation-curator and serves the Knowledge Manager slide deck. |
 | [`design-patterns/`](design-patterns/) | White paper source: *Design Patterns for Declarative Agents* — eleven patterns for building reliable agents (markdown, PlantUML, IEEE build). |
 | [`application-dsl-spec/`](application-dsl-spec/) | *Libretto*, the normative specification of the application DSL — numbered statements in `language.yaml` with acceptance evidence, prose chapters that cite them, and a render/audit pipeline. Render locally with `mage site` in `application-dsl-spec/`. |
+| [`docs/guides/`](docs/guides/) | Cross-module guides, including the [agentic framework comparison for network applications](docs/guides/agentic-framework-comparison.md). |
 | [`docs/constitutions/`](docs/constitutions/) | Component constitutions binding agent-core, applications, the catalog, and the control plane to the language specification by statement ID. |
 | [`docs/engineering/`](docs/engineering/) | Engineering guidelines that span modules and applications, starting with the standard kind rig for integration tests and demos. |
 | [`magefiles/`](magefiles/) | Repository-wide build targets: release tagging, stats aggregation, sub-module dispatch. |
