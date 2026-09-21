@@ -65,6 +65,15 @@ roadmap_summary:
     use_cases_total: 1
     status: implemented
     evidence: srd004, the use case, and the nine-case suite are reciprocal and executable; the kit, shell, embedded observer, and monorepo migrations landed in GH-2156 through GH-2160.
+  - version: "16.0"
+    name: Chart conformance gate
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
+    evidence: |
+      ENG01 carries the numbered chart rules, srd005 owns them, and the
+      ten-case suite traces them. TC1 is executable; TC2 through TC10 turn
+      implemented as GH-2408 and GH-2409 land.
 
 foundation_document_index:
   - id: application-composition-pattern-language
@@ -140,6 +149,16 @@ srd_index:
     path: docs/specs/software-requirements/srd004-declarative-ux.yaml
     use_cases: [rel15.0-uc001-declarative-ux]
     test_suites: [test-rel15.0-declarative-ux]
+  - id: srd005-chart-conformance
+    title: Chart Conformance Against the Rig Guideline
+    status: planned
+    applicability: |
+      R1 through R5 and R8 apply to every application that ships a chart; R6
+      applies to every checked-in kind configuration; R7 governs the
+      exception baseline.
+    path: docs/specs/software-requirements/srd005-chart-conformance.yaml
+    use_cases: [rel16.0-uc001-chart-conformance]
+    test_suites: [test-rel16.0-chart-conformance]
 
 config_format_index: []
 
@@ -182,6 +201,14 @@ use_case_index:
       - srd004-declarative-ux
     test_suite: test-rel15.0-declarative-ux
     path: docs/specs/use-cases/rel15.0-uc001-declarative-ux.yaml
+  - id: rel16.0-uc001-chart-conformance
+    title: Add a Workload and Learn at Audit Time That Its Image Floats
+    release: "16.0"
+    status: planned
+    srds:
+      - srd005-chart-conformance
+    test_suite: test-rel16.0-chart-conformance
+    path: docs/specs/use-cases/rel16.0-uc001-chart-conformance.yaml
 
 test_suite_index:
   - id: test-rel00.0-application-contract-conformance
@@ -212,8 +239,25 @@ test_suite_index:
     srds:
       - srd004-declarative-ux
     path: docs/specs/test-suites/test-rel15.0-declarative-ux.yaml
+  - id: test-rel16.0-chart-conformance
+    title: Release 16.0 Chart Conformance Test Suite
+    release: "16.0"
+    status: planned
+    test_case_count: 10
+    traces: [rel16.0-uc001-chart-conformance]
+    srds:
+      - srd005-chart-conformance
+    path: docs/specs/test-suites/test-rel16.0-chart-conformance.yaml
 
 coverage_gaps:
+  - id: release-16-chart-conformance
+    status: planned
+    description: |
+      The rules are specified and TC1 is executable. The gate itself is
+      GH-2408 and the three floating image tags it fails on are GH-2409;
+      until both land, the conformance evidence is the documents alone.
+      Classifying an application template as an un-migrated library
+      candidate stays outside this release and is tracked in GH-2410.
   - id: release-15-declarative-ux
     status: implemented
     description: |

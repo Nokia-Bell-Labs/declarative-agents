@@ -192,6 +192,55 @@ sections:
       local-registry pattern replaces `kind load` behind that interface
       without touching scenario code.
 
+  - title: "Chart conformance rules"
+    content: |
+      The rules above are stated where they arise: image delivery states how
+      images are tagged, network access states why a load balancer cannot
+      work on kind. A reviewer enforcing them by reading has to hold all of
+      them at once, and three chart images reached `main` on a floating tag
+      before anything noticed. This section restates the gateable subset as
+      numbered rules, so a check can cite one and a reader can find it.
+
+      The rules apply to what a chart renders, not to what its templates
+      look like. A value that is overridden in one overlay and not another
+      produces two rendered manifests, and both are subject to the rules.
+
+      Table 6: Chart conformance rules
+
+      | Rule | Statement | Surface |
+      |------|-----------|---------|
+      | C1 | No image reference resolves to a floating tag: neither `latest` nor an absent tag | rendered manifest |
+      | C2 | Every third-party image carries a digest alongside its tag; every image built from this checkout carries a commit-shaped tag | values file and rendered manifest |
+      | C3 | Every container sets `imagePullPolicy` to `IfNotPresent` or `Never`; `Always` is not permitted | rendered manifest |
+      | C4 | No Service of type `LoadBalancer` renders from any chart or values overlay | rendered manifest |
+      | C5 | Every workload a Service selects declares a readiness probe | rendered manifest |
+      | C6 | Every kind configuration pins its node image by version and digest | checked-in kind configuration |
+
+      C2 covers every image the cluster pulls, not only the images the host
+      pulls and retags for a kind load. The two carry the same risk: a tag
+      that moves upstream changes what installs, and neither the chart nor
+      the lock file records that it moved. The alpine/k8s CLI donor already
+      carries a digest in all three application charts; C2 extends that to
+      the rest. The cost is that a version bump now edits two fields, which
+      is the maintenance this repository already accepts for the rig
+      add-ons.
+
+      C5 reads readiness as the rule that readiness is observed and never
+      assumed, applied at the chart rather than at the wait: a Service that
+      selects pods with no readiness probe routes to a pod that has not
+      said it can serve.
+
+      A rule may be suspended for a named resource through a checked-in
+      exception baseline. An entry names the chart, the overlay, the
+      resource, the rule, the issue that will remove it, and why it stands.
+      The baseline shrinks and never grows: a violation absent from it fails
+      the gate, and an entry whose violation no longer reproduces fails the
+      gate as well, so a fixed exception cannot sit in the file pretending
+      to be load-bearing.
+
+      srd005-chart-conformance carries these rules as numbered requirements
+      and owns their acceptance criteria.
+
   - title: "Network access"
     content: |
       Tests and demos reach the cluster differently. Integration tests
@@ -227,7 +276,7 @@ sections:
       Every application exposes the same verbs with the same contracts, so a
       person who has run one application can run them all.
 
-      Table 6: Rig verbs each application exposes
+      Table 7: Rig verbs each application exposes
 
       | Verb | Contract |
       |------|----------|
@@ -240,7 +289,7 @@ sections:
       The repository root exposes the platform-tier verbs. They are not per
       application, because every application shares the one platform.
 
-      Table 7: Platform-tier verbs at the repository root
+      Table 8: Platform-tier verbs at the repository root
 
       | Verb | Contract |
       |------|----------|
@@ -359,3 +408,4 @@ references:
   - "magefiles/kindrig/diagnose.go (shared on-demand diagnosis every application exposes as mage diagnose)"
   - "applications/catalog/docs/specs/software-requirements/srd023-rig-doctor.yaml (evidence directory contract and rig-doctor diagnosis)"
   - "magefiles/tag_platform.go (release-run platform gate and teardown)"
+  - "applications/docs/specs/software-requirements/srd005-chart-conformance.yaml (numbered chart conformance requirements and the exception baseline)"
