@@ -309,7 +309,7 @@ rest:
           monitor_view: tools
           machine_request: {}
       shutdown:
-        timeout: 2s
+        timeout: 30s
         drain_policy: drain_then_stop
         stop_listeners: true
         unblock_await_signal: ServerStopped
@@ -331,7 +331,7 @@ files:
   - path: <agent-core>/testdata/integration/profiles/monitor/profile.yaml
     sha256: 3084e376fc7740cdb41e4ff80bd2d74c5d4e5abf1471630ffc595e9009ced05f
   - path: <agent-core>/testdata/integration/profiles/monitor/rest.yaml
-    sha256: 053c00421f3abc63da89fd59fffaf7acca3040bdb279090d293a3ea4ba1a1799
+    sha256: e139e5c53e14688a3a8af8f988d7e4578d043cee2b4e4915773db0052c6be5d4
   - path: <agent-core>/testdata/integration/profiles/monitor/tools.yaml
     sha256: 8978c7ba3ef4bc7e17a2330e20237640ad2349436fdb45406836a8b8550cecc5
   - path: <agent-core>/tools/machines/monitor-service-machine-template.yaml
