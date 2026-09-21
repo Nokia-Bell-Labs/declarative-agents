@@ -27,10 +27,11 @@ applier:
     tag: must-be-overridden-with-git-revision
     pullPolicy: IfNotPresent
   # The CLI donor is pulled from the project registry, never Docker Hub:
-  # enterprise GKE nodes are commonly barred from it (eng08). The digest
-  # here is the pinned upstream source's; mage gcp:mirrorDonor prints the
-  # mirror's own digest on first provision, and that value replaces this
-  # one alongside the real registry path.
+  # enterprise GKE nodes are commonly barred from it (eng08). mage
+  # gcp:mirrorDonor copies the manifest list byte-identically, so this
+  # digest is the mirror's as well as the upstream source's and needs no
+  # edit after mirroring; only the repository path resolves per deployment
+  # (GH-2437).
   cliDonor:
     image:
       repository: region-docker.pkg.dev/project/agents/cli-donor

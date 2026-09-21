@@ -368,19 +368,44 @@ func TestPushAgentCoreRefusesFloatingTags(t *testing.T) {
 
 // The donor mirror pulls the pinned source, pushes under the registry path,
 // and reports the mirror digest for the overlay pin.
-func TestMirrorDonorPinsAndReports(t *testing.T) {
+// The mirror copies the manifest list rather than pulling: a docker pull on
+// one architecture uploads a single-platform image to a registry serving
+// another, which is what GH-2437 caught on a real project.
+func TestMirrorDonorCopiesTheIndexAndReportsItsDigest(t *testing.T) {
+	listing := "Name:      us-central1-docker.pkg.dev/demo-project/agents/cli-donor:1.31.4\n" +
+		"MediaType: application/vnd.docker.distribution.manifest.list.v2+json\n" +
+		"Digest:    sha256:9c4976d4\n\nManifests:\n" +
+		"  Name:      …@sha256:c4e12eb3\n  Platform:  linux/amd64\n" +
+		"  Name:      …@sha256:0f0f4f1c\n  Platform:  linux/arm64\n"
 	rec := &recorder{answers: map[string]answer{
-		"docker inspect": {out: "us-central1-docker.pkg.dev/demo-project/agents/cli-donor@sha256:feed\n"},
+		"docker buildx imagetools inspect": {out: listing},
 	}}
 	reference, err := MirrorDonor(rec.run, testConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
 	sequence := rec.sequence()
-	if !strings.Contains(sequence, "docker pull docker.io/alpine/k8s:1.31.4@sha256:") {
-		t.Fatalf("mirror does not pull the pinned source:\n%s", sequence)
+	if !strings.Contains(sequence, "docker buildx imagetools create --tag "+
+		"us-central1-docker.pkg.dev/demo-project/agents/cli-donor:1.31.4 docker.io/alpine/k8s:1.31.4@sha256:") {
+		t.Fatalf("mirror does not copy the index:\n%s", sequence)
 	}
-	if !strings.Contains(reference, "@sha256:feed") {
-		t.Fatalf("reference = %q", reference)
+	if strings.Contains(sequence, "docker pull") || strings.Contains(sequence, "docker push") {
+		t.Fatalf("mirror pulls or pushes a single platform:\n%s", sequence)
+	}
+	want := "us-central1-docker.pkg.dev/demo-project/agents/cli-donor:1.31.4@sha256:9c4976d4"
+	if reference != want {
+		t.Fatalf("reference = %q, want %q", reference, want)
+	}
+}
+
+// The top-level digest is the manifest list's, never a platform's.
+func TestMirrorDigestReadsTheListDigest(t *testing.T) {
+	listing := "Name: x\nMediaType: y\nDigest:    sha256:list\n\nManifests:\n" +
+		"  Name: x@sha256:platform\n  Digest: sha256:platform\n"
+	if got := mirrorDigest(listing); got != "sha256:list" {
+		t.Fatalf("mirrorDigest = %q, want the list digest", got)
+	}
+	if got := mirrorDigest("Name: x\nno digest here\n"); got != "" {
+		t.Fatalf("mirrorDigest = %q, want empty", got)
 	}
 }
