@@ -1,0 +1,17 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-003: a blueprint that expands another blueprint.
+unit: serve-agent-blueprint
+params:
+  - {name: agent, type: string}
+  - {name: server, type: string}
+expand:
+  - fragment: ../../units/base-agent-blueprint.yaml
+    args: {agent: $param(agent)}
+profile:
+  name: $param(agent)
+  machine:
+    fragment: /opt/agent-core/tools/machines/serve-machine-template.yaml
+    args: {server: $param(server)}
+  tools:
+    - ../$param(agent)/tools.yaml
