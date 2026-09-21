@@ -1,0 +1,90 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel24.0-objectstore-tools
+title: Test Suite for Release 24.0 Objectstore Tools
+release: "24.0"
+
+traces:
+  - rel24.0-uc001-objectstore-tools
+
+preconditions:
+  - srd059-objectstore-tools defines the words, the driver selection, and the receipt contract.
+  - Unit cases run on mem:// and file:// buckets with no container and no network.
+  - The integration case needs docker on the host and skips naming it otherwise.
+
+test_cases:
+  - use_case: rel24.0-uc001-objectstore-tools
+    name: Read, write, and list round-trip on memory and file buckets
+    go_test: go test ./internal/tools/objectstore/... -run 'TestObjectRoundTrip'
+    status: planned
+    description: The three commands against mem:// and file:// connections declared through DecodeToolConfig.
+    expected:
+      write_then_read_returns_the_text: true
+      list_by_prefix_names_the_keys: true
+      both_schemes_behave_identically: true
+    traces: [rel24.0-uc001-objectstore-tools S2, srd059-objectstore-tools AC2, srd059-objectstore-tools R2.1]
+
+  - use_case: rel24.0-uc001-objectstore-tools
+    name: Undo restores the prior object and deletes a created one
+    go_test: go test ./internal/tools/objectstore/... -run 'TestObjectWriteUndo'
+    status: planned
+    description: A write over existing bytes and a write to an absent key, each undone through the receipt alone.
+    expected:
+      prior_bytes_restored: true
+      created_key_deleted: true
+      receipt_survives_redecode: true
+    traces: [rel24.0-uc001-objectstore-tools S3, srd059-objectstore-tools AC3, srd059-objectstore-tools R3.1]
+
+  - use_case: rel24.0-uc001-objectstore-tools
+    name: Driver selection follows the declared URL and fails unknown schemes by name
+    go_test: go test ./internal/tools/objectstore/... -run 'TestBucketSelection'
+    status: planned
+    description: mem, file, gs, and s3 URLs open their drivers; ftp:// and an absent bucket_url fail at configuration.
+    expected:
+      scheme_selects_driver: true
+      unknown_scheme_named: true
+      missing_bucket_url_named: true
+    traces: [rel24.0-uc001-objectstore-tools S2, srd059-objectstore-tools AC2, srd059-objectstore-tools R2.1]
+
+  - use_case: rel24.0-uc001-objectstore-tools
+    name: The gs driver takes an explicit endpoint and reads no environment
+    go_test: go test ./internal/tools/objectstore/... -run 'TestExplicitEndpoint'
+    status: planned
+    description: The endpoint configuration field points the gs driver at a local HTTP server; the process environment carries a decoy STORAGE_EMULATOR_HOST that must be ignored.
+    expected:
+      endpoint_reaches_the_configured_server: true
+      decoy_environment_ignored: true
+    traces: [rel24.0-uc001-objectstore-tools S2, srd059-objectstore-tools AC2, srd059-objectstore-tools R2.2]
+
+  - use_case: rel24.0-uc001-objectstore-tools
+    name: A fixture profile boots the three words and the default surface is unchanged
+    go_test: go test ./cmd/agent/... -run 'TestBuiltinFactoryCatalogCoversSelectedActiveInits'
+    status: planned
+    description: The bootstrap catalog covers the objectstore inits, and tools/builtin/all.yaml does not import the group.
+    expected:
+      inits_covered: true
+      default_surface_unchanged: true
+    traces: [rel24.0-uc001-objectstore-tools S1, srd059-objectstore-tools AC1, srd059-objectstore-tools R1.1]
+
+  - use_case: rel24.0-uc001-objectstore-tools
+    name: The declarations pass every hand-maintained gate
+    go_test: mage test
+    status: planned
+    description: Contract completeness stays empty, the reach test sees the words, output contract and side-effect kinds agree, and the rollback policy accepts the undo strategy.
+    expected:
+      completeness_baseline_empty: true
+      reach_test_sees_the_words: true
+      rollback_policy_accepts_strategy: true
+    traces: [rel24.0-uc001-objectstore-tools S1, srd059-objectstore-tools AC1, srd059-objectstore-tools R3.3]
+
+  - use_case: rel24.0-uc001-objectstore-tools
+    name: The family runs end to end against fake-gcs-server
+    go_test: go test ./internal/tools/objectstore/... -run 'TestObjectstoreAgainstFakeGCS'
+    status: planned
+    description: docker run starts a pinned fake-gcs-server; write, read, list, and both undo directions run over gs:// with the explicit endpoint; the test skips naming docker where it is absent and cleans up on every path.
+    expected:
+      end_to_end_roundtrip: true
+      undo_both_directions: true
+      skip_names_docker: true
+      image_pinned_by_digest: true
+    traces: [rel24.0-uc001-objectstore-tools S4, srd059-objectstore-tools AC4, srd059-objectstore-tools R4.2]

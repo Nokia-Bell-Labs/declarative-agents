@@ -1,0 +1,55 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel24.0-uc001-objectstore-tools
+title: One profile writes objects on kind and on GCS through a values overlay
+status: planned
+
+summary: |
+  A profile author gives an agent object storage by listing three words in
+  tools.yaml and declaring a connection whose bucket_url is templated. On the
+  kind rig the overlay supplies a gs:// bucket with an explicit endpoint at
+  the local fake-gcs service; on GCS the overlay supplies the real bucket and
+  no endpoint, and ambient workload identity signs the calls. The agent
+  writes an object and receives a receipt carrying what was there before; an
+  undo restores the prior object, or deletes the key the write created. No
+  declaration file and no Go code changes between the two deployments.
+
+actor: A profile author giving an agent durable object storage, and the operator moving that agent between the rig and the cloud.
+
+trigger: |
+  An agent needs to persist an artifact beyond its pod, or a deployed mesh
+  moves between the kind rig and a cloud project.
+
+flow:
+  - id: F1
+    text: The profile lists object_read, object_write, and object_list in tools.yaml and declares a named connection with a templated bucket_url (srd059 R1.1, R1.2).
+  - id: F2
+    text: The kind overlay renders bucket_url gs://agents with endpoint at the in-cluster fake-gcs service; the GCS overlay renders the real bucket and omits endpoint (srd059 R2.2, R2.3).
+  - id: F3
+    text: The driver opens by scheme; a misspelled scheme or a missing bucket_url fails at configuration with the fault named (srd059 R2.1).
+  - id: F4
+    text: object_write stores the text and returns a receipt carrying the prior bytes or the absent marker (srd059 R3.1).
+  - id: F5
+    text: A rollback walks the receipt, restoring the prior object or deleting the created key, with no further input (srd059 R3.2).
+  - id: F6
+    text: The same profile boots unchanged in both deployments, and only the values overlay differs (srd059 R2.3).
+
+touchpoints:
+  - internal/tools/objectstore/ owns the drivers, commands, receipts, and factories.
+  - tools/builtin/objectstore/ carries the declarations; tools/units/types-objectstore.yaml the types.
+  - internal/tools/registry and cmd/agent wire the factory at the composition root.
+  - internal/runtime/core/rollback_policy.go registers the write's undo strategy.
+
+success_criteria:
+  - id: S1
+    text: The three words boot from a name-only tools.yaml and the default builtin surface does not grow (srd059 AC1).
+  - id: S2
+    text: Backend selection follows the declared URL and explicit endpoint alone, across mem, file, gs, and s3, with unknown schemes failing by name and no environment read (srd059 AC2).
+  - id: S3
+    text: Write-then-undo restores or deletes correctly in both directions, through the registered strategy (srd059 AC3).
+  - id: S4
+    text: Unit evidence runs with no container; the end-to-end proof runs against fake-gcs under docker and skips naming docker without it (srd059 AC4).
+
+out_of_scope:
+  - The kindrig fake-gcs add-on (GH-2043) and any AWS environment.
+  - Migrating existing filesystem consumers to this family.

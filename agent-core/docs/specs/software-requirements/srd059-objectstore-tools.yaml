@@ -1,0 +1,131 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd059-objectstore-tools
+title: Objectstore Builtin Tool Family
+
+problem: |
+  Agents persist artifacts through the filesystem family, which binds every
+  object to the pod that wrote it: a workspace, an evaluation tree, or a
+  spool vanishes with its volume, and nothing an agent writes is reachable
+  from outside its pod. The platform doctrine keeps one local setup and one
+  cloud setup with differences confined to bootstrap and values overlays, so
+  object storage cannot arrive as a per-provider tool family: a gcs_write
+  beside an s3_write would put the provider choice into agent declarations,
+  which is exactly where it must never live. What is missing is one family
+  whose words are provider-neutral, whose backend is chosen by a declared
+  bucket URL flowing through the existing templating pipeline, and whose
+  local backend needs no cloud at all.
+
+goals:
+  - G1: One objectstore family with three words, object_read, object_write, and object_list, whose compiled-in drivers are selected by the declared bucket URL scheme.
+  - G2: Provider switching is configuration. Moving a workload between the kind rig, GCS, and S3 changes a values overlay and never a declaration file or Go code.
+  - G3: The local rig binds through an explicit endpoint configuration field, and no code path reads an environment variable for endpoint or backend selection.
+  - G4: object_write is reversible through a prior-object snapshot receipt, so an undo restores what was there or deletes what was not.
+  - G5: The family follows the dolt model, explicitly selected by profiles, configured through named connections, absent from the default builtin surface.
+
+requirements:
+  R1:
+    title: The family and its words
+    items:
+      - R1.1: >-
+          The family SHALL declare exactly three words under
+          tools/builtin/objectstore/, object_read taking a key and producing
+          the object as text output, object_write taking text and a key,
+          and object_list taking a prefix and producing a listing. The
+          group SHALL NOT be imported into tools/builtin/all.yaml; a
+          profile selects it by name, as the dolt family is selected.
+      - R1.2: >-
+          Configuration SHALL be decoded through catalog.DecodeToolConfig as
+          named connections. A connection SHALL carry a required bucket_url
+          whose value flows through the existing declaration templating
+          pipeline, and MAY carry an explicit endpoint override. No other
+          mechanism SHALL influence backend selection.
+      - R1.3: >-
+          Every word SHALL carry the full authoring-standard contract, and
+          the external_api side effect SHALL place each word in the
+          boundary category.
+  R2:
+    title: Drivers by declared URL
+    items:
+      - R2.1: >-
+          One Go implementation SHALL open the bucket by the URL scheme with
+          compiled-in drivers for gs://, s3://, file://, and mem://. An
+          unknown scheme and an absent bucket_url SHALL fail with named
+          errors at configuration time, not at first use.
+      - R2.2: >-
+          The endpoint override SHALL be the only way to point the gs://
+          driver at a local emulator, and the implementation SHALL NOT read
+          STORAGE_EMULATOR_HOST or any other environment variable for
+          endpoint, credential, or backend selection. Cloud credentials are
+          the platform's ambient identity, resolved by the SDK without
+          repository code touching the environment.
+      - R2.3: >-
+          A profile's declarations SHALL be identical across the kind rig,
+          GCS, and S3 deployments of the same workload; the difference SHALL
+          be carried entirely by the values overlay that supplies bucket_url
+          and, for the local rig, endpoint.
+  R3:
+    title: Reversibility and side effects
+    items:
+      - R3.1: >-
+          object_write SHALL produce a receipt carrying the prior object
+          bytes, or an absent marker when the key did not exist, and its
+          builder SHALL implement core.Reverser so the rollback receipt walk
+          needs no further input.
+      - R3.2: >-
+          Undo SHALL restore the prior object where the receipt carries
+          bytes and SHALL delete the object where it carries the absent
+          marker. The undo strategy SHALL be registered in the rollback
+          policy under the reversible tier, and checkToolUndoConsistency
+          SHALL accept the declarations.
+      - R3.3: >-
+          object_read and object_list SHALL declare non-mutating side
+          effects, and the receipt contract's non-mutating kinds SHALL
+          agree with the declared kinds, so the completeness gates hold
+          without baseline entries.
+  R4:
+    title: Tests and the local proof
+    items:
+      - R4.1: >-
+          Unit tests SHALL cover read, write, list, both undo directions,
+          and driver selection against mem:// and file:// buckets, with no
+          container and no network.
+      - R4.2: >-
+          An integration test SHALL drive the family end to end against
+          fake-gcs-server started with docker run, skipping with the
+          dependency named when docker is absent, with the image pinned by
+          version and digest per ENG01 C2, and with cleanup on every exit
+          path.
+
+non_goals:
+  - The kind-rig fake-gcs add-on; GH-2043 owns it and reuses this family's endpoint shape.
+  - S3 integration testing and an AWS values overlay; the s3 driver ships compiled in and unit-tested until an AWS environment exists.
+  - Migrating filesystem usage, the workspace tools, the evaluation tree, or the OTLP spool; that follow-up begins only after this family exists.
+  - Credentials in YAML. Ambient platform identity only; a credential field is not part of this family.
+  - Any new substitution or templating mechanism; bucket_url rides the pipeline that exists.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A profile listing the three words by name in tools.yaml boots, and the words register, dispatch, and validate; the default builtin surface does not grow.
+    traces: [R1.1, R1.2, R1.3]
+  - id: AC2
+    criterion: The backend is chosen solely by the declared bucket_url plus the optional explicit endpoint; the same declarations open mem, file, gs, and s3 buckets as the configuration changes, an unknown scheme fails by name, and no environment variable is read on any path.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: A write over an existing object undoes to the prior bytes, a write to an absent key undoes to absence, and the strategy passes the rollback-policy and receipt-contract gates without baseline entries.
+    traces: [R3.1, R3.2, R3.3]
+  - id: AC4
+    criterion: Unit tests pass on mem and file buckets with no container, and the fake-gcs integration passes end to end where docker is present and skips naming docker where it is not.
+    traces: [R4.1, R4.2]
+
+depends_on:
+  - srd_id: srd022-builtin-tools
+    symbols_used: [factory registrar model, StandardFactoryDeps, declaration placement gates]
+  - srd_id: srd035-checkpoint-port
+    symbols_used: [receipt-driven undo, core.Reverser]
+  - srd_id: srd023-cli-exec-tools
+    symbols_used: [boundary category discipline for external side effects]
+
+related_documents:
+  - cfg-tool-authoring-standard
+  - srd036-dolt-state-persistence

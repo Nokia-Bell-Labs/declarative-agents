@@ -251,6 +251,7 @@ declaration_placement:
     evaluator_point: tools/builtin/critic-point/
     bench: tools/builtin/bench/
     spec_validation: tools/builtin/spec-validation/
+    objectstore: tools/builtin/objectstore/
   shared_exec_groups:
     go: tools/exec/go/
     workspace: tools/exec/workspace/
