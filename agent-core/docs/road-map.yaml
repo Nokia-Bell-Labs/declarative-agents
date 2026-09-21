@@ -1018,6 +1018,50 @@ releases:
       - cd ../applications/catalog && mage bootSmoke
       - mage audit
 
+  - version: "24.0"
+    name: Objectstore tools
+    description: |
+      Agents persist artifacts only through the filesystem family, which
+      binds every object to the pod that wrote it, and the platform doctrine
+      forbids a per-provider answer: a gcs_write beside an s3_write would put
+      the provider into agent declarations. Release 24.0 adds one
+      objectstore family whose three words open a bucket by the declared URL
+      scheme with compiled-in drivers, bind the local rig through an
+      explicit endpoint field rather than any environment read, and undo a
+      write through a prior-object snapshot receipt. Moving a workload
+      between kind, GCS, and S3 changes a values overlay and nothing else.
+    status: done
+    planned_work:
+      - id: gh-2422
+        summary: Specify the family, srd059, the use case, and this suite.
+        status: implemented
+      - id: gh-2423
+        summary: The Go package, drivers by URL, receipts, and factory wiring.
+        status: implemented
+      - id: gh-2424
+        summary: Declarations and the hand-maintained gate sweep.
+        status: implemented
+      - id: gh-2425
+        summary: The fake-gcs live proof and the release close-out.
+        status: implemented
+    srds:
+      - srd059-objectstore-tools
+    use_cases:
+      - id: rel24.0-uc001-objectstore-tools
+        summary: One profile writes objects on kind and on GCS through a values overlay.
+        status: implemented
+    test_suites:
+      - id: test-rel24.0-objectstore-tools
+        summary: Round trips, both undo directions, driver selection, the explicit endpoint with a decoy environment, the gate sweep, and the fake-gcs end-to-end proof.
+        status: implemented
+    follow_up:
+      - GH-2043 reuses the endpoint shape for the kindrig fake-gcs add-on.
+      - The filesystem-consumer migration is filed only after this family exists.
+    proof:
+      - go test ./internal/tools/objectstore/...
+      - mage test
+      - mage audit
+
   - version: "99.0"
     name: Architectural migrations and cleanup
     description: |

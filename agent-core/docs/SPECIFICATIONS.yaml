@@ -202,6 +202,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: done
+  - version: "24.0"
+    name: Objectstore tools
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
   - version: "99.0"
     name: Architectural migrations and cleanup
     use_cases_done: 2
@@ -470,6 +475,11 @@ srd_index:
     summary: A provider as a directory of YAML reached through a declared providers root and rebound with --library; a chat dialect that invoke_llm reads as a template method in place of compiled adapters; embed and rerank stage fragments over library REST fragments under a shared signal vocabulary; Ollama and Cohere as the first libraries, and a synthetic third provider that needs no Go.
     status: implemented
     path: docs/specs/software-requirements/srd058-provider-libraries.yaml
+  - id: srd059-objectstore-tools
+    title: Objectstore Builtin Tool Family
+    summary: One provider-neutral object-storage family with three words whose compiled-in drivers are selected by the declared bucket URL; an explicit endpoint binds the local rig with no environment read; object_write undoes through a prior-object snapshot receipt; selected by profiles like the dolt family and absent from the default builtin surface.
+    status: implemented
+    path: docs/specs/software-requirements/srd059-objectstore-tools.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -790,6 +800,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel23.0-provider-failure-signals
     path: docs/specs/use-cases/rel23.0-uc001-provider-failure-signals.yaml
+  - id: rel24.0-uc001-objectstore-tools
+    title: One profile writes objects on kind and on GCS through a values overlay
+    release: "24.0"
+    status: implemented
+    test_suite: test-rel24.0-objectstore-tools
+    path: docs/specs/use-cases/rel24.0-uc001-objectstore-tools.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -1014,6 +1030,14 @@ test_suite_index:
     formal_test_cases: 6
     status: implemented
     path: docs/specs/test-suites/test-rel23.0-provider-failure-signals.yaml
+  - id: test-rel24.0-objectstore-tools
+    title: Test Suite for Release 24.0 Objectstore Tools
+    release: "24.0"
+    traces:
+      - rel24.0-uc001-objectstore-tools
+    formal_test_cases: 7
+    status: implemented
+    path: docs/specs/test-suites/test-rel24.0-objectstore-tools.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"
@@ -1059,6 +1083,10 @@ go_test_coverage:
     ./... -v | grep -c '=== RUN'` for the current test function count.
 
 srd_to_use_case_mapping:
+  - use_case: rel24.0-uc001-objectstore-tools
+    srd: srd059-objectstore-tools
+    why_required: The family, driver selection, explicit endpoint, receipt undo, and gate obligations are R1 through R4; the overlay-only provider switch is R2.3.
+    coverage: Full. Covers AC1 through AC4 via S1 through S4.
   - use_case: rel23.0-uc001-provider-failure-signals
     srd: srd058-provider-libraries
     why_required: The opt-in, the transport rule, the faults that stay CommandError, and the declared-emits agreement are R2.4 and R2.5 over the R1.4 taxonomy.

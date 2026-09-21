@@ -18,6 +18,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/lifecycle"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/objectstore"
 	toolotlp "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/otlp"
 	toolpipeline "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/pipeline"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
@@ -59,6 +60,9 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterOTLP:     registerOTLPFactories(),
 		RegisterService:  registerServiceFactories(st),
 		RegisterPipeline: toolpipeline.RegisterFactories,
+		RegisterObjectStore: func(br *toolregistry.BuiltinRegistry) {
+			objectstore.RegisterFactories(br, objectstore.FactoryDeps{Opener: objectstore.NewOpener()})
+		},
 	}
 }
 

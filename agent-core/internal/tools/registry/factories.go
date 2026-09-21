@@ -21,6 +21,7 @@ type StandardFactoryDeps struct {
 	RegisterService        FactoryRegistrar
 	RegisterOTLP           FactoryRegistrar
 	RegisterPipeline       FactoryRegistrar
+	RegisterObjectStore    FactoryRegistrar
 }
 
 // StandardFactoryCatalogEntry describes one selected-init-gated factory family.
@@ -72,6 +73,7 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 		hookFactory("otlp", deps.RegisterOTLP),
 		hookFactory("service", deps.RegisterService),
 		hookFactory("pipeline", deps.RegisterPipeline),
+		hookFactory("objectstore", deps.RegisterObjectStore),
 	}
 }
 
