@@ -698,6 +698,13 @@ func buildSmokeRuntimeImage(coreRoot, image string) error {
 	return err
 }
 
+// buildRuntimeImageForPlatform is buildSmokeRuntimeImage for a cluster whose
+// nodes are not this machine (GH-2457).
+func buildRuntimeImageForPlatform(coreRoot, image, platform string) error {
+	_, err := kindrig.EnsureAgentCoreImageForPlatform(coreRoot, image, platform)
+	return err
+}
+
 func smokeRuntimeBuildArgs(image string) []string {
 	return kindrig.AgentCoreImageBuildArgs(image)
 }

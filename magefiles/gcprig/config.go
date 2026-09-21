@@ -44,6 +44,15 @@ type Config struct {
 	// binding: the pods that may act as the GSA.
 	Namespace string `yaml:"namespace"`
 	KSA       string `yaml:"ksa"`
+	// NodePlatform is the architecture the cluster's nodes run. It is not
+	// the workstation's: an arm64 host that pushes its own build leaves
+	// amd64 nodes reporting "no match for platform in manifest" (GH-2457).
+	NodePlatform string `yaml:"node_platform"`
+	// NodeServiceAccount is the identity the cluster's nodes run as, which
+	// needs read on the registry to pull. Empty means the project's default
+	// compute service account, which is what Autopilot uses; a cluster that
+	// runs as something else names it here.
+	NodeServiceAccount string `yaml:"node_service_account"`
 }
 
 // Defaults are the literal fallbacks (eng07). Project is empty on purpose.
@@ -53,8 +62,13 @@ func Defaults() Config {
 		Cluster:        "da-gcp",
 		Registry:       "agents",
 		ServiceAccount: "agents-objectstore",
-		Namespace:      "da-chatbot-mesh-demo",
-		KSA:            "default",
+		// The namespace the chatbot-mesh release installs into. It was
+		// da-chatbot-mesh-demo, which is the kind cluster's name and not a
+		// namespace the mesh ever creates, so the binding was made for
+		// pods that do not exist (GH-2458).
+		Namespace:    "default",
+		KSA:          "default",
+		NodePlatform: "linux/amd64",
 	}
 }
 
@@ -87,6 +101,8 @@ func (c *Config) apply(overrides Config) {
 		{&c.Cluster, overrides.Cluster}, {&c.Bucket, overrides.Bucket},
 		{&c.Registry, overrides.Registry}, {&c.ServiceAccount, overrides.ServiceAccount},
 		{&c.Namespace, overrides.Namespace}, {&c.KSA, overrides.KSA},
+		{&c.NodeServiceAccount, overrides.NodeServiceAccount},
+		{&c.NodePlatform, overrides.NodePlatform},
 	}
 	for _, field := range fields {
 		if strings.TrimSpace(field.value) != "" {
@@ -117,6 +133,18 @@ func (c Config) WorkloadIdentityMember() string {
 // GKE maps it to the GSA.
 func (c Config) KSAAnnotation() string {
 	return c.GSAEmail()
+}
+
+// NodeServiceAccountEmail is the identity the nodes pull as. Autopilot runs
+// nodes as the project's default compute service account, whose address is
+// derived from the project number; an explicit override wins. The number is
+// not derivable from the project id, so the caller passes what gcloud
+// reported.
+func (c Config) NodeServiceAccountEmail(projectNumber string) string {
+	if strings.TrimSpace(c.NodeServiceAccount) != "" {
+		return strings.TrimSpace(c.NodeServiceAccount)
+	}
+	return fmt.Sprintf("%s-compute@developer.gserviceaccount.com", strings.TrimSpace(projectNumber))
 }
 
 // RegistryPath is the image path prefix pushes and overlays use.

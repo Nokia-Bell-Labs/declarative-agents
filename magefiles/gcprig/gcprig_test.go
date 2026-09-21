@@ -5,8 +5,11 @@ package gcprig
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	goruntime "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -105,7 +108,7 @@ func TestDerivedIdentityValues(t *testing.T) {
 	if got := config.GSAEmail(); got != "agents-objectstore@demo-project.iam.gserviceaccount.com" {
 		t.Errorf("GSA = %q", got)
 	}
-	if got := config.WorkloadIdentityMember(); got != "serviceAccount:demo-project.svc.id.goog[da-chatbot-mesh-demo/default]" {
+	if got := config.WorkloadIdentityMember(); got != "serviceAccount:demo-project.svc.id.goog[default/default]" {
 		t.Errorf("member = %q", got)
 	}
 	if got := config.RegistryPath(); got != "us-central1-docker.pkg.dev/demo-project/agents" {
@@ -251,17 +254,17 @@ func TestEnsureBucketIdentityRegistrySequences(t *testing.T) {
 		t.Fatalf("reuse issued a create:\n%s", reused.sequence())
 	}
 
-	absent := &recorder{answers: map[string]answer{
+	withoutSleeping(t)
+	// visibleAt 2: absent on the first describe, so the account is created,
+	// and visible on the next, so the propagation wait ends at once.
+	absent := &countingRecorder{visibleAt: 2, recorder: recorder{answers: map[string]answer{
 		"gcloud storage buckets describe": {
 			out: "ERROR: (gcloud.storage.buckets.describe) gs://demo-project-agents not found: 404.",
-			err: errors.New("exit status 1")},
-		"gcloud iam service-accounts describe": {
-			out: "ERROR: (gcloud.iam.service-accounts.describe) NOT_FOUND",
 			err: errors.New("exit status 1")},
 		"gcloud artifacts repositories describe": {
 			out: "ERROR: NOT_FOUND: Requested entity was not found",
 			err: errors.New("exit status 1")},
-	}}
+	}}}
 	if err := EnsureBucket(absent.run, config); err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +280,7 @@ func TestEnsureBucketIdentityRegistrySequences(t *testing.T) {
 		"--uniform-bucket-level-access",
 		"gcloud iam service-accounts create agents-objectstore",
 		"gcloud storage buckets add-iam-policy-binding gs://demo-project-agents --member serviceAccount:agents-objectstore@demo-project.iam.gserviceaccount.com --role roles/storage.objectAdmin",
-		"--member serviceAccount:demo-project.svc.id.goog[da-chatbot-mesh-demo/default] --role roles/iam.workloadIdentityUser",
+		"--member serviceAccount:demo-project.svc.id.goog[default/default] --role roles/iam.workloadIdentityUser",
 		"gcloud artifacts repositories create agents",
 		"--repository-format docker",
 	} {
@@ -407,5 +410,360 @@ func TestMirrorDigestReadsTheListDigest(t *testing.T) {
 	}
 	if got := mirrorDigest("Name: x\nno digest here\n"); got != "" {
 		t.Fatalf("mirrorDigest = %q, want empty", got)
+	}
+}
+
+// IAM answers a describe of an account that is not there with
+// PERMISSION_DENIED rather than NOT_FOUND, so gcp:up must create rather than
+// fail. The real message from a project that had never held the account is
+// used verbatim (GH-2455).
+func TestEnsureIdentityCreatesWhenIAMReportsPermissionDenied(t *testing.T) {
+	withoutSleeping(t)
+	rec := &countingRecorder{visibleAt: 2, recorder: recorder{answers: map[string]answer{}}}
+
+	if err := EnsureIdentity(rec.run, testConfig()); err != nil {
+		t.Fatalf("EnsureIdentity: %v", err)
+	}
+
+	sequence := rec.sequence()
+	if !strings.Contains(sequence, "gcloud iam service-accounts create agents-objectstore") {
+		t.Errorf("a masked absence did not lead to a create:\n%s", sequence)
+	}
+}
+
+// A caller who genuinely lacks the permission still fails, at the create,
+// where gcloud names what is missing. The describe's own message names only
+// the read permission, which is why the create is the better place to fail.
+func TestEnsureIdentityFailsAtCreateWhenPermissionIsGenuinelyMissing(t *testing.T) {
+	withoutSleeping(t)
+	rec := &recorder{answers: map[string]answer{
+		"gcloud iam service-accounts describe": {
+			out: deniedDescribeOutput(),
+			err: errors.New("exit status 1")},
+		"gcloud iam service-accounts create": {
+			out: "ERROR: (gcloud.iam.service-accounts.create) PERMISSION_DENIED: " +
+				"Permission 'iam.serviceAccounts.create' denied on resource",
+			err: errors.New("exit status 1")},
+	}}
+
+	err := EnsureIdentity(rec.run, testConfig())
+
+	if err == nil {
+		t.Fatal("a denied create reported success")
+	}
+	if !strings.Contains(err.Error(), "create service account") ||
+		!strings.Contains(err.Error(), "iam.serviceAccounts.create") {
+		t.Errorf("failure does not name the create or the permission: %v", err)
+	}
+}
+
+func deniedDescribeOutput() string {
+	return "ERROR: (gcloud.iam.service-accounts.describe) PERMISSION_DENIED: " +
+		"Permission 'iam.serviceAccounts.get' denied on resource (or it may not exist)."
+}
+
+// The registry is useless to the cluster until its nodes may read it. The
+// grant resolves Autopilot's default compute service account from the
+// project number, which is not the project id (GH-2456).
+func TestEnsureRegistryAccessGrantsTheDefaultNodeServiceAccount(t *testing.T) {
+	rec := &recorder{answers: map[string]answer{
+		"gcloud projects describe": {out: "614687197886\n"},
+	}}
+
+	if err := EnsureRegistryAccess(rec.run, testConfig()); err != nil {
+		t.Fatalf("EnsureRegistryAccess: %v", err)
+	}
+
+	sequence := rec.sequence()
+	for _, want := range []string{
+		"gcloud artifacts repositories add-iam-policy-binding agents",
+		"--member serviceAccount:614687197886-compute@developer.gserviceaccount.com",
+		"--role roles/artifactregistry.reader",
+	} {
+		if !strings.Contains(sequence, want) {
+			t.Errorf("grant missing %q:\n%s", want, sequence)
+		}
+	}
+}
+
+// A cluster whose nodes run as something else names that account, and the
+// project number is then never asked for.
+func TestEnsureRegistryAccessHonorsTheConfiguredNodeServiceAccount(t *testing.T) {
+	rec := &recorder{}
+	config := testConfig()
+	config.NodeServiceAccount = "nodes@demo-project.iam.gserviceaccount.com"
+
+	if err := EnsureRegistryAccess(rec.run, config); err != nil {
+		t.Fatalf("EnsureRegistryAccess: %v", err)
+	}
+
+	sequence := rec.sequence()
+	if !strings.Contains(sequence, "--member serviceAccount:nodes@demo-project.iam.gserviceaccount.com") {
+		t.Errorf("configured node account ignored:\n%s", sequence)
+	}
+	if strings.Contains(sequence, "projects describe") {
+		t.Errorf("project number asked for although the account was named:\n%s", sequence)
+	}
+}
+
+// Up runs the grant, and a second Up issues the same idempotent binding
+// rather than a create, so a reused project mutates nothing.
+func TestUpGrantsRegistryReadAfterCreatingTheRegistry(t *testing.T) {
+	withGcloudPresent(t)
+	rec := &recorder{answers: map[string]answer{
+		"gcloud auth list":                       {out: "person@example.com\n"},
+		"gcloud projects describe":               {out: "614687197886\n"},
+		"gcloud container clusters describe":     {out: "RUNNING\n"},
+		"gcloud storage buckets describe":        {out: "demo-project-agents\n"},
+		"gcloud iam service-accounts describe":   {out: "x@y\n"},
+		"gcloud artifacts repositories describe": {out: "agents\n"},
+	}}
+
+	if err := Up(rec.run, testConfig()); err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+
+	sequence := rec.sequence()
+	access := strings.Index(sequence, "repositories add-iam-policy-binding")
+	describe := strings.Index(sequence, "repositories describe")
+	switch {
+	case access < 0:
+		t.Fatalf("Up never granted registry read:\n%s", sequence)
+	case describe > access:
+		t.Errorf("the grant ran before the registry was resolved:\n%s", sequence)
+	}
+	if strings.Contains(sequence, "repositories create") {
+		t.Errorf("a reused registry was created:\n%s", sequence)
+	}
+}
+
+// The GKE push builds for the cluster's nodes, not the workstation. The
+// default is amd64 because that is what Autopilot runs; an arm64 node pool
+// says so in gcp.yaml (GH-2457).
+func TestDefaultsNameTheClusterPlatformNotTheHost(t *testing.T) {
+	if got := Defaults().NodePlatform; got != "linux/amd64" {
+		t.Errorf("NodePlatform = %q, want the cluster's architecture", got)
+	}
+}
+
+// The bound namespace is where the release installs. Binding a namespace the
+// mesh never creates leaves its pods with no ambient identity, which is the
+// rig's whole claim (GH-2458).
+func TestWorkloadIdentityBindsTheNamespaceTheMeshInstallsInto(t *testing.T) {
+	installed, err := chatbotMeshNamespace()
+	if err != nil {
+		t.Fatalf("read the release namespace: %v", err)
+	}
+	if got := Defaults().Namespace; got != installed {
+		t.Fatalf("rig binds namespace %q; the chatbot-mesh release installs into %q", got, installed)
+	}
+	member := testConfig().WorkloadIdentityMember()
+	if !strings.Contains(member, "["+installed+"/default]") {
+		t.Errorf("member %q does not name the release namespace", member)
+	}
+}
+
+// chatbotMeshNamespace reads the namespace constant the release deploys with,
+// so the two cannot drift apart silently.
+func chatbotMeshNamespace() (string, error) {
+	_, file, _, ok := goruntime.Caller(0)
+	if !ok {
+		return "", fmt.Errorf("resolve this file's path")
+	}
+	root := filepath.Join(filepath.Dir(file), "..", "..")
+	source, err := os.ReadFile(filepath.Join(root,
+		"applications", "chatbot-mesh", "magefiles", "deploy.go"))
+	if err != nil {
+		return "", err
+	}
+	match := regexp.MustCompile(`chatbotDemoNamespace\s*=\s*"([^"]+)"`).FindSubmatch(source)
+	if match == nil {
+		return "", fmt.Errorf("chatbotDemoNamespace is no longer declared in deploy.go")
+	}
+	return string(match[1]), nil
+}
+
+// countingRecorder answers a command differently as the run proceeds, so a
+// resource that becomes visible part way through can be modeled.
+type countingRecorder struct {
+	recorder
+	describes int
+	visibleAt int
+}
+
+func (c *countingRecorder) run(name string, args ...string) ([]byte, error) {
+	command := strings.Join(append([]string{name}, args...), " ")
+	if strings.HasPrefix(command, "gcloud iam service-accounts describe") {
+		c.calls = append(c.calls, command)
+		c.describes++
+		if c.describes >= c.visibleAt {
+			return []byte("agents-objectstore@demo-project.iam.gserviceaccount.com\n"), nil
+		}
+		return []byte("ERROR: (gcloud.iam.service-accounts.describe) PERMISSION_DENIED: " +
+				"Permission 'iam.serviceAccounts.get' denied on resource (or it may not exist)."),
+			errors.New("exit status 1")
+	}
+	return c.recorder.run(name, args...)
+}
+
+// IAM answers the create before it has propagated, so the bindings wait for
+// the account to answer its own describe rather than failing on a member
+// that "does not exist" a second after it was made (GH-2462).
+func TestEnsureIdentityWaitsForTheCreatedAccountToBecomeVisible(t *testing.T) {
+	withoutSleeping(t)
+	// First describe: absent, so the account is created. Next two: still
+	// not propagated. Fourth: visible.
+	rec := &countingRecorder{recorder: recorder{answers: map[string]answer{}}, visibleAt: 4}
+
+	if err := EnsureIdentity(rec.run, testConfig()); err != nil {
+		t.Fatalf("EnsureIdentity: %v", err)
+	}
+
+	if rec.describes < 4 {
+		t.Errorf("bound after %d describes; the account was not observed", rec.describes)
+	}
+	sequence := rec.sequence()
+	create := strings.Index(sequence, "service-accounts create")
+	bind := strings.Index(sequence, "buckets add-iam-policy-binding")
+	if create < 0 || bind < 0 || create > bind {
+		t.Fatalf("expected a create then a binding:\n%s", sequence)
+	}
+}
+
+// An account that never becomes visible fails by name, with the deadline,
+// rather than by whatever the first binding would have said.
+func TestEnsureIdentityReportsTheVisibilityDeadline(t *testing.T) {
+	withoutSleeping(t)
+	previous := serviceAccountReadyDeadline
+	serviceAccountReadyDeadline = time.Millisecond
+	t.Cleanup(func() { serviceAccountReadyDeadline = previous })
+	rec := &countingRecorder{
+		recorder:  recorder{answers: map[string]answer{}},
+		visibleAt: 1 << 30,
+	}
+
+	err := EnsureIdentity(rec.run, testConfig())
+
+	if err == nil {
+		t.Fatal("an account that never appeared reported success")
+	}
+	if !strings.Contains(err.Error(), "did not become visible within") {
+		t.Errorf("failure does not name the wait: %v", err)
+	}
+}
+
+// A reused account was not created, so nothing is polled.
+func TestEnsureIdentityDoesNotPollAReusedAccount(t *testing.T) {
+	withoutSleeping(t)
+	rec := &countingRecorder{recorder: recorder{answers: map[string]answer{}}, visibleAt: 1}
+
+	if err := EnsureIdentity(rec.run, testConfig()); err != nil {
+		t.Fatalf("EnsureIdentity: %v", err)
+	}
+
+	if rec.describes != 1 {
+		t.Errorf("a reused account was described %d times", rec.describes)
+	}
+	if strings.Contains(rec.sequence(), "service-accounts create") {
+		t.Errorf("a reused account was created:\n%s", rec.sequence())
+	}
+}
+
+// expiringRecorder fails the copy with the registry's expired-session shape
+// until the configured attempt, then succeeds.
+type expiringRecorder struct {
+	recorder
+	copies    int
+	succeedAt int
+}
+
+func (e *expiringRecorder) run(name string, args ...string) ([]byte, error) {
+	command := strings.Join(append([]string{name}, args...), " ")
+	if strings.HasPrefix(command, "docker buildx imagetools create") {
+		e.calls = append(e.calls, command)
+		e.copies++
+		if e.copies >= e.succeedAt {
+			return nil, nil
+		}
+		return []byte(expiredSessionOutput()), errors.New("exit status 1")
+	}
+	return e.recorder.run(name, args...)
+}
+
+func expiredSessionOutput() string {
+	return "ERROR: copy sha256:0f0f4f1c from docker.io/alpine/k8s:1.31.4 to " +
+		"us-central1-docker.pkg.dev/demo-project/agents/cli-donor:1.31.4: " +
+		"failed commit on ref \"layer-sha256:b1ae8c50\": unexpected status from PUT request to " +
+		"https://us-central1-docker.pkg.dev/artifacts-uploads/namespaces/demo-project/" +
+		"repositories/agents/uploads/gWHzYXPD8WCXgPS4?digest=sha256%3Ab1ae8c50: 404 Not Found"
+}
+
+// A transfer the registry drops is not a fault of the image, so the copy is
+// retried and the blobs already stored are reused (GH-2463).
+func TestMirrorDonorRetriesAnExpiredUploadSession(t *testing.T) {
+	rec := &expiringRecorder{succeedAt: 2, recorder: recorder{answers: map[string]answer{
+		"docker buildx imagetools inspect": {out: "Name: x\nDigest: sha256:9c4976d4\n"},
+	}}}
+
+	reference, err := MirrorDonor(rec.run, testConfig())
+
+	if err != nil {
+		t.Fatalf("MirrorDonor: %v", err)
+	}
+	if rec.copies != 2 {
+		t.Errorf("copies = %d, want a retry after the expired session", rec.copies)
+	}
+	if !strings.HasSuffix(reference, "@sha256:9c4976d4") {
+		t.Errorf("reference = %q, want the index digest", reference)
+	}
+}
+
+// A copy that fails for any other reason fails at once: retrying a real
+// fault spends the same twelve minutes to reach the same answer.
+func TestMirrorDonorDoesNotRetryAnUnrelatedFailure(t *testing.T) {
+	rec := &recorder{answers: map[string]answer{
+		"docker buildx imagetools create": {
+			out: "ERROR: failed to resolve source: manifest unknown",
+			err: errors.New("exit status 1")},
+	}}
+
+	_, err := MirrorDonor(rec.run, testConfig())
+
+	if err == nil {
+		t.Fatal("an unresolvable source reported success")
+	}
+	if !strings.Contains(err.Error(), "manifest unknown") {
+		t.Errorf("failure does not name the fault: %v", err)
+	}
+	if copies := strings.Count(rec.sequence(), "imagetools create"); copies != 1 {
+		t.Errorf("an unrelated failure was retried %d times", copies)
+	}
+}
+
+// All three shapes observed on one uplink are retried; a fault that names
+// the image is not. The classifier reads the registry's own upload URL,
+// which every dropped transfer carries and no image fault does.
+func TestTransferDroppedClassifiesTheObservedShapes(t *testing.T) {
+	uploads := "https://us-central1-docker.pkg.dev/artifacts-uploads/namespaces/p/" +
+		"repositories/agents/uploads/abc?digest=sha256%3Adeadbeef"
+	dropped := map[string]string{
+		"expired session": "failed commit on ref \"layer-sha256:x\": unexpected status from PUT request to " +
+			uploads + ": 404 Not Found",
+		"http2 goaway": "failed to copy: failed to do request: Put \"" + uploads +
+			"\": http2: server sent GOAWAY and closed the connection; ErrCode=NO_ERROR",
+		"connection reset": "failed to do request: Put \"" + uploads + "\": connection reset by peer",
+	}
+	for name, output := range dropped {
+		if !transferDropped(output) {
+			t.Errorf("%s: not classified as a dropped transfer", name)
+		}
+	}
+	for name, output := range map[string]string{
+		"unknown manifest": "ERROR: failed to resolve source: manifest unknown",
+		"denied":           "ERROR: unexpected status: 403 Forbidden",
+	} {
+		if transferDropped(output) {
+			t.Errorf("%s: retried although it names the image", name)
+		}
 	}
 }

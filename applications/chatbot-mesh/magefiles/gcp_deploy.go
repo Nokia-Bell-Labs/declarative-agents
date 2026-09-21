@@ -45,7 +45,11 @@ func GcpDeploy() error {
 	// this the deploy only works on a commit whose image the operator
 	// happened to build by hand, and fails with a docker daemon error
 	// rather than a sentence (GH-2439).
-	if err := buildSmokeRuntimeImage(demoCoreRoot(root), images.Runtime); err != nil {
+	// ...and for the cluster's architecture, not the workstation's: an
+	// arm64 host pushing its own build leaves every amd64 node reporting
+	// "no match for platform in manifest" (GH-2457).
+	if err := buildRuntimeImageForPlatform(
+		demoCoreRoot(root), images.Runtime, config.NodePlatform); err != nil {
 		return err
 	}
 	pushed, err := gcprig.PushAgentCore(gcprig.DefaultRun, config, images.Runtime, images.Revision)

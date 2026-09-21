@@ -60,6 +60,7 @@ sections:
       | GCS bucket | Uniform bucket-level access, create-or-reuse | Backs the objectstore family (srd059); the words bind it by bucket URL alone |
       | Service account and bindings | GSA with storage.objectAdmin scoped to the bucket; workloadIdentityUser for the configured namespace/KSA pair | Pods reach the bucket through ambient identity; nothing is stored, mounted, or rotated |
       | Artifact Registry repository | Docker format, create-or-reuse | Receives the agent-core image and the mirrored CLI donor |
+      | Registry read for the nodes | artifactregistry.reader for the cluster's node service account, idempotent | A repository the nodes cannot read fails every pull with a 403 and times out the release's wait; creating it is not granting it |
 
       Every create is preceded by a describe: an existing healthy resource
       is reused, and an existing resource in an unexpected state is refused

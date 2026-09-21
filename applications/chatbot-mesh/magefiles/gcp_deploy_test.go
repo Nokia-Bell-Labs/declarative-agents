@@ -71,7 +71,7 @@ func TestGcpDeployBuildsBeforePushing(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(source)
-	build := strings.Index(text, "buildSmokeRuntimeImage")
+	build := strings.Index(text, "buildRuntimeImageForPlatform")
 	push := strings.Index(text, "gcprig.PushAgentCore")
 	if build < 0 {
 		t.Fatal("gcpDeploy does not build the runtime image")
