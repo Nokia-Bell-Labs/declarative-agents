@@ -15,7 +15,7 @@ func TestStandardFactoryCatalogSelectsEveryRegisteredInit(t *testing.T) {
 
 	deps := testFactoryDeps()
 	entries := StandardFactoryCatalog(deps)
-	require.Len(t, entries, 13)
+	require.Len(t, entries, 14)
 
 	for _, entry := range entries {
 		require.ElementsMatch(t, []string{
@@ -83,7 +83,7 @@ func TestStandardFactoryCatalogHandlesNilHooks(t *testing.T) {
 	t.Parallel()
 
 	entries := StandardFactoryCatalog(StandardFactoryDeps{})
-	require.Len(t, entries, 13)
+	require.Len(t, entries, 14)
 	for _, entry := range entries {
 		require.Empty(t, entry.Inits)
 		require.NotPanics(t, func() {
@@ -113,6 +113,7 @@ func testFactoryDeps() StandardFactoryDeps {
 		RegisterService:        registrarForFamily("service"),
 		RegisterOTLP:           registrarForFamily("otlp"),
 		RegisterPipeline:       registrarForFamily("pipeline"),
+		RegisterObjectStore:    registrarForFamily("objectstore"),
 	}
 }
 

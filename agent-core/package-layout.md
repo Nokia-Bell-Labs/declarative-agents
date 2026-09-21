@@ -158,6 +158,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/tools/lifecycle`
 - `internal/tools/llm`
 - `internal/tools/llm/dialect`
+- `internal/tools/objectstore`
 - `internal/tools/otlp`
 - `internal/tools/pipeline`
 - `internal/tools/registry`
