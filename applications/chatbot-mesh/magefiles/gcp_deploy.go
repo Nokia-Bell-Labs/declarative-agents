@@ -53,13 +53,9 @@ func GcpDeploy() error {
 		return err
 	}
 
-	staged, err := stageReleaseForDeploy(root)
-	if err != nil {
-		return err
-	}
-	defer staged.cleanup()
-	release := staged.release
-
+	// The kubeconfig comes first: staging provisions the external UI
+	// ConfigMaps, and on this path there is no kind cluster to ask for a
+	// credential (GH-2451).
 	kubeconfigDir, err := os.MkdirTemp("", "gcp-deploy-kubeconfig-*")
 	if err != nil {
 		return err
@@ -69,6 +65,13 @@ func GcpDeploy() error {
 	if err := gcprig.WriteKubeconfig(config, kubeconfig); err != nil {
 		return err
 	}
+
+	staged, err := stageReleaseForDeploy(root, deployCluster{Kubeconfig: kubeconfig})
+	if err != nil {
+		return err
+	}
+	defer staged.cleanup()
+	release := staged.release
 
 	agent, err := chatbotDeployAgent(root, applierDeployProfileRel)
 	if err != nil {

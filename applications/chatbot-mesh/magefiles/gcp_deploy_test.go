@@ -4,7 +4,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -77,4 +79,59 @@ func TestGcpDeployBuildsBeforePushing(t *testing.T) {
 	if push < 0 || build > push {
 		t.Fatal("gcpDeploy pushes before it builds")
 	}
+}
+
+// A GKE deploy stages its ConfigMaps through the kubeconfig the rig wrote.
+// The kind path resolves a cluster name through kind; this one must not,
+// because there is no kind cluster to resolve and asking fails the deploy
+// before the applier machine runs (GH-2451). A runner that fails on every
+// call stands in for kind: reaching it at all is the defect.
+func TestGcpDeployStagesThroughKubeconfigNotKind(t *testing.T) {
+	kubeconfig := filepath.Join(t.TempDir(), "config")
+	if err := os.WriteFile(kubeconfig, []byte("apiVersion: v1\nkind: Config\n"), 0o600); err != nil {
+		t.Fatalf("write kubeconfig: %v", err)
+	}
+	kindCalls := 0
+	cluster := deployCluster{Kubeconfig: kubeconfig, Run: func(args ...string) ([]byte, error) {
+		kindCalls++
+		return nil, fmt.Errorf("kind must not be called on the GKE path: %v", args)
+	}}
+
+	commands, cleanup, err := cluster.commands()
+	if err != nil {
+		t.Fatalf("commands: %v", err)
+	}
+	cleanup()
+
+	if kindCalls != 0 {
+		t.Errorf("GKE staging shelled out to kind %d times", kindCalls)
+	}
+	if !containsKubeconfig(commands.Command("kubectl", "get", "ns").Env, kubeconfig) {
+		t.Error("staged command does not carry the rig kubeconfig")
+	}
+}
+
+// The kind path is unchanged: a named cluster still resolves through kind.
+func TestKindDeployStagesThroughNamedCluster(t *testing.T) {
+	asked := ""
+	cluster := deployCluster{Name: chatbotDemoCluster, Run: func(args ...string) ([]byte, error) {
+		asked = strings.Join(args, " ")
+		return nil, fmt.Errorf("stop here: the resolution is what this asserts")
+	}}
+
+	if _, _, err := cluster.commands(); err == nil {
+		t.Fatal("expected the recorded runner's error")
+	}
+	if !strings.Contains(asked, "get kubeconfig") || !strings.Contains(asked, chatbotDemoCluster) {
+		t.Errorf("kind path did not resolve the named cluster: %q", asked)
+	}
+}
+
+func containsKubeconfig(env []string, path string) bool {
+	for _, entry := range env {
+		if entry == "KUBECONFIG="+path {
+			return true
+		}
+	}
+	return false
 }

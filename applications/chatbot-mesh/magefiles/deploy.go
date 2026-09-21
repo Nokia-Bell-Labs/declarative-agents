@@ -83,7 +83,7 @@ func deployStagedRelease(prepared *stagedRelease) error {
 	}
 	release := prepared
 	if release == nil {
-		staged, err := stageReleaseForDeploy(root)
+		staged, err := stageReleaseForDeploy(root, deployCluster{Name: chatbotDemoCluster})
 		if err != nil {
 			return err
 		}
@@ -211,13 +211,43 @@ type stagedForDeploy struct {
 	cleanup func()
 }
 
+// deployCluster names where the staging step creates the external UI
+// ConfigMaps. kind resolves a cluster name through kind itself; the GCP rig
+// hands over the per-run kubeconfig it already wrote, because there is no
+// kind cluster on that path to resolve (GH-2451).
+type deployCluster struct {
+	Name       string
+	Kubeconfig string
+	// Run overrides the kind runner used to resolve Name. Tests set it.
+	Run kindrig.Runner
+}
+
+// commands returns the command environment for this cluster plus a cleanup.
+// A named kind cluster owns a temporary kubeconfig that the cleanup removes;
+// a caller-provided one is the caller's file and is left alone.
+func (c deployCluster) commands() (kindrig.Commands, func(), error) {
+	if strings.TrimSpace(c.Kubeconfig) != "" {
+		commands, err := kindrig.CommandsForKubeconfig(c.Kubeconfig)
+		return commands, func() {}, err
+	}
+	run := c.Run
+	if run == nil {
+		run = kindrig.CaptureRun
+	}
+	return kindrig.ClusterCommands(run, c.Name)
+}
+
 // stageReleaseForDeploy prepares everything a standalone mage deploy needs:
 // the staged chart, the externalized UI assets and their ConfigMaps, and the
 // packaged archive the budget measurement reads.
 //
 // demo:up has already done all of this by the time it reaches the Helm step
 // and hands its staging over instead, so the work happens once per run.
-func stageReleaseForDeploy(root string) (stagedForDeploy, error) {
+//
+// The ConfigMaps go to the cluster the caller names rather than to a kind
+// cluster this function assumed: the GKE path has no kind cluster to ask
+// (GH-2451).
+func stageReleaseForDeploy(root string, cluster deployCluster) (stagedForDeploy, error) {
 	chartDir := applicationChartDir(root)
 	images, err := resolveChatbotIntegrationImages(root)
 	if err != nil {
@@ -241,7 +271,7 @@ func stageReleaseForDeploy(root string) (stagedForDeploy, error) {
 		cleanupStaged()
 		return stagedForDeploy{}, err
 	}
-	commands, cleanupCommands, err := kindrig.ClusterCommands(kindrig.CaptureRun, chatbotDemoCluster)
+	commands, cleanupCommands, err := cluster.commands()
 	if err != nil {
 		cleanupArchive()
 		cleanupAssets()
