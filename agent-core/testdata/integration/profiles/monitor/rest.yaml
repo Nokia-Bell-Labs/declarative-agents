@@ -21,7 +21,13 @@ rest:
         overflow: reject
         timeout: 100ms
       shutdown:
-        timeout: 2s
+        # The proof drives this server from the same process that runs the
+        # loop, so the drain competes with the test's own goroutines for a
+        # loaded scheduler. Two seconds was enough on an idle machine and
+        # failed stop_monitor_rest with "context deadline exceeded" under
+        # load, which the machine reads as CommandError and reports as a
+        # failed run (GH-2442). Scheduler-safe, like the waits in the proof.
+        timeout: 30s
         drain_policy: drain_then_stop
         stop_listeners: true
         unblock_await_signal: ServerStopped
