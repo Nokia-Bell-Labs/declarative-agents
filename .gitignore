@@ -23,3 +23,6 @@ applications/*/helm/charts/
 
 # Release-run kind evidence (da-platform diagnostics, GH-2215)
 /build/
+
+# Operator-local GCP rig configuration; names a real project (eng08).
+gcp.yaml
