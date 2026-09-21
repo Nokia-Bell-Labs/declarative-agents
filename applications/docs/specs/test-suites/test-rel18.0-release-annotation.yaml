@@ -3,15 +3,15 @@
 id: test-rel18.0-release-annotation
 title: Release 18.0 Release Annotation Test Suite
 release: "18.0"
-status: planned
+status: implemented
 test_case_count: 6
 
 overview: |
-  TC1 parses and traces the Release 18.0 documents and is executable now.
-  TC2 through TC6 name the tests the verify target adds; each turns
-  implemented when its command exists and passes. The Go cases build scratch
-  repositories in temporary directories, so the suite proves the check's
-  behaviour without touching this repository's refs and without a network.
+  TC1 parses and traces the Release 18.0 documents. TC2 through TC5 run the
+  verify target's scratch-repository tests, which touch neither this
+  repository's refs nor a network. TC6 checks the placement: the recurring
+  release runbook carries the verify step between annotation and push, and
+  the skill counterpart is coding-skills issue 395.
 
 traces:
   - rel18.0-uc001-release-annotation
@@ -113,7 +113,7 @@ test_cases:
   - id: TC2
     use_case: rel18.0-uc001-release-annotation
     name: A missing or lightweight tag is refused by name
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2420
     command: |
@@ -130,7 +130,7 @@ test_cases:
   - id: TC3
     use_case: rel18.0-uc001-release-annotation
     name: A degenerate annotation is refused
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2420
     command: |
@@ -148,7 +148,7 @@ test_cases:
   - id: TC4
     use_case: rel18.0-uc001-release-annotation
     name: A tag off main is refused and an absent main fails by name
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2420
     command: |
@@ -164,7 +164,7 @@ test_cases:
   - id: TC5
     use_case: rel18.0-uc001-release-annotation
     name: A run mutates nothing, passing or refusing
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2420
     command: |
@@ -180,7 +180,7 @@ test_cases:
   - id: TC6
     use_case: rel18.0-uc001-release-annotation
     name: The runbook and the skill place the check before the push
-    status: planned
+    status: implemented
     evidence_type: manual
     implemented_by: GH-2420
     command: |

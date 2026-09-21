@@ -474,7 +474,7 @@ releases:
       has been shipping degenerate: three of five recent tags say nothing
       but their own name. Refuse that at the push boundary, name the rule
       broken, and leave the words to the session that releases.
-    status: planned
+    status: implemented
     parent: gh-2418-tag-verify
     dependencies:
       - id: eng01-kind-test-demo-rig
@@ -487,23 +487,23 @@ releases:
         summary: |
           An operator about to push runs the check; a real summary passes
           and a degenerate annotation is refused with the rule it broke.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel18.0-release-annotation
         summary: |
           Trace the release documents, then verify each refusal by name,
           reachability from main, that a run mutates nothing, and the
           placement in the runbook and the skill.
-        status: planned
-        implemented_cases: [TC1]
-        planned_cases: [TC2, TC3, TC4, TC5, TC6]
+        status: implemented
+        implemented_cases: [TC1, TC2, TC3, TC4, TC5, TC6]
+        planned_cases: []
     implementation_sequence:
       - order: 1
         action: Add the ENG01 release-annotation section and the tag:verify verb, and specify srd007, the use case, the suite, and the index entries (GH-2419).
         status: planned
       - order: 2
         action: Add the tag:verify target, its scratch-repository tests, and the runbook step (GH-2420).
-        status: planned
+        status: implemented
     implementation_evidence:
       - path: docs/engineering/eng01-kind-test-demo-rig.yaml
         proves: The annotation-is-the-record statement and the verb's refuse-and-mutate-nothing contract.
@@ -512,4 +512,8 @@ releases:
       - path: applications/docs/specs/use-cases/rel18.0-uc001-release-annotation.yaml
         proves: The flow from an annotated tag to a push that carries a real record.
       - path: applications/docs/specs/test-suites/test-rel18.0-release-annotation.yaml
-        proves: Requirement-to-AC-to-test coverage with TC1 executable.
+        proves: Requirement-to-AC-to-test coverage with every case executable.
+      - path: magefiles/tag_verify.go
+        proves: The four rules with one named reason per failure, and the bar stated once.
+      - command: mage tag:verify v0.20260919.1
+        proves: The most recent real-summary tag passes and the degenerate v0.20260919.0 is refused naming R2.1.
