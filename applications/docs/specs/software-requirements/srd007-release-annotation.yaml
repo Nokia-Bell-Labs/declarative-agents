@@ -1,0 +1,135 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd007-release-annotation
+title: Release Annotation Verification
+status: planned
+
+problem: |
+  The v0 release line publishes no release objects, so a tag's annotation is
+  the only record of what a release contained. The tag target creates a
+  lightweight ref on the gated commit and the operator's session annotates
+  it afterwards, which makes the summary the one release step nothing
+  checks. The record shows it degrading: of five recent releases, three
+  carry an annotation whose subject is the tag name itself. Nothing stands
+  between a degenerate annotation and the push, so the empty record ships
+  and cannot be distinguished later from a release nobody summarized on
+  purpose.
+
+goals:
+  - "G1: Refuse a release tag whose annotation is missing or degenerate before it can be pushed."
+  - "G2: Name one reason per failure, so the remedy is evident from the refusal."
+  - "G3: Mutate nothing, so verification can run any number of times at any point."
+  - "G4: Place the check where every release path passes: the runbook and the release skill, after annotation and before push."
+
+applicability:
+  baseline: |
+    R1 through R4 apply to every tag on the v0 release line. The check runs
+    on demand against one named tag; it gates no build and joins no audit.
+  capability_gates: {}
+
+requirements:
+  R1:
+    title: The tag is an annotated object
+    applicability: runnable_module
+    items:
+      - id: R1.1
+        text: |
+          A tag that does not exist shall be refused, and a tag that is a
+          lightweight ref rather than an annotated tag object shall be
+          refused, each with its own named reason.
+        evidence: |
+          A missing tag and a lightweight tag each fail with a reason
+          naming what was found; an annotated tag passes this rule.
+
+  R2:
+    title: The annotation is not degenerate
+    applicability: runnable_module
+    items:
+      - id: R2.1
+        text: |
+          An annotation whose subject equals the tag name, or whose subject
+          is empty, shall be refused.
+        evidence: |
+          A tag annotated with its own name fails naming the rule; the
+          degenerate releases in the current history fail it.
+      - id: R2.2
+        text: |
+          An annotation whose subject and body together fall under a stated
+          minimum substance bar shall be refused. The bar is stated in one
+          place and the refusal quotes it.
+        evidence: |
+          A one-word annotation fails; a summary naming what shipped
+          passes; the bar appears once in the implementation.
+
+  R3:
+    title: The tag sits on the released line
+    applicability: runnable_module
+    items:
+      - id: R3.1
+        text: |
+          A tag not reachable from the local main shall be refused. An
+          absent or unresolvable main is itself a named failure rather than
+          a pass.
+        evidence: |
+          A tag on a side branch fails naming reachability; deleting main
+          in a scratch repository produces the named failure, not success.
+
+  R4:
+    title: Verification mutates nothing
+    applicability: runnable_module
+    items:
+      - id: R4.1
+        text: |
+          The check shall create, edit, and delete no ref and no file, and
+          shall exit non-zero only through its named refusals.
+        evidence: |
+          The ref set and the working tree are byte-identical across a run,
+          passing or failing.
+      - id: R4.2
+        text: |
+          The release runbook and the release skill shall run the check
+          after annotating and before any push, and stop on refusal.
+        evidence: |
+          The recurring release issue's workflow carries the step between
+          annotation and push, and the skill's push step is guarded by it
+          where the target exists.
+
+non_goals:
+  - Writing or improving the summary. The session that releases owns the words; this check only refuses their absence.
+  - Gating mage tag, the audit, or any build. The check runs at the push boundary on demand.
+  - Verifying pushed history retroactively. Existing degenerate tags are the evidence, not the workload.
+  - Release objects, changelog files, or any new release artifact.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: |
+      A missing tag, a lightweight tag, a subject equal to the tag name, an
+      empty subject, and an annotation under the substance bar are each
+      refused with their own named reason.
+    traces:
+      - R1.1
+      - R2.1
+      - R2.2
+  - id: AC2
+    criterion: |
+      A tag not reachable from main is refused, and an absent main is a
+      named failure rather than a pass.
+    traces:
+      - R3.1
+  - id: AC3
+    criterion: |
+      A run changes no ref and no file, whether it passes or refuses.
+    traces:
+      - R4.1
+  - id: AC4
+    criterion: |
+      The runbook and the skill place the check between annotation and
+      push.
+    traces:
+      - R4.2
+
+use_case_traces:
+  - rel18.0-uc001-release-annotation
+
+test_suite_traces:
+  - test-rel18.0-release-annotation
