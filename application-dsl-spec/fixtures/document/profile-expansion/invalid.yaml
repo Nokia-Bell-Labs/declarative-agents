@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-002: the expansion entry renames what it produces.
+name: chatbot
+expand:
+  - fragment: ../../units/serve-agent-blueprint.yaml
+    as: secondary
+    args: {agent: chatbot, server: chatbot-control}

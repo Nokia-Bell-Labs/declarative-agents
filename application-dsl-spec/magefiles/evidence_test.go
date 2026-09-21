@@ -198,6 +198,83 @@ func TestMachineExpansionShape(t *testing.T) {
 	}
 }
 
+func TestProfileExpansionShape(t *testing.T) {
+	tests := map[string]struct {
+		content string
+		valid   bool
+	}{
+		"no expansion at all": {
+			content: "name: worker\nmachine: machine.yaml\n",
+			valid:   true,
+		},
+		"one entry naming a blueprint": {
+			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n    args: {server: control}\n",
+			valid:   true,
+		},
+		"expansion without a name": {
+			content: "expand:\n  - fragment: b.yaml\n",
+			valid:   false,
+		},
+		"two expansion entries": {
+			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n  - fragment: c.yaml\n",
+			valid:   false,
+		},
+		"entry renames what it produces": {
+			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n    as: secondary\n",
+			valid:   false,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := writeEvidenceFile(t, t.TempDir(), "profile.yaml", test.content)
+			err := checkFixture("profile_expansion_shape", path)
+			if test.valid && err != nil {
+				t.Fatalf("check failed on a conforming document: %v", err)
+			}
+			if !test.valid && err == nil {
+				t.Fatal("check passed a non-conforming document")
+			}
+		})
+	}
+}
+
+func TestBlueprintBodyShape(t *testing.T) {
+	tests := map[string]struct {
+		content string
+		valid   bool
+	}{
+		"blueprint declaring parameters and a body": {
+			content: "unit: b\nparams:\n  - {name: server, type: string}\nprofile:\n  name: $param(server)\n",
+			valid:   true,
+		},
+		"expanding document is not a blueprint": {
+			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n",
+			valid:   true,
+		},
+		"parameters without a body": {
+			content: "unit: b\nparams:\n  - {name: server, type: string}\n",
+			valid:   true,
+		},
+		"blueprint carrying an expansion": {
+			content: "unit: b\nparams:\n  - {name: server, type: string}\n" +
+				"expand:\n  - fragment: base.yaml\nprofile:\n  name: $param(server)\n",
+			valid: false,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := writeEvidenceFile(t, t.TempDir(), "blueprint.yaml", test.content)
+			err := checkFixture("blueprint_body_shape", path)
+			if test.valid && err != nil {
+				t.Fatalf("check failed on a conforming document: %v", err)
+			}
+			if !test.valid && err == nil {
+				t.Fatal("check passed a non-conforming document")
+			}
+		})
+	}
+}
+
 func TestExpansionNamesFragment(t *testing.T) {
 	named := writeEvidenceFile(t, t.TempDir(), "named.yaml",
 		"expand:\n  - fragment: u.yaml\n    args: {p: 1}\n")

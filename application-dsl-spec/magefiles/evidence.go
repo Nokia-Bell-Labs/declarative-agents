@@ -141,6 +141,8 @@ var fixtureChecks = map[string]func(string) error{
 	"expansion_names_fragment":      checkExpansionNamesFragment,
 	"application_required_keynames": checkApplicationRequiredKeynames,
 	"profile_required_keynames":     checkProfileRequiredKeynames,
+	"profile_expansion_shape":       checkProfileExpansionShape,
+	"blueprint_body_shape":          checkBlueprintBodyShape,
 	"machine_body_keynames":         checkMachineBodyKeynames,
 }
 
@@ -188,6 +190,57 @@ func checkProfileRequiredKeynames(path string) error {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("keyname %q is absent or not a string", keyname)
 		}
+	}
+	return nil
+}
+
+// checkProfileExpansionShape enforces R-PROF-002: an agent-profile document
+// that expands a blueprint names itself and applies the blueprint once, under
+// the blueprint's own produced names. A document with no expansion satisfies
+// the statement vacuously.
+func checkProfileExpansionShape(path string) error {
+	doc, err := readYAMLMapping(path)
+	if err != nil {
+		return err
+	}
+	entries, ok := doc["expand"]
+	if !ok {
+		return nil
+	}
+	if name, _ := doc["name"].(string); strings.TrimSpace(name) == "" {
+		return errors.New(`keyname "name" is absent or not a string`)
+	}
+	list, ok := entries.([]any)
+	if !ok {
+		return errors.New("expand must be a sequence")
+	}
+	if len(list) != 1 {
+		return fmt.Errorf("expanding a blueprint takes exactly one expansion entry, got %d", len(list))
+	}
+	entry, ok := list[0].(map[string]any)
+	if !ok {
+		return errors.New("expand[0] must be a mapping")
+	}
+	if _, renamed := entry["as"]; renamed {
+		return errors.New(`expand[0] carries "as", which a blueprint expansion may not`)
+	}
+	return nil
+}
+
+// checkBlueprintBodyShape enforces R-PROF-003: a blueprint holds unfilled
+// parameter references until its arguments arrive, so it may not expand.
+func checkBlueprintBodyShape(path string) error {
+	doc, err := readYAMLMapping(path)
+	if err != nil {
+		return err
+	}
+	_, declaresParams := doc["params"]
+	_, declaresBody := doc["profile"]
+	if !declaresParams || !declaresBody {
+		return nil
+	}
+	if _, expands := doc["expand"]; expands {
+		return errors.New("a blueprint carries an expansion")
 	}
 	return nil
 }

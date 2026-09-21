@@ -211,6 +211,40 @@ statements:
         check: profile_required_keynames
         verdict: invalid
 
+  - id: R-PROF-002
+    target: document
+    level: MUST
+    statement: >-
+      An agent-profile document that expands a blueprint MUST carry the
+      `name` keyname and exactly one expansion entry, and that entry MUST NOT
+      carry the `as` keyname.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/profile-expansion/valid.yaml
+        check: profile_expansion_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/profile-expansion/invalid.yaml
+        check: profile_expansion_shape
+        verdict: invalid
+
+  - id: R-PROF-003
+    target: document
+    level: MUST NOT
+    statement: >-
+      A blueprint MUST NOT carry an expansion; a document carrying the
+      `params` and `profile` keynames is a blueprint, and is not itself an
+      agent-profile document.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/blueprint-body/valid.yaml
+        check: blueprint_body_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/blueprint-body/invalid.yaml
+        check: blueprint_body_shape
+        verdict: invalid
+
   - id: R-MACH-001
     target: document
     level: MUST
@@ -243,9 +277,9 @@ statements:
     target: document
     level: MUST
     statement: >-
-      Every expansion entry in a machine-profile document MUST name its
-      source unit under the fragment keyname; argument bindings MAY accompany
-      the name under the args keyname.
+      Every expansion entry in a document MUST name its source unit under the
+      fragment keyname; argument bindings MAY accompany the name under the
+      args keyname.
     acceptance:
       - assertion: fixture
         path: fixtures/document/expansion-fragment/named.yaml

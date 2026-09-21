@@ -52,6 +52,9 @@ state.
 
 {{statement R-MODEL-002}}
 
+R-MODEL-002 holds wherever an expansion entry appears, not only in a
+machine-profile document; chapter 06 applies it to the agent-profile case.
+
 The expanded machine-profile is validated like a hand-written one, with
 diagnostics naming both the unit and the expanding document. Chapter 09 covers
 processor obligations and fixture suites that exercise invalid expansions.

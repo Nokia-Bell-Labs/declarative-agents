@@ -29,10 +29,32 @@ referenced family has its own format specification under
 their grammars — the agent-profile grammar solely manages binding keynames in
 the table above.
 
-## 6.4 Profile fragments
+## 6.4 Blueprints
 
-The `unit`, `params`, and `profile` keynames link to profile fragments,
-reusable units with body `profile`. These expand into a complete agent-profile
-document under the expansion keyname, following chapter 03's rules for
-machine-profile documents. Expansion statements R-MODEL-001 and R-MODEL-002
-apply unchanged.
+A blueprint declares an agent-profile once and leaves what varies as typed
+parameters. It carries the `params` and `profile` keynames: `params` declares
+the parameters, and `profile` holds the body, an agent-profile whose scalar
+values may reference `$param(name)`. A blueprint is not itself an
+agent-profile document, because its references stay unfilled until arguments
+arrive.
+
+An agent-profile document expands a blueprint under the expansion keyname,
+supplying the arguments and whatever fields it overrides. We name the
+expanding document rather than calling it an instance: section 2.2 reserves
+instance for the mesh side, and expansion constructs a class from a class.
+
+{{statement R-PROF-002}}
+
+{{statement R-PROF-003}}
+
+R-MODEL-002 governs the entry itself, in an agent-profile document as in a
+machine-profile document: the entry names its blueprint under `fragment` and
+its argument bindings under `args`.
+
+The grammar above is the document-target subset of `srd055-agent-blueprints`,
+which also settles what this chapter leaves alone — fields present on the
+expanding document replace the blueprint's wholesale, paths in the blueprint
+body resolve against the blueprint's own directory, and the expanded result
+satisfies the rules a hand-written agent-profile does. No processor enforces
+any of it today: the loader work is deferred under gh-2123, so these
+statements bind documents alone until it lands.
