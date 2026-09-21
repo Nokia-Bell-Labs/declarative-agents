@@ -1062,6 +1062,43 @@ releases:
       - mage test
       - mage audit
 
+  - version: "25.0"
+    name: Monitor drain outcome
+    description: |
+      The serving lifecycle treats a slow drain as a failed run. Stopping a
+      monitor closes its listener at once and deregisters the server, and the
+      shutdown budget bounds only the wait for connections already in flight,
+      so a busy host turns a successful exit into a failed command and the
+      only remedy on offer is a longer timer. Release 25.0 separates the two
+      properties. Releasing the listener is what the machine asked for and
+      routes to the success terminal; whether the drain finished inside its
+      budget becomes a structured field of the stop output that a machine can
+      branch on. Faults that are not an expired budget keep failing.
+    status: in_progress
+    planned_work:
+      - id: gh-2448
+        summary: Amend srd033 R6.5, add R6.10, and specify the use case and suite.
+        status: specified
+      - id: gh-2449
+        summary: Classify the deadline in the stop path and report the drain field.
+        status: planned
+    srds:
+      - srd033-monitor-rest-api
+    use_cases:
+      - id: rel25.0-uc001-drain-outcome
+        summary: A monitor exit on a loaded host succeeds and names its unfinished drain.
+        status: specified
+    test_suites:
+      - id: test-rel25.0-drain-outcome
+        summary: The incomplete drain that still succeeds, the reported field in both directions, the faults that stay failures, and the release proof on its shipped budget.
+        status: specified
+    follow_up:
+      - The four shipped shutdown budgets stay as authored; this release does not retune them.
+    proof:
+      - go test ./internal/tools/rest/...
+      - mage integration:monitor
+      - mage audit
+
   - version: "99.0"
     name: Architectural migrations and cleanup
     description: |

@@ -1,0 +1,67 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel25.0-drain-outcome
+title: Test Suite for Release 25.0 Drain Outcome
+release: "25.0"
+
+traces:
+  - rel25.0-uc001-drain-outcome
+
+preconditions:
+  - srd033-monitor-rest-api R6.5 and R6.10 define the routing and the reported field.
+  - Unit cases hold a connection open past a short shutdown budget on a loopback listener, with no container and no external network.
+  - The release proof runs the shipped runtime-state-reader profile through cmd/agent.
+
+test_cases:
+  - use_case: rel25.0-uc001-drain-outcome
+    name: A drain cut short by the budget still returns success
+    go_test: go test ./internal/tools/rest/... -run 'TestServerStopIncompleteDrainSucceeds'
+    status: planned
+    description: A handler holds a request open past a shutdown budget of a few milliseconds; the stop returns without a command error and the listener is closed.
+    expected:
+      stop_returns_no_command_error: true
+      listener_refuses_new_connections: true
+      server_deregistered: true
+    traces: [rel25.0-uc001-drain-outcome S1, srd033-monitor-rest-api AC6, srd033-monitor-rest-api R6.5]
+
+  - use_case: rel25.0-uc001-drain-outcome
+    name: The stop output names the drain outcome in both directions
+    go_test: go test ./internal/tools/rest/... -run 'TestServerStopReportsDrainOutcome'
+    status: planned
+    description: An idle server and a server with a held connection stop through the same path; the declared output carries the drain field in both, differing only in its value.
+    expected:
+      completed_drain_reported: true
+      incomplete_drain_reported: true
+      field_shape_identical: true
+    traces: [rel25.0-uc001-drain-outcome S2, srd033-monitor-rest-api AC6, srd033-monitor-rest-api R6.10]
+
+  - use_case: rel25.0-uc001-drain-outcome
+    name: Faults other than the expired budget stay command failures
+    go_test: go test ./internal/tools/rest/... -run 'TestServerStopNonDrainFaultsFail'
+    status: planned
+    description: Stopping a server that was never launched, and a shutdown returning an error unrelated to the deadline, each return a CommandError naming the fault.
+    expected:
+      unlaunched_server_fails: true
+      unrelated_shutdown_error_fails: true
+      fault_named_in_error: true
+    traces: [rel25.0-uc001-drain-outcome S3, srd033-monitor-rest-api AC6, srd033-monitor-rest-api R6.5]
+
+  - use_case: rel25.0-uc001-drain-outcome
+    name: The declared stop output matches the runtime field
+    go_test: go test ./internal/tools/rest/... -run 'TestRESTDeclaredOutputPropertiesExistAtRuntime'
+    status: specified
+    description: The drain field is declared in the stop word's output schema, so the existing declaration-to-runtime gate covers it rather than a hand-written assertion.
+    expected:
+      drain_field_declared: true
+      declaration_matches_runtime: true
+    traces: [rel25.0-uc001-drain-outcome S2, srd033-monitor-rest-api AC6, srd033-monitor-rest-api R6.10]
+
+  - use_case: rel25.0-uc001-drain-outcome
+    name: The monitor release proof reports succeeded on its shipped budget
+    go_test: mage integration:monitor
+    status: specified
+    description: The runtime-state-reader profile runs end to end through cmd/agent with the shutdown budget it ships, and the run status is succeeded whether or not the drain finished.
+    expected:
+      run_status_succeeded: true
+      shipped_budget_unchanged: true
+    traces: [rel25.0-uc001-drain-outcome S4, srd033-monitor-rest-api AC6, srd033-monitor-rest-api R6.5]
