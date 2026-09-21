@@ -30,6 +30,7 @@ var chatbotChartSourceFiles = []string{
 	"charts/agent-services/templates/_collector.tpl",
 	"charts/agent-services/templates/_naming.tpl",
 	"charts/agent-services/templates/_ollama.tpl",
+	"ci/gcp-values.yaml",
 	"ci/kind-applier-values.yaml",
 	"ci/kind-demo-config.yaml",
 	"ci/kind-llm-values.yaml",

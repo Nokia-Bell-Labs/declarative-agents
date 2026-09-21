@@ -5,6 +5,9 @@ package gcprig
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -75,6 +78,27 @@ func Down(run CommandRunner, config Config, confirmation string) error {
 				deletion.name, err, strings.TrimSpace(string(out)))
 		}
 		kindrig.LogPhase(config.Cluster, deletion.name, "deleted", started, "")
+	}
+	return nil
+}
+
+// WriteKubeconfig fetches the configured cluster's credential into path and
+// nothing else: KUBECONFIG is set for the child process only, so the
+// operator's own kubeconfig is never touched and no ambient context can
+// leak into a deploy (the GH-1341 discipline, applied to GKE).
+func WriteKubeconfig(config Config, path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create kubeconfig directory: %w", err)
+	}
+	cmd := exec.Command("gcloud", "container", "clusters", "get-credentials", config.Cluster,
+		"--project", config.Project, "--region", config.Region)
+	cmd.Env = append(os.Environ(), "KUBECONFIG="+path)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("get-credentials %q: %w: %s",
+			config.Cluster, err, strings.TrimSpace(string(out)))
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		return fmt.Errorf("restrict kubeconfig %s: %w", path, err)
 	}
 	return nil
 }

@@ -1,0 +1,39 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# GKE values for the unmodified chart (eng08). Everything environment-shaped
+# lives here: image paths at the project registry and the donor mirror pin,
+# nothing else. The registry segment region-docker.pkg.dev/project/agents is
+# a placeholder in the checked-in file; mage gcp:deploy resolves the real
+# path from gcp.yaml and the pushed commit revision through the same
+# overrides document the kind deploy writes, so this file never carries a
+# project id or a moving tag.
+image:
+  repository: region-docker.pkg.dev/project/agents/agent-core
+  # mage gcp:deploy always overrides this fail-closed sentinel with the
+  # pushed checkout's 12-character commit revision (eng01: never latest).
+  tag: must-be-overridden-with-git-revision
+  pullPolicy: IfNotPresent
+
+collector:
+  image:
+    repository: region-docker.pkg.dev/project/agents/agent-core
+    tag: must-be-overridden-with-git-revision
+    pullPolicy: IfNotPresent
+
+applier:
+  enabled: true
+  image:
+    repository: region-docker.pkg.dev/project/agents/agent-core
+    tag: must-be-overridden-with-git-revision
+    pullPolicy: IfNotPresent
+  # The CLI donor is pulled from the project registry, never Docker Hub:
+  # enterprise GKE nodes are commonly barred from it (eng08). The digest
+  # here is the pinned upstream source's; mage gcp:mirrorDonor prints the
+  # mirror's own digest on first provision, and that value replaces this
+  # one alongside the real registry path.
+  cliDonor:
+    image:
+      repository: region-docker.pkg.dev/project/agents/cli-donor
+      tag: "1.31.4"
+      digest: "sha256:9c4976d47656d78cf53a92b0203fc54ac45eae18a2b45001ac221c27da4c8036"
+      pullPolicy: IfNotPresent
