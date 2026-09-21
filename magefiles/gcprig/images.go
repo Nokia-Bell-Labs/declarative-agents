@@ -21,16 +21,25 @@ const donorSourceImage = "docker.io/alpine/k8s:1.31.4@" +
 const donorMirrorTag = "cli-donor:1.31.4"
 
 // MirrorDonor copies the pinned donor into the project registry and returns
-// the mirror reference plus the digest the overlay pins. The push runs
-// through docker with gcloud's registry credential helper configured.
+// the mirror's digest, which the overlay pins.
+//
+// The copy goes through buildx imagetools rather than pull, tag, and push.
+// A docker pull fetches only the host platform's manifest, so mirroring
+// from an arm64 workstation would upload an arm64-only image to a registry
+// serving amd64 Autopilot nodes, and the donor init container would fail on
+// the one cluster the mirror exists for (GH-2437, found on a real project).
+// imagetools copies the manifest list itself, from any host architecture and
+// without a local pull.
+//
+// Because an index copy is byte-identical, the mirror's digest equals the
+// upstream digest. The overlay's checked-in pin is therefore already correct
+// after a mirror; only the repository path changes.
 func MirrorDonor(run CommandRunner, config Config) (string, error) {
 	mirror := config.RegistryPath() + "/" + donorMirrorTag
 	started := time.Now()
 	steps := [][]string{
 		{"gcloud", "auth", "configure-docker", config.Region + "-docker.pkg.dev", "--quiet"},
-		{"docker", "pull", donorSourceImage},
-		{"docker", "tag", donorSourceImage, mirror},
-		{"docker", "push", mirror},
+		{"docker", "buildx", "imagetools", "create", "--tag", mirror, donorSourceImage},
 	}
 	for _, step := range steps {
 		if out, err := run(step[0], step[1:]...); err != nil {
@@ -38,13 +47,30 @@ func MirrorDonor(run CommandRunner, config Config) (string, error) {
 				strings.Join(step[:2], " "), err, strings.TrimSpace(string(out)))
 		}
 	}
-	digest, err := run("docker", "inspect", "--format", "{{index .RepoDigests 0}}", mirror)
+	out, err := run("docker", "buildx", "imagetools", "inspect", mirror)
 	if err != nil {
-		return "", fmt.Errorf("read mirror digest: %w", err)
+		return "", fmt.Errorf("inspect mirror %s: %w: %s", mirror, err, strings.TrimSpace(string(out)))
 	}
-	reference := strings.TrimSpace(string(digest))
+	digest := mirrorDigest(string(out))
+	if digest == "" {
+		return "", fmt.Errorf("inspect mirror %s: no digest in the manifest listing", mirror)
+	}
+	reference := mirror + "@" + digest
 	kindrig.LogPhase(config.Cluster, "donor-mirror", "pushed", started, reference)
 	return reference, nil
+}
+
+// mirrorDigest reads the top-level Digest line of an imagetools listing: the
+// manifest list's own digest, not one platform's.
+func mirrorDigest(listing string) string {
+	for _, line := range strings.Split(listing, "\n") {
+		rest, found := strings.CutPrefix(strings.TrimSpace(line), "Digest:")
+		if !found {
+			continue
+		}
+		return strings.TrimSpace(rest)
+	}
+	return ""
 }
 
 // PushAgentCore tags the locally built agent-core image with the short

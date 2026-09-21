@@ -103,12 +103,12 @@ func gcpDeployOverrides(pushedImage string, config gcprig.Config, assets []exter
 	fmt.Fprintf(&document,
 		"applier:\n  enabled: true\n  image:\n    repository: %q\n    tag: %q\n    pullPolicy: %q\n",
 		repository, tag, "IfNotPresent")
-	// The donor pulls from the project mirror rather than Docker Hub. The
-	// digest is cleared: the mirror's own digest differs from the upstream
-	// index pin the overlay carries, and the operator pins it in the overlay
-	// from mage gcp:mirrorDonor's output (eng08).
+	// The donor pulls from the project mirror rather than Docker Hub, and
+	// keeps the overlay's digest: gcp:mirrorDonor copies the manifest list
+	// byte-identically, so the mirror's digest is the upstream one the
+	// overlay already carries (GH-2437). Only the repository moves.
 	fmt.Fprintf(&document,
-		"  cliDonor:\n    image:\n      repository: %q\n      tag: %q\n      digest: \"\"\n      pullPolicy: %q\n",
+		"  cliDonor:\n    image:\n      repository: %q\n      tag: %q\n      pullPolicy: %q\n",
 		config.RegistryPath()+"/cli-donor", "1.31.4", "IfNotPresent")
 	for _, asset := range assets {
 		fmt.Fprintf(&document, "%s:\n  uiArchiveConfigMap: %q\n  uiArchiveChecksum: %q\n",
