@@ -3,15 +3,15 @@
 id: test-rel16.0-chart-conformance
 title: Release 16.0 Chart Conformance Test Suite
 release: "16.0"
-status: planned
+status: partial
 test_case_count: 10
 
 overview: |
-  TC1 parses and traces the Release 16.0 documents and is executable now. TC2
-  through TC9 name the tests the conformance module adds; TC10 names the
-  proof that the seeded violations are gone. Each case turns implemented when
-  its command exists and passes. Every case but TC1 runs under the repository
-  root audit.
+  TC1 parses and traces the Release 16.0 documents. TC2 through TC9 run the
+  conformance module GH-2408 added and are executable. TC10 names the proof
+  that the seeded violations are gone and turns implemented when GH-2409
+  empties the baseline. Every case but TC1 runs under the repository root
+  audit.
 
 traces:
   - rel16.0-uc001-chart-conformance
@@ -112,7 +112,7 @@ test_cases:
   - id: TC2
     use_case: rel16.0-uc001-chart-conformance
     name: Every chart renders under its defaults and every checked-in overlay
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2408
     command: |
@@ -130,7 +130,7 @@ test_cases:
   - id: TC3
     use_case: rel16.0-uc001-chart-conformance
     name: A floating tag fails the gate
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2408
     command: |
@@ -146,7 +146,7 @@ test_cases:
   - id: TC4
     use_case: rel16.0-uc001-chart-conformance
     name: Third-party images need digests and repository images need commit tags
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2408
     command: |
@@ -162,7 +162,7 @@ test_cases:
   - id: TC5
     use_case: rel16.0-uc001-chart-conformance
     name: Pull policy and service type stay inside what kind provides
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2408
     command: |
@@ -178,7 +178,7 @@ test_cases:
   - id: TC6
     use_case: rel16.0-uc001-chart-conformance
     name: A selected workload declares readiness
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2408
     command: |
@@ -194,7 +194,7 @@ test_cases:
   - id: TC7
     use_case: rel16.0-uc001-chart-conformance
     name: Kind configurations pin the node image by version and digest
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2408
     command: |
@@ -210,7 +210,7 @@ test_cases:
   - id: TC8
     use_case: rel16.0-uc001-chart-conformance
     name: The exception baseline suspends, refuses, and expires
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2408
     command: |
@@ -228,7 +228,7 @@ test_cases:
   - id: TC9
     use_case: rel16.0-uc001-chart-conformance
     name: A finding names chart, overlay, resource, value, and rule
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2408
     command: |
