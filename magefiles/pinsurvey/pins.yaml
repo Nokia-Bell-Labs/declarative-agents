@@ -1,0 +1,51 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Pins no chart render exposes (srd006 R1.2). Chart images are not listed
+# here: the survey reads them out of the rendered charts, so this file and
+# the charts cannot disagree. The smoke dependency registry derives from
+# chart values for the same reason.
+#
+# Each entry names the file and the symbol or field holding the pin, so the
+# report points at the line to edit. TestDeclaredPinsDescribeTheirLocations
+# fails when an entry stops describing what is there.
+pins:
+  - location: magefiles/kindrig/demo.go traefikImageDigests[amd64]
+    file: magefiles/kindrig/demo.go
+    image: docker.io/library/traefik
+    tag: v3.7.10
+    architecture: amd64
+    digest: sha256:0ae6898c4a6ad568e8eabad0839b1660eb54a72aa43089ead05c6f624f866b23
+
+  - location: magefiles/kindrig/demo.go traefikImageDigests[arm64]
+    file: magefiles/kindrig/demo.go
+    image: docker.io/library/traefik
+    tag: v3.7.10
+    architecture: arm64
+    digest: sha256:8f34ac785161ddfe26f4e291982967e92962c126120526a519c4cff521179436
+
+  - location: magefiles/kindrig/metrics.go metricsServerImageDigests[amd64]
+    file: magefiles/kindrig/metrics.go
+    image: registry.k8s.io/metrics-server/metrics-server
+    tag: v0.9.0
+    architecture: amd64
+    digest: sha256:25d291fde59974547bac6f07fa9d6cf6f5bedd1f19d60c893311c5e741e0a42f
+
+  - location: magefiles/kindrig/metrics.go metricsServerImageDigests[arm64]
+    file: magefiles/kindrig/metrics.go
+    image: registry.k8s.io/metrics-server/metrics-server
+    tag: v0.9.0
+    architecture: arm64
+    digest: sha256:d0341e07a1cf2b751e684cba68e2a0c62d3c5d2d23501fd67dc384d517ec65de
+
+  - location: magefiles/kindrig/clidonor.go CLIDonorImage
+    file: magefiles/kindrig/clidonor.go
+    image: docker.io/alpine/k8s
+    tag: "1.31.4"
+    digest: sha256:9c4976d47656d78cf53a92b0203fc54ac45eae18a2b45001ac221c27da4c8036
+
+  - location: magefiles/kindrig/platform-kind-config.yaml nodes[0].image
+    file: magefiles/kindrig/platform-kind-config.yaml
+    image: kindest/node
+    tag: v1.36.1
+    digest: sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
