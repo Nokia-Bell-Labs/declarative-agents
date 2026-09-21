@@ -67,15 +67,14 @@ roadmap_summary:
     evidence: srd004, the use case, and the nine-case suite are reciprocal and executable; the kit, shell, embedded observer, and monorepo migrations landed in GH-2156 through GH-2160.
   - version: "16.0"
     name: Chart conformance gate
-    use_cases_done: 0
+    use_cases_done: 1
     use_cases_total: 1
-    status: planned
+    status: implemented
     evidence: |
-      ENG01 carries the numbered chart rules, srd005 owns them, and the
-      ten-case suite traces them. TC1 through TC9 are executable: the gate
-      renders every chart under every checked-in overlay and reconciles
-      against a seeded baseline. TC10 turns implemented when GH-2409 empties
-      that baseline.
+      ENG01 carries the numbered chart rules, srd005 owns them, and all ten
+      suite cases are executable. The gate renders every chart under every
+      checked-in overlay; the baseline is empty, so the charts conform by
+      construction rather than by exception.
 
 foundation_document_index:
   - id: application-composition-pattern-language
@@ -153,7 +152,7 @@ srd_index:
     test_suites: [test-rel15.0-declarative-ux]
   - id: srd005-chart-conformance
     title: Chart Conformance Against the Rig Guideline
-    status: planned
+    status: implemented
     applicability: |
       R1 through R5 and R8 apply to every application that ships a chart; R6
       applies to every checked-in kind configuration; R7 governs the
@@ -206,7 +205,7 @@ use_case_index:
   - id: rel16.0-uc001-chart-conformance
     title: Add a Workload and Learn at Audit Time That Its Image Floats
     release: "16.0"
-    status: planned
+    status: implemented
     srds:
       - srd005-chart-conformance
     test_suite: test-rel16.0-chart-conformance
@@ -244,7 +243,7 @@ test_suite_index:
   - id: test-rel16.0-chart-conformance
     title: Release 16.0 Chart Conformance Test Suite
     release: "16.0"
-    status: partial
+    status: implemented
     test_case_count: 10
     traces: [rel16.0-uc001-chart-conformance]
     srds:
@@ -253,14 +252,14 @@ test_suite_index:
 
 coverage_gaps:
   - id: release-16-chart-conformance
-    status: planned
+    status: implemented
     description: |
-      The rules are specified and the gate runs. It found fifty violations
-      across five upstream images and eight init containers with no stated
-      pull policy; all fifty are baselined against GH-2409, which empties the
-      file. Until it does, the charts conform by exception rather than by
-      construction. Classifying an application template as an un-migrated
-      library candidate stays outside this release and is tracked in GH-2410.
+      The gate found fifty violations on its first run, across five upstream
+      images and the init containers that stated no pull policy. All fifty
+      are closed and the baseline is empty. Rules C4 and C5 found nothing
+      when the gate first ran and remain ratchets rather than cleanups.
+      Classifying an application template as an un-migrated library candidate
+      stays outside this release and is tracked in GH-2410.
   - id: release-15-declarative-ux
     status: implemented
     description: |

@@ -350,7 +350,7 @@ releases:
       chart under every checked-in values overlay, check the rendered
       manifests, and give an accepted violation one checked-in place that
       shrinks.
-    status: planned
+    status: implemented
     parent: gh-2047-chart-conformance
     dependencies:
       - id: srd003-application-consistency
@@ -367,7 +367,7 @@ releases:
           An engineer adds a workload whose image floats, the audit fails
           naming the chart, the overlay, the resource and the rule, and the
           exception baseline carries what must stand.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel16.0-chart-conformance
         summary: |
@@ -375,8 +375,8 @@ releases:
           numbered rule, the baseline's three behaviours, the shape of a
           finding, and the pinning of the seeded violations.
         status: planned
-        implemented_cases: [TC1, TC2, TC3, TC4, TC5, TC6, TC7, TC8, TC9]
-        planned_cases: [TC10]
+        implemented_cases: [TC1, TC2, TC3, TC4, TC5, TC6, TC7, TC8, TC9, TC10]
+        planned_cases: []
     implementation_sequence:
       - order: 1
         action: Add the ENG01 rule table and specify srd005, the use case, the suite, and the index entries (GH-2407).
@@ -386,7 +386,7 @@ releases:
         status: implemented
       - order: 3
         action: Pin the floating image tags and shrink the baseline (GH-2409).
-        status: planned
+        status: implemented
     implementation_evidence:
       - path: docs/engineering/eng01-kind-test-demo-rig.yaml
         proves: Numbered chart conformance rules C1 through C6 and the exception-baseline contract.
@@ -395,12 +395,16 @@ releases:
       - path: applications/docs/specs/use-cases/rel16.0-uc001-chart-conformance.yaml
         proves: The flow from a changed chart to a named finding to a shrinking baseline.
       - path: applications/docs/specs/test-suites/test-rel16.0-chart-conformance.yaml
-        proves: Requirement-to-AC-to-test coverage with TC1 through TC9 executable.
+        proves: Requirement-to-AC-to-test coverage with every case executable.
+      - path: applications/charts/agent-services/templates/_naming.tpl
+        proves: One helper renders every image reference and appends the digest the values pin.
+      - command: cd applications/chatbot-mesh && mage integration:helmSmoke
+        proves: The mesh installs and serves on the pinned images against a real cluster, Dolt metrics included.
       - path: magefiles/chartconf/
         proves: Every numbered rule, the shrink-only baseline, and the shape of a finding, checked from rendered YAML without helm.
       - path: magefiles/chart_conformance_test.go
         proves: Every chart rendered under its defaults and each checked-in overlay, every kind configuration read, and the baseline reconciled.
-      - path: docs/chart-conformance-baseline.yaml
+      - path: magefiles/chartconf/baseline.yaml
         proves: The fifty violations the charts carried when the gate first ran, each naming GH-2409.
       - command: cd magefiles && go test . -run TestChartConformance
         proves: The gate passes against the seeded baseline and fails on an unlisted or a stale entry.

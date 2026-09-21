@@ -14,6 +14,7 @@
       "properties": {
         "repository": {"$ref": "#/definitions/nonEmptyString"},
         "tag": {"$ref": "#/definitions/nonEmptyString"},
+        "digest": {"type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$"},
         "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
       }
     },
@@ -162,10 +163,11 @@
     "ollama": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "image", "models", "preload", "persistence", "resources", "gpu", "nodeSelector", "tolerations", "topology"],
+      "required": ["enabled", "image", "utilityImage", "models", "preload", "persistence", "resources", "gpu", "nodeSelector", "tolerations", "topology"],
       "properties": {
         "enabled": {"type": "boolean"},
         "image": {"$ref": "#/definitions/image"},
+        "utilityImage": {"type": "string", "pattern": "^[^[:space:]@]+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}(@sha256:[0-9a-f]{64})?$"},
         "models": {
           "type": "object",
           "additionalProperties": false,

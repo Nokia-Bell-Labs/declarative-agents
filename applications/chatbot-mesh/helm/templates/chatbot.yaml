@@ -88,7 +88,7 @@ spec:
         # persistent volume layout; IF NOT EXISTS makes pod restarts and Helm
         # upgrades safe.
         - name: initialize-dolt-database
-          image: "{{ .Values.dolt.image.repository }}:{{ .Values.dolt.image.tag }}"
+          image: {{ include "agent-services.pinnedImage" .Values.dolt.image | quote }}
           imagePullPolicy: {{ .Values.dolt.image.pullPolicy }}
           command: ["dolt"]
           args:

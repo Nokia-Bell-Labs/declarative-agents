@@ -50,6 +50,7 @@ spec:
         {{- if and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor")) }}
         - name: wait-for-models
           image: {{ $.Values.ollama.utilityImage | quote }}
+          imagePullPolicy: {{ $.Values.ollama.image.pullPolicy }}
           command: ["/bin/sh", "-c"]
           args:
             - |

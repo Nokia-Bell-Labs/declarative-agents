@@ -50,6 +50,10 @@ ollama:
   image:
     repository: declarative-agents/ollama
     tag: "0.32.5-kind-trusted"
+    # The rig-local retag is built on this host, so it carries no registry
+    # digest. Helm merges values, so the default's digest has to be cleared
+    # here or it would be appended to an image it does not describe.
+    digest: ""
     pullPolicy: Never
   models:
     embedding: all-minilm

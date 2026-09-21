@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Accepted chart conformance violations (srd005 R7, ENG01 chart conformance
+# rules). Shrink-only: every entry names the issue that removes it, the gate
+# fails on a violation this file does not list, and it fails again once a
+# listed violation stops reproducing. The gate reads this file and never
+# writes it.
+#
+# Empty since GH-2409 pinned every upstream image and stated every pull
+# policy. The charts conform by construction; an entry here is an accepted
+# exception with an issue behind it, not a backlog.
+exceptions: []

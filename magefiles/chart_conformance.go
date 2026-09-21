@@ -17,8 +17,11 @@ import (
 )
 
 // chartConformanceBaselinePath is the checked-in set of accepted violations,
-// relative to the repository root (srd005 R7).
-const chartConformanceBaselinePath = "docs/chart-conformance-baseline.yaml"
+// relative to the repository root (srd005 R7). It sits beside the package that
+// reads it, with the repository's other shrink-only ratchets, rather than
+// under docs/, which the document-placement audit reserves for declared
+// document types.
+const chartConformanceBaselinePath = "magefiles/chartconf/baseline.yaml"
 
 // conformanceApplications are the application charts the gate renders. The
 // list is the same one TestApplicationKindRendersHaveTypeMeta walks; a new

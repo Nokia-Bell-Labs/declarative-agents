@@ -58,7 +58,7 @@ spec:
       {{- end }}
       containers:
         - name: ollama
-          image: "{{ $ollama.image.repository }}:{{ $ollama.image.tag }}"
+          image: {{ include "agent-services.pinnedImage" $ollama.image | quote }}
           imagePullPolicy: {{ $ollama.image.pullPolicy }}
           {{- with $values.containerSecurityContext }}
           securityContext:
@@ -141,7 +141,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: preload
-          image: "{{ $ollama.image.repository }}:{{ $ollama.image.tag }}"
+          image: {{ include "agent-services.pinnedImage" $ollama.image | quote }}
           imagePullPolicy: {{ $ollama.image.pullPolicy }}
           {{- with $values.containerSecurityContext }}
           securityContext:
