@@ -48,6 +48,6 @@ The workload form is a serving wrapper: a short profile over shared fragments an
 
 ## Where to read next
 
-[capability-profiles.md](capability-profiles.md) explains writing and consuming a capability. [serving-wrappers.md](serving-wrappers.md) covers hosting one as a workload. [fragments.md](fragments.md) covers templates and declaration units. [ui-panels.md](ui-panels.md) covers the UI layer. The reuse measurements that motivate all of this live in [declaration-statistics.md](declaration-statistics.md).
+[capability-profiles.md](capability-profiles.md) explains writing and consuming a capability. [serving-wrappers.md](serving-wrappers.md) covers hosting one as a workload. [fragments.md](fragments.md) covers templates and declaration units. [ui-panels.md](ui-panels.md) covers the UI layer. [agentic-framework-comparison.md](agentic-framework-comparison.md) compares this composition model with code-first agent SDKs and durable workflow systems for network applications. The reuse measurements that motivate all of this live in [declaration-statistics.md](declaration-statistics.md).
 
 Where a unit lives, what earns it a shared location, and which reuse form fits a given repetition are conventions, not mechanics: [eng03-declaration-standard-library](../engineering/eng03-declaration-standard-library.yaml) states them.
