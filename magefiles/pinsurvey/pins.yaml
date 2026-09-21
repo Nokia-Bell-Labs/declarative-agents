@@ -55,3 +55,17 @@ pins:
     image: docker.io/fsouza/fake-gcs-server
     tag: "1.56.1"
     digest: sha256:797ce226d62f947c009dc40246b30cfb456b8473d8241407f9d6f2c04e4d69ef
+
+  - location: magefiles/kindrig/fakegcs.go fakeGCSImageDigests[amd64]
+    file: magefiles/kindrig/fakegcs.go
+    image: docker.io/fsouza/fake-gcs-server
+    tag: "1.56.1"
+    architecture: amd64
+    digest: sha256:af5fcc12a29db42953c9659dc44b478c164b78f6303390cf25fc93037d78522b
+
+  - location: magefiles/kindrig/fakegcs.go fakeGCSImageDigests[arm64]
+    file: magefiles/kindrig/fakegcs.go
+    image: docker.io/fsouza/fake-gcs-server
+    tag: "1.56.1"
+    architecture: arm64
+    digest: sha256:d018b5cd630d9a213df9c8608ebb81c9f1087cecdefe1eacc79ff79a24bdc43a
