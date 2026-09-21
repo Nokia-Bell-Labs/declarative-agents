@@ -47,12 +47,32 @@ func nodeImportCommand(image, cluster string) []string {
 		"node-import", image, cluster + "-control-plane", "linux/" + runtime.GOARCH}
 }
 
+// KubeContext is the kubeconfig context kind writes for a cluster.
+func KubeContext(cluster string) string { return "kind-" + cluster }
+
+// inCluster binds a kubectl command to one cluster's context. The installers
+// name the cluster they load images into, but kubectl otherwise follows
+// whatever context happens to be current, so a stale context sends the
+// manifest to one cluster while the image lands in another: the pod fails
+// ErrImageNeverPull and the rollout times out naming neither (GH-2428).
+// Commands that are not kubectl are returned unchanged.
+func inCluster(cluster string, command []string) []string {
+	if len(command) == 0 || command[0] != "kubectl" || strings.TrimSpace(cluster) == "" {
+		return command
+	}
+	bound := make([]string, 0, len(command)+2)
+	bound = append(bound, command[0], "--context", KubeContext(cluster))
+	return append(bound, command[1:]...)
+}
+
 // runInstallSteps runs steps in order, logging one phase line per step, and
-// stops at the first failure with the command and its output.
+// stops at the first failure with the command and its output. Every kubectl
+// step is bound to the named cluster's context.
 func runInstallSteps(run CommandRunner, cluster, component string, steps []installStep) error {
 	for _, step := range steps {
 		started := time.Now()
-		name, args := step.command[0], step.command[1:]
+		bound := inCluster(cluster, step.command)
+		name, args := bound[0], bound[1:]
 		output, err := run(name, args...)
 		detail := "component=" + component
 		if err != nil {

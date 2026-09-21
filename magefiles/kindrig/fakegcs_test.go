@@ -17,11 +17,11 @@ func TestInstallFakeGCSLoadsPinnedImageAndWaitsForRollout(t *testing.T) {
 	run := func(name string, args ...string) ([]byte, error) {
 		command := strings.Join(append([]string{name}, args...), " ")
 		calls = append(calls, command)
-		if strings.HasPrefix(command, "kubectl get deployment") {
+		if strings.HasPrefix(command, "kubectl --context kind-da-example get deployment") {
 			return []byte(`Error from server (NotFound): deployments.apps "fake-gcs" not found`), errors.New("NotFound")
 		}
-		if name == "kubectl" && len(args) == 3 && args[0] == "apply" {
-			data, err := os.ReadFile(args[2])
+		if name == "kubectl" && appliedManifestPath(args) != "" {
+			data, err := os.ReadFile(appliedManifestPath(args))
 			if err != nil {
 				return nil, err
 			}
@@ -42,14 +42,14 @@ func TestInstallFakeGCSLoadsPinnedImageAndWaitsForRollout(t *testing.T) {
 	}
 	runtimeImage := fakeGCSRuntimeRepository + ":" + fakeGCSImageVersion
 	want := []string{
-		"kubectl get deployment " + fakeGCSDeployment,
+		"kubectl --context kind-da-example get deployment " + fakeGCSDeployment,
 		"docker image inspect --format {{.Id}} " + source,
 		"docker tag " + source + " " + runtimeImage,
 		"node-import " + runtimeImage + " da-example-control-plane linux/" + runtime.GOARCH,
-		"kubectl apply -f ",
-		"kubectl rollout status deployment/" + fakeGCSDeployment +
+		"kubectl --context kind-da-example apply -f ",
+		"kubectl --context kind-da-example rollout status deployment/" + fakeGCSDeployment +
 			" --namespace " + fakeGCSNamespace + " --timeout=180s",
-		"kubectl delete -f ",
+		"kubectl --context kind-da-example delete -f ",
 	}
 	if len(calls) != len(want) {
 		t.Fatalf("calls = %v, want %d", calls, len(want))
@@ -137,5 +137,77 @@ func TestFakeGCSEndpointMatchesTheManifest(t *testing.T) {
 	}
 	if !strings.HasSuffix(FakeGCSEndpoint, "/storage/v1/") {
 		t.Errorf("endpoint = %q does not name the JSON API base", FakeGCSEndpoint)
+	}
+}
+
+// appliedManifestPath returns the -f path of a kubectl apply, wherever the
+// flag sits: binding a command to its cluster context (GH-2428) shifts every
+// positional argument, and a recorder that reads args[2] silently stops
+// seeing the manifest.
+func appliedManifestPath(args []string) string {
+	apply := false
+	for index, arg := range args {
+		if arg == "apply" {
+			apply = true
+		}
+		if apply && arg == "-f" && index+1 < len(args) {
+			return args[index+1]
+		}
+	}
+	return ""
+}
+
+// GH-2428: every kubectl an installer runs is bound to the cluster it loads
+// images into. Unbound, a stale context sends the manifest to one cluster
+// while the image lands in another, and the rollout times out naming
+// neither.
+func TestInstallersBindEveryKubectlToTheirCluster(t *testing.T) {
+	for name, install := range map[string]func(CommandRunner, string) error{
+		"fake-gcs": func(run CommandRunner, cluster string) error {
+			_, err := InstallFakeGCS(run, cluster)
+			return err
+		},
+		"metrics-server": func(run CommandRunner, cluster string) error {
+			_, err := InstallMetricsServer(run, cluster)
+			return err
+		},
+		"ingress": InstallIngress,
+	} {
+		t.Run(name, func(t *testing.T) {
+			var unbound []string
+			run := func(command string, args ...string) ([]byte, error) {
+				if command == "kubectl" {
+					joined := strings.Join(args, " ")
+					if !strings.HasPrefix(joined, "--context kind-da-target ") {
+						unbound = append(unbound, "kubectl "+joined)
+					}
+				}
+				if command == "kubectl" && strings.Contains(strings.Join(args, " "), "get ") {
+					return []byte("NotFound"), errors.New("NotFound")
+				}
+				return nil, nil
+			}
+			_ = install(run, "da-target")
+			if len(unbound) > 0 {
+				t.Errorf("%s ran kubectl against the ambient context:\n  %s",
+					name, strings.Join(unbound, "\n  "))
+			}
+		})
+	}
+}
+
+// A non-kubectl command is never rewritten, and an empty cluster leaves the
+// command alone rather than producing a context named "kind-".
+func TestInClusterLeavesOtherCommandsAlone(t *testing.T) {
+	docker := []string{"docker", "tag", "a", "b"}
+	if got := inCluster("da-example", docker); len(got) != len(docker) {
+		t.Errorf("docker command rewritten: %v", got)
+	}
+	kubectl := []string{"kubectl", "get", "pods"}
+	if got := inCluster("  ", kubectl); len(got) != len(kubectl) {
+		t.Errorf("empty cluster produced a context: %v", got)
+	}
+	if got := inCluster("da-example", kubectl); got[1] != "--context" || got[2] != "kind-da-example" {
+		t.Errorf("binding = %v", got)
 	}
 }
