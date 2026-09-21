@@ -91,13 +91,13 @@ func waitClusterRunning(run CommandRunner, config Config) error {
 // EnsureBucket creates or reuses the configured bucket with uniform
 // bucket-level access.
 func EnsureBucket(run CommandRunner, config Config) error {
-	if _, err := run("gcloud", "storage", "buckets", "describe",
+	if out, err := run("gcloud", "storage", "buckets", "describe",
 		"gs://"+config.Bucket, "--project", config.Project,
 		"--format=value(name)"); err == nil {
 		kindrig.LogPhase(config.Cluster, "bucket", "reused", time.Now(), "gs://"+config.Bucket)
 		return nil
-	} else if !notFound(err) {
-		return fmt.Errorf("describe bucket gs://%s: %w", config.Bucket, err)
+	} else if described := describeError(err, out); !notFound(described) {
+		return fmt.Errorf("describe bucket gs://%s: %w", config.Bucket, described)
 	}
 	started := time.Now()
 	if out, err := run("gcloud", "storage", "buckets", "create", "gs://"+config.Bucket,
@@ -115,11 +115,11 @@ func EnsureBucket(run CommandRunner, config Config) error {
 // identity user. Pods then reach the bucket with no stored credential
 // (srd059 R2.2, eng08).
 func EnsureIdentity(run CommandRunner, config Config) error {
-	if _, err := run("gcloud", "iam", "service-accounts", "describe", config.GSAEmail(),
+	if out, err := run("gcloud", "iam", "service-accounts", "describe", config.GSAEmail(),
 		"--project", config.Project, "--format=value(email)"); err == nil {
 		kindrig.LogPhase(config.Cluster, "service-account", "reused", time.Now(), config.GSAEmail())
-	} else if !notFound(err) {
-		return fmt.Errorf("describe service account %s: %w", config.GSAEmail(), err)
+	} else if described := describeError(err, out); !notFound(described) {
+		return fmt.Errorf("describe service account %s: %w", config.GSAEmail(), described)
 	} else {
 		started := time.Now()
 		if out, err := run("gcloud", "iam", "service-accounts", "create", config.ServiceAccount,
@@ -153,13 +153,13 @@ func EnsureIdentity(run CommandRunner, config Config) error {
 
 // EnsureRegistry creates or reuses the Artifact Registry repository.
 func EnsureRegistry(run CommandRunner, config Config) error {
-	if _, err := run("gcloud", "artifacts", "repositories", "describe", config.Registry,
+	if out, err := run("gcloud", "artifacts", "repositories", "describe", config.Registry,
 		"--project", config.Project, "--location", config.Region,
 		"--format=value(name)"); err == nil {
 		kindrig.LogPhase(config.Cluster, "registry", "reused", time.Now(), config.RegistryPath())
 		return nil
-	} else if !notFound(err) {
-		return fmt.Errorf("describe registry %s: %w", config.Registry, err)
+	} else if described := describeError(err, out); !notFound(described) {
+		return fmt.Errorf("describe registry %s: %w", config.Registry, described)
 	}
 	started := time.Now()
 	if out, err := run("gcloud", "artifacts", "repositories", "create", config.Registry,
@@ -173,8 +173,21 @@ func EnsureRegistry(run CommandRunner, config Config) error {
 	return nil
 }
 
+// describeError folds a command's combined output into its error. gcloud
+// writes what happened to the output and exits 1, so the Go error alone is
+// "exit status 1" and classification without the output reads nothing —
+// the defect a real project surfaced in GH-2435.
+func describeError(err error, out []byte) error {
+	trimmed := strings.TrimSpace(string(out))
+	if trimmed == "" {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, trimmed)
+}
+
 // notFound reports whether a gcloud error names an absent resource. gcloud
-// prints NOT_FOUND or 404 for describes of resources that do not exist.
+// prints NOT_FOUND or 404 for describes of resources that do not exist;
+// gcloud storage spells it lowercase with a trailing period.
 func notFound(err error) bool {
 	if err == nil {
 		return false

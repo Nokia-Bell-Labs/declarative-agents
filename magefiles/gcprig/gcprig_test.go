@@ -252,9 +252,15 @@ func TestEnsureBucketIdentityRegistrySequences(t *testing.T) {
 	}
 
 	absent := &recorder{answers: map[string]answer{
-		"gcloud storage buckets describe":        {out: "NOT_FOUND", err: errors.New("NOT_FOUND")},
-		"gcloud iam service-accounts describe":   {out: "NOT_FOUND", err: errors.New("NOT_FOUND")},
-		"gcloud artifacts repositories describe": {out: "NOT_FOUND", err: errors.New("NOT_FOUND")},
+		"gcloud storage buckets describe": {
+			out: "ERROR: (gcloud.storage.buckets.describe) gs://demo-project-agents not found: 404.",
+			err: errors.New("exit status 1")},
+		"gcloud iam service-accounts describe": {
+			out: "ERROR: (gcloud.iam.service-accounts.describe) NOT_FOUND",
+			err: errors.New("exit status 1")},
+		"gcloud artifacts repositories describe": {
+			out: "ERROR: NOT_FOUND: Requested entity was not found",
+			err: errors.New("exit status 1")},
 	}}
 	if err := EnsureBucket(absent.run, config); err != nil {
 		t.Fatal(err)
