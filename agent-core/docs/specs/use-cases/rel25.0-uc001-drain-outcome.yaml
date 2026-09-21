@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: rel25.0-uc001-drain-outcome
 title: A monitor exit on a loaded host succeeds and names its unfinished drain
-status: specified
+status: implemented
 
 summary: |
   An operator sends the control exit request to a running monitor while the

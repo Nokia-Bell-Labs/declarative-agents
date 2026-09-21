@@ -98,7 +98,8 @@ func (c Server) stop() core.Result {
 	receipt := undo.EncodeBoundaryReceipt(undo.BoundaryCompensationPayload{
 		BoundaryCompensation: undo.BoundaryCompensation{
 			Strategy: "server_shutdown_or_user_action_compensation",
-			Reason:   "server listener stopped and queued events drained",
+			Reason: "server listener released and queued events drained; connection drain " +
+				stringValue(output["connection_drain"]),
 			Requires: []string{"machine_owned_server_relaunch"},
 			Data: map[string]interface{}{
 				"server_addr": stringValue(output["address"]),

@@ -21,6 +21,7 @@ types:
     properties:
       server: {type: string}
       status: {type: string}
+      connection_drain: {type: string}
 - name: ControlEvent
   description: The control event an await selected.
   schema:

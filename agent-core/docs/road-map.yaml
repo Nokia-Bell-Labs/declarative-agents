@@ -1074,24 +1074,24 @@ releases:
       routes to the success terminal; whether the drain finished inside its
       budget becomes a structured field of the stop output that a machine can
       branch on. Faults that are not an expired budget keep failing.
-    status: in_progress
+    status: done
     planned_work:
       - id: gh-2448
         summary: Amend srd033 R6.5, add R6.10, and specify the use case and suite.
-        status: specified
+        status: implemented
       - id: gh-2449
         summary: Classify the deadline in the stop path and report the drain field.
-        status: planned
+        status: implemented
     srds:
       - srd033-monitor-rest-api
     use_cases:
       - id: rel25.0-uc001-drain-outcome
         summary: A monitor exit on a loaded host succeeds and names its unfinished drain.
-        status: specified
+        status: implemented
     test_suites:
       - id: test-rel25.0-drain-outcome
         summary: The incomplete drain that still succeeds, the reported field in both directions, the faults that stay failures, and the release proof on its shipped budget.
-        status: specified
+        status: implemented
     follow_up:
       - The four shipped shutdown budgets stay as authored; this release does not retune them.
     proof:

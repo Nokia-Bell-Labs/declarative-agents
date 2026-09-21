@@ -144,7 +144,7 @@ var restRuntimeOutputProperties = map[string]map[string]bool{
 	InitServerStop: {
 		"server": true, "address": true, "drained_events": true,
 		"dropped_events": true, "status": true, "drain_policy": true,
-		"queue_outcome": true, "active_streams": true,
+		"queue_outcome": true, "active_streams": true, "connection_drain": true,
 	},
 }
 

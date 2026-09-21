@@ -144,6 +144,7 @@ tools:
           drained_events: {type: integer}
           dropped_events: {type: integer}
           status: {type: string}
+          connection_drain: {type: string}
     side_effects:
       - kind: network_listener_shutdown
         target: configured_rest_server
@@ -160,7 +161,7 @@ tools:
       captures: [server, address, drained_events, dropped_events, relaunch_requirement]
     errors:
       - signal: CommandError
-        condition: Missing server, shutdown timeout, cleanup failure, or drain failure.
+        condition: Missing server, cleanup failure, or a shutdown fault other than an expired drain budget.
         message_shape: "rest_server_stop: <stage>: <redacted diagnostic>"
         state_after_failure: Server state reports partial shutdown when cleanup fails.
     config:

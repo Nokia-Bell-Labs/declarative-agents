@@ -209,9 +209,9 @@ roadmap_summary:
     status: done
   - version: "25.0"
     name: Monitor drain outcome
-    use_cases_done: 0
+    use_cases_done: 1
     use_cases_total: 1
-    status: in_progress
+    status: done
   - version: "99.0"
     name: Architectural migrations and cleanup
     use_cases_done: 2
@@ -814,7 +814,7 @@ use_case_index:
   - id: rel25.0-uc001-drain-outcome
     title: A monitor exit on a loaded host succeeds and names its unfinished drain
     release: "25.0"
-    status: specified
+    status: implemented
     test_suite: test-rel25.0-drain-outcome
     path: docs/specs/use-cases/rel25.0-uc001-drain-outcome.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
@@ -1055,7 +1055,7 @@ test_suite_index:
     traces:
       - rel25.0-uc001-drain-outcome
     formal_test_cases: 5
-    status: specified
+    status: implemented
     path: docs/specs/test-suites/test-rel25.0-drain-outcome.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
