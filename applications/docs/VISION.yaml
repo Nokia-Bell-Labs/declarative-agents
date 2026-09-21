@@ -57,6 +57,13 @@ what_this_does: |
   structural evidence. Application-local documents add business behavior and
   cite shared requirement IDs.
 
+  The persistent-platform contract adds the operating boundary for
+  Helm-managed applications. One local or cloud platform supplies shared
+  ingress and object-storage service, while each application retains one
+  namespace, release, collector gateway, application-specific bucket, and
+  lifecycle authority. Compute teardown preserves retained data; explicit
+  purge and reset operations own deletion.
+
 why_we_build_this: |
   Some outcomes cross responsibilities that cannot safely share authority,
   failure, scaling, or lifecycle. A deliberate multi-agent composition makes
@@ -195,6 +202,24 @@ success_criteria:
   local_extensions_are_traceable: |
     Application-local architecture and SRDs cite this contract, then define
     application-specific behavior and evidence without copying shared text.
+  platform_and_application_ownership_are_separate: |
+    Shared platform services, application compute, and retained data have
+    distinct authorities. One application's lifecycle cannot stop another
+    application or delete its bucket.
+  retained_data_has_an_explicit_lifecycle: |
+    Application and platform down preserve immutable telemetry objects.
+    Retained history is not a live query service while its application
+    collector is absent, and redeployment against the same bucket restores
+    scoped query access.
+  local_and_cloud_declarations_match: |
+    Kind fake GCS and cloud GCS or S3 differ in bootstrap, identity, and values
+    overlays, not application or collector declarations. Cloud bucket IAM
+    enforces tenant isolation; local fake GCS claims configuration separation
+    only.
+  lifecycle_mechanics_are_reused: |
+    First-party and downstream applications expose thin Mage verbs over one
+    released application-rig package rather than copying namespace, Helm,
+    collector, bucket, or evidence orchestration.
   structural_evidence_is_executable: |
     Root Go tests, root Mage gates, YAML parsing, and application-local targets
     provide commands that verify every implemented conformance claim.
@@ -214,6 +239,11 @@ not:
   - We do not replace agent-core runtime contracts.
   - We do not make prose or directory presence sufficient evidence of runtime
     behavior.
+  - We do not provide a permanent global telemetry query service or
+    cross-application telemetry index.
+  - We do not claim authenticated adversarial isolation for local fake GCS.
+  - We do not share vector storage before collection authorization and
+    embedding-identity isolation are specified.
 
 canonical_documents:
   - docs/ARCHITECTURE.yaml
@@ -221,3 +251,4 @@ canonical_documents:
   - docs/SPECIFICATIONS.yaml
   - docs/specs/software-requirements/srd001-application-module-contract.yaml
   - docs/specs/software-requirements/srd002-managed-application-services.yaml
+  - docs/specs/software-requirements/srd008-persistent-application-platform.yaml

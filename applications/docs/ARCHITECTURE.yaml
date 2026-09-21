@@ -39,6 +39,22 @@ overview:
       D[Shared SRDs] --> L
       X[Application SRDs] --> L
     ```
+  persistent_platform_flow: |
+    ```mermaid
+    flowchart LR
+      U[External HTTP client] -->|HTTP ingress| T[Shared Traefik]
+      T -->|HTTP| AS[Application Service]
+      AA[Application agent] -->|internal REST / Service DNS| AS
+      AA -->|OTLP / Service DNS| C[Application collector]
+      C -->|WAL then immutable objects| B[(Application-specific bucket)]
+      Q[Application UI or operator] -->|REST query| C
+      AA -->|vector query / Service DNS| V[Application vector service]
+      C -. optional OTLP relay .-> H[Host integration-evidence ingress]
+    ```
+    Traefik owns external HTTP only. Internal REST, OTLP, object storage, and
+    vector queries use their declared service or provider endpoints. The
+    application collector is the query authority for its bucket; retained
+    objects alone are not a live query service.
 
 interfaces:
   - name: root Mage orchestration
@@ -81,6 +97,19 @@ interfaces:
       docs/engineering/eng01-kind-test-demo-rig.yaml governs an application that
       claims kind_demo. This architecture does not copy its toolchain, cluster,
       image, network, observability, evidence, or verb requirements.
+  - name: persistent application platform
+    summary: |
+      One `da-platform` supplies shared Traefik, object storage,
+      metrics-server, and storage provisioning. Each manifest-derived
+      application owns one stable namespace, release, collector gateway,
+      application-specific bucket identity, and lifecycle boundary. ENG08
+      realizes the same contract on GCP.
+  - name: reusable application rig
+    summary: |
+      The root Mage module publishes `magefiles/apprig`. It consumes validated
+      manifest and platform bindings and implements
+      `app:up|status|down|diagnose|purge`. First-party and downstream modules
+      expose thin verbs and retain application-specific values and assertions.
 
 components:
   - name: shared application contract
@@ -168,6 +197,25 @@ components:
       entry-point, verification, and documentation sections. Keep baseline and
       optional capability statuses independent and align audit_only or runnable
       status with root Mage classification.
+  - name: persistent platform services
+    path: magefiles/kindrig/ and magefiles/gcprig/
+    responsibility: |
+      Bootstrap or reconnect shared ingress, object-storage endpoint,
+      metrics-server, storage provisioning, and cloud identity adapters.
+      Platform down preserves retained data; local platform reset is the
+      explicit destructive path.
+  - name: application lifecycle runner
+    path: magefiles/apprig/
+    responsibility: |
+      Resolve one application manifest into release, namespace, route,
+      collector, and bucket bindings; run lifecycle and evidence mechanics; and
+      leave application behavior and assertions with the caller.
+  - name: application collector gateway
+    path: applications/catalog/agents/collector/
+    responsibility: |
+      Accept application OTLP, record immutable object identity and upload
+      state in a local WAL, persist versioned trace and metric objects, serve
+      application-scoped queries, and optionally relay OTLP.
 
 design_decisions:
   - id: 1
@@ -339,6 +387,61 @@ design_decisions:
       - Shared panels cannot drift with one application's backend.
       - ui.yaml is the composition input rather than a checked copy of the routes.
       - The same bundle runs same-origin or under a shell with remote base URLs.
+  - id: 14
+    title: Platform, application compute, and retained data have separate owners
+    decision: |
+      Platform lifecycle owns shared compute. Each application lifecycle owns
+      one manifest-derived release and namespace. Retention authority owns one
+      application-specific bucket and permits deletion only through explicit
+      `app:purge`; local platform data deletion requires `platform:reset`.
+    benefits:
+      - Ordinary shutdown cannot silently become data deletion.
+      - Two applications can be operated independently on one platform.
+      - Diagnosis can identify the authority responsible for a failed boundary.
+  - id: 15
+    title: The application collector is the retained-history query authority
+    decision: |
+      Each application keeps its collector gateway. The collector writes WAL
+      state before immutable object upload and serves queries scoped to its
+      application bucket. When `app:down` removes the collector, objects remain
+      but no live query API remains; redeployment restores access. There is no
+      permanent global query service in this release.
+    benefits:
+      - Retention survives compute without over-claiming availability.
+      - Query authorization and application identity remain co-located.
+      - A later global index requires an explicit new contract.
+  - id: 16
+    title: One shared object service contains application-specific buckets
+    decision: |
+      Local fake GCS and cloud object storage expose one provider endpoint, but
+      every application receives its own bucket. Cloud workload identity and
+      bucket IAM enforce isolation. Local fake GCS proves declared
+      configuration and lifecycle separation only.
+    benefits:
+      - Shared infrastructure does not erase tenant identity.
+      - Local and cloud use identical collector declarations.
+      - The local threat claim stays within what fake GCS can enforce.
+  - id: 17
+    title: Protocol paths do not collapse into ingress
+    decision: |
+      Shared Traefik handles external HTTP. Internal REST and OTLP use
+      application Service DNS. Collectors reach object storage directly, and
+      vector clients reach their declared vector service directly.
+    benefits:
+      - Routing, failure, and authorization boundaries remain visible.
+      - Internal telemetry does not depend on public ingress.
+      - Tests can attribute each path independently.
+  - id: 18
+    title: One reusable package owns application lifecycle mechanics
+    decision: |
+      `magefiles/apprig` consumes the normalized application manifest and
+      platform adapters. First-party and downstream modules import it and expose
+      thin verbs. Application-specific values and assertions remain local and
+      no second composition inventory is introduced.
+    benefits:
+      - Lifecycle fixes have one owner.
+      - Downstream applications can pin a release instead of copying code.
+      - The manifest remains the composition authority.
 
 technology_choices:
   - component: Structured documentation
@@ -356,6 +459,9 @@ technology_choices:
   - component: Optional cluster packaging
     technology: Helm and kind
     purpose: Implement helm_managed and kind_demo capabilities when declared.
+  - component: Durable application telemetry
+    technology: Application collector, local WAL, and GCS/S3-compatible object storage
+    purpose: Retain immutable application-scoped trace and metric objects beyond compute lifecycles.
 
 project_structure:
   target_application:
@@ -439,6 +545,10 @@ project_structure:
       role: Root metrics aggregation and canonical agent totals.
     - path: magefiles/tag.go
       role: Root release gates and the single repository release tag.
+    - path: magefiles/apprig/
+      role: |
+        Planned reusable manifest-driven application lifecycle package for
+        first-party and downstream thin Mage verbs.
 
 implementation_status:
   current_focus: |
@@ -496,6 +606,10 @@ implementation_status:
     - implemented: Release 15.0 srd004. The UI kit owns tokens, the client,
         fixtures, shell, and panels; Chatbot Mesh, bench, collector, and the
         curator monitor run on it; the observer is an embedded bundle.
+    - planned: Release 19.0 srd008 defines one persistent local/cloud platform,
+        separate platform/application/data authorities, per-application
+        collector and bucket identity, WAL-first immutable telemetry,
+        teardown/query semantics, and the reusable application-rig boundary.
 
 related_documents:
   - doc: docs/pattern-language.yaml
@@ -535,5 +649,9 @@ related_documents:
     purpose: Composition-only runnable application reference.
   - doc: ../agent-architecture/docs/ARCHITECTURE.yaml
     purpose: Composition-only demo classification and partial managed-service evidence boundary.
+  - doc: docs/specs/software-requirements/srd008-persistent-application-platform.yaml
+    purpose: Persistent platform ownership, lifecycle, routing, storage, query, threat, and reusable runner contract.
+  - doc: ../../docs/engineering/eng08-gcp-demo-rig.yaml
+    purpose: Cloud realization of the persistent application platform.
   - doc: ../../magefiles/build.go
     purpose: Executable module classification.
