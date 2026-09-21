@@ -99,8 +99,8 @@ and latency while keeping the harness unchanged.
 
 Provider portability -- Changing the model within a provider is a
 configuration edit; supporting a new provider needs only a new adapter,
-leaving the machine and tools untouched. Ollama and Cohere v2 are the shipped
-adapters.
+leaving the machine and tools untouched.
+Ollama and Cohere v2 are the shipped provider adapters.
 
 Single instrumentation point -- Spans and token accounting are tool-specific;
 `invoke_llm` maps to GenAI's `chat` operation, producing a `chat <model>` span

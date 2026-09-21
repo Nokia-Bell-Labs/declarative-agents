@@ -169,7 +169,7 @@ tools:
 
 `ApplyDynamicToolPhases` derives phase metadata from the machine grammar and
 intersects it with explicit ToolDef phases. `Registry.Manifest`, parse-time
-validation, and dynamic dispatch share the `ResolveExternalTool/AvailableIn`
+validation, and dynamic dispatch share the `ResolveExternalTool`/`AvailableIn`
 rule. `ValidateToolPhases` runs pre-registration, rejecting empty
 intersections or selector/parser path mismatches. The parser reads its ToolDef
 state, unaffected by registration order.

@@ -22,8 +22,8 @@ metrics, recent events, event SSE, and OpenAPI. It does not expose its own
 control route; instead, `agent-core` injects the `POST /api/lifecycle/exit`
 endpoint—GH-1264— into every agent, emitting `ExitRequested` and allowing the
 profile's control logic to await this route. The listener binds to
-`127.0.0.1:0`, and supervisors retrieve the address from the REST launch
-output.
+`127.0.0.1:0`, and supervisors retrieve the address from the
+REST launch output.
 
 The REST runtime contains conformance-tested `lifecycle_control` and
 `inject_signal` bindings, although no production profile selects them. Design

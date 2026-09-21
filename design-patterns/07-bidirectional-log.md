@@ -23,7 +23,7 @@ persistence, reverse receipt walking, and the internal `checkpoint_rollback`
 lifecycle tool. Test suites verify database rewind and both clean and
 partially failed receipt reversals.
 
-A production coding-agent profile does not route validation failures into
+No production coding-agent profile routes validation failure into
 `checkpoint_rollback`. The deployment-confirmation flow appears only in
 Chapter 10's Approval Gate conformance/design material. Automatic coding
 retry, gated deployment recovery, and generated compensation for mixed API
