@@ -279,3 +279,20 @@ func TestImageReferencesAreUniqueAndOrdered(t *testing.T) {
 		t.Error("an empty render should yield no images")
 	}
 }
+
+// An Artifact Registry copy of this checkout's image is repository-built;
+// a mirrored third-party image under the same registry is not (srd005 R2.2,
+// eng08).
+func TestArtifactRegistryClassification(t *testing.T) {
+	cases := map[string]bool{
+		"us-central1-docker.pkg.dev/demo/agents/agent-core:a1b2c3":           true,
+		"us-central1-docker.pkg.dev/demo/agents/agent-core-toolchain:a1b2c3": true,
+		"us-central1-docker.pkg.dev/demo/agents/cli-donor:1.31.4":            false,
+		"docker.io/alpine/k8s:1.31.4":                                        false,
+	}
+	for image, want := range cases {
+		if got := IsRepositoryImage(image); got != want {
+			t.Errorf("IsRepositoryImage(%q) = %v, want %v", image, got, want)
+		}
+	}
+}

@@ -1,0 +1,136 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: eng08-gcp-demo-rig
+title: "GCP Demo Rig: the Cloud Twin of the kind Rig"
+
+introduction: |
+  ENG01 gives every application one local rig: a kind cluster, pinned
+  add-ons, and a values overlay, so the same chart installs on any
+  developer machine. This guideline is the cloud half of the same doctrine.
+  A mesh moves from the kind rig to Google Kubernetes Engine by changing
+  the bootstrap layer and one values overlay, and nothing else: the charts,
+  the declarations, and the agent code are byte-identical in both
+  environments. Emulators exist locally to make the rig look like the
+  cloud; on GCP the real services stand where the emulators stood, and the
+  objectstore words that bound fake-gcs-server through an explicit endpoint
+  bind a real bucket by leaving that endpoint out.
+
+  We provision with gcloud from a mage package, gcprig, mirroring kindrig's
+  style: idempotent create-or-reuse by name, readiness observed rather than
+  assumed, teardown that removes only what the rig created, and settings
+  from a checked-in optional file with literal defaults in Go. Terraform
+  remains the fallback if the resource inventory outgrows a script; at one
+  cluster, one bucket, a few bindings, and one registry, gcloud in mage
+  keeps a single toolchain.
+
+sections:
+  - title: "Toolchain and preflight"
+    content: |
+      The rig depends on one host binary, gcloud, and on an authenticated
+      account with access to the configured project. Provisioning is always
+      operator-requested, so a missing tool is an error with a one-line
+      install pointer, an unauthenticated gcloud is an error naming
+      `gcloud auth login`, and an inaccessible project is an error naming
+      the configured project id. Nothing in this rig skips silently: the
+      ENG01 skip convention exists for integration checks a laptop may
+      lack tools for, and no gcp verb is such a check.
+
+      kubectl and helm requirements are unchanged from ENG01; the cluster
+      credential that `gcloud container clusters get-credentials` writes is
+      an ordinary kubeconfig context the existing deploy machinery uses.
+
+  - title: "Configuration"
+    content: |
+      Settings come from literal defaults in Go, overridden by one optional
+      checked-in file, gcp.yaml, beside the repository root: the demo.yaml
+      pattern kindrig established, applied to the cloud (ENG07 owns the
+      discipline). The file names the project, region, cluster, bucket,
+      registry repository, and the workload identity pair. No environment
+      variable is read anywhere in the rig, and no credential appears in
+      any file: authentication is gcloud's own account state, and workload
+      credentials do not exist at all under workload identity.
+
+  - title: "Resource inventory"
+    content: |
+      Table 1: Resources the rig provisions
+
+      | Resource | Shape | Reason |
+      |----------|-------|--------|
+      | GKE cluster | Autopilot, create-or-reuse by name | No node pools to manage and per-pod billing, the right size for a demo mesh |
+      | GCS bucket | Uniform bucket-level access, create-or-reuse | Backs the objectstore family (srd059); the words bind it by bucket URL alone |
+      | Service account and bindings | GSA with storage.objectAdmin scoped to the bucket; workloadIdentityUser for the configured namespace/KSA pair | Pods reach the bucket through ambient identity; nothing is stored, mounted, or rotated |
+      | Artifact Registry repository | Docker format, create-or-reuse | Receives the agent-core image and the mirrored CLI donor |
+
+      Every create is preceded by a describe: an existing healthy resource
+      is reused, and an existing resource in an unexpected state is refused
+      rather than adopted, because its ownership is unknown — the same
+      guard the kindrig add-ons apply. Readiness is observed by polling the
+      resource's reported status with a deadline, never assumed from the
+      create call returning.
+
+      Teardown deletes only the exact names the configuration declares, in
+      reverse order with the cluster last, and requires an explicit
+      confirmation argument. A shared project may hold resources the rig
+      did not create, and a teardown that guesses is how someone loses a
+      bucket.
+
+  - title: "Image delivery"
+    content: |
+      The agent-core image is tagged with the short git commit hash and
+      pushed to the project registry, never `latest` (ENG01's rule, stated
+      here for the push rather than the kind load). The deploy overlay
+      carries a fail-closed sentinel tag the deploy target replaces with
+      the pushed revision, exactly as the kind overlays do.
+
+      The applier's CLI donor is mirrored into the project registry and
+      pinned by digest in gcp-values under applier.cliDonor.image.
+      Enterprise GKE nodes are commonly barred from Docker Hub and its rate
+      limits, so the chart must not ask the node to pull from there; the
+      mirror is the rig's to create and the pin is per-environment because
+      the donor's kubectl minor tracks the managed cluster's version. The
+      donor keeps helm 3 while the exec declarations use helm 3 flag
+      spellings, as the applier's flag guards enforce.
+
+  - title: "Deploying"
+    content: |
+      The rig adds no install path. Deploying to GKE is the same applier
+      deploy machine mage deploy runs against kind (srd022 R6): the target
+      points the machine at the cluster's kubeconfig context and passes the
+      application's gcp-values overlay. Day-0 and day-2 stay one sequence,
+      and a third Helm path never appears.
+
+      An application's gcp-values.yaml is the whole per-application
+      difference: registry image paths, the donor mirror pin, and the
+      objectstore bucket URL with no endpoint override, so the words
+      resolve real GCS through ambient identity (srd059 R2.2, R2.3).
+
+  - title: "Verbs"
+    content: |
+      Table 2: GCP rig verbs at the repository root
+
+      | Verb | Contract |
+      |------|----------|
+      | gcp:up | Provisions or reuses the cluster, bucket, identity binding, and registry from the checked-in configuration; observes readiness; leaves everything running |
+      | gcp:down | Deletes only the configured names, cluster last, behind an explicit confirmation argument |
+      | gcp:pushAgentCore | Tags the local agent-core image with the short commit hash and pushes it to the configured registry |
+      | gcp:mirrorDonor | Copies the digest-pinned CLI donor into the configured registry and reports the mirror's digest for the overlay pin |
+
+  - title: "Secrets"
+    content: |
+      Workload identity removes stored cloud credentials entirely. What it
+      does not remove are third-party API secrets, and those follow the
+      sync pattern when one exists: the chart consumes a plain Kubernetes
+      Secret identically in both environments; the local rig creates it
+      from declared configuration, and on GCP an operator-installed sync
+      (External Secrets Operator or the Secret Manager CSI driver) fills
+      the same Secret from Secret Manager. We record the decision here and
+      build none of it until an application carries a real secret.
+
+references:
+  - "docs/engineering/eng01-kind-test-demo-rig.yaml (the local half of the doctrine)"
+  - "docs/engineering/eng06-releases-and-pinning.yaml (commit-tagged images and pin discipline)"
+  - "docs/engineering/eng07-configuration-discipline.yaml (checked-in optional config, literal defaults, no environment variables)"
+  - "agent-core/docs/specs/software-requirements/srd059-objectstore-tools.yaml (the words the bucket backs)"
+  - "applications/catalog/docs/specs/software-requirements/srd022-applier.yaml (R6, the deploy machine this rig points at GKE)"
+  - "Workload Identity, https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity"
+  - "GKE Autopilot, https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview"

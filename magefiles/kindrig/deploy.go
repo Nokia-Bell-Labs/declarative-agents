@@ -58,6 +58,15 @@ type DeployRequest struct {
 	CatalogRoot string
 	// HelmVersion overrides the local helm version probe. Tests set it.
 	HelmVersion func() (string, error)
+	// KubeconfigPath, when set, names a kubeconfig file the deploy uses
+	// instead of asking kind for the cluster's. It is how the GCP rig
+	// (eng08) points this same machine at GKE: the machine, the words, and
+	// the coordinates are unchanged, only where the credential comes from.
+	KubeconfigPath string
+	// ProbeCluster overrides the reachability probe used with
+	// KubeconfigPath. Tests set it; the default asks the API server for
+	// /readyz through the provided kubeconfig.
+	ProbeCluster func(kubeconfig string) error
 }
 
 // Deploy installs or upgrades one release by running the catalog applier's
@@ -85,9 +94,21 @@ func runDeployMachine(request DeployRequest, verb string, succeeded ...string) e
 	// The undeploy machine reads a failing helm_history as an absent release.
 	// That is only safe once an unreachable cluster has been ruled out, so this
 	// check is part of the machine's correctness contract rather than a
-	// convenience (srd022 R6.5).
-	if !Exists(CaptureRun, request.Cluster) {
-		return fmt.Errorf("%s: cluster %s is not running", verb, request.Cluster)
+	// convenience (srd022 R6.5). A caller-provided kubeconfig names a cluster
+	// kind does not know, so its probe asks that cluster's API server instead.
+	if request.KubeconfigPath == "" {
+		if !Exists(CaptureRun, request.Cluster) {
+			return fmt.Errorf("%s: cluster %s is not running", verb, request.Cluster)
+		}
+	} else {
+		probe := request.ProbeCluster
+		if probe == nil {
+			probe = probeClusterReadyz
+		}
+		if err := probe(request.KubeconfigPath); err != nil {
+			return fmt.Errorf("%s: cluster behind %s is not reachable: %w",
+				verb, request.KubeconfigPath, err)
+		}
 	}
 	// A version mismatch is reported and does not stop the run; only a probe
 	// that could not execute at all aborts, since that means helm is unusable.
@@ -106,7 +127,7 @@ func runDeployMachine(request DeployRequest, verb string, succeeded ...string) e
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		return fmt.Errorf("%s: create workspace %s: %w", verb, workspace, err)
 	}
-	kubeconfig, err := stageKubeconfig(request.Cluster, destination)
+	kubeconfig, err := stageDeployKubeconfig(request, destination)
 	if err != nil {
 		return fmt.Errorf("%s: %w", verb, err)
 	}
@@ -138,6 +159,33 @@ func runDeployMachine(request DeployRequest, verb string, succeeded ...string) e
 	}
 	fmt.Printf("%s: rendered %s\n", verb, destination)
 	return request.Agent.run(verb, profile, workspace, seed, succeeded)
+}
+
+// stageDeployKubeconfig stages the caller's kubeconfig when one is named and
+// the kind cluster's otherwise, so both rigs share one render layout.
+func stageDeployKubeconfig(request DeployRequest, destination string) (string, error) {
+	if request.KubeconfigPath == "" {
+		return stageKubeconfig(request.Cluster, destination)
+	}
+	data, err := os.ReadFile(request.KubeconfigPath)
+	if err != nil {
+		return "", fmt.Errorf("read kubeconfig %s: %w", request.KubeconfigPath, err)
+	}
+	staged := filepath.Join(destination, "kubeconfig")
+	if err := os.WriteFile(staged, data, 0o600); err != nil {
+		return "", fmt.Errorf("stage kubeconfig %s: %w", staged, err)
+	}
+	return staged, nil
+}
+
+// probeClusterReadyz asks the API server behind a kubeconfig for /readyz.
+func probeClusterReadyz(kubeconfig string) error {
+	out, err := exec.Command("kubectl", "--kubeconfig", kubeconfig,
+		"get", "--raw", "/readyz").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 // stageKubeconfig copies the cluster's kubeconfig into the render directory

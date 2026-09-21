@@ -19,7 +19,9 @@ introduction: |
   as the container engine and kind (Kubernetes in Docker) as the cluster
   runtime; helm delivers the charts. Podman support is deferred but the
   design keeps the engine behind an interface so it can be added without
-  reworking the rig.
+  reworking the rig. ENG08 is this rig's cloud twin: the same charts and
+  overlay discipline pointed at GKE, with the differences confined to the
+  bootstrap layer.
 
 sections:
   - title: "Toolchain and preflight"
@@ -472,5 +474,6 @@ references:
   - "applications/catalog/docs/specs/software-requirements/srd023-rig-doctor.yaml (evidence directory contract and rig-doctor diagnosis)"
   - "magefiles/tag_platform.go (release-run platform gate and teardown)"
   - "applications/docs/specs/software-requirements/srd006-pin-currency.yaml (pin integrity and currency requirements behind mage bump)"
+  - "docs/engineering/eng08-gcp-demo-rig.yaml (the cloud twin of this rig)"
   - "applications/docs/specs/software-requirements/srd007-release-annotation.yaml (release-annotation verification behind mage tag:verify)"
   - "applications/docs/specs/software-requirements/srd005-chart-conformance.yaml (numbered chart conformance requirements and the exception baseline)"

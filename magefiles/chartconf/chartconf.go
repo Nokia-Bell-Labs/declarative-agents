@@ -206,7 +206,11 @@ func Check(chart, overlay string, documents []Document) []Finding {
 }
 
 // IsRepositoryImage reports whether an image reference names an image this
-// checkout builds (srd005 R2.2).
+// checkout builds (srd005 R2.2). An Artifact Registry copy is still this
+// checkout's build: gcp:pushAgentCore pushes commit-tagged images under
+// <region>-docker.pkg.dev/<project>/<repository>/, and the registry prefix
+// is per-deployment configuration, so the classification keys on the pushed
+// image's own name rather than the registry host (eng08).
 func IsRepositoryImage(image string) bool {
 	lowered := strings.ToLower(image)
 	for _, prefix := range RepositoryImagePrefixes {
@@ -214,7 +218,25 @@ func IsRepositoryImage(image string) bool {
 			return true
 		}
 	}
+	if strings.Contains(lowered, "-docker.pkg.dev/") {
+		for _, name := range repositoryImageNames {
+			if strings.HasSuffix(repositoryOf(lowered), "/"+name) {
+				return true
+			}
+		}
+	}
 	return false
+}
+
+// repositoryImageNames are the image names this checkout pushes to a cloud
+// registry. A mirrored third-party image (the CLI donor) is not among them,
+// so it keeps its digest obligation.
+var repositoryImageNames = []string{"agent-core", "agent-core-toolchain"}
+
+// repositoryOf strips the tag and digest from a lowered reference.
+func repositoryOf(lowered string) string {
+	repository, _, _ := splitImage(lowered)
+	return repository
 }
 
 // splitImage separates an image reference into repository, tag, and digest.
