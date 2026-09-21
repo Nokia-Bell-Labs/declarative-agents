@@ -37,15 +37,12 @@ const donorMirrorTag = "cli-donor:1.31.4"
 func MirrorDonor(run CommandRunner, config Config) (string, error) {
 	mirror := config.RegistryPath() + "/" + donorMirrorTag
 	started := time.Now()
-	steps := [][]string{
-		{"gcloud", "auth", "configure-docker", config.Region + "-docker.pkg.dev", "--quiet"},
-		{"docker", "buildx", "imagetools", "create", "--tag", mirror, donorSourceImage},
+	if out, err := run("gcloud", "auth", "configure-docker",
+		config.Region+"-docker.pkg.dev", "--quiet"); err != nil {
+		return "", fmt.Errorf("gcloud auth: %w: %s", err, strings.TrimSpace(string(out)))
 	}
-	for _, step := range steps {
-		if out, err := run(step[0], step[1:]...); err != nil {
-			return "", fmt.Errorf("%s: %w: %s",
-				strings.Join(step[:2], " "), err, strings.TrimSpace(string(out)))
-		}
+	if err := copyDonorIndex(run, mirror); err != nil {
+		return "", err
 	}
 	out, err := run("docker", "buildx", "imagetools", "inspect", mirror)
 	if err != nil {
@@ -58,6 +55,57 @@ func MirrorDonor(run CommandRunner, config Config) (string, error) {
 	reference := mirror + "@" + digest
 	kindrig.LogPhase(config.Cluster, "donor-mirror", "pushed", started, reference)
 	return reference, nil
+}
+
+// donorCopyAttempts bounds the retry of a dropped transfer. Each attempt
+// reuses the blobs the previous one landed, so a later attempt is shorter
+// than the first.
+const donorCopyAttempts = 3
+
+// copyDonorIndex copies the donor's manifest list into the project
+// registry, retrying a dropped transfer. The donor is a two-architecture
+// index of about a gigabyte streamed through the workstation, and on one
+// uplink three separate copies died mid-blob — an expired upload session, an
+// HTTP/2 GOAWAY, a closed connection — each after roughly twelve minutes of
+// progress, and none of them about the image (GH-2463). Any other failure is
+// returned at once, because retrying a real fault spends the same twelve
+// minutes to reach the same answer.
+func copyDonorIndex(run CommandRunner, mirror string) error {
+	var last error
+	for attempt := 1; attempt <= donorCopyAttempts; attempt++ {
+		out, err := run("docker", "buildx", "imagetools", "create", "--tag", mirror, donorSourceImage)
+		if err == nil {
+			return nil
+		}
+		last = fmt.Errorf("docker buildx: %w: %s", err, strings.TrimSpace(string(out)))
+		if !transferDropped(string(out)) {
+			return last
+		}
+		fmt.Printf("gcp:mirrorDonor: the registry dropped the transfer on attempt %d of %d; "+
+			"retrying, the blobs already stored are reused\n", attempt, donorCopyAttempts)
+	}
+	return last
+}
+
+// transferDropped reports whether a copy failed because the transfer was
+// dropped rather than because the image is wrong. Three shapes were observed
+// on one uplink in a single afternoon, all naming the registry's own upload
+// URL: a 404 on the session it issued, an HTTP/2 GOAWAY while a blob was
+// streaming, and a connection closed mid-request. None of them says anything
+// about the image, and all of them are answered by copying again.
+func transferDropped(output string) bool {
+	if !strings.Contains(output, "/uploads/") {
+		return false
+	}
+	for _, shape := range []string{
+		"failed commit on ref", "GOAWAY", "connection reset",
+		"unexpected EOF", "closed the connection", "TLS handshake timeout",
+	} {
+		if strings.Contains(output, shape) {
+			return true
+		}
+	}
+	return false
 }
 
 // mirrorDigest reads the top-level Digest line of an imagetools listing: the

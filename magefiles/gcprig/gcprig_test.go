@@ -668,3 +668,102 @@ func TestEnsureIdentityDoesNotPollAReusedAccount(t *testing.T) {
 		t.Errorf("a reused account was created:\n%s", rec.sequence())
 	}
 }
+
+// expiringRecorder fails the copy with the registry's expired-session shape
+// until the configured attempt, then succeeds.
+type expiringRecorder struct {
+	recorder
+	copies    int
+	succeedAt int
+}
+
+func (e *expiringRecorder) run(name string, args ...string) ([]byte, error) {
+	command := strings.Join(append([]string{name}, args...), " ")
+	if strings.HasPrefix(command, "docker buildx imagetools create") {
+		e.calls = append(e.calls, command)
+		e.copies++
+		if e.copies >= e.succeedAt {
+			return nil, nil
+		}
+		return []byte(expiredSessionOutput()), errors.New("exit status 1")
+	}
+	return e.recorder.run(name, args...)
+}
+
+func expiredSessionOutput() string {
+	return "ERROR: copy sha256:0f0f4f1c from docker.io/alpine/k8s:1.31.4 to " +
+		"us-central1-docker.pkg.dev/demo-project/agents/cli-donor:1.31.4: " +
+		"failed commit on ref \"layer-sha256:b1ae8c50\": unexpected status from PUT request to " +
+		"https://us-central1-docker.pkg.dev/artifacts-uploads/namespaces/demo-project/" +
+		"repositories/agents/uploads/gWHzYXPD8WCXgPS4?digest=sha256%3Ab1ae8c50: 404 Not Found"
+}
+
+// A transfer the registry drops is not a fault of the image, so the copy is
+// retried and the blobs already stored are reused (GH-2463).
+func TestMirrorDonorRetriesAnExpiredUploadSession(t *testing.T) {
+	rec := &expiringRecorder{succeedAt: 2, recorder: recorder{answers: map[string]answer{
+		"docker buildx imagetools inspect": {out: "Name: x\nDigest: sha256:9c4976d4\n"},
+	}}}
+
+	reference, err := MirrorDonor(rec.run, testConfig())
+
+	if err != nil {
+		t.Fatalf("MirrorDonor: %v", err)
+	}
+	if rec.copies != 2 {
+		t.Errorf("copies = %d, want a retry after the expired session", rec.copies)
+	}
+	if !strings.HasSuffix(reference, "@sha256:9c4976d4") {
+		t.Errorf("reference = %q, want the index digest", reference)
+	}
+}
+
+// A copy that fails for any other reason fails at once: retrying a real
+// fault spends the same twelve minutes to reach the same answer.
+func TestMirrorDonorDoesNotRetryAnUnrelatedFailure(t *testing.T) {
+	rec := &recorder{answers: map[string]answer{
+		"docker buildx imagetools create": {
+			out: "ERROR: failed to resolve source: manifest unknown",
+			err: errors.New("exit status 1")},
+	}}
+
+	_, err := MirrorDonor(rec.run, testConfig())
+
+	if err == nil {
+		t.Fatal("an unresolvable source reported success")
+	}
+	if !strings.Contains(err.Error(), "manifest unknown") {
+		t.Errorf("failure does not name the fault: %v", err)
+	}
+	if copies := strings.Count(rec.sequence(), "imagetools create"); copies != 1 {
+		t.Errorf("an unrelated failure was retried %d times", copies)
+	}
+}
+
+// All three shapes observed on one uplink are retried; a fault that names
+// the image is not. The classifier reads the registry's own upload URL,
+// which every dropped transfer carries and no image fault does.
+func TestTransferDroppedClassifiesTheObservedShapes(t *testing.T) {
+	uploads := "https://us-central1-docker.pkg.dev/artifacts-uploads/namespaces/p/" +
+		"repositories/agents/uploads/abc?digest=sha256%3Adeadbeef"
+	dropped := map[string]string{
+		"expired session": "failed commit on ref \"layer-sha256:x\": unexpected status from PUT request to " +
+			uploads + ": 404 Not Found",
+		"http2 goaway": "failed to copy: failed to do request: Put \"" + uploads +
+			"\": http2: server sent GOAWAY and closed the connection; ErrCode=NO_ERROR",
+		"connection reset": "failed to do request: Put \"" + uploads + "\": connection reset by peer",
+	}
+	for name, output := range dropped {
+		if !transferDropped(output) {
+			t.Errorf("%s: not classified as a dropped transfer", name)
+		}
+	}
+	for name, output := range map[string]string{
+		"unknown manifest": "ERROR: failed to resolve source: manifest unknown",
+		"denied":           "ERROR: unexpected status: 403 Forbidden",
+	} {
+		if transferDropped(output) {
+			t.Errorf("%s: retried although it names the image", name)
+		}
+	}
+}
