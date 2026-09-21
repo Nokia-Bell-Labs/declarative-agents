@@ -149,7 +149,7 @@ spec:
     spec:
       containers:
         - name: chroma
-          image: "{{ $root.Values.chroma.image.repository }}:{{ $root.Values.chroma.image.tag }}"
+          image: {{ include "agent-services.pinnedImage" $root.Values.chroma.image | quote }}
           imagePullPolicy: {{ $root.Values.chroma.image.pullPolicy }}
           {{- with (ternary (include "chatbot-mesh.otlpMetricEndpoint" $root) (include "chatbot-mesh.otlpEndpoint" $root) (eq $root.Values.collector.implementation "agent")) }}
           env:

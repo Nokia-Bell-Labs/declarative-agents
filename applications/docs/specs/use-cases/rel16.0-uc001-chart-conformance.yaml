@@ -95,7 +95,7 @@ touchpoints:
     target: magefiles/audit.go
     reason: Repository audit that dispatches the conformance check.
   - id: T5
-    target: docs/chart-conformance-baseline.yaml
+    target: magefiles/chartconf/baseline.yaml
     reason: Checked-in exception baseline the gate reads and never writes.
   - id: T6
     target: srd005-chart-conformance AC1

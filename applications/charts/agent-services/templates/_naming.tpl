@@ -27,11 +27,29 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "agent-services.image" -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- include "agent-services.pinnedImage" .Values.image -}}
 {{- end -}}
 
 {{- define "agent-services.collectorImage" -}}
-{{- printf "%s:%s" .Values.collector.image.repository .Values.collector.image.tag -}}
+{{- include "agent-services.pinnedImage" .Values.collector.image -}}
+{{- end -}}
+
+{{/*
+One image reference from an image map, carrying the digest when the map sets
+one. ENG01 C2 has every image the cluster pulls resolve through a digest: the
+tag names the version a reader recognizes, the digest is what the cluster
+resolves, and a tag that moves upstream cannot change what installs. An image
+this checkout builds sets no digest, because the digest does not exist until
+the image is built (srd005 R2.1, R2.2).
+
+Takes the image map itself, not the root context:
+
+  {{ include "agent-services.pinnedImage" .Values.dolt.image }}
+*/}}
+{{- define "agent-services.pinnedImage" -}}
+{{- $image := printf "%s:%s" .repository .tag -}}
+{{- with .digest }}{{ $image = printf "%s@%s" $image . }}{{ end -}}
+{{- $image -}}
 {{- end -}}
 
 {{/*

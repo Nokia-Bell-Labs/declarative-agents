@@ -45,7 +45,7 @@ func TestKindDependencyImagesCoverEveryExternalPodImage(t *testing.T) {
 	wantSmoke := []string{
 		"otel/opentelemetry-collector-contrib:0.127.0",
 		"chromadb/chroma:1.5.3",
-		"dolthub/dolt-sql-server:latest",
+		"dolthub/dolt-sql-server:2.3.5",
 		"rancher/kubectl:v1.31.4",
 		"busybox:1.36",
 	}

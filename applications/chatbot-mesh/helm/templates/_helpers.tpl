@@ -64,7 +64,8 @@ have ready. busybox supplies wget and grep.
 {{- define "chatbot-mesh.llmReadyInit" -}}
 {{- if .Values.ollama.enabled }}
 - name: wait-for-llm-models
-  image: busybox:1.36
+  image: {{ .Values.ollama.utilityImage | quote }}
+  imagePullPolicy: {{ .Values.ollama.image.pullPolicy }}
   command: ["/bin/sh", "-c"]
   args:
     - |

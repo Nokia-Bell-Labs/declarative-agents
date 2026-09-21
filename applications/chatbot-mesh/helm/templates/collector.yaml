@@ -162,7 +162,7 @@ spec:
     spec:
       containers:
         - name: collector
-          image: "{{ .Values.collector.image.repository }}:{{ .Values.collector.image.tag }}"
+          image: {{ include "agent-services.pinnedImage" .Values.collector.image | quote }}
           imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
           args: ["--config=/etc/collector/config.yaml"]
           ports:

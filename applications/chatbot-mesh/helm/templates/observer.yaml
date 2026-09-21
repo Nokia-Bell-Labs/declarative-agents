@@ -121,7 +121,7 @@ spec:
         # and needs no RBAC beyond the observer's existing get/list Role, so bearer
         # auth never enters the declarative runtime (GH-1302).
         - name: kube-proxy
-          image: {{ printf "%s:%s" .Values.observer.proxy.image.repository .Values.observer.proxy.image.tag | quote }}
+          image: {{ include "agent-services.pinnedImage" .Values.observer.proxy.image | quote }}
           imagePullPolicy: {{ .Values.observer.proxy.image.pullPolicy }}
           command: ["kubectl"]
           args:

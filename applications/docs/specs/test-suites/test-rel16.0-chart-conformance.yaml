@@ -3,14 +3,15 @@
 id: test-rel16.0-chart-conformance
 title: Release 16.0 Chart Conformance Test Suite
 release: "16.0"
-status: partial
+status: implemented
 test_case_count: 10
 
 overview: |
   TC1 parses and traces the Release 16.0 documents. TC2 through TC9 run the
-  conformance module GH-2408 added and are executable. TC10 names the proof
-  that the seeded violations are gone and turns implemented when GH-2409
-  empties the baseline. Every case but TC1 runs under the repository root
+  conformance module GH-2408 added. TC10 proves GH-2409 emptied the baseline:
+  every upstream image resolves through a digest, every container states a
+  pull policy, and both affected applications installed on a kind cluster on
+  the pinned images. Every case but TC1 runs under the repository root
   audit.
 
 traces:
@@ -246,7 +247,7 @@ test_cases:
   - id: TC10
     use_case: rel16.0-uc001-chart-conformance
     name: The seeded violations are pinned and the baseline holds no floating tag
-    status: planned
+    status: implemented
     evidence_type: go_test
     implemented_by: GH-2409
     command: |

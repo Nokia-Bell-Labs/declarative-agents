@@ -44,7 +44,7 @@ spec:
     spec:
       containers:
         - name: dolt
-          image: "{{ .Values.dolt.image.repository }}:{{ .Values.dolt.image.tag }}"
+          image: {{ include "agent-services.pinnedImage" .Values.dolt.image | quote }}
           imagePullPolicy: {{ .Values.dolt.image.pullPolicy }}
           args: ["--config", "/etc/dolt/config.yaml"]
           env:

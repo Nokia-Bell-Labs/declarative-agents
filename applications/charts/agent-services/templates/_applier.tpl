@@ -40,8 +40,7 @@ components that may reach the apply port, default none).
 {{- $donor := (($applier.cliDonor | default dict).image | default dict) -}}
 {{- $donorImage := "" -}}
 {{- if $donor.repository -}}
-{{- $donorImage = printf "%s:%s" $donor.repository $donor.tag -}}
-{{- with $donor.digest }}{{ $donorImage = printf "%s@%s" $donorImage . }}{{ end -}}
+{{- $donorImage = include "agent-services.pinnedImage" $donor -}}
 {{- end -}}
 apiVersion: v1
 kind: ServiceAccount
