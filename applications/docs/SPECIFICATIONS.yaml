@@ -86,6 +86,15 @@ roadmap_summary:
       the two properties, and all nine suite cases are executable. The target
       resolves eleven pins against their registries without a daemon, and its
       own suite reaches no network.
+  - version: "18.0"
+    name: Release annotation gate
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
+    evidence: |
+      ENG01 carries the release-annotation section and the tag:verify verb,
+      srd007 owns the four rules, and the six-case suite traces them. TC1 is
+      executable; TC2 through TC6 turn implemented as GH-2420 lands.
 foundation_document_index:
   - id: application-composition-pattern-language
     title: A Pattern Language for Declarative Agent Applications
@@ -179,6 +188,15 @@ srd_index:
     path: docs/specs/software-requirements/srd006-pin-currency.yaml
     use_cases: [rel17.0-uc001-pin-currency]
     test_suites: [test-rel17.0-pin-currency]
+  - id: srd007-release-annotation
+    title: Release Annotation Verification
+    status: planned
+    applicability: |
+      Applies to every tag on the v0 release line, on demand at the push
+      boundary; gates no build and joins no audit.
+    path: docs/specs/software-requirements/srd007-release-annotation.yaml
+    use_cases: [rel18.0-uc001-release-annotation]
+    test_suites: [test-rel18.0-release-annotation]
 
 config_format_index: []
 
@@ -237,6 +255,14 @@ use_case_index:
       - srd006-pin-currency
     test_suite: test-rel17.0-pin-currency
     path: docs/specs/use-cases/rel17.0-uc001-pin-currency.yaml
+  - id: rel18.0-uc001-release-annotation
+    title: A Degenerate Release Annotation Is Refused Before the Push
+    release: "18.0"
+    status: planned
+    srds:
+      - srd007-release-annotation
+    test_suite: test-rel18.0-release-annotation
+    path: docs/specs/use-cases/rel18.0-uc001-release-annotation.yaml
 
 test_suite_index:
   - id: test-rel00.0-application-contract-conformance
@@ -285,8 +311,24 @@ test_suite_index:
     srds:
       - srd006-pin-currency
     path: docs/specs/test-suites/test-rel17.0-pin-currency.yaml
+  - id: test-rel18.0-release-annotation
+    title: Release 18.0 Release Annotation Test Suite
+    release: "18.0"
+    status: planned
+    test_case_count: 6
+    traces: [rel18.0-uc001-release-annotation]
+    srds:
+      - srd007-release-annotation
+    path: docs/specs/test-suites/test-rel18.0-release-annotation.yaml
 
 coverage_gaps:
+  - id: release-18-release-annotation
+    status: planned
+    description: |
+      The rules are specified and TC1 is executable. The check itself is
+      GH-2420; until it lands, a degenerate annotation still ships, and
+      three of the five most recent tags carry one. The skill half lives in
+      the coding-skills repository as its issue 395.
   - id: release-17-pin-currency
     status: implemented
     description: |
