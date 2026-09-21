@@ -76,6 +76,15 @@ roadmap_summary:
       checked-in overlay; the baseline is empty, so the charts conform by
       construction rather than by exception.
 
+  - version: "17.0"
+    name: Pin currency report
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
+    evidence: |
+      ENG01 carries the pin currency section and the bump verb, srd006 owns
+      the two properties, and the nine-case suite traces them. TC1 is
+      executable; TC2 through TC9 turn implemented as GH-2416 lands.
 foundation_document_index:
   - id: application-composition-pattern-language
     title: A Pattern Language for Declarative Agent Applications
@@ -160,6 +169,15 @@ srd_index:
     path: docs/specs/software-requirements/srd005-chart-conformance.yaml
     use_cases: [rel16.0-uc001-chart-conformance]
     test_suites: [test-rel16.0-chart-conformance]
+  - id: srd006-pin-currency
+    title: Pin Integrity and Currency
+    status: planned
+    applicability: |
+      Applies to every pinned upstream dependency this repository resolves
+      from a registry; Go module versions stay outside it.
+    path: docs/specs/software-requirements/srd006-pin-currency.yaml
+    use_cases: [rel17.0-uc001-pin-currency]
+    test_suites: [test-rel17.0-pin-currency]
 
 config_format_index: []
 
@@ -210,6 +228,14 @@ use_case_index:
       - srd005-chart-conformance
     test_suite: test-rel16.0-chart-conformance
     path: docs/specs/use-cases/rel16.0-uc001-chart-conformance.yaml
+  - id: rel17.0-uc001-pin-currency
+    title: Read Which Pins Moved and Which Aged, Then Decide
+    release: "17.0"
+    status: planned
+    srds:
+      - srd006-pin-currency
+    test_suite: test-rel17.0-pin-currency
+    path: docs/specs/use-cases/rel17.0-uc001-pin-currency.yaml
 
 test_suite_index:
   - id: test-rel00.0-application-contract-conformance
@@ -249,8 +275,24 @@ test_suite_index:
     srds:
       - srd005-chart-conformance
     path: docs/specs/test-suites/test-rel16.0-chart-conformance.yaml
+  - id: test-rel17.0-pin-currency
+    title: Release 17.0 Pin Currency Test Suite
+    release: "17.0"
+    status: planned
+    test_case_count: 9
+    traces: [rel17.0-uc001-pin-currency]
+    srds:
+      - srd006-pin-currency
+    path: docs/specs/test-suites/test-rel17.0-pin-currency.yaml
 
 coverage_gaps:
+  - id: release-17-pin-currency
+    status: planned
+    description: |
+      The properties are specified and TC1 is executable. The survey itself
+      is GH-2416; until it lands, two pins are known stale with nothing
+      reporting them. Classifying an update from its release notes stays out
+      of this release and remains gated in GH-2049.
   - id: release-16-chart-conformance
     status: implemented
     description: |

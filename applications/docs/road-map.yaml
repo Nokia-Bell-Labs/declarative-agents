@@ -408,3 +408,53 @@ releases:
         proves: The fifty violations the charts carried when the gate first ran, each naming GH-2409.
       - command: cd magefiles && go test . -run TestChartConformance
         proves: The gate passes against the seeded baseline and fails on an unlisted or a stale entry.
+
+  - version: "17.0"
+    name: Pin currency report
+    description: |
+      Make a pin's two remaining properties visible: that its recorded digest
+      is still what the tag resolves to, and that no newer upstream release
+      has appeared. Report both, change nothing, and let the operator decide
+      which bumps to take.
+    status: planned
+    parent: gh-2049-pin-currency
+    dependencies:
+      - id: srd005-chart-conformance
+        status: implemented
+        reason: Pins every chart image and renders every chart, which this release reads its derived inventory from.
+      - id: eng01-kind-test-demo-rig
+        status: implemented
+        reason: Holds the pin currency section and the bump verb contract GH-2415 adds.
+    srds:
+      - srd006-pin-currency
+    use_cases:
+      - id: rel17.0-uc001-pin-currency
+        summary: |
+          An operator runs the bump target, reads which pins moved and which
+          aged, and edits the ones they choose to take.
+        status: planned
+    test_suites:
+      - id: test-rel17.0-pin-currency
+        summary: |
+          Trace the release documents, then verify the derived and declared
+          inventory, both verdicts, version comparison, the unknown case, and
+          that the target writes nothing.
+        status: planned
+        implemented_cases: [TC1]
+        planned_cases: [TC2, TC3, TC4, TC5, TC6, TC7, TC8, TC9]
+    implementation_sequence:
+      - order: 1
+        action: Add the ENG01 pin currency section and the bump verb, and specify srd006, the use case, the suite, and the index entries (GH-2415).
+        status: planned
+      - order: 2
+        action: Add the pin survey, its registry client, the declared pin list, and the bump target (GH-2416).
+        status: planned
+    implementation_evidence:
+      - path: docs/engineering/eng01-kind-test-demo-rig.yaml
+        proves: The integrity and currency properties, and the bump verb's report-never-mutate contract.
+      - path: applications/docs/specs/software-requirements/srd006-pin-currency.yaml
+        proves: Numbered inventory, integrity, currency, no-write, unknown, and reporting requirements.
+      - path: applications/docs/specs/use-cases/rel17.0-uc001-pin-currency.yaml
+        proves: The flow from one command to a decision the operator takes.
+      - path: applications/docs/specs/test-suites/test-rel17.0-pin-currency.yaml
+        proves: Requirement-to-AC-to-test coverage with TC1 executable.

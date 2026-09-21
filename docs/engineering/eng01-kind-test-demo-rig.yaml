@@ -245,6 +245,42 @@ sections:
       srd005-chart-conformance carries these rules as numbered requirements
       and owns their acceptance criteria.
 
+  - title: "Pin currency"
+    content: |
+      The rules above make a pin exist. They say nothing about it staying
+      true. A pin has two further properties, and they fail in opposite
+      directions: an unpinned image changes under you, while a stale pin
+      never changes at all.
+
+      Integrity is the property that the digest a file records is still what
+      the tag resolves to upstream. A tag that has been re-pushed breaks it,
+      and that is a supply-chain signal rather than a maintenance one, so it
+      is reported first and on its own.
+
+      Currency is the property that no newer upstream release exists. Falling
+      behind is ordinary and often correct; what is not acceptable is not
+      knowing. A version bump is a decision, and the rig's job is to put the
+      decision in front of a person, not to take it.
+
+      The pins live in two kinds of place. Chart images are declared in
+      values and reach a manifest through one library helper, so the
+      inventory is read out of the rendered charts rather than restated
+      anywhere. Everything else is invisible to a render — the add-on digests
+      compiled into the kindrig package, the node image repeated across the
+      checked-in cluster configurations, the smoke dependency registry — and
+      those are enumerated in one checked-in list that names the file and the
+      symbol holding each pin, so a report points at the line to edit. A
+      restated list drifts from what it describes; a derived one cannot.
+
+      `mage bump` reports both properties and changes nothing. It reaches the
+      network, so it is not part of `mage audit`, which stays hermetic. A
+      registry it cannot reach is reported as unknown and never as current:
+      an unreachable registry is an absence of evidence, and reading it as a
+      pass would make the report quietest exactly when it is least informed.
+
+      srd006-pin-currency carries these properties as numbered requirements
+      and owns their acceptance criteria.
+
   - title: "Network access"
     content: |
       Tests and demos reach the cluster differently. Integration tests
@@ -301,6 +337,7 @@ sections:
       | platform:down | Deletes da-platform and nothing else |
       | clean:images | Removes commit-tagged rig images beyond the newest given number of revisions per family |
       | clean:imagesDryRun | Lists what clean:images would remove |
+      | bump | Resolves every pin against its registry and reports integrity and currency; reaches the network, writes nothing, and exits zero whatever it finds |
 
       The cluster-lifecycle code (create from configuration, reuse
       detection, image load, teardown, log export) moves from the
@@ -412,4 +449,5 @@ references:
   - "magefiles/kindrig/diagnose.go (shared on-demand diagnosis every application exposes as mage diagnose)"
   - "applications/catalog/docs/specs/software-requirements/srd023-rig-doctor.yaml (evidence directory contract and rig-doctor diagnosis)"
   - "magefiles/tag_platform.go (release-run platform gate and teardown)"
+  - "applications/docs/specs/software-requirements/srd006-pin-currency.yaml (pin integrity and currency requirements behind mage bump)"
   - "applications/docs/specs/software-requirements/srd005-chart-conformance.yaml (numbered chart conformance requirements and the exception baseline)"

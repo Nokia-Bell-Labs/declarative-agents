@@ -1,0 +1,242 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel17.0-pin-currency
+title: Release 17.0 Pin Currency Test Suite
+release: "17.0"
+status: planned
+test_case_count: 9
+
+overview: |
+  TC1 parses and traces the Release 17.0 documents and is executable now. TC2
+  through TC9 name the tests the pin survey adds; each turns implemented when
+  its command exists and passes. Every case runs without a network: the
+  registry cases drive an httptest server, so the suite proves the client's
+  behaviour rather than any upstream project's release cadence.
+
+traces:
+  - rel17.0-uc001-pin-currency
+
+srds:
+  - srd006-pin-currency
+
+preconditions:
+  - Run commands from the repository root.
+  - Python 3 with PyYAML, Go, Mage, and Helm are available.
+  - No case reaches the network; a planned case is not passing evidence until its command exists and passes.
+
+test_cases:
+  - id: TC1
+    use_case: rel17.0-uc001-pin-currency
+    name: Release 17.0 documents parse and trace reciprocally
+    status: implemented
+    evidence_type: executable_structural
+    command: |
+      python3 - <<'PY'
+      from pathlib import Path
+      import yaml
+
+      root = Path("applications/docs")
+      paths = {
+          "srd": root / "specs/software-requirements/srd006-pin-currency.yaml",
+          "use_case": root / "specs/use-cases/rel17.0-uc001-pin-currency.yaml",
+          "suite": root / "specs/test-suites/test-rel17.0-pin-currency.yaml",
+          "index": root / "SPECIFICATIONS.yaml",
+          "roadmap": root / "road-map.yaml",
+          "guideline": Path("docs/engineering/eng01-kind-test-demo-rig.yaml"),
+      }
+      docs = {name: yaml.safe_load(path.read_text()) for name, path in paths.items()}
+      required = {
+          "srd": {"id", "title", "problem", "goals", "requirements",
+                  "non_goals", "acceptance_criteria"},
+          "use_case": {"id", "title", "summary", "actor", "trigger", "flow",
+                       "touchpoints", "success_criteria", "out_of_scope"},
+          "suite": {"id", "title", "release", "traces", "preconditions",
+                    "test_cases"},
+          "guideline": {"id", "title", "introduction", "sections", "references"},
+      }
+      for name, fields in required.items():
+          assert not fields - set(docs[name]), (name, fields - set(docs[name]))
+
+      srd, use_case, suite = docs["srd"], docs["use_case"], docs["suite"]
+      assert use_case["test_suite"] == suite["id"]
+      assert use_case["id"] in suite["traces"]
+      assert use_case["id"] in srd["use_case_traces"]
+      assert suite["id"] in srd["test_suite_traces"]
+
+      item_ids = {
+          item["id"]
+          for group in srd["requirements"].values()
+          for item in group["items"]
+      }
+      ac_traces = {t for ac in srd["acceptance_criteria"] for t in ac["traces"]}
+      assert item_ids <= ac_traces, sorted(item_ids - ac_traces)
+      ac_ids = {ac["id"] for ac in srd["acceptance_criteria"]}
+      case_traces = {
+          t.rsplit(" ", 1)[-1]
+          for case in suite["test_cases"]
+          for t in case.get("traces", [])
+          if t.startswith(srd["id"] + " ")
+      }
+      assert ac_ids <= case_traces, sorted(ac_ids - case_traces)
+      assert len(suite["test_cases"]) == suite["test_case_count"]
+
+      titles = [section["title"] for section in docs["guideline"]["sections"]]
+      assert "Pin currency" in titles, titles
+      verbs = next(s for s in docs["guideline"]["sections"]
+                   if s["title"] == "Standard mage verbs")["content"]
+      assert "| bump |" in verbs, "the root verb table does not carry bump"
+      currency = next(s for s in docs["guideline"]["sections"]
+                      if s["title"] == "Pin currency")["content"]
+      assert srd["id"] in currency
+
+      index = docs["index"]
+      assert any(e["id"] == srd["id"] for e in index["srd_index"])
+      assert any(e["id"] == use_case["id"] for e in index["use_case_index"])
+      assert any(e["id"] == suite["id"] for e in index["test_suite_index"])
+      assert any(e["version"] == "17.0" for e in index["roadmap_summary"])
+      release = next(r for r in docs["roadmap"]["releases"] if r["version"] == "17.0")
+      assert any(e["id"] == use_case["id"] for e in release["use_cases"])
+      assert any(e["id"] == suite["id"] for e in release["test_suites"])
+      print("validated Release 17.0 pin currency trace closure")
+      PY
+    expected:
+      yaml_parses: true
+      design_constitution_fields_present: true
+      requirement_to_acceptance_criterion_closure: true
+      reciprocal_srd_use_case_suite_traces: true
+      guideline_carries_the_section_and_the_verb: true
+      specification_and_roadmap_indexes_present: true
+    traces:
+      - rel17.0-uc001-pin-currency S1
+      - srd006-pin-currency AC1
+
+  - id: TC2
+    use_case: rel17.0-uc001-pin-currency
+    name: The inventory derives chart pins and declares the rest
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2416
+    command: |
+      cd magefiles && go test ./pinsurvey/... .
+    expected:
+      chart_pins_read_from_rendered_charts: true
+      chart_pins_not_restated_in_any_list: true
+      declared_list_covers_kindrig_node_image_and_smoke_registry: true
+      every_declared_entry_names_file_and_symbol: true
+    traces:
+      - rel17.0-uc001-pin-currency S1
+      - srd006-pin-currency AC1
+
+  - id: TC3
+    use_case: rel17.0-uc001-pin-currency
+    name: A declared entry that no longer describes its location fails
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2416
+    command: |
+      cd magefiles && go test . -run TestDeclaredPins
+    expected:
+      moved_or_renamed_pin_fails_the_test: true
+      failure_names_the_entry_and_the_location: true
+    traces:
+      - rel17.0-uc001-pin-currency S1
+      - srd006-pin-currency AC1
+
+  - id: TC4
+    use_case: rel17.0-uc001-pin-currency
+    name: A re-pushed tag is reported as moved, ahead of staleness
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2416
+    command: |
+      cd magefiles && go test ./pinsurvey/...
+    expected:
+      digest_mismatch_reported_as_moved: true
+      report_lists_moved_before_behind: true
+      both_digests_named: true
+    traces:
+      - rel17.0-uc001-pin-currency S2
+      - srd006-pin-currency AC2
+
+  - id: TC5
+    use_case: rel17.0-uc001-pin-currency
+    name: A newer release is reported with both versions
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2416
+    command: |
+      cd magefiles && go test ./pinsurvey/...
+    expected:
+      newer_tag_reported_as_behind: true
+      pinned_and_newest_versions_named: true
+      tag_list_pagination_followed: true
+    traces:
+      - rel17.0-uc001-pin-currency S3
+      - srd006-pin-currency AC3
+
+  - id: TC6
+    use_case: rel17.0-uc001-pin-currency
+    name: Version comparison applies to semantic versions only
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2416
+    command: |
+      cd magefiles && go test ./pinsurvey/...
+    expected:
+      v_prefixed_and_bare_semver_compared: true
+      non_version_tag_compared_on_integrity_alone: true
+      prerelease_does_not_count_as_newer: true
+    traces:
+      - rel17.0-uc001-pin-currency S3
+      - srd006-pin-currency AC3
+
+  - id: TC7
+    use_case: rel17.0-uc001-pin-currency
+    name: An unreachable registry reports unknown, never current
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2416
+    command: |
+      cd magefiles && go test ./pinsurvey/...
+    expected:
+      registry_error_reported_as_unknown: true
+      absent_tag_reported_as_unknown: true
+      unknown_not_counted_among_current: true
+      reason_named_in_the_finding: true
+    traces:
+      - rel17.0-uc001-pin-currency S5
+      - srd006-pin-currency AC5
+
+  - id: TC8
+    use_case: rel17.0-uc001-pin-currency
+    name: The target reports and writes nothing
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2416
+    command: |
+      cd magefiles && go test . -run TestBump
+    expected:
+      working_tree_unchanged_across_a_run: true
+      exit_zero_with_moved_and_behind_pins: true
+      audit_does_not_invoke_the_target: true
+      no_test_reaches_the_network: true
+    traces:
+      - rel17.0-uc001-pin-currency S4
+      - srd006-pin-currency AC4
+
+  - id: TC9
+    use_case: rel17.0-uc001-pin-currency
+    name: Authentication and reference parsing reach the real registries
+    status: planned
+    evidence_type: go_test
+    implemented_by: GH-2416
+    command: |
+      cd magefiles && go test ./pinsurvey/...
+    expected:
+      unauthenticated_request_succeeds_where_allowed: true
+      challenge_then_token_then_retry: true
+      bare_repository_resolves_under_library: true
+      finding_names_location_recorded_and_upstream_values: true
+    traces:
+      - rel17.0-uc001-pin-currency S5
+      - srd006-pin-currency AC6

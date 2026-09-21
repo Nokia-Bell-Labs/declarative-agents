@@ -1,0 +1,154 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: rel17.0-uc001-pin-currency
+title: Read Which Pins Moved and Which Aged, Then Decide
+release: "17.0"
+status: planned
+
+summary: |
+  An operator runs one target and learns two things about every pinned
+  upstream dependency: whether its recorded digest is still what its tag
+  resolves to, and whether a newer release exists. A moved digest is reported
+  first because it means something was re-pushed underneath a pin. A pin that
+  has merely aged is reported with the version it is behind. Nothing is
+  edited; which bumps to take is the operator's call, and the report exists
+  so the call is informed rather than overdue.
+
+actor: An operator or maintainer deciding which upstream versions to take.
+
+trigger: |
+  A release is being prepared, a dependency is suspected stale, or the
+  operator is doing periodic maintenance.
+
+preconditions:
+  - ENG01 carries the pin currency section and srd006 owns its requirements.
+  - srd005 and its gate already guarantee every image is pinned.
+  - The host can reach the registries; one that cannot be reached is reported, not assumed.
+
+flow:
+  - id: F1
+    text: |
+      The operator runs the bump target at the repository root.
+    traces:
+      - srd006-pin-currency R4.2
+  - id: F2
+    text: |
+      The survey builds its inventory: chart pins read out of every chart
+      rendered under every checked-in values overlay, and the remaining pins
+      from the checked-in list naming the file and symbol that holds each.
+    traces:
+      - srd006-pin-currency R1.1
+      - srd006-pin-currency R1.2
+  - id: F3
+    text: |
+      Each pin is resolved against its registry. The tag's current digest
+      answers integrity; the registry's tag list answers currency.
+    traces:
+      - srd006-pin-currency R2.1
+      - srd006-pin-currency R3.1
+  - id: F4
+    text: |
+      A recorded digest that no longer matches its tag is reported as moved,
+      ahead of everything else, with both digests.
+    traces:
+      - srd006-pin-currency R2.1
+      - srd006-pin-currency R6.1
+  - id: F5
+    text: |
+      A pin behind a newer release is reported with the pinned version and
+      the newest one. A tag that is not a semantic version is compared on
+      integrity alone.
+    traces:
+      - srd006-pin-currency R3.1
+      - srd006-pin-currency R3.2
+  - id: F6
+    text: |
+      A registry that cannot be reached, or a tag that is absent, is reported
+      as unknown. The operator can tell the difference between a pin that is
+      current and one nobody could check.
+    traces:
+      - srd006-pin-currency R5.1
+  - id: F7
+    text: |
+      The target exits zero and the working tree is unchanged. The operator
+      edits the pins they choose to take, at the locations the report named.
+    traces:
+      - srd006-pin-currency R4.1
+      - srd006-pin-currency R6.1
+
+touchpoints:
+  - id: T1
+    target: docs/engineering/eng01-kind-test-demo-rig.yaml
+    reason: States the two pin properties and the report-never-mutate contract for the verb.
+  - id: T2
+    target: magefiles/chartconf/
+    reason: Renders the charts whose images become the derived half of the inventory.
+  - id: T3
+    target: magefiles/pinsurvey/
+    reason: Registry client, inventory, verdicts, and report.
+  - id: T4
+    target: magefiles/kindrig/
+    reason: Holds the add-on digests and the node image the declared half enumerates.
+  - id: T5
+    target: srd006-pin-currency AC1
+    reason: Inventory coverage, derived and declared.
+  - id: T6
+    target: srd006-pin-currency AC2
+    reason: Integrity reported first.
+  - id: T7
+    target: srd006-pin-currency AC3
+    reason: Currency and version comparison.
+  - id: T8
+    target: srd006-pin-currency AC4
+    reason: Reports, never writes, and stays out of the audit.
+  - id: T9
+    target: srd006-pin-currency AC5
+    reason: Unknown is not current.
+  - id: T10
+    target: srd006-pin-currency AC6
+    reason: A finding names where to act.
+  - id: T11
+    target: test-rel17.0-pin-currency
+    reason: Structural and executable evidence for this flow.
+
+success_criteria:
+  - id: S1
+    criterion: |
+      Every pinned upstream dependency appears in the report, chart pins
+      derived from the charts and the rest from a list verified against the
+      locations it names.
+    traces:
+      - srd006-pin-currency AC1
+  - id: S2
+    criterion: |
+      A re-pushed tag is reported as moved, ahead of any staleness, with the
+      recorded and current digests.
+    traces:
+      - srd006-pin-currency AC2
+  - id: S3
+    criterion: |
+      A pin behind upstream is reported with both versions, and a tag that
+      names no version is not compared.
+    traces:
+      - srd006-pin-currency AC3
+  - id: S4
+    criterion: |
+      The run leaves the working tree unchanged, exits zero, and never runs
+      inside the audit.
+    traces:
+      - srd006-pin-currency AC4
+  - id: S5
+    criterion: |
+      A pin nobody could check reads as unknown rather than current, and the
+      report names where every pin lives.
+    traces:
+      - srd006-pin-currency AC5
+      - srd006-pin-currency AC6
+
+out_of_scope:
+  - Taking any bump, editing any pin, or opening a branch or pull request.
+  - Classifying an update as safe, noteworthy, or breaking from its release notes.
+  - Go module versions, which the language's own tooling reports.
+  - Failing a build on a stale pin.
+
+test_suite: test-rel17.0-pin-currency
