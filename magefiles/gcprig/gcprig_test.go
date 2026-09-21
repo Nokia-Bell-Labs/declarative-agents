@@ -254,17 +254,17 @@ func TestEnsureBucketIdentityRegistrySequences(t *testing.T) {
 		t.Fatalf("reuse issued a create:\n%s", reused.sequence())
 	}
 
-	absent := &recorder{answers: map[string]answer{
+	withoutSleeping(t)
+	// visibleAt 2: absent on the first describe, so the account is created,
+	// and visible on the next, so the propagation wait ends at once.
+	absent := &countingRecorder{visibleAt: 2, recorder: recorder{answers: map[string]answer{
 		"gcloud storage buckets describe": {
 			out: "ERROR: (gcloud.storage.buckets.describe) gs://demo-project-agents not found: 404.",
-			err: errors.New("exit status 1")},
-		"gcloud iam service-accounts describe": {
-			out: "ERROR: (gcloud.iam.service-accounts.describe) NOT_FOUND",
 			err: errors.New("exit status 1")},
 		"gcloud artifacts repositories describe": {
 			out: "ERROR: NOT_FOUND: Requested entity was not found",
 			err: errors.New("exit status 1")},
-	}}
+	}}}
 	if err := EnsureBucket(absent.run, config); err != nil {
 		t.Fatal(err)
 	}
@@ -418,13 +418,8 @@ func TestMirrorDigestReadsTheListDigest(t *testing.T) {
 // fail. The real message from a project that had never held the account is
 // used verbatim (GH-2455).
 func TestEnsureIdentityCreatesWhenIAMReportsPermissionDenied(t *testing.T) {
-	rec := &recorder{answers: map[string]answer{
-		"gcloud iam service-accounts describe": {
-			out: "ERROR: (gcloud.iam.service-accounts.describe) PERMISSION_DENIED: " +
-				"Permission 'iam.serviceAccounts.get' denied on resource " +
-				"(or it may not exist). This command is authenticated as person@example.com",
-			err: errors.New("exit status 1")},
-	}}
+	withoutSleeping(t)
+	rec := &countingRecorder{visibleAt: 2, recorder: recorder{answers: map[string]answer{}}}
 
 	if err := EnsureIdentity(rec.run, testConfig()); err != nil {
 		t.Fatalf("EnsureIdentity: %v", err)
@@ -440,6 +435,7 @@ func TestEnsureIdentityCreatesWhenIAMReportsPermissionDenied(t *testing.T) {
 // where gcloud names what is missing. The describe's own message names only
 // the read permission, which is why the create is the better place to fail.
 func TestEnsureIdentityFailsAtCreateWhenPermissionIsGenuinelyMissing(t *testing.T) {
+	withoutSleeping(t)
 	rec := &recorder{answers: map[string]answer{
 		"gcloud iam service-accounts describe": {
 			out: deniedDescribeOutput(),
@@ -585,4 +581,90 @@ func chatbotMeshNamespace() (string, error) {
 		return "", fmt.Errorf("chatbotDemoNamespace is no longer declared in deploy.go")
 	}
 	return string(match[1]), nil
+}
+
+// countingRecorder answers a command differently as the run proceeds, so a
+// resource that becomes visible part way through can be modeled.
+type countingRecorder struct {
+	recorder
+	describes int
+	visibleAt int
+}
+
+func (c *countingRecorder) run(name string, args ...string) ([]byte, error) {
+	command := strings.Join(append([]string{name}, args...), " ")
+	if strings.HasPrefix(command, "gcloud iam service-accounts describe") {
+		c.calls = append(c.calls, command)
+		c.describes++
+		if c.describes >= c.visibleAt {
+			return []byte("agents-objectstore@demo-project.iam.gserviceaccount.com\n"), nil
+		}
+		return []byte("ERROR: (gcloud.iam.service-accounts.describe) PERMISSION_DENIED: " +
+				"Permission 'iam.serviceAccounts.get' denied on resource (or it may not exist)."),
+			errors.New("exit status 1")
+	}
+	return c.recorder.run(name, args...)
+}
+
+// IAM answers the create before it has propagated, so the bindings wait for
+// the account to answer its own describe rather than failing on a member
+// that "does not exist" a second after it was made (GH-2462).
+func TestEnsureIdentityWaitsForTheCreatedAccountToBecomeVisible(t *testing.T) {
+	withoutSleeping(t)
+	// First describe: absent, so the account is created. Next two: still
+	// not propagated. Fourth: visible.
+	rec := &countingRecorder{recorder: recorder{answers: map[string]answer{}}, visibleAt: 4}
+
+	if err := EnsureIdentity(rec.run, testConfig()); err != nil {
+		t.Fatalf("EnsureIdentity: %v", err)
+	}
+
+	if rec.describes < 4 {
+		t.Errorf("bound after %d describes; the account was not observed", rec.describes)
+	}
+	sequence := rec.sequence()
+	create := strings.Index(sequence, "service-accounts create")
+	bind := strings.Index(sequence, "buckets add-iam-policy-binding")
+	if create < 0 || bind < 0 || create > bind {
+		t.Fatalf("expected a create then a binding:\n%s", sequence)
+	}
+}
+
+// An account that never becomes visible fails by name, with the deadline,
+// rather than by whatever the first binding would have said.
+func TestEnsureIdentityReportsTheVisibilityDeadline(t *testing.T) {
+	withoutSleeping(t)
+	previous := serviceAccountReadyDeadline
+	serviceAccountReadyDeadline = time.Millisecond
+	t.Cleanup(func() { serviceAccountReadyDeadline = previous })
+	rec := &countingRecorder{
+		recorder:  recorder{answers: map[string]answer{}},
+		visibleAt: 1 << 30,
+	}
+
+	err := EnsureIdentity(rec.run, testConfig())
+
+	if err == nil {
+		t.Fatal("an account that never appeared reported success")
+	}
+	if !strings.Contains(err.Error(), "did not become visible within") {
+		t.Errorf("failure does not name the wait: %v", err)
+	}
+}
+
+// A reused account was not created, so nothing is polled.
+func TestEnsureIdentityDoesNotPollAReusedAccount(t *testing.T) {
+	withoutSleeping(t)
+	rec := &countingRecorder{recorder: recorder{answers: map[string]answer{}}, visibleAt: 1}
+
+	if err := EnsureIdentity(rec.run, testConfig()); err != nil {
+		t.Fatalf("EnsureIdentity: %v", err)
+	}
+
+	if rec.describes != 1 {
+		t.Errorf("a reused account was described %d times", rec.describes)
+	}
+	if strings.Contains(rec.sequence(), "service-accounts create") {
+		t.Errorf("a reused account was created:\n%s", rec.sequence())
+	}
 }

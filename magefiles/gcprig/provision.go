@@ -20,6 +20,17 @@ const clusterReadyDeadline = 20 * time.Minute
 // observations, not in place of one.
 const clusterPollInterval = 15 * time.Second
 
+// serviceAccountReadyDeadline and its poll interval bound the wait for a
+// newly created service account to become visible to the services that
+// validate a binding's member. IAM answers the create before it has
+// propagated, and a bind one second later is rejected as naming an account
+// that does not exist (GH-2462).
+const serviceAccountPollInterval = 3 * time.Second
+
+// serviceAccountReadyDeadline is a var for the same reason Sleep is: a proof
+// of the timeout must not wait two minutes to observe it.
+var serviceAccountReadyDeadline = 2 * time.Minute
+
 // Sleep is swapped in tests so the readiness poll is provable without
 // waiting.
 var Sleep = time.Sleep
@@ -128,6 +139,9 @@ func EnsureIdentity(run CommandRunner, config Config) error {
 			return fmt.Errorf("create service account %s: %w: %s",
 				config.ServiceAccount, err, strings.TrimSpace(string(out)))
 		}
+		if err := waitServiceAccountVisible(run, config); err != nil {
+			return err
+		}
 		kindrig.LogPhase(config.Cluster, "service-account", "created", started, config.GSAEmail())
 	}
 	// Both bindings are idempotent add-iam-policy-binding calls; gcloud
@@ -149,6 +163,26 @@ func EnsureIdentity(run CommandRunner, config Config) error {
 	kindrig.LogPhase(config.Cluster, "identity", "bound", time.Now(),
 		"ksa-annotation="+config.KSAAnnotation())
 	return nil
+}
+
+// waitServiceAccountVisible polls until the created account answers its own
+// describe. Every other phase observes readiness rather than assuming it
+// (eng08); this one did not, and a project that had never held the account
+// failed one second after creating it, binding a member IAM did not yet
+// know. A reused account never reaches this, because it was not created.
+func waitServiceAccountVisible(run CommandRunner, config Config) error {
+	deadline := time.Now().Add(serviceAccountReadyDeadline)
+	for {
+		if _, err := run("gcloud", "iam", "service-accounts", "describe", config.GSAEmail(),
+			"--project", config.Project, "--format=value(email)"); err == nil {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("service account %s was created but did not become visible within %s",
+				config.GSAEmail(), serviceAccountReadyDeadline)
+		}
+		Sleep(serviceAccountPollInterval)
+	}
 }
 
 // EnsureRegistry creates or reuses the Artifact Registry repository.
