@@ -108,8 +108,9 @@ func TestValuesOverlayClassification(t *testing.T) {
 	}
 	expected := map[string][]string{
 		"agent-architecture": {"kind-applier-values.yaml", "kind-values.yaml"},
-		"chatbot-mesh":       {"kind-applier-values.yaml", "kind-llm-values.yaml", "kind-values.yaml"},
-		"coding-agent":       {"kind-applier-values.yaml", "kind-values.yaml", "small-values.yaml"},
+		"chatbot-mesh": {"gcp-values.yaml", "kind-applier-values.yaml",
+			"kind-llm-values.yaml", "kind-values.yaml"},
+		"coding-agent": {"kind-applier-values.yaml", "kind-values.yaml", "small-values.yaml"},
 	}
 	for application, want := range expected {
 		overlays, err := valuesOverlays(filepath.Join(root, "applications", application, "helm"))

@@ -5,8 +5,11 @@ package gcprig
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	goruntime "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -105,7 +108,7 @@ func TestDerivedIdentityValues(t *testing.T) {
 	if got := config.GSAEmail(); got != "agents-objectstore@demo-project.iam.gserviceaccount.com" {
 		t.Errorf("GSA = %q", got)
 	}
-	if got := config.WorkloadIdentityMember(); got != "serviceAccount:demo-project.svc.id.goog[da-chatbot-mesh-demo/default]" {
+	if got := config.WorkloadIdentityMember(); got != "serviceAccount:demo-project.svc.id.goog[default/default]" {
 		t.Errorf("member = %q", got)
 	}
 	if got := config.RegistryPath(); got != "us-central1-docker.pkg.dev/demo-project/agents" {
@@ -277,7 +280,7 @@ func TestEnsureBucketIdentityRegistrySequences(t *testing.T) {
 		"--uniform-bucket-level-access",
 		"gcloud iam service-accounts create agents-objectstore",
 		"gcloud storage buckets add-iam-policy-binding gs://demo-project-agents --member serviceAccount:agents-objectstore@demo-project.iam.gserviceaccount.com --role roles/storage.objectAdmin",
-		"--member serviceAccount:demo-project.svc.id.goog[da-chatbot-mesh-demo/default] --role roles/iam.workloadIdentityUser",
+		"--member serviceAccount:demo-project.svc.id.goog[default/default] --role roles/iam.workloadIdentityUser",
 		"gcloud artifacts repositories create agents",
 		"--repository-format docker",
 	} {
@@ -408,4 +411,178 @@ func TestMirrorDigestReadsTheListDigest(t *testing.T) {
 	if got := mirrorDigest("Name: x\nno digest here\n"); got != "" {
 		t.Fatalf("mirrorDigest = %q, want empty", got)
 	}
+}
+
+// IAM answers a describe of an account that is not there with
+// PERMISSION_DENIED rather than NOT_FOUND, so gcp:up must create rather than
+// fail. The real message from a project that had never held the account is
+// used verbatim (GH-2455).
+func TestEnsureIdentityCreatesWhenIAMReportsPermissionDenied(t *testing.T) {
+	rec := &recorder{answers: map[string]answer{
+		"gcloud iam service-accounts describe": {
+			out: "ERROR: (gcloud.iam.service-accounts.describe) PERMISSION_DENIED: " +
+				"Permission 'iam.serviceAccounts.get' denied on resource " +
+				"(or it may not exist). This command is authenticated as person@example.com",
+			err: errors.New("exit status 1")},
+	}}
+
+	if err := EnsureIdentity(rec.run, testConfig()); err != nil {
+		t.Fatalf("EnsureIdentity: %v", err)
+	}
+
+	sequence := rec.sequence()
+	if !strings.Contains(sequence, "gcloud iam service-accounts create agents-objectstore") {
+		t.Errorf("a masked absence did not lead to a create:\n%s", sequence)
+	}
+}
+
+// A caller who genuinely lacks the permission still fails, at the create,
+// where gcloud names what is missing. The describe's own message names only
+// the read permission, which is why the create is the better place to fail.
+func TestEnsureIdentityFailsAtCreateWhenPermissionIsGenuinelyMissing(t *testing.T) {
+	rec := &recorder{answers: map[string]answer{
+		"gcloud iam service-accounts describe": {
+			out: deniedDescribeOutput(),
+			err: errors.New("exit status 1")},
+		"gcloud iam service-accounts create": {
+			out: "ERROR: (gcloud.iam.service-accounts.create) PERMISSION_DENIED: " +
+				"Permission 'iam.serviceAccounts.create' denied on resource",
+			err: errors.New("exit status 1")},
+	}}
+
+	err := EnsureIdentity(rec.run, testConfig())
+
+	if err == nil {
+		t.Fatal("a denied create reported success")
+	}
+	if !strings.Contains(err.Error(), "create service account") ||
+		!strings.Contains(err.Error(), "iam.serviceAccounts.create") {
+		t.Errorf("failure does not name the create or the permission: %v", err)
+	}
+}
+
+func deniedDescribeOutput() string {
+	return "ERROR: (gcloud.iam.service-accounts.describe) PERMISSION_DENIED: " +
+		"Permission 'iam.serviceAccounts.get' denied on resource (or it may not exist)."
+}
+
+// The registry is useless to the cluster until its nodes may read it. The
+// grant resolves Autopilot's default compute service account from the
+// project number, which is not the project id (GH-2456).
+func TestEnsureRegistryAccessGrantsTheDefaultNodeServiceAccount(t *testing.T) {
+	rec := &recorder{answers: map[string]answer{
+		"gcloud projects describe": {out: "614687197886\n"},
+	}}
+
+	if err := EnsureRegistryAccess(rec.run, testConfig()); err != nil {
+		t.Fatalf("EnsureRegistryAccess: %v", err)
+	}
+
+	sequence := rec.sequence()
+	for _, want := range []string{
+		"gcloud artifacts repositories add-iam-policy-binding agents",
+		"--member serviceAccount:614687197886-compute@developer.gserviceaccount.com",
+		"--role roles/artifactregistry.reader",
+	} {
+		if !strings.Contains(sequence, want) {
+			t.Errorf("grant missing %q:\n%s", want, sequence)
+		}
+	}
+}
+
+// A cluster whose nodes run as something else names that account, and the
+// project number is then never asked for.
+func TestEnsureRegistryAccessHonorsTheConfiguredNodeServiceAccount(t *testing.T) {
+	rec := &recorder{}
+	config := testConfig()
+	config.NodeServiceAccount = "nodes@demo-project.iam.gserviceaccount.com"
+
+	if err := EnsureRegistryAccess(rec.run, config); err != nil {
+		t.Fatalf("EnsureRegistryAccess: %v", err)
+	}
+
+	sequence := rec.sequence()
+	if !strings.Contains(sequence, "--member serviceAccount:nodes@demo-project.iam.gserviceaccount.com") {
+		t.Errorf("configured node account ignored:\n%s", sequence)
+	}
+	if strings.Contains(sequence, "projects describe") {
+		t.Errorf("project number asked for although the account was named:\n%s", sequence)
+	}
+}
+
+// Up runs the grant, and a second Up issues the same idempotent binding
+// rather than a create, so a reused project mutates nothing.
+func TestUpGrantsRegistryReadAfterCreatingTheRegistry(t *testing.T) {
+	withGcloudPresent(t)
+	rec := &recorder{answers: map[string]answer{
+		"gcloud auth list":                       {out: "person@example.com\n"},
+		"gcloud projects describe":               {out: "614687197886\n"},
+		"gcloud container clusters describe":     {out: "RUNNING\n"},
+		"gcloud storage buckets describe":        {out: "demo-project-agents\n"},
+		"gcloud iam service-accounts describe":   {out: "x@y\n"},
+		"gcloud artifacts repositories describe": {out: "agents\n"},
+	}}
+
+	if err := Up(rec.run, testConfig()); err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+
+	sequence := rec.sequence()
+	access := strings.Index(sequence, "repositories add-iam-policy-binding")
+	describe := strings.Index(sequence, "repositories describe")
+	switch {
+	case access < 0:
+		t.Fatalf("Up never granted registry read:\n%s", sequence)
+	case describe > access:
+		t.Errorf("the grant ran before the registry was resolved:\n%s", sequence)
+	}
+	if strings.Contains(sequence, "repositories create") {
+		t.Errorf("a reused registry was created:\n%s", sequence)
+	}
+}
+
+// The GKE push builds for the cluster's nodes, not the workstation. The
+// default is amd64 because that is what Autopilot runs; an arm64 node pool
+// says so in gcp.yaml (GH-2457).
+func TestDefaultsNameTheClusterPlatformNotTheHost(t *testing.T) {
+	if got := Defaults().NodePlatform; got != "linux/amd64" {
+		t.Errorf("NodePlatform = %q, want the cluster's architecture", got)
+	}
+}
+
+// The bound namespace is where the release installs. Binding a namespace the
+// mesh never creates leaves its pods with no ambient identity, which is the
+// rig's whole claim (GH-2458).
+func TestWorkloadIdentityBindsTheNamespaceTheMeshInstallsInto(t *testing.T) {
+	installed, err := chatbotMeshNamespace()
+	if err != nil {
+		t.Fatalf("read the release namespace: %v", err)
+	}
+	if got := Defaults().Namespace; got != installed {
+		t.Fatalf("rig binds namespace %q; the chatbot-mesh release installs into %q", got, installed)
+	}
+	member := testConfig().WorkloadIdentityMember()
+	if !strings.Contains(member, "["+installed+"/default]") {
+		t.Errorf("member %q does not name the release namespace", member)
+	}
+}
+
+// chatbotMeshNamespace reads the namespace constant the release deploys with,
+// so the two cannot drift apart silently.
+func chatbotMeshNamespace() (string, error) {
+	_, file, _, ok := goruntime.Caller(0)
+	if !ok {
+		return "", fmt.Errorf("resolve this file's path")
+	}
+	root := filepath.Join(filepath.Dir(file), "..", "..")
+	source, err := os.ReadFile(filepath.Join(root,
+		"applications", "chatbot-mesh", "magefiles", "deploy.go"))
+	if err != nil {
+		return "", err
+	}
+	match := regexp.MustCompile(`chatbotDemoNamespace\s*=\s*"([^"]+)"`).FindSubmatch(source)
+	if match == nil {
+		return "", fmt.Errorf("chatbotDemoNamespace is no longer declared in deploy.go")
+	}
+	return string(match[1]), nil
 }

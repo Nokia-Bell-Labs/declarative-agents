@@ -32,6 +32,9 @@ func Up(run CommandRunner, config Config) error {
 	if err := EnsureRegistry(run, config); err != nil {
 		return err
 	}
+	if err := EnsureRegistryAccess(run, config); err != nil {
+		return err
+	}
 	kindrig.LogPhase(config.Cluster, "gcp-up", "complete", time.Now(),
 		"bucket="+config.BucketURL()+" registry="+config.RegistryPath())
 	return nil

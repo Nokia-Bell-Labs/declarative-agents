@@ -105,22 +105,47 @@ type dockerImageMetadata struct {
 	Labels       map[string]string
 }
 
+// HostPlatform is the platform a kind node runs, which is the host's: the
+// node is a container on this machine. A cluster elsewhere runs its own
+// architecture and says so (GH-2457).
+func HostPlatform() string {
+	return "linux/" + runtime.GOARCH
+}
+
 // BuildAgentCoreImage builds the linux agent binary from the local agent-core
 // checkout and bakes it into a minimal runtime image, so local flows run the
 // code under test rather than a published image.
 func BuildAgentCoreImage(coreRoot, image string) error {
-	return defaultImageBuilder().build(coreRoot, image)
+	return BuildAgentCoreImageForPlatform(coreRoot, image, HostPlatform())
+}
+
+// BuildAgentCoreImageForPlatform builds for a named platform, for a cluster
+// whose nodes are not this machine.
+func BuildAgentCoreImageForPlatform(coreRoot, image, platform string) error {
+	return defaultImageBuilder().build(coreRoot, image, platform)
 }
 
 // EnsureAgentCoreImage reuses image only when Docker proves that the mutable
 // reference names the exact checkout revision, build recipe, and host
 // architecture. Separate Mage processes coordinate through an atomic lock.
 func EnsureAgentCoreImage(coreRoot, image string) (AgentCoreImageResult, error) {
-	return defaultImageBuilder().ensure(coreRoot, image)
+	return EnsureAgentCoreImageForPlatform(coreRoot, image, HostPlatform())
 }
 
-func (b imageBuilder) build(coreRoot, image string) error {
-	identity, err := b.identity(coreRoot)
+// EnsureAgentCoreImageForPlatform is EnsureAgentCoreImage for a named
+// platform. The platform is part of the reuse identity, so a host image and
+// a cluster image of the same revision do not stand in for each other: an
+// arm64 workstation that pushed its own build to a registry serving amd64
+// nodes left every pod reporting "no match for platform in manifest"
+// (GH-2457).
+func EnsureAgentCoreImageForPlatform(
+	coreRoot, image, platform string,
+) (AgentCoreImageResult, error) {
+	return defaultImageBuilder().ensure(coreRoot, image, platform)
+}
+
+func (b imageBuilder) build(coreRoot, image, platform string) error {
+	identity, err := b.identity(coreRoot, platform)
 	if err != nil {
 		return err
 	}
@@ -155,7 +180,7 @@ func (b imageBuilder) buildIdentity(
 	return nil
 }
 
-func (b imageBuilder) identity(coreRoot string) (agentCoreImageIdentity, error) {
+func (b imageBuilder) identity(coreRoot, platform string) (agentCoreImageIdentity, error) {
 	output, err := b.output(coreRoot, nil, "git", "rev-parse", "HEAD")
 	if err != nil {
 		return agentCoreImageIdentity{}, fmt.Errorf("resolve agent-core revision: %w", err)
@@ -164,10 +189,13 @@ func (b imageBuilder) identity(coreRoot string) (agentCoreImageIdentity, error) 
 	if len(revision) < 12 {
 		return agentCoreImageIdentity{}, fmt.Errorf("agent-core revision %q is not a commit hash", revision)
 	}
-	platform := "linux/" + runtime.GOARCH
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return agentCoreImageIdentity{}, fmt.Errorf("agent-core image platform is required")
+	}
 	sum := sha256.Sum256([]byte(strings.Join([]string{
 		"agent-core-image/v1", agentCoreDockerfile, platform,
-		"CGO_ENABLED=0", "GOOS=linux", "GOARCH=" + runtime.GOARCH,
+		"CGO_ENABLED=0", "GOOS=linux", "GOARCH=" + strings.TrimPrefix(platform, "linux/"),
 		"go build -tags production -trimpath -ldflags=-s -w ./cmd/agent",
 	}, "\x00")))
 	return agentCoreImageIdentity{
@@ -177,9 +205,9 @@ func (b imageBuilder) identity(coreRoot string) (agentCoreImageIdentity, error) 
 	}, nil
 }
 
-func (b imageBuilder) ensure(coreRoot, image string) (AgentCoreImageResult, error) {
+func (b imageBuilder) ensure(coreRoot, image, platform string) (AgentCoreImageResult, error) {
 	started := time.Now()
-	identity, err := b.identity(coreRoot)
+	identity, err := b.identity(coreRoot, platform)
 	if err != nil {
 		return AgentCoreImageResult{}, err
 	}

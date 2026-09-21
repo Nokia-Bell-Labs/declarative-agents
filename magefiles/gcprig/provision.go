@@ -118,7 +118,7 @@ func EnsureIdentity(run CommandRunner, config Config) error {
 	if out, err := run("gcloud", "iam", "service-accounts", "describe", config.GSAEmail(),
 		"--project", config.Project, "--format=value(email)"); err == nil {
 		kindrig.LogPhase(config.Cluster, "service-account", "reused", time.Now(), config.GSAEmail())
-	} else if described := describeError(err, out); !notFound(described) {
+	} else if described := describeError(err, out); !serviceAccountAbsent(described) {
 		return fmt.Errorf("describe service account %s: %w", config.GSAEmail(), described)
 	} else {
 		started := time.Now()
@@ -173,6 +173,57 @@ func EnsureRegistry(run CommandRunner, config Config) error {
 	return nil
 }
 
+// EnsureRegistryAccess grants the cluster's node service account read on the
+// registry. Creating the repository is not enough: a node with no read pulls
+// nothing, and every pod reports ImagePullBackOff behind a 403 from the
+// registry's token endpoint while the release's helm wait times out with the
+// mesh half-up (GH-2456). The binding is idempotent, like the two in
+// EnsureIdentity, so a reused project mutates nothing.
+func EnsureRegistryAccess(run CommandRunner, config Config) error {
+	member, err := nodeServiceAccountMember(run, config)
+	if err != nil {
+		return err
+	}
+	if out, err := run("gcloud", "artifacts", "repositories", "add-iam-policy-binding",
+		config.Registry, "--project", config.Project, "--location", config.Region,
+		"--member", member, "--role", "roles/artifactregistry.reader"); err != nil {
+		return fmt.Errorf("grant registry read to %s: %w: %s",
+			member, err, strings.TrimSpace(string(out)))
+	}
+	kindrig.LogPhase(config.Cluster, "registry-access", "bound", time.Now(), member)
+	return nil
+}
+
+// nodeServiceAccountMember resolves the principal to grant. A configured
+// account is taken as written; otherwise the project number is asked for,
+// because the default compute account's address carries the number.
+func nodeServiceAccountMember(run CommandRunner, config Config) (string, error) {
+	if strings.TrimSpace(config.NodeServiceAccount) != "" {
+		return "serviceAccount:" + config.NodeServiceAccountEmail(""), nil
+	}
+	number, err := projectNumber(run, config)
+	if err != nil {
+		return "", err
+	}
+	return "serviceAccount:" + config.NodeServiceAccountEmail(number), nil
+}
+
+// projectNumber asks gcloud for the number behind the configured project id.
+// The default compute service account's address carries the number, not the
+// id, and the two are unrelated strings.
+func projectNumber(run CommandRunner, config Config) (string, error) {
+	out, err := run("gcloud", "projects", "describe", config.Project,
+		"--format=value(projectNumber)")
+	if err != nil {
+		return "", fmt.Errorf("describe project %s: %w", config.Project, describeError(err, out))
+	}
+	number := strings.TrimSpace(string(out))
+	if number == "" {
+		return "", fmt.Errorf("describe project %s: no project number in the answer", config.Project)
+	}
+	return number, nil
+}
+
 // describeError folds a command's combined output into its error. gcloud
 // writes what happened to the output and exits 1, so the Go error alone is
 // "exit status 1" and classification without the output reads nothing —
@@ -183,6 +234,24 @@ func describeError(err error, out []byte) error {
 		return err
 	}
 	return fmt.Errorf("%w: %s", err, trimmed)
+}
+
+// serviceAccountAbsent reports whether an IAM describe means the account is
+// not there to reuse. IAM does not distinguish absence from denial on a read
+// and answers both with PERMISSION_DENIED — gcloud's own service-accounts
+// undelete help states it: "If the service account does not exist, this
+// command returns a PERMISSION_DENIED error." Treating that as fatal left
+// gcp:up unable to create the account on a project that had never held it
+// (GH-2455). Proceeding to the create is safe: a caller who genuinely lacks
+// the permission fails there, and that error names the permission, which the
+// describe's does not. Buckets and repositories keep the NOT_FOUND rule,
+// because their APIs report absence.
+func serviceAccountAbsent(err error) bool {
+	if err == nil {
+		return false
+	}
+	return notFound(err) ||
+		strings.Contains(strings.ToUpper(err.Error()), "PERMISSION_DENIED")
 }
 
 // notFound reports whether a gcloud error names an absent resource. gcloud

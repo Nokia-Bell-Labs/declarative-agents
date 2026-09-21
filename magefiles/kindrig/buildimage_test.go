@@ -72,7 +72,7 @@ func fakeImageBuilder(failCmd string) (*[]imageRunCall, *[]writtenFile, imageBui
 
 func TestBuildAgentCoreImageInvocationContract(t *testing.T) {
 	runs, written, b := fakeImageBuilder("")
-	if err := b.build("/core", "declarative-agents/agent-core:local"); err != nil {
+	if err := b.build("/core", "declarative-agents/agent-core:local", HostPlatform()); err != nil {
 		t.Fatalf("build: %v", err)
 	}
 
@@ -137,7 +137,7 @@ func TestBuildAgentCoreImageInvocationContract(t *testing.T) {
 
 func TestBuildAgentCoreImageBuildFailure(t *testing.T) {
 	_, _, b := fakeImageBuilder("go")
-	err := b.build("/core", "img")
+	err := b.build("/core", "img", HostPlatform())
 	if err == nil || !strings.Contains(err.Error(), "build linux agent") {
 		t.Fatalf("err = %v, want wrapped build failure", err)
 	}
@@ -145,7 +145,7 @@ func TestBuildAgentCoreImageBuildFailure(t *testing.T) {
 
 func TestBuildAgentCoreImageDockerFailure(t *testing.T) {
 	_, _, b := fakeImageBuilder("docker")
-	err := b.build("/core", "img")
+	err := b.build("/core", "img", HostPlatform())
 	if err == nil || !strings.Contains(err.Error(), "docker build img") {
 		t.Fatalf("err = %v, want wrapped docker failure", err)
 	}
@@ -159,7 +159,7 @@ func TestBuildAgentCoreImagePropagatesCopyTreeError(t *testing.T) {
 		writeFile: os.WriteFile,
 		copyTree:  func(string, string) error { return copyErr },
 	}
-	if err := b.build("/core", "img"); !errors.Is(err, copyErr) {
+	if err := b.build("/core", "img", HostPlatform()); !errors.Is(err, copyErr) {
 		t.Fatalf("err = %v, want copy-tree error", err)
 	}
 }
@@ -172,7 +172,7 @@ func TestBuildAgentCoreImagePropagatesDockerfileWriteError(t *testing.T) {
 		writeFile: func(string, []byte, os.FileMode) error { return writeErr },
 		copyTree:  func(string, string) error { return nil },
 	}
-	err := b.build("/core", "img")
+	err := b.build("/core", "img", HostPlatform())
 	if err == nil || !strings.Contains(err.Error(), "write agent-core image Dockerfile") ||
 		!errors.Is(err, writeErr) {
 		t.Fatalf("err = %v, want wrapped Dockerfile write error", err)
@@ -203,8 +203,8 @@ func TestEnsureAgentCoreImageReusesMatchingIdentity(t *testing.T) {
 		writeFile: os.WriteFile, copyTree: func(string, string) error { return nil },
 		lockRoot: t.TempDir(), sleep: time.Sleep,
 	}
-	identity, _ = b.identity("/core")
-	result, err := b.ensure("/core", "agent-core:test")
+	identity, _ = b.identity("/core", HostPlatform())
+	result, err := b.ensure("/core", "agent-core:test", HostPlatform())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,8 +237,8 @@ func TestEnsureAgentCoreImageRebuildsStaleAndVerifiesResult(t *testing.T) {
 		writeFile: os.WriteFile, copyTree: func(string, string) error { return nil },
 		lockRoot: t.TempDir(), sleep: time.Sleep,
 	}
-	identity, _ = b.identity("/core")
-	result, err := b.ensure("/core", "agent-core:test")
+	identity, _ = b.identity("/core", HostPlatform())
+	result, err := b.ensure("/core", "agent-core:test", HostPlatform())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,13 +323,13 @@ func TestConcurrentEnsureAgentCoreImageBuildsOnce(t *testing.T) {
 		writeFile: os.WriteFile, copyTree: func(string, string) error { return nil },
 		lockRoot: t.TempDir(), sleep: func(time.Duration) { time.Sleep(time.Millisecond) },
 	}
-	identity, _ = b.identity("/core")
+	identity, _ = b.identity("/core", HostPlatform())
 	const callers = 5
 	results := make(chan AgentCoreImageResult, callers)
 	errs := make(chan error, callers)
 	for range callers {
 		go func() {
-			result, err := b.ensure("/core", "agent-core:test")
+			result, err := b.ensure("/core", "agent-core:test", HostPlatform())
 			results <- result
 			errs <- err
 		}()
@@ -364,8 +364,8 @@ func TestEnsureAgentCoreImageRejectsUnverifiedBuild(t *testing.T) {
 		writeFile: os.WriteFile, copyTree: func(string, string) error { return nil },
 		lockRoot: t.TempDir(), sleep: time.Sleep,
 	}
-	identity, _ = b.identity("/core")
-	if _, err := b.ensure("/core", "agent-core:test"); err == nil ||
+	identity, _ = b.identity("/core", HostPlatform())
+	if _, err := b.ensure("/core", "agent-core:test", HostPlatform()); err == nil ||
 		!strings.Contains(err.Error(), "does not carry") {
 		t.Fatalf("error=%v, want post-build identity rejection", err)
 	}
@@ -511,4 +511,54 @@ func containsEnv(env []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// The image identity carries the platform it was asked for, and the Go build
+// cross-compiles to match. A kind node is the host; a cluster elsewhere runs
+// its own architecture and must be built for (GH-2457).
+func TestBuildForANamedPlatformCrossCompilesAndLabels(t *testing.T) {
+	runs, _, b := fakeImageBuilder("")
+
+	if err := b.build("/core", "img", "linux/amd64"); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	var sequence []string
+	for _, call := range *runs {
+		sequence = append(sequence,
+			strings.Join(call.env, " ")+" "+call.name+" "+strings.Join(call.args, " "))
+	}
+	joined := strings.Join(sequence, "\n")
+	for _, want := range []string{"GOARCH=amd64", "--platform linux/amd64",
+		"io.declarative-agents.agent-core.platform=linux/amd64"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("build missing %q:\n%s", want, joined)
+		}
+	}
+}
+
+// A host build and a cluster build of the same checkout are different
+// images, so one never stands in for the other in the reuse check.
+func TestPlatformSeparatesTheReuseIdentity(t *testing.T) {
+	_, _, b := fakeImageBuilder("")
+	host, err := b.identity("/core", "linux/arm64")
+	if err != nil {
+		t.Fatalf("identity: %v", err)
+	}
+	cluster, err := b.identity("/core", "linux/amd64")
+	if err != nil {
+		t.Fatalf("identity: %v", err)
+	}
+	if host.recipe == cluster.recipe {
+		t.Error("two platforms share one recipe, so a host image would be reused for a cluster")
+	}
+}
+
+// An empty platform is a caller mistake, named rather than defaulted.
+func TestEmptyPlatformIsRefused(t *testing.T) {
+	_, _, b := fakeImageBuilder("")
+	if _, err := b.identity("/core", "  "); err == nil ||
+		!strings.Contains(err.Error(), "platform is required") {
+		t.Fatalf("empty platform: %v", err)
+	}
 }

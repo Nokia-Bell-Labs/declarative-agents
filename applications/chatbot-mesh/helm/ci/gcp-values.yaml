@@ -38,3 +38,13 @@ applier:
       tag: "1.31.4"
       digest: "sha256:9c4976d47656d78cf53a92b0203fc54ac45eae18a2b45001ac221c27da4c8036"
       pullPolicy: IfNotPresent
+
+# The models are pulled from upstream on GKE, where no seeded host cache
+# exists: the three the release declares are about 12.2GB resident, and a
+# blob downloads beside the one being written. The chart default of 10Gi is
+# sized for the kind path, where models arrive from the cache, and it fills
+# mid-pull — the preload Job exhausts its backoff limit and every rag agent
+# waits forever on wait-for-llm-models (GH-2453).
+ollama:
+  persistence:
+    size: 40Gi
