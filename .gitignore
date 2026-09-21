@@ -26,3 +26,6 @@ applications/*/helm/charts/
 
 # Operator-local GCP rig configuration; names a real project (eng08).
 gcp.yaml
+# pixi environments
+.pixi/*
+!.pixi/config.toml
