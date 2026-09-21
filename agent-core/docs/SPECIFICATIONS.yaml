@@ -207,6 +207,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: done
+  - version: "25.0"
+    name: Monitor drain outcome
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
   - version: "99.0"
     name: Architectural migrations and cleanup
     use_cases_done: 2
@@ -806,6 +811,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel24.0-objectstore-tools
     path: docs/specs/use-cases/rel24.0-uc001-objectstore-tools.yaml
+  - id: rel25.0-uc001-drain-outcome
+    title: A monitor exit on a loaded host succeeds and names its unfinished drain
+    release: "25.0"
+    status: implemented
+    test_suite: test-rel25.0-drain-outcome
+    path: docs/specs/use-cases/rel25.0-uc001-drain-outcome.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -1038,6 +1049,14 @@ test_suite_index:
     formal_test_cases: 7
     status: implemented
     path: docs/specs/test-suites/test-rel24.0-objectstore-tools.yaml
+  - id: test-rel25.0-drain-outcome
+    title: Test Suite for Release 25.0 Drain Outcome
+    release: "25.0"
+    traces:
+      - rel25.0-uc001-drain-outcome
+    formal_test_cases: 5
+    status: implemented
+    path: docs/specs/test-suites/test-rel25.0-drain-outcome.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"
@@ -1083,6 +1102,10 @@ go_test_coverage:
     ./... -v | grep -c '=== RUN'` for the current test function count.
 
 srd_to_use_case_mapping:
+  - use_case: rel25.0-uc001-drain-outcome
+    srd: srd033-monitor-rest-api
+    why_required: R6.4 releases the listener, R6.5 routes a released listener to the success terminal and keeps other faults failing, and R6.10 makes the drain outcome a structured field.
+    coverage: Full. Covers AC6 via S1 through S4.
   - use_case: rel24.0-uc001-objectstore-tools
     srd: srd059-objectstore-tools
     why_required: The family, driver selection, explicit endpoint, receipt undo, and gate obligations are R1 through R4; the overlay-only provider switch is R2.3.

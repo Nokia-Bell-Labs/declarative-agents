@@ -57,7 +57,7 @@ pkg:internal/tools/otlp files=14 loc=3877
 pkg:internal/tools/pipeline files=2 loc=232
 pkg:internal/tools/objectstore files=6 loc=573
 pkg:internal/tools/registry files=3 loc=330
-pkg:internal/tools/rest files=26 loc=4907
+pkg:internal/tools/rest files=26 loc=4933
 pkg:internal/tools/rest/bundles files=1 loc=50
 pkg:internal/tools/rest/client files=15 loc=2533
 pkg:internal/tools/rest/credentials files=1 loc=73
@@ -66,7 +66,7 @@ pkg:internal/tools/rest/mock files=3 loc=332
 pkg:internal/tools/rest/monitor files=4 loc=920
 pkg:internal/tools/rest/redact files=1 loc=287
 pkg:internal/tools/rest/resttest files=4 loc=534
-pkg:internal/tools/rest/servercmd files=5 loc=468
+pkg:internal/tools/rest/servercmd files=5 loc=469
 pkg:internal/tools/rest/validation files=6 loc=1865
 pkg:internal/tools/service files=7 loc=1931
 pkg:internal/tools/undo files=1 loc=84

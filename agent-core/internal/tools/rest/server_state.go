@@ -5,6 +5,7 @@ package rest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -19,6 +20,18 @@ const (
 	defaultQueueCapacity = 16
 	defaultAwaitTimeout  = 30 * time.Second
 	defaultStopTimeout   = 5 * time.Second
+)
+
+const (
+	// DrainCompleted reports that every in-flight connection finished before
+	// the shutdown budget expired.
+	DrainCompleted = "completed"
+	// DrainBudgetExpired reports that the listener was released with
+	// connections still in flight when the shutdown budget expired.
+	DrainBudgetExpired = "budget_expired"
+	// DrainFailed reports a shutdown that failed for a reason other than the
+	// expired budget.
+	DrainFailed = "failed"
 )
 
 // ServerState tracks launched REST servers and their inbound queues.
@@ -75,6 +88,7 @@ type serverRuntime struct {
 	def            ServerDefinition
 	mock           MockEngine
 	httpServer     *http.Server
+	shutdown       func(context.Context) error
 	listener       net.Listener
 	queue          chan InboundEvent
 	runner         MachineRequestRunner
@@ -98,15 +112,28 @@ func (s *ServerState) Stop(name string) (map[string]interface{}, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), runtime.stopTimeout())
 	defer cancel()
 	runtime.closeStopped()
-	shutdownErr := runtime.httpServer.Shutdown(ctx)
+	shutdownErr := runtime.shutdown(ctx)
 	s.mu.Lock()
 	delete(s.servers, name)
 	s.mu.Unlock()
-	output := runtime.stopOutput()
-	if shutdownErr != nil {
-		return output, fmt.Errorf("shutdown REST server %q: %w", name, shutdownErr)
+	return finishStop(runtime, shutdownErr)
+}
+
+// finishStop classifies a shutdown outcome and reports it in the stop output
+// (srd033 R6.5, R6.10). Shutdown closes the listeners before it waits, and the
+// caller has already deregistered the server, so an expired budget leaves a
+// server that has genuinely stopped serving: the drain outcome is named in the
+// output and the command succeeds. Any other fault stays a command failure.
+func finishStop(runtime *serverRuntime, shutdownErr error) (map[string]interface{}, error) {
+	switch {
+	case shutdownErr == nil:
+		return runtime.stopOutput(DrainCompleted), nil
+	case errors.Is(shutdownErr, context.DeadlineExceeded):
+		return runtime.stopOutput(DrainBudgetExpired), nil
+	default:
+		return runtime.stopOutput(DrainFailed),
+			fmt.Errorf("shutdown REST server %q: %w", runtime.name, shutdownErr)
 	}
-	return output, nil
 }
 
 func (s *ServerState) runtime(name string) (*serverRuntime, error) {
@@ -198,7 +225,7 @@ func (r *serverRuntime) launchOutput() map[string]interface{} {
 	}
 }
 
-func (r *serverRuntime) stopOutput() map[string]interface{} {
+func (r *serverRuntime) stopOutput(drain string) map[string]interface{} {
 	drained := r.drainQueue()
 	r.mu.Lock()
 	dropped := r.droppedEvents
@@ -207,6 +234,7 @@ func (r *serverRuntime) stopOutput() map[string]interface{} {
 		"server": r.name, "address": r.listener.Addr().String(),
 		"drained_events": drained, "dropped_events": dropped, "status": "stopped",
 		"drain_policy": shutdownDrainPolicy(r.def.Server.Shutdown), "queue_outcome": "drained",
+		"connection_drain": drain,
 	}
 }
 

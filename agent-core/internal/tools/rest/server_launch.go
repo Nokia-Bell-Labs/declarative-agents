@@ -115,12 +115,7 @@ func stopOwnedServerRuntime(runtime *serverRuntime) (map[string]interface{}, err
 	ctx, cancel := context.WithTimeout(context.Background(), runtime.stopTimeout())
 	defer cancel()
 	runtime.closeStopped()
-	shutdownErr := runtime.httpServer.Shutdown(ctx)
-	output := runtime.stopOutput()
-	if shutdownErr != nil {
-		return output, fmt.Errorf("shutdown REST server %q: %w", runtime.name, shutdownErr)
-	}
-	return output, nil
+	return finishStop(runtime, runtime.shutdown(ctx))
 }
 
 func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
@@ -151,6 +146,9 @@ func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
 		ReadHeaderTimeout: parseDuration(def.Limits.ConnectTimeout, 0),
 		MaxHeaderBytes:    def.Limits.MaxHeaderBytes,
 	}
+	// shutdown is a seam over the graceful shutdown so a proof can present each
+	// drain outcome (srd033 R6.10) without racing a real connection drain.
+	runtime.shutdown = runtime.httpServer.Shutdown
 	return runtime, nil
 }
 
