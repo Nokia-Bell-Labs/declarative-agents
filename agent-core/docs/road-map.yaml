@@ -1030,30 +1030,30 @@ releases:
       explicit endpoint field rather than any environment read, and undo a
       write through a prior-object snapshot receipt. Moving a workload
       between kind, GCS, and S3 changes a values overlay and nothing else.
-    status: planned
+    status: done
     planned_work:
       - id: gh-2422
         summary: Specify the family, srd059, the use case, and this suite.
-        status: in_progress
+        status: implemented
       - id: gh-2423
         summary: The Go package, drivers by URL, receipts, and factory wiring.
-        status: planned
+        status: implemented
       - id: gh-2424
         summary: Declarations and the hand-maintained gate sweep.
-        status: planned
+        status: implemented
       - id: gh-2425
         summary: The fake-gcs live proof and the release close-out.
-        status: planned
+        status: implemented
     srds:
       - srd059-objectstore-tools
     use_cases:
       - id: rel24.0-uc001-objectstore-tools
         summary: One profile writes objects on kind and on GCS through a values overlay.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel24.0-objectstore-tools
         summary: Round trips, both undo directions, driver selection, the explicit endpoint with a decoy environment, the gate sweep, and the fake-gcs end-to-end proof.
-        status: planned
+        status: implemented
     follow_up:
       - GH-2043 reuses the endpoint shape for the kindrig fake-gcs add-on.
       - The filesystem-consumer migration is filed only after this family exists.

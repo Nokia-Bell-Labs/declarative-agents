@@ -16,7 +16,7 @@ test_cases:
   - use_case: rel24.0-uc001-objectstore-tools
     name: Read, write, and list round-trip on memory and file buckets
     go_test: go test ./internal/tools/objectstore/... -run 'TestObjectRoundTrip'
-    status: planned
+    status: implemented
     description: The three commands against mem:// and file:// connections declared through DecodeToolConfig.
     expected:
       write_then_read_returns_the_text: true
@@ -27,7 +27,7 @@ test_cases:
   - use_case: rel24.0-uc001-objectstore-tools
     name: Undo restores the prior object and deletes a created one
     go_test: go test ./internal/tools/objectstore/... -run 'TestObjectWriteUndo'
-    status: planned
+    status: implemented
     description: A write over existing bytes and a write to an absent key, each undone through the receipt alone.
     expected:
       prior_bytes_restored: true
@@ -38,7 +38,7 @@ test_cases:
   - use_case: rel24.0-uc001-objectstore-tools
     name: Driver selection follows the declared URL and fails unknown schemes by name
     go_test: go test ./internal/tools/objectstore/... -run 'TestBucketSelection'
-    status: planned
+    status: implemented
     description: mem, file, gs, and s3 URLs open their drivers; ftp:// and an absent bucket_url fail at configuration.
     expected:
       scheme_selects_driver: true
@@ -49,7 +49,7 @@ test_cases:
   - use_case: rel24.0-uc001-objectstore-tools
     name: The gs driver takes an explicit endpoint and reads no environment
     go_test: go test ./internal/tools/objectstore/... -run 'TestExplicitEndpoint'
-    status: planned
+    status: implemented
     description: The endpoint configuration field points the gs driver at a local HTTP server; the process environment carries a decoy STORAGE_EMULATOR_HOST that must be ignored.
     expected:
       endpoint_reaches_the_configured_server: true
@@ -59,7 +59,7 @@ test_cases:
   - use_case: rel24.0-uc001-objectstore-tools
     name: A fixture profile boots the three words and the default surface is unchanged
     go_test: go test ./cmd/agent/... -run 'TestBuiltinFactoryCatalogCoversSelectedActiveInits'
-    status: planned
+    status: implemented
     description: The bootstrap catalog covers the objectstore inits, and tools/builtin/all.yaml does not import the group.
     expected:
       inits_covered: true
@@ -69,7 +69,7 @@ test_cases:
   - use_case: rel24.0-uc001-objectstore-tools
     name: The declarations pass every hand-maintained gate
     go_test: mage test
-    status: planned
+    status: implemented
     description: Contract completeness stays empty, the reach test sees the words, output contract and side-effect kinds agree, and the rollback policy accepts the undo strategy.
     expected:
       completeness_baseline_empty: true
@@ -80,7 +80,7 @@ test_cases:
   - use_case: rel24.0-uc001-objectstore-tools
     name: The family runs end to end against fake-gcs-server
     go_test: go test ./internal/tools/objectstore/... -run 'TestObjectstoreAgainstFakeGCS'
-    status: planned
+    status: implemented
     description: docker run starts a pinned fake-gcs-server; write, read, list, and both undo directions run over gs:// with the explicit endpoint; the test skips naming docker where it is absent and cleans up on every path.
     expected:
       end_to_end_roundtrip: true

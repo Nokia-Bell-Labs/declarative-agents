@@ -98,6 +98,10 @@ func openGCS(ctx context.Context, bucketName, endpoint string) (*blob.Bucket, er
 		options = append(options,
 			option.WithEndpoint(endpoint),
 			option.WithoutAuthentication(),
+			// Downloads default to the XML API, whose bucket-in-path URLs an
+			// emulator behind a custom endpoint answers with 404; JSON reads
+			// go through the same declared endpoint the writes use.
+			storage.WithJSONReads(),
 		)
 	}
 	client, err := storage.NewClient(ctx, options...)
