@@ -18,6 +18,17 @@
         "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
       }
     },
+    "imageOverride": {
+      "comment": "Optional agent-workload image override (srd005 R9): an absent repository inherits the one application image, and an overlay may set only pullPolicy for a kind-loaded image.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {"$ref": "#/definitions/nonEmptyString"},
+        "tag": {"$ref": "#/definitions/nonEmptyString"},
+        "digest": {"type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$"},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
     "resources": {
       "type": "object",
       "additionalProperties": false,
@@ -252,10 +263,10 @@
     "applier": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "image", "ports", "allowApply", "networkPolicy", "resources", "params"],
+      "required": ["enabled", "ports", "allowApply", "networkPolicy", "resources", "params"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "image": {"$ref": "#/definitions/image"},
+        "image": {"$ref": "#/definitions/imageOverride"},
         "cliDonor": {"type": "object", "additionalProperties": false, "properties": {"image": {"type": "object", "additionalProperties": false, "required": ["repository", "tag"], "properties": {"repository": {"type": "string"}, "tag": {"type": "string"}, "digest": {"type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$"}, "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}}}}},
         "chartArchiveConfigMap": {"type": "string"},
         "ports": {

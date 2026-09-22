@@ -12,18 +12,24 @@ image:
 profiles:
   mountPath: /profiles
 
-# The canonical executor declares Go and golangci-lint exec words. They arrive
-# on the executor alone from this digest-pinned, read-only tool donor, an init
-# container that copies the Go SDK and linter into a shared volume (GH-2494,
-# following the applier CLI-donor pattern). The donor is a repository-built
-# image, so R2.2 exempts it from the third-party digest rule; no other role
-# mounts it, and the executor main container still runs the one agent image.
+# The canonical executor declares Go and golangci-lint exec words. Separate
+# digest-pinned upstream init containers copy those tools into one shared
+# volume that only the executor mounts, read-only (GH-2494). The main executor
+# container still runs the canonical agent-core image.
 executorTools:
   mountPath: /opt/go-tools
-  image:
-    repository: ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain
-    tag: "0.1.0"
-    pullPolicy: IfNotPresent
+  go:
+    image:
+      repository: docker.io/library/golang
+      tag: "1.26-alpine"
+      digest: sha256:8ac98ca534ac3f51e1f420a1dd2c15e74c75cfa0f23f3ad27eb5d7236c349a0c
+      pullPolicy: IfNotPresent
+  golangciLint:
+    image:
+      repository: docker.io/golangci/golangci-lint
+      tag: "v2.12.2-alpine"
+      digest: sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60
+      pullPolicy: IfNotPresent
 
 workspace:
   mountPath: /work

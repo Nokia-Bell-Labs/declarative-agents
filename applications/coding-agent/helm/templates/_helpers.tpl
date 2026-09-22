@@ -78,8 +78,12 @@
 {{- include "agent-services.collectorImage" . -}}
 {{- end -}}
 
-{{- define "coding-agent.executorToolsImage" -}}
-{{- include "agent-services.pinnedImage" .Values.executorTools.image -}}
+{{- define "coding-agent.executorGoImage" -}}
+{{- include "agent-services.pinnedImage" .Values.executorTools.go.image -}}
+{{- end -}}
+
+{{- define "coding-agent.executorGolangciLintImage" -}}
+{{- include "agent-services.pinnedImage" .Values.executorTools.golangciLint.image -}}
 {{- end -}}
 
 {{- define "coding-agent.ollamaModels" -}}

@@ -127,8 +127,8 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return classifyCodingHelmFailure(environment.run, "cluster preparation", err, true)
 	}
 
-	// prepareCodingHelmCluster already built and loaded the agent-core image the
-	// collector and the applier run. The applier's helm and kubectl come from the
+	// prepareCodingHelmCluster already built and loaded the one agent-core image
+	// every agent workload runs. The applier's helm and kubectl come from the
 	// pinned CLI donor, loaded once per platform node and copied into the pod's
 	// read-only /opt/tools by the cli-donor init container (GH-2222). The chart
 	// reaches the pod through the mounted applier.chartArchive.
@@ -136,7 +136,7 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return &codingHelmInfrastructureError{Step: "applier CLI donor", Cause: err}
 	}
 
-	if err := installCodingApplierLiveChart(environment, chartDir, chartArchive, roots.Application, images.Agent, codingHelmCollectorImage); err != nil {
+	if err := installCodingApplierLiveChart(environment, chartDir, chartArchive, roots.Application, images.Agent); err != nil {
 		return classifyCodingHelmFailure(environment.run, "Helm install", err, true)
 	}
 	if err := verifyCodingHelmRollouts(environment, "applier"); err != nil {
@@ -361,11 +361,9 @@ func assertCodingApplierChartArchiveCarriesProfiles(archive string) error {
 // provisioned beside the release, which the init container unpacks (GH-1368), so
 // no image bakes the chart.
 func installCodingApplierLiveChart(
-	environment codingSmokeEnvironment, chartDir, chartArchive, applicationRoot, runtimeImage, applierImage string,
+	environment codingSmokeEnvironment, chartDir, chartArchive, applicationRoot, runtimeImage string,
 ) error {
 	repository, tag := splitCodingImageRef(runtimeImage)
-	collectorRepository, collectorTag := splitCodingImageRef(codingHelmCollectorImage)
-	applierRepository, applierTag := splitCodingImageRef(applierImage)
 	if err := provisionCodingApplierChartConfigMap(environment, chartArchive); err != nil {
 		return err
 	}
@@ -379,10 +377,6 @@ func installCodingApplierLiveChart(
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-applier-values.yaml"),
 		"--set", "image.repository="+repository,
 		"--set-string", "image.tag="+tag,
-		"--set", "collector.image.repository="+collectorRepository,
-		"--set-string", "collector.image.tag="+collectorTag,
-		"--set", "applier.image.repository="+applierRepository,
-		"--set-string", "applier.image.tag="+applierTag,
 		"--wait", "--timeout", codingHelmInstallTimeout.String(),
 	)
 	if err != nil {

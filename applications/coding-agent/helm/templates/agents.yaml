@@ -68,26 +68,33 @@ spec:
         {{- end }}
         {{- if eq $role "executor" }}
         {{/*
-        Tool donor (srd005 R9, GH-2494): the executor alone declares Go and
-        golangci-lint exec words. This init container runs the repository-built
-        toolchain image only to copy the Go SDK and the linter into a shared
-        volume the executor mounts read-only; the executor main container still
-        runs the one agent image. No serving role but the executor mounts these
-        tools. R9 excludes this container from the one-agent-image rule because
-        it carries no --profile argument, and R2.2 exempts the repository-built
-        donor from the third-party digest requirement.
+        Tool donors (srd005 R9, GH-2494): separate digest-pinned upstream
+        images copy the Go SDK and golangci-lint into one shared volume that
+        only the executor mounts, read-only. The executor main container still
+        runs the canonical agent-core image. These init containers carry no
+        --profile argument and are not agent workloads.
         */}}
-        - name: tool-donor
-          image: {{ include "coding-agent.executorToolsImage" $ | quote }}
-          imagePullPolicy: {{ $.Values.executorTools.image.pullPolicy }}
+        - name: go-tool-donor
+          image: {{ include "coding-agent.executorGoImage" $ | quote }}
+          imagePullPolicy: {{ $.Values.executorTools.go.image.pullPolicy }}
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -eu
-              rm -rf {{ $.Values.executorTools.mountPath }}/go {{ $.Values.executorTools.mountPath }}/bin
-              cp -a /usr/local/go {{ $.Values.executorTools.mountPath }}/go
+              cp -R /usr/local/go {{ $.Values.executorTools.mountPath }}/go
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - {name: executor-tools, mountPath: {{ $.Values.executorTools.mountPath }}}
+        - name: golangci-lint-tool-donor
+          image: {{ include "coding-agent.executorGolangciLintImage" $ | quote }}
+          imagePullPolicy: {{ $.Values.executorTools.golangciLint.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
               mkdir -p {{ $.Values.executorTools.mountPath }}/bin
-              cp -a /usr/local/bin/golangci-lint {{ $.Values.executorTools.mountPath }}/bin/golangci-lint
+              cp /usr/bin/golangci-lint {{ $.Values.executorTools.mountPath }}/bin/golangci-lint
           securityContext:
             {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
           volumeMounts:

@@ -295,7 +295,7 @@ func IsRepositoryImage(image string) bool {
 // repositoryImageNames are the image names this checkout pushes to a cloud
 // registry. A mirrored third-party image (the CLI donor) is not among them,
 // so it keeps its digest obligation.
-var repositoryImageNames = []string{"agent-core", "agent-core-toolchain"}
+var repositoryImageNames = []string{"agent-core"}
 
 // repositoryOf strips the tag and digest from a lowered reference.
 func repositoryOf(lowered string) string {

@@ -40,16 +40,12 @@ func prepareCodingHelmCluster(
 	if err != nil {
 		return fmt.Errorf("prepare kind workspace: %w: %s", err, strings.TrimSpace(string(output)))
 	}
-	// The coding roles and the collector both run on agent-core (GH-1368): build the
-	// agent-core base once, then layer the Go toolchain on it for the role image so
-	// the executor's go build / go test / golangci-lint exec words have a toolchain.
-	if err := kindrig.BuildAgentCoreImage(roots.Core, codingHelmCollectorImage); err != nil {
+	// Every agent workload runs this one commit-addressed canonical agent-core
+	// image. Executor tools arrive separately from digest-pinned donors.
+	if err := kindrig.BuildAgentCoreImage(roots.Core, images.Agent); err != nil {
 		return &codingHelmInfrastructureError{
 			Step: "agent-core image build", Cause: err,
 		}
-	}
-	if err := buildCodingAgentImage(roots.Core, codingHelmCollectorImage, images.Agent); err != nil {
-		return err
 	}
 	if err := buildCodingHelmModelImage(images.Model); err != nil {
 		return err
@@ -65,9 +61,11 @@ func prepareCodingHelmCluster(
 			return err
 		}
 	}
-	if err := loadCodingDependencyImage(cluster, codingHelmCollectorImage); err != nil {
-		return &codingHelmInfrastructureError{
-			Step: "dependency image load", Cause: err,
+	for _, image := range []string{codingHelmGoDonorImage, codingHelmLintDonorImage} {
+		if err := loadCodingDependencyImage(cluster, image); err != nil {
+			return &codingHelmInfrastructureError{
+				Step: "executor donor image load", Cause: err,
+			}
 		}
 	}
 	if err := runCodingSmokeCommand(environment, 30*time.Second,
@@ -233,7 +231,6 @@ func installCodingHelmChartWithRunner(
 	archive, applicationRoot, image string,
 ) error {
 	repository, tag := splitCodingImageRef(image)
-	collectorRepository, collectorTag := splitCodingImageRef(codingHelmCollectorImage)
 	ctx, cancel := context.WithTimeout(context.Background(), codingHelmInstallTimeout)
 	defer cancel()
 	output, err := run(ctx, "helm",
@@ -242,8 +239,6 @@ func installCodingHelmChartWithRunner(
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
 		"--set", "image.repository="+repository,
 		"--set-string", "image.tag="+tag,
-		"--set", "collector.image.repository="+collectorRepository,
-		"--set-string", "collector.image.tag="+collectorTag,
 		"--wait", "--timeout", codingHelmInstallTimeout.String(),
 	)
 	if err != nil {

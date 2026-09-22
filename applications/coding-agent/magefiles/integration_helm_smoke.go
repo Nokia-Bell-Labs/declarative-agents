@@ -24,11 +24,8 @@ const (
 	codingHelmNamespace      = kindrig.ScenarioNamespacePrefix + codingHelmScenario
 	codingHelmAgentImageRepo = "declarative-agents/coding-agent-smoke"
 	codingHelmModelImageRepo = "declarative-agents/coding-model-smoke"
-	codingHelmGoBaseImage    = "golang:1.26-alpine"
-	// codingHelmCollectorImage is built locally from the agent-core checkout
-	// (kindrig.BuildAgentCoreImage); the published ghcr.io chart default is
-	// not pullable from every environment.
-	codingHelmCollectorImage = kindrig.DefaultAgentCoreImage
+	codingHelmGoDonorImage   = "docker.io/library/golang:1.26-alpine@sha256:8ac98ca534ac3f51e1f420a1dd2c15e74c75cfa0f23f3ad27eb5d7236c349a0c"
+	codingHelmLintDonorImage = "docker.io/golangci/golangci-lint:v2.12.2-alpine@sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60"
 	codingHelmTraceID        = "0af7651916cd43dd8448eb211c80319c"
 	codingHelmTraceparent    = "00-" + codingHelmTraceID + "-b7ad6b7169203331-01"
 
@@ -148,7 +145,8 @@ func codingHelmSmokeSkipReason(roots integrationRoots, run codingSmokeRunner) st
 		return fmt.Sprintf("Docker unavailable: %v: %s", err, strings.TrimSpace(string(output)))
 	}
 	for _, image := range []string{
-		codingHelmGoBaseImage,
+		codingHelmGoDonorImage,
+		codingHelmLintDonorImage,
 	} {
 		ctx, cancel := context.WithTimeout(context.Background(), codingHelmProbeTimeout)
 		output, err := run(ctx, "docker", "image", "inspect", image)

@@ -68,19 +68,24 @@ func TestHelmCoreTopologyRendersRoleContract(t *testing.T) {
 		`image: "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0"`); got != 4 {
 		t.Errorf("shared agent-core image count = %d, want 4 (3 roles + collector)", got)
 	}
-	// The Go SDK and linter reach the executor alone, from a tool-donor init
-	// container, not from an alternate agent image.
-	if got := strings.Count(render, "name: tool-donor"); got != 1 {
-		t.Errorf("executor tool-donor init containers = %d, want 1", got)
+	// The Go SDK and linter reach the executor alone from separate upstream
+	// donors, never from an alternate agent image.
+	for _, donor := range []string{"go-tool-donor", "golangci-lint-tool-donor"} {
+		if got := strings.Count(render, "name: "+donor); got != 1 {
+			t.Errorf("%s init containers = %d, want 1", donor, got)
+		}
 	}
-	if got := strings.Count(render,
-		`image: "ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:0.1.0"`); got != 1 {
-		t.Errorf("toolchain donor image count = %d, want 1 (executor donor only)", got)
+	for _, image := range []string{
+		`image: "docker.io/library/golang:1.26-alpine@sha256:8ac98ca534ac3f51e1f420a1dd2c15e74c75cfa0f23f3ad27eb5d7236c349a0c"`,
+		`image: "docker.io/golangci/golangci-lint:v2.12.2-alpine@sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60"`,
+	} {
+		if got := strings.Count(render, image); got != 1 {
+			t.Errorf("donor image %q count = %d, want 1", image, got)
+		}
 	}
-	// executor-tools appears exactly three times for the executor: the donor's
-	// write mount, the main container's read-only mount, and the volume.
-	if got := strings.Count(render, "name: executor-tools"); got != 3 {
-		t.Errorf("executor-tools references = %d, want 3 (donor mount, main mount, volume)", got)
+	// Both donors write the same emptyDir; the executor mounts it read-only.
+	if got := strings.Count(render, "name: executor-tools"); got != 4 {
+		t.Errorf("executor-tools references = %d, want 4 (two donor mounts, main mount, volume)", got)
 	}
 	if !strings.Contains(render,
 		`value: "/opt/go-tools/go/bin:/opt/go-tools/bin:/usr/local/bin:/usr/bin:/bin"`) {

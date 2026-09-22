@@ -4,7 +4,8 @@
 # Pins no chart render exposes (srd006 R1.2). Chart images are not listed
 # here: the survey reads them out of the rendered charts, so this file and
 # the charts cannot disagree. The smoke dependency registry derives from
-# chart values for the same reason.
+# chart values for the same reason. This includes the coding executor's
+# digest-pinned Go and golangci-lint donors.
 #
 # Each entry names the file and the symbol or field holding the pin, so the
 # report points at the line to edit. TestDeclaredPinsDescribeTheirLocations

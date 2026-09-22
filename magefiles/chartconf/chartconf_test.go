@@ -316,7 +316,7 @@ spec:
 // not (R9.2).
 func TestOneAgentImageRule(t *testing.T) {
 	planner := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:c0ffee0"
-	toolchain := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:c0ffee0"
+	alternate := "ghcr.io/nokia-bell-labs/declarative-agents/alternate-agent:c0ffee0"
 	donor := "docker.io/alpine/k8s:1.31.4@sha256:" + strings.Repeat("a", 64)
 
 	uniform := agentDeployment("planner", planner, donor) +
@@ -328,14 +328,14 @@ func TestOneAgentImageRule(t *testing.T) {
 
 	diverged := agentDeployment("planner", planner, donor) +
 		"---\n" + agentDeployment("executor", planner, "") +
-		"---\n" + agentDeployment("collector", toolchain, "")
+		"---\n" + agentDeployment("collector", alternate, "")
 	findings := check(t, diverged)
 	r9 := 0
 	for _, f := range findings {
 		if f.Rule == "R9.1" {
 			r9++
-			if f.Value != toolchain {
-				t.Errorf("R9.1 should flag the divergent %q, got %q", toolchain, f.Value)
+			if f.Value != alternate {
+				t.Errorf("R9.1 should flag the divergent %q, got %q", alternate, f.Value)
 			}
 		}
 	}
@@ -349,10 +349,10 @@ func TestOneAgentImageRule(t *testing.T) {
 // eng08).
 func TestArtifactRegistryClassification(t *testing.T) {
 	cases := map[string]bool{
-		"us-central1-docker.pkg.dev/demo/agents/agent-core:a1b2c3":           true,
-		"us-central1-docker.pkg.dev/demo/agents/agent-core-toolchain:a1b2c3": true,
-		"us-central1-docker.pkg.dev/demo/agents/cli-donor:1.31.4":            false,
-		"docker.io/alpine/k8s:1.31.4":                                        false,
+		"us-central1-docker.pkg.dev/demo/agents/agent-core:a1b2c3": true,
+		"us-central1-docker.pkg.dev/demo/agents/alternate:a1b2c3":  false,
+		"us-central1-docker.pkg.dev/demo/agents/cli-donor:1.31.4":  false,
+		"docker.io/alpine/k8s:1.31.4":                              false,
 	}
 	for image, want := range cases {
 		if got := IsRepositoryImage(image); got != want {

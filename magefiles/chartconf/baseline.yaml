@@ -7,25 +7,17 @@
 # listed violation stops reproducing. The gate reads this file and never
 # writes it.
 #
-# The R9.1 entries record the one-agent-image divergences that exist while the
-# GH-2494 migration is in flight: a serving role runs the smoke image while the
-# collector still inherits the base agent-core image. Each is removed by the
-# child that makes every agent role inherit the one application image, at which
-# point R7.3 fails until the entry is deleted.
+# The one-agent-image migration (GH-2494) is complete: every application's
+# agent roles now inherit the one application image, so no R9.1 divergence
+# reproduces and this baseline holds no exceptions.
 #
-# GH-2504 moved every coding-agent role — planner, executor, critic, collector,
-# and applier — onto the one application image (the executor's Go and linter now
-# arrive from a tool donor), so the coding-agent divergences no longer reproduce
-# and their entries are gone.
-exceptions:
-  - chart: agent-architecture
-    overlay: kind-values.yaml
-    rule: R9.1
-    resource: Deployment/conformance-agent-architecture-collector container/collector
-    value: ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0
-    issue: GH-2503
-    reason: >
-      Under the kind overlay the curator runs the agent-architecture-smoke
-      image while the collector inherits the pinned base agent-core image.
-      GH-2503 makes the collector inherit the one application image, after
-      which it matches the curator.
+#   - GH-2504 moved every coding-agent role — planner, executor, critic,
+#     collector, applier — onto the one image (the executor's Go and linter now
+#     arrive from a tool donor).
+#   - GH-2503 removed the duplicate collector/applier agent image maps from
+#     Chatbot Mesh and Agent Architecture so those roles inherit the root image;
+#     Chatbot Mesh's contrib OTel collector remains an explicitly non-agent image.
+#
+# Shrink-only still holds: the gate fails on any unlisted violation, so a new
+# divergence must be fixed rather than re-added here.
+exceptions: []

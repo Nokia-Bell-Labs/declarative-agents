@@ -4,10 +4,11 @@
 # Coding-agent deployment
 
 This guide covers the packaged Helm chart produced by the coding-agent example.
-The application-owned runtime image is profile-free and includes Go 1.26 plus
-golangci-lint v2.12.2 for the canonical executor's mandatory build, lint, and
-test sequence; `mage helm:package` resolves and embeds the planner, executor,
-and critic role closures as chart files.
+The application uses the canonical profile-free agent-core runtime image.
+The executor's mandatory build, lint, and test sequence receives Go 1.26 and
+golangci-lint v2.12.2 from separate digest-pinned upstream donors;
+`mage helm:package` resolves and embeds the planner, executor, and critic role
+closures as chart files.
 
 ## Prerequisites
 
@@ -23,7 +24,8 @@ and critic role closures as chart files.
 For the live smoke additionally install Docker and kind and pre-pull:
 
 ```bash
-docker pull golang:1.26-alpine
+docker pull docker.io/library/golang:1.26-alpine@sha256:8ac98ca534ac3f51e1f420a1dd2c15e74c75cfa0f23f3ad27eb5d7236c349a0c
+docker pull docker.io/golangci/golangci-lint:v2.12.2-alpine@sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60
 docker pull ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0
 ```
 
@@ -53,13 +55,16 @@ It contains the strict values schema and every generated role asset. Packaging
 validates profile checksums, ConfigMap partitions, archive inventory, lint, and
 an independent archive render.
 
-`mage image:build` builds the shared
-`ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:0.1.0` from
-`agent-core/toolchain.Dockerfile`, layered on a locally built `agent-core` base
-(GH-1368); set `image` in `demo.yaml` to build another tag. The live Helm smoke
-uses this exact recipe. The image contains no profiles, but it does layer the
-Go toolchain and the v2.12.2 linter onto `agent` and the core tool declarations
-already carried by agent-core.
+`mage image:build` builds only
+`ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0` from the
+canonical `agent-core/Dockerfile`; set `image` in `demo.yaml` to choose another
+tag for that same recipe. The live Helm smoke uses the same recipe. The image
+contains neither profiles nor executor toolchains.
+
+Existing `agent-core-toolchain` tags are retired, not deleted. Migrate agent
+workloads to `agent-core`, configure the chart's `executorTools.go.image` and
+`executorTools.golangciLint.image` donors, and keep the resulting tools volume
+read-only in the executor main container.
 
 ## Install
 
@@ -100,8 +105,10 @@ planner Deployment. Values cannot choose profiles or profile paths.
 Important values:
 
 - `image.repository`, `image.tag`, `image.pullPolicy`: one shared profile-free
-  coding runtime image for all roles. An override must retain `agent`, Go, and
-  golangci-lint v2 compatibility.
+  agent-core runtime image for all roles. An override must retain the canonical
+  `agent` runtime contract.
+- `executorTools.go.image`, `executorTools.golangciLint.image`: digest-pinned
+  upstream donors for the executor-only Go SDK and linter.
 - `workspace.existingClaim`, `storageClass`, `accessModes`, `size`: shared
   workspace storage.
 - `roles.<role>.resources`: pod requests and limits. Replicas are intentionally

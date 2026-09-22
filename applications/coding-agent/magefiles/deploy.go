@@ -149,13 +149,8 @@ func codingDeployChart(roots integrationRoots) (string, error) {
 // helm's --set-string for the same reason.
 func codingDeployOverrides(images codingHelmImages) string {
 	repository, tag := splitCodingImageRef(images.Agent)
-	collectorRepository, collectorTag := splitCodingImageRef(codingHelmCollectorImage)
 	return fmt.Sprintf(`image:
   repository: %q
   tag: %q
-collector:
-  image:
-    repository: %q
-    tag: %q
-`, repository, tag, collectorRepository, collectorTag)
+`, repository, tag)
 }

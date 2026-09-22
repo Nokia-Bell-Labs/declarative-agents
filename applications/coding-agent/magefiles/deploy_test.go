@@ -54,23 +54,12 @@ func TestCodingDeployOverridesKeepImageTagsAsStrings(t *testing.T) {
 			Repository any `yaml:"repository"`
 			Tag        any `yaml:"tag"`
 		} `yaml:"image"`
-		Collector struct {
-			Image struct {
-				Repository any `yaml:"repository"`
-				Tag        any `yaml:"tag"`
-			} `yaml:"image"`
-		} `yaml:"collector"`
 	}
 	if err := yaml.Unmarshal([]byte(overrides), &decoded); err != nil {
 		t.Fatalf("overrides do not decode as YAML: %v\n%s", err, overrides)
 	}
-	for name, value := range map[string]any{
-		"image.tag":           decoded.Image.Tag,
-		"collector.image.tag": decoded.Collector.Image.Tag,
-	} {
-		if _, ok := value.(string); !ok {
-			t.Errorf("%s decoded as %T (%v), want a string", name, value, value)
-		}
+	if _, ok := decoded.Image.Tag.(string); !ok {
+		t.Errorf("image.tag decoded as %T (%v), want a string", decoded.Image.Tag, decoded.Image.Tag)
 	}
 	if decoded.Image.Tag != "20260919" {
 		t.Errorf("image.tag = %v, want the numeric-looking tag preserved", decoded.Image.Tag)

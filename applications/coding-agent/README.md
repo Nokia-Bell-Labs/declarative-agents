@@ -100,13 +100,18 @@ separately; a checkout is never mislabeled as released. Deployment and role
 manifests also record the application checkout revision and dirty state because
 the serving composition is application-owned.
 
-The application-owned coding runtime image stays profile-free. It uses the
-agent-core runtime plus Go 1.26 and golangci-lint v2.12.2, because the canonical
-executor always runs build, lint, and test. Kubernetes runs planner, executor,
-and critic as separate containers using that same image. Each container mounts
-its role directory under `/profiles` and selects the serving profile named by
-that role's manifest. Profiles are application package content, not image
-content.
+The application uses the canonical profile-free agent-core runtime image.
+Kubernetes runs planner, executor, and critic as separate containers using that
+same image. The executor alone receives Go 1.26 and golangci-lint v2.12.2 from
+separate digest-pinned upstream init containers through a shared read-only tools
+volume. Each agent container mounts its role directory under `/profiles` and
+selects the serving profile named by that role's manifest. Profiles are
+application package content, not image content.
+
+The previously published `agent-core-toolchain` tags remain available only for
+compatibility and are retired. Consumers must switch their agent workload image
+to `agent-core` and use executor tool donors instead of layering toolchains into
+the runtime image.
 
 ### Parameter inventory
 
@@ -145,7 +150,7 @@ The chart defaults to the one application image
 `ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0` for every role —
 planner, executor, critic, collector, and applier (srd005 R9, GH-2494) — with
 the executor's Go toolchain and golangci-lint delivered by a read-only tool
-donor (`executorTools`). It
+donor volume populated by separate `executorTools` init containers. It
 renders one persistent agent container per role, projected
 read-only role ConfigMaps, one shared workspace claim, fixed internal role
 Services, lifecycle probes, optional Ollama, and collector agent tracing. `values.schema.json`, semantic template guards, and fixtures under

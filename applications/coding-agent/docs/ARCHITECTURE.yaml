@@ -47,7 +47,7 @@ overview:
       B -->|mounted profile tree| P[Planner pod]
       B -->|mounted profile tree| E[Executor pod]
       B -->|mounted profile tree| C[Critic pod]
-      I[Profile-free coding runtime image] --> P
+      I[Canonical profile-free agent-core image] --> P
       I --> E
       I --> C
     ```
