@@ -10,8 +10,6 @@
 # GH-2512 introduced the image-reference grammar (C7 / R10). The entries
 # below are the in-flight migrations that grammar now names:
 #
-#   - GH-2516 replaces kindrig/cli-donor with the canonical alpine/k8s
-#     upstream identity after imports become transactional.
 #   - GH-2517 fully qualifies Docker Hub short names already carrying a
 #     digest (busybox, chromadb/chroma, dolthub/dolt-sql-server,
 #     ollama/ollama, rancher/kubectl).
@@ -24,13 +22,6 @@
 # reproduces.
 
 exceptions:
-- chart: agent-architecture
-  overlay: kind-applier-values.yaml
-  rule: R10.3
-  resource: Deployment/conformance-agent-architecture-applier container/cli-donor
-  value: kindrig/cli-donor:1.31.4
-  issue: GH-2516
-  reason: Kind retags the digest-pinned alpine/k8s CLI donor under kindrig/cli-donor because a node import cannot keep the registry manifest-list digest. GH-2516 replaces the alias with the canonical upstream identity.
 - chart: chatbot-mesh
   overlay: defaults
   rule: R10.1
@@ -241,13 +232,6 @@ exceptions:
   value: chromadb/chroma:1.5.3@sha256:cfd193653bd61076610730a09acae34ab85b5b6b1f5db4d944c17b5e8453658d
   issue: GH-2517
   reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
-- chart: chatbot-mesh
-  overlay: kind-applier-values.yaml
-  rule: R10.3
-  resource: Deployment/conformance-chatbot-mesh-applier container/cli-donor
-  value: kindrig/cli-donor:1.31.4
-  issue: GH-2516
-  reason: Kind retags the digest-pinned alpine/k8s CLI donor under kindrig/cli-donor because a node import cannot keep the registry manifest-list digest. GH-2516 replaces the alias with the canonical upstream identity.
 - chart: chatbot-mesh
   overlay: kind-llm-values.yaml
   rule: R10.1
@@ -332,13 +316,6 @@ exceptions:
   value: kindrig/chromadb-chroma:1.5.3
   issue: GH-2519
   reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
-- chart: coding-agent
-  overlay: kind-applier-values.yaml
-  rule: R10.3
-  resource: Deployment/conformance-coding-agent-applier container/cli-donor
-  value: kindrig/cli-donor:1.31.4
-  issue: GH-2516
-  reason: Kind retags the digest-pinned alpine/k8s CLI donor under kindrig/cli-donor because a node import cannot keep the registry manifest-list digest. GH-2516 replaces the alias with the canonical upstream identity.
 - chart: coding-agent
   overlay: kind-values.yaml
   rule: R10.3

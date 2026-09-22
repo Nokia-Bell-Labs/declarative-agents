@@ -124,6 +124,10 @@ func TestDigestRuleAppliesOnlyToThirdPartyImages(t *testing.T) {
 	if hasRule(findings, "R2.1") {
 		t.Fatalf("repository image wrongly required to carry a digest: %v", findings)
 	}
+	findings = check(t, deployment("docker.io/alpine/k8s:1.31.4", "Never", "/healthz"))
+	if hasRule(findings, "R2.1") {
+		t.Fatalf("Never-pulled third-party image required a digest: %v", findings)
+	}
 }
 
 // A registry host carrying a port must not be mistaken for a tag.

@@ -17,11 +17,11 @@ const (
 	// CLIDonorHelmVersion is the helm release CLIDonorImage carries. The
 	// applier's exec words use helm 3 flag spellings, so the two move together.
 	CLIDonorHelmVersion = "v3.16.3"
-	// CLIDonorRuntimeImage is the rig-local name the donor is kind-loaded under.
-	// A kind-loaded image does not keep its registry digest, so the kind values
-	// overlays reference this tag with pullPolicy Never, as the Traefik install
-	// does with its own retag.
-	CLIDonorRuntimeImage = "kindrig/cli-donor:1.31.4"
+	// CLIDonorRuntimeImage is the fully qualified upstream tag the donor is
+	// kind-loaded under. A kind-loaded image does not keep its registry
+	// digest, so kind values overlays reference this tag with pullPolicy
+	// Never. The digest stays on CLIDonorImage, the immutable pull source.
+	CLIDonorRuntimeImage = "docker.io/alpine/k8s:1.31.4"
 )
 
 // EnsureCLIDonorImage makes the donor available in the cluster node under

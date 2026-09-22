@@ -15,7 +15,7 @@ func TestCLIDonorImageIsDigestPinned(t *testing.T) {
 	if !ok || !strings.HasPrefix(digest, "sha256:") || len(digest) != len("sha256:")+64 {
 		t.Fatalf("CLIDonorImage %q is not pinned by a sha256 digest", CLIDonorImage)
 	}
-	if !strings.HasSuffix(name, ":"+strings.TrimPrefix(CLIDonorRuntimeImage, "kindrig/cli-donor:")) {
+	if tagWithoutDigest(CLIDonorImage) != CLIDonorRuntimeImage {
 		t.Fatalf("donor %q and rig-local tag %q name different versions", name, CLIDonorRuntimeImage)
 	}
 }
@@ -38,7 +38,6 @@ func TestEnsureCLIDonorImageReusesLocalDigest(t *testing.T) {
 		"docker image inspect --format {{.Id}} " + CLIDonorRuntimeImage,
 		"docker tag " + CLIDonorImage + " " + CLIDonorRuntimeImage,
 		"node-import " + CLIDonorRuntimeImage + " da-platform-control-plane linux/" + runtime.GOARCH,
-		"docker image rm " + CLIDonorRuntimeImage,
 	}
 	if len(cluster.calls) != len(want) {
 		t.Fatalf("calls = %v, want %d", cluster.calls, len(want))
@@ -61,6 +60,9 @@ func TestEnsureCLIDonorImagePullsAbsentDigest(t *testing.T) {
 	if len(cluster.calls) < 2 ||
 		cluster.calls[1] != "docker pull --platform linux/"+runtime.GOARCH+" "+CLIDonorImage {
 		t.Fatalf("absent donor was not pulled: %v", cluster.calls)
+	}
+	if strings.Contains(strings.Join(cluster.calls, "\n"), "docker image rm "+CLIDonorRuntimeImage) {
+		t.Fatalf("canonical upstream tag was untagged: %v", cluster.calls)
 	}
 }
 

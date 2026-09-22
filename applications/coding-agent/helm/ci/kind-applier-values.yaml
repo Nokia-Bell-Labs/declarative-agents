@@ -12,11 +12,11 @@ applier:
   # Loaded into the kind node by the target; never pulled.
   image:
     pullPolicy: Never
-  # The rig pulls the pinned donor once, retags it under this rig-local name,
-  # and kind-loads it (kindrig.EnsureCLIDonorImage), because a kind-loaded image
-  # does not keep its registry digest.
+  # The rig pulls the digest-pinned alpine/k8s donor and imports it under
+  # this fully qualified upstream tag (kindrig.EnsureCLIDonorImage). Kind
+  # cannot keep the registry digest, so pullPolicy is Never.
   cliDonor:
-    image: {repository: kindrig/cli-donor, tag: "1.31.4", digest: "", pullPolicy: Never}
+    image: {repository: docker.io/alpine/k8s, tag: "1.31.4", digest: "", pullPolicy: Never}
   networkPolicy:
     enabled: true
   resources:

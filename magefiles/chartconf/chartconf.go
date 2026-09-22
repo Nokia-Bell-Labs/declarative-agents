@@ -22,7 +22,7 @@ import (
 // copies keep the ghcr.io path or an Artifact Registry agent-core name.
 // `kindrig/` and the unprefixed `declarative-agents/` forms are legacy retags
 // R10.3 and R10.1 reject; R2.2 still exempts them from the digest rule until
-// the in-flight migrations (GH-2516, GH-2519) remove them.
+// the in-flight migration (GH-2519) removes them.
 // The digest that matters for an upstream retag is pinned on the source,
 // where R2.1 checks it.
 var RepositoryImagePrefixes = []string{
@@ -337,7 +337,7 @@ func checkImages(chart, overlay string, document Document) []Finding {
 			findings = append(findings, Finding{chart, overlay, "R1.1", resource, container.Image,
 				"image tag floats"})
 		}
-		if !IsRepositoryImage(container.Image) && digest == "" {
+		if !IsRepositoryImage(container.Image) && digest == "" && container.PullPolicy != "Never" {
 			findings = append(findings, Finding{chart, overlay, "R2.1", resource, container.Image,
 				"third-party image carries no digest"})
 		}
