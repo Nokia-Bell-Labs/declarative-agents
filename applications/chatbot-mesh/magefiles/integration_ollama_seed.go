@@ -11,13 +11,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
 const (
-	ollamaSeedRepository    = "declarative-agents/ollama-model-cache"
 	ollamaSeedRecipeLabel   = "io.declarative-agents.ollama-seed.recipe"
 	ollamaSeedRuntimeLabel  = "io.declarative-agents.ollama-seed.runtime"
 	ollamaSeedPlatformLabel = "io.declarative-agents.ollama-seed.platform"
@@ -42,9 +42,13 @@ func ensureOllamaSeedImage(
 		return ollamaSeedImage{}, fmt.Errorf(
 			"Ollama seed runtime ID %q is not a verified digest", runtimeID)
 	}
-	platform := "linux/" + runtime.GOARCH
+	platform := kindrig.HostPlatform()
 	recipe := ollamaSeedRecipe(runtimeImage, runtimeID, platform, canonical)
-	image := ollamaSeedRepository + ":" + strings.TrimPrefix(recipe, "sha256:")[:12]
+	image, err := kindrig.FormatRecipeLocal(
+		kindrig.CacheRole, "ollama-models", recipe, platform)
+	if err != nil {
+		return ollamaSeedImage{}, err
+	}
 	identity := ollamaSeedIdentity{
 		recipe: recipe, runtimeID: runtimeID, platform: platform,
 	}

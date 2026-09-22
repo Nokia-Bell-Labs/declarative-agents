@@ -46,11 +46,11 @@ func TestKindDependencyImagesCoverEveryExternalPodImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantSmoke := []string{
-		"otel/opentelemetry-collector-contrib:0.127.0",
-		"chromadb/chroma:1.5.3",
-		"dolthub/dolt-sql-server:2.3.5",
-		"rancher/kubectl:v1.31.4",
-		"busybox:1.36",
+		"docker.io/otel/opentelemetry-collector-contrib:0.127.0",
+		"docker.io/chromadb/chroma:1.5.3@sha256:cfd193653bd61076610730a09acae34ab85b5b6b1f5db4d944c17b5e8453658d",
+		"docker.io/dolthub/dolt-sql-server:2.3.5@sha256:36fdd43d83b6f40cd63f8a4a406a8df42fb2401ac08ba7ea4cb3b9eeedf16355",
+		"docker.io/rancher/kubectl:v1.31.4@sha256:5135fe5999d8472793979e1da0d1559da758c37668c3dfb1650c8f95adc706d0",
+		"docker.io/library/busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662",
 	}
 	if !slices.Equal(smoke, wantSmoke) {
 		t.Fatalf("smoke dependencies = %v, want %v", smoke, wantSmoke)
@@ -65,25 +65,35 @@ func TestKindDependencyImagesCoverEveryExternalPodImage(t *testing.T) {
 }
 
 func TestHermeticDependencyPullUsesExactOllamaDigest(t *testing.T) {
+	chartDir := filepath.Join("..", "helm")
+	source, err := chartOllamaSourceImage(chartDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	derived, err := trustedOllamaDerivedRef(chartDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var calls []string
 	run := func(name string, args ...string) ([]byte, error) {
 		calls = append(calls, name+" "+strings.Join(args, " "))
 		return nil, nil
 	}
-	images := []string{"busybox:1.36", helmLLMOllamaImage}
-	if err := pullIntegrationDependencyImages("helmLLMTier", images, run); err != nil {
+	utility := "docker.io/library/busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+	images := []string{utility, derived}
+	if err := pullIntegrationDependencyImages("helmLLMTier", images, chartDir, run); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
-		"docker pull --platform linux/" + runtime.GOARCH + " busybox:1.36",
-		"docker pull --platform linux/" + runtime.GOARCH + " " + helmLLMOllamaSourceImage,
+		"docker pull --platform linux/" + runtime.GOARCH + " " + utility,
+		"docker pull --platform linux/" + runtime.GOARCH + " " + source,
 	}
 	if !slices.Equal(calls, want) {
 		t.Fatalf("dependency delivery calls:\n got: %v\nwant: %v", calls, want)
 	}
-	dockerfile := trustedOllamaDockerfile()
+	dockerfile := trustedOllamaDockerfile(source)
 	for _, want := range []string{
-		"FROM " + helmLLMOllamaSourceImage,
+		"FROM " + source,
 		">> /etc/ssl/certs/ca-certificates.crt",
 	} {
 		if !strings.Contains(dockerfile, want) {
@@ -96,10 +106,10 @@ func TestHermeticDependencyPullUsesExactOllamaDigest(t *testing.T) {
 				forbidden, dockerfile)
 		}
 	}
-	platform := "linux/" + runtime.GOARCH
+	platform := kindrig.HostPlatform()
 	recipe := "sha256:trusted-recipe"
 	buildArgs := strings.Join(
-		trustedOllamaBuildArgs(helmLLMOllamaImage, recipe, platform), " ")
+		trustedOllamaBuildArgs(derived, recipe, platform), " ")
 	for _, want := range []string{
 		"--platform " + platform,
 		"--provenance=false",

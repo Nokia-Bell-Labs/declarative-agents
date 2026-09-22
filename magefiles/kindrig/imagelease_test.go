@@ -386,6 +386,21 @@ func TestImageLeaseUpstreamClassIsNotRemovedOnLastRelease(t *testing.T) {
 	}
 }
 
+func TestImageLeaseAcquireLocalDerivedRequiresPresentImage(t *testing.T) {
+	ref := mustDerivedLocal(t, "ollama", "0.34.2-kind-trusted", sampleRecipe)
+	docker := &fakeLeaseDocker{images: map[string]dockerImageMetadata{
+		ref: {ID: "sha256:" + strings.Repeat("d", 64), OS: "linux", Architecture: "arm64"},
+	}}
+	manager := newFakeLeaseManager(t, docker)
+	lease, err := manager.acquireLocal(ref, "chatbot-mesh-llm-tier")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Release(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestImageLeaseAcquireRejectsUntypedNames(t *testing.T) {
 	manager := newFakeLeaseManager(t, &fakeLeaseDocker{})
 	if _, err := manager.acquire("/core",

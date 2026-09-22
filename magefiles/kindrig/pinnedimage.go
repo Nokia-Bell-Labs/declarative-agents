@@ -114,11 +114,17 @@ func runPhase(run CommandRunner, cluster, component, phase string, command []str
 	return runInstallSteps(run, cluster, component, []installStep{{phase: phase, command: command}})
 }
 
-// importPinnedImage pulls a digest-pinned source if needed, tags a host
+// ImportPinnedImage pulls a digest-pinned source if needed, tags a host
 // import name when that tag is absent, and imports the host platform into
 // the node. A transient alias this run created is removed after import; the
 // canonical upstream tag and the source digest stay. Import failure rolls
 // back a transient tag this run created.
+func ImportPinnedImage(
+	run CommandRunner, cluster, component, sourceImage, hostImport string,
+) error {
+	return importPinnedImage(run, cluster, component, sourceImage, hostImport)
+}
+
 func importPinnedImage(
 	run CommandRunner, cluster, component, sourceImage, hostImport string,
 ) error {

@@ -190,13 +190,13 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 	// gates on EVERY release pod reaching Ready. The shared smoke set includes
 	// the observer proxy and utility init image as of GH-1321, so no release pod
 	// can stall in ImagePullBackOff on a node that cannot reach the registry.
-	dependencyImages, err := applierLiveDependencyImages(chartDir)
+	dependencySpecs, err := applierLiveDependencySpecs(chartDir)
 	if err != nil {
 		return err
 	}
 	if err := runApplierLivePhase("dependency-pull", func() error {
 		return pullIntegrationDependencyImages(
-			"applierLive", dependencyImages, runHelmSmokeCommand)
+			"applierLive", smokeDependencyPulls(dependencySpecs), chartDir, runHelmSmokeCommand)
 	}); err != nil {
 		return err
 	}
@@ -267,9 +267,9 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 			commands, cluster.Name, images.Runtime); loadErr != nil {
 			return loadErr
 		}
-		for _, image := range dependencyImages {
+		for _, spec := range dependencySpecs {
 			if loadErr := loadSmokeDependencyImageWithCommands(
-				commands, cluster.Name, image); loadErr != nil {
+				commands, cluster.Name, spec); loadErr != nil {
 				return loadErr
 			}
 		}
@@ -348,11 +348,11 @@ func runApplierLivePhase(name string, run func() error) error {
 	return err
 }
 
-// applierLiveDependencyImages is the full external image set for the applier
+// applierLiveDependencySpecs is the full external image set for the applier
 // tier. Its kind values disable Ollama, so this is the same collector, Chroma,
 // Dolt, observer-proxy, and utility set used by the smoke topology.
-func applierLiveDependencyImages(chartDir string) ([]string, error) {
-	return smokeDependencyImages(chartDir)
+func applierLiveDependencySpecs(chartDir string) ([]chartDependency, error) {
+	return smokeDependencySpecs(chartDir)
 }
 
 // stageApplierLiveChart gives only this live tier a deterministic post-upgrade

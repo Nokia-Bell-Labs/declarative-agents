@@ -182,6 +182,44 @@ func AcquireAgentCoreImageLease(
 	return defaultImageLeaseManager().acquire(coreRoot, image, HostPlatform(), ownerPrefix)
 }
 
+// AcquireLocalImageLease records an owner for a derived or cache image that
+// is already present on the host. Release it after the owning cluster is gone.
+func AcquireLocalImageLease(image, ownerPrefix string) (*AgentCoreImageLease, error) {
+	return defaultImageLeaseManager().acquireLocal(image, ownerPrefix)
+}
+
+func (m *imageLeaseManager) acquireLocal(
+	image, ownerPrefix string,
+) (*AgentCoreImageLease, error) {
+	class, image, err := ClassifyLeaseImage(image)
+	if err != nil {
+		return nil, err
+	}
+	if class != DerivedImageClass && class != CacheImageClass {
+		return nil, fmt.Errorf(
+			"local image lease %q is %s, not derived or cache", image, class)
+	}
+	ownerPrefix = strings.TrimSpace(ownerPrefix)
+	if ownerPrefix == "" {
+		return nil, errors.New("image lease owner prefix is required")
+	}
+	unlock, err := m.lock(image)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+
+	state, found, err := m.read(image)
+	if err != nil {
+		return nil, err
+	}
+	result, tagPreExisted, err := m.resolveLocal(image, class)
+	if err != nil {
+		return nil, err
+	}
+	return m.recordAcquire(image, ownerPrefix, state, found, result, tagPreExisted)
+}
+
 func (m *imageLeaseManager) acquire(
 	coreRoot, image, platform, ownerPrefix string,
 ) (*AgentCoreImageLease, error) {
@@ -204,6 +242,18 @@ func (m *imageLeaseManager) acquire(
 		return nil, err
 	}
 	result, tagPreExisted, err := m.resolve(coreRoot, image, platform, class)
+	if err != nil {
+		return nil, err
+	}
+	return m.recordAcquire(image, ownerPrefix, state, found, result, tagPreExisted)
+}
+
+func (m *imageLeaseManager) recordAcquire(
+	image, ownerPrefix string,
+	state imageLeaseState, found bool,
+	result AgentCoreImageResult, tagPreExisted bool,
+) (*AgentCoreImageLease, error) {
+	class, _, err := ClassifyLeaseImage(image)
 	if err != nil {
 		return nil, err
 	}
@@ -240,6 +290,43 @@ func (m *imageLeaseManager) acquire(
 		return nil, err
 	}
 	return &AgentCoreImageLease{Result: result, Owner: owner, manager: m}, nil
+}
+
+func (m *imageLeaseManager) resolveLocal(
+	image string, class ImageLeaseClass,
+) (AgentCoreImageResult, bool, error) {
+	item, tagPreExisted := m.inspect(image)
+	if !tagPreExisted {
+		return AgentCoreImageResult{}, false, fmt.Errorf(
+			"local image %s is not present on the host", image)
+	}
+	local, err := ParseLocal(image)
+	if err != nil {
+		return AgentCoreImageResult{}, tagPreExisted, err
+	}
+	platform := local.OS + "/" + local.Arch
+	if item.OS+"/"+item.Architecture != platform {
+		return AgentCoreImageResult{}, tagPreExisted, fmt.Errorf(
+			"local image %s is %s/%s, want %s", image,
+			item.OS, item.Architecture, platform)
+	}
+	result := AgentCoreImageResult{
+		Reference: image,
+		Revision:  local.Revision,
+		Recipe:    local.Recipe,
+		Platform:  platform,
+		ImageID:   item.ID,
+		Reused:    true,
+	}
+	if class == DerivedImageClass && local.Type != UpstreamIdentity {
+		return AgentCoreImageResult{}, tagPreExisted, fmt.Errorf(
+			"derived image %s does not carry upstream identity", image)
+	}
+	if class == CacheImageClass && local.Type != RecipeIdentity {
+		return AgentCoreImageResult{}, tagPreExisted, fmt.Errorf(
+			"cache image %s does not carry recipe identity", image)
+	}
+	return result, tagPreExisted, nil
 }
 
 func (m *imageLeaseManager) resolve(
