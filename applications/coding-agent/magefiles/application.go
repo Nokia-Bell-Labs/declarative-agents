@@ -102,12 +102,12 @@ func (App) Verify() error {
 	return verifyCodingTrace(forwards.queryURL)
 }
 
-func (App) Purge() error {
+func (App) Purge(confirmation string) error {
 	runner, err := codingApplicationRunner()
 	if err != nil {
 		return err
 	}
-	return runner.PurgeData()
+	return runner.PurgeData(confirmation)
 }
 
 func codingApplicationRunner() (apprig.Runner, error) {
@@ -200,6 +200,23 @@ func codingApplicationRunner() (apprig.Runner, error) {
 	runner.Probes = codingApplicationProbes
 	runner.AfterDown = func(apprig.Resolved) error {
 		return cleanupCodingApplicationWorkspace()
+	}
+	runner.Purge = func(resolved apprig.Resolved, confirmation string) error {
+		binary, cleanup, err := buildAgent(roots.Core)
+		if err != nil {
+			return err
+		}
+		return apprig.RunApplicationPurge(
+			resolved, confirmation,
+			apprig.PurgeBinding{
+				Endpoint:       kindrig.FakeGCSHostEndpoint,
+				AuditDirectory: filepath.Join(roots.Application, "build", "purge"),
+			},
+			apprig.PurgeAgent{
+				Binary: binary, Cleanup: cleanup, CoreRoot: roots.Core,
+				Profile: filepath.Join(roots.Profiles, "agents", "application-purge", "profile.yaml"),
+			},
+		)
 	}
 	return runner, nil
 }

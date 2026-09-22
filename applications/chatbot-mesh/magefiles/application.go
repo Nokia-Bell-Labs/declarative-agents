@@ -121,12 +121,12 @@ func (App) Verify() error {
 	return assertSmokeChatServed("http://" + chatbotApplicationHost + "/api/v1/chat")
 }
 
-func (App) Purge() error {
+func (App) Purge(confirmation string) error {
 	runner, err := chatbotApplicationRunner()
 	if err != nil {
 		return err
 	}
-	return runner.PurgeData()
+	return runner.PurgeData(confirmation)
 }
 
 func chatbotApplicationRunner() (apprig.Runner, error) {
@@ -284,6 +284,24 @@ func chatbotApplicationRunner() (apprig.Runner, error) {
 		return nil
 	}
 	runner.Probes = chatbotApplicationProbes
+	runner.Purge = func(resolved apprig.Resolved, confirmation string) error {
+		agent, err := chatbotDeployAgent(
+			root, "agents/application-purge/profile.yaml")
+		if err != nil {
+			return err
+		}
+		return apprig.RunApplicationPurge(
+			resolved, confirmation,
+			apprig.PurgeBinding{
+				Endpoint:       kindrig.FakeGCSHostEndpoint,
+				AuditDirectory: filepath.Join(root, "build", "purge"),
+			},
+			apprig.PurgeAgent{
+				Binary: agent.agent.Binary, Cleanup: agent.agent.Cleanup,
+				CoreRoot: agent.agent.CoreRoot, Profile: agent.agent.Profile,
+			},
+		)
+	}
 	return runner, nil
 }
 

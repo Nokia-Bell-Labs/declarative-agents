@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	InitObjectRead  = "object_read"
-	InitObjectWrite = "object_write"
-	InitObjectList  = "object_list"
+	InitObjectRead         = "object_read"
+	InitObjectWrite        = "object_write"
+	InitObjectList         = "object_list"
+	InitObjectDeletePrefix = "object_delete_prefix"
 )
 
 // FactoryDeps carries the process-shared opener, so every word in a run sees
@@ -21,7 +22,7 @@ type FactoryDeps struct {
 	Opener *Opener
 }
 
-// RegisterFactories registers the three objectstore inits. The connection is
+// RegisterFactories registers the objectstore inits. The connection is
 // resolved at configuration time, so a bad declaration fails the load rather
 // than the first call (srd059 R2.1).
 func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
@@ -44,4 +45,14 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	register(InitObjectRead, func(c ConnectionConfig) core.Builder { return &ReadBuilder{Opener: opener, Connection: c} })
 	register(InitObjectWrite, func(c ConnectionConfig) core.Builder { return &WriteBuilder{Opener: opener, Connection: c} })
 	register(InitObjectList, func(c ConnectionConfig) core.Builder { return &ListBuilder{Opener: opener, Connection: c} })
+	br.Register(InitObjectDeletePrefix, func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		config, err := DecodeDeletePrefixConfig(def)
+		if err != nil {
+			return nil, err
+		}
+		if _, _, err := probeScheme(config.Connection); err != nil {
+			return nil, err
+		}
+		return &DeletePrefixBuilder{Opener: opener, Config: config}, nil
+	})
 }

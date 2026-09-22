@@ -39,8 +39,8 @@ func (App) Diagnose(application string) error {
 	return runSelectedApplication(application, "app:diagnose")
 }
 
-func (App) Purge(application string) error {
-	return runSelectedApplication(application, "app:purge")
+func (App) Purge(application, confirmation string) error {
+	return runSelectedApplication(application, "app:purge", confirmation)
 }
 
 // Integration groups root-owned persistent-platform proofs.
@@ -129,7 +129,7 @@ func rootApplicationRunner() (apprig.Runner, error) {
 	return fixtureApplicationRunner(root)
 }
 
-func runSelectedApplication(application, target string) error {
+func runSelectedApplication(application, target string, arguments ...string) error {
 	if application == "fixture" {
 		runner, err := rootApplicationRunner()
 		if err != nil {
@@ -153,7 +153,10 @@ func runSelectedApplication(application, target string) error {
 		case "app:diagnose":
 			return runner.Diagnose()
 		case "app:purge":
-			return runner.PurgeData()
+			if len(arguments) != 1 {
+				return fmt.Errorf("app:purge fixture requires confirmation purge:fixture")
+			}
+			return runner.PurgeData(arguments[0])
 		}
 	}
 	directories := map[string]string{
@@ -169,7 +172,7 @@ func runSelectedApplication(application, target string) error {
 	if err != nil {
 		return err
 	}
-	command := exec.Command("mage", target)
+	command := exec.Command("mage", append([]string{target}, arguments...)...)
 	command.Dir = filepath.Join(root, relative)
 	command.Stdout, command.Stderr = os.Stdout, os.Stderr
 	if err := command.Run(); err != nil {

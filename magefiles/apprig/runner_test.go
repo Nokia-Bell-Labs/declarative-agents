@@ -198,15 +198,15 @@ func TestRunnerDiagnoseAndPurgeDelegation(t *testing.T) {
 	if err := runner.Diagnose(); err != nil || !diagnosed {
 		t.Fatalf("diagnose = %v, delegated=%t", err, diagnosed)
 	}
-	if err := runner.PurgeData(); !errors.Is(err, ErrPurgeUnavailable) {
+	if err := runner.PurgeData("purge:fixture"); !errors.Is(err, ErrPurgeUnavailable) {
 		t.Fatalf("unconfigured purge = %v", err)
 	}
 	purged := false
-	runner.Purge = func(resolved Resolved) error {
-		purged = resolved.BucketURL == "gs://fixture-telemetry"
+	runner.Purge = func(resolved Resolved, confirmation string) error {
+		purged = resolved.BucketURL == "gs://fixture-telemetry" && confirmation == "purge:fixture"
 		return nil
 	}
-	if err := runner.PurgeData(); err != nil || !purged {
+	if err := runner.PurgeData("purge:fixture"); err != nil || !purged {
 		t.Fatalf("configured purge = %v, delegated=%t", err, purged)
 	}
 }

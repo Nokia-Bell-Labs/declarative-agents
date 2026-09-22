@@ -359,6 +359,12 @@ bindings:
       classification: infrastructure_adapter
       domain: lifecycle
       execution_scope: client
+    - actor: application-purge
+      profile: applications/catalog/agents/application-purge/profile.yaml
+      classification: infrastructure_adapter
+      domain: retention
+      execution_scope: host-request
+      authority_boundary: Deletes only the application bucket prefix rendered by apprig after exact application-specific confirmation; it chooses no storage identity and cannot mutate collector query behavior.
 
   coding_agent:
     - actor: coding-planner-server

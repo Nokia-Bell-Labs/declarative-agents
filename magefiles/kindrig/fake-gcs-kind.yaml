@@ -82,3 +82,25 @@ spec:
     - name: http
       port: 4443
       targetPort: http
+---
+# Host-side application lifecycle (not collector traffic) reaches fake GCS
+# through the platform ingress. The .localhost host is stable and carries no
+# credential; local kind claims configuration/lifecycle isolation only.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fake-gcs-host
+  namespace: fake-gcs
+  labels: {app.kubernetes.io/name: fake-gcs, app.kubernetes.io/managed-by: kindrig}
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: objectstore.da-platform.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fake-gcs
+                port: {name: http}

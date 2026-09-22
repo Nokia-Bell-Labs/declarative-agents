@@ -49,7 +49,7 @@ type Runner struct {
 
 	// Purge delegates to the implementation approved by GH-2488. Nil is a
 	// fail-closed result, never an imperative deletion fallback.
-	Purge func(Resolved) error
+	Purge func(Resolved, string) error
 
 	operations lifecycleOperations
 }
@@ -184,7 +184,7 @@ func (r Runner) Diagnose() error {
 
 // PurgeData delegates resolved application identity to the approved purge
 // implementation. No callback means no deletion.
-func (r Runner) PurgeData() error {
+func (r Runner) PurgeData(confirmation string) error {
 	resolved, err := r.resolve()
 	if err != nil {
 		return err
@@ -192,7 +192,7 @@ func (r Runner) PurgeData() error {
 	if r.Purge == nil {
 		return ErrPurgeUnavailable
 	}
-	return r.Purge(resolved)
+	return r.Purge(resolved, confirmation)
 }
 
 func (r Runner) deploy(resolved Resolved, preparation Preparation) error {

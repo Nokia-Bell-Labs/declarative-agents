@@ -419,7 +419,7 @@ func TestUpPlatformStartsAndKeepsPlatformWhenNoneIsListed(t *testing.T) {
 	}
 }
 
-func TestUpPlatformReusesHealthyPlatformAndPrunesNodeImages(t *testing.T) {
+func TestUpPlatformReusesHealthyPlatformWithoutPruningBaseImages(t *testing.T) {
 	h, commands := listedPlatformHarness(t)
 	cluster, err := UpPlatform(h.upOptions(true))
 	if err != nil {
@@ -431,8 +431,8 @@ func TestUpPlatformReusesHealthyPlatformAndPrunesNodeImages(t *testing.T) {
 	if strings.Join(h.order, ",") != "bind da-platform,boot,conformance" || !h.unbound {
 		t.Fatalf("order=%v unbound=%v", h.order, h.unbound)
 	}
-	if strings.Join(commands.calls, "\n") != "docker exec da-platform-control-plane crictl rmi --prune" {
-		t.Fatalf("reuse did not prune node images first: %v", commands.calls)
+	if strings.Contains(strings.Join(commands.calls, "\n"), "rmi --prune") {
+		t.Fatalf("reuse pruned kind base images needed for PVC provisioning: %v", commands.calls)
 	}
 }
 

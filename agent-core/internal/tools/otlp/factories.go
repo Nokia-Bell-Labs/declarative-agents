@@ -322,21 +322,9 @@ func decodeStorageConfig(toolName string, raw StorageToolConfig, vars map[string
 		if raw.WALPath == "" {
 			return StorageConfig{}, fmt.Errorf("tool %q object storage requires wal_path", toolName)
 		}
-		retentionDays := 0
-		if raw.RetentionDays != "" {
-			parsed, parseErr := strconv.Atoi(raw.RetentionDays)
-			if parseErr != nil {
-				return StorageConfig{}, fmt.Errorf(
-					"tool %q object storage retention_days must be an integer", toolName)
-			}
-			retentionDays = parsed
-		}
-		if retentionDays < 0 {
-			return StorageConfig{}, fmt.Errorf("tool %q object storage retention_days must not be negative", toolName)
-		}
-		retentionClass := raw.RetentionClass
-		if retentionClass == "" {
-			retentionClass = "application"
+		retentionClass, retentionDays, err := decodeRetention(toolName, raw)
+		if err != nil {
+			return StorageConfig{}, err
 		}
 		stage := raw.StageDir
 		if stage != "" {
@@ -355,6 +343,27 @@ func decodeStorageConfig(toolName string, raw StorageToolConfig, vars map[string
 		return StorageConfig{}, fmt.Errorf(
 			"tool %q has unknown storage backend %q (supported: filesystem, object)", toolName, raw.Backend)
 	}
+}
+
+func decodeRetention(toolName string, raw StorageToolConfig) (string, int, error) {
+	retentionClass := raw.RetentionClass
+	if retentionClass == "" {
+		retentionClass = "application"
+	}
+	retentionDays := 0
+	if raw.RetentionDays != "" {
+		parsed, err := strconv.Atoi(raw.RetentionDays)
+		if err != nil {
+			return "", 0, fmt.Errorf(
+				"tool %q object storage retention_days must be an integer", toolName)
+		}
+		retentionDays = parsed
+	}
+	if retentionDays < 0 {
+		return "", 0, fmt.Errorf(
+			"tool %q object storage retention_days must not be negative", toolName)
+	}
+	return retentionClass, retentionDays, nil
 }
 
 func metricAwaitFactory(state *State) toolregistry.BuiltinFactory {

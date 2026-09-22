@@ -182,3 +182,49 @@ test_cases:
     traces:
       - srd020-collector R6.2
       - srd020-collector AC10
+
+  - use_case: rel13.0-uc001-collector-family
+    name: Durable object storage, retention metadata, and query completeness remain explicit
+    go_test: cd ../../../../agent-core && go test ./internal/tools/otlp
+    status: implemented
+    description: |
+      Object-backed spool tests prove immutable envelopes, WAL replay, and
+      retention_class/retain_until/purge_authority metadata. Object query tests
+      prove bounded bucket/WAL merge and complete, partial, or unavailable
+      storage status without request-selected bucket authority.
+    expected:
+      filesystem_default_unchanged: true
+      purge_authority: app:purge
+      automatic_teardown_deletion: false
+    traces:
+      - srd020-collector AC11
+
+  - use_case: rel13.0-uc001-collector-family
+    name: Trace UI names incomplete retained history
+    go_test: go test ./conformance -run TestCollectorUIStorageStatusContract
+    status: implemented
+    description: |
+      Pin the bounded status read and the complete, partial, unavailable, and
+      unknown trace-view banner, including explicit incomplete-history copy.
+    expected:
+      partial_is_not_empty_healthy: true
+      unavailable_is_not_complete: true
+    traces:
+      - srd020-collector AC12
+
+  - use_case: rel13.0-uc001-collector-family
+    name: Explicit purge refuses mismatched identity and isolates peer data
+    go_test: go test ./conformance -run TestApplicationPurgeRefusesThenDeletesOnlyRenderedPrefix
+    status: implemented
+    description: |
+      Run the approved model-free profile first with a mismatched token and
+      then with the exact application token. The former reaches Refused without
+      mutation; the latter reaches Purged, deletes only the rendered prefix,
+      verifies zero remaining, preserves a peer prefix, and writes the external
+      audit.
+    expected:
+      refused_before_storage: true
+      peer_prefix_unchanged: true
+      external_audit_remaining: 0
+    traces:
+      - srd020-collector AC13

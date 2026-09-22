@@ -40,8 +40,8 @@ func (App) Down() error {
 	return nil
 }
 
-func (App) Diagnose() error { return downstreamRunner().Diagnose() }
-func (App) Purge() error    { return downstreamRunner().PurgeData() }
+func (App) Diagnose() error                 { return downstreamRunner().Diagnose() }
+func (App) Purge(confirmation string) error { return downstreamRunner().PurgeData(confirmation) }
 
 func downstreamRunner() apprig.Runner {
 	return apprig.Runner{

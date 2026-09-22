@@ -113,12 +113,12 @@ func (App) Exit() error {
 	return command.Run()
 }
 
-func (App) Purge() error {
+func (App) Purge(confirmation string) error {
 	runner, err := architectureApplicationRunner()
 	if err != nil {
 		return err
 	}
-	return runner.PurgeData()
+	return runner.PurgeData(confirmation)
 }
 
 func architectureApplicationRunner() (apprig.Runner, error) {
@@ -205,6 +205,23 @@ func architectureApplicationRunner() (apprig.Runner, error) {
 		return nil
 	}
 	runner.Probes = architectureApplicationProbes
+	runner.Purge = func(resolved apprig.Resolved, confirmation string) error {
+		binary, cleanup, err := buildApplierBinary(roots.Core)
+		if err != nil {
+			return err
+		}
+		return apprig.RunApplicationPurge(
+			resolved, confirmation,
+			apprig.PurgeBinding{
+				Endpoint:       kindrig.FakeGCSHostEndpoint,
+				AuditDirectory: filepath.Join(roots.Application, "build", "purge"),
+			},
+			apprig.PurgeAgent{
+				Binary: binary, Cleanup: cleanup, CoreRoot: roots.Core,
+				Profile: filepath.Join(roots.Catalog, "agents", "application-purge", "profile.yaml"),
+			},
+		)
+	}
 	return runner, nil
 }
 

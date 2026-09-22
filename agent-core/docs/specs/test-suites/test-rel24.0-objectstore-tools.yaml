@@ -57,7 +57,7 @@ test_cases:
     traces: [rel24.0-uc001-objectstore-tools S2, srd059-objectstore-tools AC2, srd059-objectstore-tools R2.2]
 
   - use_case: rel24.0-uc001-objectstore-tools
-    name: A fixture profile boots the three words and the default surface is unchanged
+    name: A fixture profile boots the four words and the default surface is unchanged
     go_test: go test ./cmd/agent/... -run 'TestBuiltinFactoryCatalogCoversSelectedActiveInits'
     status: implemented
     description: The bootstrap catalog covers the objectstore inits, and tools/builtin/all.yaml does not import the group.
@@ -88,3 +88,16 @@ test_cases:
       skip_names_docker: true
       image_pinned_by_digest: true
     traces: [rel24.0-uc001-objectstore-tools S4, srd059-objectstore-tools AC4, srd059-objectstore-tools R4.2]
+
+  - use_case: rel24.0-uc001-objectstore-tools
+    name: Declaration-bound delete-prefix is bounded, isolated, verified, and audited
+    go_test: go test ./internal/tools/objectstore/... -run 'TestDeletePrefix'
+    status: implemented
+    description: The request supplies a malicious peer prefix but the builder deletes only its configured application prefix; a second case exceeds max_objects and refuses without mutation.
+    expected:
+      request_storage_authority_ignored: true
+      peer_prefix_unchanged: true
+      over_budget_refused_without_delete: true
+      post_delete_remaining_zero: true
+      external_audit_written: true
+    traces: [rel24.0-uc001-objectstore-tools S5, srd059-objectstore-tools AC5, srd059-objectstore-tools R5.1, srd059-objectstore-tools R5.2, srd059-objectstore-tools R5.3]

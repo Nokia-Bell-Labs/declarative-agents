@@ -331,12 +331,13 @@ func ensureListedPlatform(options PlatformOptions) (Cluster, error) {
 		})
 }
 
-// prunePlatformImages removes images no container references from the node's
-// containerd store, which a long-lived developer platform accumulates as each
-// revision is kind-loaded.
-func prunePlatformImages(run CommandRunner, cluster string) error {
-	return runChecked(run, "docker", "exec", cluster+"-control-plane",
-		"crictl", "rmi", "--prune")
+// prunePlatformImages deliberately leaves the kind node's base images intact.
+// crictl's global --prune removes kindest/local-path-helper because no helper
+// pod normally runs; the next PVC then cannot provision on an offline or
+// TLS-intercepted host. Repo-owned commit images are bounded by clean:images,
+// so correctness does not depend on destructive node-wide pruning.
+func prunePlatformImages(CommandRunner, string) error {
+	return nil
 }
 
 // Detach hands the platform's cluster to a caller that manages its lifecycle

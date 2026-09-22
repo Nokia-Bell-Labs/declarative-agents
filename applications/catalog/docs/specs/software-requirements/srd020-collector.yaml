@@ -93,11 +93,19 @@ requirements:
       - R10.5: The trace UI SHALL display complete, partial, unavailable, or unknown storage status beside the trace view. Partial and unavailable states SHALL state that displayed results are not complete retained history; a UI SHALL NOT silently collapse them into an empty or healthy trace list.
       - R10.6: Object-backed collector declarations SHALL stamp a retention class, optional retain-until derived from non-negative retention days, and fixed app:purge authority on every immutable envelope. Retention metadata SHALL be descriptive only; app:down, collector restart, and platform lifecycle SHALL NOT delete an application retained set.
 
+  R11:
+    title: Explicit application-data purge
+    items:
+      - R11.1: A separate model-free application-purge profile SHALL require the exact token purge:<application> before its first mutating boundary call. Its request SHALL NOT select bucket URL, endpoint, prefix, credential, or application identity.
+      - R11.2: The purge boundary SHALL use only apprig-rendered storage coordinates, list a bounded retained set, refuse an over-budget set without mutation, delete only that application's configured prefix, and verify zero remaining before reporting Purged.
+      - R11.3: Purged, Refused, Incomplete, and Failed SHALL be distinct terminal outcomes. Every bounded destructive attempt SHALL append a non-secret fsynced audit record outside the target bucket.
+      - R11.4: Collector query profiles SHALL remain read-only. app:down, collector restart, and platform lifecycle SHALL never invoke purge.
+
 non_goals:
   - Removing the mesh collector or changing the mesh deployment to reference the catalog family.
   - Metrics ingress or Dolt scraping.
   - A permanent platform-wide query service or cross-application telemetry aggregation; each collector queries only its own application bucket.
-  - Retention purge; explicit application-data deletion is the platform lifecycle's app:purge, gated separately.
+  - Mutation through the collector query profile; explicit application-data deletion belongs only to the approved application-purge profile run by apprig.
 
 acceptance_criteria:
   - id: AC1
@@ -148,6 +156,10 @@ acceptance_criteria:
     criterion: Every query REST response body carries storage_status from the srd042 R11 engine, so a bucket outage reports partial or unavailable rather than presenting WAL-only history as complete; the trace UI renders that status and names incomplete history; the chart readiness and liveness probes target the control lifecycle health surface identically for the filesystem and object backends, so a transient object-store outage never flips a WAL-backed collector unready. Conformance pins the REST/UI status contract, render tests pin both probe targets, and the boot-smoke covers response mapping.
     traces: [R10.2, R10.4, R10.5]
 
+  - id: AC13
+    criterion: A mismatched confirmation reaches Refused without a storage call; exact confirmation runs the model-free purge profile over declaration-bound coordinates, deletes and verifies only the selected application's bounded retained prefix, reaches Purged, and writes an external audit with zero remaining. Live fake-GCS evidence proves peer application keys remain, and app:down never invokes this path.
+    traces: [R11.1, R11.2, R11.3, R11.4]
+
 
 related_documents:
   - srd007-collector-agent
@@ -162,8 +174,8 @@ implementation_status:
     - "R10.2/R10.4: every /query/* REST response surfaces storage_status, and the shared agent-services chart readiness/liveness probes target control lifecycle health identically for both backends, pinned by chatbot-mesh render tests, so a bucket outage never flips a WAL-backed collector unready (GH-2484 R6, GH-2491 R6)."
     - "R10.5: the shipped trace UI performs a bounded storage-status read and renders complete, partial, unavailable, or unknown with explicit incomplete-history language; catalog conformance pins the source/API contract (GH-2490)."
     - "R10.6: object envelopes stamp retention_class, optional retain_until, and purge_authority=app:purge from the versioned chart/declaration contract; no teardown path consumes that metadata (GH-2490)."
-  planned:
-    - "R10 retention purge and cloud application-bucket IAM proof are tracked on GH-2490; app:purge authority is gated on decision GH-2488."
+    - "R11: the approved model-free application-purge profile requires exact application confirmation, invokes internal object_delete_prefix over rendered authority, verifies zero remaining, and writes an external audit. Unit, profile conformance, and live fake-GCS isolation proofs cover refusal and success (GH-2488, GH-2490, GH-2493)."
+    - "Cloud application-bucket IAM is pinned by the gcprig three-application policy fixture; authenticated GKE denial remains dependency-gated where gcloud credentials are unavailable (GH-2505)."
 
 # These SRDs live in the agent-core corpus, not this one; they are
 # platform dependencies rather than in-corpus depends_on (GH-2310).
@@ -174,6 +186,9 @@ platform_dependencies:
   - srd_id: srd044-spool-query-tools
     provider: agent-core
     symbols_used: [spool_list_traces, spool_get_trace]
+  - srd_id: srd059-objectstore-tools
+    provider: agent-core
+    symbols_used: [declaration-bound object_delete_prefix with bounded verification and external audit (R5)]
   - srd_id: srd045-span-analytics-tools
     provider: agent-core
     symbols_used: [spool_span_heatmap, spool_span_group_by, spool_span_breakdown]

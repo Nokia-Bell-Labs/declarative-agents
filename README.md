@@ -187,6 +187,7 @@ mage app:up agent-architecture
 mage app:status agent-architecture
 mage app:diagnose agent-architecture
 mage app:down agent-architecture
+mage app:purge agent-architecture purge:agent-architecture
 ```
 
 Applications and downstream repositories expose the same five thin Mage
@@ -195,8 +196,9 @@ verification, status, and agent-resolution callbacks. Deploy, undeploy,
 diagnosis, namespace ordering, and purge authority remain shared; callers do
 not copy those workflows. The independently compiled example is under
 [`magefiles/apprig/testdata/external-module/`](magefiles/apprig/testdata/external-module/).
-`app:purge` fails closed until the runner is bound to the separately approved
-destructive authority. The root selector accepts `agent-architecture`,
+`app:purge` runs the approved model-free catalog profile and requires the exact
+`purge:<application>` token; no storage coordinate comes from the request. The
+root selector accepts `agent-architecture`,
 `chatbot-mesh`, `coding-agent`, or `fixture`.
 
 ## Contact
