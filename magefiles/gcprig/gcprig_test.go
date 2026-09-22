@@ -349,15 +349,16 @@ func TestDownConfirmationScopeAndOrder(t *testing.T) {
 // The push refuses latest and an empty revision by name (eng01, eng08).
 func TestPushAgentCoreRefusesFloatingTags(t *testing.T) {
 	config := testConfig()
-	if _, err := PushAgentCore(nil, config, "agent-core:local", ""); err == nil {
+	local := "localhost/declarative-agents/runtime/agent-core:git-a1b2c3d4e5f6-linux-arm64"
+	if _, err := PushAgentCore(nil, config, local, ""); err == nil {
 		t.Fatal("empty revision accepted")
 	}
-	if _, err := PushAgentCore(nil, config, "agent-core:local", "latest"); err == nil ||
+	if _, err := PushAgentCore(nil, config, local, "latest"); err == nil ||
 		!strings.Contains(err.Error(), "eng01") {
 		t.Fatalf("latest: %v", err)
 	}
 	rec := &recorder{answers: map[string]answer{}}
-	target, err := PushAgentCore(rec.run, config, "agent-core:local", "a1b2c3d4e5f6")
+	target, err := PushAgentCore(rec.run, config, local, "a1b2c3d4e5f6")
 	if err != nil {
 		t.Fatal(err)
 	}

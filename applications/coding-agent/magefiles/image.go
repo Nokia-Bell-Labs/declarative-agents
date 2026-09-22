@@ -29,7 +29,7 @@ func (Image) Build() error {
 		return err
 	}
 	coreRoot := codingAgentCoreRoot(applicationRoot)
-	return kindrig.BuildAgentCoreImage(coreRoot, demoImage(applicationRoot))
+	return kindrig.BuildAgentCoreRuntimeImage(coreRoot)
 }
 
 // codingAgentCoreRoot resolves the canonical agent-core checkout two levels up

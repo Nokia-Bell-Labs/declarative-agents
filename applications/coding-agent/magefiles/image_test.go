@@ -49,3 +49,11 @@ func TestChartDefaultsToCanonicalAgentCoreImage(t *testing.T) {
 		t.Fatal("chart does not use the canonical agent-core image")
 	}
 }
+
+func TestDemoImageDefaultIsPublishedRelease(t *testing.T) {
+	got := demoImage(t.TempDir())
+	want := codingAgentImageRepository + ":" + codingAgentImageTag
+	if got != want {
+		t.Fatalf("demo image = %q, want published %q", got, want)
+	}
+}

@@ -20,11 +20,12 @@ import (
 // CLEAN groups repository-wide extensions under the existing clean target.
 type CLEAN mg.Namespace
 
-// commitImageFamilies are the rig's commit-tagged local image repositories
-// (kindrig.CommitImage). clean:images considers nothing else, so :local tags,
-// third-party images, and every other repository are never touched. The
-// applier families retired with the CLI donor (GH-2222); their remaining local
-// copies are removed by hand with docker image rm.
+// commitImageFamilies are host repositories clean:images may delete by
+// untyped 12-hex tag. Typed localhost/declarative-agents references are
+// owned by image leases, not this sweeper. :local tags, third-party images,
+// and every other repository are never touched. The applier families retired
+// with the CLI donor (GH-2222); their remaining local copies are removed by
+// hand with docker image rm.
 var commitImageFamilies = []string{
 	"ghcr.io/nokia-bell-labs/declarative-agents/agent-core",
 }

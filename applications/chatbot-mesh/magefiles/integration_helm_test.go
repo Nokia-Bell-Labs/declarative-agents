@@ -17,6 +17,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
 func TestSplitImageRef(t *testing.T) {
@@ -24,6 +26,7 @@ func TestSplitImageRef(t *testing.T) {
 		image, repo, tag string
 	}{
 		{"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0123456789ab", "ghcr.io/nokia-bell-labs/declarative-agents/agent-core", "0123456789ab"},
+		{"localhost/declarative-agents/runtime/agent-core:git-0123456789ab-linux-arm64", "localhost/declarative-agents/runtime/agent-core", "git-0123456789ab-linux-arm64"},
 		{"ghcr.io/nokia-bell-labs/agent-core:0.1.0", "ghcr.io/nokia-bell-labs/agent-core", "0.1.0"},
 		{"agent-core", "agent-core", "latest"},
 		{"localhost:5000/agent-core:dev", "localhost:5000/agent-core", "dev"},
@@ -218,10 +221,12 @@ func TestChatbotIntegrationImagesPropagateCheckoutRevision(t *testing.T) {
 	if len(images.Revision) != 12 {
 		t.Fatalf("revision = %q, want 12-character commit", images.Revision)
 	}
-	for _, image := range []string{images.Runtime} {
-		if !strings.HasSuffix(image, ":"+images.Revision) {
-			t.Errorf("image %q does not carry revision %s", image, images.Revision)
-		}
+	want, _, err := kindrig.AgentCoreRuntimeReference(images.Revision, kindrig.HostPlatform())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if images.Runtime != want {
+		t.Fatalf("runtime image = %q, want canonical %q", images.Runtime, want)
 	}
 	if args := strings.Join(smokeRuntimeBuildArgs(images.Runtime), " "); !strings.Contains(args, "-t "+images.Runtime) {
 		t.Fatalf("runtime build args omit commit image: %s", args)
