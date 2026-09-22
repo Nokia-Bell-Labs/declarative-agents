@@ -23,52 +23,24 @@ import (
 // verification callbacks.
 type App mg.Namespace
 
-func (App) Up() error {
-	runner, err := rootApplicationRunner()
-	if err != nil {
-		return err
-	}
-	return runner.Up()
+func (App) Up(application string) error {
+	return runSelectedApplication(application, "app:up")
 }
 
-func (App) Status() error {
-	runner, err := rootApplicationRunner()
-	if err != nil {
-		return err
-	}
-	report, err := runner.Status()
-	if err != nil {
-		return err
-	}
-	return printApplicationStatus(report)
+func (App) Status(application string) error {
+	return runSelectedApplication(application, "app:status")
 }
 
-func (App) Down() error {
-	runner, err := rootApplicationRunner()
-	if err != nil {
-		return err
-	}
-	report, err := runner.Down()
-	if err != nil {
-		return err
-	}
-	return printApplicationStatus(report)
+func (App) Down(application string) error {
+	return runSelectedApplication(application, "app:down")
 }
 
-func (App) Diagnose() error {
-	runner, err := rootApplicationRunner()
-	if err != nil {
-		return err
-	}
-	return runner.Diagnose()
+func (App) Diagnose(application string) error {
+	return runSelectedApplication(application, "app:diagnose")
 }
 
-func (App) Purge() error {
-	runner, err := rootApplicationRunner()
-	if err != nil {
-		return err
-	}
-	return runner.PurgeData()
+func (App) Purge(application string) error {
+	return runSelectedApplication(application, "app:purge")
 }
 
 // Integration groups root-owned persistent-platform proofs.
@@ -155,6 +127,55 @@ func rootApplicationRunner() (apprig.Runner, error) {
 		return apprig.Runner{}, err
 	}
 	return fixtureApplicationRunner(root)
+}
+
+func runSelectedApplication(application, target string) error {
+	if application == "fixture" {
+		runner, err := rootApplicationRunner()
+		if err != nil {
+			return err
+		}
+		switch target {
+		case "app:up":
+			return runner.Up()
+		case "app:status":
+			report, err := runner.Status()
+			if err != nil {
+				return err
+			}
+			return printApplicationStatus(report)
+		case "app:down":
+			report, err := runner.Down()
+			if err != nil {
+				return err
+			}
+			return printApplicationStatus(report)
+		case "app:diagnose":
+			return runner.Diagnose()
+		case "app:purge":
+			return runner.PurgeData()
+		}
+	}
+	directories := map[string]string{
+		"agent-architecture": "applications/agent-architecture",
+		"chatbot-mesh":       "applications/chatbot-mesh",
+		"coding-agent":       "applications/coding-agent",
+	}
+	relative, ok := directories[application]
+	if !ok {
+		return fmt.Errorf("unknown application %q (supported: agent-architecture, chatbot-mesh, coding-agent, fixture)", application)
+	}
+	root, err := absoluteRepositoryRoot()
+	if err != nil {
+		return err
+	}
+	command := exec.Command("mage", target)
+	command.Dir = filepath.Join(root, relative)
+	command.Stdout, command.Stderr = os.Stdout, os.Stderr
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("%s %s: %w", target, application, err)
+	}
+	return nil
 }
 
 func fixtureApplicationRunner(root string) (apprig.Runner, error) {

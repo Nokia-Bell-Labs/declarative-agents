@@ -183,10 +183,10 @@ persistent `da-platform`. The root fixture demonstrates the lifecycle:
 
 ```bash
 mage platform:up
-mage app:up
-mage app:status
-mage app:diagnose
-mage app:down
+mage app:up agent-architecture
+mage app:status agent-architecture
+mage app:diagnose agent-architecture
+mage app:down agent-architecture
 ```
 
 Applications and downstream repositories expose the same five thin Mage
@@ -196,7 +196,8 @@ diagnosis, namespace ordering, and purge authority remain shared; callers do
 not copy those workflows. The independently compiled example is under
 [`magefiles/apprig/testdata/external-module/`](magefiles/apprig/testdata/external-module/).
 `app:purge` fails closed until the runner is bound to the separately approved
-destructive authority.
+destructive authority. The root selector accepts `agent-architecture`,
+`chatbot-mesh`, `coding-agent`, or `fixture`.
 
 ## Contact
 
