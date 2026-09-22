@@ -167,6 +167,9 @@ func (r Runner) Diagnose() error {
 	return r.ops().diagnose(kindrig.DiagnoseRequest{
 		Scenario: resolved.Application, ApplicationRoot: r.Binding.ApplicationRoot,
 		Revision: r.Revision, TraceSpool: r.TraceSpool, Agent: agent,
+		Target: &kindrig.DiagnoseTarget{
+			Cluster: r.Binding.Cluster, Namespace: resolved.Namespace,
+		},
 	})
 }
 

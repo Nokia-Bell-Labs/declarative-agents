@@ -400,7 +400,13 @@ type portForward struct {
 // against a Service. The Service must have a ready endpoint, so a curator
 // forward is opened only after the curator Deployment reports Available.
 func forwardService(environment smokeEnvironment, service string, pairs ...string) (*portForward, error) {
-	args := append([]string{"port-forward", "-n", smokeNamespace, "service/" + service}, pairs...)
+	return forwardNamespacedService(environment, smokeNamespace, service, pairs...)
+}
+
+func forwardNamespacedService(
+	environment smokeEnvironment, namespace, service string, pairs ...string,
+) (*portForward, error) {
+	args := append([]string{"port-forward", "-n", namespace, "service/" + service}, pairs...)
 	command := exec.Command("kubectl", args...)
 	command.Env = append(os.Environ(), "KUBECONFIG="+environment.kubeconfig)
 	command.Stdout, command.Stderr = os.Stderr, os.Stderr

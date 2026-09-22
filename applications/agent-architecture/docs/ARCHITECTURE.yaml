@@ -388,12 +388,15 @@ project_structure:
 implementation_status:
   current_focus: |
     The runnable module, trace collection, manifest-derived package, Helm chart,
-    bounded kind target, and local declarative applier are implemented. The
+    bounded kind target, local declarative applier, and canonical persistent
+    application on da-platform are implemented. The
     application remains composition-only: curator, collector, lifecycle-exit,
     canonical applier, and their UIs stay catalog-owned, while the local applier
-    wrapper, command bindings, and deployment stay application-owned. Live local managed-service browser
-    observations remain dependency-gated and are not inferred from command
-    construction tests.
+    wrapper, command bindings, and deployment stay application-owned.
+    app-agent-architecture exposes documentation, monitor, lifecycle health,
+    and retained telemetry through shared Traefik; destructive lifecycle exit
+    remains loopback-only and is exercised by the catalog client over a bounded
+    port-forward.
   progress:
     - implemented: Application ownership and dependency direction.
     - implemented: Reciprocal deterministic test suite for run, presentation, audit, and stats.
@@ -405,6 +408,7 @@ implementation_status:
     - implemented: agents/application.yaml is the direct-root, deployment, UI, capability, and compatibility authority.
     - implemented: Helm preparation and packaging derive curator, collector, and applier packages and provenance from the shared appmanifest closure.
     - implemented: Packaged chart render, schema guards, bounded kind smoke target, and declarative applier evidence.
+    - implemented: apprig app:up|status|exit|diagnose|down on da-platform with an application bucket, persistent collector WAL, shared ingress, down-time query absence, and retained-history restoration after redeploy (GH-2480).
     - partial: Guided presentation, launch, browser, and exit use case.
     - partial: srd002 R1 through R3 conformance for the curator and Go present
         servers; AC1 through AC3 are not yet satisfied.

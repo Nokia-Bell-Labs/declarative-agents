@@ -63,6 +63,17 @@ collector:
     requests: {cpu: 50m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
 
+# Canonical da-platform browser routes. Internal REST and OTLP continue to use
+# Service DNS; only operator-facing surfaces cross shared Traefik (GH-2480 R2).
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    documentation: docs.agent-architecture.localhost
+    lifecycle: lifecycle.agent-architecture.localhost
+    monitor: monitor.agent-architecture.localhost
+    collector: telemetry.agent-architecture.localhost
+
 # The applier (srd002-applier): the deployment-plane actuator that realizes a
 # decided values patch against the chart on Kubernetes. Disabled by default -- it
 # needs the chart ConfigMap and the kind-loaded CLI donor (GH-2222), which only the

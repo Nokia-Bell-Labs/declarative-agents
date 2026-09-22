@@ -3,7 +3,7 @@
   "title": "agent-architecture values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "profiles", "curator", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
+  "required": ["image", "profiles", "curator", "collector", "ingress", "applier", "podSecurityContext", "containerSecurityContext"],
   "definitions": {
     "image": {
       "type": "object",
@@ -126,6 +126,26 @@
             "bucketName": {"type": "string"},
             "endpoint": {"type": "string"},
             "prefix": {"type": "string"}
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "className", "hosts"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "className": {"type": "string", "minLength": 1},
+        "hosts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["documentation", "lifecycle", "monitor", "collector"],
+          "properties": {
+            "documentation": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "lifecycle": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "monitor": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "collector": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"}
           }
         }
       }

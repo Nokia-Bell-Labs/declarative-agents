@@ -379,7 +379,7 @@ func TestLifecycleExitContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, contract := range []string{
-		"base_url: http://127.0.0.1:18082",
+		"base_url: http://${LIFECYCLE_EXIT_HOST:-127.0.0.1}:${LIFECYCLE_EXIT_PORT:-18082}",
 		"auth_ref: none",
 		"method: POST",
 		"path: /api/lifecycle/exit",
