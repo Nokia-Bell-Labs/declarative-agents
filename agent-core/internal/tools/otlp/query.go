@@ -30,12 +30,14 @@ type QueryListConfig struct {
 	PageSize    int
 	MaxPageSize int
 	Offset      int
+	Storage     QueryStorageConfig
 }
 
 // QueryGetConfig configures single-trace span detail reads from the spool.
 type QueryGetConfig struct {
 	Path    string
 	TraceID string
+	Storage QueryStorageConfig
 }
 
 // ListTracesBuilder constructs paginated trace list commands.
@@ -85,7 +87,7 @@ type listTracesCommand struct {
 func (c *listTracesCommand) Name() string { return c.toolName }
 
 func (c *listTracesCommand) Execute() core.Result {
-	spans, skipped, err := readSpoolFiles(c.config.Path)
+	spans, skipped, status, err := c.config.Storage.loadTraceSpans(c.config.Path)
 	if err != nil {
 		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
 	}
@@ -96,14 +98,15 @@ func (c *listTracesCommand) Execute() core.Result {
 	page, total, offset, pageSize := paginateTraces(summaries, c.config)
 
 	output := struct {
-		Traces       []traceSummary `json:"traces"`
-		Total        int            `json:"total"`
-		Offset       int            `json:"offset"`
-		PageSize     int            `json:"page_size"`
-		SkippedLines int            `json:"skipped_lines"`
+		Traces        []traceSummary `json:"traces"`
+		Total         int            `json:"total"`
+		Offset        int            `json:"offset"`
+		PageSize      int            `json:"page_size"`
+		SkippedLines  int            `json:"skipped_lines"`
+		StorageStatus string         `json:"storage_status"`
 	}{
 		Traces: page, Total: total, Offset: offset,
-		PageSize: pageSize, SkippedLines: skipped,
+		PageSize: pageSize, SkippedLines: skipped, StorageStatus: status,
 	}
 	encoded, err := json.Marshal(output)
 	if err != nil {
@@ -127,20 +130,21 @@ func (c *getTraceCommand) Execute() core.Result {
 	if c.config.TraceID == "" {
 		return receiverError(c.Name(), fmt.Errorf("%s: trace_id is required", c.Name()))
 	}
-	spans, skipped, err := readSpoolFiles(c.config.Path)
+	spans, skipped, status, err := c.config.Storage.loadTraceSpans(c.config.Path)
 	if err != nil {
 		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
 	}
 	matched := matchTraceSpans(spans, c.config.TraceID)
 
 	output := struct {
-		TraceID      string       `json:"trace_id"`
-		Spans        []spanDetail `json:"spans"`
-		SpanCount    int          `json:"span_count"`
-		SkippedLines int          `json:"skipped_lines"`
+		TraceID       string       `json:"trace_id"`
+		Spans         []spanDetail `json:"spans"`
+		SpanCount     int          `json:"span_count"`
+		SkippedLines  int          `json:"skipped_lines"`
+		StorageStatus string       `json:"storage_status"`
 	}{
 		TraceID: c.config.TraceID, Spans: matched,
-		SpanCount: len(matched), SkippedLines: skipped,
+		SpanCount: len(matched), SkippedLines: skipped, StorageStatus: status,
 	}
 	encoded, err := json.Marshal(output)
 	if err != nil {

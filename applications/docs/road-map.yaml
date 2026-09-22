@@ -571,8 +571,9 @@ releases:
         action: Add collector WAL and immutable object-bucket persistence (GH-2475).
         status: implemented
       - order: 3
-        action: Add application-scoped object-backed query and retention (GH-2478).
-        status: planned
+        action: Add application-scoped object-backed query and retention (GH-2478, split into GH-2489 object-read query engine and GH-2490 collector wiring/retention/purge/cloud isolation).
+        status: in_progress
+        note: GH-2489 (agent-core object-backed query read, WAL merge, budgets, storage status, isolation) is implemented; GH-2490 (collector wiring, retention/purge, srd020/UI, cloud IAM) remains and is partly cluster-gated.
       - order: 4
         action: Wire durable collector configuration through the shared agent-services chart (GH-2484).
         status: planned

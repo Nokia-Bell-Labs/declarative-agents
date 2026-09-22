@@ -79,35 +79,54 @@ type RelayToolConfig struct {
 	Timeout         string `json:"timeout"`
 }
 
+// QueryStorageToolConfig is the declared read-only storage backend a query word
+// reads from. It mirrors the spool StorageToolConfig fields a read needs and
+// adds per-request budgets; bucket, endpoint, and prefix are configuration only
+// (srd042 R1, R3).
+type QueryStorageToolConfig struct {
+	Backend    string `json:"backend"`
+	BucketURL  string `json:"bucket_url"`
+	Endpoint   string `json:"endpoint"`
+	Prefix     string `json:"prefix"`
+	WALPath    string `json:"wal_path"`
+	MaxObjects int    `json:"max_objects"`
+	MaxBytes   int64  `json:"max_bytes"`
+	TimeoutMS  int    `json:"timeout_ms"`
+}
+
 // QueryListToolConfig is the declared spool_list_traces configuration.
 type QueryListToolConfig struct {
-	Path        string `json:"path"`
-	PageSize    int    `json:"page_size"`
-	MaxPageSize int    `json:"max_page_size"`
-	Offset      int    `json:"offset"`
+	Path        string                 `json:"path"`
+	PageSize    int                    `json:"page_size"`
+	MaxPageSize int                    `json:"max_page_size"`
+	Offset      int                    `json:"offset"`
+	Storage     QueryStorageToolConfig `json:"storage"`
 }
 
 // QueryGetToolConfig is the declared spool_get_trace configuration.
 type QueryGetToolConfig struct {
-	Path    string `json:"path"`
-	TraceID string `json:"trace_id"`
+	Path    string                 `json:"path"`
+	TraceID string                 `json:"trace_id"`
+	Storage QueryStorageToolConfig `json:"storage"`
 }
 
 // QueryListMetricsToolConfig is the declared spool_list_metrics configuration.
 type QueryListMetricsToolConfig struct {
-	Path        string `json:"path"`
-	PageSize    int    `json:"page_size"`
-	MaxPageSize int    `json:"max_page_size"`
-	Offset      int    `json:"offset"`
+	Path        string                 `json:"path"`
+	PageSize    int                    `json:"page_size"`
+	MaxPageSize int                    `json:"max_page_size"`
+	Offset      int                    `json:"offset"`
+	Storage     QueryStorageToolConfig `json:"storage"`
 }
 
 // QueryGetMetricToolConfig is the declared spool_get_metric configuration.
 type QueryGetMetricToolConfig struct {
-	Path        string `json:"path"`
-	MetricName  string `json:"metric_name"`
-	PageSize    int    `json:"page_size"`
-	MaxPageSize int    `json:"max_page_size"`
-	Offset      int    `json:"offset"`
+	Path        string                 `json:"path"`
+	MetricName  string                 `json:"metric_name"`
+	PageSize    int                    `json:"page_size"`
+	MaxPageSize int                    `json:"max_page_size"`
+	Offset      int                    `json:"offset"`
+	Storage     QueryStorageToolConfig `json:"storage"`
 }
 
 // RegisterFactories registers receiver lifecycle factories over one shared state.
@@ -127,9 +146,9 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 		case InitRelaySpans:
 			br.Register(init, relayFactory())
 		case InitSpoolListTraces:
-			br.Register(init, queryListFactory())
+			br.Register(init, queryListFactory(opener))
 		case InitSpoolGetTrace:
-			br.Register(init, queryGetFactory())
+			br.Register(init, queryGetFactory(opener))
 		case InitSpoolSpanHeatmap:
 			br.Register(init, spanHeatmapFactory())
 		case InitSpoolSpanGroupBy:
@@ -141,9 +160,9 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 		case InitSpoolMetrics:
 			br.Register(init, spoolMetricsFactory(opener))
 		case InitSpoolListMetrics:
-			br.Register(init, queryListMetricsFactory())
+			br.Register(init, queryListMetricsFactory(opener))
 		case InitSpoolGetMetric:
-			br.Register(init, queryGetMetricFactory())
+			br.Register(init, queryGetMetricFactory(opener))
 		default:
 			br.Register(init, receiverFactory(init, state))
 		}
@@ -371,109 +390,6 @@ func validateSpoolBounds(toolName string, config SpoolToolConfig) error {
 		return fmt.Errorf("tool %q config max_files must be at least 2 when max_bytes is set", toolName)
 	}
 	return nil
-}
-
-func queryListFactory() toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw QueryListToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
-			return nil, err
-		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
-		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
-		}
-		pageSize := raw.PageSize
-		if pageSize <= 0 {
-			pageSize = defaultPageSize
-		}
-		maxPage := raw.MaxPageSize
-		if maxPage <= 0 {
-			maxPage = defaultMaxPageSize
-		}
-		return ListTracesBuilder{
-			ToolName: def.Name,
-			Config: QueryListConfig{
-				Path: path, PageSize: pageSize, MaxPageSize: maxPage, Offset: raw.Offset,
-			},
-		}, nil
-	}
-}
-
-func queryGetFactory() toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw QueryGetToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
-			return nil, err
-		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
-		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
-		}
-		return GetTraceBuilder{
-			ToolName: def.Name,
-			Config:   QueryGetConfig{Path: path, TraceID: raw.TraceID},
-		}, nil
-	}
-}
-
-func queryListMetricsFactory() toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw QueryListMetricsToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
-			return nil, err
-		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
-		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
-		}
-		pageSize := raw.PageSize
-		if pageSize <= 0 {
-			pageSize = defaultPageSize
-		}
-		maxPage := raw.MaxPageSize
-		if maxPage <= 0 {
-			maxPage = defaultMaxPageSize
-		}
-		return ListMetricsBuilder{
-			ToolName: def.Name,
-			Config: QueryListMetricsConfig{
-				Path: path, PageSize: pageSize, MaxPageSize: maxPage, Offset: raw.Offset,
-			},
-		}, nil
-	}
-}
-
-func queryGetMetricFactory() toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw QueryGetMetricToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
-			return nil, err
-		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
-		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
-		}
-		return GetMetricBuilder{
-			ToolName: def.Name,
-			Config: QueryGetMetricConfig{
-				Path: path, MetricName: raw.MetricName,
-				PageSize: raw.PageSize, MaxPageSize: raw.MaxPageSize, Offset: raw.Offset,
-			},
-		}, nil
-	}
 }
 
 func decodeReceiverConfig(toolName string, raw ReceiverToolConfig) (ReceiverConfig, error) {

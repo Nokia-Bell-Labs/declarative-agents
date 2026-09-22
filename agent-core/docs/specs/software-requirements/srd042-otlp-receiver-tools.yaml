@@ -134,6 +134,15 @@ requirements:
       - R10.5: "Object creation SHALL be idempotent: the same key with the same checksum is success, and the same key with different bytes is a named integrity error and never an overwrite. A committed WAL record SHALL be compacted only after the remote object is verified (srd008 R7, AC5)."
       - R10.6: "The write-ahead log SHALL bound its pending bytes and pending record count; overflow SHALL be a named, observable error rather than a silent drop of uncommitted evidence (srd008 R10)."
 
+  R11:
+    title: Object-backed query read
+    items:
+      - R11.1: "The trace and metric query words SHALL select a read backend through declared configuration: the filesystem NDJSON spool (default, unchanged) or the object backend, which reads the configured application bucket and in-bucket prefix. The bucket, endpoint, and prefix SHALL be declared configuration only; no request field SHALL redirect a query to another bucket (srd008 R2.2)."
+      - R11.2: "The object read SHALL project each immutable envelope's payload back into the existing spooled span and metric record shapes, so the trace, metric, span-stats, and breakdown response shapes are unchanged (R4.2)."
+      - R11.3: "The object read SHALL merge committed objects with the pending local WAL by the R10 stable batch identity, producing no duplicate logical batch."
+      - R11.4: "The object read SHALL be bounded per request by object count, byte budget, and deadline, and SHALL never scan the whole bucket; a listing truncated by budget SHALL report partial."
+      - R11.5: "The query SHALL report storage status as complete, partial, or unavailable. A bucket outage SHALL report unavailable and SHALL NOT present WAL-only data as complete history."
+
 non_goals:
   - Receiving OTLP logs.
   - Acting as a general-purpose, firehose-rate telemetry collector.
@@ -179,6 +188,10 @@ acceptance_criteria:
   - id: AC9
     criterion: A spool word with the default filesystem backend behaves exactly as before, while the object backend persists one versioned immutable envelope per batch under a content-derived stable identity, records the object in a bounded write-ahead log before the first upload, creates the object idempotently, refuses a different-content collision, resumes pending keys after a restart, and keeps traces and metrics in separate object families. Unit tests prove this on mem:// and file:// with no container; a fake-GCS integration proves it end to end over gs:// and skips naming docker where docker is absent.
     traces: [R10.1, R10.2, R10.3, R10.4, R10.5, R10.6]
+
+  - id: AC10
+    criterion: A query word with the object backend reads the configured application bucket (never a request-supplied bucket), projects immutable envelopes into the existing response shapes, merges committed objects with the pending WAL without duplicates, bounds each read by object count and byte budget, and reports complete, partial, or unavailable storage status; a bucket outage never labels WAL-only data complete. The filesystem backend is unchanged. Unit tests prove this on file:// with no container.
+    traces: [R11.1, R11.2, R11.3, R11.4, R11.5]
 
 depends_on:
   - srd_id: srd003-command-dispatch

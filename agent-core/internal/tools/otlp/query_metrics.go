@@ -26,6 +26,7 @@ type QueryListMetricsConfig struct {
 	PageSize    int
 	MaxPageSize int
 	Offset      int
+	Storage     QueryStorageConfig
 }
 
 // QueryGetMetricConfig configures single-metric detail reads.
@@ -35,6 +36,7 @@ type QueryGetMetricConfig struct {
 	PageSize    int
 	MaxPageSize int
 	Offset      int
+	Storage     QueryStorageConfig
 }
 
 // ListMetricsBuilder constructs paginated metric list commands.
@@ -91,7 +93,7 @@ type listMetricsCommand struct {
 func (c *listMetricsCommand) Name() string { return c.toolName }
 
 func (c *listMetricsCommand) Execute() core.Result {
-	records, skipped, err := readMetricSpoolFiles(c.config.Path)
+	records, skipped, status, err := c.config.Storage.loadMetricRecords(c.config.Path)
 	if err != nil {
 		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
 	}
@@ -102,14 +104,15 @@ func (c *listMetricsCommand) Execute() core.Result {
 	page, total, offset, pageSize := paginateMetrics(summaries, c.config)
 
 	output := struct {
-		Metrics      []metricSummary `json:"metrics"`
-		Total        int             `json:"total"`
-		Offset       int             `json:"offset"`
-		PageSize     int             `json:"page_size"`
-		SkippedLines int             `json:"skipped_lines"`
+		Metrics       []metricSummary `json:"metrics"`
+		Total         int             `json:"total"`
+		Offset        int             `json:"offset"`
+		PageSize      int             `json:"page_size"`
+		SkippedLines  int             `json:"skipped_lines"`
+		StorageStatus string          `json:"storage_status"`
 	}{
 		Metrics: page, Total: total, Offset: offset,
-		PageSize: pageSize, SkippedLines: skipped,
+		PageSize: pageSize, SkippedLines: skipped, StorageStatus: status,
 	}
 	encoded, err := json.Marshal(output)
 	if err != nil {
@@ -133,7 +136,7 @@ func (c *getMetricCommand) Execute() core.Result {
 	if c.config.MetricName == "" {
 		return receiverError(c.Name(), fmt.Errorf("%s: metric_name is required", c.Name()))
 	}
-	records, skipped, err := readMetricSpoolFiles(c.config.Path)
+	records, skipped, status, err := c.config.Storage.loadMetricRecords(c.config.Path)
 	if err != nil {
 		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
 	}
@@ -150,11 +153,12 @@ func (c *getMetricCommand) Execute() core.Result {
 		Offset          int            `json:"offset"`
 		PageSize        int            `json:"page_size"`
 		SkippedLines    int            `json:"skipped_lines"`
+		StorageStatus   string         `json:"storage_status"`
 	}{
 		MetricName: c.config.MetricName, Records: page, Total: total,
 		RecordCount: total, PageRecordCount: len(page),
 		DataPointCount: sumDetailDataPoints(page),
-		Offset:         offset, PageSize: pageSize, SkippedLines: skipped,
+		Offset:         offset, PageSize: pageSize, SkippedLines: skipped, StorageStatus: status,
 	}
 	encoded, err := json.Marshal(output)
 	if err != nil {
