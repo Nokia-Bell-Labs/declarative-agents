@@ -246,6 +246,33 @@ roles:
       - Confirm the target control-server address is a declared client base.
       - Confirm the client posts one request through a declared boundary word rather than an embedded HTTP client.
 
+  - id: application-purge
+    title: Application retained-data purge
+    profile_path: agents/application-purge/profile.yaml
+    actor_boundary: retention authority deleting one apprig-rendered application prefix
+    classification: infrastructure_adapter
+    inputs:
+      - exact purge:<application> confirmation token
+    selected_tool_families:
+      - objectstore delete-prefix
+      - value predicates
+    runtime_dependencies:
+      - agent-core objectstore runtime
+      - apprig rendered bucket, endpoint, prefix, application, and audit path
+    outputs:
+      - bounded purge outcome
+      - external non-secret audit record
+    outcomes:
+      - Purged
+      - Refused
+      - Incomplete
+      - Failed
+    checks:
+      - Confirm request data selects no storage coordinate or credential.
+      - Confirm exact application confirmation precedes objectstore mutation.
+      - Confirm Purged requires verified zero remaining and a durable external audit.
+      - Confirm collector query declarations remain read-only.
+
   - id: documentation-curator
     title: Knowledge Manager documentation curator
     profile_path: agents/knowledge-manager/documentation-curator/profile.yaml
