@@ -176,6 +176,12 @@ func fixtureApplicationRunner(root string) (apprig.Runner, error) {
 	runner.UndeployAgent = func() (kindrig.DeployAgent, error) {
 		return buildLifecycleDeployAgent(root, "agents/applier/undeploy-profile.yaml")
 	}
+	runner.Prepare = func(resolved apprig.Resolved) (apprig.Preparation, error) {
+		_, err := kindrig.EnsureFakeGCSApplicationBucket(kindrig.ApplicationBucketRequest{
+			Cluster: kindrig.PlatformClusterName, BucketURL: resolved.BucketURL,
+		})
+		return apprig.Preparation{}, err
+	}
 	// The fixture has no model provider by design. A nil diagnosis factory
 	// selects kindrig's explicit capture-only path: evidence is still indexed
 	// and useful, while a real application's typed callback supplies the
@@ -210,7 +216,17 @@ func fixtureStatusProbes(resolved apprig.Resolved) apprig.StatusProbes {
 			return apprig.ComponentStatus{State: apprig.StateUnknown, Detail: "minimal fixture has no WAL"}
 		},
 		Bucket: func() apprig.ComponentStatus {
-			return apprig.ComponentStatus{State: apprig.StateOK, Detail: resolved.BucketURL + " retained; lifecycle has no delete path"}
+			exists, err := kindrig.FakeGCSApplicationBucketStatus(kindrig.ApplicationBucketRequest{
+				Cluster: kindrig.PlatformClusterName, BucketURL: resolved.BucketURL,
+			})
+			switch {
+			case err != nil:
+				return apprig.ComponentStatus{State: apprig.StateDegraded, Detail: err.Error()}
+			case !exists:
+				return apprig.ComponentStatus{State: apprig.StateAbsent, Detail: resolved.BucketURL}
+			default:
+				return apprig.ComponentStatus{State: apprig.StateOK, Detail: resolved.BucketURL + " retained"}
+			}
 		},
 		QueryEndpoint: func() apprig.ComponentStatus {
 			return fixtureKubernetesStatus(resolved, "service", resolved.Release+"-fixture-query", false)
