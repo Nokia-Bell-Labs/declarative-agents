@@ -62,9 +62,29 @@ func TestHelmCoreTopologyRendersRoleContract(t *testing.T) {
 	if got := strings.Count(render, "kind: Deployment"); got != 4 {
 		t.Errorf("default Deployments = %d, want three roles plus collector agent", got)
 	}
+	// Every agent workload's main container runs the one application image
+	// (srd005 R9, GH-2494): the three serving roles and the collector.
 	if got := strings.Count(render,
-		`image: "ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:0.1.0"`); got != 3 {
-		t.Errorf("shared agent-core-toolchain image count = %d, want 3", got)
+		`image: "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0"`); got != 4 {
+		t.Errorf("shared agent-core image count = %d, want 4 (3 roles + collector)", got)
+	}
+	// The Go SDK and linter reach the executor alone, from a tool-donor init
+	// container, not from an alternate agent image.
+	if got := strings.Count(render, "name: tool-donor"); got != 1 {
+		t.Errorf("executor tool-donor init containers = %d, want 1", got)
+	}
+	if got := strings.Count(render,
+		`image: "ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:0.1.0"`); got != 1 {
+		t.Errorf("toolchain donor image count = %d, want 1 (executor donor only)", got)
+	}
+	// executor-tools appears exactly three times for the executor: the donor's
+	// write mount, the main container's read-only mount, and the volume.
+	if got := strings.Count(render, "name: executor-tools"); got != 3 {
+		t.Errorf("executor-tools references = %d, want 3 (donor mount, main mount, volume)", got)
+	}
+	if !strings.Contains(render,
+		`value: "/opt/go-tools/go/bin:/opt/go-tools/bin:/usr/local/bin:/usr/bin:/bin"`) {
+		t.Error("executor render missing donated-tool PATH")
 	}
 	if got := strings.Count(render, "checksum/profiles:"); got != 4 {
 		t.Errorf("profile rollout checksum count = %d, want 4 manifest deployments", got)

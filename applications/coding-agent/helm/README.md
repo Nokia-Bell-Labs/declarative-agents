@@ -10,12 +10,16 @@ optional deployment-plane applier (srd006).
 
 ## Architectural thesis
 
-One profile-free runtime image serves every role: the shared agent-core-toolchain
-(agent-core layered with the Go toolchain, GH-1368). Each agent's program is a profile
-supplied from a ConfigMap and mounted read-only at `/profiles`, not baked into the
-image, so the same image runs the planner, executor, and critic, and a values change
-re-renders the topology without rebuilding images (the agent-core mounted-profile
-contract; see `docs/SPECIFICATIONS.yaml`). Every manifest deployment entry,
+One profile-free application image serves every agent role — planner, executor,
+critic, collector, and applier — the composition model's one-image invariant
+(srd005 R9, GH-2494). The executor alone runs Go and golangci-lint; those tools
+arrive at pod start from a read-only tool donor (`executorTools.image`, an init
+container that copies the Go SDK and linter into a shared volume), so no role
+needs an alternate image. Each agent's program is a profile supplied from a
+ConfigMap and mounted read-only at `/profiles`, not baked into the image, so the
+same image runs every role, and a values change re-renders the topology without
+rebuilding images (the agent-core mounted-profile contract; see
+`docs/SPECIFICATIONS.yaml`). Every manifest deployment entry,
 including the catalog collector, is packaged into per-workload ConfigMaps by
 `mage helmPrepare`; its declared UI asset is included in the same collector
 shard.

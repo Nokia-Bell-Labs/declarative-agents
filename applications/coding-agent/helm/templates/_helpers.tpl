@@ -78,6 +78,10 @@
 {{- include "agent-services.collectorImage" . -}}
 {{- end -}}
 
+{{- define "coding-agent.executorToolsImage" -}}
+{{- include "agent-services.pinnedImage" .Values.executorTools.image -}}
+{{- end -}}
+
 {{- define "coding-agent.ollamaModels" -}}
 {{- .Values.ollama.models | uniq | join " " -}}
 {{- end -}}

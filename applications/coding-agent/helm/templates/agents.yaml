@@ -45,9 +45,10 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor")) }}
+      {{- $waitForModels := and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor")) }}
+      {{- if or $waitForModels (eq $role "executor") }}
       initContainers:
-        {{- if and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor")) }}
+        {{- if $waitForModels }}
         - name: wait-for-models
           image: {{ $.Values.ollama.utilityImage | quote }}
           imagePullPolicy: {{ $.Values.ollama.image.pullPolicy }}
@@ -64,6 +65,33 @@ spec:
               done
           securityContext:
             {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+        {{- end }}
+        {{- if eq $role "executor" }}
+        {{/*
+        Tool donor (srd005 R9, GH-2494): the executor alone declares Go and
+        golangci-lint exec words. This init container runs the repository-built
+        toolchain image only to copy the Go SDK and the linter into a shared
+        volume the executor mounts read-only; the executor main container still
+        runs the one agent image. No serving role but the executor mounts these
+        tools. R9 excludes this container from the one-agent-image rule because
+        it carries no --profile argument, and R2.2 exempts the repository-built
+        donor from the third-party digest requirement.
+        */}}
+        - name: tool-donor
+          image: {{ include "coding-agent.executorToolsImage" $ | quote }}
+          imagePullPolicy: {{ $.Values.executorTools.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              rm -rf {{ $.Values.executorTools.mountPath }}/go {{ $.Values.executorTools.mountPath }}/bin
+              cp -a /usr/local/go {{ $.Values.executorTools.mountPath }}/go
+              mkdir -p {{ $.Values.executorTools.mountPath }}/bin
+              cp -a /usr/local/bin/golangci-lint {{ $.Values.executorTools.mountPath }}/bin/golangci-lint
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - {name: executor-tools, mountPath: {{ $.Values.executorTools.mountPath }}}
         {{- end }}
       {{- end }}
       containers:
@@ -94,6 +122,19 @@ spec:
             {{- if or (eq $role "planner") (eq $role "executor") }}
             - name: OLLAMA_URL
               value: {{ include "coding-agent.llmURL" $ | quote }}
+            {{- end }}
+            {{- if eq $role "executor" }}
+            {{/* Reach the donated Go SDK and linter, and keep their caches on
+                 the writable /tmp emptyDir so the read-only root filesystem
+                 holds (GH-2494). */}}
+            - name: PATH
+              value: "{{ $.Values.executorTools.mountPath }}/go/bin:{{ $.Values.executorTools.mountPath }}/bin:/usr/local/bin:/usr/bin:/bin"
+            - name: GOCACHE
+              value: /tmp/go-build
+            - name: GOMODCACHE
+              value: /tmp/go-mod
+            - name: GOLANGCI_LINT_CACHE
+              value: /tmp/golangci-lint
             {{- end }}
             {{- if eq $role "planner" }}
             - name: EXECUTOR_HOST
@@ -126,6 +167,9 @@ spec:
             - {name: profiles, mountPath: {{ $.Values.profiles.mountPath }}, readOnly: true}
             - {name: workspace, mountPath: {{ $.Values.workspace.mountPath }}}
             - {name: tmp, mountPath: /tmp}
+            {{- if eq $role "executor" }}
+            - {name: executor-tools, mountPath: {{ $.Values.executorTools.mountPath }}, readOnly: true}
+            {{- end }}
       volumes:
         {{- include "coding-agent.profilesVolume" $context | nindent 8 }}
         - name: workspace
@@ -133,6 +177,10 @@ spec:
             claimName: {{ include "coding-agent.workspaceClaim" $ }}
         - name: tmp
           emptyDir: {}
+        {{- if eq $role "executor" }}
+        - name: executor-tools
+          emptyDir: {}
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service

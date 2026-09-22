@@ -8,61 +8,16 @@
 # writes it.
 #
 # The R9.1 entries record the one-agent-image divergences that exist while the
-# GH-2494 migration is in flight: serving roles run the toolchain or smoke
-# image while the collector and applier still run the base agent-core image.
-# Each is removed by the child that makes every agent role inherit the one
-# application image, at which point R7.3 fails until the entry is deleted.
+# GH-2494 migration is in flight: a serving role runs the smoke image while the
+# collector still inherits the base agent-core image. Each is removed by the
+# child that makes every agent role inherit the one application image, at which
+# point R7.3 fails until the entry is deleted.
+#
+# GH-2504 moved every coding-agent role — planner, executor, critic, collector,
+# and applier — onto the one application image (the executor's Go and linter now
+# arrive from a tool donor), so the coding-agent divergences no longer reproduce
+# and their entries are gone.
 exceptions:
-  - chart: coding-agent
-    overlay: defaults
-    rule: R9.1
-    resource: Deployment/conformance-coding-agent-collector container/collector
-    value: ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0
-    issue: GH-2504
-    reason: >
-      The collector inherits the base agent-core image while the serving roles
-      run the agent-core-toolchain image. GH-2504 moves every role to the one
-      application image and GH-2499 retires the toolchain image, after which
-      the collector matches the serving roles.
-  - chart: coding-agent
-    overlay: kind-values.yaml
-    rule: R9.1
-    resource: Deployment/conformance-coding-agent-collector container/collector
-    value: ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0
-    issue: GH-2504
-    reason: >
-      Under the kind overlay the serving roles run the commit-tagged
-      coding-agent-smoke image while the collector inherits base agent-core.
-      GH-2504 and GH-2496 render every agent workload from the one commit
-      image, so the collector matches.
-  - chart: coding-agent
-    overlay: small-values.yaml
-    rule: R9.1
-    resource: Deployment/conformance-coding-agent-collector container/collector
-    value: ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0
-    issue: GH-2504
-    reason: >
-      The collector inherits base agent-core while the serving roles run the
-      toolchain image. GH-2504 moves every role to the one application image.
-  - chart: coding-agent
-    overlay: kind-applier-values.yaml
-    rule: R9.1
-    resource: Deployment/conformance-coding-agent-applier container/applier
-    value: ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0
-    issue: GH-2504
-    reason: >
-      The applier inherits base agent-core while the serving roles run the
-      toolchain image. GH-2504 moves every role to the one application image;
-      the applier's helm and kubectl continue to arrive from the CLI donor.
-  - chart: coding-agent
-    overlay: kind-applier-values.yaml
-    rule: R9.1
-    resource: Deployment/conformance-coding-agent-collector container/collector
-    value: ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0
-    issue: GH-2504
-    reason: >
-      The collector inherits base agent-core while the serving roles run the
-      toolchain image. GH-2504 moves every role to the one application image.
   - chart: agent-architecture
     overlay: kind-values.yaml
     rule: R9.1

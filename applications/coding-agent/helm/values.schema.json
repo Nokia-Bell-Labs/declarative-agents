@@ -3,12 +3,23 @@
   "title": "coding-agent values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "profiles", "workspace", "roles", "llm", "ollama", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
+  "required": ["image", "executorTools", "profiles", "workspace", "roles", "llm", "ollama", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
   "definitions": {
     "image": {
       "type": "object",
       "additionalProperties": false,
       "required": ["repository", "tag", "pullPolicy"],
+      "properties": {
+        "repository": {"type": "string", "pattern": "^[a-z0-9]+([._/-][a-z0-9]+)*(:[0-9]+)?([/][a-z0-9]+([._-][a-z0-9]+)*)*$"},
+        "tag": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
+        "digest": {"type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$"},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "imageOverride": {
+      "comment": "Optional agent-workload image override (srd005 R9): an absent repository inherits the one application image, and an overlay may set only pullPolicy for a kind-loaded image.",
+      "type": "object",
+      "additionalProperties": false,
       "properties": {
         "repository": {"type": "string", "pattern": "^[a-z0-9]+([._/-][a-z0-9]+)*(:[0-9]+)?([/][a-z0-9]+([._-][a-z0-9]+)*)*$"},
         "tag": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
@@ -82,6 +93,15 @@
   "properties": {
     "nameOverride": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
     "image": {"$ref": "#/definitions/image"},
+    "executorTools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mountPath", "image"],
+      "properties": {
+        "mountPath": {"type": "string", "pattern": "^/[A-Za-z0-9._/-]+$"},
+        "image": {"$ref": "#/definitions/image"}
+      }
+    },
     "profiles": {
       "type": "object",
       "additionalProperties": false,
@@ -188,10 +208,10 @@
     "collector": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "image", "otlpGRPCPort", "controlPort", "monitorPort", "queryPort", "resources"],
+      "required": ["enabled", "otlpGRPCPort", "controlPort", "monitorPort", "queryPort", "resources"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "image": {"$ref": "#/definitions/image"},
+        "image": {"$ref": "#/definitions/imageOverride"},
         "otlpGRPCPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
         "controlPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
         "monitorPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
@@ -202,10 +222,10 @@
     "applier": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "image", "ports", "allowApply", "networkPolicy", "resources"],
+      "required": ["enabled", "ports", "allowApply", "networkPolicy", "resources"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "image": {"$ref": "#/definitions/image"},
+        "image": {"$ref": "#/definitions/imageOverride"},
         "cliDonor": {"type": "object", "additionalProperties": false, "properties": {"image": {"type": "object", "additionalProperties": false, "required": ["repository", "tag"], "properties": {"repository": {"type": "string"}, "tag": {"type": "string"}, "digest": {"type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$"}, "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}}}}},
         "chartArchiveConfigMap": {"type": "string"},
         "ports": {

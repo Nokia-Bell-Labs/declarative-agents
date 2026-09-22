@@ -141,10 +141,12 @@ helm template coding-agent helm -f helm/ci/small-values.yaml
 mage helm:package
 ```
 
-The chart defaults to the shared
-`ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:0.1.0` (agent-core
-layered with the Go toolchain, GH-1368) and
-renders one persistent coding-runtime container per role, projected
+The chart defaults to the one application image
+`ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0` for every role —
+planner, executor, critic, collector, and applier (srd005 R9, GH-2494) — with
+the executor's Go toolchain and golangci-lint delivered by a read-only tool
+donor (`executorTools`). It
+renders one persistent agent container per role, projected
 read-only role ConfigMaps, one shared workspace claim, fixed internal role
 Services, lifecycle probes, optional Ollama, and collector agent tracing. `values.schema.json`, semantic template guards, and fixtures under
 `helm/schema-fixtures/` validate values. `mage helm:package` regenerates and

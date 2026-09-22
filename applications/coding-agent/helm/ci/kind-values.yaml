@@ -16,6 +16,13 @@ ollama:
 llm:
   externalURL: http://coding-model:11434
 
+# kind loads images from the local daemon and pulls nothing (chartconf R3). The
+# executor tool donor's loaded tag is wired by the one-image smoke (GH-2496);
+# here we only fix its pull policy to Never so the kind overlay conforms.
+executorTools:
+  image:
+    pullPolicy: Never
+
 collector:
   image:
     pullPolicy: Never
