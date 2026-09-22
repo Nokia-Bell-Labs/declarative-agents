@@ -328,10 +328,11 @@ project_structure:
       role: The decisions record and the standalone-program framing.
 
 implementation_status:
-  current_focus: The application is a self-governing, standalone program; the data plane
-    is implemented here, while the control plane has implemented components but
-    remains partial pending one live ingest-to-grounded-turn lifecycle proof.
-    Release rel07.0 is also partial pending collector listener lifecycle proof.
+  current_focus: The application is a self-governing program whose canonical
+    deployed mode is app-chatbot-mesh on shared da-platform. The data plane,
+    application-owned Chroma/RAG behavior, shared ingress, and durable
+    application collector are implemented here, while the control plane remains
+    partial pending one live ingest-to-grounded-turn lifecycle proof.
   progress:
     - done: The data-plane mesh (RAG server, chat turn, routing, fan-out,
         observability, Helm deployment, in-cluster model tier) is implemented, with
@@ -359,6 +360,11 @@ implementation_status:
         provisioner. mage integration:applier drives every declared apply and
         rollout terminal against recording helm and kubectl, while mage
         integration:applierLive proves real on-cluster apply and rollback.
+    - done: apprig app:up|status|seed|verify|diagnose|down in
+        app-chatbot-mesh, with unique chatbot/observer/telemetry hosts,
+        application-owned Chroma, an application bucket, persistent collector
+        WAL, concurrent operation with Coding Agent and Agent Architecture, and
+        retained query history across down/redeploy (GH-2482).
 
 related_documents:
   - doc: docs/VISION.yaml

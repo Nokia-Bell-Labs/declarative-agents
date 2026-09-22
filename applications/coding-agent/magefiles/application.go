@@ -170,7 +170,8 @@ func codingApplicationRunner() (apprig.Runner, error) {
 		}
 		return apprig.Preparation{
 			ChartPath: chart, ValuesPath: runner.Binding.ValuesPath,
-			Overrides: codingApplicationOverrides(resolved, images),
+			Overrides:     codingApplicationOverrides(resolved, images),
+			OwnsNamespace: created,
 		}, nil
 	}
 	runner.DeployAgent = func() (kindrig.DeployAgent, error) {

@@ -74,12 +74,16 @@ func (m Manifest) Validate() error {
 	}
 	seenWorkload := map[string]bool{}
 	for index, entry := range m.Deployment.Entries {
-		if entry.Workload == "" {
-			faults = append(faults, fmt.Sprintf("deployment.entries[%d] names no workload", index))
-		} else if seenWorkload[entry.Workload] {
+		// A deployment entry without workload is a package-only profile (for
+		// example chatbot-mesh corpus-ingest). It participates in closure
+		// preparation but creates no Kubernetes workload. Only named workloads
+		// need uniqueness.
+		if entry.Workload != "" && seenWorkload[entry.Workload] {
 			faults = append(faults, fmt.Sprintf("deployment.entries workload %q is declared twice", entry.Workload))
 		}
-		seenWorkload[entry.Workload] = true
+		if entry.Workload != "" {
+			seenWorkload[entry.Workload] = true
+		}
 		if entry.ProfilePath == "" {
 			faults = append(faults, fmt.Sprintf("deployment.entries[%d] (%s) names no profile_path", index, entry.Workload))
 		}

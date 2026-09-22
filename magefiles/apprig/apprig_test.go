@@ -67,6 +67,16 @@ func TestLoadManifestFromDisk(t *testing.T) {
 	}
 }
 
+func TestManifestAllowsPackageOnlyDeploymentEntry(t *testing.T) {
+	manifest := validManifest()
+	manifest.Deployment.Entries = append(manifest.Deployment.Entries, DeploymentEntry{
+		ID: "corpus-ingest", ProfilePath: "agents/corpus-ingest/profile.yaml",
+	})
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("package-only profile was rejected: %v", err)
+	}
+}
+
 // #2492 AC1: resolution derives complete coordinates, and a binding missing the
 // cluster or chart is rejected by name.
 func TestResolveDerivesCoordinates(t *testing.T) {

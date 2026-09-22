@@ -25,6 +25,8 @@ const (
 	chatbotDemoValuesFile   = "kind-values.yaml"
 )
 
+// Demo is the legacy dedicated-cluster development workflow. App on
+// da-platform is the canonical deployed lifecycle.
 type Demo mg.Namespace
 
 // Doctor checks the shared ENG01 toolchain and host resources without mutation.
@@ -32,7 +34,7 @@ func Doctor() error {
 	return kindrig.Doctor()
 }
 
-// Up creates or reuses the persistent demo cluster and deploys chatbot-mesh.
+// Up creates or reuses the development-only demo cluster.
 func (Demo) Up() error {
 	if err := Doctor(); err != nil {
 		return fmt.Errorf("demo requested but preflight failed: %w", err)

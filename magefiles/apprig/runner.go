@@ -18,6 +18,11 @@ type Preparation struct {
 	ValuesPath string
 	Overrides  string
 	Cleanup    func() error
+	// OwnsNamespace reports that Prepare created the resolved namespace before
+	// Runner's shared ensure step (needed by applications that provision
+	// out-of-release ConfigMaps there). A later deploy failure may then remove
+	// it; an existing namespace is never claimed.
+	OwnsNamespace bool
 }
 
 // Runner binds one manifest to the canonical lifecycle agents. Applications
@@ -105,7 +110,7 @@ func (r Runner) Up() (result error) {
 	}
 	deployErr := r.deploy(resolved, preparation)
 	if deployErr != nil {
-		if created {
+		if created || preparation.OwnsNamespace {
 			deployErr = errors.Join(deployErr, r.ops().deleteNamespace(namespace))
 		}
 		return deployErr
