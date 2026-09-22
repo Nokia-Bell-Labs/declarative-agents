@@ -8,6 +8,18 @@ import type { KitClient } from '@declarative-agents/ui-kit'
 
 const BASE = '/query'
 
+export type StorageStatus = 'complete' | 'partial' | 'unavailable'
+
+interface TraceListStorageResponse {
+  storage_status: StorageStatus
+}
+
+// The trace kit owns trace rendering. This bounded list read exists only to
+// surface the query engine's durable-storage completeness beside that view
+// (srd020 R10.2/AC12); it does not duplicate trace state in this application.
+export const getTraceStorageStatus = (client: KitClient) =>
+  client.getJSON<TraceListStorageResponse>(`${BASE}/traces?page_size=1`)
+
 // The Explore contracts mirror the /query/spans/* routes; the conformance
 // guards TestCollectorSpanStatsContract and TestCollectorSpanBreakdownContract
 // pin these keys, so a change on either side fails there first.

@@ -7,6 +7,36 @@
   padding: 24px;
 }
 
+.storage-status {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  margin: 16px 24px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--text-secondary);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.storage-status-complete {
+  border-left-color: var(--success);
+}
+
+.storage-status-partial {
+  border-left-color: var(--warning);
+}
+
+.storage-status-unavailable {
+  border-left-color: var(--danger);
+}
+
+.storage-status strong {
+  color: var(--text-primary);
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
 h1 {
   font-size: 24px;
   font-weight: 600;
