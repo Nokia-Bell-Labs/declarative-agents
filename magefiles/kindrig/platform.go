@@ -28,7 +28,13 @@ const (
 	platformConformanceRelease = "platform-conformance"
 	platformHostPlaceholder    = "KINDRIG_CONFORMANCE_HOST"
 	platformTracingPlaceholder = "KINDRIG_PLATFORM_TRACING_CONFIG"
-	platformWaitTimeout        = "120s"
+	platformObjectsPlaceholder = "KINDRIG_PLATFORM_OBJECTS"
+	// platformObjectsDirName is the stable host directory holding the fake-GCS
+	// filesystem backend. It lives under the user cache, outside any cluster,
+	// so retained objects survive da-platform deletion and recreation and are
+	// removed only by platform:reset (srd008 R4.3, R5; #2477 R3, R6).
+	platformObjectsDirName = "da-platform-objects"
+	platformWaitTimeout    = "120s"
 	// platformCommandTimeout bounds each command the platform runner issues.
 	// Every kubectl wait the rig declares is shorter, so only a stalled command
 	// (a registry that never answers a pull) reaches it (GH-2226).
@@ -218,17 +224,36 @@ func UpPlatform(options PlatformOptions) (Cluster, error) {
 	return cluster, nil
 }
 
-// DownPlatform deletes da-platform and no other cluster.
-func DownPlatform(run Runner) error {
+// DownPlatform stops da-platform compute and no other cluster. It refuses while
+// a managed application namespace remains, so an application is never torn down
+// as a side effect of a platform shutdown; the first release has no force
+// bypass (#2477 R6, R7). The retained local object store is preserved: only
+// platform:reset deletes it (srd008 R4.3). bind may be nil, which skips the
+// namespace check (a caller with no cluster binding).
+func DownPlatform(run Runner, bind func(string) (CommandRunner, func(), error)) error {
 	if !Exists(run, PlatformClusterName) {
 		fmt.Printf("platform: cluster %s does not exist\n", PlatformClusterName)
 		return nil
+	}
+	if bind != nil {
+		command, cleanup, err := bind(PlatformClusterName)
+		if err == nil {
+			defer cleanup()
+			namespaces, nsErr := managedApplicationNamespaces(command)
+			if nsErr == nil && len(namespaces) > 0 {
+				return fmt.Errorf(
+					"platform:down refuses: managed application namespaces still present (%s); "+
+						"run app:down for each before platform:down",
+					strings.Join(namespaces, ", "))
+			}
+		}
 	}
 	if output, err := run("delete", "cluster", "--name", PlatformClusterName); err != nil {
 		return fmt.Errorf("delete %s: %w: %s", PlatformClusterName, err,
 			strings.TrimSpace(string(output)))
 	}
-	fmt.Printf("platform: deleted cluster %s\n", PlatformClusterName)
+	fmt.Printf("platform: stopped cluster %s; retained object store preserved (platform:reset deletes it)\n",
+		PlatformClusterName)
 	return nil
 }
 
@@ -282,19 +307,40 @@ func EnsurePlatformCluster(run Runner) (Cluster, error) {
 	return EnsureFreshCluster(run, PlatformClusterName, path, platformClusterWait)
 }
 
-// stagePlatformKindConfig writes the kind config with its tracing mount
-// resolved, for the duration of one acquisition.
+// stagePlatformKindConfig writes the kind config with its tracing mount and
+// its stable object directory resolved, for the duration of one acquisition.
 func stagePlatformKindConfig() (string, func(), error) {
 	tracingPath, err := stagePlatformTracingConfig()
 	if err != nil {
 		return "", nil, err
 	}
+	objectsPath, err := PlatformObjectsDir()
+	if err != nil {
+		return "", nil, err
+	}
 	config := strings.ReplaceAll(string(platformKindConfig), platformTracingPlaceholder, tracingPath)
+	config = strings.ReplaceAll(config, platformObjectsPlaceholder, objectsPath)
 	path, cleanup, err := writeTempManifest("kindrig-platform-*.yaml", config)
 	if err != nil {
 		return "", nil, fmt.Errorf("stage %s kind config: %w", PlatformClusterName, err)
 	}
 	return path, cleanup, nil
+}
+
+// PlatformObjectsDir is the stable host directory the fake-GCS filesystem
+// backend is mounted from. It is created on first use and lives outside any
+// cluster, so it survives da-platform deletion and recreation. platform:reset
+// is the only operation that deletes it (srd008 R4.3; #2477 R3, R6).
+func PlatformObjectsDir() (string, error) {
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve %s object directory: %w", PlatformClusterName, err)
+	}
+	dir := filepath.Join(cache, "kindrig", platformObjectsDirName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create %s object directory: %w", PlatformClusterName, err)
+	}
+	return dir, nil
 }
 
 // stagePlatformTracingConfig writes the API-server tracing configuration to the
@@ -329,6 +375,66 @@ func BootPlatform(run CommandRunner, cluster string) error {
 	if _, err := InstallMetricsServer(run, cluster); err != nil {
 		return fmt.Errorf("install metrics-server: %w", err)
 	}
+	// fake-GCS is a platform boot service, not a per-application add-on: one
+	// filesystem-backed object store every application namespace binds by
+	// endpoint (srd008 R2; #2477 R1). Its cleanup is not needed because the
+	// platform is deleted whole and its data lives on the host mount.
+	if _, err := InstallFakeGCS(run, cluster); err != nil {
+		return fmt.Errorf("install fake-gcs: %w", err)
+	}
+	return nil
+}
+
+// managedApplicationNamespaces lists the da-<application> namespaces on the
+// platform, excluding the platform's own conformance namespace, so a teardown
+// can refuse while applications still run on it (#2477 R7).
+func managedApplicationNamespaces(run CommandRunner) ([]string, error) {
+	out, err := run("kubectl", "get", "namespaces",
+		"-l", "app.kubernetes.io/managed-by=apprig",
+		"-o", "jsonpath={.items[*].metadata.name}")
+	if err != nil {
+		return nil, fmt.Errorf("list managed application namespaces: %w: %s",
+			err, strings.TrimSpace(string(out)))
+	}
+	var namespaces []string
+	for _, name := range strings.Fields(string(out)) {
+		if name != "" {
+			namespaces = append(namespaces, name)
+		}
+	}
+	return namespaces, nil
+}
+
+// ResetPlatform is the explicit destructive operation that deletes the retained
+// local object store. It refuses while da-platform is running or a managed
+// application namespace remains, so retained data is never deleted as a side
+// effect of an ordinary teardown; there is no force bypass in this release
+// (srd008 R4.3; #2477 R6, R4).
+func ResetPlatform(run Runner, bind func(string) (CommandRunner, func(), error)) error {
+	if Exists(run, PlatformClusterName) {
+		if bind != nil {
+			if command, cleanup, err := bind(PlatformClusterName); err == nil {
+				defer cleanup()
+				if namespaces, nsErr := managedApplicationNamespaces(command); nsErr == nil && len(namespaces) > 0 {
+					return fmt.Errorf(
+						"platform:reset refuses: managed application namespaces still present (%s); "+
+							"run app:down for each, then platform:down, before reset",
+						strings.Join(namespaces, ", "))
+				}
+			}
+		}
+		return fmt.Errorf(
+			"platform:reset refuses while %s is running; run platform:down first, then platform:reset",
+			PlatformClusterName)
+	}
+	dir, err := PlatformObjectsDir()
+	if err != nil {
+		return err
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("platform:reset: delete object store %s: %w", dir, err)
+	}
+	fmt.Printf("platform:reset: deleted retained local object store %s\n", dir)
 	return nil
 }
 
@@ -399,6 +505,18 @@ func PlatformConformance(run CommandRunner, cluster string) (result error) {
 			strings.TrimSpace(string(volume)), err)
 	}
 	return nil
+}
+
+// PlatformCommandBinding binds kubectl/docker commands to a cluster's private
+// kubeconfig, the same binding StartPlatform uses. platform:down and
+// platform:reset pass it so their managed-namespace check runs against the
+// platform rather than the ambient context (#2477 R7, R9).
+func PlatformCommandBinding(cluster string) (CommandRunner, func(), error) {
+	commands, cleanup, err := ClusterCommands(CaptureRun, cluster)
+	if err != nil {
+		return nil, nil, err
+	}
+	return boundedCommandRunner(commands.RunContext, platformCommandTimeout), cleanup, nil
 }
 
 func (o PlatformOptions) withDefaults() PlatformOptions {

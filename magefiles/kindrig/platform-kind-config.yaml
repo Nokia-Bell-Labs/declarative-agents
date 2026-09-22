@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
-# Shared cluster-services tier (da-platform, GH-2215). One pinned control-plane
-# node; the ingress-ready label admits the rig's Traefik controller. No host
-# port mappings: demo clusters own localhost:80/443.
+# Shared cluster-services tier (da-platform, GH-2215) and the browser-facing
+# application platform (#2477). One pinned control-plane node; the ingress-ready
+# label admits the rig's Traefik controller, and the platform owns host
+# 80/443 so applications declare .localhost hosts and never coordinate ports.
 #
 # The API server and kubelet export traces to the host observability stack at
 # host.docker.internal:4317 with static resource attributes, so every scenario
@@ -10,6 +11,9 @@
 # listens there, the exporters drop spans and the cluster is unaffected.
 # KINDRIG_PLATFORM_TRACING_CONFIG is replaced with a stable host path holding
 # platform-tracing.yaml, which must outlive the node across Docker restarts.
+# KINDRIG_PLATFORM_OBJECTS is a stable host directory holding the fake-GCS
+# filesystem backend, so retained objects outlive the node and the cluster
+# (srd008 R5; #2477 R3); platform:reset is the only operation that deletes it.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
@@ -19,6 +23,11 @@ nodes:
       - hostPath: KINDRIG_PLATFORM_TRACING_CONFIG
         containerPath: /etc/kubernetes/tracing.yaml
         readOnly: true
+      - hostPath: KINDRIG_PLATFORM_OBJECTS
+        containerPath: /var/lib/da-platform-objects
+    extraPortMappings:
+      - {containerPort: 80, hostPort: 80, protocol: TCP}
+      - {containerPort: 443, hostPort: 443, protocol: TCP}
     kubeadmConfigPatches:
       - |
         kind: InitConfiguration

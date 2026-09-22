@@ -17,13 +17,30 @@ func TestPlatformKindConfigPinsNodeAndAdmitsIngress(t *testing.T) {
 	for _, want := range []string{
 		"kindest/node:v1.36.1@sha256:",
 		`node-labels: "ingress-ready=true"`,
+		// The platform owns host 80/443 so applications declare .localhost
+		// hosts and never coordinate ports (#2477 R2).
+		"containerPort: 80, hostPort: 80",
+		"containerPort: 443, hostPort: 443",
+		// The stable object-store mount backs durable local telemetry (#2477 R3).
+		platformObjectsPlaceholder,
 	} {
 		if !strings.Contains(config, want) {
 			t.Errorf("platform kind config lacks %q", want)
 		}
 	}
-	if strings.Contains(config, "extraPortMappings") {
-		t.Error("platform kind config maps host ports; demo clusters own them")
+}
+
+// #2477 R1: fake-GCS is a platform boot service, installed by BootPlatform
+// alongside ingress and metrics-server.
+func TestBootPlatformInstallsFakeGCS(t *testing.T) {
+	config := string(fakeGCSKindManifest)
+	for _, want := range []string{"-backend", "filesystem", "-filesystem-root", "hostPath", "/var/lib/da-platform-objects"} {
+		if !strings.Contains(config, want) {
+			t.Errorf("fake-gcs manifest lacks %q; the backend must be durable filesystem", want)
+		}
+	}
+	if strings.Contains(config, "- memory") {
+		t.Error("fake-gcs manifest still uses the memory backend arg; #2477 R3 requires filesystem durability")
 	}
 }
 
@@ -426,17 +443,51 @@ func TestUpPlatformReuseConformanceFailureKeepsPlatform(t *testing.T) {
 	}
 }
 
+// noManagedNamespaces binds a command runner that reports no managed
+// application namespaces, so DownPlatform proceeds to delete the cluster.
+func noManagedNamespaces(string) (CommandRunner, func(), error) {
+	return func(string, ...string) ([]byte, error) { return []byte(""), nil }, func() {}, nil
+}
+
 func TestDownPlatformDeletesOnlyThePlatform(t *testing.T) {
 	kind := &fakeKind{existing: []string{"da-chatbot-mesh-demo", PlatformClusterName}}
-	if err := DownPlatform(kind.run); err != nil {
+	if err := DownPlatform(kind.run, noManagedNamespaces); err != nil {
 		t.Fatal(err)
 	}
 	if got := strings.Join(kind.lastCall("delete"), " "); got != "delete cluster --name da-platform" {
 		t.Fatalf("delete = %q", got)
 	}
 	absent := &fakeKind{existing: []string{"da-chatbot-mesh-demo"}}
-	if err := DownPlatform(absent.run); err != nil || absent.issued("delete") {
+	if err := DownPlatform(absent.run, noManagedNamespaces); err != nil || absent.issued("delete") {
 		t.Fatalf("absent platform: err=%v calls=%v", err, absent.calls)
+	}
+}
+
+// #2477 R7: platform:down refuses while a managed application namespace remains
+// and does not delete the cluster.
+func TestDownPlatformRefusesWhileApplicationsRemain(t *testing.T) {
+	kind := &fakeKind{existing: []string{PlatformClusterName}}
+	bind := func(string) (CommandRunner, func(), error) {
+		return func(string, ...string) ([]byte, error) {
+			return []byte("da-chatbot-mesh da-coding-agent"), nil
+		}, func() {}, nil
+	}
+	err := DownPlatform(kind.run, bind)
+	if err == nil || !strings.Contains(err.Error(), "da-chatbot-mesh") {
+		t.Fatalf("down did not refuse naming the application namespace: %v", err)
+	}
+	if kind.issued("delete") {
+		t.Fatal("down deleted the platform while an application namespace remained")
+	}
+}
+
+// #2477 R6: platform:reset refuses while da-platform is running rather than
+// deleting retained data as a side effect.
+func TestResetPlatformRefusesWhileRunning(t *testing.T) {
+	kind := &fakeKind{existing: []string{PlatformClusterName}}
+	err := ResetPlatform(kind.run, noManagedNamespaces)
+	if err == nil || !strings.Contains(err.Error(), "refuses while") {
+		t.Fatalf("reset did not refuse while the platform was running: %v", err)
 	}
 }
 

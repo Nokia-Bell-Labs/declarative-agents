@@ -374,9 +374,9 @@ sections:
 
       | Verb | Contract |
       |------|----------|
-      | platform:up | Creates da-platform, or reuses a healthy one and prunes its node images; runs ingress, object, storage, and data-plane conformance; leaves it running |
-      | platform:down | Stops da-platform compute and preserves the stable object-data host path |
-      | platform:reset | Deletes da-platform compute and the stable local object-data host path after explicit destructive confirmation |
+      | platform:up | Creates da-platform, or reuses a healthy one and prunes its node images; installs Traefik, metrics-server, and the filesystem-backed fake-GCS object service; runs conformance; leaves it running |
+      | platform:down | Stops da-platform compute, refuses while a managed application namespace remains, and preserves the stable object-data host path |
+      | platform:reset | Deletes the stable local object-data host path; refuses while da-platform or a managed application is active, with no force bypass |
       | clean:images | Removes commit-tagged rig images beyond the newest given number of revisions per family |
       | clean:imagesDryRun | Lists what clean:images would remove |
       | bump | Resolves every pin against its registry and reports integrity and currency; reaches the network, writes nothing, and exits zero whatever it finds |

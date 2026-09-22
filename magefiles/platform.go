@@ -21,7 +21,16 @@ func (Platform) Up() error {
 	return err
 }
 
-// Down deletes the developer da-platform and no other cluster.
+// Down stops the developer da-platform compute and no other cluster. It refuses
+// while a managed application namespace remains and preserves the retained
+// local object store; platform:reset deletes that store.
 func (Platform) Down() error {
-	return kindrig.DownPlatform(kindrig.DefaultRun)
+	return kindrig.DownPlatform(kindrig.DefaultRun, kindrig.PlatformCommandBinding)
+}
+
+// Reset is the explicit destructive operation that deletes the retained local
+// object store. It refuses while da-platform or a managed application is
+// active; there is no force bypass.
+func (Platform) Reset() error {
+	return kindrig.ResetPlatform(kindrig.DefaultRun, kindrig.PlatformCommandBinding)
 }
