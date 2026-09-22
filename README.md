@@ -65,6 +65,27 @@ Each sub-module also has its own mage targets. Run `mage -l` inside any director
 audits the full build dependency graph and the production-only graph separately;
 either scope fails the release gate at any known high or critical vulnerability.
 
+### Agent image composition and ownership
+
+For one source revision, local and release integrations build one canonical
+profile-free agent image:
+`ghcr.io/nokia-bell-labs/declarative-agents/agent-core:<12-character-revision>`.
+Every container whose main process is `agent` uses that image—application
+roles, collectors, appliers, and repository-owned mocks. Mounted profile
+closures select behavior. Role-specific binaries arrive from pinned, read-only
+init-donor volumes; third-party model, database, ingress, and storage products
+remain separately pinned infrastructure images.
+
+Disposable kind integrations lease the canonical host tag before loading it.
+After their owned cluster is deleted (or the image is loaded into a surviving
+owned cluster), the last lease owner removes only a tag created by that lease
+group. Pre-existing tags, active owners, image-ID mismatches, images used by
+containers, and third-party images are never removed. `mage clean:images` is
+bounded interruption-recovery tooling for canonical commit tags; a force-killed
+run leaves a diagnostic lease and requires the explicit
+`mage clean:imageLeaseRecover <canonical-reference>` recovery target after its
+owner is confirmed dead.
+
 ### Persistent integration observability
 
 The persistent OTLP ingress is the canonical collector agent run as a host
@@ -151,14 +172,14 @@ live under [`applications/chatbot-mesh/docs/`](applications/chatbot-mesh/docs/).
 cd applications/coding-agent
 mage audit                  # validate docs, closure, boot, and test evidence
 mage package                # assemble canonical application profile closures
-mage image:build            # build the profile-free coding runtime
+mage image:build            # build the canonical profile-free agent-core image
 mage helm:package           # build the installable chart
 mage integration:helmSmoke  # prove planner → executor → critic on kind
 ```
 
 Canonical entry points are
 [`agents/application.yaml`](applications/coding-agent/agents/application.yaml),
-[`Dockerfile`](applications/coding-agent/Dockerfile), and
+[`agent-core/Dockerfile`](agent-core/Dockerfile), and
 [`helm/`](applications/coding-agent/helm/); architecture and operations live under
 [`docs/`](applications/coding-agent/docs/).
 

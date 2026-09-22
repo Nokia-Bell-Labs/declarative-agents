@@ -26,13 +26,34 @@ ragServer:
     limits: {cpu: 500m, memory: 512Mi}
 
 chroma:
+  image:
+    repository: kindrig/chromadb-chroma
+    digest: ""
+    pullPolicy: Never
   storage: 256Mi
   resources:
     requests: {cpu: 50m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
 
 dolt:
+  image:
+    repository: kindrig/dolthub-dolt-sql-server
+    digest: ""
+    pullPolicy: Never
   storage: 256Mi
+
+observer:
+  proxy:
+    image:
+      repository: kindrig/rancher-kubectl
+      digest: ""
+      pullPolicy: Never
+
+collector:
+  image:
+    repository: kindrig/otel-opentelemetry-collector-contrib
+    digest: ""
+    pullPolicy: Never
 
 ingress:
   enabled: false
@@ -43,6 +64,7 @@ applier:
 # The in-cluster LLM tier: CPU-only small models (no GPU), tiny storage.
 ollama:
   enabled: true
+  utilityImage: kindrig/busybox:1.36
   # The integration host pulls the matching digest and imports this exact tag
   # into kind after appending the host trust bundle to the pinned base image.
   # TLS verification remains enabled for model pulls; a node never reaches the

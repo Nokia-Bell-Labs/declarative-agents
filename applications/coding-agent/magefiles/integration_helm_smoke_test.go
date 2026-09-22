@@ -173,7 +173,7 @@ func TestCodingHelmUsesIsolatedCollectorQueryPort(t *testing.T) {
 	}
 }
 
-func TestCodingHelmCommitImagePropagatesToManifestAndDeploy(t *testing.T) {
+func TestCodingHelmCommitImagePropagatesToBuildManifestAndDeploy(t *testing.T) {
 	image := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0123456789ab"
 	roots, _ := canonicalDeploymentInputs(t)
 	manifest, cleanup, err := codingModelMockManifest(roots, image)
