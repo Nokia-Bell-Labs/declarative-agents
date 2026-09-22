@@ -24,6 +24,10 @@ tools:
           offset: {type: integer}
           page_size: {type: integer}
           skipped_lines: {type: integer}
+          # complete, partial, or unavailable: an object-store outage never labels
+          # WAL-only history complete, so the collector does not lie about
+          # persisted history while readiness stays intake-only (srd042 R6; #2484 R6).
+          storage_status: {type: string}
     side_effects:
       - {kind: filesystem_read, target: collector trace spool, state: read_only}
     reversibility: {classification: reversible}
@@ -56,6 +60,7 @@ tools:
           spans: {type: array}
           span_count: {type: integer}
           skipped_lines: {type: integer}
+          storage_status: {type: string}
     side_effects:
       - {kind: filesystem_read, target: collector trace spool, state: read_only}
     reversibility: {classification: reversible}
@@ -86,6 +91,7 @@ tools:
           offset: {type: integer}
           page_size: {type: integer}
           skipped_lines: {type: integer}
+          storage_status: {type: string}
     side_effects:
       - {kind: filesystem_read, target: collector metric spool, state: read_only}
     reversibility: {classification: reversible}
@@ -142,6 +148,7 @@ tools:
           offset: {type: integer}
           page_size: {type: integer}
           skipped_lines: {type: integer}
+          storage_status: {type: string}
     side_effects:
       - {kind: filesystem_read, target: collector metric spool, state: read_only}
     reversibility: {classification: reversible}

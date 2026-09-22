@@ -170,6 +170,14 @@ spec:
             {{- with .extraContainerPorts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{/* Readiness and liveness probe intake and lifecycle health on the
+               control server, never the remote object store (srd042 R6; GH-2484
+               R6). A transient bucket outage leaves the WAL absorbing writes
+               durably, so a WAL-backed collector stays ready; the query surface
+               reports the degraded storage_status (rest.yaml /query/*) rather
+               than letting the pod lie about persisted history by flipping
+               unready. The probe target is storage-backend independent: object
+               mode does not repoint it. */}}
           readinessProbe:
             httpGet: {path: /api/lifecycle/health, port: control}
             initialDelaySeconds: 2

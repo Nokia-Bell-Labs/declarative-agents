@@ -112,6 +112,53 @@ func TestCollectorStorageValidationsRejectMisconfig(t *testing.T) {
 	}
 }
 
+// GH-2484 R6: readiness and liveness probe intake and lifecycle health on the
+// control server, never the remote object store. The probe target is identical
+// whether the collector is filesystem or object backed, so a transient bucket
+// outage cannot flip a WAL-backed collector unready (it reports the degraded
+// storage_status through /query/* instead). Pinning both renders keeps a later
+// edit from repointing readiness at a storage-dependent surface.
+func TestCollectorReadinessIsStorageIndependentIntakeHealth(t *testing.T) {
+	const probeTarget = "httpGet: {path: /api/lifecycle/health, port: control}"
+	renders := map[string][]string{
+		"filesystem default": nil,
+		"object backend": {
+			"collector.storage.backend=object",
+			"collector.storage.bucketName=chatbot-mesh",
+		},
+	}
+	for name, sets := range renders {
+		t.Run(name, func(t *testing.T) {
+			out := helmTemplateOutput(t, sets...)
+			// Both a readinessProbe and a livenessProbe target intake health.
+			if got := strings.Count(out, probeTarget); got < 2 {
+				t.Errorf("expected readiness and liveness to probe intake health %q, found %d occurrence(s):\n%s", probeTarget, got, out)
+			}
+			// Readiness must never be repointed at the query/storage surface.
+			for _, forbidden := range []string{"port: query", "path: /query"} {
+				if strings.Contains(out, "readinessProbe") && strings.Contains(out, forbidden) &&
+					strings.Contains(collectorProbeBlock(out), forbidden) {
+					t.Errorf("readiness probe unexpectedly references storage surface %q:\n%s", forbidden, out)
+				}
+			}
+		})
+	}
+}
+
+// collectorProbeBlock returns the readiness/liveness probe region so the
+// storage-surface check inspects the probes, not the whole manifest.
+func collectorProbeBlock(out string) string {
+	start := strings.Index(out, "readinessProbe")
+	if start < 0 {
+		return ""
+	}
+	rest := out[start:]
+	if end := strings.Index(rest, "resources:"); end >= 0 {
+		return rest[:end]
+	}
+	return rest
+}
+
 // GH-2484 R3: an explicitly ephemeral test collector mounts an emptyDir WAL and
 // renders no persistent claim.
 func TestCollectorEphemeralModeUsesEmptyDirWAL(t *testing.T) {

@@ -89,6 +89,7 @@ requirements:
       - R10.1: The collector spool and query words SHALL select a storage backend through declared configuration -- the filesystem NDJSON spool (default) or the object backend, which reads the collector's configured application bucket and in-bucket prefix (srd042 R10, R11). The bucket, endpoint, and prefix SHALL be declared configuration only; no request field SHALL redirect a query to another bucket.
       - R10.2: A query response SHALL report storage status as complete, partial, or unavailable. A bucket outage SHALL NOT present locally staged (WAL) data as complete history.
       - R10.3: After app:down the collector's query REST surface is unavailable while its bucket data remains; a collector redeployed against the same bucket SHALL restore query access to the retained history without changing object identity.
+      - R10.4: Collector readiness SHALL reflect OTLP intake and lifecycle health only. A remote object-store outage SHALL NOT flip a WAL-backed collector unready; instead the query surface SHALL expose the degraded storage_status (R10.2) so the collector never presents WAL-only history as complete. The chart readiness probe target SHALL be identical for the filesystem and object backends (GH-2484 R6).
 
 non_goals:
   - Removing the mesh collector or changing the mesh deployment to reference the catalog family.
@@ -141,6 +142,10 @@ acceptance_criteria:
     criterion: With the object backend selected, the collector spool persists immutable objects to the configured application bucket and the query words read that bucket through the srd042 R11 engine, reporting storage status and never reading a request-supplied bucket; with the filesystem default the render and behavior are unchanged. The collector profile boot-smokes with the object-backed declarations, and a redeployed collector queries retained history.
     traces: [R10.1, R10.2, R10.3]
 
+  - id: AC12
+    criterion: Every query REST response body carries storage_status from the srd042 R11 engine, so a bucket outage reports partial or unavailable rather than presenting WAL-only history as complete; the chart readiness and liveness probes target the control lifecycle health surface identically for the filesystem and object backends, so a transient object-store outage never flips a WAL-backed collector unready. Render tests pin both probe targets and the boot-smoke covers the storage_status response mapping.
+    traces: [R10.2, R10.4]
+
 
 related_documents:
   - srd007-collector-agent
@@ -152,6 +157,7 @@ implementation_status:
     - "applications/catalog/conformance/collector_test.go proves receive-spool-exit in spool mode."
     - "applications/docs/specs/semantic-models/agent-role-realizations.yaml carries the catalog binding."
     - "R10: the collector spool and query declarations select an object backend through env-templated storage config (filesystem default), so the spool persists to and the query reads the configured application bucket via the srd042 R10/R11 engine; the profile boot-smokes with these declarations (GH-2484, GH-2489, GH-2490)."
+    - "R10.2/R10.4: every /query/* REST response surfaces storage_status, and the shared agent-services chart readiness/liveness probes target control lifecycle health identically for both backends, pinned by chatbot-mesh render tests, so a bucket outage never flips a WAL-backed collector unready (GH-2484 R6, GH-2491 R6)."
   planned:
     - "R10 retention purge and cloud application-bucket IAM proof, and the collector-UI storage-status surfacing, are tracked on GH-2490; app:purge authority is gated on decision GH-2488."
 
