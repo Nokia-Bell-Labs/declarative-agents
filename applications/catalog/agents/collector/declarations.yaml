@@ -153,7 +153,7 @@ tools:
       max_bytes: 10485760
       max_files: 3
       # Filesystem NDJSON by default; the chart selects the object backend and bucket, so declarations are identical across local and cloud (srd042 R10; srd008 R8, R9; #2484 wires the values).
-      storage: {backend: "${COLLECTOR_STORAGE_BACKEND:-filesystem}", bucket_url: "${COLLECTOR_OBJECT_BUCKET_URL:-}", endpoint: "${COLLECTOR_OBJECT_ENDPOINT:-}", prefix: "${COLLECTOR_OBJECT_PREFIX:-traces}", wal_path: "${COLLECTOR_TRACE_WAL_PATH:-traces/collector.wal}", application: "${COLLECTOR_APPLICATION:-}", namespace: "${COLLECTOR_NAMESPACE:-}", run: "${COLLECTOR_RUN:-}", collector_instance: "${COLLECTOR_INSTANCE:-}", wal_max_bytes: 67108864, wal_max_pending: 1024}
+      storage: {backend: "${COLLECTOR_STORAGE_BACKEND:-filesystem}", bucket_url: "${COLLECTOR_OBJECT_BUCKET_URL:-}", endpoint: "${COLLECTOR_OBJECT_ENDPOINT:-}", prefix: "${COLLECTOR_OBJECT_PREFIX:-traces}", wal_path: "${COLLECTOR_TRACE_WAL_PATH:-traces/collector.wal}", application: "${COLLECTOR_APPLICATION:-}", namespace: "${COLLECTOR_NAMESPACE:-}", run: "${COLLECTOR_RUN:-}", collector_instance: "${COLLECTOR_INSTANCE:-}", retention_class: "${COLLECTOR_RETENTION_CLASS:-application}", retention_days: "${COLLECTOR_RETENTION_DAYS:-0}", wal_max_bytes: 67108864, wal_max_pending: 1024}
 
   - name: await_collector_metrics
     type: builtin
@@ -198,7 +198,7 @@ tools:
       max_bytes: 10485760
       max_files: 3
       # Traces and metrics share the storage port; the object backend keeps them in separate object families (srd042 R10.2; srd008 R5).
-      storage: {backend: "${COLLECTOR_STORAGE_BACKEND:-filesystem}", bucket_url: "${COLLECTOR_OBJECT_BUCKET_URL:-}", endpoint: "${COLLECTOR_OBJECT_ENDPOINT:-}", prefix: "${COLLECTOR_OBJECT_PREFIX:-metrics}", wal_path: "${COLLECTOR_METRICS_WAL_PATH:-metrics/collector.wal}", application: "${COLLECTOR_APPLICATION:-}", namespace: "${COLLECTOR_NAMESPACE:-}", run: "${COLLECTOR_RUN:-}", collector_instance: "${COLLECTOR_INSTANCE:-}", wal_max_bytes: 67108864, wal_max_pending: 1024}
+      storage: {backend: "${COLLECTOR_STORAGE_BACKEND:-filesystem}", bucket_url: "${COLLECTOR_OBJECT_BUCKET_URL:-}", endpoint: "${COLLECTOR_OBJECT_ENDPOINT:-}", prefix: "${COLLECTOR_OBJECT_PREFIX:-metrics}", wal_path: "${COLLECTOR_METRICS_WAL_PATH:-metrics/collector.wal}", application: "${COLLECTOR_APPLICATION:-}", namespace: "${COLLECTOR_NAMESPACE:-}", run: "${COLLECTOR_RUN:-}", collector_instance: "${COLLECTOR_INSTANCE:-}", retention_class: "${COLLECTOR_RETENTION_CLASS:-application}", retention_days: "${COLLECTOR_RETENTION_DAYS:-0}", wal_max_bytes: 67108864, wal_max_pending: 1024}
 
   - name: decide_collector_relay
     type: builtin

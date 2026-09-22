@@ -125,6 +125,8 @@ tools:
       endpoint: ""
       prefix: traces
       wal_path: traces/collector.wal
+      retention_class: application
+      retention_days: "0"
       wal_max_bytes: 67108864
       wal_max_pending: 1024
 - name: spool_metrics
@@ -178,5 +180,7 @@ tools:
       endpoint: ""
       prefix: metrics
       wal_path: metrics/collector.wal
+      retention_class: application
+      retention_days: "0"
       wal_max_bytes: 67108864
       wal_max_pending: 1024

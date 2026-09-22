@@ -52,6 +52,13 @@ configuration that flows into the collector's `declarations.yaml` through
 | `bucketURL` or `bucketName` | the application bucket (`bucketName` becomes `gs://<name>`) |
 | `endpoint` | a local emulator endpoint; valid only with the `object` backend |
 | `prefix` | a safe relative in-bucket prefix; defaults to the application name |
+| `retentionClass` | immutable metadata class stamped on each envelope; defaults to `application` |
+| `retentionDays` | optional non-negative days used to stamp `retain_until`; `0` means no time-based expiry is declared |
+
+Every object also records `purge_authority: app:purge`. This is metadata, not
+an automatic deletion policy: `app:down` and platform lifecycle never act on
+`retain_until`, and only the separately authorized purge workflow may delete
+the application's retained set (GH-2490 R5).
 
 The filesystem default renders exactly as before, so an application migrates
 when it is ready. No credentials appear in any value: the local rig uses fake

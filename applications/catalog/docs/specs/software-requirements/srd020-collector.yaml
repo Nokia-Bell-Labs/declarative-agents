@@ -91,6 +91,7 @@ requirements:
       - R10.3: After app:down the collector's query REST surface is unavailable while its bucket data remains; a collector redeployed against the same bucket SHALL restore query access to the retained history without changing object identity.
       - R10.4: Collector readiness SHALL reflect OTLP intake and lifecycle health only. A remote object-store outage SHALL NOT flip a WAL-backed collector unready; instead the query surface SHALL expose the degraded storage_status (R10.2) so the collector never presents WAL-only history as complete. The chart readiness probe target SHALL be identical for the filesystem and object backends (GH-2484 R6).
       - R10.5: The trace UI SHALL display complete, partial, unavailable, or unknown storage status beside the trace view. Partial and unavailable states SHALL state that displayed results are not complete retained history; a UI SHALL NOT silently collapse them into an empty or healthy trace list.
+      - R10.6: Object-backed collector declarations SHALL stamp a retention class, optional retain-until derived from non-negative retention days, and fixed app:purge authority on every immutable envelope. Retention metadata SHALL be descriptive only; app:down, collector restart, and platform lifecycle SHALL NOT delete an application retained set.
 
 non_goals:
   - Removing the mesh collector or changing the mesh deployment to reference the catalog family.
@@ -140,8 +141,8 @@ acceptance_criteria:
     traces: [R6.1, R6.2]
 
   - id: AC11
-    criterion: With the object backend selected, the collector spool persists immutable objects to the configured application bucket and the query words read that bucket through the srd042 R11 engine, reporting storage status and never reading a request-supplied bucket; with the filesystem default the render and behavior are unchanged. The collector profile boot-smokes with the object-backed declarations, and a redeployed collector queries retained history.
-    traces: [R10.1, R10.2, R10.3]
+    criterion: With the object backend selected, the collector spool persists immutable objects to the configured application bucket with declared retention class, optional retain-until, and fixed app:purge authority, and the query words read that bucket through the srd042 R11 engine, reporting storage status and never reading a request-supplied bucket; with the filesystem default the render and behavior are unchanged. The collector profile boot-smokes with the object-backed declarations, app:down preserves the objects, and a redeployed collector queries retained history.
+    traces: [R10.1, R10.2, R10.3, R10.6]
 
   - id: AC12
     criterion: Every query REST response body carries storage_status from the srd042 R11 engine, so a bucket outage reports partial or unavailable rather than presenting WAL-only history as complete; the trace UI renders that status and names incomplete history; the chart readiness and liveness probes target the control lifecycle health surface identically for the filesystem and object backends, so a transient object-store outage never flips a WAL-backed collector unready. Conformance pins the REST/UI status contract, render tests pin both probe targets, and the boot-smoke covers response mapping.
@@ -160,6 +161,7 @@ implementation_status:
     - "R10: the collector spool and query declarations select an object backend through env-templated storage config (filesystem default), so the spool persists to and the query reads the configured application bucket via the srd042 R10/R11 engine; the profile boot-smokes with these declarations (GH-2484, GH-2489, GH-2490)."
     - "R10.2/R10.4: every /query/* REST response surfaces storage_status, and the shared agent-services chart readiness/liveness probes target control lifecycle health identically for both backends, pinned by chatbot-mesh render tests, so a bucket outage never flips a WAL-backed collector unready (GH-2484 R6, GH-2491 R6)."
     - "R10.5: the shipped trace UI performs a bounded storage-status read and renders complete, partial, unavailable, or unknown with explicit incomplete-history language; catalog conformance pins the source/API contract (GH-2490)."
+    - "R10.6: object envelopes stamp retention_class, optional retain_until, and purge_authority=app:purge from the versioned chart/declaration contract; no teardown path consumes that metadata (GH-2490)."
   planned:
     - "R10 retention purge and cloud application-bucket IAM proof are tracked on GH-2490; app:purge authority is gated on decision GH-2488."
 

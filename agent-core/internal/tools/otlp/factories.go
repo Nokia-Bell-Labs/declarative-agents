@@ -6,6 +6,7 @@ package otlp
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -62,6 +63,8 @@ type StorageToolConfig struct {
 	Namespace         string `json:"namespace"`
 	Run               string `json:"run"`
 	CollectorInstance string `json:"collector_instance"`
+	RetentionClass    string `json:"retention_class"`
+	RetentionDays     string `json:"retention_days"`
 	WALMaxBytes       int64  `json:"wal_max_bytes"`
 	WALMaxPending     int    `json:"wal_max_pending"`
 }
@@ -319,6 +322,22 @@ func decodeStorageConfig(toolName string, raw StorageToolConfig, vars map[string
 		if raw.WALPath == "" {
 			return StorageConfig{}, fmt.Errorf("tool %q object storage requires wal_path", toolName)
 		}
+		retentionDays := 0
+		if raw.RetentionDays != "" {
+			parsed, parseErr := strconv.Atoi(raw.RetentionDays)
+			if parseErr != nil {
+				return StorageConfig{}, fmt.Errorf(
+					"tool %q object storage retention_days must be an integer", toolName)
+			}
+			retentionDays = parsed
+		}
+		if retentionDays < 0 {
+			return StorageConfig{}, fmt.Errorf("tool %q object storage retention_days must not be negative", toolName)
+		}
+		retentionClass := raw.RetentionClass
+		if retentionClass == "" {
+			retentionClass = "application"
+		}
 		stage := raw.StageDir
 		if stage != "" {
 			stage = resolvePath(stage, vars)
@@ -329,7 +348,8 @@ func decodeStorageConfig(toolName string, raw StorageToolConfig, vars map[string
 			Prefix:     raw.Prefix, WALPath: resolvePath(raw.WALPath, vars), StageDir: stage,
 			Application: raw.Application, Namespace: raw.Namespace, Run: raw.Run,
 			CollectorInstance: raw.CollectorInstance,
-			WALMaxBytes:       raw.WALMaxBytes, WALMaxPending: raw.WALMaxPending,
+			RetentionClass:    retentionClass, RetentionDays: retentionDays,
+			WALMaxBytes: raw.WALMaxBytes, WALMaxPending: raw.WALMaxPending,
 		}, nil
 	default:
 		return StorageConfig{}, fmt.Errorf(

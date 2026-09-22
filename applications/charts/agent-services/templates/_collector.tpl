@@ -64,6 +64,11 @@ initContainers, extraServicePorts.
 {{- end -}}
 {{- end -}}
 {{- $storagePrefix := $storage.prefix | default $storageApp -}}
+{{- $retentionClass := $storage.retentionClass | default "application" -}}
+{{- $retentionDays := $storage.retentionDays | default 0 -}}
+{{- if lt (int $retentionDays) 0 -}}
+{{- fail "collector.storage.retentionDays must not be negative" -}}
+{{- end -}}
 {{- $walVolume := ternary "wal-persistent" "wal-ephemeral" (eq $walMode "persistent") -}}
 {{- $podAnnotations := merge (dict "checksum/config" (toYaml $collector | sha256sum)) (.podAnnotations | default dict) ($values.podAnnotations | default dict) -}}
 apiVersion: apps/v1
@@ -158,6 +163,8 @@ spec:
             - {name: COLLECTOR_NAMESPACE, value: {{ $storageNamespace | quote }}}
             - {name: COLLECTOR_RUN, value: {{ $root.Release.Name | quote }}}
             - {name: COLLECTOR_INSTANCE, value: {{ printf "%s-collector" $fullname | quote }}}
+            - {name: COLLECTOR_RETENTION_CLASS, value: {{ $retentionClass | quote }}}
+            - {name: COLLECTOR_RETENTION_DAYS, value: {{ toString $retentionDays | quote }}}
             {{- end }}
             {{- with .extraEnv }}
             {{- toYaml . | nindent 12 }}

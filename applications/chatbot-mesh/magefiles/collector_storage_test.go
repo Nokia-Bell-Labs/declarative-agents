@@ -44,6 +44,8 @@ func TestCollectorObjectBackendWiresStorageChannel(t *testing.T) {
 		`{name: COLLECTOR_STORAGE_BACKEND, value: "object"}`,
 		`{name: COLLECTOR_OBJECT_BUCKET_URL, value: "gs://chatbot-mesh"}`,
 		`{name: COLLECTOR_APPLICATION, value: "chatbot-mesh"}`,
+		`{name: COLLECTOR_RETENTION_CLASS, value: "application"}`,
+		`{name: COLLECTOR_RETENTION_DAYS, value: "0"}`,
 		"kind: PersistentVolumeClaim",
 		"-collector-wal",
 	} {
@@ -100,6 +102,11 @@ func TestCollectorStorageValidationsRejectMisconfig(t *testing.T) {
 			name: "unsafe prefix",
 			sets: []string{"collector.storage.backend=object", "collector.storage.bucketName=b", "collector.storage.prefix=../escape"},
 			want: "must be a safe relative in-bucket prefix",
+		},
+		{
+			name: "negative retention days",
+			sets: []string{"collector.storage.backend=object", "collector.storage.bucketName=b", "collector.storage.retentionDays=-1"},
+			want: "minimum: got -1, want 0",
 		},
 	}
 	for _, tc := range cases {

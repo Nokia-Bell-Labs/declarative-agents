@@ -108,6 +108,30 @@ func TestObjectSpoolPersistLocalBackends(t *testing.T) {
 	}
 }
 
+func TestObjectEnvelopeCarriesRetentionAuthority(t *testing.T) {
+	received := time.Date(2026, time.September, 22, 4, 0, 0, 0, time.UTC)
+	envelope := newEnvelope(EnvelopeMeta{
+		Signal: "trace", Application: "chatbot-mesh", Namespace: "app-chatbot-mesh",
+		ReceivedAt: received, PayloadFormat: "otlp-protojson-trace",
+		RetentionClass: "compliance", RetentionDays: 30,
+	}, tracePayload(t, "chatbot", 1))
+	if envelope.RetentionClass != "compliance" || envelope.PurgeAuthority != "app:purge" {
+		t.Fatalf("retention metadata = class %q authority %q",
+			envelope.RetentionClass, envelope.PurgeAuthority)
+	}
+	want := received.AddDate(0, 0, 30)
+	if envelope.RetainUntil == nil || !envelope.RetainUntil.Equal(want) {
+		t.Fatalf("retain_until = %v, want %s", envelope.RetainUntil, want)
+	}
+
+	defaulted := newEnvelope(EnvelopeMeta{ReceivedAt: received}, []byte(`{}`))
+	if defaulted.RetentionClass != "application" ||
+		defaulted.RetainUntil != nil ||
+		defaulted.PurgeAuthority != "app:purge" {
+		t.Fatalf("default retention metadata = %+v", defaulted)
+	}
+}
+
 func localConnection(t *testing.T, scheme string) objectstore.ConnectionConfig {
 	t.Helper()
 	switch scheme {

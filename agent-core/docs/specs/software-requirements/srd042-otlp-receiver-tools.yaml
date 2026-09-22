@@ -133,6 +133,7 @@ requirements:
       - R10.4: "The object backend SHALL record the final object key, envelope metadata, checksum, and pending/committed upload state in a local write-ahead log, and SHALL stage the envelope bytes and sync that record before the first remote attempt, so bucket latency or outage leaves replayable evidence and a restart resumes the exact pre-recorded keys (srd008 R2, R4, R6)."
       - R10.5: "Object creation SHALL be idempotent: the same key with the same checksum is success, and the same key with different bytes is a named integrity error and never an overwrite. A committed WAL record SHALL be compacted only after the remote object is verified (srd008 R7, AC5)."
       - R10.6: "The write-ahead log SHALL bound its pending bytes and pending record count; overflow SHALL be a named, observable error rather than a silent drop of uncommitted evidence (srd008 R10)."
+      - R10.7: "Every object envelope SHALL stamp the declared retention class, optional retain-until instant derived from a non-negative retention-days policy, and the fixed destructive authority `app:purge`. Retention metadata SHALL NOT cause automatic deletion during collector, application, or platform teardown."
 
   R11:
     title: Object-backed query read
@@ -186,8 +187,8 @@ acceptance_criteria:
     traces: [R9.1, R9.2, R9.3, R9.4, R9.5]
 
   - id: AC9
-    criterion: A spool word with the default filesystem backend behaves exactly as before, while the object backend persists one versioned immutable envelope per batch under a content-derived stable identity, records the object in a bounded write-ahead log before the first upload, creates the object idempotently, refuses a different-content collision, resumes pending keys after a restart, and keeps traces and metrics in separate object families. Unit tests prove this on mem:// and file:// with no container; a fake-GCS integration proves it end to end over gs:// and skips naming docker where docker is absent.
-    traces: [R10.1, R10.2, R10.3, R10.4, R10.5, R10.6]
+    criterion: A spool word with the default filesystem backend behaves exactly as before, while the object backend persists one versioned immutable envelope per batch under a content-derived stable identity, records the object in a bounded write-ahead log before the first upload, creates the object idempotently, refuses a different-content collision, resumes pending keys after a restart, keeps traces and metrics in separate object families, and stamps retention class, optional retain-until, and fixed app:purge authority without automatic teardown deletion. Unit tests prove this on mem:// and file:// with no container; a fake-GCS integration proves it end to end over gs:// and skips naming docker where docker is absent.
+    traces: [R10.1, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7]
 
   - id: AC10
     criterion: A query word with the object backend reads the configured application bucket (never a request-supplied bucket), projects immutable envelopes into the existing response shapes, merges committed objects with the pending WAL without duplicates, bounds each read by object count and byte budget, and reports complete, partial, or unavailable storage status; a bucket outage never labels WAL-only data complete. The filesystem backend is unchanged. Unit tests prove this on file:// with no container.

@@ -37,6 +37,8 @@ type StorageConfig struct {
 	Namespace         string
 	Run               string
 	CollectorInstance string
+	RetentionClass    string
+	RetentionDays     int
 	WALMaxBytes       int64
 	WALMaxPending     int
 }
@@ -90,6 +92,7 @@ func newSpoolTarget(spool SpoolConfig, storage StorageConfig, opener *objectstor
 			meta: EnvelopeMeta{
 				Application: storage.Application, Namespace: storage.Namespace,
 				Run: storage.Run, CollectorInstance: storage.CollectorInstance,
+				RetentionClass: storage.RetentionClass, RetentionDays: storage.RetentionDays,
 			},
 			wal: newWAL(storage.WALPath, storage.WALMaxBytes, storage.WALMaxPending),
 		}, nil

@@ -28,6 +28,8 @@ type EnvelopeMeta struct {
 	CollectorInstance string
 	PayloadFormat     string
 	ReceivedAt        time.Time
+	RetentionClass    string
+	RetentionDays     int
 }
 
 // ObjectEnvelope is the one versioned immutable object written per batch. Its
@@ -44,6 +46,9 @@ type ObjectEnvelope struct {
 	ReceivedAt        time.Time       `json:"received_at"`
 	PayloadFormat     string          `json:"payload_format"`
 	PayloadChecksum   string          `json:"payload_checksum"`
+	RetentionClass    string          `json:"retention_class"`
+	RetainUntil       *time.Time      `json:"retain_until,omitempty"`
+	PurgeAuthority    string          `json:"purge_authority"`
 	Payload           json.RawMessage `json:"payload"`
 }
 
@@ -53,6 +58,15 @@ type ObjectEnvelope struct {
 // dependence on any per-process counter (srd008 R4, R6.2).
 func newEnvelope(meta EnvelopeMeta, payload []byte) ObjectEnvelope {
 	checksum := payloadChecksum(payload)
+	retentionClass := meta.RetentionClass
+	if retentionClass == "" {
+		retentionClass = "application"
+	}
+	var retainUntil *time.Time
+	if meta.RetentionDays > 0 {
+		until := meta.ReceivedAt.UTC().AddDate(0, 0, meta.RetentionDays)
+		retainUntil = &until
+	}
 	return ObjectEnvelope{
 		SchemaVersion:     EnvelopeSchemaVersion,
 		Signal:            meta.Signal,
@@ -64,6 +78,9 @@ func newEnvelope(meta EnvelopeMeta, payload []byte) ObjectEnvelope {
 		ReceivedAt:        meta.ReceivedAt.UTC(),
 		PayloadFormat:     meta.PayloadFormat,
 		PayloadChecksum:   checksum,
+		RetentionClass:    retentionClass,
+		RetainUntil:       retainUntil,
+		PurgeAuthority:    "app:purge",
 		Payload:           append(json.RawMessage(nil), payload...),
 	}
 }
