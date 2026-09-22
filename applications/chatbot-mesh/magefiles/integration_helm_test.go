@@ -46,7 +46,7 @@ func TestKindDependencyImagesCoverEveryExternalPodImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantSmoke := []string{
-		"docker.io/otel/opentelemetry-collector-contrib:0.127.0",
+		"docker.io/otel/opentelemetry-collector-contrib:0.127.0@sha256:e94cfd92357aa21f4101dda3c0c01f90e6f24115ba91b263c4d09fed7911ae68",
 		"docker.io/chromadb/chroma:1.5.3@sha256:cfd193653bd61076610730a09acae34ab85b5b6b1f5db4d944c17b5e8453658d",
 		"docker.io/dolthub/dolt-sql-server:2.3.5@sha256:36fdd43d83b6f40cd63f8a4a406a8df42fb2401ac08ba7ea4cb3b9eeedf16355",
 		"docker.io/rancher/kubectl:v1.31.4@sha256:5135fe5999d8472793979e1da0d1559da758c37668c3dfb1650c8f95adc706d0",

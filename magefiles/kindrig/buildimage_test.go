@@ -158,7 +158,7 @@ func TestBuildAgentCoreImageInvocationContract(t *testing.T) {
 	}
 	data := (*written)[0].data
 	for _, want := range []string{
-		"FROM alpine:3.22", "COPY agent /usr/local/bin/agent",
+		"FROM docker.io/library/alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8", "COPY agent /usr/local/bin/agent",
 		"COPY tools /opt/agent-core/tools", "ENV AGENT_CORE_HOME=/opt/agent-core",
 		"ENTRYPOINT [\"agent\"]",
 	} {

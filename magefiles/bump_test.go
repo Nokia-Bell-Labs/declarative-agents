@@ -62,10 +62,12 @@ func TestDeclaredPinsDoNotRestateChartImages(t *testing.T) {
 		t.Fatal(err)
 	}
 	chartOnly := map[string]bool{
-		"ollama/ollama": true, "dolthub/dolt-sql-server": true,
-		"chromadb/chroma": true, "rancher/kubectl": true, "busybox": true,
-		"docker.io/library/golang":         true,
-		"docker.io/golangci/golangci-lint": true,
+		"docker.io/ollama/ollama": true, "docker.io/dolthub/dolt-sql-server": true,
+		"docker.io/chromadb/chroma": true, "docker.io/rancher/kubectl": true,
+		"docker.io/library/busybox":                      true,
+		"docker.io/otel/opentelemetry-collector-contrib": true,
+		"docker.io/library/golang":                       true,
+		"docker.io/golangci/golangci-lint":               true,
 	}
 	for _, pin := range pins {
 		if chartOnly[pin.Image] {

@@ -58,7 +58,7 @@ ragServer:
     limits: {cpu: "1", memory: 1Gi}
 
 chroma:
-  image: {repository: chromadb/chroma, tag: "1.5.3", digest: "sha256:cfd193653bd61076610730a09acae34ab85b5b6b1f5db4d944c17b5e8453658d", pullPolicy: IfNotPresent}
+  image: {repository: docker.io/chromadb/chroma, tag: "1.5.3", digest: "sha256:cfd193653bd61076610730a09acae34ab85b5b6b1f5db4d944c17b5e8453658d", pullPolicy: IfNotPresent}
   port: 8000
   storage: 1Gi
   resources:
@@ -83,9 +83,9 @@ llm:
 # (a nested subchart names its Service by the subchart's own fullname).
 ollama:
   enabled: true
-  image: {repository: ollama/ollama, tag: "0.34.2", digest: "sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532", pullPolicy: IfNotPresent}
+  image: {repository: docker.io/ollama/ollama, tag: "0.34.2", digest: "sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532", pullPolicy: IfNotPresent}
   # wget and grep for the LLM-tier readiness init container (srd015 R6.3).
-  utilityImage: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  utilityImage: docker.io/library/busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
   # The models, named once here, feed both the preload Job and the agents' rendered
   # config: the embedding model, the chat models (fast + deep), and the tier-selector model.
   models:
@@ -137,7 +137,7 @@ observer:
   # out of the declarative runtime (which carries no credential resolver). The
   # observer reaches the proxy over loopback with auth_ref none (GH-1302).
   proxy:
-    image: {repository: rancher/kubectl, tag: v1.31.4, digest: "sha256:5135fe5999d8472793979e1da0d1559da758c37668c3dfb1650c8f95adc706d0", pullPolicy: IfNotPresent}
+    image: {repository: docker.io/rancher/kubectl, tag: v1.31.4, digest: "sha256:5135fe5999d8472793979e1da0d1559da758c37668c3dfb1650c8f95adc706d0", pullPolicy: IfNotPresent}
     port: 8001
     resources:
       requests: {cpu: 25m, memory: 32Mi}
@@ -146,7 +146,7 @@ observer:
 # Dolt checkpoint backend (agent-core srd035/srd036).
 dolt:
   enabled: true
-  image: {repository: dolthub/dolt-sql-server, tag: "2.3.5", digest: "sha256:36fdd43d83b6f40cd63f8a4a406a8df42fb2401ac08ba7ea4cb3b9eeedf16355", pullPolicy: IfNotPresent}
+  image: {repository: docker.io/dolthub/dolt-sql-server, tag: "2.3.5", digest: "sha256:36fdd43d83b6f40cd63f8a4a406a8df42fb2401ac08ba7ea4cb3b9eeedf16355", pullPolicy: IfNotPresent}
   port: 3306
   metricsPort: 11228
   storage: 1Gi
@@ -177,7 +177,7 @@ collector:
   # so the collector exited 255 with "exec /otelcol-contrib: no such file or
   # directory" on every Apple Silicon host and no agent span ever reached the
   # trace backend (GH-736).
-  image: {repository: otel/opentelemetry-collector-contrib, tag: "0.127.0", pullPolicy: IfNotPresent}
+  image: {repository: docker.io/otel/opentelemetry-collector-contrib, tag: "0.127.0", digest: "sha256:e94cfd92357aa21f4101dda3c0c01f90e6f24115ba91b263c4d09fed7911ae68", pullPolicy: IfNotPresent}
   otlpGRPCPort: 4317
   otlpHTTPPort: 4318
   # The control, monitor, and query surfaces the agent collector serves, and the

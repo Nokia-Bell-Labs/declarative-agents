@@ -26,7 +26,7 @@ const agentCoreComponent = "agent-core"
 // whose exec words are jq/rg (e.g. the documentation-curator, GH-1368) run in
 // kind smokes on this local image. chatbot-mesh's buildSmokeRuntimeImage is the
 // sibling of this builder and must keep the same contract.
-const agentCoreDockerfile = "FROM alpine:3.22\n" +
+const agentCoreDockerfile = "FROM docker.io/library/alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8\n" +
 	"RUN apk add --no-cache ca-certificates bash jq ripgrep\n" +
 	"COPY agent /usr/local/bin/agent\n" +
 	"COPY tools /opt/agent-core/tools\n" +
