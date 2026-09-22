@@ -23,11 +23,13 @@ func Up(run CommandRunner, config Config) error {
 	if err := EnsureCluster(run, config); err != nil {
 		return err
 	}
-	if err := EnsureBucket(run, config); err != nil {
-		return err
-	}
-	if err := EnsureIdentity(run, config); err != nil {
-		return err
+	for _, application := range config.FirstPartyApplications() {
+		if err := EnsureBucket(run, application); err != nil {
+			return err
+		}
+		if err := EnsureIdentity(run, application); err != nil {
+			return err
+		}
 	}
 	if err := EnsureRegistry(run, config); err != nil {
 		return err
@@ -36,7 +38,7 @@ func Up(run CommandRunner, config Config) error {
 		return err
 	}
 	kindrig.LogPhase(config.Cluster, "gcp-up", "complete", time.Now(),
-		"bucket="+config.BucketURL()+" registry="+config.RegistryPath())
+		"application-buckets=3 registry="+config.RegistryPath())
 	return nil
 }
 
@@ -45,14 +47,15 @@ func Up(run CommandRunner, config Config) error {
 // defaulted.
 const DownConfirmation = "delete-gcp-rig"
 
-// Down deletes only the configured names, cluster last, behind the typed
-// confirmation. A describe miss is a skip, not an error: deleting an absent
-// resource is the state teardown wants.
+// Down deletes platform compute and the image registry, cluster last, behind
+// the typed confirmation. Application buckets and workload identities are
+// retained so cluster recreation reattaches without turning platform teardown
+// into application data deletion.
 func Down(run CommandRunner, config Config, confirmation string) error {
 	if confirmation != DownConfirmation {
-		return fmt.Errorf("gcp:down deletes cluster %q, bucket gs://%s, service account %s, "+
-			"and registry %s in project %s; run again with the confirmation argument %q",
-			config.Cluster, config.Bucket, config.GSAEmail(), config.Registry,
+		return fmt.Errorf("gcp:down deletes cluster %q and registry %s in project %s; "+
+			"application buckets and workload identities are retained; run again with the confirmation argument %q",
+			config.Cluster, config.Registry,
 			config.Project, DownConfirmation)
 	}
 	if err := Preflight(run, config); err != nil {
@@ -64,9 +67,6 @@ func Down(run CommandRunner, config Config, confirmation string) error {
 	}{
 		{"registry", []string{"gcloud", "artifacts", "repositories", "delete", config.Registry,
 			"--project", config.Project, "--location", config.Region, "--quiet"}},
-		{"service-account", []string{"gcloud", "iam", "service-accounts", "delete",
-			config.GSAEmail(), "--project", config.Project, "--quiet"}},
-		{"bucket", []string{"gcloud", "storage", "rm", "--recursive", "gs://" + config.Bucket}},
 		{"cluster", []string{"gcloud", "container", "clusters", "delete", config.Cluster,
 			"--project", config.Project, "--region", config.Region, "--quiet"}},
 	}

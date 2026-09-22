@@ -69,8 +69,16 @@ func GcpDeploy() error {
 	if err := gcprig.WriteKubeconfig(config, kubeconfig); err != nil {
 		return err
 	}
+	application := config.ForApplication("chatbot-mesh")
+	if _, err := kindrig.EnsureApplicationNamespace(kindrig.ApplicationNamespaceRequest{
+		Cluster: config.Cluster, KubeconfigPath: kubeconfig, Namespace: application.Namespace,
+	}); err != nil {
+		return err
+	}
 
-	staged, err := stageReleaseForDeploy(root, deployCluster{Kubeconfig: kubeconfig})
+	staged, err := stageReleaseForDeploy(root, deployCluster{
+		Kubeconfig: kubeconfig, Namespace: application.Namespace, Release: chatbotApplicationRelease,
+	})
 	if err != nil {
 		return err
 	}
@@ -81,12 +89,14 @@ func GcpDeploy() error {
 	if err != nil {
 		return err
 	}
-	overrides := gcpDeployOverrides(pushed, config, release.Assets)
+	overrides := gcpDeployOverrides(pushed, application, release.Assets)
 	if err := writeDeployOverrides(root, overrides); err != nil {
 		return err
 	}
 
 	coordinates := chatbotDeployCoordinates(release.Staged)
+	coordinates.Release = chatbotApplicationRelease
+	coordinates.Namespace = application.Namespace
 	coordinates.ValuesPath = filepath.Join(release.Staged, "ci", gcpValuesFile)
 	fmt.Printf("gcp:deploy: %s -> cluster %s (%s)\n", pushed, config.Cluster, config.Region)
 	return kindrig.Deploy(kindrig.DeployRequest{
@@ -110,8 +120,25 @@ func gcpDeployOverrides(pushedImage string, config gcprig.Config, assets []exter
 	var document strings.Builder
 	fmt.Fprintf(&document, "image:\n  repository: %q\n  tag: %q\n  pullPolicy: %q\n",
 		repository, tag, "IfNotPresent")
-	fmt.Fprintf(&document, "collector:\n  image:\n    repository: %q\n    tag: %q\n    pullPolicy: %q\n",
-		repository, tag, "IfNotPresent")
+	fmt.Fprintf(&document, `collector:
+  image:
+    repository: %q
+    tag: %q
+    pullPolicy: %q
+  externalOTLPEndpoint: ""
+  storage:
+    backend: object
+    bucketURL: %q
+    prefix: chatbot-mesh
+    application: chatbot-mesh
+    namespace: %q
+`, repository, tag, "IfNotPresent", config.BucketURL(), config.Namespace)
+	for _, asset := range assets {
+		if asset.Component == "collector" {
+			fmt.Fprintf(&document, "  uiArchiveConfigMap: %q\n  uiArchiveChecksum: %q\n",
+				asset.ConfigMapName, asset.Checksum)
+		}
+	}
 	// One applier block carries the runtime image and the donor together;
 	// two top-level applier keys would be a duplicate-key YAML document.
 	fmt.Fprintf(&document,
@@ -125,6 +152,9 @@ func gcpDeployOverrides(pushedImage string, config gcprig.Config, assets []exter
 		"  cliDonor:\n    image:\n      repository: %q\n      tag: %q\n      pullPolicy: %q\n",
 		config.RegistryPath()+"/cli-donor", "1.31.4", "IfNotPresent")
 	for _, asset := range assets {
+		if asset.Component == "collector" {
+			continue
+		}
 		fmt.Fprintf(&document, "%s:\n  uiArchiveConfigMap: %q\n  uiArchiveChecksum: %q\n",
 			asset.Component, asset.ConfigMapName, asset.Checksum)
 	}
