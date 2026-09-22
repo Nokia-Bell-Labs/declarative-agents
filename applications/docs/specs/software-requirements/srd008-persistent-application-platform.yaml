@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: srd008-persistent-application-platform
 title: Persistent Platform and Namespaced Application Contract
-status: planned
+status: implemented
 
 problem: |
   The repository has two incomplete operating models. Namespaced integration

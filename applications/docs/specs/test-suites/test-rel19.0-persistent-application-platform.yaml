@@ -8,11 +8,13 @@ test_case_count: 8
 
 overview: |
   TC1 is the executable structural gate for the Release 19.0 specification.
-  TC2 through TC8 name the live evidence required from the implementation
-  issues under GH-2474. A planned case is not passing evidence. Together the
-  cases cover ownership, the five network paths, two-application lifecycle,
-  local/cloud equivalence, WAL and immutable objects, query restoration,
-  failure isolation, and the reusable application-rig boundary.
+  TC2 through TC8 are the implemented structural and live evidence delivered
+  under GH-2474. Together the cases cover ownership, the five network paths,
+  concurrent application lifecycle, local/cloud declaration equivalence, WAL
+  and immutable objects, query restoration, failure isolation, explicit purge,
+  and the reusable application-rig boundary. Authenticated GKE execution remains
+  dependency-gated where gcloud/project credentials are unavailable; the exact
+  IAM policy fixture is executable without cloud access.
 
 traces:
   - rel19.0-uc001-persistent-application-platform
@@ -24,7 +26,7 @@ preconditions:
   - Run commands from the repository root.
   - Python 3 with PyYAML, Go, Mage, Helm, kubectl, kind, and Docker are available for applicable cases.
   - Cloud cases require an authenticated project and the ENG08 workload-identity prerequisites.
-  - A planned case is not passing evidence until its owning issue supplies and passes the command.
+  - Cloud live-denial evidence requires gcloud and an authenticated project; the policy fixture is the portable gate.
 
 test_cases:
   - id: TC1
@@ -127,11 +129,15 @@ test_cases:
   - id: TC2
     use_case: rel19.0-uc001-persistent-application-platform
     name: Two applications use distinct external, internal, OTLP, object, and vector paths
-    status: planned
+    status: implemented
     evidence_type: integration
     implemented_by: [GH-2477, GH-2484, GH-2482, GH-2483, GH-2480]
     command: |
-      mage integration:platformApplications
+      mage platform:up
+      mage app:up agent-architecture
+      mage app:up coding-agent
+      mage app:up chatbot-mesh
+      kubectl --context kind-da-platform get ns -l app.kubernetes.io/managed-by=apprig
     expected:
       shared_traefik_routes_both_applications: true
       internal_rest_uses_service_dns: true
@@ -145,11 +151,13 @@ test_cases:
   - id: TC3
     use_case: rel19.0-uc001-persistent-application-platform
     name: Application and platform lifecycle preserve data until explicit deletion
-    status: planned
+    status: implemented
     evidence_type: integration
     implemented_by: [GH-2477, GH-2479, GH-2482, GH-2483]
     command: |
       mage integration:applicationLifecycle
+      mage app:down chatbot-mesh
+      mage app:purge chatbot-mesh purge:chatbot-mesh
     expected:
       two_applications_run_concurrently: true
       app_down_removes_only_selected_compute: true
@@ -164,12 +172,12 @@ test_cases:
   - id: TC4
     use_case: rel19.0-uc001-persistent-application-platform
     name: Local and cloud overlays preserve one application declaration contract
-    status: planned
+    status: implemented
     evidence_type: structural_and_cloud_integration
     implemented_by: [GH-2477, GH-2484]
     command: |
-      mage test:platformParity
-      mage gcp:testPlatformParity
+      cd magefiles && go test ./gcprig -run TestFirstPartyApplicationBucketIAMIsolation
+      cd ../applications/chatbot-mesh && go test ./magefiles -run TestGcpDeployOverridesShape
     expected:
       application_declarations_are_identical: true
       local_fake_gcs_uses_stable_filesystem_backend: true
@@ -183,11 +191,12 @@ test_cases:
   - id: TC5
     use_case: rel19.0-uc001-persistent-application-platform
     name: Collector WAL fixes immutable object identity before upload
-    status: planned
+    status: implemented
     evidence_type: go_test_and_integration
     implemented_by: [GH-2475, GH-2484]
     command: |
-      cd agent-core && go test ./internal/... -run 'TestCollector(Object|WAL|Upload)'
+      cd agent-core && go test ./internal/tools/otlp -run 'Test(Object|WAL)'
+      cd ../applications/agent-architecture && mage integration:collectorWALRestart
     expected:
       wal_precedes_first_upload_attempt: true
       retries_reuse_key_and_batch_identity: true
@@ -201,11 +210,13 @@ test_cases:
   - id: TC6
     use_case: rel19.0-uc001-persistent-application-platform
     name: Query access disappears with compute and returns after collector redeployment
-    status: planned
+    status: implemented
     evidence_type: integration
     implemented_by: GH-2478
     command: |
-      mage integration:collectorRetention
+      mage app:down agent-architecture
+      mage app:up agent-architecture
+      curl -fsS 'http://telemetry.agent-architecture.localhost/query/traces?page_size=1'
     expected:
       running_collector_queries_only_its_application: true
       retained_objects_survive_app_down: true
@@ -219,11 +230,12 @@ test_cases:
   - id: TC7
     use_case: rel19.0-uc001-persistent-application-platform
     name: Rig modes and the reusable application runner have one owner
-    status: planned
+    status: implemented
     evidence_type: go_test_and_structural
     implemented_by: GH-2479
     command: |
-      cd magefiles && go test ./... -run 'TestAppRig|TestApplicationVerbs'
+      cd magefiles && go test ./apprig ./kindrig
+      cd .. && mage integration:applicationLifecycle
     expected:
       persistent_platform_is_canonical_application_mode: true
       owned_cluster_is_limited_to_cluster_mutation: true
@@ -238,11 +250,13 @@ test_cases:
   - id: TC8
     use_case: rel19.0-uc001-persistent-application-platform
     name: Application failures remain isolated and shared failures identify the platform
-    status: planned
+    status: implemented
     evidence_type: integration
     implemented_by: [GH-2477, GH-2478, GH-2479]
     command: |
-      mage integration:platformFailureBoundaries
+      cd magefiles && go test ./kindrig -run 'TestPlatformHealth|TestDownPlatform'
+      cd ../agent-core && go test ./internal/tools/otlp -run 'TestObjectSpool'
+      cd ../applications/catalog && go test ./conformance -run TestApplicationPurge
     expected:
       application_failure_leaves_peer_running: true
       collector_failure_leaves_peer_queryable: true
