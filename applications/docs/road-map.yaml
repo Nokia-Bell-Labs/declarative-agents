@@ -581,8 +581,9 @@ releases:
         action: Make ingress and filesystem-backed fake GCS persistent platform services (GH-2477).
         status: planned
       - order: 6
-        action: Add the manifest-driven magefiles/apprig lifecycle runner (GH-2479).
-        status: planned
+        action: Add the manifest-driven magefiles/apprig lifecycle runner (GH-2479, split into GH-2492 deterministic core and GH-2493 live proofs/external fixture).
+        status: in_progress
+        note: GH-2492 (manifest resolution, collision detection, status aggregation, stable API, structural no-helm-argv tests) is implemented; GH-2493 (live kindrig-composed up/down/diagnose and external-module fixture) remains cluster-gated and app:purge waits on decision gate #2488.
       - order: 7
         action: Migrate Chatbot Mesh, Coding Agent, and Agent Architecture (GH-2482, GH-2483, GH-2480).
         status: planned
