@@ -18,7 +18,7 @@ requirements:
       - R1.2: Every role shall use the same canonical, profile-free agent-core image and select the serving profile named by its prepared role manifest.
       - R1.3: Role ConfigMaps and projected volumes shall derive file and partition membership only from prepared
       - R1.4: A checksum of only the role's reachable profile files shall annotate its pod template.
-      - R1.5: The executor alone shall receive Go 1.26 and golangci-lint v2.12.2 from separate digest-pinned upstream init containers through one read-only tools volume so it can complete its mandatory build, lint, and test sequence without extending the agent image.
+      - R1.5: The executor shall receive Go 1.26 and golangci-lint v2.12.2 from separate digest-pinned upstream init containers through one read-only tools volume so it can complete its mandatory build, lint, and test sequence without extending the agent image; the changed-workspace critic shall receive only Go through a separate read-only donor volume for its independent test oracle.
 
   R2:
     title: Serving contract wiring
@@ -44,7 +44,7 @@ requirements:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Helm renders exactly three role Deployments with real profiles, the canonical agent-core image, executor-only tool donors, shared workspace, fixed role Services, and truthful probes.
+    criterion: Helm renders exactly three role Deployments with real profiles, the canonical agent-core image, role-minimal read-only tool donors (executor Go plus linter; critic Go only), shared workspace, fixed role Services, and truthful probes.
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R2.4]
   - id: AC2
     criterion: Editing one prepared role profile changes only that role's rollout checksum.

@@ -23,7 +23,7 @@ requirements:
     items:
       - R2.1: The target shall install only the validated packaged .tgz.
       - R2.2: It shall build and load one commit-addressed canonical profile-free agent image and run every agent workload from it, so the application under test uses the same one-image topology as production (GH-2494). Every agent and mock pod shall report the same image ID.
-      - R2.3: The executor's Go 1.26 and golangci-lint v2.12.2 build, lint, and test validation shall run from digest-pinned, read-only tool-donor volumes mounted on the executor, not from a second agent runtime image.
+      - R2.3: The executor's Go 1.26 and golangci-lint v2.12.2 build, lint, and test validation shall run from digest-pinned, read-only tool-donor volumes mounted on the executor, while the critic's independent Go test oracle shall use a separate Go-only donor volume; neither shall require a second agent runtime image.
       - R2.4: A deterministic Ollama-compatible boundary shall run as the canonical catalog mock profile with an application-owned fixture on the same canonical agent image, providing model responses without replacing any agent, REST, workspace, critic, or telemetry behavior and without a bespoke model image.
       - R2.5: A kind-only RWX hostPath fixture shall provide one writable shared workspace to all three roles.
 

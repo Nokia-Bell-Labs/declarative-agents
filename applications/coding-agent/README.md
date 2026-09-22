@@ -102,9 +102,11 @@ the serving composition is application-owned.
 
 The application uses the canonical profile-free agent-core runtime image.
 Kubernetes runs planner, executor, and critic as separate containers using that
-same image. The executor alone receives Go 1.26 and golangci-lint v2.12.2 from
+same image. The executor receives Go 1.26 and golangci-lint v2.12.2 from
 separate digest-pinned upstream init containers through a shared read-only tools
-volume. Each agent container mounts its role directory under `/profiles` and
+volume. The changed-workspace critic receives Go alone through a distinct
+read-only donor volume for its independent `go test` oracle; it receives neither
+the executor linter nor its tool volume. Each agent container mounts its role directory under `/profiles` and
 selects the serving profile named by that role's manifest. Profiles are
 application package content, not image content.
 

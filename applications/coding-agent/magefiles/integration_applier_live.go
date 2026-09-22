@@ -76,7 +76,7 @@ func applierLiveSkipReason(roots integrationRoots, run codingSmokeRunner) string
 }
 
 func runCodingApplierLive(roots integrationRoots) (result error) {
-	images, err := resolveCodingHelmImages(roots.Application)
+	image, err := resolveCodingHelmImage(roots.Application)
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return &codingHelmSemanticError{Step: "applier chart verification", Cause: err}
 	}
 
-	evidenceDir := codingHelmEvidenceDir(roots.Application, images.Revision)
+	evidenceDir := codingHelmEvidenceDir(roots.Application, image.Revision)
 	scenario, err := acquireCodingScenario(evidenceDir)
 	if err != nil {
 		return err
@@ -120,10 +120,11 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 	if err := checkCodingHelmInfrastructure(environment.run); err != nil {
 		return err
 	}
-	// Reuse the smoke cluster preparation verbatim: it builds and loads the
-	// runtime, model, and collector images, deploys the deterministic model, and
-	// seeds the workspace PVC the serving roles mount.
-	if err := prepareCodingHelmCluster(environment, cluster.Name, roots, images); err != nil {
+	// Reuse the smoke cluster preparation verbatim: it builds and loads the one
+	// canonical agent image, deploys the deterministic catalog mock with that
+	// image, loads tool donors, and seeds the workspace PVC the serving roles
+	// mount.
+	if err := prepareCodingHelmCluster(environment, cluster.Name, roots, image); err != nil {
 		return classifyCodingHelmFailure(environment.run, "cluster preparation", err, true)
 	}
 
@@ -136,11 +137,14 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return &codingHelmInfrastructureError{Step: "applier CLI donor", Cause: err}
 	}
 
-	if err := installCodingApplierLiveChart(environment, chartDir, chartArchive, roots.Application, images.Agent); err != nil {
+	if err := installCodingApplierLiveChart(environment, chartDir, chartArchive, roots.Application, image.Reference); err != nil {
 		return classifyCodingHelmFailure(environment.run, "Helm install", err, true)
 	}
 	if err := verifyCodingHelmRollouts(environment, "applier"); err != nil {
 		return classifyCodingHelmFailure(environment.run, "role readiness", err, true)
+	}
+	if _, err := verifyCodingAgentImageIdentity(environment, image.Reference, true); err != nil {
+		return classifyCodingHelmFailure(environment.run, "agent image identity", err, true)
 	}
 	helmVersion, err := kindrig.VerifyCLIDonor(codingApplierDeclaredHelmMajor, func(args ...string) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), codingApplierLiveReadyTimeout)
@@ -167,7 +171,7 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		"helm %s from the pinned CLI donor on a read-only /opt/tools, reads a real Deployment's rollout, applies a "+
 		"values patch that moves the release to a new revision, compensates a post-verify stall with a real helm "+
 		"rollback, and rejects a non-conforming patch against the real chart schema without touching it\n",
-		images.Revision, helmVersion)
+		image.Revision, helmVersion)
 	return nil
 }
 

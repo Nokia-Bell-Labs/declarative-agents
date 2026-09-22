@@ -82,8 +82,8 @@ func TestConformingRenderProducesNoFinding(t *testing.T) {
 	for name, image := range map[string]string{
 		"third-party pinned by digest":               pinnedThirdParty,
 		"repository image on a release tag":          repositoryImage,
-		"repository image on a commit tag":           "declarative-agents/coding-agent-smoke:a1b2c3d4e5f6",
-		"repository image on a fail-closed sentinel": "declarative-agents/coding-agent-smoke:must-be-overridden-with-git-revision",
+		"repository image on a commit tag":           "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:a1b2c3d4e5f6",
+		"repository image on a fail-closed sentinel": "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:must-be-overridden-with-git-revision",
 	} {
 		t.Run(name, func(t *testing.T) {
 			findings := check(t, deployment(image, "IfNotPresent", "/healthz"))

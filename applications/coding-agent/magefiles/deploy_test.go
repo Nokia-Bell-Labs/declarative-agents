@@ -47,7 +47,7 @@ func TestCodingDeployCoordinatesResolveCompletely(t *testing.T) {
 // reason, and losing the quoting is the one silent way this migration breaks.
 func TestCodingDeployOverridesKeepImageTagsAsStrings(t *testing.T) {
 	t.Parallel()
-	overrides := codingDeployOverrides(codingHelmImages{Agent: "coding-agent:20260919"})
+	overrides := codingDeployOverrides(codingHelmImage{Reference: "coding-agent:20260919"})
 
 	var decoded struct {
 		Image struct {

@@ -68,20 +68,24 @@ func TestHelmCoreTopologyRendersRoleContract(t *testing.T) {
 		`image: "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0"`); got != 4 {
 		t.Errorf("shared agent-core image count = %d, want 4 (3 roles + collector)", got)
 	}
-	// The Go SDK and linter reach the executor alone from separate upstream
-	// donors, never from an alternate agent image.
+	// The executor receives Go and the linter from separate upstream donors.
+	// The critic receives only Go through its own volume for its independent
+	// changed-workspace oracle; no role runs an alternate agent image.
 	for _, donor := range []string{"go-tool-donor", "golangci-lint-tool-donor"} {
 		if got := strings.Count(render, "name: "+donor); got != 1 {
 			t.Errorf("%s init containers = %d, want 1", donor, got)
 		}
 	}
-	for _, image := range []string{
-		`image: "docker.io/library/golang:1.26-alpine@sha256:8ac98ca534ac3f51e1f420a1dd2c15e74c75cfa0f23f3ad27eb5d7236c349a0c"`,
-		`image: "docker.io/golangci/golangci-lint:v2.12.2-alpine@sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60"`,
-	} {
-		if got := strings.Count(render, image); got != 1 {
-			t.Errorf("donor image %q count = %d, want 1", image, got)
-		}
+	if got := strings.Count(render, "name: critic-go-tool-donor"); got != 1 {
+		t.Errorf("critic Go donor init containers = %d, want 1", got)
+	}
+	goImage := `image: "docker.io/library/golang:1.26-alpine@sha256:8ac98ca534ac3f51e1f420a1dd2c15e74c75cfa0f23f3ad27eb5d7236c349a0c"`
+	if got := strings.Count(render, goImage); got != 2 {
+		t.Errorf("Go donor image count = %d, want executor and critic", got)
+	}
+	lintImage := `image: "docker.io/golangci/golangci-lint:v2.12.2-alpine@sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60"`
+	if got := strings.Count(render, lintImage); got != 1 {
+		t.Errorf("linter donor image count = %d, want executor only", got)
 	}
 	// Both donors write the same emptyDir; the executor mounts it read-only.
 	if got := strings.Count(render, "name: executor-tools"); got != 4 {
@@ -90,6 +94,13 @@ func TestHelmCoreTopologyRendersRoleContract(t *testing.T) {
 	if !strings.Contains(render,
 		`value: "/opt/go-tools/go/bin:/opt/go-tools/bin:/usr/local/bin:/usr/bin:/bin"`) {
 		t.Error("executor render missing donated-tool PATH")
+	}
+	if got := strings.Count(render, "name: critic-tools"); got != 3 {
+		t.Errorf("critic-tools references = %d, want donor mount, main mount, volume", got)
+	}
+	if !strings.Contains(render,
+		`value: "/opt/critic-tools/go/bin:/usr/local/bin:/usr/bin:/bin"`) {
+		t.Error("critic render missing donated-Go PATH")
 	}
 	if got := strings.Count(render, "checksum/profiles:"); got != 4 {
 		t.Errorf("profile rollout checksum count = %d, want 4 manifest deployments", got)

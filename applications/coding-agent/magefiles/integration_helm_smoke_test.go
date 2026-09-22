@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -204,7 +205,108 @@ func TestCodingHelmCommitImagePropagatesToManifestAndDeploy(t *testing.T) {
 			t.Errorf("helm command missing %q: %s", want, helmCommand)
 		}
 	}
-	if evidence := codingHelmEvidenceDir("/app", "0123456789ab"); !strings.Contains(evidence, "da-coding-agent-smoke-0123456789ab-") {
+	if evidence := codingHelmEvidenceDir("/app", "0123456789ab"); !strings.Contains(evidence, "da-coding-agent-helm-0123456789ab-") {
 		t.Fatalf("evidence path omits revision: %s", evidence)
 	}
+}
+
+func TestCodingAgentImageIdentityRequiresOneReferenceAndID(t *testing.T) {
+	reference := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0123456789ab"
+	valid := codingAgentPodFixture(t, reference,
+		[]string{"planner", "executor", "critic", "collector", "mock"}, "sha256:one")
+	evidence, err := validateCodingAgentImageIdentity(valid, reference, 5)
+	if err != nil {
+		t.Fatalf("valid one-image evidence rejected: %v", err)
+	}
+	if evidence.ImageID != "sha256:one" || len(evidence.Containers) != 5 {
+		t.Fatalf("image evidence = %#v", evidence)
+	}
+
+	tests := []struct {
+		name  string
+		pods  codingAgentPodList
+		count int
+		want  string
+	}{
+		{
+			name: "divergent reference",
+			pods: codingAgentPodFixture(t,
+				"declarative-agents/alternate:0123456789ab",
+				[]string{"planner"}, "sha256:one"),
+			count: 1,
+			want:  "image =",
+		},
+		{
+			name:  "divergent image ID",
+			pods:  codingAgentPodFixtureWithIDs(t, reference, map[string]string{"planner": "sha256:one", "mock": "sha256:two"}),
+			count: 2,
+			want:  "image ID",
+		},
+		{
+			name:  "missing status",
+			pods:  codingAgentPodFixtureWithIDs(t, reference, map[string]string{"planner": ""}),
+			count: 1,
+			want:  "no runtime image ID",
+		},
+		{
+			name:  "missing role",
+			pods:  codingAgentPodFixture(t, reference, []string{"planner"}, "sha256:one"),
+			count: 2,
+			want:  "want 2",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := validateCodingAgentImageIdentity(tt.pods, reference, tt.count); err == nil ||
+				!strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("validation error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func codingAgentPodFixture(
+	t *testing.T,
+	reference string,
+	names []string,
+	imageID string,
+) codingAgentPodList {
+	t.Helper()
+	ids := make(map[string]string, len(names))
+	for _, name := range names {
+		ids[name] = imageID
+	}
+	return codingAgentPodFixtureWithIDs(t, reference, ids)
+}
+
+func codingAgentPodFixtureWithIDs(
+	t *testing.T,
+	reference string,
+	ids map[string]string,
+) codingAgentPodList {
+	t.Helper()
+	items := make([]map[string]interface{}, 0, len(ids))
+	for name, imageID := range ids {
+		items = append(items, map[string]interface{}{
+			"metadata": map[string]string{"name": name + "-pod"},
+			"spec": map[string]interface{}{
+				"containers": []map[string]interface{}{{
+					"name": name, "image": reference,
+					"args": []string{"--profile", "/profiles/" + name + "/profile.yaml"},
+				}},
+			},
+			"status": map[string]interface{}{
+				"containerStatuses": []map[string]string{{"name": name, "imageID": imageID}},
+			},
+		})
+	}
+	data, err := json.Marshal(map[string]interface{}{"items": items})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pods codingAgentPodList
+	if err := json.Unmarshal(data, &pods); err != nil {
+		t.Fatal(err)
+	}
+	return pods
 }

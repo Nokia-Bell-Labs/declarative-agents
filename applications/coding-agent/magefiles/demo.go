@@ -36,7 +36,7 @@ func (Demo) Up() error {
 	if err != nil {
 		return err
 	}
-	images, err := resolveCodingHelmImages(roots.Application)
+	image, err := resolveCodingHelmImage(roots.Application)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (Demo) Up() error {
 				return err
 			}
 			if err := prepareCodingHelmCluster(
-				environment, codingDemoCluster, roots, images); err != nil {
+				environment, codingDemoCluster, roots, image); err != nil {
 				return err
 			}
 			if err := Package(); err != nil {
@@ -93,7 +93,7 @@ func (Demo) Up() error {
 				}
 			}
 			fmt.Printf("demo: revision %s planner at http://planner.coding.localhost/; health at http://planner-health.coding.localhost/api/lifecycle/health, http://executor.coding.localhost/api/lifecycle/health, http://critic.coding.localhost/api/lifecycle/health\n",
-				images.Revision)
+				image.Revision)
 			return nil
 		})
 }

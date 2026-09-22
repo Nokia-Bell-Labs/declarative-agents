@@ -31,6 +31,18 @@ executorTools:
       digest: sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60
       pullPolicy: IfNotPresent
 
+# The changed-workspace critic independently runs the declared `go test ./...`
+# oracle. It receives only Go (not the executor's linter or tool volume) from a
+# separate read-only donor volume; its main container remains agent-core.
+criticTools:
+  mountPath: /opt/critic-tools
+  go:
+    image:
+      repository: docker.io/library/golang
+      tag: "1.26-alpine"
+      digest: sha256:8ac98ca534ac3f51e1f420a1dd2c15e74c75cfa0f23f3ad27eb5d7236c349a0c
+      pullPolicy: IfNotPresent
+
 workspace:
   mountPath: /work
   existingClaim: ""

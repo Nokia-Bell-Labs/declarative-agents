@@ -231,11 +231,10 @@ type codingModelMockChatRequest struct {
 func readCodingModelMockLog(environment codingSmokeEnvironment) (codingModelMockLog, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	path := fmt.Sprintf(
-		"/api/v1/namespaces/%s/services/http:coding-model:11434/proxy/_mock/log",
-		codingHelmNamespace,
-	)
-	output, err := environment.run(ctx, "kubectl", "get", "--raw="+path)
+	output, err := environment.run(ctx, "kubectl", "exec",
+		"-n", codingHelmNamespace,
+		"deployment/coding-model", "-c", "mock",
+		"--", "wget", "-qO-", "http://127.0.0.1:11434/_mock/log")
 	if err != nil {
 		return codingModelMockLog{}, fmt.Errorf(
 			"read coding model mock request log: %w: %s", err, strings.TrimSpace(string(output)))

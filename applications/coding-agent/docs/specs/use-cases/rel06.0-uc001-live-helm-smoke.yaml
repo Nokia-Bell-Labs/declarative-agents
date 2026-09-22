@@ -25,7 +25,7 @@ flow:
   - id: F2
     text: Acquire a pinned kind cluster and verify Docker and Kubernetes readiness.
   - id: F3
-    text: Build and load one commit-addressed canonical profile-free agent image, stage the executor's Go 1.26 and golangci-lint v2.12.2 tool donors and the canonical model-mock profile and fixture, create the RWX fixture, and package the chart.
+    text: Build and load one commit-addressed canonical profile-free agent image, stage the executor's Go 1.26 and golangci-lint v2.12.2 donors, the critic's separate Go-only oracle donor, and the canonical model-mock profile and fixture, create the RWX fixture, and package the chart.
   - id: F4
     text: Install the .tgz and wait for model, collector agent, planner, executor, and critic readiness.
   - id: F5

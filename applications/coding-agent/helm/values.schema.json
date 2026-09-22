@@ -3,7 +3,7 @@
   "title": "coding-agent values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "executorTools", "profiles", "workspace", "roles", "llm", "ollama", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
+  "required": ["image", "executorTools", "criticTools", "profiles", "workspace", "roles", "llm", "ollama", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
   "definitions": {
     "image": {
       "type": "object",
@@ -34,7 +34,7 @@
       "properties": {
         "repository": {"type": "string", "pattern": "^[a-z0-9]+([._/-][a-z0-9]+)*(:[0-9]+)?([/][a-z0-9]+([._-][a-z0-9]+)*)*$"},
         "tag": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
-        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "digest": {"type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$"},
         "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
       }
     },
@@ -117,6 +117,20 @@
           "properties": {"image": {"$ref": "#/definitions/pinnedImage"}}
         },
         "golangciLint": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["image"],
+          "properties": {"image": {"$ref": "#/definitions/pinnedImage"}}
+        }
+      }
+    },
+    "criticTools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mountPath", "go"],
+      "properties": {
+        "mountPath": {"type": "string", "pattern": "^/[A-Za-z0-9._/-]+$"},
+        "go": {
           "type": "object",
           "additionalProperties": false,
           "required": ["image"],

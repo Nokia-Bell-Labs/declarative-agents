@@ -94,7 +94,7 @@ success_criteria:
       - applications/catalog srd003-critic AC3
       - srd001-serving-contract AC4
   - id: S4
-    criterion: All three stages use profiles from one checkout-derived package-time closure while every agent process runs the same canonical profile-free agent-core image and only the executor mounts the pinned Go and golangci-lint v2 donor volume.
+    criterion: All three stages use profiles from one checkout-derived package-time closure while every agent process runs the same canonical profile-free agent-core image; the executor mounts its pinned Go and golangci-lint v2 donor volume, and the critic mounts a separate Go-only donor volume for its independent test oracle.
     traces:
       - architecture-coding-agent-example design_decisions 1
       - architecture-coding-agent-example design_decisions 2

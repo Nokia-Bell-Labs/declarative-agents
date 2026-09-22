@@ -6,7 +6,9 @@
 This guide covers the packaged Helm chart produced by the coding-agent example.
 The application uses the canonical profile-free agent-core runtime image.
 The executor's mandatory build, lint, and test sequence receives Go 1.26 and
-golangci-lint v2.12.2 from separate digest-pinned upstream donors;
+golangci-lint v2.12.2 from separate digest-pinned upstream donors. The
+changed-workspace critic receives Go alone through its own donor for its
+independent test oracle;
 `mage helm:package` resolves and embeds the planner, executor, and critic role
 closures as chart files.
 

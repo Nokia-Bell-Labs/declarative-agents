@@ -60,9 +60,10 @@ success_criteria:
     profile tree.
   profile_free_runtime: |
     The canonical agent-core runtime image remains profile-free and
-    toolchain-free. The executor alone receives Go 1.26 and golangci-lint
-    v2.12.2 from pinned donors. Each workload mounts the packaged application
-    profile tree and selects its own profile at startup.
+    toolchain-free. The executor receives Go 1.26 and golangci-lint v2.12.2
+    from pinned donors; the changed-workspace critic receives only Go through
+    a separate donor for its independent oracle. Each workload mounts the
+    packaged application profile tree and selects its own profile at startup.
   deployable_topology: |
     Kubernetes runs planner, executor, and critic as separate containers with
     explicit workspace, delegation, and result interfaces.

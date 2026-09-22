@@ -49,7 +49,7 @@ func codingDeployRequest() (kindrig.DeployRequest, error) {
 	if err != nil {
 		return kindrig.DeployRequest{}, err
 	}
-	images, err := resolveCodingHelmImages(roots.Application)
+	image, err := resolveCodingHelmImage(roots.Application)
 	if err != nil {
 		return kindrig.DeployRequest{}, err
 	}
@@ -66,7 +66,7 @@ func codingDeployRequest() (kindrig.DeployRequest, error) {
 		ApplicationRoot: roots.Application,
 		CatalogRoot:     roots.Profiles,
 		Coordinates:     codingDeployCoordinates(roots, chart),
-		Overrides:       codingDeployOverrides(images),
+		Overrides:       codingDeployOverrides(image),
 		Agent: kindrig.DeployAgent{
 			Binary:   binary,
 			Profile:  filepath.Join(roots.Profiles, filepath.FromSlash(applierDeployProfileRel)),
@@ -147,8 +147,8 @@ func codingDeployChart(roots integrationRoots) (string, error) {
 // would otherwise read as a number: an unquoted 20260919 becomes an integer and
 // the image reference stops resolving. The imperative path this replaces used
 // helm's --set-string for the same reason.
-func codingDeployOverrides(images codingHelmImages) string {
-	repository, tag := splitCodingImageRef(images.Agent)
+func codingDeployOverrides(image codingHelmImage) string {
+	repository, tag := splitCodingImageRef(image.Reference)
 	return fmt.Sprintf(`image:
   repository: %q
   tag: %q

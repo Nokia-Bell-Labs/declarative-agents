@@ -25,8 +25,9 @@ overview:
     one profile-free canonical agent image and mounts that tree. The executor's
     build, lint, and test transitions require Go 1.26 and golangci-lint
     v2.12.2; those binaries arrive as digest-pinned, read-only tool-donor
-    volumes mounted on the executor, so the shared image stays profile-free and
-    toolchain-free for every role.
+    volumes mounted on the executor. The changed-workspace critic's independent
+    test oracle receives Go alone through its own read-only donor volume. The
+    shared image therefore stays profile-free and toolchain-free for every role.
   coding_loop_diagram: |
     ```mermaid
     flowchart LR
@@ -192,7 +193,10 @@ design_decisions:
       on the executor alone, following the applier CLI-donor pattern, rather
       than by layering a second agent runtime image. A donor is a pinned
       third-party init image, not an alternate agent image, and no other role
-      mounts the executor donor.
+      mounts the executor donor. The changed-workspace critic separately
+      declares a Go test oracle, so it receives Go alone through a distinct
+      read-only donor volume; it never receives the executor's linter, volume,
+      or PATH.
     benefits:
       - One agent image digest serves every role, so the composition model's
         one-image invariant holds without a per-role or per-test image.
@@ -298,7 +302,8 @@ design_decisions:
       `integration:helmSmoke` installs only the validated `.tgz` into a pinned
       kind cluster through a temporary kubeconfig. It builds and loads one
       commit-addressed canonical agent image, runs every agent workload from
-      it, mounts the executor's Go 1.26 and golangci-lint donors, deploys the
+      it, mounts the executor's Go 1.26 and golangci-lint donors plus the
+      critic's separate Go-only oracle donor, deploys the
       deterministic Ollama-compatible boundary as the canonical mock profile on
       that same image, uses a kind-only RWX hostPath fixture, and
       verifies role health, workspace mutation, critic verdict, and a connected
@@ -407,9 +412,10 @@ implementation_status:
         integration contract.
     - implemented: The reference-not-fork and package-time closure decisions,
         including deterministic checkout provenance and all four entry profiles.
-    - planned: One profile-free canonical agent image for every agent role
-        (GH-2494), with the executor's Go and golangci-lint delivered as
-        digest-pinned read-only tool donors rather than a second runtime image.
+    - implemented: One profile-free canonical agent image for every agent role
+        (GH-2494), with the executor's Go and golangci-lint and the critic's
+        Go-only oracle delivered as role-minimal, digest-pinned read-only tool
+        donors rather than a second runtime image.
     - implemented: The one-container-per-agent deployment decision.
     - implemented: Live executor, real planner delegation, and changed-workspace
         critic gate targets using the real built binary and canonical profiles.

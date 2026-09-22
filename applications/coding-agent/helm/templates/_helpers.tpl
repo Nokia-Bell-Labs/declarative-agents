@@ -86,6 +86,10 @@
 {{- include "agent-services.pinnedImage" .Values.executorTools.golangciLint.image -}}
 {{- end -}}
 
+{{- define "coding-agent.criticGoImage" -}}
+{{- include "agent-services.pinnedImage" .Values.criticTools.go.image -}}
+{{- end -}}
+
 {{- define "coding-agent.ollamaModels" -}}
 {{- .Values.ollama.models | uniq | join " " -}}
 {{- end -}}
