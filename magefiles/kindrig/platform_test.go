@@ -491,6 +491,37 @@ func TestResetPlatformRefusesWhileRunning(t *testing.T) {
 	}
 }
 
+// #2477 R10: preflight refuses when a process or demo cluster holds a platform
+// host port, naming the port and the remediation; it passes when both are free.
+func TestPlatformPreflightDetectsHeldHostPorts(t *testing.T) {
+	if err := PlatformPreflight(func(int) bool { return false }); err != nil {
+		t.Fatalf("preflight refused with both ports free: %v", err)
+	}
+	held := PlatformPreflight(func(port int) bool { return port == 443 })
+	if held == nil {
+		t.Fatal("preflight passed while host 443 was held")
+	}
+	if !strings.Contains(held.Error(), "443") || !strings.Contains(held.Error(), "kind delete cluster") {
+		t.Fatalf("preflight error names neither the port nor the remediation: %v", held)
+	}
+}
+
+// #2477 R10: StartPlatform runs preflight before creating the cluster, so a
+// held port refuses without touching kind.
+func TestStartPlatformPreflightsBeforeCreate(t *testing.T) {
+	kind := &fakeKind{}
+	_, err := StartPlatform(PlatformOptions{
+		KindRun:   kind.run,
+		PortProbe: func(int) bool { return true },
+	})
+	if err == nil || !strings.Contains(err.Error(), "preflight") {
+		t.Fatalf("StartPlatform did not preflight: %v", err)
+	}
+	if kind.issued("create") {
+		t.Fatal("StartPlatform created a cluster despite a held host port")
+	}
+}
+
 func TestBoundedCommandRunnerFailsAStalledCommand(t *testing.T) {
 	stalled := func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		<-ctx.Done()

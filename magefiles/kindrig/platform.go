@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,6 +63,9 @@ type PlatformOptions struct {
 	// EvidenceDirectory receives kind logs and namespace diagnostics when boot,
 	// conformance, or a later caller-reported failure ends the platform.
 	EvidenceDirectory string
+	// PortProbe overrides the host-port preflight probe. Tests set it; the
+	// default dials 127.0.0.1 on each platform host port (#2477 R10).
+	PortProbe PortProbe
 
 	boot           func(CommandRunner, string) error
 	conformance    func(CommandRunner, string) error
@@ -81,6 +85,50 @@ type Platform struct {
 	stopped  bool
 }
 
+// PlatformHostPorts are the host ports the platform binds for ingress, so
+// applications declare .localhost hosts and never coordinate ports (#2477 R2).
+var PlatformHostPorts = []int{80, 443}
+
+// PortProbe reports whether a TCP port on localhost already answers.
+type PortProbe func(port int) bool
+
+func defaultPortProbe(port int) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 500*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+// PlatformPreflight refuses to create da-platform when a process or a dedicated
+// demo cluster already holds the platform's host HTTP/HTTPS ports. It names the
+// ports and the remediation rather than deleting foreign state, because that
+// state's owner is unknown (#2477 R10).
+func PlatformPreflight(probe PortProbe) error {
+	if probe == nil {
+		probe = defaultPortProbe
+	}
+	var held []int
+	for _, port := range PlatformHostPorts {
+		if probe(port) {
+			held = append(held, port)
+		}
+	}
+	if len(held) == 0 {
+		return nil
+	}
+	ports := make([]string, len(held))
+	for i, port := range held {
+		ports[i] = fmt.Sprintf("%d", port)
+	}
+	return fmt.Errorf(
+		"platform:up preflight: host port(s) %s already in use; %s owns them for ingress. "+
+			"A dedicated demo cluster or another process holds them: check `kind get clusters` and "+
+			"`kind delete cluster --name <demo>`, or stop the process, then retry",
+		strings.Join(ports, ", "), PlatformClusterName)
+}
+
 // StartPlatform acquires da-platform fresh, installs the shared infrastructure,
 // and runs the conformance suite. A leftover da-platform from an interrupted
 // run is deleted and recreated (GH-2137). When any step fails the cluster is
@@ -88,6 +136,9 @@ type Platform struct {
 // reported before, and separately from, any application gate.
 func StartPlatform(options PlatformOptions) (*Platform, error) {
 	options = options.withDefaults()
+	if err := PlatformPreflight(options.PortProbe); err != nil {
+		return nil, err
+	}
 	cluster, err := EnsurePlatformCluster(options.KindRun)
 	if err != nil {
 		return nil, err
