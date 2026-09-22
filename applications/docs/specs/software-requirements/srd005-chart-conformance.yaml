@@ -173,6 +173,35 @@ requirements:
           A seeded violation produces a message carrying all five, so a
           reader locates it without re-rendering the chart.
 
+  R9:
+    title: Every agent workload runs one image
+    applicability: helm_managed
+    items:
+      - id: R9.1
+        text: |
+          Every rendered workload whose main container runs the `agent`
+          binary shall resolve to one image reference per application: the
+          application's declared agent image. Planner, executor, critic,
+          collector, applier, and any repository-deployed test double are
+          agent workloads and shall not carry a per-role or per-test agent
+          image. This is the composition model's one-image invariant.
+        evidence: |
+          Rendering every chart under every checked-in overlay yields one
+          distinct agent-container image reference, and setting a collector,
+          applier, or role agent image that differs from the application
+          image fails the gate.
+      - id: R9.2
+        text: |
+          A container that is not an agent workload shall be classified, not
+          silently exempted. An init or tool-donor image that copies binaries
+          into a volume the agent consumes, and a non-agent workload whose
+          main process is not the `agent` binary, are the only images that
+          may differ from the application agent image.
+        evidence: |
+          The gate distinguishes agent main containers from init containers
+          and non-agent workloads, checks only the former against R9.1, and
+          names the classification it applied for each differing image.
+
 non_goals:
   - Rendering charts against a live cluster. The gate reads manifests and needs no Kubernetes.
   - Judging whether an application template should instead call the shared library chart. That classification is tracked separately.
@@ -219,6 +248,15 @@ acceptance_criteria:
       requirement.
     traces:
       - R8.1
+  - id: AC6
+    criterion: |
+      Every rendered agent workload in every application chart resolves to the
+      one application agent image; a differing role, collector, applier, or
+      test-double agent image fails the gate, while classified init/tool-donor
+      and non-agent images do not.
+    traces:
+      - R9.1
+      - R9.2
 
 use_case_traces:
   - rel16.0-uc001-chart-conformance

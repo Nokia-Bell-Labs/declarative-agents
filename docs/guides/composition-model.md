@@ -5,6 +5,18 @@
 
 One binary runs every agent. `agent-core/cmd/agent/main.go` is the only `main()`; every Kubernetes Deployment in every application uses the same image and differs only in its `--profile` argument. An agent is therefore nothing but a profile: a set of YAML files the binary loads, validates, content-hashes into a program reference, and executes. There is no agent kind field anywhere — an observer and a chatbot use the same grammar and differ only in content.
 
+## The one-image invariant
+
+For one source revision, the repository builds one profile-free **agent execution image**. Every container whose main process is the `agent` binary runs that exact image: planner, executor, critic, collector, applier, and any test double the repository deploys. Roles differ by mounted profile closure, arguments, credentials, RBAC, mounts, and network policy — never by image. A test double a scenario needs is a profile over this image (`applications/catalog/agents/mock`, srd019 R4.4), not a bespoke build.
+
+Three things sit outside the invariant because they do not execute the `agent` binary:
+
+- **Third-party services.** Model servers (Ollama), datastores (Chroma, Dolt), the CNI, the kind node image, and object storage are external dependencies with their own pinned, digest-addressed images.
+- **Init and tool donors.** A digest-pinned init image may copy binaries into a read-only volume the agent then uses — the applier's helm/kubectl donor and the executor's Go and golangci-lint donors. The donor is not an alternate agent image; the agent container still runs the one execution image.
+- **Non-agent workloads.** A rendered workload whose main process is not `agent` — for example a contrib OpenTelemetry collector selected instead of the declarative collector profile — carries its own image by design.
+
+srd005-chart-conformance R9 gates this against rendered manifests: every agent workload in every application chart resolves to the application's one image, and the exceptions above are classified rather than exempted silently.
+
 A profile (`catalog.AgentProfile`, `agent-core/internal/tools/catalog/profile.go`) names its parts:
 
 | File | Holds |
