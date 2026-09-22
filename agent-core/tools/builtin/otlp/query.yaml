@@ -56,7 +56,7 @@ tools:
     # Optional object read backend (srd042 R1, R3): reads the configured
     # application bucket, bounded by object count, bytes, and deadline. Bucket,
     # endpoint, and prefix are configuration only; no request field redirects it.
-    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: traces, wal_path: "", max_objects: 500, max_bytes: 67108864, timeout_ms: 10000}
+    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: traces, wal_path: "", max_objects: 500, max_bytes: 67108864}
 - name: spool_get_trace
   type: builtin
   init: spool_get_trace
@@ -110,7 +110,7 @@ tools:
   config:
     path: traces/collector.ndjson
     trace_id: ""
-    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: traces, wal_path: "", max_objects: 500, max_bytes: 67108864, timeout_ms: 10000}
+    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: traces, wal_path: "", max_objects: 500, max_bytes: 67108864}
 - name: spool_list_metrics
   type: builtin
   init: spool_list_metrics
@@ -161,7 +161,7 @@ tools:
     page_size: 20
     max_page_size: 100
     offset: 0
-    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: metrics, wal_path: "", max_objects: 500, max_bytes: 67108864, timeout_ms: 10000}
+    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: metrics, wal_path: "", max_objects: 500, max_bytes: 67108864}
 - name: spool_get_metric
   type: builtin
   init: spool_get_metric
@@ -220,4 +220,4 @@ tools:
     page_size: 20
     max_page_size: 100
     offset: 0
-    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: metrics, wal_path: "", max_objects: 500, max_bytes: 67108864, timeout_ms: 10000}
+    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: metrics, wal_path: "", max_objects: 500, max_bytes: 67108864}
