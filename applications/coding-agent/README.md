@@ -221,9 +221,21 @@ home.
 
 ## Run or Planned Entry Points
 
-All declared entry points are implemented. Use `mage package`,
-`mage packageValidate`, `mage helm:package`, and the `mage integration:*`
-targets described below.
+All declared entry points are implemented. The canonical deployed lifecycle is
+one `coding-agent` release in `app-coding-agent` on `da-platform`:
+
+```bash
+mage app:up
+mage app:status
+mage app:verify     # application-owned planner → executor → critic proof
+mage app:diagnose
+mage app:down
+```
+
+It uses `magefiles/apprig`, shared Traefik, and the retained
+`gs://coding-agent-telemetry` bucket. Package and integration entry points
+remain `mage package`, `mage packageValidate`, `mage helm:package`, and
+`mage integration:*`.
 
 ## Verification
 
@@ -234,14 +246,14 @@ mage audit
 mage stats
 ```
 
-The shared ENG01 operator verbs are:
+The dedicated-cluster verbs remain development compatibility only:
 
 ```bash
 mage doctor      # read-only tool/version and Docker Desktop resource checks
-mage demo:up     # create/reuse da-coding-agent-demo and print .localhost URLs
-mage demo:down   # delete only da-coding-agent-demo
-mage deploy      # install or upgrade the demo release on a running cluster
-mage undeploy    # remove the demo release, reporting an absent one as success
+mage demo:up     # development-only da-coding-agent-demo
+mage demo:down   # delete only the development cluster
+mage deploy      # compatibility deploy against that cluster
+mage undeploy    # compatibility removal
 ```
 
 `mage deploy` runs the Helm step through the catalog applier's deploy machine

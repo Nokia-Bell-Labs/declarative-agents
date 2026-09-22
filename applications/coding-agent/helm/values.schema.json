@@ -3,7 +3,7 @@
   "title": "coding-agent values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "profiles", "workspace", "roles", "llm", "ollama", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
+  "required": ["image", "profiles", "workspace", "roles", "llm", "ollama", "collector", "ingress", "applier", "podSecurityContext", "containerSecurityContext"],
   "definitions": {
     "image": {
       "type": "object",
@@ -214,6 +214,27 @@
             "bucketName": {"type": "string"},
             "endpoint": {"type": "string"},
             "prefix": {"type": "string"}
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "className", "hosts"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "className": {"type": "string", "minLength": 1},
+        "hosts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planner", "plannerHealth", "executor", "critic", "collector"],
+          "properties": {
+            "planner": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "plannerHealth": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "executor": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "critic": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "collector": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"}
           }
         }
       }

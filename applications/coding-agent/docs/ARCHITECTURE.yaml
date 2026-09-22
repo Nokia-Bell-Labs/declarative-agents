@@ -384,7 +384,8 @@ implementation_status:
     real planner delegation, canonical critic verdict gate, application
     reference manifest, role-specific profile closure packaging, persistent
     serving contract, core Helm topology, strict values, packaged-chart
-    validation, and bounded kind deployment proof are implemented.
+    validation, bounded kind deployment proof, and the canonical persistent
+    application on da-platform are implemented.
   progress:
     - implemented: The planner -> executor -> critic coding loop and three-stage
         integration contract.
@@ -408,6 +409,10 @@ implementation_status:
     - implemented: Packaged-chart kind smoke with deterministic model boundary,
         RWX fixture, real role health, workspace/verdict proof, connected trace,
         infrastructure classification, diagnostics, and cleanup.
+    - implemented: apprig app:up|status|verify|diagnose|down in
+        app-coding-agent, with shared Traefik, an application bucket, persistent
+        collector WAL, concurrent operation beside Agent Architecture, and
+        retained query history across down/redeploy (GH-2483).
 
 related_documents:
   - doc: docs/VISION.yaml

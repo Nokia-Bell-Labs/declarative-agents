@@ -26,19 +26,32 @@ func prepareCodingHelmCluster(
 	roots integrationRoots,
 	images codingHelmImages,
 ) error {
+	return prepareCodingHelmClusterForNamespace(
+		environment, cluster, codingHelmNamespace, roots, images, true)
+}
+
+func prepareCodingHelmClusterForNamespace(
+	environment codingSmokeEnvironment,
+	cluster, namespace string,
+	roots integrationRoots,
+	images codingHelmImages,
+	resetWorkspace bool,
+) error {
 	// The caller owns the namespace. The workspace volume is cluster-scoped, so
 	// a leftover from an interrupted run is cleared here.
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
-	_, _ = environment.run(ctx, "kubectl", "delete", "persistentvolume", codingWorkspaceVolume,
-		"--ignore-not-found=true", "--wait=true", "--timeout=30s")
-	cancel()
-	ctx, cancel = context.WithTimeout(context.Background(), codingHelmProbeTimeout)
-	output, err := codingSmokeEnvironment{}.run(ctx, "docker", "exec",
-		cluster+"-control-plane", "sh", "-c",
-		"rm -rf /tmp/coding-agent-workspace && mkdir -p /tmp/coding-agent-workspace && chmod 0777 /tmp/coding-agent-workspace")
-	cancel()
-	if err != nil {
-		return fmt.Errorf("prepare kind workspace: %w: %s", err, strings.TrimSpace(string(output)))
+	if resetWorkspace {
+		ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+		_, _ = environment.run(ctx, "kubectl", "delete", "persistentvolume", codingWorkspaceVolume,
+			"--ignore-not-found=true", "--wait=true", "--timeout=30s")
+		cancel()
+		ctx, cancel = context.WithTimeout(context.Background(), codingHelmProbeTimeout)
+		output, err := codingSmokeEnvironment{}.run(ctx, "docker", "exec",
+			cluster+"-control-plane", "sh", "-c",
+			"rm -rf /tmp/coding-agent-workspace && mkdir -p /tmp/coding-agent-workspace && chmod 0777 /tmp/coding-agent-workspace")
+		cancel()
+		if err != nil {
+			return fmt.Errorf("prepare kind workspace: %w: %s", err, strings.TrimSpace(string(output)))
+		}
 	}
 	// The coding roles and the collector both run on agent-core (GH-1368): build the
 	// agent-core base once, then layer the Go toolchain on it for the role image so
@@ -71,7 +84,7 @@ func prepareCodingHelmCluster(
 		}
 	}
 	if err := runCodingSmokeCommand(environment, 30*time.Second,
-		"kubectl", "apply", "--namespace", codingHelmNamespace, "-f",
+		"kubectl", "apply", "--namespace", namespace, "-f",
 		filepath.Join(roots.Application, "helm", "ci", "kind-workspace.yaml")); err != nil {
 		return err
 	}
@@ -81,12 +94,12 @@ func prepareCodingHelmCluster(
 	}
 	defer cleanup()
 	if err := runCodingSmokeCommand(environment, 30*time.Second,
-		"kubectl", "apply", "--namespace", codingHelmNamespace, "-f", modelManifest); err != nil {
+		"kubectl", "apply", "--namespace", namespace, "-f", modelManifest); err != nil {
 		return err
 	}
 	return runCodingSmokeCommand(environment, codingHelmReadyTimeout,
 		"kubectl", "rollout", "status", "deployment/coding-model",
-		"-n", codingHelmNamespace, "--timeout=90s")
+		"-n", namespace, "--timeout=90s")
 }
 
 func loadCodingDependencyImage(cluster, image string) error {
@@ -282,9 +295,15 @@ func verifyCodingHelmRollouts(environment codingSmokeEnvironment, extra ...strin
 }
 
 func seedCodingWorkspace(environment codingSmokeEnvironment, applicationRoot string) error {
+	return seedCodingWorkspaceForNamespace(environment, applicationRoot, codingHelmNamespace)
+}
+
+func seedCodingWorkspaceForNamespace(
+	environment codingSmokeEnvironment, applicationRoot, namespace string,
+) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	output, err := environment.run(ctx, "kubectl", "get", "pods",
-		"-n", codingHelmNamespace,
+		"-n", namespace,
 		"-l", "app.kubernetes.io/component=executor",
 		"-o", "jsonpath={.items[0].metadata.name}")
 	cancel()
@@ -296,12 +315,12 @@ func seedCodingWorkspace(environment codingSmokeEnvironment, applicationRoot str
 	for _, name := range []string{"go.mod", "greet.go", "greet_test.go"} {
 		if err := runCodingSmokeCommand(environment, 30*time.Second,
 			"kubectl", "cp", filepath.Join(source, name),
-			codingHelmNamespace+"/"+pod+":/work/"+name); err != nil {
+			namespace+"/"+pod+":/work/"+name); err != nil {
 			return err
 		}
 	}
 	return runCodingSmokeCommand(environment, 30*time.Second,
-		"kubectl", "exec", "-n", codingHelmNamespace, pod, "--",
+		"kubectl", "exec", "-n", namespace, pod, "--",
 		"sh", "-c", "test -f /work/go.mod && test -f /work/greet.go && test -f /work/greet_test.go")
 }
 
@@ -337,6 +356,15 @@ func startCodingHelmForwards(
 	environment codingSmokeEnvironment,
 	includeApplier bool,
 ) (*codingPortForwards, error) {
+	return startCodingForwards(
+		environment, codingHelmNamespace, codingHelmRelease, includeApplier)
+}
+
+func startCodingForwards(
+	environment codingSmokeEnvironment,
+	namespace, release string,
+	includeApplier bool,
+) (*codingPortForwards, error) {
 	queryPort, err := freeLocalPort()
 	if err != nil {
 		return nil, fmt.Errorf("allocate collector query forward port: %w", err)
@@ -345,20 +373,20 @@ func startCodingHelmForwards(
 		service string
 		ports   []string
 	}{
-		{codingHelmRelease + "-coding-agent-planner", []string{"18200:18200", "18201:18201"}},
-		{codingHelmRelease + "-coding-agent-executor", []string{"18211:18211"}},
-		{codingHelmRelease + "-coding-agent-critic", []string{"18221:18221"}},
-		{codingHelmRelease + "-coding-agent-collector", []string{queryPort + ":18193"}},
+		{release + "-coding-agent-planner", []string{"18200:18200", "18201:18201"}},
+		{release + "-coding-agent-executor", []string{"18211:18211"}},
+		{release + "-coding-agent-critic", []string{"18221:18221"}},
+		{release + "-coding-agent-collector", []string{queryPort + ":18193"}},
 	}
 	if includeApplier {
 		targets = append(targets, struct {
 			service string
 			ports   []string
-		}{codingHelmRelease + "-coding-agent-applier", []string{"18230:18230", "18231:18231"}})
+		}{release + "-coding-agent-applier", []string{"18230:18230", "18231:18231"}})
 	}
 	forwards := &codingPortForwards{queryURL: "http://127.0.0.1:" + queryPort}
 	for _, target := range targets {
-		args := []string{"port-forward", "-n", codingHelmNamespace, "service/" + target.service}
+		args := []string{"port-forward", "-n", namespace, "service/" + target.service}
 		args = append(args, target.ports...)
 		command := exec.Command("kubectl", args...)
 		command.Env = append(os.Environ(), "KUBECONFIG="+environment.kubeconfig)
@@ -439,15 +467,21 @@ func submitCodingHelmRequest() error {
 }
 
 func verifyCodingWorkspaceAndVerdict(environment codingSmokeEnvironment) error {
+	return verifyCodingWorkspaceAndVerdictForNamespace(environment, codingHelmNamespace, codingHelmRelease)
+}
+
+func verifyCodingWorkspaceAndVerdictForNamespace(
+	environment codingSmokeEnvironment, namespace, release string,
+) error {
 	checks := [][]string{
-		{"exec", "-n", codingHelmNamespace,
-			"deployment/" + codingHelmRelease + "-coding-agent-executor",
+		{"exec", "-n", namespace,
+			"deployment/" + release + "-coding-agent-executor",
 			"--", "grep", "-F", `return "Hello, " + name + "!"`, "/work/greet.go"},
-		{"exec", "-n", codingHelmNamespace,
-			"deployment/" + codingHelmRelease + "-coding-agent-executor",
+		{"exec", "-n", namespace,
+			"deployment/" + release + "-coding-agent-executor",
 			"--", "sh", "-c", "cd /work && go test ./..."},
-		{"exec", "-n", codingHelmNamespace,
-			"deployment/" + codingHelmRelease + "-coding-agent-critic",
+		{"exec", "-n", namespace,
+			"deployment/" + release + "-coding-agent-critic",
 			"--", "grep", "-F", `"verdict":"accepted"`, "/work/critic-verdict.json"},
 	}
 	for _, args := range checks {

@@ -33,6 +33,10 @@ type Runner struct {
 	Prepare func(Resolved) (Preparation, error)
 	Verify  func(Resolved) error
 	Probes  func(Resolved) StatusProbes
+	// AfterDown performs application-owned cleanup that cannot live in the
+	// release (for example a kind hostPath PV). It runs only after canonical
+	// undeploy and apprig namespace deletion have both succeeded.
+	AfterDown func(Resolved) error
 
 	DeployAgent   func() (kindrig.DeployAgent, error)
 	UndeployAgent func() (kindrig.DeployAgent, error)
@@ -222,7 +226,13 @@ func (r Runner) undeployAndCleanup(resolved Resolved) error {
 	if err := r.ops().undeploy(request); err != nil {
 		return err
 	}
-	return r.ops().deleteNamespace(r.namespaceRequest(resolved))
+	if err := r.ops().deleteNamespace(r.namespaceRequest(resolved)); err != nil {
+		return err
+	}
+	if r.AfterDown != nil {
+		return r.AfterDown(resolved)
+	}
+	return nil
 }
 
 func (r Runner) resolve() (Resolved, error) {
