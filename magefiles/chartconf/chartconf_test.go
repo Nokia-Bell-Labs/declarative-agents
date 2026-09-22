@@ -280,6 +280,70 @@ func TestImageReferencesAreUniqueAndOrdered(t *testing.T) {
 	}
 }
 
+// agentDeployment renders one agent-workload Deployment: a main container
+// launched with --profile (the R9.2 agent signal) and an optional init
+// container that runs a shell command and is not an agent workload.
+func agentDeployment(name, image, initImage string) string {
+	doc := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ` + name + `
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: ` + name + `
+    spec:
+`
+	if initImage != "" {
+		doc += `      initContainers:
+      - name: ` + name + `-donor
+        image: ` + initImage + `
+        command: ["sh", "-c", "cp -f /usr/bin/tool /tools/"]
+`
+	}
+	doc += `      containers:
+      - name: ` + name + `
+        image: ` + image + `
+        imagePullPolicy: IfNotPresent
+        args: ["--profile", "/profiles/agents/` + name + `/profile.yaml"]
+`
+	return doc
+}
+
+// R9.1: agent workloads that disagree on their image are reported, keyed on
+// the majority image; a classified init/tool-donor container that differs is
+// not (R9.2).
+func TestOneAgentImageRule(t *testing.T) {
+	planner := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:c0ffee0"
+	toolchain := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:c0ffee0"
+	donor := "docker.io/alpine/k8s:1.31.4@sha256:" + strings.Repeat("a", 64)
+
+	uniform := agentDeployment("planner", planner, donor) +
+		"---\n" + agentDeployment("executor", planner, "") +
+		"---\n" + agentDeployment("collector", planner, "")
+	if findings := check(t, uniform); hasRule(findings, "R9.1") {
+		t.Fatalf("uniform agent images should not report R9.1: %v", findings)
+	}
+
+	diverged := agentDeployment("planner", planner, donor) +
+		"---\n" + agentDeployment("executor", planner, "") +
+		"---\n" + agentDeployment("collector", toolchain, "")
+	findings := check(t, diverged)
+	r9 := 0
+	for _, f := range findings {
+		if f.Rule == "R9.1" {
+			r9++
+			if f.Value != toolchain {
+				t.Errorf("R9.1 should flag the divergent %q, got %q", toolchain, f.Value)
+			}
+		}
+	}
+	if r9 != 1 {
+		t.Fatalf("expected exactly one R9.1 finding, got %d: %v", r9, findings)
+	}
+}
+
 // An Artifact Registry copy of this checkout's image is repository-built;
 // a mirrored third-party image under the same registry is not (srd005 R2.2,
 // eng08).

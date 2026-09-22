@@ -190,8 +190,8 @@ spec:
         # --strip-components=1 drops the tarball's top-level chart directory so
         # /chart is the chart root.
         - name: stage-chart
-          image: "{{ $applier.image.repository }}:{{ $applier.image.tag }}"
-          imagePullPolicy: {{ $applier.image.pullPolicy }}
+          image: {{ include "agent-services.applierImage" $root | quote }}
+          imagePullPolicy: {{ include "agent-services.agentPullPolicy" (dict "root" $root "image" $applier.image) }}
           command: ["sh", "-c", "tar -xzf /chart-src/chart.tgz -C /chart --strip-components=1"]
           {{- with $values.containerSecurityContext }}
           securityContext:
@@ -203,8 +203,8 @@ spec:
       {{- end }}
       containers:
         - name: applier
-          image: "{{ $applier.image.repository }}:{{ $applier.image.tag }}"
-          imagePullPolicy: {{ $applier.image.pullPolicy }}
+          image: {{ include "agent-services.applierImage" $root | quote }}
+          imagePullPolicy: {{ include "agent-services.agentPullPolicy" (dict "root" $root "image" $applier.image) }}
           {{- with $values.containerSecurityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
