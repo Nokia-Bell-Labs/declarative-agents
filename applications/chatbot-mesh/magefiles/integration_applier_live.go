@@ -142,10 +142,13 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("applierLive: building runtime image %s from %s\n", images.Runtime, coreRoot)
-	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
+	fmt.Printf("applierLive: leasing runtime image %s from %s\n", images.Runtime, coreRoot)
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		coreRoot, images.Runtime, "chatbot-mesh-applier")
+	if err != nil {
 		return err
 	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 	chartDir := applicationChartDir(profilesRoot)
 	staged, cleanupChart, err := stageApplierLiveChart(chartDir, profilesRoot)
 	if err != nil {

@@ -23,7 +23,7 @@ func TestSplitImageRef(t *testing.T) {
 	cases := []struct {
 		image, repo, tag string
 	}{
-		{"declarative-agents/agent-core:0123456789ab", "declarative-agents/agent-core", "0123456789ab"},
+		{"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0123456789ab", "ghcr.io/nokia-bell-labs/declarative-agents/agent-core", "0123456789ab"},
 		{"ghcr.io/nokia-bell-labs/agent-core:0.1.0", "ghcr.io/nokia-bell-labs/agent-core", "0.1.0"},
 		{"agent-core", "agent-core", "latest"},
 		{"localhost:5000/agent-core:dev", "localhost:5000/agent-core", "dev"},
@@ -395,7 +395,7 @@ func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
 		RunID:        "run-123",
 		Commit:       "abc123",
 	}
-	image := "declarative-agents/agent-core:0123456789ab"
+	image := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0123456789ab"
 	if err := helmInstallSmokeWithRunner(
 		chart, chartArchive, image, telemetry, assets, run); err != nil {
 		t.Fatal(err)
@@ -421,7 +421,7 @@ func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
 		"collector.integrationResource.target=integration:helmSmoke",
 		"collector.integrationResource.commit=abc123",
 		"collector.integrationResource.runID=run-123",
-		"image.repository=declarative-agents/agent-core",
+		"image.repository=ghcr.io/nokia-bell-labs/declarative-agents/agent-core",
 		"image.tag=0123456789ab",
 	} {
 		if !strings.Contains(joined, want) {
@@ -436,7 +436,7 @@ func TestHelmSmokeInstallReturnsCapturedOutput(t *testing.T) {
 	err := helmInstallSmokeWithRunner(
 		chart,
 		chartArchive,
-		"declarative-agents/agent-core:smoke-output",
+		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:smoke-output",
 		helmTelemetryIdentity{
 			OTLPEndpoint: "host.docker.internal:4317",
 			RunID:        "run-output",
@@ -454,7 +454,7 @@ func TestHelmSmokeInstallReturnsCapturedOutput(t *testing.T) {
 
 func TestHelmSwapInstallAndUpgradeUseThinReleaseArgs(t *testing.T) {
 	chart, chartArchive, assets := stageThinIntegrationChart(t, helmSwapRelease)
-	image := "declarative-agents/agent-core:swap-budget"
+	image := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:swap-budget"
 	tests := []struct {
 		verb  string
 		extra []string
@@ -532,7 +532,7 @@ func TestHelmSwapReturnsCapturedOutput(t *testing.T) {
 	err := helmSwapDeployWithRunner(
 		chart,
 		chartArchive,
-		"declarative-agents/agent-core:swap-output",
+		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:swap-output",
 		"upgrade",
 		[]string{"--set", "llm.externalURL=http://host.docker.internal:12345"},
 		assets,

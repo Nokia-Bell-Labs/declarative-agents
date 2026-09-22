@@ -23,18 +23,37 @@ ragServer:
     limits: {cpu: 500m, memory: 512Mi}
 
 chroma:
+  image:
+    repository: kindrig/chromadb-chroma
+    digest: ""
+    pullPolicy: Never
   storage: 256Mi
   resources:
     requests: {cpu: 50m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
 
 dolt:
+  image:
+    repository: kindrig/dolthub-dolt-sql-server
+    digest: ""
+    pullPolicy: Never
   storage: 256Mi
+
+observer:
+  proxy:
+    image:
+      repository: kindrig/rancher-kubectl
+      digest: ""
+      pullPolicy: Never
 
 # The chart-local Collector remains the pod-facing gateway while forwarding
 # integration traces and metrics to the persistent host ingress. The Mage
 # launcher overrides commit and runID for each scenario.
 collector:
+  image:
+    repository: kindrig/otel-opentelemetry-collector-contrib
+    digest: ""
+    pullPolicy: Never
   externalOTLPEndpoint: host.docker.internal:4317
   integrationResource:
     repository: Nokia-Bell-Labs/declarative-agents

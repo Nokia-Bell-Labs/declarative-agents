@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -33,7 +34,7 @@ func Doctor() error {
 }
 
 // Up creates or reuses the persistent demo cluster and deploys chatbot-mesh.
-func (Demo) Up() error {
+func (Demo) Up() (result error) {
 	if err := Doctor(); err != nil {
 		return fmt.Errorf("demo requested but preflight failed: %w", err)
 	}
@@ -54,9 +55,12 @@ func (Demo) Up() error {
 	if err != nil {
 		return err
 	}
-	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		coreRoot, images.Runtime, "chatbot-mesh-demo")
+	if err != nil {
 		return err
 	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 	staged, cleanup, err := stageSmokeChart(chartDir, root)
 	if err != nil {
 		return err

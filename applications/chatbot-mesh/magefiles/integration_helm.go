@@ -28,7 +28,7 @@ import (
 
 const (
 	helmRelease         = "smoke"
-	helmImageRepository = "declarative-agents/agent-core"
+	helmImageRepository = "ghcr.io/nokia-bell-labs/declarative-agents/agent-core"
 
 	helmInstallTimeout   = 5 * time.Minute
 	helmImageLoadTimeout = 3 * time.Minute
@@ -176,10 +176,13 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	if err := requireSharedObservability(helmReadyTimeout); err != nil {
 		return fmt.Errorf("shared observability stack is required: %w", err)
 	}
-	fmt.Printf("helmSmoke: building runtime image %s from %s\n", images.Runtime, coreRoot)
-	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
+	fmt.Printf("helmSmoke: leasing runtime image %s from %s\n", images.Runtime, coreRoot)
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		coreRoot, images.Runtime, "chatbot-mesh-helm")
+	if err != nil {
 		return err
 	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 	stagedChart, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
 	if err != nil {
 		return err
@@ -289,6 +292,10 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	}
 	if err := assertExternalUIAssetsMountedWithRunner(
 		commands.Run, helmRelease, assets, helmReadyTimeout); err != nil {
+		return err
+	}
+	if err := assertLiveAgentImageIdentity(
+		commands.Run, namespace, images.Runtime); err != nil {
 		return err
 	}
 
@@ -624,7 +631,8 @@ func loadSmokeDependencyImageWithCommands(
 	commands kindrig.Commands,
 	cluster, image string,
 ) error {
-	present, err := kindNodeHasImage(commands, cluster, image)
+	localReference := kindSmokeDependencyReference(image)
+	present, err := kindNodeHasImage(commands, cluster, localReference)
 	if err != nil {
 		return err
 	}
@@ -639,7 +647,8 @@ func loadSmokeDependencyImageWithCommands(
 	}
 	node := cluster + "-control-plane"
 	load := commands.Command("docker", "exec", "-i", node, "ctr", "--namespace=k8s.io",
-		"images", "import", "--platform=linux/"+runtime.GOARCH, "--snapshotter=overlayfs", "-")
+		"images", "import", "--platform=linux/"+runtime.GOARCH, "--snapshotter=overlayfs",
+		"--index-name", localReference, "-")
 	load.Stdin = stream
 	var output bytes.Buffer
 	load.Stdout, load.Stderr = &output, &output
@@ -655,6 +664,14 @@ func loadSmokeDependencyImageWithCommands(
 		return fmt.Errorf("load smoke dependency %s: %w: %s", image, err, strings.TrimSpace(output.String()))
 	}
 	return nil
+}
+
+func kindSmokeDependencyReference(image string) string {
+	repository, tag := splitImageRef(image)
+	name := strings.TrimPrefix(normalizedDockerImageReference(repository), "docker.io/")
+	name = strings.TrimPrefix(name, "library/")
+	name = strings.ReplaceAll(name, "/", "-")
+	return "docker.io/kindrig/" + name + ":" + tag
 }
 
 func kindNodeHasImage(
@@ -693,13 +710,9 @@ func normalizedDockerImageReference(image string) string {
 // buildSmokeRuntimeImage verifies and reuses the commit-addressed canonical
 // Agent Core image. kindrig rebuilds only when revision, recipe, or platform
 // identity differs, so all aggregate targets consume one tested artifact.
-func buildSmokeRuntimeImage(coreRoot, image string) error {
-	_, err := kindrig.EnsureAgentCoreImage(coreRoot, image)
-	return err
-}
-
-// buildRuntimeImageForPlatform is buildSmokeRuntimeImage for a cluster whose
-// nodes are not this machine (GH-2457).
+// buildRuntimeImageForPlatform builds for a remote cluster platform before the
+// GCP flow pushes the canonical reference (GH-2457). Local kind flows use an
+// ownership lease instead.
 func buildRuntimeImageForPlatform(coreRoot, image, platform string) error {
 	_, err := kindrig.EnsureAgentCoreImageForPlatform(coreRoot, image, platform)
 	return err
@@ -796,6 +809,82 @@ func helmSmokeValueArgs(
 		"--set-string", "collector.integrationResource.runID=" + telemetry.RunID,
 	}
 	return append(args, externalUIAssetValueArgs(assets)...)
+}
+
+func assertLiveAgentImageIdentity(
+	run helmLLMCommandRunner,
+	namespace, expectedReference string,
+) error {
+	output, err := run("kubectl", "get", "pods", "-n", namespace, "-o", "json")
+	if err != nil {
+		return fmt.Errorf("list live agent pods: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	var pods struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Spec struct {
+				Containers []struct {
+					Name  string   `json:"name"`
+					Image string   `json:"image"`
+					Args  []string `json:"args"`
+				} `json:"containers"`
+			} `json:"spec"`
+			Status struct {
+				ContainerStatuses []struct {
+					Name    string `json:"name"`
+					ImageID string `json:"imageID"`
+				} `json:"containerStatuses"`
+			} `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(output, &pods); err != nil {
+		return fmt.Errorf("decode live agent pods: %w", err)
+	}
+	imageID := ""
+	var identities []string
+	for _, pod := range pods.Items {
+		statuses := map[string]string{}
+		for _, status := range pod.Status.ContainerStatuses {
+			statuses[status.Name] = status.ImageID
+		}
+		for _, container := range pod.Spec.Containers {
+			if !stringSliceContains(container.Args, "--profile") {
+				continue
+			}
+			identity := pod.Metadata.Name + "/" + container.Name
+			if container.Image != expectedReference {
+				return fmt.Errorf("%s image = %q, want %q",
+					identity, container.Image, expectedReference)
+			}
+			currentID := statuses[container.Name]
+			if currentID == "" {
+				return fmt.Errorf("%s has no runtime image ID", identity)
+			}
+			if imageID == "" {
+				imageID = currentID
+			} else if currentID != imageID {
+				return fmt.Errorf("%s image ID = %q, want %q", identity, currentID, imageID)
+			}
+			identities = append(identities, identity)
+		}
+	}
+	if len(identities) == 0 {
+		return errors.New("rendered release has no live --profile agent containers")
+	}
+	fmt.Printf("one-agent-image: %d live agent containers use %s (%s)\n",
+		len(identities), expectedReference, imageID)
+	return nil
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func provisionExternalUIAssets(
@@ -1243,10 +1332,13 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("helmSwap: building runtime image %s\n", images.Runtime)
-	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
+	fmt.Printf("helmSwap: leasing runtime image %s\n", images.Runtime)
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		coreRoot, images.Runtime, "chatbot-mesh-swap")
+	if err != nil {
 		return err
 	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 	llmMock, err := startHelmSwapLLMMock()
 	if err != nil {
 		return err
@@ -1735,10 +1827,13 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("helmLLMTier: building runtime image %s\n", images.Runtime)
-	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
+	fmt.Printf("helmLLMTier: leasing runtime image %s\n", images.Runtime)
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		coreRoot, images.Runtime, "chatbot-mesh-llm-tier")
+	if err != nil {
 		return err
 	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 	stagedChart, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
 	if err != nil {
 		return err
