@@ -7,17 +7,356 @@
 # listed violation stops reproducing. The gate reads this file and never
 # writes it.
 #
+# GH-2512 introduced the image-reference grammar (C7 / R10). The entries
+# below are the in-flight migrations that grammar now names:
+#
+#   - GH-2516 replaces kindrig/cli-donor with the canonical alpine/k8s
+#     upstream identity after imports become transactional.
+#   - GH-2517 fully qualifies Docker Hub short names already carrying a
+#     digest (busybox, chromadb/chroma, dolthub/dolt-sql-server,
+#     ollama/ollama, rancher/kubectl).
+#   - GH-2519 restores fully qualified upstream names for kindrig retags of
+#     application dependencies and moves the kind-trusted Ollama derivation
+#     onto localhost/declarative-agents/derived.
+#
 # The one-agent-image migration (GH-2494) is complete: every application's
-# agent roles now inherit the one application image, so no R9.1 divergence
-# reproduces and this baseline holds no exceptions.
-#
-#   - GH-2504 moved every coding-agent role — planner, executor, critic,
-#     collector, applier — onto the one image (the executor's Go and linter now
-#     arrive from a tool donor).
-#   - GH-2503 removed the duplicate collector/applier agent image maps from
-#     Chatbot Mesh and Agent Architecture so those roles inherit the root image;
-#     Chatbot Mesh's contrib OTel collector remains an explicitly non-agent image.
-#
-# Shrink-only still holds: the gate fails on any unlisted violation, so a new
-# divergence must be fixed rather than re-added here.
-exceptions: []
+# agent roles inherit the one application image, so no R9.1 divergence
+# reproduces.
+
+exceptions:
+- chart: agent-architecture
+  overlay: kind-applier-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-agent-architecture-applier container/cli-donor
+  value: kindrig/cli-donor:1.31.4
+  issue: GH-2516
+  reason: Kind retags the digest-pinned alpine/k8s CLI donor under kindrig/cli-donor because a node import cannot keep the registry manifest-list digest. GH-2516 replaces the alias with the canonical upstream identity.
+- chart: chatbot-mesh
+  overlay: defaults
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-chatbot container/initialize-dolt-database
+  value: dolthub/dolt-sql-server:2.3.5@sha256:36fdd43d83b6f40cd63f8a4a406a8df42fb2401ac08ba7ea4cb3b9eeedf16355
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: defaults
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-chatbot container/wait-for-llm-models
+  value: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: defaults
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-observer container/kube-proxy
+  value: rancher/kubectl:v1.31.4@sha256:5135fe5999d8472793979e1da0d1559da758c37668c3dfb1650c8f95adc706d0
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: defaults
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-rag0 container/wait-for-llm-models
+  value: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: defaults
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-rag1 container/wait-for-llm-models
+  value: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: defaults
+  rule: R10.1
+  resource: Job/conformance-chatbot-mesh-ollama-preload container/preload
+  value: ollama/ollama:0.34.2@sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: defaults
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-dolt container/dolt
+  value: dolthub/dolt-sql-server:2.3.5@sha256:36fdd43d83b6f40cd63f8a4a406a8df42fb2401ac08ba7ea4cb3b9eeedf16355
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: defaults
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-ollama container/ollama
+  value: ollama/ollama:0.34.2@sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: defaults
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-rag0-chroma container/chroma
+  value: chromadb/chroma:1.5.3@sha256:cfd193653bd61076610730a09acae34ab85b5b6b1f5db4d944c17b5e8453658d
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: defaults
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-rag1-chroma container/chroma
+  value: chromadb/chroma:1.5.3@sha256:cfd193653bd61076610730a09acae34ab85b5b6b1f5db4d944c17b5e8453658d
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: gcp-values.yaml
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-chatbot container/initialize-dolt-database
+  value: dolthub/dolt-sql-server:2.3.5@sha256:36fdd43d83b6f40cd63f8a4a406a8df42fb2401ac08ba7ea4cb3b9eeedf16355
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: gcp-values.yaml
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-chatbot container/wait-for-llm-models
+  value: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: gcp-values.yaml
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-observer container/kube-proxy
+  value: rancher/kubectl:v1.31.4@sha256:5135fe5999d8472793979e1da0d1559da758c37668c3dfb1650c8f95adc706d0
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: gcp-values.yaml
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-rag0 container/wait-for-llm-models
+  value: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: gcp-values.yaml
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-rag1 container/wait-for-llm-models
+  value: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: gcp-values.yaml
+  rule: R10.1
+  resource: Job/conformance-chatbot-mesh-ollama-preload container/preload
+  value: ollama/ollama:0.34.2@sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: gcp-values.yaml
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-dolt container/dolt
+  value: dolthub/dolt-sql-server:2.3.5@sha256:36fdd43d83b6f40cd63f8a4a406a8df42fb2401ac08ba7ea4cb3b9eeedf16355
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: gcp-values.yaml
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-ollama container/ollama
+  value: ollama/ollama:0.34.2@sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: gcp-values.yaml
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-rag0-chroma container/chroma
+  value: chromadb/chroma:1.5.3@sha256:cfd193653bd61076610730a09acae34ab85b5b6b1f5db4d944c17b5e8453658d
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: gcp-values.yaml
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-rag1-chroma container/chroma
+  value: chromadb/chroma:1.5.3@sha256:cfd193653bd61076610730a09acae34ab85b5b6b1f5db4d944c17b5e8453658d
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: kind-applier-values.yaml
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-chatbot container/initialize-dolt-database
+  value: dolthub/dolt-sql-server:2.3.5@sha256:36fdd43d83b6f40cd63f8a4a406a8df42fb2401ac08ba7ea4cb3b9eeedf16355
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: kind-applier-values.yaml
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-chatbot container/wait-for-llm-models
+  value: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: kind-applier-values.yaml
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-observer container/kube-proxy
+  value: rancher/kubectl:v1.31.4@sha256:5135fe5999d8472793979e1da0d1559da758c37668c3dfb1650c8f95adc706d0
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: kind-applier-values.yaml
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-rag0 container/wait-for-llm-models
+  value: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: kind-applier-values.yaml
+  rule: R10.1
+  resource: Deployment/conformance-chatbot-mesh-rag1 container/wait-for-llm-models
+  value: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: kind-applier-values.yaml
+  rule: R10.1
+  resource: Job/conformance-chatbot-mesh-ollama-preload container/preload
+  value: ollama/ollama:0.34.2@sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: kind-applier-values.yaml
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-dolt container/dolt
+  value: dolthub/dolt-sql-server:2.3.5@sha256:36fdd43d83b6f40cd63f8a4a406a8df42fb2401ac08ba7ea4cb3b9eeedf16355
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: kind-applier-values.yaml
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-ollama container/ollama
+  value: ollama/ollama:0.34.2@sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: kind-applier-values.yaml
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-rag0-chroma container/chroma
+  value: chromadb/chroma:1.5.3@sha256:cfd193653bd61076610730a09acae34ab85b5b6b1f5db4d944c17b5e8453658d
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: kind-applier-values.yaml
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-rag1-chroma container/chroma
+  value: chromadb/chroma:1.5.3@sha256:cfd193653bd61076610730a09acae34ab85b5b6b1f5db4d944c17b5e8453658d
+  issue: GH-2517
+  reason: The image is digest-pinned but still uses a Docker Hub short name. GH-2517 fully qualifies chart and build inputs with an explicit registry host.
+- chart: chatbot-mesh
+  overlay: kind-applier-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-chatbot-mesh-applier container/cli-donor
+  value: kindrig/cli-donor:1.31.4
+  issue: GH-2516
+  reason: Kind retags the digest-pinned alpine/k8s CLI donor under kindrig/cli-donor because a node import cannot keep the registry manifest-list digest. GH-2516 replaces the alias with the canonical upstream identity.
+- chart: chatbot-mesh
+  overlay: kind-llm-values.yaml
+  rule: R10.1
+  resource: Job/conformance-chatbot-mesh-ollama-preload container/preload
+  value: declarative-agents/ollama:0.32.5-kind-trusted
+  issue: GH-2519
+  reason: The kind-trusted Ollama derivation still uses the unprefixed local repository. GH-2519 moves it to localhost/declarative-agents/derived/ollama with an upstream- and recipe-typed tag.
+- chart: chatbot-mesh
+  overlay: kind-llm-values.yaml
+  rule: R10.1
+  resource: StatefulSet/conformance-chatbot-mesh-ollama container/ollama
+  value: declarative-agents/ollama:0.32.5-kind-trusted
+  issue: GH-2519
+  reason: The kind-trusted Ollama derivation still uses the unprefixed local repository. GH-2519 moves it to localhost/declarative-agents/derived/ollama with an upstream- and recipe-typed tag.
+- chart: chatbot-mesh
+  overlay: kind-llm-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-chatbot-mesh-chatbot container/initialize-dolt-database
+  value: kindrig/dolthub-dolt-sql-server:2.3.5
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: chatbot-mesh
+  overlay: kind-llm-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-chatbot-mesh-chatbot container/wait-for-llm-models
+  value: kindrig/busybox:1.36
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: chatbot-mesh
+  overlay: kind-llm-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-chatbot-mesh-observer container/kube-proxy
+  value: kindrig/rancher-kubectl:v1.31.4
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: chatbot-mesh
+  overlay: kind-llm-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-chatbot-mesh-rag0 container/wait-for-llm-models
+  value: kindrig/busybox:1.36
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: chatbot-mesh
+  overlay: kind-llm-values.yaml
+  rule: R10.3
+  resource: StatefulSet/conformance-chatbot-mesh-dolt container/dolt
+  value: kindrig/dolthub-dolt-sql-server:2.3.5
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: chatbot-mesh
+  overlay: kind-llm-values.yaml
+  rule: R10.3
+  resource: StatefulSet/conformance-chatbot-mesh-rag0-chroma container/chroma
+  value: kindrig/chromadb-chroma:1.5.3
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: chatbot-mesh
+  overlay: kind-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-chatbot-mesh-chatbot container/initialize-dolt-database
+  value: kindrig/dolthub-dolt-sql-server:2.3.5
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: chatbot-mesh
+  overlay: kind-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-chatbot-mesh-observer container/kube-proxy
+  value: kindrig/rancher-kubectl:v1.31.4
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: chatbot-mesh
+  overlay: kind-values.yaml
+  rule: R10.3
+  resource: StatefulSet/conformance-chatbot-mesh-dolt container/dolt
+  value: kindrig/dolthub-dolt-sql-server:2.3.5
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: chatbot-mesh
+  overlay: kind-values.yaml
+  rule: R10.3
+  resource: StatefulSet/conformance-chatbot-mesh-rag0-chroma container/chroma
+  value: kindrig/chromadb-chroma:1.5.3
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: coding-agent
+  overlay: kind-applier-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-coding-agent-applier container/cli-donor
+  value: kindrig/cli-donor:1.31.4
+  issue: GH-2516
+  reason: Kind retags the digest-pinned alpine/k8s CLI donor under kindrig/cli-donor because a node import cannot keep the registry manifest-list digest. GH-2516 replaces the alias with the canonical upstream identity.
+- chart: coding-agent
+  overlay: kind-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-coding-agent-critic container/critic-go-tool-donor
+  value: kindrig/go-donor:1.26-alpine
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: coding-agent
+  overlay: kind-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-coding-agent-executor container/go-tool-donor
+  value: kindrig/go-donor:1.26-alpine
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+- chart: coding-agent
+  overlay: kind-values.yaml
+  rule: R10.3
+  resource: Deployment/conformance-coding-agent-executor container/golangci-lint-tool-donor
+  value: kindrig/golangci-lint-donor:v2.12.2-alpine
+  issue: GH-2519
+  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.

@@ -151,7 +151,7 @@ func loadChartConformanceBaseline(root string) (chartconf.Baseline, error) {
 // what went unchecked rather than only that it skipped.
 func helmMissingMessage() string {
 	return "helm not on PATH: rules " +
-		strings.Join([]string{"R1", "R2", "R3", "R4", "R5", "R8"}, ", ") +
+		strings.Join([]string{"R1", "R2", "R3", "R4", "R5", "R8", "R9", "R10"}, ", ") +
 		" need a render and did not run; R6 does not"
 }
 

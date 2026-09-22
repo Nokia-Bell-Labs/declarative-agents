@@ -20,7 +20,7 @@ import (
 // application chart under its own defaults and under each checked-in values
 // overlay, checks every rendered manifest and every checked-in kind
 // configuration against the ENG01 chart rules, and reconciles what it finds
-// against the checked-in exception baseline (srd005 R1 through R8).
+// against the checked-in exception baseline (srd005 R1 through R10).
 //
 // Helm is required to render. ENG01 lists it as required toolchain and the
 // release gate has it, but a laptop without it still runs the rest of the

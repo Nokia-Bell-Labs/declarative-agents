@@ -6,7 +6,7 @@
 //
 // The package takes rendered YAML and returns findings. It renders nothing
 // and reads no chart, so every rule is testable from a string literal and the
-// caller owns how a chart reaches a manifest (srd005 R1 through R5, R8).
+// caller owns how a chart reaches a manifest (srd005 R1 through R10).
 package chartconf
 
 import (
@@ -18,15 +18,15 @@ import (
 )
 
 // RepositoryImagePrefixes name images this host produces rather than pulls.
-// Two kinds qualify. The first is what this checkout builds. The second is a
-// rig-local retag: ENG01 has the host pull a digest-pinned upstream image,
-// retag it under a rig-local name, and kind-load that tag with
-// imagePullPolicy Never, so the node never reaches a registry. Both carry a
-// tag this repository sets and a digest that means nothing outside this
-// machine, so R2.2 exempts them from the digest rule R2.1 puts on images the
-// cluster pulls. The digest that matters for a retag is pinned on the
-// upstream source in the chart defaults, where R2.1 does check it.
+// Canonical local builds live under localhost/declarative-agents/; published
+// copies keep the ghcr.io path or an Artifact Registry agent-core name.
+// `kindrig/` and the unprefixed `declarative-agents/` forms are legacy retags
+// R10.3 and R10.1 reject; R2.2 still exempts them from the digest rule until
+// the in-flight migrations (GH-2513, GH-2515, GH-2516, GH-2519) remove them.
+// The digest that matters for an upstream retag is pinned on the source,
+// where R2.1 checks it.
 var RepositoryImagePrefixes = []string{
+	"localhost/declarative-agents/",
 	"ghcr.io/nokia-bell-labs/declarative-agents/",
 	"declarative-agents/",
 	"kindrig/",
@@ -320,7 +320,7 @@ func splitImage(image string) (repository, tag, digest string) {
 	return remainder, tag, digest
 }
 
-// checkImages applies R1.1, R1.2, R2.1, and R2.2 to every container image.
+// checkImages applies R1.1, R1.2, R2.1, R2.2, and R10 to every container image.
 func checkImages(chart, overlay string, document Document) []Finding {
 	var findings []Finding
 	for _, container := range document.containers() {
@@ -341,6 +341,7 @@ func checkImages(chart, overlay string, document Document) []Finding {
 			findings = append(findings, Finding{chart, overlay, "R2.1", resource, container.Image,
 				"third-party image carries no digest"})
 		}
+		findings = append(findings, checkImageGrammar(chart, overlay, resource, container.Image)...)
 	}
 	return findings
 }

@@ -4,7 +4,7 @@ id: test-rel16.0-chart-conformance
 title: Release 16.0 Chart Conformance Test Suite
 release: "16.0"
 status: implemented
-test_case_count: 10
+test_case_count: 11
 
 overview: |
   TC1 parses and traces the Release 16.0 documents. TC2 through TC9 run the
@@ -85,7 +85,7 @@ test_cases:
       assert "Chart conformance rules" in titles, titles
       rules = next(s for s in docs["guideline"]["sections"]
                    if s["title"] == "Chart conformance rules")["content"]
-      for rule in ("C1", "C2", "C3", "C4", "C5", "C6"):
+      for rule in ("C1", "C2", "C3", "C4", "C5", "C6", "C7"):
           assert f"| {rule} |" in rules, rule
       assert srd["id"] in rules
 
@@ -262,3 +262,25 @@ test_cases:
       - rel16.0-uc001-chart-conformance S2
       - srd005-chart-conformance AC1
       - srd005-chart-conformance AC2
+      - srd005-chart-conformance AC6
+
+  - id: TC11
+    use_case: rel16.0-uc001-chart-conformance
+    name: Image references match the grammar and prohibited aliases fail
+    status: implemented
+    evidence_type: go_test
+    implemented_by: GH-2512
+    command: |
+      cd magefiles && go test ./chartconf -run 'TestImageReferenceGrammar|TestConformingRenderProducesNoFinding'
+    expected:
+      canonical_local_roles_accepted: true
+      fully_qualified_upstream_accepted: true
+      kindrig_alias_reported: true
+      local_tag_reported: true
+      untyped_hex_local_tag_reported: true
+      smoke_repository_reported: true
+      short_third_party_name_reported: true
+    traces:
+      - rel16.0-uc001-chart-conformance S2
+      - srd005-chart-conformance AC7
+      - srd005-chart-conformance AC5
