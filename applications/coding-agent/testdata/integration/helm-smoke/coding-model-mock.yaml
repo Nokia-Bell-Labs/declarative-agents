@@ -1,0 +1,57 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Strict smoke oracle: planner, executor edit, executor done. The canonical mock
+# serves responses in this order; unexpected retries/interleaving are exposed by
+# the request-log assertion instead of receiving content-based fallback output.
+routes:
+  - method: GET
+    path: /api/tags
+    responses:
+      - status: 200
+        body:
+          models:
+            - name: qwen3.6:35b-mlx
+              model: qwen3.6:35b-mlx
+
+  - method: POST
+    path: /api/chat
+    responses:
+      - status: 200
+        body:
+          model: qwen3.6:35b-mlx
+          message:
+            role: assistant
+            content: |
+              title: Implement greeting
+              files:
+                - path: greet.go
+                  action: modify
+              requirements:
+                - id: R1
+                  text: Return required greeting
+              acceptance_criteria:
+                - id: AC1
+                  text: go test passes
+          eval_count: 1
+          prompt_eval_count: 1
+          done: true
+      - status: 200
+        body:
+          model: qwen3.6:35b-mlx
+          message:
+            role: assistant
+            content: |
+              [tool_call]{"tool":"edit","parameters":{"path":"greet.go","old_string":"func Hello(name string) string {\n\treturn \"\"\n}","new_string":"func Hello(name string) string {\n\treturn \"Hello, \" + name + \"!\"\n}"}}[/tool_call]
+          eval_count: 1
+          prompt_eval_count: 1
+          done: true
+      - status: 200
+        body:
+          model: qwen3.6:35b-mlx
+          message:
+            role: assistant
+            content: |
+              [tool_call]{"tool":"done","parameters":{"summary":"implemented greeting"}}[/tool_call]
+          eval_count: 1
+          prompt_eval_count: 1
+          done: true

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 	"github.com/magefile/mage/mg"
 )
 
@@ -25,10 +26,7 @@ type CLEAN mg.Namespace
 // applier families retired with the CLI donor (GH-2222); their remaining local
 // copies are removed by hand with docker image rm.
 var commitImageFamilies = []string{
-	"declarative-agents/agent-core",
-	"declarative-agents/coding-agent-smoke",
-	"declarative-agents/coding-model-smoke",
-	"declarative-agents/agent-architecture-smoke",
+	"ghcr.io/nokia-bell-labs/declarative-agents/agent-core",
 }
 
 const (
@@ -38,6 +36,7 @@ const (
 )
 
 var commitImageTag = regexp.MustCompile(`^[0-9a-f]{12}$`)
+var commitImageLeaseStatus = kindrig.ImageLeaseStatus
 
 // Images removes commit-tagged local images older than the newest keep
 // revisions of each rig image family (GH-2215). Revisions are ordered by image
@@ -53,6 +52,19 @@ func (CLEAN) Images(keep int) error {
 // ImagesDryRun lists what clean:images would remove, removing nothing.
 func (CLEAN) ImagesDryRun(keep int) error {
 	return cleanCommitImages(dockerImageRunner, keep, true)
+}
+
+// ImageLeaseRecover explicitly recovers a force-killed integration's lease.
+// It retains the image-ID and container-use guards; unlike normal cleanup it
+// intentionally disregards recorded owners, so operators must name the exact
+// canonical reference after confirming those owners are dead.
+func (CLEAN) ImageLeaseRecover(reference string) error {
+	if !strings.HasPrefix(reference,
+		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:") {
+		return fmt.Errorf("clean:imageLeaseRecover accepts only canonical agent-core references, got %q",
+			reference)
+	}
+	return kindrig.RecoverAgentCoreImageLease(reference)
 }
 
 type imageCommandRunner func(args ...string) ([]byte, error)
@@ -139,6 +151,10 @@ func selectImageRemovals(images []commitImage, keep int) []string {
 		if !rigBuiltImage(image.labels) {
 			fmt.Printf("clean:images: keeping %s: labels name source %q, not a rig build\n",
 				image.ref, image.labels[imageSourceLabel])
+			continue
+		}
+		if active, diagnostic := commitImageLeaseStatus(image.ref); active {
+			fmt.Printf("clean:images: keeping %s: %s\n", image.ref, diagnostic)
 			continue
 		}
 		candidates = append(candidates, image)

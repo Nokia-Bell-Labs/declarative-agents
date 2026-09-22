@@ -98,6 +98,83 @@ func TestApplicationConsistencyManifests(t *testing.T) {
 	}
 }
 
+func TestApplicationsDeclareOneCanonicalAgentImage(t *testing.T) {
+	const canonicalRepository = "ghcr.io/nokia-bell-labs/declarative-agents/agent-core"
+	for _, application := range release14Applications {
+		t.Run(application, func(t *testing.T) {
+			var values map[string]interface{}
+			readRelease14YAML(t,
+				filepath.Join(release14ApplicationRoot(application), "helm", "values.yaml"),
+				&values,
+			)
+			rootImage := release14Map(values["image"])
+			if repository := release14String(rootImage["repository"]); repository != canonicalRepository {
+				t.Errorf("root image repository = %q, want canonical %q",
+					repository, canonicalRepository)
+			}
+			applier := release14Map(values["applier"])
+			if repository := release14String(release14Map(applier["image"])["repository"]); repository != "" {
+				t.Errorf("applier declares role-specific agent image %q", repository)
+			}
+			collector := release14Map(values["collector"])
+			collectorRepository := release14String(release14Map(collector["image"])["repository"])
+			if application == "chatbot-mesh" {
+				if implementation := release14String(collector["implementation"]); implementation != "agent" {
+					t.Errorf("default collector implementation = %q, want agent", implementation)
+				}
+				if !strings.Contains(collectorRepository, "opentelemetry-collector-contrib") {
+					t.Errorf("collector exception = %q, want explicit non-agent contrib product",
+						collectorRepository)
+				}
+			} else if collectorRepository != "" {
+				t.Errorf("collector declares role-specific agent image %q", collectorRepository)
+			}
+		})
+	}
+}
+
+func TestRetiredAgentImageFamiliesHaveNoActivePath(t *testing.T) {
+	retired := []string{
+		"coding-" + "agent-smoke",
+		"coding-" + "model-smoke",
+		"agent-" + "architecture-smoke",
+	}
+	extensions := map[string]bool{
+		".go": true, ".md": true, ".yaml": true, ".yml": true,
+		".json": true, ".tpl": true,
+	}
+	root := filepath.Clean("..")
+	err := filepath.WalkDir(root, func(filename string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			switch entry.Name() {
+			case ".git", "build", "node_modules", "dist":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !extensions[filepath.Ext(filename)] {
+			return nil
+		}
+		content, err := os.ReadFile(filename)
+		if err != nil {
+			return err
+		}
+		for _, family := range retired {
+			if strings.Contains(string(content), family) {
+				t.Errorf("%s contains retired active image family %q",
+					relativeToRepo(filename), family)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestApplicationActorGrammar(t *testing.T) {
 	profileName := regexp.MustCompile(`^(?:profile|[a-z0-9]+(?:-[a-z0-9]+)*-profile)\.yaml$`)
 	for _, application := range release14Applications {
@@ -146,6 +223,16 @@ func TestApplicationActorGrammar(t *testing.T) {
 			}
 		})
 	}
+}
+
+func release14Map(value interface{}) map[string]interface{} {
+	mapping, _ := value.(map[string]interface{})
+	return mapping
+}
+
+func release14String(value interface{}) string {
+	text, _ := value.(string)
+	return text
 }
 
 func TestResolveRelease14ReferenceUsesDeclaredRuntimeMappings(t *testing.T) {

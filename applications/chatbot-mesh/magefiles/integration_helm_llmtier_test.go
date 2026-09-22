@@ -454,7 +454,7 @@ func TestLLMPreloadReadinessTransitionDiagnostics(t *testing.T) {
 func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
 	chart, chartArchive, assets := stageThinIntegrationChart(t, helmLLMRelease)
 	var command []string
-	image := "declarative-agents/agent-core:0123456789ab"
+	image := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0123456789ab"
 	cacheHostPath := aggregateOllamaCacheRoot + "/" + strings.Repeat("a", 64)
 	err := helmInstallLLMWithRunner(
 		chart, chartArchive, image, assets, cacheHostPath,
@@ -502,7 +502,7 @@ func TestHelmLLMTierInstallReturnsCapturedOutput(t *testing.T) {
 	err := helmInstallLLMWithRunner(
 		chart,
 		chartArchive,
-		"declarative-agents/agent-core:llm-output",
+		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:llm-output",
 		assets,
 		"",
 		func(string, ...string) ([]byte, error) {

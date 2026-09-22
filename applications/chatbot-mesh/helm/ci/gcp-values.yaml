@@ -14,18 +14,11 @@ image:
   tag: must-be-overridden-with-git-revision
   pullPolicy: IfNotPresent
 
-collector:
-  image:
-    repository: region-docker.pkg.dev/project/agents/agent-core
-    tag: must-be-overridden-with-git-revision
-    pullPolicy: IfNotPresent
-
 applier:
   enabled: true
-  image:
-    repository: region-docker.pkg.dev/project/agents/agent-core
-    tag: must-be-overridden-with-git-revision
-    pullPolicy: IfNotPresent
+  # The applier is an agent workload; it inherits the one application image
+  # (the GCP root image above) under srd005 R9 (GH-2494). Only the CLI donor,
+  # a genuinely separate product, is pinned to the project registry here.
   # The CLI donor is pulled from the project registry, never Docker Hub:
   # enterprise GKE nodes are commonly barred from it (eng08). mage
   # gcp:mirrorDonor copies the manifest list byte-identically, so this

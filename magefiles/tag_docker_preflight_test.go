@@ -12,13 +12,13 @@ import (
 
 func TestParseDockerStatsMemoryReadsUsedColumn(t *testing.T) {
 	got, err := parseDockerStatsMemory("da-agentic-wiki-mesh-demo-control-plane|2.019GiB / 7.75GiB\n" +
-		"da-coding-agent-smoke-control-plane|869.8MiB / 7.75GiB\nidle|512KiB / 7.75GiB\n")
+		"da-coding-agent-helm-control-plane|869.8MiB / 7.75GiB\nidle|512KiB / 7.75GiB\n")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []dockerContainerMemory{
 		{name: "da-agentic-wiki-mesh-demo-control-plane", bytes: scaledBytes(2.019, 1<<30)},
-		{name: "da-coding-agent-smoke-control-plane", bytes: scaledBytes(869.8, 1<<20)},
+		{name: "da-coding-agent-helm-control-plane", bytes: scaledBytes(869.8, 1<<20)},
 		{name: "idle", bytes: 512 << 10},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -44,9 +44,9 @@ func TestParseDockerStatsMemoryRejectsUnknownUnits(t *testing.T) {
 func TestReleaseDockerHeadroomRefusesAStarvedVM(t *testing.T) {
 	probe := func() (int64, []dockerContainerMemory, error) {
 		return 8321232896, []dockerContainerMemory{
-			{name: "da-agent-architecture-smoke-control-plane", bytes: 849 << 20},
+			{name: "da-agent-architecture-helm-control-plane", bytes: 849 << 20},
 			{name: "da-agentic-wiki-mesh-demo-control-plane", bytes: 1967 << 20},
-			{name: "da-coding-agent-smoke-control-plane", bytes: 905 << 20},
+			{name: "da-coding-agent-helm-control-plane", bytes: 905 << 20},
 		}, nil
 	}
 	err := checkReleaseDockerHeadroom(probe, releaseDockerFreeFloor)
@@ -54,7 +54,7 @@ func TestReleaseDockerHeadroomRefusesAStarvedVM(t *testing.T) {
 		t.Fatal("starved VM passed the preflight")
 	}
 	msg := err.Error()
-	order := []string{"da-agentic-wiki-mesh-demo", "da-coding-agent-smoke", "da-agent-architecture-smoke"}
+	order := []string{"da-agentic-wiki-mesh-demo", "da-coding-agent-helm", "da-agent-architecture-helm"}
 	last := -1
 	for _, name := range order {
 		at := strings.Index(msg, name)

@@ -74,7 +74,7 @@ spec:
       containers:
         - name: collector
           image: {{ .image | default (include "agent-services.collectorImage" $root) | quote }}
-          imagePullPolicy: {{ .imagePullPolicy | default $collector.image.pullPolicy }}
+          imagePullPolicy: {{ include "agent-services.agentPullPolicy" (dict "root" $root "image" $collector.image "override" (.imagePullPolicy | default "")) }}
           workingDir: {{ .workingDir | default (dir .profilePath) }}
           {{- with $values.containerSecurityContext }}
           securityContext:

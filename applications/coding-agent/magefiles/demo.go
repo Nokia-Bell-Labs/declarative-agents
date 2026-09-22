@@ -36,7 +36,7 @@ func (Demo) Up() error {
 	if err != nil {
 		return err
 	}
-	images, err := resolveCodingHelmImages(roots.Application)
+	image, err := resolveCodingHelmImage(roots.Application)
 	if err != nil {
 		return err
 	}
@@ -48,12 +48,22 @@ func (Demo) Up() error {
 				return err
 			}
 			defer cleanup()
+			lease, err := kindrig.AcquireAgentCoreImageLease(
+				roots.Core, image.Reference, "coding-agent-demo")
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if releaseErr := lease.Release(); releaseErr != nil {
+					fmt.Printf("demo: release image lease failed: %v\n", releaseErr)
+				}
+			}()
 			environment := codingSmokeEnvironment{kubeconfig: kubeconfig}
 			if err := recreateCodingDemoNamespace(environment); err != nil {
 				return err
 			}
 			if err := prepareCodingHelmCluster(
-				environment, codingDemoCluster, roots, images); err != nil {
+				environment, codingDemoCluster, roots, image); err != nil {
 				return err
 			}
 			if err := Package(); err != nil {
@@ -93,7 +103,7 @@ func (Demo) Up() error {
 				}
 			}
 			fmt.Printf("demo: revision %s planner at http://planner.coding.localhost/; health at http://planner-health.coding.localhost/api/lifecycle/health, http://executor.coding.localhost/api/lifecycle/health, http://critic.coding.localhost/api/lifecycle/health\n",
-				images.Revision)
+				image.Revision)
 			return nil
 		})
 }

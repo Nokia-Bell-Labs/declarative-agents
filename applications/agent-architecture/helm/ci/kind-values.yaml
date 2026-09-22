@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 image:
-  repository: declarative-agents/agent-architecture-smoke
+  repository: ghcr.io/nokia-bell-labs/declarative-agents/agent-core
   # mage integration:helmSmoke always overrides this fail-closed sentinel with
   # the tested checkout's 12-character commit revision.
   tag: must-be-overridden-with-git-revision

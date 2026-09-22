@@ -57,10 +57,7 @@ func TestApplierLiveRunsAgentCoreWithCLIDonor(t *testing.T) {
 	}
 }
 func TestApplierLiveChartArchiveStaysOutOfReleaseValues(t *testing.T) {
-	args := applierLiveValueArgs(
-		"/application", "runtime", "revision",
-		"collector", "revision", "applier", "revision",
-	)
+	args := applierLiveValueArgs("/application", "runtime", "revision")
 	joined := strings.Join(args, " ")
 	if !strings.Contains(joined,
 		"--set applier.chartArchiveConfigMap="+applierLiveChartConfigMap) {

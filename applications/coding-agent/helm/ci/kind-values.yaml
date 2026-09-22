@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 image:
-  repository: declarative-agents/coding-agent-smoke
+  repository: ghcr.io/nokia-bell-labs/declarative-agents/agent-core
   # mage integration:helmSmoke always overrides this fail-closed sentinel with
   # the tested checkout's 12-character commit revision.
   tag: must-be-overridden-with-git-revision
@@ -15,6 +15,34 @@ ollama:
 
 llm:
   externalURL: http://coding-model:11434
+
+# kind loads images from the local daemon and pulls nothing (chartconf R3).
+# The smoke preloads both digest-pinned executor donors, so this overlay fixes
+# both pull policies to Never.
+executorTools:
+  go:
+    image:
+      # The rig verifies the default digest, then imports this local tag into
+      # kind; a platform-specific import cannot retain the registry manifest
+      # list digest.
+      repository: kindrig/go-donor
+      tag: "1.26-alpine"
+      digest: ""
+      pullPolicy: Never
+  golangciLint:
+    image:
+      repository: kindrig/golangci-lint-donor
+      tag: "v2.12.2-alpine"
+      digest: ""
+      pullPolicy: Never
+
+criticTools:
+  go:
+    image:
+      repository: kindrig/go-donor
+      tag: "1.26-alpine"
+      digest: ""
+      pullPolicy: Never
 
 collector:
   image:

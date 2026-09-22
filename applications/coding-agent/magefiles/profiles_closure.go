@@ -260,6 +260,43 @@ func assembleProfileClosure(manifest applicationProfileManifest, sourceRoot, out
 	return writeProfilePackage(manifest, closure.sourceRoot, closure.assets, output, source)
 }
 
+// stageExternalProfileClosure resolves one catalog profile into a caller-owned
+// directory without adding it to the coding application's production manifest
+// or package metadata. Integration rigs use this for external agent
+// dependencies such as the canonical catalog mock (GH-2501).
+func stageExternalProfileClosure(sourceRoot, source, runtimePath, output string) ([]string, error) {
+	closure := &profileClosure{
+		sourceRoot: filepath.Clean(sourceRoot),
+		assets:     make(map[string]string),
+	}
+	if err := closure.enqueue(source, runtimePath); err != nil {
+		return nil, err
+	}
+	if err := closure.resolve(); err != nil {
+		return nil, err
+	}
+	destinations := sortedProfileAssetDestinations(closure.assets)
+	for _, destination := range destinations {
+		sourcePath, err := secureSourcePath(closure.sourceRoot, closure.assets[destination])
+		if err != nil {
+			return nil, err
+		}
+		if err := copyProfileAsset(sourcePath, filepath.Join(output, filepath.FromSlash(destination))); err != nil {
+			return nil, err
+		}
+	}
+	return destinations, nil
+}
+
+func sortedProfileAssetDestinations(assets map[string]string) []string {
+	destinations := make([]string, 0, len(assets))
+	for destination := range assets {
+		destinations = append(destinations, destination)
+	}
+	sort.Strings(destinations)
+	return destinations
+}
+
 func (c *profileClosure) enqueue(source, dest string) error {
 	cleanSource, err := cleanRelativeProfilePath(source)
 	if err != nil {

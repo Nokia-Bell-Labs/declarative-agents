@@ -82,8 +82,8 @@ func TestConformingRenderProducesNoFinding(t *testing.T) {
 	for name, image := range map[string]string{
 		"third-party pinned by digest":               pinnedThirdParty,
 		"repository image on a release tag":          repositoryImage,
-		"repository image on a commit tag":           "declarative-agents/coding-agent-smoke:a1b2c3d4e5f6",
-		"repository image on a fail-closed sentinel": "declarative-agents/coding-agent-smoke:must-be-overridden-with-git-revision",
+		"repository image on a commit tag":           "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:a1b2c3d4e5f6",
+		"repository image on a fail-closed sentinel": "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:must-be-overridden-with-git-revision",
 	} {
 		t.Run(name, func(t *testing.T) {
 			findings := check(t, deployment(image, "IfNotPresent", "/healthz"))
@@ -280,15 +280,79 @@ func TestImageReferencesAreUniqueAndOrdered(t *testing.T) {
 	}
 }
 
+// agentDeployment renders one agent-workload Deployment: a main container
+// launched with --profile (the R9.2 agent signal) and an optional init
+// container that runs a shell command and is not an agent workload.
+func agentDeployment(name, image, initImage string) string {
+	doc := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ` + name + `
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: ` + name + `
+    spec:
+`
+	if initImage != "" {
+		doc += `      initContainers:
+      - name: ` + name + `-donor
+        image: ` + initImage + `
+        command: ["sh", "-c", "cp -f /usr/bin/tool /tools/"]
+`
+	}
+	doc += `      containers:
+      - name: ` + name + `
+        image: ` + image + `
+        imagePullPolicy: IfNotPresent
+        args: ["--profile", "/profiles/agents/` + name + `/profile.yaml"]
+`
+	return doc
+}
+
+// R9.1: agent workloads that disagree on their image are reported, keyed on
+// the majority image; a classified init/tool-donor container that differs is
+// not (R9.2).
+func TestOneAgentImageRule(t *testing.T) {
+	planner := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:c0ffee0"
+	alternate := "ghcr.io/nokia-bell-labs/declarative-agents/alternate-agent:c0ffee0"
+	donor := "docker.io/alpine/k8s:1.31.4@sha256:" + strings.Repeat("a", 64)
+
+	uniform := agentDeployment("planner", planner, donor) +
+		"---\n" + agentDeployment("executor", planner, "") +
+		"---\n" + agentDeployment("collector", planner, "")
+	if findings := check(t, uniform); hasRule(findings, "R9.1") {
+		t.Fatalf("uniform agent images should not report R9.1: %v", findings)
+	}
+
+	diverged := agentDeployment("planner", planner, donor) +
+		"---\n" + agentDeployment("executor", planner, "") +
+		"---\n" + agentDeployment("collector", alternate, "")
+	findings := check(t, diverged)
+	r9 := 0
+	for _, f := range findings {
+		if f.Rule == "R9.1" {
+			r9++
+			if f.Value != alternate {
+				t.Errorf("R9.1 should flag the divergent %q, got %q", alternate, f.Value)
+			}
+		}
+	}
+	if r9 != 1 {
+		t.Fatalf("expected exactly one R9.1 finding, got %d: %v", r9, findings)
+	}
+}
+
 // An Artifact Registry copy of this checkout's image is repository-built;
 // a mirrored third-party image under the same registry is not (srd005 R2.2,
 // eng08).
 func TestArtifactRegistryClassification(t *testing.T) {
 	cases := map[string]bool{
-		"us-central1-docker.pkg.dev/demo/agents/agent-core:a1b2c3":           true,
-		"us-central1-docker.pkg.dev/demo/agents/agent-core-toolchain:a1b2c3": true,
-		"us-central1-docker.pkg.dev/demo/agents/cli-donor:1.31.4":            false,
-		"docker.io/alpine/k8s:1.31.4":                                        false,
+		"us-central1-docker.pkg.dev/demo/agents/agent-core:a1b2c3": true,
+		"us-central1-docker.pkg.dev/demo/agents/alternate:a1b2c3":  false,
+		"us-central1-docker.pkg.dev/demo/agents/cli-donor:1.31.4":  false,
+		"docker.io/alpine/k8s:1.31.4":                              false,
 	}
 	for image, want := range cases {
 		if got := IsRepositoryImage(image); got != want {

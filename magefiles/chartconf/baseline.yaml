@@ -7,7 +7,17 @@
 # listed violation stops reproducing. The gate reads this file and never
 # writes it.
 #
-# Empty since GH-2409 pinned every upstream image and stated every pull
-# policy. The charts conform by construction; an entry here is an accepted
-# exception with an issue behind it, not a backlog.
+# The one-agent-image migration (GH-2494) is complete: every application's
+# agent roles now inherit the one application image, so no R9.1 divergence
+# reproduces and this baseline holds no exceptions.
+#
+#   - GH-2504 moved every coding-agent role — planner, executor, critic,
+#     collector, applier — onto the one image (the executor's Go and linter now
+#     arrive from a tool donor).
+#   - GH-2503 removed the duplicate collector/applier agent image maps from
+#     Chatbot Mesh and Agent Architecture so those roles inherit the root image;
+#     Chatbot Mesh's contrib OTel collector remains an explicitly non-agent image.
+#
+# Shrink-only still holds: the gate fails on any unlisted violation, so a new
+# divergence must be fixed rather than re-added here.
 exceptions: []

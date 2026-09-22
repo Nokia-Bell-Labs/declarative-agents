@@ -17,7 +17,7 @@ const rigDoctorProfileRel = "agents/rig-doctor/profile.yaml"
 
 // Diagnose captures a read-only snapshot of one running scenario into
 // build/kind-evidence and runs the catalog rig doctor over it (eng01, srd023).
-// Pass the scenario name (agent-architecture-smoke, or demo for the persistent
+// Pass the scenario name (agent-architecture-helm, or demo for the persistent
 // demo cluster). It reports and never gates. This application keeps no
 // persistent trace ingress, so the evidence is kubectl reads and kind logs.
 func Diagnose(scenario string) error {

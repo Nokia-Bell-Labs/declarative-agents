@@ -98,14 +98,32 @@ type podTemplate struct {
 
 // Container is the subset of a container spec the rules read.
 type Container struct {
-	Name           string `yaml:"name"`
-	Image          string `yaml:"image"`
-	PullPolicy     string `yaml:"imagePullPolicy"`
-	ReadinessProbe any    `yaml:"readinessProbe"`
+	Name           string   `yaml:"name"`
+	Image          string   `yaml:"image"`
+	PullPolicy     string   `yaml:"imagePullPolicy"`
+	Command        []string `yaml:"command"`
+	Args           []string `yaml:"args"`
+	ReadinessProbe any      `yaml:"readinessProbe"`
 	Ports          []struct {
 		Name          string `yaml:"name"`
 		ContainerPort int    `yaml:"containerPort"`
 	} `yaml:"ports"`
+}
+
+// IsAgentWorkload reports whether a container runs the agent binary. Every
+// agent workload is launched with a `--profile` argument that selects the
+// mounted program; init and tool-donor containers (cli-donor, stage-chart,
+// wait-for-models) run a shell command and carry none, and a non-agent
+// workload such as a contrib OpenTelemetry gateway carries none either. The
+// `--profile` argument is therefore the signal srd005 R9.2 asks the gate to
+// classify on, so only agent main containers are checked against R9.1.
+func (c Container) IsAgentWorkload() bool {
+	for _, token := range append(append([]string{}, c.Command...), c.Args...) {
+		if token == "--profile" || strings.HasPrefix(token, "--profile=") {
+			return true
+		}
+	}
+	return false
 }
 
 // Resource names a document the way a reader finds it again.
@@ -201,7 +219,53 @@ func Check(chart, overlay string, documents []Document) []Finding {
 		findings = append(findings, checkServiceType(chart, overlay, document)...)
 	}
 	findings = append(findings, checkReadiness(chart, overlay, documents)...)
+	findings = append(findings, checkOneAgentImage(chart, overlay, documents)...)
 	sort.Slice(findings, func(i, j int) bool { return findings[i].Key() < findings[j].Key() })
+	return findings
+}
+
+// checkOneAgentImage applies R9.1: every agent workload a chart renders runs
+// one image, the application agent image. It reads only agent main containers
+// (R9.2 classification via Container.IsAgentWorkload), so a classified
+// init/tool-donor or non-agent container may differ without a finding. When
+// the agent containers disagree, the reference is the image the most of them
+// share — ties broken lexicographically so the report is deterministic — and
+// every agent container that differs from it is a finding.
+func checkOneAgentImage(chart, overlay string, documents []Document) []Finding {
+	type agentContainer struct {
+		resource string
+		image    string
+	}
+	var agents []agentContainer
+	counts := map[string]int{}
+	for _, document := range documents {
+		for _, container := range document.containers() {
+			if container.Image == "" || !container.IsAgentWorkload() {
+				continue
+			}
+			resource := document.Resource() + " container/" + container.Name
+			agents = append(agents, agentContainer{resource, container.Image})
+			counts[container.Image]++
+		}
+	}
+	if len(counts) < 2 {
+		return nil
+	}
+	reference := ""
+	for image, count := range counts {
+		if reference == "" || count > counts[reference] ||
+			(count == counts[reference] && image < reference) {
+			reference = image
+		}
+	}
+	var findings []Finding
+	for _, agent := range agents {
+		if agent.image == reference {
+			continue
+		}
+		findings = append(findings, Finding{chart, overlay, "R9.1", agent.resource, agent.image,
+			"agent workload image differs from the application agent image " + reference})
+	}
 	return findings
 }
 
@@ -231,7 +295,7 @@ func IsRepositoryImage(image string) bool {
 // repositoryImageNames are the image names this checkout pushes to a cloud
 // registry. A mirrored third-party image (the CLI donor) is not among them,
 // so it keeps its digest obligation.
-var repositoryImageNames = []string{"agent-core", "agent-core-toolchain"}
+var repositoryImageNames = []string{"agent-core"}
 
 // repositoryOf strips the tag and digest from a lowered reference.
 func repositoryOf(lowered string) string {
