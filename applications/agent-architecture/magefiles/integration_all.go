@@ -30,6 +30,7 @@ func (i Integration) All() (result error) {
 		fn   func() error
 	}{
 		{"helmSmoke", i.HelmSmoke},
+		{"collectorWALRestart", i.CollectorWALRestart},
 		{"applier", i.Applier},
 		{"applierLive", i.ApplierLive},
 	}

@@ -5,6 +5,7 @@ package otlp
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -52,6 +53,29 @@ func bucketHas(t *testing.T, opener *objectstore.Opener, connection objectstore.
 		t.Fatalf("bucket exists %q: %v", key, err)
 	}
 	return exists
+}
+
+func bucketKeys(t *testing.T, opener *objectstore.Opener, connection objectstore.ConnectionConfig) []string {
+	t.Helper()
+	bucket, done, err := opener.Open(context.Background(), connection)
+	if err != nil {
+		t.Fatalf("open bucket: %v", err)
+	}
+	defer done()
+	iterator := bucket.List(nil)
+	var keys []string
+	for {
+		object, nextErr := iterator.Next(context.Background())
+		if nextErr == io.EOF {
+			return keys
+		}
+		if nextErr != nil {
+			t.Fatalf("list bucket: %v", nextErr)
+		}
+		if !object.IsDir {
+			keys = append(keys, object.Key)
+		}
+	}
 }
 
 // srd008 AC1: object persistence works on mem:// and file:// with no network,
@@ -169,6 +193,58 @@ func TestObjectSpoolResumesPendingAfterRestart(t *testing.T) {
 	}
 	if _, err := os.Stat(stage); !os.IsNotExist(err) {
 		t.Fatalf("staged file survived commit: %v", err)
+	}
+}
+
+// GH-2491 AC3: resumePending is part of the production persist path, not only a
+// helper exercised directly by a unit test. The first distinct batch handled
+// by a restarted collector drains the prior process's pending identity, uploads
+// the current batch, and leaves exactly the two immutable object keys.
+func TestObjectSpoolPersistDrainsPendingAfterRestart(t *testing.T) {
+	connection := objectstore.ConnectionConfig{BucketURL: "file://" + t.TempDir()}
+	wal := filepath.Join(t.TempDir(), "collector.wal")
+
+	crashed := newObjectStore(t, connection, wal)
+	pendingEnvelope := newEnvelope(EnvelopeMeta{
+		Signal: "trace", Application: "chatbot-mesh", PayloadFormat: "otlp-protojson-trace",
+		ReceivedAt: time.Now().UTC(),
+	}, tracePayload(t, "before-restart", 1))
+	pendingKey := pendingEnvelope.objectKey("")
+	data, err := pendingEnvelope.encode()
+	if err != nil {
+		t.Fatalf("encode pending envelope: %v", err)
+	}
+	stage, err := crashed.stage(pendingEnvelope.BatchID, data)
+	if err != nil {
+		t.Fatalf("stage pending envelope: %v", err)
+	}
+	if err := crashed.wal.appendPending(walRecord{
+		Key: pendingKey, BatchID: pendingEnvelope.BatchID, Checksum: pendingEnvelope.PayloadChecksum,
+		Bytes: int64(len(data)), StagePath: stage,
+	}); err != nil {
+		t.Fatalf("append pending: %v", err)
+	}
+
+	restarted := newObjectStore(t, connection, wal)
+	current, err := restarted.persist(context.Background(), spoolBatch{
+		signal: "trace", payloadFormat: "otlp-protojson-trace",
+		payload: tracePayload(t, "after-restart", 1), received: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("persist after restart: %v", err)
+	}
+	if !bucketHas(t, restarted.opener, connection, pendingKey) {
+		t.Fatalf("pre-restart object %q was not resumed", pendingKey)
+	}
+	if !bucketHas(t, restarted.opener, connection, current.objectKey) {
+		t.Fatalf("post-restart object %q was not persisted", current.objectKey)
+	}
+	if keys := bucketKeys(t, restarted.opener, connection); len(keys) != 2 {
+		t.Fatalf("objects after restart = %v, want exactly the two immutable batch keys", keys)
+	}
+	pending, err := restarted.wal.pending()
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("pending = %v (%v), want empty after production replay", pending, err)
 	}
 }
 

@@ -148,10 +148,13 @@ func (s *objectSpoolStore) persist(ctx context.Context, batch spoolBatch) (spool
 	if err := s.wal.appendPending(record); err != nil {
 		return spoolOutcome{}, err
 	}
-	if err := s.putObject(ctx, key, data, envelope.PayloadChecksum); err != nil {
-		return spoolOutcome{}, err
-	}
-	if err := s.commit(key, envelope.PayloadChecksum, stage); err != nil {
+	// Replay the whole journal, including the record just appended, rather
+	// than uploading only the current batch. A collector process constructs a
+	// fresh target for each spool command, so the first batch after a restart
+	// drains evidence left pending by the prior process under its pre-recorded
+	// immutable key before reporting the current batch committed (srd008 R6.2;
+	// GH-2491 AC3).
+	if _, err := s.resumePending(ctx); err != nil {
 		return spoolOutcome{}, err
 	}
 	return spoolOutcome{
@@ -206,7 +209,17 @@ func (s *objectSpoolStore) resumePending(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	resumed := 0
+	seen := make(map[string]bool, len(pending))
 	for _, record := range pending {
+		// Repeated delivery of the same content while the bucket is unavailable
+		// can append the same content-derived key more than once. Its staged path
+		// is also content-derived; commit removes it. Replay that identity once
+		// so a duplicate WAL line cannot turn a successful idempotent upload
+		// into a missing-stage error.
+		if seen[record.Key] {
+			continue
+		}
+		seen[record.Key] = true
 		data, readErr := os.ReadFile(record.StagePath)
 		if readErr != nil {
 			return resumed, fmt.Errorf("read staged object %q: %w", record.StagePath, readErr)
