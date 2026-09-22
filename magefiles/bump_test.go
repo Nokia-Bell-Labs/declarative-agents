@@ -143,10 +143,10 @@ func TestCollectedPinsCoverBothHalves(t *testing.T) {
 			strings.HasPrefix(strings.ToLower(pin.Image), "kindrig/") {
 			t.Errorf("%s surveys an image this checkout produces: %s", pin.Location, pin.Image)
 		}
-		if digest, ok := donors[pin.Image]; ok {
+		if digest, ok := donors[pin.Image]; ok && strings.Contains(pin.Location, "[defaults]") {
 			seenDonors[pin.Image] = true
 			if pin.Digest != digest {
-				t.Errorf("%s donor digest = %q, want %q", pin.Image, pin.Digest, digest)
+				t.Errorf("%s donor digest = %q, want %q (%s)", pin.Image, pin.Digest, digest, pin.Location)
 			}
 		}
 	}

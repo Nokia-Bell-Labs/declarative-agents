@@ -7,32 +7,11 @@
 # listed violation stops reproducing. The gate reads this file and never
 # writes it.
 #
-# GH-2512 introduced the image-reference grammar (C7 / R10). Remaining
-# entries track kindrig retags on coding-agent kind overlays (GH-2519).
+# GH-2512 introduced the image-reference grammar (C7 / R10). GH-2519 removed
+# the last kindrig retags on application kind overlays.
 #
 # The one-agent-image migration (GH-2494) is complete: every application's
 # agent roles inherit the one application image, so no R9.1 divergence
 # reproduces.
 
-exceptions:
-- chart: coding-agent
-  overlay: kind-values.yaml
-  rule: R10.3
-  resource: Deployment/conformance-coding-agent-critic container/critic-go-tool-donor
-  value: kindrig/go-donor:1.26-alpine
-  issue: GH-2519
-  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
-- chart: coding-agent
-  overlay: kind-values.yaml
-  rule: R10.3
-  resource: Deployment/conformance-coding-agent-executor container/go-tool-donor
-  value: kindrig/go-donor:1.26-alpine
-  issue: GH-2519
-  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
-- chart: coding-agent
-  overlay: kind-values.yaml
-  rule: R10.3
-  resource: Deployment/conformance-coding-agent-executor container/golangci-lint-tool-donor
-  value: kindrig/golangci-lint-donor:v2.12.2-alpine
-  issue: GH-2519
-  reason: Kind overlays retag digest-pinned application dependencies under kindrig/* so the node never reaches a registry. GH-2519 restores fully qualified upstream names once imports are transactional.
+exceptions: []

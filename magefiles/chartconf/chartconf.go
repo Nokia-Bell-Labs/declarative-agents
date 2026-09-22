@@ -21,8 +21,8 @@ import (
 // Canonical local builds live under localhost/declarative-agents/; published
 // copies keep the ghcr.io path or an Artifact Registry agent-core name.
 // `kindrig/` and the unprefixed `declarative-agents/` forms are legacy retags
-// R10.3 and R10.1 reject; R2.2 still exempts them from the digest rule until
-// the in-flight migration (GH-2519) removes them.
+// R10.3 and R10.1 reject; R2.2 still exempts them from the digest rule when
+// they appear in historical renders.
 // The digest that matters for an upstream retag is pinned on the source,
 // where R2.1 checks it.
 var RepositoryImagePrefixes = []string{

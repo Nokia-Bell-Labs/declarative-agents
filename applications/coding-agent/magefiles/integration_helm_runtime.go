@@ -4,7 +4,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -51,14 +49,20 @@ func prepareCodingHelmCluster(
 	if err != nil {
 		return err
 	}
+	dockerRun := kindrig.CommandRunner(func(name string, args ...string) ([]byte, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
+		defer cancel()
+		return codingSmokeEnvironment{}.run(ctx, name, args...)
+	})
 	for _, donor := range []struct {
-		source string
-		local  string
+		source  string
+		cluster string
 	}{
-		{source: codingHelmGoDonorImage, local: codingHelmGoDonorLocal},
-		{source: codingHelmLintDonorImage, local: codingHelmLintDonorLocal},
+		{source: codingHelmGoDonorImage, cluster: codingHelmGoDonorCluster},
+		{source: codingHelmLintDonorImage, cluster: codingHelmLintDonorCluster},
 	} {
-		if err := loadCodingDependencyImage(cluster, donor.source, donor.local); err != nil {
+		if err := kindrig.ImportPinnedImage(
+			dockerRun, cluster, "executor-donor", donor.source, donor.cluster); err != nil {
 			return &codingHelmInfrastructureError{
 				Step: "executor donor image load", Cause: err,
 			}
@@ -81,41 +85,6 @@ func prepareCodingHelmCluster(
 	return runCodingSmokeCommand(environment, codingHelmReadyTimeout,
 		"kubectl", "rollout", "status", "deployment/coding-model",
 		"-n", codingHelmNamespace, "--timeout=90s")
-}
-
-func loadCodingDependencyImage(cluster, source, localReference string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
-	defer cancel()
-	// The preflight verifies the digest-qualified source. A platform-specific
-	// OCI import cannot retain the registry manifest-list digest, so index-name
-	// assigns a rig-local reference that a Never-pull pod can resolve without
-	// adding or deleting host tags.
-	save := exec.CommandContext(ctx, "docker", "save", source)
-	stream, err := save.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	node := cluster + "-control-plane"
-	load := exec.CommandContext(ctx, "docker", "exec", "-i", node,
-		"ctr", "--namespace=k8s.io", "images", "import",
-		"--platform=linux/"+runtime.GOARCH, "--snapshotter=overlayfs",
-		"--index-name", localReference, "-")
-	load.Stdin = stream
-	var output bytes.Buffer
-	load.Stdout, load.Stderr = &output, &output
-	if err := load.Start(); err != nil {
-		return err
-	}
-	if err := save.Run(); err != nil {
-		_ = load.Process.Kill()
-		_ = load.Wait()
-		return fmt.Errorf("docker save %s: %w", source, err)
-	}
-	if err := load.Wait(); err != nil {
-		return fmt.Errorf("import %s as %s: %w: %s",
-			source, localReference, err, strings.TrimSpace(output.String()))
-	}
-	return nil
 }
 
 func installCodingHelmChart(

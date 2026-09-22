@@ -31,6 +31,12 @@ var (
 		`^upstream-[A-Za-z0-9][A-Za-z0-9._-]*-recipe-[0-9a-f]{12}-linux-[a-z0-9]+$`)
 )
 
+// CheckImageGrammar applies R10.1 through R10.3 to one container image.
+// Callers that sweep literals pass empty chart, overlay, and resource.
+func CheckImageGrammar(image string) []Finding {
+	return checkImageGrammar("", "", "", image)
+}
+
 // checkImageGrammar applies R10.1 through R10.3 to one container image.
 func checkImageGrammar(chart, overlay, resource, image string) []Finding {
 	repository, tag, _ := splitImage(image)
