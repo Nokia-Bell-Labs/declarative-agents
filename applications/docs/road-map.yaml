@@ -569,7 +569,7 @@ releases:
         status: implemented
       - order: 2
         action: Add collector WAL and immutable object-bucket persistence (GH-2475).
-        status: planned
+        status: implemented
       - order: 3
         action: Add application-scoped object-backed query and retention (GH-2478).
         status: planned

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/objectstore"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
@@ -40,10 +41,29 @@ type AwaitToolConfig struct {
 
 // SpoolToolConfig is the declared spool_spans configuration.
 type SpoolToolConfig struct {
-	Path        string `json:"path"`
-	BatchSource string `json:"batch_source"`
-	MaxBytes    int64  `json:"max_bytes"`
-	MaxFiles    int    `json:"max_files"`
+	Path        string            `json:"path"`
+	BatchSource string            `json:"batch_source"`
+	MaxBytes    int64             `json:"max_bytes"`
+	MaxFiles    int               `json:"max_files"`
+	Storage     StorageToolConfig `json:"storage"`
+}
+
+// StorageToolConfig selects the spool word's storage backend. It defaults to
+// the filesystem NDJSON spool; the object backend is declared configuration
+// only, and cloud credentials remain ambient workload identity (srd008 R8).
+type StorageToolConfig struct {
+	Backend           string `json:"backend"`
+	BucketURL         string `json:"bucket_url"`
+	Endpoint          string `json:"endpoint"`
+	Prefix            string `json:"prefix"`
+	WALPath           string `json:"wal_path"`
+	StageDir          string `json:"stage_dir"`
+	Application       string `json:"application"`
+	Namespace         string `json:"namespace"`
+	Run               string `json:"run"`
+	CollectorInstance string `json:"collector_instance"`
+	WALMaxBytes       int64  `json:"wal_max_bytes"`
+	WALMaxPending     int    `json:"wal_max_pending"`
 }
 
 // LoadToolConfig is the declared load_otlp_batch configuration.
@@ -95,6 +115,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 	if state == nil {
 		state = NewState()
 	}
+	opener := objectstore.NewOpener()
 	for _, init := range StandardInits {
 		switch init {
 		case InitAwaitSpans:
@@ -102,7 +123,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 		case InitLoadOTLPBatch:
 			br.Register(init, loadFactory())
 		case InitSpoolSpans:
-			br.Register(init, spoolFactory())
+			br.Register(init, spoolFactory(opener))
 		case InitRelaySpans:
 			br.Register(init, relayFactory())
 		case InitSpoolListTraces:
@@ -118,7 +139,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 		case InitAwaitMetrics:
 			br.Register(init, metricAwaitFactory(state))
 		case InitSpoolMetrics:
-			br.Register(init, spoolMetricsFactory())
+			br.Register(init, spoolMetricsFactory(opener))
 		case InitSpoolListMetrics:
 			br.Register(init, queryListMetricsFactory())
 		case InitSpoolGetMetric:
@@ -218,35 +239,82 @@ func awaitFactory(state *State) toolregistry.BuiltinFactory {
 	}
 }
 
-func spoolFactory() toolregistry.BuiltinFactory {
+func spoolFactory(opener *objectstore.Opener) toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw SpoolToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+		raw, source, err := decodeSpoolCommon(def)
+		if err != nil {
 			return nil, err
 		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		spool := SpoolConfig{
+			Path: resolvePath(raw.Path, vars), BatchSource: source,
+			MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,
 		}
-		source := raw.BatchSource
-		if source == "" {
-			source = defaultBatchSource
-		}
-		if _, ok := core.ParseSelector(source); !ok {
-			return nil, fmt.Errorf("tool %q config has invalid batch_source %q", def.Name, source)
-		}
-		if err := validateSpoolBounds(def.Name, raw); err != nil {
+		storage, err := decodeStorageConfig(def.Name, raw.Storage, vars)
+		if err != nil {
 			return nil, err
 		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
+		return SpoolBuilder{ToolName: def.Name, Config: spool, Storage: storage, Opener: opener}, nil
+	}
+}
+
+// decodeSpoolCommon decodes and validates the fields both spool words share.
+func decodeSpoolCommon(def catalog.ToolDef) (SpoolToolConfig, string, error) {
+	var raw SpoolToolConfig
+	if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+		return SpoolToolConfig{}, "", err
+	}
+	if raw.Path == "" {
+		return SpoolToolConfig{}, "", fmt.Errorf("tool %q config requires path", def.Name)
+	}
+	source := raw.BatchSource
+	if source == "" {
+		source = defaultBatchSource
+	}
+	if _, ok := core.ParseSelector(source); !ok {
+		return SpoolToolConfig{}, "", fmt.Errorf("tool %q config has invalid batch_source %q", def.Name, source)
+	}
+	if err := validateSpoolBounds(def.Name, raw); err != nil {
+		return SpoolToolConfig{}, "", err
+	}
+	return raw, source, nil
+}
+
+func resolvePath(path string, vars map[string]string) string {
+	if !filepath.IsAbs(path) && vars["directory"] != "" {
+		return filepath.Join(vars["directory"], path)
+	}
+	return path
+}
+
+// decodeStorageConfig resolves the spool word's storage backend. An object
+// backend that names no bucket URL or WAL path fails the load with the fault
+// named rather than at first persist (srd008 R8).
+func decodeStorageConfig(toolName string, raw StorageToolConfig, vars map[string]string) (StorageConfig, error) {
+	switch raw.Backend {
+	case "", BackendFilesystem:
+		return StorageConfig{Backend: BackendFilesystem}, nil
+	case BackendObject:
+		if raw.BucketURL == "" {
+			return StorageConfig{}, fmt.Errorf("tool %q object storage requires bucket_url", toolName)
 		}
-		return SpoolBuilder{
-			ToolName: def.Name,
-			Config: SpoolConfig{
-				Path: path, BatchSource: source, MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,
-			},
+		if raw.WALPath == "" {
+			return StorageConfig{}, fmt.Errorf("tool %q object storage requires wal_path", toolName)
+		}
+		stage := raw.StageDir
+		if stage != "" {
+			stage = resolvePath(stage, vars)
+		}
+		return StorageConfig{
+			Backend:    BackendObject,
+			Connection: objectstore.ConnectionConfig{BucketURL: raw.BucketURL, Endpoint: raw.Endpoint},
+			Prefix:     raw.Prefix, WALPath: resolvePath(raw.WALPath, vars), StageDir: stage,
+			Application: raw.Application, Namespace: raw.Namespace, Run: raw.Run,
+			CollectorInstance: raw.CollectorInstance,
+			WALMaxBytes:       raw.WALMaxBytes, WALMaxPending: raw.WALMaxPending,
 		}, nil
+	default:
+		return StorageConfig{}, fmt.Errorf(
+			"tool %q has unknown storage backend %q (supported: filesystem, object)", toolName, raw.Backend)
 	}
 }
 
@@ -274,35 +342,21 @@ func metricAwaitFactory(state *State) toolregistry.BuiltinFactory {
 	}
 }
 
-func spoolMetricsFactory() toolregistry.BuiltinFactory {
+func spoolMetricsFactory(opener *objectstore.Opener) toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw SpoolToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+		raw, source, err := decodeSpoolCommon(def)
+		if err != nil {
 			return nil, err
 		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		spool := SpoolConfig{
+			Path: resolvePath(raw.Path, vars), BatchSource: source,
+			MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,
 		}
-		source := raw.BatchSource
-		if source == "" {
-			source = defaultBatchSource
-		}
-		if _, ok := core.ParseSelector(source); !ok {
-			return nil, fmt.Errorf("tool %q config has invalid batch_source %q", def.Name, source)
-		}
-		if err := validateSpoolBounds(def.Name, raw); err != nil {
+		storage, err := decodeStorageConfig(def.Name, raw.Storage, vars)
+		if err != nil {
 			return nil, err
 		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
-		}
-		return SpoolMetricsBuilder{
-			ToolName: def.Name,
-			Config: SpoolConfig{
-				Path: path, BatchSource: source, MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,
-			},
-		}, nil
+		return SpoolMetricsBuilder{ToolName: def.Name, Config: spool, Storage: storage, Opener: opener}, nil
 	}
 }
 

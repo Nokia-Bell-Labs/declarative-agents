@@ -124,6 +124,16 @@ requirements:
       - R9.4: Declared read-only query words SHALL list and fetch spooled metrics by metric name through config-capped pagination, and each fetched detail record SHALL return its decoded resource attributes unchanged, including `service.name` and `test.run.id`, so callers can identify the originating integration run while preserving the service and metric payload without an unbounded response from a persistent spool.
       - R9.5: Trace intake, spool, relay, and query behavior SHALL remain unchanged; metric words SHALL NOT alter span records or the stdouttrace shape.
 
+  R10:
+    title: Durable object-bucket spool storage
+    items:
+      - R10.1: "The trace and metric spool words SHALL select a storage backend through declared configuration: `filesystem` (the default, the existing bounded NDJSON append, unchanged) or `object`. The backend, bucket URL, endpoint, and in-bucket prefix SHALL be declared configuration only, and no code path SHALL read an environment variable for backend selection (srd008 R8, R9)."
+      - R10.2: "The object backend SHALL persist one versioned immutable envelope per batch containing at least schema version, signal, application, namespace, run, collector instance, stable batch identity, receive time, payload format, payload checksum, and payload; traces and metrics SHALL persist as separate object families (srd008 R3, R5, R6.3)."
+      - R10.3: "Stable batch identity SHALL be derived from batch content, independent of the receiver's process-local sequence, so a retry resolves to one object and two process lifetimes whose sequence both restart at one still yield distinct identities for distinct batches (srd008 R4)."
+      - R10.4: "The object backend SHALL record the final object key, envelope metadata, checksum, and pending/committed upload state in a local write-ahead log, and SHALL stage the envelope bytes and sync that record before the first remote attempt, so bucket latency or outage leaves replayable evidence and a restart resumes the exact pre-recorded keys (srd008 R2, R4, R6)."
+      - R10.5: "Object creation SHALL be idempotent: the same key with the same checksum is success, and the same key with different bytes is a named integrity error and never an overwrite. A committed WAL record SHALL be compacted only after the remote object is verified (srd008 R7, AC5)."
+      - R10.6: "The write-ahead log SHALL bound its pending bytes and pending record count; overflow SHALL be a named, observable error rather than a silent drop of uncommitted evidence (srd008 R10)."
+
 non_goals:
   - Receiving OTLP logs.
   - Acting as a general-purpose, firehose-rate telemetry collector.
@@ -166,9 +176,15 @@ acceptance_criteria:
     criterion: The receiver accepts an OTLP/gRPC metric export into the same bounded queue, spools it as NDJSON with resource and metric identity intact under bounded rotation, and serves it back through declared, config-capped paginated query words whose detail records preserve resource attributes such as `service.name` and `test.run.id`, leaving trace intake, spool, relay, and query behavior unchanged.
     traces: [R9.1, R9.2, R9.3, R9.4, R9.5]
 
+  - id: AC9
+    criterion: A spool word with the default filesystem backend behaves exactly as before, while the object backend persists one versioned immutable envelope per batch under a content-derived stable identity, records the object in a bounded write-ahead log before the first upload, creates the object idempotently, refuses a different-content collision, resumes pending keys after a restart, and keeps traces and metrics in separate object families. Unit tests prove this on mem:// and file:// with no container; a fake-GCS integration proves it end to end over gs:// and skips naming docker where docker is absent.
+    traces: [R10.1, R10.2, R10.3, R10.4, R10.5, R10.6]
+
 depends_on:
   - srd_id: srd003-command-dispatch
     symbols_used: [Command, Result, Signal, CommandError]
+  - srd_id: srd059-objectstore-tools
+    symbols_used: [Opener, ConnectionConfig, bucket URL scheme selection, explicit endpoint]
   - srd_id: srd008-telemetry
     symbols_used: [OTLP exporter, stdouttrace file shape, persistent integration ingress]
   - srd_id: srd022-builtin-tools
@@ -188,5 +204,6 @@ implementation_status:
     - "`internal/tools/otlp` owns receiver state, launch, await, offline batch load, spool, relay, stop, and focused tests for the trace signal."
     - "`tools/builtin/otlp/all.yaml` declares the six OTLP trace words and registry composition."
     - "`go test ./internal/tools/otlp` proves bounded receive, await, offline load-to-relay, spool compatibility, relay identity, lifecycle cleanup, and static self-loop rejection."
+    - "R10 durable object-bucket spool storage: `spoolstore.go`, `envelope.go`, and `wal.go` add the storage port, the versioned immutable envelope, content-derived stable batch identity, and the bounded write-ahead log; the trace and metric spool words select the backend through declared `storage` configuration and reuse the srd059 objectstore opener. `go test ./internal/tools/otlp` proves object persistence, WAL-first replay, idempotence, integrity refusal, and WAL bounds on mem:// and file://, and the fake-GCS integration proves the gs:// path (GH-2475)."
   planned:
     - "R8/R9 metric intake, spool, and query (the MetricsService registration, `spool_metrics`, and metric query words) are specified here and implemented under GH-1204; the receiver is trace-only until that lands."
