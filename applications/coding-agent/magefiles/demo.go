@@ -48,6 +48,16 @@ func (Demo) Up() error {
 				return err
 			}
 			defer cleanup()
+			lease, err := kindrig.AcquireAgentCoreImageLease(
+				roots.Core, image.Reference, "coding-agent-demo")
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if releaseErr := lease.Release(); releaseErr != nil {
+					fmt.Printf("demo: release image lease failed: %v\n", releaseErr)
+				}
+			}()
 			environment := codingSmokeEnvironment{kubeconfig: kubeconfig}
 			if err := recreateCodingDemoNamespace(environment); err != nil {
 				return err

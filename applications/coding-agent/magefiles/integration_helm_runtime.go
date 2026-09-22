@@ -40,13 +40,8 @@ func prepareCodingHelmCluster(
 	if err != nil {
 		return fmt.Errorf("prepare kind workspace: %w: %s", err, strings.TrimSpace(string(output)))
 	}
-	// Every agent workload runs this one commit-addressed canonical agent-core
-	// image. Executor tools arrive separately from digest-pinned donors.
-	if err := kindrig.BuildAgentCoreImage(roots.Core, image.Reference); err != nil {
-		return &codingHelmInfrastructureError{
-			Step: "agent-core image build", Cause: err,
-		}
-	}
+	// The caller holds the canonical image lease. This function only delivers
+	// that immutable result into the cluster; it never creates an unowned tag.
 	kindRun := func(ctx context.Context, args ...string) ([]byte, error) {
 		return codingSmokeEnvironment{}.run(ctx, "kind", args...)
 	}

@@ -142,3 +142,27 @@ func TestCleanImagesRequiresKeepingARevision(t *testing.T) {
 		t.Fatal("keep=0 accepted")
 	}
 }
+
+func TestCleanImagesProtectsActiveLease(t *testing.T) {
+	d := newImageDaemon()
+	protected := fmt.Sprintf("%s:%012x", commitImageFamilies[0], 0xa00000000000)
+	previous := commitImageLeaseStatus
+	commitImageLeaseStatus = func(reference string) (bool, string) {
+		return reference == protected, "test owner"
+	}
+	t.Cleanup(func() { commitImageLeaseStatus = previous })
+
+	if err := cleanCommitImages(d.run, 3, false); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(d.removed, "\n"), protected) {
+		t.Fatalf("removed actively leased image %s", protected)
+	}
+}
+
+func TestCleanImagesTracksOnlyCanonicalFamily(t *testing.T) {
+	if len(commitImageFamilies) != 1 ||
+		commitImageFamilies[0] != "ghcr.io/nokia-bell-labs/declarative-agents/agent-core" {
+		t.Fatalf("commit image families = %v, want canonical agent-core only", commitImageFamilies)
+	}
+}

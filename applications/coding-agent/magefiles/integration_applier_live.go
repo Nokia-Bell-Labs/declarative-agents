@@ -111,8 +111,17 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 	if err != nil {
 		return err
 	}
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		roots.Core, image.Reference, codingHelmScenario+"-applier")
+	if err != nil {
+		return errors.Join(
+			&codingHelmInfrastructureError{Step: "agent-core image lease", Cause: err},
+			scenario.release(true, evidenceDir),
+		)
+	}
 	defer func() {
-		result = errors.Join(result, scenario.release(result != nil, evidenceDir))
+		releaseErr := scenario.release(result != nil, evidenceDir)
+		result = errors.Join(result, releaseErr, lease.Release())
 	}()
 	environment := scenario.environment
 	cluster := scenario.platform.Cluster
@@ -120,7 +129,7 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 	if err := checkCodingHelmInfrastructure(environment.run); err != nil {
 		return err
 	}
-	// Reuse the smoke cluster preparation verbatim: it builds and loads the one
+	// Reuse the smoke cluster preparation verbatim: it loads the leased
 	// canonical agent image, deploys the deterministic catalog mock with that
 	// image, loads tool donors, and seeds the workspace PVC the serving roles
 	// mount.
@@ -128,7 +137,7 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return classifyCodingHelmFailure(environment.run, "cluster preparation", err, true)
 	}
 
-	// prepareCodingHelmCluster already built and loaded the one agent-core image
+	// prepareCodingHelmCluster already loaded the one leased agent-core image
 	// every agent workload runs. The applier's helm and kubectl come from the
 	// pinned CLI donor, loaded once per platform node and copied into the pod's
 	// read-only /opt/tools by the cli-donor init container (GH-2222). The chart

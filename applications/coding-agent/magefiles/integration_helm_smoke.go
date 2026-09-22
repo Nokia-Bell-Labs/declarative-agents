@@ -164,8 +164,17 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 	if err != nil {
 		return err
 	}
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		roots.Core, image.Reference, codingHelmScenario)
+	if err != nil {
+		return errors.Join(
+			&codingHelmInfrastructureError{Step: "agent-core image lease", Cause: err},
+			scenario.release(true, evidenceDir),
+		)
+	}
 	defer func() {
-		result = errors.Join(result, scenario.release(result != nil, evidenceDir))
+		releaseErr := scenario.release(result != nil, evidenceDir)
+		result = errors.Join(result, releaseErr, lease.Release())
 	}()
 	environment := scenario.environment
 
