@@ -173,9 +173,9 @@ func TestCodingHelmUsesIsolatedCollectorQueryPort(t *testing.T) {
 }
 
 func TestCodingHelmCommitImagePropagatesToManifestAndDeploy(t *testing.T) {
-	image := "declarative-agents/coding-agent-smoke:0123456789ab"
-	modelImage := "declarative-agents/coding-model-smoke:0123456789ab"
-	manifest, cleanup, err := codingModelManifest(modelImage)
+	image := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0123456789ab"
+	roots, _ := canonicalDeploymentInputs(t)
+	manifest, cleanup, err := codingModelMockManifest(roots, image)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,8 +184,8 @@ func TestCodingHelmCommitImagePropagatesToManifestAndDeploy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), "image: "+modelImage) {
-		t.Fatalf("model manifest omits commit image:\n%s", data)
+	if !strings.Contains(string(data), "image: "+image) {
+		t.Fatalf("mock manifest omits canonical commit image:\n%s", data)
 	}
 
 	var helmCommand string
@@ -197,7 +197,7 @@ func TestCodingHelmCommitImagePropagatesToManifestAndDeploy(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"image.repository=declarative-agents/coding-agent-smoke",
+		"image.repository=ghcr.io/nokia-bell-labs/declarative-agents/agent-core",
 		"image.tag=0123456789ab",
 	} {
 		if !strings.Contains(helmCommand, want) {

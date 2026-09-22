@@ -221,6 +221,9 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 	if err := verifyCodingWorkspaceAndVerdict(environment); err != nil {
 		return classifyCodingHelmFailure(environment.run, "workspace and critic result", err)
 	}
+	if err := verifyLiveCodingModelMockLog(environment); err != nil {
+		return classifyCodingHelmFailure(environment.run, "model mock protocol", err)
+	}
 	if err := verifyCodingTrace(forwards.queryURL); err != nil {
 		return classifyCodingHelmFailure(environment.run, "connected trace", err)
 	}

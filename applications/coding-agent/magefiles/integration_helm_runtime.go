@@ -47,19 +47,14 @@ func prepareCodingHelmCluster(
 			Step: "agent-core image build", Cause: err,
 		}
 	}
-	if err := buildCodingHelmModelImage(images.Model); err != nil {
-		return err
-	}
 	kindRun := func(ctx context.Context, args ...string) ([]byte, error) {
 		return codingSmokeEnvironment{}.run(ctx, "kind", args...)
 	}
-	for _, image := range []string{images.Agent, images.Model} {
-		ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
-		err := kindrig.LoadImage(ctx, kindRun, cluster, image)
-		cancel()
-		if err != nil {
-			return err
-		}
+	ctx, cancel = context.WithTimeout(context.Background(), codingHelmClusterTimeout)
+	err = kindrig.LoadImage(ctx, kindRun, cluster, images.Agent)
+	cancel()
+	if err != nil {
+		return err
 	}
 	for _, image := range []string{codingHelmGoDonorImage, codingHelmLintDonorImage} {
 		if err := loadCodingDependencyImage(cluster, image); err != nil {
@@ -73,7 +68,7 @@ func prepareCodingHelmCluster(
 		filepath.Join(roots.Application, "helm", "ci", "kind-workspace.yaml")); err != nil {
 		return err
 	}
-	modelManifest, cleanup, err := codingModelManifest(images.Model)
+	modelManifest, cleanup, err := codingModelMockManifest(roots, images.Agent)
 	if err != nil {
 		return err
 	}
