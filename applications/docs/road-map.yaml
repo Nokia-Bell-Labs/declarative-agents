@@ -576,7 +576,7 @@ releases:
         note: GH-2489 (agent-core object-backed query read, WAL merge, budgets, storage status, isolation) is implemented; GH-2490 (collector wiring, retention/purge, srd020/UI, cloud IAM) remains and is partly cluster-gated.
       - order: 4
         action: Wire durable collector configuration through the shared agent-services chart (GH-2484).
-        status: planned
+        status: implemented
       - order: 5
         action: Make ingress and filesystem-backed fake GCS persistent platform services (GH-2477).
         status: planned

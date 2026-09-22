@@ -108,7 +108,26 @@
         "monitorPort": {"const": 18192},
         "queryPort": {"const": 18193},
         "resources": {"$ref": "#/definitions/resources"},
-        "progressDeadlineSeconds": {"type": "integer", "minimum": 1}
+        "progressDeadlineSeconds": {"type": "integer", "minimum": 1},
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Durable collector storage contract (srd042 R10/R11; GH-2484). Absent or backend=filesystem keeps the emptyDir NDJSON spool; backend=object wires the application bucket and a persistent WAL.",
+          "properties": {
+            "backend": {"type": "string", "enum": ["filesystem", "object"]},
+            "mode": {"type": "string", "enum": ["durable", "ephemeral"]},
+            "walMode": {"type": "string", "enum": ["persistent", "ephemeral"]},
+            "walPath": {"type": "string"},
+            "walCapacity": {"type": "string"},
+            "walStorageClass": {"type": "string"},
+            "application": {"type": "string"},
+            "namespace": {"type": "string"},
+            "bucketURL": {"type": "string"},
+            "bucketName": {"type": "string"},
+            "endpoint": {"type": "string"},
+            "prefix": {"type": "string"}
+          }
+        }
       }
     },
     "applier": {
