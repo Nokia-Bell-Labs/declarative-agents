@@ -17,6 +17,9 @@ func TestInstallFakeGCSLoadsPinnedImageAndWaitsForRollout(t *testing.T) {
 	run := func(name string, args ...string) ([]byte, error) {
 		command := strings.Join(append([]string{name}, args...), " ")
 		calls = append(calls, command)
+		if inspectFailsWithoutDigest(name, args) {
+			return []byte("No such image"), errors.New("absent")
+		}
 		if strings.HasPrefix(command, "kubectl --context kind-da-example get deployment") {
 			return []byte(`Error from server (NotFound): deployments.apps "fake-gcs" not found`), errors.New("NotFound")
 		}
@@ -44,8 +47,10 @@ func TestInstallFakeGCSLoadsPinnedImageAndWaitsForRollout(t *testing.T) {
 	want := []string{
 		"kubectl --context kind-da-example get deployment " + fakeGCSDeployment,
 		"docker image inspect --format {{.Id}} " + source,
+		"docker image inspect --format {{.Id}} " + runtimeImage,
 		"docker tag " + source + " " + runtimeImage,
 		"node-import " + runtimeImage + " da-example-control-plane linux/" + runtime.GOARCH,
+		"docker image rm " + runtimeImage,
 		"kubectl --context kind-da-example apply -f ",
 		"kubectl --context kind-da-example rollout status deployment/" + fakeGCSDeployment +
 			" --namespace " + fakeGCSNamespace + " --timeout=180s",

@@ -17,6 +17,9 @@ func TestInstallMetricsServerLoadsPinnedImageAndWaitsForAPI(t *testing.T) {
 	run := func(name string, args ...string) ([]byte, error) {
 		command := strings.Join(append([]string{name}, args...), " ")
 		calls = append(calls, command)
+		if inspectFailsWithoutDigest(name, args) {
+			return []byte("No such image"), errors.New("absent")
+		}
 		if strings.HasPrefix(command, "kubectl --context kind-da-example get apiservice") {
 			return []byte("Error from server (NotFound): apiservices.apiregistration.k8s.io"), errors.New("NotFound")
 		}
@@ -44,8 +47,10 @@ func TestInstallMetricsServerLoadsPinnedImageAndWaitsForAPI(t *testing.T) {
 	want := []string{
 		"kubectl --context kind-da-example get apiservice " + metricsAPIService,
 		"docker image inspect --format {{.Id}} " + source,
+		"docker image inspect --format {{.Id}} " + runtimeImage,
 		"docker tag " + source + " " + runtimeImage,
 		"node-import " + runtimeImage + " da-example-control-plane linux/" + runtime.GOARCH,
+		"docker image rm " + runtimeImage,
 		"kubectl --context kind-da-example apply -f ",
 		"kubectl --context kind-da-example rollout status deployment/metrics-server --namespace kube-system --timeout=180s",
 		"kubectl --context kind-da-example wait --for=condition=Available apiservice/" + metricsAPIService + " --timeout=180s",
@@ -135,7 +140,9 @@ func TestInstallMetricsServerPullsOnlyAbsentImageAndCleansUpOnFailure(t *testing
 		switch {
 		case strings.HasPrefix(call, "kubectl --context kind-da-example get apiservice"):
 			return []byte("NotFound"), errors.New("NotFound")
-		case strings.HasPrefix(call, "docker image inspect"):
+		case strings.HasPrefix(call, "docker image inspect") && strings.Contains(call, source):
+			return []byte("No such image"), errors.New("absent")
+		case inspectFailsWithoutDigest(name, args):
 			return []byte("No such image"), errors.New("absent")
 		case strings.HasPrefix(call, "kubectl --context kind-da-example rollout status"):
 			return []byte("timed out"), errors.New("rollout failed")

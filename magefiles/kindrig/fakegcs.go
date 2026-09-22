@@ -65,17 +65,25 @@ func InstallFakeGCS(run CommandRunner, cluster string) (func() error, error) {
 		return nil, err
 	}
 	runtimeImage := fakeGCSRuntimeRepository + ":" + fakeGCSImageVersion
-	manifest := strings.ReplaceAll(fakeGCSKindManifest, fakeGCSImagePlaceholder, runtimeImage)
+	manifest, err := SubstitutePinnedImage(fakeGCSKindManifest, fakeGCSImagePlaceholder, runtimeImage)
+	if err != nil {
+		return nil, err
+	}
 	path, removeFile, err := writeFakeGCSManifest(manifest)
 	if err != nil {
 		return nil, err
 	}
-	steps := append(pinnedImageSteps(run, cluster, sourceImage, runtimeImage),
-		installStep{"manifest-apply", []string{"kubectl", "apply", "-f", path}},
-		installStep{"rollout", []string{"kubectl", "rollout", "status",
+	if err := importPinnedImage(run, cluster, "fake-gcs-server", sourceImage, runtimeImage); err != nil {
+		_ = deleteFakeGCSManifest(run, cluster, path)
+		removeFile()
+		return nil, err
+	}
+	steps := []installStep{
+		{"manifest-apply", []string{"kubectl", "apply", "-f", path}},
+		{"rollout", []string{"kubectl", "rollout", "status",
 			"deployment/" + fakeGCSDeployment,
 			"--namespace", fakeGCSNamespace, "--timeout=180s"}},
-	)
+	}
 	if err := runInstallSteps(run, cluster, "fake-gcs-server", steps); err != nil {
 		_ = deleteFakeGCSManifest(run, cluster, path)
 		removeFile()

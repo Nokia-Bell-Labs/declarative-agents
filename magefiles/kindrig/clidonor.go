@@ -32,8 +32,7 @@ func EnsureCLIDonorImage(run CommandRunner, cluster string) error {
 	if strings.TrimSpace(cluster) == "" {
 		return fmt.Errorf("ensure CLI donor: kind cluster name is required")
 	}
-	steps := pinnedImageSteps(run, cluster, CLIDonorImage, CLIDonorRuntimeImage)
-	if err := runInstallSteps(run, cluster, "cli-donor", steps); err != nil {
+	if err := importPinnedImage(run, cluster, "cli-donor", CLIDonorImage, CLIDonorRuntimeImage); err != nil {
 		return fmt.Errorf("ensure CLI donor: %w", err)
 	}
 	return nil

@@ -125,6 +125,9 @@ func TestInstallIngressReusesLocalPinnedImageAndWaitsForDeployment(t *testing.T)
 	var applied string
 	run := func(name string, args ...string) ([]byte, error) {
 		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
+		if inspectFailsWithoutDigest(name, args) {
+			return []byte("No such image"), errors.New("absent")
+		}
 		if name == "kubectl" && appliedManifestPath(args) != "" {
 			data, err := os.ReadFile(appliedManifestPath(args))
 			if err != nil {
@@ -144,8 +147,10 @@ func TestInstallIngressReusesLocalPinnedImageAndWaitsForDeployment(t *testing.T)
 	runtimeImage := traefikRuntimeRepository + ":" + traefikImageVersion
 	wantCalls := []string{
 		"docker image inspect --format {{.Id}} " + image,
+		"docker image inspect --format {{.Id}} " + runtimeImage,
 		"docker tag " + image + " " + runtimeImage,
 		"node-import " + runtimeImage + " da-example-demo-control-plane linux/" + runtime.GOARCH,
+		"docker image rm " + runtimeImage,
 		"kubectl --context kind-da-example-demo apply -f ",
 		"kubectl --context kind-da-example-demo rollout status deployment/traefik --namespace traefik --timeout=180s",
 	}
@@ -184,7 +189,10 @@ func TestInstallIngressPullsPinnedImageOnlyWhenAbsent(t *testing.T) {
 	run := func(name string, args ...string) ([]byte, error) {
 		call := strings.Join(append([]string{name}, args...), " ")
 		calls = append(calls, call)
-		if strings.HasPrefix(call, "docker image inspect") {
+		if strings.HasPrefix(call, "docker image inspect") && strings.Contains(call, image) {
+			return []byte("No such image"), errors.New("absent")
+		}
+		if inspectFailsWithoutDigest(name, args) {
 			return []byte("No such image"), errors.New("absent")
 		}
 		return nil, nil
