@@ -12,11 +12,10 @@ import (
 )
 
 const (
-	metricsServerImageRepository   = "registry.k8s.io/metrics-server/metrics-server"
-	metricsServerRuntimeRepository = "kindrig/metrics-server"
-	metricsServerImageVersion      = "v0.9.0"
-	metricsServerImagePlaceholder  = "KINDRIG_METRICS_SERVER_IMAGE"
-	metricsAPIService              = "v1beta1.metrics.k8s.io"
+	metricsServerImageRepository  = "registry.k8s.io/metrics-server/metrics-server"
+	metricsServerImageVersion     = "v0.9.0"
+	metricsServerImagePlaceholder = "KINDRIG_METRICS_SERVER_IMAGE"
+	metricsAPIService             = "v1beta1.metrics.k8s.io"
 )
 
 var metricsServerImageDigests = map[string]string{
@@ -49,7 +48,7 @@ func InstallMetricsServer(run CommandRunner, cluster string) (func() error, erro
 	if err != nil {
 		return nil, err
 	}
-	runtimeImage := metricsServerRuntimeRepository + ":" + metricsServerImageVersion
+	runtimeImage := metricsServerRuntimeImage()
 	manifest, err := SubstitutePinnedImage(
 		metricsServerKindManifest, metricsServerImagePlaceholder, runtimeImage)
 	if err != nil {
@@ -100,6 +99,10 @@ func metricsServerImage(arch string) (string, error) {
 			metricsServerImageVersion, arch)
 	}
 	return metricsServerImageRepository + ":" + metricsServerImageVersion + "@" + digest, nil
+}
+
+func metricsServerRuntimeImage() string {
+	return NormalizeNodeImageReference(metricsServerImageRepository + ":" + metricsServerImageVersion)
 }
 
 func writeMetricsManifest(manifest string) (string, func(), error) {

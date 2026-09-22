@@ -134,6 +134,22 @@ func TestImportPinnedImageSkipsPullAndRemovesCreatedHostTag(t *testing.T) {
 	}
 }
 
+func TestImportPinnedImageRetainsCanonicalUpstreamTag(t *testing.T) {
+	source := "docker.io/library/traefik:v3.7.10@sha256:" + strings.Repeat("a", 64)
+	host := "docker.io/library/traefik:v3.7.10"
+	daemon := newPinnedImageDaemon(source)
+	if err := importPinnedImage(daemon.run, "da-platform", "traefik", source, host); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(daemon.calls, "\n")
+	if strings.Contains(joined, "docker image rm ") {
+		t.Fatalf("canonical tag was untagged: %v", daemon.calls)
+	}
+	if !daemon.images[source] || !daemon.images[host] {
+		t.Fatalf("canonical pin missing after import: %v", daemon.images)
+	}
+}
+
 func TestImportPinnedImagePullsAbsentSourceThenUntags(t *testing.T) {
 	source := "docker.io/library/traefik:v3.7.10@sha256:" + strings.Repeat("c", 64)
 	host := "kindrig/traefik:v3.7.10"
@@ -222,5 +238,15 @@ func TestPinnedImageStepsMatchImportOrder(t *testing.T) {
 	}
 	if got := strings.Join(steps[1].command, " "); !strings.Contains(got, HostPlatform()) {
 		t.Fatalf("load command missing host platform: %s", got)
+	}
+}
+
+func TestPinnedImageStepsRetainCanonicalUpstreamTag(t *testing.T) {
+	source := "docker.io/library/traefik:v3.7.10@sha256:" + strings.Repeat("1", 64)
+	host := "docker.io/library/traefik:v3.7.10"
+	daemon := newPinnedImageDaemon(source)
+	steps := pinnedImageSteps(daemon.run, "da-platform", source, host)
+	if len(steps) != 2 || steps[0].phase != "image-tag" || steps[1].phase != "image-load" {
+		t.Fatalf("steps = %#v, want tag and load without untag", steps)
 	}
 }

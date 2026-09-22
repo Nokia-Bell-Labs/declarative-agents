@@ -356,7 +356,7 @@ func PlatformConformance(run CommandRunner, cluster string) (result error) {
 	}()
 
 	manifest := strings.ReplaceAll(platformConformanceManifest,
-		traefikImagePlaceholder, traefikRuntimeRepository+":"+traefikImageVersion)
+		traefikImagePlaceholder, traefikRuntimeImage())
 	manifest = strings.ReplaceAll(manifest, platformHostPlaceholder, platformConformanceHost)
 	path, removeManifest, err := writeTempManifest("kindrig-platform-conformance-*.yaml", manifest)
 	if err != nil {

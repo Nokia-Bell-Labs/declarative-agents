@@ -83,6 +83,28 @@ type installStep struct {
 	command []string
 }
 
+func tagWithoutDigest(ref string) string {
+	name, tag, _ := splitReference(strings.TrimSpace(ref))
+	if name == "" {
+		return strings.TrimSpace(ref)
+	}
+	if tag == "" {
+		return name
+	}
+	return name + ":" + tag
+}
+
+// transientHostImport is a rig-owned alias distinct from the source's
+// repository and version tag. Canonical upstream tags are retained pins, not
+// aliases, so import must not untag them.
+func transientHostImport(source, hostImport string) bool {
+	source, hostImport = strings.TrimSpace(source), strings.TrimSpace(hostImport)
+	if source == "" || hostImport == "" || hostImport == source {
+		return false
+	}
+	return hostImport != tagWithoutDigest(source)
+}
+
 func dockerImagePresent(run CommandRunner, image string) bool {
 	_, err := run("docker", "image", "inspect", "--format", "{{.Id}}", image)
 	return err == nil
@@ -92,10 +114,11 @@ func runPhase(run CommandRunner, cluster, component, phase string, command []str
 	return runInstallSteps(run, cluster, component, []installStep{{phase: phase, command: command}})
 }
 
-// importPinnedImage pulls a digest-pinned source if needed, tags a host-only
-// import name when that tag is absent, imports the host platform into the
-// node, and removes a host tag this run created. A pre-existing host tag and
-// the source digest stay. Import failure rolls back a tag this run created.
+// importPinnedImage pulls a digest-pinned source if needed, tags a host
+// import name when that tag is absent, and imports the host platform into
+// the node. A transient alias this run created is removed after import; the
+// canonical upstream tag and the source digest stay. Import failure rolls
+// back a transient tag this run created.
 func importPinnedImage(
 	run CommandRunner, cluster, component, sourceImage, hostImport string,
 ) error {
@@ -120,7 +143,7 @@ func importPinnedImage(
 			return err
 		}
 		defer func() {
-			if !imported && refs.HostImport != refs.Source {
+			if !imported && transientHostImport(refs.Source, refs.HostImport) {
 				_, _ = run("docker", "image", "rm", refs.HostImport)
 			}
 		}()
@@ -130,7 +153,7 @@ func importPinnedImage(
 		return err
 	}
 	imported = true
-	if createdHostImport && refs.HostImport != refs.Source {
+	if createdHostImport && transientHostImport(refs.Source, refs.HostImport) {
 		if err := runPhase(run, cluster, component, "image-untag",
 			[]string{"docker", "image", "rm", refs.HostImport}); err != nil {
 			return err
@@ -158,8 +181,10 @@ func pinnedImageSteps(run CommandRunner, cluster, sourceImage, hostImport string
 		steps = append(steps,
 			installStep{"image-tag", []string{"docker", "tag", refs.Source, refs.HostImport}},
 			installStep{"image-load", nodeImportCommand(refs.HostImport, cluster)},
-			installStep{"image-untag", []string{"docker", "image", "rm", refs.HostImport}},
 		)
+		if transientHostImport(refs.Source, refs.HostImport) {
+			steps = append(steps, installStep{"image-untag", []string{"docker", "image", "rm", refs.HostImport}})
+		}
 		return steps
 	}
 	return append(steps, installStep{"image-load", nodeImportCommand(refs.HostImport, cluster)})
