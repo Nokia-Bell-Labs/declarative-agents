@@ -23,6 +23,10 @@ applications/*/helm/charts/
 
 # Release-run kind evidence (da-platform diagnostics, GH-2215)
 /build/
+# The checked-in apprig fixture writes rendered deploy credentials and live
+# diagnosis evidence beside itself; both are generated and may contain a
+# private kubeconfig.
+/magefiles/apprig/testdata/lifecycle-fixture/build/
 
 # Operator-local GCP rig configuration; names a real project (eng08).
 gcp.yaml

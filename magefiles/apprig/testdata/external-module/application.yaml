@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+schema_version: 1
+application: downstream-fixture
+ownership: composition-only
+deployment:
+  entries:
+    - id: fixture
+      workload: fixture
+      profile_path: agents/fixture/profile.yaml

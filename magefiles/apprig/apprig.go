@@ -20,10 +20,10 @@
 //
 // The exported surface downstream modules pin is: Manifest and LoadManifest;
 // PlatformBinding, Resolved, and Resolve; DetectCollisions and Collision;
-// StatusReport, ComponentStatus, StatusProbes, and AggregateStatus. These
-// follow the root Mage module's version. A field or function is removed only
-// after one release deprecating it; new optional fields and probes are added
-// without a major bump.
+// StatusReport, ComponentStatus, StatusProbes, and AggregateStatus; and Runner,
+// Preparation, and ErrPurgeUnavailable. These follow the root Mage module's
+// version. A field or function is removed only after one release deprecating
+// it; new optional fields, hooks, and probes are added without a major bump.
 package apprig
 
 // APIVersion is the stable-surface revision downstream modules can assert

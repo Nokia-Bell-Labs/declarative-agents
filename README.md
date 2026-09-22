@@ -176,6 +176,28 @@ lifecycle-exit flow but does not copy or recount the documentation-curator.
 Setup, ports, and the declarative exit command are documented in the
 [application README](applications/agent-architecture/README.md).
 
+## Shared application lifecycle
+
+`magefiles/apprig` is the versioned Go package for applications running on the
+persistent `da-platform`. The root fixture demonstrates the lifecycle:
+
+```bash
+mage platform:up
+mage app:up
+mage app:status
+mage app:diagnose
+mage app:down
+```
+
+Applications and downstream repositories expose the same five thin Mage
+targets by constructing `apprig.Runner` with their typed preparation,
+verification, status, and agent-resolution callbacks. Deploy, undeploy,
+diagnosis, namespace ordering, and purge authority remain shared; callers do
+not copy those workflows. The independently compiled example is under
+[`magefiles/apprig/testdata/external-module/`](magefiles/apprig/testdata/external-module/).
+`app:purge` fails closed until the runner is bound to the separately approved
+destructive authority.
+
 ## Contact
 
 Questions about the framework or the white paper: [Petar Djukic](https://github.com/petar-djukic).

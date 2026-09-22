@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+apiVersion: v2
+name: apprig-fixture
+description: Minimal live fixture for the reusable application lifecycle
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

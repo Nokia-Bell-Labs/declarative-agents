@@ -89,6 +89,10 @@ func (h *platformHarness) options() PlatformOptions {
 			return h.commandFn, func() { h.unbound = true }, nil
 		},
 		EvidenceDirectory: h.evidence,
+		// Harness tests exercise lifecycle sequencing with fake kind/cluster
+		// runners. Never let a real, concurrently running da-platform's host
+		// ports alter those pure test outcomes.
+		PortProbe: func(int) bool { return false },
 		boot: func(CommandRunner, string) error {
 			h.order = append(h.order, "boot")
 			return h.bootErr
