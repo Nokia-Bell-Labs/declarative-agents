@@ -86,3 +86,38 @@ func TestDeploymentAndApplicationHealthProbes(t *testing.T) {
 		t.Errorf("degraded application detail does not name the workload: %q", apps[0].Detail)
 	}
 }
+
+// bucketAwareRunner answers fake-GCS reads with per-bucket content, so the
+// isolation check sees each bucket return only its own object.
+func bucketAwareRunner(content map[string]string) CommandRunner {
+	return func(name string, args ...string) ([]byte, error) {
+		joined := strings.Join(args, " ")
+		for bucket, body := range content {
+			if strings.Contains(joined, "/b/"+bucket+"/o/") && strings.Contains(joined, "alt=media") {
+				return []byte(body), nil
+			}
+		}
+		return []byte("{}"), nil
+	}
+}
+
+// #2477 R5, AC6: two application buckets holding the same key never cross-read;
+// verifyObjectStorage passes when each returns its own bytes and refuses when a
+// bucket returns the other's.
+func TestVerifyObjectStorageProvesBucketIsolation(t *testing.T) {
+	isolated := bucketAwareRunner(map[string]string{
+		"conformance-app-a": "alpha-bucket-a",
+		"conformance-app-b": "beta-bucket-b",
+	})
+	if err := verifyObjectStorage(isolated, PlatformClusterName); err != nil {
+		t.Fatalf("isolated buckets refused: %v", err)
+	}
+	crossed := bucketAwareRunner(map[string]string{
+		"conformance-app-a": "same-bytes",
+		"conformance-app-b": "same-bytes",
+	})
+	err := verifyObjectStorage(crossed, PlatformClusterName)
+	if err == nil || !strings.Contains(err.Error(), "not isolated") {
+		t.Fatalf("cross-read was not caught: %v", err)
+	}
+}

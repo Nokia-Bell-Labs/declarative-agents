@@ -51,6 +51,14 @@ var platformConformanceManifest string
 //go:embed platform-tracing.yaml
 var platformTracingConfig []byte
 
+//go:embed fake-gcs-conformance-ingress.yaml
+var fakeGCSConformanceIngress string
+
+const (
+	objectStoreConformanceHost = "objectstore-conformance.localhost"
+	objectStoreHostPlaceholder = "KINDRIG_OBJECTSTORE_HOST"
+)
+
 // PlatformOptions configures StartPlatform. The zero value streams kind output,
 // binds commands to a private kubeconfig for da-platform, and captures no
 // failure evidence.
@@ -545,6 +553,10 @@ func PlatformConformance(run CommandRunner, cluster string) (result error) {
 			platformConformanceHost, err)
 	}
 
+	if err := conformanceObjectStorage(run, cluster); err != nil {
+		return fmt.Errorf("object storage: %w", err)
+	}
+
 	released = true
 	if err := namespace.Release(); err != nil {
 		return fmt.Errorf("namespace churn: %w", err)
@@ -568,6 +580,129 @@ func PlatformCommandBinding(cluster string) (CommandRunner, func(), error) {
 		return nil, nil, err
 	}
 	return boundedCommandRunner(commands.RunContext, platformCommandTimeout), cleanup, nil
+}
+
+// conformanceObjectStorage is the object-storage conformance step, a package
+// var so the pure check-sequencing tests stub it while the live path and the
+// focused isolation test exercise verifyObjectStorage itself.
+var conformanceObjectStorage = verifyObjectStorage
+
+// verifyObjectStorage proves the fake-GCS platform service does real object
+// work and keeps application buckets isolated (#2477 R4, R5; srd008 R6.1). It
+// routes fake-GCS through Traefik on a conformance host, then through the same
+// node curl the ingress check uses: it provisions two application buckets,
+// writes the same key to each, and proves a read of one never returns the
+// other's bytes (AC6). It removes the ingress and the conformance buckets on
+// every exit path, so the retained store is unchanged by the check.
+func verifyObjectStorage(run CommandRunner, cluster string) (result error) {
+	manifest := strings.ReplaceAll(fakeGCSConformanceIngress, objectStoreHostPlaceholder, objectStoreConformanceHost)
+	path, removeManifest, err := writeTempManifest("kindrig-fake-gcs-conformance-*.yaml", manifest)
+	if err != nil {
+		return err
+	}
+	defer removeManifest()
+	if err := runChecked(run, "kubectl", "apply", "-f", path); err != nil {
+		return fmt.Errorf("apply object-storage ingress: %w", err)
+	}
+	defer func() {
+		result = errors.Join(result, runChecked(run, "kubectl", "delete", "-f", path, "--ignore-not-found"))
+	}()
+
+	// The two application buckets one platform provisions per srd008 R4/R6.1.
+	bucketA, bucketB := "conformance-app-a", "conformance-app-b"
+	defer func() {
+		result = errors.Join(result, purgeConformanceBucket(run, cluster, bucketA),
+			purgeConformanceBucket(run, cluster, bucketB))
+	}()
+	if _, err := objectStoreCurl(run, cluster, 30, "-X", "GET",
+		objectStoreURL("/storage/v1/b?project=conformance")); err != nil {
+		return fmt.Errorf("fake-GCS did not answer through the ingress: %w", err)
+	}
+	for _, bucket := range []string{bucketA, bucketB} {
+		if _, err := objectStoreCurl(run, cluster, 3, "-X", "POST",
+			"-H", "Content-Type: application/json",
+			"--data", fmt.Sprintf(`{"name":%q}`, bucket),
+			objectStoreURL("/storage/v1/b?project=conformance")); err != nil {
+			return fmt.Errorf("provision bucket %s: %w", bucket, err)
+		}
+	}
+	if err := writeObject(run, cluster, bucketA, "shared/key.txt", "alpha-bucket-a"); err != nil {
+		return err
+	}
+	if err := writeObject(run, cluster, bucketB, "shared/key.txt", "beta-bucket-b"); err != nil {
+		return err
+	}
+	return assertNoCrossRead(run, cluster, bucketA, bucketB)
+}
+
+// assertNoCrossRead reads the same key from each bucket and refuses if either
+// returns the other's bytes: the two application buckets are isolated (AC6).
+func assertNoCrossRead(run CommandRunner, cluster, bucketA, bucketB string) error {
+	got, err := readObject(run, cluster, bucketA, "shared/key.txt")
+	if err != nil {
+		return err
+	}
+	if got != "alpha-bucket-a" {
+		return fmt.Errorf("bucket %s returned %q, not its own object; buckets are not isolated", bucketA, got)
+	}
+	got, err = readObject(run, cluster, bucketB, "shared/key.txt")
+	if err != nil {
+		return err
+	}
+	if got != "beta-bucket-b" {
+		return fmt.Errorf("bucket %s returned %q, not its own object; buckets are not isolated", bucketB, got)
+	}
+	return nil
+}
+
+func objectStoreURL(pathAndQuery string) string {
+	return "http://127.0.0.1" + pathAndQuery
+}
+
+// objectStoreCurl runs one curl against fake-GCS through the Traefik host on
+// the node's port 80, the same reachability the echo conformance uses.
+func objectStoreCurl(run CommandRunner, cluster string, retries int, args ...string) (string, error) {
+	base := []string{"exec", cluster + "-control-plane", "curl", "--fail", "--silent", "--show-error",
+		"--max-time", "5", "--retry", fmt.Sprintf("%d", retries), "--retry-delay", "1", "--retry-all-errors",
+		"-H", "Host: " + objectStoreConformanceHost}
+	out, err := run("docker", append(base, args...)...)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
+
+func writeObject(run CommandRunner, cluster, bucket, key, content string) error {
+	url := objectStoreURL(fmt.Sprintf("/upload/storage/v1/b/%s/o?uploadType=media&name=%s", bucket, key))
+	if _, err := objectStoreCurl(run, cluster, 3, "-X", "POST",
+		"-H", "Content-Type: text/plain", "--data", content, url); err != nil {
+		return fmt.Errorf("write %s/%s: %w", bucket, key, err)
+	}
+	return nil
+}
+
+func readObject(run CommandRunner, cluster, bucket, key string) (string, error) {
+	escaped := strings.ReplaceAll(key, "/", "%2F")
+	url := objectStoreURL(fmt.Sprintf("/storage/v1/b/%s/o/%s?alt=media", bucket, escaped))
+	out, err := objectStoreCurl(run, cluster, 3, "-X", "GET", url)
+	if err != nil {
+		return "", fmt.Errorf("read %s/%s: %w", bucket, key, err)
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// purgeConformanceBucket removes the conformance object and bucket so the
+// retained store carries no conformance residue between runs. It ignores
+// not-found so a partial run still cleans up.
+func purgeConformanceBucket(run CommandRunner, cluster, bucket string) error {
+	object := objectStoreURL(fmt.Sprintf("/storage/v1/b/%s/o/%s", bucket, "shared%2Fkey.txt"))
+	_, _ = objectStoreCurl(run, cluster, 1, "-X", "DELETE", object)
+	if _, err := objectStoreCurl(run, cluster, 1, "-X", "DELETE",
+		objectStoreURL("/storage/v1/b/"+bucket)); err != nil {
+		// A bucket that never got created is not a cleanup failure.
+		return nil
+	}
+	return nil
 }
 
 func (o PlatformOptions) withDefaults() PlatformOptions {

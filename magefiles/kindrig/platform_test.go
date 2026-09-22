@@ -200,7 +200,17 @@ func conformanceCluster() *fakeCluster {
 	}}
 }
 
+// stubObjectStorageConformance replaces the live object-storage check with a
+// no-op for the tests that assert the other checks' ordering and cleanup.
+func stubObjectStorageConformance(t *testing.T) {
+	t.Helper()
+	previous := conformanceObjectStorage
+	conformanceObjectStorage = func(CommandRunner, string) error { return nil }
+	t.Cleanup(func() { conformanceObjectStorage = previous })
+}
+
 func TestPlatformConformanceRunsChecksInOrder(t *testing.T) {
+	stubObjectStorageConformance(t)
 	cluster := conformanceCluster()
 	if err := PlatformConformance(cluster.run, PlatformClusterName); err != nil {
 		t.Fatal(err)
@@ -241,6 +251,7 @@ func TestPlatformConformanceNamesFailedCheckAndCleansUp(t *testing.T) {
 		{"docker exec", "ingress route"},
 		{"kubectl wait --for=delete persistentvolume", "namespace churn"},
 	}
+	stubObjectStorageConformance(t)
 	for _, test := range tests {
 		t.Run(test.want, func(t *testing.T) {
 			cluster := conformanceCluster()
