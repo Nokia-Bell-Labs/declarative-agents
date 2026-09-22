@@ -403,6 +403,16 @@ func isKindrigName(name string) bool {
 	return strings.HasPrefix(name, "kindrig/") || strings.Contains(name, "/kindrig/")
 }
 
+// KindrigAliasDiagnosis explains why a retired kindrig name must be recovered
+// explicitly rather than swept by clean:images.
+func KindrigAliasDiagnosis(ref string) string {
+	name, _, _ := splitReference(strings.TrimSpace(ref))
+	if !isKindrigName(strings.ToLower(name)) {
+		return ""
+	}
+	return "retired kindrig alias; recover with docker image rm after confirming no cluster uses it"
+}
+
 func lastComponent(name string) string {
 	if i := strings.LastIndex(name, "/"); i >= 0 {
 		return name[i+1:]

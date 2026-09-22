@@ -20,32 +20,26 @@ import (
 // CLEAN groups repository-wide extensions under the existing clean target.
 type CLEAN mg.Namespace
 
-// commitImageFamilies are host repositories clean:images may delete by
-// untyped 12-hex tag. Typed localhost/declarative-agents references are
-// owned by image leases, not this sweeper. :local tags, third-party images,
-// and every other repository are never touched. The applier families retired
-// with the CLI donor (GH-2222); their remaining local copies are removed by
-// hand with docker image rm.
-var commitImageFamilies = []string{
-	"ghcr.io/nokia-bell-labs/declarative-agents/agent-core",
-}
-
 const (
 	rigIdentityLabelPrefix = "io.declarative-agents."
 	imageSourceLabel       = "org.opencontainers.image.source"
 	rigImageSource         = "declarative-agents"
+	retiredAgentCorePrefix = "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:"
 )
 
-var commitImageTag = regexp.MustCompile(`^[0-9a-f]{12}$`)
-var commitImageLeaseStatus = kindrig.ImageLeaseStatus
+var (
+	commitImageTag          = regexp.MustCompile(`^[0-9a-f]{12}$`)
+	commitImageLeaseStatus  = kindrig.ImageLeaseStatus
+	cleanImageReconcile     = kindrig.ReconcileImageLeases
+	isConfiguredUpstreamPin = kindrig.IsConfiguredUpstreamPin
+)
 
-// Images removes commit-tagged local images older than the newest keep
-// revisions of each rig image family (GH-2215). Revisions are ordered by image
-// creation time. The identity labels the rig's image builds write confirm an
-// image is rig-built; an unlabeled image falls back to the commit-tag pattern;
-// a labeled image naming another source is ambiguous and kept. Images a
-// container still uses fail to remove and are reported. No release gate runs
-// this; it is an operator target.
+// Images recovers host copies the lifecycle classification no longer retains
+// (GH-2510). It reconciles leases against live kind clusters, removes unleased
+// typed local images while keeping the newest keep revisions of each
+// role/component, retains configured upstream pins, and diagnoses retired
+// kindrig or untyped leftovers for explicit recovery. It is not docker image
+// prune. No release gate runs it.
 func (CLEAN) Images(keep int) error {
 	return cleanCommitImages(dockerImageRunner, keep, false)
 }
@@ -58,14 +52,17 @@ func (CLEAN) ImagesDryRun(keep int) error {
 // ImageLeaseRecover explicitly recovers a force-killed integration's lease.
 // It retains the image-ID and container-use guards; unlike normal cleanup it
 // intentionally disregards recorded owners, so operators must name the exact
-// canonical reference after confirming those owners are dead.
+// typed local reference after confirming those owners are dead. Upstream pins
+// are not recovered this way.
 func (CLEAN) ImageLeaseRecover(reference string) error {
-	if !strings.HasPrefix(reference,
-		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:") {
-		return fmt.Errorf("clean:imageLeaseRecover accepts only canonical agent-core references, got %q",
-			reference)
+	class, normalized, err := kindrig.ClassifyLeaseImage(reference)
+	if err != nil {
+		return fmt.Errorf("clean:imageLeaseRecover: %w", err)
 	}
-	return kindrig.RecoverAgentCoreImageLease(reference)
+	if class == kindrig.UpstreamImageClass {
+		return fmt.Errorf("clean:imageLeaseRecover does not remove upstream pins, got %s", normalized)
+	}
+	return kindrig.RecoverAgentCoreImageLease(normalized)
 }
 
 type imageCommandRunner func(args ...string) ([]byte, error)
@@ -76,6 +73,7 @@ func dockerImageRunner(args ...string) ([]byte, error) {
 
 type commitImage struct {
 	ref     string
+	family  string
 	created time.Time
 	labels  map[string]string
 }
@@ -84,21 +82,45 @@ func cleanCommitImages(run imageCommandRunner, keep int, dryRun bool) error {
 	if keep < 1 {
 		return fmt.Errorf("clean:images keeps at least one revision per family, got %d", keep)
 	}
-	var removals []string
-	for _, family := range commitImageFamilies {
-		images, err := listCommitImages(run, family)
-		if err != nil {
-			return err
-		}
-		removals = append(removals, selectImageRemovals(images, keep)...)
+	if err := cleanImageReconcile(); err != nil {
+		return fmt.Errorf("clean:images: reconcile image leases: %w", err)
 	}
+	listed, err := listHostImageReferences(run)
+	if err != nil {
+		return err
+	}
+	var (
+		locals   []commitImage
+		failures []error
+	)
+	for _, ref := range listed {
+		if diagnosis := retiredImageDiagnosis(ref); diagnosis != "" {
+			fmt.Printf("clean:images: diagnose %s: %s\n", ref, diagnosis)
+			continue
+		}
+		if isConfiguredUpstreamPin(ref) {
+			fmt.Printf("clean:images: keeping %s: configured upstream pin\n", ref)
+			continue
+		}
+		local, err := kindrig.ParseLocal(ref)
+		if err != nil {
+			continue
+		}
+		detail, err := inspectHostImage(run, ref)
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		detail.family = string(local.Role) + "/" + local.Component
+		locals = append(locals, detail)
+	}
+	removals := selectImageRemovals(locals, keep)
 	verb := "removing"
 	if dryRun {
 		verb = "would remove"
 	}
-	fmt.Printf("clean:images: %s %d commit-tagged image(s), keeping the newest %d revision(s) per family\n",
+	fmt.Printf("clean:images: %s %d typed local image(s), keeping the newest %d revision(s) per role/component\n",
 		verb, len(removals), keep)
-	var failures []error
 	for _, ref := range removals {
 		fmt.Printf("  %s %s\n", verb, ref)
 		if dryRun {
@@ -112,42 +134,64 @@ func cleanCommitImages(run imageCommandRunner, keep int, dryRun bool) error {
 	return errors.Join(failures...)
 }
 
-// listCommitImages returns the family's tags shaped like a commit revision,
-// with the creation time and revision label of the image each names.
-func listCommitImages(run imageCommandRunner, family string) ([]commitImage, error) {
-	output, err := run("image", "ls", "--format", "{{.Tag}}", family)
+func listHostImageReferences(run imageCommandRunner) ([]string, error) {
+	output, err := run("image", "ls", "--format", "{{.Repository}}:{{.Tag}}")
 	if err != nil {
-		return nil, fmt.Errorf("list %s images: %w: %s", family, err, strings.TrimSpace(string(output)))
+		return nil, fmt.Errorf("list host images: %w: %s", err, strings.TrimSpace(string(output)))
 	}
-	var images []commitImage
-	for _, tag := range strings.Fields(string(output)) {
-		if !commitImageTag.MatchString(tag) {
+	var refs []string
+	seen := map[string]bool{}
+	for _, ref := range strings.Fields(string(output)) {
+		if ref == "" || strings.Contains(ref, "<none>") || seen[ref] {
 			continue
 		}
-		ref := family + ":" + tag
-		detail, err := run("image", "inspect", "--format",
-			"{{.Created}}|{{json .Config.Labels}}", ref)
-		if err != nil {
-			return nil, fmt.Errorf("inspect %s: %w: %s", ref, err, strings.TrimSpace(string(detail)))
-		}
-		created, rawLabels, _ := strings.Cut(strings.TrimSpace(string(detail)), "|")
-		when, err := time.Parse(time.RFC3339Nano, created)
-		if err != nil {
-			return nil, fmt.Errorf("inspect %s: creation time %q: %w", ref, created, err)
-		}
-		var labels map[string]string
-		if err := json.Unmarshal([]byte(rawLabels), &labels); err != nil {
-			return nil, fmt.Errorf("inspect %s: labels %q: %w", ref, rawLabels, err)
-		}
-		images = append(images, commitImage{ref: ref, created: when, labels: labels})
+		seen[ref] = true
+		refs = append(refs, ref)
 	}
-	return images, nil
+	return refs, nil
 }
 
-// selectImageRemovals keeps the newest keep revisions and returns the rest,
-// oldest last. An image whose provenance is ambiguous is kept and reported.
+func inspectHostImage(run imageCommandRunner, ref string) (commitImage, error) {
+	detail, err := run("image", "inspect", "--format",
+		"{{.Created}}|{{json .Config.Labels}}", ref)
+	if err != nil {
+		return commitImage{}, fmt.Errorf("inspect %s: %w: %s", ref, err, strings.TrimSpace(string(detail)))
+	}
+	created, rawLabels, _ := strings.Cut(strings.TrimSpace(string(detail)), "|")
+	when, err := time.Parse(time.RFC3339Nano, created)
+	if err != nil {
+		return commitImage{}, fmt.Errorf("inspect %s: creation time %q: %w", ref, created, err)
+	}
+	var labels map[string]string
+	if err := json.Unmarshal([]byte(rawLabels), &labels); err != nil {
+		return commitImage{}, fmt.Errorf("inspect %s: labels %q: %w", ref, rawLabels, err)
+	}
+	return commitImage{ref: ref, created: when, labels: labels}, nil
+}
+
+func retiredImageDiagnosis(ref string) string {
+	if diagnosis := kindrig.KindrigAliasDiagnosis(ref); diagnosis != "" {
+		return diagnosis
+	}
+	if strings.HasPrefix(ref, "localhost/declarative-agents/") {
+		if _, err := kindrig.ParseLocal(ref); err != nil {
+			return "retired untyped local reference; recover with docker image rm after confirming no cluster uses it"
+		}
+	}
+	if strings.HasPrefix(ref, retiredAgentCorePrefix) {
+		tag, _, _ := strings.Cut(strings.TrimPrefix(ref, retiredAgentCorePrefix), "@")
+		if commitImageTag.MatchString(tag) {
+			return "retired untyped commit tag; recover with docker image rm after confirming no cluster uses it"
+		}
+	}
+	return ""
+}
+
+// selectImageRemovals keeps the newest keep revisions of each role/component
+// and returns the rest, oldest last. An image whose provenance is ambiguous,
+// that an active lease still names, or that is a configured pin is kept.
 func selectImageRemovals(images []commitImage, keep int) []string {
-	var candidates []commitImage
+	byFamily := map[string][]commitImage{}
 	for _, image := range images {
 		if !rigBuiltImage(image.labels) {
 			fmt.Printf("clean:images: keeping %s: labels name source %q, not a rig build\n",
@@ -158,25 +202,37 @@ func selectImageRemovals(images []commitImage, keep int) []string {
 			fmt.Printf("clean:images: keeping %s: %s\n", image.ref, diagnostic)
 			continue
 		}
-		candidates = append(candidates, image)
+		byFamily[image.family] = append(byFamily[image.family], image)
 	}
-	sort.SliceStable(candidates, func(i, j int) bool {
-		return candidates[i].created.After(candidates[j].created)
-	})
-	if len(candidates) <= keep {
-		return nil
-	}
-	removals := make([]string, 0, len(candidates)-keep)
-	for _, image := range candidates[keep:] {
-		removals = append(removals, image.ref)
+	var removals []string
+	for _, family := range sortedFamilyKeys(byFamily) {
+		candidates := byFamily[family]
+		sort.SliceStable(candidates, func(i, j int) bool {
+			return candidates[i].created.After(candidates[j].created)
+		})
+		if len(candidates) <= keep {
+			continue
+		}
+		for _, image := range candidates[keep:] {
+			removals = append(removals, image.ref)
+		}
 	}
 	return removals
+}
+
+func sortedFamilyKeys(byFamily map[string][]commitImage) []string {
+	keys := make([]string, 0, len(byFamily))
+	for key := range byFamily {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // rigBuiltImage reports whether an image's labels place it in the rig. The
 // identity labels written by the agent-core, applier, and toolchain builds are
 // conclusive; an OCI source naming this repository also counts; an unlabeled
-// image falls back to its commit-shaped tag. Any other labeled image is ambiguous.
+// image falls back to its typed local tag. Any other labeled image is ambiguous.
 func rigBuiltImage(labels map[string]string) bool {
 	if len(labels) == 0 {
 		return true
