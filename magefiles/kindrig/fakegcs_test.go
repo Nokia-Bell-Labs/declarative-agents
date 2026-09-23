@@ -160,6 +160,10 @@ func TestFakeGCSEndpointMatchesTheManifest(t *testing.T) {
 	if !strings.HasSuffix(FakeGCSEndpoint, "/storage/v1/") {
 		t.Errorf("endpoint = %q does not name the JSON API base", FakeGCSEndpoint)
 	}
+	if !strings.Contains(fakeGCSKindManifest, "host: objectstore.da-platform.localhost") ||
+		FakeGCSHostEndpoint != "http://objectstore.da-platform.localhost/storage/v1/" {
+		t.Errorf("host lifecycle endpoint %q does not match the platform ingress", FakeGCSHostEndpoint)
+	}
 }
 
 // appliedManifestPath returns the -f path of a kubectl apply, wherever the

@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +29,13 @@ const (
 	platformConformanceRelease = "platform-conformance"
 	platformHostPlaceholder    = "KINDRIG_CONFORMANCE_HOST"
 	platformTracingPlaceholder = "KINDRIG_PLATFORM_TRACING_CONFIG"
-	platformWaitTimeout        = "120s"
+	platformObjectsPlaceholder = "KINDRIG_PLATFORM_OBJECTS"
+	// platformObjectsDirName is the stable host directory holding the fake-GCS
+	// filesystem backend. It lives under the user cache, outside any cluster,
+	// so retained objects survive da-platform deletion and recreation and are
+	// removed only by platform:reset (srd008 R4.3, R5; #2477 R3, R6).
+	platformObjectsDirName = "da-platform-objects"
+	platformWaitTimeout    = "120s"
 	// platformCommandTimeout bounds each command the platform runner issues.
 	// Every kubectl wait the rig declares is shorter, so only a stalled command
 	// (a registry that never answers a pull) reaches it (GH-2226).
@@ -44,6 +51,14 @@ var platformConformanceManifest string
 //go:embed platform-tracing.yaml
 var platformTracingConfig []byte
 
+//go:embed fake-gcs-conformance-ingress.yaml
+var fakeGCSConformanceIngress string
+
+const (
+	objectStoreConformanceHost = "objectstore-conformance.localhost"
+	objectStoreHostPlaceholder = "KINDRIG_OBJECTSTORE_HOST"
+)
+
 // PlatformOptions configures StartPlatform. The zero value streams kind output,
 // binds commands to a private kubeconfig for da-platform, and captures no
 // failure evidence.
@@ -56,6 +71,9 @@ type PlatformOptions struct {
 	// EvidenceDirectory receives kind logs and namespace diagnostics when boot,
 	// conformance, or a later caller-reported failure ends the platform.
 	EvidenceDirectory string
+	// PortProbe overrides the host-port preflight probe. Tests set it; the
+	// default dials 127.0.0.1 on each platform host port (#2477 R10).
+	PortProbe PortProbe
 
 	boot           func(CommandRunner, string) error
 	conformance    func(CommandRunner, string) error
@@ -75,6 +93,50 @@ type Platform struct {
 	stopped  bool
 }
 
+// PlatformHostPorts are the host ports the platform binds for ingress, so
+// applications declare .localhost hosts and never coordinate ports (#2477 R2).
+var PlatformHostPorts = []int{80, 443}
+
+// PortProbe reports whether a TCP port on localhost already answers.
+type PortProbe func(port int) bool
+
+func defaultPortProbe(port int) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 500*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+// PlatformPreflight refuses to create da-platform when a process or a dedicated
+// demo cluster already holds the platform's host HTTP/HTTPS ports. It names the
+// ports and the remediation rather than deleting foreign state, because that
+// state's owner is unknown (#2477 R10).
+func PlatformPreflight(probe PortProbe) error {
+	if probe == nil {
+		probe = defaultPortProbe
+	}
+	var held []int
+	for _, port := range PlatformHostPorts {
+		if probe(port) {
+			held = append(held, port)
+		}
+	}
+	if len(held) == 0 {
+		return nil
+	}
+	ports := make([]string, len(held))
+	for i, port := range held {
+		ports[i] = fmt.Sprintf("%d", port)
+	}
+	return fmt.Errorf(
+		"platform:up preflight: host port(s) %s already in use; %s owns them for ingress. "+
+			"A dedicated demo cluster or another process holds them: check `kind get clusters` and "+
+			"`kind delete cluster --name <demo>`, or stop the process, then retry",
+		strings.Join(ports, ", "), PlatformClusterName)
+}
+
 // StartPlatform acquires da-platform fresh, installs the shared infrastructure,
 // and runs the conformance suite. A leftover da-platform from an interrupted
 // run is deleted and recreated (GH-2137). When any step fails the cluster is
@@ -82,6 +144,9 @@ type Platform struct {
 // reported before, and separately from, any application gate.
 func StartPlatform(options PlatformOptions) (*Platform, error) {
 	options = options.withDefaults()
+	if err := PlatformPreflight(options.PortProbe); err != nil {
+		return nil, err
+	}
 	cluster, err := EnsurePlatformCluster(options.KindRun)
 	if err != nil {
 		return nil, err
@@ -220,17 +285,36 @@ func UpPlatform(options PlatformOptions) (Cluster, error) {
 	return cluster, nil
 }
 
-// DownPlatform deletes da-platform and no other cluster.
-func DownPlatform(run Runner) error {
+// DownPlatform stops da-platform compute and no other cluster. It refuses while
+// a managed application namespace remains, so an application is never torn down
+// as a side effect of a platform shutdown; the first release has no force
+// bypass (#2477 R6, R7). The retained local object store is preserved: only
+// platform:reset deletes it (srd008 R4.3). bind may be nil, which skips the
+// namespace check (a caller with no cluster binding).
+func DownPlatform(run Runner, bind func(string) (CommandRunner, func(), error)) error {
 	if !Exists(run, PlatformClusterName) {
 		fmt.Printf("platform: cluster %s does not exist\n", PlatformClusterName)
 		return nil
+	}
+	if bind != nil {
+		command, cleanup, err := bind(PlatformClusterName)
+		if err == nil {
+			defer cleanup()
+			namespaces, nsErr := managedApplicationNamespaces(command)
+			if nsErr == nil && len(namespaces) > 0 {
+				return fmt.Errorf(
+					"platform:down refuses: managed application namespaces still present (%s); "+
+						"run app:down for each before platform:down",
+					strings.Join(namespaces, ", "))
+			}
+		}
 	}
 	if output, err := run("delete", "cluster", "--name", PlatformClusterName); err != nil {
 		return fmt.Errorf("delete %s: %w: %s", PlatformClusterName, err,
 			strings.TrimSpace(string(output)))
 	}
-	fmt.Printf("platform: deleted cluster %s\n", PlatformClusterName)
+	fmt.Printf("platform: stopped cluster %s; retained object store preserved (platform:reset deletes it)\n",
+		PlatformClusterName)
 	return nil
 }
 
@@ -249,12 +333,13 @@ func ensureListedPlatform(options PlatformOptions) (Cluster, error) {
 		})
 }
 
-// prunePlatformImages removes images no container references from the node's
-// containerd store, which a long-lived developer platform accumulates as each
-// revision is kind-loaded.
-func prunePlatformImages(run CommandRunner, cluster string) error {
-	return runChecked(run, "docker", "exec", cluster+"-control-plane",
-		"crictl", "rmi", "--prune")
+// prunePlatformImages deliberately leaves the kind node's base images intact.
+// crictl's global --prune removes kindest/local-path-helper because no helper
+// pod normally runs; the next PVC then cannot provision on an offline or
+// TLS-intercepted host. Repo-owned commit images are bounded by clean:images,
+// so correctness does not depend on destructive node-wide pruning.
+func prunePlatformImages(CommandRunner, string) error {
+	return nil
 }
 
 // Detach hands the platform's cluster to a caller that manages its lifecycle
@@ -284,19 +369,40 @@ func EnsurePlatformCluster(run Runner) (Cluster, error) {
 	return EnsureFreshCluster(run, PlatformClusterName, path, platformClusterWait)
 }
 
-// stagePlatformKindConfig writes the kind config with its tracing mount
-// resolved, for the duration of one acquisition.
+// stagePlatformKindConfig writes the kind config with its tracing mount and
+// its stable object directory resolved, for the duration of one acquisition.
 func stagePlatformKindConfig() (string, func(), error) {
 	tracingPath, err := stagePlatformTracingConfig()
 	if err != nil {
 		return "", nil, err
 	}
+	objectsPath, err := PlatformObjectsDir()
+	if err != nil {
+		return "", nil, err
+	}
 	config := strings.ReplaceAll(string(platformKindConfig), platformTracingPlaceholder, tracingPath)
+	config = strings.ReplaceAll(config, platformObjectsPlaceholder, objectsPath)
 	path, cleanup, err := writeTempManifest("kindrig-platform-*.yaml", config)
 	if err != nil {
 		return "", nil, fmt.Errorf("stage %s kind config: %w", PlatformClusterName, err)
 	}
 	return path, cleanup, nil
+}
+
+// PlatformObjectsDir is the stable host directory the fake-GCS filesystem
+// backend is mounted from. It is created on first use and lives outside any
+// cluster, so it survives da-platform deletion and recreation. platform:reset
+// is the only operation that deletes it (srd008 R4.3; #2477 R3, R6).
+func PlatformObjectsDir() (string, error) {
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve %s object directory: %w", PlatformClusterName, err)
+	}
+	dir := filepath.Join(cache, "kindrig", platformObjectsDirName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create %s object directory: %w", PlatformClusterName, err)
+	}
+	return dir, nil
 }
 
 // stagePlatformTracingConfig writes the API-server tracing configuration to the
@@ -331,6 +437,66 @@ func BootPlatform(run CommandRunner, cluster string) error {
 	if _, err := InstallMetricsServer(run, cluster); err != nil {
 		return fmt.Errorf("install metrics-server: %w", err)
 	}
+	// fake-GCS is a platform boot service, not a per-application add-on: one
+	// filesystem-backed object store every application namespace binds by
+	// endpoint (srd008 R2; #2477 R1). Its cleanup is not needed because the
+	// platform is deleted whole and its data lives on the host mount.
+	if _, err := InstallFakeGCS(run, cluster); err != nil {
+		return fmt.Errorf("install fake-gcs: %w", err)
+	}
+	return nil
+}
+
+// managedApplicationNamespaces lists the da-<application> namespaces on the
+// platform, excluding the platform's own conformance namespace, so a teardown
+// can refuse while applications still run on it (#2477 R7).
+func managedApplicationNamespaces(run CommandRunner) ([]string, error) {
+	out, err := run("kubectl", "get", "namespaces",
+		"-l", "app.kubernetes.io/managed-by=apprig",
+		"-o", "jsonpath={.items[*].metadata.name}")
+	if err != nil {
+		return nil, fmt.Errorf("list managed application namespaces: %w: %s",
+			err, strings.TrimSpace(string(out)))
+	}
+	var namespaces []string
+	for _, name := range strings.Fields(string(out)) {
+		if name != "" {
+			namespaces = append(namespaces, name)
+		}
+	}
+	return namespaces, nil
+}
+
+// ResetPlatform is the explicit destructive operation that deletes the retained
+// local object store. It refuses while da-platform is running or a managed
+// application namespace remains, so retained data is never deleted as a side
+// effect of an ordinary teardown; there is no force bypass in this release
+// (srd008 R4.3; #2477 R6, R4).
+func ResetPlatform(run Runner, bind func(string) (CommandRunner, func(), error)) error {
+	if Exists(run, PlatformClusterName) {
+		if bind != nil {
+			if command, cleanup, err := bind(PlatformClusterName); err == nil {
+				defer cleanup()
+				if namespaces, nsErr := managedApplicationNamespaces(command); nsErr == nil && len(namespaces) > 0 {
+					return fmt.Errorf(
+						"platform:reset refuses: managed application namespaces still present (%s); "+
+							"run app:down for each, then platform:down, before reset",
+						strings.Join(namespaces, ", "))
+				}
+			}
+		}
+		return fmt.Errorf(
+			"platform:reset refuses while %s is running; run platform:down first, then platform:reset",
+			PlatformClusterName)
+	}
+	dir, err := PlatformObjectsDir()
+	if err != nil {
+		return err
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("platform:reset: delete object store %s: %w", dir, err)
+	}
+	fmt.Printf("platform:reset: deleted retained local object store %s\n", dir)
 	return nil
 }
 
@@ -390,6 +556,10 @@ func PlatformConformance(run CommandRunner, cluster string) (result error) {
 			platformConformanceHost, err)
 	}
 
+	if err := conformanceObjectStorage(run, cluster); err != nil {
+		return fmt.Errorf("object storage: %w", err)
+	}
+
 	released = true
 	if err := namespace.Release(); err != nil {
 		return fmt.Errorf("namespace churn: %w", err)
@@ -399,6 +569,141 @@ func PlatformConformance(run CommandRunner, cluster string) (result error) {
 		"--timeout="+platformWaitTimeout); err != nil {
 		return fmt.Errorf("namespace churn: volume %s outlived its namespace: %w",
 			strings.TrimSpace(string(volume)), err)
+	}
+	return nil
+}
+
+// PlatformCommandBinding binds kubectl/docker commands to a cluster's private
+// kubeconfig, the same binding StartPlatform uses. platform:down and
+// platform:reset pass it so their managed-namespace check runs against the
+// platform rather than the ambient context (#2477 R7, R9).
+func PlatformCommandBinding(cluster string) (CommandRunner, func(), error) {
+	commands, cleanup, err := ClusterCommands(CaptureRun, cluster)
+	if err != nil {
+		return nil, nil, err
+	}
+	return boundedCommandRunner(commands.RunContext, platformCommandTimeout), cleanup, nil
+}
+
+// conformanceObjectStorage is the object-storage conformance step, a package
+// var so the pure check-sequencing tests stub it while the live path and the
+// focused isolation test exercise verifyObjectStorage itself.
+var conformanceObjectStorage = verifyObjectStorage
+
+// verifyObjectStorage proves the fake-GCS platform service does real object
+// work and keeps application buckets isolated (#2477 R4, R5; srd008 R6.1). It
+// routes fake-GCS through Traefik on a conformance host, then through the same
+// node curl the ingress check uses: it provisions two application buckets,
+// writes the same key to each, and proves a read of one never returns the
+// other's bytes (AC6). It removes the ingress and the conformance buckets on
+// every exit path, so the retained store is unchanged by the check.
+func verifyObjectStorage(run CommandRunner, cluster string) (result error) {
+	manifest := strings.ReplaceAll(fakeGCSConformanceIngress, objectStoreHostPlaceholder, objectStoreConformanceHost)
+	path, removeManifest, err := writeTempManifest("kindrig-fake-gcs-conformance-*.yaml", manifest)
+	if err != nil {
+		return err
+	}
+	defer removeManifest()
+	if err := runChecked(run, "kubectl", "apply", "-f", path); err != nil {
+		return fmt.Errorf("apply object-storage ingress: %w", err)
+	}
+	defer func() {
+		result = errors.Join(result, runChecked(run, "kubectl", "delete", "-f", path, "--ignore-not-found"))
+	}()
+
+	// The two application buckets one platform provisions per srd008 R4/R6.1.
+	bucketA, bucketB := "conformance-app-a", "conformance-app-b"
+	defer func() {
+		result = errors.Join(result, purgeConformanceBucket(run, cluster, bucketA),
+			purgeConformanceBucket(run, cluster, bucketB))
+	}()
+	if _, err := objectStoreCurl(run, cluster, 30, "-X", "GET",
+		objectStoreURL("/storage/v1/b?project=conformance")); err != nil {
+		return fmt.Errorf("fake-GCS did not answer through the ingress: %w", err)
+	}
+	for _, bucket := range []string{bucketA, bucketB} {
+		if _, err := objectStoreCurl(run, cluster, 3, "-X", "POST",
+			"-H", "Content-Type: application/json",
+			"--data", fmt.Sprintf(`{"name":%q}`, bucket),
+			objectStoreURL("/storage/v1/b?project=conformance")); err != nil {
+			return fmt.Errorf("provision bucket %s: %w", bucket, err)
+		}
+	}
+	if err := writeObject(run, cluster, bucketA, "shared/key.txt", "alpha-bucket-a"); err != nil {
+		return err
+	}
+	if err := writeObject(run, cluster, bucketB, "shared/key.txt", "beta-bucket-b"); err != nil {
+		return err
+	}
+	return assertNoCrossRead(run, cluster, bucketA, bucketB)
+}
+
+// assertNoCrossRead reads the same key from each bucket and refuses if either
+// returns the other's bytes: the two application buckets are isolated (AC6).
+func assertNoCrossRead(run CommandRunner, cluster, bucketA, bucketB string) error {
+	got, err := readObject(run, cluster, bucketA, "shared/key.txt")
+	if err != nil {
+		return err
+	}
+	if got != "alpha-bucket-a" {
+		return fmt.Errorf("bucket %s returned %q, not its own object; buckets are not isolated", bucketA, got)
+	}
+	got, err = readObject(run, cluster, bucketB, "shared/key.txt")
+	if err != nil {
+		return err
+	}
+	if got != "beta-bucket-b" {
+		return fmt.Errorf("bucket %s returned %q, not its own object; buckets are not isolated", bucketB, got)
+	}
+	return nil
+}
+
+func objectStoreURL(pathAndQuery string) string {
+	return "http://127.0.0.1" + pathAndQuery
+}
+
+// objectStoreCurl runs one curl against fake-GCS through the Traefik host on
+// the node's port 80, the same reachability the echo conformance uses.
+func objectStoreCurl(run CommandRunner, cluster string, retries int, args ...string) (string, error) {
+	base := []string{"exec", cluster + "-control-plane", "curl", "--fail", "--silent", "--show-error",
+		"--max-time", "5", "--retry", fmt.Sprintf("%d", retries), "--retry-delay", "1", "--retry-all-errors",
+		"-H", "Host: " + objectStoreConformanceHost}
+	out, err := run("docker", append(base, args...)...)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
+
+func writeObject(run CommandRunner, cluster, bucket, key, content string) error {
+	url := objectStoreURL(fmt.Sprintf("/upload/storage/v1/b/%s/o?uploadType=media&name=%s", bucket, key))
+	if _, err := objectStoreCurl(run, cluster, 3, "-X", "POST",
+		"-H", "Content-Type: text/plain", "--data", content, url); err != nil {
+		return fmt.Errorf("write %s/%s: %w", bucket, key, err)
+	}
+	return nil
+}
+
+func readObject(run CommandRunner, cluster, bucket, key string) (string, error) {
+	escaped := strings.ReplaceAll(key, "/", "%2F")
+	url := objectStoreURL(fmt.Sprintf("/storage/v1/b/%s/o/%s?alt=media", bucket, escaped))
+	out, err := objectStoreCurl(run, cluster, 3, "-X", "GET", url)
+	if err != nil {
+		return "", fmt.Errorf("read %s/%s: %w", bucket, key, err)
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// purgeConformanceBucket removes the conformance object and bucket so the
+// retained store carries no conformance residue between runs. It ignores
+// not-found so a partial run still cleans up.
+func purgeConformanceBucket(run CommandRunner, cluster, bucket string) error {
+	object := objectStoreURL(fmt.Sprintf("/storage/v1/b/%s/o/%s", bucket, "shared%2Fkey.txt"))
+	_, _ = objectStoreCurl(run, cluster, 1, "-X", "DELETE", object)
+	if _, err := objectStoreCurl(run, cluster, 1, "-X", "DELETE",
+		objectStoreURL("/storage/v1/b/"+bucket)); err != nil {
+		// A bucket that never got created is not a cleanup failure.
+		return nil
 	}
 	return nil
 }

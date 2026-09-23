@@ -110,6 +110,22 @@ mage integration:controlPlane  # exercise the provisioning-workflow-orchestrator
 mage integration:rig           # run hermetic agent scenarios, including collector intake
 ```
 
+The canonical deployed lifecycle is one `chatbot-mesh` release in
+`app-chatbot-mesh` on shared `da-platform`:
+
+```bash
+mage app:up
+mage app:status
+mage app:seed
+mage app:verify
+mage app:diagnose
+mage app:down
+```
+
+It uses `magefiles/apprig`, unique chatbot/observer/telemetry hosts, and the
+retained `gs://chatbot-mesh-telemetry` bucket. Chroma and RAG remain
+application-owned.
+
 The telemetry-required gates (`integration:rig`, the helm telemetry checks)
 need the persistent OTLP ingress: the canonical collector agent run as a
 background host process, accepting both trace and metric exports on one gRPC
@@ -159,14 +175,14 @@ profile's declared `CORPUS_CHAT_MODEL` child contract; it does not change that
 profile's `ornith:9b` operator default. `integration_otlp_endpoint` points
 integration launches at a live OTLP ingress (empty keeps them file-only).
 
-The shared ENG01 operator verbs are:
+The dedicated-cluster verbs remain development compatibility only:
 
 ```bash
 mage doctor      # read-only tool/version and Docker Desktop resource checks
-mage demo:up     # create/reuse da-chatbot-mesh-demo and print .localhost URLs
-mage demo:down   # delete only da-chatbot-mesh-demo
-mage deploy      # install or upgrade the demo release on a running cluster
-mage undeploy    # remove the demo release, reporting an absent one as success
+mage demo:up     # development-only da-chatbot-mesh-demo
+mage demo:down   # delete only the development cluster
+mage deploy      # compatibility deploy against that cluster
+mage undeploy    # compatibility removal
 ```
 
 `mage deploy` runs the Helm step through the catalog applier's deploy machine

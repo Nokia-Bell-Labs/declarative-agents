@@ -6,10 +6,12 @@ package otlp
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/objectstore"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
@@ -40,10 +42,31 @@ type AwaitToolConfig struct {
 
 // SpoolToolConfig is the declared spool_spans configuration.
 type SpoolToolConfig struct {
-	Path        string `json:"path"`
-	BatchSource string `json:"batch_source"`
-	MaxBytes    int64  `json:"max_bytes"`
-	MaxFiles    int    `json:"max_files"`
+	Path        string            `json:"path"`
+	BatchSource string            `json:"batch_source"`
+	MaxBytes    int64             `json:"max_bytes"`
+	MaxFiles    int               `json:"max_files"`
+	Storage     StorageToolConfig `json:"storage"`
+}
+
+// StorageToolConfig selects the spool word's storage backend. It defaults to
+// the filesystem NDJSON spool; the object backend is declared configuration
+// only, and cloud credentials remain ambient workload identity (srd008 R8).
+type StorageToolConfig struct {
+	Backend           string `json:"backend"`
+	BucketURL         string `json:"bucket_url"`
+	Endpoint          string `json:"endpoint"`
+	Prefix            string `json:"prefix"`
+	WALPath           string `json:"wal_path"`
+	StageDir          string `json:"stage_dir"`
+	Application       string `json:"application"`
+	Namespace         string `json:"namespace"`
+	Run               string `json:"run"`
+	CollectorInstance string `json:"collector_instance"`
+	RetentionClass    string `json:"retention_class"`
+	RetentionDays     string `json:"retention_days"`
+	WALMaxBytes       int64  `json:"wal_max_bytes"`
+	WALMaxPending     int    `json:"wal_max_pending"`
 }
 
 // LoadToolConfig is the declared load_otlp_batch configuration.
@@ -59,35 +82,54 @@ type RelayToolConfig struct {
 	Timeout         string `json:"timeout"`
 }
 
+// QueryStorageToolConfig is the declared read-only storage backend a query word
+// reads from. It mirrors the spool StorageToolConfig fields a read needs and
+// adds per-request budgets; bucket, endpoint, and prefix are configuration only
+// (srd042 R1, R3).
+type QueryStorageToolConfig struct {
+	Backend    string `json:"backend"`
+	BucketURL  string `json:"bucket_url"`
+	Endpoint   string `json:"endpoint"`
+	Prefix     string `json:"prefix"`
+	WALPath    string `json:"wal_path"`
+	MaxObjects int    `json:"max_objects"`
+	MaxBytes   int64  `json:"max_bytes"`
+	TimeoutMS  int    `json:"timeout_ms"`
+}
+
 // QueryListToolConfig is the declared spool_list_traces configuration.
 type QueryListToolConfig struct {
-	Path        string `json:"path"`
-	PageSize    int    `json:"page_size"`
-	MaxPageSize int    `json:"max_page_size"`
-	Offset      int    `json:"offset"`
+	Path        string                 `json:"path"`
+	PageSize    int                    `json:"page_size"`
+	MaxPageSize int                    `json:"max_page_size"`
+	Offset      int                    `json:"offset"`
+	Storage     QueryStorageToolConfig `json:"storage"`
 }
 
 // QueryGetToolConfig is the declared spool_get_trace configuration.
 type QueryGetToolConfig struct {
-	Path    string `json:"path"`
-	TraceID string `json:"trace_id"`
+	Path    string                 `json:"path"`
+	TraceID string                 `json:"trace_id"`
+	Storage QueryStorageToolConfig `json:"storage"`
 }
 
 // QueryListMetricsToolConfig is the declared spool_list_metrics configuration.
 type QueryListMetricsToolConfig struct {
-	Path        string `json:"path"`
-	PageSize    int    `json:"page_size"`
-	MaxPageSize int    `json:"max_page_size"`
-	Offset      int    `json:"offset"`
+	Path        string                 `json:"path"`
+	PageSize    int                    `json:"page_size"`
+	MaxPageSize int                    `json:"max_page_size"`
+	Offset      int                    `json:"offset"`
+	Storage     QueryStorageToolConfig `json:"storage"`
 }
 
 // QueryGetMetricToolConfig is the declared spool_get_metric configuration.
 type QueryGetMetricToolConfig struct {
-	Path        string `json:"path"`
-	MetricName  string `json:"metric_name"`
-	PageSize    int    `json:"page_size"`
-	MaxPageSize int    `json:"max_page_size"`
-	Offset      int    `json:"offset"`
+	Path        string                 `json:"path"`
+	MetricName  string                 `json:"metric_name"`
+	PageSize    int                    `json:"page_size"`
+	MaxPageSize int                    `json:"max_page_size"`
+	Offset      int                    `json:"offset"`
+	Storage     QueryStorageToolConfig `json:"storage"`
 }
 
 // RegisterFactories registers receiver lifecycle factories over one shared state.
@@ -95,6 +137,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 	if state == nil {
 		state = NewState()
 	}
+	opener := objectstore.NewOpener()
 	for _, init := range StandardInits {
 		switch init {
 		case InitAwaitSpans:
@@ -102,13 +145,13 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 		case InitLoadOTLPBatch:
 			br.Register(init, loadFactory())
 		case InitSpoolSpans:
-			br.Register(init, spoolFactory())
+			br.Register(init, spoolFactory(opener))
 		case InitRelaySpans:
 			br.Register(init, relayFactory())
 		case InitSpoolListTraces:
-			br.Register(init, queryListFactory())
+			br.Register(init, queryListFactory(opener))
 		case InitSpoolGetTrace:
-			br.Register(init, queryGetFactory())
+			br.Register(init, queryGetFactory(opener))
 		case InitSpoolSpanHeatmap:
 			br.Register(init, spanHeatmapFactory())
 		case InitSpoolSpanGroupBy:
@@ -118,11 +161,11 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 		case InitAwaitMetrics:
 			br.Register(init, metricAwaitFactory(state))
 		case InitSpoolMetrics:
-			br.Register(init, spoolMetricsFactory())
+			br.Register(init, spoolMetricsFactory(opener))
 		case InitSpoolListMetrics:
-			br.Register(init, queryListMetricsFactory())
+			br.Register(init, queryListMetricsFactory(opener))
 		case InitSpoolGetMetric:
-			br.Register(init, queryGetMetricFactory())
+			br.Register(init, queryGetMetricFactory(opener))
 		default:
 			br.Register(init, receiverFactory(init, state))
 		}
@@ -218,36 +261,109 @@ func awaitFactory(state *State) toolregistry.BuiltinFactory {
 	}
 }
 
-func spoolFactory() toolregistry.BuiltinFactory {
+func spoolFactory(opener *objectstore.Opener) toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw SpoolToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+		raw, source, err := decodeSpoolCommon(def)
+		if err != nil {
 			return nil, err
 		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		spool := SpoolConfig{
+			Path: resolvePath(raw.Path, vars), BatchSource: source,
+			MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,
 		}
-		source := raw.BatchSource
-		if source == "" {
-			source = defaultBatchSource
-		}
-		if _, ok := core.ParseSelector(source); !ok {
-			return nil, fmt.Errorf("tool %q config has invalid batch_source %q", def.Name, source)
-		}
-		if err := validateSpoolBounds(def.Name, raw); err != nil {
+		storage, err := decodeStorageConfig(def.Name, raw.Storage, vars)
+		if err != nil {
 			return nil, err
 		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
-		}
-		return SpoolBuilder{
-			ToolName: def.Name,
-			Config: SpoolConfig{
-				Path: path, BatchSource: source, MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,
-			},
-		}, nil
+		return SpoolBuilder{ToolName: def.Name, Config: spool, Storage: storage, Opener: opener}, nil
 	}
+}
+
+// decodeSpoolCommon decodes and validates the fields both spool words share.
+func decodeSpoolCommon(def catalog.ToolDef) (SpoolToolConfig, string, error) {
+	var raw SpoolToolConfig
+	if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+		return SpoolToolConfig{}, "", err
+	}
+	if raw.Path == "" {
+		return SpoolToolConfig{}, "", fmt.Errorf("tool %q config requires path", def.Name)
+	}
+	source := raw.BatchSource
+	if source == "" {
+		source = defaultBatchSource
+	}
+	if _, ok := core.ParseSelector(source); !ok {
+		return SpoolToolConfig{}, "", fmt.Errorf("tool %q config has invalid batch_source %q", def.Name, source)
+	}
+	if err := validateSpoolBounds(def.Name, raw); err != nil {
+		return SpoolToolConfig{}, "", err
+	}
+	return raw, source, nil
+}
+
+func resolvePath(path string, vars map[string]string) string {
+	if !filepath.IsAbs(path) && vars["directory"] != "" {
+		return filepath.Join(vars["directory"], path)
+	}
+	return path
+}
+
+// decodeStorageConfig resolves the spool word's storage backend. An object
+// backend that names no bucket URL or WAL path fails the load with the fault
+// named rather than at first persist (srd008 R8).
+func decodeStorageConfig(toolName string, raw StorageToolConfig, vars map[string]string) (StorageConfig, error) {
+	switch raw.Backend {
+	case "", BackendFilesystem:
+		return StorageConfig{Backend: BackendFilesystem}, nil
+	case BackendObject:
+		if raw.BucketURL == "" {
+			return StorageConfig{}, fmt.Errorf("tool %q object storage requires bucket_url", toolName)
+		}
+		if raw.WALPath == "" {
+			return StorageConfig{}, fmt.Errorf("tool %q object storage requires wal_path", toolName)
+		}
+		retentionClass, retentionDays, err := decodeRetention(toolName, raw)
+		if err != nil {
+			return StorageConfig{}, err
+		}
+		stage := raw.StageDir
+		if stage != "" {
+			stage = resolvePath(stage, vars)
+		}
+		return StorageConfig{
+			Backend:    BackendObject,
+			Connection: objectstore.ConnectionConfig{BucketURL: raw.BucketURL, Endpoint: raw.Endpoint},
+			Prefix:     raw.Prefix, WALPath: resolvePath(raw.WALPath, vars), StageDir: stage,
+			Application: raw.Application, Namespace: raw.Namespace, Run: raw.Run,
+			CollectorInstance: raw.CollectorInstance,
+			RetentionClass:    retentionClass, RetentionDays: retentionDays,
+			WALMaxBytes: raw.WALMaxBytes, WALMaxPending: raw.WALMaxPending,
+		}, nil
+	default:
+		return StorageConfig{}, fmt.Errorf(
+			"tool %q has unknown storage backend %q (supported: filesystem, object)", toolName, raw.Backend)
+	}
+}
+
+func decodeRetention(toolName string, raw StorageToolConfig) (string, int, error) {
+	retentionClass := raw.RetentionClass
+	if retentionClass == "" {
+		retentionClass = "application"
+	}
+	retentionDays := 0
+	if raw.RetentionDays != "" {
+		parsed, err := strconv.Atoi(raw.RetentionDays)
+		if err != nil {
+			return "", 0, fmt.Errorf(
+				"tool %q object storage retention_days must be an integer", toolName)
+		}
+		retentionDays = parsed
+	}
+	if retentionDays < 0 {
+		return "", 0, fmt.Errorf(
+			"tool %q object storage retention_days must not be negative", toolName)
+	}
+	return retentionClass, retentionDays, nil
 }
 
 func metricAwaitFactory(state *State) toolregistry.BuiltinFactory {
@@ -274,35 +390,21 @@ func metricAwaitFactory(state *State) toolregistry.BuiltinFactory {
 	}
 }
 
-func spoolMetricsFactory() toolregistry.BuiltinFactory {
+func spoolMetricsFactory(opener *objectstore.Opener) toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw SpoolToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+		raw, source, err := decodeSpoolCommon(def)
+		if err != nil {
 			return nil, err
 		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		spool := SpoolConfig{
+			Path: resolvePath(raw.Path, vars), BatchSource: source,
+			MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,
 		}
-		source := raw.BatchSource
-		if source == "" {
-			source = defaultBatchSource
-		}
-		if _, ok := core.ParseSelector(source); !ok {
-			return nil, fmt.Errorf("tool %q config has invalid batch_source %q", def.Name, source)
-		}
-		if err := validateSpoolBounds(def.Name, raw); err != nil {
+		storage, err := decodeStorageConfig(def.Name, raw.Storage, vars)
+		if err != nil {
 			return nil, err
 		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
-		}
-		return SpoolMetricsBuilder{
-			ToolName: def.Name,
-			Config: SpoolConfig{
-				Path: path, BatchSource: source, MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,
-			},
-		}, nil
+		return SpoolMetricsBuilder{ToolName: def.Name, Config: spool, Storage: storage, Opener: opener}, nil
 	}
 }
 
@@ -317,109 +419,6 @@ func validateSpoolBounds(toolName string, config SpoolToolConfig) error {
 		return fmt.Errorf("tool %q config max_files must be at least 2 when max_bytes is set", toolName)
 	}
 	return nil
-}
-
-func queryListFactory() toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw QueryListToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
-			return nil, err
-		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
-		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
-		}
-		pageSize := raw.PageSize
-		if pageSize <= 0 {
-			pageSize = defaultPageSize
-		}
-		maxPage := raw.MaxPageSize
-		if maxPage <= 0 {
-			maxPage = defaultMaxPageSize
-		}
-		return ListTracesBuilder{
-			ToolName: def.Name,
-			Config: QueryListConfig{
-				Path: path, PageSize: pageSize, MaxPageSize: maxPage, Offset: raw.Offset,
-			},
-		}, nil
-	}
-}
-
-func queryGetFactory() toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw QueryGetToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
-			return nil, err
-		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
-		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
-		}
-		return GetTraceBuilder{
-			ToolName: def.Name,
-			Config:   QueryGetConfig{Path: path, TraceID: raw.TraceID},
-		}, nil
-	}
-}
-
-func queryListMetricsFactory() toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw QueryListMetricsToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
-			return nil, err
-		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
-		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
-		}
-		pageSize := raw.PageSize
-		if pageSize <= 0 {
-			pageSize = defaultPageSize
-		}
-		maxPage := raw.MaxPageSize
-		if maxPage <= 0 {
-			maxPage = defaultMaxPageSize
-		}
-		return ListMetricsBuilder{
-			ToolName: def.Name,
-			Config: QueryListMetricsConfig{
-				Path: path, PageSize: pageSize, MaxPageSize: maxPage, Offset: raw.Offset,
-			},
-		}, nil
-	}
-}
-
-func queryGetMetricFactory() toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var raw QueryGetMetricToolConfig
-		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
-			return nil, err
-		}
-		if raw.Path == "" {
-			return nil, fmt.Errorf("tool %q config requires path", def.Name)
-		}
-		path := raw.Path
-		if !filepath.IsAbs(path) && vars["directory"] != "" {
-			path = filepath.Join(vars["directory"], path)
-		}
-		return GetMetricBuilder{
-			ToolName: def.Name,
-			Config: QueryGetMetricConfig{
-				Path: path, MetricName: raw.MetricName,
-				PageSize: raw.PageSize, MaxPageSize: raw.MaxPageSize, Offset: raw.Offset,
-			},
-		}, nil
-	}
 }
 
 func decodeReceiverConfig(toolName string, raw ReceiverToolConfig) (ReceiverConfig, error) {

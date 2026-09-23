@@ -31,6 +31,10 @@ const (
 	// their endpoint in kind values overlays. The service DNS name is stable
 	// across scenarios, so the overlay value never changes per run.
 	FakeGCSEndpoint = "http://fake-gcs.fake-gcs.svc:4443/storage/v1/"
+	// FakeGCSHostEndpoint is the same JSON API through shared Traefik for
+	// host-side lifecycle agents such as app:purge. In-cluster collectors keep
+	// using FakeGCSEndpoint directly.
+	FakeGCSHostEndpoint = "http://objectstore.da-platform.localhost/storage/v1/"
 )
 
 var fakeGCSImageDigests = map[string]string{
@@ -54,6 +58,29 @@ func InstallFakeGCS(run CommandRunner, cluster string) (func() error, error) {
 	}
 	status, err := fakeGCSStatus(run, cluster)
 	if err == nil && status == "True" {
+		// Reconcile the managed manifest even when compute is healthy. Platform
+		// service routes and labels evolve independently of the Deployment
+		// rollout; returning early left a reused da-platform without newly
+		// declared host lifecycle endpoints.
+		runtimeImage := fakeGCSRuntimeImage()
+		manifest, stageErr := SubstitutePinnedImage(
+			fakeGCSKindManifest, fakeGCSImagePlaceholder, runtimeImage)
+		if stageErr != nil {
+			return nil, stageErr
+		}
+		path, removeFile, stageErr := writeFakeGCSManifest(manifest)
+		if stageErr != nil {
+			return nil, stageErr
+		}
+		defer removeFile()
+		if err := runChecked(run, "kubectl", "apply", "-f", path); err != nil {
+			return nil, fmt.Errorf("reconcile fake-gcs manifest: %w", err)
+		}
+		if err := runChecked(run, "kubectl", "rollout", "status",
+			"deployment/"+fakeGCSDeployment, "--namespace", fakeGCSNamespace,
+			"--timeout=180s"); err != nil {
+			return nil, fmt.Errorf("reconcile fake-gcs rollout: %w", err)
+		}
 		return func() error { return nil }, nil
 	}
 	if err == nil {

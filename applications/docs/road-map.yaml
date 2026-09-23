@@ -526,7 +526,7 @@ releases:
       object-storage service while each application retains one namespace,
       release, collector, application-specific bucket, lifecycle authority,
       and immutable telemetry history.
-    status: planned
+    status: implemented
     parent: gh-2474-shared-platform
     dependencies:
       - id: srd003-application-consistency
@@ -552,7 +552,7 @@ releases:
           Run two applications on one platform, remove and redeploy one, and
           prove that compute, retained data, and query availability follow
           their separate lifecycle boundaries.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel19.0-persistent-application-platform
         summary: |
@@ -560,31 +560,33 @@ releases:
           two-application lifecycle, local/cloud parity, WAL-first immutable
           objects, query restoration, failure isolation, and reusable runner
           adoption.
-        status: planned
-        implemented_cases: [TC1]
-        planned_cases: [TC2, TC3, TC4, TC5, TC6, TC7, TC8]
+        status: implemented
+        implemented_cases: [TC1, TC2, TC3, TC4, TC5, TC6, TC7, TC8]
+        planned_cases: []
     implementation_sequence:
       - order: 1
         action: Specify ownership, lifecycle, storage, query, threat, routing, and apprig boundaries (GH-2476).
         status: implemented
       - order: 2
         action: Add collector WAL and immutable object-bucket persistence (GH-2475).
-        status: planned
+        status: implemented
       - order: 3
-        action: Add application-scoped object-backed query and retention (GH-2478).
-        status: planned
+        action: Add application-scoped object-backed query and retention (GH-2478, split into GH-2489 object-read query engine and GH-2490 collector wiring/retention/purge/cloud isolation).
+        status: implemented
+        note: GH-2489 supplies object-backed query/WAL merge; GH-2490 supplies collector wiring, retention metadata, storage-status UI, isolated purge, and cloud IAM fixtures.
       - order: 4
         action: Wire durable collector configuration through the shared agent-services chart (GH-2484).
-        status: planned
+        status: implemented
       - order: 5
         action: Make ingress and filesystem-backed fake GCS persistent platform services (GH-2477).
-        status: planned
+        status: implemented
       - order: 6
-        action: Add the manifest-driven magefiles/apprig lifecycle runner (GH-2479).
-        status: planned
+        action: Add the manifest-driven magefiles/apprig lifecycle runner (GH-2479, split into GH-2492 deterministic core and GH-2493 live proofs/external fixture).
+        status: implemented
+        note: GH-2492 supplies the deterministic core; GH-2493 supplies live lifecycle, compensation, diagnosis, external-module, retained-history, and approved purge evidence.
       - order: 7
         action: Migrate Chatbot Mesh, Coding Agent, and Agent Architecture (GH-2482, GH-2483, GH-2480).
-        status: planned
+        status: implemented
     implementation_evidence:
       - path: applications/docs/specs/software-requirements/srd008-persistent-application-platform.yaml
         proves: Numbered ownership, platform, collector, lifecycle, parity, object, query, routing, and runner requirements.

@@ -3,7 +3,7 @@
   "title": "coding-agent values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "executorTools", "criticTools", "profiles", "workspace", "roles", "llm", "ollama", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
+  "required": ["image", "executorTools", "criticTools", "profiles", "workspace", "roles", "llm", "ollama", "collector", "ingress", "applier", "podSecurityContext", "containerSecurityContext"],
   "definitions": {
     "image": {
       "type": "object",
@@ -252,7 +252,49 @@
         "controlPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
         "monitorPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
         "queryPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
-        "resources": {"$ref": "#/definitions/resources"}
+        "resources": {"$ref": "#/definitions/resources"},
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Durable collector storage contract (srd042 R10/R11; GH-2484). Absent or backend=filesystem keeps the emptyDir NDJSON spool; backend=object wires the application bucket and a persistent WAL.",
+          "properties": {
+            "backend": {"type": "string", "enum": ["filesystem", "object"]},
+            "mode": {"type": "string", "enum": ["durable", "ephemeral"]},
+            "walMode": {"type": "string", "enum": ["persistent", "ephemeral"]},
+            "walPath": {"type": "string"},
+            "walCapacity": {"type": "string"},
+            "walStorageClass": {"type": "string"},
+            "application": {"type": "string"},
+            "namespace": {"type": "string"},
+            "bucketURL": {"type": "string"},
+            "bucketName": {"type": "string"},
+            "endpoint": {"type": "string"},
+            "prefix": {"type": "string"},
+            "retentionClass": {"type": "string", "minLength": 1},
+            "retentionDays": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "className", "hosts"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "className": {"type": "string", "minLength": 1},
+        "hosts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planner", "plannerHealth", "executor", "critic", "collector"],
+          "properties": {
+            "planner": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "plannerHealth": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "executor": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "critic": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "collector": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"}
+          }
+        }
       }
     },
     "applier": {

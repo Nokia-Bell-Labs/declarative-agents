@@ -3,7 +3,7 @@
 id: rel19.0-uc001-persistent-application-platform
 title: Operate Two Namespaced Applications Without Losing Retained Telemetry
 release: "19.0"
-status: planned
+status: implemented
 
 summary: |
   An operator creates or reuses one persistent `da-platform`, then deploys two

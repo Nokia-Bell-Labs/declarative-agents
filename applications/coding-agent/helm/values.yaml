@@ -115,6 +115,18 @@ collector:
     requests: {cpu: 50m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
 
+# Operator-facing surfaces on shared Traefik. Role-to-role REST, model calls,
+# and OTLP remain direct Service traffic inside app-coding-agent (GH-2483 R2).
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    planner: planner.coding-agent.localhost
+    plannerHealth: planner-health.coding-agent.localhost
+    executor: executor.coding-agent.localhost
+    critic: critic.coding-agent.localhost
+    collector: telemetry.coding-agent.localhost
+
 # The applier (srd006): the deployment-plane actuator that realizes a decided
 # values change against this chart on Kubernetes. Disabled by default -- it needs
 # the chart archive and the kind-loaded CLI donor (GH-2222), which only the live

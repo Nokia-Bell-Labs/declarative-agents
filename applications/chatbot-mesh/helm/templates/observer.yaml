@@ -168,7 +168,7 @@ spec:
   ingressClassName: {{ . }}
   {{- end }}
   rules:
-    - host: "observer.localhost"
+    - host: {{ .Values.ingress.observerHost | quote }}
       http:
         paths:
           - path: /

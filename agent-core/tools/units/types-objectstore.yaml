@@ -35,3 +35,18 @@ types:
       prefix:
         type: string
         description: Key prefix to list; empty lists the whole bucket.
+- name: DeletePrefixOutcome
+  description: Bounded destructive result and external audit identity for one declaration-authorized prefix.
+  schema:
+    type: object
+    properties:
+      status: {type: string, enum: [purged, partial, refused]}
+      application: {type: string}
+      bucket_url: {type: string}
+      prefix: {type: string}
+      matched: {type: integer}
+      deleted: {type: integer}
+      remaining: {type: integer}
+      keys_sha256: {type: string}
+      at: {type: string}
+    required: [status, application, bucket_url, prefix, matched, deleted, remaining, keys_sha256, at]

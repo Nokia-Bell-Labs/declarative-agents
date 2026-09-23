@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -50,6 +51,11 @@ type DiagnoseRequest struct {
 	Scenario string
 	// DemoCluster is the application's own persistent demo cluster.
 	DemoCluster string
+	// Target, when set, is the already resolved application cluster and
+	// namespace. apprig uses it because stable application namespaces are
+	// app-<identity>, not scenario namespaces. Legacy scenario/demo callers
+	// leave it nil and retain ResolveDiagnoseTarget behavior.
+	Target *DiagnoseTarget
 	// ApplicationRoot is where build/kind-evidence lives.
 	ApplicationRoot string
 	// Revision is recorded in the manifest.
@@ -100,9 +106,18 @@ func DiagnoseEvidenceDirectory(applicationRoot, scenario string, now time.Time) 
 // behind. Only an unusable scenario argument or a cluster that is not running
 // is an error, because neither leaves anything to report on.
 func Diagnose(request DiagnoseRequest) error {
-	target, err := ResolveDiagnoseTarget(request.Scenario, request.DemoCluster)
-	if err != nil {
-		return err
+	var target DiagnoseTarget
+	if request.Target != nil {
+		target = *request.Target
+		if strings.TrimSpace(target.Cluster) == "" || strings.TrimSpace(target.Namespace) == "" {
+			return errors.New("diagnose: explicit target requires cluster and namespace")
+		}
+	} else {
+		var err error
+		target, err = ResolveDiagnoseTarget(request.Scenario, request.DemoCluster)
+		if err != nil {
+			return err
+		}
 	}
 	if !Exists(CaptureRun, target.Cluster) {
 		return fmt.Errorf("diagnose %s: cluster %s is not running", request.Scenario, target.Cluster)

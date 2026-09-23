@@ -130,7 +130,7 @@ func provisionShards(resolved roots) ([]string, error) {
 	// ConfigMaps a previous deploy left behind. demo:up used to hide that by
 	// recreating the namespace first; mage deploy is its own verb and has to be
 	// repeatable on a namespace that is already populated.
-	if err := clearCuratorUIShards(environment); err != nil {
+	if err := clearCuratorUIShards(environment, demoNamespace, demoRelease); err != nil {
 		return nil, err
 	}
 	shards, err := provisionCuratorUIShards(environment, resolved.Catalog, demoNamespace, demoRelease)
@@ -143,16 +143,16 @@ func provisionShards(resolved roots) ([]string, error) {
 // clearCuratorUIShards removes the shard ConfigMaps a previous deploy left, so
 // provisioning can create them again. The names are deterministic, so the
 // prefix identifies exactly this release's shards and nothing else.
-func clearCuratorUIShards(environment smokeEnvironment) error {
+func clearCuratorUIShards(environment smokeEnvironment, namespace, release string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	listed, err := environment.run(ctx, "kubectl", "get", "configmap", "-n", demoNamespace, "-o", "name")
+	listed, err := environment.run(ctx, "kubectl", "get", "configmap", "-n", namespace, "-o", "name")
 	if err != nil {
 		// A namespace with nothing in it is not an error worth failing on; the
 		// create that follows reports anything that actually blocks it.
 		return nil
 	}
-	prefix := "configmap/" + demoRelease + curatorUIShardInfix
+	prefix := "configmap/" + release + curatorUIShardInfix
 	var stale []string
 	for _, line := range strings.Split(string(listed), "\n") {
 		if name := strings.TrimSpace(line); strings.HasPrefix(name, prefix) {
@@ -164,7 +164,7 @@ func clearCuratorUIShards(environment smokeEnvironment) error {
 	}
 	deleteCtx, cancelDelete := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancelDelete()
-	args := append([]string{"delete", "configmap", "-n", demoNamespace, "--ignore-not-found=true"}, stale...)
+	args := append([]string{"delete", "configmap", "-n", namespace, "--ignore-not-found=true"}, stale...)
 	if output, err := environment.run(deleteCtx, "kubectl", args...); err != nil {
 		return fmt.Errorf("deploy: clear curator UI shards: %w: %s", err, strings.TrimSpace(string(output)))
 	}

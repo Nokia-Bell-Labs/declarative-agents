@@ -482,7 +482,7 @@ srd_index:
     path: docs/specs/software-requirements/srd058-provider-libraries.yaml
   - id: srd059-objectstore-tools
     title: Objectstore Builtin Tool Family
-    summary: One provider-neutral object-storage family with three words whose compiled-in drivers are selected by the declared bucket URL; an explicit endpoint binds the local rig with no environment read; object_write undoes through a prior-object snapshot receipt; selected by profiles like the dolt family and absent from the default builtin surface.
+    summary: One provider-neutral object-storage family with read/write/list plus an internal declaration-bound delete-prefix word; compiled-in drivers are selected by the declared bucket URL, an explicit endpoint binds the local rig with no environment read, object_write undoes through a prior-object snapshot receipt, and destructive purge is bounded, verified, and externally audited.
     status: implemented
     path: docs/specs/software-requirements/srd059-objectstore-tools.yaml
 

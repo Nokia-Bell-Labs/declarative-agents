@@ -204,6 +204,8 @@ ingress:
   enabled: true
   className: ""
   host: chatbot.local
+  observerHost: observer.localhost
+  collectorHost: telemetry.chatbot-mesh.localhost
   annotations: {}
 
 # Validate the rendered chatbot rest.yaml before serving (R2.2). The co-generation

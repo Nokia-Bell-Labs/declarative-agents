@@ -19,7 +19,9 @@ const (
 	demoNamespace = "agent-architecture-demo"
 )
 
-// Demo groups the persistent kind demo cluster targets.
+// Demo groups the legacy dedicated-cluster development targets. The canonical
+// deployed mode is App on da-platform; this remains only for compatibility and
+// isolated development.
 type Demo mg.Namespace
 
 // Doctor checks the shared ENG01 toolchain and host resources without mutation.
@@ -27,7 +29,7 @@ func Doctor() error {
 	return kindrig.Doctor()
 }
 
-// Up creates or reuses the persistent demo cluster and deploys the composition.
+// Up creates or reuses the development-only demo cluster.
 func (Demo) Up() error {
 	if err := Doctor(); err != nil {
 		return fmt.Errorf("demo requested but preflight failed: %w", err)

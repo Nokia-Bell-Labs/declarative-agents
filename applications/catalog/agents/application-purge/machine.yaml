@@ -1,0 +1,38 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: application-purge
+purpose: |
+  Refuse an unconfirmed request, delete and verify only the application prefix
+  fixed in rendered declarations, and terminate with explicit success,
+  incomplete, refusal, or infrastructure failure. The machine is model-free.
+initial_state: AwaitingConfirmation
+budget: {max_iterations: 6, command_timeout: 10m}
+states:
+  - {name: AwaitingConfirmation, meaning: Seeded with the operator's exact confirmation token.}
+  - {name: CheckingConfirmation, meaning: Compare against purge:<rendered application> before mutation.}
+  - {name: Deleting, meaning: Bounded delete and post-delete verification of the rendered prefix.}
+  - {name: CheckingResult, meaning: Require the boundary outcome status to be purged.}
+  - {name: Purged, meaning: Terminal verified deletion with external audit., run_status: succeeded}
+  - {name: Refused, meaning: Terminal missing or mismatched confirmation; no storage call occurred., run_status: failed}
+  - {name: Incomplete, meaning: Terminal refused or partial deletion; success is not reported., run_status: failed}
+  - {name: Failed, meaning: "Terminal configuration, storage, verification, or audit failure.", run_status: failed}
+terminal_states: [Purged, Refused, Incomplete, Failed]
+signals:
+  - Seed
+  - Confirmed
+  - Refused
+  - ToolDone
+  - Satisfied
+  - Unsatisfied
+  - CommandError
+transitions:
+  - {state: AwaitingConfirmation, signal: Seed, next: CheckingConfirmation, action: confirmation_matches}
+  - {state: AwaitingConfirmation, signal: CommandError, next: Failed}
+  - {state: CheckingConfirmation, signal: Confirmed, next: Deleting, action: purge_application_objects, label: purge}
+  - {state: CheckingConfirmation, signal: Refused, next: Refused}
+  - {state: CheckingConfirmation, signal: CommandError, next: Failed}
+  - {state: Deleting, signal: ToolDone, next: CheckingResult, action: purge_completed}
+  - {state: Deleting, signal: CommandError, next: Failed}
+  - {state: CheckingResult, signal: Satisfied, next: Purged}
+  - {state: CheckingResult, signal: Unsatisfied, next: Incomplete}
+  - {state: CheckingResult, signal: CommandError, next: Failed}

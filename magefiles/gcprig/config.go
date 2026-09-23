@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 // Package gcprig provisions the GCP demo rig: the cloud twin of kindrig
-// (eng08-gcp-demo-rig). One Autopilot cluster, one GCS bucket for the
-// objectstore family, the workload-identity pair that lets pods reach it
-// with no stored credential, and the Artifact Registry the images push to.
+// (eng08-gcp-demo-rig). One Autopilot cluster, one GCS bucket and
+// workload-identity pair per application, and the Artifact Registry the images
+// push to. Pods reach only their bucket with no stored credential.
 // Everything is create-or-reuse by name, readiness is observed rather than
 // assumed, and teardown removes only the configured names.
 package gcprig
@@ -53,6 +53,12 @@ type Config struct {
 	// compute service account, which is what Autopilot uses; a cluster that
 	// runs as something else names it here.
 	NodeServiceAccount string `yaml:"node_service_account"`
+}
+
+var firstPartyApplications = []string{
+	"agent-architecture",
+	"chatbot-mesh",
+	"coding-agent",
 }
 
 // Defaults are the literal fallbacks (eng07). Project is empty on purpose.
@@ -156,4 +162,27 @@ func (c Config) RegistryPath() string {
 // (srd059 R2.3): no endpoint override, so ambient identity resolves it.
 func (c Config) BucketURL() string {
 	return "gs://" + c.Bucket
+}
+
+// ForApplication derives the cloud identity and bucket bound to one manifest
+// application. The provider endpoint and declarations stay unchanged; only
+// bootstrap/identity values differ from kind (srd008 R5.2; GH-2505 R8).
+func (c Config) ForApplication(application string) Config {
+	application = strings.TrimSpace(application)
+	binding := c
+	binding.Bucket = fmt.Sprintf("%s-%s-telemetry", c.Project, application)
+	binding.ServiceAccount = application + "-objectstore"
+	binding.Namespace = "app-" + application
+	binding.KSA = "default"
+	return binding
+}
+
+// FirstPartyApplications returns deterministic, distinct bindings for every
+// first-party application that shares the platform. Callers receive copies.
+func (c Config) FirstPartyApplications() []Config {
+	bindings := make([]Config, 0, len(firstPartyApplications))
+	for _, application := range firstPartyApplications {
+		bindings = append(bindings, c.ForApplication(application))
+	}
+	return bindings
 }

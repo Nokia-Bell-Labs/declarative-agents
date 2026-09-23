@@ -442,6 +442,21 @@ design_decisions:
       - Lifecycle fixes have one owner.
       - Downstream applications can pin a release instead of copying code.
       - The manifest remains the composition authority.
+  - id: 19
+    title: Vector storage remains application-owned
+    decision: |
+      da-platform does not provide a shared vector engine in Release 19.
+      Applications retain their own vector store, collection, corpus,
+      embedding identity, retrieval, ranking, retention, backup, and purge
+      authority. Collection or namespace naming is never presented as
+      authenticated tenant isolation. A future shared service requires measured
+      multi-application demand plus workload identity, authorization, quotas,
+      embedding compatibility, lifecycle, and backup contracts.
+    evidence: applications/docs/specs/audits/tenant-isolated-vector-storage.yaml
+    benefits:
+      - Current retrieval behavior and failure isolation do not change.
+      - One unauthenticated Chroma endpoint cannot disclose another application's vectors.
+      - The platform avoids a shared control plane with no measured consolidation benefit.
 
 technology_choices:
   - component: Structured documentation

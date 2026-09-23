@@ -17,13 +17,30 @@ func TestPlatformKindConfigPinsNodeAndAdmitsIngress(t *testing.T) {
 	for _, want := range []string{
 		"kindest/node:v1.36.1@sha256:",
 		`node-labels: "ingress-ready=true"`,
+		// The platform owns host 80/443 so applications declare .localhost
+		// hosts and never coordinate ports (#2477 R2).
+		"containerPort: 80, hostPort: 80",
+		"containerPort: 443, hostPort: 443",
+		// The stable object-store mount backs durable local telemetry (#2477 R3).
+		platformObjectsPlaceholder,
 	} {
 		if !strings.Contains(config, want) {
 			t.Errorf("platform kind config lacks %q", want)
 		}
 	}
-	if strings.Contains(config, "extraPortMappings") {
-		t.Error("platform kind config maps host ports; demo clusters own them")
+}
+
+// #2477 R1: fake-GCS is a platform boot service, installed by BootPlatform
+// alongside ingress and metrics-server.
+func TestBootPlatformInstallsFakeGCS(t *testing.T) {
+	config := string(fakeGCSKindManifest)
+	for _, want := range []string{"-backend", "filesystem", "-filesystem-root", "hostPath", "/var/lib/da-platform-objects"} {
+		if !strings.Contains(config, want) {
+			t.Errorf("fake-gcs manifest lacks %q; the backend must be durable filesystem", want)
+		}
+	}
+	if strings.Contains(config, "- memory") {
+		t.Error("fake-gcs manifest still uses the memory backend arg; #2477 R3 requires filesystem durability")
 	}
 }
 
@@ -72,6 +89,10 @@ func (h *platformHarness) options() PlatformOptions {
 			return h.commandFn, func() { h.unbound = true }, nil
 		},
 		EvidenceDirectory: h.evidence,
+		// Harness tests exercise lifecycle sequencing with fake kind/cluster
+		// runners. Never let a real, concurrently running da-platform's host
+		// ports alter those pure test outcomes.
+		PortProbe: func(int) bool { return false },
 		boot: func(CommandRunner, string) error {
 			h.order = append(h.order, "boot")
 			return h.bootErr
@@ -183,7 +204,17 @@ func conformanceCluster() *fakeCluster {
 	}}
 }
 
+// stubObjectStorageConformance replaces the live object-storage check with a
+// no-op for the tests that assert the other checks' ordering and cleanup.
+func stubObjectStorageConformance(t *testing.T) {
+	t.Helper()
+	previous := conformanceObjectStorage
+	conformanceObjectStorage = func(CommandRunner, string) error { return nil }
+	t.Cleanup(func() { conformanceObjectStorage = previous })
+}
+
 func TestPlatformConformanceRunsChecksInOrder(t *testing.T) {
+	stubObjectStorageConformance(t)
 	cluster := conformanceCluster()
 	if err := PlatformConformance(cluster.run, PlatformClusterName); err != nil {
 		t.Fatal(err)
@@ -224,6 +255,7 @@ func TestPlatformConformanceNamesFailedCheckAndCleansUp(t *testing.T) {
 		{"docker exec", "ingress route"},
 		{"kubectl wait --for=delete persistentvolume", "namespace churn"},
 	}
+	stubObjectStorageConformance(t)
 	for _, test := range tests {
 		t.Run(test.want, func(t *testing.T) {
 			cluster := conformanceCluster()
@@ -387,7 +419,7 @@ func TestUpPlatformStartsAndKeepsPlatformWhenNoneIsListed(t *testing.T) {
 	}
 }
 
-func TestUpPlatformReusesHealthyPlatformAndPrunesNodeImages(t *testing.T) {
+func TestUpPlatformReusesHealthyPlatformWithoutPruningBaseImages(t *testing.T) {
 	h, commands := listedPlatformHarness(t)
 	cluster, err := UpPlatform(h.upOptions(true))
 	if err != nil {
@@ -399,8 +431,8 @@ func TestUpPlatformReusesHealthyPlatformAndPrunesNodeImages(t *testing.T) {
 	if strings.Join(h.order, ",") != "bind da-platform,boot,conformance" || !h.unbound {
 		t.Fatalf("order=%v unbound=%v", h.order, h.unbound)
 	}
-	if strings.Join(commands.calls, "\n") != "docker exec da-platform-control-plane crictl rmi --prune" {
-		t.Fatalf("reuse did not prune node images first: %v", commands.calls)
+	if strings.Contains(strings.Join(commands.calls, "\n"), "rmi --prune") {
+		t.Fatalf("reuse pruned kind base images needed for PVC provisioning: %v", commands.calls)
 	}
 }
 
@@ -426,17 +458,82 @@ func TestUpPlatformReuseConformanceFailureKeepsPlatform(t *testing.T) {
 	}
 }
 
+// noManagedNamespaces binds a command runner that reports no managed
+// application namespaces, so DownPlatform proceeds to delete the cluster.
+func noManagedNamespaces(string) (CommandRunner, func(), error) {
+	return func(string, ...string) ([]byte, error) { return []byte(""), nil }, func() {}, nil
+}
+
 func TestDownPlatformDeletesOnlyThePlatform(t *testing.T) {
 	kind := &fakeKind{existing: []string{"da-chatbot-mesh-demo", PlatformClusterName}}
-	if err := DownPlatform(kind.run); err != nil {
+	if err := DownPlatform(kind.run, noManagedNamespaces); err != nil {
 		t.Fatal(err)
 	}
 	if got := strings.Join(kind.lastCall("delete"), " "); got != "delete cluster --name da-platform" {
 		t.Fatalf("delete = %q", got)
 	}
 	absent := &fakeKind{existing: []string{"da-chatbot-mesh-demo"}}
-	if err := DownPlatform(absent.run); err != nil || absent.issued("delete") {
+	if err := DownPlatform(absent.run, noManagedNamespaces); err != nil || absent.issued("delete") {
 		t.Fatalf("absent platform: err=%v calls=%v", err, absent.calls)
+	}
+}
+
+// #2477 R7: platform:down refuses while a managed application namespace remains
+// and does not delete the cluster.
+func TestDownPlatformRefusesWhileApplicationsRemain(t *testing.T) {
+	kind := &fakeKind{existing: []string{PlatformClusterName}}
+	bind := func(string) (CommandRunner, func(), error) {
+		return func(string, ...string) ([]byte, error) {
+			return []byte("da-chatbot-mesh da-coding-agent"), nil
+		}, func() {}, nil
+	}
+	err := DownPlatform(kind.run, bind)
+	if err == nil || !strings.Contains(err.Error(), "da-chatbot-mesh") {
+		t.Fatalf("down did not refuse naming the application namespace: %v", err)
+	}
+	if kind.issued("delete") {
+		t.Fatal("down deleted the platform while an application namespace remained")
+	}
+}
+
+// #2477 R6: platform:reset refuses while da-platform is running rather than
+// deleting retained data as a side effect.
+func TestResetPlatformRefusesWhileRunning(t *testing.T) {
+	kind := &fakeKind{existing: []string{PlatformClusterName}}
+	err := ResetPlatform(kind.run, noManagedNamespaces)
+	if err == nil || !strings.Contains(err.Error(), "refuses while") {
+		t.Fatalf("reset did not refuse while the platform was running: %v", err)
+	}
+}
+
+// #2477 R10: preflight refuses when a process or demo cluster holds a platform
+// host port, naming the port and the remediation; it passes when both are free.
+func TestPlatformPreflightDetectsHeldHostPorts(t *testing.T) {
+	if err := PlatformPreflight(func(int) bool { return false }); err != nil {
+		t.Fatalf("preflight refused with both ports free: %v", err)
+	}
+	held := PlatformPreflight(func(port int) bool { return port == 443 })
+	if held == nil {
+		t.Fatal("preflight passed while host 443 was held")
+	}
+	if !strings.Contains(held.Error(), "443") || !strings.Contains(held.Error(), "kind delete cluster") {
+		t.Fatalf("preflight error names neither the port nor the remediation: %v", held)
+	}
+}
+
+// #2477 R10: StartPlatform runs preflight before creating the cluster, so a
+// held port refuses without touching kind.
+func TestStartPlatformPreflightsBeforeCreate(t *testing.T) {
+	kind := &fakeKind{}
+	_, err := StartPlatform(PlatformOptions{
+		KindRun:   kind.run,
+		PortProbe: func(int) bool { return true },
+	})
+	if err == nil || !strings.Contains(err.Error(), "preflight") {
+		t.Fatalf("StartPlatform did not preflight: %v", err)
+	}
+	if kind.issued("create") {
+		t.Fatal("StartPlatform created a cluster despite a held host port")
 	}
 }
 

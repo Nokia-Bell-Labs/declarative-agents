@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+schema_version: 1
+application: apprig-fixture
+ownership: agent-owning
+runtime:
+  mount_path: /profiles
+deployment:
+  entries:
+    - id: fixture
+      root: local
+      workload: fixture
+      profile_path: agents/fixture/profile.yaml
+      mount_path: agents/fixture

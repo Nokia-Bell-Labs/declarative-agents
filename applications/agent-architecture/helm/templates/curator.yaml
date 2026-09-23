@@ -107,6 +107,11 @@ spec:
             - "--otel-service-name"
             - {{ .Values.curator.serviceName | quote }}
             {{- end }}
+          # The catalog profile remains loopback by default for host runs. The
+          # namespaced application explicitly opens its three declared REST
+          # listeners so shared Traefik and the Service can reach them.
+          env:
+            - {name: DOCUMENTATION_CURATOR_BIND_HOST, value: "0.0.0.0"}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           ports:

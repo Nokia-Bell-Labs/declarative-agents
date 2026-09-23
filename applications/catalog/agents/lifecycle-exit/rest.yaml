@@ -19,7 +19,7 @@ rest:
         # target agent's control DNS name, defaulting to loopback locally. The
         # agent-architecture presentation targets the documentation-curator.
         hosts: [${LIFECYCLE_EXIT_HOST:-127.0.0.1}, localhost]
-        ports: [18082]
+        ports: [${LIFECYCLE_EXIT_PORT:-18082}]
   clients:
     control:
       # The canonical lifecycle-exit endpoint of a running agent's control server.
@@ -27,7 +27,7 @@ rest:
       # a declared client base, not runtime input, and the endpoint carries no
       # transport authority (auth: none). Retargeting means overriding this base_url
       # (and LIFECYCLE_EXIT_HOST), the only per-consumer difference.
-      base_url: http://127.0.0.1:18082
+      base_url: http://${LIFECYCLE_EXIT_HOST:-127.0.0.1}:${LIFECYCLE_EXIT_PORT:-18082}
       auth_ref: none
       limits_ref: local_control_api
       operations:

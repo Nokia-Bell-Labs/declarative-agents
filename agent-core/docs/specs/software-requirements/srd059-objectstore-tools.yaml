@@ -17,7 +17,7 @@ problem: |
   local backend needs no cloud at all.
 
 goals:
-  - G1: One objectstore family with three words, object_read, object_write, and object_list, whose compiled-in drivers are selected by the declared bucket URL scheme.
+  - G1: One objectstore family with four words, object_read, object_write, object_list, and the internal destructive object_delete_prefix boundary, whose compiled-in drivers are selected by the declared bucket URL scheme.
   - G2: Provider switching is configuration. Moving a workload between the kind rig, GCS, and S3 changes a values overlay and never a declaration file or Go code.
   - G3: The local rig binds through an explicit endpoint configuration field, and no code path reads an environment variable for endpoint or backend selection.
   - G4: object_write is reversible through a prior-object snapshot receipt, so an undo restores what was there or deletes what was not.
@@ -28,10 +28,12 @@ requirements:
     title: The family and its words
     items:
       - R1.1: >-
-          The family SHALL declare exactly three words under
+          The family SHALL declare exactly four words under
           tools/builtin/objectstore/, object_read taking a key and producing
           the object as text output, object_write taking text and a key,
-          and object_list taking a prefix and producing a listing. The
+          object_list taking a request prefix and producing a listing, and
+          internal object_delete_prefix taking no request authority and
+          deleting only its declaration-configured prefix. The
           group SHALL NOT be imported into tools/builtin/all.yaml; a
           profile selects it by name, as the dolt family is selected.
       - R1.2: >-
@@ -97,6 +99,24 @@ requirements:
           version and digest per ENG01 C2, and with cleanup on every exit
           path.
 
+  R5:
+    title: Declaration-bound destructive purge boundary
+    items:
+      - R5.1: >-
+          object_delete_prefix SHALL accept no request field for bucket URL,
+          endpoint, prefix, credential, or application. Those values SHALL be
+          fixed in declaration configuration before the profile runs.
+      - R5.2: >-
+          The word SHALL list a bounded pre-delete set, refuse without mutation
+          when max_objects is exceeded, delete only the configured prefix,
+          list again to verify absence, and return purged, partial, or refused
+          with matched/deleted/remaining counts and a hash of the selected keys.
+      - R5.3: >-
+          Every attempt that produces a bounded outcome SHALL append a
+          non-secret fsynced audit record outside the target bucket. The word
+          SHALL be irreversible, internal-only, and absent from the default
+          builtin surface.
+
 non_goals:
   - The kind-rig fake-gcs add-on; GH-2043 owns it and reuses this family's endpoint shape.
   - S3 integration testing and an AWS values overlay; the s3 driver ships compiled in and unit-tested until an AWS environment exists.
@@ -106,7 +126,7 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: A profile listing the three words by name in tools.yaml boots, and the words register, dispatch, and validate; the default builtin surface does not grow.
+    criterion: A profile listing the four words by name in tools.yaml boots, and the words register, dispatch, and validate; object_delete_prefix remains internal and the default builtin surface does not grow.
     traces: [R1.1, R1.2, R1.3]
   - id: AC2
     criterion: The backend is chosen solely by the declared bucket_url plus the optional explicit endpoint; the same declarations open mem, file, gs, and s3 buckets as the configuration changes, an unknown scheme fails by name, and no environment variable is read on any path.
@@ -117,6 +137,9 @@ acceptance_criteria:
   - id: AC4
     criterion: Unit tests pass on mem and file buckets with no container, and the fake-gcs integration passes end to end where docker is present and skips naming docker where it is not.
     traces: [R4.1, R4.2]
+  - id: AC5
+    criterion: The internal delete-prefix word ignores request-supplied storage selectors, deletes one declared prefix without crossing into a peer prefix, refuses an over-budget set without mutation, verifies remaining objects, writes an external audit record, and is selected only by an explicitly destructive profile.
+    traces: [R5.1, R5.2, R5.3]
 
 depends_on:
   - srd_id: srd022-builtin-tools

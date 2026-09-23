@@ -140,6 +140,16 @@ sections:
       access. GCP supplies no permanent global telemetry query service in this
       release.
 
+      The checked-in IAM-policy fixture derives three independent bindings:
+      `app-agent-architecture`, `app-chatbot-mesh`, and `app-coding-agent`.
+      Each namespace's default KSA may impersonate only its application GSA,
+      and each GSA receives `roles/storage.objectAdmin` only on its own
+      `<project>-<application>-telemetry` bucket. The command plan contains no
+      credential, service-account key, or key-file value. Run
+      `cd magefiles && go test ./gcprig -run TestFirstPartyApplicationBucketIAMIsolation`
+      without a project to prove the policy shape; authenticated GKE is the
+      dependency-gated live denial proof.
+
   - title: "Verbs"
     content: |
       Table 2: GCP rig verbs at the repository root

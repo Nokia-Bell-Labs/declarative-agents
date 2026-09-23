@@ -49,13 +49,13 @@ func TestKnowledgeManagerConformance(t *testing.T) {
 		filepath.Join("agents", "knowledge-manager", "documentation-curator", "profile.yaml"),
 		map[string]string{
 			// Bind the three generic REST servers to free ports.
-			"http://127.0.0.1:18081":   "http://" + docsAddr,
-			"ports: [18081]":           "ports: [" + PortOf(t, docsAddr) + "]",
-			"ports: [18082]":           "ports: [" + PortOf(t, controlAddr) + "]",
-			"ports: [18084]":           "ports: [" + PortOf(t, monitorAddr) + "]",
-			"address: 127.0.0.1:18081": "address: " + docsAddr,
-			"address: 127.0.0.1:18082": "address: " + controlAddr,
-			"address: 127.0.0.1:18084": "address: " + monitorAddr,
+			"http://127.0.0.1:18081": "http://" + docsAddr,
+			"ports: [18081]":         "ports: [" + PortOf(t, docsAddr) + "]",
+			"ports: [18082]":         "ports: [" + PortOf(t, controlAddr) + "]",
+			"ports: [18084]":         "ports: [" + PortOf(t, monitorAddr) + "]",
+			"address: ${DOCUMENTATION_CURATOR_BIND_HOST:-127.0.0.1}:18081": "address: " + docsAddr,
+			"address: ${DOCUMENTATION_CURATOR_BIND_HOST:-127.0.0.1}:18082": "address: " + controlAddr,
+			"address: ${DOCUMENTATION_CURATOR_BIND_HOST:-127.0.0.1}:18084": "address: " + monitorAddr,
 		})
 
 	server := Serve(t, ServeConfig{Profile: profilePath, Directory: coreRoot})

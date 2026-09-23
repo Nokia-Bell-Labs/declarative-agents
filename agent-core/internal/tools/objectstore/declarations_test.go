@@ -30,14 +30,14 @@ func shippedDeclarations(t *testing.T) []catalog.ToolDef {
 	return defs
 }
 
-// srd059 AC1: the shipped file's three words register through the real
+// srd059 AC1: the shipped file's four words register through the real
 // factory and their declared default config resolves to a builder. The
 // templated defaults land on mem://agents, so the shipped file validates
 // with no environment and no cloud.
 func TestShippedDeclarationsRegisterAndResolve(t *testing.T) {
 	defs := shippedDeclarations(t)
-	if len(defs) != 3 {
-		t.Fatalf("shipped declarations carry %d words, want 3", len(defs))
+	if len(defs) != 4 {
+		t.Fatalf("shipped declarations carry %d words, want 4", len(defs))
 	}
 	br := toolregistry.NewBuiltinRegistry()
 	RegisterFactories(br, FactoryDeps{Opener: NewOpener()})

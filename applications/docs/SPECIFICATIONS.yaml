@@ -30,10 +30,10 @@ overview: |
   checks parse documents, verify module classification and root orchestration,
   enforce ownership-aware stats, and invoke application-owned capability
   evidence. The runnable set is chatbot-mesh, coding-agent,
-  and agent-architecture. Agent Architecture's runnable-module evidence is implemented;
-  its managed-service status is partial because live srd002 AC1 through AC3
-  observations remain dependency-gated. ENG01 remains the sole kind-rig
-  contract.
+  and agent-architecture. All three expose implemented apprig lifecycle,
+  namespaced serving, retained telemetry, and shared-platform evidence. ENG01
+  remains the sole kind-rig contract; authenticated live GKE execution is
+  dependency-gated where project credentials are unavailable.
 
 roadmap_summary:
   - version: "00.0"
@@ -103,14 +103,16 @@ roadmap_summary:
       degenerate one naming its rule; the runbook carries the step.
   - version: "19.0"
     name: Persistent application platform
-    use_cases_done: 0
+    use_cases_done: 1
     use_cases_total: 1
-    status: planned
+    status: implemented
     evidence: |
       srd008, its use case, and the eight-case suite define the ownership,
       routing, lifecycle, storage, query, threat, and reusable-runner contract.
-      TC1 is executable structural evidence; TC2 through TC8 are assigned to
-      the implementation issues under GH-2474.
+      TC1 through TC8 are implemented by GH-2474: three concurrent application
+      migrations, durable collector/query/WAL evidence, explicit purge,
+      platform failure separation, external-module apprig use, and cloud IAM
+      policy fixtures.
 foundation_document_index:
   - id: application-composition-pattern-language
     title: A Pattern Language for Declarative Agent Applications
@@ -291,7 +293,7 @@ use_case_index:
   - id: rel19.0-uc001-persistent-application-platform
     title: Operate Two Namespaced Applications Without Losing Retained Telemetry
     release: "19.0"
-    status: planned
+    status: implemented
     srds:
       - srd008-persistent-application-platform
     test_suite: test-rel19.0-persistent-application-platform
@@ -356,7 +358,7 @@ test_suite_index:
   - id: test-rel19.0-persistent-application-platform
     title: Release 19.0 Persistent Application Platform Test Suite
     release: "19.0"
-    status: planned
+    status: implemented
     test_case_count: 8
     traces: [rel19.0-uc001-persistent-application-platform]
     srds:
@@ -365,14 +367,13 @@ test_suite_index:
 
 coverage_gaps:
   - id: release-19-persistent-application-platform
-    status: planned
+    status: implemented
     description: |
-      GH-2476 fixes the contract and provides executable trace-closure
-      evidence. GH-2475, GH-2477, GH-2478, GH-2479, GH-2484, and the three
-      first-party migrations own TC2 through TC8. Retained objects are
+      GH-2474 implements the contract and all eight cases. Retained objects are
       intentionally not a live query service while the application collector
-      is absent; a global query service, authenticated local multi-tenancy, and
-      shared vector storage remain outside this release.
+      is absent; a global query service and authenticated hostile local
+      multi-tenancy remain outside this release. The approved GH-2481 decision
+      retains application-owned vector stores.
   - id: release-18-release-annotation
     status: implemented
     description: |

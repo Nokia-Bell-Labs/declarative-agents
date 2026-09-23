@@ -323,6 +323,27 @@
         "queryPort": {"$ref": "#/definitions/port"},
         "resources": {"$ref": "#/definitions/resources"},
         "externalOTLPEndpoint": {"type": "string"},
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Durable collector storage contract (srd042 R10/R11; GH-2484). Absent or backend=filesystem keeps the emptyDir NDJSON spool; backend=object wires the application bucket and a persistent WAL.",
+          "properties": {
+            "backend": {"type": "string", "enum": ["filesystem", "object"]},
+            "mode": {"type": "string", "enum": ["durable", "ephemeral"]},
+            "walMode": {"type": "string", "enum": ["persistent", "ephemeral"]},
+            "walPath": {"type": "string"},
+            "walCapacity": {"type": "string"},
+            "walStorageClass": {"type": "string"},
+            "application": {"type": "string"},
+            "namespace": {"type": "string"},
+            "bucketURL": {"type": "string"},
+            "bucketName": {"type": "string"},
+            "endpoint": {"type": "string"},
+            "prefix": {"type": "string"},
+            "retentionClass": {"type": "string", "minLength": 1},
+            "retentionDays": {"type": "integer", "minimum": 0}
+          }
+        },
         "integrationResource": {
           "type": "object",
           "additionalProperties": false,
@@ -340,11 +361,19 @@
     "ingress": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "className", "host", "annotations"],
+      "required": ["enabled", "className", "host", "observerHost", "collectorHost", "annotations"],
       "properties": {
         "enabled": {"type": "boolean"},
         "className": {"type": "string"},
         "host": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9](?:[-A-Za-z0-9.]*[A-Za-z0-9])?$"
+        },
+        "observerHost": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9](?:[-A-Za-z0-9.]*[A-Za-z0-9])?$"
+        },
+        "collectorHost": {
           "type": "string",
           "pattern": "^[A-Za-z0-9](?:[-A-Za-z0-9.]*[A-Za-z0-9])?$"
         },

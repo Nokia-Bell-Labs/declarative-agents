@@ -125,8 +125,12 @@ func codingDeployCoordinates(roots integrationRoots, chart string) kindrig.Deplo
 // codingDeployChart packages the chart into the build tree the render writes
 // beside, so a failed deploy leaves the chart that produced it in place.
 func codingDeployChart(roots integrationRoots) (string, error) {
+	return codingDeployChartForRelease(roots, codingDemoRelease)
+}
+
+func codingDeployChartForRelease(roots integrationRoots, release string) (string, error) {
 	destination := filepath.Join(
-		kindrig.DeployRenderDirectory(roots.Application, codingDemoRelease), "chart")
+		kindrig.DeployRenderDirectory(roots.Application, release), "chart")
 	if err := os.MkdirAll(destination, 0o755); err != nil {
 		return "", fmt.Errorf("deploy: create chart directory %s: %w", destination, err)
 	}

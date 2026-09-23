@@ -1,0 +1,38 @@
+{{/* Copyright (c) 2026 Nokia */}}
+{{/* SPDX-License-Identifier: BSD-3-Clause */}}
+{{- if .Values.ingress.enabled }}
+{{- $fullname := include "agent-architecture.fullname" . }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "agent-architecture.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.hosts.documentation }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: {{ $fullname }}-curator, port: {name: documentation}}}
+    - host: {{ .Values.ingress.hosts.lifecycle }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: {{ $fullname }}-curator, port: {name: control}}}
+    - host: {{ .Values.ingress.hosts.monitor }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: {{ $fullname }}-curator, port: {name: monitor}}}
+    - host: {{ .Values.ingress.hosts.collector }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: {{ $fullname }}-collector, port: {name: query}}}
+{{- end }}

@@ -97,15 +97,18 @@ tools:
   - kind: filesystem_write
     target: configured spool path
     state: appends durable audit evidence and may rotate bounded generations
+  - kind: external_api
+    target: configured application object bucket
+    state: persists one immutable trace envelope when the object storage backend is selected
   reversibility:
     classification: irreversible
     requires_confirmation: true
   undo:
     strategy: irreversible
-    description: Appended audit evidence is retained.
+    description: Appended audit evidence and persisted objects are retained.
   errors:
   - signal: CommandError
-    condition: batch selection, encoding, rotation, append, or sync fails
+    condition: batch selection, encoding, rotation, append, sync, WAL, or object persistence fails
     message_shape: 'tool <name>: <spool operation>: <cause>'
     state_after_failure: relay is not invoked and the source batch remains in command state
   config:
@@ -113,6 +116,19 @@ tools:
     batch_source: $.batch
     max_bytes: 10485760
     max_files: 3
+    # Optional durable object backend (srd042 R10). Default is the filesystem
+    # NDJSON append above; the object backend seals one immutable versioned
+    # envelope per batch through a write-ahead log, selected by declared config.
+    storage:
+      backend: filesystem
+      bucket_url: ""
+      endpoint: ""
+      prefix: traces
+      wal_path: traces/collector.wal
+      retention_class: application
+      retention_days: "0"
+      wal_max_bytes: 67108864
+      wal_max_pending: 1024
 - name: spool_metrics
   type: builtin
   init: spool_metrics
@@ -137,15 +153,18 @@ tools:
   - kind: filesystem_write
     target: configured metric spool path
     state: appends durable audit evidence and may rotate bounded generations
+  - kind: external_api
+    target: configured application object bucket
+    state: persists one immutable metric envelope when the object storage backend is selected
   reversibility:
     classification: irreversible
     requires_confirmation: true
   undo:
     strategy: irreversible
-    description: Appended audit evidence is retained.
+    description: Appended audit evidence and persisted objects are retained.
   errors:
   - signal: CommandError
-    condition: batch selection, encoding, rotation, append, or sync fails
+    condition: batch selection, encoding, rotation, append, sync, WAL, or object persistence fails
     message_shape: 'tool <name>: <spool operation>: <cause>'
     state_after_failure: the source batch remains in command state
   config:
@@ -153,3 +172,15 @@ tools:
     batch_source: $.batch
     max_bytes: 10485760
     max_files: 3
+    # Traces and metrics share the storage port; the object backend keeps them
+    # in separate object families (srd042 R10.2).
+    storage:
+      backend: filesystem
+      bucket_url: ""
+      endpoint: ""
+      prefix: metrics
+      wal_path: metrics/collector.wal
+      retention_class: application
+      retention_days: "0"
+      wal_max_bytes: 67108864
+      wal_max_pending: 1024

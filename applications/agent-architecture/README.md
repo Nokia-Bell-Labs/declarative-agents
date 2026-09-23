@@ -19,9 +19,10 @@ and builtin tools.
 ## Status
 
 The module status is `implemented` and its ownership is `composition-only`.
-The runnable, packaged, Helm-managed, kind-demo, and catalog UI surfaces have
-executable evidence. Managed-service conformance is `partial` because the
-remaining live lifecycle observations are `dependency_gated`.
+The runnable, packaged, Helm-managed, persistent-platform, and catalog UI
+surfaces have executable evidence. The canonical deployed mode is one
+`agent-architecture` release in `app-agent-architecture` on `da-platform`,
+with durable telemetry in `gs://agent-architecture-telemetry`.
 
 ## Composition
 
@@ -49,9 +50,21 @@ reports one composition wrapper separately. Agent-core owns runtime semantics.
 
 ## Run or Planned Entry Points
 
-All declared entry points are implemented. Use `mage run` and
-`mage presentation` for the local composition, or `mage demo:up` and
-`mage demo:down` for the optional Kubernetes demo.
+The canonical deployed entry points are:
+
+```bash
+mage app:up
+mage app:status
+mage app:exit       # catalog lifecycle-exit client over a safe port-forward
+mage app:diagnose
+mage app:down
+```
+
+They consume the root `magefiles/apprig` lifecycle and the shared
+`da-platform`; no dedicated cluster is required. `mage run` and
+`mage presentation` remain lightweight local development modes.
+`mage demo:up|down` is a compatibility development workflow, not the canonical
+deployed platform mode.
 
 ## Verification
 
