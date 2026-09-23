@@ -6,7 +6,7 @@ id: control-plane
 title: Control Plane Constitution
 purpose: >-
   We bind the components that change a running population — the deciding
-  orchestrator and the acting creator — to the Libretto specification
+  orchestrator and the acting creator — to the specification
   (application-dsl-spec/). Each obligation cites a statement identifier; this
   constitution introduces no grammar of its own.
 obligations:
@@ -28,4 +28,4 @@ obligations:
       decommission operation removes one.
 references:
   - application-dsl-spec/language.yaml
-  - application-dsl-spec/08-population-invariants.md
+  - application-dsl-spec/04-lifecycle-and-population.md

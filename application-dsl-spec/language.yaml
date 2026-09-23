@@ -41,7 +41,7 @@
 #
 language:
   id: application-dsl
-  title: "Libretto: A Declarative Language for Applications, Agents, and Machines"
+  title: "A Domain-Specific Language for Agents"
   version: 0.1.0
   conformance_targets:
     - document

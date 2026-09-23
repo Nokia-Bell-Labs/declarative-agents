@@ -5,7 +5,7 @@
 id: catalog
 title: Catalog Constitution
 purpose: >-
-  We bind the shared catalog (applications/catalog) to the Libretto
+  We bind the shared catalog (applications/catalog) to the
   specification (application-dsl-spec/): what a published block guarantees to
   the modules that reference it. Each obligation cites a statement
   identifier; this constitution introduces no grammar of its own.
@@ -29,4 +29,4 @@ obligations:
       in-place mutation.
 references:
   - application-dsl-spec/language.yaml
-  - application-dsl-spec/09-conformance.md
+  - application-dsl-spec/06-mechanized-checking.md

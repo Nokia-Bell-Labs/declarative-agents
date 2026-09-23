@@ -19,7 +19,7 @@ func builtSite(t *testing.T) string {
 		"# 2. Terminology\n\n| agent-profile | agent-instance |\n|---|---|\n\nA machine-template expands.\n")
 	output := t.TempDir()
 	language := renderLanguage()
-	language.Language.Title = "Libretto"
+	language.Language.Title = "A Domain-Specific Language for Agents"
 	language.Language.Version = "0.1.0"
 	if err := buildSite(rendered, output, language); err != nil {
 		t.Fatal(err)
@@ -104,11 +104,11 @@ func TestRepositorySiteBuilds(t *testing.T) {
 	if err := buildSite(rendered, site, language); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(site, "latest", "08-population-invariants.html"))
+	data, err := os.ReadFile(filepath.Join(site, "latest", "04-lifecycle-and-population.html"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(data), `<a id="R-POP-001"></a>`) {
-		t.Error("population chapter lost its statement anchor")
+		t.Error("population section lost its statement anchor")
 	}
 }

@@ -5,7 +5,7 @@
 id: applications
 title: Applications Constitution
 purpose: >-
-  We bind every application module to the Libretto specification
+  We bind every application module to the specification
   (application-dsl-spec/): what its application-profile must declare and what
   its running composition must uphold. Each obligation cites a statement
   identifier; this constitution introduces no grammar of its own.
@@ -27,4 +27,4 @@ obligations:
       keyname R-APP-001 requires.
 references:
   - application-dsl-spec/language.yaml
-  - application-dsl-spec/05-application-profile.md
+  - application-dsl-spec/03-language.md
