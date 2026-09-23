@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -231,16 +232,40 @@ func writeDocumentationCuratorRest(profilesRoot, _ string, tmpDir string, cfg do
 	if err != nil {
 		return err
 	}
-	replacements := map[string]string{
-		"http://127.0.0.1:18081":   "http://" + cfg.docsAddr,
-		"ports: [18081]":           "ports: [" + localPort(cfg.docsAddr) + "]",
-		"ports: [18082]":           "ports: [" + localPort(cfg.controlAddr) + "]",
-		"ports: [18084]":           "ports: [" + localPort(cfg.monitorAddr) + "]",
-		"address: 127.0.0.1:18081": "address: " + cfg.docsAddr,
-		"address: 127.0.0.1:18082": "address: " + cfg.controlAddr,
-		"address: 127.0.0.1:18084": "address: " + cfg.monitorAddr,
+	rewritten, err := rewriteDocumentationCuratorPorts(content, cfg)
+	if err != nil {
+		return err
 	}
-	return os.WriteFile(filepath.Join(tmpDir, "rest.yaml"), []byte(replaceAll(content, replacements)), 0o644)
+	return os.WriteFile(filepath.Join(tmpDir, "rest.yaml"), []byte(rewritten), 0o644)
+}
+
+// curatorServerAddress matches a declared server address on one of the
+// curator's fixed ports, whether its host is a literal or the bind-host
+// substitution the shared-platform chart uses (GH-2534).
+var curatorServerAddress = regexp.MustCompile(`address: (?:127\.0\.0\.1|\$\{DOCUMENTATION_CURATOR_BIND_HOST:-127\.0\.0\.1\}):(1808[124])`)
+
+// rewriteDocumentationCuratorPorts moves the curator's three servers and the
+// allowlists that name them onto the harness's free ports. A declared port
+// that survives the rewrite fails here by name: left alone, the curator binds
+// its declared port while the harness probes the free one, and the only
+// symptom is a readiness timeout.
+func rewriteDocumentationCuratorPorts(content string, cfg documentationCuratorConfig) (string, error) {
+	addresses := map[string]string{"18081": cfg.docsAddr, "18082": cfg.controlAddr, "18084": cfg.monitorAddr}
+	content = curatorServerAddress.ReplaceAllStringFunc(content, func(match string) string {
+		return "address: " + addresses[curatorServerAddress.FindStringSubmatch(match)[1]]
+	})
+	content = replaceAll(content, map[string]string{
+		"http://127.0.0.1:18081": "http://" + cfg.docsAddr,
+		"ports: [18081]":         "ports: [" + localPort(cfg.docsAddr) + "]",
+		"ports: [18082]":         "ports: [" + localPort(cfg.controlAddr) + "]",
+		"ports: [18084]":         "ports: [" + localPort(cfg.monitorAddr) + "]",
+	})
+	for _, port := range []string{"18081", "18082", "18084"} {
+		if strings.Contains(content, ":"+port) || strings.Contains(content, "["+port+"]") {
+			return "", fmt.Errorf("documentation-curator rest.yaml still declares port %s after the harness rewrite; the declared address form changed", port)
+		}
+	}
+	return content, nil
 }
 
 func writeDocumentationCuratorOpenAPI(profilesRoot, _ string, tmpDir string, cfg documentationCuratorConfig) error {
