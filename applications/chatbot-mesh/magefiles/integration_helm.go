@@ -823,6 +823,44 @@ func loadIntegrationDependencyImages(
 			return err
 		}
 	}
+	return ensureDependencyImagesPresent(specs,
+		func(reference string) (bool, error) {
+			return kindNodeHasImage(commands, cluster, kindrig.NormalizeNodeImageReference(reference))
+		},
+		func(spec chartDependency) error {
+			return loadSmokeDependencyImageWithCommands(commands, cluster, spec)
+		})
+}
+
+// ensureDependencyImagesPresent re-reads the node after every dependency has
+// loaded. The shared node serves concurrent scenarios, and a loaded image
+// that is gone by rollout surfaces only as a pullPolicy Never pod stuck in
+// ErrImageNeverPull for the whole rollout timeout (GH-2535). A missing image
+// is loaded once more; one still missing fails here by name.
+func ensureDependencyImagesPresent(
+	specs []chartDependency,
+	present func(reference string) (bool, error),
+	reload func(spec chartDependency) error,
+) error {
+	for _, spec := range specs {
+		ok, err := present(spec.Cluster)
+		if err != nil {
+			return err
+		}
+		if ok {
+			continue
+		}
+		fmt.Printf("shared kind: %s missing after load; loading again\n", spec.Cluster)
+		if err := reload(spec); err != nil {
+			return err
+		}
+		if ok, err = present(spec.Cluster); err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("dependency image %s is not on the node after two loads; a pullPolicy Never pod cannot start", spec.Cluster)
+		}
+	}
 	return nil
 }
 
@@ -841,42 +879,10 @@ func loadSmokeDependencyImageWithCommands(
 		return nil
 	}
 	if _, err := kindrig.ParseLocal(spec.Cluster); err == nil {
-		return loadLocalDependencyImageWithCommands(commands, cluster, spec.Cluster)
+		return loadKindImageWithCommands(commands, cluster, spec.Cluster)
 	}
 	return kindrig.ImportPinnedImage(
 		commands.Run, cluster, "dependency", spec.Pull, spec.Cluster)
-}
-
-func loadLocalDependencyImageWithCommands(
-	commands kindrig.Commands,
-	cluster, image string,
-) error {
-	localReference := kindrig.NormalizeNodeImageReference(image)
-	save := commands.Command("docker", "save", image)
-	stream, err := save.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	node := cluster + "-control-plane"
-	load := commands.Command("docker", "exec", "-i", node, "ctr", "--namespace=k8s.io",
-		"images", "import", "--platform=linux/"+runtime.GOARCH, "--snapshotter=overlayfs",
-		"--index-name", localReference, "-")
-	load.Stdin = stream
-	var output bytes.Buffer
-	load.Stdout, load.Stderr = &output, &output
-	if err := load.Start(); err != nil {
-		return err
-	}
-	if err := save.Run(); err != nil {
-		_ = load.Process.Kill()
-		_ = load.Wait()
-		return fmt.Errorf("save local dependency %s: %w", image, err)
-	}
-	if err := load.Wait(); err != nil {
-		return fmt.Errorf("load local dependency %s: %w: %s",
-			image, err, strings.TrimSpace(output.String()))
-	}
-	return nil
 }
 
 func kindNodeHasImage(
