@@ -1031,7 +1031,7 @@ test_suite_index:
     traces:
       - rel20.0-uc003-unit-libraries
     formal_test_cases: 12
-    status: specified
+    status: implemented
     path: docs/specs/test-suites/test-rel20.0-unit-libraries.yaml
   - id: test-rel21.0-capability-profiles
     title: Test Suite for Release 21.0 Capability Profiles

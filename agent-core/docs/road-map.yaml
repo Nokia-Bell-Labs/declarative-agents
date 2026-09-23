@@ -843,8 +843,8 @@ releases:
         summary: Formal tests for template and blueprint formats, expansion and path resolution, validation, and closure, identity, dump, staging, and audit provenance. The twelve template cases are implemented; the eleven blueprint cases wait on gh-2123.
         status: in_progress
       - id: test-rel20.0-unit-libraries
-        summary: Formal tests for import path forms, declared roots, read-only libraries, rooted closure and dump provenance, staging, and the service-library convention. Eleven cases are implemented, including the documented service-library convention (release 26.0, gh-2527). The two-importer case waits on the retrieval client's consumer adoption in cohere-demo and agentic-wiki-mesh.
-        status: in_progress
+        summary: Formal tests for import path forms, declared roots, read-only libraries, rooted closure and dump provenance, staging, and the service-library convention. All twelve cases are implemented; the two-importer case closed when cohere-demo and agentic-wiki-mesh adopted the retrieval client (gh-2527).
+        status: implemented
     proof:
       - go test ./internal/runtime/core ./internal/tools/catalog ./internal/load ./pkg/profilestage ./pkg/profileaudit
       - mage stats:reuse

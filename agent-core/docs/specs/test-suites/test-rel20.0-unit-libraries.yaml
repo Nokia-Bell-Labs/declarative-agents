@@ -131,8 +131,12 @@ test_cases:
   - use_case: rel20.0-uc003-unit-libraries
     name: No service library has fewer than two importing profiles
     go_test: mage stats:reuse
-    status: planned
-    description: Count importing profiles for every unit under a declared library root.
+    status: implemented
+    description: >-
+      Count importing profiles for every service-library unit, an
+      instantiation counting as an importer (srd056 R4.2). The retrieval
+      client has three: chatbot-mesh and agentic-wiki-mesh expand the
+      fragment, and cohere-demo imports the type unit.
     expected:
       min_importing_profiles: 2
     traces: [rel20.0-uc003-unit-libraries S4, srd056-unit-libraries AC4, srd056-unit-libraries R4.2]
