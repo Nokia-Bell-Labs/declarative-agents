@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Trust the operating system's certificate store rather than pixi's bundled
+# roots, so conda-forge fetches work behind TLS-intercepting proxies (GH-2523).
+tls-root-certs = "system"
