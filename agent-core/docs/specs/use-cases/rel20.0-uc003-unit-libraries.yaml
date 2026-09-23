@@ -53,4 +53,4 @@ success_criteria:
 out_of_scope:
   - Search paths, registries, and version constraints.
   - Cross-application libraries other than agent-core's.
-  - The rag-server service library (GH-2121).
+  - The first service library instance, the retrieval query client (rel26.0-uc001-retrieval-client-library, GH-2527).

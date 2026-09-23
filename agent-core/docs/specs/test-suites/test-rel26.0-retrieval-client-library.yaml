@@ -1,0 +1,56 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: test-rel26.0-retrieval-client-library
+title: Test Suite for Release 26.0 Retrieval Client Library
+release: "26.0"
+
+traces:
+  - rel26.0-uc001-retrieval-client-library
+
+preconditions:
+  - srd060-retrieval-client-contract defines the contract, the placement, and the fragment.
+  - Fragment cases run from a checkout with --core-root and need no network.
+
+test_cases:
+  - use_case: rel26.0-uc001-retrieval-client-library
+    name: The fragment expands to the query operation for each route prefix
+    go_test: go test ./internal/tools/rest/... -run 'TestRetrievalQueryClientFragment'
+    status: planned
+    description: Expand the fragment with the chatbot-mesh arguments (rag, $from(rag_unit).base_url, 5) and the agentic-wiki-mesh arguments (knowledge, $from(knowledge_unit).base_url).
+    expected:
+      path_follows_route_prefix: true
+      output_carries_five_fields: true
+      missing_argument_names_parameter: true
+    traces: [rel26.0-uc001-retrieval-client-library S1, srd060-retrieval-client-contract AC1, srd060-retrieval-client-contract R3.1]
+
+  - use_case: rel26.0-uc001-retrieval-client-library
+    name: Status mapping and side effect of the produced operation
+    go_test: go test ./internal/tools/rest/... -run 'TestRetrievalQueryClientFragment'
+    status: planned
+    description: Inspect the expanded operation's success, failure, and side-effect declarations.
+    expected:
+      status_200_signal: QueryResponded
+      status_400_signal: QueryRejected
+      side_effect: external_api read_only
+    traces: [rel26.0-uc001-retrieval-client-library S2, srd060-retrieval-client-contract AC2, srd060-retrieval-client-contract R3.3]
+
+  - use_case: rel26.0-uc001-retrieval-client-library
+    name: The contract loads through the agent-core root with no declared root
+    go_test: go test ./internal/tools/rest/... -run 'TestRetrievalQueryClientFragment'
+    status: planned
+    description: A unit importing /opt/agent-core/tools/units/types-retrieval.yaml and expanding the fragment loads with --core-root and no library root.
+    expected:
+      loads_without_declared_root: true
+      no_field_beyond_core_request: true
+    traces: [rel26.0-uc001-retrieval-client-library S3, srd060-retrieval-client-contract AC3, srd060-retrieval-client-contract R2.1]
+
+  - use_case: rel26.0-uc001-retrieval-client-library
+    name: chatbot-mesh queries through the fragment and receives metadatas
+    go_test: mage audit
+    status: planned
+    description: chatbot-mesh's chatbot declares no local query operation, its chat and degraded-RAG tests pass, and rag-server's query response carries metadatas.
+    expected:
+      local_query_operations: 0
+      chat_behavior_unchanged: true
+      metadatas_returned: true
+    traces: [rel26.0-uc001-retrieval-client-library S4, srd060-retrieval-client-contract AC4, srd060-retrieval-client-contract R4.1]

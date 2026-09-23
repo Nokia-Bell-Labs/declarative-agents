@@ -1213,8 +1213,8 @@ library_imports: |
 
 service_libraries: |
   An agent that serves a REST surface MAY publish a service library
-  (srd056-unit-libraries R4): a directory in its application, beside the
-  agents, holding
+  (srd056-unit-libraries R4). Inside one application it is a directory beside
+  the agents, holding
 
     lib/<service>/
       rest.yaml     # unit with the client operations for the served surface
@@ -1225,9 +1225,17 @@ service_libraries: |
   profile and import `/opt/<root>/<service>/rest.yaml`, and none of them
   redeclares the client. Per-consumer values such as base URLs stay in the
   consumer, because a library is read-only. A service library earns its place
-  with two or more importing profiles; with one, the client stays in its only
-  consumer. The first candidate, rag-server's query client, has one consumer
-  and waits for a second (GH-2121).
+  with two or more importing profiles, a fragment instantiation counting as
+  one; with one, the client stays in its only consumer.
+
+  A contract served by more than one application lives in agent-core instead:
+  its type unit under tools/units and its client fragment under
+  tools/rest/units, reached through `/opt/agent-core` with no declared root.
+  The first instance is the retrieval query client
+  (srd060-retrieval-client-contract): consumers expand
+  `/opt/agent-core/tools/rest/units/retrieval-query-client-fragment.yaml` with
+  their route prefix and selectors, and import
+  `/opt/agent-core/tools/units/types-retrieval.yaml` for QueryResult.
 
 format_examples:
   hand_authored: |

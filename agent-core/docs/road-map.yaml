@@ -843,7 +843,7 @@ releases:
         summary: Formal tests for template and blueprint formats, expansion and path resolution, validation, and closure, identity, dump, staging, and audit provenance. The twelve template cases are implemented; the eleven blueprint cases wait on gh-2123.
         status: in_progress
       - id: test-rel20.0-unit-libraries
-        summary: Formal tests for import path forms, declared roots, read-only libraries, rooted closure and dump provenance, staging, and the service-library convention. Ten cases are implemented; the two service-library cases wait on gh-2121, which needs a second consumer before a library exists to measure.
+        summary: Formal tests for import path forms, declared roots, read-only libraries, rooted closure and dump provenance, staging, and the service-library convention. Ten cases are implemented; the two service-library cases wait on release 26.0 (gh-2527), which publishes the first service library, the retrieval query client.
         status: in_progress
     proof:
       - go test ./internal/runtime/core ./internal/tools/catalog ./internal/load ./pkg/profilestage ./pkg/profileaudit
@@ -1099,6 +1099,44 @@ releases:
     proof:
       - go test ./internal/tools/rest/...
       - mage integration:monitor
+      - mage audit
+
+  - version: "26.0"
+    name: Retrieval client library
+    description: |
+      Three applications query a retrieval server over one contract under
+      three names, and each declares its own client; the clients have
+      drifted, and chatbot-mesh's server drops the metadatas the others
+      return. Release 26.0 publishes the contract once in agent-core as the
+      first service library of srd056 R4: a QueryResult type unit and a client
+      fragment that an application expands with its route prefix and
+      selectors. The servers and their application policy stay where they
+      are. chatbot-mesh migrates here; cohere-demo and agentic-wiki-mesh adopt
+      at their next pin bump.
+    status: in_progress
+    planned_work:
+      - id: gh-2528
+        summary: Specify srd060, amend srd056 R4 for agent-core placement, and add the use case and suite.
+        status: implemented
+      - id: gh-2529
+        summary: Add types-retrieval.yaml and the retrieval query client fragment with expansion tests.
+        status: planned
+      - id: gh-2530
+        summary: Migrate chatbot-mesh onto the fragment, return metadatas from rag-server, and file consumer adoption issues.
+        status: planned
+    srds:
+      - srd060-retrieval-client-contract
+      - srd056-unit-libraries
+    use_cases:
+      - id: rel26.0-uc001-retrieval-client-library
+        summary: A chatbot queries its retrieval servers through the shared agent-core client.
+        status: specified
+    test_suites:
+      - id: test-rel26.0-retrieval-client-library
+        summary: Fragment expansion per route prefix, status mapping and side effect, loading through the agent-core root, and chatbot-mesh's migration.
+        status: planned
+    proof:
+      - go test ./internal/tools/rest/...
       - mage audit
 
   - version: "99.0"
