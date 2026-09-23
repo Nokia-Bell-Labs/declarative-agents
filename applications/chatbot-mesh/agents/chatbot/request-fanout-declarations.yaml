@@ -4,6 +4,7 @@ unit: mesh-chatbot-request-fanout-declarations
 imports:
 - /opt/agent-core/tools/units/types-collections.yaml
 - /opt/agent-core/tools/units/types-core.yaml
+- /opt/agent-core/tools/units/types-retrieval.yaml
 - ../units/types-chatbot.yaml
 # Source-count-independent multi-RAG fan-out. request-topology-declarations.yaml
 # declares the ordered topology; one sequential MachineSpec for_each dispatches
@@ -28,13 +29,13 @@ tools:
       schema:
         type: object
         properties:
-          mapped: {type: object}
+          mapped: {$type: builtin-types-retrieval.QueryResult}
     side_effects:
       - {kind: external_api, target: rag_server.query, state: read_only}
     reversibility: {classification: reversible}
     undo: {strategy: noop, description: Querying a RAG source does not mutate it.}
     config:
-      rest_ref: rag
+      rest_ref: retrieval
       operation: query
 
   - name: partition_query_results

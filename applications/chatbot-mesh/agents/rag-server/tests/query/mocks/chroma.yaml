@@ -22,3 +22,4 @@ routes:
           ids: [["doc-1", "doc-2"]]
           documents: [["first chunk", "second chunk"]]
           distances: [[0.12, 0.34]]
+          metadatas: [[{source: first.md}, {source: second.md}]]

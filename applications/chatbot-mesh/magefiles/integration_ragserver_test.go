@@ -113,6 +113,7 @@ func TestParseRagQueryResponseChunksAndMetadata(t *testing.T) {
 		"ids": [["doc-1","doc-2","doc-3"]],
 		"documents": [["about apples","about bananas","about cherries"]],
 		"distances": [[0.02,1.62,1.82]],
+		"metadatas": [[{"source":"a.md"},{"source":"b.md"},null]],
 		"embedding_model": "qwen3-embedding:8b",
 		"trace": {"iterations": 2, "terminal_signal": "QueryResponded", "status": "succeeded"}
 	}`)
@@ -144,37 +145,47 @@ func TestValidateAlignment(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "aligned ids documents and distances pass",
-			body: `{"ids":[["a","b"]],"documents":[["doc a","doc b"]],"distances":[[0.1,0.9]]}`,
+			name: "aligned ids documents distances and metadatas pass",
+			body: `{"ids":[["a","b"]],"documents":[["doc a","doc b"]],"distances":[[0.1,0.9]],"metadatas":[[{},{}]]}`,
 		},
 		{
 			name:    "no ids array is rejected",
-			body:    `{"ids":[],"documents":[],"distances":[]}`,
+			body:    `{"ids":[],"documents":[],"distances":[],"metadatas":[]}`,
 			wantErr: "no ids array",
 		},
 		{
 			name:    "missing documents outer dimension is rejected",
-			body:    `{"ids":[["a","b"]],"distances":[[0.1,0.9]]}`,
+			body:    `{"ids":[["a","b"]],"distances":[[0.1,0.9]],"metadatas":[[{},{}]]}`,
 			wantErr: "documents outer dimension",
 		},
 		{
 			name:    "missing distances outer dimension is rejected",
-			body:    `{"ids":[["a","b"]],"documents":[["doc a","doc b"]]}`,
+			body:    `{"ids":[["a","b"]],"documents":[["doc a","doc b"]],"metadatas":[[{},{}]]}`,
 			wantErr: "distances outer dimension",
 		},
 		{
+			name:    "missing metadatas outer dimension is rejected",
+			body:    `{"ids":[["a","b"]],"documents":[["doc a","doc b"]],"distances":[[0.1,0.9]]}`,
+			wantErr: "metadatas outer dimension",
+		},
+		{
+			name:    "metadatas inner dimension mismatch is rejected",
+			body:    `{"ids":[["a","b"]],"documents":[["doc a","doc b"]],"distances":[[0.1,0.9]],"metadatas":[[{}]]}`,
+			wantErr: "metadatas inner dimension",
+		},
+		{
 			name:    "documents inner dimension mismatch is rejected",
-			body:    `{"ids":[["a","b"]],"documents":[["only one"]],"distances":[[0.1,0.9]]}`,
+			body:    `{"ids":[["a","b"]],"documents":[["only one"]],"distances":[[0.1,0.9]],"metadatas":[[{},{}]]}`,
 			wantErr: "documents inner dimension",
 		},
 		{
 			name:    "distances inner dimension mismatch is rejected",
-			body:    `{"ids":[["a","b"]],"documents":[["doc a","doc b"]],"distances":[[0.1]]}`,
+			body:    `{"ids":[["a","b"]],"documents":[["doc a","doc b"]],"distances":[[0.1]],"metadatas":[[{},{}]]}`,
 			wantErr: "distances inner dimension",
 		},
 		{
 			name:    "empty document alongside an id is rejected",
-			body:    `{"ids":[["a","b"]],"documents":[["doc a","   "]],"distances":[[0.1,0.9]]}`,
+			body:    `{"ids":[["a","b"]],"documents":[["doc a","   "]],"distances":[[0.1,0.9]],"metadatas":[[{},{}]]}`,
 			wantErr: "empty document",
 		},
 		{
@@ -195,6 +206,7 @@ func TestValidateAlignment(t *testing.T) {
 					IDs:       [][]string{{"a"}},
 					Documents: [][]string{{"doc a"}},
 					Distances: [][]float64{{math.Inf(1)}},
+					Metadatas: [][]any{{nil}},
 				}
 			} else {
 				var err error

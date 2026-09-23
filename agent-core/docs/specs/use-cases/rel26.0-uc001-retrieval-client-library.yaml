@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 id: rel26.0-uc001-retrieval-client-library
 title: A chatbot queries its retrieval servers through the shared agent-core client
-status: specified
+status: implemented
 
 summary: |
   A chatbot author gives a chatbot retrieval by expanding the agent-core

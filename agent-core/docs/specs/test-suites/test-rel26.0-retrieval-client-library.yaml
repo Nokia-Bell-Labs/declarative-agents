@@ -47,7 +47,7 @@ test_cases:
   - use_case: rel26.0-uc001-retrieval-client-library
     name: chatbot-mesh queries through the fragment and receives metadatas
     go_test: mage audit
-    status: planned
+    status: implemented
     description: chatbot-mesh's chatbot declares no local query operation, its chat and degraded-RAG tests pass, and rag-server's query response carries metadatas.
     expected:
       local_query_operations: 0

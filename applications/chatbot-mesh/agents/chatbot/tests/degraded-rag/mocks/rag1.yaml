@@ -10,4 +10,5 @@ routes:
           ids: [["rag1-doc-1"]]
           documents: [["rag1 chunk about the mocks"]]
           distances: [[0.2]]
+          metadatas: [[{}]]
           embedding_model: "qwen3-embedding:8b"
