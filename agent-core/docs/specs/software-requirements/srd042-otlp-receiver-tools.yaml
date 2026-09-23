@@ -71,14 +71,14 @@ requirements:
   R4:
     title: Deterministic spool
     items:
-      - R4.1: "`spool_spans` SHALL resolve an OTLP batch from a declared `batch_source` selector and append one NDJSON object per span to a configured file."
+      - R4.1: "`spool_spans` SHALL resolve an OTLP batch from a declared `batch_source` selector and, with the `filesystem` storage backend, append one NDJSON object per span to a configured file; the `object` backend persists the batch as specified in R10."
       - R4.2: Each object SHALL use the field names and value shapes emitted by the existing stdouttrace exporter, including `Name`, `SpanContext`, `Parent`, `StartTime`, `EndTime`, `Attributes`, `Events`, `Links`, `Status`, `Resource`, and `InstrumentationScope`.
       - R4.3: Resource attributes SHALL remain under `Resource` and SHALL preserve `service.name`, integration run identity, and every other received attribute.
       - R4.4: Appends SHALL serialize concurrent writers, write complete lines, and sync before reporting success.
-      - R4.5: Config MAY set `max_bytes` and `max_files`; a positive `max_bytes` SHALL require `max_files` of at least two. When the next complete batch would exceed `max_bytes`, rotation SHALL rename older files before writing the new batch and SHALL retain at most `max_files`.
+      - R4.5: "With the `filesystem` backend, config MAY set `max_bytes` and `max_files`; a positive `max_bytes` SHALL require `max_files` of at least two. When the next complete batch would exceed `max_bytes`, rotation SHALL rename older files before writing the new batch and SHALL retain at most `max_files`. The `object` backend has no rotation; its local evidence is bounded by R10.6."
       - R4.6: A failed append or rotation SHALL emit `CommandError`, SHALL leave the received batch addressable through command state, and SHALL NOT trigger relay implicitly.
       - R4.7: Successful output SHALL include path, batch id, span count, bytes written, and the selected batch so a following declared word can relay it.
-      - R4.8: Spool side effects SHALL be `filesystem`; undo SHALL be noop because append evidence is an audit record.
+      - R4.8: "Spool words SHALL declare a `filesystem_write` side effect (the NDJSON spool, or the write-ahead log and stage of the `object` backend) and an `external_api` side effect against the configured application object bucket for the `object` backend. Reversibility SHALL be `irreversible` with an `irreversible` undo strategy, because appended evidence and persisted objects are retained audit records."
 
   R5:
     title: Declared relay
@@ -120,7 +120,7 @@ requirements:
     items:
       - R9.1: "`otlp_receiver_launch` SHALL register the OTLP MetricsService Export operation on the same gRPC listener as the TraceService, and SHALL decode `ExportMetricsServiceRequest` batches with `go.opentelemetry.io/proto/otlp` without translating transport payloads in the handler."
       - R9.2: Receiver state SHALL hold complete OTLP metric export requests as batches under the same bounded FIFO and drop discipline as trace batches, and the drop policy SHALL report dropped batch and data-point counts in bounded diagnostics.
-      - R9.3: A declared spool word SHALL append received metric batches as complete NDJSON lines carrying resource attributes, scope, metric name, and data points, under the same lock and bounded rotation as the trace spool, and SHALL NOT leave a partial line.
+      - R9.3: "With the `filesystem` backend, a declared spool word SHALL append received metric batches as complete NDJSON lines carrying resource attributes, scope, metric name, and data points, under the same lock and bounded rotation as the trace spool, and SHALL NOT leave a partial line; the `object` backend persists metric batches as specified in R10."
       - R9.4: Declared read-only query words SHALL list and fetch spooled metrics by metric name through config-capped pagination, and each fetched detail record SHALL return its decoded resource attributes unchanged, including `service.name` and `test.run.id`, so callers can identify the originating integration run while preserving the service and metric payload without an unbounded response from a persistent spool.
       - R9.5: Trace intake, spool, relay, and query behavior SHALL remain unchanged; metric words SHALL NOT alter span records or the stdouttrace shape.
 
