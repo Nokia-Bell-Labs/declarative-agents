@@ -126,6 +126,10 @@ func architectureApplicationRunner() (apprig.Runner, error) {
 	if err != nil {
 		return apprig.Runner{}, err
 	}
+	image, revision, err := canonicalSmokeImage(roots.Application)
+	if err != nil {
+		return apprig.Runner{}, err
+	}
 	runner := apprig.Runner{
 		ManifestPath: filepath.Join(roots.Application, "agents", "application.yaml"),
 		Binding: apprig.PlatformBinding{
@@ -136,7 +140,7 @@ func architectureApplicationRunner() (apprig.Runner, error) {
 			Timeout:    smokeInstallTimeout.String(), ApplicationRoot: roots.Application,
 		},
 		CatalogRoot: roots.Catalog,
-		Revision:    mustGitRevision(roots.Application),
+		Revision:    revision,
 	}
 	runner.Prepare = func(resolved apprig.Resolved) (preparation apprig.Preparation, result error) {
 		bucket := kindrig.ApplicationBucketRequest{
@@ -146,7 +150,7 @@ func architectureApplicationRunner() (apprig.Runner, error) {
 			return preparation, err
 		}
 		lease, err := kindrig.AcquireAgentCoreImageLease(
-			roots.Core, roots.Image, "agent-architecture-app")
+			roots.Core, image, "agent-architecture-app")
 		if err != nil {
 			return preparation, err
 		}
@@ -173,7 +177,7 @@ func architectureApplicationRunner() (apprig.Runner, error) {
 		}
 		defer cleanup()
 		environment := smokeEnvironment{kubeconfig: kubeconfig}
-		if err := prepareSmokeCluster(environment, kindrig.PlatformClusterName, roots.Image); err != nil {
+		if err := prepareSmokeCluster(environment, kindrig.PlatformClusterName, image); err != nil {
 			return preparation, err
 		}
 		destination := filepath.Join(
@@ -193,7 +197,7 @@ func architectureApplicationRunner() (apprig.Runner, error) {
 		}
 		return apprig.Preparation{
 			ChartPath: chart, ValuesPath: runner.Binding.ValuesPath,
-			Overrides:     architectureApplicationOverrides(resolved, roots.Image, shards),
+			Overrides:     architectureApplicationOverrides(resolved, image, shards),
 			Cleanup:       lease.Release,
 			OwnsNamespace: created,
 		}, nil

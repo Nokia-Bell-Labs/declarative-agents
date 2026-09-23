@@ -55,19 +55,23 @@ func (Integration) CollectorWALRestart() error {
 }
 
 func runCollectorWALRestart(resolved roots) (result error) {
+	image, _, err := canonicalSmokeImage(resolved.Application)
+	if err != nil {
+		return err
+	}
 	scenario, err := acquireSmokeScenario(resolved.Application, "collectorWALRestart")
 	if err != nil {
 		return err
 	}
 	defer func() { result = errors.Join(result, scenario.release(result != nil)) }()
 	lease, err := kindrig.AcquireAgentCoreImageLease(
-		resolved.Core, resolved.Image, smokeScenarioName+"-wal-restart")
+		resolved.Core, image, smokeScenarioName+"-wal-restart")
 	if err != nil {
 		return err
 	}
 	defer func() { result = errors.Join(result, lease.Release()) }()
 	environment := scenario.environment
-	if err := prepareSmokeCluster(environment, scenario.platform.Cluster.Name, resolved.Image); err != nil {
+	if err := prepareSmokeCluster(environment, scenario.platform.Cluster.Name, image); err != nil {
 		return smokeFailure(environment.run, "cluster preparation", err)
 	}
 
@@ -87,7 +91,7 @@ func runCollectorWALRestart(resolved roots) (result error) {
 		return fmt.Errorf("collectorWALRestart chart package: %w", err)
 	}
 	if err := installWALRestartChart(
-		environment, archive, resolved.Application, resolved.Image, bucket); err != nil {
+		environment, archive, resolved.Application, image, bucket); err != nil {
 		return smokeFailure(environment.run, "Helm install", err)
 	}
 	deployment := smokeRelease + "-agent-architecture-collector"
@@ -171,7 +175,6 @@ func installWALRestartChart(
 		"install", smokeRelease, archive, "--namespace", smokeNamespace,
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
 		"--set", "image.repository=" + repository, "--set-string", "image.tag=" + tag,
-		"--set", "collector.image.repository=" + repository, "--set-string", "collector.image.tag=" + tag,
 		"--set", "collector.storage.backend=object",
 		"--set-string", "collector.storage.bucketName=" + bucket,
 		"--set-string", "collector.storage.endpoint=" + kindrig.FakeGCSEndpoint,
