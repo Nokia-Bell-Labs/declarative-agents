@@ -84,6 +84,10 @@ func TestConformingRenderProducesNoFinding(t *testing.T) {
 		"repository image on a release tag":          repositoryImage,
 		"repository image on a commit tag":           "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:a1b2c3d4e5f6",
 		"repository image on a fail-closed sentinel": "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:must-be-overridden-with-git-revision",
+		"canonical local runtime":                    "localhost/declarative-agents/runtime/agent-core:git-a1b2c3d4e5f6-linux-arm64",
+		"canonical local test":                       "localhost/declarative-agents/test/coding-model:git-a1b2c3d4e5f6-linux-amd64",
+		"canonical derived upstream":                 "localhost/declarative-agents/derived/ollama:upstream-0.34.2-recipe-7fc291a0b4e2-linux-arm64",
+		"canonical materialization cache":            "localhost/declarative-agents/cache/ollama-models:recipe-7fc291a0b4e2-linux-arm64",
 	} {
 		t.Run(name, func(t *testing.T) {
 			findings := check(t, deployment(image, "IfNotPresent", "/healthz"))
@@ -119,6 +123,10 @@ func TestDigestRuleAppliesOnlyToThirdPartyImages(t *testing.T) {
 	findings = check(t, deployment(repositoryImage, "IfNotPresent", "/healthz"))
 	if hasRule(findings, "R2.1") {
 		t.Fatalf("repository image wrongly required to carry a digest: %v", findings)
+	}
+	findings = check(t, deployment("docker.io/alpine/k8s:1.31.4", "Never", "/healthz"))
+	if hasRule(findings, "R2.1") {
+		t.Fatalf("Never-pulled third-party image required a digest: %v", findings)
 	}
 }
 
@@ -349,14 +357,79 @@ func TestOneAgentImageRule(t *testing.T) {
 // eng08).
 func TestArtifactRegistryClassification(t *testing.T) {
 	cases := map[string]bool{
-		"us-central1-docker.pkg.dev/demo/agents/agent-core:a1b2c3": true,
-		"us-central1-docker.pkg.dev/demo/agents/alternate:a1b2c3":  false,
-		"us-central1-docker.pkg.dev/demo/agents/cli-donor:1.31.4":  false,
-		"docker.io/alpine/k8s:1.31.4":                              false,
+		"us-central1-docker.pkg.dev/demo/agents/agent-core:a1b2c3":                     true,
+		"localhost/declarative-agents/runtime/agent-core:git-a1b2c3d4e5f6-linux-arm64": true,
+		"us-central1-docker.pkg.dev/demo/agents/alternate:a1b2c3":                      false,
+		"us-central1-docker.pkg.dev/demo/agents/cli-donor:1.31.4":                      false,
+		"docker.io/alpine/k8s:1.31.4":                                                  false,
 	}
 	for image, want := range cases {
 		if got := IsRepositoryImage(image); got != want {
 			t.Errorf("IsRepositoryImage(%q) = %v, want %v", image, got, want)
+		}
+	}
+}
+
+// R10: the image-reference grammar accepts the intended classes and rejects
+// the prohibited forms (kindrig aliases, :local, smoke repositories, untyped
+// 12-hex local tags, and short third-party names).
+func TestImageReferenceGrammar(t *testing.T) {
+	accepted := []string{
+		pinnedThirdParty,
+		repositoryImage,
+		"localhost/declarative-agents/runtime/agent-core:git-a1b2c3d4e5f6-linux-arm64",
+		"localhost/declarative-agents/derived/ollama:upstream-v3.7.10-recipe-7fc291a0b4e2-linux-amd64",
+		"localhost/declarative-agents/cache/ollama-models:recipe-7fc291a0b4e2-linux-arm64",
+		"localhost/declarative-agents/test/coding-model:git-a1b2c3d4e5f6-linux-arm64",
+		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:a1b2c3d4e5f6",
+		"us-central1-docker.pkg.dev/demo/agents/agent-core:a1b2c3d4e5f6",
+	}
+	for _, image := range accepted {
+		findings := check(t, deployment(image, "IfNotPresent", "/healthz"))
+		if hasRule(findings, "R10.1") || hasRule(findings, "R10.2") || hasRule(findings, "R10.3") {
+			t.Errorf("%s unexpectedly failed grammar: %v", image, findings)
+		}
+	}
+
+	prohibited := []struct {
+		image string
+		rule  string
+	}{
+		{image: "kindrig/traefik:v3.7.10", rule: "R10.3"},
+		{image: "docker.io/kindrig/cli-donor:1.31.4", rule: "R10.3"},
+		{image: "declarative-agents/agent-core:local", rule: "R10.3"},
+		{image: "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:local", rule: "R10.3"},
+		{image: "declarative-agents/example-smoke:a1b2c3d4e5f6", rule: "R10.3"},
+		{image: "localhost/declarative-agents/runtime/example-smoke:git-a1b2c3d4e5f6-linux-arm64", rule: "R10.3"},
+		{image: "declarative-agents/agent-core:a1b2c3d4e5f6", rule: "R10.3"},
+		{image: "localhost/declarative-agents/runtime/agent-core:a1b2c3d4e5f6", rule: "R10.3"},
+		{image: "localhost/declarative-agents/agent-core:git-a1b2c3d4e5f6-linux-arm64", rule: "R10.1"},
+		{image: "localhost/declarative-agents/runtime/agent-core:commit-a1b2c3d4e5f6", rule: "R10.2"},
+		{image: "declarative-agents/ollama:0.32.5-kind-trusted", rule: "R10.1"},
+		{image: "chromadb/chroma:1.5.3", rule: "R10.1"},
+		{image: "busybox:1.36", rule: "R10.1"},
+		{image: "ollama/ollama:latest", rule: "R10.1"},
+	}
+	for _, test := range prohibited {
+		findings := check(t, deployment(test.image, "IfNotPresent", "/healthz"))
+		if !hasRule(findings, test.rule) {
+			t.Errorf("%s: want %s, got %v", test.image, test.rule, rules(findings))
+		}
+		named := false
+		for _, finding := range findings {
+			if finding.Rule != test.rule {
+				continue
+			}
+			named = true
+			message := finding.String()
+			for _, want := range []string{"coding-agent", "kind-values.yaml", "Deployment/agent", test.image} {
+				if !strings.Contains(message, want) {
+					t.Errorf("grammar finding %q does not name %q", message, want)
+				}
+			}
+		}
+		if !named {
+			t.Errorf("%s: no %s finding to name the image", test.image, test.rule)
 		}
 	}
 }

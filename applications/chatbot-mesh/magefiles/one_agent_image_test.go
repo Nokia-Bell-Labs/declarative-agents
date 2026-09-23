@@ -88,7 +88,7 @@ func TestEveryMeshAgentRoleRendersRootImage(t *testing.T) {
 	}
 	// Genuine third-party products stay independently pinned, not folded into
 	// the one agent image.
-	for _, want := range []string{"chromadb/chroma", "dolthub/dolt-sql-server", "alpine/k8s"} {
+	for _, want := range []string{"docker.io/chromadb/chroma", "docker.io/dolthub/dolt-sql-server", "docker.io/alpine/k8s"} {
 		if !strings.Contains(render, want) {
 			t.Errorf("render missing independently pinned third-party image %q", want)
 		}

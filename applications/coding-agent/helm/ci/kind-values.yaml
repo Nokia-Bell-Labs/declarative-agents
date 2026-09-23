@@ -18,20 +18,17 @@ llm:
 
 # kind loads images from the local daemon and pulls nothing (chartconf R3).
 # The smoke preloads both digest-pinned executor donors, so this overlay fixes
-# both pull policies to Never.
+# both pull policies to Never and clears digests the node import cannot retain.
 executorTools:
   go:
     image:
-      # The rig verifies the default digest, then imports this local tag into
-      # kind; a platform-specific import cannot retain the registry manifest
-      # list digest.
-      repository: kindrig/go-donor
+      repository: docker.io/library/golang
       tag: "1.26-alpine"
       digest: ""
       pullPolicy: Never
   golangciLint:
     image:
-      repository: kindrig/golangci-lint-donor
+      repository: docker.io/golangci/golangci-lint
       tag: "v2.12.2-alpine"
       digest: ""
       pullPolicy: Never
@@ -39,7 +36,7 @@ executorTools:
 criticTools:
   go:
     image:
-      repository: kindrig/go-donor
+      repository: docker.io/library/golang
       tag: "1.26-alpine"
       digest: ""
       pullPolicy: Never

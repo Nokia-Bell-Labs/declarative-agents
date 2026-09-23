@@ -6,15 +6,16 @@ status: planned
 
 problem: |
   ENG01 states the rules an application chart must satisfy — images pinned
-  and never floating, pull policies that keep a kind node off the registry,
-  no load balancer a kind cluster cannot provide, readiness observed rather
-  than assumed — and nothing enforces them. Review is the only gate, and
-  review already missed three images that ship on a floating tag. A chart
-  renders differently under each values overlay, so reading the templates
-  does not answer whether the rules hold; only the rendered manifests do.
-  There is also no way to accept a violation on purpose: a chart that must
-  break a rule for a stated reason cannot say so, and a rule that has been
-  fixed cannot prove it stays fixed.
+  and never floating, names that name registry, role, and typed identity,
+  pull policies that keep a kind node off the registry, no load balancer a
+  kind cluster cannot provide, readiness observed rather than assumed — and
+  nothing enforces them. Review is the only gate, and review already missed
+  three images that ship on a floating tag. A chart renders differently
+  under each values overlay, so reading the templates does not answer
+  whether the rules hold; only the rendered manifests do. There is also no
+  way to accept a violation on purpose: a chart that must break a rule for
+  a stated reason cannot say so, and a rule that has been fixed cannot
+  prove it stays fixed.
 
 goals:
   - "G1: Restate the gateable ENG01 chart rules as numbered requirements a check can cite."
@@ -24,12 +25,13 @@ goals:
 
 applicability:
   baseline: |
-    R1 through R5 apply to every application chart in this repository and to
-    every checked-in values overlay that chart renders under. R6 applies to
-    every checked-in kind configuration. R7 governs the exception baseline
-    and applies whenever any other requirement is suspended.
+    R1 through R5, R9, and R10 apply to every application chart in this
+    repository and to every checked-in values overlay that chart renders
+    under. R6 applies to every checked-in kind configuration. R7 governs
+    the exception baseline and applies whenever any other requirement is
+    suspended. R8 applies to every finding the gate reports.
   capability_gates:
-    helm_managed: R1 through R5 apply only to an application that ships a chart.
+    helm_managed: R1 through R5, R8, R9, and R10 apply only to an application that ships a chart.
     kind_demo: R6 applies only to an application that carries a kind configuration.
 
 requirements:
@@ -72,8 +74,8 @@ requirements:
           Every image built from this checkout shall carry a non-floating
           tag and shall not be required to carry a digest, because the
           digest is not known until the image is built. The tag may name a
-          release, a commit revision, or a fail-closed sentinel a run
-          replaces.
+          release, a typed git or recipe identity, or a fail-closed
+          sentinel a run replaces.
         evidence: |
           Repository-built image references are distinguished from
           third-party ones by repository prefix, and each class is checked
@@ -202,6 +204,41 @@ requirements:
           and non-agent workloads, checks only the former against R9.1, and
           names the classification it applied for each differing image.
 
+  R10:
+    title: Image references name registry, role, and typed identity
+    applicability: helm_managed
+    items:
+      - id: R10.1
+        text: |
+          A third-party image shall be fully qualified: its repository shall
+          include a registry host. A first-party image this checkout builds
+          for a local cluster shall use the repository
+          `localhost/declarative-agents/<role>/<component>`, where role is
+          one of `runtime`, `test`, `derived`, and `cache`. A published
+          first-party image shall keep its release-registry path.
+        evidence: |
+          Rendering every chart under every overlay yields no third-party
+          image whose first path component is not a registry host, and no
+          local first-party image outside `localhost/declarative-agents/`.
+      - id: R10.2
+        text: |
+          A local first-party tag shall be a typed identity:
+          `git-<12-hex>-linux-<arch>`, `recipe-<12-hex>-linux-<arch>`, or
+          `upstream-<version>-recipe-<12-hex>-linux-<arch>`. Environment
+          and cluster names are not image identity.
+        evidence: |
+          Every `localhost/declarative-agents/` reference carries a typed
+          tag; a malformed typed tag fails the gate.
+      - id: R10.3
+        text: |
+          A rendered manifest shall not carry an active `kindrig/*`
+          repository, the tag `local`, a consumer-oriented `*-smoke`
+          repository, or an untyped 12-hex tag on a local first-party
+          image.
+        evidence: |
+          Introducing any of those forms fails the gate naming the chart,
+          the overlay, the resource, the offending image, and R10.3.
+
 non_goals:
   - Rendering charts against a live cluster. The gate reads manifests and needs no Kubernetes.
   - Judging whether an application template should instead call the shared library chart. That classification is tracked separately.
@@ -224,7 +261,7 @@ acceptance_criteria:
   - id: AC2
     criterion: |
       Third-party images carry a digest and repository-built images carry a
-      commit-shaped tag, each checked against its own rule.
+      non-floating tag, each checked against its own rule.
     traces:
       - R2.1
       - R2.2
@@ -257,6 +294,17 @@ acceptance_criteria:
     traces:
       - R9.1
       - R9.2
+  - id: AC7
+    criterion: |
+      Every rendered image is a fully qualified upstream reference, a
+      canonical `localhost/declarative-agents/<role>/<component>:<typed-identity>`
+      local reference, or a published first-party release-registry path.
+      Active `kindrig/*` aliases, the tag `local`, untyped 12-hex local
+      tags, and consumer-oriented `*-smoke` repositories fail the gate.
+    traces:
+      - R10.1
+      - R10.2
+      - R10.3
 
 use_case_traces:
   - rel16.0-uc001-chart-conformance

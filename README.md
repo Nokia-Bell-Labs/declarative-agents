@@ -86,6 +86,13 @@ run leaves a diagnostic lease and requires the explicit
 `mage clean:imageLeaseRecover <canonical-reference>` recovery target after its
 owner is confirmed dead.
 
+Every image family the repository uses is classified in
+[`docs/engineering/eng01-kind-test-demo-rig.yaml`](docs/engineering/eng01-kind-test-demo-rig.yaml)
+(table 6: identity grammar, table 7: lifecycle and retention). The root
+`imageinventory` audit and pin survey prove each family is registered; active
+paths must not carry `kindrig/*` aliases, mutable `:local` or `:latest` tags,
+consumer `*-smoke` repositories, or untyped 12-hex local tags.
+
 ### Persistent integration observability
 
 The persistent OTLP ingress is the canonical collector agent run as a host

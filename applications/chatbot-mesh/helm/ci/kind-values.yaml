@@ -24,7 +24,8 @@ ragServer:
 
 chroma:
   image:
-    repository: kindrig/chromadb-chroma
+    repository: docker.io/chromadb/chroma
+    tag: "1.5.3"
     digest: ""
     pullPolicy: Never
   storage: 256Mi
@@ -34,7 +35,8 @@ chroma:
 
 dolt:
   image:
-    repository: kindrig/dolthub-dolt-sql-server
+    repository: docker.io/dolthub/dolt-sql-server
+    tag: "2.3.5"
     digest: ""
     pullPolicy: Never
   storage: 256Mi
@@ -42,7 +44,8 @@ dolt:
 observer:
   proxy:
     image:
-      repository: kindrig/rancher-kubectl
+      repository: docker.io/rancher/kubectl
+      tag: v1.31.4
       digest: ""
       pullPolicy: Never
 
@@ -51,7 +54,8 @@ observer:
 # launcher overrides commit and runID for each scenario.
 collector:
   image:
-    repository: kindrig/otel-opentelemetry-collector-contrib
+    repository: docker.io/otel/opentelemetry-collector-contrib
+    tag: "0.127.0"
     digest: ""
     pullPolicy: Never
   externalOTLPEndpoint: host.docker.internal:4317

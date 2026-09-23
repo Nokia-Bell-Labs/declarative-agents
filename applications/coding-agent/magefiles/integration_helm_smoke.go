@@ -21,13 +21,13 @@ const (
 	codingHelmScenario = "coding-agent-helm"
 	// codingHelmNamespace is the scenario's namespace on da-platform; the
 	// live applier tier and the demo install into the same name.
-	codingHelmNamespace      = kindrig.ScenarioNamespacePrefix + codingHelmScenario
-	codingHelmGoDonorImage   = "docker.io/library/golang:1.26-alpine@sha256:8ac98ca534ac3f51e1f420a1dd2c15e74c75cfa0f23f3ad27eb5d7236c349a0c"
-	codingHelmLintDonorImage = "docker.io/golangci/golangci-lint:v2.12.2-alpine@sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60"
-	codingHelmGoDonorLocal   = "docker.io/kindrig/go-donor:1.26-alpine"
-	codingHelmLintDonorLocal = "docker.io/kindrig/golangci-lint-donor:v2.12.2-alpine"
-	codingHelmTraceID        = "0af7651916cd43dd8448eb211c80319c"
-	codingHelmTraceparent    = "00-" + codingHelmTraceID + "-b7ad6b7169203331-01"
+	codingHelmNamespace        = kindrig.ScenarioNamespacePrefix + codingHelmScenario
+	codingHelmGoDonorImage     = "docker.io/library/golang:1.26-alpine@sha256:8ac98ca534ac3f51e1f420a1dd2c15e74c75cfa0f23f3ad27eb5d7236c349a0c"
+	codingHelmLintDonorImage   = "docker.io/golangci/golangci-lint:v2.12.2-alpine@sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60"
+	codingHelmGoDonorCluster   = "docker.io/library/golang:1.26-alpine"
+	codingHelmLintDonorCluster = "docker.io/golangci/golangci-lint:v2.12.2-alpine"
+	codingHelmTraceID          = "0af7651916cd43dd8448eb211c80319c"
+	codingHelmTraceparent      = "00-" + codingHelmTraceID + "-b7ad6b7169203331-01"
 
 	codingHelmClusterTimeout = 3 * time.Minute
 	codingHelmInstallTimeout = 5 * time.Minute

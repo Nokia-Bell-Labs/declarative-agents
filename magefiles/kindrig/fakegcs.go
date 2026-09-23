@@ -18,12 +18,15 @@ import (
 // it through their explicit endpoint configuration field; no environment
 // variable is involved on either side.
 const (
-	fakeGCSImageRepository   = "docker.io/fsouza/fake-gcs-server"
-	fakeGCSRuntimeRepository = "kindrig/fake-gcs-server"
-	fakeGCSImageVersion      = "1.56.1"
-	fakeGCSImagePlaceholder  = "KINDRIG_FAKEGCS_IMAGE"
-	fakeGCSNamespace         = "fake-gcs"
-	fakeGCSDeployment        = "fake-gcs"
+	fakeGCSImageRepository = "docker.io/fsouza/fake-gcs-server"
+	fakeGCSImageVersion    = "1.56.1"
+	// fakeGCSImageIndexDigest is the multi-platform index the host objectstore
+	// tests docker-run (agent-core/internal/tools/objectstore/fakegcs_test.go).
+	// Kind imports the host platform's child manifest from fakeGCSImageDigests.
+	fakeGCSImageIndexDigest = "sha256:797ce226d62f947c009dc40246b30cfb456b8473d8241407f9d6f2c04e4d69ef"
+	fakeGCSImagePlaceholder = "KINDRIG_FAKEGCS_IMAGE"
+	fakeGCSNamespace        = "fake-gcs"
+	fakeGCSDeployment       = "fake-gcs"
 	// FakeGCSEndpoint is the JSON API base the objectstore words declare as
 	// their endpoint in kind values overlays. The service DNS name is stable
 	// across scenarios, so the overlay value never changes per run.
@@ -43,9 +46,8 @@ var fakeGCSKindManifest string
 // installed. A healthy pre-existing instance is reused; an unhealthy one is
 // refused rather than overwritten because its ownership is unknown. The
 // sequence follows InstallMetricsServer: pull by per-architecture digest,
-// retag to the rig-local runtime image, stream into the node, apply the
-// embedded manifest, and observe readiness with rollout status (ENG01: no
-// sleep loops).
+// import under the fully qualified upstream tag, apply the embedded
+// manifest, and observe readiness with rollout status (ENG01: no sleep loops).
 func InstallFakeGCS(run CommandRunner, cluster string) (func() error, error) {
 	if strings.TrimSpace(cluster) == "" {
 		return nil, fmt.Errorf("install fake-gcs-server: kind cluster name is required")
@@ -64,18 +66,26 @@ func InstallFakeGCS(run CommandRunner, cluster string) (func() error, error) {
 	if err != nil {
 		return nil, err
 	}
-	runtimeImage := fakeGCSRuntimeRepository + ":" + fakeGCSImageVersion
-	manifest := strings.ReplaceAll(fakeGCSKindManifest, fakeGCSImagePlaceholder, runtimeImage)
+	runtimeImage := fakeGCSRuntimeImage()
+	manifest, err := SubstitutePinnedImage(fakeGCSKindManifest, fakeGCSImagePlaceholder, runtimeImage)
+	if err != nil {
+		return nil, err
+	}
 	path, removeFile, err := writeFakeGCSManifest(manifest)
 	if err != nil {
 		return nil, err
 	}
-	steps := append(pinnedImageSteps(run, cluster, sourceImage, runtimeImage),
-		installStep{"manifest-apply", []string{"kubectl", "apply", "-f", path}},
-		installStep{"rollout", []string{"kubectl", "rollout", "status",
+	if err := importPinnedImage(run, cluster, "fake-gcs-server", sourceImage, runtimeImage); err != nil {
+		_ = deleteFakeGCSManifest(run, cluster, path)
+		removeFile()
+		return nil, err
+	}
+	steps := []installStep{
+		{"manifest-apply", []string{"kubectl", "apply", "-f", path}},
+		{"rollout", []string{"kubectl", "rollout", "status",
 			"deployment/" + fakeGCSDeployment,
 			"--namespace", fakeGCSNamespace, "--timeout=180s"}},
-	)
+	}
 	if err := runInstallSteps(run, cluster, "fake-gcs-server", steps); err != nil {
 		_ = deleteFakeGCSManifest(run, cluster, path)
 		removeFile()
@@ -112,6 +122,10 @@ func fakeGCSImage(arch string) (string, error) {
 			fakeGCSImageVersion, arch)
 	}
 	return fakeGCSImageRepository + ":" + fakeGCSImageVersion + "@" + digest, nil
+}
+
+func fakeGCSRuntimeImage() string {
+	return NormalizeNodeImageReference(fakeGCSImageRepository + ":" + fakeGCSImageVersion)
 }
 
 func writeFakeGCSManifest(manifest string) (string, func(), error) {

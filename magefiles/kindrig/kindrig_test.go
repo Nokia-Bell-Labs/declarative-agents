@@ -453,16 +453,31 @@ func TestLoadImageReportsCommandFailure(t *testing.T) {
 	}
 }
 
-func TestCommitImageUsesCheckoutRevision(t *testing.T) {
-	first, revision, err := CommitImage(
-		"declarative-agents/agent-core",
-		"0123456789abcdef0123456789abcdef01234567")
+func TestCommitImageUsesTypedGitIdentity(t *testing.T) {
+	revision := "0123456789abcdef0123456789abcdef01234567"
+	want, short, err := AgentCoreRuntimeReference(revision, HostPlatform())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first != "declarative-agents/agent-core:0123456789ab" ||
-		revision != "0123456789ab" {
-		t.Fatalf("commit image = %q revision %q", first, revision)
+	first, gotShort, err := CommitImage("declarative-agents/agent-core", revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != want || gotShort != short {
+		t.Fatalf("commit image = %q revision %q, want %q %q", first, gotShort, want, short)
+	}
+	fromPublished, _, err := CommitImage(
+		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core", revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromLocal, _, err := CommitImage(
+		"localhost/declarative-agents/runtime/agent-core", revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fromPublished != first || fromLocal != first {
+		t.Fatalf("canonicalization diverged: %q %q %q", first, fromPublished, fromLocal)
 	}
 	second, _, err := CommitImage(
 		"declarative-agents/agent-core",
@@ -484,6 +499,10 @@ func TestCommitImageRejectsMutableOrMissingInputs(t *testing.T) {
 		{"declarative-agents/agent-core", ""},
 		{"declarative-agents/agent-core", "smoke"},
 		{"declarative-agents/agent-core", "0123456789a"},
+		{"declarative-agents/agent-core:local", "0123456789abcdef0123456789abcdef01234567"},
+		{"declarative-agents/agent-core:latest", "0123456789abcdef0123456789abcdef01234567"},
+		{"kindrig/agent-core", "0123456789abcdef0123456789abcdef01234567"},
+		{"busybox", "0123456789abcdef0123456789abcdef01234567"},
 	} {
 		if _, _, err := CommitImage(test.repository, test.revision); err == nil {
 			t.Errorf("CommitImage(%q, %q) succeeded", test.repository, test.revision)

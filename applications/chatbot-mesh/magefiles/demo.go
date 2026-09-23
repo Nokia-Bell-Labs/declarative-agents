@@ -79,11 +79,11 @@ func (Demo) Up() (result error) {
 		return err
 	}
 	defer cleanupArchive()
-	dependencies, err := smokeDependencyImages(chartDir)
+	dependencySpecs, err := smokeDependencySpecs(chartDir)
 	if err != nil {
 		return err
 	}
-	for _, image := range dependencies {
+	for _, image := range smokeDependencyPulls(dependencySpecs) {
 		command := exec.Command("docker", "pull", "--platform", "linux/"+runtime.GOARCH, image)
 		if output, pullErr := command.CombinedOutput(); pullErr != nil {
 			return fmt.Errorf("pull demo dependency %s: %w: %s",
@@ -103,9 +103,9 @@ func (Demo) Up() (result error) {
 				commands, chatbotDemoCluster, images.Runtime); err != nil {
 				return err
 			}
-			for _, image := range dependencies {
+			for _, spec := range dependencySpecs {
 				if err := loadSmokeDependencyImageWithCommands(
-					commands, chatbotDemoCluster, image); err != nil {
+					commands, chatbotDemoCluster, spec); err != nil {
 					return err
 				}
 			}

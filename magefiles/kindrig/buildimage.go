@@ -16,11 +16,9 @@ import (
 	"time"
 )
 
-// DefaultAgentCoreImage is the repo-local tag for the agent-core runtime
-// image. The ghcr.io name in chart values is the production default; local
-// flows (the observability rig, kind smokes) build this tag from the checkout
-// because the published image is not pullable from every environment.
-const DefaultAgentCoreImage = "declarative-agents/agent-core:local"
+// agentCoreComponent is the local runtime component ENG01 names for the
+// profile-free agent image this checkout builds.
+const agentCoreComponent = "agent-core"
 
 // agentCoreDockerfile is the minimal runtime image contract: the linux agent on
 // PATH and the core tools under AGENT_CORE_HOME. jq and ripgrep match the
@@ -28,7 +26,7 @@ const DefaultAgentCoreImage = "declarative-agents/agent-core:local"
 // whose exec words are jq/rg (e.g. the documentation-curator, GH-1368) run in
 // kind smokes on this local image. chatbot-mesh's buildSmokeRuntimeImage is the
 // sibling of this builder and must keep the same contract.
-const agentCoreDockerfile = "FROM alpine:3.22\n" +
+const agentCoreDockerfile = "FROM docker.io/library/alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8\n" +
 	"RUN apk add --no-cache ca-certificates bash jq ripgrep\n" +
 	"COPY agent /usr/local/bin/agent\n" +
 	"COPY tools /opt/agent-core/tools\n" +
@@ -112,6 +110,48 @@ func HostPlatform() string {
 	return "linux/" + runtime.GOARCH
 }
 
+// AgentCoreRuntimeReference is the immutable local name for one agent-core
+// checkout revision on one linux architecture. Published ghcr and Artifact
+// Registry tags stay outside this namespace.
+func AgentCoreRuntimeReference(revision, platform string) (image, shortRevision string, err error) {
+	revision = strings.TrimSpace(revision)
+	if !gitRevision.MatchString(revision) {
+		return "", "", fmt.Errorf("git revision %q must be 12-64 hexadecimal characters", revision)
+	}
+	image, err = FormatGitLocal(RuntimeRole, agentCoreComponent, revision, platform)
+	if err != nil {
+		return "", "", err
+	}
+	return image, strings.ToLower(revision[:12]), nil
+}
+
+// AgentCoreRuntimeImage resolves the checkout HEAD and host platform into the
+// canonical local runtime reference.
+func AgentCoreRuntimeImage(coreRoot string) (string, error) {
+	return AgentCoreRuntimeImageForPlatform(coreRoot, HostPlatform())
+}
+
+// AgentCoreRuntimeImageForPlatform is AgentCoreRuntimeImage for a named
+// cluster platform.
+func AgentCoreRuntimeImageForPlatform(coreRoot, platform string) (string, error) {
+	identity, err := defaultImageBuilder().identity(coreRoot, platform)
+	if err != nil {
+		return "", err
+	}
+	image, _, err := AgentCoreRuntimeReference(identity.revision, identity.platform)
+	return image, err
+}
+
+// BuildAgentCoreRuntimeImage builds the canonical local runtime image for the
+// checkout on the host platform.
+func BuildAgentCoreRuntimeImage(coreRoot string) error {
+	image, err := AgentCoreRuntimeImage(coreRoot)
+	if err != nil {
+		return err
+	}
+	return BuildAgentCoreImage(coreRoot, image)
+}
+
 // BuildAgentCoreImage builds the linux agent binary from the local agent-core
 // checkout and bakes it into a minimal runtime image, so local flows run the
 // code under test rather than a published image.
@@ -125,9 +165,10 @@ func BuildAgentCoreImageForPlatform(coreRoot, image, platform string) error {
 	return defaultImageBuilder().build(coreRoot, image, platform)
 }
 
-// EnsureAgentCoreImage reuses image only when Docker proves that the mutable
-// reference names the exact checkout revision, build recipe, and host
-// architecture. Separate Mage processes coordinate through an atomic lock.
+// EnsureAgentCoreImage reuses image only when Docker proves that the
+// canonical typed reference names the exact checkout revision, build recipe,
+// and host architecture. Separate Mage processes coordinate through an atomic
+// lock.
 func EnsureAgentCoreImage(coreRoot, image string) (AgentCoreImageResult, error) {
 	return EnsureAgentCoreImageForPlatform(coreRoot, image, HostPlatform())
 }
@@ -156,6 +197,9 @@ func (b imageBuilder) buildIdentity(
 	coreRoot, image string,
 	identity agentCoreImageIdentity,
 ) error {
+	if err := requireCanonicalAgentCoreImage(image, identity); err != nil {
+		return err
+	}
 	ctxDir, err := os.MkdirTemp("", "agent-core-image-*")
 	if err != nil {
 		return err
@@ -193,9 +237,14 @@ func (b imageBuilder) identity(coreRoot, platform string) (agentCoreImageIdentit
 	if platform == "" {
 		return agentCoreImageIdentity{}, fmt.Errorf("agent-core image platform is required")
 	}
+	osName, arch, err := SplitPlatform(platform)
+	if err != nil {
+		return agentCoreImageIdentity{}, err
+	}
+	platform = osName + "/" + arch
 	sum := sha256.Sum256([]byte(strings.Join([]string{
 		"agent-core-image/v1", agentCoreDockerfile, platform,
-		"CGO_ENABLED=0", "GOOS=linux", "GOARCH=" + strings.TrimPrefix(platform, "linux/"),
+		"CGO_ENABLED=0", "GOOS=linux", "GOARCH=" + arch,
 		"go build -tags production -trimpath -ldflags=-s -w ./cmd/agent",
 	}, "\x00")))
 	return agentCoreImageIdentity{
@@ -209,6 +258,9 @@ func (b imageBuilder) ensure(coreRoot, image, platform string) (AgentCoreImageRe
 	started := time.Now()
 	identity, err := b.identity(coreRoot, platform)
 	if err != nil {
+		return AgentCoreImageResult{}, err
+	}
+	if err := requireCanonicalAgentCoreImage(image, identity); err != nil {
 		return AgentCoreImageResult{}, err
 	}
 	if result, matches := b.inspect(image, identity); matches {

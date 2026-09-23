@@ -12,9 +12,10 @@ With applier.cliDonor.image set, the CLIs arrive the same way (GH-2222): a
 cli-donor init container copies helm and kubectl from a stock, digest-pinned
 image into the tools emptyDir, mounted read-only at /opt/tools and first on
 PATH, so the applier container runs the plain agent-core image and the CLI
-versions are a values pin per environment. Read-only, the binaries the agent
-execs cannot be replaced at runtime. Without a donor, applier.image must carry
-the CLIs itself.
+versions are a values pin per environment. Kind overlays keep that same
+upstream repository and version with pullPolicy Never after the rig imports
+the image. Read-only, the binaries the agent execs cannot be replaced at
+runtime. Without a donor, applier.image must carry the CLIs itself.
 
 Three applications hand-copied this workload and drifted (GH-2045); the copies
 converge here. Call with the root context and the app's own inputs:

@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/appmanifest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/imageinventory"
 	"gopkg.in/yaml.v3"
 )
 
@@ -130,6 +131,31 @@ func TestApplicationsDeclareOneCanonicalAgentImage(t *testing.T) {
 				t.Errorf("collector declares role-specific agent image %q", collectorRepository)
 			}
 		})
+	}
+}
+
+func TestActiveImageInventoryHasNoProhibitedReferences(t *testing.T) {
+	root := filepath.Clean("..")
+	findings, err := imageinventory.SweepActivePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, finding := range findings {
+		t.Errorf("%s:%d %s [%s] %s",
+			finding.Path, finding.Line, finding.Image, finding.Rule, finding.Detail)
+	}
+}
+
+func TestCollectedChartPinsClassifyIntoImageFamilies(t *testing.T) {
+	root := filepath.Clean("..")
+	pins, err := collectPinsForTest(t, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pin := range pins {
+		if _, err := imageinventory.ClassifyPin(pin); err != nil {
+			t.Errorf("%s: %v", pin.Location, err)
+		}
 	}
 }
 
