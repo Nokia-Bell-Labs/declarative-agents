@@ -1,0 +1,393 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd008-persistent-application-platform
+title: Persistent Platform and Namespaced Application Contract
+status: implemented
+
+problem: |
+  The repository has two incomplete operating models. Namespaced integration
+  scenarios share `da-platform`, but interactive demos still own one cluster
+  per application and persistent integration telemetry lives on the host.
+  Neither model defines the desired durable platform: one ingress and object
+  service, stable application namespaces, application-owned collector
+  gateways, retained telemetry after compute teardown, and explicit destructive
+  lifecycle boundaries.
+
+  Without one contract, implementation work must improvise bucket tenancy,
+  local durability, object identity, query availability, platform reset, and
+  the package boundary downstream repositories import. Those choices affect
+  isolation and data loss and therefore belong in the specification.
+
+goals:
+  - "G1: Separate platform, application-compute, and retained-data ownership."
+  - "G2: Run concurrent applications on one persistent local or cloud platform without changing application declarations."
+  - "G3: Retain immutable application telemetry through collector, application, and platform compute lifecycles."
+  - "G4: Make every destructive lifecycle action explicit and separately authorized."
+  - "G5: Publish one reusable application-rig package consumed through thin Mage verbs."
+
+applicability:
+  baseline: |
+    R1 through R9 apply to applications that declare `helm_managed` and use the
+    shared application platform. Cluster-mutating integration scenarios remain
+    governed by ENG01's owned-cluster exception.
+  capability_gates:
+    local_platform: R2, R4, R5, R7, and R8 local clauses.
+    cloud_platform: R2, R4, R5, R7, and R8 cloud clauses.
+    durable_collector: R3, R6, and R7 collector clauses.
+
+requirements:
+  R1:
+    title: Ownership and authority are separate
+    applicability: helm_managed
+    items:
+      - id: R1.1
+        text: |
+          The platform authority shall create, upgrade, diagnose, stop, and
+          reset shared ingress, object-storage endpoint, metrics-server, and
+          storage provisioning. It shall not own application releases or
+          application data-retention policy.
+        evidence: |
+          The ownership matrix names one platform authority and excludes
+          application release and bucket-purge authority from it.
+      - id: R1.2
+        text: |
+          Each application authority shall create, upgrade, diagnose, and stop
+          one manifest-driven Helm release in one stable namespace, including
+          its agents, services, routes, collector gateway, and bucket binding.
+        evidence: |
+          Two applications can be operated independently without either
+          lifecycle command selecting the other's namespace or release.
+      - id: R1.3
+        text: |
+          Retained data shall have an application-scoped authority independent
+          of compute ownership. Only `app:purge` may delete an application's
+          bucket data; neither application nor platform shutdown may do so.
+        evidence: |
+          Teardown tests preserve objects, while a separately authorized purge
+          removes only the selected application's objects.
+
+  R2:
+    title: One persistent platform hosts isolated application namespaces
+    applicability: helm_managed
+    items:
+      - id: R2.1
+        text: |
+          `da-platform` shall provide one shared Traefik ingress, one
+          object-storage endpoint, metrics-server, and storage provisioning.
+          Platform readiness shall be observed before any application install.
+        evidence: |
+          Platform conformance proves all four services before application
+          lifecycle operations proceed.
+      - id: R2.2
+        text: |
+          A runnable application shall occupy one stable namespace and one
+          manifest-derived Helm release. Two applications shall run
+          concurrently with distinct release, namespace, collector, route, and
+          bucket identities.
+        evidence: |
+          A two-application scenario routes to both applications and observes
+          distinct namespace, collector, and bucket identities.
+      - id: R2.3
+        text: |
+          Shared platform components shall not become undeclared application
+          dependencies. An application manifest shall declare its platform
+          service bindings and retain authority over its own workloads.
+        evidence: |
+          Application audit derives required bindings from
+          `agents/application.yaml` and finds no second lifecycle inventory.
+
+  R3:
+    title: Each application retains its collector gateway
+    applicability: durable_collector
+    items:
+      - id: R3.1
+        text: |
+          Agent Core shall instrument REST and export OTLP directly to the
+          collector gateway in the same application namespace. Internal REST
+          and OTLP traffic shall use Service DNS and shall not traverse
+          Traefik.
+        evidence: |
+          Rendered routes and a live trace show external HTTP at Traefik,
+          internal REST over Service DNS, and OTLP at the application
+          collector Service.
+      - id: R3.2
+        text: |
+          The collector shall accept OTLP traces and metrics, write a local WAL
+          before remote upload, persist immutable objects, serve
+          application-scoped queries, and optionally relay OTLP when declared.
+        evidence: |
+          Collector tests prove WAL-first upload, immutable object persistence,
+          scoped query results, and relay as an independent optional path.
+      - id: R3.3
+        text: |
+          A collector shall query only the application bucket bound to its
+          release. No permanent platform query service or cross-application
+          telemetry index is part of this release.
+        evidence: |
+          Query tests refuse or return no records from another application,
+          and platform manifests contain no global query workload.
+
+  R4:
+    title: Lifecycle verbs preserve data unless they say purge or reset
+    applicability: helm_managed
+    items:
+      - id: R4.1
+        text: |
+          `app:up`, `app:status`, `app:down`, and `app:diagnose` shall operate
+          on one manifest-selected application. `app:down` shall remove its
+          compute and namespace while preserving its bucket data.
+        evidence: |
+          Down removes the selected release and namespace, leaves both
+          applications' objects intact, and leaves the other application
+          serving.
+      - id: R4.2
+        text: |
+          `app:purge` shall be a separate explicit destructive operation. It
+          shall delete only the selected application's retained data and shall
+          not be an implicit part of install, upgrade, down, or platform
+          lifecycle.
+        evidence: |
+          Purge requires explicit application identity and leaves another
+          application's bucket unchanged.
+      - id: R4.3
+        text: |
+          `platform:down` shall stop platform compute while preserving local
+          object data. `platform:reset` shall be the only local platform verb
+          that deletes the stable object-service host path.
+        evidence: |
+          Platform recreation after down retains objects; recreation after
+          reset starts with an empty local object service.
+      - id: R4.4
+        text: |
+          Cloud buckets shall outlive cluster teardown. A cloud platform
+          teardown or recreation shall not delete application buckets unless a
+          separately authorized application purge selects one.
+        evidence: |
+          Cloud lifecycle plans contain no bucket delete in ordinary down and
+          retain data across cluster recreation.
+
+  R5:
+    title: Local and cloud platforms expose one application contract
+    applicability: helm_managed
+    items:
+      - id: R5.1
+        text: |
+          Local kind shall run fake GCS with a filesystem backend mounted from
+          one stable host path. The path shall survive pod and
+          `da-platform` recreation.
+        evidence: |
+          A platform down/up cycle recreates fake GCS against the same host
+          path and reads previously written objects.
+      - id: R5.2
+        text: |
+          Cloud platforms shall provide GCS or S3 through ambient workload
+          identity and application-scoped bucket permissions. Local and cloud
+          differences shall be confined to bootstrap, identity, and values
+          overlays.
+        evidence: |
+          The same application and collector declarations render for local and
+          cloud; only platform and values inputs differ.
+      - id: R5.3
+        text: |
+          Cloud isolation shall be enforced by workload identity and bucket
+          IAM. Local fake GCS shall claim configuration and lifecycle isolation
+          only, not resistance to a malicious pod, because it has no equivalent
+          tenant authorization.
+        evidence: |
+          The threat model and tests distinguish enforced cloud denial from
+          non-adversarial local separation.
+
+  R6:
+    title: Immutable objects have stable identity before upload
+    applicability: durable_collector
+    items:
+      - id: R6.1
+        text: |
+          Each application shall receive its own bucket and may organize
+          objects with prefixes inside that bucket. A shared endpoint shall
+          not imply one undifferentiated bucket.
+        evidence: |
+          Bootstrap creates or binds distinct application buckets and the
+          collector configuration names exactly one.
+      - id: R6.2
+        text: |
+          Before the first remote attempt, the local WAL shall record the final
+          object key, stable batch identity, checksum, and upload state.
+          Retries shall reuse that key and identity.
+        evidence: |
+          Crash and retry tests produce one immutable object identity rather
+          than a new key for each attempt.
+      - id: R6.3
+        text: |
+          The versioned object envelope shall minimally name schema version,
+          signal, application, namespace, run, collector instance, stable
+          batch identity, receive time, payload format, and checksum.
+        evidence: |
+          Schema validation rejects an object missing any required field and
+          accepts trace and metric envelopes.
+      - id: R6.4
+        text: |
+          An uploaded key shall be immutable. A checksum or payload conflict
+          at an existing key shall be a collector fault and shall never
+          overwrite retained evidence silently.
+        evidence: |
+          Duplicate identical upload is idempotent; conflicting content at the
+          same key is reported and remains unchanged.
+
+  R7:
+    title: Query availability follows the application collector
+    applicability: durable_collector
+    items:
+      - id: R7.1
+        text: |
+          While the application collector is running, its REST query surface
+          shall combine retained object data with any committed local state and
+          shall scope every response to that application.
+        evidence: |
+          The application query API returns its pre-restart telemetry and no
+          other application's records.
+      - id: R7.2
+        text: |
+          After `app:down`, retained bucket data shall not be described as a
+          live query service. With the collector absent, its REST query API is
+          unavailable.
+        evidence: |
+          The lifecycle scenario observes retained objects and an unavailable
+          application query endpoint after down.
+      - id: R7.3
+        text: |
+          Redeploying the collector against the same application bucket shall
+          restore query access to retained history without changing object
+          identity.
+        evidence: |
+          Down/up returns the same historical batch identities and checksums
+          through the redeployed collector.
+
+  R8:
+    title: Network paths and failures remain attributable
+    applicability: helm_managed
+    items:
+      - id: R8.1
+        text: |
+          External HTTP shall enter through shared Traefik and route by
+          application host or path to an application Service. Internal REST,
+          OTLP, object-storage, and vector-query traffic shall use their
+          declared Service or provider endpoints directly.
+        evidence: |
+          The architecture diagram and rendered configuration distinguish all
+          five paths and no internal path depends on Traefik.
+      - id: R8.2
+        text: |
+          Failure of one application release, collector, route, bucket binding,
+          or purge shall not stop another application or delete its data.
+          Failure of a shared platform service shall be reported as a platform
+          failure affecting all dependent applications.
+        evidence: |
+          Fault scenarios classify application-local and shared-platform
+          failures and preserve the unaffected application's compute and data.
+      - id: R8.3
+        text: |
+          Persistent namespaced `da-platform` shall be the canonical
+          application and interactive-demo mode. ENG01 owned clusters shall
+          remain only for cluster-mutating scenarios. Host OTLP ingress shall
+          remain an optional hermetic integration-evidence mode and shall not
+          be the durable application query authority.
+        evidence: |
+          ENG01 names the modes and routes each scenario without presenting
+          dedicated demo clusters or host collection as competing canonical
+          platform designs.
+
+  R9:
+    title: One reusable application-rig package owns lifecycle mechanics
+    applicability: helm_managed
+    items:
+      - id: R9.1
+        text: |
+          The root `magefiles` module shall publish a package such as
+          `magefiles/apprig` that accepts an application manifest, platform
+          binding, command runner, and evidence destination and implements the
+          shared application lifecycle.
+        evidence: |
+          At least two in-repository applications call the package without
+          copying lifecycle implementation.
+      - id: R9.2
+        text: |
+          Downstream repositories shall import a released root Mage module and
+          expose thin `app:up|status|down|diagnose|purge` verbs. They shall not
+          copy platform, collector, bucket, or namespace lifecycle code.
+        evidence: |
+          A downstream migration pins a release, contains only thin verb
+          wiring, and passes the same lifecycle contract.
+      - id: R9.3
+        text: |
+          Application-specific assertions and values shall remain with the
+          application. The reusable package shall own orchestration mechanics,
+          not application behavior or a second composition inventory.
+        evidence: |
+          Package APIs receive manifest-derived inputs and callbacks for local
+          assertions without naming first-party applications.
+
+non_goals:
+  - Implementing platform services, collector storage, query code, charts, or the application runner in this release.
+  - A permanent global telemetry query service or cross-application telemetry index.
+  - Authenticated adversarial multi-tenancy for local fake GCS.
+  - Shared vector storage before collection authorization and embedding-identity isolation are specified.
+  - Replacing application collectors with one global collector.
+  - Routing internal REST or OTLP through Traefik.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: |
+      Structured documentation assigns platform, application-compute, and
+      retained-data authority and traces every requirement to an executable or
+      planned test case.
+    traces: [R1.1, R1.2, R1.3, R2.3, R9.3]
+  - id: AC2
+    criterion: |
+      A diagram and normative text distinguish external HTTP ingress, internal
+      REST, OTLP, object storage, and vector-query paths.
+    traces: [R3.1, R8.1]
+  - id: AC3
+    criterion: |
+      One unambiguous lifecycle covers two concurrent applications,
+      application down/redeploy/purge, platform down/recreation/reset, and
+      cloud cluster recreation without implicit data deletion.
+    traces: [R2.1, R2.2, R4.1, R4.2, R4.3, R4.4, R8.2]
+  - id: AC4
+    criterion: |
+      Local and cloud platforms preserve one declaration contract while
+      stating the different durability, identity, authorization, and threat
+      boundaries exactly.
+    traces: [R5.1, R5.2, R5.3]
+  - id: AC5
+    criterion: |
+      The collector contract fixes per-application buckets, WAL-before-upload
+      ordering, immutable object identity, the minimum versioned envelope, and
+      conflict behavior.
+    traces: [R3.2, R3.3, R6.1, R6.2, R6.3, R6.4]
+  - id: AC6
+    criterion: |
+      Retained history is explicitly unavailable as a live query service after
+      application down and becomes queryable through the application collector
+      after redeployment against the same bucket.
+    traces: [R7.1, R7.2, R7.3]
+  - id: AC7
+    criterion: |
+      ENG01 and ENG08 name the canonical platform, the owned-cluster and host
+      evidence exceptions, cloud realization, failure boundaries, and the
+      reusable application-rig integration contract.
+    traces: [R8.3, R9.1, R9.2]
+
+use_case_traces:
+  - rel19.0-uc001-persistent-application-platform
+
+test_suite_traces:
+  - test-rel19.0-persistent-application-platform
+
+related_documents:
+  - docs/engineering/eng01-kind-test-demo-rig.yaml
+  - docs/engineering/eng08-gcp-demo-rig.yaml
+  - agent-core/docs/specs/software-requirements/srd008-telemetry.yaml
+  - agent-core/docs/specs/software-requirements/srd042-otlp-receiver-tools.yaml
+  - agent-core/docs/specs/software-requirements/srd044-spool-query-tools.yaml
+  - agent-core/docs/specs/software-requirements/srd059-objectstore-tools.yaml

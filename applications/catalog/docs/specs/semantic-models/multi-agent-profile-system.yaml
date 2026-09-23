@@ -90,6 +90,7 @@ role_groups:
       - control
       - lifecycle
       - lifecycle-exit
+      - application-purge
     summary: |
       Boundary runtime work exercises REST, monitor, control, and lifecycle
       vocabulary. Each boundary appears as explicit MachineSpec steps rather
@@ -249,6 +250,12 @@ actor_boundaries:
     actors:
       - supervisor
     boundary: A fixed exit request becomes one control-server POST that emits ExitRequested.
+  - profile: application-purge
+    actors:
+      - application retention authority
+      - rendered object bucket prefix
+      - external audit file
+    boundary: An exact application confirmation permits one bounded, verified deletion of declaration-fixed retained data; request content cannot select storage authority.
   - profile: documentation-curator
     actors:
       - human browser

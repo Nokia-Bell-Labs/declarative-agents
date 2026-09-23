@@ -395,6 +395,29 @@ func carriesExactly(args []string, want string) bool {
 	return false
 }
 
+func TestSubstitutePinnedImageRequiresNeverPullPolicy(t *testing.T) {
+	t.Parallel()
+	image := "docker.io/library/traefik:v3.7.10"
+	got, err := SubstitutePinnedImage(
+		"image: PLACEHOLDER\n          imagePullPolicy: Never\n", "PLACEHOLDER", image)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "image: "+image) || strings.Contains(got, "PLACEHOLDER") {
+		t.Fatalf("substituted manifest = %q", got)
+	}
+	if _, err := SubstitutePinnedImage(
+		"image: PLACEHOLDER\n          imagePullPolicy: Always\n", "PLACEHOLDER", image); err == nil ||
+		!strings.Contains(err.Error(), "Always") {
+		t.Fatalf("Always policy: %v", err)
+	}
+	if _, err := SubstitutePinnedImage(
+		"image: PLACEHOLDER\n", "PLACEHOLDER", image); err == nil ||
+		!strings.Contains(err.Error(), "Never") {
+		t.Fatalf("missing Never: %v", err)
+	}
+}
+
 func containsArg(args []string, want string) bool {
 	for _, arg := range args {
 		if arg == want || strings.Contains(arg, want) {

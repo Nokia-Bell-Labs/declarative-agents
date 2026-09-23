@@ -1,0 +1,82 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: catalog-application-purge-declarations
+imports:
+  - /opt/agent-core/tools/units/types-collections.yaml
+  - /opt/agent-core/tools/units/types-objectstore.yaml
+tools:
+  - name: confirmation_matches
+    type: builtin
+    init: value_predicate
+    category: word
+    visibility: internal
+    signature:
+      output: builtin-types-collections.Comparison
+      emits: [Confirmed, Refused, CommandError]
+    description: Require the exact purge:<application> token before the first destructive boundary call.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Exact confirmation comparison.}
+    errors:
+      - {signal: CommandError, condition: confirmation selector cannot resolve, state_after_failure: no storage call is made}
+    config:
+      left: $.parameters.confirmation
+      op: eq
+      right: "purge:${PURGE_APPLICATION:-application}"
+      operand_type: string
+      satisfied: Confirmed
+      unsatisfied: Refused
+
+  - name: purge_application_objects
+    type: builtin
+    init: object_delete_prefix
+    category: boundary
+    visibility: internal
+    signature:
+      output: builtin-types-objectstore.DeletePrefixOutcome
+      emits: [ToolDone, CommandError]
+    description: Delete and verify only the rendered application prefix, under a fixed bound, with an audit outside the bucket.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output:
+      description: Purged, partial, or refused outcome with bounded counts and selected-key hash.
+    side_effects:
+      - {kind: external_api, target: rendered application bucket prefix, state: objects_deleted}
+      - {kind: filesystem_write, target: rendered external purge audit, state: audit_appended}
+    reversibility:
+      classification: irreversible
+      requires_confirmation: true
+    undo:
+      strategy: irreversible
+      description: Deleted retained telemetry cannot be restored by this profile.
+    errors:
+      - {signal: CommandError, condition: "connection, listing, verification, or audit write fails", state_after_failure: Purged is unreachable}
+    config:
+      connection: application
+      connections:
+        application:
+          bucket_url: "${PURGE_BUCKET_URL:-mem://application-purge}"
+          endpoint: "${PURGE_ENDPOINT:-}"
+      prefix: "${PURGE_PREFIX:-application/}"
+      max_objects: 10000
+      application: "${PURGE_APPLICATION:-application}"
+      audit_path: "${PURGE_AUDIT_PATH:-build/purge/audit.ndjson}"
+
+  - name: purge_completed
+    type: builtin
+    init: value_predicate
+    category: word
+    visibility: internal
+    signature:
+      output: builtin-types-collections.Comparison
+      emits: [Satisfied, Unsatisfied, CommandError]
+    description: Reach Purged only when the destructive boundary verified status purged.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Purge outcome comparison.}
+    errors:
+      - {signal: CommandError, condition: purge outcome selector cannot resolve, state_after_failure: Purged is unreachable}
+    config:
+      left: $.status
+      op: eq
+      right: purged
+      operand_type: string
+      satisfied: Satisfied
+      unsatisfied: Unsatisfied

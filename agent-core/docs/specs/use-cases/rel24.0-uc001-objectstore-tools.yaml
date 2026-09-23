@@ -5,7 +5,9 @@ title: One profile writes objects on kind and on GCS through a values overlay
 status: implemented
 
 summary: |
-  A profile author gives an agent object storage by listing three words in
+  A profile author gives an agent object storage by listing the read/write/list
+  words, while an explicitly destructive lifecycle profile selects the
+  internal delete-prefix boundary with declaration-fixed authority. Both use
   tools.yaml and declaring a connection whose bucket_url is templated. On the
   kind rig the overlay supplies a gs:// bucket with an explicit endpoint at
   the local fake-gcs service; on GCS the overlay supplies the real bucket and
@@ -33,18 +35,21 @@ flow:
     text: A rollback walks the receipt, restoring the prior object or deleting the created key, with no further input (srd059 R3.2).
   - id: F6
     text: The same profile boots unchanged in both deployments, and only the values overlay differs (srd059 R2.3).
+  - id: F7
+    text: After exact application confirmation, a model-free lifecycle profile invokes object_delete_prefix with bucket/prefix fixed in declarations; the word bounds, deletes, verifies, and externally audits the selected set (srd059 R5.1, R5.2, R5.3).
 
 touchpoints:
-  - T1: "srd059-objectstore-tools R1.1 -- the three words, selected explicitly like the dolt family"
+  - T1: "srd059-objectstore-tools R1.1 -- four words, selected explicitly like the dolt family; delete-prefix remains internal"
   - T2: "srd059-objectstore-tools R2.1 -- one implementation opening the bucket by declared URL scheme"
   - T3: "srd059-objectstore-tools R2.2 -- the explicit endpoint as the only emulator path, no environment read"
   - T4: "srd059-objectstore-tools R2.3 -- identical declarations across the rig, GCS, and S3"
   - T5: "srd059-objectstore-tools R3.1 -- the prior-object snapshot receipt behind object_write"
   - T6: "srd059-objectstore-tools R3.2 -- undo restores or deletes through the registered strategy"
+  - T7: "srd059-objectstore-tools R5.1 -- declaration-bound irreversible prefix deletion; R5.2 and R5.3 add bounded verification and external audit"
 
 success_criteria:
   - id: S1
-    criterion: The three words boot from a name-only tools.yaml and the default builtin surface does not grow.
+    criterion: The four words boot from a name-only tools.yaml and the default builtin surface does not grow.
     traces: [srd059-objectstore-tools AC1]
   - id: S2
     criterion: Backend selection follows the declared URL and explicit endpoint alone, across mem, file, gs, and s3, with unknown schemes failing by name and no environment read.
@@ -55,6 +60,9 @@ success_criteria:
   - id: S4
     criterion: Unit evidence runs with no container; the end-to-end proof runs against fake-gcs under docker and skips naming docker without it.
     traces: [srd059-objectstore-tools AC4]
+  - id: S5
+    criterion: Delete-prefix accepts no request storage authority, refuses an over-budget set without mutation, deletes only its declared prefix, verifies zero remaining, and writes an external audit.
+    traces: [srd059-objectstore-tools AC5]
 
 out_of_scope:
   - The kindrig fake-gcs add-on (GH-2043) and any AWS environment.

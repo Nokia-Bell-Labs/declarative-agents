@@ -19,7 +19,9 @@ const (
 	demoNamespace = "agent-architecture-demo"
 )
 
-// Demo groups the persistent kind demo cluster targets.
+// Demo groups the legacy dedicated-cluster development targets. The canonical
+// deployed mode is App on da-platform; this remains only for compatibility and
+// isolated development.
 type Demo mg.Namespace
 
 // Doctor checks the shared ENG01 toolchain and host resources without mutation.
@@ -27,7 +29,7 @@ func Doctor() error {
 	return kindrig.Doctor()
 }
 
-// Up creates or reuses the persistent demo cluster and deploys the composition.
+// Up creates or reuses the development-only demo cluster.
 func (Demo) Up() error {
 	if err := Doctor(); err != nil {
 		return fmt.Errorf("demo requested but preflight failed: %w", err)
@@ -66,15 +68,25 @@ func deployDemo(environment smokeEnvironment, resolved roots) error {
 	_, _ = environment.run(ctx, "kubectl", "delete", "namespace", demoNamespace,
 		"--ignore-not-found=true", "--wait=true", "--timeout=30s")
 	cancel()
-	// Both workloads run one locally built agent-core image (GH-1368).
-	if err := kindrig.BuildAgentCoreImage(resolved.Core, smokeCollectorImage); err != nil {
-		return fmt.Errorf("build agent-core image: %w", err)
+	image, _, err := canonicalSmokeImage(resolved.Application)
+	if err != nil {
+		return err
 	}
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		resolved.Core, image, "agent-architecture-demo")
+	if err != nil {
+		return fmt.Errorf("lease agent-core image: %w", err)
+	}
+	defer func() {
+		if releaseErr := lease.Release(); releaseErr != nil {
+			fmt.Printf("demo: release image lease failed: %v\n", releaseErr)
+		}
+	}()
 	kindLoad := func(ctx context.Context, args ...string) ([]byte, error) {
 		return smokeEnvironment{}.run(ctx, "kind", args...)
 	}
 	loadCtx, cancelLoad := context.WithTimeout(context.Background(), smokeClusterTimeout)
-	loadErr := kindrig.LoadImage(loadCtx, kindLoad, demoCluster, smokeCollectorImage)
+	loadErr := kindrig.LoadImage(loadCtx, kindLoad, demoCluster, image)
 	cancelLoad()
 	if loadErr != nil {
 		return loadErr

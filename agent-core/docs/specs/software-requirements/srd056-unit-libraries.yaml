@@ -110,21 +110,26 @@ requirements:
     items:
       - R4.1: >-
           An agent that serves a REST surface MAY publish a service library:
-          a directory beside its application's agents containing a REST unit
-          with the client operations for that surface, a type unit for its
-          request and response shapes, and the client words consumers share.
-          Consumers SHALL import it through a declared root and SHALL NOT
-          redeclare the client.
+          a REST unit or fragment with the client operations for that
+          surface, a type unit for its request and response shapes, and the
+          client words consumers share. A library consumed inside one
+          application SHALL live in a directory beside that application's
+          agents and be imported through a declared root. A library whose
+          contract is served by more than one application SHALL live in
+          agent-core, types under tools/units and client fragments under
+          tools/rest/units, and be reached through /opt/agent-core with no
+          declared root. Consumers SHALL NOT redeclare the client.
       - R4.2: >-
           A service library SHALL earn its place as any unit does: with at
           least two importing profiles, so single-importer rules keep a
-          library with one consumer folded back into that consumer.
+          library with one consumer folded back into that consumer. A
+          fragment instantiation (srd052) counts as an importer.
 
 non_goals:
   - Search paths, registries, version constraints, or fetching a library from anywhere but a declared directory.
   - Libraries shared across applications other than agent-core's. An application declares roots inside its own tree; cross-application sharing goes through agent-core.
   - Writable or overridable libraries.
-  - The first service library. rag-server has one consumer today, so its client library waits for a second (GH-2121).
+  - Promoting a served agent itself into a library; a service library carries the client contract, and the server stays in its application.
 
 acceptance_criteria:
   - id: AC1
@@ -168,5 +173,5 @@ implementation_status:
     - GH-2119 implements declared roots (R2), rooted files in the dump for declared roots, and staging of declared-root files to the staged position of the declared directory (R3.3); library-one and library-two under testdata/integration/profiles are the two-importer proof. The profile-versus-blueprint redeclaration error of R2.3 waits for blueprints (GH-2123).
   planned:
     - GH-2123 extends R1.2 to blueprint machine mappings and adds the redeclaration error of R2.3.
-    - GH-2121 publishes the first service library (R4) once rag-server has a second consumer.
+    - GH-2527 publishes the first service library (R4), the retrieval query client in agent-core (srd060-retrieval-client-contract).
     - GH-2119 implements declared roots, the --library flag, the read-only rules, and rooted staging (R2, R3.3).

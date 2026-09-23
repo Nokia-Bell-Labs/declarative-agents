@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -25,6 +26,8 @@ const (
 	chatbotDemoValuesFile   = "kind-values.yaml"
 )
 
+// Demo is the legacy dedicated-cluster development workflow. App on
+// da-platform is the canonical deployed lifecycle.
 type Demo mg.Namespace
 
 // Doctor checks the shared ENG01 toolchain and host resources without mutation.
@@ -32,8 +35,8 @@ func Doctor() error {
 	return kindrig.Doctor()
 }
 
-// Up creates or reuses the persistent demo cluster and deploys chatbot-mesh.
-func (Demo) Up() error {
+// Up creates or reuses the development-only demo cluster.
+func (Demo) Up() (result error) {
 	if err := Doctor(); err != nil {
 		return fmt.Errorf("demo requested but preflight failed: %w", err)
 	}
@@ -54,9 +57,12 @@ func (Demo) Up() error {
 	if err != nil {
 		return err
 	}
-	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		coreRoot, images.Runtime, "chatbot-mesh-demo")
+	if err != nil {
 		return err
 	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 	staged, cleanup, err := stageSmokeChart(chartDir, root)
 	if err != nil {
 		return err
@@ -75,11 +81,11 @@ func (Demo) Up() error {
 		return err
 	}
 	defer cleanupArchive()
-	dependencies, err := smokeDependencyImages(chartDir)
+	dependencySpecs, err := smokeDependencySpecs(chartDir)
 	if err != nil {
 		return err
 	}
-	for _, image := range dependencies {
+	for _, image := range smokeDependencyPulls(dependencySpecs) {
 		command := exec.Command("docker", "pull", "--platform", "linux/"+runtime.GOARCH, image)
 		if output, pullErr := command.CombinedOutput(); pullErr != nil {
 			return fmt.Errorf("pull demo dependency %s: %w: %s",
@@ -99,9 +105,9 @@ func (Demo) Up() error {
 				commands, chatbotDemoCluster, images.Runtime); err != nil {
 				return err
 			}
-			for _, image := range dependencies {
+			for _, spec := range dependencySpecs {
 				if err := loadSmokeDependencyImageWithCommands(
-					commands, chatbotDemoCluster, image); err != nil {
+					commands, chatbotDemoCluster, spec); err != nil {
 					return err
 				}
 			}

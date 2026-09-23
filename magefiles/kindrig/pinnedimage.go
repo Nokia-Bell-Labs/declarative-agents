@@ -5,10 +5,76 @@ package kindrig
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 	"time"
 )
+
+// PinnedImageRefs names the three references one digest-pinned import uses.
+// Source is the immutable cache on the host; HostImport is a tag docker save
+// can name; Node is how containerd and Kubernetes resolve that tag after
+// import. A host import tag this run creates is removed after a successful
+// import (ENG01 table 7).
+type PinnedImageRefs struct {
+	Source     string
+	HostImport string
+	Node       string
+}
+
+// PinnedImageReferences validates source and host-import names and computes
+// the node name containerd will record.
+func PinnedImageReferences(source, hostImport string) (PinnedImageRefs, error) {
+	source = strings.TrimSpace(source)
+	hostImport = strings.TrimSpace(hostImport)
+	if source == "" {
+		return PinnedImageRefs{}, fmt.Errorf("pinned image source is required")
+	}
+	if hostImport == "" {
+		return PinnedImageRefs{}, fmt.Errorf("pinned image host import tag is required")
+	}
+	if strings.Contains(hostImport, "@") {
+		return PinnedImageRefs{}, fmt.Errorf(
+			"host import tag %q carries a digest; docker save needs a tag", hostImport)
+	}
+	return PinnedImageRefs{
+		Source:     source,
+		HostImport: hostImport,
+		Node:       NormalizeNodeImageReference(hostImport),
+	}, nil
+}
+
+// NormalizeNodeImageReference is the name containerd and kubelet resolve for
+// a docker-saved tag: Docker Hub short names become docker.io/library/...,
+// user/name becomes docker.io/user/name, and an explicit registry is kept.
+func NormalizeNodeImageReference(ref string) string {
+	name, tag, digest := splitReference(strings.TrimSpace(ref))
+	if name == "" {
+		return strings.TrimSpace(ref)
+	}
+	normalized := normalizeNodeRepository(name)
+	if tag != "" {
+		normalized += ":" + tag
+	}
+	if digest != "" {
+		normalized += "@" + digest
+	}
+	return normalized
+}
+
+func normalizeNodeRepository(name string) string {
+	name = strings.TrimPrefix(strings.ToLower(name), dockerHubIndex+"/")
+	slash := strings.IndexByte(name, '/')
+	if slash < 0 {
+		return DockerHubRegistry + "/" + dockerHubLibrary + "/" + name
+	}
+	first := name[:slash]
+	if first == DockerHubRegistry || first == "localhost" || strings.ContainsAny(first, ".:") {
+		if first == DockerHubRegistry && !strings.Contains(name[slash+1:], "/") {
+			return DockerHubRegistry + "/" + dockerHubLibrary + "/" + name[slash+1:]
+		}
+		return name
+	}
+	return DockerHubRegistry + "/" + name
+}
 
 // installStep is one command of a pinned-image install, named for its phase
 // line so a slow boot names the step that stalled (GH-2226).
@@ -17,23 +83,117 @@ type installStep struct {
 	command []string
 }
 
-// pinnedImageSteps returns the steps that make a digest-pinned source image
-// available in the cluster node under runtimeImage. The pull is skipped when
-// the digest is already local: a digest names immutable content, so a cached
-// image is the image, and pulling it again only asks the registry, which
-// stalled a release boot for 19 minutes (GH-2226).
-func pinnedImageSteps(run CommandRunner, cluster, sourceImage, runtimeImage string) []installStep {
-	var steps []installStep
-	if _, err := run("docker", "image", "inspect", "--format", "{{.Id}}", sourceImage); err != nil {
-		steps = append(steps, installStep{"image-pull",
-			[]string{"docker", "pull", "--platform", "linux/" + runtime.GOARCH, sourceImage}})
-	} else {
-		LogPhase(cluster, "image-pull", "skipped", time.Now(), "image="+sourceImage)
+func tagWithoutDigest(ref string) string {
+	name, tag, _ := splitReference(strings.TrimSpace(ref))
+	if name == "" {
+		return strings.TrimSpace(ref)
 	}
-	return append(steps,
-		installStep{"image-tag", []string{"docker", "tag", sourceImage, runtimeImage}},
-		installStep{"image-load", nodeImportCommand(runtimeImage, cluster)},
-	)
+	if tag == "" {
+		return name
+	}
+	return name + ":" + tag
+}
+
+// transientHostImport is a rig-owned alias distinct from the source's
+// repository and version tag. Canonical upstream tags are retained pins, not
+// aliases, so import must not untag them.
+func transientHostImport(source, hostImport string) bool {
+	source, hostImport = strings.TrimSpace(source), strings.TrimSpace(hostImport)
+	if source == "" || hostImport == "" || hostImport == source {
+		return false
+	}
+	return hostImport != tagWithoutDigest(source)
+}
+
+func dockerImagePresent(run CommandRunner, image string) bool {
+	_, err := run("docker", "image", "inspect", "--format", "{{.Id}}", image)
+	return err == nil
+}
+
+func runPhase(run CommandRunner, cluster, component, phase string, command []string) error {
+	return runInstallSteps(run, cluster, component, []installStep{{phase: phase, command: command}})
+}
+
+// ImportPinnedImage pulls a digest-pinned source if needed, tags a host
+// import name when that tag is absent, and imports the host platform into
+// the node. A transient alias this run created is removed after import; the
+// canonical upstream tag and the source digest stay. Import failure rolls
+// back a transient tag this run created.
+func ImportPinnedImage(
+	run CommandRunner, cluster, component, sourceImage, hostImport string,
+) error {
+	return importPinnedImage(run, cluster, component, sourceImage, hostImport)
+}
+
+func importPinnedImage(
+	run CommandRunner, cluster, component, sourceImage, hostImport string,
+) error {
+	refs, err := PinnedImageReferences(sourceImage, hostImport)
+	if err != nil {
+		return err
+	}
+	if !dockerImagePresent(run, refs.Source) {
+		if err := runPhase(run, cluster, component, "image-pull",
+			[]string{"docker", "pull", "--platform", HostPlatform(), refs.Source}); err != nil {
+			return err
+		}
+	} else {
+		LogPhase(cluster, "image-pull", "skipped", time.Now(), "image="+refs.Source)
+	}
+
+	createdHostImport := !dockerImagePresent(run, refs.HostImport)
+	imported := false
+	if createdHostImport {
+		if err := runPhase(run, cluster, component, "image-tag",
+			[]string{"docker", "tag", refs.Source, refs.HostImport}); err != nil {
+			return err
+		}
+		defer func() {
+			if !imported && transientHostImport(refs.Source, refs.HostImport) {
+				_, _ = run("docker", "image", "rm", refs.HostImport)
+			}
+		}()
+	}
+	if err := runPhase(run, cluster, component, "image-load",
+		nodeImportCommand(refs.HostImport, cluster)); err != nil {
+		return err
+	}
+	imported = true
+	if createdHostImport && transientHostImport(refs.Source, refs.HostImport) {
+		if err := runPhase(run, cluster, component, "image-untag",
+			[]string{"docker", "image", "rm", refs.HostImport}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// pinnedImageSteps is the pull/tag/import/untag sequence importPinnedImage
+// runs. Tests and installers that compose extra kubectl steps call
+// importPinnedImage first, then append cluster commands.
+func pinnedImageSteps(run CommandRunner, cluster, sourceImage, hostImport string) []installStep {
+	refs, err := PinnedImageReferences(sourceImage, hostImport)
+	if err != nil {
+		return nil
+	}
+	var steps []installStep
+	if !dockerImagePresent(run, refs.Source) {
+		steps = append(steps, installStep{"image-pull",
+			[]string{"docker", "pull", "--platform", HostPlatform(), refs.Source}})
+	} else {
+		LogPhase(cluster, "image-pull", "skipped", time.Now(), "image="+refs.Source)
+	}
+	if !dockerImagePresent(run, refs.HostImport) {
+		steps = append(steps,
+			installStep{"image-tag", []string{"docker", "tag", refs.Source, refs.HostImport}},
+			installStep{"image-load", nodeImportCommand(refs.HostImport, cluster)},
+		)
+		if transientHostImport(refs.Source, refs.HostImport) {
+			steps = append(steps, installStep{"image-untag", []string{"docker", "image", "rm", refs.HostImport}})
+		}
+		return steps
+	}
+	return append(steps, installStep{"image-load", nodeImportCommand(refs.HostImport, cluster)})
 }
 
 // nodeImportCommand streams a host image into the kind node's containerd for
@@ -44,7 +204,7 @@ func pinnedImageSteps(run CommandRunner, cluster, sourceImage, runtimeImage stri
 func nodeImportCommand(image, cluster string) []string {
 	return []string{"sh", "-c",
 		`docker save "$1" | docker exec -i "$2" ctr --namespace=k8s.io images import --platform="$3" --snapshotter=overlayfs -`,
-		"node-import", image, cluster + "-control-plane", "linux/" + runtime.GOARCH}
+		"node-import", image, cluster + "-control-plane", HostPlatform()}
 }
 
 // KubeContext is the kubeconfig context kind writes for a cluster.

@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -140,30 +141,24 @@ func TestCodingHelmFixturesMatchServingAndStorageContract(t *testing.T) {
 }
 
 func TestCodingHelmSmokeUsesProductionProfileFreeImageRecipe(t *testing.T) {
-	// The coding roles run the shared agent-core-toolchain recipe (GH-1368):
-	// agent-core plus the Go toolchain and golangci-lint, layered by RUNTIME_IMAGE
-	// rather than rebuilt per application.
-	data, err := os.ReadFile(filepath.Join("..", "..", "..", "agent-core", "toolchain.Dockerfile"))
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "agent-core", "Dockerfile"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	dockerfile := string(data)
 	for _, want := range []string{
-		"ARG GOLANGCI_LINT_VERSION=v2.12.2",
-		"ARG RUNTIME_IMAGE=",
-		"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}",
-		"FROM ${RUNTIME_IMAGE}",
-		"COPY --from=toolchain /usr/local/go /usr/local/go",
-		"COPY --from=toolchain /out/golangci-lint /usr/local/bin/golangci-lint",
-		"USER 10001:10001",
+		"FROM ${GO_IMAGE} AS builder",
+		"FROM ${RUNTIME_IMAGE} AS runtime",
+		"COPY --from=builder /out/agent /usr/local/bin/agent",
+		"USER agent:agent",
 	} {
 		if !strings.Contains(dockerfile, want) {
-			t.Errorf("agent-core-toolchain Dockerfile missing %q", want)
+			t.Errorf("agent-core Dockerfile missing %q", want)
 		}
 	}
-	for _, forbidden := range []string{"COPY profiles", "COPY agents", "COPY helm", "v1.64.8"} {
+	for _, forbidden := range []string{"COPY profiles", "COPY agents", "COPY helm", "golangci-lint"} {
 		if strings.Contains(dockerfile, forbidden) {
-			t.Errorf("agent-core-toolchain Dockerfile violates its image contract via %q", forbidden)
+			t.Errorf("agent-core Dockerfile violates its image contract via %q", forbidden)
 		}
 	}
 }
@@ -179,14 +174,9 @@ func TestCodingHelmUsesIsolatedCollectorQueryPort(t *testing.T) {
 }
 
 func TestCodingHelmCommitImagePropagatesToBuildManifestAndDeploy(t *testing.T) {
-	image := "declarative-agents/coding-agent-smoke:0123456789ab"
-	_, _, buildArgs := codingAgentImageBuild("..", "declarative-agents/agent-core:local", image)
-	if !strings.Contains(strings.Join(buildArgs, " "), "-t "+image) {
-		t.Fatalf("docker build args omit commit image: %v", buildArgs)
-	}
-
-	modelImage := "declarative-agents/coding-model-smoke:0123456789ab"
-	manifest, cleanup, err := codingModelManifest(modelImage)
+	image := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0123456789ab"
+	roots, _ := canonicalDeploymentInputs(t)
+	manifest, cleanup, err := codingModelMockManifest(roots, image)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,8 +185,8 @@ func TestCodingHelmCommitImagePropagatesToBuildManifestAndDeploy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), "image: "+modelImage) {
-		t.Fatalf("model manifest omits commit image:\n%s", data)
+	if !strings.Contains(string(data), "image: "+image) {
+		t.Fatalf("mock manifest omits canonical commit image:\n%s", data)
 	}
 
 	var helmCommand string
@@ -208,16 +198,115 @@ func TestCodingHelmCommitImagePropagatesToBuildManifestAndDeploy(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"image.repository=declarative-agents/coding-agent-smoke",
+		"image.repository=ghcr.io/nokia-bell-labs/declarative-agents/agent-core",
 		"image.tag=0123456789ab",
-		"collector.image.repository=declarative-agents/agent-core",
-		"collector.image.tag=local",
 	} {
 		if !strings.Contains(helmCommand, want) {
 			t.Errorf("helm command missing %q: %s", want, helmCommand)
 		}
 	}
-	if evidence := codingHelmEvidenceDir("/app", "0123456789ab"); !strings.Contains(evidence, "da-coding-agent-smoke-0123456789ab-") {
+	if evidence := codingHelmEvidenceDir("/app", "0123456789ab"); !strings.Contains(evidence, "da-coding-agent-helm-0123456789ab-") {
 		t.Fatalf("evidence path omits revision: %s", evidence)
 	}
+}
+
+func TestCodingAgentImageIdentityRequiresOneReferenceAndID(t *testing.T) {
+	reference := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0123456789ab"
+	valid := codingAgentPodFixture(t, reference,
+		[]string{"planner", "executor", "critic", "collector", "mock"}, "sha256:one")
+	evidence, err := validateCodingAgentImageIdentity(valid, reference, 5)
+	if err != nil {
+		t.Fatalf("valid one-image evidence rejected: %v", err)
+	}
+	if evidence.ImageID != "sha256:one" || len(evidence.Containers) != 5 {
+		t.Fatalf("image evidence = %#v", evidence)
+	}
+
+	tests := []struct {
+		name  string
+		pods  codingAgentPodList
+		count int
+		want  string
+	}{
+		{
+			name: "divergent reference",
+			pods: codingAgentPodFixture(t,
+				"declarative-agents/alternate:0123456789ab",
+				[]string{"planner"}, "sha256:one"),
+			count: 1,
+			want:  "image =",
+		},
+		{
+			name:  "divergent image ID",
+			pods:  codingAgentPodFixtureWithIDs(t, reference, map[string]string{"planner": "sha256:one", "mock": "sha256:two"}),
+			count: 2,
+			want:  "image ID",
+		},
+		{
+			name:  "missing status",
+			pods:  codingAgentPodFixtureWithIDs(t, reference, map[string]string{"planner": ""}),
+			count: 1,
+			want:  "no runtime image ID",
+		},
+		{
+			name:  "missing role",
+			pods:  codingAgentPodFixture(t, reference, []string{"planner"}, "sha256:one"),
+			count: 2,
+			want:  "want 2",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := validateCodingAgentImageIdentity(tt.pods, reference, tt.count); err == nil ||
+				!strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("validation error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func codingAgentPodFixture(
+	t *testing.T,
+	reference string,
+	names []string,
+	imageID string,
+) codingAgentPodList {
+	t.Helper()
+	ids := make(map[string]string, len(names))
+	for _, name := range names {
+		ids[name] = imageID
+	}
+	return codingAgentPodFixtureWithIDs(t, reference, ids)
+}
+
+func codingAgentPodFixtureWithIDs(
+	t *testing.T,
+	reference string,
+	ids map[string]string,
+) codingAgentPodList {
+	t.Helper()
+	items := make([]map[string]interface{}, 0, len(ids))
+	for name, imageID := range ids {
+		items = append(items, map[string]interface{}{
+			"metadata": map[string]string{"name": name + "-pod"},
+			"spec": map[string]interface{}{
+				"containers": []map[string]interface{}{{
+					"name": name, "image": reference,
+					"args": []string{"--profile", "/profiles/" + name + "/profile.yaml"},
+				}},
+			},
+			"status": map[string]interface{}{
+				"containerStatuses": []map[string]string{{"name": name, "imageID": imageID}},
+			},
+		})
+	}
+	data, err := json.Marshal(map[string]interface{}{"items": items})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pods codingAgentPodList
+	if err := json.Unmarshal(data, &pods); err != nil {
+		t.Fatal(err)
+	}
+	return pods
 }

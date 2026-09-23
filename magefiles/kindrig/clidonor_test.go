@@ -15,18 +15,27 @@ func TestCLIDonorImageIsDigestPinned(t *testing.T) {
 	if !ok || !strings.HasPrefix(digest, "sha256:") || len(digest) != len("sha256:")+64 {
 		t.Fatalf("CLIDonorImage %q is not pinned by a sha256 digest", CLIDonorImage)
 	}
-	if !strings.HasSuffix(name, ":"+strings.TrimPrefix(CLIDonorRuntimeImage, "kindrig/cli-donor:")) {
+	if tagWithoutDigest(CLIDonorImage) != CLIDonorRuntimeImage {
 		t.Fatalf("donor %q and rig-local tag %q name different versions", name, CLIDonorRuntimeImage)
 	}
 }
 
 func TestEnsureCLIDonorImageReusesLocalDigest(t *testing.T) {
 	cluster := &fakeCluster{}
-	if err := EnsureCLIDonorImage(cluster.run, "da-platform"); err != nil {
+	origRun := cluster.run
+	clusterRun := func(name string, args ...string) ([]byte, error) {
+		if inspectFailsWithoutDigest(name, args) {
+			cluster.calls = append(cluster.calls, name+" "+strings.Join(args, " "))
+			return []byte("No such image"), errors.New("absent")
+		}
+		return origRun(name, args...)
+	}
+	if err := EnsureCLIDonorImage(clusterRun, "da-platform"); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
 		"docker image inspect --format {{.Id}} " + CLIDonorImage,
+		"docker image inspect --format {{.Id}} " + CLIDonorRuntimeImage,
 		"docker tag " + CLIDonorImage + " " + CLIDonorRuntimeImage,
 		"node-import " + CLIDonorRuntimeImage + " da-platform-control-plane linux/" + runtime.GOARCH,
 	}
@@ -38,8 +47,8 @@ func TestEnsureCLIDonorImageReusesLocalDigest(t *testing.T) {
 			t.Fatalf("call[%d] = %q, want %q", i, call, want[i])
 		}
 	}
-	if !strings.Contains(cluster.calls[2], "ctr --namespace=k8s.io images import --platform=") {
-		t.Fatalf("donor load is not a platform-scoped node import: %s", cluster.calls[2])
+	if !strings.Contains(cluster.calls[3], "ctr --namespace=k8s.io images import --platform=") {
+		t.Fatalf("donor load is not a platform-scoped node import: %s", cluster.calls[3])
 	}
 }
 
@@ -51,6 +60,9 @@ func TestEnsureCLIDonorImagePullsAbsentDigest(t *testing.T) {
 	if len(cluster.calls) < 2 ||
 		cluster.calls[1] != "docker pull --platform linux/"+runtime.GOARCH+" "+CLIDonorImage {
 		t.Fatalf("absent donor was not pulled: %v", cluster.calls)
+	}
+	if strings.Contains(strings.Join(cluster.calls, "\n"), "docker image rm "+CLIDonorRuntimeImage) {
+		t.Fatalf("canonical upstream tag was untagged: %v", cluster.calls)
 	}
 }
 

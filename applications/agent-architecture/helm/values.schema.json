@@ -3,12 +3,23 @@
   "title": "agent-architecture values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "profiles", "curator", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
+  "required": ["image", "profiles", "curator", "collector", "ingress", "applier", "podSecurityContext", "containerSecurityContext"],
   "definitions": {
     "image": {
       "type": "object",
       "additionalProperties": false,
       "required": ["repository", "tag", "pullPolicy"],
+      "properties": {
+        "repository": {"type": "string", "pattern": "^[a-z0-9]+([._/-][a-z0-9]+)*(:[0-9]+)?([/][a-z0-9]+([._-][a-z0-9]+)*)*$"},
+        "tag": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
+        "digest": {"type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$"},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "imageOverride": {
+      "comment": "Optional agent-workload image override (srd005 R9): an absent repository inherits the one application image, and an overlay may set only pullPolicy for a kind-loaded image.",
+      "type": "object",
+      "additionalProperties": false,
       "properties": {
         "repository": {"type": "string", "pattern": "^[a-z0-9]+([._/-][a-z0-9]+)*(:[0-9]+)?([/][a-z0-9]+([._-][a-z0-9]+)*)*$"},
         "tag": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
@@ -99,25 +110,66 @@
     "collector": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "image", "otlpGRPCPort", "controlPort", "monitorPort", "queryPort", "resources"],
+      "required": ["enabled", "otlpGRPCPort", "controlPort", "monitorPort", "queryPort", "resources"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "image": {"$ref": "#/definitions/image"},
+        "image": {"$ref": "#/definitions/imageOverride"},
         "otlpGRPCPort": {"const": 4317},
         "controlPort": {"const": 18191},
         "monitorPort": {"const": 18192},
         "queryPort": {"const": 18193},
         "resources": {"$ref": "#/definitions/resources"},
-        "progressDeadlineSeconds": {"type": "integer", "minimum": 1}
+        "progressDeadlineSeconds": {"type": "integer", "minimum": 1},
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Durable collector storage contract (srd042 R10/R11; GH-2484). Absent or backend=filesystem keeps the emptyDir NDJSON spool; backend=object wires the application bucket and a persistent WAL.",
+          "properties": {
+            "backend": {"type": "string", "enum": ["filesystem", "object"]},
+            "mode": {"type": "string", "enum": ["durable", "ephemeral"]},
+            "walMode": {"type": "string", "enum": ["persistent", "ephemeral"]},
+            "walPath": {"type": "string"},
+            "walCapacity": {"type": "string"},
+            "walStorageClass": {"type": "string"},
+            "application": {"type": "string"},
+            "namespace": {"type": "string"},
+            "bucketURL": {"type": "string"},
+            "bucketName": {"type": "string"},
+            "endpoint": {"type": "string"},
+            "prefix": {"type": "string"},
+            "retentionClass": {"type": "string", "minLength": 1},
+            "retentionDays": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "className", "hosts"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "className": {"type": "string", "minLength": 1},
+        "hosts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["documentation", "lifecycle", "monitor", "collector"],
+          "properties": {
+            "documentation": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "lifecycle": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "monitor": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"},
+            "collector": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])$"}
+          }
+        }
       }
     },
     "applier": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "image", "ports", "workDir", "allowApply", "networkPolicy", "resources"],
+      "required": ["enabled", "ports", "workDir", "allowApply", "networkPolicy", "resources"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "image": {"$ref": "#/definitions/image"},
+        "image": {"$ref": "#/definitions/imageOverride"},
         "cliDonor": {"type": "object", "additionalProperties": false, "properties": {"image": {"type": "object", "additionalProperties": false, "required": ["repository", "tag"], "properties": {"repository": {"type": "string"}, "tag": {"type": "string"}, "digest": {"type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$"}, "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}}}}},
         "chartArchiveConfigMap": {"type": "string"},
         "ports": {

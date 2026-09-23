@@ -119,6 +119,52 @@ func TestDerivedIdentityValues(t *testing.T) {
 	}
 }
 
+// GH-2505 AC8 / GH-2490 AC3: the cloud fixture grants each workload identity
+// only its manifest-derived application bucket. It carries no credential value
+// and never uses a shared bucket as the tenant boundary.
+func TestFirstPartyApplicationBucketIAMIsolation(t *testing.T) {
+	config := testConfig()
+	bindings := config.FirstPartyApplications()
+	if len(bindings) != 3 {
+		t.Fatalf("application bindings = %d, want 3", len(bindings))
+	}
+	buckets, accounts, members := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	rec := &recorder{answers: map[string]answer{
+		"gcloud storage buckets describe":      {out: "bucket\n"},
+		"gcloud iam service-accounts describe": {out: "account@example.com\n"},
+	}}
+	for _, binding := range bindings {
+		buckets[binding.Bucket] = true
+		accounts[binding.GSAEmail()] = true
+		members[binding.WorkloadIdentityMember()] = true
+		if err := EnsureBucket(rec.run, binding); err != nil {
+			t.Fatal(err)
+		}
+		if err := EnsureIdentity(rec.run, binding); err != nil {
+			t.Fatal(err)
+		}
+		wantGrant := "buckets add-iam-policy-binding gs://" + binding.Bucket +
+			" --member serviceAccount:" + binding.GSAEmail() +
+			" --role roles/storage.objectAdmin"
+		wantIdentity := "--member " + binding.WorkloadIdentityMember() +
+			" --role roles/iam.workloadIdentityUser"
+		sequence := rec.sequence()
+		if !strings.Contains(sequence, wantGrant) || !strings.Contains(sequence, wantIdentity) {
+			t.Errorf("binding missing exact bucket/IAM grant:\nwant %s\nwant %s\n%s",
+				wantGrant, wantIdentity, sequence)
+		}
+	}
+	if len(buckets) != 3 || len(accounts) != 3 || len(members) != 3 {
+		t.Fatalf("bindings collide: buckets=%v accounts=%v members=%v", buckets, accounts, members)
+	}
+	sequence := strings.ToLower(rec.sequence())
+	for _, forbidden := range []string{"credential", "service-account-key", "key-file"} {
+		if strings.Contains(sequence, forbidden) {
+			t.Errorf("ambient identity fixture contains credential material %q:\n%s", forbidden, sequence)
+		}
+	}
+}
+
 // Every preflight failure names its remedy (eng08: fail, never skip).
 func TestPreflightNamesEachRemedy(t *testing.T) {
 	previous := LookPath
@@ -308,8 +354,9 @@ func TestUpStopsAtPreflight(t *testing.T) {
 	}
 }
 
-// Down refuses without the typed confirmation, deletes only the configured
-// names in reverse order with the cluster last, and treats absence as done.
+// Down refuses without the typed confirmation, deletes platform compute with
+// the cluster last, and never turns teardown into application bucket/identity
+// deletion.
 func TestDownConfirmationScopeAndOrder(t *testing.T) {
 	withGcloudPresent(t)
 	config := testConfig()
@@ -329,11 +376,15 @@ func TestDownConfirmationScopeAndOrder(t *testing.T) {
 	sequence := rec.sequence()
 	for _, want := range []string{
 		"repositories delete agents",
-		"gcloud storage rm --recursive gs://demo-project-agents",
 		"clusters delete da-gcp",
 	} {
 		if !strings.Contains(sequence, want) {
 			t.Errorf("down missing %q:\n%s", want, sequence)
+		}
+	}
+	for _, forbidden := range []string{"gcloud storage rm", "service-accounts delete"} {
+		if strings.Contains(sequence, forbidden) {
+			t.Errorf("platform down deleted retained application authority %q:\n%s", forbidden, sequence)
 		}
 	}
 	if !strings.Contains(sequence, "--quiet") {
@@ -349,15 +400,16 @@ func TestDownConfirmationScopeAndOrder(t *testing.T) {
 // The push refuses latest and an empty revision by name (eng01, eng08).
 func TestPushAgentCoreRefusesFloatingTags(t *testing.T) {
 	config := testConfig()
-	if _, err := PushAgentCore(nil, config, "agent-core:local", ""); err == nil {
+	local := "localhost/declarative-agents/runtime/agent-core:git-a1b2c3d4e5f6-linux-arm64"
+	if _, err := PushAgentCore(nil, config, local, ""); err == nil {
 		t.Fatal("empty revision accepted")
 	}
-	if _, err := PushAgentCore(nil, config, "agent-core:local", "latest"); err == nil ||
+	if _, err := PushAgentCore(nil, config, local, "latest"); err == nil ||
 		!strings.Contains(err.Error(), "eng01") {
 		t.Fatalf("latest: %v", err)
 	}
 	rec := &recorder{answers: map[string]answer{}}
-	target, err := PushAgentCore(rec.run, config, "agent-core:local", "a1b2c3d4e5f6")
+	target, err := PushAgentCore(rec.run, config, local, "a1b2c3d4e5f6")
 	if err != nil {
 		t.Fatal(err)
 	}

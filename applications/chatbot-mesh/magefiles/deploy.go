@@ -218,6 +218,8 @@ type stagedForDeploy struct {
 type deployCluster struct {
 	Name       string
 	Kubeconfig string
+	Namespace  string
+	Release    string
 	// Run overrides the kind runner used to resolve Name. Tests set it.
 	Run kindrig.Runner
 }
@@ -260,7 +262,11 @@ func stageReleaseForDeploy(root string, cluster deployCluster) (stagedForDeploy,
 	// The shipped UIs travel out of the release, as they do on every kind path.
 	// Left inside, the release Secret projects past the 1 MiB Kubernetes limit
 	// and the install dies creating it (GH-1475).
-	assets, cleanupAssets, err := externalizeUIAssets(staged, chatbotDemoRelease)
+	release := cluster.Release
+	if release == "" {
+		release = chatbotDemoRelease
+	}
+	assets, cleanupAssets, err := externalizeUIAssets(staged, release)
 	if err != nil {
 		cleanupStaged()
 		return stagedForDeploy{}, err
@@ -277,6 +283,17 @@ func stageReleaseForDeploy(root string, cluster deployCluster) (stagedForDeploy,
 		cleanupAssets()
 		cleanupStaged()
 		return stagedForDeploy{}, fmt.Errorf("deploy: %w", err)
+	}
+	if cluster.Namespace != "" {
+		if output, err := commands.Run("kubectl", "config", "set-context",
+			"--current", "--namespace", cluster.Namespace); err != nil {
+			cleanupCommands()
+			cleanupArchive()
+			cleanupAssets()
+			cleanupStaged()
+			return stagedForDeploy{}, fmt.Errorf("deploy: bind namespace %s: %w: %s",
+				cluster.Namespace, err, strings.TrimSpace(string(output)))
+		}
 	}
 	// The ConfigMaps live outside the release and the chart renders references
 	// to them, so they exist before the apply rather than after it.

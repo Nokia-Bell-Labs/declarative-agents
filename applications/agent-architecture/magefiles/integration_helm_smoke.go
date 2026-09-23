@@ -23,11 +23,11 @@ import (
 
 const (
 	smokeRelease      = "smoke"
-	smokeScenarioName = "agent-architecture-smoke"
+	smokeScenarioName = "agent-architecture-helm"
 	// smokeNamespace is the scenario's namespace on da-platform; the live
 	// applier tier installs into the same one after the smoke releases it.
-	smokeNamespace      = kindrig.ScenarioNamespacePrefix + smokeScenarioName
-	smokeCollectorImage = kindrig.DefaultAgentCoreImage
+	smokeNamespace       = kindrig.ScenarioNamespacePrefix + smokeScenarioName
+	smokeImageRepository = "ghcr.io/nokia-bell-labs/declarative-agents/agent-core"
 
 	smokeClusterTimeout  = 3 * time.Minute
 	smokeInstallTimeout  = 5 * time.Minute
@@ -45,6 +45,10 @@ const (
 // lifecycle exit that ends the run either way is treated as clean while a
 // crash (OOMKilled, SIGSEGV, etc.) is not.
 var smokeAgentCompletionExitCodes = map[int]bool{0: true, 2: true}
+
+func canonicalSmokeImage(applicationRoot string) (string, string, error) {
+	return kindrig.CommitImage(smokeImageRepository, mustGitRevision(applicationRoot))
+}
 
 // Integration groups bounded integration proofs.
 type Integration mg.Namespace
@@ -106,9 +110,18 @@ func smokeSkipReason(resolved roots) string {
 }
 
 func runHelmSmoke(resolved roots) (result error) {
-	// Both workloads run the locally built agent-core image (GH-1368); the
-	// application builds no runtime image of its own.
-	revision := mustGitRevision(resolved.Application)
+	// Both workloads run one commit-addressed canonical agent-core image; the
+	// application builds no runtime family of its own.
+	image, revision, err := canonicalSmokeImage(resolved.Application)
+	if err != nil {
+		return err
+	}
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		resolved.Core, image, smokeScenarioName)
+	if err != nil {
+		return err
+	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 	scenario, err := acquireSmokeScenario(resolved.Application, "helmSmoke")
 	if err != nil {
 		return err
@@ -116,10 +129,10 @@ func runHelmSmoke(resolved roots) (result error) {
 	defer func() { result = errors.Join(result, scenario.release(result != nil)) }()
 	environment := scenario.environment
 
-	if err := prepareSmokeCluster(environment, scenario.platform.Cluster.Name, resolved); err != nil {
+	if err := prepareSmokeCluster(environment, scenario.platform.Cluster.Name, image); err != nil {
 		return smokeFailure(environment.run, "cluster preparation", err)
 	}
-	archiveDir, err := os.MkdirTemp("", "agent-architecture-smoke-chart-*")
+	archiveDir, err := os.MkdirTemp("", "agent-architecture-helm-chart-*")
 	if err != nil {
 		return err
 	}
@@ -134,7 +147,7 @@ func runHelmSmoke(resolved roots) (result error) {
 	if err != nil {
 		return smokeFailure(environment.run, "curator UI shard provisioning", err)
 	}
-	if err := installSmokeChart(environment, archive, resolved.Application, shardNames); err != nil {
+	if err := installSmokeChart(environment, archive, resolved.Application, image, shardNames); err != nil {
 		return smokeFailure(environment.run, "Helm install", err)
 	}
 	// The collector is a persistent server, so its rollout stabilizes. The
@@ -145,6 +158,9 @@ func runHelmSmoke(resolved roots) (result error) {
 	if err := runSmokeCommand(environment, smokeReadyTimeout, "kubectl", "rollout", "status",
 		"deployment/"+smokeRelease+"-agent-architecture-collector", "-n", smokeNamespace, "--timeout=90s"); err != nil {
 		return smokeFailure(environment.run, "collector readiness", err)
+	}
+	if err := verifySmokeImageIdentity(environment, image, 2); err != nil {
+		return smokeFailure(environment.run, "agent image identity", err)
 	}
 	queryLocal, err := freeLocalPort()
 	if err != nil {
@@ -332,23 +348,106 @@ func smokeKubeconfig(cluster string) (string, func(), error) {
 
 // prepareSmokeCluster builds and loads the agent-core image into the cluster.
 // The caller owns the scenario namespace.
-func prepareSmokeCluster(environment smokeEnvironment, cluster string, resolved roots) error {
-	// The curator and collector both run agent-core (GH-1368); build and load one
-	// image for both rather than a separate per-app runtime.
-	if _, err := kindrig.EnsureAgentCoreImage(resolved.Core, smokeCollectorImage); err != nil {
-		return fmt.Errorf("build agent-core image: %w", err)
-	}
+func prepareSmokeCluster(environment smokeEnvironment, cluster, image string) error {
+	// The caller holds the canonical image lease; only deliver its immutable
+	// result into kind.
 	kindLoad := func(ctx context.Context, args ...string) ([]byte, error) {
 		return smokeEnvironment{}.run(ctx, "kind", args...)
 	}
 	loadCtx, cancelLoad := context.WithTimeout(context.Background(), smokeClusterTimeout)
-	err := kindrig.LoadImage(loadCtx, kindLoad, cluster, smokeCollectorImage)
+	err := kindrig.LoadImage(loadCtx, kindLoad, cluster, image)
 	cancelLoad()
 	return err
 }
 
-func installSmokeChart(environment smokeEnvironment, archive, applicationRoot string, shardNames []string) error {
-	repository, tag := splitImageRef(smokeCollectorImage)
+func verifySmokeImageIdentity(
+	environment smokeEnvironment,
+	expectedReference string,
+	expectedCount int,
+) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	output, err := environment.run(ctx, "kubectl", "get", "pods",
+		"-n", smokeNamespace, "-o", "json")
+	if err != nil {
+		return fmt.Errorf("list pods for image identity: %w: %s",
+			err, strings.TrimSpace(string(output)))
+	}
+	var pods struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Spec struct {
+				Containers []struct {
+					Name  string   `json:"name"`
+					Image string   `json:"image"`
+					Args  []string `json:"args"`
+				} `json:"containers"`
+			} `json:"spec"`
+			Status struct {
+				ContainerStatuses []struct {
+					Name    string `json:"name"`
+					ImageID string `json:"imageID"`
+				} `json:"containerStatuses"`
+			} `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(output, &pods); err != nil {
+		return fmt.Errorf("decode pods for image identity: %w", err)
+	}
+	imageID := ""
+	var containers []string
+	for _, pod := range pods.Items {
+		statuses := map[string]string{}
+		for _, status := range pod.Status.ContainerStatuses {
+			statuses[status.Name] = status.ImageID
+		}
+		for _, container := range pod.Spec.Containers {
+			if !smokeArgsContain(container.Args, "--profile") {
+				continue
+			}
+			identity := pod.Metadata.Name + "/" + container.Name
+			if container.Image != expectedReference {
+				return fmt.Errorf("%s image = %q, want %q",
+					identity, container.Image, expectedReference)
+			}
+			currentID := statuses[container.Name]
+			if currentID == "" {
+				return fmt.Errorf("%s has no runtime image ID", identity)
+			}
+			if imageID == "" {
+				imageID = currentID
+			} else if currentID != imageID {
+				return fmt.Errorf("%s image ID = %q, want %q", identity, currentID, imageID)
+			}
+			containers = append(containers, identity)
+		}
+	}
+	if len(containers) != expectedCount {
+		return fmt.Errorf("found %d live agent containers, want %d: %v",
+			len(containers), expectedCount, containers)
+	}
+	fmt.Printf("one-agent-image: %d live agent containers use %s (%s)\n",
+		len(containers), expectedReference, imageID)
+	return nil
+}
+
+func smokeArgsContain(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func installSmokeChart(
+	environment smokeEnvironment,
+	archive, applicationRoot, image string,
+	shardNames []string,
+) error {
+	repository, tag := splitImageRef(image)
 	ctx, cancel := context.WithTimeout(context.Background(), smokeInstallTimeout)
 	defer cancel()
 	args := []string{
@@ -357,8 +456,6 @@ func installSmokeChart(environment smokeEnvironment, archive, applicationRoot st
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
 		"--set", "image.repository=" + repository,
 		"--set-string", "image.tag=" + tag,
-		"--set", "collector.image.repository=" + repository,
-		"--set-string", "collector.image.tag=" + tag,
 	}
 	// Point the curator at the out-of-release UI shard ConfigMaps provisioned
 	// above so its init container mounts and unpacks them (GH-1402).
@@ -400,7 +497,13 @@ type portForward struct {
 // against a Service. The Service must have a ready endpoint, so a curator
 // forward is opened only after the curator Deployment reports Available.
 func forwardService(environment smokeEnvironment, service string, pairs ...string) (*portForward, error) {
-	args := append([]string{"port-forward", "-n", smokeNamespace, "service/" + service}, pairs...)
+	return forwardNamespacedService(environment, smokeNamespace, service, pairs...)
+}
+
+func forwardNamespacedService(
+	environment smokeEnvironment, namespace, service string, pairs ...string,
+) (*portForward, error) {
+	args := append([]string{"port-forward", "-n", namespace, "service/" + service}, pairs...)
 	command := exec.Command("kubectl", args...)
 	command.Env = append(os.Environ(), "KUBECONFIG="+environment.kubeconfig)
 	command.Stdout, command.Stderr = os.Stderr, os.Stderr

@@ -4,7 +4,8 @@
 # Pins no chart render exposes (srd006 R1.2). Chart images are not listed
 # here: the survey reads them out of the rendered charts, so this file and
 # the charts cannot disagree. The smoke dependency registry derives from
-# chart values for the same reason.
+# chart values for the same reason. This includes the coding executor's
+# digest-pinned Go and golangci-lint donors.
 #
 # Each entry names the file and the symbol or field holding the pin, so the
 # report points at the line to edit. TestDeclaredPinsDescribeTheirLocations
@@ -69,3 +70,21 @@ pins:
     tag: "1.56.1"
     architecture: arm64
     digest: sha256:d018b5cd630d9a213df9c8608ebb81c9f1087cecdefe1eacc79ff79a24bdc43a
+
+  - location: agent-core/Dockerfile syntax directive
+    file: agent-core/Dockerfile
+    image: docker.io/docker/dockerfile
+    tag: "1.7"
+    digest: sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+
+  - location: agent-core/Dockerfile RUNTIME_IMAGE default
+    file: agent-core/Dockerfile
+    image: docker.io/library/alpine
+    tag: "3.22"
+    digest: sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
+
+  - location: magefiles/kindrig/buildimage.go agentCoreDockerfile
+    file: magefiles/kindrig/buildimage.go
+    image: docker.io/library/alpine
+    tag: "3.22"
+    digest: sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8

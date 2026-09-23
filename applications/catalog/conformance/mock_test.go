@@ -68,6 +68,138 @@ func mockStatus(t *testing.T, method, url, body string) int {
 	return resp.StatusCode
 }
 
+func mockJSON(t *testing.T, method, url, body string) map[string]interface{} {
+	t.Helper()
+	req, err := http.NewRequest(method, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("build %s %s: %v", method, url, err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, url, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read %s %s: %v", method, url, err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("%s %s status = %d, want 200: %s", method, url, resp.StatusCode, data)
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("decode %s %s response %q: %v", method, url, data, err)
+	}
+	return payload
+}
+
+// TestMockAuthorizedPublicListenerServesOllamaFixture proves the canonical mock
+// can be reached through a Kubernetes-style wildcard listener only when the rig
+// explicitly grants that authority. The same profile serves Ollama model
+// discovery, a strict three-response chat script, health, and the request log.
+//
+// Traces srd019-mock R1.5, R2.5, R3.1 and srd039 R1.6.
+func TestMockAuthorizedPublicListenerServesOllamaFixture(t *testing.T) {
+	RequireCoreRoot(t)
+	port := PortOf(t, FreeAddr(t))
+	listenAddress := "0.0.0.0:" + port
+	baseURL := "http://127.0.0.1:" + port
+
+	server := Serve(t, ServeConfig{
+		Profile: filepath.Join("agents", "mock", "profile.yaml"),
+		Env: []string{
+			"MOCK_ADDRESS=" + listenAddress,
+			"MOCK_ALLOW_PUBLIC_LISTENER=true",
+			"MOCK_FIXTURES=" + mockFixture(t, "ollama-ordered.yaml"),
+		},
+	})
+	defer server.Stop()
+	server.WaitHealthy(baseURL+"/_mock/health", 15*time.Second)
+
+	tags := mockJSON(t, http.MethodGet, baseURL+"/api/tags", "")
+	models, ok := tags["models"].([]interface{})
+	if !ok || len(models) != 1 {
+		t.Fatalf("Ollama tags models = %#v, want one model", tags["models"])
+	}
+
+	for turn, want := range []string{"turn-one", "turn-two", "turn-three"} {
+		body := `{"model":"qwen3:0.6b","stream":false,"messages":[{"role":"user","content":"step"}]}`
+		response := mockJSON(t, http.MethodPost, baseURL+"/api/chat", body)
+		message, ok := response["message"].(map[string]interface{})
+		if !ok || message["content"] != want {
+			t.Fatalf("chat turn %d response = %#v, want content %q", turn+1, response, want)
+		}
+	}
+
+	entries := mockLog(t, baseURL)
+	if len(entries) != 4 {
+		t.Fatalf("Ollama request log has %d entries, want tags plus three chats: %v", len(entries), entries)
+	}
+	if entries[0]["method"] != http.MethodGet || entries[0]["path"] != "/api/tags" ||
+		entries[0]["matched"] != true {
+		t.Fatalf("first Ollama request = %v, want matched GET /api/tags", entries[0])
+	}
+	for index, entry := range entries[1:] {
+		if entry["method"] != http.MethodPost || entry["path"] != "/api/chat" ||
+			entry["matched"] != true {
+			t.Fatalf("chat request %d = %v, want matched POST /api/chat", index+1, entry)
+		}
+		var request map[string]interface{}
+		requestBody, ok := entry["body"].(string)
+		if !ok || json.Unmarshal([]byte(requestBody), &request) != nil {
+			t.Fatalf("chat request %d body = %#v, want JSON", index+1, entry["body"])
+		}
+		if request["model"] != "qwen3:0.6b" || request["stream"] != false {
+			t.Fatalf("chat request %d model/stream = %#v/%#v", index+1, request["model"], request["stream"])
+		}
+		messages, ok := request["messages"].([]interface{})
+		if !ok || len(messages) == 0 {
+			t.Fatalf("chat request %d messages = %#v, want non-empty", index+1, request["messages"])
+		}
+	}
+}
+
+func TestMockPublicListenerRequiresExplicitAuthority(t *testing.T) {
+	RequireCoreRoot(t)
+	fixture := mockFixture(t, "ollama-ordered.yaml")
+	tests := []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{
+			name: "authority absent",
+			env:  []string{"MOCK_ADDRESS=0.0.0.0:11434", "MOCK_FIXTURES=" + fixture},
+			want: "allow_public_listener",
+		},
+		{
+			name: "authority malformed",
+			env: []string{
+				"MOCK_ADDRESS=0.0.0.0:11434",
+				"MOCK_ALLOW_PUBLIC_LISTENER=not-a-boolean",
+				"MOCK_FIXTURES=" + fixture,
+			},
+			want: "into bool",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Run(t, RunConfig{
+				Profile: filepath.Join("agents", "mock", "profile.yaml"),
+				Args:    []string{"--validate-config"},
+				Env:     tt.env,
+			})
+			if result.ExitCode == 0 {
+				t.Fatalf("--validate-config accepted %s public-listener authority", tt.name)
+			}
+			if !strings.Contains(strings.ToLower(result.Output), tt.want) {
+				t.Fatalf("%s error = %q, want %q", tt.name, result.Output, tt.want)
+			}
+		})
+	}
+}
+
 // TestMockServesFixtureSequence runs the shipped mock profile against the
 // scripted example fixture and asserts the srd039 serving contract end to end:
 // declared order, the repeat once the script is exhausted, a 404 for an

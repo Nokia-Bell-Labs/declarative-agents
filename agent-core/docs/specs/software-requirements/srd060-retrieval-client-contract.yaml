@@ -1,0 +1,127 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: srd060-retrieval-client-contract
+title: Retrieval Query Client Contract
+
+problem: |
+  Three applications serve retrieval over a Chroma collection and each
+  declares its own client for it: chatbot-mesh's chatbot calls rag-server's
+  /api/v1/rag/query, cohere-demo's chatbot calls a forked rag-server, and
+  agentic-wiki-mesh's chatbot calls knowledge-manager's
+  /api/v1/knowledge/query. The query core is one contract under three names:
+  a client-computed query vector and a result count in; chunk ids, documents,
+  distances, metadatas, and the embedding model out; a 400 for an embedding
+  space the server rejects. The three clients have already drifted: the
+  chatbot-mesh server drops metadatas that the other two return, so its
+  chatbot cites chunk ids where the others cite documents. The servers
+  differ in application policy (clearance, harvest, document reads) and stay
+  in their applications; the client contract does not differ and has no
+  shared home. srd056 R4 names the shape of such a home, a service library,
+  and this document is its first instance.
+
+goals:
+  - G1: One retrieval query contract, a request shape and a QueryResult type, declared once in agent-core and imported by every application that queries a retrieval server.
+  - G2: One client fragment that produces the query operation from arguments, so an application states only its route prefix, where the base URL and the query vector come from, and how many results it wants.
+  - G3: Application policy stays in the application. A server that adds clearance, facets, or document reads extends the contract in its own declarations without changing the shared one.
+
+requirements:
+  R1:
+    title: The contract
+    items:
+      - R1.1: >-
+          A query request SHALL carry query_embeddings, an array holding the
+          client-computed query vector, and n_results, an integer of at least
+          one. The server SHALL NOT embed; the client names the embedding
+          space and the server reports the one it holds.
+      - R1.2: >-
+          A successful query SHALL return QueryResult with five fields: ids,
+          documents, distances, metadatas, and embedding_model. ids,
+          documents, distances, and metadatas SHALL be the parallel arrays
+          Chroma returns for the query, and embedding_model SHALL be the
+          server's configured embedding identity.
+      - R1.3: >-
+          A 400 response SHALL mean the server rejected the query, including a
+          vector from an embedding space it does not hold, and SHALL map to
+          the QueryRejected signal. Every other failure SHALL surface as
+          CommandError.
+  R2:
+    title: Placement
+    items:
+      - R2.1: >-
+          The QueryResult type and the request shape SHALL live in the type
+          unit agent-core/tools/units/types-retrieval.yaml, and the client
+          fragment in agent-core/tools/rest/units/retrieval-query-client-fragment.yaml.
+          Consumers SHALL reach both through /opt/agent-core paths with no
+          declared library root (srd056 R1.1, R4.1).
+      - R2.2: >-
+          The contract has no provider or backend to rebind, so it SHALL NOT
+          be a declared library root in the manner of srd058's providers
+          root.
+  R3:
+    title: The client fragment
+    items:
+      - R3.1: >-
+          The fragment SHALL produce one REST client with one operation,
+          query, posting to /api/v1/<route_prefix>/query. Its parameters
+          SHALL be route_prefix, base_url_selector (the command-state selector
+          the operation reads its base URL from), input_selector (the selector
+          the query vector is read from), n_results, and limits_ref. The
+          client name SHALL follow srd052 R2.5, so a consumer that needs a
+          different name instantiates the fragment under as.
+      - R3.2: >-
+          The operation SHALL read its base URL from command state, so the
+          consumer's declared topology chooses the server per request while
+          the consumer's limits profile and network allowlist still bound it.
+      - R3.3: >-
+          The operation SHALL map a 200 response to QueryResponded with all
+          five QueryResult fields in its output, a 400 to QueryRejected, and
+          declare a read-only external_api side effect with noop undo.
+      - R3.4: >-
+          The fragment SHALL NOT declare clearance, facet, keyword, or other
+          body fields beyond R1.1. srd052 fixes a fragment's shape, so an
+          application whose server requires more writes that operation in its
+          own declarations and imports the shared type unit for the result.
+  R4:
+    title: Consumers
+    items:
+      - R4.1: >-
+          A consumer SHALL NOT redeclare the query operation that the
+          fragment produces. Fan-out across several retrieval servers, and the
+          per-consumer base URLs, limits, and allowlist, stay in the consumer.
+      - R4.2: >-
+          The contract SHALL meet srd056 R4.2's two-importer rule, counting a
+          fragment instantiation as an importer.
+
+non_goals:
+  - Promoting a retrieval server into agent-core or the catalog; the servers stay in their applications (#2527 gate).
+  - Clearance, facet, keyword, document-read, ingest, and harvest endpoints; these are application extensions.
+  - Server-side embedding or a choice of embedding provider; the client embeds.
+  - A declared library root for retrieval.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A unit expanding the fragment with a route prefix, selectors, a result count, and a limits profile produces a query operation posting to /api/v1/<route_prefix>/query whose output carries all five QueryResult fields; a missing required argument fails naming the fragment and the parameter.
+    traces: [R1.1, R1.2, R3.1, R3.2]
+  - id: AC2
+    criterion: The produced operation maps 200 to QueryResponded, 400 to QueryRejected, and other failures to CommandError, and declares a read-only external_api side effect with noop undo.
+    traces: [R1.3, R3.3]
+  - id: AC3
+    criterion: Consumers import the type unit and expand the fragment through /opt/agent-core paths with no declared root, and the fragment declares no field beyond R1.1.
+    traces: [R2.1, R2.2, R3.4]
+  - id: AC4
+    criterion: chatbot-mesh's chatbot queries rag-server through the fragment with no local query operation, its chat and degraded-RAG behavior unchanged, and rag-server returns metadatas; the contract has at least two importers once a consumer repository adopts it.
+    traces: [R4.1, R4.2]
+
+depends_on:
+  - srd_id: srd056-unit-libraries
+    symbols_used: [agent-core root, service library, two-importer rule]
+  - srd_id: srd052-declaration-fragments
+    symbols_used: [params, expand, as prefix, fixed fragment shape]
+  - srd_id: srd051-declaration-types
+    symbols_used: [type units]
+  - srd_id: srd058-provider-libraries
+    symbols_used: [REST client fragment precedent]
+
+related_documents:
+  - cfg-rest-tool-format
+  - srd056-unit-libraries

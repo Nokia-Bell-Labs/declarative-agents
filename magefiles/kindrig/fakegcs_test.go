@@ -17,6 +17,9 @@ func TestInstallFakeGCSLoadsPinnedImageAndWaitsForRollout(t *testing.T) {
 	run := func(name string, args ...string) ([]byte, error) {
 		command := strings.Join(append([]string{name}, args...), " ")
 		calls = append(calls, command)
+		if inspectFailsWithoutDigest(name, args) {
+			return []byte("No such image"), errors.New("absent")
+		}
 		if strings.HasPrefix(command, "kubectl --context kind-da-example get deployment") {
 			return []byte(`Error from server (NotFound): deployments.apps "fake-gcs" not found`), errors.New("NotFound")
 		}
@@ -40,10 +43,11 @@ func TestInstallFakeGCSLoadsPinnedImageAndWaitsForRollout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtimeImage := fakeGCSRuntimeRepository + ":" + fakeGCSImageVersion
+	runtimeImage := fakeGCSRuntimeImage()
 	want := []string{
 		"kubectl --context kind-da-example get deployment " + fakeGCSDeployment,
 		"docker image inspect --format {{.Id}} " + source,
+		"docker image inspect --format {{.Id}} " + runtimeImage,
 		"docker tag " + source + " " + runtimeImage,
 		"node-import " + runtimeImage + " da-example-control-plane linux/" + runtime.GOARCH,
 		"kubectl --context kind-da-example apply -f ",
@@ -72,6 +76,9 @@ func TestInstallFakeGCSLoadsPinnedImageAndWaitsForRollout(t *testing.T) {
 			t.Errorf("applied manifest missing %q", expected)
 		}
 	}
+	if strings.Contains(applied, "kindrig/fake-gcs-server") {
+		t.Fatal("applied manifest still uses a kindrig alias")
+	}
 	for _, forbidden := range []string{"imagePullPolicy: Always", "latest", "STORAGE_EMULATOR_HOST"} {
 		if strings.Contains(applied, forbidden) {
 			t.Errorf("applied manifest contains %q", forbidden)
@@ -79,8 +86,6 @@ func TestInstallFakeGCSLoadsPinnedImageAndWaitsForRollout(t *testing.T) {
 	}
 }
 
-// A healthy existing instance is reused without any install step; an
-// unhealthy one is refused, because its ownership is unknown.
 func TestInstallFakeGCSReusesHealthyAndRefusesUnhealthy(t *testing.T) {
 	healthy := func(name string, args ...string) ([]byte, error) {
 		return []byte("True"), nil
@@ -112,6 +117,23 @@ func TestInstallFakeGCSReusesHealthyAndRefusesUnhealthy(t *testing.T) {
 	}
 }
 
+func TestFakeGCSKindPinsShareTheHostIndexVersion(t *testing.T) {
+	if fakeGCSImageVersion != "1.56.1" {
+		t.Fatalf("kind fake-gcs version = %s, want the host objectstore pin", fakeGCSImageVersion)
+	}
+	for arch, digest := range fakeGCSImageDigests {
+		if digest == fakeGCSImageIndexDigest {
+			t.Errorf("%s pin %s is the index digest; kind must import the platform manifest", arch, digest)
+		}
+		if !strings.HasPrefix(digest, "sha256:") || len(digest) != len("sha256:")+64 {
+			t.Errorf("%s pin %s is not a sha256 digest", arch, digest)
+		}
+	}
+	if fakeGCSRuntimeImage() != fakeGCSImageRepository+":"+fakeGCSImageVersion {
+		t.Fatalf("runtime image = %q", fakeGCSRuntimeImage())
+	}
+}
+
 func TestInstallFakeGCSRequiresClusterAndPinnedArch(t *testing.T) {
 	if _, err := InstallFakeGCS(nil, "  "); err == nil {
 		t.Fatal("empty cluster accepted")
@@ -137,6 +159,10 @@ func TestFakeGCSEndpointMatchesTheManifest(t *testing.T) {
 	}
 	if !strings.HasSuffix(FakeGCSEndpoint, "/storage/v1/") {
 		t.Errorf("endpoint = %q does not name the JSON API base", FakeGCSEndpoint)
+	}
+	if !strings.Contains(fakeGCSKindManifest, "host: objectstore.da-platform.localhost") ||
+		FakeGCSHostEndpoint != "http://objectstore.da-platform.localhost/storage/v1/" {
+		t.Errorf("host lifecycle endpoint %q does not match the platform ingress", FakeGCSHostEndpoint)
 	}
 }
 

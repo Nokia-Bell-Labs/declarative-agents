@@ -118,3 +118,45 @@ tools:
       default:
         bucket_url: "${OBJECT_BUCKET_URL:-mem://agents}"
         endpoint: "${OBJECT_ENDPOINT:-}"
+
+- name: object_delete_prefix
+  type: builtin
+  category: boundary
+  init: object_delete_prefix
+  visibility: internal
+  description: Delete and verify one declaration-authorized object prefix under a bounded policy, writing an external audit record.
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-objectstore.DeletePrefixOutcome
+    emits: [ToolDone, CommandError]
+  output:
+    description: Purged, partial, or refused result with bounded counts and a hash of the pre-delete key set.
+  side_effects:
+  - kind: external_api
+    target: configured_object_bucket_prefix
+    state: objects_deleted
+    description: Irreversibly deletes only the bucket prefix fixed in declaration config; request data cannot select storage authority.
+  - kind: filesystem_write
+    target: configured_external_purge_audit
+    state: audit_appended
+    description: Appends the non-secret purge outcome outside the target bucket.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: true
+  undo:
+    strategy: irreversible
+    description: Deleted retained evidence cannot be restored by the word.
+  errors:
+  - signal: CommandError
+    condition: The connection, listing, verification, or external audit write fails.
+    state_after_failure: Success is not reported; the external audit records a bounded delete outcome when one was produced.
+  config:
+    connection: default
+    connections:
+      default:
+        bucket_url: "${OBJECT_BUCKET_URL:-mem://agents}"
+        endpoint: "${OBJECT_ENDPOINT:-}"
+    prefix: "${OBJECT_PREFIX:-application/}"
+    max_objects: 10000
+    application: "${OBJECT_APPLICATION:-application}"
+    audit_path: "${OBJECT_PURGE_AUDIT_PATH:-build/purge/audit.ndjson}"

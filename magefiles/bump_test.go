@@ -62,8 +62,12 @@ func TestDeclaredPinsDoNotRestateChartImages(t *testing.T) {
 		t.Fatal(err)
 	}
 	chartOnly := map[string]bool{
-		"ollama/ollama": true, "dolthub/dolt-sql-server": true,
-		"chromadb/chroma": true, "rancher/kubectl": true, "busybox": true,
+		"docker.io/ollama/ollama": true, "docker.io/dolthub/dolt-sql-server": true,
+		"docker.io/chromadb/chroma": true, "docker.io/rancher/kubectl": true,
+		"docker.io/library/busybox":                      true,
+		"docker.io/otel/opentelemetry-collector-contrib": true,
+		"docker.io/library/golang":                       true,
+		"docker.io/golangci/golangci-lint":               true,
 	}
 	for _, pin := range pins {
 		if chartOnly[pin.Image] {
@@ -123,6 +127,11 @@ func TestCollectedPinsCoverBothHalves(t *testing.T) {
 		t.Fatal(err)
 	}
 	var sawDeclared, sawChart bool
+	donors := map[string]string{
+		"golang":                 "sha256:8ac98ca534ac3f51e1f420a1dd2c15e74c75cfa0f23f3ad27eb5d7236c349a0c",
+		"golangci/golangci-lint": "sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60",
+	}
+	seenDonors := map[string]bool{}
 	for _, pin := range pins {
 		if strings.HasPrefix(pin.Location, "magefiles/kindrig/") {
 			sawDeclared = true
@@ -134,12 +143,23 @@ func TestCollectedPinsCoverBothHalves(t *testing.T) {
 			strings.HasPrefix(strings.ToLower(pin.Image), "kindrig/") {
 			t.Errorf("%s surveys an image this checkout produces: %s", pin.Location, pin.Image)
 		}
+		if digest, ok := donors[pin.Image]; ok && strings.Contains(pin.Location, "[defaults]") {
+			seenDonors[pin.Image] = true
+			if pin.Digest != digest {
+				t.Errorf("%s donor digest = %q, want %q (%s)", pin.Image, pin.Digest, digest, pin.Location)
+			}
+		}
 	}
 	if !sawDeclared {
 		t.Error("no declared pin in the inventory")
 	}
 	if !sawChart {
 		t.Error("no chart pin in the inventory")
+	}
+	for donor := range donors {
+		if !seenDonors[donor] {
+			t.Errorf("chart pin inventory missing executor donor %s", donor)
+		}
 	}
 }
 

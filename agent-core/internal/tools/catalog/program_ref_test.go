@@ -87,16 +87,16 @@ tools: []
 	toolConfig := writeProgramRefFile(t, filepath.Join(toolDir, "tool.yaml"), "tools: []\n")
 	restConfig := writeProgramRefFile(t, filepath.Join(restDir, "rest.yaml"), "clients: {}\n")
 	return ProgramPaths{
-			Profile:          writeProgramRefFile(t, filepath.Join(dir, "profile.yaml"), "name: fixture\n"),
-			Machine:          writeProgramRefFile(t, filepath.Join(dir, "machine.yaml"), "name: fixture\n"),
-			ToolSelections:   []string{writeProgramRefFile(t, filepath.Join(dir, "tools.yaml"), "tools: [included]\n")},
-			ToolDeclarations: []string{declaration},
-			ToolConfigDirs:   []string{toolDir},
-			RESTDefinitions:  []string{writeProgramRefFile(t, filepath.Join(dir, "rest.yaml"), "servers: {}\n")},
-			RESTConfigDirs:   []string{restDir},
-		}, map[string]string{
-			"included": included, "tool_config": toolConfig, "rest_config": restConfig,
-		}
+		Profile:          writeProgramRefFile(t, filepath.Join(dir, "profile.yaml"), "name: fixture\n"),
+		Machine:          writeProgramRefFile(t, filepath.Join(dir, "machine.yaml"), "name: fixture\n"),
+		ToolSelections:   []string{writeProgramRefFile(t, filepath.Join(dir, "tools.yaml"), "tools: [included]\n")},
+		ToolDeclarations: []string{declaration},
+		ToolConfigDirs:   []string{toolDir},
+		RESTDefinitions:  []string{writeProgramRefFile(t, filepath.Join(dir, "rest.yaml"), "servers: {}\n")},
+		RESTConfigDirs:   []string{restDir},
+	}, map[string]string{
+		"included": included, "tool_config": toolConfig, "rest_config": restConfig,
+	}
 }
 
 func writeProgramRefFile(t *testing.T, path, content string) string {

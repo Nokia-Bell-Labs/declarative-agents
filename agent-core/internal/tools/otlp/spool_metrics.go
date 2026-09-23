@@ -4,11 +4,14 @@
 package otlp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/objectstore"
 	colmetricpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	metricpb "go.opentelemetry.io/proto/otlp/metrics/v1"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -19,20 +22,28 @@ const InitSpoolMetrics = "spool_metrics"
 
 // SpoolMetricsBuilder constructs metric spool commands. It reuses SpoolConfig
 // (path, batch_source, rotation) so the metric spool shares the trace spool's
-// bounded-rotation discipline (srd042 R9.3).
+// bounded-rotation discipline (srd042 R9.3) and the same storage port
+// (srd008 R1, R5).
 type SpoolMetricsBuilder struct {
 	ToolName string
 	Config   SpoolConfig
+	Storage  StorageConfig
+	Opener   *objectstore.Opener
 }
 
 // Build captures the previous result for current-value selectors.
 func (b SpoolMetricsBuilder) Build(previous core.Result) core.Command {
-	return &spoolMetricsCommand{toolName: b.ToolName, config: b.Config, previous: previous}
+	return &spoolMetricsCommand{
+		toolName: b.ToolName, config: b.Config, storage: b.Storage,
+		opener: b.Opener, previous: previous,
+	}
 }
 
 type spoolMetricsCommand struct {
 	toolName string
 	config   SpoolConfig
+	storage  StorageConfig
+	opener   *objectstore.Opener
 	previous core.Result
 	view     core.CommandStateView
 }
@@ -50,29 +61,44 @@ func (c *spoolMetricsCommand) Execute() core.Result {
 	if err != nil {
 		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
 	}
-	written, err := appendSpool(c.config, lines)
-	if err != nil {
-		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
-	}
 	payload, err := protojson.Marshal(request)
 	if err != nil {
 		return receiverError(c.Name(), err)
 	}
-	output := struct {
-		Path           string          `json:"path"`
-		MetricCount    int             `json:"metric_count"`
-		DataPointCount int             `json:"data_point_count"`
-		Bytes          int             `json:"bytes_written"`
-		Batch          json.RawMessage `json:"batch"`
-	}{
-		Path: c.config.Path, MetricCount: requestMetricCount(request),
-		DataPointCount: requestDataPointCount(request), Bytes: written, Batch: payload,
+	target, err := newSpoolTarget(c.config, c.storage, c.opener)
+	if err != nil {
+		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
 	}
-	encoded, err := json.Marshal(output)
+	outcome, err := target.persist(context.Background(), spoolBatch{
+		signal: "metric", payloadFormat: "otlp-protojson-metric",
+		ndjson: lines, payload: payload, received: time.Now().UTC(),
+	})
+	if err != nil {
+		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
+	}
+	encoded, err := json.Marshal(metricSpoolOutputRecord{
+		Path: outcome.path, MetricCount: requestMetricCount(request),
+		DataPointCount: requestDataPointCount(request), Bytes: outcome.bytes,
+		Batch: payload, ObjectKey: outcome.objectKey, Checksum: outcome.checksum,
+		WALState: outcome.walState,
+	})
 	if err != nil {
 		return receiverError(c.Name(), err)
 	}
 	return core.Result{Signal: core.Signal("MetricsSpooled"), CommandName: c.Name(), Output: string(encoded)}
+}
+
+// metricSpoolOutputRecord is the storage-independent metric spool result; the
+// object fields appear only when the object backend sealed an envelope.
+type metricSpoolOutputRecord struct {
+	Path           string          `json:"path"`
+	MetricCount    int             `json:"metric_count"`
+	DataPointCount int             `json:"data_point_count"`
+	Bytes          int             `json:"bytes_written"`
+	Batch          json.RawMessage `json:"batch"`
+	ObjectKey      string          `json:"object_key,omitempty"`
+	Checksum       string          `json:"checksum,omitempty"`
+	WALState       string          `json:"wal_state,omitempty"`
 }
 
 func (c *spoolMetricsCommand) Undo(_ core.Result) core.Result {

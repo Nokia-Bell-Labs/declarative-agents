@@ -18,8 +18,8 @@ func TestSpoolFactoriesRejectByteCapWithoutRetainedGeneration(t *testing.T) {
 	t.Parallel()
 
 	factories := map[string]toolregistry.BuiltinFactory{
-		InitSpoolSpans:   spoolFactory(),
-		InitSpoolMetrics: spoolMetricsFactory(),
+		InitSpoolSpans:   spoolFactory(nil),
+		InitSpoolMetrics: spoolMetricsFactory(nil),
 	}
 	for name, factory := range factories {
 		for _, maxFiles := range []int{0, 1} {

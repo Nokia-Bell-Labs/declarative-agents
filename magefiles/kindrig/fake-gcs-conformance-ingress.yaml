@@ -1,0 +1,25 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A conformance-only Ingress that routes one .localhost host to the fake-GCS
+# service, so platform conformance can prove object storage through the same
+# node-port curl it uses for the echo backend (#2477 R5). It lives in the
+# fake-gcs namespace beside the Service it targets and is removed when the
+# object-storage check finishes.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fake-gcs-conformance
+  namespace: fake-gcs
+  labels: {app.kubernetes.io/name: fake-gcs, app.kubernetes.io/managed-by: kindrig}
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: KINDRIG_OBJECTSTORE_HOST
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fake-gcs
+                port: {number: 4443}

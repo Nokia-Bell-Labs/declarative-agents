@@ -71,6 +71,7 @@ var chartArchiveInventory = []string{
 	"coding-agent/templates/agents.yaml",
 	"coding-agent/templates/applier.yaml",
 	"coding-agent/templates/collector.yaml",
+	"coding-agent/templates/ingress.yaml",
 	"coding-agent/templates/ollama.yaml",
 	"coding-agent/templates/profiles-configmaps.yaml",
 	"coding-agent/templates/workspace.yaml",

@@ -665,6 +665,56 @@ func TestReleaseGatesCoverEveryApplicationModule(t *testing.T) {
 	}
 }
 
+func TestApplicationReleaseGatesUseCanonicalImageLeases(t *testing.T) {
+	sources := map[string][]string{
+		"applications/chatbot-mesh": {
+			"applications/chatbot-mesh/magefiles/integration_helm.go",
+		},
+		"applications/coding-agent": {
+			"applications/coding-agent/magefiles/integration_helm_smoke.go",
+			"applications/coding-agent/magefiles/integration_helm_runtime.go",
+		},
+		"applications/agent-architecture": {
+			"applications/agent-architecture/magefiles/integration_helm_smoke.go",
+		},
+	}
+	for application, paths := range sources {
+		t.Run(application, func(t *testing.T) {
+			found := false
+			for _, relative := range paths {
+				content, err := os.ReadFile(filepath.Join("..", filepath.FromSlash(relative)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strings.Contains(string(content), "AcquireAgentCoreImageLease") {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("%s release integration does not acquire the canonical image lease", application)
+			}
+		})
+	}
+}
+
+func TestApplicationIntegrationsImportPinnedDependencies(t *testing.T) {
+	paths := map[string]string{
+		"applications/chatbot-mesh": "applications/chatbot-mesh/magefiles/integration_helm.go",
+		"applications/coding-agent": "applications/coding-agent/magefiles/integration_helm_runtime.go",
+	}
+	for application, relative := range paths {
+		t.Run(application, func(t *testing.T) {
+			content, err := os.ReadFile(filepath.Join("..", filepath.FromSlash(relative)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(content), "ImportPinnedImage") {
+				t.Fatalf("%s integration does not import digest-pinned dependencies transactionally", application)
+			}
+		})
+	}
+}
+
 func TestReleaseGatesRootFailureBlocksEveryLaterRealGate(t *testing.T) {
 	gateErr := errors.New("audit failed")
 	started := make(chan string, len(releaseGates("/release")))

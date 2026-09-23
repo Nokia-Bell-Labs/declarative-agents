@@ -60,6 +60,13 @@ func resolveIntegrationRoots() (integrationRoots, error) {
 	if err != nil {
 		return integrationRoots{}, fmt.Errorf("coding-agent integration: resolve application root: %w", err)
 	}
+	// Mage runs from the application root; go test runs this package from
+	// magefiles/. Resolve both to the one application ownership root.
+	if filepath.Base(app) == "magefiles" {
+		if _, statErr := os.Stat(filepath.Join(filepath.Dir(app), "agents", "application.yaml")); statErr == nil {
+			app = filepath.Dir(app)
+		}
+	}
 	catalog, err := resolveCatalogRoot("coding-agent integration", app)
 	if err != nil {
 		return integrationRoots{}, err

@@ -202,9 +202,10 @@ func TestRenderedProfileProjectionKeysExistInConfigMap(t *testing.T) {
 	}
 }
 
-// TestChatbotRestCoGeneratedFromRagUnits locks one selected-target RAG operation.
-// ragUnits still generates the network allowlist and topology authorities while
-// the REST operation count remains one.
+// TestChatbotRestCoGeneratedFromRagUnits locks one selected-target RAG operation,
+// produced by one expansion of the shared retrieval client (srd060). ragUnits
+// still generates the network allowlist and topology authorities while the
+// query operation count remains one.
 func TestChatbotRestCoGeneratedFromRagUnits(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
@@ -232,16 +233,18 @@ func TestChatbotRestCoGeneratedFromRagUnits(t *testing.T) {
 		t.Fatal("co-generated agents__chatbot__rest.yaml key not found in render")
 	}
 
-	if strings.Count(rest, "\n    rag:") != 1 ||
-		strings.Count(rest, "\n        query:") != 1 {
-		t.Error("co-generated rest.yaml must contain one generic RAG client and operation")
+	if strings.Count(rest, "/opt/agent-core/tools/rest/units/retrieval-query-client-fragment.yaml") != 1 {
+		t.Error("co-generated rest.yaml must expand the shared retrieval client exactly once")
 	}
-	for _, selected := range []string{
-		"base_url_source: command_state",
+	if strings.Contains(rest, "path: /api/v1/rag/query") {
+		t.Error("co-generated rest.yaml redeclares the RAG query operation the fragment produces")
+	}
+	for _, arg := range []string{
+		"route_prefix: rag",
 		"base_url_selector: $from(rag_unit).base_url",
 	} {
-		if !strings.Contains(rest, selected) {
-			t.Errorf("generic RAG operation missing %q", selected)
+		if !strings.Contains(rest, arg) {
+			t.Errorf("retrieval client expansion missing %q", arg)
 		}
 	}
 	for _, u := range units {

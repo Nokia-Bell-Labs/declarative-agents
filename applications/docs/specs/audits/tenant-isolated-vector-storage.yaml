@@ -1,0 +1,221 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+id: tenant-isolated-vector-storage
+title: Tenant-Isolated Shared Vector Storage Decision Audit
+audit_date: "2026-09-22"
+
+scope:
+  issue: GH-2481
+  decision: Retain application-owned vector stores; do not add a shared vector service to da-platform.
+  evidence_boundary: |
+    The audit covers every in-repository first-party application and searches
+    the accessible Nokia-Bell-Labs GitHub corpus for downstream CHROMA_URL and
+    chromadb consumers. Prose Editor is documented as downstream-owned, but its
+    source and a second downstream application are not present or discoverable
+    from this checkout; no claim is made about their private implementation.
+  examined:
+    - applications/chatbot-mesh/helm/templates/rag-units.yaml
+    - applications/chatbot-mesh/helm/values.yaml
+    - applications/chatbot-mesh/agents/rag-server/
+    - applications/catalog/agents/knowledge-manager/
+    - applications/coding-agent/agents/application.yaml
+    - applications/agent-architecture/agents/application.yaml
+    - applications/catalog/docs/specs/software-requirements/srd012-chroma-corpus-agents.yaml
+    - docs/engineering/eng01-kind-test-demo-rig.yaml
+
+inventory:
+  first_party:
+    - application: chatbot-mesh
+      vector_workloads: One Chroma StatefulSet and PVC per declared ragUnits entry.
+      current_local_instance: chatbot-mesh-chatbot-mesh-rag0-chroma
+      namespace: app-chatbot-mesh
+      collection: corpus
+      embedding_identity:
+        provider: Ollama
+        model: qwen3-embedding:8b
+        declared_separately_from_collection: true
+      persistence: 256Mi ReadWriteOnce PVC mounted at /data
+      credentials: none
+      authorization: none in Chroma; local separation is workload/Service/PVC topology, not authenticated tenancy
+      lifecycle:
+        create: application Helm release
+        ingest: catalog corpus-ingest profile through application-owned app:seed
+        query: application rag-server
+        backup: no declared production backup authority; benchmark used a read-only tar stream
+        retention: PVC follows application namespace deletion today
+        purge: no vector-specific portable purge contract
+    - application: coding-agent
+      vector_workloads: none
+      retrieval_policy: none
+    - application: agent-architecture
+      vector_workloads: none
+      retrieval_policy: Documentation curator reads files, not a vector engine.
+  downstream:
+    - application: prose-editor
+      availability: documented downstream owner; source absent from this repository and inaccessible to this audit
+      evidence: applications/catalog/docs/specs/software-requirements/srd021-observer.yaml R4.3
+    - application: second-downstream-consumer
+      availability: not named in repository documentation and not discoverable through accessible organization code search
+      disposition: No implementation facts inferred.
+
+measurements:
+  environment:
+    platform: da-platform kind, kindest/node v1.36.1
+    architecture: darwin arm64 host, linux/arm64 node
+    workload: seeded chatbot-mesh rag0 Chroma 1.5.3
+    sample_time: "2026-09-22T04:53Z"
+  steady_state:
+    cpu_millicores: 3
+    memory_mib: 11
+    pvc_capacity_mib: 256
+    data_bytes: 188416
+    command: kubectl top pod --containers and kubectl exec -- du -sb /data
+  heartbeat_latency:
+    requests: 50
+    min_ms: 2.437
+    p50_ms: 3.393
+    p95_ms: 6.420
+    max_ms: 36.088
+    command: curl /api/v2/heartbeat through a local Service port-forward
+  application_query_latency:
+    requests: 3
+    min_ms: 401.8
+    median_ms: 465.2
+    max_ms: 2515.7
+    command: POST /api/v1/chat through shared Traefik after corpus seed
+    note: End-to-end latency includes embedding, vector query, routing, and answer generation; it is not a Chroma-only measure.
+  ingest:
+    corpus: checked-in chatbot-mesh integration corpus
+    elapsed_seconds: 13.717
+    result: corpus-ingest reached success and app:verify served a non-empty answer
+  restart:
+    delete_to_ready_seconds: 12.202
+    persistence_check: app:verify passed after the StatefulSet pod replacement
+  backup_stream:
+    bytes: 194560
+    elapsed_seconds: 0.091
+    method: tar stream of /data through kubectl exec; no backup authority or schedule is implied
+  application_removal:
+    app_down_seconds: 112.562
+    result: namespace and Chroma PVC removed; application telemetry bucket remained separate and retained
+    implication: Vector retention across app:down is not specified today and must not be silently changed by a shared service.
+
+candidates:
+  - id: per-application
+    design: Keep Chroma (or an application-chosen adapter) inside each application namespace and lifecycle.
+    authentication: No shared tenant endpoint; cloud deployments can add namespace NetworkPolicy and application-specific credentials without inventing cross-tenant Chroma auth.
+    authorization: Workload and storage ownership are distinct per application; local kind claims isolation of configuration/lifecycle, not adversarial security.
+    embedding_identity: Application declarations keep provider, model, collection, and corpus independent.
+    quotas: Kubernetes requests/limits and PVC size are application-scoped.
+    retention: Remains application-owned and must be specified before changing app:down behavior.
+    backup: Application-owned; current Chroma path has no declared production backup authority.
+    local_cloud_parity: Same application topology; cloud hardening remains application-specific.
+    migration_cost: none
+    result: recommended
+  - id: shared-chroma-direct
+    design: One platform Chroma endpoint and collections named by application.
+    authentication: Current deployment has none.
+    authorization: Collection or tenant naming is not an access-control boundary.
+    embedding_identity: Compatible dimensions/models can still be mixed by a guessed or misrouted collection.
+    quotas: Shared process/PVC has no application enforcement in the current contract.
+    retention: Platform and application authorities become conflated.
+    backup: One failure/restore domain for every application.
+    local_cloud_parity: Cannot honestly claim cloud tenant isolation.
+    migration_cost: medium
+    result: rejected
+  - id: authenticated-chroma-gateway
+    design: A platform gateway authenticates workload identity, maps immutable application/corpus/embedding coordinates, enforces quotas, and hides Chroma.
+    authentication: feasible at gateway
+    authorization: feasible only if every request and administrative path is forced through the gateway
+    embedding_identity: Gateway schema can enforce dimensions/provider/model version.
+    quotas: Requires new accounting and admission controls.
+    retention: Requires new application-data authority and purge/backup contracts.
+    backup: Gateway metadata and Chroma data need one consistent snapshot protocol.
+    local_cloud_parity: Local can prove routing/identity but not workload-identity denial.
+    migration_cost: high; new platform service, catalog API, credentials, and all consumer adapters
+    result: rejected for this release; reconsider only with measured multi-application demand
+  - id: postgres-pgvector
+    design: Shared PostgreSQL/pgvector with database roles and row-level security.
+    authentication: native database credentials or workload-identity proxy
+    authorization: roles and RLS can enforce application/corpus rows
+    embedding_identity: explicit relational keys and dimension-constrained columns
+    quotas: database roles plus provider resource controls
+    retention: row/schema deletion can be application-scoped but needs the same purge authority decision
+    backup: mature database snapshot/restore, with a larger shared failure domain
+    local_cloud_parity: PostgreSQL is portable; cloud identity/proxy remains provider-specific
+    migration_cost: high; rewrite Chroma adapters and revalidate ranking/query behavior
+    result: rejected; capability exceeds current demand
+
+findings:
+  - id: F1
+    severity: decision
+    finding: Current Chroma cannot provide authenticated application isolation in the shipped topology.
+    evidence: No auth/token/tenant configuration exists in rag-units.yaml; rag-server receives only CHROMA_URL, CHROMA_HOST, collection, and embedding model.
+  - id: F2
+    severity: decision
+    finding: Collection names and Kubernetes namespaces are not sufficient authorization for one shared endpoint.
+    evidence: A direct shared Chroma candidate has no request identity to compare against the selected collection.
+  - id: F3
+    severity: measured
+    finding: The current single seeded Chroma workload is small (3m CPU, 11Mi memory, 188416 data bytes), so consolidation has no demonstrated capacity benefit.
+  - id: F4
+    severity: lifecycle
+    finding: Sharing would introduce unresolved backup, retention, purge, quota, and noisy-neighbor authorities that do not exist in the current per-application contract.
+  - id: F5
+    severity: compatibility
+    finding: Retrieval selection, ranking, prompting, and answer policy can remain unchanged only behind an adapter; a direct engine migration is not behavior-neutral.
+  - id: F6
+    severity: scope
+    finding: Only Chatbot Mesh currently deploys a vector engine among the three first-party applications; there is no measured cross-application consolidation target.
+
+threat_model:
+  - threat: cross-application read/write or collection-name guessing
+    per_application_disposition: No shared endpoint; enforce cloud network/credential isolation separately.
+    shared_disposition: Direct Chroma rejected; a gateway or RLS-capable engine would be mandatory.
+  - threat: credential theft
+    disposition: Scope credentials to one application and rotate at the platform binding; no shared administrator credential in application pods.
+  - threat: incompatible vectors
+    disposition: Keep corpus, collection, provider, model version, and dimensions as independent immutable coordinates.
+  - threat: purge mistake
+    disposition: Vector purge remains application authority and is not inferred from namespace or collection naming.
+  - threat: noisy-neighbor exhaustion
+    disposition: Per-application requests/limits and PVCs preserve attribution; shared candidates require explicit quotas before adoption.
+
+authority:
+  create: application lifecycle and chart
+  ingest: application-owned workflow using catalog corpus-ingest capability
+  query: application rag-server; platform never chooses retrieval/ranking/prompt policy
+  backup: application data authority; currently an identified gap
+  migration: application owner with embedding-identity compatibility proof
+  retention: application data authority
+  purge: separately approved application purge authority; no vector deletion fallback
+
+recommendation:
+  decision: reject-shared-vector-service
+  rationale: |
+    There is one measured first-party vector workload, no authenticated Chroma
+    tenant boundary, and no demonstrated resource pressure. A direct shared
+    Chroma leaks authority; a gateway or pgvector migration adds substantial
+    control-plane and migration cost before demand exists. Retaining
+    application-owned stores preserves behavior and failure isolation.
+  revisit_when:
+    - At least two applications have measured concurrent vector workloads.
+    - A stable workload identity and authorization contract exists.
+    - Embedding identity, quotas, retention, backup, migration, and purge are specified and executable.
+    - A benchmark demonstrates a material cost or operability advantage over per-application stores.
+  epic_effect: Record per-application vector storage as canonical for GH-2474; file no shared-service implementation issues.
+
+rejected_candidates:
+  - shared Chroma selected by collection naming alone
+  - namespace naming presented as authenticated tenant isolation
+  - platform-wide vector service without application-scoped retention and purge authority
+  - engine migration that changes retrieval policy as an incidental platform concern
+
+references:
+  - applications/chatbot-mesh/helm/templates/rag-units.yaml
+  - applications/chatbot-mesh/agents/rag-server/
+  - applications/catalog/agents/knowledge-manager/
+  - applications/chatbot-mesh/docs/specs/software-requirements/
+  - docs/engineering/eng01-kind-test-demo-rig.yaml
+  - applications/docs/specs/software-requirements/srd008-persistent-application-platform.yaml
+  - GH-2481

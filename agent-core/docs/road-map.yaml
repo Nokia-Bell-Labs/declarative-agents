@@ -843,7 +843,7 @@ releases:
         summary: Formal tests for template and blueprint formats, expansion and path resolution, validation, and closure, identity, dump, staging, and audit provenance. The twelve template cases are implemented; the eleven blueprint cases wait on gh-2123.
         status: in_progress
       - id: test-rel20.0-unit-libraries
-        summary: Formal tests for import path forms, declared roots, read-only libraries, rooted closure and dump provenance, staging, and the service-library convention. Ten cases are implemented; the two service-library cases wait on gh-2121, which needs a second consumer before a library exists to measure.
+        summary: Formal tests for import path forms, declared roots, read-only libraries, rooted closure and dump provenance, staging, and the service-library convention. Eleven cases are implemented, including the documented service-library convention (release 26.0, gh-2527). The two-importer case waits on the retrieval client's consumer adoption in cohere-demo and agentic-wiki-mesh.
         status: in_progress
     proof:
       - go test ./internal/runtime/core ./internal/tools/catalog ./internal/load ./pkg/profilestage ./pkg/profileaudit
@@ -1025,10 +1025,12 @@ releases:
       binds every object to the pod that wrote it, and the platform doctrine
       forbids a per-provider answer: a gcs_write beside an s3_write would put
       the provider into agent declarations. Release 24.0 adds one
-      objectstore family whose three words open a bucket by the declared URL
-      scheme with compiled-in drivers, bind the local rig through an
+      objectstore family whose read/write/list words and internal destructive
+      delete-prefix boundary open a bucket by the declared URL scheme with
+      compiled-in drivers, bind the local rig through an
       explicit endpoint field rather than any environment read, and undo a
-      write through a prior-object snapshot receipt. Moving a workload
+      write through a prior-object snapshot receipt. Prefix deletion is fixed
+      by declarations, bounded, verified, and externally audited. Moving a workload
       between kind, GCS, and S3 changes a values overlay and nothing else.
     status: done
     planned_work:
@@ -1098,6 +1100,47 @@ releases:
       - go test ./internal/tools/rest/...
       - mage integration:monitor
       - mage audit
+
+  - version: "26.0"
+    name: Retrieval client library
+    description: |
+      Three applications query a retrieval server over one contract under
+      three names, and each declares its own client; the clients have
+      drifted, and chatbot-mesh's server drops the metadatas the others
+      return. Release 26.0 publishes the contract once in agent-core as the
+      first service library of srd056 R4: a QueryResult type unit and a client
+      fragment that an application expands with its route prefix and
+      selectors. The servers and their application policy stay where they
+      are. chatbot-mesh migrates here; cohere-demo and agentic-wiki-mesh adopt
+      at their next pin bump.
+    status: done
+    planned_work:
+      - id: gh-2528
+        summary: Specify srd060, amend srd056 R4 for agent-core placement, and add the use case and suite.
+        status: implemented
+      - id: gh-2529
+        summary: Add types-retrieval.yaml and the retrieval query client fragment with expansion tests.
+        status: implemented
+      - id: gh-2530
+        summary: Migrate chatbot-mesh onto the fragment, return metadatas from rag-server, and file consumer adoption issues.
+        status: implemented
+    srds:
+      - srd060-retrieval-client-contract
+      - srd056-unit-libraries
+    use_cases:
+      - id: rel26.0-uc001-retrieval-client-library
+        summary: A chatbot queries its retrieval servers through the shared agent-core client.
+        status: implemented
+    test_suites:
+      - id: test-rel26.0-retrieval-client-library
+        summary: Fragment expansion per route prefix, status mapping and side effect, loading through the agent-core root, and chatbot-mesh's migration.
+        status: implemented
+    follow_up:
+      - The contract's second and third importers are cohere-demo (petar-djukic/cohere-demo#789, type unit) and agentic-wiki-mesh (petar-djukic/agentic-wiki-mesh#188, fragment), each at its next pin bump.
+    proof:
+      - go test ./internal/tools/rest/... ./internal/load/...
+      - mage audit
+      - chatbot-mesh mage integration:ragServer, integration:chatbot, integration:embeddingExclusion
 
   - version: "99.0"
     name: Architectural migrations and cleanup

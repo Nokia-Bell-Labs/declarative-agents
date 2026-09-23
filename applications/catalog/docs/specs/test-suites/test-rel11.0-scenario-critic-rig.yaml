@@ -105,6 +105,30 @@ test_cases:
     traces:
       - srd019-mock R2.4
 
+  - use_case: rel11.0-uc002-mock-serves-fixtures
+    name: Explicit authority gates a Kubernetes-addressable Ollama mock
+    go_test: go test ./conformance -run 'TestMockAuthorizedPublicListenerServesOllamaFixture|TestMockPublicListenerRequiresExplicitAuthority'
+    status: implemented
+    description: |
+      The canonical mock stays on loopback by default. With an explicit
+      public-listener authorization it binds a wildcard address, serves native
+      health and request-log routes, and answers Ollama-compatible GET
+      /api/tags plus three ordered POST /api/chat responses. A wildcard address
+      with absent or malformed authorization fails configuration validation.
+    inputs:
+      address: 0.0.0.0 with an ephemeral port
+      fixture_routes: [GET /api/tags, POST /api/chat x3]
+      authority_cases: [true, absent, malformed]
+    expected:
+      authorized_listener_serves: true
+      absent_authority_rejected: true
+      malformed_authority_rejected: true
+      request_log_entries: 4
+    traces:
+      - srd019-mock R1.5
+      - srd019-mock R2.5
+      - srd039-mock-endpoint-binding R1.6
+
   - use_case: rel11.0-uc001-scenario-critic-scenario-run
     name: Scenario Critic runs one scenario end to end to a verdict
     integration_target: mage rig

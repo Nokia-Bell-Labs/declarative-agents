@@ -26,13 +26,38 @@ ragServer:
     limits: {cpu: 500m, memory: 512Mi}
 
 chroma:
+  image:
+    repository: docker.io/chromadb/chroma
+    tag: "1.5.3"
+    digest: ""
+    pullPolicy: Never
   storage: 256Mi
   resources:
     requests: {cpu: 50m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
 
 dolt:
+  image:
+    repository: docker.io/dolthub/dolt-sql-server
+    tag: "2.3.5"
+    digest: ""
+    pullPolicy: Never
   storage: 256Mi
+
+observer:
+  proxy:
+    image:
+      repository: docker.io/rancher/kubectl
+      tag: v1.31.4
+      digest: ""
+      pullPolicy: Never
+
+collector:
+  image:
+    repository: docker.io/otel/opentelemetry-collector-contrib
+    tag: "0.127.0"
+    digest: ""
+    pullPolicy: Never
 
 ingress:
   enabled: false
@@ -43,16 +68,13 @@ applier:
 # The in-cluster LLM tier: CPU-only small models (no GPU), tiny storage.
 ollama:
   enabled: true
-  # The integration host pulls the matching digest and imports this exact tag
-  # into kind after appending the host trust bundle to the pinned base image.
-  # TLS verification remains enabled for model pulls; a node never reaches the
-  # container registry or bypasses the host's trusted CA path.
+  utilityImage: docker.io/library/busybox:1.36
+  # The integration host pulls the chart digest pin, builds the derived runtime,
+  # and imports it under the typed local reference below. Helm install overrides
+  # ollama.image.tag with the host-built upstream/recipe identity.
   image:
-    repository: declarative-agents/ollama
-    tag: "0.32.5-kind-trusted"
-    # The rig-local retag is built on this host, so it carries no registry
-    # digest. Helm merges values, so the default's digest has to be cleared
-    # here or it would be appended to an image it does not describe.
+    repository: localhost/declarative-agents/derived/ollama
+    tag: upstream-0.34.2-kind-trusted-recipe-000000000000-linux-amd64
     digest: ""
     pullPolicy: Never
   models:

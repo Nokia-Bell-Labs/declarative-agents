@@ -13,14 +13,14 @@ introduction: |
   environments. Emulators exist locally to make the rig look like the
   cloud; on GCP the real services stand where the emulators stood, and the
   objectstore words that bound fake-gcs-server through an explicit endpoint
-  bind a real bucket by leaving that endpoint out.
+  bind real application-specific buckets by leaving that endpoint out.
 
   We provision with gcloud from a mage package, gcprig, mirroring kindrig's
   style: idempotent create-or-reuse by name, readiness observed rather than
   assumed, teardown that removes only what the rig created, and settings
   from a checked-in optional file with literal defaults in Go. Terraform
   remains the fallback if the resource inventory outgrows a script; at one
-  cluster, one bucket, a few bindings, and one registry, gcloud in mage
+  cluster, application buckets, scoped bindings, and one registry, gcloud in mage
   keeps a single toolchain.
 
 sections:
@@ -44,11 +44,13 @@ sections:
       Settings come from literal defaults in Go, overridden by one optional
       checked-in file, gcp.yaml, beside the repository root: the demo.yaml
       pattern kindrig established, applied to the cloud (ENG07 owns the
-      discipline). The file names the project, region, cluster, bucket,
-      registry repository, and the workload identity pair. No environment
-      variable is read anywhere in the rig, and no credential appears in
-      any file: authentication is gcloud's own account state, and workload
-      credentials do not exist at all under workload identity.
+      discipline). The file names the project, region, cluster, bucket
+      location and naming policy, registry repository, and platform identity
+      settings. Application manifests supply stable application, namespace,
+      collector, and bucket identity; they do not carry credentials. No
+      environment variable is read anywhere in the rig, and no credential
+      appears in any file: authentication is gcloud's own account state, and
+      workload credentials do not exist at all under workload identity.
 
   - title: "Resource inventory"
     content: |
@@ -57,10 +59,16 @@ sections:
       | Resource | Shape | Reason |
       |----------|-------|--------|
       | GKE cluster | Autopilot, create-or-reuse by name | No node pools to manage and per-pod billing, the right size for a demo mesh |
-      | GCS bucket | Uniform bucket-level access, create-or-reuse | Backs the objectstore family (srd059); the words bind it by bucket URL alone |
-      | Service account and bindings | GSA with storage.objectAdmin scoped to the bucket; workloadIdentityUser for the configured namespace/KSA pair | Pods reach the bucket through ambient identity; nothing is stored, mounted, or rotated |
+      | GCS application buckets | One create-or-bind bucket per application with uniform bucket-level access | Backs the objectstore family (srd059) without collapsing tenants into one undifferentiated bucket |
+      | Service accounts and bindings | Application KSA/GSA identity with bucket IAM scoped to that application's bucket | Pods reach only their bucket through ambient identity; nothing is stored, mounted, or rotated |
       | Artifact Registry repository | Docker format, create-or-reuse | Receives the agent-core image and the mirrored CLI donor |
       | Registry read for the nodes | artifactregistry.reader for the cluster's node service account, idempotent | A repository the nodes cannot read fails every pull with a 403 and times out the release's wait; creating it is not granting it |
+
+      The object-storage service is shared; the bucket and identity are not.
+      The application runner derives the application-specific bucket name and
+      KSA from the validated manifest, while the GCP bootstrap owns provider
+      creation and IAM mechanics. Retention authority remains application
+      scoped: only explicit `app:purge` may delete an application's objects.
 
       Every create is preceded by a describe: an existing healthy resource
       is reused, and an existing resource in an unexpected state is refused
@@ -69,11 +77,13 @@ sections:
       resource's reported status with a deadline, never assumed from the
       create call returning.
 
-      Teardown deletes only the exact names the configuration declares, in
-      reverse order with the cluster last, and requires an explicit
-      confirmation argument. A shared project may hold resources the rig
-      did not create, and a teardown that guesses is how someone loses a
-      bucket.
+      Ordinary teardown removes only configured compute and registry
+      resources, in reverse order with the cluster last, and requires an
+      explicit confirmation argument. It does not delete application buckets:
+      cloud buckets naturally outlive the cluster. `app:purge` selects one
+      application bucket through a separate destructive confirmation. A
+      shared project may hold resources the rig did not create, and a
+      teardown that guesses is how someone loses retained data.
 
   - title: "Image delivery"
     content: |
@@ -102,8 +112,43 @@ sections:
 
       An application's gcp-values.yaml is the whole per-application
       difference: registry image paths, the donor mirror pin, and the
-      objectstore bucket URL with no endpoint override, so the words
+      application-specific objectstore bucket URL with no endpoint override,
+      so the words
       resolve real GCS through ambient identity (srd059 R2.2, R2.3).
+
+      Shared Traefik is the external HTTP entry point. Internal REST and OTLP
+      use application Service DNS; the application collector reaches its GCS
+      bucket directly and serves its own REST query surface. The cloud overlay
+      changes bootstrap, identity, and values only. It does not change the
+      application or collector declaration used by kind.
+
+  - title: "Identity, retention, and query"
+    content: |
+      Cloud tenant isolation is enforced. Each application workload uses
+      workload identity bound to bucket IAM for one application-specific
+      bucket; a pod using another application's identity or bucket URL is
+      denied. This is stronger than local fake GCS, which proves configuration
+      and lifecycle separation but has no equivalent adversarial tenant
+      authorization.
+
+      Each application collector records immutable object identity in its WAL
+      before upload and persists the versioned envelope defined by srd008.
+      Cluster deletion, recreation, or upgrade leaves those objects intact.
+      `app:down` removes collector compute and therefore removes its live REST
+      query API without deleting history. Redeploying the collector with the
+      same workload identity and bucket restores application-scoped query
+      access. GCP supplies no permanent global telemetry query service in this
+      release.
+
+      The checked-in IAM-policy fixture derives three independent bindings:
+      `app-agent-architecture`, `app-chatbot-mesh`, and `app-coding-agent`.
+      Each namespace's default KSA may impersonate only its application GSA,
+      and each GSA receives `roles/storage.objectAdmin` only on its own
+      `<project>-<application>-telemetry` bucket. The command plan contains no
+      credential, service-account key, or key-file value. Run
+      `cd magefiles && go test ./gcprig -run TestFirstPartyApplicationBucketIAMIsolation`
+      without a project to prove the policy shape; authenticated GKE is the
+      dependency-gated live denial proof.
 
   - title: "Verbs"
     content: |
@@ -111,10 +156,15 @@ sections:
 
       | Verb | Contract |
       |------|----------|
-      | gcp:up | Provisions or reuses the cluster, bucket, identity binding, and registry from the checked-in configuration; observes readiness; leaves everything running |
-      | gcp:down | Deletes only the configured names, cluster last, behind an explicit confirmation argument |
+      | gcp:up | Provisions or reuses the cluster, application bucket bindings, scoped identities, and registry from checked-in configuration and manifests; observes readiness; leaves everything running |
+      | gcp:down | Deletes only configured compute and registry names, cluster last, behind explicit confirmation; preserves application buckets |
       | gcp:pushAgentCore | Tags the local agent-core image with the short commit hash and pushes it to the configured registry |
       | gcp:mirrorDonor | Copies the digest-pinned CLI donor into the configured registry and reports the mirror's digest for the overlay pin |
+
+      Application lifecycle remains the same `app:up|status|down|diagnose|purge`
+      contract as kind. Thin downstream Mage verbs import
+      `magefiles/apprig`; cloud code supplies provider bootstrap and identity
+      adapters rather than a second application runner.
 
   - title: "Secrets"
     content: |
@@ -132,6 +182,7 @@ references:
   - "docs/engineering/eng06-releases-and-pinning.yaml (commit-tagged images and pin discipline)"
   - "docs/engineering/eng07-configuration-discipline.yaml (checked-in optional config, literal defaults, no environment variables)"
   - "agent-core/docs/specs/software-requirements/srd059-objectstore-tools.yaml (the words the bucket backs)"
+  - "applications/docs/specs/software-requirements/srd008-persistent-application-platform.yaml (ownership, lifecycle, bucket, collector, and query contract)"
   - "applications/catalog/docs/specs/software-requirements/srd022-applier.yaml (R6, the deploy machine this rig points at GKE)"
   - "Workload Identity, https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity"
   - "GKE Autopilot, https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview"

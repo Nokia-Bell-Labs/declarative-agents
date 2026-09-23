@@ -13,10 +13,9 @@ import (
 )
 
 const (
-	traefikImageRepository   = "docker.io/library/traefik"
-	traefikRuntimeRepository = "kindrig/traefik"
-	traefikImageVersion      = "v3.7.10"
-	traefikImagePlaceholder  = "KINDRIG_TRAEFIK_IMAGE"
+	traefikImageRepository  = "docker.io/library/traefik"
+	traefikImageVersion     = "v3.7.10"
+	traefikImagePlaceholder = "KINDRIG_TRAEFIK_IMAGE"
 )
 
 var traefikImageDigests = map[string]string{
@@ -93,20 +92,25 @@ func InstallIngress(run CommandRunner, cluster string) error {
 	if err != nil {
 		return err
 	}
-	runtimeImage := traefikRuntimeRepository + ":" + traefikImageVersion
-	manifest := strings.ReplaceAll(traefikKindManifest, traefikImagePlaceholder, runtimeImage)
+	runtimeImage := traefikRuntimeImage()
+	manifest, err := SubstitutePinnedImage(traefikKindManifest, traefikImagePlaceholder, runtimeImage)
+	if err != nil {
+		return err
+	}
 	path, cleanup, err := writeIngressManifest(manifest)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
-	steps := append(pinnedImageSteps(run, cluster, sourceImage, runtimeImage),
-		installStep{"manifest-apply", []string{"kubectl", "apply", "-f", path}},
-		installStep{"rollout", []string{"kubectl", "rollout", "status", "deployment/traefik",
+	if err := importPinnedImage(run, cluster, "traefik", sourceImage, runtimeImage); err != nil {
+		return err
+	}
+	return runInstallSteps(run, cluster, "traefik", []installStep{
+		{"manifest-apply", []string{"kubectl", "apply", "-f", path}},
+		{"rollout", []string{"kubectl", "rollout", "status", "deployment/traefik",
 			"--namespace", "traefik", "--timeout=180s"}},
-	)
-	return runInstallSteps(run, cluster, "traefik", steps)
+	})
 }
 
 func traefikImage(arch string) (string, error) {
@@ -116,6 +120,10 @@ func traefikImage(arch string) (string, error) {
 			traefikImageVersion, arch)
 	}
 	return traefikImageRepository + ":" + traefikImageVersion + "@" + digest, nil
+}
+
+func traefikRuntimeImage() string {
+	return NormalizeNodeImageReference(traefikImageRepository + ":" + traefikImageVersion)
 }
 
 func writeIngressManifest(manifest string) (string, func(), error) {

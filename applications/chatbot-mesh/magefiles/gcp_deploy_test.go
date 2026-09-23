@@ -21,8 +21,12 @@ import (
 func TestGcpDeployOverridesShape(t *testing.T) {
 	config := gcprig.Defaults()
 	config.Project = "demo-project"
+	config = config.ForApplication("chatbot-mesh")
 	pushed := "us-central1-docker.pkg.dev/demo-project/agents/agent-core:a1b2c3d4e5f6"
-	assets := []externalUIAsset{{Component: "chatbot", ConfigMapName: "demo-chatbot-ui", Checksum: "abc123"}}
+	assets := []externalUIAsset{
+		{Component: "chatbot", ConfigMapName: "demo-chatbot-ui", Checksum: "abc123"},
+		{Component: "collector", ConfigMapName: "demo-collector-ui", Checksum: "def456"},
+	}
 
 	document := gcpDeployOverrides(pushed, config, assets)
 	var parsed map[string]any
@@ -35,6 +39,8 @@ func TestGcpDeployOverridesShape(t *testing.T) {
 		`pullPolicy: "IfNotPresent"`,
 		`repository: "us-central1-docker.pkg.dev/demo-project/agents/cli-donor"`,
 		`uiArchiveConfigMap: "demo-chatbot-ui"`,
+		`bucketURL: "gs://demo-project-chatbot-mesh-telemetry"`,
+		`namespace: "app-chatbot-mesh"`,
 	} {
 		if !strings.Contains(document, want) {
 			t.Errorf("overrides missing %s:\n%s", want, document)
@@ -42,6 +48,11 @@ func TestGcpDeployOverridesShape(t *testing.T) {
 	}
 	if strings.Contains(document, "Never") {
 		t.Errorf("a GKE deploy pulls; Never belongs to kind loads:\n%s", document)
+	}
+	collector := parsed["collector"].(map[string]any)
+	storage := collector["storage"].(map[string]any)
+	if storage["endpoint"] != nil || collector["uiArchiveConfigMap"] != "demo-collector-ui" {
+		t.Errorf("GKE collector must use ambient identity and retain its UI: %#v", collector)
 	}
 	applier, ok := parsed["applier"].(map[string]any)
 	if !ok {

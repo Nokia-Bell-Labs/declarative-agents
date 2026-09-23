@@ -32,6 +32,12 @@ type ConnectionConfig struct {
 type Config struct {
 	Connection  string                      `yaml:"connection" json:"connection"`
 	Connections map[string]ConnectionConfig `yaml:"connections" json:"connections"`
+	// The destructive delete-prefix word owns these as declaration-only
+	// authority. Read/write/list leave them empty.
+	Prefix      string `yaml:"prefix" json:"prefix"`
+	MaxObjects  int    `yaml:"max_objects" json:"max_objects"`
+	Application string `yaml:"application" json:"application"`
+	AuditPath   string `yaml:"audit_path" json:"audit_path"`
 }
 
 // DecodeConfig decodes and resolves a word's connection at configuration
@@ -42,19 +48,59 @@ func DecodeConfig(def catalog.ToolDef) (ConnectionConfig, error) {
 	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 		return ConnectionConfig{}, err
 	}
+	return resolveConnectionConfig(def.Name, cfg)
+}
+
+func resolveConnectionConfig(toolName string, cfg Config) (ConnectionConfig, error) {
 	if cfg.Connection == "" {
-		return ConnectionConfig{}, fmt.Errorf("tool %q config: connection is required", def.Name)
+		return ConnectionConfig{}, fmt.Errorf("tool %q config: connection is required", toolName)
 	}
 	connection, ok := cfg.Connections[cfg.Connection]
 	if !ok {
 		return ConnectionConfig{}, fmt.Errorf(
-			"tool %q config: connection %q is not declared under connections", def.Name, cfg.Connection)
+			"tool %q config: connection %q is not declared under connections", toolName, cfg.Connection)
 	}
 	if strings.TrimSpace(connection.BucketURL) == "" {
 		return ConnectionConfig{}, fmt.Errorf(
-			"tool %q config: connection %q declares no bucket_url", def.Name, cfg.Connection)
+			"tool %q config: connection %q declares no bucket_url", toolName, cfg.Connection)
 	}
 	return connection, nil
+}
+
+type DeletePrefixConfig struct {
+	Connection  ConnectionConfig
+	Prefix      string
+	MaxObjects  int
+	Application string
+	AuditPath   string
+}
+
+func DecodeDeletePrefixConfig(def catalog.ToolDef) (DeletePrefixConfig, error) {
+	var raw Config
+	if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+		return DeletePrefixConfig{}, err
+	}
+	connection, err := resolveConnectionConfig(def.Name, raw)
+	if err != nil {
+		return DeletePrefixConfig{}, err
+	}
+	prefix := strings.Trim(strings.TrimSpace(raw.Prefix), "/")
+	if prefix == "" || strings.Contains(prefix, "..") {
+		return DeletePrefixConfig{}, fmt.Errorf("tool %q config: prefix must be a safe non-empty relative prefix", def.Name)
+	}
+	if raw.MaxObjects <= 0 {
+		return DeletePrefixConfig{}, fmt.Errorf("tool %q config: max_objects must be positive", def.Name)
+	}
+	if strings.TrimSpace(raw.Application) == "" {
+		return DeletePrefixConfig{}, fmt.Errorf("tool %q config: application is required", def.Name)
+	}
+	if strings.TrimSpace(raw.AuditPath) == "" {
+		return DeletePrefixConfig{}, fmt.Errorf("tool %q config: audit_path is required", def.Name)
+	}
+	return DeletePrefixConfig{
+		Connection: connection, Prefix: prefix, MaxObjects: raw.MaxObjects,
+		Application: raw.Application, AuditPath: raw.AuditPath,
+	}, nil
 }
 
 // extractStringParam mirrors the filesystem family's parameter envelope: the

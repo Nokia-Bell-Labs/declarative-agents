@@ -43,6 +43,7 @@ rest:
             output:
               ids: $.ids
               documents: $.documents
+              metadatas: $.metadatas
               embedding_model: $.embedding_model
           side_effects:
             - kind: external_api

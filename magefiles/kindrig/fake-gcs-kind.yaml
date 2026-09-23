@@ -41,11 +41,14 @@ spec:
             - "4443"
             - -public-host
             - fake-gcs.fake-gcs.svc
-            # Objects live in memory: a scenario's teardown removes the
-            # namespace, and rig storage is not the proof's subject. Bucket
-            # seeding via -data stays available by mounting a preload volume.
+            # The filesystem backend on a node hostPath that is itself a kind
+            # extraMount from a stable host directory: objects survive a
+            # fake-gcs pod restart and da-platform deletion/recreation, and are
+            # removed only by the explicit platform:reset (srd008 R5; #2477 R3).
             - -backend
-            - memory
+            - filesystem
+            - -filesystem-root
+            - /data
           ports:
             - name: http
               containerPort: 4443
@@ -56,6 +59,16 @@ spec:
           resources:
             requests: {cpu: 10m, memory: 32Mi}
             limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts:
+            - {name: objects, mountPath: /data}
+      volumes:
+        # The node path is a kind extraMount from the stable host object
+        # directory (platform-kind-config.yaml), so retained objects outlive
+        # the pod and the cluster (#2477 R3).
+        - name: objects
+          hostPath:
+            path: /var/lib/da-platform-objects
+            type: DirectoryOrCreate
 ---
 apiVersion: v1
 kind: Service
@@ -69,3 +82,25 @@ spec:
     - name: http
       port: 4443
       targetPort: http
+---
+# Host-side application lifecycle (not collector traffic) reaches fake GCS
+# through the platform ingress. The .localhost host is stable and carries no
+# credential; local kind claims configuration/lifecycle isolation only.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fake-gcs-host
+  namespace: fake-gcs
+  labels: {app.kubernetes.io/name: fake-gcs, app.kubernetes.io/managed-by: kindrig}
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: objectstore.da-platform.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fake-gcs
+                port: {name: http}

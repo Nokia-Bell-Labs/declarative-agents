@@ -39,6 +39,7 @@ bin/agent --profile "$AGENT_CATALOG_ROOT/agents/executor/profile.yaml" --core-ro
 | [`applications/agent-architecture/`](applications/agent-architecture/) | Standalone presentation composition that runs the canonical catalog documentation-curator and serves the Knowledge Manager slide deck. |
 | [`design-patterns/`](design-patterns/) | White paper source: *Design Patterns for Declarative Agents* — eleven patterns for building reliable agents (markdown, PlantUML, IEEE build). |
 | [`application-dsl-spec/`](application-dsl-spec/) | The normative specification of the application DSL — numbered statements in `language.yaml` with acceptance evidence, prose chapters that cite them, and a render/audit pipeline. Render locally with `mage site` in `application-dsl-spec/`. |
+| [`docs/guides/`](docs/guides/) | Cross-module guides, including the [agentic framework comparison for network applications](docs/guides/agentic-framework-comparison.md). |
 | [`docs/constitutions/`](docs/constitutions/) | Component constitutions binding agent-core, applications, the catalog, and the control plane to the language specification by statement ID. |
 | [`docs/engineering/`](docs/engineering/) | Engineering guidelines that span modules and applications, starting with the standard kind rig for integration tests and demos. |
 | [`magefiles/`](magefiles/) | Repository-wide build targets: release tagging, stats aggregation, sub-module dispatch. |
@@ -63,6 +64,34 @@ Each sub-module also has its own mage targets. Run `mage -l` inside any director
 `mage test` rebuilds every tracked shipped UI from a clean lockfile install. It
 audits the full build dependency graph and the production-only graph separately;
 either scope fails the release gate at any known high or critical vulnerability.
+
+### Agent image composition and ownership
+
+For one source revision, local and release integrations build one canonical
+profile-free agent image:
+`ghcr.io/nokia-bell-labs/declarative-agents/agent-core:<12-character-revision>`.
+Every container whose main process is `agent` uses that image—application
+roles, collectors, appliers, and repository-owned mocks. Mounted profile
+closures select behavior. Role-specific binaries arrive from pinned, read-only
+init-donor volumes; third-party model, database, ingress, and storage products
+remain separately pinned infrastructure images.
+
+Disposable kind integrations lease the canonical host tag before loading it.
+After their owned cluster is deleted (or the image is loaded into a surviving
+owned cluster), the last lease owner removes only a tag created by that lease
+group. Pre-existing tags, active owners, image-ID mismatches, images used by
+containers, and third-party images are never removed. `mage clean:images` is
+bounded interruption-recovery tooling for canonical commit tags; a force-killed
+run leaves a diagnostic lease and requires the explicit
+`mage clean:imageLeaseRecover <canonical-reference>` recovery target after its
+owner is confirmed dead.
+
+Every image family the repository uses is classified in
+[`docs/engineering/eng01-kind-test-demo-rig.yaml`](docs/engineering/eng01-kind-test-demo-rig.yaml)
+(table 6: identity grammar, table 7: lifecycle and retention). The root
+`imageinventory` audit and pin survey prove each family is registered; active
+paths must not carry `kindrig/*` aliases, mutable `:local` or `:latest` tags,
+consumer `*-smoke` repositories, or untyped 12-hex local tags.
 
 ### Persistent integration observability
 
@@ -150,14 +179,14 @@ live under [`applications/chatbot-mesh/docs/`](applications/chatbot-mesh/docs/).
 cd applications/coding-agent
 mage audit                  # validate docs, closure, boot, and test evidence
 mage package                # assemble canonical application profile closures
-mage image:build            # build the profile-free coding runtime
+mage image:build            # build the canonical profile-free agent-core image
 mage helm:package           # build the installable chart
 mage integration:helmSmoke  # prove planner → executor → critic on kind
 ```
 
 Canonical entry points are
 [`agents/application.yaml`](applications/coding-agent/agents/application.yaml),
-[`Dockerfile`](applications/coding-agent/Dockerfile), and
+[`agent-core/Dockerfile`](agent-core/Dockerfile), and
 [`helm/`](applications/coding-agent/helm/); architecture and operations live under
 [`docs/`](applications/coding-agent/docs/).
 
@@ -174,6 +203,31 @@ The application is a composition-only consumer of
 lifecycle-exit flow but does not copy or recount the documentation-curator.
 Setup, ports, and the declarative exit command are documented in the
 [application README](applications/agent-architecture/README.md).
+
+## Shared application lifecycle
+
+`magefiles/apprig` is the versioned Go package for applications running on the
+persistent `da-platform`. The root fixture demonstrates the lifecycle:
+
+```bash
+mage platform:up
+mage app:up agent-architecture
+mage app:status agent-architecture
+mage app:diagnose agent-architecture
+mage app:down agent-architecture
+mage app:purge agent-architecture purge:agent-architecture
+```
+
+Applications and downstream repositories expose the same five thin Mage
+targets by constructing `apprig.Runner` with their typed preparation,
+verification, status, and agent-resolution callbacks. Deploy, undeploy,
+diagnosis, namespace ordering, and purge authority remain shared; callers do
+not copy those workflows. The independently compiled example is under
+[`magefiles/apprig/testdata/external-module/`](magefiles/apprig/testdata/external-module/).
+`app:purge` runs the approved model-free catalog profile and requires the exact
+`purge:<application>` token; no storage coordinate comes from the request. The
+root selector accepts `agent-architecture`,
+`chatbot-mesh`, `coding-agent`, or `fixture`.
 
 ## Contact
 

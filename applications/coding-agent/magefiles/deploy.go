@@ -49,7 +49,7 @@ func codingDeployRequest() (kindrig.DeployRequest, error) {
 	if err != nil {
 		return kindrig.DeployRequest{}, err
 	}
-	images, err := resolveCodingHelmImages(roots.Application)
+	image, err := resolveCodingHelmImage(roots.Application)
 	if err != nil {
 		return kindrig.DeployRequest{}, err
 	}
@@ -66,7 +66,7 @@ func codingDeployRequest() (kindrig.DeployRequest, error) {
 		ApplicationRoot: roots.Application,
 		CatalogRoot:     roots.Profiles,
 		Coordinates:     codingDeployCoordinates(roots, chart),
-		Overrides:       codingDeployOverrides(images),
+		Overrides:       codingDeployOverrides(image),
 		Agent: kindrig.DeployAgent{
 			Binary:   binary,
 			Profile:  filepath.Join(roots.Profiles, filepath.FromSlash(applierDeployProfileRel)),
@@ -125,8 +125,12 @@ func codingDeployCoordinates(roots integrationRoots, chart string) kindrig.Deplo
 // codingDeployChart packages the chart into the build tree the render writes
 // beside, so a failed deploy leaves the chart that produced it in place.
 func codingDeployChart(roots integrationRoots) (string, error) {
+	return codingDeployChartForRelease(roots, codingDemoRelease)
+}
+
+func codingDeployChartForRelease(roots integrationRoots, release string) (string, error) {
 	destination := filepath.Join(
-		kindrig.DeployRenderDirectory(roots.Application, codingDemoRelease), "chart")
+		kindrig.DeployRenderDirectory(roots.Application, release), "chart")
 	if err := os.MkdirAll(destination, 0o755); err != nil {
 		return "", fmt.Errorf("deploy: create chart directory %s: %w", destination, err)
 	}
@@ -147,15 +151,10 @@ func codingDeployChart(roots integrationRoots) (string, error) {
 // would otherwise read as a number: an unquoted 20260919 becomes an integer and
 // the image reference stops resolving. The imperative path this replaces used
 // helm's --set-string for the same reason.
-func codingDeployOverrides(images codingHelmImages) string {
-	repository, tag := splitCodingImageRef(images.Agent)
-	collectorRepository, collectorTag := splitCodingImageRef(codingHelmCollectorImage)
+func codingDeployOverrides(image codingHelmImage) string {
+	repository, tag := splitCodingImageRef(image.Reference)
 	return fmt.Sprintf(`image:
   repository: %q
   tag: %q
-collector:
-  image:
-    repository: %q
-    tag: %q
-`, repository, tag, collectorRepository, collectorTag)
+`, repository, tag)
 }

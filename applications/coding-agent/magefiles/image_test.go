@@ -6,47 +6,26 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
-func TestCodingAgentImageBuildUsesPublishedRecipe(t *testing.T) {
-	coreRoot := filepath.Join(string(filepath.Separator), "repo", "agent-core")
-	contextDir, dockerfile, args := codingAgentImageBuild(coreRoot, "declarative-agents/agent-core:local", "example/runtime:test")
-	if contextDir != coreRoot {
-		t.Errorf("build context = %q, want agent-core root", contextDir)
+func TestCodingAgentImageBuildUsesOnlyCanonicalRecipe(t *testing.T) {
+	coreRoot := codingAgentCoreRoot(filepath.Join(string(filepath.Separator), "repo", "applications", "coding-agent"))
+	if coreRoot != filepath.Join(string(filepath.Separator), "repo", "agent-core") {
+		t.Fatalf("agent-core root = %q", coreRoot)
 	}
-	if dockerfile != filepath.Join(coreRoot, "toolchain.Dockerfile") {
-		t.Errorf("Dockerfile = %q", dockerfile)
+	if _, err := os.Stat(filepath.Join("..", "..", "..", "agent-core", "Dockerfile")); err != nil {
+		t.Fatalf("canonical agent-core Dockerfile: %v", err)
 	}
-	want := []string{
-		"build", "--pull=false",
-		"--build-arg", "GOLANGCI_LINT_VERSION=" + codingAgentGolangciLint,
-		"--build-arg", "RUNTIME_IMAGE=declarative-agents/agent-core:local",
-		"-f", dockerfile,
-		"-t", "example/runtime:test",
-		".",
-	}
-	if !reflect.DeepEqual(args, want) {
-		t.Errorf("docker args = %#v, want %#v", args, want)
+	if _, err := os.Stat(filepath.Join("..", "..", "..", "agent-core", "toolchain.Dockerfile")); !os.IsNotExist(err) {
+		t.Fatalf("alternate toolchain Dockerfile still exists: %v", err)
 	}
 }
 
-func TestCodingAgentImageBuildHasDedicatedBoundedTimeout(t *testing.T) {
-	if codingAgentImageBuildTimeout != 10*time.Minute {
-		t.Fatalf("image build timeout = %s, want 10m", codingAgentImageBuildTimeout)
-	}
-	if codingAgentImageBuildTimeout <= codingHelmClusterTimeout {
-		t.Fatalf("image build timeout %s reuses shorter cluster-operation budget %s",
-			codingAgentImageBuildTimeout, codingHelmClusterTimeout)
-	}
-}
-
-func TestChartDefaultsToCodingToolchainImage(t *testing.T) {
+func TestChartDefaultsToCanonicalAgentCoreImage(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "helm", "values.yaml"))
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +45,15 @@ func TestChartDefaultsToCodingToolchainImage(t *testing.T) {
 			values.Image.Repository, values.Image.Tag,
 			codingAgentImageRepository, codingAgentImageTag)
 	}
-	if strings.HasSuffix(values.Image.Repository, "/agent-core") {
-		t.Fatal("chart reverted to the runtime-only agent-core image")
+	if !strings.HasSuffix(values.Image.Repository, "/agent-core") {
+		t.Fatal("chart does not use the canonical agent-core image")
+	}
+}
+
+func TestDemoImageDefaultIsPublishedRelease(t *testing.T) {
+	got := demoImage(t.TempDir())
+	want := codingAgentImageRepository + ":" + codingAgentImageTag
+	if got != want {
+		t.Fatalf("demo image = %q, want published %q", got, want)
 	}
 }

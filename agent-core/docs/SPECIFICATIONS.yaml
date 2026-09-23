@@ -212,6 +212,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: done
+  - version: "26.0"
+    name: Retrieval client library
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
   - version: "99.0"
     name: Architectural migrations and cleanup
     use_cases_done: 2
@@ -482,9 +487,14 @@ srd_index:
     path: docs/specs/software-requirements/srd058-provider-libraries.yaml
   - id: srd059-objectstore-tools
     title: Objectstore Builtin Tool Family
-    summary: One provider-neutral object-storage family with three words whose compiled-in drivers are selected by the declared bucket URL; an explicit endpoint binds the local rig with no environment read; object_write undoes through a prior-object snapshot receipt; selected by profiles like the dolt family and absent from the default builtin surface.
+    summary: One provider-neutral object-storage family with read/write/list plus an internal declaration-bound delete-prefix word; compiled-in drivers are selected by the declared bucket URL, an explicit endpoint binds the local rig with no environment read, object_write undoes through a prior-object snapshot receipt, and destructive purge is bounded, verified, and externally audited.
     status: implemented
     path: docs/specs/software-requirements/srd059-objectstore-tools.yaml
+  - id: srd060-retrieval-client-contract
+    title: Retrieval Query Client Contract
+    summary: The retrieval query contract shared by applications that serve retrieval over a Chroma collection; a client-computed vector and result count in, QueryResult with ids, documents, distances, metadatas, and embedding model out, 400 as QueryRejected; declared once in agent-core as a type unit and a client fragment, the first service library of srd056 R4.
+    status: implemented
+    path: docs/specs/software-requirements/srd060-retrieval-client-contract.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -817,6 +827,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel25.0-drain-outcome
     path: docs/specs/use-cases/rel25.0-uc001-drain-outcome.yaml
+  - id: rel26.0-uc001-retrieval-client-library
+    title: A chatbot queries its retrieval servers through the shared agent-core client
+    release: "26.0"
+    status: implemented
+    test_suite: test-rel26.0-retrieval-client-library
+    path: docs/specs/use-cases/rel26.0-uc001-retrieval-client-library.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -1057,6 +1073,14 @@ test_suite_index:
     formal_test_cases: 5
     status: implemented
     path: docs/specs/test-suites/test-rel25.0-drain-outcome.yaml
+  - id: test-rel26.0-retrieval-client-library
+    title: Test Suite for Release 26.0 Retrieval Client Library
+    release: "26.0"
+    traces:
+      - rel26.0-uc001-retrieval-client-library
+    formal_test_cases: 4
+    status: implemented
+    path: docs/specs/test-suites/test-rel26.0-retrieval-client-library.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"
@@ -1102,6 +1126,10 @@ go_test_coverage:
     ./... -v | grep -c '=== RUN'` for the current test function count.
 
 srd_to_use_case_mapping:
+  - use_case: rel26.0-uc001-retrieval-client-library
+    srd: srd060-retrieval-client-contract
+    why_required: The contract is R1, the agent-core placement R2, the fragment R3, and the consumer rules R4.
+    coverage: Full. Covers AC1 through AC4 via S1 through S4.
   - use_case: rel25.0-uc001-drain-outcome
     srd: srd033-monitor-rest-api
     why_required: R6.4 releases the listener, R6.5 routes a released listener to the success terminal and keeps other faults failing, and R6.10 makes the drain outcome a structured field.

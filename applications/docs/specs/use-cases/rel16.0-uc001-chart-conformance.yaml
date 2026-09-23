@@ -43,7 +43,8 @@ flow:
   - id: F3
     text: |
       Each rendered manifest is checked against the rules: tags do not
-      float, third-party images carry digests, pull policies keep a loaded
+      float, third-party images carry digests, image references name
+      registry, role, and typed identity, pull policies keep a loaded
       node off the registry, no Service asks kind for a load balancer, and
       every selected workload declares readiness.
     traces:
@@ -52,6 +53,9 @@ flow:
       - srd005-chart-conformance R3.1
       - srd005-chart-conformance R4.1
       - srd005-chart-conformance R5.1
+      - srd005-chart-conformance R10.1
+      - srd005-chart-conformance R10.2
+      - srd005-chart-conformance R10.3
   - id: F4
     text: |
       Every checked-in kind configuration is checked for a node image pinned
@@ -113,6 +117,9 @@ touchpoints:
     target: srd005-chart-conformance AC5
     reason: Finding names chart, overlay, resource, value, and rule.
   - id: T11
+    target: srd005-chart-conformance AC7
+    reason: Image-reference grammar and prohibited aliases.
+  - id: T12
     target: test-rel16.0-chart-conformance
     reason: Structural and executable evidence for this flow.
 
@@ -126,11 +133,12 @@ success_criteria:
   - id: S2
     criterion: |
       No image in any rendered manifest floats, every third-party image
-      carries a digest, and every repository-built image carries a
-      commit-shaped tag.
+      carries a digest, every repository-built image carries a
+      non-floating tag, and every image matches the reference grammar.
     traces:
       - srd005-chart-conformance AC1
       - srd005-chart-conformance AC2
+      - srd005-chart-conformance AC7
   - id: S3
     criterion: |
       Every checked-in kind configuration pins its node image by version and

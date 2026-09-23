@@ -18,19 +18,16 @@ import (
 
 const (
 	codingHelmRelease  = "smoke"
-	codingHelmScenario = "coding-agent-smoke"
+	codingHelmScenario = "coding-agent-helm"
 	// codingHelmNamespace is the scenario's namespace on da-platform; the
 	// live applier tier and the demo install into the same name.
-	codingHelmNamespace      = kindrig.ScenarioNamespacePrefix + codingHelmScenario
-	codingHelmAgentImageRepo = "declarative-agents/coding-agent-smoke"
-	codingHelmModelImageRepo = "declarative-agents/coding-model-smoke"
-	codingHelmGoBaseImage    = "golang:1.26-alpine"
-	// codingHelmCollectorImage is built locally from the agent-core checkout
-	// (kindrig.BuildAgentCoreImage); the published ghcr.io chart default is
-	// not pullable from every environment.
-	codingHelmCollectorImage = kindrig.DefaultAgentCoreImage
-	codingHelmTraceID        = "0af7651916cd43dd8448eb211c80319c"
-	codingHelmTraceparent    = "00-" + codingHelmTraceID + "-b7ad6b7169203331-01"
+	codingHelmNamespace        = kindrig.ScenarioNamespacePrefix + codingHelmScenario
+	codingHelmGoDonorImage     = "docker.io/library/golang:1.26-alpine@sha256:8ac98ca534ac3f51e1f420a1dd2c15e74c75cfa0f23f3ad27eb5d7236c349a0c"
+	codingHelmLintDonorImage   = "docker.io/golangci/golangci-lint:v2.12.2-alpine@sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60"
+	codingHelmGoDonorCluster   = "docker.io/library/golang:1.26-alpine"
+	codingHelmLintDonorCluster = "docker.io/golangci/golangci-lint:v2.12.2-alpine"
+	codingHelmTraceID          = "0af7651916cd43dd8448eb211c80319c"
+	codingHelmTraceparent      = "00-" + codingHelmTraceID + "-b7ad6b7169203331-01"
 
 	codingHelmClusterTimeout = 3 * time.Minute
 	codingHelmInstallTimeout = 5 * time.Minute
@@ -41,27 +38,22 @@ const (
 	codingHelmDiagTimeout    = 15 * time.Second
 )
 
-type codingHelmImages struct {
-	Revision string
-	Agent    string
-	Model    string
+type codingHelmImage struct {
+	Revision  string
+	Reference string
 }
 
-func resolveCodingHelmImages(applicationRoot string) (codingHelmImages, error) {
+func resolveCodingHelmImage(applicationRoot string) (codingHelmImage, error) {
 	repositoryRoot := filepath.Clean(filepath.Join(applicationRoot, "..", ".."))
 	commit, err := gitOutput(repositoryRoot, "rev-parse", "HEAD")
 	if err != nil {
-		return codingHelmImages{}, fmt.Errorf("resolve integration revision: %w", err)
+		return codingHelmImage{}, fmt.Errorf("resolve integration revision: %w", err)
 	}
-	agentImage, revision, err := kindrig.CommitImage(codingHelmAgentImageRepo, commit)
+	reference, revision, err := kindrig.CommitImage(codingAgentImageRepository, commit)
 	if err != nil {
-		return codingHelmImages{}, err
+		return codingHelmImage{}, err
 	}
-	modelImage, _, err := kindrig.CommitImage(codingHelmModelImageRepo, commit)
-	if err != nil {
-		return codingHelmImages{}, err
-	}
-	return codingHelmImages{Revision: revision, Agent: agentImage, Model: modelImage}, nil
+	return codingHelmImage{Revision: revision, Reference: reference}, nil
 }
 
 type codingSmokeRunner func(context.Context, string, ...string) ([]byte, error)
@@ -148,7 +140,8 @@ func codingHelmSmokeSkipReason(roots integrationRoots, run codingSmokeRunner) st
 		return fmt.Sprintf("Docker unavailable: %v: %s", err, strings.TrimSpace(string(output)))
 	}
 	for _, image := range []string{
-		codingHelmGoBaseImage,
+		codingHelmGoDonorImage,
+		codingHelmLintDonorImage,
 	} {
 		ctx, cancel := context.WithTimeout(context.Background(), codingHelmProbeTimeout)
 		output, err := run(ctx, "docker", "image", "inspect", image)
@@ -162,17 +155,26 @@ func codingHelmSmokeSkipReason(roots integrationRoots, run codingSmokeRunner) st
 }
 
 func runCodingHelmSmoke(roots integrationRoots) (result error) {
-	images, err := resolveCodingHelmImages(roots.Application)
+	image, err := resolveCodingHelmImage(roots.Application)
 	if err != nil {
 		return err
 	}
-	evidenceDir := codingHelmEvidenceDir(roots.Application, images.Revision)
+	evidenceDir := codingHelmEvidenceDir(roots.Application, image.Revision)
 	scenario, err := acquireCodingScenario(evidenceDir)
 	if err != nil {
 		return err
 	}
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		roots.Core, image.Reference, codingHelmScenario)
+	if err != nil {
+		return errors.Join(
+			&codingHelmInfrastructureError{Step: "agent-core image lease", Cause: err},
+			scenario.release(true, evidenceDir),
+		)
+	}
 	defer func() {
-		result = errors.Join(result, scenario.release(result != nil, evidenceDir))
+		releaseErr := scenario.release(result != nil, evidenceDir)
+		result = errors.Join(result, releaseErr, lease.Release())
 	}()
 	environment := scenario.environment
 
@@ -180,10 +182,10 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 		return err
 	}
 	if err := prepareCodingHelmCluster(
-		environment, scenario.platform.Cluster.Name, roots, images); err != nil {
+		environment, scenario.platform.Cluster.Name, roots, image); err != nil {
 		return classifyCodingHelmFailure(environment.run, "cluster preparation", err)
 	}
-	archiveDir, err := os.MkdirTemp("", "coding-agent-smoke-chart-*")
+	archiveDir, err := os.MkdirTemp("", "coding-agent-helm-chart-*")
 	if err != nil {
 		return err
 	}
@@ -200,11 +202,14 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 		return &codingHelmSemanticError{Step: "chart package", Cause: err}
 	}
 	if err := installCodingHelmChart(
-		environment, archive, roots.Application, images.Agent); err != nil {
+		environment, archive, roots.Application, image.Reference); err != nil {
 		return classifyCodingHelmFailure(environment.run, "Helm install", err)
 	}
 	if err := verifyCodingHelmRollouts(environment); err != nil {
 		return classifyCodingHelmFailure(environment.run, "role readiness", err)
+	}
+	if _, err := verifyCodingAgentImageIdentity(environment, image.Reference, false); err != nil {
+		return classifyCodingHelmFailure(environment.run, "agent image identity", err)
 	}
 	if err := seedCodingWorkspace(environment, roots.Application); err != nil {
 		return classifyCodingHelmFailure(environment.run, "workspace seed", err)
@@ -223,11 +228,14 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 	if err := verifyCodingWorkspaceAndVerdict(environment); err != nil {
 		return classifyCodingHelmFailure(environment.run, "workspace and critic result", err)
 	}
+	if err := verifyLiveCodingModelMockLog(environment); err != nil {
+		return classifyCodingHelmFailure(environment.run, "model mock protocol", err)
+	}
 	if err := verifyCodingTrace(forwards.queryURL); err != nil {
 		return classifyCodingHelmFailure(environment.run, "connected trace", err)
 	}
 	fmt.Printf("integration:helmSmoke PASS - revision %s packaged chart ran planner -> executor -> critic with shared workspace and trace %s\n",
-		images.Revision, codingHelmTraceID)
+		image.Revision, codingHelmTraceID)
 	return nil
 }
 
@@ -319,6 +327,9 @@ func collectCodingHelmDiagnostics(run codingSmokeRunner, timeout time.Duration, 
 		{"critic logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app.kubernetes.io/component=critic", "--tail=80"}},
 		{"collector logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app.kubernetes.io/component=collector", "--tail=80"}},
 		{"model logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app=coding-model", "--tail=80"}},
+		{"model request log", "kubectl", []string{"exec",
+			"-n", codingHelmNamespace, "deployment/coding-model", "-c", "mock",
+			"--", "wget", "-qO-", "http://127.0.0.1:11434/_mock/log"}},
 	}
 	// The live applier tier enables the applier; the smoke install does not, so
 	// its logs join the bundle only when the caller asks.

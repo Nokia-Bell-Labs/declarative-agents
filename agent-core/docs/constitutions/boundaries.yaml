@@ -40,6 +40,7 @@ import_law:
   - internal/runtime/core imports no storage engine, no SQL driver, and no database/sql. Concrete checkpoint backends live in their own packages and implement the core ports.
   - internal/observability packages do not import internal/tools or internal/runtime beyond the tracing ports they define.
   - pkg packages import internal packages only through surfaces already documented in package-layout.md; adding a new pkg-to-internal edge amends that document in the same change.
+  - Only internal/tools/objectstore and internal/tools/otlp import gocloud.dev/blob or its drivers. Other packages reach object storage through the objectstore opener.
 package_shape:
   principle: A package is the unit of comprehension. If a subsystem cannot be understood from ls and its import list, the package is doing too much.
   rules:

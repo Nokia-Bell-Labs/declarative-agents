@@ -51,10 +51,8 @@ curator:
 # in-cluster OTLP path both reach it. Disable it to run the curator alone.
 collector:
   enabled: true
-  image:
-    repository: ghcr.io/nokia-bell-labs/declarative-agents/agent-core
-    tag: "0.1.0"
-    pullPolicy: IfNotPresent
+  # The collector is an agent workload; it inherits the one application image
+  # (srd005 R9, GH-2494). No collector.image here.
   otlpGRPCPort: 4317
   controlPort: 18191
   monitorPort: 18192
@@ -63,6 +61,17 @@ collector:
     requests: {cpu: 50m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
 
+# Canonical da-platform browser routes. Internal REST and OTLP continue to use
+# Service DNS; only operator-facing surfaces cross shared Traefik (GH-2480 R2).
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    documentation: docs.agent-architecture.localhost
+    lifecycle: lifecycle.agent-architecture.localhost
+    monitor: monitor.agent-architecture.localhost
+    collector: telemetry.agent-architecture.localhost
+
 # The applier (srd002-applier): the deployment-plane actuator that realizes a
 # decided values patch against the chart on Kubernetes. Disabled by default -- it
 # needs the chart ConfigMap and the kind-loaded CLI donor (GH-2222), which only the
@@ -70,12 +79,9 @@ collector:
 # chart it mounts at /chart via applier.chartArchiveConfigMap.
 applier:
   enabled: false
-  # The applier runs the agent-core runtime image; helm and kubectl come from
-  # cliDonor below (GH-2222), and the chart from chartArchiveConfigMap (GH-1368).
-  image:
-    repository: ghcr.io/nokia-bell-labs/declarative-agents/agent-core
-    tag: "0.1.0"
-    pullPolicy: IfNotPresent
+  # The applier is an agent workload; it inherits the one application image
+  # (srd005 R9, GH-2494). helm and kubectl come from cliDonor below (GH-2222),
+  # and the chart from chartArchiveConfigMap (GH-1368). No applier.image here.
   # CLI donor (GH-2222): a cli-donor init container copies this image's helm and
   # kubectl into a tools volume mounted read-only at /opt/tools and first on PATH,
   # so the applier runs the plain agent-core image. The pin is the CLI version

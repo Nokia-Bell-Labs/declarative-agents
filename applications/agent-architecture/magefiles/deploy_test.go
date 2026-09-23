@@ -106,7 +106,8 @@ func TestDeployOverridesGiveBothWorkloadsTheSameImage(t *testing.T) {
 func TestDeployOverridesCarryTheShardsInOrder(t *testing.T) {
 	t.Parallel()
 	shards := []string{"demo-curator-ui-0", "demo-curator-ui-1", "demo-curator-ui-2"}
-	decoded := decodeOverrides(t, deployOverrides("agent-core:local", shards))
+	decoded := decodeOverrides(t, deployOverrides(
+		"localhost/declarative-agents/runtime/agent-core:git-0123456789ab-linux-arm64", shards))
 	if len(decoded.CuratorUI.Shards) != len(shards) {
 		t.Fatalf("shards = %v, want %v", decoded.CuratorUI.Shards, shards)
 	}
@@ -121,7 +122,8 @@ func TestDeployOverridesCarryTheShardsInOrder(t *testing.T) {
 // an empty list rather than a null the chart would have to guard.
 func TestDeployOverridesWriteAnEmptyShardListAsAList(t *testing.T) {
 	t.Parallel()
-	document := deployOverrides("agent-core:local", nil)
+	document := deployOverrides(
+		"localhost/declarative-agents/runtime/agent-core:git-0123456789ab-linux-arm64", nil)
 	decoded := decodeOverrides(t, document)
 	if decoded.CuratorUI.Shards == nil {
 		t.Errorf("empty shards decoded as null; document:\n%s", document)

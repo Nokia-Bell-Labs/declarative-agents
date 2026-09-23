@@ -4,6 +4,7 @@
 package otlp
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/objectstore"
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -39,16 +41,23 @@ type SpoolConfig struct {
 type SpoolBuilder struct {
 	ToolName string
 	Config   SpoolConfig
+	Storage  StorageConfig
+	Opener   *objectstore.Opener
 }
 
 // Build captures the previous result for current-value selectors.
 func (b SpoolBuilder) Build(previous core.Result) core.Command {
-	return &spoolCommand{toolName: b.ToolName, config: b.Config, previous: previous}
+	return &spoolCommand{
+		toolName: b.ToolName, config: b.Config, storage: b.Storage,
+		opener: b.Opener, previous: previous,
+	}
 }
 
 type spoolCommand struct {
 	toolName string
 	config   SpoolConfig
+	storage  StorageConfig
+	opener   *objectstore.Opener
 	previous core.Result
 	view     core.CommandStateView
 }
@@ -66,27 +75,43 @@ func (c *spoolCommand) Execute() core.Result {
 	if err != nil {
 		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
 	}
-	written, err := appendSpool(c.config, lines)
-	if err != nil {
-		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
-	}
 	payload, err := protojson.Marshal(request)
 	if err != nil {
 		return receiverError(c.Name(), err)
 	}
-	output := struct {
-		Path      string          `json:"path"`
-		SpanCount int             `json:"span_count"`
-		Bytes     int             `json:"bytes_written"`
-		Batch     json.RawMessage `json:"batch"`
-	}{
-		Path: c.config.Path, SpanCount: requestSpanCount(request), Bytes: written, Batch: payload,
+	target, err := newSpoolTarget(c.config, c.storage, c.opener)
+	if err != nil {
+		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
 	}
-	encoded, err := json.Marshal(output)
+	outcome, err := target.persist(context.Background(), spoolBatch{
+		signal: "trace", payloadFormat: "otlp-protojson-trace",
+		ndjson: lines, payload: payload, received: time.Now().UTC(),
+	})
+	if err != nil {
+		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
+	}
+	encoded, err := json.Marshal(spoolOutputRecord{
+		Path: outcome.path, SpanCount: requestSpanCount(request), Bytes: outcome.bytes,
+		Batch: payload, ObjectKey: outcome.objectKey, Checksum: outcome.checksum,
+		WALState: outcome.walState,
+	})
 	if err != nil {
 		return receiverError(c.Name(), err)
 	}
 	return core.Result{Signal: core.Signal("SpansSpooled"), CommandName: c.Name(), Output: string(encoded)}
+}
+
+// spoolOutputRecord is the storage-independent spool result. The required
+// fields hold for both backends; the object fields are present only when the
+// object backend persisted an immutable envelope.
+type spoolOutputRecord struct {
+	Path      string          `json:"path"`
+	SpanCount int             `json:"span_count"`
+	Bytes     int             `json:"bytes_written"`
+	Batch     json.RawMessage `json:"batch"`
+	ObjectKey string          `json:"object_key,omitempty"`
+	Checksum  string          `json:"checksum,omitempty"`
+	WALState  string          `json:"wal_state,omitempty"`
 }
 
 func (c *spoolCommand) Undo(_ core.Result) core.Result {

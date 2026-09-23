@@ -59,7 +59,9 @@
 # roles as Role-Sharded Workloads so authority and lifecycle remain attributable.
 # Where one application must turn intent into privileged change, an
 # Orchestrate-Act Split may refine that topology, but the present evidence keeps
-# the pattern tentative.
+# the pattern tentative. Place Helm-managed compositions on a Persistent
+# Application Platform when shared infrastructure and retained data must
+# outlive one application's compute.
 #
 # HOW TO READ EACH ENTRY
 # ----------------------
@@ -190,7 +192,7 @@ patterns:
     grammar:
       within: []
       requires: []
-      contains: [one-canonical-home, composition-manifest, package-time-closure, profile-free-runtime, parameterization-wrapper, role-sharded-workload, orchestrate-act-split]
+      contains: [one-canonical-home, composition-manifest, package-time-closure, profile-free-runtime, parameterization-wrapper, role-sharded-workload, orchestrate-act-split, persistent-application-platform]
       enables: [one-canonical-home, composition-manifest]
       overlaps: []
     syntax: >
@@ -735,6 +737,84 @@ patterns:
         cite: reference-implementation
         kind: internal
         note: A second application realizes the actuator half without an in-cluster decision plane; an authorized operator or CI caller supplies the decided values patch, and the applier alone validates, applies, verifies the role rollouts, and compensates with a Helm rollback, holding Helm and kubectl actuation apart from the serving roles.
+
+  # ---------------------------------------------------------------------------
+  - id: persistent-application-platform
+    number: 9
+    name: Persistent Application Platform
+    also_known_as: [Shared Cluster, Retained-Data Application Rig]
+    confidence: 1
+    intent: >
+      Share platform infrastructure while preserving one application namespace,
+      collector, bucket, lifecycle authority, and retained-data boundary.
+    context: >
+      Several Helm-managed applications need the same ingress, object-storage
+      endpoint, metrics, and storage provisioning. Their compute may be removed
+      independently, while telemetry history must survive application and
+      platform recreation.
+    problem: >
+      How do applications share expensive platform services without merging
+      their lifecycle, identity, telemetry, or deletion authority?
+    applicability: >
+      Use this when two or more applications run on one Kubernetes platform and
+      retained data must outlive a release. Keep an owned cluster for a
+      cluster-mutating scenario whose configuration cannot safely share the
+      platform.
+    forces:
+      - Shared infrastructure should be provisioned and diagnosed once.
+      - Application compute needs independent install, upgrade, and teardown.
+      - Retained data must not disappear with a namespace or cluster.
+      - Shared object storage must not erase application identity.
+      - Local emulation cannot claim cloud authorization it does not enforce.
+    solution: >
+      Run one persistent platform with shared external ingress and object
+      service. Give each application one manifest-derived stable namespace,
+      Helm release, collector gateway, and application-specific bucket.
+      Separate ordinary down from explicit application purge and local platform
+      reset. Route internal REST and OTLP through Service DNS, and restore
+      retained query access by redeploying the application collector against
+      the same bucket.
+    implementation: >
+      Derive application identity and bindings from agents/application.yaml.
+      Use a shared application-rig package for lifecycle mechanics and thin
+      Mage verbs. Record immutable object identity in a collector-local WAL
+      before upload. Keep external HTTP at Traefik and send internal REST,
+      OTLP, object, and vector traffic directly to their declared endpoints.
+      Enforce cloud isolation with workload identity and bucket IAM; document
+      local fake GCS as non-adversarial configuration isolation only.
+    consequences:
+      benefits:
+        - Applications share platform cost without sharing compute lifecycle.
+        - Telemetry survives collector, namespace, and cluster recreation.
+        - Destructive authority is explicit and application scoped.
+        - Local and cloud deployments retain one application declaration.
+      liabilities:
+        - Shared-service failure can affect every dependent application.
+        - A stopped application has retained objects but no live query API.
+        - Local fake GCS cannot resist a malicious pod without a future authenticated gateway.
+    grammar:
+      within: [capability-ladder]
+      requires: [composition-manifest, role-sharded-workload]
+      contains: []
+      enables: []
+      overlaps: [profile-free-runtime]
+    syntax: >
+      Deploy each Role-Sharded Workload from its Composition Manifest onto a
+      Persistent Application Platform, retaining one collector and bucket per
+      application while shared services stay platform-owned.
+    examples:
+      - system: Kubernetes namespaces and workload identity
+        cite: kubernetes-workloads
+        kind: external
+        note: Namespaces scope application resources while workload identity and provider IAM can scope access to application-owned cloud objects.
+      - system: Twelve-Factor backing services
+        cite: twelve-factor-build-release-run
+        kind: external
+        note: A deploy can be replaced independently while a bound backing service retains data across releases.
+      - system: Declarative Agents da-platform
+        cite: reference-implementation
+        kind: internal
+        note: The target contract shares Traefik and fake GCS while each application keeps its namespace, collector, bucket, and lifecycle authority.
 
 grammar_check:
   note: >

@@ -76,7 +76,7 @@ func applierLiveSkipReason(roots integrationRoots, run codingSmokeRunner) string
 }
 
 func runCodingApplierLive(roots integrationRoots) (result error) {
-	images, err := resolveCodingHelmImages(roots.Application)
+	image, err := resolveCodingHelmImage(roots.Application)
 	if err != nil {
 		return err
 	}
@@ -106,13 +106,22 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return &codingHelmSemanticError{Step: "applier chart verification", Cause: err}
 	}
 
-	evidenceDir := codingHelmEvidenceDir(roots.Application, images.Revision)
+	evidenceDir := codingHelmEvidenceDir(roots.Application, image.Revision)
 	scenario, err := acquireCodingScenario(evidenceDir)
 	if err != nil {
 		return err
 	}
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		roots.Core, image.Reference, codingHelmScenario+"-applier")
+	if err != nil {
+		return errors.Join(
+			&codingHelmInfrastructureError{Step: "agent-core image lease", Cause: err},
+			scenario.release(true, evidenceDir),
+		)
+	}
 	defer func() {
-		result = errors.Join(result, scenario.release(result != nil, evidenceDir))
+		releaseErr := scenario.release(result != nil, evidenceDir)
+		result = errors.Join(result, releaseErr, lease.Release())
 	}()
 	environment := scenario.environment
 	cluster := scenario.platform.Cluster
@@ -120,15 +129,16 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 	if err := checkCodingHelmInfrastructure(environment.run); err != nil {
 		return err
 	}
-	// Reuse the smoke cluster preparation verbatim: it builds and loads the
-	// runtime, model, and collector images, deploys the deterministic model, and
-	// seeds the workspace PVC the serving roles mount.
-	if err := prepareCodingHelmCluster(environment, cluster.Name, roots, images); err != nil {
+	// Reuse the smoke cluster preparation verbatim: it loads the leased
+	// canonical agent image, deploys the deterministic catalog mock with that
+	// image, loads tool donors, and seeds the workspace PVC the serving roles
+	// mount.
+	if err := prepareCodingHelmCluster(environment, cluster.Name, roots, image); err != nil {
 		return classifyCodingHelmFailure(environment.run, "cluster preparation", err, true)
 	}
 
-	// prepareCodingHelmCluster already built and loaded the agent-core image the
-	// collector and the applier run. The applier's helm and kubectl come from the
+	// prepareCodingHelmCluster already loaded the one leased agent-core image
+	// every agent workload runs. The applier's helm and kubectl come from the
 	// pinned CLI donor, loaded once per platform node and copied into the pod's
 	// read-only /opt/tools by the cli-donor init container (GH-2222). The chart
 	// reaches the pod through the mounted applier.chartArchive.
@@ -136,11 +146,14 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return &codingHelmInfrastructureError{Step: "applier CLI donor", Cause: err}
 	}
 
-	if err := installCodingApplierLiveChart(environment, chartDir, chartArchive, roots.Application, images.Agent, codingHelmCollectorImage); err != nil {
+	if err := installCodingApplierLiveChart(environment, chartDir, chartArchive, roots.Application, image.Reference); err != nil {
 		return classifyCodingHelmFailure(environment.run, "Helm install", err, true)
 	}
 	if err := verifyCodingHelmRollouts(environment, "applier"); err != nil {
 		return classifyCodingHelmFailure(environment.run, "role readiness", err, true)
+	}
+	if _, err := verifyCodingAgentImageIdentity(environment, image.Reference, true); err != nil {
+		return classifyCodingHelmFailure(environment.run, "agent image identity", err, true)
 	}
 	helmVersion, err := kindrig.VerifyCLIDonor(codingApplierDeclaredHelmMajor, func(args ...string) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), codingApplierLiveReadyTimeout)
@@ -167,7 +180,7 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		"helm %s from the pinned CLI donor on a read-only /opt/tools, reads a real Deployment's rollout, applies a "+
 		"values patch that moves the release to a new revision, compensates a post-verify stall with a real helm "+
 		"rollback, and rejects a non-conforming patch against the real chart schema without touching it\n",
-		images.Revision, helmVersion)
+		image.Revision, helmVersion)
 	return nil
 }
 
@@ -361,11 +374,9 @@ func assertCodingApplierChartArchiveCarriesProfiles(archive string) error {
 // provisioned beside the release, which the init container unpacks (GH-1368), so
 // no image bakes the chart.
 func installCodingApplierLiveChart(
-	environment codingSmokeEnvironment, chartDir, chartArchive, applicationRoot, runtimeImage, applierImage string,
+	environment codingSmokeEnvironment, chartDir, chartArchive, applicationRoot, runtimeImage string,
 ) error {
 	repository, tag := splitCodingImageRef(runtimeImage)
-	collectorRepository, collectorTag := splitCodingImageRef(codingHelmCollectorImage)
-	applierRepository, applierTag := splitCodingImageRef(applierImage)
 	if err := provisionCodingApplierChartConfigMap(environment, chartArchive); err != nil {
 		return err
 	}
@@ -379,10 +390,6 @@ func installCodingApplierLiveChart(
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-applier-values.yaml"),
 		"--set", "image.repository="+repository,
 		"--set-string", "image.tag="+tag,
-		"--set", "collector.image.repository="+collectorRepository,
-		"--set-string", "collector.image.tag="+collectorTag,
-		"--set", "applier.image.repository="+applierRepository,
-		"--set-string", "applier.image.tag="+applierTag,
 		"--wait", "--timeout", codingHelmInstallTimeout.String(),
 	)
 	if err != nil {

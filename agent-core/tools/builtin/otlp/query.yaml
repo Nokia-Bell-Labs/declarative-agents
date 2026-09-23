@@ -32,7 +32,8 @@ tools:
         offset: {type: integer}
         page_size: {type: integer}
         skipped_lines: {type: integer}
-      required: [traces, total, offset, page_size, skipped_lines]
+        storage_status: {type: string, description: complete, partial, or unavailable; a bucket outage never labels WAL-only history complete (srd042 R6).}
+      required: [traces, total, offset, page_size, skipped_lines, storage_status]
   side_effects:
   - kind: filesystem_read
     target: configured spool path and rotated files
@@ -52,6 +53,10 @@ tools:
     page_size: 20
     max_page_size: 100
     offset: 0
+    # Optional object read backend (srd042 R1, R3): reads the configured
+    # application bucket, bounded by object count, bytes, and deadline. Bucket,
+    # endpoint, and prefix are configuration only; no request field redirects it.
+    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: traces, wal_path: "", max_objects: 500, max_bytes: 67108864}
 - name: spool_get_trace
   type: builtin
   init: spool_get_trace
@@ -86,7 +91,8 @@ tools:
               attributes: {type: array}
         span_count: {type: integer}
         skipped_lines: {type: integer}
-      required: [trace_id, spans, span_count, skipped_lines]
+        storage_status: {type: string}
+      required: [trace_id, spans, span_count, skipped_lines, storage_status]
   side_effects:
   - kind: filesystem_read
     target: configured spool path and rotated files
@@ -104,6 +110,7 @@ tools:
   config:
     path: traces/collector.ndjson
     trace_id: ""
+    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: traces, wal_path: "", max_objects: 500, max_bytes: 67108864}
 - name: spool_list_metrics
   type: builtin
   init: spool_list_metrics
@@ -133,7 +140,8 @@ tools:
         offset: {type: integer}
         page_size: {type: integer}
         skipped_lines: {type: integer}
-      required: [metrics, total, offset, page_size, skipped_lines]
+        storage_status: {type: string}
+      required: [metrics, total, offset, page_size, skipped_lines, storage_status]
   side_effects:
   - kind: filesystem_read
     target: configured metric spool path and rotated files
@@ -153,6 +161,7 @@ tools:
     page_size: 20
     max_page_size: 100
     offset: 0
+    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: metrics, wal_path: "", max_objects: 500, max_bytes: 67108864}
 - name: spool_get_metric
   type: builtin
   init: spool_get_metric
@@ -189,7 +198,8 @@ tools:
         offset: {type: integer}
         page_size: {type: integer}
         skipped_lines: {type: integer}
-      required: [metric_name, records, record_count, page_record_count, total, data_point_count, offset, page_size, skipped_lines]
+        storage_status: {type: string}
+      required: [metric_name, records, record_count, page_record_count, total, data_point_count, offset, page_size, skipped_lines, storage_status]
   side_effects:
   - kind: filesystem_read
     target: configured metric spool path and rotated files
@@ -210,3 +220,4 @@ tools:
     page_size: 20
     max_page_size: 100
     offset: 0
+    storage: {backend: filesystem, bucket_url: "", endpoint: "", prefix: metrics, wal_path: "", max_objects: 500, max_bytes: 67108864}

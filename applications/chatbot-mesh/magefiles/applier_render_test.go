@@ -173,7 +173,7 @@ func assertCLIDonorRendered(t *testing.T, rendered, donorImage string) {
 
 // TestApplierRendersPinnedCLIDonor proves the chart delivers helm and kubectl
 // through the donor pinned to kindrig.CLIDonorImage, and that the kind overlay
-// switches to the rig-local kind-loaded tag (GH-2222).
+// names the same fully qualified upstream tag with pullPolicy Never (GH-2222).
 func TestApplierRendersPinnedCLIDonor(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
@@ -195,4 +195,10 @@ func TestApplierRendersPinnedCLIDonor(t *testing.T) {
 		t.Fatalf("helm template kind overlay: %v\n%s", err, kind)
 	}
 	assertCLIDonorRendered(t, string(kind), kindrig.CLIDonorRuntimeImage)
+	if strings.Contains(string(kind), "kindrig/cli-donor") {
+		t.Fatal("kind overlay still renders a kindrig donor alias")
+	}
+	if !strings.Contains(string(kind), "imagePullPolicy: Never") {
+		t.Fatal("kind overlay does not set Never on the imported donor")
+	}
 }

@@ -1,0 +1,35 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-fixture
+  labels: {app.kubernetes.io/name: apprig-fixture}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: apprig-fixture}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: apprig-fixture}
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: fixture
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [-scheme, http, -port, "8080", -backend, memory]
+          ports: [{name: query, containerPort: 8080}]
+          readinessProbe:
+            httpGet: {path: /storage/v1/b, port: query}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-fixture-query
+spec:
+  selector: {app.kubernetes.io/name: apprig-fixture}
+  ports: [{name: query, port: 8080, targetPort: query}]

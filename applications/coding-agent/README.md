@@ -100,13 +100,20 @@ separately; a checkout is never mislabeled as released. Deployment and role
 manifests also record the application checkout revision and dirty state because
 the serving composition is application-owned.
 
-The application-owned coding runtime image stays profile-free. It uses the
-agent-core runtime plus Go 1.26 and golangci-lint v2.12.2, because the canonical
-executor always runs build, lint, and test. Kubernetes runs planner, executor,
-and critic as separate containers using that same image. Each container mounts
-its role directory under `/profiles` and selects the serving profile named by
-that role's manifest. Profiles are application package content, not image
-content.
+The application uses the canonical profile-free agent-core runtime image.
+Kubernetes runs planner, executor, and critic as separate containers using that
+same image. The executor receives Go 1.26 and golangci-lint v2.12.2 from
+separate digest-pinned upstream init containers through a shared read-only tools
+volume. The changed-workspace critic receives Go alone through a distinct
+read-only donor volume for its independent `go test` oracle; it receives neither
+the executor linter nor its tool volume. Each agent container mounts its role directory under `/profiles` and
+selects the serving profile named by that role's manifest. Profiles are
+application package content, not image content.
+
+The previously published `agent-core-toolchain` tags remain available only for
+compatibility and are retired. Consumers must switch their agent workload image
+to `agent-core` and use executor tool donors instead of layering toolchains into
+the runtime image.
 
 ### Parameter inventory
 
@@ -141,10 +148,12 @@ helm template coding-agent helm -f helm/ci/small-values.yaml
 mage helm:package
 ```
 
-The chart defaults to the shared
-`ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:0.1.0` (agent-core
-layered with the Go toolchain, GH-1368) and
-renders one persistent coding-runtime container per role, projected
+The chart defaults to the one application image
+`ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0` for every role —
+planner, executor, critic, collector, and applier (srd005 R9, GH-2494) — with
+the executor's Go toolchain and golangci-lint delivered by a read-only tool
+donor volume populated by separate `executorTools` init containers. It
+renders one persistent agent container per role, projected
 read-only role ConfigMaps, one shared workspace claim, fixed internal role
 Services, lifecycle probes, optional Ollama, and collector agent tracing. `values.schema.json`, semantic template guards, and fixtures under
 `helm/schema-fixtures/` validate values. `mage helm:package` regenerates and
@@ -221,9 +230,21 @@ home.
 
 ## Run or Planned Entry Points
 
-All declared entry points are implemented. Use `mage package`,
-`mage packageValidate`, `mage helm:package`, and the `mage integration:*`
-targets described below.
+All declared entry points are implemented. The canonical deployed lifecycle is
+one `coding-agent` release in `app-coding-agent` on `da-platform`:
+
+```bash
+mage app:up
+mage app:status
+mage app:verify     # application-owned planner → executor → critic proof
+mage app:diagnose
+mage app:down
+```
+
+It uses `magefiles/apprig`, shared Traefik, and the retained
+`gs://coding-agent-telemetry` bucket. Package and integration entry points
+remain `mage package`, `mage packageValidate`, `mage helm:package`, and
+`mage integration:*`.
 
 ## Verification
 
@@ -234,14 +255,14 @@ mage audit
 mage stats
 ```
 
-The shared ENG01 operator verbs are:
+The dedicated-cluster verbs remain development compatibility only:
 
 ```bash
 mage doctor      # read-only tool/version and Docker Desktop resource checks
-mage demo:up     # create/reuse da-coding-agent-demo and print .localhost URLs
-mage demo:down   # delete only da-coding-agent-demo
-mage deploy      # install or upgrade the demo release on a running cluster
-mage undeploy    # remove the demo release, reporting an absent one as success
+mage demo:up     # development-only da-coding-agent-demo
+mage demo:down   # delete only the development cluster
+mage deploy      # compatibility deploy against that cluster
+mage undeploy    # compatibility removal
 ```
 
 `mage deploy` runs the Helm step through the catalog applier's deploy machine

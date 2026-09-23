@@ -28,7 +28,7 @@ import (
 
 const (
 	helmRelease         = "smoke"
-	helmImageRepository = "declarative-agents/agent-core"
+	helmImageRepository = "ghcr.io/nokia-bell-labs/declarative-agents/agent-core"
 
 	helmInstallTimeout   = 5 * time.Minute
 	helmImageLoadTimeout = 3 * time.Minute
@@ -176,10 +176,13 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	if err := requireSharedObservability(helmReadyTimeout); err != nil {
 		return fmt.Errorf("shared observability stack is required: %w", err)
 	}
-	fmt.Printf("helmSmoke: building runtime image %s from %s\n", images.Runtime, coreRoot)
-	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
+	fmt.Printf("helmSmoke: leasing runtime image %s from %s\n", images.Runtime, coreRoot)
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		coreRoot, images.Runtime, "chatbot-mesh-helm")
+	if err != nil {
 		return err
 	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 	stagedChart, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
 	if err != nil {
 		return err
@@ -195,12 +198,12 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	defer cleanupArchive()
-	dependencyImages, err := smokeDependencyImages(chartDir)
+	dependencySpecs, err := smokeDependencySpecs(chartDir)
 	if err != nil {
 		return err
 	}
 	if err := pullIntegrationDependencyImages(
-		"helmSmoke", dependencyImages, runHelmSmokeCommand); err != nil {
+		"helmSmoke", smokeDependencyPulls(dependencySpecs), chartDir, runHelmSmokeCommand); err != nil {
 		return err
 	}
 
@@ -273,9 +276,9 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		commands, cluster.Name, images.Runtime); err != nil {
 		return err
 	}
-	for _, image := range dependencyImages {
+	for _, spec := range dependencySpecs {
 		if err := loadSmokeDependencyImageWithCommands(
-			commands, cluster.Name, image); err != nil {
+			commands, cluster.Name, spec); err != nil {
 			return err
 		}
 	}
@@ -289,6 +292,10 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	}
 	if err := assertExternalUIAssetsMountedWithRunner(
 		commands.Run, helmRelease, assets, helmReadyTimeout); err != nil {
+		return err
+	}
+	if err := assertLiveAgentImageIdentity(
+		commands.Run, namespace, images.Runtime); err != nil {
 		return err
 	}
 
@@ -385,52 +392,151 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	return nil
 }
 
-type smokeImage struct {
+type chartImage struct {
 	Repository string `yaml:"repository"`
 	Tag        string `yaml:"tag"`
+	Digest     string `yaml:"digest"`
+	PullPolicy string `yaml:"pullPolicy"`
 }
 
-const smokeUtilityImage = "busybox:1.36"
+// chartDependency pairs the digest-pinned chart authority with the exact name
+// the kind overlay renders (Never pull, no digest when the overlay clears it).
+type chartDependency struct {
+	Pull    string
+	Cluster string
+}
 
-// smokeDependencyImages returns every external image used by the kind smoke
-// topology when its Ollama tier is disabled. Keeping the complete set on the
-// host-pull/kind-load path prevents kind's containerd from reaching a registry
-// directly, which fails behind TLS-intercepting proxies that only the host
-// container engine trusts (GH-1321).
-func smokeDependencyImages(chartDir string) ([]string, error) {
-	var values struct {
-		Collector struct {
-			Image smokeImage `yaml:"image"`
-		} `yaml:"collector"`
-		Chroma struct {
-			Image smokeImage `yaml:"image"`
-		} `yaml:"chroma"`
-		Dolt struct {
-			Image smokeImage `yaml:"image"`
-		} `yaml:"dolt"`
-		Observer struct {
-			Proxy struct {
-				Image smokeImage `yaml:"image"`
-			} `yaml:"proxy"`
-		} `yaml:"observer"`
+func chartImagePullRef(image chartImage) (string, error) {
+	if image.Repository == "" || image.Tag == "" {
+		return "", fmt.Errorf("chart image requires repository and tag")
 	}
-	if err := readIntegrationYAML(filepath.Join(chartDir, "values.yaml"), "chart values", &values); err != nil {
+	ref := image.Repository + ":" + image.Tag
+	if digest := strings.TrimSpace(image.Digest); digest != "" {
+		if !strings.HasPrefix(digest, "sha256:") {
+			digest = "sha256:" + digest
+		}
+		ref += "@" + digest
+	}
+	return kindrig.NormalizeUpstream(ref)
+}
+
+func chartImageClusterRef(image chartImage) (string, error) {
+	if image.Repository == "" || image.Tag == "" {
+		return "", fmt.Errorf("chart image requires repository and tag")
+	}
+	ref := image.Repository + ":" + image.Tag
+	if digest := strings.TrimSpace(image.Digest); digest != "" {
+		if !strings.HasPrefix(digest, "sha256:") {
+			digest = "sha256:" + digest
+		}
+		ref += "@" + digest
+	}
+	return ref, nil
+}
+
+func chartDependencyFromMaps(authority, overlay chartImage) (chartDependency, error) {
+	pull, err := chartImagePullRef(authority)
+	if err != nil {
+		return chartDependency{}, err
+	}
+	cluster, err := chartImageClusterRef(overlay)
+	if err != nil {
+		return chartDependency{}, err
+	}
+	return chartDependency{Pull: pull, Cluster: cluster}, nil
+}
+
+type chartDependencyValues struct {
+	Collector struct {
+		Image chartImage `yaml:"image"`
+	} `yaml:"collector"`
+	Chroma struct {
+		Image chartImage `yaml:"image"`
+	} `yaml:"chroma"`
+	Dolt struct {
+		Image chartImage `yaml:"image"`
+	} `yaml:"dolt"`
+	Observer struct {
+		Proxy struct {
+			Image chartImage `yaml:"image"`
+		} `yaml:"proxy"`
+	} `yaml:"observer"`
+	Ollama struct {
+		UtilityImage string     `yaml:"utilityImage"`
+		Image        chartImage `yaml:"image"`
+	} `yaml:"ollama"`
+}
+
+func readChartDependencyValues(chartDir, overlayName string) (authority, overlay chartDependencyValues, err error) {
+	if err = readIntegrationYAML(
+		filepath.Join(chartDir, "values.yaml"), "chart values", &authority); err != nil {
+		return authority, overlay, err
+	}
+	if err = readIntegrationYAML(
+		filepath.Join(chartDir, "ci", overlayName), "kind overlay", &overlay); err != nil {
+		return authority, overlay, err
+	}
+	return authority, overlay, nil
+}
+
+func utilityChartDependency(authority, overlay chartDependencyValues) (chartDependency, error) {
+	utility := strings.TrimSpace(overlay.Ollama.UtilityImage)
+	if utility == "" {
+		utility = strings.TrimSpace(authority.Ollama.UtilityImage)
+	}
+	if utility == "" {
+		return chartDependency{}, fmt.Errorf("chart ollama utilityImage is required")
+	}
+	pull, err := kindrig.NormalizeUpstream(utility)
+	if err != nil {
+		return chartDependency{}, err
+	}
+	cluster := utility
+	if strings.Contains(utility, "@sha256:") {
+		cluster = strings.SplitN(utility, "@", 2)[0]
+	}
+	return chartDependency{Pull: pull, Cluster: cluster}, nil
+}
+
+func smokeDependencySpecs(chartDir string) ([]chartDependency, error) {
+	authority, overlay, err := readChartDependencyValues(chartDir, "kind-values.yaml")
+	if err != nil {
 		return nil, err
 	}
-	refs := []smokeImage{
-		values.Collector.Image,
-		values.Chroma.Image,
-		values.Dolt.Image,
-		values.Observer.Proxy.Image,
-	}
-	images := make([]string, 0, len(refs)+1)
-	for _, image := range refs {
-		if image.Repository == "" || image.Tag == "" {
-			return nil, fmt.Errorf("smoke dependency image requires repository and tag")
+	specs := make([]chartDependency, 0, 5)
+	for _, pair := range []struct {
+		auth, kind chartImage
+	}{
+		{authority.Collector.Image, overlay.Collector.Image},
+		{authority.Chroma.Image, overlay.Chroma.Image},
+		{authority.Dolt.Image, overlay.Dolt.Image},
+		{authority.Observer.Proxy.Image, overlay.Observer.Proxy.Image},
+	} {
+		dep, err := chartDependencyFromMaps(pair.auth, pair.kind)
+		if err != nil {
+			return nil, err
 		}
-		images = append(images, image.Repository+":"+image.Tag)
+		specs = append(specs, dep)
 	}
-	return append(images, smokeUtilityImage), nil
+	utility, err := utilityChartDependency(authority, overlay)
+	if err != nil {
+		return nil, err
+	}
+	return append(specs, utility), nil
+}
+
+// smokeDependencyImages returns digest-pinned pulls for every external image
+// the kind smoke topology preloads on the host (GH-1321, GH-2519).
+func smokeDependencyImages(chartDir string) ([]string, error) {
+	specs, err := smokeDependencySpecs(chartDir)
+	if err != nil {
+		return nil, err
+	}
+	images := make([]string, 0, len(specs))
+	for _, spec := range specs {
+		images = append(images, spec.Pull)
+	}
+	return images, nil
 }
 
 // swapDependencyImages deliberately closes over the same external pod-image set
@@ -439,16 +545,44 @@ func swapDependencyImages(chartDir string) ([]string, error) {
 	return smokeDependencyImages(chartDir)
 }
 
+func swapDependencySpecs(chartDir string) ([]chartDependency, error) {
+	return smokeDependencySpecs(chartDir)
+}
+
+func smokeDependencyPulls(specs []chartDependency) []string {
+	pulls := make([]string, 0, len(specs))
+	for _, spec := range specs {
+		pulls = append(pulls, spec.Pull)
+	}
+	return pulls
+}
+
+func integrationDependencyPullSource(chartDir string) func(string) string {
+	source, err := chartOllamaSourceImage(chartDir)
+	if err != nil {
+		return func(image string) string { return image }
+	}
+	derived, err := trustedOllamaDerivedRef(chartDir)
+	if err != nil {
+		return func(image string) string { return image }
+	}
+	return func(image string) string {
+		if image == derived {
+			return source
+		}
+		return image
+	}
+}
+
 func pullIntegrationDependencyImages(
 	scenario string,
 	images []string,
+	chartDir string,
 	run helmLLMCommandRunner,
 ) error {
+	sourceFor := integrationDependencyPullSource(chartDir)
 	for _, image := range images {
-		source := image
-		if image == helmLLMOllamaImage {
-			source = helmLLMOllamaSourceImage
-		}
+		source := sourceFor(image)
 		reused, err := reusePreparedHostImage(run, source)
 		if err != nil {
 			return err
@@ -474,52 +608,124 @@ const (
 	trustedOllamaPlatformLabel = "io.declarative-agents.ollama.platform"
 )
 
-func buildTrustedOllamaImage(image string) (string, error) {
+func chartOllamaAuthority(chartDir string) (chartImage, error) {
+	var values struct {
+		Ollama struct {
+			Image chartImage `yaml:"image"`
+		} `yaml:"ollama"`
+	}
+	if err := readIntegrationYAML(
+		filepath.Join(chartDir, "values.yaml"), "chart values", &values); err != nil {
+		return chartImage{}, err
+	}
+	if values.Ollama.Image.Repository == "" || values.Ollama.Image.Tag == "" {
+		return chartImage{}, fmt.Errorf("chart ollama image requires repository and tag")
+	}
+	if strings.TrimSpace(values.Ollama.Image.Digest) == "" {
+		return chartImage{}, fmt.Errorf("chart ollama image requires a digest pin")
+	}
+	return values.Ollama.Image, nil
+}
+
+func chartOllamaSourceImage(chartDir string) (string, error) {
+	image, err := chartOllamaAuthority(chartDir)
+	if err != nil {
+		return "", err
+	}
+	return chartImagePullRef(image)
+}
+
+func trustedOllamaUpstreamVersion(chartDir string) (string, error) {
+	image, err := chartOllamaAuthority(chartDir)
+	if err != nil {
+		return "", err
+	}
+	return image.Tag + "-kind-trusted", nil
+}
+
+func trustedOllamaRecipe(chartDir string) (string, error) {
 	caBundle, err := hostTrustedCABundle()
 	if err != nil {
 		return "", err
 	}
-	platform := "linux/" + runtime.GOARCH
+	source, err := chartOllamaSourceImage(chartDir)
+	if err != nil {
+		return "", err
+	}
+	platform := kindrig.HostPlatform()
 	sum := sha256.Sum256([]byte(strings.Join([]string{
 		"trusted-ollama-image/v1",
-		trustedOllamaDockerfile(),
+		trustedOllamaDockerfile(source),
 		string(caBundle),
 		platform,
 	}, "\x00")))
-	recipe := fmt.Sprintf("sha256:%x", sum)
-	if imageID, matches := inspectTrustedOllamaImage(image, recipe, platform); matches {
+	return fmt.Sprintf("sha256:%x", sum), nil
+}
+
+func trustedOllamaDerivedRef(chartDir string) (string, error) {
+	recipe, err := trustedOllamaRecipe(chartDir)
+	if err != nil {
+		return "", err
+	}
+	version, err := trustedOllamaUpstreamVersion(chartDir)
+	if err != nil {
+		return "", err
+	}
+	return kindrig.FormatDerivedLocal("ollama", version, recipe, kindrig.HostPlatform())
+}
+
+func buildTrustedOllamaImage(chartDir string) (imageID, derivedRef string, err error) {
+	derivedRef, err = trustedOllamaDerivedRef(chartDir)
+	if err != nil {
+		return "", "", err
+	}
+	recipe, err := trustedOllamaRecipe(chartDir)
+	if err != nil {
+		return "", "", err
+	}
+	platform := kindrig.HostPlatform()
+	if imageID, matches := inspectTrustedOllamaImage(derivedRef, recipe, platform); matches {
 		fmt.Printf("helmLLMTier: reusing trusted Ollama runtime %s digest=%s\n",
-			image, imageID)
-		return imageID, nil
+			derivedRef, imageID)
+		return imageID, derivedRef, nil
+	}
+	image := derivedRef
+	caBundle, err := hostTrustedCABundle()
+	if err != nil {
+		return "", "", err
 	}
 	dir, err := os.MkdirTemp("", "chatbot-mesh-ollama-trust-*")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 	if err := os.WriteFile(
 		filepath.Join(dir, "host-ca.pem"), caBundle, 0o644); err != nil {
-		return "", fmt.Errorf("write trusted Ollama CA bundle: %w", err)
+		return "", "", fmt.Errorf("write trusted Ollama CA bundle: %w", err)
+	}
+	source, err := chartOllamaSourceImage(chartDir)
+	if err != nil {
+		return "", "", err
 	}
 	if err := os.WriteFile(
 		filepath.Join(dir, "Dockerfile"),
-		[]byte(trustedOllamaDockerfile()), 0o644); err != nil {
-		return "", fmt.Errorf("write trusted Ollama Dockerfile: %w", err)
+		[]byte(trustedOllamaDockerfile(source)), 0o644); err != nil {
+		return "", "", fmt.Errorf("write trusted Ollama Dockerfile: %w", err)
 	}
 	args := trustedOllamaBuildArgs(image, recipe, platform)
 	cmd := exec.Command("docker", args...)
 	cmd.Dir = dir
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("build trusted Ollama image %s: %w", image, err)
+		return "", "", fmt.Errorf("build trusted Ollama image %s: %w", image, err)
 	}
 	imageID, matches := inspectTrustedOllamaImage(image, recipe, platform)
 	if !matches {
-		return "", fmt.Errorf(
+		return "", "", fmt.Errorf(
 			"built trusted Ollama image %s does not carry its verified recipe and platform identity",
 			image)
 	}
-	return imageID, nil
+	return imageID, derivedRef, nil
 }
 
 func trustedOllamaBuildArgs(image, recipe, platform string) []string {
@@ -564,8 +770,8 @@ func trustedOllamaInspectPayload(
 	return item.ID, matches
 }
 
-func trustedOllamaDockerfile() string {
-	return "FROM " + helmLLMOllamaSourceImage + "\n" +
+func trustedOllamaDockerfile(sourceImage string) string {
+	return "FROM " + sourceImage + "\n" +
 		"COPY host-ca.pem /tmp/host-ca.pem\n" +
 		"RUN cat /tmp/host-ca.pem >> /etc/ssl/certs/ca-certificates.crt && rm /tmp/host-ca.pem\n"
 }
@@ -609,11 +815,11 @@ func hostTrustedCABundle() ([]byte, error) {
 func loadIntegrationDependencyImages(
 	commands kindrig.Commands,
 	cluster string,
-	images []string,
+	specs []chartDependency,
 ) error {
-	for _, image := range images {
+	for _, spec := range specs {
 		if err := loadSmokeDependencyImageWithCommands(
-			commands, cluster, image); err != nil {
+			commands, cluster, spec); err != nil {
 			return err
 		}
 	}
@@ -622,16 +828,30 @@ func loadIntegrationDependencyImages(
 
 func loadSmokeDependencyImageWithCommands(
 	commands kindrig.Commands,
-	cluster, image string,
+	cluster string,
+	spec chartDependency,
 ) error {
-	present, err := kindNodeHasImage(commands, cluster, image)
+	nodeRef := kindrig.NormalizeNodeImageReference(spec.Cluster)
+	present, err := kindNodeHasImage(commands, cluster, nodeRef)
 	if err != nil {
 		return err
 	}
 	if present {
-		fmt.Printf("shared kind: reusing prepared node image %s\n", image)
+		fmt.Printf("shared kind: reusing prepared node image %s\n", spec.Cluster)
 		return nil
 	}
+	if _, err := kindrig.ParseLocal(spec.Cluster); err == nil {
+		return loadLocalDependencyImageWithCommands(commands, cluster, spec.Cluster)
+	}
+	return kindrig.ImportPinnedImage(
+		commands.Run, cluster, "dependency", spec.Pull, spec.Cluster)
+}
+
+func loadLocalDependencyImageWithCommands(
+	commands kindrig.Commands,
+	cluster, image string,
+) error {
+	localReference := kindrig.NormalizeNodeImageReference(image)
 	save := commands.Command("docker", "save", image)
 	stream, err := save.StdoutPipe()
 	if err != nil {
@@ -639,7 +859,8 @@ func loadSmokeDependencyImageWithCommands(
 	}
 	node := cluster + "-control-plane"
 	load := commands.Command("docker", "exec", "-i", node, "ctr", "--namespace=k8s.io",
-		"images", "import", "--platform=linux/"+runtime.GOARCH, "--snapshotter=overlayfs", "-")
+		"images", "import", "--platform=linux/"+runtime.GOARCH, "--snapshotter=overlayfs",
+		"--index-name", localReference, "-")
 	load.Stdin = stream
 	var output bytes.Buffer
 	load.Stdout, load.Stderr = &output, &output
@@ -649,10 +870,11 @@ func loadSmokeDependencyImageWithCommands(
 	if err := save.Run(); err != nil {
 		_ = load.Process.Kill()
 		_ = load.Wait()
-		return fmt.Errorf("save smoke dependency %s: %w", image, err)
+		return fmt.Errorf("save local dependency %s: %w", image, err)
 	}
 	if err := load.Wait(); err != nil {
-		return fmt.Errorf("load smoke dependency %s: %w: %s", image, err, strings.TrimSpace(output.String()))
+		return fmt.Errorf("load local dependency %s: %w: %s",
+			image, err, strings.TrimSpace(output.String()))
 	}
 	return nil
 }
@@ -693,13 +915,9 @@ func normalizedDockerImageReference(image string) string {
 // buildSmokeRuntimeImage verifies and reuses the commit-addressed canonical
 // Agent Core image. kindrig rebuilds only when revision, recipe, or platform
 // identity differs, so all aggregate targets consume one tested artifact.
-func buildSmokeRuntimeImage(coreRoot, image string) error {
-	_, err := kindrig.EnsureAgentCoreImage(coreRoot, image)
-	return err
-}
-
-// buildRuntimeImageForPlatform is buildSmokeRuntimeImage for a cluster whose
-// nodes are not this machine (GH-2457).
+// buildRuntimeImageForPlatform builds for a remote cluster platform before the
+// GCP flow pushes the canonical reference (GH-2457). Local kind flows use an
+// ownership lease instead.
 func buildRuntimeImageForPlatform(coreRoot, image, platform string) error {
 	_, err := kindrig.EnsureAgentCoreImageForPlatform(coreRoot, image, platform)
 	return err
@@ -796,6 +1014,82 @@ func helmSmokeValueArgs(
 		"--set-string", "collector.integrationResource.runID=" + telemetry.RunID,
 	}
 	return append(args, externalUIAssetValueArgs(assets)...)
+}
+
+func assertLiveAgentImageIdentity(
+	run helmLLMCommandRunner,
+	namespace, expectedReference string,
+) error {
+	output, err := run("kubectl", "get", "pods", "-n", namespace, "-o", "json")
+	if err != nil {
+		return fmt.Errorf("list live agent pods: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	var pods struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Spec struct {
+				Containers []struct {
+					Name  string   `json:"name"`
+					Image string   `json:"image"`
+					Args  []string `json:"args"`
+				} `json:"containers"`
+			} `json:"spec"`
+			Status struct {
+				ContainerStatuses []struct {
+					Name    string `json:"name"`
+					ImageID string `json:"imageID"`
+				} `json:"containerStatuses"`
+			} `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(output, &pods); err != nil {
+		return fmt.Errorf("decode live agent pods: %w", err)
+	}
+	imageID := ""
+	var identities []string
+	for _, pod := range pods.Items {
+		statuses := map[string]string{}
+		for _, status := range pod.Status.ContainerStatuses {
+			statuses[status.Name] = status.ImageID
+		}
+		for _, container := range pod.Spec.Containers {
+			if !stringSliceContains(container.Args, "--profile") {
+				continue
+			}
+			identity := pod.Metadata.Name + "/" + container.Name
+			if container.Image != expectedReference {
+				return fmt.Errorf("%s image = %q, want %q",
+					identity, container.Image, expectedReference)
+			}
+			currentID := statuses[container.Name]
+			if currentID == "" {
+				return fmt.Errorf("%s has no runtime image ID", identity)
+			}
+			if imageID == "" {
+				imageID = currentID
+			} else if currentID != imageID {
+				return fmt.Errorf("%s image ID = %q, want %q", identity, currentID, imageID)
+			}
+			identities = append(identities, identity)
+		}
+	}
+	if len(identities) == 0 {
+		return errors.New("rendered release has no live --profile agent containers")
+	}
+	fmt.Printf("one-agent-image: %d live agent containers use %s (%s)\n",
+		len(identities), expectedReference, imageID)
+	return nil
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func provisionExternalUIAssets(
@@ -1243,10 +1537,13 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("helmSwap: building runtime image %s\n", images.Runtime)
-	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
+	fmt.Printf("helmSwap: leasing runtime image %s\n", images.Runtime)
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		coreRoot, images.Runtime, "chatbot-mesh-swap")
+	if err != nil {
 		return err
 	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 	llmMock, err := startHelmSwapLLMMock()
 	if err != nil {
 		return err
@@ -1267,12 +1564,12 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	defer cleanupArchive()
-	dependencyImages, err := swapDependencyImages(chartDir)
+	dependencySpecs, err := swapDependencySpecs(chartDir)
 	if err != nil {
 		return err
 	}
 	if err := pullIntegrationDependencyImages(
-		"helmSwap", dependencyImages, runHelmSmokeCommand); err != nil {
+		"helmSwap", smokeDependencyPulls(dependencySpecs), chartDir, runHelmSmokeCommand); err != nil {
 		return err
 	}
 
@@ -1331,7 +1628,7 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	if err := loadIntegrationDependencyImages(
-		commands, swapCluster.Name, dependencyImages); err != nil {
+		commands, swapCluster.Name, dependencySpecs); err != nil {
 		return err
 	}
 
@@ -1657,45 +1954,63 @@ const (
 	helmLLMModelPreloadTimeout  = 20 * time.Minute
 	helmLLMWorkloadReadyTimeout = 5 * time.Minute
 
-	helmLLMOllamaImage       = "declarative-agents/ollama:0.32.5-kind-trusted"
-	helmLLMOllamaSourceImage = "ollama/ollama:0.32.5@sha256:4dea9fb511947e24a84237bb636b0203abcb2ff0d3fbc7b4ff865deb91362131"
+	trustedOllamaDerivedRepository = kindrig.LocalRegistry + "/" +
+		kindrig.LocalNamespace + "/derived/ollama"
 )
 
 // helmLLMModels are the CPU-only small models the kind LLM-tier values pull; the
 // assertion confirms /api/tags reports each one after preload.
 var helmLLMModels = []string{"all-minilm", "qwen2.5:0.5b"}
 
-func llmDependencyImages(chartDir string) ([]string, error) {
-	images, err := smokeDependencyImages(chartDir)
+func llmDependencySpecs(chartDir string) ([]chartDependency, error) {
+	authority, overlay, err := readChartDependencyValues(chartDir, "kind-llm-values.yaml")
 	if err != nil {
 		return nil, err
 	}
-	var values struct {
-		Ollama struct {
-			Image struct {
-				Repository string `yaml:"repository"`
-				Tag        string `yaml:"tag"`
-				PullPolicy string `yaml:"pullPolicy"`
-			} `yaml:"image"`
-		} `yaml:"ollama"`
+	specs := make([]chartDependency, 0, 6)
+	for _, pair := range []struct {
+		auth, kind chartImage
+	}{
+		{authority.Collector.Image, overlay.Collector.Image},
+		{authority.Chroma.Image, overlay.Chroma.Image},
+		{authority.Dolt.Image, overlay.Dolt.Image},
+		{authority.Observer.Proxy.Image, overlay.Observer.Proxy.Image},
+	} {
+		dep, err := chartDependencyFromMaps(pair.auth, pair.kind)
+		if err != nil {
+			return nil, err
+		}
+		specs = append(specs, dep)
 	}
-	if err := readIntegrationYAML(
-		filepath.Join(chartDir, "ci", "kind-llm-values.yaml"),
-		"kind LLM values", &values); err != nil {
+	utility, err := utilityChartDependency(authority, overlay)
+	if err != nil {
 		return nil, err
 	}
-	image := values.Ollama.Image.Repository + ":" + values.Ollama.Image.Tag
-	if image != helmLLMOllamaImage {
-		return nil, fmt.Errorf(
-			"kind LLM Ollama image = %q, want exact trusted image %q",
-			image, helmLLMOllamaImage)
+	specs = append(specs, utility)
+	derived, err := trustedOllamaDerivedRef(chartDir)
+	if err != nil {
+		return nil, err
 	}
-	if values.Ollama.Image.PullPolicy != "Never" {
+	if overlay.Ollama.Image.Repository != trustedOllamaDerivedRepository {
+		return nil, fmt.Errorf(
+			"kind LLM Ollama repository = %q, want %q",
+			overlay.Ollama.Image.Repository, trustedOllamaDerivedRepository)
+	}
+	if overlay.Ollama.Image.PullPolicy != "Never" {
 		return nil, fmt.Errorf(
 			"kind LLM Ollama pullPolicy = %q, want Never for kind-loaded image",
-			values.Ollama.Image.PullPolicy)
+			overlay.Ollama.Image.PullPolicy)
 	}
-	return append(images, image), nil
+	specs = append(specs, chartDependency{Pull: derived, Cluster: derived})
+	return specs, nil
+}
+
+func llmDependencyImages(chartDir string) ([]string, error) {
+	specs, err := llmDependencySpecs(chartDir)
+	if err != nil {
+		return nil, err
+	}
+	return smokeDependencyPulls(specs), nil
 }
 
 // HelmLLMTier deploys the chart with the in-cluster LLM tier enabled on a kind
@@ -1735,10 +2050,13 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("helmLLMTier: building runtime image %s\n", images.Runtime)
-	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
+	fmt.Printf("helmLLMTier: leasing runtime image %s\n", images.Runtime)
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		coreRoot, images.Runtime, "chatbot-mesh-llm-tier")
+	if err != nil {
 		return err
 	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 	stagedChart, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
 	if err != nil {
 		return err
@@ -1754,26 +2072,37 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	defer cleanupArchive()
-	dependencyImages, err := llmDependencyImages(chartDir)
+	dependencySpecs, err := llmDependencySpecs(chartDir)
 	if err != nil {
 		return err
 	}
 	if err := runHelmLLMPhase("dependency-pull", func() error {
 		return pullIntegrationDependencyImages(
-			"helmLLMTier", dependencyImages, runHelmLLMCommand)
+			"helmLLMTier", smokeDependencyPulls(dependencySpecs), chartDir, runHelmLLMCommand)
 	}); err != nil {
 		return err
 	}
-	fmt.Printf("helmLLMTier: building trusted Ollama runtime %s from %s\n",
-		helmLLMOllamaImage, helmLLMOllamaSourceImage)
+	sourceImage, err := chartOllamaSourceImage(chartDir)
+	if err != nil {
+		return err
+	}
+	var trustedOllamaImage string
+	fmt.Printf("helmLLMTier: building trusted Ollama derived runtime from %s\n", sourceImage)
 	var ollamaImageID string
 	if err := runHelmLLMPhase("trusted-image", func() error {
 		var imageErr error
-		ollamaImageID, imageErr = buildTrustedOllamaImage(helmLLMOllamaImage)
+		ollamaImageID, trustedOllamaImage, imageErr = buildTrustedOllamaImage(chartDir)
 		return imageErr
 	}); err != nil {
 		return err
 	}
+	fmt.Printf("helmLLMTier: leasing derived Ollama image %s\n", trustedOllamaImage)
+	derivedLease, err := kindrig.AcquireLocalImageLease(
+		trustedOllamaImage, "chatbot-mesh-llm-tier")
+	if err != nil {
+		return err
+	}
+	defer func() { result = errors.Join(result, derivedLease.Release()) }()
 
 	var llmCluster kindrig.Cluster
 	if err := runHelmLLMPhase("cluster-ensure", func() error {
@@ -1848,11 +2177,18 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 		if err := runHelmLLMPhase("model-seed", func() error {
 			var seedErr error
 			seed, seedErr = ensureOllamaSeedImage(
-				helmLLMOllamaImage, ollamaImageID, helmLLMModels)
+				trustedOllamaImage, ollamaImageID, helmLLMModels)
 			return seedErr
 		}); err != nil {
 			return err
 		}
+		fmt.Printf("helmLLMTier: leasing model seed image %s\n", seed.Reference)
+		seedLease, err := kindrig.AcquireLocalImageLease(
+			seed.Reference, "chatbot-mesh-llm-tier")
+		if err != nil {
+			return err
+		}
+		defer func() { result = errors.Join(result, seedLease.Release()) }()
 		if err := runHelmLLMPhase("model-seed-transfer", func() error {
 			return seedAggregateOllamaCache(seed, llmCluster.Name, cache)
 		}); err != nil {
@@ -1868,13 +2204,13 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 			return loadErr
 		}
 		return loadIntegrationDependencyImages(
-			commands, llmCluster.Name, dependencyImages)
+			commands, llmCluster.Name, dependencySpecs)
 	}); err != nil {
 		return err
 	}
 	if err := runHelmLLMPhase("helm-install", func() error {
 		return helmInstallLLMWithRunner(
-			stagedChart, chartArchive, images.Runtime, assets,
+			stagedChart, chartArchive, images.Runtime, trustedOllamaImage, assets,
 			cache.HostPath, commands.Run)
 	}); err != nil {
 		return err
@@ -1970,21 +2306,21 @@ func clearLLMScenarioModels(run helmLLMCommandRunner) error {
 }
 
 func helmInstallLLM(
-	chartPath, chartArchive, image string,
+	chartPath, chartArchive, image, trustedOllama string,
 	assets []externalUIAsset,
 	cacheHostPath string,
 ) error {
 	return helmInstallLLMWithRunner(
-		chartPath, chartArchive, image, assets, cacheHostPath, runHelmLLMCommand)
+		chartPath, chartArchive, image, trustedOllama, assets, cacheHostPath, runHelmLLMCommand)
 }
 
 func helmInstallLLMWithRunner(
-	chartPath, chartArchive, image string,
+	chartPath, chartArchive, image, trustedOllama string,
 	assets []externalUIAsset,
 	cacheHostPath string,
 	run helmLLMCommandRunner,
 ) error {
-	valueArgs := helmLLMValueArgs(chartPath, image, assets, cacheHostPath)
+	valueArgs := helmLLMValueArgs(chartPath, image, trustedOllama, assets, cacheHostPath)
 	measured, err := measureHelmReleaseBudget(
 		helmLLMRelease, chartPath, chartArchive, valueArgs)
 	if err != nil {
@@ -2005,16 +2341,20 @@ func helmInstallLLMWithRunner(
 }
 
 func helmLLMValueArgs(
-	chartPath, image string,
+	chartPath, image, trustedOllama string,
 	assets []externalUIAsset,
 	cacheHostPath string,
 ) []string {
 	repo, tag := splitImageRef(image)
+	ollamaRepo, ollamaTag := splitImageRef(trustedOllama)
 	args := []string{
 		"--values", filepath.Join(chartPath, "ci", "kind-llm-values.yaml"),
 		"--set", "image.repository=" + repo,
 		"--set-string", "image.tag=" + tag,
 		"--set", "image.pullPolicy=Never",
+		"--set", "ollama.image.repository=" + ollamaRepo,
+		"--set-string", "ollama.image.tag=" + ollamaTag,
+		"--set", "ollama.image.pullPolicy=Never",
 		"--set", "ollama.preload.suspend=true",
 	}
 	if cacheHostPath != "" {

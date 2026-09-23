@@ -24,6 +24,10 @@ tools:
           offset: {type: integer}
           page_size: {type: integer}
           skipped_lines: {type: integer}
+          # complete, partial, or unavailable: an object-store outage never labels
+          # WAL-only history complete, so the collector does not lie about
+          # persisted history while readiness stays intake-only (srd042 R6; #2484 R6).
+          storage_status: {type: string}
     side_effects:
       - {kind: filesystem_read, target: collector trace spool, state: read_only}
     reversibility: {classification: reversible}
@@ -35,6 +39,8 @@ tools:
       page_size: 20
       max_page_size: 100
       offset: 0
+      # Reads the same object backend the spool writes when the chart selects it; filesystem NDJSON otherwise (srd042 R11; #2490 R8, R9). The per-read deadline defaults in Go; a timeout-named field here would trip the finite-authority audit.
+      storage: {backend: "${COLLECTOR_STORAGE_BACKEND:-filesystem}", bucket_url: "${COLLECTOR_OBJECT_BUCKET_URL:-}", endpoint: "${COLLECTOR_OBJECT_ENDPOINT:-}", prefix: "${COLLECTOR_OBJECT_PREFIX:-traces}", wal_path: "${COLLECTOR_TRACE_WAL_PATH:-traces/collector.wal}", max_objects: 500, max_bytes: 67108864}
 
   - name: query_get_trace
     type: builtin
@@ -54,6 +60,7 @@ tools:
           spans: {type: array}
           span_count: {type: integer}
           skipped_lines: {type: integer}
+          storage_status: {type: string}
     side_effects:
       - {kind: filesystem_read, target: collector trace spool, state: read_only}
     reversibility: {classification: reversible}
@@ -63,6 +70,7 @@ tools:
     config:
       path: ${COLLECTOR_SPOOL_PATH:-traces/collector.ndjson}
       trace_id: ""
+      storage: {backend: "${COLLECTOR_STORAGE_BACKEND:-filesystem}", bucket_url: "${COLLECTOR_OBJECT_BUCKET_URL:-}", endpoint: "${COLLECTOR_OBJECT_ENDPOINT:-}", prefix: "${COLLECTOR_OBJECT_PREFIX:-traces}", wal_path: "${COLLECTOR_TRACE_WAL_PATH:-traces/collector.wal}", max_objects: 500, max_bytes: 67108864}
 
   - name: query_list_metrics
     type: builtin
@@ -83,6 +91,7 @@ tools:
           offset: {type: integer}
           page_size: {type: integer}
           skipped_lines: {type: integer}
+          storage_status: {type: string}
     side_effects:
       - {kind: filesystem_read, target: collector metric spool, state: read_only}
     reversibility: {classification: reversible}
@@ -94,6 +103,7 @@ tools:
       page_size: 20
       max_page_size: 100
       offset: 0
+      storage: {backend: "${COLLECTOR_STORAGE_BACKEND:-filesystem}", bucket_url: "${COLLECTOR_OBJECT_BUCKET_URL:-}", endpoint: "${COLLECTOR_OBJECT_ENDPOINT:-}", prefix: "${COLLECTOR_OBJECT_PREFIX:-metrics}", wal_path: "${COLLECTOR_METRICS_WAL_PATH:-metrics/collector.wal}", max_objects: 500, max_bytes: 67108864}
 
   - name: query_get_metric
     type: builtin
@@ -138,6 +148,7 @@ tools:
           offset: {type: integer}
           page_size: {type: integer}
           skipped_lines: {type: integer}
+          storage_status: {type: string}
     side_effects:
       - {kind: filesystem_read, target: collector metric spool, state: read_only}
     reversibility: {classification: reversible}
@@ -150,6 +161,7 @@ tools:
       page_size: 20
       max_page_size: 100
       offset: 0
+      storage: {backend: "${COLLECTOR_STORAGE_BACKEND:-filesystem}", bucket_url: "${COLLECTOR_OBJECT_BUCKET_URL:-}", endpoint: "${COLLECTOR_OBJECT_ENDPOINT:-}", prefix: "${COLLECTOR_OBJECT_PREFIX:-metrics}", wal_path: "${COLLECTOR_METRICS_WAL_PATH:-metrics/collector.wal}", max_objects: 500, max_bytes: 67108864}
 
   - name: query_span_heatmap
     type: builtin

@@ -282,4 +282,13 @@ spec:
               service:
                 name: {{ $fullname }}-chatbot
                 port: {name: chat}
+    - host: {{ .Values.ingress.collectorHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-collector
+                port: {name: query}
 {{- end }}
