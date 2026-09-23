@@ -46,7 +46,8 @@ flow:
       float, third-party images carry digests, image references name
       registry, role, and typed identity, pull policies keep a loaded
       node off the registry, no Service asks kind for a load balancer, and
-      every selected workload declares readiness.
+      every selected workload declares readiness, and an applier that
+      upgrades can read and write every kind its chart renders.
     traces:
       - srd005-chart-conformance R1.1
       - srd005-chart-conformance R2.1
@@ -56,6 +57,7 @@ flow:
       - srd005-chart-conformance R10.1
       - srd005-chart-conformance R10.2
       - srd005-chart-conformance R10.3
+      - srd005-chart-conformance R11.1
   - id: F4
     text: |
       Every checked-in kind configuration is checked for a node image pinned
@@ -119,6 +121,9 @@ touchpoints:
   - id: T11
     target: srd005-chart-conformance AC7
     reason: Image-reference grammar and prohibited aliases.
+  - id: T13
+    target: srd005-chart-conformance AC8
+    reason: Applier Role coverage of every rendered kind.
   - id: T12
     target: test-rel16.0-chart-conformance
     reason: Structural and executable evidence for this flow.
@@ -157,6 +162,13 @@ success_criteria:
       the rule, and an engineer acts on it without re-rendering.
     traces:
       - srd005-chart-conformance AC5
+  - id: S6
+    criterion: |
+      An applier that may write can read and write every object kind its
+      chart renders, so an in-cluster upgrade is never refused by its own
+      Role.
+    traces:
+      - srd005-chart-conformance AC8
 
 out_of_scope:
   - Deciding whether an application template should call the shared library chart instead of rendering its own workload.

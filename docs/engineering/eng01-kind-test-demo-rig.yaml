@@ -263,6 +263,7 @@ sections:
       | C5 | Every workload a Service selects declares a readiness probe | rendered manifest |
       | C6 | Every kind configuration pins its node image by version and digest | checked-in kind configuration |
       | C7 | Every image is a fully qualified upstream reference or `localhost/declarative-agents/<role>/<component>:<typed-identity>`; `kindrig/*`, `:local`, untyped 12-hex local tags, and `*-smoke` repositories are not permitted | rendered manifest |
+      | C8 | An applier Role that may write grants get and update on every object kind its chart renders | rendered manifest |
 
       C2 covers every image the cluster pulls, not only the images the host
       pulls for a kind load. An image built from this checkout is

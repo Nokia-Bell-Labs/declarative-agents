@@ -239,6 +239,25 @@ requirements:
           Introducing any of those forms fails the gate naming the chart,
           the overlay, the resource, the offending image, and R10.3.
 
+  R11:
+    title: The applier can upgrade everything its chart renders
+    applicability: helm_managed
+    items:
+      - id: R11.1
+        text: |
+          An applier Role that grants any write verb shall grant get and
+          update (or patch) on every object kind the chart renders, by API
+          group and resource. An in-cluster upgrade re-renders the whole
+          chart and reads each object before writing it, so a kind the
+          Role cannot read refuses the upgrade on its first object of that
+          kind. A Role with no write verb never upgrades and is not checked.
+        evidence: |
+          Rendering every chart under every overlay yields no rendered kind
+          outside its applier Role's read-and-write grants; removing
+          ingresses from the Role, or rendering a new kind the Role does not
+          name, fails the gate naming the chart, the overlay, the Role, the
+          uncovered group and resource, and R11.1.
+
 non_goals:
   - Rendering charts against a live cluster. The gate reads manifests and needs no Kubernetes.
   - Judging whether an application template should instead call the shared library chart. That classification is tracked separately.
@@ -305,6 +324,13 @@ acceptance_criteria:
       - R10.1
       - R10.2
       - R10.3
+  - id: AC8
+    criterion: |
+      Every applier Role that may write grants get and update on every
+      object kind its chart renders; a rendered kind outside those grants
+      fails the gate, and a read-only applier is not checked.
+    traces:
+      - R11.1
 
 use_case_traces:
   - rel16.0-uc001-chart-conformance

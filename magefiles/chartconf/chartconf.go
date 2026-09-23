@@ -84,6 +84,15 @@ type Document struct {
 		Containers     []Container `yaml:"containers"`
 		InitContainers []Container `yaml:"initContainers"`
 	} `yaml:"spec"`
+	Rules []PolicyRule `yaml:"rules"`
+}
+
+// PolicyRule is the subset of an RBAC Role rule the applier-coverage rule
+// reads.
+type PolicyRule struct {
+	APIGroups []string `yaml:"apiGroups"`
+	Resources []string `yaml:"resources"`
+	Verbs     []string `yaml:"verbs"`
 }
 
 type podTemplate struct {
@@ -220,6 +229,7 @@ func Check(chart, overlay string, documents []Document) []Finding {
 	}
 	findings = append(findings, checkReadiness(chart, overlay, documents)...)
 	findings = append(findings, checkOneAgentImage(chart, overlay, documents)...)
+	findings = append(findings, checkApplierCoversRenderedKinds(chart, overlay, documents)...)
 	sort.Slice(findings, func(i, j int) bool { return findings[i].Key() < findings[j].Key() })
 	return findings
 }
