@@ -76,7 +76,7 @@ roadmap_summary:
     use_cases_total: 1
     status: implemented
     evidence: |
-      ENG01 carries the numbered chart rules, srd005 owns them, and all ten
+      ENG01 carries the numbered chart rules, srd005 owns them, and all twelve
       suite cases are executable. The gate renders every chart under every
       checked-in overlay; the baseline is empty, so the charts conform by
       construction rather than by exception.
@@ -191,7 +191,7 @@ srd_index:
     title: Chart Conformance Against the Rig Guideline
     status: implemented
     applicability: |
-      R1 through R5 and R8 apply to every application that ships a chart; R6
+      R1 through R5, R8, and R11 apply to every application that ships a chart; R6
       applies to every checked-in kind configuration; R7 governs the
       exception baseline.
     path: docs/specs/software-requirements/srd005-chart-conformance.yaml
@@ -332,7 +332,7 @@ test_suite_index:
     title: Release 16.0 Chart Conformance Test Suite
     release: "16.0"
     status: implemented
-    test_case_count: 10
+    test_case_count: 12
     traces: [rel16.0-uc001-chart-conformance]
     srds:
       - srd005-chart-conformance

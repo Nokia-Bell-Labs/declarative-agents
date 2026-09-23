@@ -284,3 +284,21 @@ test_cases:
       - rel16.0-uc001-chart-conformance S2
       - srd005-chart-conformance AC7
       - srd005-chart-conformance AC5
+
+  - id: TC12
+    use_case: rel16.0-uc001-chart-conformance
+    name: The applier Role covers every kind its chart renders
+    status: implemented
+    evidence_type: go_test
+    implemented_by: GH-2533
+    command: |
+      cd magefiles && go test ./chartconf -run 'TestApplierRole|TestReadOnlyApplier|TestPluralResource' && go test . -run TestChartConformance
+    expected:
+      missing_rendered_kind_reported: true
+      write_without_read_reported: true
+      read_only_applier_not_checked: true
+      shipped_charts_have_no_uncovered_kind: true
+    traces:
+      - rel16.0-uc001-chart-conformance S6
+      - srd005-chart-conformance AC8
+      - srd005-chart-conformance AC5

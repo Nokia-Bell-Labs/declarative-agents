@@ -21,5 +21,6 @@ its apply surface admits the creator, which drives the apply in-cluster.
       "podLabels" (dict "monitorPort" (toString .Values.applier.ports.monitor))
       "chartWorkloadKinds" (list "deployments" "statefulsets")
       "chartCoreResources" (list "configmaps" "secrets" "services" "serviceaccounts")
+      "chartBatchResources" (list "jobs")
       "allowedIngressComponents" (list "creator")) }}
 {{- end }}

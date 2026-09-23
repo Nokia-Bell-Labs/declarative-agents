@@ -26,8 +26,11 @@ Required: root, profilePath, profilesVolume, serviceName (the OTel service name)
 Optional: workDir (default .Values.applier.workDir), resourceAttributes,
 otlpEndpoint, otlpMetricEndpoint, podLabels, podAnnotations, chartWorkloadKinds
 (the apps kinds the chart contains, default deployments), chartCoreResources
-(the core kinds an upgrade writes), allowedIngressComponents (the release
-components that may reach the apply port, default none).
+(the core kinds an upgrade writes), chartBatchResources (the batch kinds the
+chart contains, default none), allowedIngressComponents (the release
+components that may reach the apply port, default none). The chart
+conformance gate checks these lists against what the chart renders
+(srd005 R11.1).
 */}}
 {{- define "agent-services.applier" -}}
 {{- $root := .root -}}
@@ -38,6 +41,7 @@ components that may reach the apply port, default none).
 {{- $chartArchive := default "" $applier.chartArchiveConfigMap -}}
 {{- $workloads := .chartWorkloadKinds | default (list "deployments") -}}
 {{- $coreResources := .chartCoreResources | default (list "configmaps" "secrets" "services" "serviceaccounts") -}}
+{{- $batchResources := .chartBatchResources | default list -}}
 {{- $donor := (($applier.cliDonor | default dict).image | default dict) -}}
 {{- $donorImage := "" -}}
 {{- if $donor.repository -}}
@@ -91,17 +95,24 @@ rules:
   # forbids granting permissions the grantor does not already hold, so the applier
   # can re-apply its own Role but cannot widen it.
   - apiGroups: [networking.k8s.io]
-    resources: [networkpolicies]
+    resources: [networkpolicies, ingresses]
     verbs: [get, list, watch, create, update, patch]
   - apiGroups: [rbac.authorization.k8s.io]
     resources: [roles, rolebindings]
     verbs: [get, list, watch, create, update, patch]
+  # helm reads every object in the new manifest before it writes it, so each
+  # kind the upgrade writes is also a kind it reads.
   - apiGroups: [""]
     resources: [{{ join ", " $coreResources }}]
-    verbs: [create, update, patch, delete]
+    verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [apps]
     resources: [{{ join ", " $workloads }}]
     verbs: [create, update, patch]
+  {{- if $batchResources }}
+  - apiGroups: [batch]
+    resources: [{{ join ", " $batchResources }}]
+    verbs: [get, list, watch, create, update, patch, delete]
+  {{- end }}
   {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
