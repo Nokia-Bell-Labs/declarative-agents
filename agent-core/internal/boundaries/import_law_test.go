@@ -57,6 +57,15 @@ func TestImportLawRejectsForbiddenImport(t *testing.T) {
 	require.Contains(t, joined, want)
 }
 
+func TestImportLawRejectsBlobOutsideStorage(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join(thisDir(t), "testdata", "import_violation")
+	violations := importLawViolations(t, listModulePackages(t, root), modulePath(t, root), nil)
+	joined := strings.Join(violations, "\n")
+	require.Contains(t, joined, "import_law: internal/tools/rest imports gocloud.dev/blob; see "+constitutionPath)
+	require.NotContains(t, joined, "internal/tools/objectstore imports")
+}
+
 func importLawViolations(t *testing.T, pkgs []goListPackage, module string, allowed map[string]bool) []string {
 	t.Helper()
 	seen := map[string]bool{}
@@ -89,6 +98,8 @@ func importLawMessage(from, to string) string {
 	case isObservabilityPkg(from) && (isToolsPkg(to) || isRuntimePkg(to)):
 		return importLawMsg(from, to)
 	case isPublicPkg(from) && isInternalPkg(to):
+		return importLawMsg(from, to)
+	case isBlobDriver(to) && !isStoragePkg(from):
 		return importLawMsg(from, to)
 	default:
 		return ""
@@ -139,6 +150,17 @@ func isForbiddenCoreStorage(imp string) bool {
 	default:
 		return false
 	}
+}
+
+// isBlobDriver reports the object-storage driver library and its drivers.
+func isBlobDriver(imp string) bool {
+	return imp == "gocloud.dev/blob" || strings.HasPrefix(imp, "gocloud.dev/blob/")
+}
+
+// isStoragePkg reports the packages allowed to open buckets directly: the
+// objectstore tool family and the otlp spool and query storage (GH-2521).
+func isStoragePkg(p string) bool {
+	return p == "internal/tools/objectstore" || p == "internal/tools/otlp"
 }
 
 func relImport(module, importPath string) string {
