@@ -1,0 +1,27 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Bibliography for "A Domain-Specific Language for Agents".
+# CSL-YAML entries consumed by md-to-tex (github.com/petar-djukic/md-to-tex).
+# Every entry below is cited in the text with [@id]; every in-text citation
+# resolves here.
+
+- id: kim-harness-posttraining-2026
+  type: article
+  title: "The Interplay of Harness Design and Post-Training in LLM Agents"
+  author:
+    - family: Kim
+      given: Kyungmin
+    - family: Choi
+      given: Youngbin
+    - family: Lee
+      given: Seoyeon
+    - family: Jun
+      given: Suhyeon
+    - family: Kim
+      given: Dongwoo
+    - family: Park
+      given: Sangdon
+  container-title: arXiv preprint arXiv:2606.25447
+  URL: https://arxiv.org/abs/2606.25447
+  issued:
+    year: 2026

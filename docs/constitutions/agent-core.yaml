@@ -5,7 +5,7 @@
 id: agent-core
 title: Agent Core Constitution
 purpose: >-
-  We bind the agent-core runtime and its document processors to the Libretto
+  We bind the agent-core runtime and its document processors to the
   specification (application-dsl-spec/). Each obligation cites the statement
   it upholds by identifier; this constitution introduces no grammar of its
   own, and the dependency is one-way — the specification never cites this
@@ -37,4 +37,4 @@ obligations:
       the specification's chapter 02.
 references:
   - application-dsl-spec/language.yaml
-  - application-dsl-spec/04-lifecycle.md
+  - application-dsl-spec/04-lifecycle-and-population.md
