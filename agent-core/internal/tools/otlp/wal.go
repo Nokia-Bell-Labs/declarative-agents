@@ -175,7 +175,7 @@ func (w *wal) readLocked() ([]walRecord, map[string]bool, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("open wal %s: %w", w.path, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	var records []walRecord
 	committed := map[string]bool{}
 	scanner := bufio.NewScanner(file)
