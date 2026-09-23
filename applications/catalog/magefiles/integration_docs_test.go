@@ -206,3 +206,36 @@ func readTestFile(t *testing.T, path string) string {
 	}
 	return string(data)
 }
+
+// The shipped rest.yaml is what the integration stages, so its address form
+// is checked here rather than through a fixture that could keep an old one
+// (GH-2534: the shared-platform bind-host form slipped past the rewrite and
+// the only symptom was a readiness timeout).
+func TestDocumentationCuratorRewriteMovesEveryShippedServer(t *testing.T) {
+	content, err := readDocumentationCuratorConfig("..", "rest.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := documentationCuratorConfig{docsAddr: "127.0.0.1:41001", controlAddr: "127.0.0.1:41002", monitorAddr: "127.0.0.1:41004"}
+
+	rewritten, err := rewriteDocumentationCuratorPorts(content, cfg)
+
+	if err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	for _, want := range []string{"address: 127.0.0.1:41001", "address: 127.0.0.1:41002", "address: 127.0.0.1:41004", "ports: [41001]"} {
+		if !strings.Contains(rewritten, want) {
+			t.Errorf("rewritten rest.yaml lacks %q", want)
+		}
+	}
+}
+
+func TestDocumentationCuratorRewriteRefusesAnUnrecognizedAddress(t *testing.T) {
+	cfg := documentationCuratorConfig{docsAddr: "127.0.0.1:41001", controlAddr: "127.0.0.1:41002", monitorAddr: "127.0.0.1:41004"}
+
+	_, err := rewriteDocumentationCuratorPorts("servers:\n  docs:\n    address: 0.0.0.0:18081\n", cfg)
+
+	if err == nil || !strings.Contains(err.Error(), "18081") {
+		t.Fatalf("err = %v, want a refusal naming port 18081", err)
+	}
+}
