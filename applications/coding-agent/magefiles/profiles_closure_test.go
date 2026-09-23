@@ -324,6 +324,47 @@ func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 	}
 }
 
+func TestExternalMockClosureIsExactAndOutsideProductionPackage(t *testing.T) {
+	catalogRoot := filepath.Clean(filepath.Join("..", "..", "catalog"))
+	output := filepath.Join(t.TempDir(), "mock-profiles")
+	files, err := stageExternalProfileClosure(
+		catalogRoot,
+		"agents/mock/profile.yaml",
+		"agents/mock/profile.yaml",
+		output,
+	)
+	if err != nil {
+		t.Fatalf("stage canonical mock closure: %v", err)
+	}
+	want := []string{
+		"agents/mock/declarations.yaml",
+		"agents/mock/machine.yaml",
+		"agents/mock/profile.yaml",
+		"agents/mock/rest.yaml",
+		"agents/mock/tools.yaml",
+		"agents/units/rest-service-machine-template.yaml",
+	}
+	if !reflect.DeepEqual(files, want) {
+		t.Fatalf("mock closure files = %#v, want exact %#v", files, want)
+	}
+	for _, filename := range files {
+		if _, err := os.Stat(filepath.Join(output, filepath.FromSlash(filename))); err != nil {
+			t.Errorf("staged mock closure missing %s: %v", filename, err)
+		}
+	}
+
+	manifest, err := readApplicationProfileManifest(
+		filepath.Join("..", filepath.FromSlash(profileManifestPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, reference := range append(manifest.Catalog.References, manifest.Deployment.Entries...) {
+		if reference.Role == "mock" || strings.Contains(reference.Source, "agents/mock/") {
+			t.Fatalf("production application manifest includes smoke-only mock: %#v", reference)
+		}
+	}
+}
+
 func TestCodingApplicationAgentsContainOnlyCompositionAndServingAssets(t *testing.T) {
 	agentsDir := filepath.Join("..", "agents")
 	var files []string

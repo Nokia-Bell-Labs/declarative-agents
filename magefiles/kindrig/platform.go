@@ -223,7 +223,9 @@ func AcquirePlatform(options PlatformOptions) (*Platform, error) {
 
 // Stop releases the platform: an owned cluster is deleted, after evidence
 // capture when failed is true and an evidence directory was configured. A
-// reused cluster is left in place. Stop is idempotent.
+// reused cluster is left in place. Stop is idempotent. Host Docker images are
+// not removed here; lease Release and mage clean:images remain separate,
+// explicit host-cleanup operations (GH-2510).
 func (p *Platform) Stop(failed bool) {
 	if p == nil || p.stopped {
 		return
@@ -520,7 +522,7 @@ func PlatformConformance(run CommandRunner, cluster string) (result error) {
 	}()
 
 	manifest := strings.ReplaceAll(platformConformanceManifest,
-		traefikImagePlaceholder, traefikRuntimeRepository+":"+traefikImageVersion)
+		traefikImagePlaceholder, traefikRuntimeImage())
 	manifest = strings.ReplaceAll(manifest, platformHostPlaceholder, platformConformanceHost)
 	path, removeManifest, err := writeTempManifest("kindrig-platform-conformance-*.yaml", manifest)
 	if err != nil {

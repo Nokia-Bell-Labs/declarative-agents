@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Platform conformance workload (GH-2215): a claim the local-path provisioner
 # must bind, and an echo backend Traefik must route. The backend reuses the
-# kind-loaded Traefik image serving /ping, so the check pulls nothing.
+# kind-loaded Traefik image (docker.io/library/traefik:<version>) serving /ping,
+# so the check pulls nothing.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

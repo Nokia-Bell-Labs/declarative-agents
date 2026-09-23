@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
 func TestOllamaSeedRecipeKeysRuntimeAndModels(t *testing.T) {
@@ -31,20 +33,26 @@ func TestOllamaSeedRecipeKeysRuntimeAndModels(t *testing.T) {
 }
 
 func TestOllamaSeedBuildAndInspectionRequireExactIdentity(t *testing.T) {
+	platform := kindrig.HostPlatform()
+	seedImage, err := kindrig.FormatRecipeLocal(
+		kindrig.CacheRole, "ollama-models", "sha256:"+strings.Repeat("a", 64), platform)
+	if err != nil {
+		t.Fatal(err)
+	}
 	identity := ollamaSeedIdentity{
 		recipe:    "sha256:recipe",
 		runtimeID: "sha256:runtime",
-		platform:  "linux/" + runtime.GOARCH,
+		platform:  platform,
 	}
 	args := strings.Join(ollamaSeedBuildArgs(
-		ollamaSeedRepository+":test",
-		"declarative-agents/ollama:trusted",
+		seedImage,
+		"localhost/declarative-agents/derived/ollama:upstream-0.34.2-kind-trusted-recipe-0123456789ab-linux-amd64",
 		"all-minilm qwen2.5:0.5b",
 		identity,
 	), " ")
 	for _, want := range []string{
 		"--provenance=false",
-		"RUNTIME_IMAGE=declarative-agents/ollama:trusted",
+		"RUNTIME_IMAGE=localhost/declarative-agents/derived/ollama:upstream-0.34.2-kind-trusted-recipe-0123456789ab-linux-amd64",
 		"MODELS=all-minilm qwen2.5:0.5b",
 		ollamaSeedRecipeLabel + "=" + identity.recipe,
 		ollamaSeedRuntimeLabel + "=" + identity.runtimeID,
@@ -63,14 +71,14 @@ func TestOllamaSeedBuildAndInspectionRequireExactIdentity(t *testing.T) {
 		}},
 	}})
 	result, matches := ollamaSeedInspectPayload(
-		ollamaSeedRepository+":test", payload, identity)
+		seedImage, payload, identity)
 	if !matches || result.ImageID != "sha256:seed" {
 		t.Fatalf("matching seed rejected: result=%+v matches=%v", result, matches)
 	}
 	stale := identity
 	stale.runtimeID = "sha256:stale"
 	if _, matches := ollamaSeedInspectPayload(
-		ollamaSeedRepository+":test", payload, stale,
+		seedImage, payload, stale,
 	); matches {
 		t.Fatal("stale runtime identity reused seed image")
 	}

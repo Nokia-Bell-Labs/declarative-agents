@@ -125,6 +125,9 @@ func TestInstallIngressReusesLocalPinnedImageAndWaitsForDeployment(t *testing.T)
 	var applied string
 	run := func(name string, args ...string) ([]byte, error) {
 		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
+		if inspectFailsWithoutDigest(name, args) {
+			return []byte("No such image"), errors.New("absent")
+		}
 		if name == "kubectl" && appliedManifestPath(args) != "" {
 			data, err := os.ReadFile(appliedManifestPath(args))
 			if err != nil {
@@ -141,9 +144,10 @@ func TestInstallIngressReusesLocalPinnedImageAndWaitsForDeployment(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtimeImage := traefikRuntimeRepository + ":" + traefikImageVersion
+	runtimeImage := traefikRuntimeImage()
 	wantCalls := []string{
 		"docker image inspect --format {{.Id}} " + image,
+		"docker image inspect --format {{.Id}} " + runtimeImage,
 		"docker tag " + image + " " + runtimeImage,
 		"node-import " + runtimeImage + " da-example-demo-control-plane linux/" + runtime.GOARCH,
 		"kubectl --context kind-da-example-demo apply -f ",
@@ -160,8 +164,20 @@ func TestInstallIngressReusesLocalPinnedImageAndWaitsForDeployment(t *testing.T)
 	if !strings.Contains(applied, "image: "+runtimeImage) {
 		t.Errorf("applied manifest does not carry kind-loaded image %q", runtimeImage)
 	}
+	if strings.Contains(applied, "kindrig/traefik") {
+		t.Fatal("applied manifest still uses a kindrig alias")
+	}
 	if strings.Contains(applied, traefikImagePlaceholder) {
 		t.Fatal("applied manifest retains image placeholder")
+	}
+}
+
+func TestTraefikRuntimeImageIsFullyQualifiedUpstream(t *testing.T) {
+	if traefikRuntimeImage() != "docker.io/library/traefik:"+traefikImageVersion {
+		t.Fatalf("runtime image = %q", traefikRuntimeImage())
+	}
+	if strings.Contains(traefikRuntimeImage(), "kindrig/") {
+		t.Fatal("runtime image still uses a kindrig alias")
 	}
 }
 
@@ -184,7 +200,10 @@ func TestInstallIngressPullsPinnedImageOnlyWhenAbsent(t *testing.T) {
 	run := func(name string, args ...string) ([]byte, error) {
 		call := strings.Join(append([]string{name}, args...), " ")
 		calls = append(calls, call)
-		if strings.HasPrefix(call, "docker image inspect") {
+		if strings.HasPrefix(call, "docker image inspect") && strings.Contains(call, image) {
+			return []byte("No such image"), errors.New("absent")
+		}
+		if inspectFailsWithoutDigest(name, args) {
 			return []byte("No such image"), errors.New("absent")
 		}
 		return nil, nil
@@ -194,6 +213,9 @@ func TestInstallIngressPullsPinnedImageOnlyWhenAbsent(t *testing.T) {
 	}
 	if len(calls) < 2 || calls[1] != "docker pull --platform linux/"+runtime.GOARCH+" "+image {
 		t.Fatalf("absent image was not pulled after the inspect: %v", calls)
+	}
+	if strings.Contains(strings.Join(calls, "\n"), "docker image rm "+traefikRuntimeImage()) {
+		t.Fatalf("canonical upstream tag was untagged: %v", calls)
 	}
 }
 

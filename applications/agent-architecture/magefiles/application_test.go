@@ -42,7 +42,7 @@ func TestApplicationOverridesEnableDurableCollectorStorage(t *testing.T) {
 	}
 	var values map[string]any
 	if err := yaml.Unmarshal([]byte(architectureApplicationOverrides(
-		resolved, []string{"agent-architecture-curator-ui-000"})), &values); err != nil {
+		resolved, "registry.local/agent-core:test", []string{"agent-architecture-curator-ui-000"})), &values); err != nil {
 		t.Fatal(err)
 	}
 	collector := values["collector"].(map[string]any)

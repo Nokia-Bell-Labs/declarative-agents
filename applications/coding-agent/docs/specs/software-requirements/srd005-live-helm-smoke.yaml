@@ -22,9 +22,10 @@ requirements:
     title: Real packaged topology
     items:
       - R2.1: The target shall install only the validated packaged .tgz.
-      - R2.2: It shall build and load the same shared agent-core-toolchain recipe referenced by production values (agent-core/toolchain.Dockerfile layered on agent-core, GH-1368), containing Go 1.26 and golangci-lint v2.12.2 for canonical build, lint, and test validation.
-      - R2.3: A deterministic Ollama-compatible in-cluster service shall provide model responses without replacing any agent, REST, workspace, critic, or telemetry behavior.
-      - R2.4: A kind-only RWX hostPath fixture shall provide one writable shared workspace to all three roles.
+      - R2.2: It shall build and load one commit-addressed canonical profile-free agent image and run every agent workload from it, so the application under test uses the same one-image topology as production (GH-2494). Every agent and mock pod shall report the same image ID.
+      - R2.3: The executor's Go 1.26 and golangci-lint v2.12.2 build, lint, and test validation shall run from digest-pinned, read-only tool-donor volumes mounted on the executor, while the critic's independent Go test oracle shall use a separate Go-only donor volume; neither shall require a second agent runtime image.
+      - R2.4: A deterministic Ollama-compatible boundary shall run as the canonical catalog mock profile with an application-owned fixture on the same canonical agent image, providing model responses without replacing any agent, REST, workspace, critic, or telemetry behavior and without a bespoke model image.
+      - R2.5: A kind-only RWX hostPath fixture shall provide one writable shared workspace to all three roles.
 
   R3:
     title: End-to-end evidence
@@ -42,8 +43,8 @@ requirements:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Healthy prerequisites produce a full packaged-chart planner-to-critic pass through build, v2 lint, and test using the production image recipe, followed by cleanup.
-    traces: [R1.1, R1.2, R1.3, R2.1, R2.2, R2.3, R2.4, R3.1, R3.2, R3.3]
+    criterion: Healthy prerequisites produce a full packaged-chart planner-to-critic pass through build, v2 lint, and test, with every agent and mock pod running one canonical image ID, the executor tools mounted from donors, and the model boundary served by the canonical mock profile, followed by cleanup.
+    traces: [R1.1, R1.2, R1.3, R2.1, R2.2, R2.3, R2.4, R2.5, R3.1, R3.2, R3.3]
   - id: AC2
     criterion: Missing external prerequisites print a specific SKIP without cluster mutation.
     traces: [R1.1]

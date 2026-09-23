@@ -414,18 +414,51 @@ func (c Cluster) ReleaseAfter(run Runner, failed bool, evidence FailureEvidence)
 
 var gitRevision = regexp.MustCompile(`^[0-9a-fA-F]{12,64}$`)
 
-// CommitImage returns a local image reference tagged with the tested checkout's
-// 12-character commit revision. The revision is returned for evidence output.
+// CommitImage returns the canonical local agent-core runtime reference for the
+// tested checkout revision on the host platform. repository must name the
+// agent-core runtime without a tag; the published ghcr path, the historical
+// unprefixed name, and the typed local repository all map to one reference.
 func CommitImage(repository, revision string) (image, shortRevision string, err error) {
-	revision = strings.TrimSpace(revision)
-	if strings.TrimSpace(repository) == "" {
-		return "", "", fmt.Errorf("image repository is required")
+	if err := requireAgentCoreRuntimeRepository(repository); err != nil {
+		return "", "", err
 	}
-	if !gitRevision.MatchString(revision) {
-		return "", "", fmt.Errorf("git revision %q must be 12-64 hexadecimal characters", revision)
+	return AgentCoreRuntimeReference(revision, HostPlatform())
+}
+
+func requireAgentCoreRuntimeRepository(repository string) error {
+	repository = strings.TrimSpace(repository)
+	if repository == "" {
+		return fmt.Errorf("image repository is required")
 	}
-	shortRevision = strings.ToLower(revision[:12])
-	return repository + ":" + shortRevision, shortRevision, nil
+	if strings.Contains(repository, "@") {
+		return fmt.Errorf("image repository %q carries a digest; typed tags are identity", repository)
+	}
+	if _, tag, found := strings.Cut(repository, ":"); found {
+		if tag == "local" || tag == "latest" {
+			return fmt.Errorf("image repository %q is mutable, not an identity", repository)
+		}
+		return fmt.Errorf("image repository %q must not include a tag", repository)
+	}
+	lowered := strings.ToLower(strings.TrimPrefix(repository, DockerHubRegistry+"/"))
+	switch lowered {
+	case "declarative-agents/agent-core",
+		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core",
+		localPrefix + string(RuntimeRole) + "/" + agentCoreComponent:
+		return nil
+	default:
+		return fmt.Errorf("image repository %q is not the agent-core runtime", repository)
+	}
+}
+
+func requireCanonicalAgentCoreImage(image string, identity agentCoreImageIdentity) error {
+	expected, _, err := AgentCoreRuntimeReference(identity.revision, identity.platform)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(image) != expected {
+		return fmt.Errorf("agent-core image %q is not the canonical %s", image, expected)
+	}
+	return nil
 }
 
 // Exists reports whether the named cluster is in kind's cluster list. An

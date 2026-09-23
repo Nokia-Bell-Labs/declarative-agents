@@ -16,10 +16,46 @@ import (
 	"time"
 )
 
+func testAgentCoreImage(t *testing.T, revision, platform string) string {
+	t.Helper()
+	image, _, err := AgentCoreRuntimeReference(revision, platform)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return image
+}
+
 func TestAgentCoreImageBuildArgsTagCurrentContext(t *testing.T) {
-	args := strings.Join(AgentCoreImageBuildArgs(DefaultAgentCoreImage), " ")
-	if args != "build -t "+DefaultAgentCoreImage+" ." {
+	image := testAgentCoreImage(t, strings.Repeat("a", 40), HostPlatform())
+	args := strings.Join(AgentCoreImageBuildArgs(image), " ")
+	if args != "build -t "+image+" ." {
 		t.Fatalf("build args = %q", args)
+	}
+}
+
+func TestAgentCoreRuntimeReferenceIsDeterministicPerRevisionAndPlatform(t *testing.T) {
+	revision := "0123456789abcdef0123456789abcdef01234567"
+	first, short, err := AgentCoreRuntimeReference(revision, "linux/arm64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := AgentCoreRuntimeReference(revision, "linux/arm64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "localhost/declarative-agents/runtime/agent-core:git-0123456789ab-linux-arm64"
+	if first != want || second != want || short != "0123456789ab" {
+		t.Fatalf("reference = %q/%q short %q", first, second, short)
+	}
+	other, _, err := AgentCoreRuntimeReference(revision, "linux/amd64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if other == first {
+		t.Fatalf("platforms shared image %q", first)
+	}
+	if _, _, err := AgentCoreRuntimeReference(revision, "darwin/arm64"); err == nil {
+		t.Fatal("unsupported OS accepted")
 	}
 }
 
@@ -72,7 +108,8 @@ func fakeImageBuilder(failCmd string) (*[]imageRunCall, *[]writtenFile, imageBui
 
 func TestBuildAgentCoreImageInvocationContract(t *testing.T) {
 	runs, written, b := fakeImageBuilder("")
-	if err := b.build("/core", "declarative-agents/agent-core:local", HostPlatform()); err != nil {
+	image := testAgentCoreImage(t, strings.Repeat("a", 40), HostPlatform())
+	if err := b.build("/core", image, HostPlatform()); err != nil {
 		t.Fatalf("build: %v", err)
 	}
 
@@ -109,7 +146,7 @@ func TestBuildAgentCoreImageInvocationContract(t *testing.T) {
 		"org.opencontainers.image.revision=" + strings.Repeat("a", 40),
 		"io.declarative-agents.agent-core.recipe=sha256:",
 		"io.declarative-agents.agent-core.platform=linux/" + runtime.GOARCH,
-		"-t declarative-agents/agent-core:local .",
+		"-t " + image + " .",
 	} {
 		if docker.name != "docker" || !strings.Contains(dockerArgs, want) {
 			t.Fatalf("docker args = %q, missing %q", dockerArgs, want)
@@ -121,7 +158,7 @@ func TestBuildAgentCoreImageInvocationContract(t *testing.T) {
 	}
 	data := (*written)[0].data
 	for _, want := range []string{
-		"FROM alpine:3.22", "COPY agent /usr/local/bin/agent",
+		"FROM docker.io/library/alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8", "COPY agent /usr/local/bin/agent",
 		"COPY tools /opt/agent-core/tools", "ENV AGENT_CORE_HOME=/opt/agent-core",
 		"ENTRYPOINT [\"agent\"]",
 	} {
@@ -137,7 +174,8 @@ func TestBuildAgentCoreImageInvocationContract(t *testing.T) {
 
 func TestBuildAgentCoreImageBuildFailure(t *testing.T) {
 	_, _, b := fakeImageBuilder("go")
-	err := b.build("/core", "img", HostPlatform())
+	image := testAgentCoreImage(t, strings.Repeat("a", 40), HostPlatform())
+	err := b.build("/core", image, HostPlatform())
 	if err == nil || !strings.Contains(err.Error(), "build linux agent") {
 		t.Fatalf("err = %v, want wrapped build failure", err)
 	}
@@ -145,8 +183,9 @@ func TestBuildAgentCoreImageBuildFailure(t *testing.T) {
 
 func TestBuildAgentCoreImageDockerFailure(t *testing.T) {
 	_, _, b := fakeImageBuilder("docker")
-	err := b.build("/core", "img", HostPlatform())
-	if err == nil || !strings.Contains(err.Error(), "docker build img") {
+	image := testAgentCoreImage(t, strings.Repeat("a", 40), HostPlatform())
+	err := b.build("/core", image, HostPlatform())
+	if err == nil || !strings.Contains(err.Error(), "docker build "+image) {
 		t.Fatalf("err = %v, want wrapped docker failure", err)
 	}
 }
@@ -159,7 +198,8 @@ func TestBuildAgentCoreImagePropagatesCopyTreeError(t *testing.T) {
 		writeFile: os.WriteFile,
 		copyTree:  func(string, string) error { return copyErr },
 	}
-	if err := b.build("/core", "img", HostPlatform()); !errors.Is(err, copyErr) {
+	image := testAgentCoreImage(t, strings.Repeat("b", 40), HostPlatform())
+	if err := b.build("/core", image, HostPlatform()); !errors.Is(err, copyErr) {
 		t.Fatalf("err = %v, want copy-tree error", err)
 	}
 }
@@ -172,10 +212,25 @@ func TestBuildAgentCoreImagePropagatesDockerfileWriteError(t *testing.T) {
 		writeFile: func(string, []byte, os.FileMode) error { return writeErr },
 		copyTree:  func(string, string) error { return nil },
 	}
-	err := b.build("/core", "img", HostPlatform())
+	image := testAgentCoreImage(t, strings.Repeat("b", 40), HostPlatform())
+	err := b.build("/core", image, HostPlatform())
 	if err == nil || !strings.Contains(err.Error(), "write agent-core image Dockerfile") ||
 		!errors.Is(err, writeErr) {
 		t.Fatalf("err = %v, want wrapped Dockerfile write error", err)
+	}
+}
+
+func TestBuildAgentCoreImageRejectsMutableOrMismatchedNames(t *testing.T) {
+	_, _, b := fakeImageBuilder("")
+	for _, image := range []string{
+		"declarative-agents/agent-core:local",
+		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:aaaaaaaaaaaa",
+		testAgentCoreImage(t, strings.Repeat("b", 40), HostPlatform()),
+	} {
+		err := b.build("/core", image, HostPlatform())
+		if err == nil || !strings.Contains(err.Error(), "canonical") {
+			t.Errorf("image %q: %v", image, err)
+		}
 	}
 }
 
@@ -204,7 +259,8 @@ func TestEnsureAgentCoreImageReusesMatchingIdentity(t *testing.T) {
 		lockRoot: t.TempDir(), sleep: time.Sleep,
 	}
 	identity, _ = b.identity("/core", HostPlatform())
-	result, err := b.ensure("/core", "agent-core:test", HostPlatform())
+	image := testAgentCoreImage(t, strings.Repeat("c", 40), HostPlatform())
+	result, err := b.ensure("/core", image, HostPlatform())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +294,8 @@ func TestEnsureAgentCoreImageRebuildsStaleAndVerifiesResult(t *testing.T) {
 		lockRoot: t.TempDir(), sleep: time.Sleep,
 	}
 	identity, _ = b.identity("/core", HostPlatform())
-	result, err := b.ensure("/core", "agent-core:test", HostPlatform())
+	image := testAgentCoreImage(t, strings.Repeat("d", 40), HostPlatform())
+	result, err := b.ensure("/core", image, HostPlatform())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,12 +381,13 @@ func TestConcurrentEnsureAgentCoreImageBuildsOnce(t *testing.T) {
 		lockRoot: t.TempDir(), sleep: func(time.Duration) { time.Sleep(time.Millisecond) },
 	}
 	identity, _ = b.identity("/core", HostPlatform())
+	image := testAgentCoreImage(t, strings.Repeat("f", 40), HostPlatform())
 	const callers = 5
 	results := make(chan AgentCoreImageResult, callers)
 	errs := make(chan error, callers)
 	for range callers {
 		go func() {
-			result, err := b.ensure("/core", "agent-core:test", HostPlatform())
+			result, err := b.ensure("/core", image, HostPlatform())
 			results <- result
 			errs <- err
 		}()
@@ -365,7 +423,8 @@ func TestEnsureAgentCoreImageRejectsUnverifiedBuild(t *testing.T) {
 		lockRoot: t.TempDir(), sleep: time.Sleep,
 	}
 	identity, _ = b.identity("/core", HostPlatform())
-	if _, err := b.ensure("/core", "agent-core:test", HostPlatform()); err == nil ||
+	image := testAgentCoreImage(t, strings.Repeat("1", 40), HostPlatform())
+	if _, err := b.ensure("/core", image, HostPlatform()); err == nil ||
 		!strings.Contains(err.Error(), "does not carry") {
 		t.Fatalf("error=%v, want post-build identity rejection", err)
 	}
@@ -519,7 +578,8 @@ func containsEnv(env []string, want string) bool {
 func TestBuildForANamedPlatformCrossCompilesAndLabels(t *testing.T) {
 	runs, _, b := fakeImageBuilder("")
 
-	if err := b.build("/core", "img", "linux/amd64"); err != nil {
+	image := testAgentCoreImage(t, strings.Repeat("a", 40), "linux/amd64")
+	if err := b.build("/core", image, "linux/amd64"); err != nil {
 		t.Fatalf("build: %v", err)
 	}
 
@@ -560,5 +620,9 @@ func TestEmptyPlatformIsRefused(t *testing.T) {
 	if _, err := b.identity("/core", "  "); err == nil ||
 		!strings.Contains(err.Error(), "platform is required") {
 		t.Fatalf("empty platform: %v", err)
+	}
+	if _, err := b.identity("/core", "darwin/arm64"); err == nil ||
+		!strings.Contains(err.Error(), "linux") {
+		t.Fatalf("unsupported OS: %v", err)
 	}
 }

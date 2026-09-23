@@ -179,20 +179,59 @@ sections:
 
   - title: "Image delivery"
     content: |
-      Images are built from the current checkout and tagged with the
-      short git commit hash, never `latest`. The build target bakes the
-      binary into a minimal runtime image and loads it into the cluster
-      with `kind load docker-image`; on the shared platform each image is
-      loaded once per revision and scenarios reuse it. The chart's kind values overlay
-      sets `pullPolicy: IfNotPresent` so the loaded image is used and
-      the cluster never reaches for a registry.
+      An image reference must tell a reader, from `docker image ls` alone,
+      who owns it, what role it plays, and which identity it names.
+      Environment and cluster names are not image identity.
 
-      Commit-tagged images accumulate on the host, one per revision per
-      image family. `mage clean:images <keep>` removes all but the newest
-      revisions of each rig family, and `mage clean:imagesDryRun <keep>`
-      lists them first. Only commit-shaped tags of rig families are
-      considered, and an image whose labels name another source is kept. No
-      release gate runs it; it is an operator target.
+      Two forms exist. An upstream image keeps its fully qualified
+      registry path, a version tag, and — when the cluster pulls it — a
+      digest. A first-party image this checkout builds for a local cluster
+      uses `localhost/declarative-agents/<role>/<component>:<typed-identity>`.
+      A published first-party image uses the release registry
+      (`ghcr.io/nokia-bell-labs/declarative-agents/<component>:<version>`
+      or an Artifact Registry copy of that name).
+
+      Table 6: Image reference classes
+
+      | Class | Repository | Tag | Digest |
+      |-------|------------|-----|--------|
+      | Upstream runtime | Fully qualified registry path (`docker.io/...`, `registry.k8s.io/...`, `quay.io/...`) | Upstream version | Required when the cluster pulls it (C2) |
+      | Local runtime | `localhost/declarative-agents/runtime/<component>` | `git-<12-hex>-linux-<arch>` | Not required; content is this checkout |
+      | Local test | `localhost/declarative-agents/test/<component>` | `git-<12-hex>-linux-<arch>` | Not required |
+      | Derived upstream | `localhost/declarative-agents/derived/<component>` | `upstream-<version>-recipe-<12-hex>-linux-<arch>` | Not required; the recipe names the derivation |
+      | Materialization cache | `localhost/declarative-agents/cache/<component>` | `recipe-<12-hex>-linux-<arch>` | Not required |
+      | Published first-party | `<registry>/.../declarative-agents/<component>` | Release version or fail-closed sentinel | Not required until published |
+
+      The four local roles are `runtime`, `test`, `derived`, and `cache`.
+      Typed tags start with `git-`, `recipe-`, or `upstream-` and end with
+      the platform the image was built for. A 12-hex fragment without a
+      type prefix is not an identity: it collides Git revisions with
+      recipe hashes. The tag `local`, the tag `latest`, an absent tag, a
+      `kindrig/*` alias, and a consumer-oriented `*-smoke` repository are
+      not identities.
+
+      The build target bakes the linux agent into a minimal runtime image
+      and loads it into the cluster; on the shared platform each image is
+      loaded once per typed identity and scenarios reuse it. Kind overlays
+      set `pullPolicy: IfNotPresent` or `Never` so the loaded image is used
+      and the cluster never reaches a registry.
+
+      Table 7: Image lifecycle classification
+
+      | Class | What retains it | When the host copy goes |
+      |-------|-----------------|-------------------------|
+      | Local runtime, test, derived | Per-cluster lease | After the last live cluster releases it |
+      | Local materialization cache | Per-cluster lease | After the last cluster using the prepared data is down |
+      | Upstream pinned source | The current configured pin | When the pin is retired and no cluster uses it |
+      | Transient import tag | The import transaction | Immediately after a successful node import |
+      | kind node image | Live clusters and the current pin | When the pin is retired and no cluster uses it |
+      | Build parents and BuildKit cache | Build-cache metadata | Separate bounded build-cache cleanup |
+
+      `mage clean:images` is the operator target that applies the local
+      classes. It never removes an image an active lease still names, a
+      container still uses, or a labeled image that names another source.
+      `mage clean:imagesDryRun` lists the same set first. No release gate
+      runs it.
 
       Image loading stays behind the runner interface the chatbot-mesh
       rig already uses for kind subcommands. When load times become a
@@ -213,7 +252,7 @@ sections:
       look like. A value that is overridden in one overlay and not another
       produces two rendered manifests, and both are subject to the rules.
 
-      Table 6: Chart conformance rules
+      Table 8: Chart conformance rules
 
       | Rule | Statement | Surface |
       |------|-----------|---------|
@@ -223,19 +262,22 @@ sections:
       | C4 | No Service of type `LoadBalancer` renders from any chart or values overlay | rendered manifest |
       | C5 | Every workload a Service selects declares a readiness probe | rendered manifest |
       | C6 | Every kind configuration pins its node image by version and digest | checked-in kind configuration |
+      | C7 | Every image is a fully qualified upstream reference or `localhost/declarative-agents/<role>/<component>:<typed-identity>`; `kindrig/*`, `:local`, untyped 12-hex local tags, and `*-smoke` repositories are not permitted | rendered manifest |
 
       C2 covers every image the cluster pulls, not only the images the host
-      pulls and retags for a kind load. An image built from this checkout is
+      pulls for a kind load. An image built from this checkout is
       exempt from the digest half: its digest does not exist until it is
-      built, and its tag names a release, the commit under test, or a
-      fail-closed sentinel a run replaces. C1 already keeps that tag from
-      floating. The two carry the same risk: a tag
-      that moves upstream changes what installs, and neither the chart nor
-      the lock file records that it moved. The alpine/k8s CLI donor already
-      carries a digest in all three application charts; C2 extends that to
-      the rest. The cost is that a version bump now edits two fields, which
-      is the maintenance this repository already accepts for the rig
-      add-ons.
+      built, and its tag names a release, a typed git or recipe identity,
+      or a fail-closed sentinel a run replaces. C1 already keeps that tag
+      from floating. C7 is the name the digest attaches to: a third-party
+      image keeps the upstream owner, and a local image names role,
+      component, identity type, and platform. The two carry the same risk:
+      a tag that moves upstream changes what installs, and neither the
+      chart nor the lock file records that it moved. The alpine/k8s CLI
+      donor already carries a digest in all three application charts; C2
+      extends that to the rest. The cost is that a version bump now edits
+      two fields, which is the maintenance this repository already accepts
+      for the rig add-ons.
 
       C5 reads readiness as the rule that readiness is observed and never
       assumed, applied at the chart rather than at the wait: a Service that
@@ -353,7 +395,7 @@ sections:
       Every application exposes the same verbs with the same contracts, so a
       person who has run one application can run them all.
 
-      Table 7: Rig verbs each application exposes
+      Table 9: Rig verbs each application exposes
 
       | Verb | Contract |
       |------|----------|
@@ -370,19 +412,19 @@ sections:
       Downstream repositories import a released root Mage module and expose
       the same thin verbs rather than copying lifecycle implementations.
 
-      Table 8: Platform-tier verbs at the repository root
+      Table 10: Platform-tier verbs at the repository root
 
       | Verb | Contract |
       |------|----------|
-      | platform:up | Creates da-platform, or reuses a healthy one and prunes its node images; installs Traefik, metrics-server, and the filesystem-backed fake-GCS object service; runs conformance; leaves it running |
+      | platform:up | Creates da-platform, or reuses a healthy one and prunes its node images; installs Traefik, metrics-server, and the filesystem-backed fake-GCS object service; runs ingress, object, storage, and data-plane conformance; leaves it running |
       | platform:down | Stops da-platform compute, refuses while a managed application namespace remains, and preserves the stable object-data host path |
       | platform:reset | Deletes the stable local object-data host path; refuses while da-platform or a managed application is active, with no force bypass |
-      | clean:images | Removes commit-tagged rig images beyond the newest given number of revisions per family |
+      | clean:images | Removes unleased local first-party images the lifecycle classification no longer retains, while keeping the newest requested revisions per role and component |
       | clean:imagesDryRun | Lists what clean:images would remove |
       | bump | Resolves every pin against its registry and reports integrity and currency; reaches the network, writes nothing, and exits zero whatever it finds |
       | tag:verify | Refuses a release tag whose annotation is missing, degenerate, or under the substance bar, or that is not reachable from main; mutates nothing and names one reason per failure |
 
-      Table 9: Application-tier verbs at the repository root
+      Table 11: Application-tier verbs at the repository root
 
       | Verb | Contract |
       |------|----------|

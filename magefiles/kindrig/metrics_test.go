@@ -17,6 +17,9 @@ func TestInstallMetricsServerLoadsPinnedImageAndWaitsForAPI(t *testing.T) {
 	run := func(name string, args ...string) ([]byte, error) {
 		command := strings.Join(append([]string{name}, args...), " ")
 		calls = append(calls, command)
+		if inspectFailsWithoutDigest(name, args) {
+			return []byte("No such image"), errors.New("absent")
+		}
 		if strings.HasPrefix(command, "kubectl --context kind-da-example get apiservice") {
 			return []byte("Error from server (NotFound): apiservices.apiregistration.k8s.io"), errors.New("NotFound")
 		}
@@ -40,10 +43,11 @@ func TestInstallMetricsServerLoadsPinnedImageAndWaitsForAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtimeImage := metricsServerRuntimeRepository + ":" + metricsServerImageVersion
+	runtimeImage := metricsServerRuntimeImage()
 	want := []string{
 		"kubectl --context kind-da-example get apiservice " + metricsAPIService,
 		"docker image inspect --format {{.Id}} " + source,
+		"docker image inspect --format {{.Id}} " + runtimeImage,
 		"docker tag " + source + " " + runtimeImage,
 		"node-import " + runtimeImage + " da-example-control-plane linux/" + runtime.GOARCH,
 		"kubectl --context kind-da-example apply -f ",
@@ -68,6 +72,9 @@ func TestInstallMetricsServerLoadsPinnedImageAndWaitsForAPI(t *testing.T) {
 		if !strings.Contains(applied, expected) {
 			t.Errorf("applied manifest missing %q", expected)
 		}
+	}
+	if strings.Contains(applied, "kindrig/metrics-server") {
+		t.Fatal("applied manifest still uses a kindrig alias")
 	}
 	if strings.Contains(applied, metricsServerImagePlaceholder) {
 		t.Fatal("applied manifest retains the image placeholder")
@@ -111,6 +118,15 @@ func TestMetricsServerManifestConfinesKindOnlyTLSException(t *testing.T) {
 	}
 }
 
+func TestMetricsServerRuntimeImageIsFullyQualifiedUpstream(t *testing.T) {
+	if metricsServerRuntimeImage() != metricsServerImageRepository+":"+metricsServerImageVersion {
+		t.Fatalf("runtime image = %q", metricsServerRuntimeImage())
+	}
+	if strings.Contains(metricsServerRuntimeImage(), "kindrig/") {
+		t.Fatal("runtime image still uses a kindrig alias")
+	}
+}
+
 func TestInstallMetricsServerLive(t *testing.T) {
 	cluster := os.Getenv("KINDRIG_METRICS_LIVE_CLUSTER")
 	if cluster == "" {
@@ -135,7 +151,9 @@ func TestInstallMetricsServerPullsOnlyAbsentImageAndCleansUpOnFailure(t *testing
 		switch {
 		case strings.HasPrefix(call, "kubectl --context kind-da-example get apiservice"):
 			return []byte("NotFound"), errors.New("NotFound")
-		case strings.HasPrefix(call, "docker image inspect"):
+		case strings.HasPrefix(call, "docker image inspect") && strings.Contains(call, source):
+			return []byte("No such image"), errors.New("absent")
+		case inspectFailsWithoutDigest(name, args):
 			return []byte("No such image"), errors.New("absent")
 		case strings.HasPrefix(call, "kubectl --context kind-da-example rollout status"):
 			return []byte("timed out"), errors.New("rollout failed")
@@ -149,6 +167,9 @@ func TestInstallMetricsServerPullsOnlyAbsentImageAndCleansUpOnFailure(t *testing
 	joined := strings.Join(calls, "\n")
 	if !strings.Contains(joined, "docker pull --platform linux/"+runtime.GOARCH+" "+source) {
 		t.Fatalf("absent image was not pulled: %v", calls)
+	}
+	if strings.Contains(joined, "docker image rm "+metricsServerRuntimeImage()) {
+		t.Fatalf("canonical upstream tag was untagged: %v", calls)
 	}
 	if !strings.HasPrefix(calls[len(calls)-1], "kubectl --context kind-da-example delete -f ") {
 		t.Fatalf("failed install did not delete its manifest: %v", calls)

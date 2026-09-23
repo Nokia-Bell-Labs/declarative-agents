@@ -60,8 +60,14 @@ func runCollectorWALRestart(resolved roots) (result error) {
 		return err
 	}
 	defer func() { result = errors.Join(result, scenario.release(result != nil)) }()
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		resolved.Core, resolved.Image, smokeScenarioName+"-wal-restart")
+	if err != nil {
+		return err
+	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 	environment := scenario.environment
-	if err := prepareSmokeCluster(environment, scenario.platform.Cluster.Name, resolved); err != nil {
+	if err := prepareSmokeCluster(environment, scenario.platform.Cluster.Name, resolved.Image); err != nil {
 		return smokeFailure(environment.run, "cluster preparation", err)
 	}
 
@@ -80,7 +86,8 @@ func runCollectorWALRestart(resolved roots) (result error) {
 	if err != nil {
 		return fmt.Errorf("collectorWALRestart chart package: %w", err)
 	}
-	if err := installWALRestartChart(environment, archive, resolved.Application, bucket); err != nil {
+	if err := installWALRestartChart(
+		environment, archive, resolved.Application, resolved.Image, bucket); err != nil {
 		return smokeFailure(environment.run, "Helm install", err)
 	}
 	deployment := smokeRelease + "-agent-architecture-collector"
@@ -153,8 +160,11 @@ func runCollectorWALRestart(resolved roots) (result error) {
 	return nil
 }
 
-func installWALRestartChart(environment smokeEnvironment, archive, applicationRoot, bucket string) error {
-	repository, tag := splitImageRef(smokeCollectorImage)
+func installWALRestartChart(
+	environment smokeEnvironment,
+	archive, applicationRoot, image, bucket string,
+) error {
+	repository, tag := splitImageRef(image)
 	ctx, cancel := context.WithTimeout(context.Background(), smokeInstallTimeout)
 	defer cancel()
 	args := []string{

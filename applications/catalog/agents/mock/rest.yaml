@@ -11,6 +11,10 @@ rest:
       max_response_bytes: 1048576
       network:
         hosts: [${MOCK_HOST:-127.0.0.1}, localhost]
+        # Loopback remains the default. A rig that exposes the mock through a
+        # Kubernetes Service must authorize the wildcard listener explicitly;
+        # setting MOCK_ADDRESS alone is intentionally insufficient (GH-2502).
+        allow_public_listener: ${MOCK_ALLOW_PUBLIC_LISTENER:-false}
   servers:
     mock:
       # One generic profile serves any dependency: the address and the fixture

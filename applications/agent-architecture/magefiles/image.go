@@ -30,5 +30,5 @@ func (Image) Build() error {
 	if err != nil {
 		return err
 	}
-	return kindrig.BuildAgentCoreImage(resolved.Core, kindrig.DefaultAgentCoreImage)
+	return kindrig.BuildAgentCoreRuntimeImage(resolved.Core)
 }

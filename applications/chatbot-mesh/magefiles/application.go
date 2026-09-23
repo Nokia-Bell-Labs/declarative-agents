@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -160,6 +159,16 @@ func chatbotApplicationRunner() (apprig.Runner, error) {
 		}); err != nil {
 			return preparation, err
 		}
+		lease, err := kindrig.AcquireAgentCoreImageLease(
+			demoCoreRoot(root), images.Runtime, "chatbot-mesh-app")
+		if err != nil {
+			return preparation, err
+		}
+		defer func() {
+			if result != nil {
+				result = errors.Join(result, lease.Release())
+			}
+		}()
 		namespace := kindrig.ApplicationNamespaceRequest{
 			Cluster: kindrig.PlatformClusterName, Namespace: resolved.Namespace,
 		}
@@ -174,9 +183,6 @@ func chatbotApplicationRunner() (apprig.Runner, error) {
 		}()
 
 		chartDir := applicationChartDir(root)
-		if err := buildSmokeRuntimeImage(demoCoreRoot(root), images.Runtime); err != nil {
-			return preparation, err
-		}
 		staged, cleanupStaged, err := stageSmokeChart(chartDir, root)
 		if err != nil {
 			return preparation, err
@@ -203,11 +209,12 @@ func chatbotApplicationRunner() (apprig.Runner, error) {
 			return preparation, err
 		}
 		cleanups = append(cleanups, cleanupArchive)
-		dependencies, err := smokeDependencyImages(chartDir)
+		dependencies, err := smokeDependencySpecs(chartDir)
 		if err != nil {
 			return preparation, err
 		}
-		if err := ensureChatbotApplicationDependencyImages(dependencies); err != nil {
+		if err := pullIntegrationDependencyImages(
+			"app:up", smokeDependencyPulls(dependencies), chartDir, runHelmSmokeCommand); err != nil {
 			return preparation, err
 		}
 		commands, cleanupCommands, err := kindrig.ClusterCommands(
@@ -250,7 +257,10 @@ func chatbotApplicationRunner() (apprig.Runner, error) {
 		success = true
 		return apprig.Preparation{
 			ChartPath: staged, ValuesPath: valuesPath,
-			Overrides: overrides, Cleanup: func() error { cleanupOwned(); return nil },
+			Overrides: overrides, Cleanup: func() error {
+				cleanupOwned()
+				return lease.Release()
+			},
 			OwnsNamespace: created,
 		}, nil
 	}
@@ -311,25 +321,6 @@ func chatbotApplicationDeployAgent(root, profile string) (kindrig.DeployAgent, e
 		return kindrig.DeployAgent{}, err
 	}
 	return agent.agent, nil
-}
-
-func ensureChatbotApplicationDependencyImages(images []string) error {
-	for _, image := range images {
-		source := image
-		if image == helmLLMOllamaImage {
-			source = helmLLMOllamaSourceImage
-		}
-		if _, err := inspectHostImageID(runHelmSmokeCommand, source); err == nil {
-			continue
-		}
-		output, err := runHelmSmokeCommand(
-			"docker", "pull", "--platform", "linux/"+runtime.GOARCH, source)
-		if err != nil {
-			return fmt.Errorf("pull app:up dependency %s: %w: %s",
-				source, err, strings.TrimSpace(string(output)))
-		}
-	}
-	return nil
 }
 
 func chatbotApplicationOverrides(

@@ -45,9 +45,10 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor")) }}
+      {{- $waitForModels := and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor")) }}
+      {{- if or $waitForModels (eq $role "executor") (eq $role "critic") }}
       initContainers:
-        {{- if and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor")) }}
+        {{- if $waitForModels }}
         - name: wait-for-models
           image: {{ $.Values.ollama.utilityImage | quote }}
           imagePullPolicy: {{ $.Values.ollama.image.pullPolicy }}
@@ -64,6 +65,59 @@ spec:
               done
           securityContext:
             {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+        {{- end }}
+        {{- if eq $role "executor" }}
+        {{/*
+        Tool donors (srd005 R9, GH-2494): separate digest-pinned upstream
+        images copy the Go SDK and golangci-lint into one shared volume that
+        only the executor mounts, read-only. The executor main container still
+        runs the canonical agent-core image. These init containers carry no
+        --profile argument and are not agent workloads.
+        */}}
+        - name: go-tool-donor
+          image: {{ include "coding-agent.executorGoImage" $ | quote }}
+          imagePullPolicy: {{ $.Values.executorTools.go.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              cp -R /usr/local/go {{ $.Values.executorTools.mountPath }}/go
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - {name: executor-tools, mountPath: {{ $.Values.executorTools.mountPath }}}
+        - name: golangci-lint-tool-donor
+          image: {{ include "coding-agent.executorGolangciLintImage" $ | quote }}
+          imagePullPolicy: {{ $.Values.executorTools.golangciLint.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              mkdir -p {{ $.Values.executorTools.mountPath }}/bin
+              cp /usr/bin/golangci-lint {{ $.Values.executorTools.mountPath }}/bin/golangci-lint
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - {name: executor-tools, mountPath: {{ $.Values.executorTools.mountPath }}}
+        {{- end }}
+        {{- if eq $role "critic" }}
+        {{/*
+        The changed-workspace critic runs an independent Go test oracle. It
+        receives only Go through its own donor and read-only volume—never the
+        executor's linter, tool volume, or PATH (GH-2496 live evidence).
+        */}}
+        - name: critic-go-tool-donor
+          image: {{ include "coding-agent.criticGoImage" $ | quote }}
+          imagePullPolicy: {{ $.Values.criticTools.go.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              cp -R /usr/local/go {{ $.Values.criticTools.mountPath }}/go
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - {name: critic-tools, mountPath: {{ $.Values.criticTools.mountPath }}}
         {{- end }}
       {{- end }}
       containers:
@@ -94,6 +148,27 @@ spec:
             {{- if or (eq $role "planner") (eq $role "executor") }}
             - name: OLLAMA_URL
               value: {{ include "coding-agent.llmURL" $ | quote }}
+            {{- end }}
+            {{- if eq $role "executor" }}
+            {{/* Reach the donated Go SDK and linter, and keep their caches on
+                 the writable /tmp emptyDir so the read-only root filesystem
+                 holds (GH-2494). */}}
+            - name: PATH
+              value: "{{ $.Values.executorTools.mountPath }}/go/bin:{{ $.Values.executorTools.mountPath }}/bin:/usr/local/bin:/usr/bin:/bin"
+            - name: GOCACHE
+              value: /tmp/go-build
+            - name: GOMODCACHE
+              value: /tmp/go-mod
+            - name: GOLANGCI_LINT_CACHE
+              value: /tmp/golangci-lint
+            {{- end }}
+            {{- if eq $role "critic" }}
+            - name: PATH
+              value: "{{ $.Values.criticTools.mountPath }}/go/bin:/usr/local/bin:/usr/bin:/bin"
+            - name: GOCACHE
+              value: /tmp/go-build
+            - name: GOMODCACHE
+              value: /tmp/go-mod
             {{- end }}
             {{- if eq $role "planner" }}
             - name: EXECUTOR_HOST
@@ -126,6 +201,12 @@ spec:
             - {name: profiles, mountPath: {{ $.Values.profiles.mountPath }}, readOnly: true}
             - {name: workspace, mountPath: {{ $.Values.workspace.mountPath }}}
             - {name: tmp, mountPath: /tmp}
+            {{- if eq $role "executor" }}
+            - {name: executor-tools, mountPath: {{ $.Values.executorTools.mountPath }}, readOnly: true}
+            {{- end }}
+            {{- if eq $role "critic" }}
+            - {name: critic-tools, mountPath: {{ $.Values.criticTools.mountPath }}, readOnly: true}
+            {{- end }}
       volumes:
         {{- include "coding-agent.profilesVolume" $context | nindent 8 }}
         - name: workspace
@@ -133,6 +214,14 @@ spec:
             claimName: {{ include "coding-agent.workspaceClaim" $ }}
         - name: tmp
           emptyDir: {}
+        {{- if eq $role "executor" }}
+        - name: executor-tools
+          emptyDir: {}
+        {{- end }}
+        {{- if eq $role "critic" }}
+        - name: critic-tools
+          emptyDir: {}
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service

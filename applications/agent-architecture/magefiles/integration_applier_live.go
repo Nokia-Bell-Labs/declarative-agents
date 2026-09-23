@@ -64,10 +64,18 @@ func (Integration) ApplierLive() error {
 }
 
 func runApplierLive(resolved roots) (result error) {
-	// The curator, the collector, and the applier all run the locally built
-	// agent-core image (GH-1368); the applier's helm and kubectl arrive from the
-	// pinned CLI donor at pod start (GH-2222).
-	revision := mustGitRevision(resolved.Application)
+	// The curator, collector, and applier all run the canonical commit image;
+	// the applier's helm and kubectl arrive from the pinned CLI donor.
+	image, revision, err := canonicalSmokeImage(resolved.Application)
+	if err != nil {
+		return err
+	}
+	lease, err := kindrig.AcquireAgentCoreImageLease(
+		resolved.Core, image, smokeScenarioName+"-applier")
+	if err != nil {
+		return err
+	}
+	defer func() { result = errors.Join(result, lease.Release()) }()
 
 	// One instrumented chart directory serves both the host-side install and the
 	// applier's mounted /chart, so Helm records and rolls back one coherent chart.
@@ -97,13 +105,13 @@ func runApplierLive(resolved roots) (result error) {
 	environment := scenario.environment
 	cluster := scenario.platform.Cluster
 
-	// Reuse the smoke cluster preparation verbatim: it builds and loads the shared
-	// agent-core image both workloads run.
-	if err := prepareSmokeCluster(environment, cluster.Name, resolved); err != nil {
+	// Reuse the smoke cluster preparation verbatim: it loads the leased
+	// canonical image every agent workload runs.
+	if err := prepareSmokeCluster(environment, cluster.Name, image); err != nil {
 		return smokeFailure(environment.run, "cluster preparation", err)
 	}
 
-	// prepareSmokeCluster already built and loaded the agent-core image the
+	// prepareSmokeCluster already loaded the canonical image the
 	// applier runs. Its helm and kubectl come from the pinned CLI donor, loaded
 	// once per platform node and copied into the pod's read-only /opt/tools by the
 	// cli-donor init container (GH-2222). The chart reaches the pod through the
@@ -112,11 +120,16 @@ func runApplierLive(resolved roots) (result error) {
 		return fmt.Errorf("applier CLI donor: %w", err)
 	}
 
-	if err := installApplierLiveChart(environment, chartDir, chartArchive, resolved.Application, smokeCollectorImage, smokeCollectorImage); err != nil {
+	if err := installApplierLiveChart(
+		environment, chartDir, chartArchive, resolved.Application, image,
+	); err != nil {
 		return smokeFailure(environment.run, "Helm install", err)
 	}
 	if err := verifyApplierLiveRollouts(environment); err != nil {
 		return smokeFailure(environment.run, "role readiness", err)
+	}
+	if err := verifySmokeImageIdentity(environment, image, 3); err != nil {
+		return smokeFailure(environment.run, "agent image identity", err)
 	}
 	helmVersion, err := assertApplierCLIDonor(environment)
 	if err != nil {
@@ -250,18 +263,13 @@ func assertApplierChartArchiveCarriesProfiles(archive string) error {
 // outside the release, so no image bakes the chart and Helm does not duplicate
 // the archive in its release Secret.
 func installApplierLiveChart(
-	environment smokeEnvironment, chartDir, chartArchive, applicationRoot, runtimeImage, applierImage string,
+	environment smokeEnvironment, chartDir, chartArchive, applicationRoot, runtimeImage string,
 ) error {
 	repository, tag := splitImageRef(runtimeImage)
-	collectorRepository, collectorTag := splitImageRef(smokeCollectorImage)
-	applierRepository, applierTag := splitImageRef(applierImage)
 	if err := provisionApplierChartConfigMap(environment.run, chartArchive); err != nil {
 		return err
 	}
-	valueArgs := applierLiveValueArgs(
-		applicationRoot, repository, tag,
-		collectorRepository, collectorTag, applierRepository, applierTag,
-	)
+	valueArgs := applierLiveValueArgs(applicationRoot, repository, tag)
 	ctx, cancel := context.WithTimeout(context.Background(), applierLiveInstallTimeout)
 	defer cancel()
 	args := append([]string{"install", smokeRelease, chartDir}, valueArgs...)
@@ -277,10 +285,7 @@ func installApplierLiveChart(
 	return nil
 }
 
-func applierLiveValueArgs(
-	applicationRoot, repository, tag,
-	collectorRepository, collectorTag, applierRepository, applierTag string,
-) []string {
+func applierLiveValueArgs(applicationRoot, repository, tag string) []string {
 	return []string{
 		"--set", "applier.chartArchiveConfigMap=" + applierLiveChartConfigMap,
 		"--namespace", smokeNamespace,
@@ -288,10 +293,6 @@ func applierLiveValueArgs(
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-applier-values.yaml"),
 		"--set", "image.repository=" + repository,
 		"--set-string", "image.tag=" + tag,
-		"--set", "collector.image.repository=" + collectorRepository,
-		"--set-string", "collector.image.tag=" + collectorTag,
-		"--set", "applier.image.repository=" + applierRepository,
-		"--set-string", "applier.image.tag=" + applierTag,
 	}
 }
 

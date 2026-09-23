@@ -145,6 +145,16 @@ func architectureApplicationRunner() (apprig.Runner, error) {
 		if _, err := kindrig.EnsureFakeGCSApplicationBucket(bucket); err != nil {
 			return preparation, err
 		}
+		lease, err := kindrig.AcquireAgentCoreImageLease(
+			roots.Core, roots.Image, "agent-architecture-app")
+		if err != nil {
+			return preparation, err
+		}
+		defer func() {
+			if result != nil {
+				result = errors.Join(result, lease.Release())
+			}
+		}()
 		namespace := kindrig.ApplicationNamespaceRequest{
 			Cluster: kindrig.PlatformClusterName, Namespace: resolved.Namespace,
 		}
@@ -163,7 +173,7 @@ func architectureApplicationRunner() (apprig.Runner, error) {
 		}
 		defer cleanup()
 		environment := smokeEnvironment{kubeconfig: kubeconfig}
-		if err := prepareSmokeCluster(environment, kindrig.PlatformClusterName, roots); err != nil {
+		if err := prepareSmokeCluster(environment, kindrig.PlatformClusterName, roots.Image); err != nil {
 			return preparation, err
 		}
 		destination := filepath.Join(
@@ -183,7 +193,8 @@ func architectureApplicationRunner() (apprig.Runner, error) {
 		}
 		return apprig.Preparation{
 			ChartPath: chart, ValuesPath: runner.Binding.ValuesPath,
-			Overrides:     architectureApplicationOverrides(resolved, shards),
+			Overrides:     architectureApplicationOverrides(resolved, roots.Image, shards),
+			Cleanup:       lease.Release,
 			OwnsNamespace: created,
 		}, nil
 	}
@@ -236,8 +247,8 @@ func architectureApplicationDeployAgent(roots roots, profile string) (kindrig.De
 	}, nil
 }
 
-func architectureApplicationOverrides(resolved apprig.Resolved, shards []string) string {
-	repository, tag := splitImageRef(smokeCollectorImage)
+func architectureApplicationOverrides(resolved apprig.Resolved, image string, shards []string) string {
+	repository, tag := splitImageRef(image)
 	bucket := strings.TrimPrefix(resolved.BucketURL, "gs://")
 	var document strings.Builder
 	fmt.Fprintf(&document, `image:

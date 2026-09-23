@@ -440,12 +440,12 @@ func TestLoadImageReportsCommandFailure(t *testing.T) {
 		return []byte("image not present locally"), commandErr
 	}
 	err := LoadImage(
-		context.Background(), run, "da-coding-agent-smoke", "coding-agent:dev")
+		context.Background(), run, "da-coding-agent-helm", "coding-agent:dev")
 	if !errors.Is(err, commandErr) {
 		t.Fatalf("load failure = %v, want wrapped command error", err)
 	}
 	for _, detail := range []string{
-		"coding-agent:dev", "da-coding-agent-smoke", "image not present locally",
+		"coding-agent:dev", "da-coding-agent-helm", "image not present locally",
 	} {
 		if !strings.Contains(err.Error(), detail) {
 			t.Errorf("load failure omitted %q: %v", detail, err)
@@ -453,16 +453,31 @@ func TestLoadImageReportsCommandFailure(t *testing.T) {
 	}
 }
 
-func TestCommitImageUsesCheckoutRevision(t *testing.T) {
-	first, revision, err := CommitImage(
-		"declarative-agents/agent-core",
-		"0123456789abcdef0123456789abcdef01234567")
+func TestCommitImageUsesTypedGitIdentity(t *testing.T) {
+	revision := "0123456789abcdef0123456789abcdef01234567"
+	want, short, err := AgentCoreRuntimeReference(revision, HostPlatform())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first != "declarative-agents/agent-core:0123456789ab" ||
-		revision != "0123456789ab" {
-		t.Fatalf("commit image = %q revision %q", first, revision)
+	first, gotShort, err := CommitImage("declarative-agents/agent-core", revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != want || gotShort != short {
+		t.Fatalf("commit image = %q revision %q, want %q %q", first, gotShort, want, short)
+	}
+	fromPublished, _, err := CommitImage(
+		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core", revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromLocal, _, err := CommitImage(
+		"localhost/declarative-agents/runtime/agent-core", revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fromPublished != first || fromLocal != first {
+		t.Fatalf("canonicalization diverged: %q %q %q", first, fromPublished, fromLocal)
 	}
 	second, _, err := CommitImage(
 		"declarative-agents/agent-core",
@@ -484,6 +499,10 @@ func TestCommitImageRejectsMutableOrMissingInputs(t *testing.T) {
 		{"declarative-agents/agent-core", ""},
 		{"declarative-agents/agent-core", "smoke"},
 		{"declarative-agents/agent-core", "0123456789a"},
+		{"declarative-agents/agent-core:local", "0123456789abcdef0123456789abcdef01234567"},
+		{"declarative-agents/agent-core:latest", "0123456789abcdef0123456789abcdef01234567"},
+		{"kindrig/agent-core", "0123456789abcdef0123456789abcdef01234567"},
+		{"busybox", "0123456789abcdef0123456789abcdef01234567"},
 	} {
 		if _, _, err := CommitImage(test.repository, test.revision); err == nil {
 			t.Errorf("CommitImage(%q, %q) succeeded", test.repository, test.revision)
@@ -505,9 +524,9 @@ func TestReleaseAfterFailureCapturesEvidenceBeforeDelete(t *testing.T) {
 		return []byte("diagnostic"), nil
 	}
 	dir := filepath.Join(t.TempDir(), "evidence")
-	Cluster{Name: "da-coding-agent-smoke", Created: true}.ReleaseAfter(
+	Cluster{Name: "da-coding-agent-helm", Created: true}.ReleaseAfter(
 		kindRun, true, FailureEvidence{
-			Directory: dir, Namespaces: []string{"coding-agent-smoke"}, Run: commandRun,
+			Directory: dir, Namespaces: []string{"coding-agent-helm"}, Run: commandRun,
 		})
 
 	if len(sequence) != 9 {
@@ -519,13 +538,13 @@ func TestReleaseAfterFailureCapturesEvidenceBeforeDelete(t *testing.T) {
 	}
 	for _, name := range []string{
 		"cluster-events.txt",
-		"namespace-coding-agent-smoke-describe.txt",
-		"namespace-coding-agent-smoke-events.txt",
-		"namespace-coding-agent-smoke-rollout.txt",
-		"namespace-coding-agent-smoke-pods.txt",
+		"namespace-coding-agent-helm-describe.txt",
+		"namespace-coding-agent-helm-events.txt",
+		"namespace-coding-agent-helm-rollout.txt",
+		"namespace-coding-agent-helm-pods.txt",
 		EvidenceManifestFile,
-		"namespace-coding-agent-smoke-pod-planner-0-logs.txt",
-		"namespace-coding-agent-smoke-pod-executor-0-logs.txt",
+		"namespace-coding-agent-helm-pod-planner-0-logs.txt",
+		"namespace-coding-agent-helm-pod-executor-0-logs.txt",
 	} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			t.Errorf("evidence file %s: %v", name, err)
@@ -733,8 +752,8 @@ func kubeconfigEntry(environment []string) string {
 // A healthy leftover with a test-owned name is still deleted and recreated, so
 // a cluster from an interrupted run never lingers past the next run (GH-2137).
 func TestEnsureFreshClusterReplacesHealthyLeftover(t *testing.T) {
-	kind := &fakeKind{existing: []string{"da-coding-agent-smoke"}}
-	cluster, err := EnsureFreshCluster(kind.run, "da-coding-agent-smoke", testConfig(t), 120*time.Second)
+	kind := &fakeKind{existing: []string{"da-coding-agent-helm"}}
+	cluster, err := EnsureFreshCluster(kind.run, "da-coding-agent-helm", testConfig(t), 120*time.Second)
 	if err != nil {
 		t.Fatalf("ensure: %v", err)
 	}
@@ -753,7 +772,7 @@ func TestEnsureFreshClusterReplacesHealthyLeftover(t *testing.T) {
 
 func TestEnsureFreshClusterCreatesWhenAbsent(t *testing.T) {
 	kind := &fakeKind{existing: []string{"da-agentic-wiki-mesh-demo"}}
-	cluster, err := EnsureFreshCluster(kind.run, "da-coding-agent-smoke", testConfig(t), 120*time.Second)
+	cluster, err := EnsureFreshCluster(kind.run, "da-coding-agent-helm", testConfig(t), 120*time.Second)
 	if err != nil {
 		t.Fatalf("ensure: %v", err)
 	}
@@ -763,8 +782,8 @@ func TestEnsureFreshClusterCreatesWhenAbsent(t *testing.T) {
 }
 
 func TestEnsureFreshClusterReportsLeftoverDeleteFailure(t *testing.T) {
-	kind := &fakeKind{existing: []string{"da-coding-agent-smoke"}, deleteErr: errors.New("exit status 1")}
-	cluster, err := EnsureFreshCluster(kind.run, "da-coding-agent-smoke", testConfig(t), 120*time.Second)
+	kind := &fakeKind{existing: []string{"da-coding-agent-helm"}, deleteErr: errors.New("exit status 1")}
+	cluster, err := EnsureFreshCluster(kind.run, "da-coding-agent-helm", testConfig(t), 120*time.Second)
 	if err == nil || !strings.Contains(err.Error(), "delete leftover") {
 		t.Fatalf("err = %v, want leftover delete failure", err)
 	}

@@ -7,7 +7,11 @@
 # listed violation stops reproducing. The gate reads this file and never
 # writes it.
 #
-# Empty since GH-2409 pinned every upstream image and stated every pull
-# policy. The charts conform by construction; an entry here is an accepted
-# exception with an issue behind it, not a backlog.
+# GH-2512 introduced the image-reference grammar (C7 / R10). GH-2519 removed
+# the last kindrig retags on application kind overlays.
+#
+# The one-agent-image migration (GH-2494) is complete: every application's
+# agent roles inherit the one application image, so no R9.1 divergence
+# reproduces.
+
 exceptions: []

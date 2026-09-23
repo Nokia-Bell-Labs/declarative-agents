@@ -30,8 +30,50 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- include "agent-services.pinnedImage" .Values.image -}}
 {{- end -}}
 
+{{/*
+The collector is an agent workload, so by default it runs the one application
+agent image (`.Values.image`), the composition model's one-image invariant
+(srd005 R9). `.Values.collector.image` stays optional for a genuinely
+non-agent collector product — a contrib OpenTelemetry gateway — which a caller
+selects by setting it. An absent or repository-less collector image inherits
+the agent image.
+*/}}
 {{- define "agent-services.collectorImage" -}}
+{{- if (.Values.collector.image | default dict).repository -}}
 {{- include "agent-services.pinnedImage" .Values.collector.image -}}
+{{- else -}}
+{{- include "agent-services.image" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+The applier is an agent workload and runs the one application agent image by
+default (srd005 R9); its helm and kubectl arrive from the pinned CLI donor
+(GH-2222), not from a separate agent image. `.Values.applier.image` is
+optional and only overrides when an environment must carry the CLIs in the
+applier image itself.
+*/}}
+{{- define "agent-services.applierImage" -}}
+{{- if (.Values.applier.image | default dict).repository -}}
+{{- include "agent-services.pinnedImage" .Values.applier.image -}}
+{{- else -}}
+{{- include "agent-services.image" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+The pull policy for an agent workload's image: a caller override, else the
+image map's own policy when set, else the root image's policy. This keeps the
+collector and applier rendering after their optional image maps are removed.
+*/}}
+{{- define "agent-services.agentPullPolicy" -}}
+{{- $override := .override | default "" -}}
+{{- $image := .image | default dict -}}
+{{- if $override -}}
+{{- $override -}}
+{{- else -}}
+{{- $image.pullPolicy | default .root.Values.image.pullPolicy -}}
+{{- end -}}
 {{- end -}}
 
 {{/*

@@ -4,7 +4,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -24,17 +22,17 @@ func prepareCodingHelmCluster(
 	environment codingSmokeEnvironment,
 	cluster string,
 	roots integrationRoots,
-	images codingHelmImages,
+	image codingHelmImage,
 ) error {
 	return prepareCodingHelmClusterForNamespace(
-		environment, cluster, codingHelmNamespace, roots, images, true)
+		environment, cluster, codingHelmNamespace, roots, image, true)
 }
 
 func prepareCodingHelmClusterForNamespace(
 	environment codingSmokeEnvironment,
 	cluster, namespace string,
 	roots integrationRoots,
-	images codingHelmImages,
+	image codingHelmImage,
 	resetWorkspace bool,
 ) error {
 	// The caller owns the namespace. The workspace volume is cluster-scoped, so
@@ -53,34 +51,34 @@ func prepareCodingHelmClusterForNamespace(
 			return fmt.Errorf("prepare kind workspace: %w: %s", err, strings.TrimSpace(string(output)))
 		}
 	}
-	// The coding roles and the collector both run on agent-core (GH-1368): build the
-	// agent-core base once, then layer the Go toolchain on it for the role image so
-	// the executor's go build / go test / golangci-lint exec words have a toolchain.
-	if err := kindrig.BuildAgentCoreImage(roots.Core, codingHelmCollectorImage); err != nil {
-		return &codingHelmInfrastructureError{
-			Step: "agent-core image build", Cause: err,
-		}
-	}
-	if err := buildCodingAgentImage(roots.Core, codingHelmCollectorImage, images.Agent); err != nil {
-		return err
-	}
-	if err := buildCodingHelmModelImage(images.Model); err != nil {
-		return err
-	}
+	// The caller holds the canonical image lease. This function only delivers
+	// that immutable result into the cluster; it never creates an unowned tag.
 	kindRun := func(ctx context.Context, args ...string) ([]byte, error) {
 		return codingSmokeEnvironment{}.run(ctx, "kind", args...)
 	}
-	for _, image := range []string{images.Agent, images.Model} {
-		ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
-		err := kindrig.LoadImage(ctx, kindRun, cluster, image)
-		cancel()
-		if err != nil {
-			return err
-		}
+	ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
+	err := kindrig.LoadImage(ctx, kindRun, cluster, image.Reference)
+	cancel()
+	if err != nil {
+		return err
 	}
-	if err := loadCodingDependencyImage(cluster, codingHelmCollectorImage); err != nil {
-		return &codingHelmInfrastructureError{
-			Step: "dependency image load", Cause: err,
+	dockerRun := kindrig.CommandRunner(func(name string, args ...string) ([]byte, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
+		defer cancel()
+		return codingSmokeEnvironment{}.run(ctx, name, args...)
+	})
+	for _, donor := range []struct {
+		source  string
+		cluster string
+	}{
+		{source: codingHelmGoDonorImage, cluster: codingHelmGoDonorCluster},
+		{source: codingHelmLintDonorImage, cluster: codingHelmLintDonorCluster},
+	} {
+		if err := kindrig.ImportPinnedImage(
+			dockerRun, cluster, "executor-donor", donor.source, donor.cluster); err != nil {
+			return &codingHelmInfrastructureError{
+				Step: "executor donor image load", Cause: err,
+			}
 		}
 	}
 	if err := runCodingSmokeCommand(environment, 30*time.Second,
@@ -88,7 +86,7 @@ func prepareCodingHelmClusterForNamespace(
 		filepath.Join(roots.Application, "helm", "ci", "kind-workspace.yaml")); err != nil {
 		return err
 	}
-	modelManifest, cleanup, err := codingModelManifest(images.Model)
+	modelManifest, cleanup, err := codingModelMockManifest(roots, image.Reference)
 	if err != nil {
 		return err
 	}
@@ -100,137 +98,6 @@ func prepareCodingHelmClusterForNamespace(
 	return runCodingSmokeCommand(environment, codingHelmReadyTimeout,
 		"kubectl", "rollout", "status", "deployment/coding-model",
 		"-n", namespace, "--timeout=90s")
-}
-
-func loadCodingDependencyImage(cluster, image string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
-	defer cancel()
-	save := exec.CommandContext(ctx, "docker", "save", image)
-	stream, err := save.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	node := cluster + "-control-plane"
-	load := exec.CommandContext(ctx, "docker", "exec", "-i", node,
-		"ctr", "--namespace=k8s.io", "images", "import",
-		"--platform=linux/"+runtime.GOARCH, "--snapshotter=overlayfs", "-")
-	load.Stdin = stream
-	var output bytes.Buffer
-	load.Stdout, load.Stderr = &output, &output
-	if err := load.Start(); err != nil {
-		return err
-	}
-	if err := save.Run(); err != nil {
-		_ = load.Process.Kill()
-		_ = load.Wait()
-		return fmt.Errorf("docker save %s: %w", image, err)
-	}
-	if err := load.Wait(); err != nil {
-		return fmt.Errorf("import %s: %w: %s", image, err, strings.TrimSpace(output.String()))
-	}
-	return nil
-}
-
-func buildCodingHelmModelImage(image string) error {
-	contextDir, err := os.MkdirTemp("", "coding-model-kind-image-*")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.RemoveAll(contextDir) }()
-	source := `package main
-import ("encoding/json"; "net/http"; "strings")
-func main() {
-  http.HandleFunc("/api/tags", func(w http.ResponseWriter, _ *http.Request) {
-    json.NewEncoder(w).Encode(map[string]any{"models":[]map[string]string{{"name":"qwen3.6:35b-mlx"}}})
-  })
-  http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
-  http.HandleFunc("/api/chat", chat)
-  http.ListenAndServe(":11434", nil)
-}
-func chat(w http.ResponseWriter, r *http.Request) {
-  var request struct { Messages []struct { Content string ` + "`json:\"content\"`" + ` } ` + "`json:\"messages\"`" + ` }
-  if json.NewDecoder(r.Body).Decode(&request) != nil { http.Error(w, "bad request", 400); return }
-  planner := false
-  edited := false
-  for _, message := range request.Messages {
-    if strings.Contains(message.Content, "implementation planner for a Go software project") || strings.Contains(message.Content, "software planning assistant") { planner = true }
-    if strings.Contains(message.Content, "\"replacements\":1") || strings.Contains(message.Content, "\"tool\":\"edit\"") { edited = true }
-  }
-  content := "title: Implement greeting\nfiles:\n  - path: greet.go\n    action: modify\nrequirements:\n  - id: R1\n    text: Return required greeting\nacceptance_criteria:\n  - id: AC1\n    text: go test passes\n"
-  if !planner {
-    if !edited {
-      content = "[tool_call]{\"tool\":\"edit\",\"parameters\":{\"path\":\"greet.go\",\"old_string\":\"func Hello(name string) string {\\n\\treturn \\\"\\\"\\n}\",\"new_string\":\"func Hello(name string) string {\\n\\treturn \\\"Hello, \\\" + name + \\\"!\\\"\\n}\"}}[/tool_call]"
-    } else {
-      content = "[tool_call]{\"tool\":\"done\",\"parameters\":{\"summary\":\"implemented greeting\"}}[/tool_call]"
-    }
-  }
-  json.NewEncoder(w).Encode(map[string]any{"message":map[string]string{"role":"assistant","content":content},"eval_count":1,"prompt_eval_count":1})
-}
-`
-	if err := os.WriteFile(filepath.Join(contextDir, "main.go"), []byte(source), 0o644); err != nil {
-		return err
-	}
-	build := exec.Command("go", "build", "-trimpath", "-ldflags=-s -w",
-		"-o", filepath.Join(contextDir, "model"), filepath.Join(contextDir, "main.go"))
-	build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux")
-	if output, err := build.CombinedOutput(); err != nil {
-		return fmt.Errorf("build deterministic model: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-	if err := os.WriteFile(filepath.Join(contextDir, "Dockerfile"),
-		[]byte("FROM scratch\nCOPY model /model\nUSER 65532:65532\nENTRYPOINT [\"/model\"]\n"), 0o644); err != nil {
-		return err
-	}
-	return runLocalDockerBuild(contextDir, image)
-}
-
-func runLocalDockerBuild(contextDir, image string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
-	defer cancel()
-	command := exec.CommandContext(ctx, "docker", "build", "--pull=false", "-t", image, ".")
-	command.Dir = contextDir
-	if output, err := command.CombinedOutput(); err != nil {
-		return fmt.Errorf("docker build %s: %w: %s", image, err, strings.TrimSpace(string(output)))
-	}
-	return nil
-}
-
-func codingModelManifest(image string) (string, func(), error) {
-	dir, err := os.MkdirTemp("", "coding-model-manifest-*")
-	if err != nil {
-		return "", nil, err
-	}
-	path := filepath.Join(dir, "model.yaml")
-	manifest := fmt.Sprintf(`apiVersion: apps/v1
-kind: Deployment
-metadata: {name: coding-model}
-spec:
-  replicas: 1
-  selector: {matchLabels: {app: coding-model}}
-  template:
-    metadata: {labels: {app: coding-model}}
-    spec:
-      automountServiceAccountToken: false
-      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
-      containers:
-        - name: model
-          image: %s
-          imagePullPolicy: Never
-          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
-          ports: [{name: http, containerPort: 11434}]
-          readinessProbe: {httpGet: {path: /healthz, port: http}, initialDelaySeconds: 1, periodSeconds: 2}
----
-apiVersion: v1
-kind: Service
-metadata: {name: coding-model}
-spec:
-  selector: {app: coding-model}
-  ports: [{name: http, port: 11434, targetPort: http}]
-`, image)
-	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
-		_ = os.RemoveAll(dir)
-		return "", nil, err
-	}
-	return path, func() { _ = os.RemoveAll(dir) }, nil
 }
 
 func installCodingHelmChart(
@@ -246,7 +113,6 @@ func installCodingHelmChartWithRunner(
 	archive, applicationRoot, image string,
 ) error {
 	repository, tag := splitCodingImageRef(image)
-	collectorRepository, collectorTag := splitCodingImageRef(codingHelmCollectorImage)
 	ctx, cancel := context.WithTimeout(context.Background(), codingHelmInstallTimeout)
 	defer cancel()
 	output, err := run(ctx, "helm",
@@ -255,8 +121,6 @@ func installCodingHelmChartWithRunner(
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
 		"--set", "image.repository="+repository,
 		"--set-string", "image.tag="+tag,
-		"--set", "collector.image.repository="+collectorRepository,
-		"--set-string", "collector.image.tag="+collectorTag,
 		"--wait", "--timeout", codingHelmInstallTimeout.String(),
 	)
 	if err != nil {
@@ -292,6 +156,120 @@ func verifyCodingHelmRollouts(environment codingSmokeEnvironment, extra ...strin
 		"deployment/"+codingHelmRelease+"-coding-agent-planner",
 		"--", "sh", "-c",
 		"nc -z -w 5 smoke-coding-agent-collector 4317")
+}
+
+type codingAgentImageEvidence struct {
+	ImageID    string
+	Containers []string
+}
+
+type codingAgentPodList struct {
+	Items []struct {
+		Metadata struct {
+			Name string `json:"name"`
+		} `json:"metadata"`
+		Spec struct {
+			Containers []struct {
+				Name  string   `json:"name"`
+				Image string   `json:"image"`
+				Args  []string `json:"args"`
+			} `json:"containers"`
+		} `json:"spec"`
+		Status struct {
+			ContainerStatuses []struct {
+				Name    string `json:"name"`
+				ImageID string `json:"imageID"`
+			} `json:"containerStatuses"`
+		} `json:"status"`
+	} `json:"items"`
+}
+
+// verifyCodingAgentImageIdentity proves the live half of srd005 R9. The same
+// classifier as chart conformance identifies agent workloads by --profile;
+// donors and infrastructure containers are therefore excluded. Every selected
+// main container must declare the canonical reference and report one identical
+// runtime image ID, including the catalog mock and (for applierLive) applier.
+func verifyCodingAgentImageIdentity(
+	environment codingSmokeEnvironment,
+	expectedReference string,
+	includeApplier bool,
+) (codingAgentImageEvidence, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	output, err := environment.run(ctx, "kubectl", "get", "pods",
+		"-n", codingHelmNamespace, "-o", "json")
+	if err != nil {
+		return codingAgentImageEvidence{}, fmt.Errorf(
+			"list pods for image identity: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	var pods codingAgentPodList
+	if err := json.Unmarshal(output, &pods); err != nil {
+		return codingAgentImageEvidence{}, fmt.Errorf("decode pods for image identity: %w", err)
+	}
+	expectedCount := 5 // planner, executor, critic, collector, canonical mock
+	if includeApplier {
+		expectedCount++
+	}
+	evidence, err := validateCodingAgentImageIdentity(pods, expectedReference, expectedCount)
+	if err != nil {
+		return codingAgentImageEvidence{}, err
+	}
+	fmt.Printf("one-agent-image: %d live agent containers use %s (%s)\n",
+		len(evidence.Containers), expectedReference, evidence.ImageID)
+	return evidence, nil
+}
+
+func validateCodingAgentImageIdentity(
+	pods codingAgentPodList,
+	expectedReference string,
+	expectedCount int,
+) (codingAgentImageEvidence, error) {
+	var evidence codingAgentImageEvidence
+	for _, pod := range pods.Items {
+		statuses := make(map[string]string, len(pod.Status.ContainerStatuses))
+		for _, status := range pod.Status.ContainerStatuses {
+			statuses[status.Name] = status.ImageID
+		}
+		for _, container := range pod.Spec.Containers {
+			if !codingArgsContain(container.Args, "--profile") {
+				continue
+			}
+			identity := pod.Metadata.Name + "/" + container.Name
+			if container.Image != expectedReference {
+				return codingAgentImageEvidence{}, fmt.Errorf(
+					"agent container %s image = %q, want %q",
+					identity, container.Image, expectedReference)
+			}
+			imageID := statuses[container.Name]
+			if imageID == "" {
+				return codingAgentImageEvidence{}, fmt.Errorf(
+					"agent container %s has no runtime image ID", identity)
+			}
+			if evidence.ImageID == "" {
+				evidence.ImageID = imageID
+			} else if imageID != evidence.ImageID {
+				return codingAgentImageEvidence{}, fmt.Errorf(
+					"agent container %s image ID = %q, want shared %q",
+					identity, imageID, evidence.ImageID)
+			}
+			evidence.Containers = append(evidence.Containers, identity)
+		}
+	}
+	if len(evidence.Containers) != expectedCount {
+		return codingAgentImageEvidence{}, fmt.Errorf(
+			"found %d live agent containers, want %d: %v",
+			len(evidence.Containers), expectedCount, evidence.Containers)
+	}
+	return evidence, nil
+}
+
+func codingArgsContain(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func seedCodingWorkspace(environment codingSmokeEnvironment, applicationRoot string) error {

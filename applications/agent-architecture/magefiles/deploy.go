@@ -30,7 +30,15 @@ func Deploy() error {
 	if err != nil {
 		return err
 	}
-	request.Overrides = deployOverrides(smokeCollectorImage, shards)
+	resolved, err := resolveRootsFromWorkingDirectory()
+	if err != nil {
+		return err
+	}
+	image, _, err := canonicalSmokeImage(resolved.Application)
+	if err != nil {
+		return err
+	}
+	request.Overrides = deployOverrides(image, shards)
 	return kindrig.Deploy(request)
 }
 

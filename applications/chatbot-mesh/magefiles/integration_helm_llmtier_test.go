@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 	"gopkg.in/yaml.v3"
 )
 
@@ -128,18 +129,32 @@ func TestKindLLMDependenciesIncludeExactOllamaImage(t *testing.T) {
 	if len(llm) != len(smoke)+1 {
 		t.Fatalf("LLM dependencies = %v, want smoke closure plus Ollama", llm)
 	}
-	if got := llm[len(llm)-1]; got != helmLLMOllamaImage {
-		t.Fatalf("LLM Ollama image = %q, want %q", got, helmLLMOllamaImage)
+	derived, err := trustedOllamaDerivedRef(chart)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, want := range []string{"0.32.5", "@sha256:"} {
-		if !strings.Contains(helmLLMOllamaSourceImage, want) {
-			t.Errorf("trusted Ollama source %q missing %q",
-				helmLLMOllamaSourceImage, want)
+	if got := llm[len(llm)-1]; got != derived {
+		t.Fatalf("LLM Ollama image = %q, want %q", got, derived)
+	}
+	source, err := chartOllamaSourceImage(chart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"0.34.2", "@sha256:"} {
+		if !strings.Contains(source, want) {
+			t.Errorf("trusted Ollama source %q missing %q", source, want)
 		}
 	}
+	if _, err := kindrig.ParseLocal(derived); err != nil {
+		t.Fatalf("derived Ollama ref is not typed local: %v", err)
+	}
 
+	ollamaRepo, ollamaTag := splitImageRef(derived)
 	out, err := exec.Command("helm", "template", "t", chart,
 		"--values", filepath.Join(chart, "ci", "kind-llm-values.yaml"),
+		"--set", "ollama.image.repository="+ollamaRepo,
+		"--set-string", "ollama.image.tag="+ollamaTag,
+		"--set", "ollama.image.pullPolicy=Never",
 	).CombinedOutput()
 	if err != nil {
 		t.Fatalf("helm template: %v\n%s", err, out)
@@ -147,7 +162,7 @@ func TestKindLLMDependenciesIncludeExactOllamaImage(t *testing.T) {
 	render := string(out)
 	if count := strings.Count(
 		render,
-		`image: "declarative-agents/ollama:0.32.5-kind-trusted"`,
+		`image: "`+derived+`"`,
 	); count != 2 {
 		t.Fatalf("exact Ollama image rendered %d times, want StatefulSet and preload Job", count)
 	}
@@ -454,10 +469,11 @@ func TestLLMPreloadReadinessTransitionDiagnostics(t *testing.T) {
 func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
 	chart, chartArchive, assets := stageThinIntegrationChart(t, helmLLMRelease)
 	var command []string
-	image := "declarative-agents/agent-core:0123456789ab"
+	image := "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0123456789ab"
 	cacheHostPath := aggregateOllamaCacheRoot + "/" + strings.Repeat("a", 64)
+	trustedOllama := "localhost/declarative-agents/derived/ollama:upstream-0.34.2-kind-trusted-recipe-0123456789ab-linux-amd64"
 	err := helmInstallLLMWithRunner(
-		chart, chartArchive, image, assets, cacheHostPath,
+		chart, chartArchive, image, trustedOllama, assets, cacheHostPath,
 		func(name string, args ...string) ([]byte, error) {
 			command = append([]string{name}, args...)
 			return nil, nil
@@ -465,7 +481,7 @@ func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	valueArgs := helmLLMValueArgs(chart, image, assets, cacheHostPath)
+	valueArgs := helmLLMValueArgs(chart, image, trustedOllama, assets, cacheHostPath)
 	want := append([]string{"helm", "install", helmLLMRelease, chart}, valueArgs...)
 	want = append(want, "--timeout", helmLLMInstallTimeout.String())
 	if strings.Join(command, "\x00") != strings.Join(want, "\x00") {
@@ -502,7 +518,8 @@ func TestHelmLLMTierInstallReturnsCapturedOutput(t *testing.T) {
 	err := helmInstallLLMWithRunner(
 		chart,
 		chartArchive,
-		"declarative-agents/agent-core:llm-output",
+		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:llm-output",
+		"localhost/declarative-agents/derived/ollama:upstream-0.34.2-kind-trusted-recipe-0123456789ab-linux-amd64",
 		assets,
 		"",
 		func(string, ...string) ([]byte, error) {

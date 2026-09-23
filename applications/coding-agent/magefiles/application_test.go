@@ -40,9 +40,9 @@ func TestApplicationOverridesEnableDurableCollectorStorage(t *testing.T) {
 		Application: "coding-agent", Namespace: codingApplicationNamespace,
 		BucketURL: "gs://coding-agent-telemetry", ObjectPrefix: "coding-agent",
 	}
-	images := codingHelmImages{Agent: "example/coding:revision"}
+	image := codingHelmImage{Revision: "revision", Reference: "example/coding:revision"}
 	var values map[string]any
-	if err := yaml.Unmarshal([]byte(codingApplicationOverrides(resolved, images)), &values); err != nil {
+	if err := yaml.Unmarshal([]byte(codingApplicationOverrides(resolved, image)), &values); err != nil {
 		t.Fatal(err)
 	}
 	collector := values["collector"].(map[string]any)

@@ -1,0 +1,40 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Ollama-compatible fixture proving one canonical mock can provide model
+# discovery plus a strict three-turn chat script. A fourth chat request repeats
+# the final response per srd039; callers that require exactly three turns detect
+# the unexpected request through /_mock/log.
+routes:
+  - method: GET
+    path: /api/tags
+    responses:
+      - status: 200
+        body:
+          models:
+            - name: qwen3:0.6b
+              model: qwen3:0.6b
+
+  - method: POST
+    path: /api/chat
+    responses:
+      - status: 200
+        body:
+          model: qwen3:0.6b
+          message:
+            role: assistant
+            content: "turn-one"
+          done: true
+      - status: 200
+        body:
+          model: qwen3:0.6b
+          message:
+            role: assistant
+            content: "turn-two"
+          done: true
+      - status: 200
+        body:
+          model: qwen3:0.6b
+          message:
+            role: assistant
+            content: "turn-three"
+          done: true

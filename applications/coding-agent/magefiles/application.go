@@ -115,7 +115,7 @@ func codingApplicationRunner() (apprig.Runner, error) {
 	if err != nil {
 		return apprig.Runner{}, err
 	}
-	images, err := resolveCodingHelmImages(roots.Application)
+	image, err := resolveCodingHelmImage(roots.Application)
 	if err != nil {
 		return apprig.Runner{}, err
 	}
@@ -129,7 +129,7 @@ func codingApplicationRunner() (apprig.Runner, error) {
 			Timeout:    codingHelmInstallTimeout.String(), ApplicationRoot: roots.Application,
 		},
 		CatalogRoot: roots.Profiles,
-		Revision:    images.Revision,
+		Revision:    image.Revision,
 	}
 	runner.Prepare = func(resolved apprig.Resolved) (preparation apprig.Preparation, result error) {
 		if _, err := kindrig.EnsureFakeGCSApplicationBucket(kindrig.ApplicationBucketRequest{
@@ -137,6 +137,16 @@ func codingApplicationRunner() (apprig.Runner, error) {
 		}); err != nil {
 			return preparation, err
 		}
+		lease, err := kindrig.AcquireAgentCoreImageLease(
+			roots.Core, image.Reference, "coding-agent-app")
+		if err != nil {
+			return preparation, err
+		}
+		defer func() {
+			if result != nil {
+				result = errors.Join(result, lease.Release())
+			}
+		}()
 		namespace := kindrig.ApplicationNamespaceRequest{
 			Cluster: kindrig.PlatformClusterName, Namespace: resolved.Namespace,
 		}
@@ -158,7 +168,7 @@ func codingApplicationRunner() (apprig.Runner, error) {
 		defer cleanup()
 		environment := codingSmokeEnvironment{kubeconfig: kubeconfig}
 		if err := prepareCodingHelmClusterForNamespace(
-			environment, kindrig.PlatformClusterName, resolved.Namespace, roots, images, created); err != nil {
+			environment, kindrig.PlatformClusterName, resolved.Namespace, roots, image, created); err != nil {
 			return preparation, err
 		}
 		if err := Package(); err != nil {
@@ -170,7 +180,8 @@ func codingApplicationRunner() (apprig.Runner, error) {
 		}
 		return apprig.Preparation{
 			ChartPath: chart, ValuesPath: runner.Binding.ValuesPath,
-			Overrides:     codingApplicationOverrides(resolved, images),
+			Overrides:     codingApplicationOverrides(resolved, image),
+			Cleanup:       lease.Release,
 			OwnsNamespace: created,
 		}, nil
 	}
@@ -232,17 +243,13 @@ func codingApplicationDeployAgent(roots integrationRoots, profile string) (kindr
 	}, nil
 }
 
-func codingApplicationOverrides(resolved apprig.Resolved, images codingHelmImages) string {
-	repository, tag := splitCodingImageRef(images.Agent)
-	collectorRepository, collectorTag := splitCodingImageRef(codingHelmCollectorImage)
+func codingApplicationOverrides(resolved apprig.Resolved, image codingHelmImage) string {
+	repository, tag := splitCodingImageRef(image.Reference)
 	bucket := strings.TrimPrefix(resolved.BucketURL, "gs://")
 	return fmt.Sprintf(`image:
   repository: %q
   tag: %q
 collector:
-  image:
-    repository: %q
-    tag: %q
   storage:
     backend: object
     bucketName: %q
@@ -250,8 +257,7 @@ collector:
     prefix: %q
     application: %q
     namespace: %q
-`, repository, tag, collectorRepository, collectorTag,
-		bucket, kindrig.FakeGCSEndpoint, resolved.ObjectPrefix,
+`, repository, tag, bucket, kindrig.FakeGCSEndpoint, resolved.ObjectPrefix,
 		resolved.Application, resolved.Namespace)
 }
 

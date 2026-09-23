@@ -336,6 +336,31 @@ func DeployRenderDirectory(applicationRoot, release string) string {
 	return filepath.Join(applicationRoot, "build", "deploy", release)
 }
 
+// SubstitutePinnedImage writes a kind-loaded image over a placeholder and
+// refuses a manifest that would pull. The node already holds the image, so
+// Always would race the registry and IfNotPresent is not the Never contract
+// the import transaction promises.
+func SubstitutePinnedImage(manifest, placeholder, image string) (string, error) {
+	placeholder = strings.TrimSpace(placeholder)
+	image = strings.TrimSpace(image)
+	if placeholder == "" {
+		return "", fmt.Errorf("pinned image placeholder is required")
+	}
+	if image == "" {
+		return "", fmt.Errorf("pinned image reference is required")
+	}
+	if !strings.Contains(manifest, placeholder) {
+		return "", fmt.Errorf("manifest does not contain image placeholder %q", placeholder)
+	}
+	if strings.Contains(manifest, "imagePullPolicy: Always") {
+		return "", fmt.Errorf("kind-loaded image %s must not use imagePullPolicy Always", image)
+	}
+	if !strings.Contains(manifest, "imagePullPolicy: Never") {
+		return "", fmt.Errorf("kind-loaded image %s requires imagePullPolicy Never", image)
+	}
+	return strings.ReplaceAll(manifest, placeholder, image), nil
+}
+
 func uniqueSorted(values []string) []string {
 	seen := map[string]bool{}
 	var unique []string

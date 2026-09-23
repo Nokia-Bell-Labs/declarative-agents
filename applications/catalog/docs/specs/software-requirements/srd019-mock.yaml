@@ -39,6 +39,7 @@ goals:
   - G2: Define fixture selection so a scenario supplies what the mock serves without editing the profile.
   - G3: Define the request-log surface validators assert against.
   - G4: Record the mock actor boundary, inputs, tool selections, runtime dependencies, outputs, and terminal outcomes.
+  - G5: Keep loopback as the safe listener default while allowing a rig to authorize Kubernetes reachability explicitly.
 
 requirements:
   R1:
@@ -48,6 +49,7 @@ requirements:
       - R1.2: The mock must serve its declared routes through the agent-core mock endpoint binding rather than profile-specific response logic.
       - R1.3: The mock must expose a health route so a rig can await readiness before starting a subject.
       - R1.4: The mock must not invoke a model.
+      - R1.5: The mock listener must default to loopback; a wildcard or public address must require an explicit, default-false public-listener authorization, and absent or malformed authorization must fail before serving.
 
   R2:
     title: Fixture selection and scope
@@ -56,6 +58,7 @@ requirements:
       - R2.2: A scenario must supply its own fixture files; the mock profile must not carry per-dependency response content.
       - R2.3: Starting several mocks for one scenario, each with its own fixture and address, must require no profile change.
       - R2.4: A malformed fixture must prevent the mock from serving, surfacing at configuration validation and at startup rather than on the first request.
+      - R2.5: A scenario fixture must be able to represent Ollama-compatible model discovery and an ordered chat-response script without a model binary or application-specific mock profile.
 
   R3:
     title: Request log
@@ -88,11 +91,11 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: The mock profile is described as one generic configured responder that serves through the agent-core mock binding, exposes health, stops on a lifecycle signal, and invokes no model.
-    traces: [R1.1, R1.2, R1.3, R1.4]
+    criterion: The mock profile is described as one generic configured responder that serves through the agent-core mock binding, exposes health, stops on a lifecycle signal, invokes no model, defaults to loopback, and accepts a public listener only with explicit authority.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
   - id: AC2
-    criterion: One mock profile serves any dependency because its fixture is selected by environment, scenarios own their fixtures, several mocks can run per scenario, and a malformed fixture blocks serving.
-    traces: [R2.1, R2.2, R2.3, R2.4]
+    criterion: One mock profile serves any dependency because its fixture is selected by environment, scenarios own their fixtures, several mocks can run per scenario, malformed fixtures block serving, and Ollama-shaped model discovery plus ordered chat responses are representable as fixture data.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
   - id: AC3
     criterion: The request log is readable on a declared route, is sufficient to verify a subject's outbound calls including unmatched ones, and is per-instance.
     traces: [R3.1, R3.2, R3.3]
