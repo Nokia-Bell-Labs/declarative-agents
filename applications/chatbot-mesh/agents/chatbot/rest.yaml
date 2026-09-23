@@ -1,6 +1,16 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
 unit: mesh-chatbot-rest
+# The RAG query client is the shared retrieval contract (srd060): one expansion
+# names the route, the per-item authority, and the query vector; the limits
+# profile below still bounds every selected server.
+expand:
+  - fragment: /opt/agent-core/tools/rest/units/retrieval-query-client-fragment.yaml
+    args:
+      route_prefix: rag
+      base_url_selector: $from(rag_unit).base_url
+      input_selector: $from(normalize_query_embedding).mapped.embedding
+      limits_ref: local_provider
 rest:
   version: v1
   auth:
@@ -40,52 +50,6 @@ rest:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
         ports: [18081]
-  clients:
-    rag:
-      base_url: http://127.0.0.1:18085
-      auth_ref: none
-      limits_ref: local_provider
-      operations:
-        query:
-          method: POST
-          path: /api/v1/rag/query
-          # The operation, method, path, auth, and network policy remain trusted
-          # configuration. Only the authority comes from the current item in the
-          # declared topology; the allowlist above still constrains it.
-          base_url_source: command_state
-          base_url_selector: $from(rag_unit).base_url
-          params:
-            body_schema:
-              type: object
-              required: [query_embeddings]
-              properties:
-                query_embeddings: {type: array}
-            body_source: command_state
-            input_mapping:
-              query_embeddings: $from(normalize_query_embedding).mapped.embedding
-          body:
-            query_embeddings: "{{ params.query_embeddings }}"
-            n_results: 5
-          success: {status: [200], signal: QueryResponded}
-          failures:
-            # An embedding-space mismatch (srd001 R2.3) is a 400 the RAG server
-            # returns; map it to QueryRejected so the machine excludes this source
-            # (srd002 R3.3) distinctly from a degraded (CommandError) RAG.
-            - {status: [400], signal: QueryRejected}
-          response:
-            output:
-              ids: $.ids
-              documents: $.documents
-              distances: $.distances
-              embedding_model: $.embedding_model
-          side_effects:
-            - kind: external_api
-              target: rag_server.query
-              state: read_only
-          reversibility:
-            classification: reversible
-            undo: noop
-
   servers:
     chatbot_chat:
       address: 127.0.0.1:18080

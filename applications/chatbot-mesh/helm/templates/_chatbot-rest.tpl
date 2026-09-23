@@ -14,7 +14,14 @@ literally. The monitor server is not here: chatbotMonitorRest below renders it.
 {{- $mon := .Values.ragServer.ports.monitor -}}
 {{- $llmURL := include "chatbot-mesh.llmURL" . -}}
 {{- $llmHost := (urlParse $llmURL).hostname -}}
-{{- $firstRag := first .Values.ragUnits -}}
+unit: mesh-chatbot-rest
+expand:
+  - fragment: /opt/agent-core/tools/rest/units/retrieval-query-client-fragment.yaml
+    args:
+      route_prefix: rag
+      base_url_selector: $from(rag_unit).base_url
+      input_selector: $from(normalize_query_embedding).mapped.embedding
+      limits_ref: local_provider
 rest:
   version: v1
   auth:
@@ -62,50 +69,6 @@ rest:
         hosts: [127.0.0.1, localhost]
         ports: [{{ .Values.chatbot.ports.control }}]
         allow_public_listener: true
-
-  clients:
-    rag:
-      # A configured fallback remains required by the REST client schema. The
-      # operation selects each declared item's authority through command state.
-      base_url: http://{{ $fullname }}-{{ $firstRag.name }}:{{ $q }}
-      auth_ref: none
-      limits_ref: local_provider
-      operations:
-        query:
-          method: POST
-          path: /api/v1/rag/query
-          base_url_source: command_state
-          base_url_selector: $from(rag_unit).base_url
-          params:
-            body_schema:
-              type: object
-              required: [query_embeddings]
-              properties:
-                query_embeddings: {type: array}
-            body_source: command_state
-            input_mapping:
-              query_embeddings: $from(normalize_query_embedding).mapped.embedding
-          body:
-            query_embeddings: "{{`{{ params.query_embeddings }}`}}"
-            n_results: 5
-          success: {status: [200], signal: QueryResponded}
-          failures:
-            # 400 embedding-space mismatch -> QueryRejected (excluded, srd014 R3.3),
-            # distinct from a degraded (CommandError) RAG.
-            - {status: [400], signal: QueryRejected}
-          response:
-            output:
-              ids: $.ids
-              documents: $.documents
-              distances: $.distances
-              embedding_model: $.embedding_model
-          side_effects:
-            - kind: external_api
-              target: rag_server.query
-              state: read_only
-          reversibility:
-            classification: reversible
-            undo: noop
 
   servers:
     chatbot_chat:

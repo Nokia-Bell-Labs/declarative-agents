@@ -20,6 +20,7 @@ tools:
         properties:
           ids: {type: array}
           documents: {type: array}
+          metadatas: {type: array}
           embedding_model: {type: string}
     side_effects:
       - kind: external_api

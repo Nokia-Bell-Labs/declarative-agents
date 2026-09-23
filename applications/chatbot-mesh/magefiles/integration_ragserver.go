@@ -383,6 +383,7 @@ type ragQueryResponse struct {
 	IDs            [][]string  `json:"ids"`
 	Documents      [][]string  `json:"documents"`
 	Distances      [][]float64 `json:"distances"`
+	Metadatas      [][]any     `json:"metadatas"`
 	EmbeddingModel string      `json:"embedding_model"`
 	Trace          struct {
 		Iterations     int    `json:"iterations"`
@@ -404,6 +405,8 @@ func (r ragQueryResponse) chunkCount() int {
 // distance at the same position. It requires matching outer and inner
 // dimensions across all three arrays, a nonempty document per chunk, and a
 // finite distance per chunk (srd rel00.0: chunks carry IDs and distances).
+// metadatas is aligned the same way, since a citation resolves against it
+// (srd060 R1.2).
 func (r ragQueryResponse) validateAlignment() error {
 	if len(r.IDs) == 0 {
 		return fmt.Errorf("rag query result carries no ids array")
@@ -416,6 +419,10 @@ func (r ragQueryResponse) validateAlignment() error {
 		return fmt.Errorf("distances outer dimension %d != ids outer dimension %d",
 			len(r.Distances), len(r.IDs))
 	}
+	if len(r.Metadatas) != len(r.IDs) {
+		return fmt.Errorf("metadatas outer dimension %d != ids outer dimension %d",
+			len(r.Metadatas), len(r.IDs))
+	}
 	for row := range r.IDs {
 		ids, docs, dists := r.IDs[row], r.Documents[row], r.Distances[row]
 		if len(docs) != len(ids) {
@@ -425,6 +432,10 @@ func (r ragQueryResponse) validateAlignment() error {
 		if len(dists) != len(ids) {
 			return fmt.Errorf("row %d: distances inner dimension %d != ids inner dimension %d",
 				row, len(dists), len(ids))
+		}
+		if metas := r.Metadatas[row]; len(metas) != len(ids) {
+			return fmt.Errorf("row %d: metadatas inner dimension %d != ids inner dimension %d",
+				row, len(metas), len(ids))
 		}
 		for chunk, doc := range docs {
 			if strings.TrimSpace(doc) == "" {

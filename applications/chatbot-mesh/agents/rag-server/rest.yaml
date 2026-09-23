@@ -117,6 +117,7 @@ rest:
               ids: $.ids
               documents: $.documents
               distances: $.distances
+              metadatas: $.metadatas
           side_effects:
             - kind: external_api
               target: chroma.query
@@ -162,6 +163,7 @@ rest:
                     ids: $.mapped.ids
                     documents: $.mapped.documents
                     distances: $.mapped.distances
+                    metadatas: $.mapped.metadatas
                     embedding_model: ${RAG_EMBEDDING_MODEL:-qwen3-embedding:8b}
                 QueryRejected:
                   status: 400

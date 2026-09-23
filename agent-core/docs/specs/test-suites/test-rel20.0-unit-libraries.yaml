@@ -121,7 +121,7 @@ test_cases:
   - use_case: rel20.0-uc003-unit-libraries
     name: The service-library convention is documented
     go_test: mage audit
-    status: planned
+    status: implemented
     description: Read the service library section of cfg-rest-tool-format.
     expected:
       layout_documented: "REST unit, type unit, client words"

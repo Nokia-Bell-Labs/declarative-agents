@@ -1,0 +1,75 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The retrieval query client (srd060 R3): one operation, query, on a client
+# named retrieval, posting the client-computed vector to
+# /api/v1/<route_prefix>/query. The base URL comes from command state, so the
+# importer's declared topology picks the server per request while the
+# importer's limits profile and allowlist still bound it.
+#
+# The shape is fixed (srd052 R2.3). A server that needs clearance, facets, or
+# other body fields gets its own operation in its application, which imports
+# QueryResult from types-retrieval.yaml.
+unit: builtin-retrieval-query-client
+params:
+- name: route_prefix
+  type: string
+  description: The path segment after /api/v1/, such as rag or knowledge.
+- name: base_url_selector
+  type: string
+  description: The command-state selector the base URL is read from, such as $from(rag_unit).base_url.
+- name: input_selector
+  type: string
+  description: The command-state selector the query vector is read from.
+- name: n_results
+  type: integer
+  default: 5
+  description: How many results the server returns.
+- name: limits_ref
+  type: string
+  description: The importer's limits profile, whose network allowlist names the retrieval servers.
+rest:
+  version: v1
+  auth:
+    retrieval_auth:
+      type: none
+  clients:
+    retrieval:
+      auth_ref: retrieval_auth
+      limits_ref: $param(limits_ref)
+      operations:
+        query:
+          method: POST
+          path: /api/v1/$param(route_prefix)/query
+          base_url_source: command_state
+          base_url_selector: $param(base_url_selector)
+          params:
+            body_schema:
+              type: object
+              required: [query_embeddings]
+              properties:
+                query_embeddings: {type: array}
+            body_source: command_state
+            input_mapping:
+              query_embeddings: $param(input_selector)
+          body:
+            query_embeddings: "{{ params.query_embeddings }}"
+            n_results: $param(n_results)
+          success: {status: [200], signal: QueryResponded}
+          failures:
+          # A server holding another embedding space answers 400 (srd060 R1.3),
+          # so the machine can exclude that source apart from a degraded one.
+          - {status: [400], signal: QueryRejected}
+          response:
+            output:
+              ids: $.ids
+              documents: $.documents
+              distances: $.distances
+              metadatas: $.metadatas
+              embedding_model: $.embedding_model
+          side_effects:
+          - kind: external_api
+            target: retrieval_server.query
+            state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
