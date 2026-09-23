@@ -15,7 +15,7 @@ test_cases:
   - use_case: rel26.0-uc001-retrieval-client-library
     name: The fragment expands to the query operation for each route prefix
     go_test: go test ./internal/tools/rest/... -run 'TestRetrievalQueryClientFragment'
-    status: planned
+    status: implemented
     description: Expand the fragment with the chatbot-mesh arguments (rag, $from(rag_unit).base_url, 5) and the agentic-wiki-mesh arguments (knowledge, $from(knowledge_unit).base_url).
     expected:
       path_follows_route_prefix: true
@@ -26,7 +26,7 @@ test_cases:
   - use_case: rel26.0-uc001-retrieval-client-library
     name: Status mapping and side effect of the produced operation
     go_test: go test ./internal/tools/rest/... -run 'TestRetrievalQueryClientFragment'
-    status: planned
+    status: implemented
     description: Inspect the expanded operation's success, failure, and side-effect declarations.
     expected:
       status_200_signal: QueryResponded
@@ -36,8 +36,8 @@ test_cases:
 
   - use_case: rel26.0-uc001-retrieval-client-library
     name: The contract loads through the agent-core root with no declared root
-    go_test: go test ./internal/tools/rest/... -run 'TestRetrievalQueryClientFragment'
-    status: planned
+    go_test: go test ./internal/tools/rest/... ./internal/load/... -run 'TestRetrievalQueryClientFragment|TestLoadClosureResolvesTheShippedQueryResult'
+    status: implemented
     description: A unit importing /opt/agent-core/tools/units/types-retrieval.yaml and expanding the fragment loads with --core-root and no library root.
     expected:
       loads_without_declared_root: true

@@ -1079,7 +1079,7 @@ test_suite_index:
     traces:
       - rel26.0-uc001-retrieval-client-library
     formal_test_cases: 4
-    status: planned
+    status: in_progress
     path: docs/specs/test-suites/test-rel26.0-retrieval-client-library.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification

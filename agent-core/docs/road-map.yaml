@@ -1120,7 +1120,7 @@ releases:
         status: implemented
       - id: gh-2529
         summary: Add types-retrieval.yaml and the retrieval query client fragment with expansion tests.
-        status: planned
+        status: implemented
       - id: gh-2530
         summary: Migrate chatbot-mesh onto the fragment, return metadatas from rag-server, and file consumer adoption issues.
         status: planned
@@ -1134,7 +1134,7 @@ releases:
     test_suites:
       - id: test-rel26.0-retrieval-client-library
         summary: Fragment expansion per route prefix, status mapping and side effect, loading through the agent-core root, and chatbot-mesh's migration.
-        status: planned
+        status: in_progress
     proof:
       - go test ./internal/tools/rest/...
       - mage audit
