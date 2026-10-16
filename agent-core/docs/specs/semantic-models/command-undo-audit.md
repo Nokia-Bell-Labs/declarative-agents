@@ -1,51 +1,68 @@
-# Copyright (c) 2026 Nokia
-# SPDX-License-Identifier: BSD-3-Clause
+---
 id: sm-command-undo-audit
 title: Command Undo Audit
+---
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
 
-purpose: |
-  Tracks which commands encode a sufficient Receipt during Execute and consume
-  it in a receipt-consuming Undo, which return an empty receipt because they are
-  read-only, and which are compensatable or irreversible. The persisted opaque
-  Receipt is both the audit/rollback payload and the exact input a tool's Undo
-  decodes. It documents current rollback coverage and the places where external
-  compensation is explicit rather than automatic.
+<!-- field: purpose -->
+## Purpose
 
-current_contract: |
-  Every core.Command exposes a receipt-consuming Undo that takes the restored,
-  receipt-bearing Result and reverses the external effect. Read-only words
-  intentionally return an empty receipt and core.NoopUndo. State-mutating words
-  encode a Receipt during Execute that captures what Undo needs: prior file
-  content, an external resource id, a workspace git commit hash the tool manages
-  itself, or an in-process snapshot of conversation, planner, evaluator, point,
-  or validation state.
+Tracks which commands encode a sufficient Receipt during Execute and consume
+it in a receipt-consuming Undo, which return an empty receipt because they are
+read-only, and which are compensatable or irreversible. The persisted opaque
+Receipt is both the audit/rollback payload and the exact input a tool's Undo
+decodes. It documents current rollback coverage and the places where external
+compensation is explicit rather than automatic.
 
-  Persisted rollback replays receipts. The srd036 Dolt adapter reverts
-  DB-persisted state to a target step, then the checkpoint_rollback lifecycle
-  tool walks the reverted execution entries in reverse and hands each restored
-  Result to its tool's Undo. The engine and checkpoint adapters never interpret
-  a receipt; only the originating tool decodes it. The validator checks receipt
-  presence for reversible state-mutating tools; receipt sufficiency is each
-  tool's own round-trip test.
+<!-- field: current_contract -->
+## Current contract
 
-noop_contract:
-  signal: ToolDone
-  receipt: empty
-  output: "undo: no-op"
-  command_name: "the command being undone"
+Every core.Command exposes a receipt-consuming Undo that takes the restored,
+receipt-bearing Result and reverses the external effect. Read-only words
+intentionally return an empty receipt and core.NoopUndo. State-mutating words
+encode a Receipt during Execute that captures what Undo needs: prior file
+content, an external resource id, a workspace git commit hash the tool manages
+itself, or an in-process snapshot of conversation, planner, evaluator, point,
+or validation state.
 
-reversibility_kinds:
-  reversible: The receipt holds enough for the tool's Undo to fully reverse the effect (prior content, snapshot, or a managed commit hash).
-  compensatable: The receipt holds metadata for operator or higher-level compensation; external audit history, subprocess behavior, or human/model decisions cannot be erased.
-  irreversible: No receipt can reverse the effect; the tool requires confirmation and the reverse walk skips and logs it.
+Persisted rollback replays receipts. The srd036 Dolt adapter reverts
+DB-persisted state to a target step, then the checkpoint_rollback lifecycle
+tool walks the reverted execution entries in reverse and hands each restored
+Result to its tool's Undo. The engine and checkpoint adapters never interpret
+a receipt; only the originating tool decodes it. The validator checks receipt
+presence for reversible state-mutating tools; receipt sufficiency is each
+tool's own round-trip test.
 
-compensation_boundaries:
-  description: |
+<!-- field: noop_contract -->
+## Noop contract
+
+```yaml
+signal: ToolDone
+receipt: empty
+output: "undo: no-op"
+command_name: "the command being undone"
+```
+
+<!-- field: reversibility_kinds -->
+## Reversibility kinds
+
+```yaml
+reversible: The receipt holds enough for the tool's Undo to fully reverse the effect (prior content, snapshot, or a managed commit hash).
+compensatable: The receipt holds metadata for operator or higher-level compensation; external audit history, subprocess behavior, or human/model decisions cannot be erased.
+irreversible: No receipt can reverse the effect; the tool requires confirmation and the reverse walk skips and logs it.
+```
+
+<!-- field: compensation_boundaries -->
+## Compensation boundaries
+
+```yaml
+description: |
     These commands encode compensatable receipts. Rollback can preserve the
     child run, artifact, issue, workspace, or approval metadata needed for
     operator or higher-level compensation, but it does not pretend external
     audit history, subprocess behavior, or human/model decisions can be erased.
-  commands:
+commands:
     - command: create_tracker_issue
       receipt_payload: configured_tracker_issue_id
     - command: self_invoke
@@ -56,33 +73,41 @@ compensation_boundaries:
       receipt_payload: eval_session_snapshot_and_nested_machine
     - command: suspend
       receipt_payload: approval_reason_and_checkpoint_requirement
+```
 
-expected_noop_long_term:
-  - read
-  - find
-  - list_files
-  - done
-  - project_planner_context
-  - capture_planner_failure
-  - nudge_reread
-  - format_report
-  - summarize_point_results
-  - report_suite_summary
-  - read_only_exec_tools:
-      - build
-      - vet
-      - lint
-      - test
-      - workspace_status
-      - rev_parse
-      - diff_stat
-      - log_oneline
-      - issue_list
-  - FailedParamCmd
-  - failCmd
+<!-- field: expected_noop_long_term -->
+## Expected noop long term
 
-receipt_undo:
-  conversation_and_retry_state:
+```yaml
+- read
+- find
+- list_files
+- done
+- project_planner_context
+- capture_planner_failure
+- nudge_reread
+- format_report
+- summarize_point_results
+- report_suite_summary
+- read_only_exec_tools:
+    - build
+    - vet
+    - lint
+    - test
+    - workspace_status
+    - rev_parse
+    - diff_stat
+    - log_oneline
+    - issue_list
+- FailedParamCmd
+- failCmd
+```
+
+<!-- field: receipt_undo -->
+## Receipt undo
+
+```yaml
+conversation_and_retry_state:
     - command: invoke_llm
       strategy: conversation_truncate
       receipt: reversible_conversation_snapshot
@@ -95,7 +120,7 @@ receipt_undo:
     - command: report_parse_error
       strategy: parse_retry_counter_restore_when_tracker_enabled
       receipt: reversible_parse_retry_counter_snapshot
-  planner_state:
+planner_state:
     - command: load_graph
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
@@ -123,7 +148,7 @@ receipt_undo:
     - command: mark_task_failed
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
-  workspace_state:
+workspace_state:
     - command: write
       strategy: file_snapshot_restore
       receipt: reversible_prior_content_or_commit_hash
@@ -151,7 +176,7 @@ receipt_undo:
     - command: issue_close
       strategy: compensating_action
       receipt: compensatable_boundary_compensation
-  evaluator_state:
+evaluator_state:
     - command: parse_suite_config
       strategy: evaluator_session_restore
       receipt: reversible_eval_session_snapshot
@@ -200,14 +225,14 @@ receipt_undo:
     - command: check_agent_version
       strategy: point_context_restore
       receipt: reversible_point_context_snapshot
-  validation_state:
+validation_state:
     - command: load_corpus
       strategy: validation_state_restore
       receipt: reversible_validation_state_snapshot
     - command: validate_specs
       strategy: validation_state_restore
       receipt: reversible_validation_state_snapshot
-  boundary_compensation:
+boundary_compensation:
     - command: suspend
       strategy: resume_or_checkpoint_rollback
       receipt: compensatable_boundary_compensation
@@ -228,18 +253,28 @@ receipt_undo:
       strategy: point_workspace_restore_and_child_process_compensation
       receipt: compensatable_boundary_compensation
       captures: [point_context_snapshot, workspace_paths, artifact_paths]
+```
 
-declaration_mismatches: []
+<!-- field: declaration_mismatches -->
+## Declaration mismatches
 
-related_documents:
-  - srd035-checkpoint-port
-  - srd036-dolt-state-persistence
-  - srd025-rollback-lifecycle
-  - sm-rollback-lifecycle
-  - cfg-tool-authoring-standard
+```yaml
+[]
+```
 
-related_issues:
-  - agent-core-gm-rollback.5
-  - agent-core-gm-rollback.6
-  - agent-core-gm-rollback.7
-  - agent-core-gm-rollback.8
+<!-- field: related_documents -->
+## Related documents
+
+- srd035-checkpoint-port
+- srd036-dolt-state-persistence
+- srd025-rollback-lifecycle
+- sm-rollback-lifecycle
+- cfg-tool-authoring-standard
+
+<!-- field: related_issues -->
+## Related issues
+
+- agent-core-gm-rollback.5
+- agent-core-gm-rollback.6
+- agent-core-gm-rollback.7
+- agent-core-gm-rollback.8

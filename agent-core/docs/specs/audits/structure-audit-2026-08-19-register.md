@@ -1,60 +1,69 @@
-# Copyright (c) 2026 Nokia
-# SPDX-License-Identifier: BSD-3-Clause
+---
 id: structure-audit-2026-08-19
 title: Repository Structure Audit -- 2026-08-19
 audit_date: "2026-08-19"
+---
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
 
-scope:
-  issue: GH-1776
-  purpose: |
+<!-- field: scope -->
+## Scope
+
+```yaml
+issue: GH-1776
+purpose: |
     Compare tracked documentation and production command packages with the
     repository's declared document locations and Go package roles.
-  document_placement:
+document_placement:
     authority: docs/constitutions/design.yaml
     method: |
-      List tracked Markdown and YAML files directly below a docs tree after
-      excluding declared top-level documents, specs, constitutions,
-      engineering guidelines, fixtures, dependencies, and generated output.
+        List tracked Markdown and YAML files directly below a docs tree after
+        excluding declared top-level documents, specs, constitutions,
+        engineering guidelines, fixtures, dependencies, and generated output.
     reconciliation: |
-      The original method excludes docs/engineering. This run includes those
-      files as scope-reconciliation candidates because a repository-wide
-      placement gate must classify them too.
-  package_role:
+        The original method excludes docs/engineering. This run includes those
+        files as scope-reconciliation candidates because a repository-wide
+        placement gate must classify them too.
+package_role:
     authority: docs/constitutions/go-style.yaml
     method: |
-      Rank production command packages by non-test size, then inspect functions
-      for runtime behavior that belongs in an internal package. Size orders the
-      review and is not itself a finding.
-  finding_gate:
+        Rank production command packages by non-test size, then inspect functions
+        for runtime behavior that belongs in an internal package. Size orders the
+        review and is not itself a finding.
+finding_gate:
     - Search tracked files and open GitHub issues for every candidate basename.
     - Preserve a live register named by an open recurring issue.
     - Verify that a newer register carries prior rejected candidates before removing an older one.
     - Classify each document as schema lag, misfiled, spent, or live.
     - Name specific functions and an internal destination for every package-role finding.
+```
 
-candidates:
-  documents:
+<!-- field: candidates -->
+## Candidates
+
+```yaml
+documents:
     - path: agent-core/docs/bench-documentation-ux-inventory.md
       source: method_1
       status: fixed
       classification: spent
       referrers:
         tracked:
-          - this structure audit register only
+            - this structure audit register only
         open_issues:
-          - GH-1776
-          - GH-1794
+            - GH-1776
+            - GH-1794
         closed_issues:
-          - GH-87
-          - GH-1026
-          - GH-1031
+            - GH-87
+            - GH-1026
+            - GH-1031
       supersession:
         status: absorbed
         documents:
-          - applications/catalog/docs/specs/software-requirements/srd006-bench.yaml
-          - applications/catalog/docs/specs/software-requirements/srd011-knowledge-manager.yaml
-          - applications/catalog/docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
-          - applications/catalog/docs/specs/use-cases/rel07.0-uc004-bench-evaluator-profile-boundary.yaml
+            - applications/catalog/docs/specs/software-requirements/srd006-bench.yaml
+            - applications/catalog/docs/specs/software-requirements/srd011-knowledge-manager.yaml
+            - applications/catalog/docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
+            - applications/catalog/docs/specs/use-cases/rel07.0-uc004-bench-evaluator-profile-boundary.yaml
       resolution: Deleted by GH-1794 after the finding gate found no live dependency.
     - path: agent-core/docs/specs/audits/declarative-decomposition-audit-2026-08-13.md
       previous_path: agent-core/docs/declarative-decomposition-audit-2026-08-13.md
@@ -82,23 +91,23 @@ candidates:
       classification: spent
       referrers:
         tracked:
-          - this structure audit register only
+            - this structure audit register only
         open_issues:
-          - GH-1776
-          - GH-1794
+            - GH-1776
+            - GH-1794
         closed_issues:
-          - GH-87
-          - GH-134
-          - GH-325
-          - GH-326
-          - GH-1310
+            - GH-87
+            - GH-134
+            - GH-325
+            - GH-326
+            - GH-1310
       supersession:
         status: absorbed
         documents:
-          - agent-core/README.md
-          - agent-core/docs/ARCHITECTURE.yaml
-          - agent-core/docs/specs/config-formats/runtime-contract.yaml
-          - agent-core/package-layout.md
+            - agent-core/README.md
+            - agent-core/docs/ARCHITECTURE.yaml
+            - agent-core/docs/specs/config-formats/runtime-contract.yaml
+            - agent-core/package-layout.md
       resolution: Deleted by GH-1794 after every recorded drift section named completed work.
     - path: agent-core/docs/grammar-machine-conformance-inventory.md
       source: method_1
@@ -106,19 +115,19 @@ candidates:
       classification: spent
       referrers:
         tracked:
-          - this structure audit register only
+            - this structure audit register only
         open_issues:
-          - GH-1776
-          - GH-1794
+            - GH-1776
+            - GH-1794
         closed_issues:
-          - GH-87
-          - GH-1518
+            - GH-87
+            - GH-1518
       supersession:
         status: absorbed
         documents:
-          - agent-core/docs/ARCHITECTURE.yaml
-          - agent-core/docs/specs/semantic-models/tool-language.yaml
-          - agent-core/docs/specs/config-formats/tool-authoring-standard.yaml
+            - agent-core/docs/ARCHITECTURE.yaml
+            - agent-core/docs/specs/semantic-models/tool-language.yaml
+            - agent-core/docs/specs/config-formats/tool-authoring-standard.yaml
       resolution: Deleted by GH-1794 after its seven alignment units were complete.
     - path: agent-core/docs/specs/audits/rel03-rest-design-audit.md
       previous_path: agent-core/docs/rel03-rest-design-audit.md
@@ -127,12 +136,12 @@ candidates:
       classification: live_audit_report
       referrers:
         tracked:
-          - agent-core/docs/SPECIFICATIONS.yaml
-          - this structure audit register
+            - agent-core/docs/SPECIFICATIONS.yaml
+            - this structure audit register
         open_issues:
-          - GH-1776
-          - GH-1792
-          - GH-1794
+            - GH-1776
+            - GH-1792
+            - GH-1794
       supersession:
         status: not_superseded
       resolution: GH-1792 relocated the report and repaired its active specification reference.
@@ -202,7 +211,7 @@ candidates:
       classification: schema_lag
       document_type: engineering_guideline
       resolution: GH-1795 declared the repository-wide engineering location.
-  packages:
+packages:
     - path: agent-core/cmd/agent
       production_lines: 2787
       status: findings_filed
@@ -262,14 +271,18 @@ candidates:
           production_lines: 18
           disposition: retained_entry_point
           responsibilities: Process argv, error reporting, and exit status.
+```
 
-findings:
-  - id: cmd-agent-program-reconstruction
-    issue: GH-1798
-    rule: go-style package_layout.cmd
-    evidence:
-      file: agent-core/cmd/agent/program_ref.go
-      functions:
+<!-- field: findings -->
+## Findings
+
+```yaml
+- id: cmd-agent-program-reconstruction
+  issue: GH-1798
+  rule: go-style package_layout.cmd
+  evidence:
+    file: agent-core/cmd/agent/program_ref.go
+    functions:
         - augmentRollbackResources (lines 28-51)
         - definitionsForExecution (lines 53-77)
         - buildProgramRef (lines 96-116)
@@ -279,33 +292,33 @@ findings:
         - addDeclarationClosure (lines 192-222)
         - addProgramDirectory (lines 224-234)
         - mergeRESTCollections and mergeMap (lines 236-254)
-      contract:
+    contract:
         - srd026-lifecycle-tools R3.5
         - srd026-lifecycle-tools R3.12
-      reason: |
+    reason: |
         Program closure hashing and verified originating-resource reconstruction
         are catalog and lifecycle algorithms. addDeclarationClosure duplicates
         the include walk already owned by internal/tools/catalog.
-    destination:
-      - internal/tools/catalog for asset closure and ProgramRef digest construction
-      - internal/tools/lifecycle for checkpoint verification and originating ToolDef/REST reconstruction
-    cmd_wiring_remaining:
-      - adapt runtimeConfig and profile paths
-      - select the checkpoint backend and rollback operator profile
-      - register standard factories and call the catalog/lifecycle APIs
-    tests:
-      - cmd/agent TestAugmentRollbackResourcesLoadsVerifiedOriginatingProgram
-      - cmd/agent TestAugmentRollbackResourcesRejectsLegacyCheckpointWithoutProgram
-      - cmd/agent TestAugmentRollbackResourcesRejectsMissingReceiptBuilder
-      - cmd/agent TestFreshRollbackRegistryTracesRepresentativeFamilies
-      - cmd/agent TestFreshRollbackRegistryRestoresOriginatingFileTool
-      - cmd/agent TestFreshRollbackRegistryReportsAliasedSelfInvokeReceipt
-  - id: cmd-agent-monitor-policy-compilation
-    issue: GH-1799
-    rule: go-style package_layout.cmd
-    evidence:
-      file: agent-core/cmd/agent/runtime_config.go
-      functions:
+  destination:
+    - internal/tools/catalog for asset closure and ProgramRef digest construction
+    - internal/tools/lifecycle for checkpoint verification and originating ToolDef/REST reconstruction
+  cmd_wiring_remaining:
+    - adapt runtimeConfig and profile paths
+    - select the checkpoint backend and rollback operator profile
+    - register standard factories and call the catalog/lifecycle APIs
+  tests:
+    - cmd/agent TestAugmentRollbackResourcesLoadsVerifiedOriginatingProgram
+    - cmd/agent TestAugmentRollbackResourcesRejectsLegacyCheckpointWithoutProgram
+    - cmd/agent TestAugmentRollbackResourcesRejectsMissingReceiptBuilder
+    - cmd/agent TestFreshRollbackRegistryTracesRepresentativeFamilies
+    - cmd/agent TestFreshRollbackRegistryRestoresOriginatingFileTool
+    - cmd/agent TestFreshRollbackRegistryReportsAliasedSelfInvokeReceipt
+- id: cmd-agent-monitor-policy-compilation
+  issue: GH-1799
+  rule: go-style package_layout.cmd
+  evidence:
+    file: agent-core/cmd/agent/runtime_config.go
+    functions:
         - monitorRecorderConfig (lines 237-256)
         - monitorEnvelopePolicy (lines 258-286)
         - sortedSetValues (lines 288-297)
@@ -313,135 +326,148 @@ findings:
         - toolMetricBinding (lines 322-356)
         - machineMetricLabelValues (lines 358-379)
         - metricAttributeAllowedValues (lines 381-404)
-      contract:
+    contract:
         - srd032-tool-metrics-monitor-store R3.1
         - srd032-tool-metrics-monitor-store R3.2
         - srd032-tool-metrics-monitor-store R3.6
         - srd032-tool-metrics-monitor-store R3.8
-      reason: |
+    reason: |
         These functions interpret MachineSpec and ToolDef metric declarations
         into RecorderConfig, MetricBinding, AttributePolicy, and EnvelopePolicy,
         all types owned by internal/observability/monitor.
-    destination:
-      - internal/observability/monitor
-    cmd_wiring_remaining:
-      - detect REST monitor-view opt-in without creating a monitor-to-rest import cycle
-      - allocate the process store and select the telemetry meter and run identity
-      - pass Store and Recorder into REST dependencies and LoopParams
-    tests:
-      - cmd/agent TestMonitorRuntimeRejectsUnboundedToolAttributeSetup
-      - cmd/agent TestMonitorRuntimeBindsDeclaredToolAndWorkflowAttributes
-      - cmd/agent TestMonitorRuntimeOptInProfileSetsLoopRecorder
-      - cmd/agent TestMonitorRuntimeRecordsDispatchMetricsInStore
-      - cmd/agent TestMachineNameDrivesSpanAndMetricIdentity
+  destination:
+    - internal/observability/monitor
+  cmd_wiring_remaining:
+    - detect REST monitor-view opt-in without creating a monitor-to-rest import cycle
+    - allocate the process store and select the telemetry meter and run identity
+    - pass Store and Recorder into REST dependencies and LoopParams
+  tests:
+    - cmd/agent TestMonitorRuntimeRejectsUnboundedToolAttributeSetup
+    - cmd/agent TestMonitorRuntimeBindsDeclaredToolAndWorkflowAttributes
+    - cmd/agent TestMonitorRuntimeOptInProfileSetsLoopRecorder
+    - cmd/agent TestMonitorRuntimeRecordsDispatchMetricsInStore
+    - cmd/agent TestMachineNameDrivesSpanAndMetricIdentity
+```
 
-rejected_candidates:
-  - id: cmd-agent-main-host-and-cli
-    gate_question: 5
-    files:
-      - agent-core/cmd/agent/main.go
-    reason: |
-      Request-signal listener lifecycle, per-run checkpoint construction,
-      domain snapshot adapters, startup sequencing, telemetry setup, operator
-      output, and exit mapping are assigned to cmd/agent by architecture,
-      srd018, srd035, and srd046. Size is only a review lead; main.go and
-      buildPreparedRun are already grandfathered by the Go size gate.
-    prior_evidence:
-      - GH-884
-      - GH-1553
-      - GH-1743
-  - id: cmd-agent-factory-wiring
-    gate_question: 5
-    files:
-      - agent-core/cmd/agent/factories.go
-      - agent-core/cmd/agent/factories_llm.go
-      - agent-core/cmd/agent/factory_report_parse_error.go
-    reason: |
-      These functions decode trusted ToolDef config, bind process dependencies,
-      and return builders implemented by owning internal packages. They contain
-      no independently selectable runtime operation and have no narrower
-      internal destination than the packages already providing the builders.
-  - id: cmd-agent-checkpoint-and-child-adapters
-    gate_question: 5
-    files:
-      - agent-core/cmd/agent/lifecycle_request.go
-      - agent-core/cmd/agent/conversation_checkpoint.go
-      - agent-core/cmd/agent/dolt_driver.go
-      - agent-core/cmd/agent/child_agent_config.go
-    reason: |
-      The runtime contract assigns request selector rewrite, conversation/domain
-      JSON provider and resolver ports, SQL driver registration, and child
-      profile adaptation to the composition boundary. Their implementations
-      already delegate checkpoint, Dolt, lifecycle, and child execution behavior
-      to internal packages.
-    prior_evidence:
-      - GH-1559
-      - GH-1683
-  - id: catalog-test-evidence-command
-    gate_question: 5
-    files:
-      - applications/catalog/cmd/catalog-test-evidence/main.go
-      - applications/catalog/cmd/catalog-test-evidence/runner.go
-    classification: build_test_support
-    reason: |
-      The only production caller is a Mage target that builds this helper into
-      a temporary directory and rewrites a staged specification-critic profile.
-      No shipped image or agent selects it. Moving it behind a product word or
-      into agent-core would weaken the independent Go JSON evidence boundary.
-    tests:
-      - applications/catalog/cmd/catalog-test-evidence/runner_test.go
-      - applications/catalog/magefiles/test_evidence_test.go
-    prior_evidence:
-      - GH-1395
-      - GH-1580
-      - GH-1636
+<!-- field: rejected_candidates -->
+## Rejected candidates
 
-results:
-  document_placement:
+```yaml
+- id: cmd-agent-main-host-and-cli
+  gate_question: 5
+  files:
+    - agent-core/cmd/agent/main.go
+  reason: |
+    Request-signal listener lifecycle, per-run checkpoint construction,
+    domain snapshot adapters, startup sequencing, telemetry setup, operator
+    output, and exit mapping are assigned to cmd/agent by architecture,
+    srd018, srd035, and srd046. Size is only a review lead; main.go and
+    buildPreparedRun are already grandfathered by the Go size gate.
+  prior_evidence:
+    - GH-884
+    - GH-1553
+    - GH-1743
+- id: cmd-agent-factory-wiring
+  gate_question: 5
+  files:
+    - agent-core/cmd/agent/factories.go
+    - agent-core/cmd/agent/factories_llm.go
+    - agent-core/cmd/agent/factory_report_parse_error.go
+  reason: |
+    These functions decode trusted ToolDef config, bind process dependencies,
+    and return builders implemented by owning internal packages. They contain
+    no independently selectable runtime operation and have no narrower
+    internal destination than the packages already providing the builders.
+- id: cmd-agent-checkpoint-and-child-adapters
+  gate_question: 5
+  files:
+    - agent-core/cmd/agent/lifecycle_request.go
+    - agent-core/cmd/agent/conversation_checkpoint.go
+    - agent-core/cmd/agent/dolt_driver.go
+    - agent-core/cmd/agent/child_agent_config.go
+  reason: |
+    The runtime contract assigns request selector rewrite, conversation/domain
+    JSON provider and resolver ports, SQL driver registration, and child
+    profile adaptation to the composition boundary. Their implementations
+    already delegate checkpoint, Dolt, lifecycle, and child execution behavior
+    to internal packages.
+  prior_evidence:
+    - GH-1559
+    - GH-1683
+- id: catalog-test-evidence-command
+  gate_question: 5
+  files:
+    - applications/catalog/cmd/catalog-test-evidence/main.go
+    - applications/catalog/cmd/catalog-test-evidence/runner.go
+  classification: build_test_support
+  reason: |
+    The only production caller is a Mage target that builds this helper into
+    a temporary directory and rewrites a staged specification-critic profile.
+    No shipped image or agent selects it. Moving it behind a product word or
+    into agent-core would weaken the independent Go JSON evidence boundary.
+  tests:
+    - applications/catalog/cmd/catalog-test-evidence/runner_test.go
+    - applications/catalog/magefiles/test_evidence_test.go
+  prior_evidence:
+    - GH-1395
+    - GH-1580
+    - GH-1636
+```
+
+<!-- field: results -->
+## Results
+
+```yaml
+document_placement:
     before:
-      method_1_candidates: 14
-      scope_reconciliation_candidates: 2
-      total_candidates: 16
+        method_1_candidates: 14
+        scope_reconciliation_candidates: 2
+        total_candidates: 16
     after:
-      method_1_output: 7
-      unclassified: 0
-      explanation: |
-        The remaining Method 1 output consists of four migration records, two
-        guides, and the shared application pattern language. The command is a
-        broad candidate generator; each remaining path now matches its declared
-        type and has a fixed disposition above.
+        method_1_output: 7
+        unclassified: 0
+        explanation: |
+            The remaining Method 1 output consists of four migration records, two
+            guides, and the shared application pattern language. The command is a
+            broad candidate generator; each remaining path now matches its declared
+            type and has a fixed disposition above.
     changes:
-      document_types_declared: 6
-      guides_relocated: 2
-      audit_reports_relocated: 3
-      spent_documents_deleted: 3
-      code_adjacent_data_relocated: 1
-      paths_typed_without_move: 7
-  package_role:
+        document_types_declared: 6
+        guides_relocated: 2
+        audit_reports_relocated: 3
+        spent_documents_deleted: 3
+        code_adjacent_data_relocated: 1
+        paths_typed_without_move: 7
+package_role:
     before:
-      command_packages: 2
-      production_files: 12
-      production_lines: 3005
+        command_packages: 2
+        production_files: 12
+        production_lines: 3005
     after:
-      unclassified_packages: 0
-      unclassified_files: 0
-      findings:
-        - GH-1798
-        - GH-1799
-      rejected_candidate_groups: 4
-  unresolved_external_work:
+        unclassified_packages: 0
+        unclassified_files: 0
+        findings:
+            - GH-1798
+            - GH-1799
+        rejected_candidate_groups: 4
+unresolved_external_work:
     - issue: GH-1798
       reason: Move program identity and rollback reconstruction into catalog and lifecycle packages.
     - issue: GH-1799
       reason: Move monitor recorder policy compilation into the monitor package.
     - issue: GH-1781
       reason: Rebase the placement-gate epic after this audit merges so it retains one document type registry.
+```
 
-verification:
-  inventory_commands:
+<!-- field: verification -->
+## Verification
+
+```yaml
+inventory_commands:
     - git ls-files tracked docs candidate command from GH-1776 Method 1
     - production command package ranking command from GH-1776 Method 2
-  yaml_parse: passed
-  mage_audit: passed
-  mage_lint: passed
-  mage_test: passed
+yaml_parse: passed
+mage_audit: passed
+mage_lint: passed
+mage_test: passed
+```
