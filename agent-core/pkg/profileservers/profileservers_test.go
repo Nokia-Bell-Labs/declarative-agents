@@ -31,7 +31,12 @@ func collectorTree(t *testing.T) fstest.MapFS {
 			if err != nil {
 				return err
 			}
-			if entry.IsDir() {
+			// A UI's installed dependencies are not part of the profile, and
+			// npm links local packages there as symlinks to directories.
+			if entry.IsDir() && entry.Name() == "node_modules" {
+				return filepath.SkipDir
+			}
+			if !entry.Type().IsRegular() {
 				return nil
 			}
 			data, err := os.ReadFile(path)
