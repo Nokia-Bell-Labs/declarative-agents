@@ -22,43 +22,50 @@ import (
 // repository-wide `mage lint` was the one place that surfaced the raw tool error
 // (GH-1479).
 //
-// The required version is read from the module configs rather than held as a
-// constant here, because the schema version in those files *is* the requirement.
-// A constant would be a second place to update and a second place to drift.
+// The schema major version is read from the module configs, because the
+// schema version in those files *is* that requirement. The exact release is a
+// pin: a minor release adds findings to unchanged code (errcheck in 2.15.0
+// stopped a release, GH-2707), so the gate runs only the pinned release and
+// `mage bump` reports when a newer one exists (GH-2710).
+
+// golangciLintVersion is the one golangci-lint release the lint gate runs.
+// magefiles/pinsurvey/pins.yaml names it and agent-core/magefiles/build.go
+// repeats it for agent-core's standalone module; a test keeps them equal.
+const golangciLintVersion = "v2.15.0"
 
 const golangciLintInstallURL = "https://golangci-lint.run/welcome/install/"
 
-// checkGolangciLint verifies a golangci-lint binary matching the config schema is
-// on PATH, and returns installation guidance when it is not.
+// checkGolangciLint verifies the pinned golangci-lint release is on PATH, and
+// returns installation guidance when it is not.
 func checkGolangciLint() error {
-	wantMajor, err := requiredGolangciLintMajor()
+	if _, err := requiredGolangciLintMajor(); err != nil {
+		return err
+	}
+	installed, err := installedGolangciLintVersion()
 	if err != nil {
 		return err
 	}
-	major, err := installedGolangciLintMajor()
-	if err != nil {
-		return err
+	return checkPinnedGolangciLint(installed, golangciLintVersion)
+}
+
+// checkPinnedGolangciLint compares an installed release with the pin.
+func checkPinnedGolangciLint(installed, pinned string) error {
+	if strings.TrimPrefix(installed, "v") == strings.TrimPrefix(pinned, "v") {
+		return nil
 	}
-	if major != wantMajor {
-		return fmt.Errorf(
-			"golangci-lint v%d is required by .golangci.yml (version: %q) but v%d is installed; install golangci-lint v%d from %s",
-			wantMajor, strconv.Itoa(wantMajor), major, wantMajor, golangciLintInstallURL)
-	}
-	return nil
+	return fmt.Errorf(
+		"golangci-lint %s is pinned (magefiles/lint_preflight.go golangciLintVersion) but v%s is installed; install golangci-lint %s from %s",
+		pinned, strings.TrimPrefix(installed, "v"), pinned, golangciLintInstallURL)
 }
 
 // reportGolangciLint prints the lint toolchain line for Doctor, reporting the
 // mismatch as an error rather than a warning: a mismatched binary cannot run the
 // gate at all.
 func reportGolangciLint() error {
-	wantMajor, err := requiredGolangciLintMajor()
-	if err != nil {
-		return err
-	}
 	if err := checkGolangciLint(); err != nil {
 		return err
 	}
-	fmt.Printf("doctor: golangci-lint v%d config schema satisfied by the installed binary OK\n", wantMajor)
+	fmt.Printf("doctor: golangci-lint %s (pinned) installed OK\n", golangciLintVersion)
 	return nil
 }
 
@@ -125,32 +132,28 @@ func golangciConfigSchema(module string) (int, error) {
 	return major, nil
 }
 
-func installedGolangciLintMajor() (int, error) {
+func installedGolangciLintVersion() (string, error) {
 	path, err := exec.LookPath("golangci-lint")
 	if err != nil {
-		wantMajor, versionErr := requiredGolangciLintMajor()
-		if versionErr != nil {
-			return 0, versionErr
-		}
-		return 0, fmt.Errorf(
-			"golangci-lint not found on PATH: the .golangci.yml gate needs golangci-lint v%d; install it from %s",
-			wantMajor, golangciLintInstallURL)
+		return "", fmt.Errorf(
+			"golangci-lint not found on PATH: the lint gate needs golangci-lint %s; install it from %s",
+			golangciLintVersion, golangciLintInstallURL)
 	}
 	out, err := exec.Command(path, "version").CombinedOutput()
 	if err != nil {
-		return 0, fmt.Errorf("golangci-lint version: %w", err)
+		return "", fmt.Errorf("golangci-lint version: %w", err)
 	}
-	return parseGolangciLintMajor(string(out))
+	return parseGolangciLintVersion(string(out))
 }
 
-var golangciLintVersionPattern = regexp.MustCompile(`(\d+)\.\d+\.\d+`)
+var golangciLintVersionPattern = regexp.MustCompile(`v?(\d+\.\d+\.\d+)`)
 
-// parseGolangciLintMajor extracts the major version from `golangci-lint version`
-// output, whose stable substring is "has version X.Y.Z" across v1 and v2.
-func parseGolangciLintMajor(output string) (int, error) {
+// parseGolangciLintVersion extracts X.Y.Z from `golangci-lint version` output,
+// whose stable substring is "has version X.Y.Z" across v1 and v2.
+func parseGolangciLintVersion(output string) (string, error) {
 	match := golangciLintVersionPattern.FindStringSubmatch(output)
 	if match == nil {
-		return 0, fmt.Errorf("no semantic version found in %q", strings.TrimSpace(output))
+		return "", fmt.Errorf("no semantic version found in %q", strings.TrimSpace(output))
 	}
-	return strconv.Atoi(match[1])
+	return match[1], nil
 }
