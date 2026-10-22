@@ -63,6 +63,8 @@ mage tag        # create the canonical repository release tag
 
 Each sub-module also has its own mage targets. Run `mage -l` inside any directory with a `magefiles/` folder to list available targets.
 
+`mage lint` and the release gate run exactly one golangci-lint release, pinned as `golangciLintVersion` in `magefiles/lint_preflight.go` (currently v2.15.0), and refuse any other installed release, because a minor release can add findings to unchanged code. Install that release from <https://golangci-lint.run/welcome/install/>; `mage doctor` checks it, and `mage bump` reports when a newer one exists, so upgrading is a pin change.
+
 `mage test` rebuilds every tracked shipped UI from a clean lockfile install. It
 audits the full build dependency graph and the production-only graph separately;
 either scope fails the release gate at any known high or critical vulnerability.

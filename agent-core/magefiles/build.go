@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/magefile/mage/sh"
@@ -92,18 +91,19 @@ func Audit() error {
 	return nil
 }
 
-// requiredGolangciLintMajor is the golangci-lint major version the repository's
-// .golangci.yml schema (version: "2") requires. golangci-lint v1 cannot read a
-// v2 config and aborts mid-run, so Lint preflights the binary and fails with
-// installation guidance rather than a schema error deep in the tool output.
-const requiredGolangciLintMajor = 2
+// requiredGolangciLintVersion is the one golangci-lint release Lint runs. A
+// minor release adds findings to unchanged code (GH-2707), so the preflight
+// refuses any other release with installation guidance rather than linting
+// under a different policy. The repository root pins the same release in
+// magefiles/lint_preflight.go, and a root test keeps the two equal (GH-2710).
+const requiredGolangciLintVersion = "v2.15.0"
 
 const golangciLintInstallURL = "https://golangci-lint.run/welcome/install/"
 
 // Lint runs golangci-lint on the runtime and standalone Mage modules after
 // verifying a compatible binary.
 func Lint() error {
-	if err := checkGolangciLintVersion(requiredGolangciLintMajor); err != nil {
+	if err := checkGolangciLintVersion(requiredGolangciLintVersion); err != nil {
 		return err
 	}
 	for _, module := range []string{".", "magefiles"} {
@@ -118,37 +118,41 @@ func Lint() error {
 	return nil
 }
 
-// checkGolangciLintVersion verifies a golangci-lint binary whose major version
-// matches the .golangci.yml schema is on PATH.
-func checkGolangciLintVersion(wantMajor int) error {
+// checkGolangciLintVersion verifies the pinned golangci-lint release is on PATH.
+func checkGolangciLintVersion(want string) error {
 	path, err := exec.LookPath("golangci-lint")
 	if err != nil {
-		return fmt.Errorf("golangci-lint not found on PATH: the .golangci.yml gate needs golangci-lint v%d; install it from %s", wantMajor, golangciLintInstallURL)
+		return fmt.Errorf("golangci-lint not found on PATH: the lint gate needs golangci-lint %s; install it from %s", want, golangciLintInstallURL)
 	}
 	out, err := exec.Command(path, "version").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("golangci-lint version: %w", err)
 	}
-	major, err := parseGolangciLintMajor(string(out))
+	installed, err := parseGolangciLintVersion(string(out))
 	if err != nil {
 		return fmt.Errorf("parse golangci-lint version from %q: %w", strings.TrimSpace(string(out)), err)
 	}
-	if major != wantMajor {
-		return fmt.Errorf("golangci-lint v%d is required by .golangci.yml (version: %q) but v%d is installed; install golangci-lint v%d from %s", wantMajor, strconv.Itoa(wantMajor), major, wantMajor, golangciLintInstallURL)
-	}
-	return nil
+	return checkPinnedGolangciLint(installed, want)
 }
 
-var golangciLintVersionRE = regexp.MustCompile(`(\d+)\.\d+\.\d+`)
+// checkPinnedGolangciLint compares an installed release with the pin.
+func checkPinnedGolangciLint(installed, want string) error {
+	if installed == strings.TrimPrefix(want, "v") {
+		return nil
+	}
+	return fmt.Errorf("golangci-lint %s is pinned but v%s is installed; install golangci-lint %s from %s", want, installed, want, golangciLintInstallURL)
+}
 
-// parseGolangciLintMajor extracts the major version from `golangci-lint version`
-// output, whose stable substring is "has version X.Y.Z" across v1 and v2.
-func parseGolangciLintMajor(output string) (int, error) {
+var golangciLintVersionRE = regexp.MustCompile(`v?(\d+\.\d+\.\d+)`)
+
+// parseGolangciLintVersion extracts X.Y.Z from `golangci-lint version` output,
+// whose stable substring is "has version X.Y.Z" across v1 and v2.
+func parseGolangciLintVersion(output string) (string, error) {
 	m := golangciLintVersionRE.FindStringSubmatch(output)
 	if m == nil {
-		return 0, fmt.Errorf("no semantic version found")
+		return "", fmt.Errorf("no semantic version found")
 	}
-	return strconv.Atoi(m[1])
+	return m[1], nil
 }
 
 // Install runs go install for all cmd/ packages.

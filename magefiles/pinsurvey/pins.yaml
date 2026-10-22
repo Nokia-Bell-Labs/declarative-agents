@@ -11,6 +11,15 @@
 # report points at the line to edit. TestDeclaredPinsDescribeTheirLocations
 # fails when an entry stops describing what is there.
 pins:
+  # The golangci-lint release the lint gate runs on the host (GH-2710). It is
+  # surveyed through the upstream image, whose tags mirror the releases, and
+  # carries no digest because the host binary is not that image. The coding
+  # executor's donor image is a separate, chart-exposed pin.
+  - location: magefiles/lint_preflight.go golangciLintVersion
+    file: magefiles/lint_preflight.go
+    image: docker.io/golangci/golangci-lint
+    tag: v2.15.0
+
   - location: magefiles/kindrig/demo.go traefikImageDigests[amd64]
     file: magefiles/kindrig/demo.go
     image: docker.io/library/traefik

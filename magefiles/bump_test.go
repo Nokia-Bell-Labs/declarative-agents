@@ -70,6 +70,11 @@ func TestDeclaredPinsDoNotRestateChartImages(t *testing.T) {
 		"docker.io/golangci/golangci-lint":               true,
 	}
 	for _, pin := range pins {
+		// The host lint toolchain pin is surveyed through the same image name
+		// as the coding executor's donor, but pins the binary, not the donor.
+		if pin.Location == "magefiles/lint_preflight.go golangciLintVersion" {
+			continue
+		}
 		if chartOnly[pin.Image] {
 			t.Errorf("%s restates %s, which the charts already expose", pin.Location, pin.Image)
 		}
@@ -180,4 +185,23 @@ func gitStatus(root string) (string, error) {
 	cmd.Dir = root
 	out, err := cmd.Output()
 	return string(out), err
+}
+
+// The declared lint toolchain pin is the release the lint gate enforces, so
+// `mage bump` reports the release the gate actually runs (GH-2710 R3).
+func TestDeclaredLintPinIsTheEnforcedRelease(t *testing.T) {
+	pins, err := pinsurvey.DeclaredPins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pin := range pins {
+		if pin.Location != "magefiles/lint_preflight.go golangciLintVersion" {
+			continue
+		}
+		if pin.Tag != golangciLintVersion {
+			t.Errorf("the declared lint pin is %s, the gate enforces %s", pin.Tag, golangciLintVersion)
+		}
+		return
+	}
+	t.Fatal("no declared pin names golangciLintVersion")
 }
