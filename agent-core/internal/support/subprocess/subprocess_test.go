@@ -150,7 +150,8 @@ func TestStartCancellationKillsAndReapsProcess(t *testing.T) {
 	cancel()
 
 	select {
-	case <-done:
+	case waitErr := <-done:
+		assert.Error(t, waitErr, "a process killed by cancellation exits by signal")
 	case <-time.After(time.Second):
 		t.Fatal("detached subprocess was not reaped after cancellation")
 	}
