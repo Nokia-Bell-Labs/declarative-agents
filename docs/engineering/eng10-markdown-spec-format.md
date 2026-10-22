@@ -112,6 +112,41 @@ A node's parent is the node open one level up, or field:<name> when that node is
 
 A node kind whose tag is field is a field slot: the place where fields open, one heading level and one parent. A slot whose parent is field:<name> holds nested fields, the keys of that field's value. The next section but one declares them (GH-2651).
 
+Every heading carries a marker, including a heading inside free text. A heading without one is heading-untagged even under a node whose content is any or prose, because the canonical round trip has to know what each heading opens. A corpus that wants subsections inside a free-text section declares them: a second node kind with the same tag, one level down, whose parent is the first. The declaration below adds level-3 sections under the engineering guideline's level-2 section, and a corpus that keeps its own design.yaml loads it through LoadDeclarations with no change to the library (GH-2699).
+
+```text
+section:
+  tag: section
+  level: 2
+  parent: document
+  id_pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+  heading: free
+  content: any
+  yaml: {from: sections, records: list, id: id, title: title, content: content}
+subsection:
+  tag: section
+  level: 3
+  parent: section
+  id_pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+  heading: free
+  content: any
+  yaml: {from: sections, records: list, id: id, title: title, content: content}
+```
+
+A document then tags each subsection like its section, and it parses, prints back unchanged, and reports nothing (TestDeeperSectionsPatternIsCanonical holds this example). A level-4 kind under subsection extends it one more step.
+
+```markdown
+<!-- section: processes -->
+## Processes
+
+The scorer runs as two processes.
+
+<!-- section: ingest-process -->
+### The ingest process
+
+Reads trajectories from the queue.
+```
+
 <!-- section: field-shapes -->
 ## Field shapes
 
@@ -317,7 +352,7 @@ Table 11: Finding catalog
 | 2 | duplicate-id | an id the type declares unique appears twice |
 | 2 | field-disallowed | a typed field appears under a node its declaration does not list |
 | 2 | field-duplicate | a node holds the same field twice |
-| 2 | content-untagged | content sits under a node whose content kind is none, or before any heading |
+| 2 | content-untagged | content sits under a node whose content kind is none, or before any heading; content under a heading already reported heading-untagged is not reported again |
 | 2 | untagged-structure | a prose node holds a list or table that belongs in its own field |
 | 2 | missing-content | a prose node is empty |
 | 2 | missing-required-field | a document or node lacks a field it requires |

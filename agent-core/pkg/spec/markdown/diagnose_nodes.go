@@ -33,7 +33,8 @@ func (d *diagnosis) parentAt(level int) string {
 func (d *diagnosis) heading(b Block, level int, heading string) {
 	d.closeOpen()
 	line := d.fileLine(b)
-	if d.pending == nil {
+	d.stray = d.pending == nil
+	if d.stray {
 		d.add("heading-untagged", line, "a marker on the line above the heading", "\""+heading+"\" with no marker",
 			"nodes", "add the marker that says what the heading opens, e.g. <!-- field: <key> -->")
 		return
