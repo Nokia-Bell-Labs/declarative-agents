@@ -44,6 +44,7 @@ var supportedSpecCorpusCheckIDs = map[string]bool{
 	"machine-unresolved-action":          true,
 	"orphaned-srd":                       true,
 	"orphaned-test-suite":                true,
+	"related-document-malformed":         true,
 	"release-without-test-suite":         true,
 	"retired-external-reference":         true,
 	"retired-id-missing":                 true,

@@ -123,7 +123,7 @@ Actors assume roles; profile, wrapper, Helm workload, and values-selected instan
 
 | id | title | summary | path |
 | --- | --- | --- | --- |
-| sm-agent-role-realizations | Agent Role Realizations and Bindings | Canonical role bindings for chatbot-mesh actors and profiles. | ../../docs/specs/semantic-models/agent-role-realizations.md |
+| sm-agent-role-realizations | Agent Role Realizations and Bindings | Canonical role bindings for chatbot-mesh actors and profiles. | ../docs/specs/semantic-models/agent-role-realizations.md |
 
 <!-- field: use_case_index -->
 ## Use case index

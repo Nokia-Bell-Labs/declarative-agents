@@ -27,6 +27,7 @@ const (
 	TSGlob      = "test-*.md"
 	RoadmapFile = "docs/road-map.md"
 	SpecFile    = "docs/SPECIFICATIONS.md"
+	ArchFile    = "docs/ARCHITECTURE.md"
 	AgentsDir   = "agents"
 	CoreInstall = "/opt/agent-core"
 	SMSubdir    = "docs/specs/semantic-models"
@@ -49,6 +50,13 @@ type Corpus struct {
 	TestSuites map[string]TestSuite
 	Roadmap    Roadmap
 	SpecIndex  SpecIndex
+
+	// RelatedDocuments are the paths ARCHITECTURE.md's related_documents
+	// names, in either written shape: a plain path or a {doc, purpose} row.
+	RelatedDocuments []string
+	// MalformedRelatedDocuments describes related_documents entries that are
+	// neither shape; they become findings instead of failing the load.
+	MalformedRelatedDocuments []string
 
 	Machines         map[string]core.MachineSpec
 	ToolSelections   map[string][]string
@@ -147,6 +155,11 @@ func LoadCorpus(rootDir string, opts ...CorpusOption) (*Corpus, error) {
 		return nil, err
 	}
 
+	related, malformedRelated, err := loadRelatedDocuments(scan, ArchFile)
+	if err != nil {
+		return nil, err
+	}
+
 	machines, toolSel, machineOrder, err := discoverAndParseMachines(rootDir)
 	if err != nil {
 		return nil, err
@@ -163,22 +176,24 @@ func LoadCorpus(rootDir string, opts ...CorpusOption) (*Corpus, error) {
 	}
 
 	c := &Corpus{
-		RootDir:             rootDir,
-		SRDs:                srds,
-		UseCases:            ucs,
-		TestSuites:          tss,
-		Roadmap:             rm,
-		SpecIndex:           si,
-		Machines:            machines,
-		ToolSelections:      toolSel,
-		ToolDeclarations:    toolDecls,
-		UnresolvedDeclFiles: unresolvedDecls,
-		DocSpecs:            docSpecs,
-		SRDOrder:            srdOrder,
-		UCOrder:             ucOrder,
-		MachineOrder:        machineOrder,
-		Files:               scan.files,
-		FormatFindings:      scan.findings,
+		RootDir:                   rootDir,
+		SRDs:                      srds,
+		UseCases:                  ucs,
+		TestSuites:                tss,
+		Roadmap:                   rm,
+		SpecIndex:                 si,
+		RelatedDocuments:          related,
+		MalformedRelatedDocuments: malformedRelated,
+		Machines:                  machines,
+		ToolSelections:            toolSel,
+		ToolDeclarations:          toolDecls,
+		UnresolvedDeclFiles:       unresolvedDecls,
+		DocSpecs:                  docSpecs,
+		SRDOrder:                  srdOrder,
+		UCOrder:                   ucOrder,
+		MachineOrder:              machineOrder,
+		Files:                     scan.files,
+		FormatFindings:            scan.findings,
 	}
 
 	if err := c.validate(); err != nil {

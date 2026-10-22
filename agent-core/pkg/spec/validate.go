@@ -27,7 +27,7 @@ func Validate(g *Graph, corpus *Corpus) []Finding {
 	all = append(all, checkRoadmapUseCaseRefs(corpus)...)
 	all = append(all, checkUseCaseTestSuiteReciprocity(corpus)...)
 	all = append(all, checkTestCaseUseCaseRefs(corpus)...)
-	all = append(all, checkSpecIndexPaths(corpus)...)
+	all = append(all, validateIndexPaths(corpus)...)
 	all = append(all, checkRoadmapSummaryCoverage(corpus)...)
 	all = append(all, checkIndexDocumentAgreement(corpus)...)
 	all = append(all, checkDocSpecRequirementsSources(corpus)...)

@@ -242,3 +242,68 @@ func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
+
+// loadRelatedDocuments reads the related_documents field of the architecture
+// document. A corpus may write the field as a plain list of paths or as a
+// table of {doc, purpose} rows; an entry of any other shape is returned as a
+// description for a finding, so one malformed entry never stops the audit.
+// A corpus without the document has no related documents.
+func loadRelatedDocuments(scan *formatScan, file string) ([]string, []string, error) {
+	path := scan.single(filepath.Join(scan.rootDir, file))
+	if path == "" {
+		return nil, nil, nil
+	}
+	data, err := readDocument(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read architecture %s: %w", path, err)
+	}
+	var doc struct {
+		RelatedDocuments yaml.Node `yaml:"related_documents"`
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, nil, fmt.Errorf("parse architecture %s: %w", path, err)
+	}
+	paths, malformed := relatedDocumentPaths(&doc.RelatedDocuments)
+	return paths, malformed, nil
+}
+
+// relatedDocumentPaths splits a related_documents node into the paths its
+// entries name and descriptions of the entries that name none.
+func relatedDocumentPaths(node *yaml.Node) ([]string, []string) {
+	switch node.Kind {
+	case 0:
+		return nil, nil
+	case yaml.SequenceNode:
+	default:
+		return nil, []string{fmt.Sprintf("related_documents is a %s, not a list", yamlKindName(node.Kind))}
+	}
+	var paths, malformed []string
+	for i, item := range node.Content {
+		switch {
+		case item.Kind == yaml.ScalarNode && item.Value != "":
+			paths = append(paths, item.Value)
+		case item.Kind == yaml.MappingNode:
+			if doc := mappingScalar(item, "doc"); doc != "" {
+				paths = append(paths, doc)
+				continue
+			}
+			malformed = append(malformed, fmt.Sprintf("related_documents entry %d has no doc", i+1))
+		default:
+			malformed = append(malformed, fmt.Sprintf("related_documents entry %d is a %s, not a path or a {doc, purpose} row", i+1, yamlKindName(item.Kind)))
+		}
+	}
+	return paths, malformed
+}
+
+func yamlKindName(kind yaml.Kind) string {
+	switch kind {
+	case yaml.ScalarNode:
+		return "scalar"
+	case yaml.MappingNode:
+		return "mapping"
+	case yaml.SequenceNode:
+		return "list"
+	default:
+		return "value"
+	}
+}

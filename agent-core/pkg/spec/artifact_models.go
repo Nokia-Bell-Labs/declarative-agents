@@ -313,6 +313,19 @@ type SpecIndex struct {
 	SRDIndex       []SRDEntry       `yaml:"srd_index"`
 	UseCaseIndex   []UseCaseEntry   `yaml:"use_case_index"`
 	TestSuiteIndex []TestSuiteEntry `yaml:"test_suite_index"`
+
+	FoundationDocumentIndex []DocumentEntry `yaml:"foundation_document_index"`
+	ConfigFormatIndex       []DocumentEntry `yaml:"config_format_index"`
+	SemanticModelIndex      []DocumentEntry `yaml:"semantic_model_index"`
+}
+
+// DocumentEntry is a row of an index table that names a document by id and
+// path: the foundation document, config format, and semantic model indexes.
+type DocumentEntry struct {
+	ID      string `yaml:"id"`
+	Title   string `yaml:"title"`
+	Summary string `yaml:"summary"`
+	Path    string `yaml:"path"`
 }
 
 // RoadmapEntry is a release summary within the spec index.
