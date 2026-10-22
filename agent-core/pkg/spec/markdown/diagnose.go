@@ -77,9 +77,12 @@ type diagnosis struct {
 	doc      *dnode
 	stack    [maxHeadingLevel + 1]*dnode
 	open     *dnode
-	ids      map[string]int
-	counts   map[string]int
-	status   string
+	// stray is set under a heading already reported as heading-untagged, so
+	// its content is not reported a second time as untagged content.
+	stray  bool
+	ids    map[string]int
+	counts map[string]int
+	status string
 }
 
 // Diagnose reports every finding in a Markdown corpus document, against the
@@ -139,6 +142,9 @@ func (d *diagnosis) step(b Block) {
 		return
 	}
 	if d.open == nil {
+		if d.stray {
+			return
+		}
 		d.add("content-untagged", d.fileLine(b), "content under a tagged heading",
 			"content before any marker and heading", "nodes",
 			"put a marker and heading above it, or move it under the section it belongs to")

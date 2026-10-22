@@ -178,6 +178,17 @@ func TestEveryFindingIsDiagnosedAtItsLineWithAHint(t *testing.T) {
 	}
 }
 
+// TestStrayHeadingIsOneFinding checks that the content under an untagged
+// heading is not reported again as untagged content (GH-2699).
+func TestStrayHeadingIsOneFinding(t *testing.T) {
+	doc := replaceOnce("Something is missing.\n",
+		"Something is missing.\n\n### A free subheading\n\nMore prose.\n\nAnd more.\n")
+	findings := diagnose(t, []byte(doc), validName)
+	if len(findings) != 1 || findings[0].Name != "heading-untagged" {
+		t.Fatalf("want one heading-untagged finding, got:\n%v", findings)
+	}
+}
+
 func TestEveryCatalogFindingHasAFixture(t *testing.T) {
 	covered := map[string]bool{}
 	for _, tc := range diagnosticCases() {

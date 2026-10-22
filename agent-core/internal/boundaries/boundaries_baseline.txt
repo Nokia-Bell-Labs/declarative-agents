@@ -85,5 +85,5 @@ pkg:internal/version files=1 loc=40
 pkg:pkg/profileaudit files=4 loc=1214
 pkg:pkg/profileservers files=1 loc=408
 pkg:pkg/profilestage files=2 loc=581
-pkg:pkg/spec files=38 loc=8339
-pkg:pkg/spec/markdown files=19 loc=4768
+pkg:pkg/spec files=38 loc=8470
+pkg:pkg/spec/markdown files=19 loc=4774

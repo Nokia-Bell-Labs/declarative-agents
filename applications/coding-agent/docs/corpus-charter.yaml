@@ -33,6 +33,7 @@ checks:
       # The SPECIFICATIONS.yaml indexes and the road map agree with the
       # documents they name.
       - index-broken-path
+      - related-document-malformed
       - index-missing-use-case
       - index-missing-test-suite
       - roadmap-missing-use-case

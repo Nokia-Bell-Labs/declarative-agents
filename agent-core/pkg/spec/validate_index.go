@@ -119,46 +119,83 @@ func checkTestCaseUseCaseRefs(corpus *Corpus) []Finding {
 	return findings
 }
 
-// checkSpecIndexPaths verifies that path fields in spec index entries
-// point to existing files.
+// indexPath is one path an index names, with the table and entry it came from.
+type indexPath struct {
+	table, id, path string
+}
+
+// indexPaths lists the paths every SPECIFICATIONS.md index table names.
+func (si *SpecIndex) indexPaths() []indexPath {
+	var paths []indexPath
+	for _, e := range si.FoundationDocumentIndex {
+		paths = append(paths, indexPath{"foundation_document_index", e.ID, e.Path})
+	}
+	for _, e := range si.SRDIndex {
+		paths = append(paths, indexPath{"srd_index", e.ID, e.Path})
+	}
+	for _, e := range si.ConfigFormatIndex {
+		paths = append(paths, indexPath{"config_format_index", e.ID, e.Path})
+	}
+	for _, e := range si.SemanticModelIndex {
+		paths = append(paths, indexPath{"semantic_model_index", e.ID, e.Path})
+	}
+	for _, e := range si.UseCaseIndex {
+		paths = append(paths, indexPath{"use_case_index", e.ID, e.Path})
+	}
+	for _, e := range si.TestSuiteIndex {
+		paths = append(paths, indexPath{"test_suite_index", e.ID, e.Path})
+	}
+	return paths
+}
+
+// checkSpecIndexPaths verifies that every path an index table or the
+// architecture's related_documents names is an existing file. Paths are
+// relative to the corpus root, never to the document that writes them.
 
 func checkSpecIndexPaths(corpus *Corpus) []Finding {
 	if corpus.RootDir == "" {
 		return nil
 	}
 	var findings []Finding
-	for _, entry := range corpus.SpecIndex.SRDIndex {
-		if entry.Path != "" {
-			if !fileExists(filepath.Join(corpus.RootDir, entry.Path)) {
-				findings = append(findings, Finding{
-					Check:   "index-broken-path",
-					Level:   "error",
-					Message: fmt.Sprintf("srd_index entry %s path %q does not exist", entry.ID, entry.Path),
-				})
-			}
+	for _, p := range corpus.SpecIndex.indexPaths() {
+		if p.path != "" && !fileExists(filepath.Join(corpus.RootDir, p.path)) {
+			findings = append(findings, Finding{
+				Check:   "index-broken-path",
+				Level:   "error",
+				Message: fmt.Sprintf("%s entry %s path %q does not exist", p.table, p.id, p.path),
+			})
 		}
 	}
-	for _, entry := range corpus.SpecIndex.UseCaseIndex {
-		if entry.Path != "" {
-			if !fileExists(filepath.Join(corpus.RootDir, entry.Path)) {
-				findings = append(findings, Finding{
-					Check:   "index-broken-path",
-					Level:   "error",
-					Message: fmt.Sprintf("use_case_index entry %s path %q does not exist", entry.ID, entry.Path),
-				})
-			}
+	for _, path := range corpus.RelatedDocuments {
+		if !fileExists(filepath.Join(corpus.RootDir, path)) {
+			findings = append(findings, Finding{
+				Check:   "index-broken-path",
+				Level:   "error",
+				Message: fmt.Sprintf("%s related_documents entry %q does not exist", ArchFile, path),
+			})
 		}
 	}
-	for _, entry := range corpus.SpecIndex.TestSuiteIndex {
-		if entry.Path != "" {
-			if !fileExists(filepath.Join(corpus.RootDir, entry.Path)) {
-				findings = append(findings, Finding{
-					Check:   "index-broken-path",
-					Level:   "error",
-					Message: fmt.Sprintf("test_suite_index entry %s path %q does not exist", entry.ID, entry.Path),
-				})
-			}
-		}
+	return findings
+}
+
+// validateIndexPaths runs the checks on paths the index tables and the
+// architecture's related_documents name.
+func validateIndexPaths(corpus *Corpus) []Finding {
+	return append(checkSpecIndexPaths(corpus), checkMalformedRelatedDocuments(corpus)...)
+}
+
+// checkMalformedRelatedDocuments reports related_documents entries that name
+// no path, which the corpus load kept rather than failing on.
+
+func checkMalformedRelatedDocuments(corpus *Corpus) []Finding {
+	findings := make([]Finding, 0, len(corpus.MalformedRelatedDocuments))
+	for _, msg := range corpus.MalformedRelatedDocuments {
+		findings = append(findings, Finding{
+			Check:   "related-document-malformed",
+			Level:   "error",
+			File:    ArchFile,
+			Message: msg + "; write a path or a {doc, purpose} row",
+		})
 	}
 	return findings
 }

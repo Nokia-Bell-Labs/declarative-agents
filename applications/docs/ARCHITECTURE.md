@@ -1047,16 +1047,16 @@ realizations, package closure, capability-aware goals, and exclusions.
 
 Shared SRD, use-case, and test-suite index.
 
-<!-- related_document: ../../docs/engineering/eng01-kind-test-demo-rig.md -->
-### ../../docs/engineering/eng01-kind-test-demo-rig.md
+<!-- related_document: ../docs/engineering/eng01-kind-test-demo-rig.md -->
+### ../docs/engineering/eng01-kind-test-demo-rig.md
 
 <!-- field: purpose -->
 #### Purpose
 
 Referenced kind-demo engineering contract.
 
-<!-- related_document: ../catalog/docs/ARCHITECTURE.md -->
-### ../catalog/docs/ARCHITECTURE.md
+<!-- related_document: catalog/docs/ARCHITECTURE.md -->
+### catalog/docs/ARCHITECTURE.md
 
 <!-- field: purpose -->
 #### Purpose
@@ -1119,24 +1119,24 @@ Panel composition flow and the endpoint-usage review of all three repositories.
 
 Release 15.0 structural and planned executable evidence.
 
-<!-- related_document: ../chatbot-mesh/docs/ARCHITECTURE.md -->
-### ../chatbot-mesh/docs/ARCHITECTURE.md
+<!-- related_document: chatbot-mesh/docs/ARCHITECTURE.md -->
+### chatbot-mesh/docs/ARCHITECTURE.md
 
 <!-- field: purpose -->
 #### Purpose
 
 Local-agent runnable application reference.
 
-<!-- related_document: ../coding-agent/docs/ARCHITECTURE.md -->
-### ../coding-agent/docs/ARCHITECTURE.md
+<!-- related_document: coding-agent/docs/ARCHITECTURE.md -->
+### coding-agent/docs/ARCHITECTURE.md
 
 <!-- field: purpose -->
 #### Purpose
 
 Composition-only runnable application reference.
 
-<!-- related_document: ../agent-architecture/docs/ARCHITECTURE.md -->
-### ../agent-architecture/docs/ARCHITECTURE.md
+<!-- related_document: agent-architecture/docs/ARCHITECTURE.md -->
+### agent-architecture/docs/ARCHITECTURE.md
 
 <!-- field: purpose -->
 #### Purpose
@@ -1151,16 +1151,16 @@ Composition-only demo classification and partial managed-service evidence bounda
 
 Persistent platform ownership, lifecycle, routing, storage, query, threat, and reusable runner contract.
 
-<!-- related_document: ../../docs/engineering/eng08-gcp-demo-rig.md -->
-### ../../docs/engineering/eng08-gcp-demo-rig.md
+<!-- related_document: ../docs/engineering/eng08-gcp-demo-rig.md -->
+### ../docs/engineering/eng08-gcp-demo-rig.md
 
 <!-- field: purpose -->
 #### Purpose
 
 Cloud realization of the persistent application platform.
 
-<!-- related_document: ../../magefiles/build.go -->
-### ../../magefiles/build.go
+<!-- related_document: ../magefiles/build.go -->
+### ../magefiles/build.go
 
 <!-- field: purpose -->
 #### Purpose

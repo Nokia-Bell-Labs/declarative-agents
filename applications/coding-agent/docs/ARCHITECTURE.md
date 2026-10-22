@@ -653,6 +653,6 @@ application on da-platform are implemented.
 | docs/road-map.md | Release status and sequencing. |
 | docs/specs/use-cases/rel01.0-uc001-coding-loop.md | End-to-end planner, executor, and critic flow. |
 | docs/specs/test-suites/test-rel01.0-coding-loop.md | Inputs and expected outputs for the three integration stages. |
-| applications/catalog/docs/specs/software-requirements/srd002-executor.md | Canonical executor family contract. |
-| applications/catalog/docs/specs/software-requirements/srd003-critic.md | Canonical critic family contract. |
-| applications/catalog/docs/specs/software-requirements/srd004-planner.md | Canonical planner family contract. |
+| ../catalog/docs/specs/software-requirements/srd002-executor.md | Canonical executor family contract. |
+| ../catalog/docs/specs/software-requirements/srd003-critic.md | Canonical critic family contract. |
+| ../catalog/docs/specs/software-requirements/srd004-planner.md | Canonical planner family contract. |

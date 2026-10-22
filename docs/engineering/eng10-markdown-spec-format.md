@@ -112,6 +112,41 @@ A node's parent is the node open one level up, or field:<name> when that node is
 
 A node kind whose tag is field is a field slot: the place where fields open, one heading level and one parent. A slot whose parent is field:<name> holds nested fields, the keys of that field's value. The next section but one declares them (GH-2651).
 
+Every heading carries a marker, including a heading inside free text. A heading without one is heading-untagged even under a node whose content is any or prose, because the canonical round trip has to know what each heading opens. A corpus that wants subsections inside a free-text section declares them: a second node kind with the same tag, one level down, whose parent is the first. The declaration below adds level-3 sections under the engineering guideline's level-2 section, and a corpus that keeps its own design.yaml loads it through LoadDeclarations with no change to the library (GH-2699).
+
+```text
+section:
+  tag: section
+  level: 2
+  parent: document
+  id_pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+  heading: free
+  content: any
+  yaml: {from: sections, records: list, id: id, title: title, content: content}
+subsection:
+  tag: section
+  level: 3
+  parent: section
+  id_pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+  heading: free
+  content: any
+  yaml: {from: sections, records: list, id: id, title: title, content: content}
+```
+
+A document then tags each subsection like its section, and it parses, prints back unchanged, and reports nothing (TestDeeperSectionsPatternIsCanonical holds this example). A level-4 kind under subsection extends it one more step.
+
+```markdown
+<!-- section: processes -->
+## Processes
+
+The scorer runs as two processes.
+
+<!-- section: ingest-process -->
+### The ingest process
+
+Reads trajectories from the queue.
+```
+
 <!-- section: field-shapes -->
 ## Field shapes
 
@@ -166,6 +201,8 @@ A reference is a whole value: a document id, optionally followed by a space and 
 An anchor is GitHub's: the heading text lowercased, every character but letters, digits, underscores, hyphens, and spaces dropped, spaces turned into hyphens, and a -1, -2 suffix for each repeat of the same anchor earlier on the page. R1.1 becomes #r11 and "R1 - Budget" becomes #r1---budget. An item's anchor is the one its heading takes in its document.
 
 Links are rendering only. The YAML tree holds the plain reference, and the parser reads a link back as its text when the text is a reference and the target is one the converter writes: a relative Markdown file for a document id (file names need not match ids, as cfg-runtime-contract lives in runtime-contract.md), and an anchor starting with the item's own for an item. The converter owns the target, so mage fmt rewrites a stale one. A link the converter would not write, or one around other text, stays literal text. The parser needs nothing beyond the document, so the corpus loader and a lone document parse as before; the printer needs the corpus index, the ids, paths, and item anchors of every corpus document, to write cross-document links, and mage fmt, mage convert, and the canonical-form check all print with it, so a moved document's links follow it on the next mage fmt and a stale one is a not-canonical finding. Without the index the printer links same-page items only.
+
+A path written as a value is not a link and has one base: the corpus root, the directory that holds docs/. That covers the path column of every SPECIFICATIONS.md index table and every entry of ARCHITECTURE.md's related_documents, so docs/specs/software-requirements/srd001-auth.md names the same file whichever document writes it, and a path to a document outside the corpus climbs from the root (../docs/specs/semantic-models/agent-role-realizations.md from an application). The corpus audit reports index-broken-path for any such path that names no file (GH-2698). related_documents may be written as a plain list of paths or as a table of doc and purpose rows; an entry that is neither is a related-document-malformed finding, and the audit still runs every other check (GH-2697).
 
 Table 5: Reference links, one example each
 
@@ -315,7 +352,7 @@ Table 11: Finding catalog
 | 2 | duplicate-id | an id the type declares unique appears twice |
 | 2 | field-disallowed | a typed field appears under a node its declaration does not list |
 | 2 | field-duplicate | a node holds the same field twice |
-| 2 | content-untagged | content sits under a node whose content kind is none, or before any heading |
+| 2 | content-untagged | content sits under a node whose content kind is none, or before any heading; content under a heading already reported heading-untagged is not reported again |
 | 2 | untagged-structure | a prose node holds a list or table that belongs in its own field |
 | 2 | missing-content | a prose node is empty |
 | 2 | missing-required-field | a document or node lacks a field it requires |
