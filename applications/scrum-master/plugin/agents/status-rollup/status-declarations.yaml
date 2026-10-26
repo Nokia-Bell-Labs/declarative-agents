@@ -1,0 +1,236 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The status-rollup workflow's status words, which the model calls (GH-2725):
+# each runs in the agent's own process with --json, and a non-zero exit is
+# the word's refusal, fed back to the model. Optional flags are parameters,
+# never ${VAR} args (GH-135).
+unit: scrum-master-status-rollup-status-declarations
+tools:
+- name: reports_collect
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - collect
+  - --json
+  visibility: external
+  description: 'Collect a level''s merged reports and rollups, each with its repository and commit, and its open status issues (GH-2725).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      control:
+        type: string
+        description: 'The system repository, whose subsystem SRDs name the program''s repositories.'
+        flag: --control
+      level:
+        type: string
+        description: 'team or program.'
+        flag: --level
+      subsystem:
+        type: string
+        description: 'The team''s subsystem SRD id; empty is the one naming project.'
+        flag: --subsystem
+      project:
+        type: string
+        description: 'The repository the collection runs in, naming the team when subsystem is empty.'
+        flag: --project
+      from:
+        type: string
+        description: 'The first ISO week, YYYY-Www; empty is this week.'
+        flag: --from
+      to:
+        type: string
+        description: 'The last ISO week; empty is from.'
+        flag: --to
+      ref:
+        type: string
+        description: 'The ref of the system repository''s control files; empty is main.'
+        flag: --ref
+    required: [control, level]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The word''s JSON report.'
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'reports_collect: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: nothing was written
+
+- name: reports_aggregate
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - aggregate
+  - --json
+  visibility: external
+  description: 'Aggregate the period''s reports into progress and signals, filing each actionable one when asked (srd018 R3).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      from:
+        type: string
+        description: 'The first ISO week, YYYY-Www; empty is this week.'
+        flag: --from
+      to:
+        type: string
+        description: 'The last ISO week; empty is from.'
+        flag: --to
+      push:
+        type: boolean
+        description: 'File each actionable signal as an issue, once.'
+        flag: --push
+        bool_flag: true
+      ref:
+        type: string
+        description: 'The ref of the control files; empty is main.'
+        flag: --ref
+      control:
+        type: string
+        description: 'The system repository holding control/reports.md: aggregate a level''s reports collected where they were written, not the checkout''s (GH-2725).'
+        flag: --control
+      level:
+        type: string
+        description: 'With control, team or program.'
+        flag: --level
+      subsystem:
+        type: string
+        description: 'With level team, the team''s subsystem SRD id; empty is the one naming project.'
+        flag: --subsystem
+      project:
+        type: string
+        description: 'With level team, the repository the aggregate runs in.'
+        flag: --project
+      collected:
+        type: string
+        description: 'With control, a file holding reports collect''s JSON to aggregate instead of collecting again.'
+        flag: --collected
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The aggregate''s JSON report.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'With push, files each actionable signal as an issue, once.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'reports_aggregate: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it
+
+- name: reports_path
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - path
+  - --json
+  visibility: external
+  description: 'Where this week''s report or rollup goes, and its branch (GH-2725).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      user:
+        type: string
+        description: 'The person whose report it is.'
+        flag: --user
+      level:
+        type: string
+        description: 'A rollup''s level instead: program, or the team''s subsystem SRD id.'
+        flag: --level
+      date:
+        type: string
+        description: 'A day of the week, YYYY-MM-DD; empty is today.'
+        flag: --date
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The word''s JSON report.'
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'reports_path: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: nothing was written
+
+- name: reports_validate
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - validate
+  - --json
+  description: Check the reports repository's reports against the report format (srd018 R2).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: The reports repository's checkout; empty is the run's directory.
+        flag: --dir
+      report:
+        type: array
+        items:
+          type: string
+        description: Reports to check; none checks them all.
+        positional: true
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The validation''s JSON report: each report and its findings.'
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads the reports and writes nothing.
+  visibility: external

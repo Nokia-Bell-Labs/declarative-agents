@@ -34,12 +34,13 @@ func programGroup(named, dir, system string) string {
 }
 
 func init() {
-	var a struct{ dir, system, aggregate, artifact, control, ref string }
+	var a struct{ dir, system, aggregate, rollup, artifact, control, ref string }
 	var velocity int
 	common := func(fs *flag.FlagSet) {
 		fs.StringVar(&a.dir, "dir", ".", "the system repository's checkout")
 		fs.StringVar(&a.system, "system", "", "system repository path, for slipped objectives and the last milestone")
 		fs.StringVar(&a.aggregate, "aggregate", "", "the period's scrum-master reports aggregate --json output, for slipped objectives")
+		fs.StringVar(&a.rollup, "rollup", "", "the period's program rollup, for slipped objectives; empty with no --aggregate is the latest under --dir's status/rollups (GH-2725)")
 		fs.StringVar(&a.artifact, "artifact", "corpus", "the artifact the system repository releases its plan as")
 		fs.StringVar(&a.control, "control", "", "program repository holding control/policy.md; defaults to --system")
 		fs.StringVar(&a.ref, "ref", "main", "ref of the control files")
@@ -71,6 +72,20 @@ func init() {
 			if err := json.Unmarshal(b, &agg); err != nil {
 				return Candidates{}, nil, fmt.Errorf("%s: %w", a.aggregate, err)
 			}
+			in.Aggregate = &agg
+		} else if path := a.rollup; path != "" || reports.LatestProgramRollup(a.dir) != "" {
+			if path == "" {
+				path = reports.LatestProgramRollup(a.dir)
+			}
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return Candidates{}, nil, err
+			}
+			r, err := reports.ParseRollup(path, b)
+			if err != nil {
+				return Candidates{}, nil, err
+			}
+			agg := r.Aggregation()
 			in.Aggregate = &agg
 		}
 		tags, err := release.RepoTags(a.dir)

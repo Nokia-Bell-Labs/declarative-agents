@@ -20,6 +20,7 @@ site/data/status/architecture.json
 site/data/status/issues.json
 site/data/status/road-map.json
 site/data/status/roll-up.json
+site/data/status/rollup.json
 site/data/status/signals.json
 site/data/status/sprint-goals.json
 site/hierarchy/ep001-agent-evaluation.md
@@ -47,6 +48,7 @@ site/status/index.md
 site/status/issues.md
 site/status/road-map.md
 site/status/roll-up.md
+site/status/rollup.md
 site/status/signals.md
 site/status/sprint-goals.md
 site/timeline/.stamps

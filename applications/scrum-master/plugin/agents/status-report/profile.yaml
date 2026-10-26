@@ -1,0 +1,27 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The status-report skill as a declarative-agents profile (srd018 R12, R14; GH-2725): the workflow
+# around the writing is this machine, its words are its tools, and the model
+# acts only in the Report state (design.md D10). scrum-master install --agent renders
+# the SKILL.md agents read from this profile's machine, and mage audit
+# validates it with the pinned runtime. A run starts in the issue's
+# worktree, as implement's does: the runner pre-pops, and Pop is the claim gate.
+name: status-report
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_config_dirs:
+  - /opt/agent-core/tools/builtin/filesystem
+tool_declarations:
+  - declarations.yaml
+  - status-declarations.yaml
+  - llm/default.yaml
+  - /opt/agent-core/tools/builtin/report-parse-error.yaml
+  - /opt/agent-core/tools/builtin/reset-history.yaml
+  - /opt/agent-core/tools/builtin/nudge-reread.yaml
+  - /opt/agent-core/tools/builtin/done.yaml
+  - /opt/agent-core/tools/exec/stage-all.yaml
+  - /opt/agent-core/tools/exec/commit.yaml
+# The provider library invoke_llm reads its chat dialect from.
+libraries:
+  providers: /opt/agent-core/tools/providers/ollama

@@ -23,7 +23,7 @@ func init() {
 		Group: "sprint-end", Name: "facts", Summary: "the period's aggregate, each Sprint Goal's ledger and reported status, and the recommended version",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&a.project, "project", "", "the repository the sprint-end issue is in (required)")
-			fs.StringVar(&a.reportsDir, "reports", "", "a checkout of the reports repository (required)")
+			fs.StringVar(&a.reportsDir, "reports", "", "a checkout of a central reports repository; empty reads the reports where they were written, from the roster in the system repository (GH-2725)")
 			fs.StringVar(&a.from, "from", "", "the period's first week, YYYY-Www (required)")
 			fs.StringVar(&a.to, "to", "", "the period's last week, YYYY-Www (required)")
 			fs.StringVar(&a.dir, "dir", ".", "the repository's checkout, for its release tags")
@@ -32,30 +32,21 @@ func init() {
 			fs.StringVar(&a.ref, "ref", "main", "ref of the control files")
 		},
 		Run: func(ctx *cli.Context) error {
-			if a.project == "" || a.reportsDir == "" || a.from == "" || a.to == "" || a.artifact == "" {
-				return fmt.Errorf("%w: facts needs --project, --reports, --from, --to, and --artifact", cli.ErrUsage)
+			if a.project == "" || a.from == "" || a.to == "" || a.artifact == "" {
+				return fmt.Errorf("%w: facts needs --project, --from, --to, and --artifact", cli.ErrUsage)
 			}
 			t, err := ctx.Tracker()
 			if err != nil {
 				return err
 			}
 			p := program.Defaults()
-			if control := program.ControlFor(a.control, a.dir, ""); control != "" {
+			control := program.ControlFor(a.control, a.dir, "")
+			if control != "" {
 				if p, err = program.LoadPolicy(t, control, a.ref); err != nil {
 					return err
 				}
 			}
-			cfg, err := reports.LoadConfig(a.reportsDir)
-			if err != nil {
-				return err
-			}
-			// A team's sprint end reads its own team's reports; the system's
-			// reads the program's (GH-116).
-			team := ""
-			if program.ProjectPath(a.project) != program.ProjectPath(cfg.System) {
-				team = a.project
-			}
-			agg, err := reports.Aggregate(t, reports.AggregateInput{Dir: a.reportsDir, Config: cfg, Policy: p, From: a.from, To: a.to, Project: team})
+			agg, err := periodAggregate(t, p, control, a.ref, a.reportsDir, a.project, a.from, a.to)
 			if err != nil {
 				return err
 			}
@@ -136,4 +127,41 @@ func orNothing(v string) string {
 		return "none"
 	}
 	return v
+}
+
+// periodAggregate is the period's aggregate for the sprint end of project:
+// its team's, or for the system repository the program's (GH-116). With the
+// roster in the system repository it reads the reports where they were
+// written, collected for the team's subsystem or the program (GH-2725);
+// else the central reports checkout reportsDir.
+func periodAggregate(t tracker.Tracker, p program.Policy, control, ref, reportsDir, project, from, to string) (reports.Aggregation, error) {
+	if control != "" {
+		cfg, err := reports.LoadControl(t, control, ref)
+		if err == nil {
+			level := "team"
+			if program.ProjectPath(project) == program.ProjectPath(control) {
+				level = reports.ProgramLevel
+			}
+			col, err := reports.Collect(t, reports.CollectInput{Config: cfg, System: control, Ref: ref, Level: level, Project: project, From: from, To: to})
+			if err != nil {
+				return reports.Aggregation{}, err
+			}
+			return reports.Aggregate(t, reports.AggregateInput{Config: cfg, Policy: p, From: from, To: to, Collection: &col})
+		}
+		if !errors.Is(err, tracker.ErrNotFound) {
+			return reports.Aggregation{}, err
+		}
+	}
+	if reportsDir == "" {
+		return reports.Aggregation{}, fmt.Errorf("%w: facts needs --reports while the system repository holds no %s", cli.ErrUsage, reports.ControlFile)
+	}
+	cfg, err := reports.LoadConfig(reportsDir)
+	if err != nil {
+		return reports.Aggregation{}, err
+	}
+	team := ""
+	if program.ProjectPath(project) != program.ProjectPath(cfg.System) {
+		team = project
+	}
+	return reports.Aggregate(t, reports.AggregateInput{Dir: reportsDir, Config: cfg, Policy: p, From: from, To: to, Project: team})
 }

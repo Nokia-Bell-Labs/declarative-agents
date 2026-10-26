@@ -1,0 +1,37 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the status-rollup workflow. The words and git_push are
+# machine actions the model never dispatches; the file and git words are
+# model-invoked in the Rollup state via $tool dispatch (design.md D10).
+tools:
+  # Workflow words -- direct transition actions, never model-dispatched
+  - issue_pop
+  - git_push
+  - issue_merge
+
+  # Status words -- model-invoked via $tool dispatch in Rollup
+  - reports_collect
+  - reports_aggregate
+  - reports_path
+  - reports_validate
+
+  # File words -- model-invoked via $tool dispatch in Rollup
+  - read
+  - write
+  - edit
+  - find
+  - list_files
+
+  # Commit words -- model-invoked: each issue commits separately
+  - stage_all
+  - commit
+
+  # Model loop -- direct transition actions
+  - invoke_llm
+  - parse_response
+  - report_parse_error
+  - reset_history
+  - nudge_reread
+
+  # Completion -- emits TaskCompleted via parse_response
+  - done

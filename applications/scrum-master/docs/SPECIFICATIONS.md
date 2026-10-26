@@ -39,7 +39,7 @@ retired, and an interim rule says what scrum-master does until they are rewritte
 The skills take Spec Kit's names (specify, plan, tasks, implement): tasks
 breaks a level into the units below it, down to a story's issues, and
 implement builds them. Every repository of a consuming program carries the same
-corpus shape (design.md D7). Release 00 (00.0 to 00.3), releases 01.0 to 01.2 and 01.4, 03.0, 03.1, and 04.0 to 04.4 are implemented; 05.0 and 06.0 are specified. Release 03.1 lets each repository name its tracking system, bd, gh, or glab. Release 04.0 aligns the planning documents with the agile hierarchy and renames the objective issue the Sprint Goal. Release 04.1 makes a program repository explain itself and adds scrum-master doctor. Release 04.2 adds the draft skill and scrum-master backlog list and check. Release 04.3 ships scrum-master as release binaries and a container image (eng03) and adds scrum-master install --runtime and doctor's runtime report. Release 04.4 works a story end to end in one worktree and one merge.
+corpus shape (design.md D7). Release 00 (00.0 to 00.3), releases 01.0 to 01.2 and 01.4, 03.0, 03.1, and 04.0 to 04.5 are implemented; 05.0 and 06.0 are specified. Release 03.1 lets each repository name its tracking system, bd, gh, or glab. Release 04.0 aligns the planning documents with the agile hierarchy and renames the objective issue the Sprint Goal. Release 04.1 makes a program repository explain itself and adds scrum-master doctor. Release 04.2 adds the draft skill and scrum-master backlog list and check. Release 04.3 ships scrum-master as release binaries and a container image (eng03) and adds scrum-master install --runtime and doctor's runtime report. Release 04.4 works a story end to end in one worktree and one merge. Release 04.5 keeps weekly status where the work is: reports and rollups written in place, collected per team and for the program, and the status-report and status-rollup skills.
 
 Releases are planned by use case, and a use case cites only the
 requirement items its release delivers. Release 00 is the inner loop
@@ -76,6 +76,7 @@ docs/road-map.md.
 | "04.2" | A planning document drafted in conversation | 1 | 1 | implemented |
 | "04.3" | scrum-master ships to machines and to CI | 2 | 2 | implemented |
 | "04.4" | Work a story end to end | 1 | 1 | implemented |
+| "04.5" | Status reports in place | 2 | 2 | implemented |
 | "05.0" | Tags trigger handoff and the summary | 0 | 2 | specified |
 | "05.1" | The generated status and timeline site | 0 | 0 | specified |
 | "06.0" | Evidence, handoff, and cadence | 0 | 0 | specified |
@@ -196,6 +197,8 @@ docs/road-map.md.
 | [rel04.3-uc001-install-without-go](specs/use-cases/rel04.3-uc001-install-without-go.md) | A Developer with No Go Toolchain Installs tpm and Readies the Pinned Runtime | 04.3 | implemented | [test-rel04.3-distribution](specs/test-suites/test-rel04.3-distribution.md) | docs/specs/use-cases/rel04.3-uc001-install-without-go.md |
 | [rel04.3-uc002-ci-job-on-the-image](specs/use-cases/rel04.3-uc002-ci-job-on-the-image.md) | A CI Job Runs tpm and the Pinned Runtime on the Release's Image | 04.3 | implemented | [test-rel04.3-distribution](specs/test-suites/test-rel04.3-distribution.md) | docs/specs/use-cases/rel04.3-uc002-ci-job-on-the-image.md |
 | [rel04.4-uc001-work-a-story](specs/use-cases/rel04.4-uc001-work-a-story.md) | A Developer Works a Story End to End in One Worktree and One Merge | 04.4 | implemented | [test-rel04.4-story-loop](specs/test-suites/test-rel04.4-story-loop.md) | docs/specs/use-cases/rel04.4-uc001-work-a-story.md |
+| [rel04.5-uc001-report-in-place](specs/use-cases/rel04.5-uc001-report-in-place.md) | A Person Writes Their Weekly Status Report Where They Worked | 04.5 | implemented | [test-rel04.5-status-in-place](specs/test-suites/test-rel04.5-status-in-place.md) | docs/specs/use-cases/rel04.5-uc001-report-in-place.md |
+| [rel04.5-uc002-roll-up-in-place](specs/use-cases/rel04.5-uc002-roll-up-in-place.md) | A Lead Rolls Up a Team's or the Program's Week From Where It Was Written | 04.5 | implemented | [test-rel04.5-status-in-place](specs/test-suites/test-rel04.5-status-in-place.md) | docs/specs/use-cases/rel04.5-uc002-roll-up-in-place.md |
 | [rel05.0-uc001-reference-update](specs/use-cases/rel05.0-uc001-reference-update.md) | A Downstream Release Files a Reference-Update Issue Upstream | 05.0 | specified | [test-rel05.0-tag-triggered](specs/test-suites/test-rel05.0-tag-triggered.md) | docs/specs/use-cases/rel05.0-uc001-reference-update.md |
 | [rel05.0-uc002-release-summary](specs/use-cases/rel05.0-uc002-release-summary.md) | A System Release Renders the Deck from the Approved Summary | 05.0 | specified | [test-rel05.0-tag-triggered](specs/test-suites/test-rel05.0-tag-triggered.md) | docs/specs/use-cases/rel05.0-uc002-release-summary.md |
 
@@ -219,6 +222,7 @@ docs/road-map.md.
 | [test-rel04.2-draft](specs/test-suites/test-rel04.2-draft.md) | Test Suite for Release 04.2 A Planning Document Drafted in Conversation | "04.2" | 3 | [[rel04.2-uc001-draft-a-planning-document](specs/use-cases/rel04.2-uc001-draft-a-planning-document.md)] | docs/specs/test-suites/test-rel04.2-draft.md |
 | [test-rel04.3-distribution](specs/test-suites/test-rel04.3-distribution.md) | Test Suite for Release 04.3 tpm Ships to Machines and to CI | "04.3" | 4 | [[rel04.3-uc001-install-without-go](specs/use-cases/rel04.3-uc001-install-without-go.md), [rel04.3-uc002-ci-job-on-the-image](specs/use-cases/rel04.3-uc002-ci-job-on-the-image.md)] | docs/specs/test-suites/test-rel04.3-distribution.md |
 | [test-rel04.4-story-loop](specs/test-suites/test-rel04.4-story-loop.md) | Test Suite for Release 04.4 Work a Story End to End | "04.4" | 2 | [[rel04.4-uc001-work-a-story](specs/use-cases/rel04.4-uc001-work-a-story.md)] | docs/specs/test-suites/test-rel04.4-story-loop.md |
+| [test-rel04.5-status-in-place](specs/test-suites/test-rel04.5-status-in-place.md) | Test Suite for Release 04.5 Status Reports in Place | "04.5" | 2 | [[rel04.5-uc001-report-in-place](specs/use-cases/rel04.5-uc001-report-in-place.md), [rel04.5-uc002-roll-up-in-place](specs/use-cases/rel04.5-uc002-roll-up-in-place.md)] | docs/specs/test-suites/test-rel04.5-status-in-place.md |
 | [test-rel05.0-tag-triggered](specs/test-suites/test-rel05.0-tag-triggered.md) | Test Suite for Release 05.0 Tags Trigger Handoff and the Summary | "05.0" | 2 | [[rel05.0-uc001-reference-update](specs/use-cases/rel05.0-uc001-reference-update.md), [rel05.0-uc002-release-summary](specs/use-cases/rel05.0-uc002-release-summary.md)] | docs/specs/test-suites/test-rel05.0-tag-triggered.md |
 
 <!-- field: coverage_gaps -->
@@ -227,7 +231,7 @@ docs/road-map.md.
 | id | gap |
 | --- | --- |
 | GAP1 | Use cases exist for releases 00, 01, 03, and 04, and for 05.0, which is specified. Release 06.0 has none: srd008, srd019, srd020, srd032, and srd033 hold its direction only (design.md D12), and their items and use cases are written when 06.0 is planned. |
-| GAP2 | Test suites exist for releases 00, 01, 03, 04, and 05.0. test-rel00.0-push, test-rel00.1-pop, test-rel00.2-docs-change, test-rel00.3-install, test-rel01.0-objectives, test-rel01.1-weekly-status, test-rel01.2-sprint-end, test-rel01.4-agent-legible-cli, and the suites of 03.0, 03.1, and 04.0 to 04.4 are implemented; test-rel05.0-tag-triggered is specified, and acceptance criteria outside them have no test case yet. |
+| GAP2 | Test suites exist for releases 00, 01, 03, 04, and 05.0. test-rel00.0-push, test-rel00.1-pop, test-rel00.2-docs-change, test-rel00.3-install, test-rel01.0-objectives, test-rel01.1-weekly-status, test-rel01.2-sprint-end, test-rel01.4-agent-legible-cli, and the suites of 03.0, 03.1, and 04.0 to 04.5 are implemented; test-rel05.0-tag-triggered is specified, and acceptance criteria outside them have no test case yet. |
 | GAP3 | The audit is the parent's specification-critic corpus-audit agent, run by mage audit after the repository gate tests. It does not yet run in CI on changes to docs/ (srd034 R2.2); scrum-master issue merge runs it before each merge; this repository has no pipeline. |
 | GAP4 | Open decision. The promotion trigger for each environment (each subsystem release, nightly from the latest releases, or both) is declared per environment SRD; no default is chosen yet. |
 | GAP5 | Open decision. The channel by which evidence from customer R&D environments returns to the Sprint Goal ledger is not specified (srd008, srd019 non-goals). |

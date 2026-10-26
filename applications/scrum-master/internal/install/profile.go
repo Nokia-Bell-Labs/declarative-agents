@@ -55,7 +55,7 @@ type declarationsDoc struct {
 
 // wordAliases names the profile that runs a model profile's word where the
 // profile is not the word's name with dashes (GH-48).
-var wordAliases = map[string]string{"issue_pop": "pop", "issue_merge": "merge"}
+var wordAliases = map[string]string{"issue_pop": "pop", "issue_merge": "merge", "reports_week": "status", "reports_aggregate": "aggregate"}
 
 // modelFreeSteps is, for a model profile, how a coding agent runs each of
 // its exec words without a model (GH-48): the model-free profile named for

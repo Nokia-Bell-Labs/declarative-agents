@@ -5,6 +5,7 @@ package reports
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -320,5 +321,59 @@ func TestRollupFormatExampleValidates(t *testing.T) {
 	}
 	if problems := CheckFile("status/rollups/2026-Q4/2026-W42-program.md", []byte(strings.Join(lines, "\n")+"\n")); len(problems) != 0 {
 		t.Fatalf("the example breaks the format: %v", problems)
+	}
+}
+
+// A program whose roster is in the system repository gets a site home with
+// no reports in it: init lays down the README, the site's front page, and
+// the deck template, and no reports.md (GH-2725).
+func TestInitWithoutARosterLaysDownTheSiteOnly(t *testing.T) {
+	dir := t.TempDir()
+	res, err := Init(dir, Config{}, monday, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, r := range res {
+		got = append(got, filepath.ToSlash(r.Path)+" "+r.Action)
+	}
+	if strings.Join(got, ", ") != "deck/template.md created, README.md created, site/index.md created" {
+		t.Fatalf("init = %v", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ConfigFile)); err == nil {
+		t.Error("init wrote reports.md for a program whose roster is in the system repository")
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "README.md")); !strings.Contains(string(b), "control/reports.md") {
+		t.Errorf("the README does not say where reports live:\n%s", b)
+	}
+}
+
+// The newest program rollup in a checkout reads as the aggregate states its
+// progress, so plan's candidates read the lead's rollup as they read the
+// aggregate: a Sprint Goal at risk is neither met nor complete (GH-2725).
+func TestLatestProgramRollupReadsAsAnAggregate(t *testing.T) {
+	dir := t.TempDir()
+	if LatestProgramRollup(dir) != "" {
+		t.Fatal("a checkout with no rollup has one")
+	}
+	src := []Entry{{"repository": po1, "path": "p", "commit": "c"}}
+	for week, state := range map[string]string{"2026-W41": "met", "2026-W42": "at-risk"} {
+		p := filepath.Join(dir, filepath.FromSlash(RollupPath(mustWeek(week), ProgramLevel)))
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte(RenderRollup(RollupFrontMatter{Level: ProgramLevel, Author: "tpm", Period: week}, nil,
+			[]Entry{{"sprint_goal": po1 + "#1", "component": "po-1", "state": state, "evidence": "e", "cites": Cite(po1, "c")}}, nil, nil, src)), 0o644)
+	}
+	latest := LatestProgramRollup(dir)
+	if !strings.HasSuffix(latest, "2026-W42-program.md") {
+		t.Fatalf("latest = %s", latest)
+	}
+	b, _ := os.ReadFile(latest)
+	r, err := ParseRollup(latest, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := r.Aggregation()
+	if len(a.Progress) != 1 || a.Progress[0].SprintGoal != po1+"#1" || a.Progress[0].State != "at-risk" || a.Progress[0].Met || a.Progress[0].Complete {
+		t.Fatalf("progress = %+v", a.Progress)
 	}
 }

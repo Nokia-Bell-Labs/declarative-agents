@@ -13,6 +13,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/beads"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/reports"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/routing"
 )
 
@@ -76,6 +77,14 @@ func Init(o InitOptions) (InitResult, error) {
 	for n, b := range controlFiles() {
 		files[n] = b
 	}
+	// A new program's roster starts empty in control/: its people report
+	// where they work (GH-2725). Doctor moves an existing program's roster
+	// rather than writing an empty one over its central reports.
+	roster, err := reports.RosterDocument(reports.Config{})
+	if err != nil {
+		return r, err
+	}
+	files[reports.ControlFile] = roster
 	// The program's tracking system, when init knows it: the tracker
 	// repository it seeds, else the one SCRUM_MASTER_TRACKER names (srd042).
 	s, ok := routing.Override(o.Tracker)

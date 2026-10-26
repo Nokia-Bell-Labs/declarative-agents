@@ -5,6 +5,7 @@ package reports
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -240,4 +241,36 @@ func RenderRollup(fm RollupFrontMatter, headlines, progress, risks []Entry, next
 // report.
 func IsRollupPath(p string) bool {
 	return strings.Contains("/"+p, "/"+StatusDir+"/rollups/")
+}
+
+// LatestProgramRollup is the newest program rollup in the checkout at dir,
+// status/rollups/<quarter>/<week>-program.md; empty when there is none.
+func LatestProgramRollup(dir string) string {
+	paths, _ := filepath.Glob(filepath.Join(dir, StatusDir, "rollups", "*", "*-"+ProgramLevel+".md"))
+	latest := ""
+	for _, p := range paths {
+		if latest == "" || filepath.Base(p) > filepath.Base(latest) {
+			latest = p
+		}
+	}
+	return latest
+}
+
+// Aggregation reads a rollup's progress as the aggregate states it, so a
+// reader of the aggregate's progress, such as plan's candidates, reads the
+// lead's rollup the same way (GH-2725).
+func (r Rollup) Aggregation() Aggregation {
+	a := Aggregation{From: r.FrontMatter.Period, To: r.LastWeek(), ByComponent: map[string][]string{}, Signals: []Signal{}, Progress: []Progress{}}
+	if from, _, ok := strings.Cut(r.FrontMatter.Period, ".."); ok {
+		a.From = from
+	}
+	for _, e := range r.Progress {
+		state := e["state"]
+		a.Progress = append(a.Progress, Progress{SprintGoal: e["sprint_goal"], Component: e["component"], Reported: state,
+			Complete: state == "reported complete" || state == "done", Met: state == "met", State: state})
+		if !slices.Contains(a.ByComponent[e["component"]], e["sprint_goal"]) {
+			a.ByComponent[e["component"]] = append(a.ByComponent[e["component"]], e["sprint_goal"])
+		}
+	}
+	return a
 }

@@ -336,6 +336,13 @@ func Doctor(o DoctorOptions) (DoctorResult, error) {
 		if err := upgradeSystem(o.Dir, r.Files, o.DryRun); err != nil {
 			return r, err
 		}
+		moved, err := moveRoster(o.Dir, o.DryRun)
+		if err != nil {
+			return r, err
+		}
+		if moved.Path != "" {
+			r.Files = append(r.Files, moved)
+		}
 	}
 	r.Repair = repair(o.Dir, o.DryRun)
 	if b, err := os.ReadFile(filepath.Join(o.Dir, install.ManifestFile)); err == nil {

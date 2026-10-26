@@ -1,0 +1,191 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: status-rollup
+purpose: |-
+  Work a rollup issue: collect a team's or the program's period from the repositories where it was written, aggregate it into signals, ask the lead only for judgment on each, write the rollup they approve, and merge it (srd018 R13, R15, R17; GH-2725). Use when a lead takes a team or program rollup issue or asks to roll up the week.
+
+  Its level comes from the repository it runs in: in a team's repository the team rollup, collecting the merged reports of the subsystem's repositories; in the system repository the program rollup, collecting the teams' rollups and the system repository's own reports and opening a raw report only to cite a signal. Every fact comes from scrum-master and every claim cites its report or rollup by repository and commit; the model proposes and the lead decides (design.md D10). SCRUM_MASTER_PROJECT names the repository, SCRUM_MASTER_ISSUE the rollup issue. A question the skill allows is asked in the conversation that invoked it.
+configuration:
+  machine: plugin/agents/status-rollup/machine.yaml
+  tools: plugin/agents/status-rollup/tools.yaml
+  llm_configs: plugin/agents/status-rollup/llm/*.yaml
+invariants:
+- scrum-master gathers every fact and decides admission, approval, and closing; the model never does
+- The model acts only in the Rollup state, through the declared tools
+- The model asks the person only for judgment and writes only after their approval
+- A word's refusal is terminal at pop and merge, with the word's reason as the run's last output
+- File edits trigger a re-read nudge to prevent stale context
+- The done tool hands control back to the machine, which pushes and merges
+lifecycle: |-
+  1. Idle → Pop (Seed): scrum-master issue pop takes the issue
+  2. Pop → Rollup (ToolDone): the model gathers, asks, and writes in the worktree
+  3. Pop → Refused (ToolFailed): the word refused the pop; its reason ends the run
+  4. Rollup ↔ Parse: the model loop — invoke_llm, parse_response, $tool dispatch
+  5. Parse → Push (TaskCompleted): the model called done; git push publishes
+     the branch
+  6. Push → Merge (ToolDone): scrum-master issue merge merges and closes the issue
+  7. Merge → Done (ToolDone); Merge → Refused (ToolFailed): an unapproved tip
+     under require_approval
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 100
+  max_consecutive_parse_errors: 5
+states:
+- name: Idle
+  meaning: Initial state before the issue is taken.
+- name: Pop
+  meaning: |
+    Take the issue: scrum-master issue pop --issue assigns only the caller and creates
+    or reuses the branch <iid>-<slug> and its worktree (srd013 R7). A further
+    story issue joins the same worktree and branch with --worktree. A refusal
+    is shown with its reason and the run stops; scrum-master, not the model, decides
+    whether the issue can be taken (srd036 R2.1, R4.1).
+- name: Rollup
+  meaning: |
+    Write the period's rollup in the worktree, and only there.
+    1. Run reports_collect for the level (team in a team's repository, program
+       in the system repository) and the period, then reports_aggregate over
+       the same level, and show the reports and rollups read and the signals.
+    2. Propose a disposition for each signal (headline, risk, ask, fyi,
+       follow-up, or drop) and ask the lead only to confirm or change it.
+    3. Draft the rollup in the rollup format: headlines, progress by component
+       and Sprint Goal as the ledger states it, never issue counts, risks and
+       asks with owners, the next period, and sources, every claim citing its
+       report or rollup by repository and commit as reports_collect named it;
+       show it and revise it until the lead approves it.
+    4. Write it at the path reports_path names for the level, run
+       reports_validate on it and fix what it names, commit it (stage_all,
+       commit) with a message ending Closes the rollup issue, then run
+       reports_aggregate with push for the signals the lead marked follow-up,
+       and call done.
+- name: Parse
+  meaning: |
+    The model's response is parsed into one tool call. A parse failure is
+    reported back to the model; the done call hands control back to the
+    machine.
+- name: Push
+  meaning: |
+    Publish the branch: git push -u origin HEAD. Under require_approval a
+    reviewer, not the author, reads the pushed tip against the Acceptance
+    Criteria and approves it with scrum-master issue approve in their checkout
+    (srd036 R3.1); the merge refuses an unapproved or outdated approval.
+- name: Merge
+  meaning: |
+    Finish: scrum-master issue merge audits a docs/ change, merges the branch (under
+    require_approval, only a branch approved at its tip), pushes, and closes
+    each issue (srd013 R5.5, srd036 R3.1). The model closes nothing itself
+    (srd036 R3.3).
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The merge commit and the issue it closed are the run's report.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. the word refused a step — the pop of an inadmissible issue, or a
+    merge without the approval the policy requires — and the refusal's reason,
+    as the word printed it, is the run's last output (srd036 R2.1, R4.2).
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+- name: BudgetExceeded
+  run_status: budget_exceeded
+  meaning: Terminal. The iteration or parse-error budget was exhausted.
+terminal_states:
+- Done
+- Refused
+- Failed
+- BudgetExceeded
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: LLMResponded
+  trigger: The model returned a response (invoke_llm completed).
+- name: ToolDone
+  trigger: A tool executed successfully.
+- name: ToolFailed
+  trigger: A tool executed but reported failure — for the words, a refusal.
+- name: ParseFailed
+  trigger: The model response could not be parsed as a valid tool call.
+- name: TaskCompleted
+  trigger: The model called the done tool, declaring the work finished.
+- name: EditDone
+  trigger: A file edit tool completed — triggers a re-read nudge.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+- name: BudgetExhausted
+  trigger: Iteration or parse-error budget limit reached.
+transitions:
+- state: Idle
+  signal: Seed
+  next: Pop
+  action: issue_pop
+  summary: true
+- state: Pop
+  signal: ToolDone
+  next: Rollup
+  action: invoke_llm
+- state: Pop
+  signal: ToolFailed
+  next: Refused
+- state: Rollup
+  signal: LLMResponded
+  next: Parse
+  action: parse_response
+- state: Parse
+  signal: ToolDone
+  next: Rollup
+  action: $tool
+- state: Parse
+  signal: ParseFailed
+  next: Rollup
+  action: report_parse_error
+- state: Parse
+  signal: TaskCompleted
+  next: Push
+  action: git_push
+- state: Rollup
+  signal: ToolDone
+  next: Rollup
+  action: invoke_llm
+- state: Rollup
+  signal: ToolFailed
+  next: Rollup
+  action: invoke_llm
+- state: Rollup
+  signal: EditDone
+  next: Rollup
+  action: nudge_reread
+- state: Push
+  signal: ToolDone
+  next: Merge
+  action: issue_merge
+  summary: true
+- state: Push
+  signal: ToolFailed
+  next: Failed
+- state: Merge
+  signal: ToolDone
+  next: Done
+- state: Merge
+  signal: ToolFailed
+  next: Refused
+- state: Rollup
+  signal: BudgetExhausted
+  next: BudgetExceeded
+- state: Pop
+  signal: CommandError
+  next: Failed
+- state: Rollup
+  signal: CommandError
+  next: Failed
+- state: Parse
+  signal: CommandError
+  next: Failed
+- state: Push
+  signal: CommandError
+  next: Failed
+- state: Merge
+  signal: CommandError
+  next: Failed
