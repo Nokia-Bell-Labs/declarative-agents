@@ -57,12 +57,20 @@ func (f *Fake) GetFile(project, path, ref string) ([]byte, error) {
 	return b, nil
 }
 
+// ListDir lists the files and directories directly under dir, each by
+// its path, as git ls-tree does.
 func (f *Fake) ListDir(project, dir, ref string) ([]string, error) {
-	prefix := project + "@" + ref + ":" + strings.TrimSuffix(dir, "/") + "/"
+	base := strings.TrimSuffix(dir, "/") + "/"
+	prefix := project + "@" + ref + ":" + base
 	var out []string
 	for k := range f.Files {
-		if rest, ok := strings.CutPrefix(k, prefix); ok && !strings.Contains(rest, "/") {
-			out = append(out, strings.TrimPrefix(k, project+"@"+ref+":"))
+		rest, ok := strings.CutPrefix(k, prefix)
+		if !ok {
+			continue
+		}
+		entry, _, _ := strings.Cut(rest, "/")
+		if p := base + entry; !slices.Contains(out, p) {
+			out = append(out, p)
 		}
 	}
 	slices.Sort(out)
@@ -79,6 +87,17 @@ func (f *Fake) LastCommit(project, path, ref string) (string, error) {
 		return c, nil
 	}
 	return fmt.Sprintf("%x", len(project+path)*7919+len(ref)), nil
+}
+
+// HasCheckout reports whether the fake holds any file of project, as a
+// checkout beside the command's would.
+func (f *Fake) HasCheckout(project string) bool {
+	for k := range f.Files {
+		if strings.HasPrefix(k, project+"@") {
+			return true
+		}
+	}
+	return false
 }
 
 // SetCommit records the commit that last changed a file.

@@ -72,7 +72,7 @@ Table 4: The vertical hierarchy.
 |---|---|---|---|
 | Theme | Theme document (design.md theme) | system repository | months to years |
 | Initiative | Initiative document, the Product Goal; an objective document from before 04.0 is read as one (srd034) | system repository | several quarters |
-| Epic | Epic document, child of an initiative (design.md epic) | system repository, or a team's when one team owns it | several sprints |
+| Epic | Epic document, child of an initiative (design.md epic) | system repository for a cross-team epic, owned by the technical program manager; a team's repository, owned by its Product Owner, when every component it names is that team's | several sprints |
 | Feature (optional) | Feature document, child of an epic (design.md feature) | the team's repository | two to four sprints |
 | User Story | Story document: as a, I want, so that; points; rank; its own acceptance criteria; the SRD items it proves (design.md story) | the team's repository | one sprint |
 | Sprint backlog item | The issue that implements a story, with an Implements line (srd007 R6.5) | tracker | days |
@@ -80,7 +80,18 @@ Table 4: The vertical hierarchy.
 
 Progress rolls up through parent links from story points: a feature, epic,
 or initiative reports the points of its done stories over all of them
-(srd045 R3.3).
+(srd045 R3.3). A cross-team epic counts its stories in every team
+repository the subsystem SRDs name, and names a repository it cannot read
+(srd045 R3.4).
+
+A scrum owns an area, its subsystem and the components its SRD lists,
+while planned work is a separate tree. Each team's Product Owner writes
+the stories for its part of a cross-team epic in the team's repository,
+with the epic as parent by pinned URL, naming only components its area
+lists; backlog check warns when a document strays outside its area
+(srd045 R6.5, R6.6). goals plan routes a release item to every team whose
+components its agreed epics name, unless the item's delivered_by names one
+(srd022 R3.1).
 
 ## Links
 

@@ -6,12 +6,14 @@
 package goals
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"slices"
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/hierarchy"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/objectives"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
@@ -38,6 +40,9 @@ type Sources struct {
 	Release    Release
 	Documents  map[string]*objectives.Document
 	Subsystems program.Subsystems
+	// Epics are the system repository's agreed epics at the release tag,
+	// whose components route each item to the teams owning them (GH-2726).
+	Epics []*hierarchy.Doc
 }
 
 // Load reads the release from the road-map on ref, then the objective
@@ -92,8 +97,39 @@ func Load(t tracker.Tracker, system, version, ref string) (Sources, error) {
 		}
 		s.Documents[doc] = d
 	}
-	s.Subsystems, err = program.LoadSubsystems(t, system, tag)
+	if s.Subsystems, err = program.LoadSubsystems(t, system, tag); err != nil {
+		return s, err
+	}
+	s.Epics, err = loadEpics(t, system, tag)
 	return s, err
+}
+
+// loadEpics reads the system repository's agreed epics at tag; a
+// repository with no epics folder has none.
+func loadEpics(t tracker.Tracker, system, tag string) ([]*hierarchy.Doc, error) {
+	paths, err := t.ListDir(system, epicDir, tag)
+	if errors.Is(err, tracker.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var out []*hierarchy.Doc
+	for _, p := range paths {
+		if !strings.HasSuffix(p, ".md") || strings.HasSuffix(p, "/README.md") || path.Base(p) == "README.md" {
+			continue
+		}
+		b, err := t.GetFile(system, p, tag)
+		if err != nil {
+			return nil, err
+		}
+		d, err := hierarchy.Parse(p, b)
+		if err != nil || d.Kind != hierarchy.Epic || d.Status != "agreed" {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out, nil
 }
 
 // readReleases reads the road map's releases: in Markdown, each release
@@ -128,3 +164,13 @@ func (s Sources) ComponentFor(repository string) (program.Component, program.Sub
 }
 
 func projectPath(repo string) string { return program.ProjectPath(repo) }
+
+// epicDir is where the system repository keeps its epics.
+var epicDir = func() string {
+	for _, l := range hierarchy.Levels {
+		if l.Kind == hierarchy.Epic {
+			return l.Dir
+		}
+	}
+	return ""
+}()

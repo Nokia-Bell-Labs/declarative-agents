@@ -252,6 +252,7 @@ func PolicyDocument(p program.Policy) string {
 	fmt.Fprintf(&b, "<!-- field: breaking -->\n### Breaking\n\n%s\n\n", p.Releases.Breaking)
 	fmt.Fprintf(&b, "<!-- field: tag_format -->\n### Tag format\n\n%s\n\n", p.Releases.TagFormat)
 	fmt.Fprintf(&b, "<!-- field: architecture_checks -->\n## Architecture checks\n\n%s\n\n", p.ArchitectureChecks)
+	fmt.Fprintf(&b, "<!-- field: area_checks -->\n## Area checks\n\n%s\n\n", p.AreaChecks)
 	b.WriteString("<!-- field: definition_of_done -->\n## Definition of done\n")
 	artifacts := make([]string, 0, len(p.DefinitionOfDone))
 	for a := range p.DefinitionOfDone {

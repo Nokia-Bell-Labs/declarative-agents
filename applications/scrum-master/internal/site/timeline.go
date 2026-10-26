@@ -22,6 +22,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/hierarchy"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/links"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/repofiles"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/sprintgoal"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
@@ -60,6 +61,19 @@ type TimelineSources struct {
 	Tracker tracker.Tracker
 	// Notes say what the facts could not read.
 	Notes []string
+	// Teams are the team repositories whose documents roll up to the
+	// system's: those the registry names, read through the tracker, else
+	// the checkouts beside the system's (GH-2726). scratch holds the ones
+	// read from a host; Close removes it.
+	Teams   []backlog.TeamSource
+	scratch string
+}
+
+// Close removes what LoadSources read into a scratch directory.
+func (s TimelineSources) Close() {
+	if s.scratch != "" {
+		os.RemoveAll(s.scratch)
+	}
 }
 
 // LoadSources reads the system checkout's sprint-end summaries, the day
@@ -87,6 +101,16 @@ func LoadSources(system string, t tracker.Tracker, today time.Time) (TimelineSou
 	}
 	if len(projects) > 0 && projects[0] != "" {
 		s.Group = path.Dir(projects[0])
+	}
+	if s.scratch, err = os.MkdirTemp("", "scrum-master-teams-"); err != nil {
+		return s, err
+	}
+	var unread []repofiles.Unread
+	if s.Teams, unread, err = backlog.Sources(t, system, "main", s.scratch); err != nil {
+		return s, err
+	}
+	for _, u := range unread {
+		s.Notes = append(s.Notes, fmt.Sprintf("%s: not read, so its stories are left out: %s", u.Repository, u.Reason))
 	}
 	if t == nil {
 		s.Notes = append(s.Notes, "no tracker reachable: Sprint Goals and milestones named by title are left out")
@@ -207,7 +231,7 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 		return timeline.Facts{}, err
 	}
 	if asOf == "" {
-		team, done := backlog.TeamDocs(dir, docs)
+		team, done := backlog.TeamDocs(s.Teams, docs)
 		docs = append(docs, team...)
 		if len(done) > 0 {
 			s.Done = maps.Clone(s.Done)

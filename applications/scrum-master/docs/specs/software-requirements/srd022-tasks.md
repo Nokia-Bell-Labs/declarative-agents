@@ -59,13 +59,18 @@ The subsystem SRDs (design.md subsystem_srd) for the downstream owners and their
 
 Open Sprint Goal issues (and objective issues, read as Sprint Goals) already in the downstream repositories for this release, so a Sprint Goal is updated, not duplicated; and an open Sprint Goal of an earlier release whose Cites lines name an item of this one, which carries that item on: the plan marks the item carried in that goal's repository, and push files nothing for it.
 
+<!-- req: R2.4 -->
+### R2.4
+
+The system repository's agreed epics at the release tag, for the area each item falls in (GH-2726): an epic is under an item when its parent is the item's initiative document and its cites name the item, or name nothing of that document; the components its architecture names belong to the team subsystems whose SRDs list them. The system SRD names no team.
+
 <!-- req: R3 -->
 ## R3 - Asks only what is not computed
 
 <!-- req: R3.1 -->
 ### R3.1
 
-Takes the owner scrum-master recommends for each initiative item: the Product Owner whose subsystem SRD declares a repository the item's delivered_by names (srd034 R1.4), else the only downstream team when the subsystem SRDs declare one team repository, with a reason saying so. Asks which downstream team serves an item only when none is recommended, offering the repositories the subsystem SRDs declare.
+Takes the owner scrum-master recommends for each initiative item: the Product Owner whose subsystem SRD declares a repository the item's delivered_by names (srd034 R1.4); else every team whose subsystem owns a component the agreed epics under the item name (R2.4), one plan entry per team with a reason naming the epics and components, so each team's one Sprint Goal serves the item; else the only downstream team when the subsystem SRDs declare one team repository, with a reason saying so. delivered_by overrides the area, and the person confirms or changes every recommendation. Asks which downstream team serves an item only when none is recommended, offering the repositories the subsystem SRDs declare.
 
 <!-- req: R3.2 -->
 ### R3.2
@@ -157,7 +162,7 @@ Before an issue or Sprint Goal names an ARCHITECTURE component, the tasks profil
 <!-- ac: AC1 -->
 ### AC1
 
-Facts come from the planned release, subsystem and environment SRDs, and existing Sprint Goals; the recommended owner and the environment are taken without asking; only an initiative item with no recommended owner is asked about; no confirmation is asked before the push. An item an open Sprint Goal of an earlier release cites is marked carried, and push files no second goal for it.
+Facts come from the planned release, subsystem and environment SRDs, and existing Sprint Goals; the recommended owner and the environment are taken without asking; an item whose delivered_by names no repository goes to every team owning a component its agreed epics name, one entry each, and delivered_by overrides that; only an initiative item with no recommended owner is asked about; no confirmation is asked before the push. An item an open Sprint Goal of an earlier release cites is marked carried, and push files no second goal for it.
 
 <!-- field: traces -->
 #### Traces
@@ -166,6 +171,7 @@ Facts come from the planned release, subsystem and environment SRDs, and existin
 - [R2.1](#r21)
 - [R2.2](#r22)
 - [R2.3](#r23)
+- [R2.4](#r24)
 - [R3.1](#r31)
 - [R3.2](#r32)
 - [R3.3](#r33)

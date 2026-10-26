@@ -276,3 +276,15 @@ func Parse(path string, data []byte) (*Doc, error) {
 	}
 	return d, nil
 }
+
+// ComponentOf is the component an architecture item names: the item
+// itself, or the fragment of a pinned URL into a repository's
+// ARCHITECTURE (GH-2726).
+func ComponentOf(item string) string {
+	if strings.Contains(item, "://") {
+		if _, frag, ok := strings.Cut(item, "#"); ok {
+			return frag
+		}
+	}
+	return item
+}

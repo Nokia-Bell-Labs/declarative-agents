@@ -96,7 +96,7 @@ func statusPageStale(dir string) (bool, error) {
 	// stood before one was written and not yet added (GH-114).
 	page := pageSections(string(b))
 	for _, trackedOnly := range []bool{false, true} {
-		v, err := architecture(dir, trackedOnly)
+		v, err := architecture(dir, trackedOnly, SiblingSources(dir), nil)
 		if err != nil {
 			return false, err
 		}

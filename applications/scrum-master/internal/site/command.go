@@ -72,6 +72,7 @@ var words = []word{
 			if err != nil {
 				return err
 			}
+			defer in.Sources.Close()
 			pages, data, notes, err := StatusPages(in)
 			if err != nil {
 				return err
@@ -100,6 +101,7 @@ var words = []word{
 			if err != nil {
 				return err
 			}
+			defer s.Close()
 			pages, _, err := TimelinePages(system, s)
 			if err != nil {
 				return err
