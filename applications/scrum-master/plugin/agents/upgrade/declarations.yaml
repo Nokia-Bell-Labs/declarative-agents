@@ -1,0 +1,114 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The upgrade machine's words (GH-2719): vendor the installed release,
+# repair the repository at it, and refresh the skills. Each runs in the
+# checkout the run starts in and keeps what a person edited.
+unit: scrum-master-upgrade-declarations
+tools:
+- name: vendor
+  type: exec
+  binary: scrum-master
+  args:
+  - install
+  - --profiles
+  - --json
+  visibility: internal
+  description: Vendor the profiles of the release install.sh installed, and the agent-core declarations they read, into .scrum-master, and report what changed (srd037 R7.4).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The vendoring's JSON report — the release and each file's action, created, updated, unchanged, kept, or removed.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes .scrum-master/agents, .scrum-master/agent-core/tools, and .scrum-master/manifest.json; an edited file is kept.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The vendored tree is the person's to commit or discard; a rerun rewrites what nobody edited.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'vendor: <error>'
+    state_after_failure: nothing written by a process that did not start
+  - signal: ToolFailed
+    condition: no release is installed on this host, or a write fails
+    message_shape: <the word's reason, as printed>
+    state_after_failure: nothing is written when no release is installed
+
+- name: repair
+  type: exec
+  binary: scrum-master
+  args:
+  - doctor
+  - --json
+  visibility: internal
+  description: Bring the repository to the release — the missing files, the orientation files' managed blocks, the format pin, and the documents' canonical form — reporting each (srd043 R4).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: doctor's JSON report — each file written, kept, appended, or refreshed, each document repaired, and the release vendored.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes the missing files, refreshes the managed blocks, moves the format pin, and rewrites documents in canonical form; an edited file is kept.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The files are the person's to commit or discard.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'repair: <error>'
+    state_after_failure: nothing written by a process that did not start
+  - signal: ToolFailed
+    condition: the directory is not a program repository, or doctor cannot read it
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the profiles are vendored; the repository is as the refusal left it
+
+- name: skills
+  type: exec
+  binary: scrum-master
+  args:
+  - install
+  - --agent
+  - detect
+  - --json
+  visibility: internal
+  description: Rewrite the skills of the agents the repository uses at the release, and remove the ones it no longer ships (srd037 R2).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The install's JSON report — each skill file's action, created, updated, unchanged, kept, replaced, or removed.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes the agents' skills directories and the managed block in .git/info/exclude; an edited skill is kept.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The skills are untracked; a rerun rewrites what nobody edited.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'skills: <error>'
+    state_after_failure: nothing written by a process that did not start
+  - signal: ToolFailed
+    condition: the repository uses no agent scrum-master knows, or a write fails
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the profiles are vendored and the repository repaired; no skill was written

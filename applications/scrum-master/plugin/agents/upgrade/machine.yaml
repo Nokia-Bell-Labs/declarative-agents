@@ -1,0 +1,145 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: upgrade
+purpose: |-
+  Bring a program repository to the scrum-master release installed on this
+  host (srd043 R5): the profiles vendored, the repository repaired, and the
+  skills refreshed. Use when a person has installed a new release with
+  install.sh and asks to upgrade or update the repository.
+
+  This machine has no model state: three words (design.md D10, D14;
+  GH-2719). It serves a system and a subsystem repository alike, and it
+  seeds no tracker and files no issue, as a rerun of the init or onboard
+  profile may. Each word keeps what a person edited, so a second run
+  changes nothing.
+configuration:
+  machine: plugin/agents/upgrade/machine.yaml
+  tools: plugin/agents/upgrade/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A file a person edited is kept, by every word
+- Nothing is written when no release is installed on the host
+- A rerun of the whole machine on an up-to-date repository changes nothing
+lifecycle: |-
+  1. Idle → Vendor (Seed): scrum-master install --profiles vendors the installed
+     release into .scrum-master
+  2. Vendor → Repair (ToolDone): scrum-master doctor repairs the repository at it
+  3. Vendor → NotVendored (ToolFailed): the word's reason ends the run
+  4. Repair → Skills (ToolDone): scrum-master install --agent detect refreshes the
+     skills
+  5. Repair → Refused (ToolFailed)
+  6. Skills → Done (ToolDone); Skills → SkillsNotInstalled (ToolFailed)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the profiles are vendored.
+- name: Vendor
+  meaning: |
+    The vendor word: scrum-master install --profiles copies the profiles of the
+    release install.sh installed into .scrum-master/agents and the agent-core
+    declarations they read into .scrum-master/agent-core, with a manifest
+    naming the release, and reports each file created, updated, unchanged,
+    kept, or removed. With no release installed it refuses, writing nothing.
+- name: Repair
+  meaning: |
+    The repair word: scrum-master doctor reads the repository's level, writes the
+    files the release lays down that are missing, refreshes the managed
+    blocks of the orientation files, moves the format pin to the release,
+    and repairs the documents to its canonical form; a file a person
+    edited is kept.
+- name: Skills
+  meaning: |
+    The skills word: scrum-master install --agent detect rewrites the skills of
+    the agents the repository uses — a .cursor or .claude directory,
+    CLAUDE.md, or copilot's instructions under .github — at the release,
+    and removes the skills it no longer ships.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The repository is at the installed release: its profiles
+    vendored, its files repaired, and its skills refreshed; commit
+    .scrum-master and the repaired files with the rest.
+- name: NotVendored
+  run_status: failed
+  meaning: |
+    Terminal. The profiles did not vendor — most often because no release
+    is installed on this host, which install.sh fixes; the reason, as
+    printed, is the run's last output, and nothing was written.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The profiles are vendored, but scrum-master doctor refused — most
+    often a directory that is not a program repository, which the init or
+    onboard profile lays down; its reason, as printed, is the run's last
+    output.
+- name: SkillsNotInstalled
+  run_status: failed
+  meaning: |
+    Terminal. The profiles are vendored and the repository repaired, but
+    the skills did not install — most often because the repository uses
+    no agent scrum-master knows; the reason is reported, and scrum-master install
+    with --agent names the agents.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- NotVendored
+- Refused
+- SkillsNotInstalled
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Vendor
+  action: vendor
+  label: vendor
+  summary: true
+- state: Vendor
+  signal: ToolDone
+  next: Repair
+  action: repair
+  label: repair
+  summary: true
+- state: Vendor
+  signal: ToolFailed
+  next: NotVendored
+- state: Repair
+  signal: ToolDone
+  next: Skills
+  action: skills
+  label: skills
+  summary: true
+- state: Repair
+  signal: ToolFailed
+  next: Refused
+- state: Skills
+  signal: ToolDone
+  next: Done
+- state: Skills
+  signal: ToolFailed
+  next: SkillsNotInstalled
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Vendor
+  signal: CommandError
+  next: Failed
+- state: Repair
+  signal: CommandError
+  next: Failed
+- state: Skills
+  signal: CommandError
+  next: Failed

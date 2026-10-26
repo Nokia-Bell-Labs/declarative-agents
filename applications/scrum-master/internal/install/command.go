@@ -47,7 +47,7 @@ func init() {
 		Summary: "write the embedded skill commands for an agent, or vendor the profiles they run",
 		Flags: func(fs *flag.FlagSet) {
 			agents = nil
-			fs.Func("agent", "cursor, claude, copilot, or all (repeatable)", func(v string) error {
+			fs.Func("agent", "cursor, claude, copilot, all, or detect, the agents the repository already uses (repeatable)", func(v string) error {
 				agents = append(agents, v)
 				return nil
 			})
@@ -75,14 +75,14 @@ func init() {
 				}
 				return ctx.Emit(skills, b.String())
 			}
-			targets, err := ParseAgents(agents)
-			if err != nil {
-				return fmt.Errorf("%w: %v", cli.ErrUsage, err)
-			}
 			if dir == "" {
 				if dir, err = gitRoot(); err != nil {
 					return err
 				}
+			}
+			targets, err := ResolveAgents(agents, dir)
+			if err != nil {
+				return fmt.Errorf("%w: %v", cli.ErrUsage, err)
 			}
 			version := Version()
 			if check {
@@ -203,7 +203,7 @@ func checkVendored(ctx *cli.Context, dir string) error {
 		return err
 	}
 	if len(findings) > 0 {
-		return fmt.Errorf("%d vendored file(s) differ from %s; rerun the init or onboard profile, or restore them", len(findings), ManifestFile)
+		return fmt.Errorf("%d vendored file(s) differ from %s; run the upgrade profile, or restore them", len(findings), ManifestFile)
 	}
 	return nil
 }

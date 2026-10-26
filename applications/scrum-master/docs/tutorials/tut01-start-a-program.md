@@ -115,12 +115,23 @@ Onboard lays down the repository's corpus and orientation, registers it
 in the system repository, installs the skills, and vendors the profiles,
 the same way init does.
 
-## Rerunning after an upgrade
+## Upgrading to a new release
 
-Rerun the same profile after installing a new release: it takes the new
-release's profiles, adds files the older release did not write, refreshes
-the managed blocks, keeps every file a person edited, and reports what
-drifted (srd043).
+Rerun the install script from step 1, then run the upgrade profile from
+the installed profiles — the ones in `.scrum-master` are the release you
+are leaving:
+
+```bash
+home="${SCRUM_MASTER_HOME:-$HOME/.local/share/scrum-master}"
+agent --profile "$home/agents/upgrade/profile.yaml" --core-root "$home/agent-core" --directory .
+```
+
+It vendors the new release into `.scrum-master`, adds the files the older
+release did not write, refreshes the managed blocks, moves the format pin,
+repairs the documents, and rewrites the skills, keeping every file a
+person edited (srd043 R5). It seeds no tracker and files no issue, so it
+is safe in a system and a subsystem repository alike. Commit what it
+changed and run the check profile from step 5.
 
 ## What you have
 

@@ -121,7 +121,7 @@ go test ./internal/scaffold -run '^TestDoctorReportsTheVendoredRelease$|^TestRep
 #### Expected outputs
 
 - vendored: the release .scrum-master holds, from its manifest
-- none: a repository that vendored none told to run the init or onboard profile
+- none: a repository that vendored none told to run the upgrade profile
 - prebuilt: with no Go on PATH and a spec tool built at the pin, a document repaired to canonical form
 - in_agent: in the agent the check runs in process, with no Go
 

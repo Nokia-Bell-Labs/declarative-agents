@@ -42,7 +42,7 @@ func TestProgramGroupRefusesWithPointer(t *testing.T) {
 		if err == nil || errors.Is(err, cli.ErrUsage) {
 			t.Fatalf("%s: want a non-usage error, got %v", strings.Join(args, " "), err)
 		}
-		for _, want := range []string{"scrum-master issue", "rerun the init or onboard profile"} {
+		for _, want := range []string{"scrum-master issue", "run the upgrade profile"} {
 			if !strings.Contains(err.Error(), want) {
 				t.Errorf("%s: %q names no %q", strings.Join(args, " "), err, want)
 			}

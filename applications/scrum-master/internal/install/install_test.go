@@ -3,12 +3,17 @@
 package install
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
 
 var testFS = fstest.MapFS{
@@ -378,6 +383,27 @@ func TestResolveAgentsDetectsTheAgentsInUse(t *testing.T) {
 	}
 	if got, err := ResolveAgents([]string{"cursor"}, dir); err != nil || strings.Join(got, " ") != "cursor" {
 		t.Fatalf("an explicit agent = %v, %v", got, err)
+	}
+}
+
+// install --agent detect installs the skills of the agents the repository
+// uses and refuses one that uses none, as init does (GH-2719).
+func TestInstallCommandDetectsTheAgentsInUse(t *testing.T) {
+	noTracker := func() (tracker.Tracker, error) { return nil, errors.New("install reads no tracker") }
+	dir := repoDir(t)
+	var out bytes.Buffer
+	if err := cli.Default.Run([]string{"install", "--agent", Detect, "--dir", dir, "--json"}, &out, noTracker); err == nil || !strings.Contains(err.Error(), "--agent") {
+		t.Fatalf("install --agent detect in a repository using no agent = %v, want a refusal naming --agent", err)
+	}
+	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("x\n"), 0o644)
+	if err := cli.Default.Run([]string{"install", "--agent", Detect, "--dir", dir, "--json"}, &out, noTracker); err != nil {
+		t.Fatalf("install --agent detect: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".claude", "skills", "upgrade", "SKILL.md")); err != nil {
+		t.Errorf("claude's upgrade skill was not installed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".cursor")); err == nil {
+		t.Error("detect installed for cursor, which the repository does not use")
 	}
 }
 

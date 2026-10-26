@@ -35,7 +35,7 @@ Five walkthroughs under `docs/tutorials/` take a new program from nothing to a r
 
 ## Start a program with the agent
 
-A program repository runs its workflows with the agent: each installed skill runs `agent --profile .scrum-master/agents/<name>/profile.yaml --core-root .scrum-master/agent-core --directory .` over the profiles the repository vendored. The one workflow a person runs directly is `init` in a system repository, or `onboard` in a repository joining a program: it lays the repository down, installs the skills, and vendors the profiles and the agent-core declarations they read into `.scrum-master`, with a manifest naming the release. Commit `.scrum-master` with the rest; rerun the same profile to check the repository and to take a new release, which keeps every file a person edited and reports what drifted.
+A program repository runs its workflows with the agent: each installed skill runs `agent --profile .scrum-master/agents/<name>/profile.yaml --core-root .scrum-master/agent-core --directory .` over the profiles the repository vendored. The one workflow a person runs directly is `init` in a system repository, or `onboard` in a repository joining a program: it lays the repository down, installs the skills, and vendors the profiles and the agent-core declarations they read into `.scrum-master`, with a manifest naming the release. Commit `.scrum-master` with the rest; the check profile reports what drifted, and the upgrade profile takes a new release (below).
 
 Run `init` from the installed profiles (`SCRUM_MASTER_SYSTEM` and `SCRUM_MASTER_SUBSYSTEM` name where an `onboard` joins):
 
@@ -47,6 +47,18 @@ agent --profile "$home/agents/init/profile.yaml" --core-root "$home/agent-core" 
 A run's request file (`--request`, `{"parameters": {...}}`) names the agents whose skills install (`agent`, default `all`) and, for `init`, the tracker to seed (`tracker`, `group`, `prefix`).
 
 A profile that refuses exits non-zero. Its reason is the last `scrum-master:` line before `terminal state: failed`, and `final machine state` names the step it stopped at; nothing after that step ran. The workflows that act on one issue (pop, approve, merge, close, comment, admit, recur, peer-read, and release) all read it the same way: `SCRUM_MASTER_ISSUE` is its number in the project `SCRUM_MASTER_PROJECT` names, and the release words also take it whole as `project#iid`. The goals and plan workflows cite documents under `SCRUM_MASTER_WEB_BASE`, which defaults to the scheme and host of the checkout's origin.
+
+## Upgrade to a new release
+
+Rerun the install script to put the new release on the machine, then run the upgrade profile in each program repository. Run it from the installed profiles, since the ones the repository vendored are the release it is leaving:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Nokia-Bell-Labs/declarative-agents/main/applications/scrum-master/install.sh | sh
+home="${SCRUM_MASTER_HOME:-$HOME/.local/share/scrum-master}"
+agent --profile "$home/agents/upgrade/profile.yaml" --core-root "$home/agent-core" --directory .
+```
+
+The profile vendors the installed release into `.scrum-master`, runs doctor to add the files the release lays down that are missing, refresh the managed blocks, move the format pin in `docs/external-pins.yaml`, and repair the documents to its format, and rewrites the skills of the agents the repository uses. It works in a system and a subsystem repository alike, seeds no tracker, files no issue, and keeps every file a person edited, so a second run changes nothing. Commit what it changed; the check profile confirms the repository is in order. A CI job moves by the image digest it pins.
 
 ## Run in CI
 
