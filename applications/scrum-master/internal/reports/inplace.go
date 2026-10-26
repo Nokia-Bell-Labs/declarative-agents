@@ -3,7 +3,6 @@
 package reports
 
 import (
-	"errors"
 	"fmt"
 	"path"
 	"sort"
@@ -85,8 +84,8 @@ func StatusIssuesInPlace(t tracker.Tracker, in RollupInput) ([]StatusResult, err
 		}
 		out = append(out, r)
 	}
-	subs, err := program.LoadSubsystems(t, in.System, in.Ref)
-	if err != nil && !errors.Is(err, tracker.ErrNotFound) {
+	subs, err := Teams(t, in.System, in.Ref)
+	if err != nil {
 		return out, err
 	}
 	rollup := func(kind, level, owner, project string, due time.Time) error {

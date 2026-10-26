@@ -47,12 +47,16 @@ Work arrives.
 `, id, owner, repo))
 }
 
-// inPlaceProgram is a system repository with two teams' subsystem SRDs and
+// inPlaceProgram is a system repository with its system SRD, two teams'
+// subsystem SRDs, and
 // a roster of three people, each reporting in their own repository, with
 // week 2026-W42's reports merged where they were written: po-1's and the
 // program manager's, po-1's team rollup, and a report of an earlier week.
 // po-2 has not reported.
 func inPlaceProgram(p trackertest.Program) Config {
+	// The system SRD declares the system repository as its component; it is
+	// the system, never a team (GH-2725).
+	p.AddFile("g/system", "main", "docs/specs/software-requirements/srd001-system.md", subsystemSRD("srd001-system", "tpm", "g/system"))
 	p.AddFile("g/system", "main", "docs/specs/software-requirements/srd010-po-1.md", subsystemSRD("srd010-po-1", "po-1", po1))
 	p.AddFile("g/system", "main", "docs/specs/software-requirements/srd011-po-2.md", subsystemSRD("srd011-po-2", "po-2", po2))
 	cfg := Config{Team: []Member{{"po-1", po1}, {"po-2", po2}, {"tpm", "g/system"}}}

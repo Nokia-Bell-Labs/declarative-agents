@@ -110,8 +110,8 @@ func Collect(t tracker.Tracker, in CollectInput) (Collection, error) {
 	}
 	c := Collection{Level: in.Level, From: in.From, To: in.To, System: in.System,
 		Repositories: []string{}, Reports: []Collected{}, Rollups: []Collected{}, Open: []OpenIssue{}}
-	subs, err := program.LoadSubsystems(t, in.System, in.Ref)
-	if err != nil && !errors.Is(err, tracker.ErrNotFound) {
+	subs, err := Teams(t, in.System, in.Ref)
+	if err != nil {
 		return c, err
 	}
 	add := func(r string) {
@@ -381,4 +381,27 @@ func quartersOf(weeks []string) []string {
 		}
 	}
 	return out
+}
+
+// Teams are the program's subsystems that are teams: every subsystem SRD
+// but the system SRD, the one whose components live in the system
+// repository itself, named by its project path or, for an origin that is a
+// local path, by its name (GH-2725).
+func Teams(t tracker.Tracker, system, ref string) (program.Subsystems, error) {
+	subs, err := program.LoadSubsystems(t, system, ref)
+	if errors.Is(err, tracker.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(subs, func(s program.Subsystem) bool {
+		return slices.ContainsFunc(s.Components, func(c program.Component) bool { return isSystem(c.Repository, system) })
+	}), nil
+}
+
+// isSystem reports whether repo names the system repository.
+func isSystem(repo, system string) bool {
+	p := program.ProjectPath(repo)
+	return p == program.ProjectPath(system) || path.Base(strings.TrimSuffix(p, ".git")) == path.Base(program.ProjectPath(system))
 }
