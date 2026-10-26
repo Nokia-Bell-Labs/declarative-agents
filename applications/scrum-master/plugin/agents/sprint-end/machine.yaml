@@ -1,0 +1,139 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: sprint-end
+purpose: |-
+  Work the period's sprint-end issue, summarizing the period, asking the
+  owner what to change, merging the summary, and releasing on confirmation
+  (srd038 R1, R6). Use when the owner takes a sprint-end issue or asks to
+  close the period.
+
+  The sprint-end issue's Requirements are the steps; this profile names the
+  word for each. The model writes only the summary; every fact comes from
+  scrum-master (design.md D10, srd038 R1). The input is the project path, the
+  sprint-end issue, the program's system repository, a reports checkout, the
+  period's first and last ISO weeks, and the artifact the repository
+  releases. A question the skill allows is asked in the conversation that
+  invoked it.
+configuration:
+  machine: plugin/agents/sprint-end/machine.yaml
+  tools: plugin/agents/sprint-end/tools.yaml
+  llm_configs: plugin/agents/sprint-end/llm/*.yaml
+invariants:
+- Every fact comes from scrum-master sprint-end facts; the model writes only the summary
+- The model acts only in the Summarize state, through the declared tools
+- The merge closes the issue and the complete Sprint Goals; the model closes nothing itself
+- No release without the owner's confirmation of the version
+lifecycle: |-
+  1. Idle → Summarize (Seed): the model closes the period through the
+     words
+  2. Summarize ↔ Parse: the model loop — invoke_llm, parse_response, $tool
+  3. Parse → Done (TaskCompleted): the model called done with the merge,
+     the closed Sprint Goals, and the tag when one was confirmed
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 100
+  max_consecutive_parse_errors: 5
+states:
+- name: Idle
+  meaning: Initial state before the request is read.
+- name: Summarize
+  meaning: |
+    Close the period through scrum-master, in the issue's worktree.
+    1. Take the issue with implement and work in its worktree.
+    2. Run sprint_end_facts (--project, --reports, --from, --to,
+       --artifact, --control).
+    3. Draft the period's summary from the reports and those facts; this is
+       the one model-written text.
+    4. Ask the owner what to change in the summary, the Sprint Goals, or the
+       release, which Sprint Goals are complete, and which stories each Sprint
+       Goal lists are done. Apply the answers in the worktree.
+    5. Write the summary at docs/sprint-ends/<release>.md, run
+       sprint_end_stories (--release, --done; a story of another team as
+       project#story), commit it (stage_all, commit), and run issue_merge
+       with one closes entry per Sprint Goal the owner reports complete; the
+       merge closes the issue and those Sprint Goals.
+    6. Ask the owner to confirm the release and its version (facts recommends
+       one). With no confirmation, or nothing to release, stop here.
+    7. Once the summary merges, on main: release_gate, then
+       release_tag, both with the artifact, the version, and the issue.
+       Show the tag.
+- name: Parse
+  meaning: |
+    The model's response is parsed into one tool call. A parse failure is
+    reported back to the model; the done call ends the run.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The merged summary, the closed Sprint Goals, and the release tag
+    when the owner confirmed one are the run's report (srd038).
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+- name: BudgetExceeded
+  run_status: budget_exceeded
+  meaning: Terminal. The iteration or parse-error budget was exhausted.
+terminal_states:
+- Done
+- Failed
+- BudgetExceeded
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: LLMResponded
+  trigger: The model returned a response (invoke_llm completed).
+- name: ToolDone
+  trigger: A tool executed successfully.
+- name: ToolFailed
+  trigger: A tool executed but reported failure — for words, a refusal the model fixes.
+- name: ParseFailed
+  trigger: The model response could not be parsed as a valid tool call.
+- name: TaskCompleted
+  trigger: The model called the done tool, declaring the work finished.
+- name: EditDone
+  trigger: A file edit tool completed — triggers a re-read nudge.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+- name: BudgetExhausted
+  trigger: Iteration or parse-error budget limit reached.
+transitions:
+- state: Idle
+  signal: Seed
+  next: Summarize
+  action: invoke_llm
+- state: Summarize
+  signal: LLMResponded
+  next: Parse
+  action: parse_response
+- state: Parse
+  signal: ToolDone
+  next: Summarize
+  action: $tool
+- state: Parse
+  signal: ParseFailed
+  next: Summarize
+  action: report_parse_error
+- state: Parse
+  signal: TaskCompleted
+  next: Done
+- state: Summarize
+  signal: ToolDone
+  next: Summarize
+  action: invoke_llm
+- state: Summarize
+  signal: ToolFailed
+  next: Summarize
+  action: invoke_llm
+- state: Summarize
+  signal: EditDone
+  next: Summarize
+  action: nudge_reread
+- state: Summarize
+  signal: BudgetExhausted
+  next: BudgetExceeded
+- state: Summarize
+  signal: CommandError
+  next: Failed
+- state: Parse
+  signal: CommandError
+  next: Failed

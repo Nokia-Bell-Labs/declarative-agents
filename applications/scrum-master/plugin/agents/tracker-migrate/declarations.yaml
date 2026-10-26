@@ -1,0 +1,41 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The tracker-migrate machine's words (GH-38). the run starts in a checkout of the program; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-tracker-migrate-declarations
+tools:
+- name: tracker_migrate
+  type: exec
+  binary: scrum-master
+  args:
+  - tracker
+  - migrate
+  - --json
+  visibility: internal
+  description: 'Move the tracker to one file per issue with its index, in one commit (srd042 R3.1).'
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The migrate word''s JSON report: the issues moved or indexed, and the tracker''s commit.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Rewrites the tracker repository to one file per issue, with its index, in one commit.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'tracker_migrate: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

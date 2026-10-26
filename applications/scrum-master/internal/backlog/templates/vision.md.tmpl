@@ -1,0 +1,42 @@
+---
+id: program-vision
+title: Program Vision
+---
+
+<!-- field: executive_summary -->
+## Executive summary
+
+An evaluation platform that scores every agent run against a written rubric and returns the scores to the teams that build the agents.
+
+<!-- field: problem -->
+## Problem
+
+Agents ship without a measure of how well they do their tasks, so a regression reaches users before anyone sees it.
+
+<!-- field: what_this_does -->
+## What this does
+
+It records each agent run, grades it, and publishes a scorecard per agent and release.
+
+<!-- field: why_we_build_this -->
+## Why we build this
+
+A score on every run turns each release into evidence that the agents got better, not a claim.
+
+<!-- field: success_criteria -->
+## Success criteria
+
+- scored_runs: every production agent run has a score within a day of the run.
+- scorecard_per_release: each release publishes a scorecard for every agent it ships.
+
+<!-- field: not -->
+## Not
+
+- A training framework: models are tuned elsewhere, from the scores this platform publishes.
+
+<!-- field: canonical_documents -->
+## Canonical documents
+
+- docs/ARCHITECTURE.md
+- docs/road-map.md
+- docs/specs/initiatives/in001-reliable-agents.md

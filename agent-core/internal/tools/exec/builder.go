@@ -38,31 +38,85 @@ type ExecBuilder struct {
 // Build extracts adjacent parameters from the previous result and defers
 // command-state sources until the command receives its view before dispatch.
 func (b *ExecBuilder) Build(res core.Result) core.Command {
-	mappings := b.Def.ExtractParamMappings()
 	params := make(map[string]string)
+	lists := make(map[string][]string)
 	var sources []catalog.ParamMapping
-	for _, pm := range mappings {
-		if pm.Source != "" {
+	for _, pm := range b.Def.ExtractParamMappings() {
+		var failed core.Command
+		switch {
+		case pm.Source != "":
 			sources = append(sources, pm)
-			continue
-		}
-		val := ExtractStringParam(res.Output, pm.Name)
-		if val == "" {
-			if n := ExtractIntParam(res.Output, pm.Name); n != 0 {
-				val = strconv.Itoa(n)
+		case pm.List:
+			failed = b.listParam(res, pm, lists)
+		case pm.BoolFlag:
+			if ExtractBoolParam(res.Output, pm.Name) || (pm.Default == "true" && !hasParam(res.Output, pm.Name)) {
+				params[pm.Name] = "true"
 			}
+		default:
+			failed = b.scalarParam(res, pm, params)
 		}
-		if val == "" && pm.Default != "" {
-			val = pm.Default
-		}
-		if val == "" && pm.Required {
-			return &FailedParamCmd{ToolName: b.Def.Name, Missing: pm.Name}
-		}
-		if val != "" {
-			params[pm.Name] = val
+		if failed != nil {
+			return failed
 		}
 	}
-	return &ExecCmd{def: b.Def, root: b.Root, rootFunc: b.RootFunc, params: params, sources: sources}
+	return &ExecCmd{def: b.Def, root: b.Root, rootFunc: b.RootFunc, params: params, lists: lists, sources: sources}
+}
+
+// listParam resolves an array parameter into lists, or fails the call when
+// it is mistyped or required and empty (srd023 R2.12, R2.13).
+func (b *ExecBuilder) listParam(res core.Result, pm catalog.ParamMapping, lists map[string][]string) core.Command {
+	if f := b.mistyped(res, pm); f != nil {
+		return f
+	}
+	vals := ExtractListParam(res.Output, pm.Name)
+	if len(vals) == 0 && pm.Required {
+		return &FailedParamCmd{ToolName: b.Def.Name, Missing: pm.Name}
+	}
+	if len(vals) > 0 {
+		lists[pm.Name] = vals
+	}
+	return nil
+}
+
+// scalarParam resolves a string or integer parameter into params, its
+// default when absent, or fails the call when it is mistyped or required
+// and missing (srd023 R2.5, R2.10, R2.13).
+func (b *ExecBuilder) scalarParam(res core.Result, pm catalog.ParamMapping, params map[string]string) core.Command {
+	if f := b.mistyped(res, pm); f != nil {
+		return f
+	}
+	val := ExtractStringParam(res.Output, pm.Name)
+	if val == "" {
+		if n := ExtractIntParam(res.Output, pm.Name); n != 0 {
+			val = strconv.Itoa(n)
+		}
+	}
+	if val == "" {
+		val = pm.Default
+	}
+	if val == "" && pm.Required {
+		return &FailedParamCmd{ToolName: b.Def.Name, Missing: pm.Name}
+	}
+	if val != "" {
+		params[pm.Name] = val
+	}
+	return nil
+}
+
+// mistyped fails a parameter present with a JSON type its mapping cannot
+// take, an array or object for a scalar, an object or boolean for a list:
+// a misread call, not an absent parameter, so the result says which, or the
+// model resends it (srd023 R2.13). Nil when the type fits or it is absent.
+func (b *ExecBuilder) mistyped(res core.Result, pm catalog.ParamMapping) core.Command {
+	got, want := paramType(res.Output, pm.Name), "a string"
+	bad := got == "array" || got == "object"
+	if pm.List {
+		want, bad = "an array of strings", got == "object" || got == "boolean"
+	}
+	if !bad {
+		return nil
+	}
+	return &FailedParamCmd{ToolName: b.Def.Name, Missing: pm.Name, Got: got, Want: want}
 }
 
 // BuildReverser returns an exec command configured only for receipt-driven Undo:
@@ -78,9 +132,12 @@ type ExecCmd struct {
 	root     string
 	rootFunc func() string
 	params   map[string]string
-	sources  []catalog.ParamMapping
-	view     core.CommandStateView
-	rec      monitor.ToolMetricsRecorder
+	// lists holds array parameters, each element its own argv entry
+	// (srd023 R2.12).
+	lists   map[string][]string
+	sources []catalog.ParamMapping
+	view    core.CommandStateView
+	rec     monitor.ToolMetricsRecorder
 }
 
 func (c *ExecCmd) Name() string { return c.def.Name }
@@ -146,7 +203,7 @@ func (c *ExecCmd) ExecuteContext(ctx context.Context) core.Result {
 	if err := c.checkPrecondition(ctx, dir); err != nil {
 		return core.Result{Output: err.Error(), Signal: core.ToolFailed, CommandName: c.def.Name}
 	}
-	run := subprocess.Run(ctx, subprocess.Spec{
+	run := c.run(ctx, subprocess.Spec{
 		Binary:           c.def.Binary,
 		Args:             c.buildArgs(),
 		Dir:              dir,
@@ -192,6 +249,12 @@ func (c *ExecCmd) resolveSourceParams() error {
 		if err != nil {
 			return fmt.Errorf("parameter %q from %q: %w", pm.Name, pm.Source, err)
 		}
+		if pm.List {
+			if err := c.resolveSourceList(pm, value); err != nil {
+				return err
+			}
+			continue
+		}
 		resolved, ok := value.(string)
 		if !ok {
 			return fmt.Errorf(
@@ -208,6 +271,46 @@ func (c *ExecCmd) resolveSourceParams() error {
 		if resolved != "" {
 			c.params[pm.Name] = resolved
 		}
+	}
+	return nil
+}
+
+// resolveSourceList maps an array parameter's source, a JSON array of
+// strings or numbers, or a lone string, to its elements (srd023 R2.12).
+func (c *ExecCmd) resolveSourceList(pm catalog.ParamMapping, value interface{}) error {
+	if c.lists == nil {
+		c.lists = make(map[string][]string)
+	}
+	delete(c.lists, pm.Name)
+	var vals []string
+	add := func(e interface{}) error {
+		switch v := e.(type) {
+		case string:
+			if v != "" {
+				vals = append(vals, v)
+			}
+		case float64:
+			vals = append(vals, strconv.FormatFloat(v, 'f', -1, 64))
+		case nil:
+		default:
+			return fmt.Errorf("parameter %q from %q holds %T, want strings", pm.Name, pm.Source, e)
+		}
+		return nil
+	}
+	if arr, ok := value.([]interface{}); ok {
+		for _, e := range arr {
+			if err := add(e); err != nil {
+				return err
+			}
+		}
+	} else if err := add(value); err != nil {
+		return err
+	}
+	if len(vals) == 0 && pm.Required {
+		return fmt.Errorf("required parameter %q from %q resolved to no elements", pm.Name, pm.Source)
+	}
+	if len(vals) > 0 {
+		c.lists[pm.Name] = vals
 	}
 	return nil
 }
@@ -229,6 +332,12 @@ func (c *ExecCmd) execDir() string {
 func (c *ExecCmd) buildArgs() []string {
 	args := append([]string(nil), c.def.Args...)
 	for _, pm := range c.def.ExtractParamMappings() {
+		if vals, ok := c.lists[pm.Name]; ok {
+			for _, val := range vals {
+				args = appendMappedArg(args, pm, val)
+			}
+			continue
+		}
 		val, ok := c.params[pm.Name]
 		if !ok {
 			continue

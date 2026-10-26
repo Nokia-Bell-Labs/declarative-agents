@@ -1,0 +1,72 @@
+---
+id: program-architecture
+title: Program Architecture
+---
+
+<!-- field: overview -->
+## Overview
+
+The platform records agent runs, grades them, and publishes scorecards. An interface, a component, and a decision are each a node under their section; the headings below show the form each takes.
+
+<!-- field: interfaces -->
+## Interfaces
+
+<!-- interface: run_records -->
+### run_records
+
+Each agent run, written by the agents' runtime as one record per run. An interface's heading is its id alone: the id is its name.
+
+<!-- field: components -->
+## Components
+
+<!-- component: grader -->
+### grader
+
+Scores each run record against the agent's rubric. A component's heading is its id alone, like an interface's.
+
+<!-- field: capabilities -->
+#### Capabilities
+
+- score: one score per run record, against the rubric the agent names
+
+<!-- field: ownership -->
+#### Ownership
+
+- the rubrics and the scores
+
+<!-- field: design_decisions -->
+## Design decisions
+
+<!-- decision: 1 -->
+### 1 - Grade after the run, never during it
+
+A decision's id is a number, so its heading is the number, " - ", and a title. Grading reads finished run records, so an agent's latency never depends on the grader.
+
+<!-- field: alternatives_rejected -->
+#### Alternatives rejected
+
+- Grading inline: it would put the grader on every agent's critical path.
+
+<!-- field: technology_choices -->
+## Technology choices
+
+| component | technology | purpose |
+| --- | --- | --- |
+| grader | a batch job | scores the day's run records |
+
+<!-- field: project_structure -->
+## Project structure
+
+The grader lives in the evaluation repository; the run records' schema lives in the platform repository.
+
+<!-- field: implementation_status -->
+## Implementation status
+
+The run records are written; the grader is next.
+
+<!-- field: related_documents -->
+## Related documents
+
+- docs/VISION.md
+- docs/SPECIFICATIONS.md
+- docs/road-map.md

@@ -1,0 +1,27 @@
+<!-- managed:begin: the init and onboard profiles write the text down to managed:end and refresh it on a rerun; write your own notes outside it -->
+# Engineering
+
+An engineering document describes how this {{level}} is built: its
+architecture in the detail docs/ARCHITECTURE.md has no room for, and the
+practices its parts share. Where docs/ARCHITECTURE.md is the index (the
+components, the interfaces between them, and each design decision in a
+paragraph) and the SRDs say what each part must do, an engineering
+document says how the parts are arranged, how they run, how they are
+deployed, and why: the structure of a subsystem, a runtime or data flow,
+a deployment, or a practice such as how its tests or releases work.
+
+## Documents here
+
+- Name: `engNN-short-name.md`, numbered in order and never reused.
+- Format: an engineering guideline in the pinned parent release's Markdown format, with the fields docs/constitutions/design.md lists for it: an introduction, one or more sections, and references.
+- Sections: each section is a level-2 heading with a `<!-- section: short-id -->` marker on the line above it. Break a long description into more sections; the parent format does not yet admit free subheadings inside one.
+- Links: docs/ARCHITECTURE.md names each engineering document in its related documents, and a component or decision that needs more than a paragraph points to the one that describes it.
+- Changes go through an issue and the corpus gate, never a direct edit on main.
+
+## What reads them
+
+- People and agents working on the {{level}}, from docs/ARCHITECTURE.md.
+- The corpus gate, which the check skill runs, checks each document's format.
+
+The draft skill drafts an engineering document like any other.
+<!-- managed:end -->

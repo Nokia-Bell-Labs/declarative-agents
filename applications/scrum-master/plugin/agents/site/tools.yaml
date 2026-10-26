@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the site machine: no model anywhere (GH-81). Each
+# output family's word joins it as it lands (srd048 R1.1).
+tools:
+  - site_scaffold
+  - site_status
+  - site_timeline
+  - site_gantt
+  - site_history
+  - site_corpus
+  - site_hierarchy
+  - site_overview

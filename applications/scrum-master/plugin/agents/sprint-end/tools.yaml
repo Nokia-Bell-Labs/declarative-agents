@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the sprint-end workflow. The words and file words are
+# model-invoked in the Summarize state via $tool dispatch (design.md D10, D14).
+tools:
+  # words -- model-invoked
+  - sprint_end_facts
+  - sprint_end_stories
+  - issue_merge
+  - release_gate
+  - release_tag
+
+  # File words
+  - read
+  - write
+  - edit
+  - find
+  - list_files
+
+  # Commit words -- model-invoked where the skill commits
+  - stage_all
+  - commit
+
+  # Model loop -- direct transition actions
+  - invoke_llm
+  - parse_response
+  - report_parse_error
+  - reset_history
+  - nudge_reread
+
+  # Completion -- emits TaskCompleted via parse_response
+  - done

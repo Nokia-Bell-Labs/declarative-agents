@@ -1,0 +1,160 @@
+// Copyright (c) 2026 Nokia
+// SPDX-License-Identifier: BSD-3-Clause
+package main
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/release"
+)
+
+// TestInstallScriptInstallsAVerifiedRelease builds the release for this
+// machine at a tag in a clone of this repository, as mage publish builds it
+// — the agent and the profiles archive — serves it, and proves install.sh,
+// run with no Go toolchain on PATH, installs an agent whose version is the
+// tag and the profiles at that release, that the init profile runs from
+// them with only the agent installed, and that a file whose checksum
+// SHA256SUMS does not list is refused (eng03, GH-34).
+func TestInstallScriptInstallsAVerifiedRelease(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skip("install.sh serves Linux and macOS")
+	}
+	// The application lives inside the repository (GH-190): the test clones
+	// the repository and publishes from the application's directory in it.
+	top, err := exec.Command("git", "-C", mustAbs(t, ".."), "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := strings.TrimSpace(string(top))
+	head, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const tag = "v0.20990101.1"
+	clone := filepath.Join(t.TempDir(), "monorepo")
+	for _, args := range [][]string{
+		// --no-tags: a HEAD that is itself a release, as main is right
+		// after mage tag, must not lend the clone its tag (GH-41).
+		{"clone", "-q", "--no-checkout", "--no-tags", root, clone},
+		{"-C", clone, "checkout", "-q", strings.TrimSpace(string(head))},
+		{"-C", clone, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "tag", "-a", tag, "-m", "Release " + tag},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	dist := t.TempDir()
+	appRoot := filepath.Join(clone, "applications", "scrum-master")
+	p := release.Publisher{Root: appRoot, Git: release.ExecGit(appRoot), Run: release.ExecCommand}
+	assets, err := p.Build(dist, []release.Platform{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	served := map[string]string{}
+	for _, a := range assets {
+		served["/download/"+tag+"/"+a.Name] = a.Path
+		// A GitLab project serves a release's assets here, and a private
+		// one only with a token (GH-31).
+		served["/group/declarative-agents/-/releases/"+tag+"/downloads/"+a.Name] = a.Path
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path, ok := served[r.URL.Path]
+		if strings.Contains(r.URL.Path, "/-/releases/") && r.Header.Get("PRIVATE-TOKEN") != "t0ken" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, path)
+	}))
+	defer srv.Close()
+
+	install := func(prefix, home string) (string, error) {
+		cmd := exec.Command("sh", filepath.Join(root, "applications", "scrum-master", "install.sh"), tag)
+		cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + t.TempDir(), "AGENT_PREFIX=" + prefix, "SCRUM_MASTER_HOME=" + home,
+			"SCRUM_MASTER_RELEASE_URL=" + srv.URL}
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	prefix, home := filepath.Join(t.TempDir(), "bin"), filepath.Join(t.TempDir(), "scrum-master")
+	out, err := install(prefix, home)
+	if err != nil {
+		t.Fatalf("install.sh: %v\n%s", err, out)
+	}
+	version, err := exec.Command(filepath.Join(prefix, "agent"), "--version").Output()
+	if err != nil || !strings.HasSuffix(strings.TrimSpace(string(version)), tag) {
+		t.Fatalf("the installed agent reports %q, want %s: %v", version, tag, err)
+	}
+	if b, err := os.ReadFile(filepath.Join(home, "release")); err != nil || strings.TrimSpace(string(b)) != tag {
+		t.Fatalf("the installed profiles are at %q, want %s: %v", b, tag, err)
+	}
+	if !strings.Contains(out, "agent --profile") {
+		t.Errorf("install.sh did not name the next step:\n%s", out)
+	}
+
+	// With only the agent installed, the init profile lays a repository down,
+	// installing the skills of the one agent the repository already uses
+	// (GH-49).
+	repo := filepath.Join(t.TempDir(), "system")
+	if out, err := exec.Command("git", "init", "-q", "-b", "main", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	if err := os.MkdirAll(filepath.Join(repo, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run := exec.Command(filepath.Join(prefix, "agent"), "--profile", filepath.Join(home, "agents", "init", "profile.yaml"),
+		"--core-root", filepath.Join(home, "agent-core"), "--directory", repo, "--output", t.TempDir())
+	run.Dir = repo
+	run.Env = []string{"PATH=" + prefix + ":/usr/bin:/bin", "HOME=" + t.TempDir(), "SCRUM_MASTER_HOME=" + home}
+	if out, err := run.CombinedOutput(); err != nil || !strings.Contains(string(out), "final machine state: Done") {
+		t.Fatalf("the init profile from the installed release: %v\n%s", err, out)
+	}
+	if b, err := os.ReadFile(filepath.Join(repo, ".scrum-master", "manifest.json")); err != nil || !strings.Contains(string(b), tag) {
+		t.Fatalf("the init run vendored no profiles at %s: %v\n%s", tag, err, b)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".claude", "skills", "pop", "SKILL.md")); err != nil {
+		t.Fatalf("the init run installed no claude skill in a repository using claude: %v", err)
+	}
+	for _, other := range []string{".cursor", ".github"} {
+		if _, err := os.Stat(filepath.Join(repo, other)); !os.IsNotExist(err) {
+			t.Fatalf("the init run wrote %s in a repository using only claude", other)
+		}
+	}
+
+	// The same release from a GitLab project, as an internal fork publishes
+	// it: installed with the project's token, refused without (GH-31).
+	gitlab := func(token string) (string, error) {
+		cmd := exec.Command("sh", filepath.Join(root, "applications", "scrum-master", "install.sh"), tag)
+		cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + t.TempDir(), "AGENT_PREFIX=" + filepath.Join(t.TempDir(), "bin"),
+			"SCRUM_MASTER_HOME=" + filepath.Join(t.TempDir(), "home"), "SCRUM_MASTER_RELEASE_FORGE=gitlab",
+			"SCRUM_MASTER_RELEASE_URL=" + srv.URL + "/group/declarative-agents", "GITLAB_TOKEN=" + token}
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	if out, err := gitlab("t0ken"); err != nil || !strings.Contains(out, "installed the scrum-master profiles "+tag) {
+		t.Fatalf("install.sh from a GitLab project: %v\n%s", err, out)
+	}
+	if out, err := gitlab(""); err == nil {
+		t.Fatalf("a private GitLab project's release installed with no token:\n%s", out)
+	}
+
+	tampered := filepath.Join(t.TempDir(), "tampered")
+	os.WriteFile(tampered, []byte("not the agent"), 0o755)
+	served["/download/"+tag+"/"+assets[0].Name] = tampered
+	other := filepath.Join(t.TempDir(), "bin")
+	if out, err := install(other, filepath.Join(t.TempDir(), "home")); err == nil || !strings.Contains(out, "refusing") {
+		t.Fatalf("a tampered agent was installed: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(other, "agent")); !os.IsNotExist(err) {
+		t.Fatalf("a refused agent was written: %v", err)
+	}
+}

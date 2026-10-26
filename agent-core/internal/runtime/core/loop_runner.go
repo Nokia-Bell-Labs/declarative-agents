@@ -16,20 +16,23 @@ import (
 )
 
 type loopRunner struct {
-	sm                *StateMachine
-	params            LoopParams
-	trace             tracing.Tracer
-	ctx               context.Context
-	state             State
-	signal            Signal
-	result            Result
-	run               RunResult
-	iteration         int
-	start             time.Time
-	taskCompletedSig  Signal
-	reportOutput      string
-	reportLabel       string
-	summaryOutput     bool
+	sm               *StateMachine
+	params           LoopParams
+	trace            tracing.Tracer
+	ctx              context.Context
+	state            State
+	signal           Signal
+	result           Result
+	run              RunResult
+	iteration        int
+	start            time.Time
+	taskCompletedSig Signal
+	reportOutput     string
+	reportLabel      string
+	summaryOutput    bool
+	// summarized records that a summary transition already wrote the run's
+	// summary, so a later one appends to it rather than replacing it.
+	summarized        bool
 	checkpoint        Checkpoint
 	checkpointEnabled bool
 	execution         Execution

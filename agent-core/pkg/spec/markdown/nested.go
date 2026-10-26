@@ -273,11 +273,25 @@ func literalTextNode(lines []string, indent int) (*yaml.Node, error) {
 		}
 		text, ok := dedent(line, indent)
 		if !ok {
-			return nil, fmt.Errorf("text line %q is not indented %d spaces", line, indent)
+			return nil, misindented(line, indent)
 		}
 		out[i] = text
 	}
 	return stringNode(strings.Join(out, "\n")), nil
+}
+
+// misnumbered matches a list item numbered other than "1.": the tree form
+// numbers every item of a nested list "1.", so a "2." line opens no entry
+// and is read as the text of the entry above it.
+var misnumbered = regexp.MustCompile(`^([0-9]+)\. `)
+
+// misindented explains a line outside its block's indentation, naming the
+// number as the cause when the line is a list item numbered other than 1.
+func misindented(line string, indent int) error {
+	if m := misnumbered.FindStringSubmatch(strings.TrimLeft(line, " ")); m != nil && m[1] != "1" {
+		return fmt.Errorf("list item %q is numbered %s.; number every item of a nested list \"1.\"", strings.TrimSpace(line), m[1])
+	}
+	return fmt.Errorf("text line %q is not indented %d spaces", line, indent)
 }
 
 // entryHead returns an entry line without its marker.
@@ -306,7 +320,7 @@ func treeTextNode(lines []string, indent int) (*yaml.Node, error) {
 		}
 		text, ok := dedent(line, indent)
 		if !ok {
-			return nil, fmt.Errorf("text line %q is not indented %d spaces", line, indent)
+			return nil, misindented(line, indent)
 		}
 		out[i] = text
 	}

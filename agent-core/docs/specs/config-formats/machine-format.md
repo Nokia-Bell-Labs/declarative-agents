@@ -708,8 +708,10 @@ false
 ###### Description
 
 When true, this action's complete Result.Output becomes the run
-summary and is not overwritten by later dispatches. Use this for
-machines with more than one summary-producing signal. A machine-level
+summary and is not overwritten by later dispatches; when an earlier
+summary transition already supplied it, the output is appended on its own
+line, so a machine of several words reports each in the order they ran.
+Use this for machines with more than one summary-producing signal. A machine-level
 summary_signal remains the concise option when one signal owns every
 summary.
 

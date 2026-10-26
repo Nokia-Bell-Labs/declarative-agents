@@ -236,6 +236,7 @@ validation. CI must not read a developer-local checkout or absolute path.
 | mock | false | A scripted test double; the source architecture has no equivalent role. |
 | fixture | false | Test-only profile or data. |
 | infrastructure_adapter | false | Runtime, protocol, serving, or lifecycle boundary adapter. |
+| workflow_machine | false | A workflow machine of the scrum-master application, whose states are a process skill's steps, whose tools are its words, and whose roles live in the application's own corpus rather than this role model. |
 
 <!-- field: bindings -->
 ## Bindings
@@ -2162,6 +2163,646 @@ applications/catalog/agents/applier/rollout-profile.yaml
 ##### Execution scope
 
 rollout-read
+
+<!-- field: scrum_master -->
+### Scrum master
+
+<!-- scrum_master_entry: scrum-master-implement -->
+#### scrum-master-implement
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/implement/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-merge -->
+#### scrum-master-merge
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/merge/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-pop -->
+#### scrum-master-pop
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/pop/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-plan-push -->
+#### scrum-master-plan-push
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/plan-push/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-plan -->
+#### scrum-master-plan
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/plan/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-reports-init -->
+#### scrum-master-reports-init
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/reports-init/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-site -->
+#### scrum-master-site
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/site/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-specify -->
+#### scrum-master-specify
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/specify/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-tasks -->
+#### scrum-master-tasks
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/tasks/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-sprint-end -->
+#### scrum-master-sprint-end
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/sprint-end/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-draft -->
+#### scrum-master-draft
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/draft/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-admit -->
+#### scrum-master-admit
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/admit/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-aggregate -->
+#### scrum-master-aggregate
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/aggregate/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-approve -->
+#### scrum-master-approve
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/approve/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-comment -->
+#### scrum-master-comment
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/comment/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-close -->
+#### scrum-master-close
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/close/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-labels -->
+#### scrum-master-labels
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/labels/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-peer-read -->
+#### scrum-master-peer-read
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/peer-read/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-recur -->
+#### scrum-master-recur
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/recur/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-release -->
+#### scrum-master-release
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/release/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-status -->
+#### scrum-master-status
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/status/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-status-issues -->
+#### scrum-master-status-issues
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/status-issues/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-architecture-status -->
+#### scrum-master-architecture-status
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/architecture-status/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-backlog-check -->
+#### scrum-master-backlog-check
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/backlog-check/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-backlog-components -->
+#### scrum-master-backlog-components
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/backlog-components/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-backlog-guide -->
+#### scrum-master-backlog-guide
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/backlog-guide/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-backlog-list -->
+#### scrum-master-backlog-list
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/backlog-list/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-backlog-template -->
+#### scrum-master-backlog-template
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/backlog-template/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-design -->
+#### scrum-master-design
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/design/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-doctor -->
+#### scrum-master-doctor
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/doctor/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-goals-plan -->
+#### scrum-master-goals-plan
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/goals-plan/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-goals-push -->
+#### scrum-master-goals-push
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/goals-push/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-issue-file -->
+#### scrum-master-issue-file
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/issue-file/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-issue-lint -->
+#### scrum-master-issue-lint
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/issue-lint/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-issue-list -->
+#### scrum-master-issue-list
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/issue-list/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-plan-backlog -->
+#### scrum-master-plan-backlog
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/plan-backlog/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-plan-candidates -->
+#### scrum-master-plan-candidates
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/plan-candidates/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-plan-write -->
+#### scrum-master-plan-write
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/plan-write/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-release-gate -->
+#### scrum-master-release-gate
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/release-gate/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-release-tag -->
+#### scrum-master-release-tag
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/release-tag/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-reports-validate -->
+#### scrum-master-reports-validate
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/reports-validate/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-sprint-end-facts -->
+#### scrum-master-sprint-end-facts
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/sprint-end-facts/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-sprint-end-stories -->
+#### scrum-master-sprint-end-stories
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/sprint-end-stories/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-tracker-export -->
+#### scrum-master-tracker-export
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/tracker-export/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-tracker-migrate -->
+#### scrum-master-tracker-migrate
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/tracker-migrate/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-tracker-sync -->
+#### scrum-master-tracker-sync
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/tracker-sync/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-check -->
+#### scrum-master-check
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/check/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-init -->
+#### scrum-master-init
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/init/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-onboard -->
+#### scrum-master-onboard
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/onboard/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
 
 <!-- field: deployment_realizations -->
 ## Deployment realizations

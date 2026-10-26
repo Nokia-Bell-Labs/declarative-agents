@@ -1,0 +1,143 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: merge
+purpose: |-
+  Deliver an issue by the one merge that closes it (srd013 R5): the gates,
+  the --no-ff merge pushed to the default branch, and the closes, each a scrum-master
+  word. Use when a person asks to merge or deliver a popped issue whose work
+  is committed and pushed.
+
+  This machine has no model state: delivery is deterministic, words all
+  the way down (design.md D10, D14; GH-201). The run starts in the issue's
+  worktree; SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the issue. A refusal from a gate
+  — a failed audit, a missing approval, a branch with no commits — ends the
+  run in Refused with the word's reason, and a merge whose closes did not land
+  ends in PartiallyDelivered, naming what a re-run of close-delivered
+  finishes.
+configuration:
+  machine: plugin/agents/merge/machine.yaml
+  tools: plugin/agents/merge/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- Nothing merges before every gate passes; the gate word writes nothing
+- The merge commit and the closes are separate words, so a close that fails
+  after the push is an explicit state, not a buried error
+- A re-run is safe; an already-merged branch is not merged again and a
+  closed issue stays closed on its commit
+lifecycle: |-
+  1. Idle → Gate (Seed): scrum-master issue merge --dry-run runs every gate and
+     writes nothing
+  2. Gate → Deliver (ToolDone): scrum-master issue merge-branch makes the --no-ff
+     merge citing the issue and each closes, and pushes it
+  3. Gate → Refused (ToolFailed): a gate refused; its reason ends the run
+  4. Deliver → Close (ToolDone): scrum-master issue close-delivered closes the issue
+     and each closes on the commit the merge word reported, and reports
+     complete each closed Sprint Goal
+  5. Deliver → Refused (ToolFailed): the merge was refused
+  6. Close → Done (ToolDone): the delivery is complete
+  7. Close → PartiallyDelivered (ToolFailed): merged but not closed; re-run
+     close-delivered with the named commit
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 20
+states:
+- name: Idle
+  meaning: Initial state before the gates run.
+- name: Gate
+  meaning: |
+    Every gate, no effect: the issue and each closes open, the branch with
+    commits of its own, the sprint-end summary format, the corpus audit when
+    docs/ changed, and, under require_approval, another person's approval of
+    the tip (srd013 R5.3, R5.5). scrum-master issue merge --dry-run runs them all and
+    writes nothing. On a branch already merged it passes only while the
+    issue is open, so a re-run finishes a partial delivery and a delivered
+    issue is refused (GH-20).
+- name: Deliver
+  meaning: |
+    The merge word: scrum-master issue merge-branch merges the branch --no-ff into
+    the default branch of the main checkout, with a message citing the issue
+    and each issue it closes, and pushes it. It closes nothing; its output
+    names the merge commit and what remains to close.
+- name: Close
+  meaning: |
+    The close word: scrum-master issue close-delivered closes the issue and each
+    closes reference still open on the reported commit, and posts a
+    reported_complete event on each closed Sprint Goal's ledger (srd038
+    R2.2). The commit and the closes come from the merge word's output.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The merge commit and the issues it closed are the run's
+    report (srd013 R5).
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. A gate or the merge refused — a failed audit, a missing or
+    stale approval, a branch with nothing over the base — and the word's reason,
+    as printed, is the run's last output. Nothing merged.
+- name: PartiallyDelivered
+  run_status: failed
+  meaning: |
+    Terminal. The branch merged and pushed, but a close did not land: the
+    output names the commit, so a re-run of scrum-master issue close-delivered with
+    it finishes the delivery; a closed issue stays closed (GH-201).
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+terminal_states:
+- Done
+- Refused
+- PartiallyDelivered
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Gate
+  action: merge_gate
+  label: gate
+  summary: true
+- state: Gate
+  signal: ToolDone
+  next: Deliver
+  action: merge_branch
+  label: deliver
+  summary: true
+- state: Gate
+  signal: ToolFailed
+  next: Refused
+- state: Deliver
+  signal: ToolDone
+  next: Close
+  action: close_delivered
+  summary: true
+- state: Deliver
+  signal: ToolFailed
+  next: Refused
+- state: Close
+  signal: ToolDone
+  next: Done
+- state: Close
+  signal: ToolFailed
+  next: PartiallyDelivered
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Gate
+  signal: CommandError
+  next: Failed
+- state: Deliver
+  signal: CommandError
+  next: Failed
+- state: Close
+  signal: CommandError
+  next: Failed

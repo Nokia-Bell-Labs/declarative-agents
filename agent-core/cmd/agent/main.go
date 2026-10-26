@@ -826,6 +826,17 @@ func seedRequest(params *core.LoopParams, path string) error {
 	}
 	params.InitialSignal = core.Seed
 	params.InitialResult = core.Result{Signal: core.Seed, Output: string(data)}
+	// The request stays addressable as $from(seed) after intervening words,
+	// as a machine_request's is (srd038 R2.10); a resumed run's execution
+	// already holds it.
+	if len(params.InitialExecution) == 0 {
+		params.InitialExecution = core.Execution{{
+			CommandName: catalog.RequestSeedLabel,
+			Label:       catalog.RequestSeedLabel,
+			Signal:      core.Seed,
+			Result:      core.DigestResult(params.InitialResult),
+		}}
+	}
 	return nil
 }
 

@@ -1,0 +1,191 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The merge machine's words (GH-201, srd013 R5.7): the gate that writes
+# nothing, the merge word, and the close word. The commit and the closes
+# flow from the merge word's JSON output into the close word's parameters —
+# the runtime extracts a declared parameter from the previous result — and
+# the request's closes, issue_project, and branch reach the gate, whose
+# output carries them to the later words (GH-47), so nothing is retyped
+# between steps. SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE come from the
+# environment; an optional value is a parameter, never a ${VAR} arg (the
+# GH-135 finding).
+unit: scrum-master-merge-declarations
+tools:
+- name: merge_gate
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - merge
+  - --dry-run
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  visibility: internal
+  description: Run every delivery gate and write nothing — the issue and closes open, commits over the base, the summary format, the audit on a docs/ change, the approval the policy requires (srd013 R5.3, R5.5).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      closes:
+        type: array
+        items:
+          type: string
+        description: Other issues the merge closes, each project#iid (srd038 R2.1).
+        flag: --closes
+      issue_project:
+        type: string
+        description: The project holding the issue, when not SCRUM_MASTER_PROJECT, such as a status issue merged in the reports repository (srd013 R5.4).
+        flag: --issue-project
+      branch:
+        type: string
+        description: The branch to merge; empty is the issue's pop branch.
+        flag: --branch
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master issue merge --dry-run's JSON report of what would merge.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_read
+    target: worktree
+    description: Reads the branch, the diff, and the control files; the audit command runs read-only over the worktree.
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: A dry run changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'merge_gate: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: a gate refuses — a failed audit, a missing approval, a closed issue, a branch with nothing over the base — and the word exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: nothing merged; the worktree and the tracker are unchanged
+
+- name: merge_branch
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - merge-branch
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  visibility: internal
+  description: Merge the branch --no-ff into the default branch with a message citing the issue and each closes, and push it; close nothing (GH-201, srd013 R5.7).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      closes:
+        type: array
+        items:
+          type: string
+        description: The closes the gate checked, from its output.
+        flag: --closes
+        source: $from(gate).closes
+      issue_project:
+        type: string
+        description: The issue's project the gate checked, from its output.
+        flag: --issue-project
+        source: $from(gate).issue_project
+      branch:
+        type: string
+        description: The branch the gate checked, from its output.
+        flag: --branch
+        source: $from(gate).branch
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The merge word's JSON report — the commit and, as closes, what close-delivered takes next.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: git_remote
+    description: Makes the merge commit in the main checkout and pushes the default branch.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: A pushed merge stays; a re-run finds the branch already merged and makes no second commit.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'merge_branch: <error>'
+    state_after_failure: nothing merged by a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the merge and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the branch and the default branch are as the refusal left them
+
+- name: close_delivered
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - close-delivered
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  visibility: internal
+  description: Close the issue and each closes reference on the merge commit, and report complete each closed Sprint Goal (GH-201, srd013 R5.7, srd038 R2.2).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      commit:
+        type: string
+        description: The merge commit the merge word reported.
+        flag: --commit
+        source: $from(deliver).commit
+      closes:
+        type: array
+        items:
+          type: string
+        description: The other issues the merge closes, from the merge word's output.
+        flag: --closes
+        source: $from(deliver).closes
+      issue_project:
+        type: string
+        description: The issue's project the gate checked, from its output.
+        flag: --issue-project
+        source: $from(gate).issue_project
+    required: [commit]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The close word's JSON report — what closed and what was reported complete.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Closes each issue on the commit and posts reported_complete events.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: A re-run changes nothing; a closed issue stays closed on its commit.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or the commit parameter is missing
+    message_shape: 'close_delivered: <error>'
+    state_after_failure: nothing closed by a process that did not start
+  - signal: ToolFailed
+    condition: a close does not land and the word exits non-zero
+    message_shape: 'merged <commit>, but <reference> did not close: <reason>'
+    state_after_failure: the merge stands; a re-run with the same commit finishes the delivery

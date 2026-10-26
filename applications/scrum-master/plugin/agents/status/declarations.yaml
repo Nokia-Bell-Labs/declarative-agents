@@ -1,0 +1,55 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The status machine's words (GH-37). SCRUM_MASTER_PROJECT names the person's project; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-status-declarations
+tools:
+- name: reports_week
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - week
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  visibility: internal
+  description: 'Gather the open Sprint Goals and the person''s merges and closes this week (srd018 R8.1).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      user:
+        type: string
+        description: 'The tracker user; empty is the caller.'
+        flag: --user
+      date:
+        type: string
+        description: 'A day of the week, YYYY-MM-DD; empty is today.'
+        flag: --date
+      control:
+        type: string
+        description: 'Program repository holding control/ files, when not the project.'
+        flag: --control
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The week''s JSON report.'
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'reports_week: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

@@ -29,6 +29,10 @@ public Go APIs. Placement rules are defined in
   declaration loader, the tiered diagnostics, and the declaration-driven
   converter between a document's YAML tree and its Markdown. It imports no
   internal package; callers pass the declarations in.
+- `pkg/inprocess` is a public package a build of the agent uses to serve an
+  exec tool's binary from code linked into it (srd023 R8): an init function
+  registers a runner under the binary's name, and `internal/tools/exec`
+  calls it instead of starting a process. It imports no internal package.
 - `pkg/profileaudit` is a public package for profile-startup audit used by
   `cmd/agent` and catalog gates. It currently imports internal catalog, REST,
   runtime, load, and support surfaces listed in
@@ -205,6 +209,7 @@ Generated from `go list ./...`. The boundaries gate checks this list.
 - `internal/tools/validation`
 - `internal/typesys`
 - `internal/version`
+- `pkg/inprocess`
 - `pkg/profileaudit`
 - `pkg/profileservers`
 - `pkg/profilestage`

@@ -1,0 +1,100 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The plan profile's model binding: the model acts only in the Plan
+# state (design.md D10), reading SCRUM_MASTER_MODEL, SCRUM_MASTER_RESPONSE_PROFILE, and
+# OLLAMA_URL with the defaults the parent's executor ships (srd043 R4.7).
+unit: scrum-master-plan-llm-default
+imports:
+- /opt/agent-core/tools/units/types-core.yaml
+tools:
+- name: invoke_llm
+  type: builtin
+  init: invoke_llm
+  visibility: internal
+  signature:
+    emits: [LLMResponded, CommandError]
+  description: Invoke the model with the current conversation history.
+  category: boundary
+  output:
+    description: Raw model response text.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: llm_provider
+    description: Sends the current prompt and tool manifest to the configured model provider.
+  - kind: state_mutation
+    target: conversation_history
+    state: appended
+    description: Appends the model response to the in-memory conversation history.
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: conversation_truncate
+    description: Restore the conversation history checkpoint captured before invoking the model.
+    requires: [conversation_checkpoint]
+  errors:
+  - signal: CommandError
+    condition: provider configuration is invalid or the model call fails
+    message_shape: 'invoke_llm: <provider/model>: <error>'
+    state_after_failure: conversation history unchanged unless the provider response was already appended
+  config:
+    model: ${SCRUM_MASTER_MODEL:-qwen3.6:35b-mlx}
+    dialect: /opt/providers/chat-dialect.yaml
+    provider_url: ${OLLAMA_URL:-http://localhost:11434}
+    manifest_state: Plan
+    response_profile: ${SCRUM_MASTER_RESPONSE_PROFILE:-qwen}
+    max_time: 600
+    system_prompt: |
+      You are the plan workflow of scrum-master: the decision to plan the next release.
+      Every step is a word; you ask only the items, the version, and the
+      end date (design.md D10, srd031 R3).
+
+      The release flow: plan_candidates; show the ranked items (slipped
+      first) and the held-back items with what they lack; ask which items enter
+      the release and confirm the recommended version, end date, and tag; then
+      plan_write, commit docs/road-map.md (stage_all, commit),
+      issue_merge, and once merged release_gate then release_tag
+      (--artifact corpus), and plan_push with the end date. Show each
+      command's result as you go.
+
+      Sprint Planning in a team's repository: plan_candidates, show the
+      backlog by rank with points and velocity (ask the Product Owner for an
+      assumed velocity when none is measured and run it again), ask which
+      stories enter the sprint, then plan_backlog and show the Sprint Goal.
+
+      Constraints:
+      - Ask nothing beyond the items, the version, the end date, and an assumed
+        velocity; scrum-master computes everything else
+      - A refusal comes back as the command's output: show its reason and fix
+        only what it names
+
+      Call done with what was published: the tag, milestone, sprint issue, and
+      sprint-end issues, or the updated Sprint Goal.
+
+- name: parse_response
+  type: builtin
+  contract: legacy
+  init: parse_response
+  visibility: internal
+  description: Parse raw model output into a tool call or task-completed signal.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, TaskCompleted, ParseFailed, CommandError]
+  category: word
+  side_effects:
+  - kind: command_state
+    description: Parses the prior command output and may reset the parse retry counter after a non-ParseFailed result.
+  undo:
+    strategy: parse_retry_counter_restore
+    description: Restores the parse retry counter snapshot captured before parsing.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'parse_response: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Parsed tool-request JSON or a plain completion summary.
+  config:
+    manifest_state: Plan

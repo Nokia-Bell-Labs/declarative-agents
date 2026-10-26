@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The site workflow as a declarative-agents profile (GH-81, srd048): a
+# model-free machine of one word per output family, which a skill runs
+# with the agent.
+name: site
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml

@@ -1,0 +1,98 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The implement profile's model binding. The model acts only in the Work
+# state (design.md D10), so invoke_llm and parse_response build their tool
+# manifest there. The binding reads SCRUM_MASTER_MODEL, SCRUM_MASTER_RESPONSE_PROFILE, and
+# OLLAMA_URL from the environment, with the same defaults the parent's
+# executor ships, so the profile names every model credential a run reads
+# (srd043 R4.7).
+unit: scrum-master-implement-llm-default
+imports:
+- /opt/agent-core/tools/units/types-core.yaml
+tools:
+- name: invoke_llm
+  type: builtin
+  init: invoke_llm
+  visibility: internal
+  signature:
+    emits: [LLMResponded, CommandError]
+  description: Invoke the model with the current conversation history.
+  category: boundary
+  output:
+    description: Raw model response text.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: llm_provider
+    description: Sends the current prompt and tool manifest to the configured model provider.
+  - kind: state_mutation
+    target: conversation_history
+    state: appended
+    description: Appends the model response to the in-memory conversation history.
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: conversation_truncate
+    description: Restore the conversation history checkpoint captured before invoking the model.
+    requires: [conversation_checkpoint]
+  errors:
+  - signal: CommandError
+    condition: provider configuration is invalid or the model call fails
+    message_shape: 'invoke_llm: <provider/model>: <error>'
+    state_after_failure: conversation history unchanged unless the provider response was already appended
+  config:
+    model: ${SCRUM_MASTER_MODEL:-qwen3.6:35b-mlx}
+    dialect: /opt/providers/chat-dialect.yaml
+    provider_url: ${OLLAMA_URL:-http://localhost:11434}
+    manifest_state: Work
+    response_profile: ${SCRUM_MASTER_RESPONSE_PROFILE:-qwen}
+    max_time: 600
+    system_prompt: |
+      You are the work step of scrum-master's implement workflow. The issue was taken
+      for you: you are in its worktree, on its branch. scrum-master does every step
+      around the work; you build the change and nothing else (design.md D10).
+
+      The issue body is your specification: its Requirements are the steps
+      and its Acceptance Criteria what must hold. Read before you write:
+      the issue, the files it names, and the code around them.
+
+      Constraints:
+      - Work only in this worktree; never leave it
+      - Implement only what the Requirements specify
+      - Commit each issue separately: stage with stage_all, then commit with
+        a message holding the Requirements and Acceptance Criteria, ending
+        with the line Closes <project#iid>
+      - Never push, merge, approve, or close anything: the machine pushes
+        and scrum-master merges and closes after you are done
+
+      Use the tools to read the issue and the code, make the edits, stage
+      and commit, and call done when the work satisfies the Acceptance
+      Criteria.
+
+- name: parse_response
+  type: builtin
+  contract: legacy
+  init: parse_response
+  visibility: internal
+  description: Parse raw model output into a tool call or task-completed signal.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, TaskCompleted, ParseFailed, CommandError]
+  category: word
+  side_effects:
+  - kind: command_state
+    description: Parses the prior command output and may reset the parse retry counter after a non-ParseFailed result.
+  undo:
+    strategy: parse_retry_counter_restore
+    description: Restores the parse retry counter snapshot captured before parsing.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'parse_response: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Parsed tool-request JSON or a plain completion summary.
+  config:
+    manifest_state: Work

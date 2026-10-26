@@ -1,0 +1,61 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The aggregate machine's words (GH-37). the reports repository is the run's checkout; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-aggregate-declarations
+tools:
+- name: reports_aggregate
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - aggregate
+  - --json
+  visibility: internal
+  description: 'Aggregate the period''s reports into progress and signals, filing each actionable one when asked (srd018 R3).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      from:
+        type: string
+        description: 'The first ISO week, YYYY-Www; empty is this week.'
+        flag: --from
+      to:
+        type: string
+        description: 'The last ISO week; empty is from.'
+        flag: --to
+      push:
+        type: boolean
+        description: 'File each actionable signal as an issue, once.'
+        flag: --push
+        bool_flag: true
+      ref:
+        type: string
+        description: 'The ref of the control files; empty is main.'
+        flag: --ref
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The aggregate''s JSON report.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'With push, files each actionable signal as an issue, once.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'reports_aggregate: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

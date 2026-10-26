@@ -1,0 +1,75 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The checks this corpus's audit gates on. The shipped specification-critic
+# corpus-audit profile of Nokia-Bell-Labs/declarative-agents binds
+# docs/corpus-charter.yaml relative to --directory, so this file decides what
+# gates here (parent GH-2346 mechanism). The audit command is in
+# docs/guides/corpus-audit.md.
+#
+# Left out, with the reason:
+# - orphaned-srd and uncovered-ac: use cases and test suites exist for
+#   implemented releases and 05.0 only (SPECIFICATIONS GAP1, GAP2). The 06.0 SRDs
+#   have no use case and their acceptance criteria no test case, so both
+#   checks would report them. They join when every release has use cases.
+# - tool-* and machine-* checks: this corpus specifies no agent machines or
+#   tool declarations.
+# - go-test-* checks: the pinned release does not offer them as charter
+#   checks. TestSuitesNameRealTests in magefiles holds each implemented test
+#   suite's go_test, and every mage target a suite or the road map's proof
+#   names, to what exists (srd040 R2.3).
+# - objective documents (srd034 R2.1): the spec_corpus checks of the pinned
+#   parent release do not read docs/specs/objectives/, and this corpus holds
+#   no objective documents; they live in a consuming program's system
+#   repository, written as SRDs in the parent's format. The objective gate
+#   in mage audit validates them (SPECIFICATIONS GAP8).
+id: scrum-master-corpus-charter
+title: Scrum-Master Specification Corpus Checks
+checks:
+  - id: scrum-master-spec-corpus
+    kind: spec_corpus
+    severity: error
+    checks:
+      # Every corpus document is Markdown in the format the pinned release
+      # declares (its eng10), with no format finding, and in the canonical
+      # form mage fmt writes.
+      - markdown-format
+      - not-canonical
+      # The traceability chain: a use case or acceptance criterion may not
+      # cite an SRD or a requirement that does not exist, and citations name
+      # requirement items, not groups.
+      - broken-touchpoint
+      - broken-citation
+      - group-level-citation
+      # Every requirement item is covered by an acceptance criterion; every
+      # success criterion traces one.
+      - uncovered-req-item
+      - untraced-success-criterion
+      # The SPECIFICATIONS.md indexes and the road map agree with the
+      # documents they name.
+      - index-broken-path
+      - index-missing-use-case
+      - index-missing-test-suite
+      - roadmap-missing-use-case
+      - roadmap-summary-missing-release
+      - index-document-mismatch
+      - release-without-test-suite
+      - test-case-missing-use-case
+      - test-suite-missing-uc-trace
+      # Document references resolve.
+      - docspec-broken-example-path
+      - docspec-broken-implementation-path
+      - docspec-broken-related-document
+      - docspec-broken-requirement-source
+      # Retirement and open decisions.
+      - retired-id-missing
+      - citation-of-retired-id
+      - unresolved-clarification
+      - invalid-priority
+      # External references: derived_from entries resolve against this
+      # repository's own tree (docs/external-checkouts.yaml, written by
+      # mage audit for the run), are pinned, and stay resolvable.
+      - unverifiable-external-reference
+      - broken-external-reference
+      - retired-external-reference
+      - stale-external-reference
+      - unpinned-external-reference

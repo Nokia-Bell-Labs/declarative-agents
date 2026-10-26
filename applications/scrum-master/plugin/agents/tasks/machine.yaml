@@ -1,0 +1,162 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: tasks
+purpose: |-
+  Break a level into the units below it (srd022), a release into one Sprint
+  Goal per team or a story chosen at Sprint Planning into the issues that
+  execute it. Use when the technical program manager pushes agreed
+  initiatives downstream, or a Developer turns a chosen story into issues.
+
+  Invoking this profile is the decision to file the units below. Filing is a
+  word; the model writes only what scrum-master cannot compute, and nothing is
+  filed before the person agrees (design.md D10, srd022). A question the
+  skill allows is asked in the conversation that invoked it.
+configuration:
+  machine: plugin/agents/tasks/machine.yaml
+  tools: plugin/agents/tasks/tools.yaml
+  llm_configs: plugin/agents/tasks/llm/*.yaml
+invariants:
+- Filing is a word; the model writes only what scrum-master cannot compute
+- The model acts only in the Decompose state, through the declared tools
+- Nothing is filed before the person agrees
+- A the word refusal is fed back to the model, which shows its reason; a refused outcome is fixed upstream and the skill run again
+lifecycle: |-
+  1. Idle → Guide (Seed): scrum-master backlog guide puts the plan-vs-architecture
+     guide before the request (GH-59)
+  2. Guide → Decompose (ToolDone): the model breaks the level down through
+     the words
+  3. Decompose ↔ Parse: the model loop — invoke_llm, parse_response, $tool
+  4. Parse → Done (TaskCompleted): the model called done with what was
+     filed
+external_labels:
+- seed
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 100
+  max_consecutive_parse_errors: 5
+states:
+- name: Idle
+  meaning: Initial state before the request is read.
+- name: Guide
+  meaning: |
+    The guide word: scrum-master backlog guide prints the plan-vs-architecture
+    guide followed by the request, the model's first message, so the model
+    plans against the architecture before it acts (GH-59).
+- name: Decompose
+  meaning: |
+    Break the level down through scrum-master; nothing files before the person agrees.
+    A release into Sprint Goals (input: the system repository and the road-map
+    release version):
+    1. Run goals_plan (--system, --release) and save its plan JSON. On an
+       error, show it and stop.
+    2. For each outcome with an empty repository, ask which of its candidates
+       serves it and write the answer in. Ask nothing else.
+    3. Run goals_push (--system, --release, --plan).
+    4. Show each outcome's action, its Sprint Goal's URL, and any refusal's
+       reasons; a refused outcome is fixed in the initiative or the subsystem
+       SRDs and this skill run again.
+    A story into issues (input: this repository's project path, the story id or
+    the Sprint Goal listing the chosen stories, its milestone, and the system
+    repository):
+    1. Read the story with backlog_list (--kind story) and the issues
+       already implementing it with issue_list (--implements).
+    2. Propose the issues the story still needs, each a change a reviewer reads
+       in one sitting, in build order: Requirements, Acceptance Criteria naming
+       a test and an environment, Design Decisions where a choice binds,
+       Estimated LOC:, Implements: <story>, and Blocked-by: for an issue that
+       must close first.
+    3. Ask the owner to agree to, change, or drop each one.
+    4. File each agreed issue with issue_file (--milestone, --kind) and
+       show its reference and lint verdict; fix a needs-triage body and file
+       again.
+- name: Parse
+  meaning: |
+    The model's response is parsed into one tool call. A parse failure is
+    reported back to the model; the done call ends the run.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Each outcome's Sprint Goal, or each filed issue's reference and
+    lint verdict, is the run's report (srd022).
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+- name: BudgetExceeded
+  run_status: budget_exceeded
+  meaning: Terminal. The iteration or parse-error budget was exhausted.
+terminal_states:
+- Done
+- Failed
+- BudgetExceeded
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: LLMResponded
+  trigger: The model returned a response (invoke_llm completed).
+- name: ToolDone
+  trigger: A tool executed successfully.
+- name: ToolFailed
+  trigger: A tool executed but reported failure — for words, a refusal the model fixes.
+- name: ParseFailed
+  trigger: The model response could not be parsed as a valid tool call.
+- name: TaskCompleted
+  trigger: The model called the done tool, declaring the work finished.
+- name: EditDone
+  trigger: A file edit tool completed — triggers a re-read nudge.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+- name: BudgetExhausted
+  trigger: Iteration or parse-error budget limit reached.
+transitions:
+- state: Idle
+  signal: Seed
+  next: Guide
+  action: backlog_guide
+  label: guide
+- state: Guide
+  signal: ToolDone
+  next: Decompose
+  action: invoke_llm
+- state: Guide
+  signal: ToolFailed
+  next: Failed
+- state: Guide
+  signal: CommandError
+  next: Failed
+- state: Decompose
+  signal: LLMResponded
+  next: Parse
+  action: parse_response
+- state: Parse
+  signal: ToolDone
+  next: Decompose
+  action: $tool
+- state: Parse
+  signal: ParseFailed
+  next: Decompose
+  action: report_parse_error
+- state: Parse
+  signal: TaskCompleted
+  next: Done
+- state: Decompose
+  signal: ToolDone
+  next: Decompose
+  action: invoke_llm
+- state: Decompose
+  signal: ToolFailed
+  next: Decompose
+  action: invoke_llm
+- state: Decompose
+  signal: EditDone
+  next: Decompose
+  action: nudge_reread
+- state: Decompose
+  signal: BudgetExhausted
+  next: BudgetExceeded
+- state: Decompose
+  signal: CommandError
+  next: Failed
+- state: Parse
+  signal: CommandError
+  next: Failed

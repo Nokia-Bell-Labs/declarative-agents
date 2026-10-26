@@ -119,7 +119,7 @@ func (d *diagnosis) checkHeading(node *dnode, rule nodeRule, heading string) {
 	case headingID:
 		if heading != node.id {
 			d.add("heading-id-mismatch", node.line, "heading \""+node.id+"\"", "\""+heading+"\"", path,
-				"make the heading say exactly the id in its marker")
+				"make the heading say exactly the id in its marker; this "+node.kind+"'s id is its name, so its heading takes no \" - <title>\"")
 		}
 	case headingIDTitle:
 		if heading != node.id && !strings.HasPrefix(heading, node.id+" - ") {

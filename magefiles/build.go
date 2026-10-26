@@ -34,6 +34,7 @@ var applicationModules = []string{
 	"applications/chatbot-mesh",
 	"applications/coding-agent",
 	"applications/agent-architecture",
+	"applications/scrum-master",
 }
 
 // auditOnlyApplicationModules contains documentation-first applications whose

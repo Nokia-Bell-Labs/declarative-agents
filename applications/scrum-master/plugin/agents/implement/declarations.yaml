@@ -1,0 +1,135 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The implement workflow's own words: the words the machine drives and
+# the push that publishes the branch. Each word runs in the agent's own
+# process (GH-27, GH-32) with --json; a non-zero exit is the word's refusal, and the machine routes it to
+# the Refused terminal state with the word's reason as the output (srd036 R2.1,
+# R4.2). The words read SCRUM_MASTER_PROJECT, SCRUM_MASTER_ISSUE, and SCRUM_MASTER_CHECKOUT (the
+# project's clone, from which pop opens or reuses the issue's worktree, the
+# run's workspace) from the environment; scrum-master
+# itself reads SCRUM_MASTER_TRACKER and SCRUM_MASTER_USER (srd043), so the profile names every
+# variable a run reads. The control files come from --project's defaults: the
+# loader drops an argument whose variable is unset, which would corrupt the
+# flag list, so an optional flag stays out of a declaration (a GH-135 pilot
+# finding).
+unit: scrum-master-implement-declarations
+tools:
+- name: issue_pop
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - pop
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  - --dir
+  - ${SCRUM_MASTER_CHECKOUT}
+  visibility: internal
+  description: Take the issue scrum-master was asked for — assign only the caller and create or reuse its branch and worktree (srd013 R7).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master issue pop's JSON report — the branch, the worktree, and the issue taken.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: git_repository
+    description: Creates or reuses the issue's branch and worktree, and assigns the issue in the tracker.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: A pop is reconciled by scrum-master itself; the run does not reverse it.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'issue_pop: <error>'
+    state_after_failure: nothing was taken by a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the pop — an inadmissible or already-assigned issue — and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the clone are as the word's refusal left them
+
+- name: git_push
+  type: exec
+  binary: git
+  args:
+  - push
+  - -u
+  - origin
+  - HEAD
+  visibility: internal
+  description: Publish the branch so a reviewer can read and approve its tip (srd036 R3.1).
+  precondition: git_repo
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: Combined stdout and stderr from git push.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: git_remote
+    description: Pushes the branch to origin and sets its upstream.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: A pushed branch stays; the merge or a person decides its fate.
+  errors:
+  - signal: CommandError
+    condition: the git process cannot be started
+    message_shape: 'git_push: <error>'
+    state_after_failure: nothing was pushed by a process that did not start
+  - signal: ToolFailed
+    condition: git push exits non-zero — no remote, no credentials, or a rejected ref
+    message_shape: <captured git output>
+    state_after_failure: the remote is as the rejection left it
+
+- name: issue_merge
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - merge
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  visibility: internal
+  description: Finish the work — audit a docs/ change, merge the approved branch, push, and close each issue (srd013 R5.5).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master issue merge's JSON report — the merge commit and the issues it closed.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: git_remote
+    description: Merges the branch, pushes the result, and closes the issues in the tracker.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: A merge is not reversed by the run; the words' own policy governs what follows.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'issue_merge: <error>'
+    state_after_failure: nothing was merged by a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the merge — no approval at the tip under require_approval, or a failed audit — and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the branch and the tracker are as the word's refusal left them

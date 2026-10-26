@@ -1,0 +1,145 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: plan
+purpose: |-
+  Plan the next release in the system repository, choosing its initiative
+  items, publishing the plan as a tag, dating the period, and filing its
+  sprint-end issues; or, in a team's repository, run Sprint Planning from the
+  ranked stories (srd031, srd034 R3.1, srd045 R5). Use when the technical
+  program manager asks to plan the next period or release, or a Product Owner
+  asks to plan the team's sprint.
+
+  Invoking this profile is the decision to plan the next release. Every step
+  is a word; the model asks only the items, the version, and the end
+  date (design.md D10, srd031 R3). The input is the system repository path,
+  and the period's scrum-master reports aggregate --json output when a reports
+  repository exists. A question the skill allows is asked in the conversation
+  that invoked it.
+configuration:
+  machine: plugin/agents/plan/machine.yaml
+  tools: plugin/agents/plan/tools.yaml
+  llm_configs: plugin/agents/plan/llm/*.yaml
+invariants:
+- scrum-master ranks, writes, pushes, gates, and tags; the model relays the person's choices
+- The model acts only in the Plan state, through the declared tools
+- Nothing is asked of the person but the items, the version, the end date, and an assumed velocity
+- A the word refusal is fed back to the model, which shows its reason and fixes only what it names
+lifecycle: |-
+  1. Idle → Plan (Seed): the model plans through the words
+  2. Plan ↔ Parse: the model loop — invoke_llm, parse_response, $tool
+  3. Parse → Done (TaskCompleted): the model called done with what was
+     published
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 100
+  max_consecutive_parse_errors: 5
+states:
+- name: Idle
+  meaning: Initial state before the request is read.
+- name: Plan
+  meaning: |
+    Plan the release through scrum-master, in order; show each command's result.
+    1. File a plane::management planning issue with specify and take it with
+       implement; work in its worktree.
+    2. Run plan_candidates (--dir, --system, --aggregate).
+    3. Show the ranked items (slipped first) and the held-back items with what
+       they lack. Ask which items enter the release, and confirm or change the
+       recommended version, end date, and tag. Ask nothing else.
+    4. Run plan_write (--version, --tag, --items, --issue); show the items
+       it returned for a missing test or environment.
+    5. Commit docs/road-map.md (stage_all, commit) and run issue_merge as
+       implement does.
+    6. Once it merges, on main: release_gate, then release_tag, both
+       with --artifact corpus, the tag's version, and the planning issue. That
+       tag publishes the plan.
+    7. Run plan_push (--version, --end); show the milestone, the sprint
+       issue, the sprint-end issues, the planned events, and anything skipped.
+    8. Run tasks for the release.
+    Sprint Planning, in a team's repository once tasks filed its Sprint Goal:
+    run plan_candidates (--dir) and show the backlog — stories by rank with
+    points, the velocity, and the recommended stories, asking the Product Owner
+    for an assumed velocity when none is measured; ask which stories enter the
+    sprint and nothing else; run plan_backlog (--project, --release,
+    --stories) and show the Sprint Goal it updated; run tasks for each chosen
+    story.
+- name: Parse
+  meaning: |
+    The model's response is parsed into one tool call. A parse failure is
+    reported back to the model; the done call ends the run.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The published plan — the tag, the milestone, the sprint issue,
+    and the sprint-end issues — or the updated Sprint Goal is the run's report
+    (srd031).
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+- name: BudgetExceeded
+  run_status: budget_exceeded
+  meaning: Terminal. The iteration or parse-error budget was exhausted.
+terminal_states:
+- Done
+- Failed
+- BudgetExceeded
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: LLMResponded
+  trigger: The model returned a response (invoke_llm completed).
+- name: ToolDone
+  trigger: A tool executed successfully.
+- name: ToolFailed
+  trigger: A tool executed but reported failure — for words, a refusal the model fixes.
+- name: ParseFailed
+  trigger: The model response could not be parsed as a valid tool call.
+- name: TaskCompleted
+  trigger: The model called the done tool, declaring the work finished.
+- name: EditDone
+  trigger: A file edit tool completed — triggers a re-read nudge.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+- name: BudgetExhausted
+  trigger: Iteration or parse-error budget limit reached.
+transitions:
+- state: Idle
+  signal: Seed
+  next: Plan
+  action: invoke_llm
+- state: Plan
+  signal: LLMResponded
+  next: Parse
+  action: parse_response
+- state: Parse
+  signal: ToolDone
+  next: Plan
+  action: $tool
+- state: Parse
+  signal: ParseFailed
+  next: Plan
+  action: report_parse_error
+- state: Parse
+  signal: TaskCompleted
+  next: Done
+- state: Plan
+  signal: ToolDone
+  next: Plan
+  action: invoke_llm
+- state: Plan
+  signal: ToolFailed
+  next: Plan
+  action: invoke_llm
+- state: Plan
+  signal: EditDone
+  next: Plan
+  action: nudge_reread
+- state: Plan
+  signal: BudgetExhausted
+  next: BudgetExceeded
+- state: Plan
+  signal: CommandError
+  next: Failed
+- state: Parse
+  signal: CommandError
+  next: Failed

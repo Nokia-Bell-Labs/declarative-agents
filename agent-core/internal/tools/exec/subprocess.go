@@ -6,6 +6,7 @@ package exec
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -60,6 +61,68 @@ func ExtractStringParam(jsonOutput, key string) string {
 	return ""
 }
 
+// ExtractListParam extracts an array parameter from a JSON tool request as
+// its elements' text: strings as they are, numbers in decimal. A lone
+// string is a list of one (srd023 R2.12).
+func ExtractListParam(jsonOutput, key string) []string {
+	var params struct {
+		Parameters map[string]interface{} `json:"parameters"`
+	}
+	if err := json.Unmarshal([]byte(jsonOutput), &params); err != nil {
+		return nil
+	}
+	var out []string
+	add := func(v interface{}) {
+		switch e := v.(type) {
+		case string:
+			if e != "" {
+				out = append(out, e)
+			}
+		case float64:
+			out = append(out, strconv.FormatFloat(e, 'f', -1, 64))
+		}
+	}
+	switch v := params.Parameters[key].(type) {
+	case []interface{}:
+		for _, e := range v {
+			add(e)
+		}
+	default:
+		add(v)
+	}
+	return out
+}
+
+// ExtractBoolParam reports whether a JSON tool request sets a parameter
+// true, as a JSON boolean or the string "true" (srd023 R2.4).
+func ExtractBoolParam(jsonOutput, key string) bool {
+	var params struct {
+		Parameters map[string]interface{} `json:"parameters"`
+	}
+	if err := json.Unmarshal([]byte(jsonOutput), &params); err != nil {
+		return false
+	}
+	switch v := params.Parameters[key].(type) {
+	case bool:
+		return v
+	case string:
+		return v == "true"
+	}
+	return false
+}
+
+// hasParam reports whether a JSON tool request names the parameter at all.
+func hasParam(jsonOutput, key string) bool {
+	var params struct {
+		Parameters map[string]interface{} `json:"parameters"`
+	}
+	if err := json.Unmarshal([]byte(jsonOutput), &params); err != nil {
+		return false
+	}
+	_, ok := params.Parameters[key]
+	return ok
+}
+
 // ExtractIntParam extracts an integer parameter from a JSON tool request.
 func ExtractIntParam(jsonOutput, key string) int {
 	var params struct {
@@ -74,18 +137,55 @@ func ExtractIntParam(jsonOutput, key string) int {
 	return 0
 }
 
-// FailedParamCmd is returned by builders when required parameters are missing.
+// paramType is the JSON type of a parameter a tool request names: string,
+// number, boolean, array, or object; empty when the request leaves it out
+// or gives null.
+func paramType(jsonOutput, key string) string {
+	var params struct {
+		Parameters map[string]interface{} `json:"parameters"`
+	}
+	if err := json.Unmarshal([]byte(jsonOutput), &params); err != nil {
+		return ""
+	}
+	switch params.Parameters[key].(type) {
+	case string:
+		return "string"
+	case float64:
+		return "number"
+	case bool:
+		return "boolean"
+	case []interface{}:
+		return "array"
+	case map[string]interface{}:
+		return "object"
+	}
+	return ""
+}
+
+// FailedParamCmd is returned by builders when a required parameter is
+// missing, or when one is present with a JSON type the tool cannot take:
+// Got names that type and Want the one the tool declares, so the model
+// fixes the call instead of resending it.
 type FailedParamCmd struct {
 	ToolName string
 	Missing  string
+	Got      string
+	Want     string
 }
 
 func (f *FailedParamCmd) Name() string                   { return f.ToolName }
 func (f *FailedParamCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(f.Name()) }
 
+func (f *FailedParamCmd) message() string {
+	if f.Got != "" {
+		return fmt.Sprintf("parameter %s must be %s, got %s", f.Missing, f.Want, f.Got)
+	}
+	return fmt.Sprintf("missing required parameter: %s", f.Missing)
+}
+
 func (f *FailedParamCmd) Execute() core.Result {
 	return core.Result{
-		Output:      fmt.Sprintf("missing required parameter: %s", f.Missing),
+		Output:      f.message(),
 		Signal:      core.ToolFailed,
 		CommandName: f.ToolName,
 	}

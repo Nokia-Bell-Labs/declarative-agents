@@ -1,0 +1,5 @@
+# The build context is the release's directory; only the Linux agents and
+# the profiles archive enter the image.
+*
+!agent_linux_*
+!scrum-master-profiles.tar.gz

@@ -1,0 +1,127 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The draft workflow's words: the survey the machine runs first and the check the model dispatches in the Converse state.
+# Optional flags are parameters, never ${VAR} args: the loader drops an
+# argument whose variable is unset, which corrupts the flag list (the GH-135
+# pilot finding). A non-zero exit is the word's refusal, fed back to the model
+# (design.md D14).
+unit: scrum-master-draft-declarations
+tools:
+- name: backlog_check
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - check
+  - --json
+  visibility: external
+  description: Check the hierarchy documents and report every finding to fix (srd045).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: The repository's checkout.
+        flag: --dir
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master backlog check's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Reads the hierarchy documents; writes nothing.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_check: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the check finds problems or the word refuses, exiting non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them
+- name: backlog_list
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - list
+  - --json
+  visibility: internal
+  description: Survey the hierarchy before the conversation, so the draft lands under the right parent (srd045, srd046).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master backlog list's JSON report of the hierarchy.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_read
+    target: hierarchy_documents
+    description: Reads the hierarchy documents; writes nothing.
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: Reading the hierarchy changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_list: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the listing and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the checkout is as the word's refusal left it
+
+- name: backlog_template
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - template
+  - --json
+  visibility: external
+  description: Print a document of one hierarchy level, or VISION or ARCHITECTURE, in the layout the gate reads, to copy and fill (GH-20, GH-22).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      kind:
+        type: string
+        description: The document — theme, initiative, epic, feature, story, vision, or architecture.
+        flag: --kind
+    required: [kind]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The template word's JSON report, the document in its layout.
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word prints a template and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_template: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the kind names no template
+    message_shape: <the word's reason, as printed>
+    state_after_failure: nothing was written

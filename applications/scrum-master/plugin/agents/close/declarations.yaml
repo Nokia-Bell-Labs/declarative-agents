@@ -1,0 +1,45 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The close machine's words (GH-37). SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the issue; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-close-declarations
+tools:
+- name: issue_close
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - close
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  visibility: internal
+  description: 'Close the issue on the merge commit on the default branch that delivered it (srd013 R5).'
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The close word''s JSON report, citing the merge commit.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Closes the issue, citing the merge commit.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'issue_close: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

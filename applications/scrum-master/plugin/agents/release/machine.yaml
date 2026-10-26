@@ -1,0 +1,126 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: release
+purpose: |-
+  Release an artifact at the version its commits call for (srd015): the
+  next version, its gate, and its tag. Use when a person asks to release
+  or tag an artifact.
+
+  This machine has no model state: scrum-master release next then scrum-
+  master release gate then scrum-master release tag (design.md D10, D14;
+  GH-37). SCRUM_MASTER_ARTIFACT names the artifact and SCRUM_MASTER_ISSUE its release issue,
+  project#iid, or a bare iid in SCRUM_MASTER_PROJECT as the other profiles take it (GH-109);
+  SCRUM_MASTER_CONTROL and SCRUM_MASTER_REF, when set, name the control files
+  every word reads, as --flag=value args the loader drops whole when
+  unset.
+configuration:
+  machine: plugin/agents/release/machine.yaml
+  tools: plugin/agents/release/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Next (Seed): scrum-master release next
+  2. Next → Gate (ToolDone): scrum-master release gate
+  3. Gate → Tag (ToolDone): scrum-master release tag
+  4. Tag → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Next
+  meaning: |
+    The next word: scrum-master release next names the candidates and
+    recommends the version the commits since the latest tag call for.
+- name: Gate
+  meaning: |
+    The gate word: scrum-master release gate runs the release's gates for
+    the recommended version and posts their evidence.
+- name: Tag
+  meaning: |
+    The tag word: scrum-master release tag tags the version once its gate
+    passed and pushes the tag.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The next word refused, and its reason is the run's last
+    output; nothing was gated or tagged.
+- name: GateFailed
+  run_status: failed
+  meaning: |
+    Terminal. A gate failed, or nothing changed since the latest tag, and
+    the findings are the run's last output; nothing was tagged.
+- name: NotTagged
+  run_status: failed
+  meaning: |
+    Terminal. The gate passed but the tag was refused, and its reason is
+    the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- GateFailed
+- NotTagged
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Next
+  action: release_next
+  label: next
+  report_output: $.recommended_version
+  summary: true
+- state: Next
+  signal: ToolFailed
+  next: Refused
+- state: Next
+  signal: ToolDone
+  next: Gate
+  action: release_gate
+  summary: true
+- state: Gate
+  signal: ToolFailed
+  next: GateFailed
+- state: Gate
+  signal: ToolDone
+  next: Tag
+  action: release_tag
+  label: released
+  report_output: $.tag
+  summary: true
+- state: Tag
+  signal: ToolFailed
+  next: NotTagged
+- state: Tag
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Next
+  signal: CommandError
+  next: Failed
+- state: Gate
+  signal: CommandError
+  next: Failed
+- state: Tag
+  signal: CommandError
+  next: Failed

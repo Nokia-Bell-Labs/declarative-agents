@@ -1,0 +1,251 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The plan workflow's words, dispatched by the model in the Plan state.
+# Optional flags are parameters, never ${VAR} args: the loader drops an
+# argument whose variable is unset, which corrupts the flag list (the GH-135
+# pilot finding). A non-zero exit is the word's refusal, fed back to the model
+# (design.md D14).
+unit: scrum-master-plan-declarations
+tools:
+- name: plan_candidates
+  type: exec
+  binary: scrum-master
+  args:
+  - plan
+  - candidates
+  - --json
+  visibility: external
+  description: Rank the next release's candidate items, slipped first, with held-back items and what they lack (srd031).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: The repository's checkout.
+        flag: --dir
+      system:
+        type: string
+        description: System repository path, for slipped objectives and the last milestone.
+        flag: --system
+      aggregate:
+        type: string
+        description: The period's scrum-master reports aggregate --json output.
+        flag: --aggregate
+      velocity:
+        type: integer
+        description: The team's assumed velocity in story points, when none is measured.
+        flag: --velocity
+      control:
+        type: string
+        description: Program repository holding control/policy.md.
+        flag: --control
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master plan candidates's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Reads the road map, objectives, and sprint-end summaries; writes nothing.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'plan_candidates: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the ranking and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them
+
+- name: plan_write
+  type: exec
+  binary: scrum-master
+  args:
+  - plan
+  - write
+  - --json
+  visibility: external
+  description: Write the chosen items into docs/road-map.md as the release's plan (srd031).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      version:
+        type: string
+        description: The release's version, such as 01.2.
+        flag: --version
+      tag:
+        type: string
+        description: The tag that publishes the plan.
+        flag: --tag
+      items:
+        type: string
+        description: Comma-separated objective items, objNNN-short-name#Rn.m.
+        flag: --items
+      system:
+        type: string
+        description: System repository path.
+        flag: --system
+      issue:
+        type: string
+        description: Planning issue as project#iid, to comment on items held back.
+        flag: --issue
+      milestone:
+        type: string
+        description: The release's milestone; defaults to the version.
+        flag: --milestone
+      dir:
+        type: string
+        description: The system repository's checkout.
+        flag: --dir
+    required: [version, tag, items]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master plan write's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Writes the plan into docs/road-map.md in the worktree.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'plan_write: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the write and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them
+
+- name: plan_push
+  type: exec
+  binary: scrum-master
+  args:
+  - plan
+  - push
+  - --json
+  visibility: external
+  description: Date the period — the milestone, the sprint issue, the sprint-end issues, and the planned events (srd031).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      version:
+        type: string
+        description: The road-map release to push.
+        flag: --version
+      end:
+        type: string
+        description: The period's end date, YYYY-MM-DD.
+        flag: --end
+      system:
+        type: string
+        description: System repository path.
+        flag: --system
+      group:
+        type: string
+        description: The program group the milestone lives on.
+        flag: --group
+      dir:
+        type: string
+        description: The system repository's checkout.
+        flag: --dir
+    required: [version, end]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master plan push's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Creates the milestone, sprint issue, sprint-end issues, and events in the tracker.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'plan_push: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the push and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them
+
+- name: plan_backlog
+  type: exec
+  binary: scrum-master
+  args:
+  - plan
+  - backlog
+  - --json
+  visibility: external
+  description: Record the chosen stories on the team's Sprint Goal at Sprint Planning (srd045 R5).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      project:
+        type: string
+        description: The team's repository, where tasks filed its Sprint Goal.
+        flag: --project
+      release:
+        type: string
+        description: The release the Sprint Goal counts toward.
+        flag: --release
+      stories:
+        type: string
+        description: The chosen stories' ids, comma-separated.
+        flag: --stories
+      dir:
+        type: string
+        description: The team repository's checkout, holding its stories.
+        flag: --dir
+    required: [project, release, stories]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master plan backlog's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Updates the team's Sprint Goal in the tracker.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'plan_backlog: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the update and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

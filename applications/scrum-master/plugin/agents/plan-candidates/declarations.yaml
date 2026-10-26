@@ -1,0 +1,67 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The plan-candidates machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-plan-candidates-declarations
+tools:
+- name: plan_candidates
+  type: exec
+  binary: scrum-master
+  args:
+  - plan
+  - candidates
+  - --json
+  visibility: internal
+  description: Rank the next release's candidate items, slipped first, with held-back items and what they lack (srd031).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: The repository's checkout.
+        flag: --dir
+      system:
+        type: string
+        description: System repository path, for slipped objectives and the last milestone.
+        flag: --system
+      aggregate:
+        type: string
+        description: The period's scrum-master reports aggregate --json output.
+        flag: --aggregate
+      velocity:
+        type: integer
+        description: The team's assumed velocity in story points, when none is measured.
+        flag: --velocity
+      control:
+        type: string
+        description: Program repository holding control/policy.md.
+        flag: --control
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master plan candidates's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Reads the road map, objectives, and sprint-end summaries; writes nothing.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'plan_candidates: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the ranking and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

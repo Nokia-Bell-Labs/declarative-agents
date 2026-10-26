@@ -149,7 +149,7 @@ TransitionSpec label SHALL be distinct from metric_labels; command-state selecti
 <!-- req: R2.10 -->
 ### R2.10
 
-The synthetic machine_request entry SHALL reserve label and command_name seed. Its output SHALL have the same safe shape as the initial Result: non-sensitive mapped request input under parameters, with optional path and request_id fields. A non-sensitive mapped field SHALL therefore be addressable as $from(seed).parameters.<field>, while a configured sensitive field SHALL be absent. A fresh request SHALL add this entry exactly once, and a resumed execution that already contains it SHALL NOT add another.
+The synthetic machine_request entry SHALL reserve label and command_name seed. Its output SHALL have the same safe shape as the initial Result: non-sensitive mapped request input under parameters, with optional path and request_id fields. A non-sensitive mapped field SHALL therefore be addressable as $from(seed).parameters.<field>, while a configured sensitive field SHALL be absent. A fresh request SHALL add this entry exactly once, and a resumed execution that already contains it SHALL NOT add another. A command-line run started with --request SHALL add the same entry, label and command_name seed, holding the request file's content, so its words can address the request after intervening words as a served request's can; a resumed execution that already holds entries SHALL NOT add one.
 
 <!-- req: R2.11 -->
 ### R2.11

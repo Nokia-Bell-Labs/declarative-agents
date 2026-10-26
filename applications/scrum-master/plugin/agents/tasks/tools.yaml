@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the tasks workflow. The words and file words are
+# model-invoked in the Decompose state via $tool dispatch (design.md D10, D14).
+tools:
+  # words -- model-invoked
+  - backlog_components
+  - goals_plan
+  - goals_push
+  - backlog_list
+  - issue_list
+  - issue_file
+
+  # File words
+  - read
+  - write
+  - edit
+  - find
+  - list_files
+
+  # The guide the model reads first, with the request (GH-59)
+  - backlog_guide
+
+  # Model loop -- direct transition actions
+  - invoke_llm
+  - parse_response
+  - report_parse_error
+  - reset_history
+  - nudge_reread
+
+  # Completion -- emits TaskCompleted via parse_response
+  - done
