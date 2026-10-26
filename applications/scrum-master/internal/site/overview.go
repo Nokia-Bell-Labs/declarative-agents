@@ -102,11 +102,12 @@ func tile(n *Node, nodes map[string]*Node) string {
 		}
 	}
 	return fmt.Sprintf(`<a class="tile state-%s" href="%s">
+<span class="tile-kind">`+badge("initiative")+`</span>
 <span class="tile-title">%s</span>
 <span class="tile-state">%s</span>
 <span class="tile-bar"><span style="width:%d%%"></span></span>
 <span class="tile-points">%d of %d points</span>
 <span class="tile-facts">%s</span>
 </a>
-`, html.EscapeString(n.Status), n.Page, html.EscapeString(n.Title), html.EscapeString(n.Status), pct, n.PointsDone, n.Points, strings.Join(facts, " · "))
+`, html.EscapeString(n.Status), n.Page, html.EscapeString(n.Title), shown(n.Status), pct, n.PointsDone, n.Points, strings.Join(facts, " · "))
 }

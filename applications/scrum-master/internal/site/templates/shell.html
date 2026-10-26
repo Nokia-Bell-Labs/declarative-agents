@@ -53,6 +53,78 @@
     .sidebar-toggle .sidebar-toggle-button::after { content: "Menu"; margin-left: 22px; font-size: 14px; color: #374151; }
     .content { padding-top: 48px; }
   }
+  /* Wide windows: the divider between the navigator and the page drags,
+     and the width a reader chose is kept in this browser (GH-2723). */
+  :root { --nav-width: 300px; }
+  @media screen and (min-width: 769px) {
+    .sidebar { width: var(--nav-width); }
+    .sidebar-toggle { width: calc(var(--nav-width) - 16px); }
+    .content { left: var(--nav-width); }
+    body.close .sidebar { transform: translateX(calc(-1 * var(--nav-width))); }
+    body.close .sidebar-toggle { width: auto; }
+    body.close .content { left: 0; }
+    .nav-resizer { position: fixed; top: 0; bottom: 0; left: calc(var(--nav-width) - 4px); width: 8px; cursor: col-resize; z-index: 25; touch-action: none; }
+    .nav-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background .15s; }
+    .nav-resizer:hover::after, .nav-resizer:focus-visible::after, body.nav-resizing .nav-resizer::after { background: var(--theme-color); }
+    .nav-resizer:focus { outline: none; }
+    body.close .nav-resizer { display: none; }
+    body.nav-resizing, body.nav-resizing * { cursor: col-resize !important; user-select: none; }
+    body.nav-resizing .sidebar, body.nav-resizing .content { transition: none; }
+    body.nav-resizing iframe { pointer-events: none; }
+  }
+  @media screen and (max-width: 768px) { .nav-resizer { display: none; } }
+  /* Each planning level has one colour, the interactive timeline's, on
+     every page: a labelled chip on the plan and the pages, a letter in
+     the navigator (GH-2723). */
+  .kind, .kb { display: inline-block; border: 1px solid; border-radius: 999px; font-weight: 600; line-height: 1.5; white-space: nowrap; vertical-align: middle; }
+  .kind { font-size: 11px; padding: 0 8px; text-transform: uppercase; letter-spacing: .04em; }
+  .kb { font-size: 10px; width: 1.7em; text-align: center; margin-right: 4px; line-height: 1.6; }
+  .kind-theme, .kb-theme { background: #ede9fe; border-color: #c4b5fd; color: #6d28d9; }
+  .kind-initiative, .kb-initiative { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }
+  .kind-epic, .kb-epic { background: #ccfbf1; border-color: #5eead4; color: #0f766e; }
+  .kind-feature, .kb-feature { background: #fef3c7; border-color: #fcd34d; color: #b45309; }
+  .kind-story, .kb-story { background: #dcfce7; border-color: #86efac; color: #15803d; }
+  .markdown-section .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 6px; }
+  .markdown-section .crumbs p { margin: 0; }
+  .markdown-section .crumbs .kind { font-size: 10px; padding: 0 6px; }
+  /* The plan as cards (GH-2723): a band per theme, a card per initiative,
+     a subcard per epic. */
+  .markdown-section:has(.band) { max-width: 90em; }
+  .markdown-section a.card-title, .markdown-section a.band-title { text-decoration: none; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 1.4em; font-size: 13px; color: #4b5563; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+  .band { margin: 0 0 1.6em; border-radius: 10px; background: #faf8ff; border: 1px solid #e9e3fb; border-left: 6px solid #a78bfa; padding: 12px 14px 14px; }
+  .band-none { background: #f9fafb; border-color: #e5e7eb; border-left-color: #d1d5db; }
+  .band-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 12px; }
+  .markdown-section .band-title { font-size: 1.25em; font-weight: 700; color: #1f2937; }
+  .band-meta { font-size: 13px; color: #6b7280; }
+  .band-head .bar { flex: 0 0 100%; max-width: 360px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .card { display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .card-initiative { border-top: 4px solid #60a5fa; }
+  .card-epic { border-top: 4px solid #2dd4bf; }
+  .card-feature { border-top: 4px solid #fbbf24; }
+  .card-story { border-top: 4px solid #4ade80; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card-state { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
+  .state-active .card-state, .state-active > .card-head .card-state { color: var(--theme-color); }
+  .state-done .card-state, .state-done > .card-head .card-state { color: #16a34a; }
+  .markdown-section a.card-title { font-weight: 600; font-size: 1.05em; color: #111827; line-height: 1.35; }
+  .card-meta { font-size: 12.5px; color: #6b7280; }
+  .bar { display: block; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: var(--theme-color); }
+  .state-done .bar > span { background: #16a34a; }
+  .subcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 6px; }
+  .markdown-section a.subcard { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 6px; border: 1px solid #e5e7eb;
+    border-left: 4px solid #d1d5db; background: #fafafa; color: inherit; text-decoration: none; }
+  .markdown-section a.subcard:hover, .markdown-section a.card-title:hover, .markdown-section a.band-title:hover { color: var(--theme-color); }
+  .markdown-section a.subcard:hover { border-color: var(--theme-color); }
+  .subcard-epic { border-left-color: #2dd4bf !important; background: #f3fdfb !important; }
+  .subcard-feature { border-left-color: #fbbf24 !important; background: #fffcf2 !important; }
+  .subcard-story { border-left-color: #4ade80 !important; background: #f5fdf7 !important; }
+  .subcard-initiative { border-left-color: #60a5fa !important; background: #f5f9ff !important; }
+  .subcard-title { font-weight: 600; color: #1f2937; }
+  .subcard .kind { font-size: 10px; padding: 0 6px; }
 </style>
 </head>
 <body>
@@ -60,13 +132,16 @@
 <script>
   // Links to files Docsify cannot render open as the files they are: the
   // interactive timeline (.html) and the JSON facts leave the hash router.
-  // The overview's tiles are HTML, which Docsify does not route: their
-  // forge-relative .md links become app routes (GH-128).
-  function plainLinks() {
-    document.querySelectorAll("a.tile").forEach(function (a) {
+  // The overview's tiles and the plan's cards are HTML, which Docsify does
+  // not route: their .md links, relative to the page as the forge reads
+  // them, become app routes from the page's folder (GH-128, GH-2723).
+  function plainLinks(route) {
+    var folder = (route || "/").replace(/[^\/]*$/, "");
+    document.querySelectorAll(".markdown-section a.tile, .markdown-section a.subcard, .markdown-section a.card-title, .markdown-section a.band-title").forEach(function (a) {
       var href = a.getAttribute("href") || "";
       if (/\.md$/.test(href) && !/^(#|\/|https?:)/.test(href)) {
-        a.setAttribute("href", "#/" + href.replace(/\.md$/, ""));
+        var path = new URL(href, "http://site" + folder).pathname;
+        a.setAttribute("href", "#" + path.replace(/\.md$/, ""));
       }
     });
     document.querySelectorAll('a[href*="#/"]').forEach(function (a) {
@@ -131,6 +206,33 @@
   function escapeHTML(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
+  // A private Pages site's sign-in session lapses while the app stays
+  // open. A whole reload renews it through the sign-in and returns to this
+  // route; a minute's guard keeps it from looping (GH-139).
+  function renewSession() {
+    if (!/^https?:$/.test(location.protocol)) return;
+    var last = 0;
+    try { last = Number(sessionStorage.getItem("site-renewed") || 0); } catch (e) {}
+    if (Date.now() - last < 60000) return;
+    try { sessionStorage.setItem("site-renewed", String(Date.now())); } catch (e) {}
+    location.reload();
+  }
+  // Docsify keeps the pages it fetched, so a page read before the session
+  // lapsed renders again without asking the server, while its embedded
+  // timeline is fetched anew and lands on the sign-in, which refuses to be
+  // framed. A frame that loads anything but the timeline renews the
+  // session (GH-2723).
+  function watchFrames() {
+    document.querySelectorAll("iframe.timeline").forEach(function (f) {
+      if (f.getAttribute("data-watched")) return;
+      f.setAttribute("data-watched", "1");
+      f.addEventListener("load", function () {
+        var ok = false;
+        try { ok = !!(f.contentDocument && f.contentDocument.getElementById("plot")); } catch (e) {}
+        if (!ok) renewSession();
+      });
+    });
+  }
   window.$docsify = {
     name: "Program site",
     homepage: "overview.md",
@@ -157,30 +259,24 @@
       }
     },
     plugins: [
-      // A private Pages site's sign-in session lapses while the app stays
-      // open; every page it then fetches is redirected to GitLab's
-      // sign-in, which a background fetch cannot follow, and comes back
-      // 404. A 404 whose request redirects is that, not a missing page: a
-      // whole reload renews the session through the sign-in and returns
-      // to this route. A minute's guard keeps it from looping (GH-139).
+      // Once the session lapses, every page the app fetches is redirected
+      // to GitLab's sign-in, which a background fetch cannot follow, and
+      // comes back 404. A 404 whose request redirects is that, not a
+      // missing page, and renews the session (GH-139).
       function (hook, vm) {
         hook.afterEach(function (html, next) {
           if (/404 - Not found/.test(html) && window.fetch && vm.route && vm.route.file) {
             fetch(vm.route.file, { redirect: "manual", cache: "no-store" }).then(function (r) {
-              if (r.type !== "opaqueredirect") return;
-              var last = 0;
-              try { last = Number(sessionStorage.getItem("site-renewed") || 0); } catch (e) {}
-              if (Date.now() - last < 60000) return;
-              try { sessionStorage.setItem("site-renewed", String(Date.now())); } catch (e) {}
-              location.reload();
+              if (r.type === "opaqueredirect") renewSession();
             }).catch(function () {});
           }
           next(html);
         });
       },
-      function (hook) {
+      function (hook, vm) {
         hook.doneEach(function () {
-          plainLinks();
+          plainLinks(vm.route && vm.route.path);
+          watchFrames();
           foldTree();
           if (window.mermaid) {
             window.mermaid.run({ querySelector: ".mermaid" });
@@ -197,6 +293,64 @@
   if (window.mermaid) {
     window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
   }
+  // The divider between the navigator and the page: drag it, move it with
+  // the arrow keys when it has focus, or double-click it to reset; the
+  // width is kept in this browser (GH-2723).
+  (function () {
+    var KEY = "site-nav-width", MIN = 180, START = 300, root = document.documentElement;
+    function widest() { return Math.max(MIN, Math.min(640, Math.round(window.innerWidth * 0.6))); }
+    function current() { return parseFloat(getComputedStyle(root).getPropertyValue("--nav-width")) || START; }
+    function apply(w) {
+      w = Math.min(widest(), Math.max(MIN, Math.round(w)));
+      root.style.setProperty("--nav-width", w + "px");
+      handle.setAttribute("aria-valuenow", String(w));
+      return w;
+    }
+    function keep(w) { try { localStorage.setItem(KEY, String(w)); } catch (e) {} }
+    var handle = document.createElement("div");
+    handle.className = "nav-resizer";
+    handle.tabIndex = 0;
+    handle.title = "Drag to resize the navigator; double-click to reset";
+    handle.setAttribute("role", "separator");
+    handle.setAttribute("aria-orientation", "vertical");
+    handle.setAttribute("aria-label", "Resize the navigator");
+    handle.setAttribute("aria-valuemin", String(MIN));
+    handle.setAttribute("aria-valuemax", String(widest()));
+    try { var saved = Number(localStorage.getItem(KEY)); if (saved) apply(saved); } catch (e) {}
+    var dragging = false;
+    handle.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      dragging = true;
+      handle.setPointerCapture(e.pointerId);
+      document.body.classList.add("nav-resizing");
+    });
+    handle.addEventListener("pointermove", function (e) { if (dragging) apply(e.clientX); });
+    function stop() {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove("nav-resizing");
+      keep(current());
+    }
+    handle.addEventListener("pointerup", stop);
+    handle.addEventListener("pointercancel", stop);
+    handle.addEventListener("dblclick", function () { keep(apply(START)); });
+    handle.addEventListener("keydown", function (e) {
+      var step = e.shiftKey ? 64 : 16, w = null;
+      if (e.key === "ArrowLeft") w = current() - step;
+      else if (e.key === "ArrowRight") w = current() + step;
+      else if (e.key === "Home") w = MIN;
+      else if (e.key === "End") w = widest();
+      if (w === null) return;
+      e.preventDefault();
+      keep(apply(w));
+    });
+    window.addEventListener("resize", function () {
+      handle.setAttribute("aria-valuemax", String(widest()));
+      apply(current());
+    });
+    document.body.appendChild(handle);
+  })();
 </script>
 </body>
 </html>

@@ -173,8 +173,9 @@ func points(n *Node) string {
 func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item, corpus func(string) bool) string {
 	var b strings.Builder
 	b.WriteString(generated("hierarchy", "the timeline facts"))
+	b.WriteString(crumbs(n, nodes))
 	fmt.Fprintf(&b, "# %s\n\n", n.Title)
-	facts := []string{"**" + n.Kind + "** `" + n.ID + "`", n.Status}
+	facts := []string{badge(n.Kind) + " `" + n.ID + "`", n.Status}
 	for _, f := range []string{n.Horizon, release(n.Item), points(n), n.Owner} {
 		if f != "" {
 			facts = append(facts, f)
@@ -186,7 +187,7 @@ func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item,
 	}
 	link := func(id string) string {
 		c := nodes[id]
-		line := fmt.Sprintf("[%s](%s): %s, %s", c.Title, relLink(n.Page, c.Page), c.Kind, c.Status)
+		line := fmt.Sprintf("%s [%s](%s): %s", badge(c.Kind), c.Title, relLink(n.Page, c.Page), c.Status)
 		if p := points(c); p != "" {
 			line += ", " + p
 		}
@@ -260,32 +261,34 @@ func release(it timeline.Item) string {
 	return ""
 }
 
-// treePage is the folder's index: every document under its parent, roots
-// first, each with its kind, status, and points.
+// treePage is the folder's index, the plan as cards: the levels' legend,
+// then a band per theme holding a card per initiative, each holding a
+// subcard per epic with what lies under it, and a last band for the
+// documents no theme holds. Every card links its page; each page lists
+// its own children.
 func treePage(nodes map[string]*Node) string {
 	var b strings.Builder
 	b.WriteString(generated("hierarchy", "the timeline facts"))
 	b.WriteString("# Plan\n\nEvery theme, initiative, epic, feature, and story, each under the document it serves, with its state and points. A team's documents are named for its repository.\n\n")
+	b.WriteString(legend() + "\n")
 	if len(nodes) == 0 {
 		b.WriteString("No planning document yet.\n")
 		return b.String()
 	}
-	var walk func(id string, depth int)
-	walk = func(id string, depth int) {
+	var loose []string
+	for _, id := range sortedNodes(nodes) {
 		n := nodes[id]
-		line := fmt.Sprintf("%s- [%s](%s) %s, %s", strings.Repeat("  ", depth), n.Title, strings.TrimPrefix(n.Page, HierarchyDir+"/"), n.Kind, n.Status)
-		if p := points(n); p != "" {
-			line += ", " + p
+		if _, ok := nodes[n.Parent]; ok {
+			continue
 		}
-		b.WriteString(line + "\n")
-		for _, c := range n.Children {
-			walk(c, depth+1)
+		if n.Kind == "theme" {
+			b.WriteString(band(n, n.Children, nodes) + "\n")
+		} else {
+			loose = append(loose, id)
 		}
 	}
-	for _, id := range sortedNodes(nodes) {
-		if _, ok := nodes[nodes[id].Parent]; !ok {
-			walk(id, 0)
-		}
+	if len(loose) > 0 {
+		b.WriteString(band(nil, loose, nodes) + "\n")
 	}
 	return b.String()
 }
