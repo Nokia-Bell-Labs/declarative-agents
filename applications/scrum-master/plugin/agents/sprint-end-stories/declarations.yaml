@@ -1,0 +1,65 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The sprint-end-stories machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-sprint-end-stories-declarations
+tools:
+- name: sprint_end_stories
+  type: exec
+  binary: scrum-master
+  args:
+  - sprint-end
+  - stories
+  - --json
+  visibility: internal
+  description: Record the done stories in the period's summary (srd038).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      release:
+        type: string
+        description: The release whose summary records them.
+        flag: --release
+      done:
+        type: string
+        description: The done stories, project#story or a story id, comma-separated.
+        flag: --done
+      project:
+        type: string
+        description: The project a bare story id belongs to.
+        flag: --project
+      dir:
+        type: string
+        description: The sprint-end issue's worktree.
+        flag: --dir
+    required:
+    - release
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master sprint-end stories's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Writes the done stories into the summary in the worktree.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'sprint_end_stories: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the record and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

@@ -1,0 +1,182 @@
+{
+  "today": "2026-11-18",
+  "releases": [
+    {
+      "version": "01.0",
+      "status": "released",
+      "tag": "corpus/v0.1.0",
+      "sprint": {
+        "start": "2026-10-19",
+        "end": "2026-11-06"
+      }
+    },
+    {
+      "version": "01.1",
+      "status": "specified",
+      "tag": "corpus/v0.2.0",
+      "sprint": {
+        "start": "2026-11-09",
+        "end": "2026-11-27"
+      }
+    },
+    {
+      "version": "01.2",
+      "status": "specified",
+      "sprint": {
+        "start": "2026-11-30",
+        "end": "2026-12-18"
+      }
+    }
+  ],
+  "items": [
+    {
+      "id": "ep001-grading",
+      "kind": "epic",
+      "title": "Grading",
+      "parent": "in001-reliable-agents",
+      "status": "done",
+      "architecture": [
+        "grader"
+      ],
+      "release": "01.0",
+      "tag": "corpus/v0.1.0",
+      "planned": {
+        "start": "2026-10-19",
+        "end": "2026-11-06"
+      },
+      "actual": {
+        "start": "2026-10-19",
+        "end": "2026-11-06"
+      },
+      "points": 5,
+      "points_done": 5,
+      "horizon": "2026-W43..2026-W45"
+    },
+    {
+      "id": "ep002-scoring",
+      "kind": "epic",
+      "title": "Scoring",
+      "parent": "in001-reliable-agents",
+      "status": "active",
+      "architecture": [
+        "scorer"
+      ],
+      "release": "01.1",
+      "tag": "corpus/v0.2.0",
+      "planned": {
+        "start": "2026-11-09",
+        "end": "2026-11-27"
+      },
+      "points": 3,
+      "points_done": 0,
+      "horizon": "2026-W46..2026-W48"
+    },
+    {
+      "id": "ep003-publishing",
+      "kind": "epic",
+      "title": "Publishing",
+      "parent": "in001-reliable-agents",
+      "status": "future",
+      "release": "01.2",
+      "planned": {
+        "start": "2026-11-30",
+        "end": "2026-12-18"
+      },
+      "points": 0,
+      "points_done": 0,
+      "horizon": "2026-W49..2026-W51"
+    },
+    {
+      "id": "g/po-1#1",
+      "kind": "sprint_goal",
+      "title": "Sprint Goal 01.0",
+      "status": "done",
+      "release": "01.0",
+      "tag": "corpus/v0.1.0",
+      "planned": {
+        "start": "2026-10-19",
+        "end": "2026-11-06"
+      },
+      "actual": {
+        "start": "2026-10-19",
+        "end": "2026-11-06"
+      },
+      "points": 0,
+      "points_done": 0,
+      "selects": [
+        "st001-grade-trajectories"
+      ]
+    },
+    {
+      "id": "g/po-1#2",
+      "kind": "sprint_goal",
+      "title": "Sprint Goal 01.1",
+      "status": "active",
+      "release": "01.1",
+      "tag": "corpus/v0.2.0",
+      "planned": {
+        "start": "2026-11-09",
+        "end": "2026-11-27"
+      },
+      "actual": {
+        "start": "2026-11-09"
+      },
+      "points": 0,
+      "points_done": 0,
+      "selects": [
+        "st002-score-runs"
+      ]
+    },
+    {
+      "id": "in001-reliable-agents",
+      "kind": "initiative",
+      "title": "Reliable agents",
+      "status": "active",
+      "release": "01.2",
+      "planned": {
+        "start": "2026-10-19",
+        "end": "2026-12-18"
+      },
+      "actual": {
+        "start": "2026-10-19"
+      },
+      "points": 8,
+      "points_done": 5,
+      "horizon": "2026-W43..2026-W51"
+    },
+    {
+      "id": "st001-grade-trajectories",
+      "kind": "story",
+      "title": "Grade trajectories",
+      "parent": "ep001-grading",
+      "status": "done",
+      "release": "01.0",
+      "tag": "corpus/v0.1.0",
+      "planned": {
+        "start": "2026-10-19",
+        "end": "2026-11-06"
+      },
+      "actual": {
+        "start": "2026-10-19",
+        "end": "2026-11-06"
+      },
+      "points": 5,
+      "points_done": 5
+    },
+    {
+      "id": "st002-score-runs",
+      "kind": "story",
+      "title": "Score runs",
+      "parent": "ep002-scoring",
+      "status": "active",
+      "release": "01.1",
+      "tag": "corpus/v0.2.0",
+      "planned": {
+        "start": "2026-11-09",
+        "end": "2026-11-27"
+      },
+      "points": 3,
+      "points_done": 0
+    }
+  ]
+}

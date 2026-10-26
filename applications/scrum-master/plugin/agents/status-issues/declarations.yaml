@@ -1,0 +1,54 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The status-issues machine's words (GH-37). SCRUM_MASTER_REPORTS names the reports repository's checkout; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-status-issues-declarations
+tools:
+- name: reports_status_issues
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - status-issues
+  - --json
+  - --reports
+  - ${SCRUM_MASTER_REPORTS}
+  visibility: internal
+  description: 'File one status issue per listed person for the coming week, once (srd018 R7).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      date:
+        type: string
+        description: 'A day of the coming week, YYYY-MM-DD; empty is today.'
+        flag: --date
+      ref:
+        type: string
+        description: 'The ref of the control files; empty is main.'
+        flag: --ref
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The status issues'' JSON report.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Files the week''s status issues, one per person, once.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'reports_status_issues: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

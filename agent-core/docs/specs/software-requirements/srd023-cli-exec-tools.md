@@ -45,6 +45,7 @@ and shared undo payload helpers live in internal/tools/undo.
 - G7: Let an exec parameter select a non-adjacent command-state value without changing adjacent previous-Result mapping.
 - G8: Let one exec word consume a bounded, redacted output field from a prior labelled word over stdin without authoring a shell pipeline.
 - G9: Let an exec word overlay child environment entries expanded from resolved command parameters.
+- G10: Let a build of the agent serve an exec word's binary from code linked into it, with the declaration unchanged.
 
 <!-- req: R0 -->
 ## R0 - Tool authoring standard
@@ -123,7 +124,7 @@ The positional extension SHALL append a parameter value as a positional argument
 <!-- req: R2.4 -->
 ### R2.4
 
-The bool_flag extension SHALL be boolean; when true and the parameter value is true, the flag value is appended without a following value.
+The bool_flag extension SHALL be boolean; when true and the parameter value is true, a JSON true or the string "true", the flag value is appended without a following value. A false value, or an absent one without a true default, appends nothing.
 
 <!-- req: R2.5 -->
 ### R2.5
@@ -159,6 +160,16 @@ Integer parameters mapped to argv SHALL retain their decimal representation so e
 ### R2.11
 
 A resolved parameter that declares no flag, positional, or bool_flag extension SHALL contribute no argv entry. Its value SHALL remain available to non-argv consumers such as env expansion.
+
+<!-- req: R2.12 -->
+### R2.12
+
+A parameter of type array SHALL map each element, a string or a number in decimal, to its own argv entry: the flag and the element for each element under the flag extension, the element alone under the positional extension, in the array's order. A lone string given for an array parameter SHALL map as an array of one, and an empty array SHALL contribute nothing.
+
+<!-- req: R2.13 -->
+### R2.13
+
+A parameter present with a JSON type its mapping cannot take, an array or an object for a scalar parameter, an object or a boolean for an array parameter, SHALL fail the call with a ToolFailed result naming the parameter, the type it must be, and the type it got, whether or not the parameter is required. A null value SHALL count as absent. A missing required parameter SHALL fail with a result naming it as missing.
 
 <!-- req: R3 -->
 ## R3 - Subprocess execution
@@ -335,6 +346,29 @@ Resolved env values SHALL NOT be added to trace attributes, metric attributes, o
 
 Existing argv-only and stdin-only declarations SHALL retain their prior execution and output behavior.
 
+<!-- req: R8 -->
+## R8 - In-process binaries
+
+<!-- req: R8.1 -->
+### R8.1
+
+A build of the agent MAY register a runner under a binary name with pkg/inprocess. An exec tool whose binary has a registered runner SHALL call the runner with the args, working directory, and stdin a subprocess would have had, instead of starting a process.
+
+<!-- req: R8.2 -->
+### R8.2
+
+An in-process run SHALL be reported as a subprocess's: its combined output and exit code SHALL map to ToolDone or ToolFailed, and output caps, shaping, receipts, and metrics SHALL apply unchanged.
+
+<!-- req: R8.3 -->
+### R8.3
+
+In-process runs SHALL run one at a time, since a runner shares the process's working directory and globals. A declaration that overlays environment entries SHALL NOT run in process and SHALL emit CommandError.
+
+<!-- req: R8.4 -->
+### R8.4
+
+A build that registers no runner SHALL run every exec tool as a subprocess, as before.
+
 <!-- field: package_ownership -->
 ## Package ownership
 
@@ -415,7 +449,7 @@ Exec declarations support name, type, binary, args, dir, precondition, output_ca
 <!-- ac: AC2 -->
 ### AC2
 
-Parameter mapping converts JSON string and integer tool parameters into deterministic argv using flag, positional, bool_flag, default, position, and optional command-state source extensions while stripping those extensions from the LLM-visible schema. Omitting source preserves immediately previous Result mapping.
+Parameter mapping converts JSON string, integer, boolean, and array tool parameters into deterministic argv using flag, positional, bool_flag, default, position, and optional command-state source extensions, an array element per flag occurrence while stripping those extensions from the LLM-visible schema. Omitting source preserves immediately previous Result mapping.
 
 <!-- field: traces -->
 #### Traces
@@ -431,6 +465,8 @@ Parameter mapping converts JSON string and integer tool parameters into determin
 - [R2.9](#r29)
 - [R2.10](#r210)
 - [R2.11](#r211)
+- [R2.12](#r212)
+- [R2.13](#r213)
 
 <!-- ac: AC3 -->
 ### AC3
@@ -511,6 +547,19 @@ An exec word overlays KEY=VALUE environment entries expanded from resolved param
 - [R7.6](#r76)
 - [R7.7](#r77)
 
+<!-- ac: AC8 -->
+### AC8
+
+An exec word whose binary a build registers runs in process with the args and directory a subprocess would have had, a zero exit is ToolDone and a non-zero exit ToolFailed with the runner's output, and an unregistered binary still runs as a subprocess.
+
+<!-- field: traces -->
+#### Traces
+
+- [R8.1](#r81)
+- [R8.2](#r82)
+- [R8.3](#r83)
+- [R8.4](#r84)
+
 <!-- field: implementation -->
 ## Implementation
 
@@ -523,6 +572,7 @@ An exec word overlays KEY=VALUE environment entries expanded from resolved param
 - tools/exec/all.yaml (planned compatibility bundle)
 - internal/tools/catalog/ (planned ToolDef, declaration loading, and selection)
 - internal/tools/exec/ (planned ExecBuilder and ExecCmd)
+- pkg/inprocess/ (runners a build registers for in-process binaries)
 - internal/tools/undo/ (planned shared undo payload helpers)
 
 <!-- field: related_documents -->
@@ -547,6 +597,7 @@ flowchart LR
   Goals --> R5["R5: Relationship to builtin tools"]
   Goals --> R6["R6: Command-state stdin"]
   Goals --> R7["R7: Command-state environment"]
+  Goals --> R8["R8: In-process binaries"]
   AC1["AC1: Exec declarations support name, type, binary, args, dir,..."]
   R0 --> AC1
   R1 --> AC1
@@ -562,4 +613,6 @@ flowchart LR
   R6 --> AC6
   AC7["AC7: An exec word overlays KEY=VALUE environment entries..."]
   R7 --> AC7
+  AC8["AC8: An exec word whose binary a build registers runs in proce..."]
+  R8 --> AC8
 ```

@@ -1,0 +1,73 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: admit
+purpose: |-
+  Admit an issue to a milestone (srd041): the sprint it is planned in, by
+  default the active one. Use when a person asks to admit an issue or move
+  it to a milestone.
+
+  This machine has no model state: scrum-master issue milestone (design.md
+  D10, D14; GH-37). SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the issue.
+configuration:
+  machine: plugin/agents/admit/machine.yaml
+  tools: plugin/agents/admit/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Admit (Seed): scrum-master issue milestone
+  2. Admit → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Admit
+  meaning: |
+    The milestone word: scrum-master issue milestone admits the issue to
+    the milestone and records why.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The admission was refused, and the word's reason is the
+    run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Admit
+  action: issue_milestone
+  summary: true
+- state: Admit
+  signal: ToolFailed
+  next: Refused
+- state: Admit
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Admit
+  signal: CommandError
+  next: Failed

@@ -44,7 +44,7 @@ pkg:internal/planning/plan files=3 loc=140
 pkg:internal/runtime files=1 loc=7
 pkg:internal/runtime/checkpoint files=2 loc=132
 pkg:internal/runtime/checkpoint/dolt files=2 loc=1216
-pkg:internal/runtime/core files=35 loc=6308
+pkg:internal/runtime/core files=35 loc=6317
 pkg:internal/startupcheck files=1 loc=125
 pkg:internal/support files=1 loc=7
 pkg:internal/support/corepath files=1 loc=262
@@ -53,11 +53,11 @@ pkg:internal/support/execute files=1 loc=110
 pkg:internal/support/subprocess files=1 loc=254
 pkg:internal/support/yamlstrict files=1 loc=246
 pkg:internal/tools files=1 loc=14
-pkg:internal/tools/catalog files=24 loc=4404
+pkg:internal/tools/catalog files=25 loc=4427
 pkg:internal/tools/compose files=6 loc=1041
 pkg:internal/tools/control files=7 loc=1291
 pkg:internal/tools/dolt files=6 loc=1357
-pkg:internal/tools/exec files=7 loc=664
+pkg:internal/tools/exec files=8 loc=919
 pkg:internal/tools/filesystem files=10 loc=1432
 pkg:internal/tools/lifecycle files=7 loc=1781
 pkg:internal/tools/llm files=16 loc=2116
@@ -82,8 +82,9 @@ pkg:internal/tools/undo files=1 loc=84
 pkg:internal/tools/validation files=5 loc=1508
 pkg:internal/typesys files=4 loc=593
 pkg:internal/version files=1 loc=40
+pkg:pkg/inprocess files=1 loc=56
 pkg:pkg/profileaudit files=4 loc=1214
 pkg:pkg/profileservers files=1 loc=408
 pkg:pkg/profilestage files=2 loc=581
 pkg:pkg/spec files=38 loc=8470
-pkg:pkg/spec/markdown files=19 loc=4774
+pkg:pkg/spec/markdown files=19 loc=4788

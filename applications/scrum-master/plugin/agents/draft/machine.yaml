@@ -1,0 +1,171 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: draft
+purpose: |-
+  Draft one planning document, a theme, initiative, epic, feature, or story,
+  or an engineering document, from a description, in conversation with its
+  owner, then check it and offer its children (srd046). Use when a person has
+  notes or a description and asks to write, draft, or plan a theme,
+  initiative, epic, feature, or story, or to describe how a system or
+  subsystem is built.
+
+  Invoking this profile starts the conversation. scrum-master reads and checks the
+  hierarchy; the model writes only the document and iterates on it with the
+  person, asking what the description leaves open (design.md D10, srd046).
+  The input is the description (a file or text) and the level to write. A
+  question the skill allows is asked in the conversation that invoked it.
+configuration:
+  machine: plugin/agents/draft/machine.yaml
+  tools: plugin/agents/draft/tools.yaml
+  llm_configs: plugin/agents/draft/llm/*.yaml
+invariants:
+- scrum-master reads and checks the hierarchy; the model writes only the document
+- The model acts only in the Converse state, through the declared tools
+- Nothing is written until the person answers or accepts the recommendations
+- The document never commits or merges here; it reaches main through the repository's own issue
+lifecycle: |-
+  1. Idle → Survey (Seed): scrum-master backlog list reads the hierarchy
+  2. Survey → Converse (ToolDone): the model drafts with the person
+  3. Survey → Refused (ToolFailed): the word refused the survey; its reason ends
+     the run
+  4. Converse ↔ Parse: the model loop — invoke_llm, parse_response, $tool
+  5. Parse → Done (TaskCompleted): the model called done with the document
+     and its check verdict
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 100
+  max_consecutive_parse_errors: 5
+states:
+- name: Idle
+  meaning: Initial state before the hierarchy is read.
+- name: Survey
+  meaning: |
+    Read the hierarchy with scrum-master backlog list and the level's fields in
+    docs/constitutions/design.md, so the draft lands under the right parent
+    with the fields its level requires (srd046).
+- name: Converse
+  meaning: |
+    Draft the document with its owner.
+    1. Read the level's fields in docs/constitutions/design.md; the hierarchy
+       came from the survey.
+    2. Say in a few lines what you understood the item to be, and propose its
+       id, title, and parent. Name any document it overlaps, and a scope too
+       large or too small for the level, with a split, merge, or other level.
+    3. Ask only what the description and the repository leave open, at most
+       five questions at a time, each with your recommended answer — a theme's
+       horizon and outcomes; an initiative's horizon, milestones with due
+       dates, and owning teams; an epic's owner, horizon, dependencies, and
+       non-goals; a feature's owner, boundary, and tests; a story's as-a /
+       I-want / so-that, points and rank, each criterion's test and
+       environment, and cites; an engineering document's part, structure,
+       runtime, deployment, and decisions. Write nothing until the person
+       answers or says to use your recommendations; ask for no other
+       confirmation.
+    4. Write the document at the level's location with status to_be_agreed (an
+       engineering document has no status; name it in ARCHITECTURE.md's
+       related documents). Run backlog_check and fix every finding.
+    5. Show the document and revise it with the person, running
+       backlog_check after each revision.
+    6. Offer the next level down (initiatives under a theme, epics under an
+       initiative, features or stories under an epic) and draft each child
+       with this skill.
+    Never set another status, commit, or merge: the document reaches main
+    through the repository's own issue. Never estimate, rank, or assign a
+    person; the person gives points and rank.
+- name: Parse
+  meaning: |
+    The model's response is parsed into one tool call. A parse failure is
+    reported back to the model; the done call ends the run.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The drafted document, its check verdict, and the offered
+    children are the run's report (srd046).
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. the word refused the hierarchy survey, and the refusal's reason, as
+    the word printed it, is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+- name: BudgetExceeded
+  run_status: budget_exceeded
+  meaning: Terminal. The iteration or parse-error budget was exhausted.
+terminal_states:
+- Done
+- Refused
+- Failed
+- BudgetExceeded
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: LLMResponded
+  trigger: The model returned a response (invoke_llm completed).
+- name: ToolDone
+  trigger: A tool executed successfully.
+- name: ToolFailed
+  trigger: A tool executed but reported failure — for words, a refusal the model fixes.
+- name: ParseFailed
+  trigger: The model response could not be parsed as a valid tool call.
+- name: TaskCompleted
+  trigger: The model called the done tool, declaring the work finished.
+- name: EditDone
+  trigger: A file edit tool completed — triggers a re-read nudge.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+- name: BudgetExhausted
+  trigger: Iteration or parse-error budget limit reached.
+transitions:
+- state: Idle
+  signal: Seed
+  next: Survey
+  action: backlog_list
+  summary: true
+- state: Survey
+  signal: ToolDone
+  next: Converse
+  action: invoke_llm
+- state: Survey
+  signal: ToolFailed
+  next: Refused
+- state: Survey
+  signal: CommandError
+  next: Failed
+- state: Converse
+  signal: LLMResponded
+  next: Parse
+  action: parse_response
+- state: Parse
+  signal: ToolDone
+  next: Converse
+  action: $tool
+- state: Parse
+  signal: ParseFailed
+  next: Converse
+  action: report_parse_error
+- state: Parse
+  signal: TaskCompleted
+  next: Done
+- state: Converse
+  signal: ToolDone
+  next: Converse
+  action: invoke_llm
+- state: Converse
+  signal: ToolFailed
+  next: Converse
+  action: invoke_llm
+- state: Converse
+  signal: EditDone
+  next: Converse
+  action: nudge_reread
+- state: Converse
+  signal: BudgetExhausted
+  next: BudgetExceeded
+- state: Converse
+  signal: CommandError
+  next: Failed
+- state: Parse
+  signal: CommandError
+  next: Failed

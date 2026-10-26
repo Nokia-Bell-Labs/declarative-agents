@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "scrum-master",
+  "description": "The program's process skills that the agent runs: file an issue, pop it into a worktree and finish with the merge that closes it, draft a planning document in conversation with its owner, and file the next release's objectives.",
+  "author": {
+    "name": "Nokia"
+  },
+  "repository": "https://github.com/Nokia-Bell-Labs/declarative-agents",
+  "license": "BSD-3-Clause"
+}

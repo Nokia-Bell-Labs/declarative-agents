@@ -1,0 +1,98 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The sprint-end profile's model binding: the model acts only in the Summarize
+# state (design.md D10), reading SCRUM_MASTER_MODEL, SCRUM_MASTER_RESPONSE_PROFILE, and
+# OLLAMA_URL with the defaults the parent's executor ships (srd043 R4.7).
+unit: scrum-master-sprint-end-llm-default
+imports:
+- /opt/agent-core/tools/units/types-core.yaml
+tools:
+- name: invoke_llm
+  type: builtin
+  init: invoke_llm
+  visibility: internal
+  signature:
+    emits: [LLMResponded, CommandError]
+  description: Invoke the model with the current conversation history.
+  category: boundary
+  output:
+    description: Raw model response text.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: llm_provider
+    description: Sends the current prompt and tool manifest to the configured model provider.
+  - kind: state_mutation
+    target: conversation_history
+    state: appended
+    description: Appends the model response to the in-memory conversation history.
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: conversation_truncate
+    description: Restore the conversation history checkpoint captured before invoking the model.
+    requires: [conversation_checkpoint]
+  errors:
+  - signal: CommandError
+    condition: provider configuration is invalid or the model call fails
+    message_shape: 'invoke_llm: <provider/model>: <error>'
+    state_after_failure: conversation history unchanged unless the provider response was already appended
+  config:
+    model: ${SCRUM_MASTER_MODEL:-qwen3.6:35b-mlx}
+    dialect: /opt/providers/chat-dialect.yaml
+    provider_url: ${OLLAMA_URL:-http://localhost:11434}
+    manifest_state: Summarize
+    response_profile: ${SCRUM_MASTER_RESPONSE_PROFILE:-qwen}
+    max_time: 600
+    system_prompt: |
+      You are the sprint-end workflow of scrum-master: the period closes through the
+      sprint-end issue. You write only the summary; every fact comes from scrum-master
+      (design.md D10, srd038 R1). You are in the issue's worktree.
+
+      Run sprint_end_facts first. Draft the period's summary from the
+      reports and those facts. Ask the owner what to change in the summary, the
+      Sprint Goals, or the release, which Sprint Goals are complete, and which
+      stories each Sprint Goal lists are done; apply the answers. Write the
+      summary at docs/sprint-ends/<release>.md, run sprint_end_stories with
+      the done stories, commit (stage_all, commit), and run issue_merge with
+      one closes entry per complete Sprint Goal. Ask the owner to confirm the
+      release and its version (facts recommends one); with no confirmation, or
+      nothing to release, call done there. Once the summary merges, on main run
+      release_gate then release_tag with the artifact, version, and
+      issue, and show the tag.
+
+      Constraints:
+      - Every fact comes from sprint_end_facts; invent nothing
+      - A refusal comes back as the command's output: show its reason and fix
+        only what it names
+
+      Call done with the merge, the closed Sprint Goals, and the tag when one
+      was confirmed.
+
+- name: parse_response
+  type: builtin
+  contract: legacy
+  init: parse_response
+  visibility: internal
+  description: Parse raw model output into a tool call or task-completed signal.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, TaskCompleted, ParseFailed, CommandError]
+  category: word
+  side_effects:
+  - kind: command_state
+    description: Parses the prior command output and may reset the parse retry counter after a non-ParseFailed result.
+  undo:
+    strategy: parse_retry_counter_restore
+    description: Restores the parse retry counter snapshot captured before parsing.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'parse_response: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Parsed tool-request JSON or a plain completion summary.
+  config:
+    manifest_state: Summarize

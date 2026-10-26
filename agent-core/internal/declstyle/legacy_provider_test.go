@@ -38,7 +38,7 @@ func legacyProviderDeclarations(repo string) ([]string, error) {
 				return err
 			}
 			if entry.IsDir() {
-				if name := entry.Name(); name == "node_modules" || name == "build" || name == "dist" || name == ".git" {
+				if name := entry.Name(); name == "node_modules" || name == "build" || name == "dist" || name == ".git" || name == ".regression" || name == ".scrum-master" {
 					return filepath.SkipDir
 				}
 				return nil

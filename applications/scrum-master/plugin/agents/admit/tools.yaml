@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the admit machine: no model anywhere (GH-37).
+tools:
+  - issue_milestone

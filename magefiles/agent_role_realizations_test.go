@@ -316,7 +316,9 @@ func discoverRepositoryProfiles(root string) ([]string, error) {
 func isGeneratedProfileTree(rel string) bool {
 	parts := strings.Split(filepath.ToSlash(rel), "/")
 	for index, part := range parts {
-		if part == "build" || part == "node_modules" {
+		// A rig run's scratch repositories and a program's vendored copy
+		// of the profiles are copies, not profiles of their own (GH-2713).
+		if part == "build" || part == "node_modules" || part == ".regression" || part == ".scrum-master" {
 			return true
 		}
 		if part == "helm" && index+1 < len(parts) &&

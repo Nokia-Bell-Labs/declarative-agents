@@ -1,0 +1,97 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The reports-init machine's words (GH-37). SCRUM_MASTER_SYSTEM names the system repository; the run starts in the reports repository's checkout; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-reports-init-declarations
+tools:
+- name: reports_init
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - init
+  - --json
+  - --system
+  - ${SCRUM_MASTER_SYSTEM}
+  visibility: internal
+  description: 'Lay down the reports repository''s config and format for the listed team (srd018 R1).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      members:
+        type: string
+        description: 'username=project of each person who reports, comma-separated.'
+        flag: --members
+      reminder:
+        type: string
+        description: 'The reminder weekday; empty is the default.'
+        flag: --reminder
+      agent:
+        type: string
+        description: 'The agents whose skills install, cursor, claude, copilot, or all.'
+        flag: --agent
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The reports init''s JSON report: every file it wrote or kept.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: 'Writes the reports repository''s config and format; an edited file is kept.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'reports_init: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it
+
+- name: vendor
+  type: exec
+  binary: scrum-master
+  args:
+  - install
+  - --profiles
+  - --json
+  visibility: internal
+  description: Vendor the release's profiles and agent-core declarations into .scrum-master, which the installed skills run, and report what drifted (GH-29).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: The vendoring's JSON report — the release and each file's action, created, updated, unchanged, kept, or removed.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes .scrum-master/agents, .scrum-master/agent-core/tools, and .scrum-master/manifest.json; an edited file is kept.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The vendored tree is the person's to commit or discard; a rerun rewrites what nobody edited.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'vendor: <error>'
+    state_after_failure: nothing written by a process that did not start
+  - signal: ToolFailed
+    condition: the release's source is not on this host, or a write fails
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the repository is laid down; a rerun vendors what is missing

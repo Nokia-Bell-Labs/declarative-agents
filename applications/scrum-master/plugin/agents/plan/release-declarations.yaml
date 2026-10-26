@@ -1,0 +1,183 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The release words of the plan workflow: the merge that delivers its issue, the
+# release gate, and the tag. Kept apart from declarations.yaml, which holds
+# the workflow's own words, so neither file outgrows the declaration-style
+# limit. Optional flags are parameters, never ${VAR} args (GH-135).
+unit: scrum-master-plan-release-declarations
+tools:
+- name: issue_merge
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - merge
+  - --json
+  visibility: external
+  description: Deliver the planning issue by the local merge that closes it (srd013 R5.5).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      project:
+        type: string
+        description: Project path.
+        flag: --project
+      issue:
+        type: integer
+        description: Issue IID.
+        flag: --issue
+      control:
+        type: string
+        description: Program repository holding control/ files.
+        flag: --control
+      dir:
+        type: string
+        description: The worktree holding the branch, where the audit runs.
+        flag: --dir
+    required: [project, issue]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master issue merge's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Merges the branch, pushes the result, and closes the issue in the tracker.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'issue_merge: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the merge — a failed audit or a missing approval — and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them
+
+- name: release_gate
+  type: exec
+  binary: scrum-master
+  args:
+  - release
+  - gate
+  - --json
+  visibility: external
+  description: Run the release gate for the plan's tag (srd015).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      artifact:
+        type: string
+        description: Artifact a subsystem SRD declares.
+        flag: --artifact
+      version:
+        type: string
+        description: Candidate version.
+        flag: --version
+      issue:
+        type: string
+        description: Release issue as project#iid.
+        flag: --issue
+      control:
+        type: string
+        description: Program repository holding control/policy.md.
+        flag: --control
+      dir:
+        type: string
+        description: The artifact repository's local checkout.
+        flag: --dir
+    required: [artifact, version, issue]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master release gate's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Runs the gates and records evidence events on the release issue.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'release_gate: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: a gate fails or the word refuses, exiting non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them
+
+- name: release_tag
+  type: exec
+  binary: scrum-master
+  args:
+  - release
+  - tag
+  - --json
+  visibility: external
+  description: Tag the release once its gate passed; the tag publishes the plan (srd015).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      artifact:
+        type: string
+        description: Artifact a subsystem SRD declares.
+        flag: --artifact
+      version:
+        type: string
+        description: Candidate version.
+        flag: --version
+      issue:
+        type: string
+        description: Release issue as project#iid.
+        flag: --issue
+      control:
+        type: string
+        description: Program repository holding control/policy.md.
+        flag: --control
+      dir:
+        type: string
+        description: The artifact repository's local checkout.
+        flag: --dir
+    required: [artifact, version, issue]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master release tag's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Pushes the release tag.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'release_tag: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the tag — no passing gate, or the version exists — and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

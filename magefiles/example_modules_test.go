@@ -119,6 +119,7 @@ func TestOrchestrationUsesStableApplicationPaths(t *testing.T) {
 		"applications/chatbot-mesh",
 		"applications/coding-agent",
 		"applications/agent-architecture",
+		"applications/scrum-master",
 	}
 	if !reflect.DeepEqual(applicationModules, wantApplications) {
 		t.Fatalf("applicationModules = %#v, want %#v", applicationModules, wantApplications)

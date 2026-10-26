@@ -1,0 +1,57 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The labels machine's words (GH-37). the run starts in the system repository's checkout; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-labels-declarations
+tools:
+- name: issue_labels
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - labels
+  - --json
+  visibility: internal
+  description: 'Create the labels the schema lists and, with update, rewrite those that differ (srd001 R2).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      group:
+        type: string
+        description: 'The program group the labels live on.'
+        flag: --group
+      control:
+        type: string
+        description: 'Program repository holding control/ files, when not the project.'
+        flag: --control
+      update:
+        type: boolean
+        description: 'Rewrite labels whose color or description differs.'
+        flag: --update
+        bool_flag: true
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The labels'' JSON report: each created, updated, or unchanged.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Creates and, with update, rewrites labels.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'issue_labels: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

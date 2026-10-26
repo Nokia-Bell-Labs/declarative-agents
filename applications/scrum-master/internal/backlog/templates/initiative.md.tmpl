@@ -1,0 +1,65 @@
+---
+id: in001-reliable-agents
+title: Reliable agents the product teams can deploy
+status: to_be_agreed
+---
+
+<!-- field: context | form: "tree" -->
+## Context
+
+- owner: technical program manager
+- horizon: 2026-W43..2027-W03
+- parent: th001-dependable-agents
+- architecture:
+  1. grader
+
+<!-- field: problem -->
+## Problem
+
+Teams cannot show that an agent works before it is deployed.
+
+<!-- field: goals -->
+## Goals
+
+- G1: Every deployed agent has passed an evaluation a team can read.
+
+<!-- req: R1 -->
+## R1 - Evaluation of one agent
+
+<!-- field: applicability | form: "tree" -->
+### Applicability
+
+- due: "2026-11-06"
+
+<!-- req: R1.1 -->
+### R1.1
+
+A grader scores one agent's trajectories.
+
+<!-- field: non_goals -->
+## Non-goals
+
+- Choosing which agents teams deploy.
+
+<!-- field: acceptance_criteria -->
+## Acceptance criteria
+
+<!-- ac: AC1 -->
+### AC1
+
+One agent is scored.
+
+<!-- field: traces -->
+#### Traces
+
+- [R1.1](#r11)
+
+<!-- field: tests -->
+#### Tests
+
+- grader_scores_fixture_agent
+
+<!-- field: applicability -->
+#### Applicability
+
+dev

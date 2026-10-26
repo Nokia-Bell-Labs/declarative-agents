@@ -156,3 +156,29 @@ func (command staticOutputCommand) Execute() Result {
 func (command staticOutputCommand) Undo(Result) Result {
 	return NoopUndo(command.name)
 }
+
+// Every summary transition a run takes adds its output to the summary, in
+// the order they ran.
+func TestEverySummaryTransitionAddsItsOutput(t *testing.T) {
+	spec := MachineSpec{
+		Name: "words", InitialState: "Idle",
+		States: StateSpecs{
+			{Name: "Idle"}, {Name: "First"}, {Name: "Second"},
+			{Name: "Done", RunStatus: StatusSucceeded},
+		},
+		TerminalStates: []string{"Done"},
+		Signals:        SignalSpecsFromNames("Seed", "FirstDone", "SecondDone"),
+		Transitions: []TransitionSpec{
+			{State: "Idle", Signal: "Seed", Next: "First", Action: "first", Summary: true},
+			{State: "First", Signal: "FirstDone", Next: "Second", Action: "second", Summary: true},
+			{State: "Second", Signal: "SecondDone", Next: "Done"},
+		},
+	}
+	registry := NewRegistry()
+	registry.Register(ToolSpec{Name: "first"}, staticOutputBuilder{name: "first", signal: "FirstDone", output: `{"audit_run":true}`})
+	registry.Register(ToolSpec{Name: "second"}, staticOutputBuilder{name: "second", signal: "SecondDone", output: `{"closed":["g/p#1"]}`})
+	result, err := Loop(LoopParams{MachineSpec: &spec, Registry: registry, Trace: &loopRecorder{}, Budget: Budget{MaxIterations: 3}}, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, StatusSucceeded, result.Status)
+	require.Equal(t, "{\"audit_run\":true}\n{\"closed\":[\"g/p#1\"]}", result.Summary)
+}

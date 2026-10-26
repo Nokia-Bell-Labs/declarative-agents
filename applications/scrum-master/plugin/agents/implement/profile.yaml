@@ -1,0 +1,28 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The implement skill as a declarative-agents profile (GH-135): the workflow
+# around the work is this machine, its words are its tools, and the
+# model acts only in the Work state (design.md D10). scrum-master install --agent
+# renders the SKILL.md agents read from this profile's machine, and mage
+# audit validates the profile with the pinned runtime's --validate-config.
+# A run starts in the issue's worktree: the runtime's workspace is fixed at
+# start while pop opens the worktree mid-run, so the runner pre-pops — pop is
+# idempotent (srd036 R2.2) — and the machine's Pop remains the claim gate.
+name: implement
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_config_dirs:
+  - /opt/agent-core/tools/builtin/filesystem
+tool_declarations:
+  - declarations.yaml
+  - llm/default.yaml
+  - /opt/agent-core/tools/builtin/report-parse-error.yaml
+  - /opt/agent-core/tools/builtin/reset-history.yaml
+  - /opt/agent-core/tools/builtin/nudge-reread.yaml
+  - /opt/agent-core/tools/builtin/done.yaml
+  - /opt/agent-core/tools/exec/stage-all.yaml
+  - /opt/agent-core/tools/exec/commit.yaml
+# The provider library invoke_llm reads its chat dialect from.
+libraries:
+  providers: /opt/agent-core/tools/providers/ollama

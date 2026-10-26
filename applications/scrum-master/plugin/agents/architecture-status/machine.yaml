@@ -1,0 +1,75 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: architecture-status
+purpose: |-
+  Show what the architecture is today (srd045 R8.5): each ARCHITECTURE
+  component actual as of the latest release, in transition through the
+  agreed documents moving it and the release they land in, or intended
+  with no plan yet, and write docs/architecture-status.md for readers. Use
+  when a person asks what exists, what is being built, or what is planned.
+
+  This machine has no model state: scrum-master backlog architecture
+  (design.md D10, D14; GH-48). The run starts in a checkout of the
+  program.
+configuration:
+  machine: plugin/agents/architecture-status/machine.yaml
+  tools: plugin/agents/architecture-status/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Word (Seed): scrum-master backlog architecture
+  2. Word → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Word
+  meaning: |
+    The architecture word: scrum-master backlog architecture names each
+    component's state and writes the generated page.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The word ran and reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The word refused, and its reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: The word executed successfully.
+- name: ToolFailed
+  trigger: The word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Word
+  action: backlog_architecture
+  summary: true
+- state: Word
+  signal: ToolFailed
+  next: Refused
+- state: Word
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Word
+  signal: CommandError
+  next: Failed

@@ -1,0 +1,193 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: implement
+purpose: |-
+  Take an issue, or a story's issues, into a branch and worktree, build them,
+  and finish with the one merge that closes them (srd036). Use when a person
+  asks to work, take, or pop an issue or a story in this repository, or to
+  finish and merge the work.
+
+  Invoking this profile takes the work. scrum-master decides whether it can be taken
+  and does every step around the work; the model acts only in the Work state
+  and closes nothing itself (design.md D10, srd036). Every word runs
+  with --json against the project SCRUM_MASTER_PROJECT names, under the policy of the
+  system repository SCRUM_MASTER_CONTROL names; SCRUM_MASTER_ISSUE names the issue. A refusal
+  from scrum-master ends the run in the Refused state with the word's reason.
+configuration:
+  machine: plugin/agents/implement/machine.yaml
+  tools: plugin/agents/implement/tools.yaml
+  llm_configs: plugin/agents/implement/llm/*.yaml
+invariants:
+- scrum-master decides admission, assignment, approval, and closing; the model never does
+- The model acts only in the Work state, through the declared tools
+- A the word refusal is terminal, with the word's reason as the run's last output
+- Every tool result is fed back to the model before the next reasoning step
+- File edits trigger a re-read nudge to prevent stale context
+- The done tool hands control back to the machine, which pushes and merges
+lifecycle: |-
+  1. Idle → Pop (Seed): scrum-master issue pop takes the issue
+  2. Pop → Work (ToolDone): the model builds the change in the worktree
+  3. Pop → Refused (ToolFailed): the word refused the pop; its reason ends the run
+  4. Work ↔ Parse: the model loop — invoke_llm, parse_response, $tool dispatch
+  5. Parse → Push (TaskCompleted): the model called done; git push publishes
+     the branch
+  6. Push → Merge (ToolDone): scrum-master issue merge audits, merges, and closes
+  7. Merge → Done (ToolDone): the merge commit and the closed issues are the
+     run's report
+  8. Merge → Refused (ToolFailed): the word refused the merge — an unapproved tip
+     under require_approval, or a failed audit — and its reason ends the run
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 100
+  max_consecutive_parse_errors: 5
+states:
+- name: Idle
+  meaning: Initial state before the issue is taken.
+- name: Pop
+  meaning: |
+    Take the issue: scrum-master issue pop --issue assigns only the caller and creates
+    or reuses the branch <iid>-<slug> and its worktree (srd013 R7). A further
+    story issue joins the same worktree and branch with --worktree. A refusal
+    is shown with its reason and the run stops; scrum-master, not the model, decides
+    whether the issue can be taken (srd036 R2.1, R4.1).
+- name: Work
+  meaning: |
+    Build the change in the worktree, and only there. The issue's Requirements
+    are the steps and its Acceptance Criteria what must hold; a question they
+    ask is part of the work (srd036 R4.1). Commit each issue separately, its
+    message holding its Requirements and Acceptance Criteria and ending
+    Closes <project#iid>. This is the only state where the model acts
+    (design.md D10): it reads, writes, edits, stages, and commits through the
+    declared tools, and calls done when the work satisfies the criteria.
+- name: Parse
+  meaning: |
+    The model's response is parsed into one tool call. A parse failure is
+    reported back to the model; the done call hands control back to the
+    machine.
+- name: Push
+  meaning: |
+    Publish the branch: git push -u origin HEAD. Under require_approval a
+    reviewer, not the author, reads the pushed tip against the Acceptance
+    Criteria and approves it with scrum-master issue approve in their checkout
+    (srd036 R3.1); the merge refuses an unapproved or outdated approval.
+- name: Merge
+  meaning: |
+    Finish: scrum-master issue merge audits a docs/ change, merges the branch (under
+    require_approval, only a branch approved at its tip), pushes, and closes
+    each issue (srd013 R5.5, srd036 R3.1). The model closes nothing itself
+    (srd036 R3.3).
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The merge commit and the issues it closed are the run's report
+    (srd036 R3).
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. the word refused a step — the pop of an inadmissible issue, or a
+    merge without the approval the policy requires — and the refusal's reason,
+    as the word printed it, is the run's last output (srd036 R2.1, R4.2).
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+- name: BudgetExceeded
+  run_status: budget_exceeded
+  meaning: Terminal. The iteration or parse-error budget was exhausted.
+terminal_states:
+- Done
+- Refused
+- Failed
+- BudgetExceeded
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: LLMResponded
+  trigger: The model returned a response (invoke_llm completed).
+- name: ToolDone
+  trigger: A tool executed successfully.
+- name: ToolFailed
+  trigger: A tool executed but reported failure — for the words, a refusal.
+- name: ParseFailed
+  trigger: The model response could not be parsed as a valid tool call.
+- name: TaskCompleted
+  trigger: The model called the done tool, declaring the work finished.
+- name: EditDone
+  trigger: A file edit tool completed — triggers a re-read nudge.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+- name: BudgetExhausted
+  trigger: Iteration or parse-error budget limit reached.
+transitions:
+- state: Idle
+  signal: Seed
+  next: Pop
+  action: issue_pop
+  summary: true
+- state: Pop
+  signal: ToolDone
+  next: Work
+  action: invoke_llm
+- state: Pop
+  signal: ToolFailed
+  next: Refused
+- state: Work
+  signal: LLMResponded
+  next: Parse
+  action: parse_response
+- state: Parse
+  signal: ToolDone
+  next: Work
+  action: $tool
+- state: Parse
+  signal: ParseFailed
+  next: Work
+  action: report_parse_error
+- state: Parse
+  signal: TaskCompleted
+  next: Push
+  action: git_push
+- state: Work
+  signal: ToolDone
+  next: Work
+  action: invoke_llm
+- state: Work
+  signal: ToolFailed
+  next: Work
+  action: invoke_llm
+- state: Work
+  signal: EditDone
+  next: Work
+  action: nudge_reread
+- state: Push
+  signal: ToolDone
+  next: Merge
+  action: issue_merge
+  summary: true
+- state: Push
+  signal: ToolFailed
+  next: Failed
+- state: Merge
+  signal: ToolDone
+  next: Done
+- state: Merge
+  signal: ToolFailed
+  next: Refused
+- state: Work
+  signal: BudgetExhausted
+  next: BudgetExceeded
+- state: Pop
+  signal: CommandError
+  next: Failed
+- state: Work
+  signal: CommandError
+  next: Failed
+- state: Parse
+  signal: CommandError
+  next: Failed
+- state: Push
+  signal: CommandError
+  next: Failed
+- state: Merge
+  signal: CommandError
+  next: Failed

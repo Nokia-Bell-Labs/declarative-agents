@@ -1,0 +1,193 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: site
+purpose: |-
+  Write the program's generated site into its reports repository
+  (srd048): plain Markdown pages a forge renders as they are, one family
+  of pages per word, each in its own folder under site/. Use when a person
+  asks for the program's status, timeline, or requirement history as pages
+  anyone with access to the reports repository can read.
+
+  This machine has no model state: one word per output family, run in
+  order, each a state (design.md D10, D14; GH-81). It starts with the
+  scaffold word; each follow-on word inserts its state before Done as it
+  lands. SCRUM_MASTER_REPORTS names the reports repository's checkout. The
+  words write files and never commit; the pages land through the inner
+  loop like any other change.
+configuration:
+  machine: plugin/agents/site/machine.yaml
+  tools: plugin/agents/site/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A page a person wrote or edited is kept and reported, never replaced
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Scaffold (Seed): scrum-master site scaffold
+  2. Scaffold → Status (ToolDone): scrum-master site status
+  3. Status → Timeline (ToolDone): scrum-master site timeline
+  4. Timeline → Gantt (ToolDone): scrum-master site gantt
+  5. Gantt → History (ToolDone): scrum-master site history
+  6. History → CorpusPages (ToolDone): scrum-master site corpus
+  7. CorpusPages → Hierarchy (ToolDone): scrum-master site hierarchy
+  8. Hierarchy → Overview (ToolDone): scrum-master site overview
+  9. Overview → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 20
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Scaffold
+  meaning: |
+    The scaffold word: the site's index when missing, and a page for each
+    generated folder its word has not written yet.
+- name: Status
+  meaning: |
+    The status word: the road map, story-point roll-up, architecture
+    status, Sprint Goals, signals, and open issues, under site/status/.
+- name: Timeline
+  meaning: |
+    The timeline word: each item's planned and actual days on the sprint
+    axis, now and as planned at each corpus tag, under site/timeline/.
+- name: Gantt
+  meaning: |
+    The gantt word: the program's and each initiative's mermaid charts and
+    the self-contained HTML timeline, drawn from the timeline facts.
+- name: History
+  meaning: |
+    The history word: the requirements and acceptance criteria that changed
+    between consecutive corpus tags, each with its merge.
+- name: CorpusPages
+  meaning: |
+    The corpus word: the system repository's documents as pages under
+    site/corpus/.
+- name: Hierarchy
+  meaning: |
+    The hierarchy word: a page per planning document with its links up and
+    down and the Sprint Goals and issues that serve it (GH-126), and the
+    site's navigator (GH-127).
+- name: Overview
+  meaning: |
+    The overview word: the program's home page, with the interactive
+    timeline and a tile per initiative (GH-128), the machine's last
+    working state.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran and reported what it did to each page.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. A word refused, and its reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: The word executed successfully.
+- name: ToolFailed
+  trigger: The word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Scaffold
+  action: site_scaffold
+  summary: true
+- state: Scaffold
+  signal: ToolFailed
+  next: Refused
+- state: Scaffold
+  signal: ToolDone
+  next: Status
+  action: site_status
+  summary: true
+- state: Status
+  signal: ToolFailed
+  next: Refused
+- state: Status
+  signal: ToolDone
+  next: Timeline
+  action: site_timeline
+  summary: true
+- state: Timeline
+  signal: ToolFailed
+  next: Refused
+- state: Timeline
+  signal: ToolDone
+  next: Gantt
+  action: site_gantt
+  summary: true
+- state: Gantt
+  signal: ToolFailed
+  next: Refused
+- state: Gantt
+  signal: ToolDone
+  next: History
+  action: site_history
+  summary: true
+- state: History
+  signal: ToolFailed
+  next: Refused
+- state: History
+  signal: ToolDone
+  next: CorpusPages
+  action: site_corpus
+  summary: true
+- state: CorpusPages
+  signal: ToolFailed
+  next: Refused
+- state: CorpusPages
+  signal: ToolDone
+  next: Hierarchy
+  action: site_hierarchy
+  summary: true
+- state: Hierarchy
+  signal: ToolFailed
+  next: Refused
+- state: Hierarchy
+  signal: ToolDone
+  next: Overview
+  action: site_overview
+  summary: true
+- state: Overview
+  signal: ToolFailed
+  next: Refused
+- state: Overview
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Scaffold
+  signal: CommandError
+  next: Failed
+- state: Status
+  signal: CommandError
+  next: Failed
+- state: Timeline
+  signal: CommandError
+  next: Failed
+- state: Gantt
+  signal: CommandError
+  next: Failed
+- state: History
+  signal: CommandError
+  next: Failed
+- state: CorpusPages
+  signal: CommandError
+  next: Failed
+- state: Hierarchy
+  signal: CommandError
+  next: Failed
+- state: Overview
+  signal: CommandError
+  next: Failed

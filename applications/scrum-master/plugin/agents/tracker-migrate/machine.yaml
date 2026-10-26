@@ -1,0 +1,75 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: tracker-migrate
+purpose: |-
+  Move the program's tracker from one JSONL file to one file per issue
+  with an index (srd042 R3.1), once, when no one is writing; on a files
+  tracker without an index it builds one. Use when a person asks to
+  migrate the tracker's layout.
+
+  This machine has no model state: scrum-master tracker migrate (design.md
+  D10, D14; GH-38). The run starts in a checkout of the program.
+configuration:
+  machine: plugin/agents/tracker-migrate/machine.yaml
+  tools: plugin/agents/tracker-migrate/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Migrate (Seed): scrum-master tracker migrate
+  2. Migrate → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Migrate
+  meaning: |
+    The migrate word: scrum-master tracker migrate moves a JSONL tracker
+    to one file per issue with its index, or indexes a files tracker that
+    has none.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The migrate was refused — the tracker moved while migrating
+    — and the word's reason is the run's last output; nothing was written.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Migrate
+  action: tracker_migrate
+  summary: true
+- state: Migrate
+  signal: ToolFailed
+  next: Refused
+- state: Migrate
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Migrate
+  signal: CommandError
+  next: Failed

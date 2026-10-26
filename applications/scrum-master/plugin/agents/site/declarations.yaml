@@ -1,0 +1,248 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The site machine's words (GH-81, srd048). SCRUM_MASTER_REPORTS names the
+# reports repository's checkout, as for the status-issues machine, as a
+# --dir=value arg the loader drops whole when unset, so the words then run
+# on the working directory (GH-115).
+unit: scrum-master-site-declarations
+tools:
+- name: site_scaffold
+  type: exec
+  binary: scrum-master
+  args:
+  - site
+  - scaffold
+  - --json
+  - --dir=${SCRUM_MASTER_REPORTS}
+  description: Lay down the site in the reports repository — the index when missing, and a page for each generated folder its word has not written yet (srd048 R1.2).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The run''s JSON: each page and what the word did to it, created, refreshed, unchanged, removed, or kept with the reason.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes stamped pages under site/ in the reports checkout; nothing is committed.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The pages are regenerated on every run, the person's to commit or discard.
+  visibility: internal
+- name: site_status
+  type: exec
+  binary: scrum-master
+  args:
+  - site
+  - status
+  - --json
+  - --dir=${SCRUM_MASTER_REPORTS}
+  description: Write the status pages under site/status/ — the road map, story-point roll-up, architecture status, Sprint Goals, signals, and open issues — with each page's facts under site/data/status/ (srd048 R4).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The run''s JSON: each page and what the word did to it, created, refreshed, unchanged, removed, or kept with the reason.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes stamped pages under site/status/ and site/data/status/ in the reports checkout; nothing is committed. Reads the system repository's checkout beside it, the reports, and the tracker when one is reachable.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The pages are regenerated on every run, the person's to commit or discard.
+  visibility: internal
+- name: site_timeline
+  type: exec
+  binary: scrum-master
+  args:
+  - site
+  - timeline
+  - --json
+  - --dir=${SCRUM_MASTER_REPORTS}
+  description: Write the timeline under site/timeline/ — each initiative, epic, feature, story, and Sprint Goal with its planned and actual days on the sprint axis, now and as planned at each corpus tag (srd048 R3).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The run''s JSON: each page and what the word did to it, created, refreshed, unchanged, removed, or kept with the reason.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes stamped pages under site/timeline/ in the reports checkout; nothing is committed. Reads the system repository's checkout beside it, its local git, and the tracker when one is reachable.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The pages are regenerated on every run, the person's to commit or discard.
+  visibility: internal
+- name: site_gantt
+  type: exec
+  binary: scrum-master
+  args:
+  - site
+  - gantt
+  - --json
+  - --dir=${SCRUM_MASTER_REPORTS}
+  description: Draw the gantt views under site/timeline/gantt/ — the program's and each initiative's mermaid charts, and the self-contained HTML timeline with a plan selector — from the timeline facts (srd048 R5).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The run''s JSON: each page and what the word did to it, created, refreshed, unchanged, removed, or kept with the reason.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes stamped pages under site/timeline/gantt/ in the reports checkout; nothing is committed. Reads only the timeline facts the timeline word wrote.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The pages are regenerated on every run, the person's to commit or discard.
+  visibility: internal
+- name: site_history
+  type: exec
+  binary: scrum-master
+  args:
+  - site
+  - history
+  - --json
+  - --dir=${SCRUM_MASTER_REPORTS}
+  description: Write the requirement history under site/history/ — the requirements and acceptance criteria added, reworded, retired, removed, or moved between consecutive corpus tags, each with the merge that made it — and each document's own history (srd048 R6).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The run''s JSON: each page and what the word did to it, created, refreshed, unchanged, removed, or kept with the reason.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes stamped pages under site/history/ and site/data/history/ in the reports checkout; nothing is committed. Reads the system repository's checkout beside it through local git alone.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The pages are regenerated on every run, the person's to commit or discard.
+  visibility: internal
+- name: site_corpus
+  type: exec
+  binary: scrum-master
+  args:
+  - site
+  - corpus
+  - --json
+  - --dir=${SCRUM_MASTER_REPORTS}
+  description: Copy the system repository's documents under site/corpus/ as pages — links within docs/ kept, links leaving it pointed at the forge — with an index (srd048 R7).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The run''s JSON: each page and what the word did to it, created, refreshed, unchanged, removed, or kept with the reason.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes stamped pages under site/corpus/ in the reports checkout; nothing is committed. Reads the system repository's checkout beside it.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The pages are regenerated on every run, the person's to commit or discard.
+  visibility: internal
+- name: site_hierarchy
+  type: exec
+  binary: scrum-master
+  args:
+  - site
+  - hierarchy
+  - --json
+  - --dir=${SCRUM_MASTER_REPORTS}
+  description: Write a page per theme, initiative, epic, feature, and story under site/hierarchy/, each linking its parent, children, Sprint Goals, issues, and source, with the tree and the facts as JSON (GH-126).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The run''s JSON: each page and what the word did to it, created, refreshed, unchanged, removed, or kept with the reason.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes stamped pages under site/hierarchy/ and site/data/hierarchy/ in the reports checkout; nothing is committed. Reads the timeline facts the timeline word wrote.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The pages are regenerated on every run, the person's to commit or discard.
+  visibility: internal
+- name: site_overview
+  type: exec
+  binary: scrum-master
+  args:
+  - site
+  - overview
+  - --json
+  - --dir=${SCRUM_MASTER_REPORTS}
+  description: Write the program's home page, site/overview.md, with the interactive timeline, a tile per initiative, and the releases (GH-128).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The run''s JSON: each page and what the word did to it, created, refreshed, unchanged, removed, or kept with the reason.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes the stamped site/overview.md in the reports checkout; nothing is committed. Reads the timeline facts the timeline word wrote.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The pages are regenerated on every run, the person's to commit or discard.
+  visibility: internal

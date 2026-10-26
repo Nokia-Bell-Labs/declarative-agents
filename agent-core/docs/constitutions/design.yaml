@@ -2725,6 +2725,7 @@ document_types:
           - coding_agent
           - chatbot_mesh
           - agent_architecture
+          - scrum_master
         boundary_tools_with_compensation_field:
           tag: field
           level: 3
@@ -3065,6 +3066,13 @@ document_types:
           heading: id
           content: none
           yaml: {from: coding_agent, records: list, id: actor}
+        scrum_master_entry:
+          tag: scrum_master_entry
+          level: 4
+          parent: 'field:scrum_master'
+          heading: id
+          content: none
+          yaml: {from: scrum_master, records: list, id: actor}
         fields_field:
           tag: field
           level: 4
@@ -3211,6 +3219,15 @@ document_types:
           - deployment_form
           - execution_scope
           - decision
+        scrum_master_entry_field:
+          tag: field
+          level: 5
+          parent: scrum_master_entry
+          heading: free
+          content: any
+          fields:
+          - profile
+          - classification
         excluded_binding_field:
           tag: field
           level: 5
@@ -3243,7 +3260,7 @@ document_types:
       required_fields: [purpose]
       prose_containment:
         keywords: [MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, MAY, OPTIONAL, shall, shall not]
-        outside: [document_field, attribute_rules_field, bindings_field, boundary_tools_with_compensation_field, canonical_source_field, compensation_boundaries_field, data_flow_field, deployment_realizations_field, diagrams_field, implementation_status_field, language_model_field, lifecycle_diagrams_field, machine_composition_field, migration_alias, monitor_snapshot_shape_field, naming_grammar_field, ontology_field, ownership_rules_field, receipt_undo_field, request_flow_field, reversibility_kinds_field, role, role_group, role_legend_field, shared_authority_field, split_field, system_boundary_field, tool, vocabulary_field, agent_architecture_entry, catalog_entry, chatbot_mesh_entry, chatbot_mesh_field, coding_agent_entry, fields_field, migration_alias_field, role_field, role_group_field, tool_field, agent_architecture_entry_field, catalog_entry_field, chatbot_mesh_entry_field, coding_agent_entry_field, excluded_binding_field, decision_field]
+        outside: [document_field, attribute_rules_field, bindings_field, boundary_tools_with_compensation_field, canonical_source_field, compensation_boundaries_field, data_flow_field, deployment_realizations_field, diagrams_field, implementation_status_field, language_model_field, lifecycle_diagrams_field, machine_composition_field, migration_alias, monitor_snapshot_shape_field, naming_grammar_field, ontology_field, ownership_rules_field, receipt_undo_field, request_flow_field, reversibility_kinds_field, role, role_group, role_legend_field, shared_authority_field, split_field, system_boundary_field, tool, vocabulary_field, agent_architecture_entry, catalog_entry, chatbot_mesh_entry, chatbot_mesh_field, coding_agent_entry, fields_field, migration_alias_field, role_field, role_group_field, tool_field, agent_architecture_entry_field, catalog_entry_field, chatbot_mesh_entry_field, coding_agent_entry_field, scrum_master_entry, scrum_master_entry_field, excluded_binding_field, decision_field]
   config_format:
     location: docs/specs/config-formats/name.md
     converts_from: docs/specs/config-formats/name.yaml

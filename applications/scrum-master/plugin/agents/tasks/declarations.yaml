@@ -1,0 +1,222 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The tasks workflow's words, dispatched by the model in the Decompose state.
+# Optional flags are parameters, never ${VAR} args: the loader drops an
+# argument whose variable is unset, which corrupts the flag list (the GH-135
+# pilot finding). A non-zero exit is the word's refusal, fed back to the model
+# (design.md D14).
+unit: scrum-master-tasks-declarations
+tools:
+- name: backlog_guide
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - guide
+  - --name
+  - plan-vs-architecture
+  - --with-request
+  stdin_source: $from(seed).$
+  visibility: internal
+  description: Print the plan-vs-architecture guide followed by the run's request, which the model reads before it acts (GH-59).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The guide, then the request, as the model's first message.
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads the guide and the request and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or the run has no request to read
+    message_shape: 'backlog_guide: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the guide is not in this release, or the request is empty
+    message_shape: <the word's reason, as printed>
+    state_after_failure: nothing was read by the model
+
+- name: goals_plan
+  type: exec
+  binary: scrum-master
+  args:
+  - goals
+  - plan
+  - --json
+  visibility: external
+  description: Compute the release's outcomes and candidate repositories as plan JSON (srd022, srd019).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      system:
+        type: string
+        description: System repository path.
+        flag: --system
+      release:
+        type: string
+        description: Road-map release version.
+        flag: --release
+    required: [system, release]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master goals plan's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Reads the road map and hierarchy; writes nothing.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'goals_plan: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the plan and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them
+
+- name: goals_push
+  type: exec
+  binary: scrum-master
+  args:
+  - goals
+  - push
+  - --json
+  visibility: external
+  description: File one Sprint Goal per outcome from the confirmed plan (srd022).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      system:
+        type: string
+        description: System repository path.
+        flag: --system
+      release:
+        type: string
+        description: Road-map release version.
+        flag: --release
+      plan:
+        type: string
+        description: Confirmed plan JSON file from goals_plan.
+        flag: --plan
+      control:
+        type: string
+        description: Program repository holding control/ files.
+        flag: --control
+    required: [system, release, plan]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master goals push's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Files the Sprint Goals in the tracker; a filed one comes back unchanged.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'goals_push: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses an outcome and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them
+
+- name: backlog_list
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - list
+  - --json
+  visibility: external
+  description: List the hierarchy documents, one kind or all, with points and rank (srd045).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      kind:
+        type: string
+        description: Keep one kind - theme, initiative, epic, feature, story.
+        flag: --kind
+      dir:
+        type: string
+        description: The repository's checkout.
+        flag: --dir
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master backlog list's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Reads the hierarchy documents; writes nothing.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_list: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the listing and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them
+
+- name: backlog_components
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - components
+  - --json
+  description: List the component ids docs/ARCHITECTURE.md declares, so planning checks a component exists before naming it (srd045 R8.6, GH-58).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: The component ids, in ARCHITECTURE's order.
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads ARCHITECTURE and writes nothing.
+  visibility: external

@@ -1,0 +1,81 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The sprint-end-facts machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-sprint-end-facts-declarations
+tools:
+- name: sprint_end_facts
+  type: exec
+  binary: scrum-master
+  args:
+  - sprint-end
+  - facts
+  - --json
+  visibility: internal
+  description: Gather the period's facts — the weeks' reports, the Sprint Goals and their stories, and the recommended release (srd038 R1).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      project:
+        type: string
+        description: The repository the sprint-end issue is in.
+        flag: --project
+      reports:
+        type: string
+        description: A checkout of the reports repository.
+        flag: --reports
+      from:
+        type: string
+        description: The period's first week, YYYY-Www.
+        flag: --from
+      to:
+        type: string
+        description: The period's last week, YYYY-Www.
+        flag: --to
+      artifact:
+        type: string
+        description: The artifact the repository releases.
+        flag: --artifact
+      control:
+        type: string
+        description: Program repository holding control/policy.md.
+        flag: --control
+      dir:
+        type: string
+        description: The repository's checkout, for its release tags.
+        flag: --dir
+    required:
+    - project
+    - reports
+    - from
+    - to
+    - artifact
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master sprint-end facts's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Reads the reports and the tracker; writes nothing.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'sprint_end_facts: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the gathering and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

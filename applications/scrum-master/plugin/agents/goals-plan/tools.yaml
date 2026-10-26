@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the goals-plan machine: no model anywhere (GH-48).
+tools:
+  - goals_plan

@@ -1,0 +1,79 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The plan-write machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-plan-write-declarations
+tools:
+- name: plan_write
+  type: exec
+  binary: scrum-master
+  args:
+  - plan
+  - write
+  - --json
+  visibility: internal
+  description: Write the chosen items into docs/road-map.md as the release's plan (srd031).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      version:
+        type: string
+        description: The release's version, such as 01.2.
+        flag: --version
+      tag:
+        type: string
+        description: The tag that publishes the plan.
+        flag: --tag
+      items:
+        type: string
+        description: Comma-separated objective items, objNNN-short-name#Rn.m.
+        flag: --items
+      system:
+        type: string
+        description: System repository path.
+        flag: --system
+      issue:
+        type: string
+        description: Planning issue as project#iid, to comment on items held back.
+        flag: --issue
+      milestone:
+        type: string
+        description: The release's milestone; defaults to the version.
+        flag: --milestone
+      dir:
+        type: string
+        description: The system repository's checkout.
+        flag: --dir
+    required:
+    - version
+    - tag
+    - items
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master plan write's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Writes the plan into docs/road-map.md in the worktree.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'plan_write: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the write and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

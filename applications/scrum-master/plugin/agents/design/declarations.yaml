@@ -1,0 +1,193 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The design workflow's words, dispatched by the model in the Design
+# state (GH-58). Optional flags are parameters, never ${VAR} args: the loader drops
+# an argument whose variable is unset, which corrupts the flag list (the
+# GH-135 pilot finding). A non-zero exit is the word's refusal, fed back to the
+# model, which fixes the body and lints again (srd035).
+unit: scrum-master-design-declarations
+tools:
+- name: backlog_guide
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - guide
+  - --name
+  - plan-vs-architecture
+  - --with-request
+  stdin_source: $from(seed).$
+  visibility: internal
+  description: Print the plan-vs-architecture guide followed by the run's request, which the model reads before it acts (GH-59).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The guide, then the request, as the model's first message.
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads the guide and the request and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or the run has no request to read
+    message_shape: 'backlog_guide: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the guide is not in this release, or the request is empty
+    message_shape: <the word's reason, as printed>
+    state_after_failure: nothing was read by the model
+
+- name: issue_file
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - file
+  - --json
+  visibility: external
+  description: File one unassigned issue and lint it; the word sets the plane, kind, and component from the paths (srd035, srd013).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      project:
+        type: string
+        description: Project path.
+        flag: --project
+      system:
+        type: string
+        description: System repository whose subsystem SRDs give the component.
+        flag: --system
+      title:
+        type: string
+        description: Issue title.
+        flag: --title
+      body_file:
+        type: string
+        description: File holding the body.
+        flag: --body-file
+      path:
+        type: array
+        items:
+          type: string
+        description: The paths the request changes; plane and kind follow from the set.
+        flag: --path
+      kind:
+        type: string
+        description: Kind, on data issues, when no path decides it.
+        flag: --kind
+      milestone:
+        type: string
+        description: Milestone title.
+        flag: --milestone
+    required: [project, title, body_file]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master issue file's JSON report — the issue's reference, labels, and admission verdict.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Files the issue and its labels in the tracker.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: A filed issue stays; admission and people decide its fate.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'issue_file: <error>'
+    state_after_failure: nothing was filed by a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the filing and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it
+
+- name: issue_lint
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - lint
+  - --json
+  visibility: external
+  description: Check an issue against the label schema and admission policy after its body was fixed (srd035, srd013).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      project:
+        type: string
+        description: Project path.
+        flag: --project
+      issue:
+        type: integer
+        description: Issue IID.
+        flag: --issue
+      control:
+        type: string
+        description: Program repository holding control/ files.
+        flag: --control
+    required: [project, issue]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master issue lint's JSON verdict with each admission reason.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Re-reads the issue and updates its needs-triage labels.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: Lint records a verdict; the next lint replaces it.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'issue_lint: <error>'
+    state_after_failure: nothing was linted by a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the lint and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it
+
+- name: backlog_components
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - components
+  - --json
+  description: List the component ids docs/ARCHITECTURE.md declares, so planning checks a component exists before naming it (srd045 R8.6, GH-58).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: The component ids, in ARCHITECTURE's order.
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads ARCHITECTURE and writes nothing.
+  visibility: external

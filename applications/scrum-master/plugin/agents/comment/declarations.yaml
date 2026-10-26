@@ -1,0 +1,56 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The comment machine's words (GH-37). SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the issue; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-comment-declarations
+tools:
+- name: issue_comment
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - comment
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  visibility: internal
+  description: 'Post a comment on the issue as the caller.'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      body:
+        type: string
+        description: 'The comment''s text.'
+        flag: --body
+      body_file:
+        type: string
+        description: 'A file holding the comment''s text.'
+        flag: --body-file
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The comment word''s JSON report.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Posts the comment.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'issue_comment: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

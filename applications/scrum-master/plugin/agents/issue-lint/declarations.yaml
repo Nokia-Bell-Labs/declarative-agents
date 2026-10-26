@@ -1,0 +1,62 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The issue-lint machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-issue-lint-declarations
+tools:
+- name: issue_lint
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - lint
+  - --json
+  visibility: internal
+  description: Check an issue against the label schema and admission policy after its body was fixed (srd035, srd013).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      project:
+        type: string
+        description: Project path.
+        flag: --project
+      issue:
+        type: integer
+        description: Issue IID.
+        flag: --issue
+      control:
+        type: string
+        description: Program repository holding control/ files.
+        flag: --control
+    required:
+    - project
+    - issue
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master issue lint's JSON verdict with each admission reason.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Re-reads the issue and updates its needs-triage labels.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: Lint records a verdict; the next lint replaces it.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'issue_lint: <error>'
+    state_after_failure: nothing was linted by a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the lint and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

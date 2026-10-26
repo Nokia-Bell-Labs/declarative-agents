@@ -156,7 +156,9 @@ func isGeneratedDeclarationTree(rel string) bool {
 	parts := strings.Split(filepath.ToSlash(rel), "/")
 	for index, part := range parts {
 		switch part {
-		case ".git", "build", "generated-files", "node_modules":
+		case ".git", "build", "generated-files", "node_modules", ".regression", ".scrum-master":
+			// .regression holds an application rig's scratch runs and
+			// .scrum-master a program's vendored copy: neither is a source.
 			return true
 		case "helm":
 			if index+1 < len(parts) &&

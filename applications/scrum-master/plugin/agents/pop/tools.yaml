@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the pop machine: four words, no model anywhere
+# (design.md D10, D14; GH-204).
+tools:
+  - claim
+  - open_branch
+  - add_worktree
+  - install_skills

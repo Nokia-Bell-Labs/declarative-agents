@@ -49,8 +49,14 @@ func transitionSummaryPolicy(spec *MachineSpec, state State, signal Signal) bool
 
 func applyResultPolicies(runner *loopRunner) {
 	if runner.summaryOutput {
-		runner.run.Summary = runner.result.Output
-		runner.summaryOutput = false
+		// Each summary transition adds its output in the order they run, so
+		// a machine of several words reports every one of them.
+		if runner.summarized {
+			runner.run.Summary += "\n" + runner.result.Output
+		} else {
+			runner.run.Summary = runner.result.Output
+		}
+		runner.summaryOutput, runner.summarized = false, true
 	}
 	if runner.reportOutput == "" {
 		return

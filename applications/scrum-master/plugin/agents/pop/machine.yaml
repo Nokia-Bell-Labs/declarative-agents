@@ -1,0 +1,173 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: pop
+purpose: |-
+  Claim an issue and open its own branch and worktree (srd013 R7): the
+  claim, the branch, the worktree, and the skills install, each a word.
+  Use when a person asks to take or pop one issue into its own worktree.
+
+  This machine has no model state: a pop is deterministic, words all
+  the way down (design.md D10, D14; GH-201, GH-204). The run starts in the
+  project's clone; SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the issue. A refusal from
+  the claim — a closed issue, someone else's, a data issue admission has
+  not admitted — ends the run in Refused with the word's reason; a word that
+  fails after the claim ends in a partial state a re-run finishes, since
+  every word reuses what is already in place.
+configuration:
+  machine: plugin/agents/pop/machine.yaml
+  tools: plugin/agents/pop/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- Only the claim assigns, and only the caller (srd041 R9.1); the later words
+  touch no assignee
+- The branch, the worktree, and the skills each reuse what exists, so a
+  re-run of the whole machine changes nothing
+- A failure after the claim is an explicit partial state naming what a
+  re-run finishes, never a buried error
+lifecycle: |-
+  1. Idle → Claim (Seed): scrum-master issue claim assigns the caller with pop's
+     refusals and names the branch
+  2. Claim → Branch (ToolDone): scrum-master issue open-branch creates or reuses the
+     issue's branch from the default branch
+  3. Claim → Refused (ToolFailed): the claim refused; its reason ends the
+     run
+  4. Branch → Worktree (ToolDone): scrum-master issue add-worktree opens or reuses
+     the sibling worktree on the branch
+  5. Worktree → Install (ToolDone): scrum-master issue install-skills writes the
+     checkout's agents' skills into the worktree
+  6. Install → Done (ToolDone); Install → SkillsNotInstalled (ToolFailed):
+     the pop stands, the reason is reported, as the one command behaves
+  7. Branch → ClaimedOnly, Worktree → NoWorktree (ToolFailed): partial
+     states a re-run finishes
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 20
+states:
+- name: Idle
+  meaning: Initial state before the claim.
+- name: Claim
+  meaning: |
+    The claim word: scrum-master issue claim refuses a closed issue, an issue
+    assigned to anyone else, and a data issue admission does not admit,
+    assigns the caller — the atomic transaction the word boundary protects
+    (GH-201) — and names the branch the next word opens (srd013 R7.1,
+    srd041 R9.1).
+- name: Branch
+  meaning: |
+    The branch word: scrum-master issue open-branch creates the issue's branch from
+    the default branch, or reuses one already there, and on a tracking
+    system whose host reviews branches opens or finds its review. The
+    branch name comes from the claim word's output.
+- name: Worktree
+  meaning: |
+    The worktree word: scrum-master issue add-worktree opens the sibling worktree
+    for the branch beside the checkout, or reuses one already there, with
+    the branch checked out and a git-crypt key linked where the repository
+    has one.
+- name: Install
+  meaning: |
+    The install word: scrum-master issue install-skills writes the checkout's
+    agents' skills into the worktree (srd036 R2.3), so an agent started
+    there can finish the issue; a worktree that has them gets nothing.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The issue is claimed, its branch and worktree are open, and
+    the skills are in place; the worktree path is the run's report
+    (srd013 R7).
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The claim refused — a closed issue, someone else's, or a data
+    issue admission has not admitted — and the word's reason, as printed, is the
+    run's last output. Nothing was assigned.
+- name: ClaimedOnly
+  run_status: failed
+  meaning: |
+    Terminal. The issue is claimed but its branch did not open; a re-run
+    finishes the pop, reusing the claim (GH-204).
+- name: NoWorktree
+  run_status: failed
+  meaning: |
+    Terminal. The issue is claimed and its branch is open, but the worktree
+    did not; a re-run finishes the pop, reusing both (GH-204).
+- name: SkillsNotInstalled
+  run_status: succeeded
+  meaning: |
+    Terminal. The pop stands — claimed, branch, worktree — but the skills
+    did not install; the reason is reported and does not undo the pop, as
+    scrum-master issue pop behaves (srd036 R2.3).
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+terminal_states:
+- Done
+- Refused
+- ClaimedOnly
+- NoWorktree
+- SkillsNotInstalled
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Claim
+  action: claim
+  label: claim
+  summary: true
+- state: Claim
+  signal: ToolDone
+  next: Branch
+  action: open_branch
+  label: branch
+  summary: true
+- state: Claim
+  signal: ToolFailed
+  next: Refused
+- state: Branch
+  signal: ToolDone
+  next: Worktree
+  action: add_worktree
+  label: worktree
+  summary: true
+- state: Branch
+  signal: ToolFailed
+  next: ClaimedOnly
+- state: Worktree
+  signal: ToolDone
+  next: Install
+  action: install_skills
+  summary: true
+- state: Worktree
+  signal: ToolFailed
+  next: NoWorktree
+- state: Install
+  signal: ToolDone
+  next: Done
+- state: Install
+  signal: ToolFailed
+  next: SkillsNotInstalled
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Claim
+  signal: CommandError
+  next: Failed
+- state: Branch
+  signal: CommandError
+  next: Failed
+- state: Worktree
+  signal: CommandError
+  next: Failed
+- state: Install
+  signal: CommandError
+  next: Failed

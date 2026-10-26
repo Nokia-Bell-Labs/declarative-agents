@@ -1,0 +1,105 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The issue-file machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-issue-file-declarations
+tools:
+- name: issue_file
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - file
+  - --json
+  visibility: internal
+  description: File one unassigned issue and lint it; the plane, kind, and component follow from the paths unless given, and a recurring issue takes its type, plane, and due date (srd035, srd013, srd001 R8).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      project:
+        type: string
+        description: Project path.
+        flag: --project
+      system:
+        type: string
+        description: System repository whose subsystem SRDs give the component.
+        flag: --system
+      title:
+        type: string
+        description: The issue's title.
+        flag: --title
+      body_file:
+        type: string
+        description: File holding the body.
+        flag: --body-file
+      path:
+        type: array
+        items:
+          type: string
+        description: The paths the request changes; plane and kind follow from the set.
+        flag: --path
+      plane:
+        type: string
+        description: Plane, management, control, or data, when no path decides it.
+        flag: --plane
+      kind:
+        type: string
+        description: Kind, on data issues, when no path decides it.
+        flag: --kind
+      type:
+        type: string
+        description: Issue type, such as recurring (srd001 R8).
+        flag: --type
+      component:
+        type: string
+        description: Component, when the system's SRDs do not decide it.
+        flag: --component
+      milestone:
+        type: string
+        description: Milestone title.
+        flag: --milestone
+      due:
+        type: string
+        description: Due date, YYYY-MM-DD; a recurring issue's first instance.
+        flag: --due
+      control:
+        type: string
+        description: Program repository holding control/ files; empty is --system, else the system repository beside the checkout.
+        flag: --control
+      ref:
+        type: string
+        description: The ref of the control files; empty is main.
+        flag: --ref
+    required:
+    - project
+    - title
+    - body_file
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master issue file's JSON report — the issue's reference, labels, and admission verdict.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Files the issue and its labels in the tracker.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: A filed issue stays; admission and people decide its fate.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'issue_file: <error>'
+    state_after_failure: nothing was filed by a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the filing and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

@@ -1,0 +1,68 @@
+---
+id: st001-score-trajectories
+title: Score trajectories
+status: agreed
+---
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
+<!-- field: context | form: "tree" -->
+## Context
+
+- owner: Product Owner, po-1
+- parent: ft001-grader
+- as_a: product team lead
+- i_want: score trajectories
+- so_that: I can trust an agent before deploying it
+- points: 5
+- rank: 1
+- cites:
+  1. https://gitlab.example.com/program/system/-/blob/v1.0.0/docs/specs/software-requirements/srd001-eval.md#R1.1
+- architecture:
+  1. https://gitlab.example.com/program/platform/-/blob/v1.0.0/docs/ARCHITECTURE.md#run_store
+
+<!-- field: problem -->
+## Problem
+
+Teams cannot show that an agent works before it is deployed.
+
+<!-- field: goals -->
+## Goals
+
+- G1: Every deployed agent has passed an evaluation a team can read.
+
+<!-- req: R1 -->
+## R1 - Detail
+
+<!-- req: R1.1 -->
+### R1.1
+
+The story's detail: score trajectories.
+
+<!-- field: non_goals -->
+## Non-goals
+
+- Choosing which agents teams deploy.
+
+<!-- field: acceptance_criteria -->
+## Acceptance criteria
+
+<!-- ac: AC1 -->
+### AC1
+
+Score trajectories is shown to work.
+
+<!-- field: traces -->
+#### Traces
+
+- [R1.1](#r11)
+
+<!-- field: tests -->
+#### Tests
+
+- story_st001_score_trajectories
+
+<!-- field: applicability -->
+#### Applicability
+
+dev

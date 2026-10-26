@@ -1,0 +1,52 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The approve machine's words (GH-37). SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the issue; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-approve-declarations
+tools:
+- name: approve
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - approve
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  visibility: internal
+  description: 'Approve the issue''s branch at its tip, as a reviewer other than its assignee (srd041 R9).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      branch:
+        type: string
+        description: 'The branch to approve; empty is the issue''s pop branch.'
+        flag: --branch
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The approval''s JSON report: the branch, its tip, and the reviewer.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Posts the approval comment on the issue.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'approve: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it
