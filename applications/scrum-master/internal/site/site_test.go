@@ -262,13 +262,13 @@ func TestScaffoldTakesBackAnEarlierShell(t *testing.T) {
 	}
 }
 
-// The divider between the navigator and the page drags and keys from 769
-// pixels, kept in the browser; an embedded timeline that lands on anything
+// The divider between the navigator and the page drags and keys wherever
+// the navigator is docked, from 520 pixels, kept in the browser; an embedded timeline that lands on anything
 // but the timeline renews the session; the plan's cards route from the
 // page's folder (GH-2723).
 func TestShellResizesTheNavigatorAndWatchesItsFrames(t *testing.T) {
 	for _, want := range []string{
-		"--nav-width: 300px", ".content { left: var(--nav-width); }", `handle.className = "nav-resizer"`, `setAttribute("role", "separator")`,
+		"--nav-width: 300px; }", ".content { left: var(--nav-width); }", "@media screen and (min-width: 520px) {\n    .nav-resizer {", "@media screen and (max-width: 519px) { .nav-resizer { display: none; } }", `handle.className = "nav-resizer"`, `setAttribute("role", "separator")`,
 		`localStorage.setItem(KEY`, "handle.setPointerCapture(e.pointerId)", `e.key === "ArrowLeft"`, `addEventListener("dblclick"`,
 		"function watchFrames()", `f.contentDocument.getElementById("plot")`, "if (!ok) renewSession();", "watchFrames();",
 		`new URL(href, "http://site" + folder)`, "plainLinks(vm.route && vm.route.path)",
@@ -291,7 +291,7 @@ func TestShellResizesTheNavigatorAndWatchesItsFrames(t *testing.T) {
 func TestShellFoldsTheNavigatorAndDocksIt(t *testing.T) {
 	for _, want := range []string{
 		"function foldTree()", "foldTree();", "subMaxLevel: 0,", `r.type === "opaqueredirect"`, `Date.now() - last < 60000`, "location.reload();", `typeof e.data.timelineHeight !== "number"`, "f.contentWindow === e.source", `li.classList.toggle("folded", !open)`, "depth <= 1", `nav.querySelector("li.active")`,
-		"@media screen and (min-width: 520px) and (max-width: 768px)", ".sidebar { left: 0; width: 210px; transform: none; }",
+		"@media screen and (min-width: 520px) and (max-width: 768px)", ":root { --nav-width: 210px; }", ".sidebar { left: 0; width: var(--nav-width); transform: none; }",
 		"@media screen and (max-width: 519px)", `content: "Menu"`,
 	} {
 		if !strings.Contains(shellHTML, want) {
