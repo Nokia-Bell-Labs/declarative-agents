@@ -12,9 +12,9 @@ test_suite: test-rel04.3-distribution
 ## Summary
 
 A program runs tpm in GitLab CI: a release gate, a scheduled run, or an
-agent workflow. The job names the release's image by digest,
-ghcr.io/nokia-bell-labs/declarative-agents/scrum-master:<tag>, and runs with no install step and no Go
-toolchain. tpm in the image finds the runtime at the release it pins in
+agent workflow. The job names by digest the image the program published
+from the release to its own registry (eng03; the releases publish none,
+GH-2721), and runs with no install step and no Go toolchain. tpm in the image finds the runtime at the release it pins in
 the cache the image carries, tpm doctor reports it, and repairs a corpus
 at tpm's pin with the spec tool built into the image.
 
@@ -31,14 +31,14 @@ A pipeline in a program repository starts a job on the image.
 <!-- field: preconditions -->
 ## Preconditions
 
-- A scrum-master release whose image is published (eng03), pulled from ghcr or from the program's registry mirror.
+- A scrum-master release whose image the program published to its own registry with SCRUM_MASTER_RELEASE_IMAGE (eng03).
 - Tracker credentials, and any model credentials a profile names, in masked CI variables.
 - A program repository at the parent release the image's tpm pins, for the repair step.
 
 <!-- field: flow -->
 ## Flow
 
-- F1: The runner pulls the image by the digest the release's notes list and starts the job on it.
+- F1: The runner pulls the image by the digest mage publish listed when the program published it, and starts the job on it.
 - F2: The job runs tpm backlog check over its checkout.
 - F3: tpm doctor --dry-run reports the runtime it found in the image's cache, checked against the release's checksums, and the repair it would make with the image's spec tool, with no Go toolchain.
 - F4: The job runs agent --validate-config on a profile against the image's runtime and source root.

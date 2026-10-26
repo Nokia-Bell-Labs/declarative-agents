@@ -198,10 +198,7 @@ func (p Publisher) Publish() error {
 	if err := p.Binaries(tag); err != nil {
 		return err
 	}
-	if p.ImageRepo != "" {
-		return p.PublishImage(tag)
-	}
-	return nil
+	return p.PublishImage(tag)
 }
 
 // releaseTag is the v0.* tag at HEAD when the Publisher has git, else

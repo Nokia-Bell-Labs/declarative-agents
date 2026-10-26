@@ -3,6 +3,7 @@
 package release
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -159,6 +160,31 @@ func TestImageNeedsBuildx(t *testing.T) {
 	}
 	if err := p.PublishImage("v0.20261015.1"); err == nil || f.count("docker buildx build") != 0 {
 		t.Fatalf("an image was built without its tools: %v", err)
+	}
+}
+
+// With no image repository named, publish uploads the assets, runs no
+// docker, and says no image is published; the preflight asks for no
+// buildx (GH-2721).
+func TestPublishWithNoImageRepositoryPublishesNoImage(t *testing.T) {
+	p, f := imageRelease(t)
+	p.ImageRepo, f.noBuildx = "", true
+	var out bytes.Buffer
+	p.Out = &out
+	if err := p.Check(); err != nil {
+		t.Fatalf("the preflight wanted the image's tools with no image to publish: %v", err)
+	}
+	if err := p.Publish(); err != nil {
+		t.Fatalf("%v\n%s", err, out.String())
+	}
+	if len(f.uploaded) != 6 {
+		t.Fatalf("uploaded %v, want every asset", f.uploaded)
+	}
+	if f.count("docker") != 0 {
+		t.Fatalf("docker ran with no image to publish:\n%s", strings.Join(f.ran, "\n"))
+	}
+	if !strings.Contains(out.String(), NoImage) {
+		t.Fatalf("publish did not say no image is published:\n%s", out.String())
 	}
 }
 
