@@ -86,8 +86,11 @@ Weekly, due the day after %[8]s. After its merge closes it, the reports reposito
 `, m.Username, week, DueDate(weekStart, reminder).Format("2006-01-02"), m.Project, reportsProject, branch, path, reminder, statusMarker(week, m.Username), control)
 }
 
-// StatusResult is what status-issues did for one person.
+// StatusResult is what status-issues did for one person's status issue or
+// one rollup issue.
 type StatusResult struct {
+	// Kind is status, team-rollup, or program-rollup; empty is status.
+	Kind     string   `json:"kind,omitempty"`
 	User     string   `json:"user"`
 	Project  string   `json:"project"`
 	Week     string   `json:"week"`
@@ -122,52 +125,81 @@ func StatusIssues(t tracker.Tracker, in StatusInput) ([]StatusResult, error) {
 	var out []StatusResult
 	for _, m := range in.Config.Team {
 		r := StatusResult{User: m.Username, Project: m.Project, Week: week, DueDate: due}
-		issues, err := t.ListIssues(m.Project, tracker.IssueQuery{State: "all", Labels: []string{"type::recurring"}})
-		if err != nil {
-			return out, err
-		}
-		var latest *tracker.Issue
-		latestWeek := ""
-		for k := range issues {
-			mm := statusPattern.FindStringSubmatch(issues[k].Description)
+		mine := func(desc string) (string, bool) {
+			mm := statusPattern.FindStringSubmatch(desc)
 			if mm == nil || mm[2] != m.Username {
-				continue
+				return "", false
 			}
-			if mm[1] == week {
-				r.Action, r.IID, r.WebURL, r.Admitted = "exists", issues[k].IID, issues[k].WebURL, true
-				break
-			}
-			if mm[1] > latestWeek {
-				latest, latestWeek = &issues[k], mm[1]
-			}
+			return mm[1], true
 		}
-		if r.Action == "" {
-			body := StatusBody(in.Config, m, in.Reports, start)
-			if latest != nil {
-				rr, err := standup.Recur(t, m.Project, latest.IID, standup.RecurOptions{
-					Title: in.Config.Title(week), DueDate: due, Body: body, Policy: in.Policy, Now: in.Now, DryRun: in.DryRun})
-				if err != nil {
-					return out, err
-				}
-				r.Action, r.IID, r.WebURL, r.Admitted = "recurred", rr.Next, rr.NextURL, rr.Admitted || in.DryRun
-			} else {
-				l, err := program.Derive(t, m.Project, in.Config.System, in.Ref, nil, program.Labelling{Plane: "data", Kind: "review"})
-				if err != nil {
-					return out, err
-				}
-				labels := append([]string{"type::recurring"}, program.Labels(l.Plane, "", l.Kind, l.Component)...)
-				labels = append(labels, program.Op(program.OpStatus))
-				fr, err := program.File(t, m.Project, tracker.NewIssue{Title: in.Config.Title(week), Description: body, Labels: labels, DueDate: due}, in.Policy, in.DryRun)
-				if err != nil {
-					return out, err
-				}
-				r.Action, r.IID, r.WebURL, r.Admitted, r.Reasons = "filed", fr.IID, fr.WebURL, fr.Lint.Admitted, fr.Lint.Reasons
-			}
+		body := StatusBody(in.Config, m, in.Reports, start)
+		if err := ensureRecurring(t, &r, ensureInput{Project: m.Project, Mine: mine, Title: in.Config.Title(week), Body: body,
+			System: in.Config.System, Ref: in.Ref, Policy: in.Policy, Now: in.Now, DryRun: in.DryRun}); err != nil {
+			return out, err
 		}
 		out = append(out, r)
 	}
 	sort.SliceStable(out, func(a, b int) bool { return out[a].User < out[b].User })
 	return out, nil
+}
+
+// ensureInput is one recurring issue to leave for the target week.
+type ensureInput struct {
+	Project string
+	// Mine reads the week an issue of the kind names, ok for one that is
+	// this kind's for the same person or level.
+	Mine        func(description string) (week string, ok bool)
+	Title, Body string
+	System, Ref string
+	Policy      program.Policy
+	Now         time.Time
+	DryRun      bool
+}
+
+// ensureRecurring leaves one issue of the kind in the project for r.Week:
+// an existing one is kept, the latest earlier one is recurred, and with
+// none a fresh one is filed, labelled as a recurring data review issue.
+func ensureRecurring(t tracker.Tracker, r *StatusResult, in ensureInput) error {
+	issues, err := t.ListIssues(in.Project, tracker.IssueQuery{State: "all", Labels: []string{"type::recurring"}})
+	if err != nil {
+		return err
+	}
+	var latest *tracker.Issue
+	latestWeek := ""
+	for k := range issues {
+		w, ok := in.Mine(issues[k].Description)
+		if !ok {
+			continue
+		}
+		if w == r.Week {
+			r.Action, r.IID, r.WebURL, r.Admitted = "exists", issues[k].IID, issues[k].WebURL, true
+			return nil
+		}
+		if w > latestWeek {
+			latest, latestWeek = &issues[k], w
+		}
+	}
+	if latest != nil {
+		rr, err := standup.Recur(t, in.Project, latest.IID, standup.RecurOptions{
+			Title: in.Title, DueDate: r.DueDate, Body: in.Body, Policy: in.Policy, Now: in.Now, DryRun: in.DryRun})
+		if err != nil {
+			return err
+		}
+		r.Action, r.IID, r.WebURL, r.Admitted = "recurred", rr.Next, rr.NextURL, rr.Admitted || in.DryRun
+		return nil
+	}
+	l, err := program.Derive(t, in.Project, in.System, in.Ref, nil, program.Labelling{Plane: "data", Kind: "review"})
+	if err != nil {
+		return err
+	}
+	labels := append([]string{"type::recurring"}, program.Labels(l.Plane, "", l.Kind, l.Component)...)
+	labels = append(labels, program.Op(program.OpStatus))
+	fr, err := program.File(t, in.Project, tracker.NewIssue{Title: in.Title, Description: in.Body, Labels: labels, DueDate: r.DueDate}, in.Policy, in.DryRun)
+	if err != nil {
+		return err
+	}
+	r.Action, r.IID, r.WebURL, r.Admitted, r.Reasons = "filed", fr.IID, fr.WebURL, fr.Lint.Admitted, fr.Lint.Reasons
+	return nil
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }

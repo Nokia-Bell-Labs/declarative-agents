@@ -29,12 +29,17 @@ type FrontMatter struct {
 // Entry is one list item of Work or Blockers: key: value pairs.
 type Entry map[string]string
 
-// Report is one parsed report file.
+// Report is one parsed report file. Impact and Next, the plain list items
+// of their optional sections, say why the week's work mattered and what
+// the author commits to next; validate and aggregate read a report without
+// them as before (GH-2725).
 type Report struct {
 	Path        string      `json:"path"`
 	FrontMatter FrontMatter `json:"front_matter"`
 	Work        []Entry     `json:"work"`
 	Blockers    []Entry     `json:"blockers"`
+	Impact      []string    `json:"impact,omitempty"`
+	Next        []string    `json:"next,omitempty"`
 	hasWork     bool
 	hasBlockers bool
 }
@@ -72,9 +77,31 @@ func isoWeekday(t time.Time) int {
 	return 7
 }
 
-// ReportPath is where a person's report for t's week lives.
+// ReportPath is where a person's report for t's week lives in a central
+// reports repository.
 func ReportPath(t time.Time, username string) string {
 	return path.Join("reports", Quarter(t), ISOWeek(t)+"-"+username+".md")
+}
+
+// StatusDir holds a repository's status: the reports of the people who
+// worked in it and its rollups, outside docs/ so the corpus gate reads
+// none of it as intent (GH-2725).
+const StatusDir = "status"
+
+// InPlaceReportPath is where a person's report for t's week lives in the
+// repository where they worked.
+func InPlaceReportPath(t time.Time, username string) string {
+	return path.Join(StatusDir, ReportPath(t, username))
+}
+
+// ProgramLevel names the program's rollup; a team's is named for its
+// subsystem.
+const ProgramLevel = "program"
+
+// RollupPath is where the rollup for t's week lives: a team's under its
+// subsystem's name, the program's as program.
+func RollupPath(t time.Time, name string) string {
+	return path.Join(StatusDir, "rollups", Quarter(t), ISOWeek(t)+"-"+name+".md")
 }
 
 var entryPattern = regexp.MustCompile(`^\s*[-*]\s+(.*)$`)
@@ -97,24 +124,35 @@ func ParseReport(p string, src []byte) (Report, error) {
 		return r, fmt.Errorf("%s: front matter: %w", p, err)
 	}
 	var section *[]Entry
+	var plain *[]string
 	for _, line := range strings.Split(body, "\n") {
 		switch strings.TrimSpace(line) {
 		case "## Work":
-			section, r.hasWork = &r.Work, true
+			section, plain, r.hasWork = &r.Work, nil, true
 			continue
 		case "## Blockers":
-			section, r.hasBlockers = &r.Blockers, true
+			section, plain, r.hasBlockers = &r.Blockers, nil, true
+			continue
+		case "## Impact":
+			section, plain = nil, &r.Impact
+			continue
+		case "## Next":
+			section, plain = nil, &r.Next
 			continue
 		}
 		if strings.HasPrefix(line, "## ") {
-			section = nil
+			section, plain = nil, nil
 			continue
 		}
 		m := entryPattern.FindStringSubmatch(line)
-		if m == nil || section == nil {
+		if m == nil || strings.TrimSpace(m[1]) == "none" {
 			continue
 		}
-		if strings.TrimSpace(m[1]) == "none" {
+		if plain != nil {
+			*plain = append(*plain, strings.TrimSpace(m[1]))
+			continue
+		}
+		if section == nil {
 			continue
 		}
 		e := parseEntry(m[1])
@@ -232,6 +270,12 @@ func missing(where string, e Entry, keys []string) []string {
 // Render writes a report in the format, its front matter derived from the
 // body, so what scrum-master writes always validates.
 func Render(author, sprint string, work, blockers []Entry) string {
+	return RenderWith(author, sprint, work, blockers, nil, nil)
+}
+
+// RenderWith is Render with the report's Impact and Next, each section
+// written only when it holds an item.
+func RenderWith(author, sprint string, work, blockers []Entry, impact, next []string) string {
 	named := make([]Entry, len(work))
 	for i, e := range work {
 		named[i] = sprintGoalKey(maps.Clone(e))
@@ -251,6 +295,18 @@ func Render(author, sprint string, work, blockers []Entry) string {
 	}
 	for _, e := range blockers {
 		b.WriteString("- " + entryText(e, BlockerKeys) + "\n")
+	}
+	for _, s := range []struct {
+		title string
+		items []string
+	}{{"Impact", impact}, {"Next", next}} {
+		if len(s.items) == 0 {
+			continue
+		}
+		b.WriteString("\n## " + s.title + "\n\n")
+		for _, it := range s.items {
+			b.WriteString("- " + it + "\n")
+		}
 	}
 	return b.String()
 }

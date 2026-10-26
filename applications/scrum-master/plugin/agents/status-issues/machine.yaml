@@ -7,8 +7,9 @@ purpose: |-
   manager asks to open the week's status issues.
 
   This machine has no model state: scrum-master reports status-issues
-  (design.md D10, D14; GH-37). SCRUM_MASTER_REPORTS names the reports repository's
-  checkout.
+  (design.md D10, D14; GH-37). With control, it reads the roster in the
+  system repository's control/reports.md (GH-2725); without it,
+  SCRUM_MASTER_REPORTS names a central reports repository's checkout.
 configuration:
   machine: plugin/agents/status-issues/machine.yaml
   tools: plugin/agents/status-issues/tools.yaml
@@ -28,7 +29,9 @@ states:
 - name: StatusIssues
   meaning: |
     The status-issues word: scrum-master reports status-issues files one
-    status issue per listed person for the coming week, and files none
+    status issue per listed person for the coming week, in the repository
+    they report in, and with control one team rollup issue per subsystem
+    and one program rollup issue, each due after the last; it files none
     twice.
 - name: Done
   run_status: succeeded

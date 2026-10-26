@@ -1,0 +1,70 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The reports-collect machine's words (GH-2725); optional flags are parameters from
+# the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-reports-collect-declarations
+tools:
+- name: reports_collect
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - collect
+  - --json
+  visibility: internal
+  description: 'Collect a level''s merged reports and rollups, each with its repository and commit, and its open status issues (GH-2725).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      control:
+        type: string
+        description: 'The system repository, whose subsystem SRDs name the program''s repositories.'
+        flag: --control
+      level:
+        type: string
+        description: 'team or program.'
+        flag: --level
+      subsystem:
+        type: string
+        description: 'The team''s subsystem SRD id; empty is the one naming project.'
+        flag: --subsystem
+      project:
+        type: string
+        description: 'The repository the collection runs in, naming the team when subsystem is empty.'
+        flag: --project
+      from:
+        type: string
+        description: 'The first ISO week, YYYY-Www; empty is this week.'
+        flag: --from
+      to:
+        type: string
+        description: 'The last ISO week; empty is from.'
+        flag: --to
+      ref:
+        type: string
+        description: 'The ref of the system repository''s control files; empty is main.'
+        flag: --ref
+    required: [control, level]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The word''s JSON report.'
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'reports_collect: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: nothing was written

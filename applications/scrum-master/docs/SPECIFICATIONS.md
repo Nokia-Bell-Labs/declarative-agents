@@ -148,7 +148,8 @@ docs/road-map.md.
 | id | path | title |
 | --- | --- | --- |
 | [report](specs/config-formats/report.md) | docs/specs/config-formats/report.md | Weekly status report |
-| [reports-config](specs/config-formats/reports-config.md) | docs/specs/config-formats/reports-config.md | Reports repository configuration |
+| [reports-config](specs/config-formats/reports-config.md) | docs/specs/config-formats/reports-config.md | Reports roster |
+| [rollup](specs/config-formats/rollup.md) | docs/specs/config-formats/rollup.md | Status rollup |
 | [issue-body](specs/config-formats/issue-body.md) | docs/specs/config-formats/issue-body.md | Issue body conventions |
 | [labels](specs/config-formats/labels.md) | docs/specs/config-formats/labels.md | Label schema |
 | [person-config](specs/config-formats/person-config.md) | docs/specs/config-formats/person-config.md | Person configuration |

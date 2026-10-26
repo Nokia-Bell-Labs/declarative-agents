@@ -26,6 +26,7 @@ type Fake struct {
 	Branches   map[string]string           // "project@branch" -> ref it was created from
 	Default    string                      // default branch of every project
 	MRs        map[string][]*tracker.Merge // project -> merged deliveries
+	Commits    map[string]string           // "project@ref:path" -> the commit that last changed it
 	// Writes counts every mutating call, so a dry run can prove it wrote nothing.
 	Writes int
 }
@@ -66,6 +67,26 @@ func (f *Fake) ListDir(project, dir, ref string) ([]string, error) {
 	}
 	slices.Sort(out)
 	return out, nil
+}
+
+// LastCommit names a file's commit: the one SetCommit recorded, else one
+// derived from where it is, so each file cites a commit.
+func (f *Fake) LastCommit(project, path, ref string) (string, error) {
+	if _, ok := f.Files[project+"@"+ref+":"+path]; !ok {
+		return "", tracker.ErrNotFound
+	}
+	if c, ok := f.Commits[project+"@"+ref+":"+path]; ok {
+		return c, nil
+	}
+	return fmt.Sprintf("%x", len(project+path)*7919+len(ref)), nil
+}
+
+// SetCommit records the commit that last changed a file.
+func (f *Fake) SetCommit(project, ref, path, commit string) {
+	if f.Commits == nil {
+		f.Commits = map[string]string{}
+	}
+	f.Commits[project+"@"+ref+":"+path] = commit
 }
 
 func (f *Fake) TagExists(project, tag string) (bool, error) { return f.Tags[project+"@"+tag], nil }

@@ -91,6 +91,32 @@ list of entries
 
 The "## Blockers" section, one entry per blocker, in the same key: value form. Keys: blocker (free text), component (the component blocked), since (YYYY-MM-DD, the day the blocker began), and waiting-on (the component or issue reference it waits on). The section holds the single entry "none" when nothing blocks.
 
+<!-- schema_entry: impact -->
+### impact
+
+<!-- field: type -->
+#### Type
+
+list of text
+
+<!-- field: description -->
+#### Description
+
+The optional "## Impact" section: why the week's work mattered, in the author's words, one plain list item each. A report without it reads as before (srd018 R12.1).
+
+<!-- schema_entry: next -->
+### next
+
+<!-- field: type -->
+#### Type
+
+list of text
+
+<!-- field: description -->
+#### Description
+
+The optional "## Next" section: what the author commits to for the coming week, one plain list item each, which next week's report answers; scrum-master reports previous returns it with the Blockers (srd018 R14.1).
+
 <!-- field: validation_rules -->
 ## Validation rules
 
@@ -102,7 +128,7 @@ The "## Blockers" section, one entry per blocker, in the same key: value form. K
 <!-- field: config_files -->
 ## Config files
 
-reports/<YYYY-Qn>/<YYYY-Www>-<username>.md in the reports repository, one file per listed person per ISO week, where the quarter is the ISO week's quarter.
+status/reports/<YYYY-Qn>/<YYYY-Www>-<username>.md in the repository where the person worked, one file per listed person per ISO week, where the quarter is the ISO week's quarter (srd018 R12.1); reports/<YYYY-Qn>/<YYYY-Www>-<username>.md in a central reports repository a program has not moved from.
 
 <!-- field: example -->
 ## Example
@@ -123,4 +149,12 @@ reports/<YYYY-Qn>/<YYYY-Www>-<username>.md in the reports repository, one file p
     ## Blockers
 
     - blocker: stale results from the scoring API; component: grader; since: 2026-10-08; waiting-on: scoring-api
+
+    ## Impact
+
+    - the grader scores the first task end to end, so the scorecard has real numbers
+
+    ## Next
+
+    - score a second task once the scoring API is fixed
 ```

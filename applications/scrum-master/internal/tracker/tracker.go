@@ -255,6 +255,33 @@ type Forge interface {
 	CreateBranch(project, branch, ref string) error
 }
 
+// HostFiles is a tracking system whose host serves a repository's files
+// on its default branch without a checkout of it, as GitHub's and GitLab's
+// APIs do: what a reader collecting from many repositories asks first, so
+// it clones none of them (GH-2725). The checkout forge every system shares
+// stays the reader of record (srd042 R2.3), and such a reader falls back to
+// it when the host cannot answer.
+type HostFiles interface {
+	// HostTree lists the paths of the files under dir, at any depth.
+	HostTree(project, dir string) ([]string, error)
+	// HostFile reads one file and names the commit that last changed it.
+	HostFile(project, path string) (content []byte, commit string, err error)
+}
+
+// FileCommits names the commit that last changed a file at a ref, as a
+// checkout's history does: how a reader cites a file it read from a
+// checkout rather than from a host (GH-2725).
+type FileCommits interface {
+	LastCommit(project, path, ref string) (string, error)
+}
+
+// Checkouts says whether a project has a checkout of its own to read, as
+// opposed to the command's checkout the code half reads for any project it
+// finds no sibling for (GH-2725).
+type Checkouts interface {
+	HasCheckout(project string) bool
+}
+
 // Tracker is a whole tracking system, both halves, as one package: bd, gh,
 // or glab, chosen per repository (srd042). A caller that needs one half
 // takes that half; a new need is a new method on the half it belongs to.

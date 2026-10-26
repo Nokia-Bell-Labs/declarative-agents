@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -91,7 +92,7 @@ func init() {
 		},
 	})
 
-	var statusArgs struct{ dir, reports, ref, date string }
+	var statusArgs struct{ dir, reports, ref, date, control string }
 	cli.Default.Register(&cli.Command{
 		Group: "reports", Name: "status-issues", Summary: "leave one weekly status issue per listed person for the coming week",
 		Flags: func(fs *flag.FlagSet) {
@@ -99,10 +100,17 @@ func init() {
 			fs.StringVar(&statusArgs.reports, "reports", "", "the reports repository's project path (required)")
 			fs.StringVar(&statusArgs.ref, "ref", "main", "ref of the system repository's control files and subsystem SRDs")
 			fs.StringVar(&statusArgs.date, "date", "", "run as of this day YYYY-MM-DD; empty is today")
+			fs.StringVar(&statusArgs.control, "control", "", "the system repository holding control/reports.md: file each person's status issue where they report, and the team and program rollup issues (GH-2725)")
 		},
 		Run: func(ctx *cli.Context) error {
+			if statusArgs.control != "" {
+				return statusInPlace(ctx, statusArgs.control, statusArgs.ref, statusArgs.date)
+			}
 			if statusArgs.reports == "" {
-				return fmt.Errorf("%w: status-issues needs --reports", cli.ErrUsage)
+				statusArgs.reports = strings.TrimSpace(os.Getenv(ReportsEnv)) //nolint:forbidigo // Reads the documented SCRUM_MASTER_* environment interface.
+			}
+			if statusArgs.reports == "" {
+				return fmt.Errorf("%w: status-issues needs --control, or --reports for a central reports repository", cli.ErrUsage)
 			}
 			cfg, err := LoadConfig(statusArgs.dir)
 			if err != nil {
@@ -189,8 +197,9 @@ func init() {
 	})
 
 	var aggArgs struct {
-		dir, from, to, ref string
-		push               bool
+		dir, from, to, ref                            string
+		control, level, subsystem, project, collected string
+		push                                          bool
 	}
 	cli.Default.Register(&cli.Command{
 		Group: "reports", Name: "aggregate", Summary: "aggregate a week or a range of reports into signals by component",
@@ -200,34 +209,42 @@ func init() {
 			fs.StringVar(&aggArgs.to, "to", "", "last ISO week YYYY-Www; empty is --from")
 			fs.StringVar(&aggArgs.ref, "ref", "main", "ref of the system repository's control files")
 			fs.BoolVar(&aggArgs.push, "push", false, "file each actionable signal as an issue in the system repository")
+			fs.StringVar(&aggArgs.control, "control", "", "the system repository holding control/reports.md: aggregate a level's reports collected where they were written, not --dir's (GH-2725)")
+			fs.StringVar(&aggArgs.level, "level", "", "with --control, team or program")
+			fs.StringVar(&aggArgs.subsystem, "subsystem", "", "with --level team, the team's subsystem SRD id; empty is the one naming --project")
+			fs.StringVar(&aggArgs.project, "project", "", "with --level team, the repository the aggregate runs in")
+			fs.StringVar(&aggArgs.collected, "collected", "", "with --control, a file holding reports collect's JSON to aggregate instead of collecting again")
 		},
 		Run: func(ctx *cli.Context) error {
-			cfg, err := LoadConfig(aggArgs.dir)
+			from, to := weeksOf(aggArgs.from, aggArgs.to)
+			t, err := ctx.Tracker()
 			if err != nil {
 				return err
 			}
-			from, to := aggArgs.from, aggArgs.to
-			if from == "" {
-				from = ISOWeek(time.Now())
-			}
-			if to == "" {
-				to = from
-			}
-			t, err := ctx.Tracker()
-			if err != nil {
+			var cfg Config
+			var col *Collection
+			if aggArgs.control != "" {
+				if cfg, err = roster(t, aggArgs.control, aggArgs.ref); err != nil {
+					return err
+				}
+				if col, err = collection(t, cfg, aggArgs.control, aggArgs.ref, aggArgs.level, aggArgs.subsystem, aggArgs.project, aggArgs.collected, from, to); err != nil {
+					return err
+				}
+				from, to = col.From, col.To
+			} else if cfg, err = LoadConfig(aggArgs.dir); err != nil {
 				return err
 			}
 			p, err := program.LoadPolicy(t, cfg.System, aggArgs.ref)
 			if err != nil {
 				return err
 			}
-			a, err := Aggregate(t, AggregateInput{Dir: aggArgs.dir, Config: cfg, Policy: p, From: from, To: to})
+			a, err := Aggregate(t, AggregateInput{Dir: aggArgs.dir, Config: cfg, Policy: p, From: from, To: to, Collection: col})
 			if err != nil {
 				return err
 			}
 			if aggArgs.push {
 				if cfg.System == "" {
-					return fmt.Errorf("%w: --push needs system in reports.md", cli.ErrUsage)
+					return fmt.Errorf("%w: --push needs --control, or system in reports.md", cli.ErrUsage)
 				}
 				if a.Pushed, err = PushSignals(t, cfg.System, a.Signals, p, ctx.DryRun); err != nil {
 					return err

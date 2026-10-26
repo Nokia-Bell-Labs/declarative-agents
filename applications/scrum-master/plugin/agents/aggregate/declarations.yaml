@@ -34,6 +34,26 @@ tools:
         type: string
         description: 'The ref of the control files; empty is main.'
         flag: --ref
+      control:
+        type: string
+        description: 'The system repository holding control/reports.md: aggregate a level''s reports collected where they were written, not the checkout''s (GH-2725).'
+        flag: --control
+      level:
+        type: string
+        description: 'With control, team or program.'
+        flag: --level
+      subsystem:
+        type: string
+        description: 'With level team, the team''s subsystem SRD id; empty is the one naming project.'
+        flag: --subsystem
+      project:
+        type: string
+        description: 'With level team, the repository the aggregate runs in.'
+        flag: --project
+      collected:
+        type: string
+        description: 'With control, a file holding reports collect''s JSON to aggregate instead of collecting again.'
+        flag: --collected
   signature:
     emits: [ToolDone, ToolFailed, CommandError]
   output:
