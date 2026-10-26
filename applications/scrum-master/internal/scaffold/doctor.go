@@ -346,7 +346,7 @@ func Doctor(o DoctorOptions) (DoctorResult, error) {
 	}
 	r.Pinned, _ = spectool.Pinned(o.Dir)
 	if r.Vendored != "" && r.Pinned != "" && r.Vendored != r.Pinned && version.IsRelease(r.Vendored) && version.IsRelease(r.Pinned) {
-		r.PinDrift = fmt.Sprintf("pin %s in %s, but %s is vendored; rerun the init or onboard profile to move the pin and repair the documents to its format", r.Pinned, spectool.PinsFile, r.Vendored)
+		r.PinDrift = fmt.Sprintf("pin %s in %s, but %s is vendored; run the upgrade profile to move the pin and repair the documents to its format", r.Pinned, spectool.PinsFile, r.Vendored)
 	}
 	if r.Credentials, err = profileCredentials(); err != nil {
 		return r, err

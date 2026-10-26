@@ -72,7 +72,7 @@ The binary also embeds plugin/agents/<name>/: the declarative-agents profile of 
 <!-- req: R2.1 -->
 ### R2.1
 
---agent names cursor, claude, or copilot, repeatable, or all. --dir is the repository to install into, by default the root of the git repository holding the working directory.
+--agent names cursor, claude, or copilot, repeatable, or all, or detect, the agents the repository already uses as init's --agent detect finds them (srd043 R1.4), refused when it uses none (GH-2719). --dir is the repository to install into, by default the root of the git repository holding the working directory.
 
 <!-- req: R2.2 -->
 ### R2.2
@@ -192,7 +192,7 @@ plugin/ is embedded; every SKILL.md conforms to Agent Skills and is at most 50 l
 <!-- ac: AC2 -->
 ### AC2
 
-Installing for cursor, claude, and copilot writes each skill as an Agent Skills directory in .cursor/skills, .claude/skills, or .github/skills, into the repository root by default.
+Installing for cursor, claude, and copilot writes each skill as an Agent Skills directory in .cursor/skills, .claude/skills, or .github/skills, into the repository root by default; with detect, only for the agents the repository uses, and a repository that uses none is refused.
 
 <!-- field: traces -->
 #### Traces

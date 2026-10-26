@@ -205,7 +205,7 @@ func sortedKeys[V any](m map[string]V) []string {
 func CheckVendored(dir string) ([]Finding, error) {
 	b, err := os.ReadFile(filepath.Join(dir, ManifestFile))
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, errors.New("nothing is vendored in " + VendorDir + "; run the init or onboard profile")
+		return nil, errors.New("nothing is vendored in " + VendorDir + "; run the upgrade profile")
 	} else if err != nil {
 		return nil, err
 	}

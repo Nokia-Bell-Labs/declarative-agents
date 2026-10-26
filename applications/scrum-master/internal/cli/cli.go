@@ -171,7 +171,7 @@ func (r *Registry) RunIn(args []string, in io.Reader, out io.Writer, open func()
 		if len(args) > 1 && !strings.HasPrefix(args[1], "-") {
 			sub = " " + args[1]
 		}
-		return fmt.Errorf("scrum-master %s is now scrum-master %s: run scrum-master %s%s; a skill that called scrum-master %s was installed by an earlier release, so rerun the init or onboard profile to update it",
+		return fmt.Errorf("scrum-master %s is now scrum-master %s: run scrum-master %s%s; a skill that called scrum-master %s was installed by an earlier release, so run the upgrade profile to update it",
 			args[0], now, now, sub, args[0])
 	}
 	group, ok := r.commands[args[0]]

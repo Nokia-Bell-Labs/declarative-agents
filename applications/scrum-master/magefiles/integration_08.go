@@ -138,6 +138,6 @@ func expectOrientation(c *check, dir string, has, lacks []string) {
 	architecture, _ := os.ReadFile(filepath.Join(dir, "docs", "ARCHITECTURE.md"))
 	c.expect(strings.Contains(string(architecture), "docs/engineering/"), "ARCHITECTURE.md does not name docs/engineering/")
 	agents, _ := os.ReadFile(filepath.Join(dir, scaffold.AgentsFile))
-	c.expect(strings.Contains(string(agents), "Mermaid in a fenced code block") && strings.Contains(string(agents), "rerun the init or onboard profile"),
+	c.expect(strings.Contains(string(agents), "Mermaid in a fenced code block") && strings.Contains(string(agents), "run the upgrade profile"),
 		"AGENTS.md lacks the figure rule or the rerun that brings the repository up to date")
 }

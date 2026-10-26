@@ -233,7 +233,7 @@ func humanDoctor(r DoctorResult) string {
 		fmt.Fprintf(&b, "repair skipped: %s\n", r.Repair.Skipped)
 	}
 	if r.Vendored == "" {
-		fmt.Fprintf(&b, "profiles: none vendored; run the init or onboard profile with the agent\n")
+		fmt.Fprintf(&b, "profiles: none vendored; run the upgrade profile with the agent\n")
 	} else {
 		fmt.Fprintf(&b, "profiles: %s vendored in %s\n", r.Vendored, install.VendorDir)
 	}

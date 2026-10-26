@@ -35,7 +35,7 @@ func (Integration) IssueGroup() error {
 	}
 
 	_, err = r.runWords("program", "pop", "--project", po1, "--issue", "1")
-	c.expect(err != nil && strings.Contains(err.Error(), "scrum-master issue pop") && strings.Contains(err.Error(), "rerun the init or onboard profile"),
+	c.expect(err != nil && strings.Contains(err.Error(), "scrum-master issue pop") && strings.Contains(err.Error(), "run the upgrade profile"),
 		"scrum-master program pop: %v, want a refusal naming scrum-master issue pop and the rerun that updates a skill", err)
 
 	recurring := func(title, due, body string) (tracker.Issue, error) {

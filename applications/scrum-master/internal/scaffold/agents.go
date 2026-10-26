@@ -32,13 +32,13 @@ func agentsFile(level string) ([]byte, error) {
 		"- Every change starts as an issue: file it with the specify skill, take it with the pop or implement skill, and deliver it with the merge skill. Never commit to main directly.\n" +
 		"- A change under docs/ is a change of intent: the corpus gate must pass before it merges.\n" +
 		"- Run a workflow through its skill: each runs the agent over its profile in .scrum-master, and the profile's words fetch the facts and write the tracker. Never read or edit tracker files by hand. The words do the workflow, and the model writes only language (docs/constitutions/design.md D10).\n" +
-		"- Every document follows docs/constitutions/design.md: Markdown with marker tags, in the format of the parent release docs/external-pins.yaml pins. After taking a new release, rerun the init or onboard profile to add missing files and repair the format; the check skill reports what drifted.\n" +
+		"- Every document follows docs/constitutions/design.md: Markdown with marker tags, in the format of the parent release docs/external-pins.yaml pins. After taking a new release, run the upgrade profile to vendor it, add missing files, repair the format, and refresh the skills; the check skill reports what drifted.\n" +
 		"- Every figure is Mermaid in a fenced code block inside the Markdown document that shows it. Put no generated image file, and no other diagram source, under docs/.\n")
 	if level == "system" {
 		b.WriteString("- When control/trackers.md names a tracker_branch of this repository, it is a program of one repository: the tracker lives on that branch. Never check it out, merge it, or base a branch on it.\n")
 	}
 	b.WriteString("\n")
-	b.WriteString("## Skills\n\nThe init or onboard profile installs them for your agent; rerun it to update them.\n\n")
+	b.WriteString("## Skills\n\nThe init or onboard profile installs them for your agent; the upgrade profile updates them to a new release.\n\n")
 	// Every skill serves both levels: tasks files a release's Sprint Goals
 	// at the system and a story's issues in a team's repository (#188).
 	for _, s := range skills {

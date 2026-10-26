@@ -17,7 +17,8 @@ title: "Script: init, onboard, and doctor (scrum-master init, scrum-master onboa
 - Only a tpm-managed block is refreshed. The orientation files are scrum-master's account of its own process, so a newer scrum-master updates them; text a person writes around the block is theirs.
 - A block is appended to an orientation file that has none, rather than the file being kept as edited. AGENTS.md at the top level is the one place every agent reads, so scrum-master stays agent-agnostic by writing there, and a repository that joins a program usually already has its own AGENTS.md and README.md; keeping them untouched would leave scrum-master's text out, and --force would replace the owner's. An owner who deletes the block gets it back on the next run. Every other skeleton file belongs to its owner once written, so it is never refreshed and R3.2 holds for it.
 - Repair runs the formatter the agent carries: the agent links agent-core's format library with the words, so it formats and checks in its own process with no Go toolchain (GH-33). Outside the agent, repair builds the spec tool from the pinned release's source as mage fmt builds it (srd040 R1.1), with a Go toolchain or a tool already built at the pin.
-- doctor reports the release the repository vendored rather than vendoring it. Repair changes only documents; the vendoring is the init and onboard profiles' step (srd037 R7.4), so doctor names a rerun as the fix.
+- doctor reports the release the repository vendored rather than vendoring it. Repair changes only documents; the vendoring is the init, onboard, and upgrade profiles' step (srd037 R7.4), so doctor names the upgrade profile as the fix.
+- Taking a new release is its own profile, upgrade, not a rerun of init or onboard (GH-2719). A rerun of init may seed a tracker and a rerun of onboard files a registration when none is open, which are steps of laying a repository down; upgrade composes only the three steps a new release needs, vendor, doctor, and install, each a word that keeps what a person edited, at either level.
 
 <!-- field: problem -->
 ## Problem
@@ -174,14 +175,33 @@ A dry run reports what doctor would write, append, refresh, extend, and repair a
 <!-- req: R4.7 -->
 ### R4.7
 
-Reports the release whose profiles the repository vendored, from .scrum-master's manifest (srd037 R7.4), or that it vendored none, with a rerun of the init or onboard profile as the fix (GH-34). It also names each tracker clone kept under the user cache that follows no origin: one whose origin is a local path that no longer exists (GH-116), or one made again there since, holding none of the clone's history (GH-141). It removes none, since a clone may hold the only copy of a tracker's commits, pushed or not; the person copies what they need and removes it. Each is drift, so the check profile fails on it (GH-141). The report changes nothing, so a dry run gives it too. Opening a tracker made again at a cached clone's origin sets that clone aside, renamed beside it, and clones the new tracker, so the old one's history is never read as the new one's; a clone whose origin is simply gone is read as it is (GH-141).
+Reports the release whose profiles the repository vendored, from .scrum-master's manifest (srd037 R7.4), or that it vendored none, with the upgrade profile (R5) as the fix (GH-34). It also names each tracker clone kept under the user cache that follows no origin: one whose origin is a local path that no longer exists (GH-116), or one made again there since, holding none of the clone's history (GH-141). It removes none, since a clone may hold the only copy of a tracker's commits, pushed or not; the person copies what they need and removes it. Each is drift, so the check profile fails on it (GH-141). The report changes nothing, so a dry run gives it too. Opening a tracker made again at a cached clone's origin sets that clone aside, renamed beside it, and clones the new tracker, so the old one's history is never read as the new one's; a clone whose origin is simply gone is read as it is (GH-141).
+
+<!-- req: R5 -->
+## R5 - The upgrade profile
+
+<!-- req: R5.1 -->
+### R5.1
+
+The upgrade profile brings a program repository to the release install.sh installed on the host, in three words and in this order: scrum-master install --profiles vendors the release (srd037 R7.4); scrum-master doctor repairs the repository at it (R4), writing the missing files, refreshing the managed blocks, and moving the format pin as a rerun does (R3.3); and scrum-master install --agent detect rewrites the skills of the agents the repository uses (srd037 R2.1). No model acts in it (design.md D10, D14).
+
+<!-- req: R5.2 -->
+### R5.2
+
+It serves a system and a subsystem repository alike, seeds no tracker, files no issue, and touches no tracker. Each word keeps a file a person edited, so a second run changes nothing.
+
+<!-- req: R5.3 -->
+### R5.3
+
+Each word that refuses ends the run in a state that names what stands: with no release installed, the vendoring refuses and nothing is written; a directory that is not a program repository is refused by doctor after the vendoring; a repository that uses no agent scrum-master knows is reported with the profiles vendored and the repository repaired. The refusal's reason, as printed, is the run's last output.
 
 <!-- field: non_goals -->
 ## Non-goals
 
 - Creating repositories, groups, or permissions on a hosting service; the host or its provisioning does that before init runs.
 - Enforcing that a corpus stays complete; that is the audit's. doctor adds what is missing when it is run and gates nothing.
-- Installing or upgrading skills; that is scrum-master install (srd037).
+- doctor installing or upgrading skills; that is scrum-master install (srd037), which the upgrade profile runs after doctor (R5).
+- Installing the agent and the release's profiles on the host; that is install.sh (srd037), which the upgrade profile reads from.
 - The reports repository; that is scrum-master reports init (srd018 R1).
 - Moving an existing corpus to a newer format release; a person moves the pin in docs/external-pins.yaml and scrum-master doctor repairs at it.
 
@@ -275,10 +295,22 @@ doctor rewrites a document whose fields stray from canonical form so the audit p
 <!-- ac: AC8 -->
 ### AC8
 
-In the agent, or with no Go on PATH and a spec tool built at the pin, doctor repairs a document to canonical form; with neither, it skips the repair and says why. doctor names the release the repository vendored, or a repository that vendored none with a rerun of the init or onboard profile as the fix, and vendors nothing.
+In the agent, or with no Go on PATH and a spec tool built at the pin, doctor repairs a document to canonical form; with neither, it skips the repair and says why. doctor names the release the repository vendored, or a repository that vendored none with the upgrade profile as the fix, and vendors nothing.
 
 <!-- field: traces -->
 #### Traces
 
 - [R4.5](#r45)
 - [R4.7](#r47)
+
+<!-- ac: AC9 -->
+### AC9
+
+On a system and on a subsystem repository an older release laid down, the upgrade profile vendors the installed release, repairs the repository at it, moves the pin, and rewrites the skills of the agents it uses, seeding no tracker and filing no issue; a second run changes nothing. With no release installed it refuses and writes nothing; in a directory that is not a program repository it ends refused after the vendoring; in a repository that uses no agent it ends with the skills not installed and the rest done.
+
+<!-- field: traces -->
+#### Traces
+
+- [R5.1](#r51)
+- [R5.2](#r52)
+- [R5.3](#r53)

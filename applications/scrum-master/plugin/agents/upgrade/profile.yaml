@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A program repository's upgrade as a declarative-agents profile (GH-2719,
+# design.md D14): a model-free machine of three words — vendor the release
+# install.sh installed, repair the repository at it, and refresh the
+# skills — that a person runs after taking a new release.
+name: upgrade
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml
