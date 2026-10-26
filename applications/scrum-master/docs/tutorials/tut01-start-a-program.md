@@ -96,8 +96,9 @@ agent --profile .scrum-master/agents/check/profile.yaml --core-root .scrum-maste
 The check profile runs what CI runs: the corpus gate, the vendored
 profiles against their manifest, and the drift doctor's report, writing
 nothing. It also names any environment variable your setup still sets
-under an old name. A CI job runs the same command from the release's
-container image; the README's "Run in CI" section has the job.
+under an old name. A CI job runs the same command after installing the
+agent with the install script; the README's "Run in CI" section has the
+job.
 
 ## Joining an existing program
 

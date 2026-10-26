@@ -110,20 +110,32 @@ func (p Publisher) CheckImageTools() error {
 	return nil
 }
 
-// Check is the release preflight: the organization account and docker
-// buildx.
+// Check is the release preflight: the organization account, and docker
+// buildx when the release publishes an image.
 func (p Publisher) Check() error {
 	if err := p.CheckAccount(); err != nil {
 		return err
 	}
+	if p.ImageRepo == "" {
+		return nil
+	}
 	return p.CheckImageTools()
 }
+
+// NoImage is what publish says when no image repository is named: the
+// image is opt-in, pushed only to a registry the publisher names (GH-2721).
+const NoImage = "publish: no image repository is named, so no image is published"
 
 // PublishImage builds the image for every image platform from the release
 // binaries Binaries built, pushes it as ImageRepo:tag and latest, and adds
 // its digest to the release's notes, which pipelines pin from. An
 // image already at tag is kept. A dry run names the build and runs nothing.
+// With no ImageRepo it says so and publishes no image.
 func (p Publisher) PublishImage(tag string) error {
+	if p.ImageRepo == "" {
+		fmt.Fprintln(p.Out, NoImage)
+		return nil
+	}
 	ref := p.ImageRepo + ":" + tag
 	if p.DryRun {
 		fmt.Fprintf(p.Out, "publish: would build and push %s for %s and list its digest on the release\n", ref, platformList(ImagePlatforms))

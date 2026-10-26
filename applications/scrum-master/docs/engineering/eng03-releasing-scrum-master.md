@@ -10,12 +10,14 @@ title: "Releasing scrum-master: Gates, Then a Date Tag"
 
 A scrum-master tag is what scrum-master is installed from: a developer runs
 install.sh, which installs the tag's agent and unpacks its profiles, and
-a CI job runs on the tag's container image. The words stamp that version
+a CI job runs install.sh too, or an image a program published from the
+tag to its own registry. The words stamp that version
 into every skill they install and every profile they vendor (srd037). A
 tag that nothing checked would put an unverified agent and its profiles
 into every repository that installs them.
 This guideline states how we cut a scrum-master release: the gates file,
-the sequence mage tag runs, the binaries and the image it publishes, and
+the sequence mage tag runs, the binaries it publishes and the image it
+publishes when asked, and
 why the release depends on nothing outside this repository. A program repository's release is a
 different process (srd015, scrum-master release) and shares only the tagging code.
 
@@ -51,12 +53,12 @@ creates nothing.
 | Step | What happens |
 |---|---|
 | Lock | A directory under the git dir (scrum-master-release.lock) holds the release, so two releases of one clone cannot overlap |
-| Preflight | The release runs on main with a clean worktree; a HEAD already carrying a v0.* tag has nothing to release; gh answers as the organization account and docker buildx is on PATH, so a tag never lands without the means to publish it |
+| Preflight | The release runs on main with a clean worktree; a HEAD already carrying a v0.* tag has nothing to release; gh answers as the organization account, and docker buildx is on PATH when SCRUM_MASTER_RELEASE_IMAGE names an image to publish, so a tag never lands without the means to publish it |
 | Gates | Stages run in order and the gates of a stage at the same time, each line of output prefixed with the gate's name; the first stage with a failed gate stops the release and names every failed gate |
 | Recheck | HEAD and the worktree must be unchanged after the gates; a gate that commits or edits files voids the run |
 | Tag | v0.YYYYMMDD.N, N one past the highest revision for the day across local tags and origin's; the annotation lists the gates that passed and git log --oneline since the previous release |
 | Push | push auto pushes the tag to origin; push ask asks y/N and otherwise prints the push command |
-| Publish | Once the tag is on origin, mage publish runs: the release assets, then the container image; a tag left unpushed prints mage publish as the step to run after pushing it |
+| Publish | Once the tag is on origin, mage publish runs: the release assets, then, when SCRUM_MASTER_RELEASE_IMAGE names a repository, the container image; a tag left unpushed prints mage publish as the step to run after pushing it |
 
 Table: What mage tag does.
 
@@ -95,9 +97,19 @@ account that publishes this repository's releases.
 <!-- section: the-container-image -->
 ## The container image
 
-The second part builds one image for linux/amd64 and linux/arm64 with
-docker buildx from the Dockerfile at the repository root and pushes it as
-ghcr.io/nokia-bell-labs/declarative-agents/scrum-master:<tag>, and moves latest to it. Its
+The image is opt-in (GH-2721). This repository's releases publish none:
+the project pushes no container to the organization's registry, and a CI
+job installs the agent with install.sh. A program that wants a ready image
+publishes one to a registry it controls, from a checkout at the tag, by
+setting SCRUM_MASTER_RELEASE_IMAGE to the image's repository and running
+mage publish, which keeps the assets already on the release and adds the
+image. With SCRUM_MASTER_RELEASE_IMAGE unset, mage publish says no image is
+published and pushes nothing, and the preflight does not ask for docker
+buildx.
+
+With it set, the second part builds one image for linux/amd64 and
+linux/arm64 with docker buildx from the Dockerfile at the repository root
+and pushes it as <SCRUM_MASTER_RELEASE_IMAGE>:<tag>, and moves latest to it. Its
 build context is the directory the first part built the assets into, and
 it copies agent_linux_<arch> and unpacks the profiles archive from there,
 so the image's agent and profiles are the ones on the GitHub release;
@@ -109,8 +121,9 @@ runs as a non-root user and works in the directory a CI job mounts its
 checkout into, where the job runs the repository's vendored check
 profile (GH-35).
 
-The push logs in to ghcr.io as the organization account with its gh
-token, which needs the write:packages scope. buildx attaches an SBOM
+A push to ghcr.io logs in as the release account with its gh token, which
+needs the write:packages scope and a registry namespace that lets the
+account create the package. buildx attaches an SBOM
 attestation to the image index, and its provenance is recorded at
 mode=min so it names no machine or person. The index carries the source,
 description, and license annotations, which link the package to this
@@ -134,14 +147,14 @@ A CI job reads tracker and model credentials from masked CI variables
 (SCRUM_MASTER_TRACKER, SCRUM_MASTER_USER, and what each profile names), and its writes are
 attributed to the service user SCRUM_MASTER_USER names, never to a person; srd041's
 approval rule still holds, so CI never approves its own merge. The README
-shows a GitLab CI job on the image, pulling from ghcr or from a program's
-own registry mirror.
+shows a GitLab CI job that installs the agent with install.sh at a pinned
+tag, and the image a program may publish to its own registry instead.
 
 <!-- section: releasing-from-a-gitlab-fork -->
 ## Releasing from a GitLab fork
 
 A fork of this repository on GitLab, such as an internal one, releases the
-same assets and image from its own project, so a program inside a network
+same assets from its own project, and the image when it names one, so a program inside a network
 that cannot reach GitHub installs from it and no package is published
 from the upstream public repository (GH-31). mage tag and mage publish
 read four environment variables in place of this repository's GitHub
@@ -152,7 +165,7 @@ values:
 | SCRUM_MASTER_RELEASE_FORGE | gitlab, where the release is published through glab |
 | SCRUM_MASTER_RELEASE_REPO | the fork's project, group/name |
 | SCRUM_MASTER_RELEASE_ACCOUNT | the account releases are made as, which glab must answer as |
-| SCRUM_MASTER_RELEASE_IMAGE | the image in the fork's container registry |
+| SCRUM_MASTER_RELEASE_IMAGE | the image in the fork's container registry, when the fork publishes one |
 
 Table: The settings a GitLab fork releases with.
 

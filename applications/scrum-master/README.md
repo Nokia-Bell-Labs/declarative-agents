@@ -58,20 +58,23 @@ home="${SCRUM_MASTER_HOME:-$HOME/.local/share/scrum-master}"
 agent --profile "$home/agents/upgrade/profile.yaml" --core-root "$home/agent-core" --directory .
 ```
 
-The profile vendors the installed release into `.scrum-master`, runs doctor to add the files the release lays down that are missing, refresh the managed blocks, move the format pin in `docs/external-pins.yaml`, and repair the documents to its format, and rewrites the skills of the agents the repository uses. It works in a system and a subsystem repository alike, seeds no tracker, files no issue, and keeps every file a person edited, so a second run changes nothing. Commit what it changed; the check profile confirms the repository is in order. A CI job moves by the image digest it pins.
+The profile vendors the installed release into `.scrum-master`, runs doctor to add the files the release lays down that are missing, refresh the managed blocks, move the format pin in `docs/external-pins.yaml`, and repair the documents to its format, and rewrites the skills of the agents the repository uses. It works in a system and a subsystem repository alike, seeds no tracker, files no issue, and keeps every file a person edited, so a second run changes nothing. Commit what it changed; the check profile confirms the repository is in order. A CI job moves by the release tag it installs, or the image digest it pins.
 
 ## Run in CI
 
-Each release also publishes an image, `ghcr.io/nokia-bell-labs/declarative-agents/scrum-master:<tag>`, for linux/amd64 and linux/arm64: the agent, built with the scrum-master words, and the release's profiles under `SCRUM_MASTER_HOME`, with git and git-crypt, no Go toolchain, running as a non-root user. Pin it by the digest the release's notes list. A CI job runs the repository's vendored check profile with the agent over its checkout: the corpus gate, the vendored profiles held to their manifest, and doctor's drift report, writing nothing. A GitLab CI job uses it directly:
+A CI job runs the repository's vendored check profile with the agent over its checkout: the corpus gate, the vendored profiles held to their manifest, and doctor's drift report, writing nothing. The releases publish no container image, so the job installs the agent with the install script, pinned to a release tag, on any image with sh, curl, and git:
 
 ```yaml
 scrum-master-check:
-  image: ghcr.io/nokia-bell-labs/declarative-agents/scrum-master@<digest>
+  image: <an image with sh, curl, and git>
+  before_script:
+    - curl -fsSL https://raw.githubusercontent.com/Nokia-Bell-Labs/declarative-agents/main/applications/scrum-master/install.sh | sh -s -- <tag>
+    - export PATH="$HOME/.local/bin:$PATH"
   script:
     - agent --profile .scrum-master/agents/check/profile.yaml --core-root .scrum-master/agent-core --directory .
 ```
 
-To pull from the program's own registry instead, copy it there once per release, for example with `docker buildx imagetools create --tag <registry>/scrum-master:<tag> ghcr.io/nokia-bell-labs/declarative-agents/scrum-master@<digest>`. Tracker credentials (`SCRUM_MASTER_TRACKER`, `SCRUM_MASTER_USER`) and any model credentials a profile names come from masked CI variables; `SCRUM_MASTER_USER` names a service user, never a person.
+A program that would rather pull a ready image publishes one to its own registry: from a checkout at the release's tag, with docker buildx and a login to that registry, `SCRUM_MASTER_RELEASE_IMAGE=<registry>/scrum-master mage -d magefiles publish` builds the image for linux/amd64 and linux/arm64 from the release's binaries and pushes it — the agent, built with the scrum-master words, and the release's profiles under `SCRUM_MASTER_HOME`, with git and git-crypt, no Go toolchain, running as a non-root user — and the job names it by digest as its `image:`, with no install step. Tracker credentials (`SCRUM_MASTER_TRACKER`, `SCRUM_MASTER_USER`) and any model credentials a profile names come from masked CI variables; `SCRUM_MASTER_USER` names a service user, never a person.
 
 ## The program's site
 
@@ -103,13 +106,17 @@ The site never commits: its pages land like any other change, through an issue t
 
 ```yaml
 scrum-master-site:
-  image: ghcr.io/nokia-bell-labs/declarative-agents/scrum-master@<digest>
+  image: <an image with sh, curl, and git>
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_TAG =~ /^corpus\/v/
+  before_script:
+    - curl -fsSL https://raw.githubusercontent.com/Nokia-Bell-Labs/declarative-agents/main/applications/scrum-master/install.sh | sh -s -- <tag>
+    - export PATH="$HOME/.local/bin:$PATH"
   script:
     - git clone "$SYSTEM_REPOSITORY" ../system
-    - agent --profile "$SCRUM_MASTER_HOME/agents/site/profile.yaml" --core-root "$SCRUM_MASTER_HOME/agent-core" --directory .
+    - home="${SCRUM_MASTER_HOME:-$HOME/.local/share/scrum-master}"
+    - agent --profile "$home/agents/site/profile.yaml" --core-root "$home/agent-core" --directory .
 ```
 
 The job runs in the reports repository; on a corpus tag in the system repository, trigger it with a pipeline trigger. The changed pages then land through the issue workflow, filed, popped, and merged by the issue-file, pop, and merge profiles with the job's service user.
