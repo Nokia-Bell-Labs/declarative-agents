@@ -100,6 +100,11 @@ docs/road-map.md.
 | process | docs/guides/process.md |
 | sdlc-playbook | docs/guides/sdlc-playbook.md |
 | spec-kit | docs/guides/spec-kit.md |
+| tut01-start-a-program | docs/tutorials/tut01-start-a-program.md |
+| tut02-file-and-deliver-an-issue | docs/tutorials/tut02-file-and-deliver-an-issue.md |
+| tut03-plan-a-release-and-run-the-sprint | docs/tutorials/tut03-plan-a-release-and-run-the-sprint.md |
+| tut04-write-the-backlog | docs/tutorials/tut04-write-the-backlog.md |
+| tut05-weekly-status | docs/tutorials/tut05-weekly-status.md |
 
 <!-- field: srd_index -->
 ## SRD index
