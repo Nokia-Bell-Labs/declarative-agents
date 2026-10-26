@@ -128,12 +128,12 @@ Cycle findings appear in the program's weekly roll-up and dashboard until the cy
 
 A cross-repository reference is a URL of the form https://HOST/GROUP/REPO/-/blob/TAG/PATH#ANCHOR, where TAG is a release tag of REPO, PATH is a file in it, and ANCHOR is a requirement id (Rn or Rn.m) or an interface name in that file. In an issue description it is a line Cites: URL; in a corpus document it is a field value.
 
-<!-- req: R5.2 | derived_from: [{"repo": "github.com/Nokia-Bell-Labs/declarative-agents", "release": "v0.20261018.1", "srd": "srd014-spec-graph", "item": "R3.16", "reason": "The parent resolves a cross-repository citation only at its validated release through a local clone cache; a citation here resolves the same way, at its tag, so the parent's audit can check it."}] -->
+<!-- req: R5.2 | derived_from: [{"repo": "github.com/Nokia-Bell-Labs/declarative-agents", "release": "v0.20261022.0", "srd": "srd014-spec-graph", "item": "R3.16", "reason": "The parent resolves a cross-repository citation only at its validated release through a local clone cache; a citation here resolves the same way, at its tag, so the parent's audit can check it."}] -->
 ### R5.2
 
 A reference resolves when the tag exists, the path exists at that tag, and the anchor names an entry of the file at that tag.
 
-<!-- req: R5.3 | derived_from: [{"repo": "github.com/Nokia-Bell-Labs/declarative-agents", "release": "v0.20261018.1", "srd": "srd014-spec-graph", "item": "R3.18", "reason": "The parent reports a citation without a release as unpinned; this corpus inherits that rule and makes it fail the audit."}] -->
+<!-- req: R5.3 | derived_from: [{"repo": "github.com/Nokia-Bell-Labs/declarative-agents", "release": "v0.20261022.0", "srd": "srd014-spec-graph", "item": "R3.18", "reason": "The parent reports a citation without a release as unpinned; this corpus inherits that rule and makes it fail the audit."}] -->
 ### R5.3
 
 A reference to a branch, to a commit not reachable from a tag, or with no anchor is unpinned. An unpinned or unresolvable reference is a finding that fails the audit; it is never treated as satisfied.

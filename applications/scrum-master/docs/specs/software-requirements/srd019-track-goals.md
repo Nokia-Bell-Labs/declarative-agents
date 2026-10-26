@@ -57,7 +57,7 @@ Retired in 01.2 (design.md D12).
 
 Retired in 01.2 (design.md D12).
 
-<!-- req: R2.2 | derived_from: [{"repo": "github.com/Nokia-Bell-Labs/declarative-agents", "release": "v0.20261018.1", "srd": "srd014-spec-graph", "item": "R3.16", "reason": "track-goals reports unresolvable references with the parent's resolution rule: local, read-only, at the cited release."}] | status: retired | retired_in: 1.2 -->
+<!-- req: R2.2 | derived_from: [{"repo": "github.com/Nokia-Bell-Labs/declarative-agents", "release": "v0.20261022.0", "srd": "srd014-spec-graph", "item": "R3.16", "reason": "track-goals reports unresolvable references with the parent's resolution rule: local, read-only, at the cited release."}] | status: retired | retired_in: 1.2 -->
 ### R2.2
 
 Retired in 01.2 (design.md D12).
