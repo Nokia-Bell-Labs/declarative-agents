@@ -56,7 +56,7 @@ type Report struct {
 	// onboarded before its owner writes them, and names them so a pass is
 	// not taken for a written corpus.
 	Unfilled []string `json:"unfilled,omitempty"`
-	// Warnings are the architecture checks' findings under a policy that
+	// Warnings are the architecture and area checks' findings under a policy that
 	// warns, the default (srd045 R6.3): reported, never failing the gate.
 	Warnings []hierarchy.Finding `json:"warnings"`
 }
@@ -141,6 +141,18 @@ func Check(dir string) (Report, error) {
 		findings = append(findings, architecture...)
 	} else if architecture != nil {
 		warnings = architecture
+	}
+	area, refuseArea, err := areaChecks(dir, docs)
+	if err != nil {
+		return Report{}, err
+	}
+	for i := range area {
+		area[i].File = relative(dir, area[i].File)
+	}
+	if refuseArea {
+		findings = append(findings, area...)
+	} else {
+		warnings = append(warnings, area...)
 	}
 	if findings == nil {
 		findings = []hierarchy.Finding{}

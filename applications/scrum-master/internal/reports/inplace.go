@@ -84,7 +84,7 @@ func StatusIssuesInPlace(t tracker.Tracker, in RollupInput) ([]StatusResult, err
 		}
 		out = append(out, r)
 	}
-	subs, err := Teams(t, in.System, in.Ref)
+	subs, err := program.Teams(t, in.System, in.Ref)
 	if err != nil {
 		return out, err
 	}

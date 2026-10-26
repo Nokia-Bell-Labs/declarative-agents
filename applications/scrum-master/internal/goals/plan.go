@@ -5,9 +5,11 @@ package goals
 import (
 	"errors"
 	"fmt"
+	"path"
 	"slices"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/hierarchy"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/links"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/objectives"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
@@ -82,37 +84,45 @@ func MakePlan(t tracker.Tracker, s Sources) (Plan, error) {
 			return p, fmt.Errorf("release objective %s names no item of %s", id, doc)
 		}
 		key := doc + "#" + group
-		po := PlannedObjective{Key: key, Document: doc, Group: group, Title: obj.Title, Items: []string{item}, Due: obj.Due, Candidates: teams}
-		po.Repository = recommendRepository(s, obj)
-		switch {
-		case po.Repository != "":
-		case len(teams) == 1:
-			// One team serves the program: there is nothing to choose
-			// between, so it is the recommendation (GH-109).
-			po.Repository = teams[0]
-			po.RepositoryReason = "the only team repository a subsystem SRD declares; the outcome's delivered_by names none"
-		default:
-			po.RepositoryReason = "the outcome's delivered_by names no repository a subsystem SRD declares; choose one of the candidates, or name it in the initiative's delivered_by"
+		routes := []route{{repo: recommendRepository(s, obj)}}
+		if routes[0].repo == "" {
+			if area := areaRoutes(s, doc, id); len(area) > 0 {
+				routes = area
+			}
 		}
-		if po.Repository != "" && !slices.Contains(po.Candidates, po.Repository) {
-			po.Candidates = append(slices.Clone(teams), po.Repository)
-		}
-		po.Environment = recommendEnvironment(d, group, item)
 		if c, ok := carriers[id]; ok {
-			po.Carried, po.Repository = c.ref, c.repo
+			routes = []route{{repo: c.repo, carried: c.ref}}
 		}
-		if po.Repository != "" {
-			goal, legacy, err := findExisting(t, po.Repository, p.Release)
-			if err != nil {
-				return p, err
+		for _, r := range routes {
+			po := PlannedObjective{Key: key, Document: doc, Group: group, Title: obj.Title, Items: []string{item}, Due: obj.Due, Candidates: teams,
+				Repository: r.repo, RepositoryReason: r.reason, Carried: r.carried}
+			switch {
+			case po.Repository != "":
+			case len(teams) == 1:
+				// One team serves the program: there is nothing to choose
+				// between, so it is the recommendation (GH-109).
+				po.Repository = teams[0]
+				po.RepositoryReason = "the only team repository a subsystem SRD declares; the outcome's delivered_by names none"
+			default:
+				po.RepositoryReason = "the outcome's delivered_by names no repository a subsystem SRD declares, and no agreed epic under the item names a component a team owns; choose one of the candidates, or name it in the initiative's delivered_by"
 			}
-			if old, ok := legacy[key]; ok {
-				po.Existing = old.WebURL
-			} else if goal != nil {
-				po.Existing = goal.WebURL
+			if po.Repository != "" && !slices.Contains(po.Candidates, po.Repository) {
+				po.Candidates = append(slices.Clone(teams), po.Repository)
 			}
+			po.Environment = recommendEnvironment(d, group, item)
+			if po.Repository != "" {
+				goal, legacy, err := findExisting(t, po.Repository, p.Release)
+				if err != nil {
+					return p, err
+				}
+				if old, ok := legacy[key]; ok {
+					po.Existing = old.WebURL
+				} else if goal != nil {
+					po.Existing = goal.WebURL
+				}
+			}
+			p.Objectives = append(p.Objectives, po)
 		}
-		p.Objectives = append(p.Objectives, po)
 	}
 	return p, nil
 }
@@ -139,6 +149,71 @@ func recommendRepository(s Sources, o objectives.Objective) string {
 		}
 	}
 	return ""
+}
+
+// route is one team an item goes to, and why.
+type route struct{ repo, reason, carried string }
+
+// areaRoutes recommends, for the release item id of document doc, every
+// team whose subsystem owns a component that the agreed epics under the
+// item name in architecture: one entry per team, so each team's Sprint
+// Goal serves it (srd022 R2.4; GH-2726). An epic is under the item when
+// its parent is the item's document and it cites the item, or cites
+// nothing of that document. A component no team lists routes nowhere.
+func areaRoutes(s Sources, doc, id string) []route {
+	teams := s.Subsystems.Teams(s.System)
+	var out []route
+	for _, e := range s.Epics {
+		if docID(e.Parent) != doc || !citesItem(e.Cites, doc, id) {
+			continue
+		}
+		for _, a := range e.Architecture {
+			name := hierarchy.ComponentOf(a)
+			sub, ok := teams.Owner(name)
+			if !ok {
+				continue
+			}
+			c, _ := sub.Component(name)
+			repo := projectPath(c.Repository)
+			i := slices.IndexFunc(out, func(r route) bool { return r.repo == repo })
+			if i < 0 {
+				out = append(out, route{repo: repo})
+				i = len(out) - 1
+			}
+			if why := e.ID + " names " + c.Name; !strings.Contains(out[i].reason, why) {
+				out[i].reason += "; " + why
+			}
+		}
+	}
+	for i := range out {
+		sub, _ := teams.SubsystemFor(out[i].repo)
+		out[i].reason = fmt.Sprintf("the item's agreed epics name components %s lists: %s", sub.ID, strings.TrimPrefix(out[i].reason, "; "))
+	}
+	return out
+}
+
+// docID is the document a parent or cite names: an id, or a pinned URL to
+// the document, with any fragment dropped.
+func docID(ref string) string {
+	ref, _, _ = strings.Cut(ref, "#")
+	return strings.TrimSuffix(path.Base(ref), ".md")
+}
+
+// citesItem reports whether an epic's cites name the release item id of
+// doc, or name nothing of doc, so the epic serves every item of it.
+func citesItem(cites []string, doc, id string) bool {
+	_, item, _ := strings.Cut(id, "#")
+	named := false
+	for _, c := range cites {
+		if docID(c) != doc {
+			continue
+		}
+		named = true
+		if _, frag, _ := strings.Cut(c, "#"); frag == item {
+			return true
+		}
+	}
+	return !named
 }
 
 // recommendEnvironment is the environment of the first acceptance

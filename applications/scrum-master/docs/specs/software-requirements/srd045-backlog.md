@@ -117,7 +117,7 @@ The progress of a feature, epic, or initiative is the story points of its done d
 <!-- req: R3.4 -->
 ### R3.4
 
-Roll-up reads the documents of the repository it runs in and the documents their Parent links name by pinned URL. A story in another repository whose parent is in this one is not discovered from the parent; until a program registry names every repository, roll-up across repositories counts only what it reads, and says so.
+Roll-up reads the documents of the repository it runs in, the documents their Parent links name by pinned URL, and the descendants in every team repository the system repository's subsystem SRDs name, the program's registry (GH-2726): the stories and features there whose Parent link pins a document in this one, counted in progress with each done from its own repository's sprint-end summaries. It reads a team repository through the tracker, the host's repository files on its default branch, else the checkout beside this one; the system SRD, whose components live in the system repository, names no team. A team repository it cannot read is named with the reason, never skipped silently. With no system repository to read the registry from, roll-up reads the team repositories checked out beside this one.
 
 <!-- req: R4 -->
 ## R4 - Stories
@@ -178,6 +178,16 @@ The gate compares the plan with the ARCHITECTURE diff: each component of docs/AR
 
 A subsystem repository holding hierarchy documents is refused by scrum-master doctor, and by backlog check, until the system repository's docs/ARCHITECTURE.md names it: a component whose id is the component name a subsystem SRD of the system declares for the repository, the value its component label carries, with its dashes read as underscores; the repository's name read the same way is accepted too (design.md D15, GH-90). The system repository is the checkout beside it that holds control/trackers.md, as the tracker's routing finds it; with none, the order is reported unchecked and the gate passes it. backlog check carries it so the merge audit, which runs the gate, refuses a team's plan out of order, not only the check profile in CI.
 
+<!-- req: R6.5 -->
+### R6.5
+
+A scrum owns an area, a subsystem and the components its SRD lists, while planned work is a separate tree (GH-2726). backlog check warns for a story or feature in a team's repository that names in architecture a component the subsystem owning the repository does not list, naming the subsystem that lists it, whose work it is. The repository's subsystem is the team SRD listing it, by its origin's project path, else by its name; the registry is the SRDs of the system repository beside it, as R6.4 finds it, so with none there is nothing to check.
+
+<!-- req: R6.6 -->
+### R6.6
+
+A cross-team epic lives in the system repository and is the technical program manager's; each team's Product Owner writes the stories for its part in the team's repository, with the epic as their parent by pinned URL. backlog check warns for an epic in the system repository whose owner names a Product Owner, and for one whose architecture components all belong to one team's subsystem, which belongs in that team's repository. scrum-master backlog template --kind epic --dir offers owner: technical program manager in the system repository and Product Owner, the subsystem's owner, in a team's. The policy's area_checks (config format policy) decides how R6.5 and R6.6 report: warn, the default, without failing the gate; refuse makes each a finding. Both read only the disk, so they stay within R8.3.
+
 <!-- req: R7 -->
 ## R7 - Forecasts (direction)
 
@@ -217,7 +227,7 @@ scrum-master backlog guide --name prints a guide this release ships, docs/guides
 <!-- req: R8.5 -->
 ### R8.5
 
-scrum-master backlog architecture reports each component of docs/ARCHITECTURE.md in one state: actual, unchanged since the latest release (R6.3), with that release's tag, and with no agreed document citing it whose work is still open, its story points not all done where they are known, or its horizon running past the work the release delivered, since stories not yet written are work too, so neither a component a release declared but no story built (GH-99) nor one a long epic's first stories touched (GH-114) is actual; in_transition, added or changed since it and cited by agreed hierarchy documents (R2.4), with each document's kind, title, the release its work lands in, and its story points done over total (R3.3) from the sprint-end summaries. The release is, of the road map's releases not yet released that deliver the initiative the document rolls up to, the first whose items fall due in or after the last week of the document's horizon, the nearest one it or a parent states; the last of them when the horizon runs past every one; the first when no horizon or due date says more. The points include the agreed stories of the team repositories checked out beside this one whose parent, pinned by URL, rolls up to the document, each counted done from its own repository's sprint-end summaries; a document with no points and no such checkout beside it says its points are not rolled up rather than none; or intended, added or changed and cited by none, and deferred, never actual, when its status says so (R6.3). It names each citation of a component ARCHITECTURE does not declare, with the document citing it, rather than drop it. With --write it also writes docs/architecture-status.md, a page under a generated-file header that sorts the components into what exists, what is being built and when it lands, and what is intended, so a reader who runs nothing answers those three questions from rendered documents; the architecture-status profile runs it. Like R8.1 to R8.4 it opens no tracker and uses no network, and the page is all it writes. It is specified here rather than with the reports (srd018) because it reads only local checkouts and local git.
+scrum-master backlog architecture reports each component of docs/ARCHITECTURE.md in one state: actual, unchanged since the latest release (R6.3), with that release's tag, and with no agreed document citing it whose work is still open, its story points not all done where they are known, or its horizon running past the work the release delivered, since stories not yet written are work too, so neither a component a release declared but no story built (GH-99) nor one a long epic's first stories touched (GH-114) is actual; in_transition, added or changed since it and cited by agreed hierarchy documents (R2.4), with each document's kind, title, the release its work lands in, and its story points done over total (R3.3) from the sprint-end summaries. The release is, of the road map's releases not yet released that deliver the initiative the document rolls up to, the first whose items fall due in or after the last week of the document's horizon, the nearest one it or a parent states; the last of them when the horizon runs past every one; the first when no horizon or due date says more. The points include the agreed stories of the team repositories R3.4 reads whose parent, pinned by URL, rolls up to the document, each counted done from its own repository's sprint-end summaries, and the page names each team repository it could not read; a document with no points and no team repository read says its points are not rolled up rather than none; or intended, added or changed and cited by none, and deferred, never actual, when its status says so (R6.3). It names each citation of a component ARCHITECTURE does not declare, with the document citing it, rather than drop it. With --write it also writes docs/architecture-status.md, a page under a generated-file header that sorts the components into what exists, what is being built and when it lands, and what is intended, so a reader who runs nothing answers those three questions from rendered documents; the architecture-status profile runs it. It opens the tracker only to read the team repositories the registry names (R3.4), uses no network beyond that read, and the page is all it writes; the gate's comparison of the committed page (R6.3) reads only the checkouts beside it. It is specified here rather than with the reports (srd018) because it reads the planning documents, not the tracker's issues.
 
 <!-- req: R8.6 -->
 ### R8.6
@@ -267,7 +277,7 @@ Each planning item is one of the five document types in the repository R2.2 name
 <!-- ac: AC3 -->
 ### AC3
 
-A story is done only when every criterion has passing evidence, or before track-goals when the sprint-end report says so; an epic with stories of 3, 5, and 8 points of which the 5 is done reports 5 of 16; a story in another repository is counted only when roll-up reads it, and the report says what it could not read.
+A story is done only when every criterion has passing evidence, or before track-goals when the sprint-end report says so; an epic with stories of 3, 5, and 8 points of which the 5 is done reports 5 of 16; an epic in the system repository with stories pinned to it in two team repositories the subsystem SRDs name counts both teams' points, and a team repository roll-up cannot read is named.
 
 <!-- field: traces -->
 #### Traces
@@ -304,7 +314,7 @@ plan lists a team's not-done agreed stories by rank, recommends those that fit v
 <!-- ac: AC6 -->
 ### AC6
 
-mage audit fails on a hierarchy document with a missing field, a parent of the wrong kind or that does not resolve, an unresolved link, a parent or blocked_by cycle, a story without points, a criterion without a test or an environment, an architecture citation naming no component of this repository's ARCHITECTURE, or an unpinned citation of another repository's; it warns, and under a policy that refuses fails, on each component added or changed since the latest tag that no agreed document cites, naming drift apart from what is uncovered; and doctor refuses a subsystem repository's plan until the system's ARCHITECTURE names it.
+mage audit fails on a hierarchy document with a missing field, a parent of the wrong kind or that does not resolve, an unresolved link, a parent or blocked_by cycle, a story without points, a criterion without a test or an environment, an architecture citation naming no component of this repository's ARCHITECTURE, or an unpinned citation of another repository's; it warns, and under a policy that refuses fails, on each component added or changed since the latest tag that no agreed document cites, naming drift apart from what is uncovered; doctor refuses a subsystem repository's plan until the system's ARCHITECTURE names it; backlog check warns, and under area_checks refuse fails, for a story naming a component its repository's subsystem does not list, for a system-repository epic a Product Owner owns, and for one whose components all belong to one subsystem; and the epic template offers the technical program manager as owner in the system repository and the team's Product Owner in a team's.
 
 <!-- field: traces -->
 #### Traces
@@ -313,6 +323,8 @@ mage audit fails on a hierarchy document with a missing field, a parent of the w
 - [R6.2](#r62)
 - [R6.3](#r63)
 - [R6.4](#r64)
+- [R6.5](#r65)
+- [R6.6](#r66)
 
 <!-- ac: AC7 -->
 ### AC7
@@ -341,7 +353,7 @@ scrum-master backlog list prints every hierarchy document with its id, kind, tit
 <!-- ac: AC9 -->
 ### AC9
 
-scrum-master backlog architecture names each component actual as of the latest tag, in transition with its agreed citing documents, their planned release, and their points done, or intended; with --write the generated page answers what exists, what is being built and when, and what is intended beyond, for a reader who knows no git; scrum-master backlog components lists the declared component ids; neither opens a tracker or uses the network.
+scrum-master backlog architecture names each component actual as of the latest tag, in transition with its agreed citing documents, their planned release, and their points done, or intended, counting the points of the stories in every team repository the registry names and naming one it cannot read; with --write the generated page answers what exists, what is being built and when, and what is intended beyond, for a reader who knows no git; scrum-master backlog components lists the declared component ids and opens no tracker.
 
 <!-- field: traces -->
 #### Traces

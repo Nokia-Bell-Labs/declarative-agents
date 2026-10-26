@@ -92,6 +92,33 @@ in its worktree, and merge ([Tutorial 2](tut02-file-and-deliver-an-issue.md)).
 The merge's audit gate checks the corpus, this hierarchy included, before
 anything lands on `main`.
 
+## Epics that span teams
+
+A team owns an area: its subsystem and the components its subsystem SRD
+lists. An epic whose work falls to more than one team lives in the system
+repository, and the technical program manager owns it; each team's Product
+Owner then drafts the stories for that team's part in the team's own
+repository, with the epic as parent by its pinned URL. An epic whose
+components all belong to one team lives in that team's repository, and its
+Product Owner owns it. The draft skill offers the right owner for the
+repository it writes in (`backlog template --kind epic --dir .` shows it).
+
+Name in each document's `architecture:` the components it changes. They
+are what tie the work to the teams:
+
+- backlog-check warns when a team's story names a component its subsystem
+  does not list, and says whose it is; when an epic in the system
+  repository names a Product Owner; and when every component a
+  system-repository epic names is one team's. Set `area_checks: refuse` in
+  `control/policy.md` to make these findings instead of warnings.
+- The epic's progress counts the stories in every team repository the
+  subsystem SRDs name, read through the tracker, and the architecture page
+  and the site name any repository that could not be read.
+- When a release is planned, goals-plan recommends every team whose
+  components the release item's agreed epics name, one Sprint Goal each,
+  unless the item's `delivered_by` names the team. You confirm or change
+  each recommendation.
+
 ## When planning stops at the architecture
 
 A draft that needs a component `ARCHITECTURE.md` does not declare stops

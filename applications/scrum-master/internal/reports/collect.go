@@ -3,7 +3,6 @@
 package reports
 
 import (
-	"errors"
 	"fmt"
 	"path"
 	"regexp"
@@ -12,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/repofiles"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
 
@@ -19,8 +19,8 @@ import (
 // checkout of its repository, or from a central reports repository kept
 // readable for one release (GH-2725).
 const (
-	SourceHost     = "host"
-	SourceCheckout = "checkout"
+	SourceHost     = repofiles.SourceHost
+	SourceCheckout = repofiles.SourceCheckout
 	SourceCentral  = "central"
 )
 
@@ -110,7 +110,7 @@ func Collect(t tracker.Tracker, in CollectInput) (Collection, error) {
 	}
 	c := Collection{Level: in.Level, From: in.From, To: in.To, System: in.System,
 		Repositories: []string{}, Reports: []Collected{}, Rollups: []Collected{}, Open: []OpenIssue{}}
-	subs, err := Teams(t, in.System, in.Ref)
+	subs, err := program.Teams(t, in.System, in.Ref)
 	if err != nil {
 		return c, err
 	}
@@ -244,85 +244,14 @@ func statusName(p string) (name, week string, ok bool) {
 }
 
 // readStatus reads every Markdown file under dir in repo, each with the
-// commit that last changed it: from the host when it serves files, else
-// from a checkout of repo. A repository it cannot read gives the reason;
-// one whose dir holds nothing gives neither files nor a reason.
+// commit that last changed it, from its host or a checkout (repofiles).
 func readStatus(t tracker.Tracker, repo, dir string) ([]Collected, string) {
-	sys := tracker.For(t, repo)
-	if host, ok := sys.(tracker.HostFiles); ok {
-		paths, err := host.HostTree(repo, dir)
-		if err == nil || errors.Is(err, tracker.ErrNotFound) {
-			var out []Collected
-			for _, p := range paths {
-				if !strings.HasSuffix(p, ".md") {
-					continue
-				}
-				content, commit, err := host.HostFile(repo, p)
-				if err != nil {
-					return out, fmt.Sprintf("%s: %v", p, err)
-				}
-				out = append(out, Collected{Repository: repo, Path: p, Commit: commit, Source: SourceHost, Content: string(content)})
-			}
-			return out, ""
-		}
+	files, reason := repofiles.Read(t, repo, dir, func(p string) bool { return strings.HasSuffix(p, ".md") })
+	out := make([]Collected, 0, len(files))
+	for _, f := range files {
+		out = append(out, Collected{Repository: f.Repository, Path: f.Path, Commit: f.Commit, Source: f.Source, Content: f.Content})
 	}
-	if co, ok := sys.(tracker.Checkouts); ok && !co.HasCheckout(repo) {
-		return nil, "the host serves no files and no checkout of it sits beside this one"
-	}
-	ref, err := sys.DefaultBranch(repo)
-	if err != nil {
-		return nil, err.Error()
-	}
-	paths, err := listTree(sys, repo, dir, ref)
-	if err != nil {
-		return nil, err.Error()
-	}
-	var out []Collected
-	for _, p := range paths {
-		if !strings.HasSuffix(p, ".md") {
-			continue
-		}
-		content, err := sys.GetFile(repo, p, ref)
-		if err != nil {
-			return out, fmt.Sprintf("%s: %v", p, err)
-		}
-		commit := ""
-		if fc, ok := sys.(tracker.FileCommits); ok {
-			if commit, err = fc.LastCommit(repo, p, ref); err != nil {
-				return out, fmt.Sprintf("%s: %v", p, err)
-			}
-		}
-		out = append(out, Collected{Repository: repo, Path: p, Commit: commit, Source: SourceCheckout, Content: string(content)})
-	}
-	return out, ""
-}
-
-// listTree lists the files under dir at any depth; a dir that is not there
-// holds nothing.
-func listTree(f tracker.Forge, repo, dir, ref string) ([]string, error) {
-	entries, err := f.ListDir(repo, dir, ref)
-	if errors.Is(err, tracker.ErrNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, e := range entries {
-		if !strings.Contains(e, "/") {
-			e = path.Join(dir, e)
-		}
-		if strings.HasSuffix(e, ".md") {
-			out = append(out, e)
-			continue
-		}
-		sub, err := listTree(f, repo, e, ref)
-		if err != nil {
-			return out, err
-		}
-		out = append(out, sub...)
-	}
-	return out, nil
+	return out, reason
 }
 
 // openStatus lists repo's open status and rollup issues for the weeks.
@@ -381,27 +310,4 @@ func quartersOf(weeks []string) []string {
 		}
 	}
 	return out
-}
-
-// Teams are the program's subsystems that are teams: every subsystem SRD
-// but the system SRD, the one whose components live in the system
-// repository itself, named by its project path or, for an origin that is a
-// local path, by its name (GH-2725).
-func Teams(t tracker.Tracker, system, ref string) (program.Subsystems, error) {
-	subs, err := program.LoadSubsystems(t, system, ref)
-	if errors.Is(err, tracker.ErrNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return slices.DeleteFunc(subs, func(s program.Subsystem) bool {
-		return slices.ContainsFunc(s.Components, func(c program.Component) bool { return isSystem(c.Repository, system) })
-	}), nil
-}
-
-// isSystem reports whether repo names the system repository.
-func isSystem(repo, system string) bool {
-	p := program.ProjectPath(repo)
-	return p == program.ProjectPath(system) || path.Base(strings.TrimSuffix(p, ".git")) == path.Base(program.ProjectPath(system))
 }

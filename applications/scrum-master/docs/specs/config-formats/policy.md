@@ -91,6 +91,19 @@ string
 
 How the corpus gate treats an ARCHITECTURE component added or changed since the latest tag that no agreed hierarchy document cites (srd045 R6.3): warn, the default, reports it without failing the gate; refuse makes it a finding. A policy without the field warns.
 
+<!-- schema_entry: area_checks -->
+### area_checks
+
+<!-- field: type -->
+#### Type
+
+string
+
+<!-- field: description -->
+#### Description
+
+How backlog check and the corpus gate treat a document outside its repository's area (srd045 R6.5, R6.6): a story or feature naming in architecture a component its repository's subsystem SRD does not list, and an epic in the system repository a Product Owner owns or whose components all belong to one subsystem. warn, the default, reports each without failing; refuse makes each a finding. A policy without the field warns.
+
 <!-- schema_entry: events -->
 ### events
 
@@ -289,6 +302,11 @@ major-and-minor-before-1.0
 
 <!-- field: architecture_checks -->
 ## Architecture checks
+
+warn
+
+<!-- field: area_checks -->
+## Area checks
 
 warn
 

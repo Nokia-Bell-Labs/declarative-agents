@@ -47,6 +47,10 @@ type Policy struct {
 	// component the plan does not cover or that drifted: warn, the
 	// default, or refuse (srd045 R6.3, GH-56).
 	ArchitectureChecks string
+	// AreaChecks is how the corpus gate treats a document outside its
+	// repository's area, and a cross-team epic shaped as one team's: warn,
+	// the default, or refuse (srd045 R6.5, R6.6; GH-2726).
+	AreaChecks string
 	// Releases and DefinitionOfDone drive scrum-master release (srd015, srd008 R2).
 	Releases         Releases
 	DefinitionOfDone map[string][]Check
@@ -146,6 +150,7 @@ func Defaults() Policy {
 		DefinitionOfDone:   map[string][]Check{"default": {{Kind: "tests", Environment: "local", Suite: "unit", Command: "go test ./..."}}},
 		Escalation:         Escalation{BlockerAgeDays: 14, WaitingChainLength: 3, SlipReleases: 2, EvidenceAgeDays: 7},
 		ArchitectureChecks: ArchitectureWarn,
+		AreaChecks:         ArchitectureWarn,
 	}
 }
 
@@ -170,6 +175,23 @@ func ArchitectureChecksIn(data []byte) (string, error) {
 		return f.ArchitectureChecks, nil
 	}
 	return "", fmt.Errorf("architecture_checks %q is neither %s nor %s", f.ArchitectureChecks, ArchitectureWarn, ArchitectureRefuse)
+}
+
+// AreaChecksIn is the area_checks of the policy document data, warn when
+// it names none; the corpus gate reads it from disk, as it reads
+// architecture_checks (GH-2726).
+func AreaChecksIn(data []byte) (string, error) {
+	var f policyFile
+	if err := corpus.DecodeConfig(data, &f); err != nil {
+		return "", err
+	}
+	switch f.AreaChecks {
+	case "":
+		return ArchitectureWarn, nil
+	case ArchitectureWarn, ArchitectureRefuse:
+		return f.AreaChecks, nil
+	}
+	return "", fmt.Errorf("area_checks %q is neither %s nor %s", f.AreaChecks, ArchitectureWarn, ArchitectureRefuse)
 }
 
 // TagFormatIn is the releases.tag_format of the policy document data, the
@@ -204,6 +226,7 @@ type policyFile struct {
 	} `yaml:"admission"`
 	Releases           Releases           `yaml:"releases"`
 	ArchitectureChecks string             `yaml:"architecture_checks"`
+	AreaChecks         string             `yaml:"area_checks,omitempty"`
 	Escalation         Escalation         `yaml:"escalation"`
 	DefinitionOfDone   map[string][]Check `yaml:"definition_of_done"`
 }
@@ -264,6 +287,9 @@ func LoadPolicy(t tracker.Tracker, project, ref string) (Policy, error) {
 		}
 		if len(f.DefinitionOfDone) > 0 {
 			p.DefinitionOfDone = f.DefinitionOfDone
+		}
+		if f.AreaChecks != "" {
+			p.AreaChecks = f.AreaChecks
 		}
 		if f.ArchitectureChecks != "" {
 			p.ArchitectureChecks = f.ArchitectureChecks

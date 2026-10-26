@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/hierarchy"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/repofiles"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/sprintgoal"
 )
 
@@ -45,6 +45,11 @@ type ArchitectureView struct {
 	// declare, which the gate refuses; the view names it rather than drop it
 	// (GH-88).
 	Undeclared []Undeclared `json:"undeclared,omitempty"`
+	// Teams are the team repositories whose stories the view counted, and
+	// Unread the ones the registry names that it could not read, so a
+	// count short of a team says so (srd045 R3.4; GH-2726).
+	Teams  []TeamSource       `json:"teams,omitempty"`
+	Unread []repofiles.Unread `json:"unread,omitempty"`
 }
 
 // Undeclared is a hierarchy document citing a component ARCHITECTURE does not
@@ -92,19 +97,31 @@ type StatusDocument struct {
 // work open, so a component the release declared but no story has built
 // is not (GH-99); a deferred one never is.
 func Architecture(dir string) (ArchitectureView, error) {
-	return architecture(dir, false)
+	return architecture(dir, false, SiblingSources(dir), nil)
+}
+
+// ArchitectureFrom is the view with its stories counted from the team
+// sources, as the registry names and reads them, the unread named
+// (GH-2726).
+func ArchitectureFrom(dir string, sources []TeamSource, unread []repofiles.Unread) (ArchitectureView, error) {
+	return architecture(dir, false, sources, unread)
 }
 
 // architecture is the view, from every document on disk, or, when
 // trackedOnly, from the documents git tracks: the stale check compares the
 // committed page with what is committed, and an untracked document is the
 // untracked finding's alone (GH-114).
-func architecture(dir string, trackedOnly bool) (ArchitectureView, error) {
+func architecture(dir string, trackedOnly bool, sources []TeamSource, unread []repofiles.Unread) (ArchitectureView, error) {
 	ids, now, err := workingComponents(dir)
 	if err != nil {
 		return ArchitectureView{}, err
 	}
-	v := ArchitectureView{Tag: baselineTag(dir), Components: []ComponentStatus{}}
+	v := ArchitectureView{Tag: baselineTag(dir), Components: []ComponentStatus{}, Unread: unread}
+	for _, src := range sources {
+		if src.Source != SourceSibling {
+			v.Teams = append(v.Teams, src)
+		}
+	}
 	shipped, err := taggedComponents(dir, v.Tag)
 	if err != nil {
 		return v, err
@@ -129,7 +146,7 @@ func architecture(dir string, trackedOnly bool) (ArchitectureView, error) {
 	for _, p := range progress {
 		points[p.ID] = p
 	}
-	teams, read := TeamProgress(dir, docs)
+	teams, read := TeamProgress(sources, docs)
 	for id, p := range teams {
 		sum := points[id]
 		sum.ID, sum.Kind = id, p.Kind
@@ -372,17 +389,17 @@ func horizonLastWeek(h string) (time.Time, bool) {
 
 // TeamProgress is the story points of the team repositories' agreed stories
 // that roll up to this repository's documents through a parent pinned by
-// URL, read from the checkouts beside dir with each one's sprint-end
-// summaries, added to each document up the chain as RollUp adds them
-// (GH-89); read reports whether any checkout beside dir holds hierarchy
-// documents.
-func TeamProgress(dir string, docs []*hierarchy.Doc) (points map[string]hierarchy.Progress, read bool) {
+// URL, read from the team sources with each one's sprint-end summaries,
+// added to each document up the chain as RollUp adds them (GH-89, GH-2726);
+// read reports whether any source holds hierarchy documents.
+func TeamProgress(sources []TeamSource, docs []*hierarchy.Doc) (points map[string]hierarchy.Progress, read bool) {
 	points = map[string]hierarchy.Progress{}
 	ours := map[string]*hierarchy.Doc{}
 	for _, d := range docs {
 		ours[d.ID] = d
 	}
-	for _, sib := range checkout.Siblings(dir) {
+	for _, src := range sources {
+		sib := src.Dir
 		theirs, err := hierarchy.Load(sib)
 		if err != nil || len(theirs) == 0 {
 			continue
@@ -430,25 +447,26 @@ func TeamProgress(dir string, docs []*hierarchy.Doc) (points map[string]hierarch
 	return points, read
 }
 
-// TeamDocs are the hierarchy documents of the team checkouts beside dir
-// that roll up to docs through a parent pinned by URL, as TeamProgress
-// counts them, for a view that draws them under the documents they serve
-// (GH-109). Each is a copy named <checkout>/<id>, so two teams' st001 stay
-// apart, with its parent so named too, or, where it pins one, read as the
-// document of docs it names. done maps each done story, so named, to the
-// release its team's sprint-end summary records.
-func TeamDocs(dir string, docs []*hierarchy.Doc) (team []*hierarchy.Doc, done map[string]string) {
+// TeamDocs are the hierarchy documents of the team sources that roll up to
+// docs through a parent pinned by URL, as TeamProgress counts them, for a
+// view that draws them under the documents they serve (GH-109, GH-2726).
+// Each is a copy named <team>/<id>, so two teams' st001 stay apart, with
+// its parent so named too, or, where it pins one, read as the document of
+// docs it names. done maps each done story, so named, to the release its
+// team's sprint-end summary records.
+func TeamDocs(sources []TeamSource, docs []*hierarchy.Doc) (team []*hierarchy.Doc, done map[string]string) {
 	done = map[string]string{}
 	ours := map[string]bool{}
 	for _, d := range docs {
 		ours[d.ID] = true
 	}
-	for _, sib := range checkout.Siblings(dir) {
+	for _, src := range sources {
+		sib := src.Dir
 		theirs, err := hierarchy.Load(sib)
 		if err != nil || len(theirs) == 0 {
 			continue
 		}
-		name := filepath.Base(sib)
+		name := src.Name
 		local := map[string]*hierarchy.Doc{}
 		for _, d := range theirs {
 			local[d.ID] = d
@@ -544,6 +562,12 @@ func (v ArchitectureView) Page() string {
 		}
 		return []string{out}
 	})
+	if len(v.Unread) > 0 {
+		b.WriteString("\n## Not counted\n\nTeam repositories the program's subsystem SRDs name that could not be read, so their stories are not in the points above.\n\n")
+		for _, u := range v.Unread {
+			fmt.Fprintf(&b, "- **%s**: %s\n", u.Repository, u.Reason)
+		}
+	}
 	if len(v.Undeclared) > 0 {
 		b.WriteString("\n## Cited but not declared\n\nComponents hierarchy documents cite that ARCHITECTURE does not declare; the corpus gate refuses them until a design change declares them.\n\n")
 		for _, u := range v.Undeclared {
@@ -565,7 +589,20 @@ func init() {
 			fs.BoolVar(&write, "write", false, "write "+StatusPage+", the page a reader opens")
 		},
 		Run: func(ctx *cli.Context) error {
-			v, err := Architecture(dir)
+			// The team repositories the registry names, read through the
+			// tracker when one is reachable; else the checkouts beside
+			// this one, offline (srd045 R8.3; GH-2726).
+			t, _ := ctx.Tracker()
+			scratch, err := os.MkdirTemp("", "scrum-master-teams-")
+			if err != nil {
+				return err
+			}
+			defer os.RemoveAll(scratch)
+			sources, unread, err := Sources(t, dir, "main", scratch)
+			if err != nil {
+				return err
+			}
+			v, err := ArchitectureFrom(dir, sources, unread)
 			if err != nil {
 				return err
 			}

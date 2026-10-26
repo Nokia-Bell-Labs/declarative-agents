@@ -506,3 +506,55 @@ func TestPushedLineNamesTheSprintGoal(t *testing.T) {
 		}
 	}
 }
+
+// An item whose delivered_by names no repository goes to every team whose
+// subsystem owns a component the agreed epics under it name, one entry per
+// team; an epic citing another item, or not agreed, routes nothing, and
+// delivered_by overrides the area (srd022 R2.4; GH-2726).
+func TestPlanRoutesAnItemByItsEpicsArea(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, tp trackertest.Program) {
+		const scoring = "program/delivery/scoring"
+		tp.AddFile(system, "v0.1.0", "docs/specs/software-requirements/srd011-scoring.md", []byte(strings.NewReplacer(
+			"srd010-delivery", "srd011-scoring", "| fleet |", "| scoring |", "/delivery/fleet", "/delivery/scoring").Replace(string(read(t, "../../testdata/system/srd010-delivery.md")))))
+		epic := func(id, status, cites string, components ...string) []byte {
+			arch := ""
+			for _, c := range components {
+				arch += "\n  1. " + c
+			}
+			return []byte(fmt.Sprintf("---\nid: %s\ntitle: Scorecards\nstatus: %s\n---\n\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: technical program manager\n- parent: obj001-reliable-agents\n- cites:\n  1. %s\n- architecture:%s\n",
+				id, status, cites, arch))
+		}
+		tp.AddFile(system, "v0.1.0", "docs/specs/epics/ep001-scorecards.md",
+			epic("ep001-scorecards", "agreed", web+"/program/system/-/blob/v0.1.0/docs/specs/objectives/obj001-reliable-agents.md#R2.1", "fleet", "Scoring"))
+		tp.AddFile(system, "v0.1.0", "docs/specs/epics/ep002-grading.md",
+			epic("ep002-grading", "agreed", "obj001-reliable-agents#R1.2", "scoring"))
+		tp.AddFile(system, "v0.1.0", "docs/specs/epics/ep003-draft.md",
+			epic("ep003-draft", "draft", "obj001-reliable-agents#R2.1", "scoring"))
+		f, s := fixture(t, tp)
+		p, err := MakePlan(f, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, o := range p.Objectives {
+			got = append(got, o.Items[0]+">"+o.Repository)
+		}
+		want := []string{"R1.1>" + fleet, "R1.2>" + fleet, "R2.1>" + fleet, "R2.1>" + scoring}
+		if !slices.Equal(got, want) {
+			t.Fatalf("routes = %v, want %v", got, want)
+		}
+		if r := p.Objectives[3].RepositoryReason; !strings.Contains(r, "srd011-scoring") || !strings.Contains(r, "ep001-scorecards names scoring") {
+			t.Errorf("the scoring entry's reason = %q", r)
+		}
+		res, err := Push(f, s, p, web, program.Defaults(), false)
+		if err != nil || len(res) != 3 || res[2].Key != "obj001-reliable-agents#R2" || res[2].Project != scoring || res[1].IID != res[0].IID {
+			t.Fatalf("push = %+v, %v", res, err)
+		}
+		for _, repo := range []string{fleet, scoring} {
+			issues, _ := f.ListIssues(repo, openIssues())
+			if len(issues) != 1 || !strings.Contains(issues[0].Description, "#R2.1") {
+				t.Errorf("%s Sprint Goals = %+v", repo, issues)
+			}
+		}
+	})
+}

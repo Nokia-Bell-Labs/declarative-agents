@@ -55,10 +55,12 @@ states:
     3. Ask only what the description and the repository leave open, at most
        five questions at a time, each with your recommended answer — a theme's
        horizon and outcomes; an initiative's horizon, milestones with due
-       dates, and owning teams; an epic's owner, horizon, dependencies, and
-       non-goals; a feature's owner, boundary, and tests; a story's as-a /
-       I-want / so-that, points and rank, each criterion's test and
-       environment, and cites; an engineering document's part, structure,
+       dates, and owning teams; an epic's owner (the technical program
+       manager for a cross-team epic in the system repository, its team's
+       Product Owner for one in a team's repository, as backlog_template
+       offers), horizon, dependencies, and non-goals; a feature's owner,
+       boundary, and tests; a story's as-a / I-want / so-that, points and
+       rank, each criterion's test and environment, and cites; an engineering document's part, structure,
        runtime, deployment, and decisions. Write nothing until the person
        answers or says to use your recommendations; ask for no other
        confirmation.

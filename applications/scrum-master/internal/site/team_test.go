@@ -3,6 +3,7 @@
 package site
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/sprintgoal"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker/fake"
 )
 
 // teamCheckout puts po-1's checkout beside the status program's system:
@@ -65,6 +67,8 @@ func TestStatusRollUpCountsTeamCheckouts(t *testing.T) {
 	}
 	theme := row("th001-dependable-agents")
 	teamCheckout(t, system)
+	// The team sources are read when the sources load (GH-2726).
+	reload(t, &in, system)
 	if after := row("ep001-agent-evaluation"); !strings.HasSuffix(after, "| 10 | 21 |") {
 		t.Fatalf("with po-1's done 5-point story: %s", after)
 	}
@@ -84,6 +88,7 @@ func TestStatusRollUpCountsTeamCheckouts(t *testing.T) {
 func TestTimelineDrawsTeamCheckouts(t *testing.T) {
 	in, system := statusProgram(t)
 	teamCheckout(t, system)
+	reload(t, &in, system)
 	f, err := Facts(system, "", in.Sources)
 	if err != nil {
 		t.Fatal(err)
@@ -127,5 +132,73 @@ func TestTimelineDrawsTeamCheckouts(t *testing.T) {
 	}
 	if !slices.Equal(selected, []string{"po-1/st001-score-trajectories"}) {
 		t.Fatalf("team Sprint Goals select %v", selected)
+	}
+}
+
+// reload reads the status program's sources again, as a run that starts
+// after the team checkout appeared would.
+func reload(t *testing.T, in *StatusInput, system string) {
+	t.Helper()
+	s, err := LoadSources(system, in.Tracker, in.Sources.Today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Close)
+	in.Sources = s
+}
+
+// With the registry, the site reads the team repositories the subsystem
+// SRDs name through the tracker, no checkout beside the system's: the
+// epic's page links down to its stories in both teams' repositories, and
+// each story's page links its source in its own team's repository
+// (srd048 R8.1; GH-2726).
+func TestEpicPageLinksStoriesInEveryTeam(t *testing.T) {
+	in, system := statusProgram(t)
+	os.MkdirAll(filepath.Join(system, "control"), 0o755)
+	os.WriteFile(filepath.Join(system, "control", "trackers.md"), []byte("---\nid: trackers\ntitle: Tracking systems\n---\n\n<!-- field: version -->\n## Version\n\n1\n\n<!-- field: default -->\n## Default\n\n<!-- field: system -->\n### System\n\nbd\n"), 0o644)
+	if out, err := exec.Command("git", "-C", system, "remote", "add", "origin", "https://gitlab.example.com/g/system.git").CombinedOutput(); err != nil {
+		t.Fatalf("git remote: %v: %s", err, out)
+	}
+	f := in.Tracker.(*fake.Fake)
+	srd := func(id, repo string) []byte {
+		return []byte("---\nid: " + id + "\ntitle: \"Subsystem\"\n---\n\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: po\n\n<!-- req: R1 -->\n## R1 - Work\n\n<!-- req: R1.1 -->\n### R1.1\n\nWork arrives.\n\n<!-- field: implementation_targets -->\n## Implementation targets\n\n| name | repository | path |\n| --- | --- | --- |\n| " + id + " | https://gitlab.example.com/" + repo + " | / |\n")
+	}
+	f.AddFile("g/system", "main", "docs/specs/software-requirements/srd010-po-1.md", srd("srd010-po-1", "g/po-1"))
+	f.AddFile("g/system", "main", "docs/specs/software-requirements/srd011-po-2.md", srd("srd011-po-2", "g/po-2"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "hierarchy", "valid", "docs", "specs", "stories", "st001-score-trajectories.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	story := []byte(strings.Replace(string(b), "- parent: ft001-grader", "- parent: https://gitlab.example.com/g/system/-/blob/corpus/v0.1.0/docs/specs/epics/ep001-agent-evaluation.md", 1))
+	f.AddFile("g/po-1", "main", "docs/specs/stories/st001-score-trajectories.md", story)
+	f.AddFile("g/po-2", "main", "docs/specs/stories/st001-score-trajectories.md", story)
+
+	s, err := LoadSources(system, f, in.Sources.Today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	facts, err := Facts(system, "", s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, _ := json.Marshal(facts)
+	os.MkdirAll(filepath.Join(in.Reports, Dir, "timeline"), 0o755)
+	if err := os.WriteFile(filepath.Join(in.Reports, Dir, "timeline", "facts.json"), j, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pages, _, _, _, err := HierarchyPages(in.Reports, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	epic := string(pages[Dir+"/"+HierarchyDir+"/ep001-agent-evaluation.md"])
+	for _, team := range []string{"po-1", "po-2"} {
+		if !strings.Contains(epic, team+"/st001-score-trajectories.md)") {
+			t.Errorf("the epic's page does not link %s's story:\n%s", team, epic)
+		}
+	}
+	po2 := string(pages[Dir+"/"+HierarchyDir+"/po-2/st001-score-trajectories.md"])
+	if !strings.Contains(po2, "https://gitlab.example.com/g/po-2/-/blob/HEAD/docs/specs/stories/st001-score-trajectories.md") {
+		t.Errorf("po-2's story does not link its source in po-2's repository:\n%s", po2)
 	}
 }

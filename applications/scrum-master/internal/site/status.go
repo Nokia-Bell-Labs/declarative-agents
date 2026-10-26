@@ -98,7 +98,7 @@ func StatusPages(in StatusInput) (pages, data map[string][]byte, notes []string,
 	progress, external := hierarchy.RollUp(docs, doneSet)
 	// The team checkouts beside the system's add their stories to the
 	// documents they serve, as backlog status counts them (GH-109).
-	teams, _ := backlog.TeamProgress(in.System, docs)
+	teams, _ := backlog.TeamProgress(in.Sources.Teams, docs)
 	for i, p := range progress {
 		if t, ok := teams[p.ID]; ok {
 			progress[i].Done += t.Done
