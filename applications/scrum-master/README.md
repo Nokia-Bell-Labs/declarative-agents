@@ -29,6 +29,10 @@ No Go toolchain is needed: the agent runs the words, and the corpus gate's shape
 
 To install from a GitLab fork's releases, such as an internal one, set `SCRUM_MASTER_RELEASE_FORGE=gitlab` and `SCRUM_MASTER_RELEASE_URL` to the project's URL, with `GITLAB_TOKEN` for a private project; `docs/engineering/eng03-releasing-scrum-master.md` says how the fork publishes them.
 
+## Tutorials
+
+Five walkthroughs under `docs/tutorials/` take a new program from nothing to a running process: [start a program](docs/tutorials/tut01-start-a-program.md), [file and deliver an issue](docs/tutorials/tut02-file-and-deliver-an-issue.md), [plan a release and run the sprint](docs/tutorials/tut03-plan-a-release-and-run-the-sprint.md), [write the backlog](docs/tutorials/tut04-write-the-backlog.md), and [weekly status](docs/tutorials/tut05-weekly-status.md). The guides under `docs/guides/` explain the model behind them, starting with [the process](docs/guides/process.md) and [plan-vs-architecture](docs/guides/plan-vs-architecture.md).
+
 ## Start a program with the agent
 
 A program repository runs its workflows with the agent: each installed skill runs `agent --profile .scrum-master/agents/<name>/profile.yaml --core-root .scrum-master/agent-core --directory .` over the profiles the repository vendored. The one workflow a person runs directly is `init` in a system repository, or `onboard` in a repository joining a program: it lays the repository down, installs the skills, and vendors the profiles and the agent-core declarations they read into `.scrum-master`, with a manifest naming the release. Commit `.scrum-master` with the rest; rerun the same profile to check the repository and to take a new release, which keeps every file a person edited and reports what drifted.
