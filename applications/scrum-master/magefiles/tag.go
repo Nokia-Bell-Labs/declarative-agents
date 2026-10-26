@@ -10,12 +10,13 @@ import (
 
 // The GitHub repository releases are published to, and the
 // account they are published as (eng03). A fork that releases elsewhere,
-// such as an internal GitLab one, names its forge, project, account, and
-// image registry in the environment variables below instead (GH-31).
+// such as an internal GitLab one, names its forge, project, and account in
+// the environment variables below instead (GH-31). No image is published
+// unless SCRUM_MASTER_RELEASE_IMAGE names a repository the publisher can
+// push to: the image is opt-in (GH-2721).
 const (
 	releaseRepo    = "Nokia-Bell-Labs/declarative-agents"
 	releaseAccount = "petar-djukic"
-	releaseImage   = "ghcr.io/nokia-bell-labs/declarative-agents/scrum-master"
 )
 
 // releaseSetting is the environment's value for name, else fallback.
@@ -47,7 +48,7 @@ func TagDryRun() error {
 	return r.DryRun()
 }
 
-// Publish publishes the tag at HEAD once it is on origin: the release assets and SHA256SUMS on its release — on GitHub, or the forge SCRUM_MASTER_RELEASE_FORGE names — then its image; a part already published is checked and kept, so a rerun completes a partial release (eng03).
+// Publish publishes the tag at HEAD once it is on origin: the release assets and SHA256SUMS on its release — on GitHub, or the forge SCRUM_MASTER_RELEASE_FORGE names — then, when SCRUM_MASTER_RELEASE_IMAGE names a repository, its image; a part already published is checked and kept, so a rerun completes a partial release (eng03).
 func Publish() error {
 	p, err := scrumMasterPublisher(false)
 	if err != nil {
@@ -120,6 +121,6 @@ func scrumMasterPublisher(dryRun bool) (release.Publisher, error) {
 		Repo:      releaseSetting("SCRUM_MASTER_RELEASE_REPO", releaseRepo),
 		Account:   releaseSetting("SCRUM_MASTER_RELEASE_ACCOUNT", releaseAccount),
 		DryRun:    dryRun,
-		ImageRepo: releaseSetting("SCRUM_MASTER_RELEASE_IMAGE", releaseImage),
+		ImageRepo: releaseSetting("SCRUM_MASTER_RELEASE_IMAGE", ""),
 	}, nil
 }

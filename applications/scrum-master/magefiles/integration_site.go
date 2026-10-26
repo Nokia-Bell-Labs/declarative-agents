@@ -52,7 +52,13 @@ func (Integration) SiteProfile() error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmp)
+	// SITE_KEEP keeps the fixture program and its site to open in a
+	// browser, and names where it is.
+	if os.Getenv("SITE_KEEP") != "" { //nolint:forbidigo // The opt-in rig reads its tokens and endpoints from the environment (eng01).
+		defer fmt.Printf("site kept in %s\n", filepath.Join(tmp, "reports", site.Dir))
+	} else {
+		defer os.RemoveAll(tmp)
+	}
 	reportsDir, system := filepath.Join(tmp, "reports"), filepath.Join(tmp, "system")
 	if _, err := reports.Init(reportsDir, reports.Config{Team: []reports.Member{{Username: "alice", Project: "g/po-1"}}}, time.Now(), false); err != nil {
 		return err
@@ -159,7 +165,7 @@ func (Integration) SiteProfile() error {
 }
 
 // siteLink is a Markdown link's target or an HTML anchor's href.
-var siteLink = regexp.MustCompile(`\]\(([^)\s]+)\)|href="([^"]+)"`)
+var siteLink = regexp.MustCompile(`\]\(([^)\s]+)(?:\s+"(?:[^"\\]|\\.)*")?\)|href="([^"]+)"`)
 
 // deadLinks is each internal link of the site's Markdown pages under root
 // that resolves to no file, by the app's rules, as "page -> target".

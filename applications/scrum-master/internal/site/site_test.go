@@ -262,11 +262,35 @@ func TestScaffoldTakesBackAnEarlierShell(t *testing.T) {
 	}
 }
 
+// The divider between the navigator and the page drags and keys from 769
+// pixels, kept in the browser; an embedded timeline that lands on anything
+// but the timeline renews the session; the plan's cards route from the
+// page's folder (GH-2723).
+func TestShellResizesTheNavigatorAndWatchesItsFrames(t *testing.T) {
+	for _, want := range []string{
+		"--nav-width: 300px", ".content { left: var(--nav-width); }", `handle.className = "nav-resizer"`, `setAttribute("role", "separator")`,
+		`localStorage.setItem(KEY`, "handle.setPointerCapture(e.pointerId)", `e.key === "ArrowLeft"`, `addEventListener("dblclick"`,
+		"function watchFrames()", `f.contentDocument.getElementById("plot")`, "if (!ok) renewSession();", "watchFrames();",
+		`new URL(href, "http://site" + folder)`, "plainLinks(vm.route && vm.route.path)",
+		".kind-theme, .kb-theme", ".kind-story, .kb-story",
+		"function buildTabs()", "buildTabs();", `strip.setAttribute("role", "tablist")`, `p.setAttribute("role", "tabpanel")`, `localStorage.setItem(key, String(i))`, `e.key === "ArrowRight"`,
+		".board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);", "@container (max-width: 520px) { .board { grid-auto-flow: row; } }",
+	} {
+		if !strings.Contains(shellHTML, want) {
+			t.Errorf("the shell lacks %q", want)
+		}
+	}
+	// The timeline the frame checks for still carries the element.
+	if !strings.Contains(timelineHTML, `id="plot"`) {
+		t.Error("the timeline has no element with id plot for the shell to find")
+	}
+}
+
 // The navigator is an expandable tree, and stays visible in narrow
 // windows: docked from 520 pixels, a labelled Menu button below (GH-131).
 func TestShellFoldsTheNavigatorAndDocksIt(t *testing.T) {
 	for _, want := range []string{
-		"function foldTree()", "foldTree();", "subMaxLevel: 0,", `r.type !== "opaqueredirect"`, `Date.now() - last < 60000`, "location.reload();", `typeof e.data.timelineHeight !== "number"`, "f.contentWindow === e.source", `li.classList.toggle("folded", !open)`, "depth <= 1", `nav.querySelector("li.active")`,
+		"function foldTree()", "foldTree();", "subMaxLevel: 0,", `r.type === "opaqueredirect"`, `Date.now() - last < 60000`, "location.reload();", `typeof e.data.timelineHeight !== "number"`, "f.contentWindow === e.source", `li.classList.toggle("folded", !open)`, "depth <= 1", `nav.querySelector("li.active")`,
 		"@media screen and (min-width: 520px) and (max-width: 768px)", ".sidebar { left: 0; width: 210px; transform: none; }",
 		"@media screen and (max-width: 519px)", `content: "Menu"`,
 	} {
