@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"html"
 	"regexp"
+	"slices"
 	"strings"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
 )
 
 // level is how the site names one hierarchy level to a reader: its label,
@@ -124,29 +127,46 @@ func planHref(n *Node) string {
 	return html.EscapeString(strings.TrimPrefix(n.Page, HierarchyDir+"/"))
 }
 
-// subcard is a child inside its parent's card: its chip, title, state,
-// what lies under it, and its points.
+// subcard is a document on a board: its chip, title, state, horizon and
+// owner, what lies under it, and its points.
 func subcard(n *Node, nodes map[string]*Node) string {
-	return fmt.Sprintf(`<a class="subcard subcard-%s %s" href="%s"><span class="card-head">%s<span class="card-state">%s</span></span><span class="subcard-title">%s</span><span class="card-meta">%s</span>%s</a>`+"\n",
+	return fmt.Sprintf(`<a class="subcard subcard-%s %s" href="%s"><span class="card-head">%s<span class="card-state">%s</span></span><span class="subcard-title">%s</span><span class="card-meta">%s</span><span class="card-meta">%s</span>%s</a>`+"\n",
 		n.Kind, state(n.Status), planHref(n), badge(n.Kind), shown(n.Status), html.EscapeString(n.Title),
-		meta(below(n, nodes), points(n)), bar(n))
+		meta(n.Horizon, n.Owner), meta(below(n, nodes), points(n)), bar(n))
 }
 
-// card is a node's card: its chip and state, its title linking its page,
-// its horizon and release, its points, and a subcard per child.
-func card(n *Node, nodes map[string]*Node) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, `<div class="card card-%s %s">`+"\n", n.Kind, state(n.Status))
-	fmt.Fprintf(&b, `<div class="card-head">%s<span class="card-state">%s</span></div>`+"\n", badge(n.Kind), shown(n.Status))
-	fmt.Fprintf(&b, `<a class="card-title" href="%s">%s</a>`+"\n", planHref(n), html.EscapeString(n.Title))
-	if m := meta(n.Horizon, release(n.Item), points(n)); m != "" {
-		fmt.Fprintf(&b, `<div class="card-meta">%s</div>`+"\n", m)
+// columns are a board's columns, the states the timeline gives an item, in
+// the order work moves through them.
+var columns = []struct{ State, Label string }{
+	{timeline.Future, "Future"}, {timeline.Active, "Active"}, {timeline.Done, "Done"},
+}
+
+// board lays documents out as a kanban board: a column per state, each
+// document in its state's column in rank order; a state no column names
+// gets a column of its own after them.
+func board(ids []string, nodes map[string]*Node) string {
+	if len(ids) == 0 {
+		return `<p class="board-empty">Nothing under it yet.</p>` + "\n"
 	}
-	b.WriteString(bar(n))
-	if len(n.Children) > 0 {
-		b.WriteString(`<div class="subcards">` + "\n")
-		for _, c := range n.Children {
-			b.WriteString(subcard(nodes[c], nodes))
+	cols := slices.Clone(columns)
+	for _, id := range ids {
+		st := nodes[id].Status
+		if !slices.ContainsFunc(cols, func(c struct{ State, Label string }) bool { return c.State == st }) {
+			cols = append(cols, struct{ State, Label string }{st, shown(st)})
+		}
+	}
+	var b strings.Builder
+	b.WriteString(`<div class="board">` + "\n")
+	for _, c := range cols {
+		var in []string
+		for _, id := range ids {
+			if nodes[id].Status == c.State {
+				in = append(in, id)
+			}
+		}
+		fmt.Fprintf(&b, `<div class="column column-%s"><div class="column-head">%s <span class="column-count">%d</span></div>`+"\n", strings.TrimPrefix(state(c.State), "state-"), c.Label, len(in))
+		for _, id := range in {
+			b.WriteString(subcard(nodes[id], nodes))
 		}
 		b.WriteString("</div>\n")
 	}
@@ -154,23 +174,50 @@ func card(n *Node, nodes map[string]*Node) string {
 	return b.String()
 }
 
-// band is a theme's bar across the page, its children as cards beneath;
-// with no theme it gathers the documents no theme holds.
+// panel is one tab of a theme: the document's summary, linking its page,
+// over a board of the documents under it. The shell turns a theme's
+// panels into tabs; the forge shows them one after another.
+func panel(n *Node, nodes map[string]*Node) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, `<section class="tab-panel %s" data-tab="%s" data-state="%s" data-points="%s">`+"\n",
+		state(n.Status), html.EscapeString(n.Title), shown(n.Status), html.EscapeString(pointsShort(n)))
+	fmt.Fprintf(&b, `<div class="panel-head">%s<a class="card-title" href="%s">%s</a><span class="card-state">%s</span><span class="band-meta">%s</span>%s</div>`+"\n",
+		badge(n.Kind), planHref(n), html.EscapeString(n.Title), shown(n.Status), meta(n.Horizon, release(n.Item), n.Owner, below(n, nodes), points(n)), bar(n))
+	b.WriteString(board(n.Children, nodes))
+	b.WriteString("</section>\n")
+	return b.String()
+}
+
+// pointsShort is a node's points as a tab shows them, done over total.
+func pointsShort(n *Node) string {
+	if n.Points == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d/%d", n.PointsDone, n.Points)
+}
+
+// band is a theme's bar across the page, a tab per document under it,
+// each its own board; with no theme it gathers the documents no theme
+// holds on one board.
 func band(theme *Node, children []string, nodes map[string]*Node) string {
 	var b strings.Builder
 	if theme == nil {
 		b.WriteString(`<section class="band band-none">` + "\n")
 		b.WriteString(`<div class="band-head"><span class="band-title">Not under a theme</span></div>` + "\n")
-	} else {
-		fmt.Fprintf(&b, `<section class="band band-theme %s">`+"\n", state(theme.Status))
-		fmt.Fprintf(&b, `<div class="band-head">%s<a class="band-title" href="%s">%s</a><span class="card-state">%s</span><span class="band-meta">%s</span>%s</div>`+"\n",
-			badge(theme.Kind), planHref(theme), html.EscapeString(theme.Title), shown(theme.Status),
-			meta(theme.Horizon, below(theme, nodes), points(theme)), bar(theme))
+		b.WriteString(board(children, nodes))
+		b.WriteString("</section>\n")
+		return b.String()
 	}
-	if len(children) > 0 {
-		b.WriteString(`<div class="cards">` + "\n")
+	fmt.Fprintf(&b, `<section class="band band-theme %s">`+"\n", state(theme.Status))
+	fmt.Fprintf(&b, `<div class="band-head">%s<a class="band-title" href="%s">%s</a><span class="card-state">%s</span><span class="band-meta">%s</span>%s</div>`+"\n",
+		badge(theme.Kind), planHref(theme), html.EscapeString(theme.Title), shown(theme.Status),
+		meta(theme.Horizon, below(theme, nodes), points(theme)), bar(theme))
+	if len(children) == 0 {
+		b.WriteString(`<p class="board-empty">Nothing under it yet.</p>` + "\n")
+	} else {
+		fmt.Fprintf(&b, `<div class="tabbed" data-tabs="%s">`+"\n", html.EscapeString(theme.ID))
 		for _, c := range children {
-			b.WriteString(card(nodes[c], nodes))
+			b.WriteString(panel(nodes[c], nodes))
 		}
 		b.WriteString("</div>\n")
 	}

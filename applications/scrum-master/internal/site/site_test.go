@@ -273,6 +273,8 @@ func TestShellResizesTheNavigatorAndWatchesItsFrames(t *testing.T) {
 		"function watchFrames()", `f.contentDocument.getElementById("plot")`, "if (!ok) renewSession();", "watchFrames();",
 		`new URL(href, "http://site" + folder)`, "plainLinks(vm.route && vm.route.path)",
 		".kind-theme, .kb-theme", ".kind-story, .kb-story",
+		"function buildTabs()", "buildTabs();", `strip.setAttribute("role", "tablist")`, `p.setAttribute("role", "tabpanel")`, `localStorage.setItem(key, String(i))`, `e.key === "ArrowRight"`,
+		".board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);", "@container (max-width: 520px) { .board { grid-auto-flow: row; } }",
 	} {
 		if !strings.Contains(shellHTML, want) {
 			t.Errorf("the shell lacks %q", want)

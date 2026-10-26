@@ -87,44 +87,67 @@
   .markdown-section .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 6px; }
   .markdown-section .crumbs p { margin: 0; }
   .markdown-section .crumbs .kind { font-size: 10px; padding: 0 6px; }
-  /* The plan as cards (GH-2723): a band per theme, a card per initiative,
-     a subcard per epic. */
+  /* The plan as boards (GH-2723): a band per theme, a tab per initiative,
+     a kanban board of its epics by state. */
   .markdown-section:has(.band) { max-width: 90em; }
   .markdown-section a.card-title, .markdown-section a.band-title { text-decoration: none; }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 1.4em; font-size: 13px; color: #4b5563; }
   .legend-item { display: inline-flex; align-items: center; gap: 6px; }
   .band { margin: 0 0 1.6em; border-radius: 10px; background: #faf8ff; border: 1px solid #e9e3fb; border-left: 6px solid #a78bfa; padding: 12px 14px 14px; }
   .band-none { background: #f9fafb; border-color: #e5e7eb; border-left-color: #d1d5db; }
-  .band-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 12px; }
+  .band-head, .panel-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 12px; }
   .markdown-section .band-title { font-size: 1.25em; font-weight: 700; color: #1f2937; }
   .band-meta { font-size: 13px; color: #6b7280; }
-  .band-head .bar { flex: 0 0 100%; max-width: 360px; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
-  .card { display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
-  .card-initiative { border-top: 4px solid #60a5fa; }
-  .card-epic { border-top: 4px solid #2dd4bf; }
-  .card-feature { border-top: 4px solid #fbbf24; }
-  .card-story { border-top: 4px solid #4ade80; }
+  .band-head .bar, .panel-head .bar { flex: 0 0 100%; max-width: 360px; }
   .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .card-state { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
   .state-active .card-state, .state-active > .card-head .card-state { color: var(--theme-color); }
   .state-done .card-state, .state-done > .card-head .card-state { color: #16a34a; }
   .markdown-section a.card-title { font-weight: 600; font-size: 1.05em; color: #111827; line-height: 1.35; }
   .card-meta { font-size: 12.5px; color: #6b7280; }
+  .card-meta:empty { display: none; }
   .bar { display: block; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
   .bar > span { display: block; height: 100%; background: var(--theme-color); }
   .state-done .bar > span { background: #16a34a; }
-  .subcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 6px; }
+  /* A theme's initiatives as tabs: the shell builds the strip from the
+     panels, so without it, and on the forge, the panels follow each other. */
+  .tab-strip { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid #e5e7eb; }
+  .tab-strip button { appearance: none; display: flex; align-items: center; gap: 6px; max-width: 320px; padding: 8px 14px; border: 1px solid transparent;
+    border-bottom: 0; border-radius: 8px 8px 0 0; background: transparent; font: inherit; font-size: 13px; color: #4b5563; cursor: pointer; white-space: nowrap; }
+  .tab-strip button:hover { color: #111827; background: rgba(255,255,255,.6); }
+  .tab-strip button[aria-selected="true"] { background: #fff; border-color: #e5e7eb; color: #111827; font-weight: 600; margin-bottom: -1px; box-shadow: inset 0 3px 0 #60a5fa; }
+  .tab-strip button:focus-visible { outline: 2px solid var(--theme-color); outline-offset: -2px; }
+  .tab-title { overflow: hidden; text-overflow: ellipsis; }
+  .tab-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
+  .tab-dot.state-active { background: var(--theme-color); }
+  .tab-dot.state-done { background: #16a34a; }
+  .tab-points { font-size: 11px; font-weight: 400; color: #6b7280; }
+  .tab-panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+  .tabbed:not(.has-tabs) .tab-panel + .tab-panel { margin-top: 12px; }
+  .tabbed.has-tabs .tab-panel { border-top: 0; border-radius: 0 0 8px 8px; }
+  .tab-panel[hidden] { display: none; }
+  /* The board: a column per state, the page growing with the cards rather
+     than scrolling inside a column. */
+  .tab-panel, .band-none { container-type: inline-size; }
+  .board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
+  .column { display: flex; flex-direction: column; gap: 8px; min-height: 64px; padding: 8px; border-radius: 8px; background: #f3f4f6; }
+  .column-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px; font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em; color: #4b5563; }
+  .column-active .column-head { color: var(--theme-color); }
+  .column-done .column-head { color: #16a34a; }
+  .column-count { padding: 0 8px; border-radius: 999px; background: #e5e7eb; font-size: 11px; color: #374151; }
+  .board-empty { margin: 4px 0; font-size: 13px; color: #6b7280; }
   .markdown-section a.subcard { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 6px; border: 1px solid #e5e7eb;
-    border-left: 4px solid #d1d5db; background: #fafafa; color: inherit; text-decoration: none; }
+    border-left: 4px solid #d1d5db; background: #fff; color: inherit; text-decoration: none; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
   .markdown-section a.subcard:hover, .markdown-section a.card-title:hover, .markdown-section a.band-title:hover { color: var(--theme-color); }
   .markdown-section a.subcard:hover { border-color: var(--theme-color); }
-  .subcard-epic { border-left-color: #2dd4bf !important; background: #f3fdfb !important; }
-  .subcard-feature { border-left-color: #fbbf24 !important; background: #fffcf2 !important; }
-  .subcard-story { border-left-color: #4ade80 !important; background: #f5fdf7 !important; }
-  .subcard-initiative { border-left-color: #60a5fa !important; background: #f5f9ff !important; }
+  .markdown-section a.subcard-initiative { border-left-color: #60a5fa; }
+  .markdown-section a.subcard-epic { border-left-color: #2dd4bf; }
+  .markdown-section a.subcard-feature { border-left-color: #fbbf24; }
+  .markdown-section a.subcard-story { border-left-color: #4ade80; }
   .subcard-title { font-weight: 600; color: #1f2937; }
   .subcard .kind { font-size: 10px; padding: 0 6px; }
+  @container (max-width: 520px) { .board { grid-auto-flow: row; } }
 </style>
 </head>
 <body>
@@ -152,6 +175,69 @@
         a.removeAttribute("data-link");
         if (/\.html$/.test(path)) a.setAttribute("target", "_blank");
       }
+    });
+  }
+  // A theme's panels become tabs, one per initiative, with the state and
+  // points on each; the tab a reader chose is kept in this browser, and the
+  // arrow keys move between them (GH-2723).
+  function buildTabs() {
+    document.querySelectorAll(".markdown-section .tabbed").forEach(function (box) {
+      if (box.classList.contains("has-tabs")) return;
+      var panels = [].slice.call(box.querySelectorAll(":scope > .tab-panel"));
+      if (!panels.length) return;
+      var name = box.getAttribute("data-tabs") || "tabs", key = "site-tab:" + name;
+      var strip = document.createElement("div");
+      strip.className = "tab-strip";
+      strip.setAttribute("role", "tablist");
+      var buttons = panels.map(function (p, i) {
+        var b = document.createElement("button"), state = p.getAttribute("data-state") || "", points = p.getAttribute("data-points") || "";
+        b.type = "button";
+        b.id = "tab-" + name + "-" + i;
+        p.id = "panel-" + name + "-" + i;
+        b.setAttribute("role", "tab");
+        b.setAttribute("aria-controls", p.id);
+        p.setAttribute("role", "tabpanel");
+        p.setAttribute("aria-labelledby", b.id);
+        b.title = [p.getAttribute("data-tab"), state, points].filter(Boolean).join(" · ");
+        var dot = document.createElement("span");
+        dot.className = "tab-dot state-" + state.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+        var title = document.createElement("span");
+        title.className = "tab-title";
+        title.textContent = p.getAttribute("data-tab");
+        b.appendChild(dot);
+        b.appendChild(title);
+        if (points) {
+          var pts = document.createElement("span");
+          pts.className = "tab-points";
+          pts.textContent = points;
+          b.appendChild(pts);
+        }
+        b.addEventListener("click", function () { select(i, true); });
+        strip.appendChild(b);
+        return b;
+      });
+      function select(i, keep) {
+        buttons.forEach(function (b, j) {
+          b.setAttribute("aria-selected", String(i === j));
+          b.tabIndex = i === j ? 0 : -1;
+          panels[j].hidden = i !== j;
+        });
+        if (keep) { try { localStorage.setItem(key, String(i)); } catch (e) {} }
+      }
+      strip.addEventListener("keydown", function (e) {
+        var i = buttons.indexOf(document.activeElement), n = buttons.length;
+        if (i < 0) return;
+        var to = e.key === "ArrowRight" ? (i + 1) % n : e.key === "ArrowLeft" ? (i - 1 + n) % n : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : -1;
+        if (to < 0) return;
+        e.preventDefault();
+        select(to, true);
+        buttons[to].focus();
+      });
+      box.insertBefore(strip, box.firstChild);
+      box.classList.add("has-tabs");
+      var chosen = 0;
+      try { chosen = Number(localStorage.getItem(key) || 0); } catch (e) {}
+      select(chosen >= 0 && chosen < panels.length ? chosen : 0, false);
     });
   }
   // The navigator's nested lists fold into a tree: top-level sections open,
@@ -277,6 +363,7 @@
         hook.doneEach(function () {
           plainLinks(vm.route && vm.route.path);
           watchFrames();
+          buildTabs();
           foldTree();
           if (window.mermaid) {
             window.mermaid.run({ querySelector: ".mermaid" });

@@ -108,12 +108,12 @@ func TestHierarchyPagesLinkBothWays(t *testing.T) {
 	}
 }
 
-// The plan's index is cards: the legend names every level, a theme is a
-// band holding its initiatives' cards, each initiative's card holds a
-// subcard per epic with what lies under it, and a document no theme holds
-// sits in a band of its own; every card links its page beside the index
-// (GH-2723).
-func TestPlanIsCards(t *testing.T) {
+// The plan's index is boards: the legend names every level, a theme is a
+// band with a tab panel per initiative, each panel a kanban board of its
+// epics in their state's column with what lies under each, and a document
+// no theme holds sits on a board of its own; every card links its page
+// beside the index (GH-2723).
+func TestPlanIsBoards(t *testing.T) {
 	reports, _ := hierarchyProgram(t)
 	pages, _, _, _, err := HierarchyPages(reports, nil)
 	if err != nil {
@@ -123,7 +123,10 @@ func TestPlanIsCards(t *testing.T) {
 	for _, want := range []string{
 		`<div class="legend">`, `<span class="kind kind-theme">Theme</span> <span class="legend-what">A strategic area: the why · months to years</span>`,
 		`<section class="band band-theme`, `<a class="band-title" href="th001-dependable-agents.md">Dependable agents</a>`,
-		`<div class="card card-initiative`, `<a class="card-title" href="in001-reliable-agents.md">Reliable agents the product teams can deploy</a>`,
+		`<div class="tabbed" data-tabs="th001-dependable-agents">`, `<section class="tab-panel state-active" data-tab="Reliable agents the product teams can deploy" data-state="active"`,
+		`<a class="card-title" href="in001-reliable-agents.md">Reliable agents the product teams can deploy</a>`,
+		`<div class="board">`, `<div class="column column-future"><div class="column-head">Future <span class="column-count">`,
+		`<div class="column column-done"><div class="column-head">Done <span class="column-count">`,
 		`<a class="subcard subcard-epic`, `href="ep001-agent-evaluation.md"`, `<span class="subcard-title">Agent evaluation</span>`, "1 feature · 4 stories · 10 of 21 points",
 		`<section class="band band-none">`, "Not under a theme",
 	} {
@@ -137,6 +140,12 @@ func TestPlanIsCards(t *testing.T) {
 		if strings.HasPrefix(block, "<section") && !strings.HasSuffix(strings.TrimSpace(block), "</section>") {
 			t.Errorf("a band breaks across a blank line:\n%s", block)
 		}
+	}
+	// The epic sits in its state's column, after the column's head.
+	active := strings.Index(plan, `<div class="column column-active">`)
+	epic := strings.Index(plan, `href="ep001-agent-evaluation.md"`)
+	if active < 0 || epic < active || strings.Contains(plan[active+1:epic], `<div class="column `) {
+		t.Errorf("the active epic is not in the Active column:\n%s", plan)
 	}
 }
 

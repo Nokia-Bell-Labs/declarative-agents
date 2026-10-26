@@ -261,9 +261,9 @@ func release(it timeline.Item) string {
 	return ""
 }
 
-// treePage is the folder's index, the plan as cards: the levels' legend,
-// then a band per theme holding a card per initiative, each holding a
-// subcard per epic with what lies under it, and a last band for the
+// treePage is the folder's index, the plan as boards: the levels' legend,
+// then a band per theme with a tab per initiative, each a kanban board of
+// its epics by state with what lies under each, and a last band for the
 // documents no theme holds. Every card links its page; each page lists
 // its own children.
 func treePage(nodes map[string]*Node) string {
