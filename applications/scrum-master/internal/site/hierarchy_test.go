@@ -101,8 +101,79 @@ func TestHierarchyPagesLinkBothWays(t *testing.T) {
 	if byID["po-1/st001-score-trajectories"].Parent != "ep001-agent-evaluation" {
 		t.Errorf("the team story's parent: %q", byID["po-1/st001-score-trajectories"].Parent)
 	}
-	if !strings.Contains(string(pages[Dir+"/"+HierarchyDir+"/index.md"]), "  - [") {
-		t.Errorf("the tree does not nest:\n%s", pages[Dir+"/"+HierarchyDir+"/index.md"])
+	plan := string(pages[Dir+"/"+HierarchyDir+"/index.md"])
+	theme, initiative, epic := strings.Index(plan, `href="th001-dependable-agents.md"`), strings.Index(plan, `class="card-title" href="in001-reliable-agents.md"`), strings.Index(plan, `class="subcard subcard-epic`)
+	if theme < 0 || initiative < theme || epic < initiative {
+		t.Errorf("the plan does not nest its epic in its initiative's card in its theme's band:\n%s", plan)
+	}
+}
+
+// The plan's index is boards: the legend names every level, a theme is a
+// band with a tab panel per initiative, each panel a kanban board of its
+// epics in their state's column with what lies under each, and a document
+// no theme holds sits on a board of its own; every card links its page
+// beside the index (GH-2723).
+func TestPlanIsBoards(t *testing.T) {
+	reports, _ := hierarchyProgram(t)
+	pages, _, _, _, err := HierarchyPages(reports, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := string(pages[Dir+"/"+HierarchyDir+"/index.md"])
+	for _, want := range []string{
+		`<div class="legend">`, `<span class="kind kind-theme">Theme</span> <span class="legend-what">A strategic area: the why · months to years</span>`,
+		`<section class="band band-theme`, `<a class="band-title" href="th001-dependable-agents.md">Dependable agents</a>`,
+		`<div class="tabbed" data-tabs="th001-dependable-agents">`, `<section class="tab-panel state-active" data-tab="Reliable agents the product teams can deploy" data-state="active"`,
+		`<a class="card-title" href="in001-reliable-agents.md">Reliable agents the product teams can deploy</a>`,
+		`<div class="board">`, `<div class="column column-future"><div class="column-head">Future <span class="column-count">`,
+		`<div class="column column-done"><div class="column-head">Done <span class="column-count">`,
+		`<a class="subcard subcard-epic`, `href="ep001-agent-evaluation.md"`, `<span class="subcard-title">Agent evaluation</span>`, "1 feature · 4 stories · 10 of 21 points",
+		`<section class="band band-none">`, "Not under a theme",
+	} {
+		if !strings.Contains(plan, want) {
+			t.Errorf("the plan lacks %q:\n%s", want, plan)
+		}
+	}
+	// An HTML block ends at a blank line, and a line indented four spaces
+	// after one is code: the cards hold neither.
+	for _, block := range strings.Split(plan, "\n\n") {
+		if strings.HasPrefix(block, "<section") && !strings.HasSuffix(strings.TrimSpace(block), "</section>") {
+			t.Errorf("a band breaks across a blank line:\n%s", block)
+		}
+	}
+	// The epic sits in its state's column, after the column's head.
+	active := strings.Index(plan, `<div class="column column-active">`)
+	epic := strings.Index(plan, `href="ep001-agent-evaluation.md"`)
+	if active < 0 || epic < active || strings.Contains(plan[active+1:epic], `<div class="column `) {
+		t.Errorf("the active epic is not in the Active column:\n%s", plan)
+	}
+}
+
+// Each document's page names its level with its chip, and its breadcrumb
+// links the plan and each document above it; its Down list names each
+// child's level (GH-2723).
+func TestPagesNameTheirLevel(t *testing.T) {
+	reports, _ := hierarchyProgram(t)
+	pages, _, _, _, err := HierarchyPages(reports, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	story := string(pages[Dir+"/"+HierarchyDir+"/st001-score-trajectories.md"])
+	for _, want := range []string{
+		"<div class=\"crumbs\">\n\n[Plan](../hierarchy/index.md) › <span class=\"kind kind-theme\">Theme</span> [Dependable agents](../hierarchy/th001-dependable-agents.md) › <span class=\"kind kind-initiative\">Initiative</span>",
+		"<span class=\"kind kind-feature\">Feature</span> [The grader](../hierarchy/ft001-grader.md)\n\n</div>",
+		"<span class=\"kind kind-story\">Story</span> `st001-score-trajectories`",
+	} {
+		if !strings.Contains(story, want) {
+			t.Errorf("the story's page lacks %q:\n%s", want, story)
+		}
+	}
+	team := string(pages[Dir+"/"+HierarchyDir+"/po-1/st001-score-trajectories.md"])
+	if !strings.Contains(team, "[Plan](../../hierarchy/index.md)") {
+		t.Errorf("the team story's breadcrumb does not reach the plan:\n%s", team)
+	}
+	if epic := string(pages[Dir+"/"+HierarchyDir+"/ep001-agent-evaluation.md"]); !strings.Contains(epic, "- <span class=\"kind kind-feature\">Feature</span> [The grader](../hierarchy/ft001-grader.md): ") {
+		t.Errorf("the epic's Down list does not name its child's level:\n%s", epic)
 	}
 }
 
@@ -139,9 +210,9 @@ func TestSidebarListsThePlanAndTheRepositories(t *testing.T) {
 	nav := string(sidebar)
 	for _, want := range []string{
 		"- [Overview](/overview.md)",
-		"  - [Dependable agents](/hierarchy/th001-dependable-agents.md)",
-		"    - [Reliable agents the product teams can deploy](/hierarchy/in001-reliable-agents.md)",
-		"(/hierarchy/po-1/st001-score-trajectories.md)",
+		`  - [<span class="kb kb-theme" title="Theme">T</span> Dependable agents](/hierarchy/th001-dependable-agents.md "Dependable agents")`,
+		`    - [<span class="kb kb-initiative" title="Initiative">I</span> Reliable agents the product teams can deploy](/hierarchy/in001-reliable-agents.md "Reliable agents the product teams can deploy")`,
+		"(/hierarchy/po-1/st001-score-trajectories.md ",
 		"  - [g/po-1](https://gitlab.example.com/g/po-1)",
 		"  - system\n",
 	} {
@@ -149,8 +220,8 @@ func TestSidebarListsThePlanAndTheRepositories(t *testing.T) {
 			t.Errorf("the navigator lacks %q:\n%s", want, nav)
 		}
 	}
-	epic := strings.Index(nav, "(/hierarchy/ep001-agent-evaluation.md)")
-	team := strings.Index(nav, "(/hierarchy/po-1/st001-score-trajectories.md)")
+	epic := strings.Index(nav, "(/hierarchy/ep001-agent-evaluation.md ")
+	team := strings.Index(nav, "(/hierarchy/po-1/st001-score-trajectories.md ")
 	if epic < 0 || team < epic {
 		t.Errorf("the team story is not under the epic:\n%s", nav)
 	}

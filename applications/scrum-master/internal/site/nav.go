@@ -137,7 +137,9 @@ func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint) string 
 	var walk func(id string, depth int)
 	walk = func(id string, depth int) {
 		n := nodes[id]
-		fmt.Fprintf(&b, "%s- [%s](/%s)\n", strings.Repeat("  ", depth), n.Title, n.Page)
+		// The link's title is the document's own: the shell titles the
+		// browser's tab with it rather than with the chip's letter.
+		fmt.Fprintf(&b, "%s- [%s%s](/%s %q)\n", strings.Repeat("  ", depth), navBadge(n.Kind), n.Title, n.Page, n.Title)
 		for _, c := range n.Children {
 			walk(c, depth+1)
 		}
