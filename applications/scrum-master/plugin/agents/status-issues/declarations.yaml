@@ -1,7 +1,10 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
-# The status-issues machine's words (GH-37). SCRUM_MASTER_REPORTS names the reports repository's checkout; optional flags are
-# parameters from the run's request, never ${VAR} args (GH-135).
+# The status-issues machine's words (GH-37). With control, the roster in the
+# system repository files each person's status issue where they report and
+# the team and program rollup issues (GH-2725); without it, the word reads
+# the central reports repository SCRUM_MASTER_REPORTS names. Optional flags
+# are parameters from the run's request, never ${VAR} args (GH-135).
 unit: scrum-master-status-issues-declarations
 tools:
 - name: reports_status_issues
@@ -11,10 +14,8 @@ tools:
   - reports
   - status-issues
   - --json
-  - --reports
-  - ${SCRUM_MASTER_REPORTS}
   visibility: internal
-  description: 'File one status issue per listed person for the coming week, once (srd018 R7).'
+  description: 'File one status issue per listed person for the coming week, and with control the team and program rollup issues, once (srd018 R7; GH-2725).'
   category: boundary
   parameters:
     type: object
@@ -27,6 +28,14 @@ tools:
         type: string
         description: 'The ref of the control files; empty is main.'
         flag: --ref
+      control:
+        type: string
+        description: 'The system repository holding control/reports.md, the roster of who reports and where.'
+        flag: --control
+      reports:
+        type: string
+        description: 'A central reports repository''s project path, without control; empty is SCRUM_MASTER_REPORTS.'
+        flag: --reports
   signature:
     emits: [ToolDone, ToolFailed, CommandError]
   output:

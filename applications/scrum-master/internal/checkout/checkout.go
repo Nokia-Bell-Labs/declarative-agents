@@ -40,6 +40,20 @@ func (c *Code) Checkout(project string) string {
 	return c.Dir
 }
 
+// HasCheckout reports whether project has a checkout to read: a sibling
+// named for it, or the command's own checkout when that is named for it.
+// Checkout falls back to the command's own for any other project, which a
+// reader of many repositories must not take for that project's (GH-2725).
+func (c *Code) HasCheckout(project string) bool {
+	if project == "" {
+		return false
+	}
+	if c.Checkout(project) != c.Dir {
+		return true
+	}
+	return filepath.Base(c.Dir) == path.Base(project)
+}
+
 func (c *Code) Git(project string, args ...string) (string, error) {
 	out, err := c.raw(project, args...)
 	return strings.TrimSpace(string(out)), err
@@ -126,6 +140,15 @@ func (c *Code) ListDir(project, dir, ref string) ([]string, error) {
 		return nil, fmt.Errorf("%s at %s: %w", dir, ref, tracker.ErrNotFound)
 	}
 	return strings.Split(out, "\n"), nil
+}
+
+// LastCommit is the commit that last changed p at ref.
+func (c *Code) LastCommit(project, p, ref string) (string, error) {
+	out, err := c.Git(project, "log", "-1", "--format=%H", c.rev(project, ref), "--", p)
+	if err != nil || out == "" {
+		return "", fmt.Errorf("%s at %s: %w", p, ref, tracker.ErrNotFound)
+	}
+	return out, nil
 }
 
 func (c *Code) TagExists(project, tag string) (bool, error) {

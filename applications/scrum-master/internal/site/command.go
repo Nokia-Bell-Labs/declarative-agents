@@ -13,12 +13,13 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/reports"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
 
 // ReportsEnv names the reports repository's checkout when --dir does not,
 // as the status-issues profile reads it (srd018 R1.3).
-const ReportsEnv = "SCRUM_MASTER_REPORTS"
+const ReportsEnv = reports.ReportsEnv
 
 // reportsDir is the reports repository's checkout: --dir, else
 // SCRUM_MASTER_REPORTS, else the checkout beside this one named for

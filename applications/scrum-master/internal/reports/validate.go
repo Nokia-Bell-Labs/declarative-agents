@@ -15,23 +15,26 @@ type Finding struct {
 	Problems []string `json:"problems"`
 }
 
-// Validate checks the reports at paths, or every report under dir's
-// reports/ when paths is empty, and returns the ones that break the format
-// (srd018 R2).
+// Validate checks the reports and rollups at paths, or every one under
+// dir's status/ and a central repository's reports/ when paths is empty,
+// and returns the ones that break their format (srd018 R2; GH-2725). A
+// file under status/rollups/ is a rollup; every other one is a report.
 func Validate(dir string, paths []string) (checked int, findings []Finding, err error) {
 	if len(paths) == 0 {
-		err = filepath.WalkDir(filepath.Join(dir, "reports"), func(p string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
+		for _, root := range []string{filepath.Join(StatusDir, "reports"), filepath.Join(StatusDir, "rollups"), "reports"} {
+			err = filepath.WalkDir(filepath.Join(dir, root), func(p string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if !d.IsDir() && strings.HasSuffix(p, ".md") {
+					rel, _ := filepath.Rel(dir, p)
+					paths = append(paths, rel)
+				}
+				return nil
+			})
+			if err != nil && !os.IsNotExist(err) {
+				return 0, nil, err
 			}
-			if !d.IsDir() && strings.HasSuffix(p, ".md") {
-				rel, _ := filepath.Rel(dir, p)
-				paths = append(paths, rel)
-			}
-			return nil
-		})
-		if err != nil && !os.IsNotExist(err) {
-			return 0, nil, err
 		}
 	}
 	for _, p := range paths {
@@ -44,14 +47,26 @@ func Validate(dir string, paths []string) (checked int, findings []Finding, err 
 			return checked, findings, err
 		}
 		checked++
-		r, err := ParseReport(filepath.ToSlash(p), b)
-		if err != nil {
-			findings = append(findings, Finding{p, []string{err.Error()}})
-			continue
-		}
-		if problems := r.Check(); len(problems) > 0 {
+		if problems := CheckFile(filepath.ToSlash(p), b); len(problems) > 0 {
 			findings = append(findings, Finding{p, problems})
 		}
 	}
 	return checked, findings, nil
+}
+
+// CheckFile checks one status file against its format, a rollup's or a
+// report's by where it lives.
+func CheckFile(p string, b []byte) []string {
+	if IsRollupPath(p) {
+		r, err := ParseRollup(p, b)
+		if err != nil {
+			return []string{err.Error()}
+		}
+		return r.Check()
+	}
+	r, err := ParseReport(p, b)
+	if err != nil {
+		return []string{err.Error()}
+	}
+	return r.Check()
 }

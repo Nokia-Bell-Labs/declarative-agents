@@ -89,6 +89,11 @@ type AggregateInput struct {
 	// only its members' reports are read and only they can miss one, so a
 	// team's sprint end describes the team (GH-116).
 	Project string
+	// Collection, when set, is the reports to read in place of Dir's: a
+	// level's reports collected from the repositories where they were
+	// written. Only the roster's people who report in its repositories can
+	// miss one, and merged work is read in each of them (GH-2725).
+	Collection *Collection
 }
 
 // ParseWeek reads YYYY-Www as the Monday that starts it.
@@ -128,28 +133,43 @@ func Aggregate(t tracker.Tracker, in AggregateInput) (Aggregation, error) {
 	if in.Project != "" {
 		in.Config.Team = slices.DeleteFunc(slices.Clone(in.Config.Team), func(m Member) bool { return m.Project != in.Project })
 	}
+	if in.Collection != nil {
+		in.Config.Team = slices.DeleteFunc(slices.Clone(in.Config.Team), func(m Member) bool {
+			return !slices.Contains(in.Collection.Repositories, program.ProjectPath(m.Project))
+		})
+	}
 	member := func(user string) bool {
 		return in.Project == "" || slices.ContainsFunc(in.Config.Team, func(m Member) bool { return m.Username == user })
 	}
 
 	var reports []weekly
-	err = filepath.WalkDir(filepath.Join(in.Dir, "reports"), func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".md") {
-			return err
+	if in.Collection != nil {
+		for _, f := range in.Collection.Reports {
+			r, err := ParseReport(f.Repository+":"+f.Path, []byte(f.Content))
+			if err != nil || !slices.Contains(weeks, r.FrontMatter.Sprint) || !member(r.FrontMatter.Author) {
+				continue
+			}
+			reports = append(reports, weekly{r.FrontMatter.Sprint, r})
 		}
-		b, err := os.ReadFile(p)
-		if err != nil {
-			return err
-		}
-		r, err := ParseReport(p, b)
-		if err != nil || !slices.Contains(weeks, r.FrontMatter.Sprint) || !member(r.FrontMatter.Author) {
+	} else {
+		err = filepath.WalkDir(filepath.Join(in.Dir, "reports"), func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(p, ".md") {
+				return err
+			}
+			b, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
+			r, err := ParseReport(p, b)
+			if err != nil || !slices.Contains(weeks, r.FrontMatter.Sprint) || !member(r.FrontMatter.Author) {
+				return nil
+			}
+			reports = append(reports, weekly{r.FrontMatter.Sprint, r})
 			return nil
+		})
+		if err != nil && !os.IsNotExist(err) {
+			return a, err
 		}
-		reports = append(reports, weekly{r.FrontMatter.Sprint, r})
-		return nil
-	})
-	if err != nil && !os.IsNotExist(err) {
-		return a, err
 	}
 	sort.SliceStable(reports, func(i, j int) bool { return reports[i].week < reports[j].week })
 	a.Reports = len(reports)
@@ -267,6 +287,9 @@ func Aggregate(t tracker.Tracker, in AggregateInput) (Aggregation, error) {
 	// reporting had not begun (GH-116). A week ends as the next begins, so
 	// one whose next Monday is reporting's first day is over (GH-141).
 	began := reportingBegan(in.Dir)
+	if in.Collection != nil {
+		began = in.Collection.began()
+	}
 	var started []string
 	for _, w := range weeks {
 		if start, err := ParseWeek(w); err == nil && !start.After(now) && start.AddDate(0, 0, 7).After(began) {
@@ -276,8 +299,11 @@ func Aggregate(t tracker.Tracker, in AggregateInput) (Aggregation, error) {
 	for _, m := range in.Config.Team {
 		for _, w := range started {
 			if !have[w+"\x00"+m.Username] {
-				a.Signals = append(a.Signals, Signal{SignalMissingReport, m.Project, m.Project, w,
-					fmt.Sprintf("no status report for %s in %s", m.Project, w), false, nil})
+				detail := fmt.Sprintf("no status report for %s in %s", m.Project, w)
+				if open := in.Collection.openStatus(m.Project, m.Username, w); open != "" {
+					detail += "; its status issue " + open + " is open"
+				}
+				a.Signals = append(a.Signals, Signal{SignalMissingReport, m.Project, m.Project, w, detail, false, nil})
 			}
 		}
 	}
@@ -332,6 +358,9 @@ func Aggregate(t tracker.Tracker, in AggregateInput) (Aggregation, error) {
 		}
 	}
 	since := periodStart(from, reported, sprintgoal.Is).Format(time.RFC3339)
+	if in.Collection != nil {
+		projects = slices.Clone(in.Collection.Repositories)
+	}
 	for _, project := range projects {
 		merged, err := t.Merges(project, "", since)
 		if err != nil {
@@ -561,4 +590,40 @@ func reportingBegan(dir string) time.Time {
 	}
 	y, m, d := time.Unix(secs, 0).UTC().Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+// began is the day reporting began in the collection: the Monday of the
+// earliest week a report was merged or a status issue opened for, so a
+// week before it misses no report; zero when it holds neither.
+func (c *Collection) began() time.Time {
+	first := ""
+	for _, f := range c.Reports {
+		if first == "" || f.Week < first {
+			first = f.Week
+		}
+	}
+	for _, o := range c.Open {
+		if o.Kind == "status" && (first == "" || o.Week < first) {
+			first = o.Week
+		}
+	}
+	start, err := ParseWeek(first)
+	if err != nil {
+		return time.Time{}
+	}
+	return start
+}
+
+// openStatus names the open status issue for user's week in repo, as
+// repo#iid; empty when there is none or no collection.
+func (c *Collection) openStatus(repo, user, week string) string {
+	if c == nil {
+		return ""
+	}
+	for _, o := range c.Open {
+		if o.Kind == "status" && o.Name == user && o.Week == week && o.Repository == program.ProjectPath(repo) {
+			return fmt.Sprintf("%s#%d", o.Repository, o.IID)
+		}
+	}
+	return ""
 }

@@ -29,6 +29,7 @@ prose.
 - G1: Every report has the same machine-checkable shape, and its index cannot drift from its body.
 - G2: Aggregation finds what cuts across reports and where reports contradict the tracker.
 - G3: Nothing aggregated ranks or compares people.
+- G4: A report is written and merged in the repository where its author worked, and each level collects what it needs from the program's repositories, so no program stands up or staffs a central reports repository (GH-2725).
 
 <!-- req: R1 -->
 ## R1 - scrum-master reports init
@@ -213,6 +214,84 @@ Until then, reports render no forecast and no burn-up (srd045 R7.2).
 
 The stakeholder update becomes its own recurring artifact per lead per period when 06.0 is planned: a summary, an updated risk list, and a deck, with no comparison or ranking of people. Until then the system release's deck beside its approved summary is the program's update.
 
+<!-- req: R12 -->
+## R12 - Reports in place
+
+<!-- req: R12.1 -->
+### R12.1
+
+A report is status/reports/<YYYY-Qn>/<YYYY-Www>-<username>.md in the repository where its author worked, a team's repository or the system repository, outside docs/ so the corpus gate reads none of it as intent. It keeps the report format, which gains two optional sections, Impact and Next (config format report), so validate and aggregate read a report with or without them. It lands by the merge of its author's status issue in that same repository, through pop, approve when the policy requires it, and merge; no step names another repository.
+
+<!-- req: R12.2 -->
+### R12.2
+
+The roster is control/reports.md in the system repository (config format reports-config), owned by the technical program manager: who reports and in which repository, the reminder weekday, the status and rollup issue titles, the program rollup's lead, and the due offsets. A person's team is the subsystem whose SRD lists their repository. A program that has not moved its roster keeps reports.md in a central reports repository, which status-issues and aggregate read as before; a roster that names a central repository has collect and previous read its reports too, for the release that moves them into place.
+
+<!-- req: R13 -->
+## R13 - scrum-master reports collect
+
+<!-- req: R13.1 -->
+### R13.1
+
+For a level and a period of ISO weeks, lists the level's repositories from the system repository's subsystem SRDs (implementation_targets): for a team, its subsystem's repositories, named by --subsystem or by the subsystem whose SRD lists --project; for the program, the system repository and every subsystem's. A program with no subsystem SRDs takes the repositories its roster names.
+
+<!-- req: R13.2 -->
+### R13.2
+
+Reads from each repository's default branch the period's merged reports, and for the program the teams' rollups, each with its repository, path, and the commit that last changed it: through the host's API when the tracking system serves files without a checkout (gh, glab), so it clones no team repository, else from a checkout of the repository beside this one, never from another repository's checkout taken for it. A repository it cannot read is named with the reason. It writes nothing.
+
+<!-- req: R13.3 -->
+### R13.3
+
+Lists each repository's status and rollup issues of the period still open, which feed the missing-report signal (R17.1).
+
+<!-- req: R14 -->
+## R14 - scrum-master reports previous and path
+
+<!-- req: R14.1 -->
+### R14.1
+
+previous returns a person's latest report before the week in the repository they report in, looking back a quarter, with its repository, path, and commit, and its Work, Blockers, Impact, and Next, or says there is none.
+
+<!-- req: R14.2 -->
+### R14.2
+
+path names where the week's report goes, status/reports/<YYYY-Qn>/<YYYY-Www>-<username>.md, or with --level a rollup's, and the branch its issue's work goes on.
+
+<!-- req: R15 -->
+## R15 - Rollups
+
+<!-- req: R15.1 -->
+### R15.1
+
+A rollup is status/rollups/<YYYY-Qn>/<YYYY-Www>-<subsystem>.md in the repository holding a team's Sprint Goals, or status/rollups/<YYYY-Qn>/<YYYY-Www>-program.md in the system repository (config format rollup): headlines, progress by component and Sprint Goal as the ledger states it (srd006), never issue counts, risks and asks with owners, the next period, and its sources, every claim citing its report or rollup by repository and commit.
+
+<!-- req: R15.2 -->
+### R15.2
+
+validate checks every report and rollup under status/, a rollup against the rollup format by where it lives, and exits non-zero for a rollup whose claim cites a source its Sources do not list or names none.
+
+<!-- req: R16 -->
+## R16 - status-issues against the roster
+
+<!-- req: R16.1 -->
+### R16.1
+
+With --control naming the system repository, status-issues files for the coming ISO week each listed person's status issue in the repository they report in, due report_due_days after the reminder weekday; one team rollup issue per subsystem in its first component repository, which holds the team's Sprint Goals, mentioning the subsystem's owner, due team_rollup_due_days working days later; and one program rollup issue in the system repository, mentioning the program lead, due program_rollup_due_days working days after that. Each recurs as R7 does.
+
+<!-- req: R16.2 -->
+### R16.2
+
+Is idempotent: a second run in the same week files nothing.
+
+<!-- req: R17 -->
+## R17 - aggregate over a collection
+
+<!-- req: R17.1 -->
+### R17.1
+
+With --control and a level, aggregate reads the level's collection (R13) in place of a reports checkout, or a collection --collected names: every R3.2 signal is computed across the level's repositories, a shared blocker across reports in different repositories, a missing report naming its still-open status issue, and merged work in any of them that no report mentions, reporting having begun with the earliest week the collection holds a report or status issue for. It still never ranks or compares people (G3).
+
 <!-- field: non_goals -->
 ## Non-goals
 
@@ -332,3 +411,60 @@ Release 06.0's planning writes the forecast requirement items from R11.1 and the
 - [R11.1](#r111)
 - [R11.2](#r112)
 - [R11.3](#r113)
+
+<!-- ac: AC10 -->
+### AC10
+
+With the roster in the system repository, status-issues leaves exactly one status issue per listed person in the repository they report in, asking for the report at status/reports in that repository, one team rollup issue per subsystem for its owner, and one program rollup issue for the lead, each due after the last, and files nothing on a second run; the roster reads its due offsets and titles with their defaults.
+
+<!-- field: traces -->
+#### Traces
+
+- [R12.1](#r121)
+- [R12.2](#r122)
+- [R16.1](#r161)
+- [R16.2](#r162)
+
+<!-- ac: AC11 -->
+### AC11
+
+collect for a team returns its subsystem's merged reports and for the program every repository's reports and the teams' rollups, each with its repository and commit, a week outside the period left out, the open status issues listed, through gh and glab with no checkout and through a checkout beside this one, and writes nothing.
+
+<!-- field: traces -->
+#### Traces
+
+- [R13.1](#r131)
+- [R13.2](#r132)
+- [R13.3](#r133)
+
+<!-- ac: AC12 -->
+### AC12
+
+previous returns a person's last report before the week with its commit, blockers, impact, and next, and says when there is none; path names the week's report and rollup paths and the report's branch.
+
+<!-- field: traces -->
+#### Traces
+
+- [R14.1](#r141)
+- [R14.2](#r142)
+
+<!-- ac: AC13 -->
+### AC13
+
+validate passes a rollup whose every claim cites a listed source, and fails one whose file name disagrees with its front matter, whose claim cites an unlisted source or none, or whose team level names no subsystem; the rollup format's example passes.
+
+<!-- field: traces -->
+#### Traces
+
+- [R15.1](#r151)
+- [R15.2](#r152)
+
+<!-- ac: AC14 -->
+### AC14
+
+aggregate over a collection across two repositories reports a blocker shared between them, a missing report naming its open status issue, and unreported merged work, and phrases none of them as a comparison of people.
+
+<!-- field: traces -->
+#### Traces
+
+- [R17.1](#r171)

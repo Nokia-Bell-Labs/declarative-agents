@@ -1,0 +1,62 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The reports-previous machine's words (GH-2725); optional flags are parameters from
+# the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-reports-previous-declarations
+tools:
+- name: reports_previous
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - previous
+  - --json
+  visibility: internal
+  description: 'A person''s last report before this week: its blockers, impact, and next (GH-2725).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      project:
+        type: string
+        description: 'The repository the person reports in.'
+        flag: --project
+      user:
+        type: string
+        description: 'The tracker user; empty is the caller.'
+        flag: --user
+      date:
+        type: string
+        description: 'A day of this week, YYYY-MM-DD; empty is today.'
+        flag: --date
+      control:
+        type: string
+        description: 'The system repository, whose roster may name a central reports repository still read.'
+        flag: --control
+      ref:
+        type: string
+        description: 'The ref of the control files; empty is main.'
+        flag: --ref
+    required: [project]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The word''s JSON report.'
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'reports_previous: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: nothing was written

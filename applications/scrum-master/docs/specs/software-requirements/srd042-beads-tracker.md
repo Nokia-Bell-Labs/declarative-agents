@@ -84,7 +84,10 @@ of its own. A branch is reviewed as a pull request pop opens as a draft
 with one empty commit, an approval is the pull request's review of the
 head commit, and merge merges it on GitHub and closes the issue on that
 merge commit. Files, tags, branches, and merged history come from the
-local checkout, as for bd.
+local checkout, as for bd; a reader of many repositories, scrum-master
+reports collect, reads a repository's files on its default branch, with
+the commit that last changed each, through GitHub's API, so it needs no
+checkout of them (srd018 R13.2, GH-2725).
 
 <!-- req: R1.5 -->
 ### R1.5
@@ -97,7 +100,10 @@ reviewed as a merge request pop opens as a draft, an approval is GitLab's
 approval pinned to the head commit with a note naming that commit, since
 GitLab's approvals do not record one, and merge merges it on GitLab,
 waiting while GitLab still checks one that just left draft, and closes
-the issue on that merge commit.
+the issue on that merge commit. As for gh, scrum-master reports collect reads a
+repository's files on its default branch, with the commit that last
+changed each, through GitLab's API, with no checkout (srd018 R13.2,
+GH-2725).
 
 <!-- req: R2 -->
 ## R2 - Mapping

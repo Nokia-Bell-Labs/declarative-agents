@@ -1,0 +1,53 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The reports-path machine's words (GH-2725); optional flags are parameters from
+# the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-reports-path-declarations
+tools:
+- name: reports_path
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - path
+  - --json
+  visibility: internal
+  description: 'Where this week''s report or rollup goes, and its branch (GH-2725).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      user:
+        type: string
+        description: 'The person whose report it is.'
+        flag: --user
+      level:
+        type: string
+        description: 'A rollup''s level instead: program, or the team''s subsystem SRD id.'
+        flag: --level
+      date:
+        type: string
+        description: 'A day of the week, YYYY-MM-DD; empty is today.'
+        flag: --date
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The word''s JSON report.'
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'reports_path: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: nothing was written
