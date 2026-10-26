@@ -12,8 +12,9 @@ purpose: |-
   Invoking this profile is the decision to plan the next release. Every step
   is a word; the model asks only the items, the version, and the end
   date (design.md D10, srd031 R3). The input is the system repository path,
-  and the period's scrum-master reports aggregate --json output when a reports
-  repository exists. A question the skill allows is asked in the conversation
+  whose latest program rollup plan reads, or the period's scrum-master
+  reports aggregate --json output where a program still keeps a central
+  reports repository. A question the skill allows is asked in the conversation
   that invoked it.
 configuration:
   machine: plugin/agents/plan/machine.yaml
@@ -42,7 +43,9 @@ states:
     Plan the release through scrum-master, in order; show each command's result.
     1. File a plane::management planning issue with specify and take it with
        implement; work in its worktree.
-    2. Run plan_candidates (--dir, --system, --aggregate).
+    2. Run plan_candidates (--dir, --system; it reads the latest program
+       rollup under status/rollups itself, or --aggregate where a program
+       still aggregates a central reports repository).
     3. Show the ranked items (slipped first) and the held-back items with what
        they lack. Ask which items enter the release, and confirm or change the
        recommended version, end date, and tag. Ask nothing else.

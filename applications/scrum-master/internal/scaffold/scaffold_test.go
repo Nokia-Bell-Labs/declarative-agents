@@ -14,6 +14,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/beads"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/reports"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/routing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker/fake"
 )
@@ -47,7 +48,8 @@ func repo(t *testing.T) string {
 	return dir
 }
 
-// skeleton is every file init writes, less the skills.
+// skeleton is every file init writes and doctor keeps, less the skills and
+// the roster, which only init writes (GH-2725).
 var skeleton = []string{
 	"control/labels.md", "control/policy.md", "control/states.md",
 	"docs/ARCHITECTURE.md", "docs/SPECIFICATIONS.md", "docs/VISION.md", "docs/constitutions/design.md",
@@ -116,8 +118,11 @@ func TestInitWritesSkeleton(t *testing.T) {
 			t.Errorf("%s not written: %v", f, err)
 		}
 	}
-	if len(got) != len(skeleton) {
-		t.Errorf("init wrote %d files, want %d: %v", len(got), len(skeleton), got)
+	if got[reports.ControlFile] != "created" {
+		t.Errorf("init wrote no empty roster at %s: %v", reports.ControlFile, got)
+	}
+	if len(got) != len(skeleton)+1 {
+		t.Errorf("init wrote %d files, want %d: %v", len(got), len(skeleton)+1, got)
 	}
 }
 
@@ -340,7 +345,7 @@ func TestScaffoldRefusesNonRepository(t *testing.T) {
 func TestScaffoldDryRunWritesNothing(t *testing.T) {
 	dir := repo(t)
 	r, err := Init(InitOptions{Dir: dir, Agents: []string{"claude"}, DryRun: true})
-	if err != nil || len(r.Files) != len(skeleton) {
+	if err != nil || len(r.Files) != len(skeleton)+1 {
 		t.Fatalf("dry run: %d files reported, %v", len(r.Files), err)
 	}
 	entries, _ := os.ReadDir(dir)

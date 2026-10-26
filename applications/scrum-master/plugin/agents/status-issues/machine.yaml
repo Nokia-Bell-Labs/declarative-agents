@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 name: status-issues
 purpose: |-
-  Leave one weekly status issue per listed person for the coming week
-  (srd018): the program manager's weekly step. Use when the program
-  manager asks to open the week's status issues.
+  Leave one weekly status issue per listed person for the coming week,
+  and with the roster in the system repository the team and program
+  rollup issues (srd018 R7, R16): the program manager's weekly step. Use
+  when the program manager asks to open the week's status issues.
 
   This machine has no model state: scrum-master reports status-issues
   (design.md D10, D14; GH-37). With control, it reads the roster in the

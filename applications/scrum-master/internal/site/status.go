@@ -125,12 +125,35 @@ func StatusPages(in StatusInput) (pages, data map[string][]byte, notes []string,
 		const none = "No tracker was reachable when this page was generated, so it lists nothing; regenerate it where the program's tracker is.\n"
 		add("sprint-goals", generated("status", "the Sprint Goals' ledgers")+"# Sprint Goals\n\n"+none, []sprintend.SprintGoal{})
 		add("signals", generated("status", "the weekly reports' aggregate")+"# Signals\n\n"+none, reports.Aggregation{})
+		page, rollup, err := latestRollupPage(in.System)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		add("rollup", page, rollup)
 		add("issues", generated("status", "the tracker's open issues")+"# Open issues\n\n"+none, []tracker.Issue{})
 		return pages, data, []string{"no tracker reachable: the Sprint Goals, signals, and open issues pages list nothing"}, nil
 	}
 	from, to := period(releases, in.Sources)
 	agg := reports.Aggregation{From: from, To: to, ByComponent: map[string][]string{}, Signals: []reports.Signal{}, Progress: []reports.Progress{}}
-	if cfg, err := reports.LoadConfig(in.Reports); err != nil {
+	system := ""
+	if len(in.Projects) > 0 {
+		system = in.Projects[0]
+	}
+	// With the roster in the system repository, the program's reports are
+	// collected where they were written (srd018 R13, R17; GH-2725).
+	if cfg, err := reports.LoadControl(in.Tracker, system, "main"); err == nil {
+		col, err := reports.Collect(in.Tracker, reports.CollectInput{Config: cfg, System: system, Ref: "main", Level: reports.ProgramLevel, From: from, To: to})
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		for _, u := range col.Unread {
+			notes = append(notes, fmt.Sprintf("%s: %s", u.Repository, u.Reason))
+		}
+		if agg, err = reports.Aggregate(in.Tracker, reports.AggregateInput{Config: cfg, Policy: in.Policy, From: from, To: to, Now: in.Sources.Today, Collection: &col}); err != nil {
+			return nil, nil, nil, err
+		}
+		add("signals", signalsPage(agg), agg)
+	} else if cfg, err := reports.LoadConfig(in.Reports); err != nil {
 		// A checkout that is no reports repository has no reports to
 		// aggregate; the page says so rather than the run failing.
 		notes = append(notes, "no reports configuration: "+err.Error())
@@ -155,6 +178,11 @@ func StatusPages(in StatusInput) (pages, data map[string][]byte, notes []string,
 		return nil, nil, nil, err
 	}
 	add("sprint-goals", sprintGoalsPage(facts.SprintGoals, from, to), facts.SprintGoals)
+	rollupPage, rollup, err := latestRollupPage(in.System)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	add("rollup", rollupPage, rollup)
 	var open []tracker.Issue
 	for _, p := range in.Projects {
 		issues, err := in.Tracker.ListIssues(p, tracker.IssueQuery{State: "opened"})
@@ -233,10 +261,11 @@ func statusIndex() string {
 - [Story-point roll-up](roll-up.md): points done over total for each theme, initiative, epic, and feature
 - [Architecture](architecture.md): what exists, what is being built and when it lands, and what is intended
 - [Sprint Goals](sprint-goals.md): each Sprint Goal's ledger and outcome
+- [Program rollup](rollup.md): the program's latest rollup, its headlines, progress, risks and asks, each claim citing its source
 - [Signals](signals.md): what the weekly reports say needs attention
 - [Open issues](issues.md): every open issue, by plane, kind, and state
 
-The facts behind each page are JSON beside the site: [road map](../data/status/road-map.json), [roll-up](../data/status/roll-up.json), [architecture](../data/status/architecture.json), [Sprint Goals](../data/status/sprint-goals.json), [signals](../data/status/signals.json), and [open issues](../data/status/issues.json).
+The facts behind each page are JSON beside the site: [road map](../data/status/road-map.json), [roll-up](../data/status/roll-up.json), [architecture](../data/status/architecture.json), [Sprint Goals](../data/status/sprint-goals.json), [program rollup](../data/status/rollup.json), [signals](../data/status/signals.json), and [open issues](../data/status/issues.json).
 `
 }
 
@@ -350,4 +379,30 @@ func issuesPage(open []tracker.Issue) string {
 // resolves it from any route; the forge strips it (GH-131).
 func embed(view, title string) string {
 	return fmt.Sprintf(`<iframe class="timeline" src="%s/program.html?embed=1&view=%s" title="%s"></iframe>`, GanttDir, view, title) + "\n"
+}
+
+// latestRollupPage is the program's latest rollup as a status page: the
+// rollup the technical program manager merged in the system repository,
+// shown as written, with its facts (srd018 R15, srd048 R4; GH-2725).
+func latestRollupPage(system string) (string, *reports.Rollup, error) {
+	head := generated("status", "the system repository's latest program rollup") + "# Program rollup\n\n"
+	p := reports.LatestProgramRollup(system)
+	if p == "" {
+		return head + "No program rollup has merged yet: the status-rollup skill writes one each week in the system repository's status/rollups/.\n", nil, nil
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return "", nil, err
+	}
+	rel, _ := filepath.Rel(system, p)
+	r, err := reports.ParseRollup(filepath.ToSlash(rel), b)
+	if err != nil {
+		return head + fmt.Sprintf("%s does not read as a rollup: %v\n", filepath.ToSlash(rel), err), nil, nil
+	}
+	var page strings.Builder
+	page.WriteString(head)
+	fmt.Fprintf(&page, "Written by %s for %s, from %s in the system repository.\n\n", r.FrontMatter.Author, r.FrontMatter.Period, filepath.ToSlash(rel))
+	_, body, _ := strings.Cut(strings.TrimPrefix(string(b), "---\n"), "\n---\n")
+	page.WriteString(strings.TrimLeft(body, "\n"))
+	return page.String(), &r, nil
 }

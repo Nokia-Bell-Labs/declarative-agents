@@ -29,6 +29,10 @@ tools:
         type: string
         description: The period's scrum-master reports aggregate --json output.
         flag: --aggregate
+      rollup:
+        type: string
+        description: 'The period''s program rollup; empty with no aggregate is the latest under dir''s status/rollups (GH-2725).'
+        flag: --rollup
       velocity:
         type: integer
         description: The team's assumed velocity in story points, when none is measured.

@@ -37,7 +37,7 @@ prose.
 <!-- req: R1.1 -->
 ### R1.1
 
-Scaffolds a reports repository: a reports directory per quarter, the report schema, a summaries directory, the configuration reports.md (config format reports-config, its slide_limit 10 by default), and a deck template, and installs the skills for the agents --agent names, as scrum-master init does. The team runs scrum-master reports status-issues each week on a schedule of its own, and scrum-master reports validate before each report merges.
+Scaffolds the repository the program's site lives in (srd048): its README, the site's front page, and a deck template. A program whose roster is in the system repository writes its reports where the work is (R12), so that is all (GH-2725). A central reports repository, one init is given members for or that already holds reports.md, also gets a reports directory per quarter, the report schema, a summaries directory, and the configuration reports.md (config format reports-config, its slide_limit 10 by default), as before. It installs the skills for the agents --agent names, as scrum-master init does.
 
 <!-- req: R1.2 -->
 ### R1.2
@@ -122,7 +122,7 @@ Subcommands are in the scrum-master group reports, honour --json and --dry-run, 
 <!-- req: R6.1 -->
 ### R6.1
 
-The sprint update is a recurring issue (srd001 R8) per member per week. Its Requirements name scrum-master standup activity, fetch, and inbox (srd010) as the facts to draft from; its Acceptance Criteria are a report in the fixed shape that passes scrum-master reports validate, written by the member about their own work only. It closes by its merge, and implement re-creates it for the next week.
+The sprint update is a recurring issue (srd001 R8) per member per week, filed in the repository the member works in. Its Requirements name the status-report skill (R18.1) and the words it drafts from; its Acceptance Criteria are a report in the fixed shape, at status/reports in that repository (R12.1), that passes scrum-master reports validate, written by the member about their own work only. It closes by its merge, and status-issues re-creates it for the next week.
 
 <!-- req: R6.2 | status: retired | retired_in: 5 -->
 ### R6.2
@@ -161,22 +161,22 @@ For a project and a person, returns the project's open Sprint Goal issues (Sprin
 <!-- req: R9.1 -->
 ### R9.1
 
-The weekly status issue is the sprint update of R6.1, filed in each owner's repository for the people the reports repository's configuration lists as its team. A program that lists only sub-project leads receives one status issue per lead per week.
+The weekly status issue is the sprint update of R6.1, filed in the repository each person the roster lists reports in (R12.2). A program that lists only sub-project leads receives one status issue per lead per week.
 
 <!-- req: R9.2 -->
 ### R9.2
 
-Its due date is the day after the reminder weekday in the reports repository's configuration, Wednesday by default. The body mentions the person it is for, which makes that person a participant who receives the notification (srd006 R7.1) without assigning them (srd041 R9.1).
+Its due date is report_due_days after the roster's reminder weekday, the day after Wednesday by default. The body mentions the person it is for, which makes that person a participant who receives the notification (srd006 R7.1) without assigning them (srd041 R9.1).
 
 <!-- req: R9.3 -->
 ### R9.3
 
-Its Requirements section is the guided script the owner works with implement: for each open Sprint Goal issue in the repository, record its status, its problems, and complete or not complete. The output is a report in the srd018 shape that passes scrum-master reports validate.
+Its Requirements section is the guided script the owner works with the status-report skill (R18.1): for each open Sprint Goal issue in the repository, record its status, its problems, and complete or not complete, with the week's impact, what blocks the work, and what comes next. The output is a report in the srd018 shape that passes scrum-master reports validate.
 
 <!-- req: R9.4 -->
 ### R9.4
 
-It closes by its merge; the reports repository's scheduled scrum-master reports status-issues run recurs it with the next week's due date (R7, srd001 R8.3).
+It closes by its merge; the scheduled scrum-master reports status-issues run recurs it with the next week's due date (R7, srd001 R8.3).
 
 <!-- req: R10 -->
 ## R10 - Summary on a system release
@@ -292,10 +292,33 @@ Is idempotent: a second run in the same week files nothing.
 
 With --control and a level, aggregate reads the level's collection (R13) in place of a reports checkout, or a collection --collected names: every R3.2 signal is computed across the level's repositories, a shared blocker across reports in different repositories, a missing report naming its still-open status issue, and merged work in any of them that no report mentions, reporting having begun with the earliest week the collection holds a report or status issue for. It still never ranks or compares people (G3).
 
+<!-- req: R18 -->
+## R18 - The status skills, their readers, and the move
+
+<!-- req: R18.1 -->
+### R18.1
+
+The status-report skill works a person's status issue in the repository they worked in: its words gather the week (reports week), last week's Next and Blockers (reports previous), and the path (reports path); the model shows them, asks one question at a time only what the tracker cannot know (each open Sprint Goal's status, problems, and completeness, the week's impact, the blockers, whether last week's commitments landed, and what comes next), drafts the report the person approves, writes it at the path, checks it with reports validate, and commits it; the machine pushes and merges it on the status issue. Each word has a model-free profile.
+
+<!-- req: R18.2 -->
+### R18.2
+
+The status-rollup skill works a rollup issue, its level the repository it runs in: in a team's repository the team rollup, in the system repository the program rollup. Its words collect the level (reports collect) and aggregate it (reports aggregate); the model proposes a disposition for each signal (headline, risk, ask, fyi, follow-up, or drop) and asks the lead only to confirm or change it, drafts the rollup the lead approves in the rollup format, every claim citing its source by repository and commit, writes it at the path reports path names, checks it with reports validate, commits it, and files the follow-up signals with reports aggregate --push; the machine pushes and merges it on the rollup issue.
+
+<!-- req: R18.3 -->
+### R18.3
+
+The site's status pages show the latest program rollup and the signals over the program's collected reports (srd048 R4.1); plan's candidates read the latest program rollup's progress as they read the aggregate's (srd031); and sprint-end facts aggregate the team's or the program's reports collected where they were written when the system repository holds the roster, a central reports checkout only otherwise (srd038).
+
+<!-- req: R18.4 -->
+### R18.4
+
+init writes the program's empty roster at control/reports.md (srd043 R1.3); doctor, and so the upgrade profile, moves a central reports repository's roster there once, naming that repository so collect and previous read its reports for the release that moves them (srd043 R4.2).
+
 <!-- field: non_goals -->
 ## Non-goals
 
-- Writing the prose of reports or summaries; the report audits (R6) are worked through the inner loop.
+- Writing a report's or a rollup's judgment for its author: the status-report and status-rollup skills gather the facts with words, ask the person only for judgment, and write only what they approve (R18; design.md D10).
 - Per-person productivity metrics of any kind.
 
 <!-- field: acceptance_criteria -->
@@ -304,7 +327,7 @@ With --control and a level, aggregate reads the level's collection (R13) in plac
 <!-- ac: AC1 -->
 ### AC1
 
-init creates the reports repository layout, configuration, and deck template in a local checkout once and never overwrites existing reports or summaries.
+init lays down the site's home, its README, front page, and deck template, for a program whose roster is in the system repository, and a central reports repository's layout, configuration, and deck template where it is given members or one exists, once, never overwriting existing reports or summaries.
 
 <!-- field: traces -->
 #### Traces
@@ -468,3 +491,34 @@ aggregate over a collection across two repositories reports a blocker shared bet
 #### Traces
 
 - [R17.1](#r171)
+
+<!-- ac: AC15 -->
+### AC15
+
+status-report and status-rollup render from their profiles, every word they use has a model-free profile, and every profile validates; a status issue worked with status-report merges a report at status/reports in its repository that passes reports validate, and no other repository is written; a team rollup and then a program rollup worked with status-rollup each merge in their own repository, pass reports validate, and cite every claim by repository and commit.
+
+<!-- field: traces -->
+#### Traces
+
+- [R18.1](#r181)
+- [R18.2](#r182)
+
+<!-- ac: AC16 -->
+### AC16
+
+The site's status pages show the latest program rollup the system repository holds; plan's candidates read the latest program rollup's progress; sprint-end facts aggregate the reports collected in place when the roster is in the system repository.
+
+<!-- field: traces -->
+#### Traces
+
+- [R18.3](#r183)
+
+<!-- ac: AC17 -->
+### AC17
+
+init writes an empty roster at control/reports.md; doctor moves a central reports repository's roster there once, naming that repository, reports it on a dry run without moving it, and moves nothing a second time or where a roster is in place.
+
+<!-- field: traces -->
+#### Traces
+
+- [R18.4](#r184)

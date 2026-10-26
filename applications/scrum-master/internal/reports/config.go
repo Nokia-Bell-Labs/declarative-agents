@@ -154,3 +154,10 @@ func Weekday(name string) (time.Weekday, error) {
 	}
 	return 0, fmt.Errorf("reminder_weekday %q is not a weekday", name)
 }
+
+// RosterDocument is cfg as a roster document (config format
+// reports-config), its defaults written out, for control/reports.md.
+func RosterDocument(cfg Config) ([]byte, error) {
+	cfg.defaults()
+	return corpus.FormatConfig("reports", "Reports configuration", cfg)
+}

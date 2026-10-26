@@ -26,11 +26,13 @@ glab. Release 04.0 aligns the planning documents with the agile hierarchy
 (theme, initiative, epic, feature, user story) and names the per-period
 issue the Sprint Goal, 04.1 makes a program repository explain itself
 with tpm doctor to bring one up to date, 04.2 drafts any planning
-document in conversation, 04.3 ships tpm to machines and to CI, and 04.4
-works a story end to end in one worktree and one merge.
+document in conversation, 04.3 ships tpm to machines and to CI, 04.4
+works a story end to end in one worktree and one merge, and 04.5 keeps
+weekly status where the work is, rolled up per team and for the program.
 
 The releases were built in this order: 00.0 to 00.3, 01.0 to 01.2, 03.0,
-01.4, 04.0 to 04.3, then 03.1 and 04.4 together. 05.0 and 06.0, specified and
+01.4, 04.0 to 04.3, then 03.1 and 04.4 together, then 04.5 in the merged
+repository (GH-2725). 05.0 and 06.0, specified and
 not built, come next in that order; they were numbered 01.3 and 02.0
 until 2026-10-22. Also on 2026-10-22, the trunk decision (GH-189, design.md
 D13) chose the monorepo: tpm moves into declarative-agents as an
@@ -704,6 +706,52 @@ as a release on 2026-10-22.
 
 - mage audit
 - mage integration:story
+
+<!-- release: 04.5 | status: implemented -->
+## 04.5 - Status reports in place
+
+A report is written and merged in the repository where its author
+worked, and each level collects what it needs, so no program stands up a
+central reports repository. The roster moves to the system repository's
+control/reports.md; status-issues files each person's status issue where
+they report and a team and a program rollup issue; scrum-master reports
+collect reads a level's reports and rollups from the host's API or a
+checkout, each with its repository and commit; aggregate computes the
+signals across repositories; and the status-report and status-rollup
+skills ask people only for judgment and write what they approve, every
+rollup claim citing its source. The site shows the program rollup, plan
+reads it, sprint-end facts collect in place, and doctor moves a central
+roster. Built on 2026-10-26 (GH-2725); the repository that held the
+reports stays as the site's home.
+
+<!-- field: srds -->
+### SRDs
+
+- srd018-reports
+- srd042-beads-tracker
+- srd043-init-onboard
+- srd048-site
+
+<!-- field: use_cases -->
+### Use cases
+
+| id | summary | status | priority |
+| --- | --- | --- | --- |
+| [rel04.5-uc001-report-in-place](specs/use-cases/rel04.5-uc001-report-in-place.md) | A person writes their weekly status report, through status-report, in the repository they worked in. | implemented | P1 |
+| [rel04.5-uc002-roll-up-in-place](specs/use-cases/rel04.5-uc002-roll-up-in-place.md) | A lead rolls up a team's or the program's week, through status-rollup, from where it was written, every claim citing its source. | implemented | P1 |
+
+<!-- field: test_suites -->
+### Test suites
+
+| id | summary | status |
+| --- | --- | --- |
+| [test-rel04.5-status-in-place](specs/test-suites/test-rel04.5-status-in-place.md) | Status filed, written, collected, and rolled up in place; rollups citing their sources; the site, plan, and doctor reading and moving them. | implemented |
+
+<!-- field: proof -->
+### Proof
+
+- mage audit
+- mage integration:statusInPlace
 
 <!-- release: 05.0 | status: specified -->
 ## 05.0 - Tags trigger handoff and the summary

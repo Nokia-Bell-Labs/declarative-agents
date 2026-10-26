@@ -26,7 +26,7 @@ func TestSkillsRenderFromTheirProfiles(t *testing.T) {
 	for _, s := range skills {
 		names = append(names, s.Name)
 	}
-	want := []string{"admit", "aggregate", "approve", "architecture-status", "backlog-check", "backlog-components", "backlog-guide", "backlog-list", "backlog-template", "check", "close", "comment", "design", "doctor", "draft", "goals-plan", "goals-push", "implement", "init", "issue-file", "issue-lint", "issue-list", "labels", "merge", "onboard", "peer-read", "plan-backlog", "plan-candidates", "plan-push", "plan-write", "plan", "pop", "recur", "release-gate", "release-tag", "release", "reports-collect", "reports-init", "reports-path", "reports-previous", "reports-validate", "site", "specify", "sprint-end-facts", "sprint-end-stories", "sprint-end", "status-issues", "status", "tasks", "tracker-export", "tracker-migrate", "tracker-sync", "upgrade"}
+	want := []string{"admit", "aggregate", "approve", "architecture-status", "backlog-check", "backlog-components", "backlog-guide", "backlog-list", "backlog-template", "check", "close", "comment", "design", "doctor", "draft", "goals-plan", "goals-push", "implement", "init", "issue-file", "issue-lint", "issue-list", "labels", "merge", "onboard", "peer-read", "plan-backlog", "plan-candidates", "plan-push", "plan-write", "plan", "pop", "recur", "release-gate", "release-tag", "release", "reports-collect", "reports-init", "reports-path", "reports-previous", "reports-validate", "site", "specify", "sprint-end-facts", "sprint-end-stories", "sprint-end", "status-issues", "status-report", "status-rollup", "status", "tasks", "tracker-export", "tracker-migrate", "tracker-sync", "upgrade"}
 	if strings.Join(names, " ") != strings.Join(want, " ") {
 		t.Fatalf("profiles rendered %v, want %v", names, want)
 	}

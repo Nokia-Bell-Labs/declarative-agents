@@ -13,6 +13,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/reports"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker/fake"
 )
@@ -659,5 +660,45 @@ func TestDoctorReportsAPinBehindTheVendoredRelease(t *testing.T) {
 	r, err := Doctor(DoctorOptions{Dir: dir, DryRun: true})
 	if err != nil || r.Pinned != "v0.20261024.2" || !strings.Contains(r.PinDrift, "v0.20261024.3 is vendored") || !strings.Contains(humanDoctor(r), "pin: pin v0.20261024.2") {
 		t.Fatalf("doctor: pinned %q, drift %q, %v", r.Pinned, r.PinDrift, err)
+	}
+}
+
+// Doctor moves a program's roster from the central reports repository
+// checked out beside the system checkout into control/reports.md, naming
+// that repository so its reports stay readable; with a roster in place, or
+// none to move, it writes none (srd018 R12.2; GH-2725).
+func TestDoctorMovesTheRoster(t *testing.T) {
+	dir := older(t)
+	os.Remove(filepath.Join(dir, reports.ControlFile))
+	central := filepath.Join(filepath.Dir(dir), "reports")
+	if out, err := exec.Command("git", "init", "-q", central).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	exec.Command("git", "-C", central, "remote", "add", "origin", "https://gitlab.example.com/g/reports.git").Run()
+	doc, _ := reports.RosterDocument(reports.Config{Team: []reports.Member{{Username: "po-1", Project: "g/po-1"}}, System: "g/system", ReminderWeekday: "friday"})
+	os.WriteFile(filepath.Join(central, reports.ConfigFile), doc, 0o644)
+
+	dry, err := Doctor(DoctorOptions{Dir: dir, DryRun: true})
+	if err != nil || actions(dry.Files)[reports.ControlFile] != "moved" {
+		t.Fatalf("dry run: %v, %v", actions(dry.Files), err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, reports.ControlFile)); err == nil {
+		t.Fatal("a dry run moved the roster")
+	}
+	r, err := Doctor(DoctorOptions{Dir: dir})
+	if err != nil || actions(r.Files)[reports.ControlFile] != "moved" {
+		t.Fatalf("doctor: %v, %v", actions(r.Files), err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, reports.ControlFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := reports.ParseConfig(b)
+	if err != nil || cfg.Reports != "g/reports" || cfg.ReminderWeekday != "friday" || len(cfg.Team) != 1 || cfg.System != "" {
+		t.Fatalf("moved roster = %+v, %v", cfg, err)
+	}
+	again, err := Doctor(DoctorOptions{Dir: dir})
+	if err != nil || actions(again.Files)[reports.ControlFile] != "" {
+		t.Fatalf("a second doctor: %v, %v", actions(again.Files), err)
 	}
 }

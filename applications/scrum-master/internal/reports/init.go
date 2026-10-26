@@ -58,6 +58,27 @@ A static site generator (Docsify, Hugo, or Starlight) can later read the
 same files; none is needed to read them.
 `
 
+// siteReadme is the README of a repository that is the program's site's
+// home only: the reports are written where the work is (GH-2725).
+const siteReadme = `# Site
+
+The program's site: its status, timeline, requirement history, and corpus,
+as Markdown pages the site skill generates from the system repository and
+the tracker, in site/, and the release deck's template in deck/. Weekly
+reports and rollups are not here: each is written and merged in the
+repository where its author worked, under status/, and collected from
+there (the roster is the system repository's control/reports.md).
+
+Open site/index.md on the forge: GitHub and GitLab render the pages and
+their mermaid gantt charts as they are. Every generated page closes with a
+stamp; a page you edit is kept, never replaced. site/index.md is yours to
+edit.
+
+To refresh it, run the site skill from a checkout of this repository with
+the system repository checked out beside it, and land the change like any
+other: file the issue, pop it, and merge it. The site never commits.
+`
+
 // SiteIndexStub is the site's front page until the site skill first runs,
 // which replaces it then, as it does not replace an index the program
 // wrote (GH-107).
@@ -67,11 +88,23 @@ The site skill writes the program's status, timeline, requirement history,
 and corpus here; run it to fill this site. This page is yours to edit.
 `
 
-// Init scaffolds a reports repository in a local checkout (srd018 R1): the
-// configuration, the current quarter's reports directory, the report
-// schema, a summaries directory, and a deck template. It
-// never overwrites a file that exists; a dry run writes nothing.
+// Init scaffolds the repository the program's site lives in, in a local
+// checkout (srd018 R1): its README, the site's front page, and a deck
+// template. A program whose roster is in the system repository writes its
+// reports where the work is, so that is all (GH-2725). A central reports
+// repository, one listing members or already holding reports.md, also gets
+// the configuration, the current quarter's reports directory, the report
+// schema, and a summaries directory, as before. It never overwrites a file
+// that exists; a dry run writes nothing.
 func Init(dir string, cfg Config, now time.Time, dryRun bool) ([]InitResult, error) {
+	_, err := os.Stat(filepath.Join(dir, ConfigFile))
+	if len(cfg.Team) == 0 && errors.Is(err, fs.ErrNotExist) {
+		return write(dir, []struct{ path, content string }{
+			{filepath.Join("deck", "template.md"), deckTemplate},
+			{"README.md", siteReadme},
+			{filepath.Join("site", "index.md"), SiteIndexStub},
+		}, dryRun)
+	}
 	cfg.defaults()
 	conf, err := corpus.FormatConfig("reports", "Reports configuration", cfg)
 	if err != nil {
@@ -91,6 +124,11 @@ func Init(dir string, cfg Config, now time.Time, dryRun bool) ([]InitResult, err
 		{"README.md", readme},
 		{filepath.Join("site", "index.md"), SiteIndexStub},
 	}
+	return write(dir, files, dryRun)
+}
+
+// write creates each file that does not exist and keeps each that does.
+func write(dir string, files []struct{ path, content string }, dryRun bool) ([]InitResult, error) {
 	var out []InitResult
 	for _, f := range files {
 		p := filepath.Join(dir, f.path)

@@ -1,0 +1,105 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The status-rollup profile's model binding: the model acts only in the Rollup
+# state (design.md D10), reading SCRUM_MASTER_MODEL, SCRUM_MASTER_RESPONSE_PROFILE, and
+# OLLAMA_URL with the defaults the parent's executor ships.
+unit: scrum-master-status-rollup-llm-default
+imports:
+- /opt/agent-core/tools/units/types-core.yaml
+tools:
+- name: invoke_llm
+  type: builtin
+  init: invoke_llm
+  visibility: internal
+  signature:
+    emits: [LLMResponded, CommandError]
+  description: Invoke the model with the current conversation history.
+  category: boundary
+  output:
+    description: Raw model response text.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: llm_provider
+    description: Sends the current prompt and tool manifest to the configured model provider.
+  - kind: state_mutation
+    target: conversation_history
+    state: appended
+    description: Appends the model response to the in-memory conversation history.
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: conversation_truncate
+    description: Restore the conversation history checkpoint captured before invoking the model.
+    requires: [conversation_checkpoint]
+  errors:
+  - signal: CommandError
+    condition: provider configuration is invalid or the model call fails
+    message_shape: 'invoke_llm: <provider/model>: <error>'
+    state_after_failure: conversation history unchanged unless the provider response was already appended
+  config:
+    model: ${SCRUM_MASTER_MODEL:-qwen3.6:35b-mlx}
+    dialect: /opt/providers/chat-dialect.yaml
+    provider_url: ${OLLAMA_URL:-http://localhost:11434}
+    manifest_state: Rollup
+    response_profile: ${SCRUM_MASTER_RESPONSE_PROFILE:-qwen}
+    max_time: 600
+    system_prompt: |
+      You are the status-rollup workflow of scrum-master. The rollup issue was taken
+      for you: you are in its worktree. In a team's repository you write the team
+      rollup; in the system repository, the program rollup. scrum-master gathers
+      every fact; you propose, the lead decides, and you write only the rollup's
+      words (design.md D10).
+
+      Run reports_collect for the level and period, then reports_aggregate over
+      the same level, and show what they read and the signals. Propose a
+      disposition for each signal (headline, risk, ask, fyi, follow-up, or drop)
+      and ask the lead only to confirm or change it. Draft the rollup in the
+      rollup format, show it, and revise it until the lead approves it.
+
+      Constraints:
+      - Every fact comes from the words; invent nothing
+      - Every headline, progress line, and risk or ask cites its source as
+        repository@commit, and Sources lists each one cited, as reports_collect
+        named it
+      - Progress is each Sprint Goal's ledger state or latest reported status,
+        never a count of issues
+      - The program rollup reads the teams' rollups and opens a raw report only
+        to cite a signal
+      - Describe components, Sprint Goals, and blockers; never compare or rank
+        people
+      - Write it at the path reports_path names for the level; run
+        reports_validate and fix what it names before you commit
+      - Commit with stage_all then commit, the message ending Closes <project#iid>
+        for the rollup issue; never push, merge, or close anything
+
+      After the commit, run reports_aggregate with push for the signals the lead
+      marked follow-up, then call done.
+
+- name: parse_response
+  type: builtin
+  contract: legacy
+  init: parse_response
+  visibility: internal
+  description: Parse raw model output into a tool call or task-completed signal.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, TaskCompleted, ParseFailed, CommandError]
+  category: word
+  side_effects:
+  - kind: command_state
+    description: Parses the prior command output and may reset the parse retry counter after a non-ParseFailed result.
+  undo:
+    strategy: parse_retry_counter_restore
+    description: Restores the parse retry counter snapshot captured before parsing.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'parse_response: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Parsed tool-request JSON or a plain completion summary.
+  config:
+    manifest_state: Rollup

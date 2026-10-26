@@ -90,7 +90,7 @@ func TestStatusPagesGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"index", "road-map", "roll-up", "architecture", "sprint-goals", "signals", "issues"} {
+	for _, name := range []string{"index", "road-map", "roll-up", "architecture", "sprint-goals", "rollup", "signals", "issues"} {
 		got, ok := pages[Dir+"/status/"+name+".md"]
 		if !ok {
 			t.Fatalf("no %s page", name)
@@ -227,5 +227,35 @@ func TestStatusPagesLinksResolve(t *testing.T) {
 				t.Errorf("%s links %q, and %s is not written", p, m[1], resolved)
 			}
 		}
+	}
+}
+
+// The status pages show the program's latest rollup as the program
+// manager merged it in the system repository, each claim with its source
+// (srd018 R15; GH-2725).
+func TestStatusShowsTheLatestProgramRollup(t *testing.T) {
+	in, system := statusProgram(t)
+	older := reports.RenderRollup(reports.RollupFrontMatter{Level: reports.ProgramLevel, Author: "tpm", Period: "2026-W41"}, nil, nil, nil, nil, nil)
+	latest := reports.RenderRollup(reports.RollupFrontMatter{Level: reports.ProgramLevel, Author: "tpm", Period: "2026-W42"},
+		[]reports.Entry{{"headline": "the grader scores one task", "cites": "g/po-1@abc123"}}, nil, nil, nil,
+		[]reports.Entry{{"repository": "g/po-1", "path": "status/reports/2026-Q4/2026-W42-po-1.md", "commit": "abc123"}})
+	for p, body := range map[string]string{"2026-W41-program.md": older, "2026-W42-program.md": latest} {
+		os.MkdirAll(filepath.Join(system, "status", "rollups", "2026-Q4"), 0o755)
+		if err := os.WriteFile(filepath.Join(system, "status", "rollups", "2026-Q4", p), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pages, data, _, err := StatusPages(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(pages[Dir+"/status/rollup.md"])
+	for _, want := range []string{"# Program rollup", "Written by tpm for 2026-W42, from status/rollups/2026-Q4/2026-W42-program.md", "headline: the grader scores one task; cites: g/po-1@abc123"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the rollup page lacks %q:\n%s", want, page)
+		}
+	}
+	if !strings.Contains(string(data[Dir+"/data/status/rollup.json"]), `"period": "2026-W42"`) {
+		t.Errorf("the rollup's facts: %s", data[Dir+"/data/status/rollup.json"])
 	}
 }

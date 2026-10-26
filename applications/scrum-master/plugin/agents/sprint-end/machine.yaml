@@ -10,7 +10,8 @@ purpose: |-
   The sprint-end issue's Requirements are the steps; this profile names the
   word for each. The model writes only the summary; every fact comes from
   scrum-master (design.md D10, srd038 R1). The input is the project path, the
-  sprint-end issue, the program's system repository, a reports checkout, the
+  sprint-end issue, the program's system repository, a central reports
+  checkout where the program still keeps one, the
   period's first and last ISO weeks, and the artifact the repository
   releases. A question the skill allows is asked in the conversation that
   invoked it.
@@ -41,7 +42,8 @@ states:
   meaning: |
     Close the period through scrum-master, in the issue's worktree.
     1. Take the issue with implement and work in its worktree.
-    2. Run sprint_end_facts (--project, --reports, --from, --to,
+    2. Run sprint_end_facts (--project, --from, --to, --reports only for a
+       program still on a central reports repository,
        --artifact, --control).
     3. Draft the period's summary from the reports and those facts; this is
        the one model-written text.
