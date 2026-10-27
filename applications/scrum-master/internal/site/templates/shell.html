@@ -68,9 +68,16 @@
     body.close .nav-resizer { display: none; }
   }
   @media screen and (min-width: 520px) {
-    .nav-resizer { position: fixed; top: 0; bottom: 0; left: calc(var(--nav-width) - 4px); width: 8px; cursor: col-resize; z-index: 25; touch-action: none; }
-    .nav-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background .15s; }
+    /* The divider is always visible: a line along the navigator's edge
+       with a grip halfway down, both turning the theme's colour when the
+       pointer or the keyboard is on it. */
+    .nav-resizer { position: fixed; top: 0; bottom: 0; left: calc(var(--nav-width) - 6px); width: 12px; cursor: col-resize; z-index: 25; touch-action: none; }
+    .nav-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px; background: #e5e7eb; transition: background .15s; }
+    .nav-resizer::before { content: ""; position: absolute; top: 50%; left: 1px; width: 10px; height: 44px; margin-top: -22px; z-index: 1; box-sizing: border-box;
+      border: 1px solid #cbd5e1; border-radius: 6px; background: radial-gradient(circle, #94a3b8 1.2px, transparent 1.6px) center / 4px 6px repeat-y, #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,.12); transition: border-color .15s, background-color .15s; }
     .nav-resizer:hover::after, .nav-resizer:focus-visible::after, body.nav-resizing .nav-resizer::after { background: var(--theme-color); }
+    .nav-resizer:hover::before, .nav-resizer:focus-visible::before, body.nav-resizing .nav-resizer::before { border-color: var(--theme-color); }
     .nav-resizer:focus { outline: none; }
     body.nav-resizing, body.nav-resizing * { cursor: col-resize !important; user-select: none; }
     body.nav-resizing .sidebar, body.nav-resizing .content { transition: none; }

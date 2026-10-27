@@ -262,13 +262,14 @@ func TestScaffoldTakesBackAnEarlierShell(t *testing.T) {
 	}
 }
 
-// The divider between the navigator and the page drags and keys wherever
-// the navigator is docked, from 520 pixels, kept in the browser; an embedded timeline that lands on anything
+// The divider between the navigator and the page, a line with a grip that
+// is always visible, drags and keys wherever the navigator is docked, from
+// 520 pixels, kept in the browser; an embedded timeline that lands on anything
 // but the timeline renews the session; the plan's cards route from the
 // page's folder (GH-2723).
 func TestShellResizesTheNavigatorAndWatchesItsFrames(t *testing.T) {
 	for _, want := range []string{
-		"--nav-width: 300px; }", ".content { left: var(--nav-width); }", "@media screen and (min-width: 520px) {\n    .nav-resizer {", "@media screen and (max-width: 519px) { .nav-resizer { display: none; } }", `handle.className = "nav-resizer"`, `setAttribute("role", "separator")`,
+		"--nav-width: 300px; }", ".content { left: var(--nav-width); }", "@media screen and (min-width: 520px) {\n    /* The divider is always visible", "@media screen and (max-width: 519px) { .nav-resizer { display: none; } }", `handle.className = "nav-resizer"`, ".nav-resizer::before { content: \"\"; position: absolute; top: 50%;", ".nav-resizer::after { content: \"\"; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px; background: #e5e7eb;", `setAttribute("role", "separator")`,
 		`localStorage.setItem(KEY`, "handle.setPointerCapture(e.pointerId)", `e.key === "ArrowLeft"`, `addEventListener("dblclick"`,
 		"function watchFrames()", `f.contentDocument.getElementById("plot")`, "if (!ok) renewSession();", "watchFrames();",
 		`new URL(href, "http://site" + folder)`, "plainLinks(vm.route && vm.route.path)",
