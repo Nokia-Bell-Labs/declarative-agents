@@ -18,6 +18,7 @@ import (
 // a consumer outside this repository requires its format.
 var notMarkdown = []string{
 	"docs/external-checkouts.yaml", // the audit reads it by path
+	"docs/external-pins.yaml",      // the runtime a build without agent-core beside it pins (GH-2754)
 	"docs/corpus-charter.yaml",     // the audit executes it
 	"plugin/plugin.json",           // the Agent Plugins 1.0 standard
 	".golangci.yml",                // the repository's lint gate reads it by path

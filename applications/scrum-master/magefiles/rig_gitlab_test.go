@@ -20,7 +20,10 @@ func TestGitlabRigSkipsWithoutToken(t *testing.T) {
 func TestGitlabRigIsNotARegressionTarget(t *testing.T) {
 	for _, target := range integrationTargets {
 		name := runtime.FuncForPC(reflect.ValueOf(target).Pointer()).Name()
-		if strings.Contains(strings.ToLower(name), "gitlab") {
+		// The target's own name, not its package path, whose host may
+		// name a forge (GH-2763).
+		_, own, _ := strings.Cut(name[strings.LastIndex(name, "/")+1:], ".")
+		if strings.Contains(strings.ToLower(own), "gitlab") {
 			t.Fatalf("%s is among the integration targets mage regression runs", name)
 		}
 	}

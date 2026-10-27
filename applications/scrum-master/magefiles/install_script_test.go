@@ -101,7 +101,7 @@ func TestInstallScriptInstallsAVerifiedRelease(t *testing.T) {
 	install := func(prefix, home string) (string, error) {
 		cmd := exec.Command("sh", filepath.Join(app, "install.sh"), tag)
 		cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + t.TempDir(), "AGENT_PREFIX=" + prefix, "SCRUM_MASTER_HOME=" + home,
-			"SCRUM_MASTER_RELEASE_URL=" + srv.URL}
+			"SCRUM_MASTER_RELEASE_URL=" + srv.URL, "SCRUM_MASTER_RELEASE_FORGE=github"}
 		out, err := cmd.CombinedOutput()
 		return string(out), err
 	}
