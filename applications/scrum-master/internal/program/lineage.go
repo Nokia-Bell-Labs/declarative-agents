@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
@@ -75,4 +76,16 @@ func SitePage(base, page string) string {
 		return ""
 	}
 	return strings.TrimSuffix(base, "/") + "/#/" + strings.TrimSuffix(strings.TrimPrefix(page, "/"), ".md")
+}
+
+// IsProgram reports whether a repository is a program's system repository:
+// it holds the control file every system repository has. A team whose
+// scrum repository is one is a sub-program (GH-2740).
+func IsProgram(t tracker.Tracker, repo string) bool {
+	ref := "main"
+	if b, err := t.DefaultBranch(repo); err == nil && b != "" {
+		ref = b
+	}
+	_, err := t.GetFile(repo, checkout.TrackersFile, ref)
+	return err == nil
 }

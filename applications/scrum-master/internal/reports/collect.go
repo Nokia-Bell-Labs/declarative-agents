@@ -64,16 +64,20 @@ type Unread struct {
 // a period, the repositories it read, the merged reports and rollups, and
 // the status and rollup issues still open (GH-2725).
 type Collection struct {
-	Level        string      `json:"level"`
-	Subsystem    string      `json:"subsystem,omitempty"`
-	From         string      `json:"from"`
-	To           string      `json:"to"`
-	System       string      `json:"system"`
-	Repositories []string    `json:"repositories"`
-	Reports      []Collected `json:"reports"`
-	Rollups      []Collected `json:"rollups"`
-	Open         []OpenIssue `json:"open"`
-	Unread       []Unread    `json:"unread,omitempty"`
+	Level        string   `json:"level"`
+	Subsystem    string   `json:"subsystem,omitempty"`
+	From         string   `json:"from"`
+	To           string   `json:"to"`
+	System       string   `json:"system"`
+	Repositories []string `json:"repositories"`
+	// SubPrograms are the repositories read at their interface, a
+	// sub-program's system repository, whose program rollup stands for
+	// the reports of everyone in it (GH-2742).
+	SubPrograms []string    `json:"sub_programs,omitempty"`
+	Reports     []Collected `json:"reports"`
+	Rollups     []Collected `json:"rollups"`
+	Open        []OpenIssue `json:"open"`
+	Unread      []Unread    `json:"unread,omitempty"`
 }
 
 // CollectInput is one collection.
@@ -114,6 +118,7 @@ func Collect(t tracker.Tracker, in CollectInput) (Collection, error) {
 	if err != nil {
 		return c, err
 	}
+	subPrograms, interior := map[string]string{}, map[string]bool{}
 	add := func(r string) {
 		if r = program.ProjectPath(r); r != "" && !slices.Contains(c.Repositories, r) {
 			c.Repositories = append(c.Repositories, r)
@@ -139,8 +144,23 @@ func Collect(t tracker.Tracker, in CollectInput) (Collection, error) {
 		}
 	case ProgramLevel:
 		add(in.System)
-		for _, r := range subs.Repositories() {
-			add(r)
+		for _, sub := range subs {
+			// A sub-program is read at its interface: its program rollup
+			// is its team rollup, and the reports it rolls up are its own
+			// (GH-2742).
+			if repo := sub.ScrumRepository(); program.IsProgram(t, repo) {
+				add(repo)
+				subPrograms[repo] = sub.ID
+				c.SubPrograms = append(c.SubPrograms, repo)
+				for _, r := range sub.Repositories() {
+					interior[r] = true
+				}
+				interior[repo] = false
+				continue
+			}
+			for _, r := range sub.Repositories() {
+				add(r)
+			}
 		}
 		if len(subs) == 0 {
 			for _, m := range in.Config.Team {
@@ -152,6 +172,9 @@ func Collect(t tracker.Tracker, in CollectInput) (Collection, error) {
 	}
 	quarters := quartersOf(weeks)
 	for _, repo := range c.Repositories {
+		if interior[repo] {
+			continue
+		}
 		var files []Collected
 		var reasons []string
 		for _, q := range quarters {
@@ -172,14 +195,27 @@ func Collect(t tracker.Tracker, in CollectInput) (Collection, error) {
 				continue
 			}
 			f.Name, f.Week = name, week
+			sub, isSub := subPrograms[repo]
 			if IsRollupPath(f.Path) {
-				// The program reads the teams' rollups; a team, none.
-				if in.Level == ProgramLevel && name != ProgramLevel {
+				// The program reads the teams' rollups, a sub-program's
+				// program rollup as its team's; a team, none.
+				switch {
+				case in.Level != ProgramLevel:
+				case isSub && name == ProgramLevel:
+					f.Name = sub
+					c.Rollups = append(c.Rollups, f)
+				case !isSub && name != ProgramLevel:
 					c.Rollups = append(c.Rollups, f)
 				}
 				continue
 			}
+			if isSub {
+				continue
+			}
 			c.Reports = append(c.Reports, f)
+		}
+		if _, isSub := subPrograms[repo]; isSub {
+			continue
 		}
 		open, err := openStatus(t, repo, weeks)
 		if err != nil {

@@ -113,7 +113,9 @@ shows its own level in full and only the interface of the level below: the
 upper site counts and links the documents the sub-program serves it with,
 read from the sub-program's published site, and points to the
 sub-program's site for its teams and stories; the sub-program's site links
-up to the parent's. A program declares its site and its parent in
+up to the parent's. Weekly status chains the same way: the sub-program's
+program rollup is its team rollup at the level above, and the upper level
+reads none of the reports behind it (srd018). A program declares its site and its parent in
 `control/program.md` (config format program; srd048 R8.7).
 
 ## Links

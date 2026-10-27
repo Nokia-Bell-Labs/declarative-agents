@@ -426,3 +426,74 @@ func TestATeamJournalsInItsScrumRepository(t *testing.T) {
 		}
 	})
 }
+
+// An upper program reads a sub-program at its interface: its program
+// rollup is its team rollup, named for its subsystem, none of its reports
+// are read, nobody in it is missing a report here, and status-issues asks
+// its TPM for no second rollup (srd018; GH-2742).
+func TestASubProgramsRollupIsItsTeamRollup(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, p trackertest.Program) {
+		const sub = "g/eval-program"
+		p.AddFile("g/system", "main", "docs/specs/software-requirements/srd001-system.md", subsystemSRD("srd001-system", "tpm", "g/system"))
+		p.AddFile("g/system", "main", "docs/specs/software-requirements/srd010-po-1.md", subsystemSRD("srd010-po-1", "po-1", po1))
+		p.AddFile("g/system", "main", "docs/specs/software-requirements/srd012-eval.md",
+			[]byte(strings.Replace(string(subsystemSRD("srd012-eval", "tpm-eval", "g/eval-code")), "- owner: tpm-eval", "- owner: tpm-eval\n- scrum_repository: https://gitlab.example.com/"+sub, 1)))
+		doc, _ := configDocument(Config{Team: []Member{{"po-1", po1}, {"tpm-eval", sub}}})
+		p.AddFile("g/system", "main", ControlFile, []byte(doc))
+		p.AddFile(sub, "main", "control/trackers.md", []byte("---\nid: trackers\ntitle: Tracking systems\n---\n\n<!-- field: version -->\n## Version\n\n1\n"))
+		w42, _ := ParseWeek("2026-W42")
+		p.AddFile(po1, "main", RollupPath(w42, "srd010-po-1"), []byte(RenderRollup(RollupFrontMatter{Level: "team", Subsystem: "srd010-po-1", Author: "po-1", Period: "2026-W42"}, nil, nil, nil, nil, nil)))
+		p.AddFile(sub, "main", RollupPath(w42, ProgramLevel), []byte(RenderRollup(RollupFrontMatter{Level: "program", Author: "tpm-eval", Period: "2026-W42"}, nil, nil, nil, nil, nil)))
+		p.AddFile(sub, "main", InPlaceReportPath(w42, "tpm-eval"), []byte(Render("tpm-eval", "2026-W42", nil, nil)))
+		f := p.Tracker()
+		cfg, err := LoadControl(f, "g/system", "main")
+		if err != nil {
+			t.Fatal(err)
+		}
+		col, err := Collect(f, CollectInput{Config: cfg, System: "g/system", Ref: "main", Level: ProgramLevel, From: "2026-W42", To: "2026-W42"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rollups []string
+		for _, r := range col.Rollups {
+			rollups = append(rollups, r.Repository+" "+r.Name)
+		}
+		if !slices.Equal(rollups, []string{sub + " srd012-eval", po1 + " srd010-po-1"}) {
+			t.Errorf("rollups = %v, want po-1's team rollup and the sub-program's program rollup as srd012-eval's", rollups)
+		}
+		for _, r := range col.Reports {
+			if r.Repository == sub {
+				t.Errorf("the upper program read the sub-program's report %s", r.Path)
+			}
+		}
+		if !slices.Equal(col.SubPrograms, []string{sub}) {
+			t.Errorf("sub-programs = %v", col.SubPrograms)
+		}
+		agg, err := Aggregate(f, AggregateInput{Config: cfg, Policy: program.Defaults(), From: "2026-W42", To: "2026-W42", Collection: &col, Now: monday})
+		if err != nil {
+			t.Fatal(err)
+		}
+		missing := map[string]bool{}
+		for _, s := range agg.Signals {
+			if s.Kind == SignalMissingReport {
+				missing[s.Subject] = true
+			}
+		}
+		if missing[sub] || !missing[po1] {
+			t.Errorf("missing reports = %v, want po-1's and not the sub-program's", missing)
+		}
+		res, err := StatusIssuesInPlace(f, RollupInput{Config: cfg, System: "g/system", Ref: "main", Policy: program.Defaults(), Lead: "tpm", Now: monday})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, r := range res {
+			if r.Kind == "team-rollup" {
+				got = append(got, r.Action+" "+r.Project)
+			}
+		}
+		if !slices.Equal(got, []string{"filed " + po1, "sub-program " + sub}) {
+			t.Errorf("team rollups = %v, want one filed for po-1 and none for the sub-program", got)
+		}
+	})
+}

@@ -92,10 +92,10 @@ type SubProgram struct {
 func subPrograms(t tracker.Tracker, scrums program.Subsystems) (out []SubProgram, notes []string) {
 	for _, sub := range scrums {
 		repo := sub.ScrumRepository()
-		ref := branchOf(t, repo)
-		if _, err := t.GetFile(repo, checkout.TrackersFile, ref); err != nil {
+		if !program.IsProgram(t, repo) {
 			continue
 		}
+		ref := branchOf(t, repo)
 		sp := SubProgram{Name: path.Base(repo), Repository: repo}
 		lin, err := program.LoadLineage(t, repo, ref)
 		if err != nil {
