@@ -77,7 +77,7 @@ A declared check this scrum-master cannot run, a contract-tests or scorecard che
 <!-- req: R3.1 -->
 ### R3.1
 
-Reports the latest tag of an artifact and the next patch, minor, and major versions, with the class each would have, and recommends one from the commits since the latest tag: minor for a first release, major when a commit says BREAKING CHANGE, patch when every commit fixes something or when the checkout is a corpus whose requirements (its SRDs, initiatives, objectives, and road map) no commit since the tag changed, a republish, minor for any other change, and none when nothing was committed since.
+Reports the latest tag of an artifact and the next patch, minor, and major versions, with the class each would have, and recommends one from the commits since the latest tag: minor for a first release, major when a commit says BREAKING CHANGE, patch when every commit fixes something or when the checkout is a corpus whose requirements (its SRDs, initiatives, objectives, and road map) no commit since the tag changed, a republish, minor for any other change, and none when nothing was committed since. A commit that changes only the weekly status written in place, the reports and rollups under status/ and the roster in control/reports.md, is no artifact's content and is not counted: a period whose only commits are status recommends none (GH-2774).
 
 <!-- req: R4 -->
 ## R4 - Test software ships with the release
