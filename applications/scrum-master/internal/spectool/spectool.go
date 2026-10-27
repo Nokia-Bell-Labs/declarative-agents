@@ -81,7 +81,14 @@ func SourceURL(root string) string {
 	if yaml.Unmarshal(data, &pins) != nil || pins.Sources[ParentRepository] == "" {
 		return ReleaseURL
 	}
-	return strings.TrimSuffix(pins.Sources[ParentRepository], "/")
+	source := pins.Sources[ParentRepository]
+	if !IsGitRemote(source) {
+		source = strings.TrimSuffix(source, "/")
+	}
+	if strings.HasPrefix(source, ".") {
+		source = filepath.Join(root, source)
+	}
+	return source
 }
 
 // Runner runs name with args in dir.
@@ -219,10 +226,16 @@ func Download(url string) ([]byte, error) {
 // entries offline against it.
 func EnsureSource(src, tag string) error { return EnsureSourceFrom(ReleaseURL, src, tag) }
 
-// EnsureSourceFrom is EnsureSource from the forge at base.
+// EnsureSourceFrom is EnsureSource from the forge at base: a git remote,
+// which any forge serves with the person's or CI's own credentials, is
+// cloned at the tag; any other base serves the tag's archive at
+// <base>/archive/refs/tags/<tag>.tar.gz (GH-2761).
 func EnsureSourceFrom(base, src, tag string) error {
 	if gitQuiet(src, "rev-parse", "--verify", "-q", "refs/tags/"+tag) == nil {
 		return nil
+	}
+	if IsGitRemote(base) {
+		return cloneSource(base, src, tag)
 	}
 	archive, err := Download(base + "/archive/refs/tags/" + tag + ".tar.gz")
 	if err != nil {
@@ -253,6 +266,37 @@ func EnsureSourceFrom(base, src, tag string) error {
 		}
 	}
 	return nil
+}
+
+// IsGitRemote reports whether a source is a git remote rather than a
+// forge's web address: an ssh or scp-form address, a URL ending in .git,
+// or a local path or file:// URL.
+func IsGitRemote(source string) bool {
+	switch {
+	case strings.HasPrefix(source, "ssh://"), strings.HasPrefix(source, "git@"), strings.HasPrefix(source, "file://"),
+		strings.HasPrefix(source, "/"), strings.HasPrefix(source, "."):
+		return true
+	}
+	return strings.HasSuffix(source, ".git")
+}
+
+// cloneSource lays out tag's source from the git remote at url: a shallow
+// clone of the tag, which carries the tag itself.
+func cloneSource(url, src, tag string) error {
+	if err := os.RemoveAll(src); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(src), 0o755); err != nil {
+		return err
+	}
+	cmd := exec.Command("git", "clone", "-q", "--depth", "1", "--branch", tag, url, src)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("clone %s at %s: %w: %s", url, tag, err, strings.TrimSpace(string(out)))
+	}
+	if _, err := os.Stat(filepath.Join(src, "agent-core", "go.mod")); err != nil {
+		return fmt.Errorf("the source of %s has no agent-core/go.mod: %w", tag, err)
+	}
+	return gitQuiet(src, "rev-parse", "--verify", "-q", "refs/tags/"+tag)
 }
 
 func gitQuiet(dir string, args ...string) error {
