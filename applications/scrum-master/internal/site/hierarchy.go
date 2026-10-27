@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/links"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
 )
 
@@ -63,15 +65,15 @@ func HierarchyPages(dir string, repos []Repo) (pages, data, sprints map[string][
 	nodes, tracked := hierarchyNodes(f)
 	pages = map[string][]byte{}
 	for _, n := range nodes {
-		pages[Dir+"/"+n.Page] = []byte(nodePage(n, nodes, tracked, corpus))
+		pages[Dir+"/"+n.Page] = []byte(nodePage(n, nodes, tracked, corpus, f.Parent))
 	}
-	pages[Dir+"/"+HierarchyDir+"/index.md"] = []byte(treePage(nodes))
+	pages[Dir+"/"+HierarchyDir+"/index.md"] = []byte(treePage(nodes, f.Parent))
 	out := make([]Node, 0, len(nodes))
 	for _, id := range sortedNodes(nodes) {
 		out = append(out, *nodes[id])
 	}
 	j, _ := json.MarshalIndent(out, "", "  ")
-	return pages, map[string][]byte{Dir + "/data/hierarchy/hierarchy.json": append(j, '\n')}, SprintPages(f, nodes), []byte(sidebarPage(nodes, repos, sprintsOf(f), f.Teams)), nil
+	return pages, map[string][]byte{Dir + "/data/hierarchy/hierarchy.json": append(j, '\n')}, SprintPages(f, nodes), []byte(sidebarPage(nodes, repos, sprintsOf(f), f.Teams, f.Parent)), nil
 }
 
 // hierarchyNodes gathers each hierarchy document with its children, the
@@ -170,7 +172,25 @@ func points(n *Node) string {
 	return fmt.Sprintf("%d of %d points", n.PointsDone, n.Points)
 }
 
-func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item, corpus func(string) bool) string {
+// parentPage is the link to a document of the parent program a pinned URL
+// names: its page on the parent's site where the facts know the site,
+// else the URL itself; empty when the URL is not the parent's.
+func parentPage(url string, parent *timeline.ProgramRef) (label, href string) {
+	if parent == nil || !strings.Contains(url, "://") {
+		return "", ""
+	}
+	ref, err := links.Parse(url)
+	if err != nil || ref.Project != parent.Repository {
+		return "", ""
+	}
+	id := strings.TrimSuffix(path.Base(ref.Path), ".md")
+	if parent.Site != "" {
+		return id, program.SitePage(parent.Site, HierarchyDir+"/"+id+".md")
+	}
+	return id, url
+}
+
+func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item, corpus func(string) bool, parent *timeline.ProgramRef) string {
 	var b strings.Builder
 	b.WriteString(generated("hierarchy", "the timeline facts"))
 	b.WriteString(crumbs(n, nodes))
@@ -196,10 +216,19 @@ func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item,
 	b.WriteString("## Up\n\n")
 	if _, ok := nodes[n.Parent]; ok {
 		b.WriteString("- " + link(n.Parent) + "\n\n")
+	} else if id, href := parentPage(n.Parent, parent); href != "" {
+		fmt.Fprintf(&b, "- [%s](%s) in %s's plan, the program this one is part of\n\n", id, href, parent.Name)
 	} else {
 		b.WriteString("Nothing above it in the plan.\n\n")
 	}
-	if n.Kind != "story" {
+	if n.Program != "" {
+		b.WriteString("## Down\n\n")
+		if n.Source != "" {
+			fmt.Fprintf(&b, "Its features and stories are %s's, a program of its own: [open it on %s's site](%s).\n\n", n.Program, n.Program, n.Source)
+		} else {
+			fmt.Fprintf(&b, "Its features and stories are %s's, a program of its own, on its site.\n\n", n.Program)
+		}
+	} else if n.Kind != "story" {
 		b.WriteString("## Down\n\n")
 		if len(n.Children) == 0 {
 			b.WriteString("Nothing under it yet.\n\n")
@@ -229,7 +258,10 @@ func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item,
 	}
 	b.WriteString("## Source\n\n")
 	wrote := false
-	if n.Source != "" {
+	if n.Source != "" && n.Program != "" {
+		fmt.Fprintf(&b, "- [%s](%s) on %s's site\n", sourceName(n), n.Source, n.Program)
+		wrote = true
+	} else if n.Source != "" {
 		fmt.Fprintf(&b, "- [%s](%s) on the forge\n", sourceName(n), n.Source)
 		wrote = true
 	}
@@ -266,7 +298,7 @@ func release(it timeline.Item) string {
 // its epics by state with what lies under each, and a last band for the
 // documents no theme holds. Every card links its page; each page lists
 // its own children.
-func treePage(nodes map[string]*Node) string {
+func treePage(nodes map[string]*Node, parent *timeline.ProgramRef) string {
 	var b strings.Builder
 	b.WriteString(generated("hierarchy", "the timeline facts"))
 	b.WriteString("# Plan\n\nEvery theme, initiative, epic, feature, and story, each under the document it serves, with its state and points. A team's documents are named for its repository.\n\n")
@@ -275,17 +307,23 @@ func treePage(nodes map[string]*Node) string {
 		b.WriteString("No planning document yet.\n")
 		return b.String()
 	}
-	var loose []string
+	var loose, serving []string
 	for _, id := range sortedNodes(nodes) {
 		n := nodes[id]
 		if _, ok := nodes[n.Parent]; ok {
 			continue
 		}
-		if n.Kind == "theme" {
+		switch _, href := parentPage(n.Parent, parent); {
+		case n.Kind == "theme":
 			b.WriteString(band(n, n.Children, nodes) + "\n")
-		} else {
+		case href != "":
+			serving = append(serving, id)
+		default:
 			loose = append(loose, id)
 		}
+	}
+	if len(serving) > 0 {
+		b.WriteString(servingBand(parent, serving, nodes) + "\n")
 	}
 	if len(loose) > 0 {
 		b.WriteString(band(nil, loose, nodes) + "\n")

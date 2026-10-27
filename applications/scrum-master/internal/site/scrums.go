@@ -28,6 +28,7 @@ type scrum struct {
 	timeline.Team
 	Page    string
 	Docs    []string // its features and stories, in kind and rank order
+	Serves  []string // a sub-program's documents this plan shows, its interior apart
 	Goals   []timeline.Item
 	Epics   []string
 	Done    int // its story points done
@@ -63,6 +64,10 @@ func scrumsIn(f timeline.Facts, nodes map[string]*Node) []scrum {
 			if !s.owns(id) {
 				continue
 			}
+			if n.Program != "" {
+				s.Serves = append(s.Serves, id)
+				continue
+			}
 			if n.Kind == "story" || n.Kind == "feature" {
 				s.Docs = append(s.Docs, id)
 			}
@@ -85,6 +90,10 @@ func scrumsIn(f timeline.Facts, nodes map[string]*Node) []scrum {
 			}
 		}
 		slices.SortStableFunc(s.Docs, func(a, b string) int { return byRank(nodes[a], nodes[b]) })
+		for _, id := range s.Serves {
+			s.Points += nodes[id].Points
+			s.Done += nodes[id].PointsDone
+		}
 		slices.SortStableFunc(s.Epics, func(a, b string) int { return byRank(nodes[a], nodes[b]) })
 		for _, it := range f.Items {
 			if it.Kind == timeline.KindSprintGoal && s.files(it.ID) {
@@ -146,8 +155,12 @@ func ScrumPages(dir string) (map[string][]byte, error) {
 }
 
 // scrumBadge is the scrum's chip, as its page, its tile, and the
-// navigator show it.
-const scrumBadge = `<span class="kind kind-scrum">Scrum</span>`
+// navigator show it; programBadge a sub-program's, a team that is a
+// program of its own (GH-2740).
+const (
+	scrumBadge   = `<span class="kind kind-scrum">Scrum</span>`
+	programBadge = `<span class="kind kind-program">Program</span>`
+)
 
 // openGoals counts the Sprint Goals not yet closed.
 func openGoals(goals []timeline.Item) int {
@@ -175,11 +188,16 @@ func scrumTile(s scrum) string {
 		bar = fmt.Sprintf(`<span class="tile-bar"><span style="width:%d%%"></span></span>`, s.Done*100/s.Points)
 	}
 	work := []string{plurals(openGoals(s.Goals), "open Sprint Goal"), plurals(len(s.Epics), "epic"), plurals(s.Stories, "story")}
+	class, chip := "tile-scrum", scrumBadge
+	if s.Program {
+		work = []string{plurals(openGoals(s.Goals), "open Sprint Goal"), plurals(len(s.Serves), "document") + " serving this plan", "a program with its own site"}
+		class, chip = "tile-program", programBadge
+	}
 	pts := ""
 	if s.Points > 0 {
 		pts = fmt.Sprintf("%d of %d points done", s.Done, s.Points)
 	}
-	return fmt.Sprintf(`<a class="tile tile-scrum" href="%s.md">
+	return fmt.Sprintf(`<a class="tile %s" href="%s.md">
 <span class="tile-kind">%s</span>
 <span class="tile-title">%s</span>
 <span class="tile-facts">%s</span>
@@ -187,11 +205,44 @@ func scrumTile(s scrum) string {
 <span class="tile-facts">%s</span>
 <span class="tile-points">%s</span>%s
 </a>
-`, html.EscapeString(s.Name), scrumBadge, html.EscapeString(s.Name), meta("Product Owner: "+s.Owner),
+`, class, html.EscapeString(s.Name), chip, html.EscapeString(s.Name), meta("Product Owner: "+s.Owner),
 		meta("Area: "+strings.Join(s.Components, ", ")), meta(strings.Join(work, " · ")), html.EscapeString(pts), bar)
 }
 
 func scrumPage(s scrum, nodes map[string]*Node, head string) string {
+	if s.Program {
+		return programPage(s, nodes, head)
+	}
+	return teamPage(s, nodes, head)
+}
+
+// programPage is a sub-program's page: what this plan asked of it and what
+// it serves the plan with, and a link to its own site for its teams,
+// epics, and stories, which this site does not show (GH-2740).
+func programPage(s scrum, nodes map[string]*Node, head string) string {
+	href := func(n *Node) string { return html.EscapeString("../" + n.Page) }
+	var b strings.Builder
+	b.WriteString(head)
+	b.WriteString(`<div class="crumbs">` + "\n\n[Scrums](index.md)\n\n</div>\n\n")
+	fmt.Fprintf(&b, "# %s\n\n", s.Name)
+	b.WriteString(strings.Join([]string{programBadge, "Owner: " + s.Owner, "subsystem `" + s.Subsystem + "`", "system repository " + s.Scrum}, " · ") + "\n\n")
+	if s.Site != "" {
+		fmt.Fprintf(&b, "**A program of its own.** Its teams, epics, and stories are on [%s's site](%s); this page shows what this plan asked of it and what it serves the plan with.\n\n", s.Name, s.Site)
+	} else {
+		b.WriteString("**A program of its own.** Its teams, epics, and stories are on its own site, which its control/program.md does not name yet; this page shows what this plan asked of it and what it serves the plan with.\n\n")
+	}
+	fmt.Fprintf(&b, "**Area:** %s.\n\n", strings.Join(s.Components, ", "))
+	if s.Points > 0 {
+		fmt.Fprintf(&b, "%d of %d story points done across what it serves this plan with.\n\n", s.Done, s.Points)
+	}
+	b.WriteString(goalsSection(s, nodes, href))
+	b.WriteString("## What it serves\n\n")
+	b.WriteString("Its documents whose parent is a document of this plan, with their points as its own site counts them.\n\n")
+	b.WriteString(scrumSection(boardFrom(s.Serves, nodes, href), "Nothing of its plan serves this one yet, or its site's plan is not read."))
+	return b.String()
+}
+
+func teamPage(s scrum, nodes map[string]*Node, head string) string {
 	href := func(n *Node) string { return html.EscapeString("../" + n.Page) }
 	var b strings.Builder
 	b.WriteString(head)
@@ -223,37 +274,7 @@ func scrumPage(s scrum, nodes map[string]*Node, head string) string {
 		fmt.Fprintf(&b, "%d of %d story points done across %s.\n\n", s.Done, s.Points, plurals(s.Stories, "story"))
 	}
 
-	b.WriteString("## Sprint Goals\n\n")
-	open := 0
-	for _, g := range s.Goals {
-		if g.Status == timeline.Done {
-			continue
-		}
-		open++
-		fmt.Fprintf(&b, "### %s\n\n", itemLink(g))
-		line := []string{shown(g.Status)}
-		if g.Release != "" {
-			line = append(line, "release "+g.Release)
-		}
-		b.WriteString(strings.Join(line, " · ") + "\n\n")
-		var selected []string
-		for _, id := range g.Selects {
-			if nodes[id] != nil {
-				selected = append(selected, id)
-			}
-		}
-		b.WriteString(scrumSection(boardFrom(selected, nodes, href), "Its Sprint Backlog selects no story yet."))
-	}
-	if open == 0 {
-		b.WriteString("No open Sprint Goal in its repositories.\n\n")
-	}
-	if closed := len(s.Goals) - open; closed > 0 {
-		b.WriteString("Closed:\n\n")
-		for _, g := range s.Goals[open:] {
-			fmt.Fprintf(&b, "- %s, release %s\n", itemLink(g), g.Release)
-		}
-		b.WriteString("\n")
-	}
+	b.WriteString(goalsSection(s, nodes, href))
 
 	b.WriteString("## Epics\n\n")
 	b.WriteString("The epics this scrum's features and stories serve, its own and the cross-team epics in the system repository.\n\n")
@@ -303,4 +324,42 @@ func under(n *Node, id string, nodes map[string]*Node) bool {
 		seen[p.ID] = true
 	}
 	return false
+}
+
+// goalsSection is a scrum's Sprint Goals: each open one with a board of
+// the stories its Sprint Backlog selects, then the closed ones listed.
+func goalsSection(s scrum, nodes map[string]*Node, href func(*Node) string) string {
+	var b strings.Builder
+	b.WriteString("## Sprint Goals\n\n")
+	open := 0
+	for _, g := range s.Goals {
+		if g.Status == timeline.Done {
+			continue
+		}
+		open++
+		fmt.Fprintf(&b, "### %s\n\n", itemLink(g))
+		line := []string{shown(g.Status)}
+		if g.Release != "" {
+			line = append(line, "release "+g.Release)
+		}
+		b.WriteString(strings.Join(line, " · ") + "\n\n")
+		var selected []string
+		for _, id := range g.Selects {
+			if nodes[id] != nil {
+				selected = append(selected, id)
+			}
+		}
+		b.WriteString(scrumSection(boardFrom(selected, nodes, href), "Its Sprint Backlog selects no story yet."))
+	}
+	if open == 0 {
+		b.WriteString("No open Sprint Goal in its repositories.\n\n")
+	}
+	if closed := len(s.Goals) - open; closed > 0 {
+		b.WriteString("Closed:\n\n")
+		for _, g := range s.Goals[open:] {
+			fmt.Fprintf(&b, "- %s, release %s\n", itemLink(g), g.Release)
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
 }

@@ -70,6 +70,63 @@ type TimelineSources struct {
 	// Scrums are the program's team subsystems, from the registry the
 	// tracker reads, else the system checkout's SRDs.
 	Scrums program.Subsystems
+	// Lineage is this program's control/program.md: its site and the
+	// parent it is a team of (GH-2740).
+	Lineage program.Lineage
+	// SubPrograms are the scrums whose scrum repository is a program's
+	// system repository, each with its published plan.
+	SubPrograms []SubProgram
+}
+
+// SubProgram is a team of this program that is itself a program: its
+// name, as its documents carry it, its system repository, its site, and
+// the plan its site publishes (GH-2740).
+type SubProgram struct {
+	Name, Repository, Site string
+	Nodes                  []Node
+}
+
+// subPrograms finds the scrums that are programs, by the control file a
+// system repository holds, and reads each one's lineage and the plan its
+// site publishes; what it cannot read is a note.
+func subPrograms(t tracker.Tracker, scrums program.Subsystems) (out []SubProgram, notes []string) {
+	for _, sub := range scrums {
+		repo := sub.ScrumRepository()
+		ref := branchOf(t, repo)
+		if _, err := t.GetFile(repo, checkout.TrackersFile, ref); err != nil {
+			continue
+		}
+		sp := SubProgram{Name: path.Base(repo), Repository: repo}
+		lin, err := program.LoadLineage(t, repo, ref)
+		if err != nil {
+			notes = append(notes, fmt.Sprintf("%s: %v", repo, err))
+		}
+		sp.Site = lin.Site
+		if lin.SiteRepository == "" {
+			notes = append(notes, fmt.Sprintf("%s: a program whose %s names no site_repository, so its progress is not counted here", repo, program.LineageFile))
+			out = append(out, sp)
+			continue
+		}
+		site := program.ProjectPath(lin.SiteRepository)
+		b, err := t.GetFile(site, Dir+"/data/hierarchy/hierarchy.json", branchOf(t, site))
+		if err == nil {
+			err = json.Unmarshal(b, &sp.Nodes)
+		}
+		if err != nil {
+			notes = append(notes, fmt.Sprintf("%s: its site's plan in %s is not read, so its progress is not counted here: %v", repo, site, err))
+		}
+		out = append(out, sp)
+	}
+	return out, notes
+}
+
+// branchOf is a repository's default branch, main when the tracker cannot
+// say.
+func branchOf(t tracker.Tracker, repo string) string {
+	if b, err := t.DefaultBranch(repo); err == nil && b != "" {
+		return b
+	}
+	return "main"
 }
 
 // Close removes what LoadSources read into a scratch directory.
@@ -116,6 +173,14 @@ func LoadSources(system string, t tracker.Tracker, today time.Time) (TimelineSou
 		s.Notes = append(s.Notes, fmt.Sprintf("%s: not read, so its stories are left out: %s", u.Repository, u.Reason))
 	}
 	s.Scrums = scrumsOf(system, t)
+	if s.Lineage, err = program.LineageIn(system); err != nil {
+		return s, err
+	}
+	if t != nil {
+		var notes []string
+		s.SubPrograms, notes = subPrograms(t, s.Scrums)
+		s.Notes = append(s.Notes, notes...)
+	}
 	// The registry the tracker reads names the team repositories whose
 	// Sprint Goals the scrums file, whether or not the system checkout's
 	// own SRDs do (GH-2726).
@@ -256,13 +321,97 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return timeline.Facts{}, err
 	}
+	var served map[string]timeline.Program
+	var servedSources map[string]string
+	if asOf == "" {
+		var more []*hierarchy.Doc
+		more, served, servedSources = servedBy(s.SubPrograms, docs)
+		docs = append(docs, more...)
+	}
 	sources, paths := docSources(docs)
+	maps.Copy(sources, servedSources)
 	f := timeline.Make(timeline.Input{AsOf: asOf, Today: s.Today, Docs: docs, Releases: Releases(roadMap, s),
-		Done: s.Done, Landed: s.Landed, Goals: s.Goals, Issues: s.Issues, Sources: sources, Paths: paths})
+		Done: s.Done, Landed: s.Landed, Goals: s.Goals, Issues: s.Issues, Programs: served, Sources: sources, Paths: paths})
 	if asOf == "" {
 		f.Teams = teamFacts(s.Scrums)
+		for i, tm := range f.Teams {
+			for _, sp := range s.SubPrograms {
+				if sp.Repository == tm.Scrum {
+					f.Teams[i].Program, f.Teams[i].Site = true, sp.Site
+				}
+			}
+		}
+		if p := s.Lineage.Parent; p != "" {
+			f.Parent = &timeline.ProgramRef{Name: path.Base(program.ProjectPath(p)), Repository: program.ProjectPath(p), Site: s.Lineage.ParentSite}
+		}
 	}
 	return f, nil
+}
+
+// servedProgress is the points the sub-programs serve this plan with,
+// counted in each document they serve and every document above it, as
+// TeamProgress counts a team's stories (GH-2740).
+func servedProgress(subs []SubProgram, docs []*hierarchy.Doc) map[string]hierarchy.Progress {
+	more, served, _ := servedBy(subs, docs)
+	ours := map[string]*hierarchy.Doc{}
+	for _, d := range docs {
+		ours[d.ID] = d
+	}
+	out := map[string]hierarchy.Progress{}
+	for _, d := range more {
+		p := served[d.ID]
+		seen := map[string]bool{}
+		for id := d.Parent; id != "" && !seen[id]; {
+			seen[id] = true
+			doc, ok := ours[id]
+			if !ok {
+				break
+			}
+			sum := out[id]
+			sum.ID, sum.Kind = id, doc.Kind
+			sum.Total += p.Points
+			sum.Done += p.PointsDone
+			out[id] = sum
+			id = doc.Parent
+		}
+	}
+	return out
+}
+
+// servedBy are the documents each sub-program serves this plan with: those
+// its published plan holds whose parent pins a document of this one, named
+// <sub-program>/<id>, with their points and state as it gives them and
+// their pages on its site. Their own children are its interior and are not
+// read (GH-2740).
+func servedBy(subs []SubProgram, docs []*hierarchy.Doc) (out []*hierarchy.Doc, served map[string]timeline.Program, sources map[string]string) {
+	served, sources = map[string]timeline.Program{}, map[string]string{}
+	ours := map[string]bool{}
+	for _, d := range docs {
+		ours[d.ID] = true
+	}
+	for _, sp := range subs {
+		for _, n := range sp.Nodes {
+			if !strings.Contains(n.Parent, "://") {
+				continue
+			}
+			file, _, _ := strings.Cut(n.Parent, "#")
+			parent := strings.TrimSuffix(path.Base(file), ".md")
+			if !ours[parent] {
+				continue
+			}
+			kind, ok := hierarchy.KindOf(n.ID)
+			if !ok {
+				kind = hierarchy.Kind(n.Kind)
+			}
+			id := sp.Name + "/" + n.ID
+			out = append(out, &hierarchy.Doc{ID: id, Kind: kind, Title: n.Title, Parent: parent, Status: "agreed", Owner: n.Owner, Horizon: n.Horizon, Rank: n.Rank})
+			served[id] = timeline.Program{Name: sp.Name, Points: n.Points, PointsDone: n.PointsDone, Status: n.Status, Planned: n.Planned, Actual: n.Actual}
+			if sp.Site != "" {
+				sources[id] = program.SitePage(sp.Site, n.Page)
+			}
+		}
+	}
+	return out, served, sources
 }
 
 // scrumsOf is the program's team subsystems: the registry the tracker

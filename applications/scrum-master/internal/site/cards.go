@@ -230,6 +230,22 @@ func band(theme *Node, children []string, nodes map[string]*Node) string {
 	return b.String()
 }
 
+// servingBand gathers the documents that serve the parent program's plan,
+// those whose parent is a document of the parent, on one board under a
+// bar naming the parent and linking its site (GH-2740).
+func servingBand(parent *timeline.ProgramRef, ids []string, nodes map[string]*Node) string {
+	var b strings.Builder
+	name := html.EscapeString(parent.Name)
+	if parent.Site != "" {
+		name = fmt.Sprintf(`<a class="band-title" href="%s">%s</a>`, html.EscapeString(parent.Site), name)
+	}
+	b.WriteString(`<section class="band band-none band-parent">` + "\n")
+	fmt.Fprintf(&b, `<div class="band-head">%s<span class="band-title">Serves %s's plan</span><span class="band-meta">the program this one is part of</span></div>`+"\n", programBadge, name)
+	b.WriteString(board(ids, nodes))
+	b.WriteString("</section>\n")
+	return b.String()
+}
+
 // crumbs is a node's place in the plan, from the plan's index down through
 // each document above it, each with its chip. The links stay Markdown,
 // which the shell routes and the forge follows; the blank lines inside the

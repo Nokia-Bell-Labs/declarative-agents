@@ -103,6 +103,19 @@ its code repositories then hold only code, and an issue there implements a
 story in the scrum repository through its pinned `Implements:` link
 (design.md subsystem_srd).
 
+The levels repeat. A program can be one team of a larger program: the
+larger program's subsystem SRD names, as that team's scrum repository, the
+smaller program's system repository. To the level above it is a team: it
+receives one Sprint Goal per release, its program rollup is that team's
+rollup, and its initiatives and epics pin the upper documents they serve.
+Inside it is a whole program with its own TPM, teams, and site. Each site
+shows its own level in full and only the interface of the level below: the
+upper site counts and links the documents the sub-program serves it with,
+read from the sub-program's published site, and points to the
+sub-program's site for its teams and stories; the sub-program's site links
+up to the parent's. A program declares its site and its parent in
+`control/program.md` (config format program; srd048 R8.7).
+
 ## Links
 
 Table 5: The horizontal links, on issues as body lines and on documents as context items (srd007 R6, R7).

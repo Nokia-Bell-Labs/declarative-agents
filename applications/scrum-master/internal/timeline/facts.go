@@ -98,6 +98,9 @@ type Item struct {
 	Source    string   `json:"source,omitempty"`
 	Path      string   `json:"path,omitempty"`
 	Selects   []string `json:"selects,omitempty"`
+	// Program names the sub-program whose document this is, taken whole
+	// from its published facts; its work is on that program's site.
+	Program string `json:"program,omitempty"`
 	// DependsOn is the items it waits on: a planning document's
 	// depends_on and blocked_by links, an issue's Depends-on and
 	// Blocked-by lines (GH-135).
@@ -123,6 +126,27 @@ type Facts struct {
 	// Teams are the program's scrums, as the system's subsystem SRDs
 	// declare them; a tag's facts hold none.
 	Teams []Team `json:"teams,omitempty"`
+	// Parent is the larger program this one is a team of, when its
+	// control/program.md names one (GH-2740).
+	Parent *ProgramRef `json:"parent,omitempty"`
+}
+
+// ProgramRef names another program: its system repository and its site.
+type ProgramRef struct {
+	Name       string `json:"name"`
+	Repository string `json:"repository"`
+	Site       string `json:"site,omitempty"`
+}
+
+// Program is a document a sub-program serves this plan with, as its own
+// published facts give it.
+type Program struct {
+	Name       string
+	Points     int
+	PointsDone int
+	Status     string
+	Planned    *Span
+	Actual     *Span
 }
 
 // Team is one scrum: the subsystem it owns, its Product Owner, the
@@ -139,6 +163,10 @@ type Team struct {
 	Scrum string `json:"scrum"`
 	// Apart says the SRD names the scrum repository, apart from the code.
 	Apart bool `json:"apart,omitempty"`
+	// Program says its scrum repository is a program's system
+	// repository: a sub-program, whose own site Site is (GH-2740).
+	Program bool   `json:"program,omitempty"`
+	Site    string `json:"site,omitempty"`
 	// URL is its scrum repository's page on the forge, when the SRD names
 	// one a browser opens.
 	URL string `json:"url,omitempty"`
@@ -157,6 +185,11 @@ type Input struct {
 	Landed map[string]string
 	Goals  []Goal
 	Issues []Issue
+	// Programs are the documents a sub-program serves this plan with,
+	// taken whole from its published facts: their points, state, and days
+	// are its own, never recomputed from children this plan does not read
+	// (GH-2740).
+	Programs map[string]Program
 	// Sources maps a document id to its page on its repository's forge,
 	// Paths to its path within that repository.
 	Sources, Paths map[string]string
@@ -244,6 +277,11 @@ func Make(in Input) Facts {
 			}
 			if it.Planned == nil {
 				it.Planned = horizon(d)
+			}
+		} else if p, ok := in.Programs[d.ID]; ok {
+			it.Program, it.Points, it.PointsDone, it.Status, it.Planned, it.Actual = p.Name, p.Points, p.PointsDone, p.Status, p.Planned, p.Actual
+			if it.Status == "" {
+				it.Status = Future
 			}
 		} else {
 			var own, under *Span
