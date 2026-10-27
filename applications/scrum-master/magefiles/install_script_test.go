@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -78,23 +79,46 @@ func TestInstallScriptInstallsAVerifiedRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	served := map[string]string{}
+	var srv *httptest.Server
+	var links []string
 	for _, a := range assets {
 		served["/download/"+tag+"/"+a.Name] = a.Path
-		// A GitLab project serves a release's assets here, and a private
-		// one only with a token (GH-31).
-		served["/group/declarative-agents/-/releases/"+tag+"/downloads/"+a.Name] = a.Path
+		// A GitLab project keeps a release's files as uploads, which only
+		// the API serves to a token (GH-31, GH-2767).
+		served["/api/v4/projects/7/uploads/5ec7e7/"+a.Name] = a.Path
+		links = append(links, fmt.Sprintf(`{"id":%d,"name":%q,"url":"%%s/-/project/7/uploads/5ec7e7/%s","link_type":"other"}`, len(links)+1, a.Name, a.Name))
 	}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path, ok := served[r.URL.Path]
-		if strings.Contains(r.URL.Path, "/-/releases/") && r.Header.Get("PRIVATE-TOKEN") != "t0ken" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.EscapedPath()
+		api := strings.HasPrefix(path, "/api/v4/")
+		switch {
+		case api && r.Header.Get("PRIVATE-TOKEN") != "t0ken":
+			http.Error(w, `{"message":"401 Unauthorized"}`, http.StatusUnauthorized)
+		case path == "/api/v4/projects/group%2Fdeclarative-agents/releases/"+tag:
+			var b strings.Builder
+			for i, l := range links {
+				if i > 0 {
+					b.WriteString(",")
+				}
+				b.WriteString(fmt.Sprintf(l, srv.URL))
+			}
+			fmt.Fprintf(w, `{"tag_name":%q,"assets":{"links":[%s]}}`, tag, b.String())
+		case strings.Contains(path, "/-/releases/") && strings.Contains(path, "/downloads/"):
+			// The downloads route redirects to the upload's web URL ...
+			http.Redirect(w, r, srv.URL+"/-/project/7/uploads/5ec7e7/"+filepath.Base(path), http.StatusFound)
+		case strings.HasPrefix(path, "/-/project/"):
+			// ... which serves a session, never a token.
+			http.Redirect(w, r, srv.URL+"/users/sign_in", http.StatusFound)
+		case path == "/users/sign_in":
+			http.Error(w, "sign in", http.StatusForbidden)
+		default:
+			p, ok := served[path]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			http.ServeFile(w, r, p)
 		}
-		if !ok {
-			http.NotFound(w, r)
-			return
-		}
-		http.ServeFile(w, r, path)
 	}))
 	defer srv.Close()
 
