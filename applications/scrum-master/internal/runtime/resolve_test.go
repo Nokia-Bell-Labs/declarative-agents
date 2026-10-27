@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -92,5 +93,39 @@ func TestResolvePrefersTheNamedCheckout(t *testing.T) {
 	rel, err := Resolve(app, nil)
 	if err != nil || rel.Src != parent || rel.Tag != "checkout" {
 		t.Fatalf("Resolve = %+v, %v, want the checkout %s", rel, err, parent)
+	}
+}
+
+// A pin whose source is a git remote is cloned at its tag, with no forge's
+// archive URL and with the person's own git credentials (GH-2761).
+func TestResolveClonesAPinnedGitSource(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("HOME", cache)
+	t.Setenv("XDG_CACHE_HOME", cache)
+	const tag = "v0.20990101.2"
+	work, bare := t.TempDir(), filepath.Join(t.TempDir(), "declarative-agents.git")
+	os.MkdirAll(filepath.Join(work, "agent-core", "cmd", "agent"), 0o755)
+	os.WriteFile(filepath.Join(work, "agent-core", "go.mod"), []byte("module example.invalid/agent-core\n"), 0o644)
+	os.WriteFile(filepath.Join(work, "agent-core", "cmd", "agent", "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644)
+	for _, args := range [][]string{
+		{"-C", work, "init", "-q", "-b", "main"},
+		{"-C", work, "add", "-A"},
+		{"-C", work, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", "runtime"},
+		{"-C", work, "tag", tag},
+		{"clone", "-q", "--bare", work, bare},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	app := t.TempDir()
+	os.MkdirAll(filepath.Join(app, "docs"), 0o755)
+	os.WriteFile(filepath.Join(app, spectool.PinsFile), []byte("pins:\n  "+spectool.ParentRepository+": "+tag+"\nsources:\n  "+spectool.ParentRepository+": "+bare+"\n"), 0o644)
+	rel, err := Resolve(app, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(rel.CoreRoot(), "cmd", "agent", "main.go")); err != nil || rel.Tag != tag {
+		t.Fatalf("the cloned runtime %+v: %v", rel, err)
 	}
 }

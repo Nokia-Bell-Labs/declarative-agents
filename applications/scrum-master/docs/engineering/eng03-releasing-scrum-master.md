@@ -43,7 +43,11 @@ repository that ships agent-core; else the parent checkout
 docs/external-checkouts.yaml names, a file git ignores; else the
 declarative-agents release docs/external-pins.yaml pins, its source
 fetched once per tag from the forge the pins file's sources entry names,
-or the default one. mage outOfTree names this repository's own checkout
+or the default one: a sources entry that is a git remote, an ssh or
+scp-form address, a URL ending in .git, or a local path, is cloned at the
+tag with the person's or CI's own git credentials, so a runtime pinned to
+any forge, a private GitLab project among them, needs no archive URL, no
+token of scrum-master's, and no package registry (GH-2761). mage outOfTree names this repository's own checkout
 in its copy, so a gate, a test, or a build step that depends on the
 repository's layout or on the application's module path fails the
 release rather than a later move of the code.
