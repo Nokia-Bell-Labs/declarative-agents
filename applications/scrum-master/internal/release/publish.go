@@ -79,24 +79,20 @@ type Publisher struct {
 	// ImageRepo is where the tag's image is pushed, such as
 	// ghcr.io/owner/name; empty publishes no image.
 	ImageRepo string
-	// Core is the agent-core the agent builds from; empty is the one beside
-	// the application, ../../agent-core.
+	// Core is the agent-core the agent builds from; empty is the runtime
+	// runtime.Resolve finds for the application (GH-2754).
 	Core string
 	// Forge is where the release is published, ForgeGitHub (the default)
 	// or ForgeGitLab, as an internal fork publishes (GH-31).
 	Forge string
 }
 
-// VersionPackage is where a release's version is stamped in the words,
-// which the agent links; agent-core's is its internal/version, under the
-// module path its go.mod declares. Both are nested modules of the
-// repository, so their build info never carries its tag (GH-18).
-const VersionPackage = "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/version"
-
-// agentVersionPackage is agent-core's version package, read from the module
-// path in core's go.mod.
-func agentVersionPackage(core string) (string, error) {
-	b, err := os.ReadFile(filepath.Join(core, "go.mod"))
+// versionPackage is where a release's version is stamped in a module, the
+// words' or agent-core's: its internal/version, under the module path its
+// go.mod declares, never spelled here (GH-18, GH-2754). Both are nested
+// modules of the repository, so their build info never carries its tag.
+func versionPackage(module string) (string, error) {
+	b, err := os.ReadFile(filepath.Join(module, "go.mod"))
 	if err != nil {
 		return "", err
 	}
@@ -105,7 +101,7 @@ func agentVersionPackage(core string) (string, error) {
 			return strings.TrimSpace(mod) + "/internal/version", nil
 		}
 	}
-	return "", fmt.Errorf("%s/go.mod declares no module", core)
+	return "", fmt.Errorf("%s/go.mod declares no module", module)
 }
 
 // Build cross-builds the release into dist (eng03): the agent, composed
@@ -119,14 +115,15 @@ func (p Publisher) Build(dist string, platforms []Platform) ([]Asset, error) {
 	}
 	core := p.Core
 	if core == "" {
-		var err error
-		if core, err = filepath.Abs(filepath.Join(p.Root, "..", "..", "agent-core")); err != nil {
+		rel, err := runtime.Resolve(p.Root, nil)
+		if err != nil {
 			return nil, err
 		}
+		core = rel.CoreRoot()
 	}
 	comp, err := runtime.Compose(core, p.Root)
 	if err != nil {
-		return nil, fmt.Errorf("the release builds the agent from the agent-core beside the application: %w", err)
+		return nil, fmt.Errorf("the release builds the agent from %s: %w", core, err)
 	}
 	defer comp.Cleanup()
 	tag, _ := p.releaseTag()
@@ -147,11 +144,15 @@ func (p Publisher) Build(dist string, platforms []Platform) ([]Asset, error) {
 		env := append([]string{"CGO_ENABLED=0", "GOOS=" + pl.OS, "GOARCH=" + pl.Arch}, comp.Env...)
 		args := append([]string{"build", "-trimpath"}, comp.Flags...)
 		if tag != "" {
-			pkg, err := agentVersionPackage(core)
+			pkg, err := versionPackage(core)
 			if err != nil {
 				return nil, err
 			}
-			args = append(args, "-ldflags", "-X "+pkg+".Version="+tag+" -X "+VersionPackage+".Release="+tag)
+			words, err := versionPackage(p.Root)
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, "-ldflags", "-X "+pkg+".Version="+tag+" -X "+words+".Release="+tag)
 		}
 		args = append(args, "-o", a.Path, "./cmd/agent")
 		if _, err := p.Run(comp.Dir, env, "go", args...); err != nil {

@@ -12,18 +12,16 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/runtime"
 )
 
-// repoRuntime is the runtime this repository holds as a sibling (GH-190):
-// the repository root as the source and the agent built from agent-core —
-// no pin, no download. Every gate and rig target runs against it.
+// repoRuntime is the runtime every gate and rig target runs against, as
+// runtime.Resolve finds it for this application: the sibling agent-core
+// inside the repository that ships it (GH-190), else the parent checkout
+// or pinned release the application names (GH-2754).
 func repoRuntime() (runtime.Release, error) {
-	rel, ok, err := runtime.Sibling(".", runStreaming)
+	root, err := repositoryRoot()
 	if err != nil {
-		return rel, err
+		return runtime.Release{}, err
 	}
-	if !ok {
-		return rel, fmt.Errorf("this checkout is not inside the repository that ships agent-core")
-	}
-	return rel, nil
+	return runtime.Resolve(root, runStreaming)
 }
 
 // withCheckouts writes docs/external-checkouts.yaml in root pointing each

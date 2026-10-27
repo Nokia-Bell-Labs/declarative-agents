@@ -33,9 +33,20 @@ root.
 | Stage | Gates |
 |---|---|
 | audit | mage audit: the repository gate tests, agent-core's gates, then the specification-critic corpus audit |
-| test | go test ./..., mage integration:install, and mage crossBuild, which builds the agent for every release platform and the profiles archive |
+| test | go test ./..., mage integration:install, mage crossBuild, which builds the agent for every release platform and the profiles archive, and mage outOfTree, which runs the audit, the unit tests, and the cross build on a copy of the application outside the repository, its Go module renamed to a placeholder |
 
 Table: scrum-master's release gates.
+
+Every gate builds against one runtime, which internal/runtime's Resolve
+finds for the application (GH-2754): the agent-core beside it inside the
+repository that ships agent-core; else the parent checkout
+docs/external-checkouts.yaml names, a file git ignores; else the
+declarative-agents release docs/external-pins.yaml pins, its source
+fetched once per tag from the forge the pins file's sources entry names,
+or the default one. mage outOfTree names this repository's own checkout
+in its copy, so a gate, a test, or a build step that depends on the
+repository's layout or on the application's module path fails the
+release rather than a later move of the code.
 
 mage regression:all is not a gate. It needs the GitLab trial group and a
 token, takes minutes, and depends on gitlab.com's availability, so a

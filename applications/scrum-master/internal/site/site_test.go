@@ -4,7 +4,6 @@ package site
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -232,10 +231,12 @@ func TestScaffoldWritesTheShell(t *testing.T) {
 
 // A shell exactly as GH-119 or GH-121 wrote it, once and unstamped, is
 // taken back and refreshed, stamped, so it refreshes from then on; a dry
-// run reports the same and writes nothing (GH-127).
+// run reports the same and writes nothing (GH-127). The earlier shells are
+// kept as testdata, as their commits wrote them, so the test needs no
+// history (GH-2754).
 func TestScaffoldTakesBackAnEarlierShell(t *testing.T) {
 	for _, rev := range []string{"0e3bbc3d", "a9d991e4"} {
-		old, err := exec.Command("git", "show", rev+":./templates/shell.html").Output()
+		old, err := os.ReadFile(filepath.Join("testdata", "prior-shells", rev+".html"))
 		if err != nil {
 			t.Fatalf("the %s shell: %v", rev, err)
 		}

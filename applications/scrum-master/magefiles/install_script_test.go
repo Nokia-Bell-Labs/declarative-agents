@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/release"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/spectool"
 )
 
 // TestInstallScriptInstallsAVerifiedRelease builds the release for this
@@ -26,13 +27,25 @@ func TestInstallScriptInstallsAVerifiedRelease(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		t.Skip("install.sh serves Linux and macOS")
 	}
-	// The application lives inside the repository (GH-190): the test clones
-	// the repository and publishes from the application's directory in it.
-	top, err := exec.Command("git", "-C", mustAbs(t, ".."), "rev-parse", "--show-toplevel").Output()
+	// The test clones the repository holding the application, inside the
+	// one that ships agent-core (GH-190) or on its own (GH-2754), and
+	// publishes from the application's directory in the clone.
+	app := mustAbs(t, "..")
+	top, err := exec.Command("git", "-C", app, "rev-parse", "--show-toplevel").Output()
 	if err != nil {
 		t.Fatal(err)
 	}
 	root := strings.TrimSpace(string(top))
+	if r, err := filepath.EvalSymlinks(root); err == nil {
+		root = r
+	}
+	if a, err := filepath.EvalSymlinks(app); err == nil {
+		app = a
+	}
+	inRepo, err := filepath.Rel(root, app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	head, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +64,14 @@ func TestInstallScriptInstallsAVerifiedRelease(t *testing.T) {
 		}
 	}
 	dist := t.TempDir()
-	appRoot := filepath.Join(clone, "applications", "scrum-master")
+	appRoot := filepath.Join(clone, inRepo)
+	// The parent checkout an application outside the repository names is
+	// one git ignores, so the clone takes it from the original.
+	if b, err := os.ReadFile(filepath.Join(app, spectool.CheckoutsFile)); err == nil {
+		if err := os.WriteFile(filepath.Join(appRoot, spectool.CheckoutsFile), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	p := release.Publisher{Root: appRoot, Git: release.ExecGit(appRoot), Run: release.ExecCommand}
 	assets, err := p.Build(dist, []release.Platform{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
 	if err != nil {
@@ -79,7 +99,7 @@ func TestInstallScriptInstallsAVerifiedRelease(t *testing.T) {
 	defer srv.Close()
 
 	install := func(prefix, home string) (string, error) {
-		cmd := exec.Command("sh", filepath.Join(root, "applications", "scrum-master", "install.sh"), tag)
+		cmd := exec.Command("sh", filepath.Join(app, "install.sh"), tag)
 		cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + t.TempDir(), "AGENT_PREFIX=" + prefix, "SCRUM_MASTER_HOME=" + home,
 			"SCRUM_MASTER_RELEASE_URL=" + srv.URL}
 		out, err := cmd.CombinedOutput()
@@ -133,7 +153,7 @@ func TestInstallScriptInstallsAVerifiedRelease(t *testing.T) {
 	// The same release from a GitLab project, as an internal fork publishes
 	// it: installed with the project's token, refused without (GH-31).
 	gitlab := func(token string) (string, error) {
-		cmd := exec.Command("sh", filepath.Join(root, "applications", "scrum-master", "install.sh"), tag)
+		cmd := exec.Command("sh", filepath.Join(app, "install.sh"), tag)
 		cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + t.TempDir(), "AGENT_PREFIX=" + filepath.Join(t.TempDir(), "bin"),
 			"SCRUM_MASTER_HOME=" + filepath.Join(t.TempDir(), "home"), "SCRUM_MASTER_RELEASE_FORGE=gitlab",
 			"SCRUM_MASTER_RELEASE_URL=" + srv.URL + "/group/declarative-agents", "GITLAB_TOKEN=" + token}

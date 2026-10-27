@@ -4,7 +4,6 @@ package goals
 
 import (
 	"fmt"
-	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/sprintgoal"
 	"os"
 	"slices"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/events"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/objectives"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/sprintgoal"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/trackertest"
 )

@@ -148,8 +148,11 @@ func Home() string {
 // that ships agent-core, else the release install.sh installed.
 func vendorSource(dir string) (VendorSource, error) {
 	tree := func(release, root string) VendorSource {
-		return VendorSource{Release: release, Agents: filepath.Join(root, "applications", "scrum-master", "plugin", "agents"),
-			CoreTools: filepath.Join(root, "agent-core", "tools")}
+		agents := filepath.Join(root, "applications", "scrum-master", "plugin", "agents")
+		if _, err := os.Stat(agents); err != nil {
+			agents = filepath.Join(root, "plugin", "agents")
+		}
+		return VendorSource{Release: release, Agents: agents, CoreTools: filepath.Join(root, "agent-core", "tools")}
 	}
 	if root := os.Getenv(SourceEnv); root != "" { //nolint:forbidigo // Reads the documented SCRUM_MASTER_* environment interface.
 		return tree("source:"+root, root), nil
