@@ -142,7 +142,14 @@ func Check(dir string) (Report, error) {
 	} else if architecture != nil {
 		warnings = architecture
 	}
-	area, refuseArea, err := areaChecks(dir, docs)
+	// The area check reads only what git tracks, as the shape check does:
+	// an untracked document draws its one finding and nothing else
+	// (GH-2780).
+	tracked := slices.DeleteFunc(slices.Clone(docs), func(d *hierarchy.Doc) bool {
+		abs, err := filepath.Abs(d.Path)
+		return err == nil && skip[abs]
+	})
+	area, refuseArea, err := areaChecks(dir, tracked)
 	if err != nil {
 		return Report{}, err
 	}

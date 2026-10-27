@@ -54,7 +54,7 @@ func areaProgram(t *testing.T) (system, team string) {
 	write(team, "docs/specs/stories/st002-store-scores.md", []byte(strings.Replace(strings.Replace(story, "st001-score-trajectories", "st002-store-scores", 1),
 		"  1. https://gitlab.example.com/program/platform/-/blob/v1.0.0/docs/ARCHITECTURE.md#run_store", "  1. https://gitlab.example.com/g/system/-/blob/v1/docs/ARCHITECTURE.md#grader", 1)))
 	for dir, origin := range map[string]string{system: "https://gitlab.example.com/g/system.git", team: "https://gitlab.example.com/g/po-1.git"} {
-		for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"remote", "add", "origin", origin}} {
+		for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"remote", "add", "origin", origin}, {"add", "-A"}} {
 			if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
 				t.Fatalf("git %v: %v: %s", args, err, out)
 			}
@@ -98,6 +98,25 @@ func TestBacklogCheckHoldsDocumentsToTheirArea(t *testing.T) {
 	}
 	if len(arch) != 1 || !strings.Contains(arch[0], "ep001-agent-evaluation.md: one team's epic: every component it names belongs to srd010-po-1") {
 		t.Errorf("one-team epic warnings = %v", arch)
+	}
+	// An untracked epic a Product Owner owns draws only the untracked
+	// finding; once git tracks it, the owner warning (GH-2780).
+	b, _ := os.ReadFile(filepath.Join(system, "docs/specs/epics/ep001-agent-evaluation.md"))
+	os.WriteFile(filepath.Join(system, "docs/specs/epics/ep003-spend.md"), []byte(strings.ReplaceAll(string(b), "ep001-agent-evaluation", "ep003-spend")), 0o644)
+	if r, err = Check(system); err != nil {
+		t.Fatal(err)
+	}
+	if untracked, owners := messages(r.Findings, "untracked"), messages(r.Warnings, "owner"); len(untracked) != 1 || slices.ContainsFunc(append(owners, messages(r.Warnings, "architecture")...), func(m string) bool { return strings.HasPrefix(m, "ep003-spend.md") }) {
+		t.Errorf("an untracked epic: findings %v, warnings %v; want only its untracked finding", r.Findings, r.Warnings)
+	}
+	if out, err := exec.Command("git", "-C", system, "add", "-A").CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v: %s", err, out)
+	}
+	if r, err = Check(system); err != nil {
+		t.Fatal(err)
+	}
+	if owners := messages(r.Warnings, "owner"); !slices.ContainsFunc(owners, func(m string) bool { return strings.HasPrefix(m, "ep003-spend.md") }) {
+		t.Errorf("the tracked epic's owner warnings = %v", owners)
 	}
 
 	os.WriteFile(filepath.Join(system, "control", "policy.md"), []byte("---\nid: policy\ntitle: Policy\n---\n\n<!-- field: area_checks -->\n## Area checks\n\nrefuse\n"), 0o644)
