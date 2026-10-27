@@ -244,11 +244,22 @@ func TestPreviousAndPath(t *testing.T) {
 			t.Fatalf("previous of someone who never reported = %+v, %v", none, err)
 		}
 	})
-	sp := PathOf("po-1", "", monday)
-	if sp.Path != "status/reports/2026-Q4/2026-W42-po-1.md" || sp.Branch != "2026-W42-po-1" {
-		t.Errorf("report path = %+v", sp)
+	// The path is the one the person's status issue names; in place the
+	// issue names no branch, pop makes it, and centrally the issue's branch
+	// (GH-2777).
+	cfg := Config{}
+	cfg.defaults()
+	sp := PathOf("po-1", "", monday, false)
+	body := InPlaceStatusBody(cfg, "po-1", po1, monday, monday.AddDate(0, 0, 3))
+	if sp.Path != "status/reports/2026-Q4/2026-W42-po-1.md" || !strings.Contains(body, "write "+sp.Path+" ") || sp.Branch != "" {
+		t.Errorf("in-place report path = %+v; want the issue's path and no branch", sp)
 	}
-	if rp := PathOf("", ProgramLevel, monday); rp.Path != "status/rollups/2026-Q4/2026-W42-program.md" {
+	sp = PathOf("po-1", "", monday, true)
+	body = StatusBody(cfg, Member{"po-1", po1}, "g/reports", monday)
+	if sp.Path != "reports/2026-Q4/2026-W42-po-1.md" || !strings.Contains(body, "write "+sp.Path+" ") || !strings.Contains(body, "branch "+sp.Branch+",") {
+		t.Errorf("central report path = %+v; want the issue's path and branch", sp)
+	}
+	if rp := PathOf("", ProgramLevel, monday, false); rp.Path != "status/rollups/2026-Q4/2026-W42-program.md" || rp.Branch != "" {
 		t.Errorf("rollup path = %+v", rp)
 	}
 }

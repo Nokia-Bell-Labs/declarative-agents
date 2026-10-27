@@ -155,7 +155,7 @@ tools:
   - path
   - --json
   visibility: external
-  description: 'Where this week''s report or rollup goes, and its branch (GH-2725).'
+  description: 'Where this week''s report or rollup goes, as its status issue names it; a central reports checkout''s also names the branch, and in place pop makes it (GH-2725, GH-2777).'
   category: boundary
   parameters:
     type: object
