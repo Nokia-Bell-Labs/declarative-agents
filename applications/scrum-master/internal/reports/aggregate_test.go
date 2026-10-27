@@ -285,6 +285,7 @@ func TestAggregateSeesATeamWithoutAGoal(t *testing.T) {
 		p.AddMerge("g/po-4", tracker.Merge{IID: 2, Title: "Unplanned work", Author: "erin", MergedAt: "2026-10-14", Description: "Closes g/po-4#2"})
 		p.AddMerge("g/po-4", tracker.Merge{IID: 3, Title: "Release corpus 0.47.0", Author: "erin", MergedAt: "2026-10-14", Description: "Closes g/po-4#3"})
 		f := p.Tracker()
+		defer createdOn(f, "2026-10-12")()
 		f.CreateIssue("g/po-3", tracker.NewIssue{Title: "goal"})
 		f.CreateIssue("g/po-4", tracker.NewIssue{Title: "Recurring: sprint end 01.0", Labels: []string{"plane::data", "type::recurring", "kind::release"}})
 		f.CreateIssue("g/po-4", tracker.NewIssue{Title: "Unplanned", Labels: []string{"plane::data", "kind::build"}})
@@ -334,6 +335,7 @@ func TestAggregateCountsBacklogWorkAsReported(t *testing.T) {
 		p.AddMerge("g/po-3", tracker.Merge{IID: 3, Title: "Fix a defect in the story", Author: "carol", MergedAt: "2026-10-14", Description: "Closes #4"})
 		p.AddMerge("g/po-3", tracker.Merge{IID: 4, Title: "Add the stories", Author: "carol", MergedAt: "2026-10-14", Description: "Closes #5"})
 		f := p.Tracker()
+		defer createdOn(f, "2026-10-12")()
 		f.CreateIssue("g/po-3", tracker.NewIssue{Title: "goal", Description: "## Sprint Backlog\n\n- st001-ingest Ingest (3 points)\n"})
 		f.CreateIssue("g/po-3", tracker.NewIssue{Title: "ingest task", Description: "Implements: st001-ingest\n"})
 		f.CreateIssue("g/po-3", tracker.NewIssue{Title: "other task", Description: "Implements: st009-other\n"})
@@ -472,4 +474,46 @@ func TestAggregateNarrowedToAProject(t *testing.T) {
 			t.Error("no progress for g/po-1")
 		}
 	})
+}
+
+// createdOn dates the issues a beads tracker creates until the returned
+// function runs, so a fixture's issues exist before the merges that close
+// them, as they do in use; other trackers date none (GH-2776).
+func createdOn(f tracker.Tracker, day string) func() {
+	bt, ok := f.(*beads.Tracker)
+	if !ok {
+		return func() {}
+	}
+	at, _ := time.Parse(time.DateOnly, day)
+	bt.Store.Now = func() time.Time { return at }
+	return func() { bt.Store.Now = time.Now }
+}
+
+// TestUnreportedWorkStartsAtTheRepositorysFirstIssue leaves out a merge
+// from before the repository's first issue, such as an earlier run's in the
+// same history, when no report names a Sprint Goal to start the period
+// from, as status does (srd018 R8.1; GH-2776).
+func TestUnreportedWorkStartsAtTheRepositorysFirstIssue(t *testing.T) {
+	p := trackertest.NewBeads(t)
+	p.AddMerge("g/po-3", tracker.Merge{IID: 1, Title: "An earlier run's work", Author: "carol", MergedAt: "2026-10-13", Description: "Closes #1"})
+	p.AddMerge("g/po-3", tracker.Merge{IID: 2, Title: "This run's work", Author: "carol", MergedAt: "2026-10-15", Description: "Closes #1"})
+	f := p.Tracker()
+	restore := createdOn(f, "2026-10-14")
+	f.CreateIssue("g/po-3", tracker.NewIssue{Title: "Work", Labels: []string{"plane::data", "kind::build"}})
+	restore()
+	cfg := Config{Team: []Member{{"carol", "g/po-3"}}, System: "g/system"}
+	cfg.defaults()
+	a, err := Aggregate(f, AggregateInput{Dir: t.TempDir(), Config: cfg, Policy: program.Defaults(), From: "2026-W42", To: "2026-W42"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var unreported []string
+	for _, s := range a.Signals {
+		if s.Kind == SignalUnreportedWork {
+			unreported = append(unreported, s.Subject)
+		}
+	}
+	if a.Reports != 0 || !slices.Equal(unreported, []string{mergeRef(t, f, "g/po-3", "This run's work")}) {
+		t.Fatalf("no report read: unreported work = %v, want only the merge after the repository's first issue", unreported)
+	}
 }

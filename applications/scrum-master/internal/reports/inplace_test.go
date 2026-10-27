@@ -125,6 +125,7 @@ func TestAggregateReadsACollectionAcrossRepositories(t *testing.T) {
 		cfg := inPlaceProgram(p)
 		p.AddMerge(po2, tracker.Merge{IID: 1, Title: "Unplanned work", Author: "po-2", MergedAt: "2026-10-14", Description: "Closes " + po2 + "#1"})
 		f := p.Tracker()
+		defer createdOn(f, "2026-10-12")()
 		f.CreateIssue(po1, tracker.NewIssue{Title: "goal"})
 		f.CreateIssue(po2, tracker.NewIssue{Title: "Unplanned", Labels: []string{"plane::data", "kind::build"}})
 		status, _ := f.CreateIssue(po2, tracker.NewIssue{Title: "Recurring: weekly status 2026-W42", Labels: []string{"type::recurring"},
