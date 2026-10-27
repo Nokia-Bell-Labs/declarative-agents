@@ -128,10 +128,11 @@ func planHref(n *Node) string {
 }
 
 // subcard is a document on a board: its chip, title, state, horizon and
-// owner, what lies under it, and its points.
-func subcard(n *Node, nodes map[string]*Node) string {
+// owner, what lies under it, and its points; href links its page from the
+// board's.
+func subcard(n *Node, nodes map[string]*Node, href func(*Node) string) string {
 	return fmt.Sprintf(`<a class="subcard subcard-%s %s" href="%s"><span class="card-head">%s<span class="card-state">%s</span></span><span class="subcard-title">%s</span><span class="card-meta">%s</span><span class="card-meta">%s</span>%s</a>`+"\n",
-		n.Kind, state(n.Status), planHref(n), badge(n.Kind), shown(n.Status), html.EscapeString(n.Title),
+		n.Kind, state(n.Status), href(n), badge(n.Kind), shown(n.Status), html.EscapeString(n.Title),
 		meta(n.Horizon, n.Owner), meta(below(n, nodes), points(n)), bar(n))
 }
 
@@ -141,10 +142,14 @@ var columns = []struct{ State, Label string }{
 	{timeline.Future, "Future"}, {timeline.Active, "Active"}, {timeline.Done, "Done"},
 }
 
-// board lays documents out as a kanban board: a column per state, each
+// board lays documents out as a kanban board on the plan's index.
+func board(ids []string, nodes map[string]*Node) string { return boardFrom(ids, nodes, planHref) }
+
+// boardFrom lays documents out as a kanban board: a column per state, each
 // document in its state's column in rank order; a state no column names
-// gets a column of its own after them.
-func board(ids []string, nodes map[string]*Node) string {
+// gets a column of its own after them. href links each card's page from
+// the page the board is on.
+func boardFrom(ids []string, nodes map[string]*Node, href func(*Node) string) string {
 	if len(ids) == 0 {
 		return `<p class="board-empty">Nothing under it yet.</p>` + "\n"
 	}
@@ -166,7 +171,7 @@ func board(ids []string, nodes map[string]*Node) string {
 		}
 		fmt.Fprintf(&b, `<div class="column column-%s"><div class="column-head">%s <span class="column-count">%d</span></div>`+"\n", strings.TrimPrefix(state(c.State), "state-"), c.Label, len(in))
 		for _, id := range in {
-			b.WriteString(subcard(nodes[id], nodes))
+			b.WriteString(subcard(nodes[id], nodes, href))
 		}
 		b.WriteString("</div>\n")
 	}

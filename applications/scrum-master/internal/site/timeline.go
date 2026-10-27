@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -67,6 +68,9 @@ type TimelineSources struct {
 	// read from a host; Close removes it.
 	Teams   []backlog.TeamSource
 	scratch string
+	// Scrums are the program's team subsystems, from the registry the
+	// tracker reads, else the system checkout's SRDs.
+	Scrums program.Subsystems
 }
 
 // Close removes what LoadSources read into a scratch directory.
@@ -111,6 +115,15 @@ func LoadSources(system string, t tracker.Tracker, today time.Time) (TimelineSou
 	}
 	for _, u := range unread {
 		s.Notes = append(s.Notes, fmt.Sprintf("%s: not read, so its stories are left out: %s", u.Repository, u.Reason))
+	}
+	s.Scrums = scrumsOf(system, t)
+	// The registry the tracker reads names the team repositories whose
+	// Sprint Goals the scrums file, whether or not the system checkout's
+	// own SRDs do (GH-2726).
+	for _, r := range s.Scrums.Repositories() {
+		if p := program.ProjectPath(r); p != "" && !contains(projects, p) {
+			projects = append(projects, p)
+		}
 	}
 	if t == nil {
 		s.Notes = append(s.Notes, "no tracker reachable: Sprint Goals and milestones named by title are left out")
@@ -246,8 +259,55 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 		return timeline.Facts{}, err
 	}
 	sources, paths := docSources(docs)
-	return timeline.Make(timeline.Input{AsOf: asOf, Today: s.Today, Docs: docs, Releases: Releases(roadMap, s),
-		Done: s.Done, Landed: s.Landed, Goals: s.Goals, Issues: s.Issues, Sources: sources, Paths: paths}), nil
+	f := timeline.Make(timeline.Input{AsOf: asOf, Today: s.Today, Docs: docs, Releases: Releases(roadMap, s),
+		Done: s.Done, Landed: s.Landed, Goals: s.Goals, Issues: s.Issues, Sources: sources, Paths: paths})
+	if asOf == "" {
+		f.Teams = teamFacts(s.Scrums)
+	}
+	return f, nil
+}
+
+// scrumsOf is the program's team subsystems: the registry the tracker
+// reads, else the system checkout's own SRDs.
+func scrumsOf(system string, t tracker.Tracker) program.Subsystems {
+	control := program.SystemControl(system)
+	if t != nil && control != "" {
+		if teams, err := program.Teams(t, control, "main"); err == nil && len(teams) > 0 {
+			return teams
+		}
+	}
+	subs, err := program.SubsystemsIn(system)
+	if err != nil {
+		return nil
+	}
+	if control == "" {
+		control = filepath.Base(system)
+	}
+	return subs.Teams(control)
+}
+
+// teamFacts are the scrums as the facts carry them, each named by its
+// first repository, as its documents are.
+func teamFacts(subs program.Subsystems) []timeline.Team {
+	var out []timeline.Team
+	for _, sub := range subs {
+		tm := timeline.Team{Subsystem: sub.ID, Owner: sub.Owner}
+		for _, c := range sub.Components {
+			tm.Components = append(tm.Components, c.Name)
+			if r := program.ProjectPath(c.Repository); r != "" && !slices.Contains(tm.Repositories, r) {
+				tm.Repositories = append(tm.Repositories, r)
+				if tm.URL == "" && (strings.HasPrefix(c.Repository, "https://") || strings.HasPrefix(c.Repository, "http://")) {
+					tm.URL = strings.TrimSuffix(c.Repository, ".git")
+				}
+			}
+		}
+		if len(tm.Repositories) == 0 {
+			continue
+		}
+		tm.Name = path.Base(tm.Repositories[0])
+		out = append(out, tm)
+	}
+	return out
 }
 
 // docSources maps each document to its page on the forge of the repository
