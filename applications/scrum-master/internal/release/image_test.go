@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/identity"
 )
 
 // fakeImageTools is docker, sh, and gh for an image publish: it records
@@ -225,7 +227,7 @@ func TestDockerfileLabelsMatchTheIndexAnnotations(t *testing.T) {
 	for _, want := range []string{
 		`org.opencontainers.image.description="` + ImageDescription + `"`,
 		`org.opencontainers.image.licenses="` + ImageLicenses + `"`,
-		`org.opencontainers.image.source="https://github.com/Nokia-Bell-Labs/declarative-agents"`,
+		`org.opencontainers.image.source="` + identity.HomeURL + `"`,
 	} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("the Dockerfile's labels lack %s", want)

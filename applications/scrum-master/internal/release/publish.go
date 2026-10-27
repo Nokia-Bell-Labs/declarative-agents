@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/runtime"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/version"
 )
 
 // Platform is one operating system and architecture a release binary is
@@ -113,13 +114,13 @@ func (p Publisher) Build(dist string, platforms []Platform) ([]Asset, error) {
 	if err := os.MkdirAll(dist, 0o755); err != nil {
 		return nil, err
 	}
-	core := p.Core
+	core, runtimeTag := p.Core, ""
 	if core == "" {
 		rel, err := runtime.Resolve(p.Root, nil)
 		if err != nil {
 			return nil, err
 		}
-		core = rel.CoreRoot()
+		core, runtimeTag = rel.CoreRoot(), rel.Tag
 	}
 	comp, err := runtime.Compose(core, p.Root)
 	if err != nil {
@@ -127,6 +128,15 @@ func (p Publisher) Build(dist string, platforms []Platform) ([]Asset, error) {
 	}
 	defer comp.Cleanup()
 	tag, _ := p.releaseTag()
+	// The runtime a new corpus pins: this release itself when the agent
+	// builds from the agent-core beside the words, else the pinned release
+	// (GH-2755).
+	switch {
+	case runtimeTag == "in-repo":
+		runtimeTag = tag
+	case !version.IsRelease(runtimeTag):
+		runtimeTag = ""
+	}
 	var assets []Asset
 	var sums strings.Builder
 	add := func(a Asset) error {
@@ -152,7 +162,11 @@ func (p Publisher) Build(dist string, platforms []Platform) ([]Asset, error) {
 			if err != nil {
 				return nil, err
 			}
-			args = append(args, "-ldflags", "-X "+pkg+".Version="+tag+" -X "+words+".Release="+tag)
+			flags := "-X " + pkg + ".Version=" + tag + " -X " + words + ".Release=" + tag
+			if runtimeTag != "" {
+				flags += " -X " + words + ".Runtime=" + runtimeTag
+			}
+			args = append(args, "-ldflags", flags)
 		}
 		args = append(args, "-o", a.Path, "./cmd/agent")
 		if _, err := p.Run(comp.Dir, env, "go", args...); err != nil {

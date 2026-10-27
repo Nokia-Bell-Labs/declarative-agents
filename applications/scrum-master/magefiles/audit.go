@@ -9,11 +9,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/identity"
 )
 
 // parentRepository is the parent corpus whose specification-critic agent
 // audits this repository (docs/guides/corpus-audit.md).
-const parentRepository = "github.com/Nokia-Bell-Labs/declarative-agents"
+const parentRepository = identity.Runtime
 
 const (
 	checkoutsFile = "docs/external-checkouts.yaml"

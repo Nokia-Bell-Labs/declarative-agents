@@ -16,6 +16,13 @@ import (
 // Release is stamped by the Publisher: -X <this package>.Release=<tag>.
 var Release string
 
+// Runtime is the declarative-agents release the binary was built against,
+// stamped by the Publisher beside Release (GH-2755): the release a new
+// corpus pins, which is Release itself when the words build beside the
+// runtime they ship with, and the pinned release when they build against
+// one.
+var Runtime string
+
 var releaseTag = regexp.MustCompile(`^v0\.\d{8}\.\d+$`)
 
 // Current is the release this binary was published at, else the module

@@ -22,6 +22,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/beads"
+	repos "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/identity"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
@@ -32,7 +33,7 @@ import (
 var templates embed.FS
 
 // parentRepository is the parent whose format the templates follow.
-const parentRepository = "github.com/Nokia-Bell-Labs/declarative-agents"
+const parentRepository = repos.Runtime
 
 // Result is what happened to one file: created, kept, appended, refreshed,
 // or overwritten (srd043 R3.2, R3.5).
