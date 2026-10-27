@@ -83,7 +83,10 @@ program. A project's files are read from the checkout whose origin is that
 project, found the same way; a checkout whose origin is another project
 is never read for it, and a project with no checkout is an error naming
 the folders searched, never another repository's files or an empty set
-(GH-2744).
+(GH-2744). A checkout's own project is its origin's, whatever its folder
+is called, so a worktree pop opens, named for its branch, names the same
+project as its main checkout; only a checkout with no forge origin is
+named by its main checkout's folder (GH-2752).
 
 <!-- req: R1.4 -->
 ### R1.4

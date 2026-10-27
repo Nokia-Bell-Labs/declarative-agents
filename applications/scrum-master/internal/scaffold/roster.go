@@ -61,5 +61,5 @@ func repositoryOf(dir string) string {
 			return p
 		}
 	}
-	return filepath.Base(dir)
+	return filepath.Base(checkout.MainCheckout(dir))
 }
