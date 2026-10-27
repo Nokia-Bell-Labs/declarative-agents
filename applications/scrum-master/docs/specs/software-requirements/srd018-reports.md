@@ -55,7 +55,7 @@ Writes into a local checkout of the reports repository (--dir), whose owner comm
 <!-- req: R2.1 -->
 ### R2.1
 
-Checks that each report's body has a Work section and a Blockers section, one entry per item, each with its key-value fields, and that its front matter (author, sprint, components, blocked-on) is derived from the body (config format report).
+Checks that each report's body has a Work section and a Blockers section, one entry per item, each with its key-value fields, and that its front matter (author, sprint, components, blocked-on) is derived from the body (config format report). A report written in place, under status/, also has an Impact section and a Next section, as its status issue asks, and validate names each one missing; a central reports repository's report may omit them (GH-2778).
 
 <!-- req: R2.2 -->
 ### R2.2
@@ -220,7 +220,7 @@ The stakeholder update becomes its own recurring artifact per lead per period wh
 <!-- req: R12.1 -->
 ### R12.1
 
-A report is status/reports/<YYYY-Qn>/<YYYY-Www>-<username>.md in the repository where its author worked, a team's repository or the system repository, outside docs/ so the corpus gate reads none of it as intent. It keeps the report format, which gains two optional sections, Impact and Next (config format report), so validate and aggregate read a report with or without them. It lands by the merge of its author's status issue in that same repository, through pop, approve when the policy requires it, and merge; no step names another repository.
+A report is status/reports/<YYYY-Qn>/<YYYY-Www>-<username>.md in the repository where its author worked, a team's repository or the system repository, outside docs/ so the corpus gate reads none of it as intent. It keeps the report format, which gains two sections, Impact and Next (config format report): required in a report written here (R2.1), optional in a central reports repository's, so aggregate reads a report with or without them (GH-2778). It lands by the merge of its author's status issue in that same repository, through pop, approve when the policy requires it, and merge; no step names another repository.
 
 <!-- req: R12.2 -->
 ### R12.2

@@ -60,7 +60,7 @@ func (Integration) SiteProfile() error {
 		defer os.RemoveAll(tmp)
 	}
 	reportsDir, system := filepath.Join(tmp, "reports"), filepath.Join(tmp, "system")
-	if _, err := reports.Init(reportsDir, reports.Config{Team: []reports.Member{{Username: "alice", Project: "g/po-1"}}}, time.Now(), false); err != nil {
+	if _, err := reports.Init(reportsDir, reports.Config{Team: []reports.Member{{Username: "alice", Project: "g/po-1"}}}, time.Now(), false, false); err != nil {
 		return err
 	}
 	src := filepath.Join(root, "testdata", "hierarchy", "valid")

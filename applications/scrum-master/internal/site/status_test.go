@@ -65,7 +65,7 @@ func statusProgram(t *testing.T) (StatusInput, string) {
 		}
 	}
 	today := time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC)
-	if _, err := reports.Init(reportsDir, reports.Config{Team: []reports.Member{{Username: "alice", Project: "g/po-1"}}}, today, false); err != nil {
+	if _, err := reports.Init(reportsDir, reports.Config{Team: []reports.Member{{Username: "alice", Project: "g/po-1"}}}, today, false, false); err != nil {
 		t.Fatal(err)
 	}
 	f := fake.New()

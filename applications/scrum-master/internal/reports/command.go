@@ -66,7 +66,18 @@ func init() {
 					return fmt.Errorf("%w: %v", cli.ErrUsage, err)
 				}
 			}
-			res, err := Init(initArgs.dir, cfg, time.Now(), ctx.DryRun)
+			// A system repository whose roster names a reporter writes its
+			// reports in place: this repository is the site's home only, even
+			// given members or holding an earlier reports.md (GH-2778).
+			inPlace := false
+			if cfg.System != "" {
+				if t, err := ctx.Tracker(); err == nil {
+					if roster, err := LoadControl(t, cfg.System, "main"); err == nil {
+						inPlace = len(roster.Team) > 0
+					}
+				}
+			}
+			res, err := Init(initArgs.dir, cfg, time.Now(), inPlace, ctx.DryRun)
 			if err != nil {
 				return err
 			}

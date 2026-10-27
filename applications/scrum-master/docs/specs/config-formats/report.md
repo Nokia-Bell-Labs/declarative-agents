@@ -102,7 +102,7 @@ list of text
 <!-- field: description -->
 #### Description
 
-The optional "## Impact" section: why the week's work mattered, in the author's words, one plain list item each. A report without it reads as before (srd018 R12.1).
+The "## Impact" section: why the week's work mattered, in the author's words, one plain list item each. Required in a report written in place, under status/, as its status issue asks; a central reports repository's report may omit it and reads as before (srd018 R12.1, GH-2778).
 
 <!-- schema_entry: next -->
 ### next
@@ -115,12 +115,13 @@ list of text
 <!-- field: description -->
 #### Description
 
-The optional "## Next" section: what the author commits to for the coming week, one plain list item each, which next week's report answers; scrum-master reports previous returns it with the Blockers (srd018 R14.1).
+The "## Next" section, required in a report written in place and optional in a central reports repository's (GH-2778): what the author commits to for the coming week, one plain list item each, which next week's report answers; scrum-master reports previous returns it with the Blockers (srd018 R14.1).
 
 <!-- field: validation_rules -->
 ## Validation rules
 
 - Both sections, Work and Blockers, are present in every report, even when empty of work or blockers: Blockers then holds the single entry "none" (GH-116).
+- A report written in place, under status/, also has Impact and Next; scrum-master reports validate names each one missing (GH-2778).
 - Every key named above is present in every entry, and values hold no semicolon.
 - The front matter equals what the body derives; scrum-master reports validate fails a report where it does not (srd018 R2.2).
 - A report says what its author did and what blocks it; it never rates another person.

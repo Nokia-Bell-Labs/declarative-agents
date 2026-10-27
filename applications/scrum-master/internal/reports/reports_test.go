@@ -28,7 +28,7 @@ func TestWeekHelpers(t *testing.T) {
 func TestInitScaffoldsOnceAndNeverOverwrites(t *testing.T) {
 	dir := t.TempDir()
 	cfg := Config{Team: []Member{{"po-1", "g/po-1"}}, System: "g/system"}
-	res, err := Init(dir, cfg, monday, false)
+	res, err := Init(dir, cfg, monday, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestInitScaffoldsOnceAndNeverOverwrites(t *testing.T) {
 
 	os.WriteFile(filepath.Join(dir, "reports.md"), []byte("---\nid: reports\ntitle: Reports\n---\n\n<!-- field: reminder_weekday -->\n## Reminder weekday\n\nfriday\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, "summaries", "2026-Q4.md"), []byte("kept\n"), 0o644)
-	res, err = Init(dir, Config{}, monday.AddDate(0, 3, 0), false)
+	res, err = Init(dir, Config{}, monday.AddDate(0, 3, 0), false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,5 +135,31 @@ func TestReportsConfigExampleDecodes(t *testing.T) {
 	again, err := ParseConfig([]byte(written))
 	if err != nil || !reflect.DeepEqual(again, c) {
 		t.Fatalf("round trip = %+v, %v; want %+v", again, err, c)
+	}
+}
+
+// TestInPlaceReportsHaveImpactAndNext validates a report written in place
+// only with the sections its status issue asks for, Work, Blockers, Impact,
+// and Next, naming each one missing, while a central repository's report
+// may still omit Impact and Next (GH-2778).
+func TestInPlaceReportsHaveImpactAndNext(t *testing.T) {
+	w42, _ := ParseWeek("2026-W42")
+	work := []Entry{work("g/po-1#4", "grader", "on-track", "no")}
+	full := RenderWith("po-1", "2026-W42", work, nil, []string{"the grader scores a task"}, []string{"score a second task"})
+	inPlace := InPlaceReportPath(w42, "po-1")
+	if problems := CheckFile(inPlace, []byte(full)); len(problems) != 0 {
+		t.Fatalf("an in-place report with every section = %v", problems)
+	}
+	for _, c := range []struct {
+		name         string
+		impact, next []string
+	}{{"Impact", nil, []string{"x"}}, {"Next", []string{"x"}, nil}} {
+		problems := CheckFile(inPlace, []byte(RenderWith("po-1", "2026-W42", work, nil, c.impact, c.next)))
+		if len(problems) != 1 || !strings.Contains(problems[0], "no ## "+c.name+" section") {
+			t.Errorf("an in-place report without %s = %v; want that section named", c.name, problems)
+		}
+	}
+	if problems := CheckFile(ReportPath(w42, "po-1"), []byte(Render("po-1", "2026-W42", work, nil))); len(problems) != 0 {
+		t.Errorf("a central report without Impact and Next = %v; want valid, as before", problems)
 	}
 }

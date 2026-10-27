@@ -30,9 +30,10 @@ type FrontMatter struct {
 type Entry map[string]string
 
 // Report is one parsed report file. Impact and Next, the plain list items
-// of their optional sections, say why the week's work mattered and what
-// the author commits to next; validate and aggregate read a report without
-// them as before (GH-2725).
+// of their sections, say why the week's work mattered and what the author
+// commits to next: a report written in place, under status/, has both, as
+// its status issue asks; a central reports repository's may omit them, so
+// its earlier reports still validate (GH-2725, GH-2778).
 type Report struct {
 	Path        string      `json:"path"`
 	FrontMatter FrontMatter `json:"front_matter"`
@@ -42,6 +43,8 @@ type Report struct {
 	Next        []string    `json:"next,omitempty"`
 	hasWork     bool
 	hasBlockers bool
+	hasImpact   bool
+	hasNext     bool
 }
 
 // Keys each entry must carry, and the values some keys allow.
@@ -134,10 +137,10 @@ func ParseReport(p string, src []byte) (Report, error) {
 			section, plain, r.hasBlockers = &r.Blockers, nil, true
 			continue
 		case "## Impact":
-			section, plain = nil, &r.Impact
+			section, plain, r.hasImpact = nil, &r.Impact, true
 			continue
 		case "## Next":
-			section, plain = nil, &r.Next
+			section, plain, r.hasNext = nil, &r.Next, true
 			continue
 		}
 		if strings.HasPrefix(line, "## ") {
@@ -224,6 +227,14 @@ func (r Report) Check() []string {
 	}
 	if !r.hasBlockers {
 		problems = append(problems, "no ## Blockers section: every report has one, holding the single entry - none when nothing blocks")
+	}
+	if strings.HasPrefix(r.Path, StatusDir+"/") {
+		if !r.hasImpact {
+			problems = append(problems, "no ## Impact section: a report written in place says why the week's work mattered")
+		}
+		if !r.hasNext {
+			problems = append(problems, "no ## Next section: a report written in place says what its author commits to next")
+		}
 	}
 	for i, e := range r.Work {
 		problems = append(problems, missing(fmt.Sprintf("work entry %d", i+1), e, WorkKeys)...)
