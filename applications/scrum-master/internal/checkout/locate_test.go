@@ -93,3 +93,26 @@ func TestLocateMatchesTheOrigin(t *testing.T) {
 		t.Error("HasCheckout does not follow Locate")
 	}
 }
+
+// A project named by a checkout's path, as a word's --system may be, is
+// that checkout whatever its origin, a worktree's included (GH-2769).
+func TestAPathNamesItsCheckout(t *testing.T) {
+	_, system, scrum := mirrored(t)
+	for _, args := range [][]string{{"-C", system, "add", "-A"}, {"-C", system, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", "seed"},
+		{"-C", system, "worktree", "add", "-q", system + "-4-plan", "-b", "4-plan"}} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	wt := system + "-4-plan"
+	if got, ok := Locate(scrum, wt); !ok || got != wt {
+		t.Fatalf("Locate(%s) = %q, %v, want the worktree", wt, got, ok)
+	}
+	c := &Code{Dir: wt}
+	if _, err := c.GetFile(wt, TrackersFile, "4-plan"); err != nil {
+		t.Fatalf("reading the worktree by its path: %v", err)
+	}
+	if _, ok := Locate(scrum, "/no/such/checkout"); ok {
+		t.Error("a path with no checkout located one")
+	}
+}
