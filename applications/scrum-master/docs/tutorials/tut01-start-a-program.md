@@ -116,6 +116,27 @@ Onboard lays down the repository's corpus and orientation, registers it
 in the system repository, installs the skills, and vendors the profiles,
 the same way init does.
 
+scrum-master finds the program's system repository from any of its
+checkouts. Two layouts work with nothing set:
+
+```text
+~/code/system          # side by side: every checkout in one folder
+~/code/fleet
+
+~/GITLABS/acme/tpm             # mirroring the forge's groups
+~/GITLABS/acme/platform/tpm    # a scrum repository of acme/platform
+```
+
+In the second, scrum-master looks beside each folder above the checkout,
+up to your home folder, and takes the system checkout whose group holds
+your repository. With the system repository checked out nowhere near,
+name it, and scrum-master reads its `control/trackers.md` through `glab`
+or `gh`:
+
+```bash
+export SCRUM_MASTER_SYSTEM=acme/tpm
+```
+
 ## Upgrading to a new release
 
 Rerun the install script from step 1, then run the upgrade profile from

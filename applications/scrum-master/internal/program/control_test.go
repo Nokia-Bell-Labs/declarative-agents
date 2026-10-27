@@ -23,6 +23,10 @@ func (c codeFiles) GetFile(project, path, ref string) ([]byte, error) {
 	return c.code.GetFile(project, path, ref)
 }
 
+func (c codeFiles) ListDir(project, dir, ref string) ([]string, error) {
+	return c.code.ListDir(project, dir, ref)
+}
+
 const approvalPolicy = `---
 id: policy
 title: Policy

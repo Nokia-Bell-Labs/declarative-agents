@@ -881,10 +881,14 @@ func orNone(s string) string {
 }
 
 func verdict(r LintResult) string {
-	if r.Admitted {
-		return "admitted"
+	notes := ""
+	if len(r.Notes) > 0 {
+		notes = " (" + strings.Join(r.Notes, "; ") + ")"
 	}
-	return "needs-triage: " + strings.Join(r.Reasons, "; ")
+	if r.Admitted {
+		return "admitted" + notes
+	}
+	return "needs-triage: " + strings.Join(r.Reasons, "; ") + notes
 }
 
 // inferBranch is the issue's branch from the checkout at dir, when no

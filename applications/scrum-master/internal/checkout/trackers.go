@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -23,23 +24,56 @@ const TrackersFile = "control/trackers.md"
 // repository has control files. Worktrees of one repository, which pop
 // opens beside its checkout, are one sibling, read from the main checkout.
 // It returns "" when there is none, and refuses siblings of more than one
-// repository.
+// repository. Where checkouts mirror the forge's group layout, it also
+// searches beside each folder above the checkout, nearest first, up to the
+// user's home folder (Levels), taking there only a system checkout whose
+// group holds this checkout's repository, so it never reaches another
+// program's (GH-2743).
 func FindTrackers(dir string) (string, error) {
-	root := dir
-	if out, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output(); err == nil {
-		root = strings.TrimSpace(string(out))
-	}
+	root := toplevel(dir)
 	if own := filepath.Join(root, TrackersFile); exists(own) {
 		return own, nil
 	}
-	siblings := oneEachRepository(globSiblings(root), func(f string) string { return filepath.Dir(filepath.Dir(f)) })
-	switch len(siblings) {
-	case 0:
-		return "", nil
-	case 1:
-		return siblings[0], nil
+	ours := ""
+	if o := Origin(root); o != "" && !strings.HasPrefix(o, "/") && !strings.HasPrefix(o, ".") {
+		ours = ProjectPath(o)
 	}
-	return "", fmt.Errorf("several sibling checkouts hold %s (%s); run scrum-master from the system repository's checkout", TrackersFile, strings.Join(siblings, ", "))
+	for i, level := range Levels(root) {
+		found, _ := filepath.Glob(filepath.Join(level, "*", TrackersFile))
+		if i > 0 {
+			if ours == "" {
+				break
+			}
+			found = slicesFilter(found, func(f string) bool {
+				o := Origin(filepath.Dir(filepath.Dir(f)))
+				group := path.Dir(ProjectPath(o))
+				return o != "" && group != "." && strings.HasPrefix(ours, group+"/")
+			})
+		}
+		found = oneEachRepository(found, func(f string) string { return filepath.Dir(filepath.Dir(f)) })
+		switch len(found) {
+		case 0:
+			continue
+		case 1:
+			return found[0], nil
+		}
+		where := "several sibling checkouts"
+		if i > 0 {
+			where = "several checkouts in " + level
+		}
+		return "", fmt.Errorf("%s hold %s (%s); run scrum-master from the system repository's checkout", where, TrackersFile, strings.Join(found, ", "))
+	}
+	return "", nil
+}
+
+func slicesFilter(xs []string, keep func(string) bool) []string {
+	var out []string
+	for _, x := range xs {
+		if keep(x) {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }

@@ -86,10 +86,26 @@ func oneType(i tracker.Issue, p Policy) []string {
 	return append(out, listed("type", types, p.Types)...)
 }
 
+// bootstrapping reports whether the one-component rule is waived for i:
+// the control project's subsystem SRDs, read, declare no component at all,
+// as before a program registers its first, and i carries none (GH-2744).
+func bootstrapping(i tracker.Issue, p Policy) bool {
+	return p.ComponentsRead && len(p.Components) == 0 && len(axis(i, "component::")) == 0
+}
+
+// BootstrapNote says when lint waived the one-component rule, so a report
+// never passes an issue for that reason silently (GH-2744).
+func BootstrapNote(i tracker.Issue, p Policy) string {
+	if !bootstrapping(i, p) {
+		return ""
+	}
+	return "one-component waived: the control project's subsystem SRDs declare no component yet"
+}
+
 func oneComponent(i tracker.Issue, p Policy) []string {
 	components := axis(i, "component::")
 	sprint := slices.Contains(canonicalTypes(axis(i, "type::")), "sprint")
-	bootstrap := p.ComponentsRead && len(p.Components) == 0 && len(components) == 0
+	bootstrap := bootstrapping(i, p)
 	var out []string
 	if !sprint && !bootstrap && len(components) != 1 {
 		out = append(out, fmt.Sprintf("needs exactly one component:: label, has %d", len(components)))

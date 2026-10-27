@@ -104,6 +104,9 @@ type LintResult struct {
 	// Milestone is the milestone the issue carries, which admission reads
 	// for a data issue (GH-20).
 	Milestone string `json:"milestone,omitempty"`
+	// Notes say what admission waived, such as the one-component rule
+	// before the program declares a component (GH-2744).
+	Notes []string `json:"notes,omitempty"`
 }
 
 // lintNote is the comment lint leaves on a failing issue.
@@ -136,6 +139,9 @@ func lastLint(notes []tracker.Note) string {
 // (srd013 R1.2, srd041 R9.4). A dry run writes nothing.
 func Apply(t tracker.Tracker, i tracker.Issue, reasons []string, p Policy, dryRun bool) (LintResult, error) {
 	r := LintResult{Project: i.Project, IID: i.IID, Admitted: len(reasons) == 0, Reasons: reasons, Milestone: i.Milestone}
+	if note := BootstrapNote(i, p); note != "" {
+		r.Notes = []string{note}
+	}
 	triaged := i.HasLabel(p.TriageLabel)
 	triager, byState := tracker.For(t, i.Project).(tracker.Triager)
 	if r.Admitted {
