@@ -12,7 +12,8 @@
 # $HOME/.local/share/scrum-master. SCRUM_MASTER_RELEASE_URL is where the
 # releases are published. SCRUM_MASTER_RELEASE_FORGE=gitlab reads them from a
 # GitLab project instead, such as an internal fork (GH-31): the URL is then
-# the project's, and GITLAB_TOKEN, when set, reads a private one.
+# the project's, and GITLAB_TOKEN, when set, reads a private one through the
+# API, which alone serves a project's uploads to a token (GH-2767).
 set -eu
 
 tag=${1:-latest}
@@ -55,9 +56,31 @@ fetch() {
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-fetch "$work/SHA256SUMS" "$url/SHA256SUMS"
+
+# asset_url is where a release file downloads from: on GitLab with a token,
+# the upload its release link names, read through the API, since the web
+# routes send a token to the sign-in page (GH-2767); else under $url.
+if [ "$forge" = gitlab ] && [ -n "${GITLAB_TOKEN:-}" ]; then
+  host=$(printf '%s\n' "$base" | sed -E 's#^(https?://[^/]+).*#\1#')
+  project=$(printf '%s\n' "${base#"$host"/}" | sed 's#/*$##; s#/#%2F#g')
+  if [ "$tag" = latest ]; then release=permalink/latest; else release=$tag; fi
+  fetch "$work/release.json" "$host/api/v4/projects/$project/releases/$release"
+fi
+asset_url() {
+  if [ ! -f "$work/release.json" ]; then echo "$url/$1"; return; fi
+  link=$(tr '{}' '\n\n' < "$work/release.json" | grep "\"name\":\"$1\"" | sed 's#\\/#/#g' | sed -n 's/.*"url":"\([^"]*\)".*/\1/p' | head -n 1)
+  if [ -z "$link" ]; then
+    echo "install.sh: the release $tag has no file $1" >&2; exit 1
+  fi
+  case $link in
+    "$host"/-/project/*/uploads/*) echo "$host/api/v4/projects/${link#"$host"/-/project/}" ;;
+    *) echo "$link" ;;
+  esac
+}
+
+fetch "$work/SHA256SUMS" "$(asset_url SHA256SUMS)"
 for asset in "$agent" "$profiles"; do
-  fetch "$work/$asset" "$url/$asset"
+  fetch "$work/$asset" "$(asset_url "$asset")"
   want=$(awk -v a="$asset" '$2 == a || $2 == "*" a { print $1 }' "$work/SHA256SUMS")
   if command -v sha256sum >/dev/null 2>&1; then
     got=$(sha256sum "$work/$asset" | awk '{ print $1 }')
