@@ -738,3 +738,24 @@ func TestInitListsTheExcludeApartFromTheSkills(t *testing.T) {
 		t.Errorf("skills = %+v; want each naming its skill", r.Skills)
 	}
 }
+
+// A profile that reads no variable lists its vars as [], not null
+// (GH-2792).
+func TestProfileCredentialsListEmptyVars(t *testing.T) {
+	envs, err := profileCredentials()
+	if err != nil || len(envs) == 0 {
+		t.Fatalf("credentials = %v, %v", envs, err)
+	}
+	empty := 0
+	for _, e := range envs {
+		if e.Vars == nil {
+			t.Errorf("%s: vars is nil", e.Profile)
+		}
+		if len(e.Vars) == 0 {
+			empty++
+		}
+	}
+	if empty == 0 {
+		t.Error("no profile without variables to check")
+	}
+}
