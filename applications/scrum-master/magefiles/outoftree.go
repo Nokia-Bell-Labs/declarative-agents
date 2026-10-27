@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -13,9 +14,10 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/spectool"
 )
 
-// outOfTreeModule is the module path the copy is renamed to: no code may
-// depend on the application's own.
-const outOfTreeModule = "example.invalid/scrum-master"
+// outOfTreeHost is the placeholder host the copy's module is renamed
+// under, keeping its last segment: no code may depend on the application's
+// own module path, and none spells the copy's either.
+const outOfTreeHost = "example.invalid"
 
 // OutOfTree runs the audit, the unit tests, and the cross build on a copy
 // of the application outside this repository, its Go module renamed to a
@@ -46,7 +48,7 @@ func OutOfTree() error {
 	if err := copyApplication(root, dst); err != nil {
 		return err
 	}
-	if err := renameModule(dst, outOfTreeModule); err != nil {
+	if err := renameModule(dst, outOfTreeHost); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(dst, spectool.CheckoutsFile),
@@ -108,9 +110,9 @@ func copyApplication(root, dst string) error {
 	return nil
 }
 
-// renameModule renames the Go module at dir, rewriting every Go file's
-// imports of it.
-func renameModule(dir, module string) error {
+// renameModule renames the Go module at dir to its last segment under
+// host, rewriting every Go file's imports of it.
+func renameModule(dir, host string) error {
 	gomod := filepath.Join(dir, "go.mod")
 	b, err := os.ReadFile(gomod)
 	if err != nil {
@@ -121,6 +123,7 @@ func renameModule(dir, module string) error {
 	if old == "" {
 		return fmt.Errorf("%s names no module", gomod)
 	}
+	module := host + "/" + path.Base(old)
 	return filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || (filepath.Ext(p) != ".go" && p != gomod) {
 			return err
