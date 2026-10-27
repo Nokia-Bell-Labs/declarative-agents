@@ -14,10 +14,12 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/spectool"
 )
 
-// outOfTreeHost is the placeholder host the copy's module is renamed
-// under, keeping its last segment: no code may depend on the application's
-// own module path, and none spells the copy's either.
-const outOfTreeHost = "example.invalid"
+// outOfTreeHost is the placeholder host and group the copy's module is
+// renamed under, keeping its last segment: no code may depend on the
+// application's own module path, and none spells the copy's either. The
+// host names a forge, as a self-hosted one's often does, so no test may
+// read a forge from a package path (GH-2763).
+const outOfTreeHost = "gitlab.example.invalid/group"
 
 // OutOfTree runs the audit, the unit tests, and the cross build on a copy
 // of the application outside this repository, its Go module renamed to a
@@ -49,6 +51,13 @@ func OutOfTree() error {
 		return err
 	}
 	if err := renameModule(dst, outOfTreeHost); err != nil {
+		return err
+	}
+	// A standalone application pins its runtime; the copy commits that pin
+	// as one would, and its checkouts file, which wins, names this
+	// repository's own agent-core (GH-2763).
+	if err := os.WriteFile(filepath.Join(dst, spectool.PinsFile),
+		[]byte(fmt.Sprintf("# The runtime release this application builds against (eng03).\npins:\n  %s: %s\n", spectool.ParentRepository, runtime.DefaultPin())), 0o644); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(dst, spectool.CheckoutsFile),
