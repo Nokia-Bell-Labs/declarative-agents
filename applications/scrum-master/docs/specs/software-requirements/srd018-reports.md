@@ -233,7 +233,7 @@ The roster is control/reports.md in the system repository (config format reports
 <!-- req: R13.1 -->
 ### R13.1
 
-For a level and a period of ISO weeks, lists the level's repositories from the system repository's subsystem SRDs (implementation_targets): for a team, its subsystem's repositories, its scrum repository among them, named by --subsystem or by the subsystem whose SRD lists --project; for the program, the system repository and every subsystem's. A program with no subsystem SRDs takes the repositories its roster names.
+For a level and a period of ISO weeks, lists the level's repositories from the system repository's subsystem SRDs (implementation_targets): for a team, its subsystem's repositories, its scrum repository among them, named by --subsystem or by the subsystem whose SRD lists --project; for the program, the system repository and every subsystem's, a sub-program's at its interface: a team whose scrum repository is a program's system repository (it holds control/trackers.md) contributes its program rollup as that team's rollup, named for its subsystem, and none of its repositories' reports or open status issues, which that rollup stands for, and nobody listed in it misses a report at this level (GH-2742). A program with no subsystem SRDs takes the repositories its roster names.
 
 <!-- req: R13.2 -->
 ### R13.2
@@ -277,7 +277,7 @@ validate checks every report and rollup under status/, a rollup against the roll
 <!-- req: R16.1 -->
 ### R16.1
 
-With --control naming the system repository, status-issues files for the coming ISO week each listed person's status issue in the repository they report in, due report_due_days after the reminder weekday; one team rollup issue per subsystem in its scrum repository, which holds the team's Sprint Goals (the one its SRD's scrum_repository names, else its first component's, GH-2738), mentioning the subsystem's owner, due team_rollup_due_days working days later; and one program rollup issue in the system repository, mentioning the program lead, due program_rollup_due_days working days after that. Each recurs as R7 does.
+With --control naming the system repository, status-issues files for the coming ISO week each listed person's status issue in the repository they report in, due report_due_days after the reminder weekday; one team rollup issue per subsystem in its scrum repository, none for a sub-program, whose program rollup stands for it and whose result says so (GH-2742), which holds the team's Sprint Goals (the one its SRD's scrum_repository names, else its first component's, GH-2738), mentioning the subsystem's owner, due team_rollup_due_days working days later; and one program rollup issue in the system repository, mentioning the program lead, due program_rollup_due_days working days after that. Each recurs as R7 does.
 
 <!-- req: R16.2 -->
 ### R16.2

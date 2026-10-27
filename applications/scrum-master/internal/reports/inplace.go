@@ -111,6 +111,13 @@ func StatusIssuesInPlace(t tracker.Tracker, in RollupInput) ([]StatusResult, err
 		return nil
 	}
 	for _, sub := range subs {
+		// A sub-program's own program rollup is its team rollup here, so
+		// its TPM is asked for no second one (GH-2742).
+		if program.IsProgram(t, sub.ScrumRepository()) {
+			out = append(out, StatusResult{Kind: "team-rollup", User: sub.Owner, Project: sub.ScrumRepository(), Week: week, Action: "sub-program",
+				Reasons: []string{sub.ScrumRepository() + " is a program: its program rollup stands for " + sub.ID + "'s team rollup"}})
+			continue
+		}
 		if err := rollup("team-rollup", sub.ID, sub.Owner, sub.ScrumRepository(), teamDue); err != nil {
 			return out, err
 		}

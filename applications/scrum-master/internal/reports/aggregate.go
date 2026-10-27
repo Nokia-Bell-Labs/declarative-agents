@@ -134,8 +134,10 @@ func Aggregate(t tracker.Tracker, in AggregateInput) (Aggregation, error) {
 		in.Config.Team = slices.DeleteFunc(slices.Clone(in.Config.Team), func(m Member) bool { return m.Project != in.Project })
 	}
 	if in.Collection != nil {
+		// A person in a sub-program reports to its rollup, not here.
 		in.Config.Team = slices.DeleteFunc(slices.Clone(in.Config.Team), func(m Member) bool {
-			return !slices.Contains(in.Collection.Repositories, program.ProjectPath(m.Project))
+			p := program.ProjectPath(m.Project)
+			return !slices.Contains(in.Collection.Repositories, p) || slices.Contains(in.Collection.SubPrograms, p)
 		})
 	}
 	member := func(user string) bool {
