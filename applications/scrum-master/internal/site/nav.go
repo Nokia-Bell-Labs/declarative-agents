@@ -13,6 +13,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
 )
 
 // Sidebar is the site's navigator, which the app shell loads on every page
@@ -115,11 +116,10 @@ func containsDir(dirs []string, d string) bool {
 }
 
 // sidebarPage is the navigator: the site's own pages, the timeline and its
-// sprints, the plan's tree,
-// every theme to every story, so search reaches each, and the program's
-// repositories on the forge. Links are site-rooted, the routes the shell
-// serves.
-func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint) string {
+// sprints, the plan's tree, every theme to every story, so search reaches
+// each, the program's scrums, and its repositories on the forge. Links are
+// site-rooted, the routes the shell serves.
+func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams []timeline.Team) string {
 	var b strings.Builder
 	b.WriteString(generated("hierarchy", "the timeline facts and the checkouts beside the reports checkout"))
 	b.WriteString("- [Overview](/overview.md)\n- [About](/index.md)\n")
@@ -147,6 +147,12 @@ func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint) string 
 	for _, id := range sortedNodes(nodes) {
 		if _, ok := nodes[nodes[id].Parent]; !ok {
 			walk(id, 1)
+		}
+	}
+	if len(teams) > 0 {
+		b.WriteString("- [Scrums](/" + ScrumsDir + "/index.md)\n")
+		for _, t := range teams {
+			fmt.Fprintf(&b, "  - [%s%s](/%s/%s.md %q)\n", `<span class="kb kb-scrum" title="Scrum">S</span> `, t.Name, ScrumsDir, t.Name, t.Name)
 		}
 	}
 	if len(repos) > 0 {

@@ -120,6 +120,23 @@ type Facts struct {
 	Today    string    `json:"today"`
 	Releases []Release `json:"releases"`
 	Items    []Item    `json:"items"`
+	// Teams are the program's scrums, as the system's subsystem SRDs
+	// declare them; a tag's facts hold none.
+	Teams []Team `json:"teams,omitempty"`
+}
+
+// Team is one scrum: the subsystem it owns, its Product Owner, the
+// components of its area, and the repositories they live in. Name is what
+// its documents carry as <name>/<id>, its first repository's name.
+type Team struct {
+	Name         string   `json:"name"`
+	Subsystem    string   `json:"subsystem"`
+	Owner        string   `json:"owner"`
+	Components   []string `json:"components"`
+	Repositories []string `json:"repositories"`
+	// URL is its first repository's page on the forge, when the SRD names
+	// one a browser opens.
+	URL string `json:"url,omitempty"`
 }
 
 // Input is what the facts are computed from.

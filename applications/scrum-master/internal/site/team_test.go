@@ -202,3 +202,82 @@ func TestEpicPageLinksStoriesInEveryTeam(t *testing.T) {
 		t.Errorf("po-2's story does not link its source in po-2's repository:\n%s", po2)
 	}
 }
+
+// The site has a page per scrum the registry declares, beside the plan and
+// the repositories: its Product Owner and area, its open Sprint Goals with
+// the stories they selected, the epics its stories serve, the system's
+// cross-team epic among them, and its own stories, each linking its page;
+// the navigator lists the scrums and the index has a tile for each.
+func TestScrumPagesShowWhatEachTeamWorksOn(t *testing.T) {
+	in, system := statusProgram(t)
+	os.MkdirAll(filepath.Join(system, "control"), 0o755)
+	os.WriteFile(filepath.Join(system, "control", "trackers.md"), []byte("---\nid: trackers\ntitle: Tracking systems\n---\n\n<!-- field: version -->\n## Version\n\n1\n\n<!-- field: default -->\n## Default\n\n<!-- field: system -->\n### System\n\nbd\n"), 0o644)
+	if out, err := exec.Command("git", "-C", system, "remote", "add", "origin", "https://gitlab.example.com/g/system.git").CombinedOutput(); err != nil {
+		t.Fatalf("git remote: %v: %s", err, out)
+	}
+	f := in.Tracker.(*fake.Fake)
+	srd := func(id, owner, component, repo string) []byte {
+		return []byte("---\nid: " + id + "\ntitle: \"Subsystem\"\n---\n\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: " + owner + "\n\n<!-- req: R1 -->\n## R1 - Work\n\n<!-- req: R1.1 -->\n### R1.1\n\nWork arrives.\n\n<!-- field: implementation_targets -->\n## Implementation targets\n\n| name | repository | path |\n| --- | --- | --- |\n| " + component + " | https://gitlab.example.com/" + repo + " | / |\n")
+	}
+	f.AddFile("g/system", "main", "docs/specs/software-requirements/srd010-po-1.md", srd("srd010-po-1", "Product Owner, alice", "grader", "g/po-1"))
+	f.AddFile("g/system", "main", "docs/specs/software-requirements/srd011-po-2.md", srd("srd011-po-2", "Product Owner, bob", "scorecard", "g/po-2"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "hierarchy", "valid", "docs", "specs", "stories", "st001-score-trajectories.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	story := []byte(strings.Replace(string(b), "- parent: ft001-grader", "- parent: https://gitlab.example.com/g/system/-/blob/corpus/v0.1.0/docs/specs/epics/ep001-agent-evaluation.md", 1))
+	f.AddFile("g/po-1", "main", "docs/specs/stories/st001-score-trajectories.md", story)
+	f.AddFile("g/po-2", "main", "docs/specs/stories/st001-score-trajectories.md", story)
+	f.CreateIssue("g/po-1", tracker.NewIssue{Title: "Sprint Goal 01.0, grading", Labels: []string{"plane::management", "op::plan"},
+		Description: "Grade one agent.\n\n" + sprintgoal.Marker("01.0", []string{"in001-reliable-agents#R1"}) + "\n\n## Sprint Backlog\n\n- st001-score-trajectories\n"})
+
+	s, err := LoadSources(system, f, in.Sources.Today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	facts, err := Facts(system, "", s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, _ := json.Marshal(facts)
+	os.MkdirAll(filepath.Join(in.Reports, Dir, "timeline"), 0o755)
+	if err := os.WriteFile(filepath.Join(in.Reports, Dir, "timeline", "facts.json"), j, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pages, err := ScrumPages(in.Reports)
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := string(pages[Dir+"/"+ScrumsDir+"/index.md"])
+	for _, want := range []string{`href="po-1.md"`, `href="po-2.md"`, "Product Owner: Product Owner, alice", "Area: grader", "2 open Sprint Goals · 1 epic · 1 story", "0 open Sprint Goals · 1 epic · 1 story"} {
+		if !strings.Contains(index, want) {
+			t.Errorf("the scrums' index lacks %q:\n%s", want, index)
+		}
+	}
+	po1 := string(pages[Dir+"/"+ScrumsDir+"/po-1.md"])
+	for _, want := range []string{
+		"# po-1", "Product Owner: Product Owner, alice", "subsystem `srd010-po-1`", "[g/po-1](https://gitlab.example.com/g/po-1)", "**Area:** grader.",
+		"## Sprint Goals", "Sprint Goal 01.0, grading", "release 01.0",
+		`href="../hierarchy/po-1/st001-score-trajectories.md"`, `href="../hierarchy/ep001-agent-evaluation.md"`,
+		"| [Agent evaluation](../hierarchy/ep001-agent-evaluation.md) |",
+	} {
+		if !strings.Contains(po1, want) {
+			t.Errorf("po-1's page lacks %q:\n%s", want, po1)
+		}
+	}
+	if strings.Contains(po1, "po-2/st001") {
+		t.Errorf("po-1's page shows po-2's story:\n%s", po1)
+	}
+	if po2 := string(pages[Dir+"/"+ScrumsDir+"/po-2.md"]); !strings.Contains(po2, "No open Sprint Goal in its repositories.") {
+		t.Errorf("po-2's page:\n%s", po2)
+	}
+	_, _, _, sidebar, err := HierarchyPages(in.Reports, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nav := string(sidebar)
+	if i, j := strings.Index(nav, "- [Scrums](/scrums/index.md)"), strings.Index(nav, "(/scrums/po-2.md"); i < 0 || j < i || !strings.Contains(nav, "(/scrums/po-1.md") {
+		t.Errorf("the navigator lacks the scrums:\n%s", nav)
+	}
+}

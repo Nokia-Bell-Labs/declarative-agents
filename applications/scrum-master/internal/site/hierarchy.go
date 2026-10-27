@@ -71,7 +71,7 @@ func HierarchyPages(dir string, repos []Repo) (pages, data, sprints map[string][
 		out = append(out, *nodes[id])
 	}
 	j, _ := json.MarshalIndent(out, "", "  ")
-	return pages, map[string][]byte{Dir + "/data/hierarchy/hierarchy.json": append(j, '\n')}, SprintPages(f, nodes), []byte(sidebarPage(nodes, repos, sprintsOf(f))), nil
+	return pages, map[string][]byte{Dir + "/data/hierarchy/hierarchy.json": append(j, '\n')}, SprintPages(f, nodes), []byte(sidebarPage(nodes, repos, sprintsOf(f), f.Teams)), nil
 }
 
 // hierarchyNodes gathers each hierarchy document with its children, the

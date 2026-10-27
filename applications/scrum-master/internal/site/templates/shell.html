@@ -88,6 +88,7 @@
   .kind-epic, .kb-epic { background: #ccfbf1; border-color: #5eead4; color: #0f766e; }
   .kind-feature, .kb-feature { background: #fef3c7; border-color: #fcd34d; color: #b45309; }
   .kind-story, .kb-story { background: #dcfce7; border-color: #86efac; color: #15803d; }
+  .kind-scrum, .kb-scrum { background: #ffe4e6; border-color: #fda4af; color: #be123c; }
   .markdown-section .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 6px; }
   .markdown-section .crumbs p { margin: 0; }
   .markdown-section .crumbs .kind { font-size: 10px; padding: 0 6px; }
@@ -132,7 +133,12 @@
   .tab-panel[hidden] { display: none; }
   /* The board: a column per state, the page growing with the cards rather
      than scrolling inside a column. */
-  .tab-panel, .band-none { container-type: inline-size; }
+  .tab-panel, .band-none, .scrum-section { container-type: inline-size; }
+  /* A scrum's boards (its Sprint Goals' stories, its epics, its stories)
+     sit on the page as the plan's do. */
+  .markdown-section:has(.scrum-section) { max-width: 90em; }
+  .scrum-section { margin: 0 0 1.2em; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; }
+  .markdown-section a.tile-scrum { border-left: 4px solid #fb7185; }
   .board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
   .column { display: flex; flex-direction: column; gap: 8px; min-height: 64px; padding: 8px; border-radius: 8px; background: #f3f4f6; }
   .column-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px; font-size: 12px; font-weight: 700;

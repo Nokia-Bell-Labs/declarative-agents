@@ -161,7 +161,7 @@ The hierarchy word writes a page per theme, initiative, epic, feature, and story
 <!-- req: R8.2 -->
 ### R8.2
 
-The hierarchy word also writes site/_sidebar.md, the navigator the shell loads on every page: the overview, the program's index as About, the generated folders, the timeline opening into the program's sprints (R8.4), the plan's tree from every theme to every story, each named with its level's one-letter chip and titled with its own title, and each of the program's repositories with a checkout beside the reports checkout, the system's and those its subsystem SRDs declare, and the reports repository named by its repository rather than a worktree's folder, linked on its forge when its configured origin opens in a browser; a checkout the program does not declare is someone else's and is left out (GH-141). The shell searches every page the navigator links, so every story (GH-127).
+The hierarchy word also writes site/_sidebar.md, the navigator the shell loads on every page: the overview, the program's index as About, the generated folders, the timeline opening into the program's sprints (R8.4), the plan's tree from every theme to every story, each named with its level's one-letter chip and titled with its own title, the program's scrums (R8.6) under their own heading, and each of the program's repositories with a checkout beside the reports checkout, the system's and those its subsystem SRDs declare, and the reports repository named by its repository rather than a worktree's folder, linked on its forge when its configured origin opens in a browser; a checkout the program does not declare is someone else's and is left out (GH-141). The shell searches every page the navigator links, so every story (GH-127).
 
 <!-- req: R8.3 -->
 ### R8.3
@@ -177,6 +177,11 @@ The hierarchy word writes a page per release sprint under site/sprints/, titled 
 ### R8.5
 
 No generated page links what does not exist, by the app's resolution: relative to the page, a folder link to its index.md, a bare one to its .md. A folder the site links has its own index page, and a document the system repository does not hold is named without a link (GH-139).
+
+<!-- req: R8.6 -->
+### R8.6
+
+A scrum owns an area, a subsystem and the components its SRD lists, while planned work is a separate tree (srd045 R6.5), so the site shows the scrums as it shows the plan and the repositories (GH-2732). The scrums are the team subsystems of the registry the tracker reads, the system repository's subsystem SRDs, else the system checkout's, the system SRD naming none, and the timeline facts carry them; the Sprint Goals are read from every repository the registry names. The hierarchy word writes, under site/scrums/, a page per scrum named for its first repository, as its documents are: its Product Owner, subsystem, repositories, linked on the forge where the SRD's URL opens in a browser, and area; its open Sprint Goals, each with a board of the stories its Sprint Backlog selects, and its closed ones listed; a board of the epics its features and stories serve, its own and the system repository's cross-team ones, with a table of its part of each, its stories and points done beside the epic's; and a board of its own features and stories by state, each card linking the document's page. The folder's index has a tile per scrum with its Product Owner, area, open Sprint Goals, epics, stories, and points done, and the overview links it.
 
 <!-- field: non_goals -->
 ## Non-goals
@@ -264,7 +269,7 @@ On a fixture program, the agent runs the site profile end to end, its machine pa
 <!-- ac: AC7 -->
 ### AC7
 
-On a fixture program with a team repository, and with an epic whose stories are in two, every theme, initiative, epic, feature, and story has a page whose links up and down are reciprocated, a story's page names the Sprint Goal selecting it and the issue implementing it, the epic links down to the stories in both team repositories, and a team story links its own repository; every page names its level with its chip and links each document above it; the plan's index is a band per theme with a tab per initiative, each a board of its epics in their states' columns, each linking its page; the navigator lists the plan's tree, each document with its level's chip, and the repositories; the overview embeds the timeline with one tile per initiative; and the shell is refreshed, kept once edited, and taken back from an earlier release's unstamped copy.
+On a fixture program with a team repository, and with an epic whose stories are in two, every theme, initiative, epic, feature, and story has a page whose links up and down are reciprocated, a story's page names the Sprint Goal selecting it and the issue implementing it, the epic links down to the stories in both team repositories, and a team story links its own repository; every page names its level with its chip and links each document above it; the plan's index is a band per theme with a tab per initiative, each a board of its epics in their states' columns, each linking its page; the navigator lists the plan's tree, each document with its level's chip, the scrums, and the repositories; each scrum's page shows its Product Owner and area, its open Sprint Goals with the stories they select, the cross-team epic its story serves, and its own stories only, and the scrums' index has a tile for each; the overview embeds the timeline with one tile per initiative; and the shell is refreshed, kept once edited, and taken back from an earlier release's unstamped copy.
 
 <!-- field: traces -->
 #### Traces
@@ -274,4 +279,5 @@ On a fixture program with a team repository, and with an epic whose stories are 
 - [R8.3](#r83)
 - [R8.4](#r84)
 - [R8.5](#r85)
+- [R8.6](#r86)
 - [R1.2](#r12)

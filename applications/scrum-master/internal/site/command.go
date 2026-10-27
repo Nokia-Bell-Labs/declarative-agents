@@ -202,6 +202,15 @@ var hierarchyWord = word{"hierarchy", "the hierarchy word: a page per theme, ini
 		if err != nil {
 			return err
 		}
+		scrums, err := ScrumPages(dir)
+		if err != nil {
+			return err
+		}
+		scrumPages, err := Publish(dir, ScrumsDir, scrums, install.Version(), ctx.DryRun)
+		r.Pages = append(r.Pages, scrumPages...)
+		if err != nil {
+			return err
+		}
 		nav, err := Write(dir, Sidebar, sidebar, install.Version(), ctx.DryRun)
 		r.Pages = append(r.Pages, nav)
 		if err != nil {
