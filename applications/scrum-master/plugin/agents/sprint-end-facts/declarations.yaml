@@ -23,7 +23,7 @@ tools:
         flag: --project
       reports:
         type: string
-        description: A checkout of a central reports repository; empty reads the reports where they were written, from the roster in the system repository (GH-2725).
+        description: A checkout of a central reports repository, read when the roster in the system repository names no reporter; else the reports are read where they were written, and the facts say which (GH-2725, GH-2775).
         flag: --reports
       from:
         type: string

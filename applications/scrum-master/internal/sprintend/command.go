@@ -23,7 +23,7 @@ func init() {
 		Group: "sprint-end", Name: "facts", Summary: "the period's aggregate, each Sprint Goal's ledger and reported status, and the recommended version",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&a.project, "project", "", "the repository the sprint-end issue is in (required)")
-			fs.StringVar(&a.reportsDir, "reports", "", "a checkout of a central reports repository; empty reads the reports where they were written, from the roster in the system repository (GH-2725)")
+			fs.StringVar(&a.reportsDir, "reports", "", "a checkout of a central reports repository, read when the roster in the system repository names no reporter; else the reports are read where they were written, and the facts say which (GH-2725, GH-2775)")
 			fs.StringVar(&a.from, "from", "", "the period's first week, YYYY-Www (required)")
 			fs.StringVar(&a.to, "to", "", "the period's last week, YYYY-Www (required)")
 			fs.StringVar(&a.dir, "dir", ".", "the repository's checkout, for its release tags")
@@ -68,6 +68,7 @@ func init() {
 			}
 			var h strings.Builder
 			fmt.Fprintf(&h, "%s, %s to %s: %d reports, %d signals; recommended version %s: %s\n", f.Project, a.from, a.to, agg.Reports, len(agg.Signals), orNothing(f.Recommended), f.Next.Reason)
+			fmt.Fprintf(&h, "  reports read %s\n", agg.Source)
 			for _, o := range f.SprintGoals {
 				// Reported complete is not met: only track-goals decides met
 				// (srd038 R2.2), so the line names which one holds.
@@ -130,38 +131,41 @@ func orNothing(v string) string {
 }
 
 // periodAggregate is the period's aggregate for the sprint end of project:
-// its team's, or for the system repository the program's (GH-116). With the
-// roster in the system repository it reads the reports where they were
-// written, collected for the team's subsystem or the program (GH-2725);
-// else the central reports checkout reportsDir.
+// its team's, or for the system repository the program's (GH-116), from
+// the source reports.ChooseSource names (GH-2775). In place it reads the
+// reports where they were written, collected for the team's subsystem or
+// the program (GH-2725); else the central reports checkout reportsDir.
 func periodAggregate(t tracker.Tracker, p program.Policy, control, ref, reportsDir, project, from, to string) (reports.Aggregation, error) {
-	if control != "" {
-		cfg, err := reports.LoadControl(t, control, ref)
-		if err == nil {
-			level := "team"
-			if program.ProjectPath(project) == program.ProjectPath(control) {
-				level = reports.ProgramLevel
-			}
-			col, err := reports.Collect(t, reports.CollectInput{Config: cfg, System: control, Ref: ref, Level: level, Project: project, From: from, To: to})
-			if err != nil {
-				return reports.Aggregation{}, err
-			}
-			return reports.Aggregate(t, reports.AggregateInput{Config: cfg, Policy: p, From: from, To: to, Collection: &col})
-		}
-		if !errors.Is(err, tracker.ErrNotFound) {
-			return reports.Aggregation{}, err
-		}
+	if control == "" && !reports.IsCentral(reportsDir) {
+		return reports.Aggregation{}, fmt.Errorf("%w: facts needs --control or --reports to read the period's reports", cli.ErrUsage)
 	}
-	if reportsDir == "" {
-		return reports.Aggregation{}, fmt.Errorf("%w: facts needs --reports while the system repository holds no %s", cli.ErrUsage, reports.ControlFile)
-	}
-	cfg, err := reports.LoadConfig(reportsDir)
+	s, err := reports.ChooseSource(t, control, ref, reportsDir)
 	if err != nil {
 		return reports.Aggregation{}, err
 	}
-	team := ""
-	if program.ProjectPath(project) != program.ProjectPath(cfg.System) {
-		team = project
+	var in reports.AggregateInput
+	if s.InPlace {
+		level := "team"
+		if program.ProjectPath(project) == program.ProjectPath(control) {
+			level = reports.ProgramLevel
+		}
+		col, err := reports.Collect(t, reports.CollectInput{Config: s.Config, System: control, Ref: ref, Level: level, Project: project, From: from, To: to})
+		if err != nil {
+			return reports.Aggregation{}, err
+		}
+		in = reports.AggregateInput{Config: s.Config, Policy: p, From: from, To: to, Collection: &col}
+	} else {
+		team := ""
+		if program.ProjectPath(project) != program.ProjectPath(s.Config.System) {
+			team = project
+		}
+		in = reports.AggregateInput{Dir: s.Central, Config: s.Config, Policy: p, From: from, To: to, Project: team}
 	}
-	return reports.Aggregate(t, reports.AggregateInput{Dir: reportsDir, Config: cfg, Policy: p, From: from, To: to, Project: team})
+	a, err := reports.Aggregate(t, in)
+	if err != nil {
+		return a, err
+	}
+	in.Collection = nil
+	s.Explain(t, &a, in)
+	return a, nil
 }

@@ -225,7 +225,7 @@ A report is status/reports/<YYYY-Qn>/<YYYY-Www>-<username>.md in the repository 
 <!-- req: R12.2 -->
 ### R12.2
 
-The roster is control/reports.md in the system repository (config format reports-config), owned by the technical program manager: who reports and in which repository, the reminder weekday, the status and rollup issue titles, the program rollup's lead, and the due offsets. A person's team is the subsystem whose SRD lists their repository. A person listed in a code repository of a team whose SRD names a scrum repository reports in the scrum repository, where the team journals: its status reports beside its Sprint Goals and sprint-end summaries (GH-2738). A program that has not moved its roster keeps reports.md in a central reports repository, which status-issues and aggregate read as before; a roster that names a central repository has collect and previous read its reports too, for the release that moves them into place.
+The roster is control/reports.md in the system repository (config format reports-config), owned by the technical program manager: who reports and in which repository, the reminder weekday, the status and rollup issue titles, the program rollup's lead, and the due offsets. A person's team is the subsystem whose SRD lists their repository. A person listed in a code repository of a team whose SRD names a scrum repository reports in the scrum repository, where the team journals: its status reports beside its Sprint Goals and sprint-end summaries (GH-2738). A program that has not moved its roster keeps reports.md in a central reports repository, which status-issues and aggregate read as before; a roster that names a central repository has collect and previous read its reports too, for the release that moves them into place. Every word that reads a period's reports, aggregate, sprint-end facts, and the site, chooses its source by one rule: in place when the roster names a reporter, else the central reports checkout it was given; the roster init writes names nobody, so its existence alone chooses nothing. Each says which source it read and why, and a word that read in place and found no report while the central checkout it was given holds some for the period names them rather than raising a missing report for everyone (GH-2775).
 
 <!-- req: R13 -->
 ## R13 - scrum-master reports collect
@@ -308,7 +308,7 @@ The status-rollup skill works a rollup issue, its level the repository it runs i
 <!-- req: R18.3 -->
 ### R18.3
 
-The site's status pages show the latest program rollup and the signals over the program's collected reports (srd048 R4.1); plan's candidates read the latest program rollup's progress as they read the aggregate's (srd031); and sprint-end facts aggregate the team's or the program's reports collected where they were written when the system repository holds the roster, a central reports checkout only otherwise (srd038).
+The site's status pages show the latest program rollup and the signals over the program's collected reports (srd048 R4.1); plan's candidates read the latest program rollup's progress as they read the aggregate's (srd031); and sprint-end facts aggregate the team's or the program's reports collected where they were written when the system repository's roster names a reporter, a central reports checkout otherwise (R12.2, srd038).
 
 <!-- req: R18.4 -->
 ### R18.4
