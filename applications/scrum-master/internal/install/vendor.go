@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/runtime"
 )
 
 // VendorDir is where a program repository keeps the profiles its skills
@@ -32,7 +34,11 @@ const ManifestFile = VendorDir + "/manifest.json"
 
 // Manifest is ManifestFile's content.
 type Manifest struct {
-	Release string            `json:"release"`
+	Release string `json:"release"`
+	// Runtime is the runtime release the vendoring agent was built
+	// against, the release a corpus pins (GH-2771); empty in a manifest
+	// written before it was recorded.
+	Runtime string            `json:"runtime,omitempty"`
 	Files   map[string]string `json:"files"`
 }
 
@@ -57,7 +63,7 @@ func Vendor(dir string, src VendorSource, force, dryRun bool) ([]Result, error) 
 	if err != nil {
 		return nil, err
 	}
-	next := Manifest{Release: src.Release, Files: map[string]string{}}
+	next := Manifest{Release: src.Release, Runtime: runtime.DefaultPin(), Files: map[string]string{}}
 	var results []Result
 	for _, rel := range sortedKeys(want) {
 		r, sum, err := vendorFile(dir, rel, want[rel], old.Files[rel], force, dryRun)

@@ -702,3 +702,22 @@ func TestDoctorMovesTheRoster(t *testing.T) {
 		t.Fatalf("a second doctor: %v, %v", actions(again.Files), err)
 	}
 }
+
+// A corpus pinning the runtime its vendored release was built against, a
+// release other than the vendored one, is in order (GH-2771).
+func TestDoctorAcceptsThePinOfTheRuntimeBuiltAgainst(t *testing.T) {
+	dir := repo(t)
+	if _, err := Init(InitOptions{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, pinsFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(dir, pinsFile), pinLine.ReplaceAll(b, []byte("${1}v0.20261024.1")), 0o644)
+	os.WriteFile(filepath.Join(dir, install.ManifestFile), []byte(`{"release":"v0.20261024.3","runtime":"v0.20261024.1","files":{}}`), 0o644)
+	r, err := Doctor(DoctorOptions{Dir: dir, DryRun: true})
+	if err != nil || r.PinDrift != "" {
+		t.Fatalf("doctor: pinned %q, drift %q, %v", r.Pinned, r.PinDrift, err)
+	}
+}
