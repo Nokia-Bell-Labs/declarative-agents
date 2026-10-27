@@ -232,7 +232,11 @@ func EnsureSource(src, tag string) error { return EnsureSourceFrom(ReleaseURL, s
 // <base>/archive/refs/tags/<tag>.tar.gz (GH-2761).
 func EnsureSourceFrom(base, src, tag string) error {
 	if gitQuiet(src, "rev-parse", "--verify", "-q", "refs/tags/"+tag) == nil {
-		return nil
+		// A clone made before GH-2765 holds only its own tag; one with no
+		// history behind the tag is fetched again whole.
+		if !IsGitRemote(base) || gitQuiet(src, "rev-parse", "--verify", "-q", "HEAD~1") == nil {
+			return nil
+		}
 	}
 	if IsGitRemote(base) {
 		return cloneSource(base, src, tag)
@@ -280,8 +284,10 @@ func IsGitRemote(source string) bool {
 	return strings.HasSuffix(source, ".git")
 }
 
-// cloneSource lays out tag's source from the git remote at url: a shallow
-// clone of the tag, which carries the tag itself.
+// cloneSource lays out tag's source from the git remote at url: a clone
+// checked out at the tag, with the remote's history and tags, so the
+// releases a corpus's derived_from entries cite resolve offline against it
+// (GH-2765).
 func cloneSource(url, src, tag string) error {
 	if err := os.RemoveAll(src); err != nil {
 		return err
@@ -289,7 +295,7 @@ func cloneSource(url, src, tag string) error {
 	if err := os.MkdirAll(filepath.Dir(src), 0o755); err != nil {
 		return err
 	}
-	cmd := exec.Command("git", "clone", "-q", "--depth", "1", "--branch", tag, url, src)
+	cmd := exec.Command("git", "clone", "-q", "--branch", tag, url, src)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("clone %s at %s: %w: %s", url, tag, err, strings.TrimSpace(string(out)))
 	}

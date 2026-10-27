@@ -96,8 +96,9 @@ func TestResolvePrefersTheNamedCheckout(t *testing.T) {
 	}
 }
 
-// A pin whose source is a git remote is cloned at its tag, with no forge's
-// archive URL and with the person's own git credentials (GH-2761).
+// A pin whose source is a git remote is cloned at its tag, with the
+// remote's other releases, no forge's archive URL, and the person's own
+// git credentials (GH-2761, GH-2765).
 func TestResolveClonesAPinnedGitSource(t *testing.T) {
 	cache := t.TempDir()
 	t.Setenv("HOME", cache)
@@ -111,6 +112,8 @@ func TestResolveClonesAPinnedGitSource(t *testing.T) {
 		{"-C", work, "init", "-q", "-b", "main"},
 		{"-C", work, "add", "-A"},
 		{"-C", work, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", "runtime"},
+		{"-C", work, "tag", "v0.20990101.1"},
+		{"-C", work, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "--allow-empty", "-m", "the next release"},
 		{"-C", work, "tag", tag},
 		{"clone", "-q", "--bare", work, bare},
 	} {
@@ -127,5 +130,10 @@ func TestResolveClonesAPinnedGitSource(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(rel.CoreRoot(), "cmd", "agent", "main.go")); err != nil || rel.Tag != tag {
 		t.Fatalf("the cloned runtime %+v: %v", rel, err)
+	}
+	// An earlier release a derived_from entry cites resolves in the clone
+	// (GH-2765).
+	if out, err := exec.Command("git", "-C", rel.Src, "rev-parse", "--verify", "-q", "refs/tags/v0.20990101.1").CombinedOutput(); err != nil {
+		t.Fatalf("the clone lacks the earlier release: %v: %s", err, out)
 	}
 }
