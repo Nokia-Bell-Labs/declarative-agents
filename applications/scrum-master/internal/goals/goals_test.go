@@ -36,10 +36,16 @@ func read(t *testing.T, p string) []byte {
 // objective document.
 func fixture(t *testing.T, p trackertest.Program) (tracker.Tracker, Sources) {
 	t.Helper()
+	return fixtureWith(t, p, read(t, "../../testdata/system/srd010-delivery.md"))
+}
+
+// fixtureWith is the fixture with delivery's subsystem SRD as given.
+func fixtureWith(t *testing.T, p trackertest.Program, delivery []byte) (tracker.Tracker, Sources) {
+	t.Helper()
 	p.AddFile(system, "main", "docs/road-map.md", read(t, "../../testdata/system/road-map.md"))
 	p.AddTag(system, "v0.1.0")
 	p.AddFile(system, "v0.1.0", "docs/specs/objectives/obj001-reliable-agents.md", read(t, "../../testdata/objectives/valid/obj001-reliable-agents.md"))
-	p.AddFile(system, "v0.1.0", "docs/specs/software-requirements/srd010-delivery.md", read(t, "../../testdata/system/srd010-delivery.md"))
+	p.AddFile(system, "v0.1.0", "docs/specs/software-requirements/srd010-delivery.md", delivery)
 	f := p.Tracker()
 	s, err := Load(f, system, "01.0", "main")
 	if err != nil {
@@ -554,6 +560,54 @@ func TestPlanRoutesAnItemByItsEpicsArea(t *testing.T) {
 			issues, _ := f.ListIssues(repo, openIssues())
 			if len(issues) != 1 || !strings.Contains(issues[0].Description, "#R2.1") {
 				t.Errorf("%s Sprint Goals = %+v", repo, issues)
+			}
+		}
+	})
+}
+
+// A team that names a scrum repository apart from its code gets one entry
+// and one Sprint Goal there for an item whose epic names components in
+// two of its code repositories, and for one whose delivered_by names a
+// code repository; the candidates offer it once, by that repository
+// (srd022 R3.1; GH-2738).
+func TestPlanRoutesATeamToItsScrumRepository(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, tp trackertest.Program) {
+		const scrum, ui = "program/delivery/fleet-scrum", "program/delivery/fleet-ui"
+		srd := strings.NewReplacer(
+			"- owner: Product Owner, delivery", "- owner: Product Owner, delivery\n- scrum_repository: https://gitlab.example.com/"+scrum,
+			"| fleet | https://gitlab.example.com/program/delivery/fleet | / |", "| fleet | https://gitlab.example.com/program/delivery/fleet | / |\n| fleet_ui | https://gitlab.example.com/"+ui+" | / |",
+		).Replace(string(read(t, "../../testdata/system/srd010-delivery.md")))
+		tp.AddFile(system, "v0.1.0", "docs/specs/epics/ep001-scorecards.md", []byte("---\nid: ep001-scorecards\ntitle: Scorecards\nstatus: agreed\n---\n\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: technical program manager\n- parent: obj001-reliable-agents\n- cites:\n  1. obj001-reliable-agents#R2.1\n- architecture:\n  1. fleet\n  1. fleet_ui\n"))
+		f, s := fixtureWith(t, tp, []byte(srd))
+		p, err := MakePlan(f, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, o := range p.Objectives {
+			got = append(got, o.Items[0]+">"+o.Repository)
+		}
+		if want := []string{"R1.1>" + scrum, "R1.2>" + scrum, "R2.1>" + scrum}; !slices.Equal(got, want) {
+			t.Fatalf("routes = %v, want %v", got, want)
+		}
+		if c := p.Objectives[2].Candidates; !slices.Equal(c, []string{scrum}) {
+			t.Errorf("candidates = %v, want the scrum repository alone", c)
+		}
+		res, err := Push(f, s, p, web, program.Defaults(), false)
+		if err != nil {
+			t.Fatalf("push: %v", err)
+		}
+		for _, r := range res {
+			if r.Project != scrum || len(r.Reasons) > 0 {
+				t.Errorf("pushed %+v, want the scrum repository", r)
+			}
+		}
+		if issues, _ := f.ListIssues(scrum, openIssues()); len(issues) != 1 {
+			t.Errorf("%s has %d Sprint Goals, want one", scrum, len(issues))
+		}
+		for _, code := range []string{fleet, ui} {
+			if issues, _ := f.ListIssues(code, openIssues()); len(issues) != 0 {
+				t.Errorf("%s has %d issues, want none", code, len(issues))
 			}
 		}
 	})

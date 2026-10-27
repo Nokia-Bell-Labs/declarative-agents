@@ -70,7 +70,7 @@ The system repository's agreed epics at the release tag, for the area each item 
 <!-- req: R3.1 -->
 ### R3.1
 
-Takes the owner scrum-master recommends for each initiative item: the Product Owner whose subsystem SRD declares a repository the item's delivered_by names (srd034 R1.4); else every team whose subsystem owns a component the agreed epics under the item name (R2.4), one plan entry per team with a reason naming the epics and components, so each team's one Sprint Goal serves the item; else the only downstream team when the subsystem SRDs declare one team repository, with a reason saying so. delivered_by overrides the area, and the person confirms or changes every recommendation. Asks which downstream team serves an item only when none is recommended, offering the repositories the subsystem SRDs declare.
+Takes the owner scrum-master recommends for each initiative item, a team named by its scrum repository, where its one Sprint Goal goes, whichever of its repositories points to it (the one its SRD's scrum_repository names, else its first component's, GH-2738): the Product Owner whose subsystem SRD declares a repository the item's delivered_by names (srd034 R1.4); else every team whose subsystem owns a component the agreed epics under the item name (R2.4), one plan entry per team with a reason naming the epics and components, so each team's one Sprint Goal serves the item; else the only downstream team when the subsystem SRDs declare one team repository, with a reason saying so. delivered_by overrides the area, and the person confirms or changes every recommendation. Asks which downstream team serves an item only when none is recommended, offering each team's scrum repository.
 
 <!-- req: R3.2 -->
 ### R3.2

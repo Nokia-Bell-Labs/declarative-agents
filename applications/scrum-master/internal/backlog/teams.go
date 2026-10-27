@@ -58,13 +58,15 @@ func RegistrySources(t tracker.Tracker, system, ref, scratch string) (sources []
 	if err != nil || len(teams) == 0 {
 		return nil, nil, false, err
 	}
+	// A team that names a scrum repository plans there alone; one that
+	// does not plans in its component repositories (GH-2738).
 	var repos []string
 	urls := map[string]string{}
 	for _, sub := range teams {
-		for _, c := range sub.Components {
-			if r := program.ProjectPath(c.Repository); r != "" && !slices.Contains(repos, r) {
+		for _, r := range sub.PlanningRepositories() {
+			if r != "" && !slices.Contains(repos, r) {
 				repos = append(repos, r)
-				urls[r] = c.Repository
+				urls[r] = repositoryURL(sub, r)
 			}
 		}
 	}
@@ -91,6 +93,20 @@ func RegistrySources(t tracker.Tracker, system, ref, scratch string) (sources []
 		sources = append(sources, TeamSource{Name: path.Base(repo), Repository: repo, Dir: dir, Source: src})
 	}
 	return sources, unread, true, nil
+}
+
+// repositoryURL is how the SRD writes one of a team's repositories, so a
+// copy's origin links the forge as the SRD does.
+func repositoryURL(sub program.Subsystem, repo string) string {
+	if sub.Scrum != "" && program.ProjectPath(sub.Scrum) == repo {
+		return sub.Scrum
+	}
+	for _, c := range sub.Components {
+		if program.ProjectPath(c.Repository) == repo {
+			return c.Repository
+		}
+	}
+	return repo
 }
 
 // Sources are the team repositories whose documents roll up to the

@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -152,8 +151,7 @@ func LoadSources(system string, t tracker.Tracker, today time.Time) (TimelineSou
 				for _, l := range links.ParseLinks(i.Description) {
 					switch l.Kind {
 					case links.Implements:
-						target, _, _ := strings.Cut(l.Target, "#")
-						implements = story(strings.TrimSuffix(path.Base(target), ".md"))
+						implements = implemented(l.Target, p, projects[0], story)
 					case links.DependsOn, links.BlockedBy:
 						// A bare #n is in the issue's own project (GH-135).
 						ref := strings.TrimSpace(l.Target)
@@ -287,27 +285,41 @@ func scrumsOf(system string, t tracker.Tracker) program.Subsystems {
 }
 
 // teamFacts are the scrums as the facts carry them, each named by its
-// first repository, as its documents are.
+// scrum repository, as its documents are.
 func teamFacts(subs program.Subsystems) []timeline.Team {
 	var out []timeline.Team
 	for _, sub := range subs {
-		tm := timeline.Team{Subsystem: sub.ID, Owner: sub.Owner}
+		tm := timeline.Team{Subsystem: sub.ID, Owner: sub.Owner, Repositories: sub.Repositories(), Scrum: sub.ScrumRepository(), Apart: sub.Scrum != ""}
 		for _, c := range sub.Components {
 			tm.Components = append(tm.Components, c.Name)
-			if r := program.ProjectPath(c.Repository); r != "" && !slices.Contains(tm.Repositories, r) {
-				tm.Repositories = append(tm.Repositories, r)
-				if tm.URL == "" && (strings.HasPrefix(c.Repository, "https://") || strings.HasPrefix(c.Repository, "http://")) {
-					tm.URL = strings.TrimSuffix(c.Repository, ".git")
-				}
-			}
 		}
-		if len(tm.Repositories) == 0 {
+		if tm.Scrum == "" {
 			continue
 		}
-		tm.Name = path.Base(tm.Repositories[0])
+		if u := sub.ScrumURL(); strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://") {
+			tm.URL = strings.TrimSuffix(u, ".git")
+		}
+		tm.Name = path.Base(tm.Scrum)
 		out = append(out, tm)
 	}
 	return out
+}
+
+// implemented is the story an issue's Implements line names, as the facts
+// name it: a story pinned by URL in another program repository is that
+// repository's, named <its name>/<id>, the system's by its id alone; a
+// path is the issue's own repository's (GH-2738).
+func implemented(target, own, system string, story func(string) string) string {
+	file, _, _ := strings.Cut(target, "#")
+	id := strings.TrimSuffix(path.Base(file), ".md")
+	ref, err := links.Parse(target)
+	switch {
+	case err != nil || ref.Project == own:
+		return story(id)
+	case ref.Project == system:
+		return id
+	}
+	return path.Base(ref.Project) + "/" + id
 }
 
 // docSources maps each document to its page on the forge of the repository

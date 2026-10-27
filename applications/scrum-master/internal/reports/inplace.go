@@ -47,8 +47,8 @@ type RollupInput struct {
 
 // StatusIssuesInPlace leaves, for the coming week, one status issue per
 // listed person in the repository they report in, one team rollup issue
-// per subsystem in the repository holding its Sprint Goals, its first
-// component repository, for its owner, and one program rollup issue in
+// per subsystem in its scrum repository, where its Sprint Goals are, for
+// its owner (GH-2738), and one program rollup issue in
 // the system repository, each due after the last; it files nothing twice
 // (GH-2725).
 func StatusIssuesInPlace(t tracker.Tracker, in RollupInput) ([]StatusResult, error) {
@@ -111,7 +111,7 @@ func StatusIssuesInPlace(t tracker.Tracker, in RollupInput) ([]StatusResult, err
 		return nil
 	}
 	for _, sub := range subs {
-		if err := rollup("team-rollup", sub.ID, sub.Owner, program.ProjectPath(sub.Components[0].Repository), teamDue); err != nil {
+		if err := rollup("team-rollup", sub.ID, sub.Owner, sub.ScrumRepository(), teamDue); err != nil {
 			return out, err
 		}
 	}

@@ -127,14 +127,19 @@ type Facts struct {
 
 // Team is one scrum: the subsystem it owns, its Product Owner, the
 // components of its area, and the repositories they live in. Name is what
-// its documents carry as <name>/<id>, its first repository's name.
+// its documents carry as <name>/<id>, its scrum repository's name.
 type Team struct {
 	Name         string   `json:"name"`
 	Subsystem    string   `json:"subsystem"`
 	Owner        string   `json:"owner"`
 	Components   []string `json:"components"`
 	Repositories []string `json:"repositories"`
-	// URL is its first repository's page on the forge, when the SRD names
+	// Scrum is its scrum repository, where it plans: the one its SRD
+	// names apart from its code, else its first component's (GH-2738).
+	Scrum string `json:"scrum"`
+	// Apart says the SRD names the scrum repository, apart from the code.
+	Apart bool `json:"apart,omitempty"`
+	// URL is its scrum repository's page on the forge, when the SRD names
 	// one a browser opens.
 	URL string `json:"url,omitempty"`
 }

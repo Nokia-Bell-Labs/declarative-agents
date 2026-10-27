@@ -32,6 +32,61 @@ type Subsystem struct {
 	ID         string      `yaml:"id"`
 	Owner      string      `yaml:"owner"`
 	Components []Component `yaml:"components"`
+	// Scrum is the repository its context's scrum_repository names: the
+	// team's planning repository, apart from its code (GH-2738). Empty,
+	// the team plans in its first component's repository.
+	Scrum string `yaml:"scrum_repository,omitempty"`
+}
+
+// ScrumRepository is the team's planning repository as a project path:
+// where its features, stories, Sprint Goals, sprint-end summaries, and
+// team rollup live. It is the repository the SRD's scrum_repository names,
+// else its first component's (GH-2738).
+func (sub Subsystem) ScrumRepository() string {
+	if sub.Scrum != "" {
+		return ProjectPath(sub.Scrum)
+	}
+	if len(sub.Components) == 0 {
+		return ""
+	}
+	return ProjectPath(sub.Components[0].Repository)
+}
+
+// ScrumURL is the scrum repository as the SRD writes it, a URL where it
+// gives one.
+func (sub Subsystem) ScrumURL() string {
+	if sub.Scrum != "" {
+		return sub.Scrum
+	}
+	if len(sub.Components) == 0 {
+		return ""
+	}
+	return sub.Components[0].Repository
+}
+
+// PlanningRepositories are the repositories a team's planning documents
+// are read from: its scrum repository alone when the SRD names one, else
+// every component repository, as before a team could name one.
+func (sub Subsystem) PlanningRepositories() []string {
+	if sub.Scrum != "" {
+		return []string{ProjectPath(sub.Scrum)}
+	}
+	return sub.Repositories()
+}
+
+// Repositories are the team's repositories as project paths: its scrum
+// repository first where the SRD names one, then each component's.
+func (sub Subsystem) Repositories() []string {
+	var out []string
+	if sub.Scrum != "" {
+		out = append(out, ProjectPath(sub.Scrum))
+	}
+	for _, c := range sub.Components {
+		if p := ProjectPath(c.Repository); p != "" && !slices.Contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // Subsystems are the subsystem SRDs of a system repository at one ref.
@@ -40,7 +95,7 @@ type Subsystems []Subsystem
 // LoadSubsystems reads every SRD under SRDDir in the system repository at
 // ref and keeps those that declare an owner and
 // components.
-func LoadSubsystems(t tracker.Tracker, system, ref string) (Subsystems, error) {
+func LoadSubsystems(t tracker.Forge, system, ref string) (Subsystems, error) {
 	files, err := t.ListDir(system, SRDDir, ref)
 	if err != nil {
 		return nil, err
@@ -93,6 +148,7 @@ func readSubsystem(f corpus.File) Subsystem {
 	var sub Subsystem
 	sub.ID = f.Markdown.ID()
 	sub.Owner = corpus.TreeString(f.Markdown.Field("context").Tree(), "owner")
+	sub.Scrum = corpus.TreeString(f.Markdown.Field("context").Tree(), "scrum_repository")
 	for _, row := range f.Markdown.Field("implementation_targets").Table() {
 		sub.Components = append(sub.Components, Component{Name: row["name"], Repository: row["repository"], Path: row["path"]})
 	}
@@ -100,7 +156,9 @@ func readSubsystem(f corpus.File) Subsystem {
 }
 
 // ComponentFor returns the component a subsystem SRD declares for a
-// repository, matched by project path.
+// repository, matched by project path. A team's scrum repository holds no
+// component of its own: it answers for its subsystem's first component,
+// whose label its issues carry (GH-2738).
 func (s Subsystems) ComponentFor(repository string) (Component, Subsystem, bool) {
 	want := ProjectPath(repository)
 	for _, sub := range s {
@@ -108,6 +166,11 @@ func (s Subsystems) ComponentFor(repository string) (Component, Subsystem, bool)
 			if ProjectPath(c.Repository) == want {
 				return c, sub, true
 			}
+		}
+	}
+	for _, sub := range s {
+		if sub.Scrum != "" && ProjectPath(sub.Scrum) == want && len(sub.Components) > 0 {
+			return Component{Name: sub.Components[0].Name, Repository: sub.Scrum, Path: "/"}, sub, true
 		}
 	}
 	return Component{}, Subsystem{}, false
@@ -124,12 +187,28 @@ func (s Subsystems) Components() []string {
 	return out
 }
 
-// Repositories lists every component repository the subsystems declare.
+// Repositories lists every repository the subsystems declare: each
+// team's scrum repository where its SRD names one, and every component
+// repository.
 func (s Subsystems) Repositories() []string {
 	var out []string
 	for _, sub := range s {
+		if sub.Scrum != "" {
+			out = append(out, ProjectPath(sub.Scrum))
+		}
 		for _, c := range sub.Components {
 			out = append(out, ProjectPath(c.Repository))
+		}
+	}
+	return out
+}
+
+// ScrumRepositories lists each subsystem's scrum repository, one per team.
+func (s Subsystems) ScrumRepositories() []string {
+	var out []string
+	for _, sub := range s {
+		if r := sub.ScrumRepository(); r != "" && !slices.Contains(out, r) {
+			out = append(out, r)
 		}
 	}
 	return out
@@ -170,7 +249,7 @@ func CheckProject(flag, value string) error {
 // local path, by its name. The subsystem SRDs are the program's registry of
 // its repositories (GH-2725, GH-2726). A system repository with no SRDs
 // has no teams.
-func Teams(t tracker.Tracker, system, ref string) (Subsystems, error) {
+func Teams(t tracker.Forge, system, ref string) (Subsystems, error) {
 	subs, err := LoadSubsystems(t, system, ref)
 	if errors.Is(err, tracker.ErrNotFound) {
 		return nil, nil

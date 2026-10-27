@@ -134,8 +134,8 @@ func Collect(t tracker.Tracker, in CollectInput) (Collection, error) {
 			return c, fmt.Errorf("no subsystem SRD in %s names %s; a team rollup collects one subsystem's repositories", in.System, firstOf(in.Subsystem, in.Project))
 		}
 		c.Subsystem = sub.ID
-		for _, comp := range sub.Components {
-			add(comp.Repository)
+		for _, r := range sub.Repositories() {
+			add(r)
 		}
 	case ProgramLevel:
 		add(in.System)

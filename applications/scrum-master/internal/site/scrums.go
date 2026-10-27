@@ -198,14 +198,26 @@ func scrumPage(s scrum, nodes map[string]*Node, head string) string {
 	b.WriteString(`<div class="crumbs">` + "\n\n[Scrums](index.md)\n\n</div>\n\n")
 	fmt.Fprintf(&b, "# %s\n\n", s.Name)
 	facts := []string{scrumBadge, "Product Owner: " + s.Owner, "subsystem `" + s.Subsystem + "`"}
-	for i, r := range s.Repositories {
-		if i == 0 && s.URL != "" {
-			facts = append(facts, fmt.Sprintf("[%s](%s)", r, s.URL))
-		} else {
-			facts = append(facts, r)
-		}
+	scrumRepo := s.Scrum
+	if s.URL != "" {
+		scrumRepo = fmt.Sprintf("[%s](%s)", s.Scrum, s.URL)
 	}
 	b.WriteString(strings.Join(facts, " · ") + "\n\n")
+	var code []string
+	for _, r := range s.Repositories {
+		if r != s.Scrum || !s.Apart {
+			code = append(code, r)
+		}
+	}
+	if s.Apart {
+		fmt.Fprintf(&b, "**Plans in** %s: its stories, Sprint Goals, sprint-end summaries, status reports, and team rollup. **Code in** %s.\n\n", scrumRepo, strings.Join(code, ", "))
+	} else {
+		fmt.Fprintf(&b, "**Plans and codes in** %s", scrumRepo)
+		if len(code) > 1 {
+			fmt.Fprintf(&b, ", with code also in %s", strings.Join(code[1:], ", "))
+		}
+		b.WriteString(".\n\n")
+	}
 	fmt.Fprintf(&b, "**Area:** %s. A story of this scrum names only these components in its architecture; backlog check warns when one strays outside them.\n\n", strings.Join(s.Components, ", "))
 	if s.Points > 0 {
 		fmt.Fprintf(&b, "%d of %d story points done across %s.\n\n", s.Done, s.Points, plurals(s.Stories, "story"))

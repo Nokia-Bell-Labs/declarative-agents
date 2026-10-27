@@ -281,3 +281,68 @@ func TestScrumPagesShowWhatEachTeamWorksOn(t *testing.T) {
 		t.Errorf("the navigator lacks the scrums:\n%s", nav)
 	}
 }
+
+// A team that names a scrum repository plans there: its stories are read
+// from it and roll up to the system's epic, its page says where it plans
+// and where it codes, and an issue in its code repository whose Implements
+// line pins a story in the scrum repository attaches to that story
+// (srd045 R3.4, srd048 R8.6; GH-2738).
+func TestAScrumPlansInItsScrumRepository(t *testing.T) {
+	in, system := statusProgram(t)
+	os.MkdirAll(filepath.Join(system, "control"), 0o755)
+	os.WriteFile(filepath.Join(system, "control", "trackers.md"), []byte("---\nid: trackers\ntitle: Tracking systems\n---\n\n<!-- field: version -->\n## Version\n\n1\n\n<!-- field: default -->\n## Default\n\n<!-- field: system -->\n### System\n\nbd\n"), 0o644)
+	if out, err := exec.Command("git", "-C", system, "remote", "add", "origin", "https://gitlab.example.com/g/system.git").CombinedOutput(); err != nil {
+		t.Fatalf("git remote: %v: %s", err, out)
+	}
+	const scrum, code = "g/po-1-scrum", "g/po-1"
+	f := in.Tracker.(*fake.Fake)
+	f.AddFile("g/system", "main", "docs/specs/software-requirements/srd010-po-1.md", []byte("---\nid: srd010-po-1\ntitle: \"Subsystem\"\n---\n\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: Product Owner, alice\n- scrum_repository: https://gitlab.example.com/"+scrum+"\n\n<!-- req: R1 -->\n## R1 - Work\n\n<!-- req: R1.1 -->\n### R1.1\n\nWork arrives.\n\n<!-- field: implementation_targets -->\n## Implementation targets\n\n| name | repository | path |\n| --- | --- | --- |\n| grader | https://gitlab.example.com/"+code+" | / |\n"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "hierarchy", "valid", "docs", "specs", "stories", "st001-score-trajectories.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	story := strings.Replace(string(b), "- parent: ft001-grader", "- parent: https://gitlab.example.com/g/system/-/blob/corpus/v0.1.0/docs/specs/epics/ep001-agent-evaluation.md", 1)
+	f.AddFile(scrum, "main", "docs/specs/stories/st042-grade-in-code.md", []byte(strings.ReplaceAll(story, "st001-score-trajectories", "st042-grade-in-code")))
+	f.CreateIssue(code, tracker.NewIssue{Title: "Grade in code", Labels: []string{"plane::data", "kind::build"},
+		Description: "Grade it.\n\nImplements: https://gitlab.example.com/" + scrum + "/-/blob/main/docs/specs/stories/st042-grade-in-code.md\n"})
+
+	s, err := LoadSources(system, f, in.Sources.Today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	facts, err := Facts(system, "", s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var storyItem, issue timeline.Item
+	for _, it := range facts.Items {
+		switch {
+		case it.ID == "po-1-scrum/st042-grade-in-code":
+			storyItem = it
+		case it.Kind == timeline.KindIssue && it.Title == "Grade in code":
+			issue = it
+		}
+	}
+	if storyItem.Parent != "ep001-agent-evaluation" {
+		t.Fatalf("the scrum repository's story = %+v", storyItem)
+	}
+	if issue.Parent != "po-1-scrum/st042-grade-in-code" {
+		t.Errorf("the code repository's issue implements %q, want the scrum repository's story", issue.Parent)
+	}
+	j, _ := json.Marshal(facts)
+	os.MkdirAll(filepath.Join(in.Reports, Dir, "timeline"), 0o755)
+	if err := os.WriteFile(filepath.Join(in.Reports, Dir, "timeline", "facts.json"), j, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pages, err := ScrumPages(in.Reports)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(pages[Dir+"/"+ScrumsDir+"/po-1-scrum.md"])
+	for _, want := range []string{"# po-1-scrum", "**Plans in** [g/po-1-scrum](https://gitlab.example.com/g/po-1-scrum)", "**Code in** g/po-1.", `href="../hierarchy/po-1-scrum/st042-grade-in-code.md"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the scrum's page lacks %q:\n%s", want, page)
+		}
+	}
+}

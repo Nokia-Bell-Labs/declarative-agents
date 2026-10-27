@@ -15,7 +15,10 @@ repository, and every claim in a rollup cites the report it rests on
 
 The roster is `control/reports.md` in the system repository, owned by the
 technical program manager. Init wrote it empty; list who reports and the
-repository each one works in:
+repository each one works in. Someone listed in a code repository of a team
+whose subsystem SRD names a `scrum_repository` reports in that scrum
+repository, where the team plans
+([Tutorial 4](tut04-write-the-backlog.md)):
 
 ```markdown
 ---
