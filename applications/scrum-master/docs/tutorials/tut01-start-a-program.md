@@ -23,10 +23,7 @@ exact. The two are one machine (design.md D14).
 
 ## Step 1: Install the agent and the profiles
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/Nokia-Bell-Labs/declarative-agents/main/applications/scrum-master/install.sh | sh
-```
-
+Run the install command in the [README's Install section](../../README.md#install).
 This installs the `agent` binary in `$HOME/.local/bin` and unpacks the
 release's profiles in `$HOME/.local/share/scrum-master`, both verified
 against the release's `SHA256SUMS`. `AGENT_PREFIX` and

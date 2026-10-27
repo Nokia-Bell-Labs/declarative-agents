@@ -25,9 +25,14 @@ import (
 const fallbackPin = "v0.20261018.1"
 
 // DefaultPin is the release a new corpus pins, the declarative-agents
-// release whose format and corpus audit it follows: the words' own release,
-// else the newest release with published binaries (GH-190).
+// release whose format and corpus audit it follows: the runtime release the
+// binary was built against (GH-2755), else the words' own release, as when
+// the two shipped from one repository (GH-190), else the newest release
+// with published binaries.
 func DefaultPin() string {
+	if version.IsRelease(version.Runtime) {
+		return version.Runtime
+	}
 	if v := version.Current(); version.IsRelease(v) {
 		return v
 	}

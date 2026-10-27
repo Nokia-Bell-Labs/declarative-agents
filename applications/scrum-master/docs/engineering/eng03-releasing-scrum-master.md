@@ -197,6 +197,20 @@ the repository's tag, and mage publish stamps it into both with -ldflags
 the profiles archive's release file names it. Nothing passes the version
 in by hand; a local build reports dev.
 
+Beside its own version, a release stamps the runtime release it was built
+against, internal/version's Runtime (GH-2755): its own tag when the agent
+builds from the agent-core beside the words, else the release
+docs/external-pins.yaml pins. A new program corpus pins that runtime
+release, so scrum-master's version and the runtime's can move apart.
+
+The repositories the code names are each set once, in internal/identity:
+the runtime it builds on, and its own home, where releases, install.sh,
+and issues live (GH-2755). install.sh's default release page, plugin.json's
+repository, the Dockerfile's source label, and the README's install
+command are held to it by a test, which also fails on either repository
+name or the module path written as a string anywhere else in Go; the
+tutorials link the README's Install section rather than repeat it.
+
 <!-- section: no-dependency-outside-the-repository -->
 ## No dependency outside the repository
 

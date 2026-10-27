@@ -24,14 +24,16 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/identity"
 )
 
 // ReleaseURL is where the parent publishes each tag's binaries and source;
 // tests point it at a local server.
-var ReleaseURL = "https://github.com/Nokia-Bell-Labs/declarative-agents"
+var ReleaseURL = identity.RuntimeURL
 
 // ParentRepository is the parent a corpus's docs/external-pins.yaml pins.
-const ParentRepository = "github.com/Nokia-Bell-Labs/declarative-agents"
+const ParentRepository = identity.Runtime
 
 // PinsFile is where a corpus pins its parent release; CheckoutsFile, which
 // git ignores, names a local checkout of the parent to use instead.

@@ -42,3 +42,14 @@ func TestDefaultPinFollowsTheStampedRelease(t *testing.T) {
 		t.Fatalf("DefaultPin = %q, want the stamped release", got)
 	}
 }
+
+// A binary built against a pinned runtime release pins that release in a
+// new corpus, not its own version (GH-2755).
+func TestDefaultPinIsTheRuntimeBuiltAgainst(t *testing.T) {
+	savedRelease, savedRuntime := version.Release, version.Runtime
+	defer func() { version.Release, version.Runtime = savedRelease, savedRuntime }()
+	version.Release, version.Runtime = "v0.20990101.4", "v0.20261027.0"
+	if got := DefaultPin(); got != "v0.20261027.0" {
+		t.Fatalf("DefaultPin = %q, want the runtime release built against", got)
+	}
+}

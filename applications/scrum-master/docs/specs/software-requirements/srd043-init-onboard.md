@@ -127,7 +127,7 @@ Each file is reported as created, kept, appended or refreshed (R3.5), or overwri
 <!-- req: R3.3 -->
 ### R3.3
 
-The templates are embedded in the scrum-master binary beside the skills. init and onboard write into docs/external-pins.yaml the release of this repository the corpus follows: the running scrum-master's own release, or, for a build that is not a release, the newest release with published binaries (GH-190). A rerun that finds the file pinning another release moves that pin, keeping the rest of the file, and reports the file repinned, so the documents follow the release taken; doctor and the check profile report a pin that differs from the release vendored in .scrum-master as drift (GH-91).
+The templates are embedded in the scrum-master binary beside the skills. init and onboard write into docs/external-pins.yaml the declarative-agents release the corpus follows: the runtime release the running scrum-master was built against, which its release stamps beside its own version (GH-2755); else its own release, as when both shipped from one repository (GH-190); else, for a build that is not a release, the newest release with published binaries. A rerun that finds the file pinning another release moves that pin, keeping the rest of the file, and reports the file repinned, so the documents follow the release taken; doctor and the check profile report a pin that differs from the release vendored in .scrum-master as drift (GH-91).
 
 <!-- req: R3.4 -->
 ### R3.4

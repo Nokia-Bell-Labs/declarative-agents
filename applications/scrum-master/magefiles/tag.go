@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/identity"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/release"
 )
 
@@ -15,8 +16,8 @@ import (
 // unless SCRUM_MASTER_RELEASE_IMAGE names a repository the publisher can
 // push to: the image is opt-in (GH-2721).
 const (
-	releaseRepo    = "Nokia-Bell-Labs/declarative-agents"
-	releaseAccount = "petar-djukic"
+	releaseRepo    = identity.Home
+	releaseAccount = identity.ReleaseAccount
 )
 
 // releaseSetting is the environment's value for name, else fallback.
