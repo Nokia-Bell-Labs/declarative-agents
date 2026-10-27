@@ -11,7 +11,7 @@
 <title>Program site</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@4.13.1/themes/vue.css">
 <style>
-  :root { --theme-color: #2563eb; }
+  :root { --theme-color: #2563eb; --nav-width: 300px; }
   body { font-size: 15px; }
   .markdown-section { max-width: 60em; }
   .markdown-section table { display: table; width: 100%; }
@@ -42,8 +42,9 @@
   /* Narrow windows (GH-131): from 520 pixels the navigator stays docked,
      narrower; below that a labelled Menu button opens it from the top-left. */
   @media screen and (min-width: 520px) and (max-width: 768px) {
-    .sidebar { left: 0; width: 210px; transform: none; }
-    .content { position: absolute; left: 210px; right: 0; padding-top: 20px; transform: none; }
+    :root { --nav-width: 210px; }
+    .sidebar { left: 0; width: var(--nav-width); transform: none; }
+    .content { position: absolute; left: var(--nav-width); right: 0; padding-top: 20px; transform: none; }
     body.close .sidebar, body.close .content { transform: none; }
     .sidebar-toggle { display: none; }
   }
@@ -53,9 +54,10 @@
     .sidebar-toggle .sidebar-toggle-button::after { content: "Menu"; margin-left: 22px; font-size: 14px; color: #374151; }
     .content { padding-top: 48px; }
   }
-  /* Wide windows: the divider between the navigator and the page drags,
-     and the width a reader chose is kept in this browser (GH-2723). */
-  :root { --nav-width: 300px; }
+  /* Wherever the navigator is docked, from 520 pixels, the divider between
+     it and the page drags, and the width a reader chose is kept in this
+     browser (GH-2723); the navigator's default width is set at the top,
+     ahead of the narrow windows' own. */
   @media screen and (min-width: 769px) {
     .sidebar { width: var(--nav-width); }
     .sidebar-toggle { width: calc(var(--nav-width) - 16px); }
@@ -63,16 +65,18 @@
     body.close .sidebar { transform: translateX(calc(-1 * var(--nav-width))); }
     body.close .sidebar-toggle { width: auto; }
     body.close .content { left: 0; }
+    body.close .nav-resizer { display: none; }
+  }
+  @media screen and (min-width: 520px) {
     .nav-resizer { position: fixed; top: 0; bottom: 0; left: calc(var(--nav-width) - 4px); width: 8px; cursor: col-resize; z-index: 25; touch-action: none; }
     .nav-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background .15s; }
     .nav-resizer:hover::after, .nav-resizer:focus-visible::after, body.nav-resizing .nav-resizer::after { background: var(--theme-color); }
     .nav-resizer:focus { outline: none; }
-    body.close .nav-resizer { display: none; }
     body.nav-resizing, body.nav-resizing * { cursor: col-resize !important; user-select: none; }
     body.nav-resizing .sidebar, body.nav-resizing .content { transition: none; }
     body.nav-resizing iframe { pointer-events: none; }
   }
-  @media screen and (max-width: 768px) { .nav-resizer { display: none; } }
+  @media screen and (max-width: 519px) { .nav-resizer { display: none; } }
   /* Each planning level has one colour, the interactive timeline's, on
      every page: a labelled chip on the plan and the pages, a letter in
      the navigator (GH-2723). */
@@ -381,12 +385,12 @@
     window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
   }
   // The divider between the navigator and the page: drag it, move it with
-  // the arrow keys when it has focus, or double-click it to reset; the
-  // width is kept in this browser (GH-2723).
+  // the arrow keys when it has focus, or double-click it to reset to the
+  // window's own width; the width is kept in this browser (GH-2723).
   (function () {
-    var KEY = "site-nav-width", MIN = 180, START = 300, root = document.documentElement;
+    var KEY = "site-nav-width", MIN = 180, root = document.documentElement;
     function widest() { return Math.max(MIN, Math.min(640, Math.round(window.innerWidth * 0.6))); }
-    function current() { return parseFloat(getComputedStyle(root).getPropertyValue("--nav-width")) || START; }
+    function current() { return parseFloat(getComputedStyle(root).getPropertyValue("--nav-width")) || 300; }
     function apply(w) {
       w = Math.min(widest(), Math.max(MIN, Math.round(w)));
       root.style.setProperty("--nav-width", w + "px");
@@ -421,7 +425,11 @@
     }
     handle.addEventListener("pointerup", stop);
     handle.addEventListener("pointercancel", stop);
-    handle.addEventListener("dblclick", function () { keep(apply(START)); });
+    handle.addEventListener("dblclick", function () {
+      root.style.removeProperty("--nav-width");
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      handle.setAttribute("aria-valuenow", String(current()));
+    });
     handle.addEventListener("keydown", function (e) {
       var step = e.shiftKey ? 64 : 16, w = null;
       if (e.key === "ArrowLeft") w = current() - step;
@@ -434,7 +442,7 @@
     });
     window.addEventListener("resize", function () {
       handle.setAttribute("aria-valuemax", String(widest()));
-      apply(current());
+      if (root.style.getPropertyValue("--nav-width")) apply(current());
     });
     document.body.appendChild(handle);
   })();
