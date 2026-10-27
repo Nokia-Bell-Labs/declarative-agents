@@ -37,10 +37,12 @@ type InitOptions struct {
 
 // InitResult is what scrum-master init reports.
 type InitResult struct {
-	Dir     string           `json:"dir"`
-	Files   []Result         `json:"files"`
-	Skills  []install.Result `json:"skills,omitempty"`
-	Tracker *TrackerResult   `json:"tracker,omitempty"`
+	Dir    string           `json:"dir"`
+	Files  []Result         `json:"files"`
+	Skills []install.Result `json:"skills,omitempty"`
+	// Exclude is what the install did to .git/info/exclude (GH-2781).
+	Exclude string         `json:"exclude,omitempty"`
+	Tracker *TrackerResult `json:"tracker,omitempty"`
 	// Group is the program group recorded in control/trackers.md;
 	// GroupReason says why --group was not recorded, when it was not
 	// (GH-103).
@@ -111,9 +113,11 @@ func Init(o InitOptions) (InitResult, error) {
 		if err != nil {
 			return r, err
 		}
-		if r.Skills, err = install.Install(o.Dir, o.Agents, skills, o.Version, o.Force, o.DryRun); err != nil {
+		results, err := install.Install(o.Dir, o.Agents, skills, o.Version, o.Force, o.DryRun)
+		if err != nil {
 			return r, err
 		}
+		r.Skills, r.Exclude = install.SplitExclude(results)
 	}
 	switch {
 	case o.Tracker != "":

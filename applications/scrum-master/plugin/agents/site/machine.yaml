@@ -65,8 +65,9 @@ states:
 - name: Hierarchy
   meaning: |
     The hierarchy word: a page per planning document with its links up and
-    down and the Sprint Goals and issues that serve it (GH-126), and the
-    site's navigator (GH-127).
+    down and the Sprint Goals and issues that serve it (GH-126), a page per
+    sprint under site/sprints/ and per team and program under site/scrums/
+    (GH-2781), and the site's navigator (GH-127).
 - name: Overview
   meaning: |
     The overview word: the program's home page, with the interactive

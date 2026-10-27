@@ -27,6 +27,10 @@ const (
 	Retired  = "retired"
 	Removed  = "removed"
 	Moved    = "moved"
+	// Carried is an item the road map comes to deliver in a later release
+	// too, while its earlier release still lists it, as a released
+	// release's unfinished item is (GH-2781).
+	Carried = "carried"
 	// Placed and Unplaced are an initiative item the road map comes to
 	// deliver in a release, or stops delivering in any (GH-141).
 	Placed   = "placed"
@@ -46,10 +50,12 @@ type docSnapshot struct {
 }
 
 // snapshot is the corpus at one tag: each document's items, and the
-// release each initiative item is delivered in, by document#item.
+// release each initiative item is delivered in, by document#item: the
+// last that lists it, and every release that does.
 type snapshot struct {
 	docs     map[string]docSnapshot
 	releases map[string]string
+	listed   map[string][]string
 }
 
 // Merge is a merge commit that changed a document between two tags.
@@ -92,7 +98,7 @@ func normal(s string) string { return strings.TrimSpace(spaces.ReplaceAllString(
 // requirement item (a req record whose id has a dot) and acceptance
 // criterion of every document under docs/, and the road map's deliverables.
 func snapshotOf(system, tag string) (snapshot, error) {
-	s := snapshot{docs: map[string]docSnapshot{}, releases: map[string]string{}}
+	s := snapshot{docs: map[string]docSnapshot{}, releases: map[string]string{}, listed: map[string][]string{}}
 	dir, cleanup, err := AtTag(system, tag)
 	if err != nil {
 		return s, err
@@ -116,6 +122,7 @@ func snapshotOf(system, tag string) (snapshot, error) {
 			for _, r := range goals.ReleasesOf(md) {
 				for _, item := range r.Objectives {
 					s.releases[strings.TrimSpace(item)] = r.Version
+					s.listed[strings.TrimSpace(item)] = append(s.listed[strings.TrimSpace(item)], r.Version)
 				}
 			}
 		}
@@ -196,6 +203,8 @@ func diff(a, b snapshot) []Change {
 			switch {
 			case from == to || !has:
 				continue
+			case had && from != "" && to != "" && slices.Contains(b.listed[key], from):
+				change(Carried, from, to)
 			case had && from != "" && to != "":
 				change(Moved, from, to)
 			case to != "":
@@ -315,6 +324,8 @@ func changeLine(c Change) string {
 	switch c.Kind {
 	case Moved:
 		what = fmt.Sprintf("moved from release %s to %s", c.From, c.To)
+	case Carried:
+		what = fmt.Sprintf("carried from release %s into %s", c.From, c.To)
 	case Placed:
 		what = "placed on release " + c.To
 	case Unplaced:

@@ -3,6 +3,7 @@
 package plan
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -74,6 +75,14 @@ func testPushSprintUpdatesMilestoneAndChecklist(t *testing.T, p trackertest.Prog
 	res, err := Push(f, in)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// With no repository to plan in, the lists print [], not null (GH-2781).
+	none, err := postPlanned(f, in, Release{Version: "01.1"}, nil, nil, nil)
+	if b, _ := json.Marshal(PushResult{Planned: none, SprintEnds: []IssueAction{}}); err != nil || !strings.Contains(string(b), `"planned_events":[]`) {
+		t.Errorf("nothing planned = %s, %v", b, err)
+	}
+	if ends, err := pushSprintEnds(f, in, pushPlan{}); err != nil || ends == nil {
+		t.Errorf("no sprint-end issue = %#v, %v; want an empty list", ends, err)
 	}
 	m, _ := f.FindMilestone(sys, "01.1")
 	if res.Milestone != tracker.MilestoneCreated || m.DueDate != "2026-11-27" || m.StartDate != "2026-11-09" || m.Description != "Release 01.1, 2026-W46 to 2026-W48." {

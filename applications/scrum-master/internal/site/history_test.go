@@ -238,4 +238,16 @@ func TestHistoryRecordsPlacements(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("changes:\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
+	// An item released 01.0 still lists, delivered in 01.1 too, was
+	// carried into it, not moved (GH-2781).
+	b.listed = map[string][]string{"in001#R1.1": {"01.0", "01.1"}, "in001#R2.1": {"01.1"}, "in001#R2.2": {"01.1"}}
+	got = nil
+	for _, c := range diff(a, b) {
+		if c.ID == "R1.1" {
+			got = append(got, strings.TrimPrefix(changeLine(c), "- "))
+		}
+	}
+	if !slices.Equal(got, []string{"R1.1 carried from release 01.0 into 01.1: no merge changed it on the main line"}) {
+		t.Fatalf("an item still listed in its released release = %v", got)
+	}
 }

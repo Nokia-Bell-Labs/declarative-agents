@@ -121,7 +121,7 @@ Honours --json and --dry-run and never prompts (srd010 R1).
 <!-- req: R5.2 -->
 ### R5.2
 
-Writes nothing outside --dir and the clone's git directory. Outside the agents' skills directories it writes only its block in .git/info/exclude, which git applies and never commits, so an install changes no tracked file.
+Writes nothing outside --dir and the clone's git directory. Outside the agents' skills directories it writes only its block in .git/info/exclude, which git applies and never commits, so an install changes no tracked file. init, onboard, and reports init list the skill files they installed under skills and what the install did to that block apart, under exclude, so no entry of the skills names no skill (GH-2781).
 
 <!-- req: R6 -->
 ## R6 - Ignored by git

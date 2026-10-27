@@ -48,11 +48,13 @@ const ownerPlaceholder = "<the team's Product Owner>"
 
 // OnboardResult is what scrum-master onboard reports.
 type OnboardResult struct {
-	Dir          string           `json:"dir"`
-	Files        []Result         `json:"files"`
-	Skills       []install.Result `json:"skills,omitempty"`
-	Registration Registration     `json:"registration"`
-	DryRun       bool             `json:"dry_run"`
+	Dir    string           `json:"dir"`
+	Files  []Result         `json:"files"`
+	Skills []install.Result `json:"skills,omitempty"`
+	// Exclude is what the install did to .git/info/exclude (GH-2781).
+	Exclude      string       `json:"exclude,omitempty"`
+	Registration Registration `json:"registration"`
+	DryRun       bool         `json:"dry_run"`
 }
 
 // Registration is the issue onboard filed in the system repository, or why
@@ -103,9 +105,11 @@ func Onboard(t tracker.Tracker, o OnboardOptions) (OnboardResult, error) {
 		if err != nil {
 			return r, err
 		}
-		if r.Skills, err = install.Install(o.Dir, o.Agents, skills, o.Version, o.Force, o.DryRun); err != nil {
+		results, err := install.Install(o.Dir, o.Agents, skills, o.Version, o.Force, o.DryRun)
+		if err != nil {
 			return r, err
 		}
+		r.Skills, r.Exclude = install.SplitExclude(results)
 	}
 	r.Registration, err = register(t, o)
 	return r, err

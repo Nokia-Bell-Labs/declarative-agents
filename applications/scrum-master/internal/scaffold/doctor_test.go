@@ -721,3 +721,20 @@ func TestDoctorAcceptsThePinOfTheRuntimeBuiltAgainst(t *testing.T) {
 		t.Fatalf("doctor: pinned %q, drift %q, %v", r.Pinned, r.PinDrift, err)
 	}
 }
+
+// init lists the skill files it installed under skills, each naming its
+// skill, and what it did to .git/info/exclude apart, under exclude
+// (GH-2781).
+func TestInitListsTheExcludeApartFromTheSkills(t *testing.T) {
+	dir := repo(t)
+	r, err := Init(InitOptions{Dir: dir, Agents: []string{"claude"}, Version: "v0.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Exclude != "created" && r.Exclude != "updated" {
+		t.Errorf("exclude = %q, want created or updated", r.Exclude)
+	}
+	if len(r.Skills) == 0 || slices.ContainsFunc(r.Skills, func(s install.Result) bool { return s.Skill == "" }) {
+		t.Errorf("skills = %+v; want each naming its skill", r.Skills)
+	}
+}
