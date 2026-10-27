@@ -182,7 +182,7 @@ var corpusWord = word{"corpus", "the corpus word: the system repository's docume
 // hierarchyWord writes a page per planning document, with its links up and
 // down and the Sprint Goals and issues that serve it (GH-126), and the
 // site's navigator over them (GH-127).
-var hierarchyWord = word{"hierarchy", "the hierarchy word: a page per theme, initiative, epic, feature, and story under site/hierarchy/, linking its parent, its children, the Sprint Goals and issues that serve it, and its source, drawn from the timeline facts",
+var hierarchyWord = word{"hierarchy", "the hierarchy word: a page per theme, initiative, epic, feature, and story under site/hierarchy/, linking its parent, its children, the Sprint Goals and issues that serve it, and its source; a page per sprint under site/sprints/ and per team and program under site/scrums/; and the site's navigator, drawn from the timeline facts",
 	func(ctx *cli.Context, dir string, r *Result) error {
 		system, err := SystemDir(dir)
 		if err != nil {

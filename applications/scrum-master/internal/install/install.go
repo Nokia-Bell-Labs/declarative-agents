@@ -198,6 +198,20 @@ type Result struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// SplitExclude parts Install's results into the skill files and what it
+// did to .git/info/exclude, the one result that names no skill, so a word
+// lists the skills without an empty-named entry (GH-2781).
+func SplitExclude(results []Result) (skills []Result, exclude string) {
+	for _, r := range results {
+		if r.Skill == "" {
+			exclude = r.Action
+			continue
+		}
+		skills = append(skills, r)
+	}
+	return skills, exclude
+}
+
 // Detect is the --agent value that installs the skills of the agents the
 // repository already uses (GH-49): the ones whose marks DetectAgents finds.
 const Detect = "detect"

@@ -75,17 +75,20 @@ func init() {
 				fmt.Fprintf(&b, "%-8s %s\n", r.Action, r.Path)
 			}
 			out := struct {
-				Files  []InitResult     `json:"files"`
-				Skills []install.Result `json:"skills,omitempty"`
+				Files   []InitResult     `json:"files"`
+				Skills  []install.Result `json:"skills,omitempty"`
+				Exclude string           `json:"exclude,omitempty"`
 			}{Files: res}
 			if len(agents) > 0 {
 				skills, err := install.EmbeddedSkills()
 				if err != nil {
 					return err
 				}
-				if out.Skills, err = install.Install(initArgs.dir, agents, skills, install.Version(), false, ctx.DryRun); err != nil {
+				results, err := install.Install(initArgs.dir, agents, skills, install.Version(), false, ctx.DryRun)
+				if err != nil {
 					return err
 				}
+				out.Skills, out.Exclude = install.SplitExclude(results)
 				fmt.Fprintf(&b, "skills: %d files for the named agents\n", len(out.Skills))
 			}
 			return ctx.Emit(out, b.String())

@@ -191,7 +191,7 @@ func PushSprintEnds(t tracker.Tracker, in PushInput) ([]IssueAction, []string, e
 func pushSprintEnds(t tracker.Tracker, in PushInput, p pushPlan) ([]IssueAction, error) {
 	repos := slices.Clone(p.repos)
 	sort.Strings(repos)
-	var out []IssueAction
+	out := []IssueAction{}
 	for _, repo := range slices.Compact(repos) {
 		a, err := pushSprintEnd(t, in, p.r, repo)
 		if err != nil {
@@ -405,7 +405,8 @@ func upsert(t tracker.Tracker, in PushInput, a IssueAction, existing *tracker.Is
 // counts only those of the release's items it cites, so two goals serving
 // one outcome do not each count the other's (GH-92).
 func postPlanned(t tracker.Tracker, in PushInput, r Release, repos []string, docs []*objectives.Document, groups []group) ([]PlannedOnIssue, error) {
-	var out []PlannedOnIssue
+	// None planned prints [], not null (GH-2781).
+	out := []PlannedOnIssue{}
 	for _, repo := range repos {
 		issues, err := t.ListIssues(repo, tracker.IssueQuery{State: "opened", Labels: []string{"plane::management"}})
 		if err != nil {

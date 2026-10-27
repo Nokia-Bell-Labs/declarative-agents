@@ -194,7 +194,7 @@ tools:
   - hierarchy
   - --json
   - --dir=${SCRUM_MASTER_REPORTS}
-  description: Write a page per theme, initiative, epic, feature, and story under site/hierarchy/, each linking its parent, children, Sprint Goals, issues, and source, with the tree and the facts as JSON (GH-126).
+  description: Write a page per theme, initiative, epic, feature, and story under site/hierarchy/, each linking its parent, children, Sprint Goals, issues, and source, a page per sprint under site/sprints/ and per team and program under site/scrums/, and the navigator, with the tree and the facts as JSON (GH-126, GH-2781).
   category: boundary
   signature:
     emits:
