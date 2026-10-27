@@ -116,6 +116,20 @@ Onboard lays down the repository's corpus and orientation, registers it
 in the system repository, installs the skills, and vendors the profiles,
 the same way init does.
 
+A new team often starts with its scrum repository, where it plans, before
+any code repository. Onboard it with the `scrum` role, naming the team's
+owner and components:
+
+```json
+{"parameters": {"role": "scrum", "owner": "Product Owner, platform", "components": "platform"}}
+```
+
+When the system repository has no subsystem SRD for the team yet, the
+registration asks to create it: the owner, `scrum_repository` set to this
+repository, and one row per component, declared on the scrum repository
+until a code repository joins and takes the row. Each code repository then
+onboards with the default `component` role.
+
 scrum-master finds the program's system repository from any of its
 checkouts. Two layouts work with nothing set:
 

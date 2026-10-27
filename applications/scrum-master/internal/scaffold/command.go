@@ -92,6 +92,16 @@ func init() {
 			fs.StringVar(&o.Subsystem, "subsystem", "", "the subsystem SRD that lists the repository, e.g. srd010-ingest (required)")
 			fs.StringVar(&o.Repository, "repository", "", "the repository's URL (default: its origin)")
 			fs.StringVar(&o.Path, "path", "/", "the component's path in the repository")
+			fs.StringVar(&o.Role, "role", RoleComponent, "what the repository is to its subsystem: component, a component's repository, or scrum, the team's scrum repository where it plans")
+			fs.StringVar(&o.Owner, "owner", "", "the subsystem's owner, for an SRD the registration asks to create")
+			fs.Func("component", "a component of the subsystem, for an SRD the registration asks to create (repeatable, or comma-separated; default: the subsystem's short name)", func(v string) error {
+				for _, c := range strings.Split(v, ",") {
+					if c = strings.TrimSpace(c); c != "" {
+						o.Components = append(o.Components, c)
+					}
+				}
+				return nil
+			})
 			fs.BoolVar(&o.Force, "force", false, "replace files a person edited")
 			fs.BoolVar(&requireProfiles, "require-profiles", false, "refuse, writing nothing, when no release's profiles are installed to vendor (the onboard profile's vendor step needs them)")
 		},

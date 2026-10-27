@@ -3,7 +3,9 @@
 package scaffold
 
 import (
+	"errors"
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
@@ -23,8 +25,26 @@ type OnboardOptions struct {
 	// Repository is the joining repository's URL, Path the path of the
 	// component in it.
 	Repository, Path string
-	Force, DryRun    bool
+	// Role is what the repository is to its subsystem: a component's
+	// repository (RoleComponent, the default) or the team's scrum
+	// repository, where it plans (RoleScrum; GH-2745).
+	Role string
+	// Owner is the subsystem's owner and Components its components' names,
+	// for an SRD the registration asks to create.
+	Owner         string
+	Components    []string
+	Force, DryRun bool
 }
+
+// The roles a joining repository plays in its subsystem (GH-2745).
+const (
+	RoleComponent = "component"
+	RoleScrum     = "scrum"
+)
+
+// ownerPlaceholder stands for an owner the run did not name, for the
+// person merging the registration to replace.
+const ownerPlaceholder = "<the team's Product Owner>"
 
 // OnboardResult is what scrum-master onboard reports.
 type OnboardResult struct {
@@ -64,6 +84,13 @@ func Onboard(t tracker.Tracker, o OnboardOptions) (OnboardResult, error) {
 	if o.Path == "" {
 		o.Path = "/"
 	}
+	switch o.Role {
+	case "":
+		o.Role = RoleComponent
+	case RoleComponent, RoleScrum:
+	default:
+		return r, fmt.Errorf("onboard's role is %s or %s, not %q", RoleComponent, RoleScrum, o.Role)
+	}
 	files, err := corpusFiles("subsystem", o.Dir)
 	if err != nil {
 		return r, err
@@ -90,7 +117,16 @@ func register(t tracker.Tracker, o OnboardOptions) (Registration, error) {
 		return Registration{}, err
 	}
 	if _, sub, ok := subs.ComponentFor(o.Repository); ok {
+		if sub.Scrum != "" && program.ProjectPath(sub.Scrum) == program.ProjectPath(o.Repository) {
+			return Registration{Reason: fmt.Sprintf("%s already names %s as its scrum repository", sub.ID, program.ProjectPath(o.Repository))}, nil
+		}
 		return Registration{Reason: fmt.Sprintf("%s already lists %s", sub.ID, program.ProjectPath(o.Repository))}, nil
+	}
+	srdPath := program.SRDDir + "/" + o.Subsystem + ".md"
+	_, err = t.GetFile(o.System, srdPath, o.Ref)
+	missing := errors.Is(err, tracker.ErrNotFound)
+	if err != nil && !missing {
+		return Registration{}, fmt.Errorf("%s %s: %w", o.System, srdPath, err)
 	}
 	marker := registrationMarker(o.Repository)
 	open, err := t.ListIssues(o.System, tracker.IssueQuery{State: "opened"})
@@ -107,9 +143,13 @@ func register(t tracker.Tracker, o OnboardOptions) (Registration, error) {
 		return Registration{}, err
 	}
 	component, _, _ := subs.ComponentFor(o.System)
+	title, body := fmt.Sprintf("Register %s in %s", program.ProjectPath(o.Repository), o.Subsystem), registrationBody(o, policy.AuditCommand)
+	if missing {
+		title, body = fmt.Sprintf("Create %s with %s", o.Subsystem, program.ProjectPath(o.Repository)), creationBody(o, policy.AuditCommand)
+	}
 	in := tracker.NewIssue{
-		Title:       fmt.Sprintf("Register %s in %s", program.ProjectPath(o.Repository), o.Subsystem),
-		Description: registrationBody(o, policy.AuditCommand) + "\n\n" + marker + "\n",
+		Title:       title,
+		Description: body + "\n\n" + marker + "\n",
 		Labels:      append(program.Labels("management", "", "", component.Name), program.Op(program.OpOnboard)),
 	}
 	res, err := program.File(t, o.System, in, policy, o.DryRun)
@@ -121,9 +161,21 @@ func register(t tracker.Tracker, o OnboardOptions) (Registration, error) {
 }
 
 // registrationBody asks the subsystem SRD's owner for the components-table
-// row, in do-work's input format.
+// row, or, for a scrum repository, the SRD's scrum_repository, in do-work's
+// input format.
 func registrationBody(o OnboardOptions, audit string) string {
 	repo := program.ProjectPath(o.Repository)
+	if o.Role == RoleScrum {
+		return fmt.Sprintf(`%[1]s joins the program as the scrum repository of %[2]s, where the team plans and journals (design.md subsystem_srd, GH-2738).
+
+## Requirements
+
+1. In docs/specs/software-requirements/%[2]s.md, add the context item scrum_repository: %[3]s.
+
+## Acceptance Criteria
+
+- %[2]s names %[1]s as its scrum repository, and the corpus audit passes (test: %[4]s; environment: local)`, repo, o.Subsystem, o.Repository, audit)
+	}
 	return fmt.Sprintf(`%[1]s joins the program and asks to be listed in %[2]s (design.md D7: membership is declared, not inferred).
 
 ## Requirements
@@ -133,4 +185,78 @@ func registrationBody(o OnboardOptions, audit string) string {
 ## Acceptance Criteria
 
 - %[2]s lists %[1]s, and the corpus audit passes (test: %[5]s; environment: local)`, repo, o.Subsystem, o.Repository, o.Path, audit)
+}
+
+// creationBody asks for the subsystem SRD that does not exist yet, whole:
+// the system's SRD template with its owner, the repository as its scrum
+// repository or as its components' repository, and a row per component
+// (GH-2745). A team with a scrum repository and no code repository yet
+// declares its components on the scrum repository, until a code
+// repository takes each row.
+func creationBody(o OnboardOptions, audit string) string {
+	repo := program.ProjectPath(o.Repository)
+	return fmt.Sprintf(`%[1]s joins the program, and its subsystem %[2]s has no SRD yet (design.md D7: membership is declared, not inferred).
+
+## Requirements
+
+1. Create docs/specs/software-requirements/%[2]s.md as below, %[3]s, then write its problem, goals, requirements, and acceptance criteria.
+
+`+"```markdown\n%[4]s```"+`
+
+## Acceptance Criteria
+
+- %[2]s exists, %[5]s, and the corpus audit passes (test: %[6]s; environment: local)`,
+		repo, o.Subsystem, ownerNote(o), newSubsystemSRD(o), roleNote(o), audit)
+}
+
+func ownerNote(o OnboardOptions) string {
+	if o.Owner == "" {
+		return "naming its owner where it says " + ownerPlaceholder
+	}
+	return "owned by " + o.Owner
+}
+
+func roleNote(o OnboardOptions) string {
+	if o.Role == RoleScrum {
+		return "names " + program.ProjectPath(o.Repository) + " as its scrum repository"
+	}
+	return "lists " + program.ProjectPath(o.Repository)
+}
+
+// shortName is a subsystem SRD's name without its number: srd002-platform
+// is platform.
+func shortName(subsystem string) string {
+	if _, rest, ok := strings.Cut(subsystem, "-"); ok && strings.HasPrefix(subsystem, "srd") {
+		return rest
+	}
+	return subsystem
+}
+
+// newSubsystemSRD is a new subsystem SRD from the system SRD's template:
+// its id, its owner, its scrum repository for a scrum, and its components,
+// each in the joining repository at its path.
+func newSubsystemSRD(o OnboardOptions) string {
+	b, err := templates.ReadFile(path.Join("templates", "system", "docs", "specs", "software-requirements", "srd001-{{level}}.md.tmpl"))
+	if err != nil {
+		return ""
+	}
+	short := shortName(o.Subsystem)
+	owner := o.Owner
+	if owner == "" {
+		owner = ownerPlaceholder
+	}
+	components := o.Components
+	if len(components) == 0 {
+		components = []string{short}
+	}
+	targets := "<!-- field: implementation_targets -->\n## Implementation targets\n\n| name | repository | path |\n| --- | --- | --- |\n"
+	for _, c := range components {
+		targets += fmt.Sprintf("| %s | %s | %s |\n", c, o.Repository, o.Path)
+	}
+	context := "- owner: " + owner
+	if o.Role == RoleScrum {
+		context += "\n- scrum_repository: " + o.Repository
+	}
+	return strings.NewReplacer("srd001-{{level}}", o.Subsystem, "{{Level}}", strings.ToUpper(short[:1])+short[1:], "{{level}}", short,
+		"- owner: {{Owner}}", context, "{{Owner}}", owner, "{{implementation_targets}}", targets).Replace(string(b))
 }

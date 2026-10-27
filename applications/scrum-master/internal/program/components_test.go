@@ -95,3 +95,50 @@ func TestLoadPolicyFailsOnUnreadableSRDs(t *testing.T) {
 		t.Fatalf("LoadPolicy = %v, want an error naming an-gc-group/tpm %s", err, SRDDir)
 	}
 }
+
+const platformSRD = `---
+id: srd002-platform
+title: "Platform"
+---
+
+<!-- field: context | form: "tree" -->
+## Context
+
+- owner: Product Owner, platform
+- scrum_repository: https://gitlab.example.com/an-gc-group/platform/tpm
+
+<!-- field: implementation_targets -->
+## Implementation targets
+
+| name | repository | path |
+| --- | --- | --- |
+| platform | https://gitlab.example.com/an-gc-group/platform/tpm | / |
+`
+
+// A team with a scrum repository and no code repository yet declares its
+// component on the scrum repository until a code repository takes it: the
+// SRD reads the same from disk and through the tracker, and the scrum
+// repository's issues carry the component (srd043 R2; GH-2745).
+func TestAScrumWithNoCodeRepositoryYetDeclaresItsComponents(t *testing.T) {
+	dir := t.TempDir()
+	checkoutWith(t, dir, map[string]string{filepath.Join(SRDDir, "srd002-platform.md"): platformSRD})
+	onDisk, err := SubsystemsIn(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fake.New()
+	f.AddFile("an-gc-group/tpm", "main", SRDDir+"/srd002-platform.md", []byte(platformSRD))
+	through, err := LoadSubsystems(f, "an-gc-group/tpm", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, subs := range map[string]Subsystems{"on disk": onDisk, "through the tracker": through} {
+		c, sub, ok := subs.ComponentFor("an-gc-group/platform/tpm")
+		if !ok || sub.ID != "srd002-platform" || c.Name != "platform" || sub.ScrumRepository() != "an-gc-group/platform/tpm" {
+			t.Errorf("%s: %+v %+v %v", name, c, sub, ok)
+		}
+		if got := Labels("data", "build", "", c.Name); !slices.Contains(got, "component::platform") {
+			t.Errorf("%s: the scrum repository's issue labels %v", name, got)
+		}
+	}
+}
