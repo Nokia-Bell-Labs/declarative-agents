@@ -104,6 +104,12 @@ func MakeFacts(in Input) (Facts, error) {
 	} else {
 		f.Next.Recommended, f.Next.Reason = "minor", "no checkout to read commits from: a period's release is minor"
 	}
+	// An artifact never released whose period planned no Sprint Goal, such
+	// as a team that has not started, has nothing to release (GH-2779).
+	if f.Next.Latest == "" && len(f.SprintGoals) == 0 {
+		f.Next.Recommended, f.Next.RecommendedVersion = "", ""
+		f.Next.Reason = "no " + in.Artifact + " tag yet and no Sprint Goal this period: nothing to release"
+	}
 	for _, c := range f.Next.Candidates {
 		if c.Bump == f.Next.Recommended {
 			f.Recommended = c.Version

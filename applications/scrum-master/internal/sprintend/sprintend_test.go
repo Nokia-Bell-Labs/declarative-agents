@@ -198,6 +198,18 @@ func TestFactsRecommendFromTheArtifactsCommits(t *testing.T) {
 	if err != nil || facts.Recommended != "0.3.2" || !strings.Contains(facts.Next.Reason, "fix") {
 		t.Fatalf("recommendation = %q, reason %q, %v", facts.Recommended, facts.Next.Reason, err)
 	}
+	// A team never released whose period planned no Sprint Goal releases
+	// nothing; with a Sprint Goal its first release is minor (GH-2779).
+	f := fake.New()
+	facts, err = MakeFacts(Input{Tracker: f, Project: po1, Releases: program.Defaults().Releases, Artifact: "harness", Dir: dir})
+	if err != nil || facts.Recommended != "" || facts.Next.Recommended != "" || !strings.Contains(facts.Next.Reason, "no Sprint Goal this period: nothing to release") {
+		t.Fatalf("an empty sprint, never released = %q, reason %q, %v", facts.Recommended, facts.Next.Reason, err)
+	}
+	f.CreateIssue(po1, tracker.NewIssue{Title: "Sprint Goal: harness", Description: "Goal\n\n<!-- scrum-master goals sprint-goal release=01.0 serves=in001-x#R1 -->\n"})
+	facts, err = MakeFacts(Input{Tracker: f, Project: po1, Releases: program.Defaults().Releases, Artifact: "harness", Dir: dir})
+	if err != nil || facts.Recommended != "0.1.0" {
+		t.Fatalf("a first sprint with a Sprint Goal = %q, reason %q, %v", facts.Recommended, facts.Next.Reason, err)
+	}
 }
 
 // TestSystemFactsGatherTheTeams lists, for the system repository, the

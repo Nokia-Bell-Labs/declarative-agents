@@ -5,7 +5,9 @@ package reports
 import (
 	"fmt"
 	"path"
+	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
@@ -48,7 +50,8 @@ type RollupInput struct {
 // StatusIssuesInPlace leaves, for the coming week, one status issue per
 // listed person in the repository they report in, one team rollup issue
 // per subsystem in its scrum repository, where its Sprint Goals are, for
-// its owner (GH-2738), and one program rollup issue in
+// its owner (GH-2738), unless no listed person reports in its repositories
+// (GH-2779), and one program rollup issue in
 // the system repository, each due after the last; it files nothing twice
 // (GH-2725).
 func StatusIssuesInPlace(t tracker.Tracker, in RollupInput) ([]StatusResult, error) {
@@ -116,6 +119,13 @@ func StatusIssuesInPlace(t tracker.Tracker, in RollupInput) ([]StatusResult, err
 		if program.IsProgram(t, sub.ScrumRepository()) {
 			out = append(out, StatusResult{Kind: "team-rollup", User: sub.Owner, Project: sub.ScrumRepository(), Week: week, Action: "sub-program",
 				Reasons: []string{sub.ScrumRepository() + " is a program: its program rollup stands for " + sub.ID + "'s team rollup"}})
+			continue
+		}
+		// A team no person on the roster reports in has nothing to roll up,
+		// so it is asked for no rollup (GH-2779).
+		if !slices.ContainsFunc(cfg.Team, func(m Member) bool { return slices.Contains(sub.Repositories(), program.ProjectPath(m.Project)) }) {
+			out = append(out, StatusResult{Kind: "team-rollup", User: sub.Owner, Project: sub.ScrumRepository(), Week: week, Action: "no-reporters",
+				Reasons: []string{"no person on the roster reports in " + strings.Join(sub.Repositories(), ", ") + ", so " + sub.ID + " has nothing to roll up"}})
 			continue
 		}
 		if err := rollup("team-rollup", sub.ID, sub.Owner, sub.ScrumRepository(), teamDue); err != nil {
