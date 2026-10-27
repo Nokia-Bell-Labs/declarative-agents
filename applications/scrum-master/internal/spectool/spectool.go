@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,8 +33,54 @@ var ReleaseURL = "https://github.com/Nokia-Bell-Labs/declarative-agents"
 // ParentRepository is the parent a corpus's docs/external-pins.yaml pins.
 const ParentRepository = "github.com/Nokia-Bell-Labs/declarative-agents"
 
-// PinsFile is where a corpus pins its parent release.
-const PinsFile = "docs/external-pins.yaml"
+// PinsFile is where a corpus pins its parent release; CheckoutsFile, which
+// git ignores, names a local checkout of the parent to use instead.
+const (
+	PinsFile      = "docs/external-pins.yaml"
+	CheckoutsFile = "docs/external-checkouts.yaml"
+)
+
+// Checkout is the local checkout of the parent that root's checkouts file
+// names, relative paths read from root; ok is false when there is none.
+func Checkout(root string) (dir string, ok bool, err error) {
+	data, err := os.ReadFile(filepath.Join(root, CheckoutsFile))
+	if errors.Is(err, os.ErrNotExist) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	var f struct {
+		Checkouts map[string]string `yaml:"checkouts"`
+	}
+	if err := yaml.Unmarshal(data, &f); err != nil {
+		return "", false, fmt.Errorf("%s: %w", CheckoutsFile, err)
+	}
+	dir = f.Checkouts[ParentRepository]
+	if dir == "" {
+		return "", false, nil
+	}
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(root, dir)
+	}
+	return dir, true, nil
+}
+
+// SourceURL is where root's pins file says the parent publishes its tags'
+// source, ReleaseURL when it names none.
+func SourceURL(root string) string {
+	data, err := os.ReadFile(filepath.Join(root, PinsFile))
+	if err != nil {
+		return ReleaseURL
+	}
+	var pins struct {
+		Sources map[string]string `yaml:"sources"`
+	}
+	if yaml.Unmarshal(data, &pins) != nil || pins.Sources[ParentRepository] == "" {
+		return ReleaseURL
+	}
+	return strings.TrimSuffix(pins.Sources[ParentRepository], "/")
+}
 
 // Runner runs name with args in dir.
 type Runner func(dir, name string, args ...string) error
@@ -168,11 +215,14 @@ func Download(url string) ([]byte, error) {
 // EnsureSource extracts tag's source archive into src and commits it there
 // as a repository tagged tag, so the audit resolves derived_from
 // entries offline against it.
-func EnsureSource(src, tag string) error {
+func EnsureSource(src, tag string) error { return EnsureSourceFrom(ReleaseURL, src, tag) }
+
+// EnsureSourceFrom is EnsureSource from the forge at base.
+func EnsureSourceFrom(base, src, tag string) error {
 	if gitQuiet(src, "rev-parse", "--verify", "-q", "refs/tags/"+tag) == nil {
 		return nil
 	}
-	archive, err := Download(ReleaseURL + "/archive/refs/tags/" + tag + ".tar.gz")
+	archive, err := Download(base + "/archive/refs/tags/" + tag + ".tar.gz")
 	if err != nil {
 		return fmt.Errorf("the source of %s: %w", tag, err)
 	}

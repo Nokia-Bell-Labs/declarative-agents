@@ -18,10 +18,13 @@ func TestDefaultPinIsAReleaseTag(t *testing.T) {
 	}
 }
 
-func TestSiblingLocatesThisRepository(t *testing.T) {
-	rel, ok, err := Sibling(".", nil)
-	if err != nil || !ok {
-		t.Fatalf("ok=%v err=%v", ok, err)
+// The runtime resolves for this application wherever it sits: the sibling
+// agent-core inside the repository that ships it, else the parent checkout
+// or release it names (GH-2754).
+func TestTheRuntimeResolvesForThisApplication(t *testing.T) {
+	rel, err := Resolve(filepath.Join("..", ".."), nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 	if _, serr := os.Stat(filepath.Join(rel.CoreRoot(), "cmd", "agent")); serr != nil {
 		t.Fatalf("core root %q has no agent: %v", rel.CoreRoot(), serr)

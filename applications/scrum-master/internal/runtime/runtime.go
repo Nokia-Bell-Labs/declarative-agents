@@ -8,6 +8,7 @@
 package runtime
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,25 +52,91 @@ func Sibling(dir string, build func(dir, name string, args ...string) error) (Re
 	}
 	// Build products live in the release cache, not in the tree: a scratch
 	// module inside the repository would read as a maintained module.
-	dir, derr := spectool.ReleaseDir("in-repo")
+	cache, derr := spectool.ReleaseDir("in-repo")
 	if derr != nil {
 		return Release{}, true, derr
 	}
-	r := Release{Tag: "in-repo", Dir: dir, Src: root, Agent: filepath.Join(dir, "agent")}
+	r := Release{Tag: "in-repo", Dir: cache, Src: root, Agent: filepath.Join(cache, "agent")}
 	if build == nil {
 		return r, true, nil
 	}
-	comp, err := Compose(core, filepath.Join(root, "applications", "scrum-master"))
+	return r, true, r.build(appRoot(dir, filepath.Join(root, "applications", "scrum-master")), build)
+}
+
+// build composes the agent from the release's agent-core with the words of
+// the application at app, into r.Agent.
+func (r Release) build(app string, build func(dir, name string, args ...string) error) error {
+	comp, err := Compose(filepath.Join(r.Src, "agent-core"), app)
 	if err != nil {
-		return r, true, err
+		return err
 	}
 	defer comp.Cleanup()
 	// build takes no environment, so env(1) carries the workspace.
 	args := append(append(append(comp.Env, "go", "build"), comp.Flags...), "-o", r.Agent, "./cmd/agent")
-	if err := build(comp.Dir, "env", args...); err != nil {
-		return r, true, err
+	return build(comp.Dir, "env", args...)
+}
+
+// appRoot is the application module holding dir: the nearest folder above
+// it with a go.mod naming this application's words, else fallback.
+func appRoot(dir, fallback string) string {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return fallback
 	}
-	return r, true, nil
+	for cur := abs; ; cur = filepath.Dir(cur) {
+		if _, err := os.Stat(filepath.Join(cur, "go.mod")); err == nil {
+			if _, err := os.Stat(filepath.Join(cur, "words")); err == nil {
+				return cur
+			}
+		}
+		if filepath.Dir(cur) == cur {
+			return fallback
+		}
+	}
+}
+
+// Resolve is the runtime the application at app builds and gates
+// against, resolved in one place (GH-2754): the agent-core beside it in
+// the repository that ships agent-core, as before (Sibling); else the
+// parent checkout docs/external-checkouts.yaml names; else the
+// declarative-agents release docs/external-pins.yaml pins, its source laid
+// out once per tag as a pinned corpus's is. With a nil builder it only
+// locates; otherwise it composes the agent with the application's words.
+func Resolve(app string, build func(dir, name string, args ...string) error) (Release, error) {
+	if r, ok, err := Sibling(app, build); ok {
+		return r, err
+	}
+	var r Release
+	if src, ok, err := spectool.Checkout(app); err != nil {
+		return r, err
+	} else if ok {
+		cache, err := spectool.ReleaseDir("checkout")
+		if err != nil {
+			return r, err
+		}
+		r = Release{Tag: "checkout", Dir: cache, Src: src, Agent: filepath.Join(cache, "agent")}
+	} else {
+		tag, err := spectool.Pinned(app)
+		if err != nil {
+			return r, fmt.Errorf("no runtime for %s: no agent-core beside it, no checkout of %s in %s, and no pin in %s: %w", app, spectool.ParentRepository, spectool.CheckoutsFile, spectool.PinsFile, err)
+		}
+		cache, err := spectool.ReleaseDir(tag)
+		if err != nil {
+			return r, err
+		}
+		src := filepath.Join(cache, "src")
+		if err := spectool.EnsureSourceFrom(spectool.SourceURL(app), src, tag); err != nil {
+			return r, err
+		}
+		r = Release{Tag: tag, Dir: cache, Src: src, Agent: filepath.Join(cache, "agent-composed")}
+	}
+	if err := os.MkdirAll(r.Dir, 0o755); err != nil {
+		return r, err
+	}
+	if build == nil {
+		return r, nil
+	}
+	return r, r.build(app, build)
 }
 
 // Release is a release's runtime on this host: its directory under the
