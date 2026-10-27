@@ -251,3 +251,49 @@ func TestTheProgramGroupIsRecorded(t *testing.T) {
 		t.Fatalf("a checkout with no document records %q", g)
 	}
 }
+
+// hostFake is a tracker whose host serves the system's trackers document.
+type hostFake struct {
+	*fake.Fake
+	served map[string][]byte
+}
+
+func (h hostFake) HostTree(string, string) ([]string, error) { return nil, nil }
+func (h hostFake) HostFile(project, path string) ([]byte, string, error) {
+	if b, ok := h.served[project+":"+path]; ok {
+		return b, "c0ffee", nil
+	}
+	return nil, "", tracker.ErrNotFound
+}
+
+// With no checkout holding the trackers document and the run naming its
+// system, the document is read through the forge the checkout's origin is
+// on, and the program's tracking system opens; with neither, the refusal
+// names the folders searched and both remedies (srd042; GH-2743).
+func TestOpenForReadsTheTrackersThroughTheForge(t *testing.T) {
+	t.Setenv("SCRUM_MASTER_TRACKER", "")
+	t.Setenv("SCRUM_MASTER_SYSTEM", "")
+	dir := filepath.Join(t.TempDir(), "platform", "tpm")
+	os.MkdirAll(dir, 0o755)
+	for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"remote", "add", "origin", "https://gitlab.example.com/an-gc-group/platform/tpm.git"}} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	host := hostFake{Fake: fake.New(), served: map[string][]byte{"an-gc-group/tpm:" + File: Document(Config{Group: "an-gc-group", Default: System{Name: GitLab}})}}
+	saved := openers[GitLab]
+	t.Cleanup(func() { openers[GitLab] = saved })
+	openers[GitLab] = func(System) (tracker.Tracker, error) { return host, nil }
+
+	got, err := OpenFor(dir, "an-gc-group/tpm")
+	if err != nil {
+		t.Fatalf("OpenFor with --system: %v", err)
+	}
+	if _, ok := got.(hostFake); !ok {
+		t.Errorf("OpenFor opened %T, want the program's glab", got)
+	}
+	_, err = OpenFor(dir, "")
+	if err == nil || !strings.Contains(err.Error(), filepath.Dir(dir)) || !strings.Contains(err.Error(), "SCRUM_MASTER_SYSTEM") || !strings.Contains(err.Error(), "SCRUM_MASTER_TRACKER") {
+		t.Fatalf("with nothing to read: %v", err)
+	}
+}

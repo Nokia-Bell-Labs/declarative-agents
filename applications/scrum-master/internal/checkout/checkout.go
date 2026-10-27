@@ -7,11 +7,9 @@
 package checkout
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"os/exec"
-	"path"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -20,9 +18,12 @@ import (
 )
 
 // Code answers the code half for the command's checkout at Dir. A
-// project's checkout is the sibling of Dir named for the project's last
-// path segment, as repositories sit side by side under their owner; a
-// project with no such sibling is Dir itself.
+// project's checkout is the one Locate finds: Dir's own when its origin is
+// the project, else the nearest checkout named for the project, beside Dir
+// or beside a folder above it, whose origin is the project. A checkout
+// whose origin names no forge project, a local path or none, answers for
+// any project it finds no checkout of, as before; one whose origin is
+// another project never does (GH-2744).
 type Code struct {
 	Dir string
 	// fetched records the projects whose origin this command has fetched,
@@ -31,27 +32,33 @@ type Code struct {
 }
 
 func (c *Code) Checkout(project string) string {
-	if project != "" {
-		sib := filepath.Join(filepath.Dir(c.Dir), path.Base(project))
-		if _, err := os.Stat(filepath.Join(sib, ".git")); err == nil {
-			return sib
-		}
+	if project == "" {
+		return c.Dir
 	}
-	return c.Dir
+	if dir, ok := Locate(c.Dir, project); ok {
+		return dir
+	}
+	if origin := Origin(toplevel(c.Dir)); origin == "" || strings.HasPrefix(origin, "/") || strings.HasPrefix(origin, ".") {
+		return c.Dir
+	}
+	return ""
 }
 
-// HasCheckout reports whether project has a checkout to read: a sibling
-// named for it, or the command's own checkout when that is named for it.
-// Checkout falls back to the command's own for any other project, which a
-// reader of many repositories must not take for that project's (GH-2725).
+// HasCheckout reports whether project has a checkout of its own to read,
+// as Locate finds one; the fallback Checkout keeps for a checkout with no
+// forge origin is not one (GH-2725).
 func (c *Code) HasCheckout(project string) bool {
 	if project == "" {
 		return false
 	}
-	if c.Checkout(project) != c.Dir {
-		return true
-	}
-	return filepath.Base(c.Dir) == path.Base(project)
+	_, ok := Locate(c.Dir, project)
+	return ok
+}
+
+// noCheckout is the error for a project Checkout finds no checkout of,
+// naming the folders searched.
+func (c *Code) noCheckout(project string) error {
+	return fmt.Errorf("%s: %w in %s; check it out beside this one, or in a folder its group mirrors", project, ErrNoCheckout, strings.Join(Levels(c.Dir), ", "))
 }
 
 func (c *Code) Git(project string, args ...string) (string, error) {
@@ -60,8 +67,12 @@ func (c *Code) Git(project string, args ...string) (string, error) {
 }
 
 func (c *Code) raw(project string, args ...string) ([]byte, error) {
+	dir := c.Checkout(project)
+	if dir == "" {
+		return nil, c.noCheckout(project)
+	}
 	cmd := exec.Command("git", args...)
-	cmd.Dir = c.Checkout(project)
+	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
@@ -128,6 +139,9 @@ func (c *Code) OpenBranch(project, branch, ref, message string) error {
 // textconv is configured.
 func (c *Code) GetFile(project, p, ref string) ([]byte, error) {
 	out, err := c.raw(project, "cat-file", "--textconv", c.rev(project, ref)+":"+p)
+	if errors.Is(err, ErrNoCheckout) {
+		return nil, err
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%s at %s: %w", p, ref, tracker.ErrNotFound)
 	}
@@ -136,6 +150,9 @@ func (c *Code) GetFile(project, p, ref string) ([]byte, error) {
 
 func (c *Code) ListDir(project, dir, ref string) ([]string, error) {
 	out, err := c.Git(project, "ls-tree", "--name-only", c.rev(project, ref), strings.TrimSuffix(dir, "/")+"/")
+	if errors.Is(err, ErrNoCheckout) {
+		return nil, err
+	}
 	if err != nil || out == "" {
 		return nil, fmt.Errorf("%s at %s: %w", dir, ref, tracker.ErrNotFound)
 	}
@@ -145,6 +162,9 @@ func (c *Code) ListDir(project, dir, ref string) ([]string, error) {
 // LastCommit is the commit that last changed p at ref.
 func (c *Code) LastCommit(project, p, ref string) (string, error) {
 	out, err := c.Git(project, "log", "-1", "--format=%H", c.rev(project, ref), "--", p)
+	if errors.Is(err, ErrNoCheckout) {
+		return "", err
+	}
 	if err != nil || out == "" {
 		return "", fmt.Errorf("%s at %s: %w", p, ref, tracker.ErrNotFound)
 	}

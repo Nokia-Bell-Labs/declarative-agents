@@ -68,9 +68,22 @@ repository has exactly one system, so project#iid names one issue; a
 group's entry serves every project under it that no closer entry names.
 SCRUM_MASTER_TRACKER replaces the default for one person's run, never an override,
 and with no such file it alone names the system every project uses. scrum-master reads the file from the checkout, else from the one sibling
-checkout that holds it, worktrees of one repository counting as one. That
-checkout is the system repository's, and a word that reads the policy
-without --control reads it there, from any repository of the program.
+checkout that holds it, worktrees of one repository counting as one, else,
+where checkouts mirror the forge's group layout, from the one checkout
+beside a folder above it, nearest first, up to the user's home folder,
+whose origin's group holds this checkout's repository, so another
+program's is never taken; two at one level are refused, naming both
+(GH-2743). With none, a run that names its system repository, by --system,
+--control, or SCRUM_MASTER_SYSTEM, reads the file from it through the
+forge the checkout's origin is on, gh for github.com and glab for any
+other host; else it refuses, naming the folders searched and both
+remedies. That checkout is the system repository's, and a word that reads
+the policy without --control reads it there, from any repository of the
+program. A project's files are read from the checkout whose origin is that
+project, found the same way; a checkout whose origin is another project
+is never read for it, and a project with no checkout is an error naming
+the folders searched, never another repository's files or an empty set
+(GH-2744).
 
 <!-- req: R1.4 -->
 ### R1.4
@@ -218,7 +231,11 @@ Every scrum-master command passes its tests against a fixture beads tracker with
 no GitLab reachable, and the srd041 state machine replays identically on
 both backends; a team checkout finds control/trackers.md in the system
 checkout beside it though a worktree of the system repository sits there
-too.
+too, and a scrum checkout whose folders mirror the forge's groups finds
+the system's above it with no environment variable, or through the forge
+when the run names the system; the one-component rule gives one verdict
+whether the control project's SRDs are read from disk or through the
+tracker, and lint says when it waived the rule.
 
 <!-- field: traces -->
 #### Traces

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	_ "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/commands"
@@ -71,6 +72,23 @@ func RunIn(dir string, args []string, in io.Reader, out io.Writer) int {
 	return mainIn(args, in, out, out)
 }
 
+// namedSystem is the system repository a run names, by --system or
+// --control, so the tracker can be found through it when no checkout
+// holds the trackers document (GH-2743).
+func namedSystem(args []string) string {
+	for i, a := range args {
+		for _, flag := range []string{"--system", "-system", "--control", "-control"} {
+			if v, ok := strings.CutPrefix(a, flag+"="); ok {
+				return v
+			}
+			if a == flag && i+1 < len(args) {
+				return args[i+1]
+			}
+		}
+	}
+	return ""
+}
+
 // Main is the scrum-master command line from the current directory: the output to
 // out, an error to errOut, and the exit code.
 func Main(args []string, out, errOut io.Writer) int { return mainIn(args, os.Stdin, out, errOut) }
@@ -85,7 +103,7 @@ func mainIn(args []string, in io.Reader, out, errOut io.Writer) int {
 		if err != nil {
 			return nil, err
 		}
-		return routing.Open(dir)
+		return routing.OpenFor(dir, namedSystem(args))
 	}
 	err := cli.Default.RunIn(args, in, out, open)
 	switch {

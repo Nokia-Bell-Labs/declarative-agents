@@ -303,7 +303,7 @@ func LoadPolicy(t tracker.Tracker, project, ref string) (Policy, error) {
 			p.ManagementFilers = []string{v}
 		}
 	} else if !errors.Is(err, tracker.ErrNotFound) {
-		return p, err
+		return p, fmt.Errorf("%s %s: %w", project, PolicyFile, err)
 	}
 	if b, err := t.GetFile(project, LabelsFile, ref); err == nil {
 		var f labelsFile
@@ -323,11 +323,13 @@ func LoadPolicy(t tracker.Tracker, project, ref string) (Policy, error) {
 		p.Types = canonicalTypes(p.Types)
 		pick("kind", &p.Kinds)
 	} else if !errors.Is(err, tracker.ErrNotFound) {
-		return p, err
+		return p, fmt.Errorf("%s %s: %w", project, LabelsFile, err)
 	}
+	// A failure to read the SRDs is an error, never no components, which
+	// would waive the one-component rule (GH-2744).
 	subs, err := LoadSubsystems(t, project, ref)
 	if err != nil && !errors.Is(err, tracker.ErrNotFound) {
-		return p, fmt.Errorf("%s subsystem SRDs: %w", project, err)
+		return p, fmt.Errorf("%s %s: %w", project, SRDDir, err)
 	}
 	p.Components, p.ComponentsRead = subs.Components(), true
 	return p, nil

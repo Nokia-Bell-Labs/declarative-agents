@@ -175,22 +175,37 @@ func Override(env string) (System, bool) {
 // trackers document, the one SCRUM_MASTER_TRACKER names, exactly as before routing;
 // with one, its default (SCRUM_MASTER_TRACKER overriding it) and each override,
 // behind a router when any override exists.
-func Open(dir string) (tracker.Tracker, error) {
+func Open(dir string) (tracker.Tracker, error) { return OpenFor(dir, "") }
+
+// OpenFor is Open for a run that names its system repository, by --system
+// or --control, else SCRUM_MASTER_SYSTEM: with no checkout holding the
+// trackers document, it reads the system's through the forge the
+// checkout's origin is on, gh for github.com and glab for any other host,
+// as the words read SRDs and policy through the tracker (GH-2743).
+func OpenFor(dir, system string) (tracker.Tracker, error) {
 	path, err := Find(dir)
 	if err != nil {
 		return nil, err
 	}
+	if system == "" {
+		system = os.Getenv("SCRUM_MASTER_SYSTEM") //nolint:forbidigo // Reads the documented SCRUM_MASTER_* environment interface.
+	}
 	env, set := Override(os.Getenv("SCRUM_MASTER_TRACKER")) //nolint:forbidigo // Reads the documented SCRUM_MASTER_* environment interface.
-	if path == "" {
-		if !set {
-			return nil, errors.New("no tracker: set SCRUM_MASTER_TRACKER to the tracker repository, or write " + File + " in the system repository (eng04-beads-sync)")
+	var b []byte
+	switch {
+	case path != "":
+		if b, err = os.ReadFile(path); err != nil {
+			return nil, err
 		}
+	case system != "" && !set:
+		if b, err = fromForge(dir, system); err != nil {
+			return nil, err
+		}
+	case set:
 		env.Dir = dir
 		return open(env)
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+	default:
+		return nil, fmt.Errorf("no tracker: no checkout holding %s in %s; check the system repository out in one of them, or set SCRUM_MASTER_SYSTEM to its project path, or SCRUM_MASTER_TRACKER to the tracking system (eng04-beads-sync, GH-2743)", File, strings.Join(checkout.Levels(dir), ", "))
 	}
 	c, err := Parse(b)
 	if err != nil {
@@ -230,6 +245,28 @@ func Open(dir string) (tracker.Tracker, error) {
 		r.Systems[p] = opened[name]
 	}
 	return r, nil
+}
+
+// fromForge reads the system repository's trackers document from the
+// forge the checkout at dir is on, with no checkout of the system.
+func fromForge(dir, system string) ([]byte, error) {
+	name := GitLab
+	if strings.Contains(checkout.Origin(dir), "github.com") {
+		name = GitHub
+	}
+	t, err := open(System{Name: name, Dir: dir})
+	if err != nil {
+		return nil, err
+	}
+	host, ok := t.(tracker.HostFiles)
+	if !ok {
+		return nil, fmt.Errorf("%s serves no files without a checkout; check %s out beside this one", name, system)
+	}
+	b, _, err := host.HostFile(checkout.ProjectPath(system), File)
+	if err != nil {
+		return nil, fmt.Errorf("read %s from %s through %s: %w", File, system, name, err)
+	}
+	return b, nil
 }
 
 // Document is c as control/trackers.md holds it.

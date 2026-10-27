@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
@@ -217,18 +218,7 @@ func (s Subsystems) ScrumRepositories() []string {
 // ProjectPath reduces a repository URL or path to GROUP/REPO: an
 // https or ssh URL, or the scp form user@host:group/repo that git's
 // url.insteadOf often rewrites an origin to (GH-67).
-func ProjectPath(repo string) string {
-	repo = strings.TrimSuffix(strings.TrimSuffix(repo, "/"), ".git")
-	if _, rest, ok := strings.Cut(repo, "://"); ok {
-		_, repo, _ = strings.Cut(rest, "/")
-	} else if host, path, ok := strings.Cut(repo, ":"); ok && !strings.Contains(host, "/") && path != "" {
-		repo = path
-	}
-	if p, _, ok := strings.Cut(repo, "/-/"); ok {
-		repo = p
-	}
-	return strings.Trim(repo, "/")
-}
+func ProjectPath(repo string) string { return checkout.ProjectPath(repo) }
 
 // CheckProject refuses a filesystem path where a project path is expected
 // (GH-68): a checkout's path names no project, and a word that took one
