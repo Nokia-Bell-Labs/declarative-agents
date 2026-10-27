@@ -103,6 +103,21 @@ components all belong to one team lives in that team's repository, and its
 Product Owner owns it. The draft skill offers the right owner for the
 repository it writes in (`backlog template --kind epic --dir .` shows it).
 
+A team's stories live in its scrum repository. By default that is its
+first component repository, so planning and code sit together. A team
+with several code repositories can keep its planning apart: add
+`scrum_repository` to its subsystem SRD's context,
+
+```markdown
+- owner: Product Owner, delivery
+- scrum_repository: https://gitlab.example.com/program/delivery/fleet-scrum
+```
+
+and its stories, Sprint Goals, sprint-end summaries, weekly status
+reports, and team rollup all go there, while its code repositories keep
+the code and the issues that implement the stories, each pointing at its
+story with a pinned `Implements:` link.
+
 Name in each document's `architecture:` the components it changes. They
 are what tie the work to the teams:
 

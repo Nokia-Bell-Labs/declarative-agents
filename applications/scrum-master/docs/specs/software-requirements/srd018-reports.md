@@ -225,7 +225,7 @@ A report is status/reports/<YYYY-Qn>/<YYYY-Www>-<username>.md in the repository 
 <!-- req: R12.2 -->
 ### R12.2
 
-The roster is control/reports.md in the system repository (config format reports-config), owned by the technical program manager: who reports and in which repository, the reminder weekday, the status and rollup issue titles, the program rollup's lead, and the due offsets. A person's team is the subsystem whose SRD lists their repository. A program that has not moved its roster keeps reports.md in a central reports repository, which status-issues and aggregate read as before; a roster that names a central repository has collect and previous read its reports too, for the release that moves them into place.
+The roster is control/reports.md in the system repository (config format reports-config), owned by the technical program manager: who reports and in which repository, the reminder weekday, the status and rollup issue titles, the program rollup's lead, and the due offsets. A person's team is the subsystem whose SRD lists their repository. A person listed in a code repository of a team whose SRD names a scrum repository reports in the scrum repository, where the team journals: its status reports beside its Sprint Goals and sprint-end summaries (GH-2738). A program that has not moved its roster keeps reports.md in a central reports repository, which status-issues and aggregate read as before; a roster that names a central repository has collect and previous read its reports too, for the release that moves them into place.
 
 <!-- req: R13 -->
 ## R13 - scrum-master reports collect
@@ -233,7 +233,7 @@ The roster is control/reports.md in the system repository (config format reports
 <!-- req: R13.1 -->
 ### R13.1
 
-For a level and a period of ISO weeks, lists the level's repositories from the system repository's subsystem SRDs (implementation_targets): for a team, its subsystem's repositories, named by --subsystem or by the subsystem whose SRD lists --project; for the program, the system repository and every subsystem's. A program with no subsystem SRDs takes the repositories its roster names.
+For a level and a period of ISO weeks, lists the level's repositories from the system repository's subsystem SRDs (implementation_targets): for a team, its subsystem's repositories, its scrum repository among them, named by --subsystem or by the subsystem whose SRD lists --project; for the program, the system repository and every subsystem's. A program with no subsystem SRDs takes the repositories its roster names.
 
 <!-- req: R13.2 -->
 ### R13.2
@@ -277,7 +277,7 @@ validate checks every report and rollup under status/, a rollup against the roll
 <!-- req: R16.1 -->
 ### R16.1
 
-With --control naming the system repository, status-issues files for the coming ISO week each listed person's status issue in the repository they report in, due report_due_days after the reminder weekday; one team rollup issue per subsystem in its first component repository, which holds the team's Sprint Goals, mentioning the subsystem's owner, due team_rollup_due_days working days later; and one program rollup issue in the system repository, mentioning the program lead, due program_rollup_due_days working days after that. Each recurs as R7 does.
+With --control naming the system repository, status-issues files for the coming ISO week each listed person's status issue in the repository they report in, due report_due_days after the reminder weekday; one team rollup issue per subsystem in its scrum repository, which holds the team's Sprint Goals (the one its SRD's scrum_repository names, else its first component's, GH-2738), mentioning the subsystem's owner, due team_rollup_due_days working days later; and one program rollup issue in the system repository, mentioning the program lead, due program_rollup_due_days working days after that. Each recurs as R7 does.
 
 <!-- req: R16.2 -->
 ### R16.2

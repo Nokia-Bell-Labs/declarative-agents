@@ -73,8 +73,8 @@ Table 4: The vertical hierarchy.
 | Theme | Theme document (design.md theme) | system repository | months to years |
 | Initiative | Initiative document, the Product Goal; an objective document from before 04.0 is read as one (srd034) | system repository | several quarters |
 | Epic | Epic document, child of an initiative (design.md epic) | system repository for a cross-team epic, owned by the technical program manager; a team's repository, owned by its Product Owner, when every component it names is that team's | several sprints |
-| Feature (optional) | Feature document, child of an epic (design.md feature) | the team's repository | two to four sprints |
-| User Story | Story document: as a, I want, so that; points; rank; its own acceptance criteria; the SRD items it proves (design.md story) | the team's repository | one sprint |
+| Feature (optional) | Feature document, child of an epic (design.md feature) | the team's scrum repository | two to four sprints |
+| User Story | Story document: as a, I want, so that; points; rank; its own acceptance criteria; the SRD items it proves (design.md story) | the team's scrum repository | one sprint |
 | Sprint backlog item | The issue that implements a story, with an Implements line (srd007 R6.5) | tracker | days |
 | Task | A task inside the issue (srd001 R9.2) | tracker | hours to days |
 
@@ -92,6 +92,16 @@ lists; backlog check warns when a document strays outside its area
 (srd045 R6.5, R6.6). goals plan routes a release item to every team whose
 components its agreed epics name, unless the item's delivered_by names one
 (srd022 R3.1).
+
+A team's scrum repository is where it plans and journals: its features and
+stories, its Sprint Goal for each release, its sprint-end summaries, its
+weekly status reports, and its team rollup. By default it is the team's
+first component repository, so planning and code live together. A team
+whose work spans several code repositories can name a repository of its
+own for planning with `scrum_repository` in its subsystem SRD's context;
+its code repositories then hold only code, and an issue there implements a
+story in the scrum repository through its pinned `Implements:` link
+(design.md subsystem_srd).
 
 ## Links
 

@@ -66,15 +66,15 @@ type PlannedObjective struct {
 // item of the release (srd022 R2, R3.1, R3.2). It asks nothing.
 func MakePlan(t tracker.Tracker, s Sources) (Plan, error) {
 	p := Plan{System: s.System, Release: s.Release.Version, Tag: s.Release.Tag, Milestone: s.Release.Milestone, Pushes: pushes}
-	candidates := s.Subsystems.Repositories()
-	carriers, err := openCarriers(t, candidates, p.Release)
+	carriers, err := openCarriers(t, s.Subsystems.Repositories(), p.Release)
 	if err != nil {
 		return p, err
 	}
 	// The system repository is a component (srd001 R21), but it serves no
 	// Sprint Goal of its own: a team does. It stays a candidate only where
-	// an outcome's delivered_by names it (GH-20).
-	teams := slices.DeleteFunc(slices.Clone(candidates), func(r string) bool { return r == program.ProjectPath(s.System) })
+	// an outcome's delivered_by names it (GH-20). A team is offered once,
+	// by its scrum repository, where its Sprint Goal goes (GH-2738).
+	teams := slices.DeleteFunc(s.Subsystems.Teams(s.System).ScrumRepositories(), func(r string) bool { return r == program.ProjectPath(s.System) })
 	for _, id := range s.Release.Objectives {
 		doc, item, _ := strings.Cut(id, "#")
 		group, _, ok := strings.Cut(item, ".")
@@ -137,12 +137,18 @@ func hasItem(o objectives.Objective, id string) bool {
 }
 
 // recommendRepository is the repository of a delivered_by reference that a
-// subsystem SRD declares; empty when none does, so the person chooses.
+// subsystem SRD declares: a team's scrum repository, whichever of its
+// repositories the reference names (GH-2738), or the system's own; empty
+// when none does, so the person chooses.
 func recommendRepository(s Sources, o objectives.Objective) string {
+	teams := s.Subsystems.Teams(s.System)
 	for _, ref := range o.DeliveredBy {
 		r, err := links.Parse(ref)
 		if err != nil {
 			continue
+		}
+		if sub, ok := teams.SubsystemFor(r.Project); ok {
+			return sub.ScrumRepository()
 		}
 		if c, _, ok := s.ComponentFor(r.Project); ok {
 			return projectPath(c.Repository)
@@ -156,8 +162,9 @@ type route struct{ repo, reason, carried string }
 
 // areaRoutes recommends, for the release item id of document doc, every
 // team whose subsystem owns a component that the agreed epics under the
-// item name in architecture: one entry per team, so each team's Sprint
-// Goal serves it (srd022 R2.4; GH-2726). An epic is under the item when
+// item name in architecture: one entry per team, by its scrum repository,
+// so each team's one Sprint Goal serves it (srd022 R2.4; GH-2726,
+// GH-2738). An epic is under the item when
 // its parent is the item's document and it cites the item, or cites
 // nothing of that document. A component no team lists routes nowhere.
 func areaRoutes(s Sources, doc, id string) []route {
@@ -174,7 +181,7 @@ func areaRoutes(s Sources, doc, id string) []route {
 				continue
 			}
 			c, _ := sub.Component(name)
-			repo := projectPath(c.Repository)
+			repo := sub.ScrumRepository()
 			i := slices.IndexFunc(out, func(r route) bool { return r.repo == repo })
 			if i < 0 {
 				out = append(out, route{repo: repo})

@@ -377,3 +377,52 @@ func TestLatestProgramRollupReadsAsAnAggregate(t *testing.T) {
 		t.Fatalf("progress = %+v", a.Progress)
 	}
 }
+
+// A team that names a scrum repository apart from its code journals there:
+// the roster's member listed in its code repository reports in the scrum
+// repository, its team rollup is filed there, and a team collection reads
+// the scrum repository with the code (srd018; GH-2738).
+func TestATeamJournalsInItsScrumRepository(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, p trackertest.Program) {
+		const scrum = "g/po-2-scrum"
+		p.AddFile("g/system", "main", "docs/specs/software-requirements/srd001-system.md", subsystemSRD("srd001-system", "tpm", "g/system"))
+		p.AddFile("g/system", "main", "docs/specs/software-requirements/srd010-po-1.md", subsystemSRD("srd010-po-1", "po-1", po1))
+		p.AddFile("g/system", "main", "docs/specs/software-requirements/srd011-po-2.md",
+			[]byte(strings.Replace(string(subsystemSRD("srd011-po-2", "po-2", po2)), "- owner: po-2", "- owner: po-2\n- scrum_repository: https://gitlab.example.com/"+scrum, 1)))
+		doc, _ := configDocument(Config{Team: []Member{{"po-1", po1}, {"po-2", po2}}})
+		p.AddFile("g/system", "main", ControlFile, []byte(doc))
+		w42, _ := ParseWeek("2026-W42")
+		p.AddFile(scrum, "main", InPlaceReportPath(w42, "po-2"), []byte(Render("po-2", "2026-W42", nil, nil)))
+		f := p.Tracker()
+		cfg, err := LoadControl(f, "g/system", "main")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := cfg.Team[1]; got.Project != scrum {
+			t.Fatalf("po-2 reports in %s, want %s", got.Project, scrum)
+		}
+		if got := cfg.Team[0]; got.Project != po1 {
+			t.Errorf("po-1, whose team names no scrum repository, reports in %s", got.Project)
+		}
+		res, err := StatusIssuesInPlace(f, RollupInput{Config: cfg, System: "g/system", Ref: "main", Policy: program.Defaults(), Lead: "tpm", Now: monday})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, r := range res {
+			got = append(got, r.Kind+" "+r.User+" "+r.Project)
+		}
+		for _, want := range []string{"status po-2 " + scrum, "team-rollup po-2 " + scrum, "team-rollup po-1 " + po1} {
+			if !slices.Contains(got, want) {
+				t.Errorf("status-issues filed %v, lacking %q", got, want)
+			}
+		}
+		col, err := Collect(f, CollectInput{Config: cfg, System: "g/system", Ref: "main", Level: "team", Subsystem: "srd011-po-2", From: "2026-W42", To: "2026-W42"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(col.Repositories, []string{scrum, po2}) || len(col.Reports) != 1 || col.Reports[0].Repository != scrum {
+			t.Errorf("the team collection read %v and %+v", col.Repositories, col.Reports)
+		}
+	})
+}

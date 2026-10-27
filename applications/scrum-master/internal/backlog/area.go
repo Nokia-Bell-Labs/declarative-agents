@@ -111,8 +111,9 @@ func systemAreaChecks(docs []*hierarchy.Doc, teams program.Subsystems) []hierarc
 }
 
 // repositorySubsystem is the team subsystem whose SRD lists the
-// repository checked out at dir, by its origin's project path or, for an
-// origin that is a local path or none, by its name.
+// repository checked out at dir, as a component's or its scrum repository
+// (GH-2738), by its origin's project path or, for an origin that is a
+// local path or none, by its name.
 func repositorySubsystem(dir string, teams program.Subsystems) (program.Subsystem, bool) {
 	root := dir
 	if out, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output(); err == nil {
@@ -127,8 +128,8 @@ func repositorySubsystem(dir string, teams program.Subsystems) (program.Subsyste
 	}
 	name := filepath.Base(root)
 	for _, sub := range teams {
-		for _, c := range sub.Components {
-			if path.Base(program.ProjectPath(c.Repository)) == name {
+		for _, r := range sub.Repositories() {
+			if path.Base(r) == name {
 				return sub, true
 			}
 		}

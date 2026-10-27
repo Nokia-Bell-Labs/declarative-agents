@@ -117,7 +117,7 @@ The progress of a feature, epic, or initiative is the story points of its done d
 <!-- req: R3.4 -->
 ### R3.4
 
-Roll-up reads the documents of the repository it runs in, the documents their Parent links name by pinned URL, and the descendants in every team repository the system repository's subsystem SRDs name, the program's registry (GH-2726): the stories and features there whose Parent link pins a document in this one, counted in progress with each done from its own repository's sprint-end summaries. It reads a team repository through the tracker, the host's repository files on its default branch, else the checkout beside this one; the system SRD, whose components live in the system repository, names no team. A team repository it cannot read is named with the reason, never skipped silently. With no system repository to read the registry from, roll-up reads the team repositories checked out beside this one.
+Roll-up reads the documents of the repository it runs in, the documents their Parent links name by pinned URL, and the descendants in every team repository the system repository's subsystem SRDs name, the program's registry (GH-2726): the stories and features there whose Parent link pins a document in this one, counted in progress with each done from its own repository's sprint-end summaries. A team whose SRD names a scrum repository plans there, so roll-up reads its documents from that repository alone, named for it; a team that names none plans in its component repositories (GH-2738). It reads a team repository through the tracker, the host's repository files on its default branch, else the checkout beside this one; the system SRD, whose components live in the system repository, names no team. A team repository it cannot read is named with the reason, never skipped silently. With no system repository to read the registry from, roll-up reads the team repositories checked out beside this one.
 
 <!-- req: R4 -->
 ## R4 - Stories
@@ -181,7 +181,7 @@ A subsystem repository holding hierarchy documents is refused by scrum-master do
 <!-- req: R6.5 -->
 ### R6.5
 
-A scrum owns an area, a subsystem and the components its SRD lists, while planned work is a separate tree (GH-2726). backlog check warns for a story or feature in a team's repository that names in architecture a component the subsystem owning the repository does not list, naming the subsystem that lists it, whose work it is. The repository's subsystem is the team SRD listing it, by its origin's project path, else by its name; the registry is the SRDs of the system repository beside it, as R6.4 finds it, so with none there is nothing to check.
+A scrum owns an area, a subsystem and the components its SRD lists, while planned work is a separate tree (GH-2726). backlog check warns for a story or feature in a team's repository that names in architecture a component the subsystem owning the repository does not list, naming the subsystem that lists it, whose work it is. The repository's subsystem is the team SRD listing it, as a component's repository or its scrum repository, by its origin's project path, else by its name; the registry is the SRDs of the system repository beside it, as R6.4 finds it, so with none there is nothing to check.
 
 <!-- req: R6.6 -->
 ### R6.6

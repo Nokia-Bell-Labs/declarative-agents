@@ -8,10 +8,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
 
@@ -127,7 +129,26 @@ func LoadControl(t tracker.Forge, system, ref string) (Config, error) {
 		return c, fmt.Errorf("%s: %w", ControlFile, err)
 	}
 	c.System = system
-	return c, nil
+	teams, err := program.Teams(t, system, ref)
+	if err != nil {
+		return c, err
+	}
+	return c.InScrums(teams), nil
+}
+
+// InScrums moves each person the roster lists in a code repository of a
+// team whose subsystem SRD names a scrum repository to that scrum
+// repository: a team's journal, its status reports beside its Sprint
+// Goals and sprint-end summaries, lives where it plans (GH-2738).
+func (c Config) InScrums(teams program.Subsystems) Config {
+	team := slices.Clone(c.Team)
+	for i, m := range team {
+		if _, sub, ok := teams.ComponentFor(m.Project); ok && sub.Scrum != "" {
+			team[i].Project = sub.ScrumRepository()
+		}
+	}
+	c.Team = team
+	return c
 }
 
 // Title is the status issue's title for a week.
