@@ -62,7 +62,7 @@ Open Sprint Goal issues (and objective issues, read as Sprint Goals) already in 
 <!-- req: R2.4 -->
 ### R2.4
 
-The system repository's agreed epics at the release tag, for the area each item falls in (GH-2726): an epic is under an item when its parent is the item's initiative document and its cites name the item, or name nothing of that document; the components its architecture names belong to the team subsystems whose SRDs list them. The system SRD names no team.
+The system repository's agreed epics at the release tag, for the area each item falls in (GH-2726): an epic is under an item when its parent is the item's initiative document and its cites name the item (an epic citing nothing of that document routes no item, GH-2772); the components its architecture names belong to the team subsystems whose SRDs list them. The system SRD names no team.
 
 <!-- req: R3 -->
 ## R3 - Asks only what is not computed

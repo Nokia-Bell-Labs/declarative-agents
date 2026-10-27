@@ -164,9 +164,9 @@ type route struct{ repo, reason, carried string }
 // team whose subsystem owns a component that the agreed epics under the
 // item name in architecture: one entry per team, by its scrum repository,
 // so each team's one Sprint Goal serves it (srd022 R2.4; GH-2726,
-// GH-2738). An epic is under the item when
-// its parent is the item's document and it cites the item, or cites
-// nothing of that document. A component no team lists routes nowhere.
+// GH-2738). An epic is under the item when its parent is the item's
+// document and it cites the item (GH-2772). A component no team lists
+// routes nowhere.
 func areaRoutes(s Sources, doc, id string) []route {
 	teams := s.Subsystems.Teams(s.System)
 	var out []route
@@ -207,20 +207,19 @@ func docID(ref string) string {
 }
 
 // citesItem reports whether an epic's cites name the release item id of
-// doc, or name nothing of doc, so the epic serves every item of it.
+// doc. An epic that cites nothing of doc routes no item of it: an
+// initiative's later epics would otherwise claim every item (GH-2772).
 func citesItem(cites []string, doc, id string) bool {
 	_, item, _ := strings.Cut(id, "#")
-	named := false
 	for _, c := range cites {
 		if docID(c) != doc {
 			continue
 		}
-		named = true
 		if _, frag, _ := strings.Cut(c, "#"); frag == item {
 			return true
 		}
 	}
-	return !named
+	return false
 }
 
 // recommendEnvironment is the environment of the first acceptance

@@ -612,3 +612,22 @@ func TestPlanRoutesATeamToItsScrumRepository(t *testing.T) {
 		}
 	})
 }
+
+// An epic that cites nothing of an initiative routes none of its items,
+// so an item no epic cites is the person's to route (GH-2772).
+func TestAnEpicCitingNothingRoutesNoItem(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, tp trackertest.Program) {
+		tp.AddFile(system, "v0.1.0", "docs/specs/software-requirements/srd011-scoring.md", []byte(strings.NewReplacer(
+			"srd010-delivery", "srd011-scoring", "| fleet |", "| scoring |", "/delivery/fleet", "/delivery/scoring").Replace(string(read(t, "../../testdata/system/srd010-delivery.md")))))
+		tp.AddFile(system, "v0.1.0", "docs/specs/epics/ep009-later.md", []byte("---\nid: ep009-later\ntitle: Later\nstatus: agreed\n---\n\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: technical program manager\n- parent: obj001-reliable-agents\n- architecture:\n  1. scoring\n"))
+		f, s := fixture(t, tp)
+		p, err := MakePlan(f, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r2 := p.Objectives[len(p.Objectives)-1]
+		if r2.Items[0] != "R2.1" || r2.Repository != "" || !strings.Contains(r2.RepositoryReason, "choose one of the candidates") {
+			t.Fatalf("R2.1 = %+v, want no recommendation", r2)
+		}
+	})
+}

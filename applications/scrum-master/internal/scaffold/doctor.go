@@ -345,14 +345,19 @@ func Doctor(o DoctorOptions) (DoctorResult, error) {
 		}
 	}
 	r.Repair = repair(o.Dir, o.DryRun)
+	builtAgainst := ""
 	if b, err := os.ReadFile(filepath.Join(o.Dir, install.ManifestFile)); err == nil {
 		var m install.Manifest
 		if json.Unmarshal(b, &m) == nil {
-			r.Vendored = m.Release
+			r.Vendored, builtAgainst = m.Release, m.Runtime
 		}
 	}
 	r.Pinned, _ = spectool.Pinned(o.Dir)
-	if r.Vendored != "" && r.Pinned != "" && r.Vendored != r.Pinned && version.IsRelease(r.Vendored) && version.IsRelease(r.Pinned) {
+	// A corpus pins the runtime its scrum-master was built against, which
+	// is the vendored release only when both ship from one repository
+	// (GH-2755, GH-2771).
+	accepted := []string{r.Vendored, builtAgainst, runtime.DefaultPin()}
+	if r.Vendored != "" && r.Pinned != "" && !slices.Contains(accepted, r.Pinned) && version.IsRelease(r.Vendored) && version.IsRelease(r.Pinned) {
 		r.PinDrift = fmt.Sprintf("pin %s in %s, but %s is vendored; run the upgrade profile to move the pin and repair the documents to its format", r.Pinned, spectool.PinsFile, r.Vendored)
 	}
 	if r.Credentials, err = profileCredentials(); err != nil {
