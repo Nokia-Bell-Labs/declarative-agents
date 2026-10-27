@@ -155,6 +155,7 @@ docs/road-map.md.
 | [labels](specs/config-formats/labels.md) | docs/specs/config-formats/labels.md | Label schema |
 | [person-config](specs/config-formats/person-config.md) | docs/specs/config-formats/person-config.md | Person configuration |
 | [policy](specs/config-formats/policy.md) | docs/specs/config-formats/policy.md | Process policy |
+| [program](specs/config-formats/program.md) | docs/specs/config-formats/program.md | Program lineage |
 | [states](specs/config-formats/states.md) | docs/specs/config-formats/states.md | Issue states |
 | [trackers](specs/config-formats/trackers.md) | docs/specs/config-formats/trackers.md | Tracking systems |
 

@@ -119,9 +119,18 @@ func containsDir(dirs []string, d string) bool {
 // sprints, the plan's tree, every theme to every story, so search reaches
 // each, the program's scrums, and its repositories on the forge. Links are
 // site-rooted, the routes the shell serves.
-func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams []timeline.Team) string {
+func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams []timeline.Team, parent *timeline.ProgramRef) string {
 	var b strings.Builder
 	b.WriteString(generated("hierarchy", "the timeline facts and the checkouts beside the reports checkout"))
+	// A program that is a team of a larger one says so first, linking the
+	// parent's site (GH-2740).
+	if parent != nil {
+		if parent.Site != "" {
+			fmt.Fprintf(&b, "- [%sPart of %s](%s)\n", `<span class="kb kb-program" title="Program">P</span> `, parent.Name, parent.Site)
+		} else {
+			fmt.Fprintf(&b, "- %sPart of %s\n", `<span class="kb kb-program" title="Program">P</span> `, parent.Name)
+		}
+	}
 	b.WriteString("- [Overview](/overview.md)\n- [About](/index.md)\n")
 	b.WriteString("- Program\n  - [Status](/status/index.md)\n  - [Road map](/status/road-map.md)\n  - [Requirement history](/history/index.md)\n  - [Corpus](/corpus/index.md)\n")
 	// The timeline opens into the program's sprints, each with its page
@@ -152,7 +161,11 @@ func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams [
 	if len(teams) > 0 {
 		b.WriteString("- [Scrums](/" + ScrumsDir + "/index.md)\n")
 		for _, t := range teams {
-			fmt.Fprintf(&b, "  - [%s%s](/%s/%s.md %q)\n", `<span class="kb kb-scrum" title="Scrum">S</span> `, t.Name, ScrumsDir, t.Name, t.Name)
+			chip := `<span class="kb kb-scrum" title="Scrum">S</span> `
+			if t.Program {
+				chip = `<span class="kb kb-program" title="Program">P</span> `
+			}
+			fmt.Fprintf(&b, "  - [%s%s](/%s/%s.md %q)\n", chip, t.Name, ScrumsDir, t.Name, t.Name)
 		}
 	}
 	if len(repos) > 0 {

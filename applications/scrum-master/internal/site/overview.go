@@ -45,6 +45,14 @@ func OverviewPage(dir, name string) ([]byte, error) {
 	var page strings.Builder
 	page.WriteString(generated("overview", "the timeline facts"))
 	fmt.Fprintf(&page, "# %s\n\n", name)
+	// A program that is a team of a larger one names it first (GH-2740).
+	if p := f.Parent; p != nil {
+		if p.Site != "" {
+			fmt.Fprintf(&page, "%s Part of [%s](%s), whose plan this program serves.\n\n", programBadge, p.Name, p.Site)
+		} else {
+			fmt.Fprintf(&page, "%s Part of %s, whose plan this program serves.\n\n", programBadge, p.Name)
+		}
+	}
 	fmt.Fprintf(&page, "As of %s. [Status](status/index.md) · [Road map](status/road-map.md) · [Plan](%s/index.md) · [Scrums](scrums/index.md) · [Timeline](timeline/index.md) · [Requirement history](history/index.md)\n\n", f.Today, HierarchyDir)
 	page.WriteString("## Timeline\n\n")
 	page.WriteString(embed("timeline", "The program's interactive timeline") + "\n")

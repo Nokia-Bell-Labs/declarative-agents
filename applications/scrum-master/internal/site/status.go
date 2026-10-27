@@ -99,6 +99,13 @@ func StatusPages(in StatusInput) (pages, data map[string][]byte, notes []string,
 	// The team checkouts beside the system's add their stories to the
 	// documents they serve, as backlog status counts them (GH-109).
 	teams, _ := backlog.TeamProgress(in.Sources.Teams, docs)
+	// A sub-program adds the points its site publishes for the documents
+	// it serves this plan with, as the plan's pages count them (GH-2740).
+	for id, p := range servedProgress(in.Sources.SubPrograms, docs) {
+		t := teams[id]
+		t.Kind, t.Done, t.Total = p.Kind, t.Done+p.Done, t.Total+p.Total
+		teams[id] = t
+	}
 	for i, p := range progress {
 		if t, ok := teams[p.ID]; ok {
 			progress[i].Done += t.Done
