@@ -61,13 +61,8 @@ func Week(t tracker.Tracker, project, user string, now time.Time, teams []string
 		return r, err
 	}
 	own := append(slices.Clone(open), closed...)
-	bound := start
-	switch {
-	case slices.ContainsFunc(own, func(i tracker.Issue) bool { return sprintgoal.Is(i.Description) }):
-		bound = periodStart(start, own, sprintgoal.Is)
-	case len(own) > 0:
-		bound = periodStart(start, own, nil)
-	default:
+	bound, ok := ownStart(start, own)
+	if !ok {
 		var goals []tracker.Issue
 		for _, team := range teams {
 			for _, q := range []tracker.IssueQuery{{State: "opened"}, {State: "closed", UpdatedAfter: r.Since}} {
@@ -126,6 +121,34 @@ func periodStart(start time.Time, issues []tracker.Issue, counts func(string) bo
 		start = first
 	}
 	return start.UTC()
+}
+
+// ownStart is a repository's period start from its own open and recently
+// closed issues: its earliest Sprint Goal's creation, else its earliest
+// issue's, no earlier than start; false when it holds no issue.
+func ownStart(start time.Time, own []tracker.Issue) (time.Time, bool) {
+	switch {
+	case slices.ContainsFunc(own, func(i tracker.Issue) bool { return sprintgoal.Is(i.Description) }):
+		return periodStart(start, own, sprintgoal.Is), true
+	case len(own) > 0:
+		return periodStart(start, own, nil), true
+	}
+	return start.UTC(), false
+}
+
+// repositoryStart is ownStart for project, from its open issues and those
+// closed since start (srd018 R8.1; GH-2776).
+func repositoryStart(t tracker.Tracker, project string, start time.Time) (time.Time, error) {
+	var own []tracker.Issue
+	for _, q := range []tracker.IssueQuery{{State: "opened"}, {State: "closed", UpdatedAfter: start.Format("2006-01-02")}} {
+		issues, err := t.ListIssues(project, q)
+		if err != nil {
+			return start, err
+		}
+		own = append(own, issues...)
+	}
+	bound, _ := ownStart(start, own)
+	return bound, nil
 }
 
 func sprintGoalOf(i tracker.Issue) SprintGoal {

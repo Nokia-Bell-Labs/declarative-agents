@@ -362,12 +362,23 @@ func Aggregate(t tracker.Tracker, in AggregateInput) (Aggregation, error) {
 			}
 		}
 	}
-	since := periodStart(from, reported, sprintgoal.Is).Format(time.RFC3339)
+	since := periodStart(from, reported, sprintgoal.Is)
 	if in.Collection != nil {
 		projects = slices.Clone(in.Collection.Repositories)
 	}
 	for _, project := range projects {
-		merged, err := t.Merges(project, "", since)
+		// Each repository's period starts where status starts it, at its
+		// own first Sprint Goal or issue, so an earlier run's merges in
+		// the same history are not this period's, whether or not any
+		// report was read (GH-2776).
+		own, err := repositoryStart(t, project, from)
+		if err != nil {
+			return a, err
+		}
+		if own.Before(since) {
+			own = since
+		}
+		merged, err := t.Merges(project, "", own.Format(time.RFC3339))
 		if err != nil {
 			return a, err
 		}
