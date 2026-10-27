@@ -186,3 +186,67 @@ func TestOnboardFilesNoSecondRegistration(t *testing.T) {
 		t.Fatalf("%d registrations, want 1", len(issues))
 	}
 }
+
+// scrumJoining is the Platform scrum's planning repository joining a
+// program whose system has no SRD for it yet.
+func scrumJoining(dir string) OnboardOptions {
+	o := joining(dir)
+	o.Subsystem, o.Repository, o.Role, o.Owner = "srd002-platform", "https://git.example.invalid/g/platform/tpm", RoleScrum, "Product Owner, platform"
+	return o
+}
+
+// A scrum repository joining a subsystem with no SRD files one issue that
+// creates the SRD, naming the repository as its scrum repository and
+// declaring its component there until a code repository takes it, and a
+// second run files nothing (srd043 R2; GH-2745).
+func TestOnboardAScrumRepositoryCreatesItsSRD(t *testing.T) {
+	f := system(t)
+	f.AddFile("g/system", "main", systemSRDPath, []byte(strings.Replace(subsystemSRD, "srd010-ingest", "srd001-system", -1)+
+		"| system | https://git.example.invalid/g/system | / |\n"))
+	r, err := Onboard(f, scrumJoining(repo(t)))
+	if err != nil || !r.Registration.Filed {
+		t.Fatalf("registration: %+v, %v", r.Registration, err)
+	}
+	issues, _ := f.ListIssues("g/system", tracker.IssueQuery{State: "opened"})
+	if len(issues) != 1 {
+		t.Fatalf("%d issues, want 1", len(issues))
+	}
+	i := issues[0]
+	for _, want := range []string{"Create srd002-platform with g/platform/tpm", "id: srd002-platform", "- owner: Product Owner, platform",
+		"- scrum_repository: https://git.example.invalid/g/platform/tpm", "| platform | https://git.example.invalid/g/platform/tpm | / |"} {
+		if !strings.Contains(i.Title+"\n"+i.Description, want) {
+			t.Errorf("the registration lacks %q:\n%s\n%s", want, i.Title, i.Description)
+		}
+	}
+	if strings.Contains(i.Description, "add the row") || slices.Contains(i.Labels, "needs-triage") {
+		t.Errorf("the registration edits a missing SRD or failed admission: %+v", i)
+	}
+	again, err := Onboard(f, scrumJoining(repo(t)))
+	if err != nil || again.Registration.Filed || !strings.Contains(again.Registration.Reason, "already asks") {
+		t.Fatalf("second onboard: %+v, %v", again.Registration, err)
+	}
+}
+
+// A scrum repository already named as a subsystem's scrum_repository files
+// nothing and names the SRD; one joining an existing SRD asks to set its
+// scrum_repository, not to add a component row (GH-2745).
+func TestOnboardAScrumRepositoryOfAnExistingSRD(t *testing.T) {
+	f := system(t)
+	f.AddFile("g/system", "main", "docs/specs/software-requirements/srd002-platform.md", []byte(strings.NewReplacer("srd010-ingest", "srd002-platform",
+		"- owner: Product Owner, ingest", "- owner: Product Owner, platform\n- scrum_repository: https://git.example.invalid/g/platform/tpm",
+		"| ingest | https://git.example.invalid/g/ingest | / |", "| platform | https://git.example.invalid/g/platform/tpm | / |").Replace(subsystemSRD)))
+	r, err := Onboard(f, scrumJoining(repo(t)))
+	if err != nil || r.Registration.Filed || !strings.Contains(r.Registration.Reason, "srd002-platform already names g/platform/tpm as its scrum repository") {
+		t.Fatalf("a named scrum repository: %+v, %v", r.Registration, err)
+	}
+	o := scrumJoining(repo(t))
+	o.Subsystem = "srd010-ingest"
+	o.Repository = "https://git.example.invalid/g/ingest-scrum"
+	if r, err = Onboard(f, o); err != nil || !r.Registration.Filed {
+		t.Fatalf("a scrum repository for ingest: %+v, %v", r.Registration, err)
+	}
+	issues, _ := f.ListIssues("g/system", tracker.IssueQuery{State: "opened"})
+	if len(issues) != 1 || !strings.Contains(issues[0].Description, "add the context item scrum_repository: https://git.example.invalid/g/ingest-scrum") || strings.Contains(issues[0].Description, "add the row") {
+		t.Fatalf("registration for an existing SRD: %+v", issues)
+	}
+}

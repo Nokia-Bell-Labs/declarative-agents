@@ -41,6 +41,19 @@ tools:
         type: string
         description: The component's path in the repository.
         flag: --path
+      role:
+        type: string
+        description: What the repository is to its subsystem, component (a component's repository) or scrum (the team's scrum repository, where it plans and journals).
+        flag: --role
+        default: component
+      owner:
+        type: string
+        description: The subsystem's owner, for a subsystem SRD the registration asks to create.
+        flag: --owner
+      components:
+        type: string
+        description: The subsystem's components, comma-separated, for a subsystem SRD the registration asks to create; empty is the subsystem's short name.
+        flag: --component
   signature:
     emits: [ToolDone, ToolFailed, CommandError]
   output:
