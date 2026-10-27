@@ -95,6 +95,26 @@ func mainOf(dir string) string {
 	return dir
 }
 
+// pathCheckout is the checkout a filesystem path names: an absolute path,
+// or one relative to dir, that holds a git checkout; never a project path.
+func pathCheckout(dir, project string) (string, bool) {
+	if !filepath.IsAbs(project) && !strings.HasPrefix(project, ".") {
+		return "", false
+	}
+	p := project
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(dir, p)
+	}
+	if _, err := os.Stat(p); err != nil {
+		return "", false
+	}
+	root := toplevel(p)
+	if !isCheckout(root) {
+		return "", false
+	}
+	return root, true
+}
+
 // Levels are the folders whose checkouts are searched from the checkout
 // at dir, nearest first: the folder holding it, then the folder holding
 // each folder above it, up to, and not including, the user's home folder,
@@ -130,6 +150,12 @@ func Levels(dir string) []string {
 // named for the project whose origin is another is never taken for it
 // (GH-2744).
 func Locate(dir, project string) (string, bool) {
+	// A project named by a checkout's path is that checkout, whatever its
+	// origin: words document --system as the system repository's path
+	// (GH-2769).
+	if p, ok := pathCheckout(dir, project); ok {
+		return p, true
+	}
 	root := toplevel(dir)
 	if Of(root, project) {
 		return root, true

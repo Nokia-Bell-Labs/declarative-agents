@@ -92,3 +92,17 @@ func TestARefusalNamesTheProjectByOrigin(t *testing.T) {
 		t.Fatalf("refusal = %v, want it to name an-gc-group/elsewhere", err)
 	}
 }
+
+// A word given the system as a worktree's path, as plan write's --system
+// is documented, reads the policy there (GH-2769).
+func TestThePolicyReadsFromASystemPath(t *testing.T) {
+	root := filepath.Join(home(t), "GITLABS", "an-gc-group")
+	system := filepath.Join(root, "tpm")
+	checkoutWith(t, system, map[string]string{checkout.TrackersFile: "bd\n", PolicyFile: approvalPolicy})
+	beadstest.Git(t, system, "remote", "add", "origin", "https://gitlab.example.com/an-gc-group/tpm.git")
+	wt := worktree(t, system, "4-plan-release-1")
+	p, err := LoadPolicy(codeFiles{fake.New(), &checkout.Code{Dir: wt}}, wt, "main")
+	if err != nil || !p.RequireApproval {
+		t.Fatalf("the policy at the system's path = %+v, %v", p, err)
+	}
+}
