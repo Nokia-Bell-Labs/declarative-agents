@@ -145,7 +145,7 @@ func InPlaceStatusBody(cfg Config, user, project string, weekStart, due time.Tim
 ## Requirements
 
 1. Work this issue with the status-report skill in %[5]s: it gathers your week (reports week), what you committed to last week (reports previous), and where the report goes (reports path), asks you only what the tracker cannot know, and writes the report once you approve it.
-2. Without the skill: take this issue with the pop skill, write %[6]s in its worktree in the report format (config format report), with its Work, Blockers, Impact, and Next, and check it with the reports-validate skill.
+2. Without the skill: take this issue with the pop skill, write %[6]s in its worktree in the report format: front matter, then the sections Work, Blockers, Impact, and Next, each as the reports-validate skill checks it, and fix what that skill names.
 3. Commit and push; when the program's policy requires approval, ask a reviewer to approve it with the approve skill. Merge it with the merge skill; the merge closes this issue.
 
 ## Acceptance Criteria

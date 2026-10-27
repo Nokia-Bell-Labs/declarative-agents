@@ -341,7 +341,7 @@ func TestRollupFormatExampleValidates(t *testing.T) {
 // the deck template, and no reports.md (GH-2725).
 func TestInitWithoutARosterLaysDownTheSiteOnly(t *testing.T) {
 	dir := t.TempDir()
-	res, err := Init(dir, Config{}, monday, false)
+	res, err := Init(dir, Config{}, monday, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,6 +357,22 @@ func TestInitWithoutARosterLaysDownTheSiteOnly(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(filepath.Join(dir, "README.md")); !strings.Contains(string(b), "control/reports.md") {
 		t.Errorf("the README does not say where reports live:\n%s", b)
+	}
+	// A roster naming reporters keeps it the site's home only, though init
+	// is given members and an earlier reports.md is here (GH-2778).
+	moved := t.TempDir()
+	os.WriteFile(filepath.Join(moved, ConfigFile), []byte("---\nteam: []\n---\n"), 0o644)
+	res, err = Init(moved, Config{Team: []Member{{"po-1", po1}}}, monday, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range res {
+		if p := filepath.ToSlash(r.Path); strings.HasPrefix(p, "reports/") || strings.HasPrefix(p, "schema/") || p == ConfigFile {
+			t.Errorf("init in place laid down %s", p)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(moved, "README.md")); !strings.Contains(string(b), "Weekly\nreports and rollups are not here") {
+		t.Errorf("the in-place README:\n%s", b)
 	}
 }
 

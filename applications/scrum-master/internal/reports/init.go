@@ -91,14 +91,14 @@ and corpus here; run it to fill this site. This page is yours to edit.
 // Init scaffolds the repository the program's site lives in, in a local
 // checkout (srd018 R1): its README, the site's front page, and a deck
 // template. A program whose roster is in the system repository writes its
-// reports where the work is, so that is all (GH-2725). A central reports
-// repository, one listing members or already holding reports.md, also gets
-// the configuration, the current quarter's reports directory, the report
-// schema, and a summaries directory, as before. It never overwrites a file
-// that exists; a dry run writes nothing.
-func Init(dir string, cfg Config, now time.Time, dryRun bool) ([]InitResult, error) {
+// reports where the work is, so that is all (GH-2725): inPlace, its roster
+// naming a reporter, or no member given and no reports.md here. A central
+// reports repository also gets the configuration, the current quarter's
+// reports directory, the report schema, and a summaries directory, as
+// before. It never overwrites a file that exists; a dry run writes nothing.
+func Init(dir string, cfg Config, now time.Time, inPlace, dryRun bool) ([]InitResult, error) {
 	_, err := os.Stat(filepath.Join(dir, ConfigFile))
-	if len(cfg.Team) == 0 && errors.Is(err, fs.ErrNotExist) {
+	if inPlace || (len(cfg.Team) == 0 && errors.Is(err, fs.ErrNotExist)) {
 		return write(dir, []struct{ path, content string }{
 			{filepath.Join("deck", "template.md"), deckTemplate},
 			{"README.md", siteReadme},
@@ -110,15 +110,15 @@ func Init(dir string, cfg Config, now time.Time, dryRun bool) ([]InitResult, err
 	if err != nil {
 		return nil, err
 	}
-	example := Render("po-1", ISOWeek(now), []Entry{
+	example := RenderWith("po-1", ISOWeek(now), []Entry{
 		{"sprint_goal": "group/product-owners/po-1#4", "component": "grader", "status": "at-risk", "complete": "no", "problems": "the scoring API returns stale results"},
 	}, []Entry{
 		{"blocker": "stale results from the scoring API", "component": "grader", "since": now.Format("2006-01-02"), "waiting-on": "scoring-api"},
-	})
+	}, []string{"the grader scores the first task end to end"}, []string{"score a second task once the scoring API is fixed"})
 	files := []struct{ path, content string }{
 		{ConfigFile, string(conf)},
 		{filepath.Join("reports", Quarter(now), ".gitkeep"), ""},
-		{filepath.Join("schema", "report.md"), example + "\n<!-- The report format (config format report): one file per person per ISO week at\nreports/<YYYY-Qn>/<YYYY-Www>-<username>.md; the reports-validate skill checks it. -->\n"},
+		{filepath.Join("schema", "report.md"), example + "\n<!-- The report format (config format report): one file per person per ISO week at\nreports/<YYYY-Qn>/<YYYY-Www>-<username>.md, with the sections Work, Blockers, Impact, and Next; the reports-validate\nskill checks it, and refuses a report written in place, under status/, without Impact or Next (GH-2778). -->\n"},
 		{filepath.Join("summaries", ".gitkeep"), ""},
 		{filepath.Join("deck", "template.md"), deckTemplate},
 		{"README.md", readme},
