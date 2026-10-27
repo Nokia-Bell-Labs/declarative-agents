@@ -4,6 +4,7 @@ package reports
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -120,6 +121,54 @@ func TestExplainNamesReportsTheOtherSourceHolds(t *testing.T) {
 		s.Explain(f, &a, in)
 		if !strings.Contains(a.Source, "hold 1: move them into place") {
 			t.Fatalf("nothing in place, one report central: source %q, want it named", a.Source)
+		}
+	})
+}
+
+// aggregate without --control finds the system repository from a reports
+// checkout that is the site's home only, or from the system checkout, as
+// the other words do, and a central checkout's reports.md still names it
+// first (GH-2791).
+func TestAggregateFindsTheSystemWithoutControl(t *testing.T) {
+	root := t.TempDir()
+	system, site := filepath.Join(root, "system"), filepath.Join(root, "reports")
+	os.MkdirAll(filepath.Join(system, "control"), 0o755)
+	os.WriteFile(filepath.Join(system, "control", "trackers.md"), []byte("---\nid: trackers\ntitle: Tracking systems\n---\n\n<!-- field: version -->\n## Version\n\n1\n\n<!-- field: default -->\n## Default\n\n<!-- field: system -->\n### System\n\nbd\n"), 0o644)
+	os.MkdirAll(filepath.Join(site, "site"), 0o755)
+	for dir, origin := range map[string]string{system: "https://gitlab.example.com/g/system.git", site: "https://gitlab.example.com/g/reports.git"} {
+		for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"remote", "add", "origin", origin}} {
+			if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+				t.Fatalf("git %v: %v: %s", args, err, out)
+			}
+		}
+	}
+	for _, dir := range []string{site, system} {
+		if got, err := aggregateSystem("", dir); err != nil || got != "g/system" {
+			t.Errorf("aggregate in %s without --control = %q, %v; want g/system", filepath.Base(dir), got, err)
+		}
+	}
+	if got, _ := aggregateSystem("g/other", site); got != "g/other" {
+		t.Errorf("--control g/other = %q", got)
+	}
+	central := centralCheckout(t)
+	if got, _ := aggregateSystem("", central); got != "g/system" {
+		t.Errorf("a central checkout naming g/system = %q", got)
+	}
+}
+
+// A reports checkout without reports.md, given while the roster names
+// reporters, is named as not read (GH-2791).
+func TestChooseSourceNamesACheckoutItDoesNotRead(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, p trackertest.Program) {
+		inPlaceProgram(p)
+		f := p.Tracker()
+		site := t.TempDir()
+		s, err := ChooseSource(f, "g/system", "main", site)
+		if err != nil || !s.InPlace || !strings.Contains(s.Reason, site+" holds no reports.md, so it is no central reports checkout and is not read") {
+			t.Fatalf("a site-only checkout beside a roster = %+v, %v", s, err)
+		}
+		if s, _ = ChooseSource(f, "g/system", "main", ""); strings.Contains(s.Reason, "not read") {
+			t.Errorf("no checkout given: %q names one", s.Reason)
 		}
 	})
 }
