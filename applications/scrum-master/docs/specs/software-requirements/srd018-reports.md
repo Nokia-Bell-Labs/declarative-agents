@@ -277,7 +277,7 @@ validate checks every report and rollup under status/, a rollup against the roll
 <!-- req: R16.1 -->
 ### R16.1
 
-With --control naming the system repository, status-issues files for the coming ISO week each listed person's status issue in the repository they report in, due report_due_days after the reminder weekday; one team rollup issue per subsystem in its scrum repository, none for a sub-program, whose program rollup stands for it and whose result says so (GH-2742), which holds the team's Sprint Goals (the one its SRD's scrum_repository names, else its first component's, GH-2738), mentioning the subsystem's owner, due team_rollup_due_days working days later; and one program rollup issue in the system repository, mentioning the program lead, due program_rollup_due_days working days after that. Each recurs as R7 does.
+With --control naming the system repository, status-issues files for the coming ISO week each listed person's status issue in the repository they report in, due report_due_days after the reminder weekday; one team rollup issue per subsystem in its scrum repository, none for a sub-program, whose program rollup stands for it and whose result says so (GH-2742), and none for a subsystem no listed person reports in, which has nothing to roll up and whose result says so (GH-2779), which holds the team's Sprint Goals (the one its SRD's scrum_repository names, else its first component's, GH-2738), mentioning the subsystem's owner, due team_rollup_due_days working days later; and one program rollup issue in the system repository, mentioning the program lead, due program_rollup_due_days working days after that. Each recurs as R7 does.
 
 <!-- req: R16.2 -->
 ### R16.2

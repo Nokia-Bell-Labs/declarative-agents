@@ -525,3 +525,29 @@ func TestASubProgramsRollupIsItsTeamRollup(t *testing.T) {
 		}
 	})
 }
+
+// A team no person on the roster reports in is asked for no rollup, and
+// status-issues says why (GH-2779).
+func TestNoRollupForATeamWithoutReporters(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, p trackertest.Program) {
+		cfg := inPlaceProgram(p)
+		p.AddFile("g/system", "main", "docs/specs/software-requirements/srd012-po-3.md", subsystemSRD("srd012-po-3", "po-3", "g/product-owners/po-3"))
+		f := p.Tracker()
+		res, err := StatusIssuesInPlace(f, RollupInput{Config: cfg, System: "g/system", Ref: "main", Policy: program.Defaults(), Lead: "tpm", Now: monday})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var po3 []StatusResult
+		for _, r := range res {
+			if r.Kind == "team-rollup" && r.User == "po-3" {
+				po3 = append(po3, r)
+			}
+		}
+		if len(po3) != 1 || po3[0].Action != "no-reporters" || po3[0].IID != 0 || !strings.Contains(strings.Join(po3[0].Reasons, " "), "nothing to roll up") {
+			t.Fatalf("po-3's team rollup = %+v; want none filed, saying no one reports there", po3)
+		}
+		if issues, _ := f.ListIssues("g/product-owners/po-3", tracker.IssueQuery{State: "opened"}); len(issues) != 0 {
+			t.Errorf("issues filed for a team without reporters: %+v", issues)
+		}
+	})
+}
