@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -144,13 +145,14 @@ func init() {
 		},
 	})
 
-	var ph struct{ user, level, date string }
+	var ph struct{ user, level, date, dir string }
 	cli.Default.Register(&cli.Command{
-		Group: "reports", Name: "path", Summary: "where this week's report or rollup goes, and its branch",
+		Group: "reports", Name: "path", Summary: "where this week's report or rollup goes, as its status issue names it",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&ph.user, "user", "", "the person whose report it is (required without --level)")
 			fs.StringVar(&ph.level, "level", "", "a rollup's level instead: program, or the team's subsystem SRD id")
 			fs.StringVar(&ph.date, "date", "", "a day YYYY-MM-DD of the week; empty is today")
+			fs.StringVar(&ph.dir, "dir", ".", "the checkout the report is written in: a central reports repository's, holding reports.md, names its path and branch")
 		},
 		Run: func(ctx *cli.Context) error {
 			if ph.user == "" && ph.level == "" {
@@ -160,7 +162,11 @@ func init() {
 			if err != nil {
 				return err
 			}
-			sp := PathOf(ph.user, ph.level, d)
+			_, err = os.Stat(filepath.Join(ph.dir, ConfigFile))
+			sp := PathOf(ph.user, ph.level, d, err == nil)
+			if sp.Branch == "" {
+				return ctx.Emit(sp, fmt.Sprintf("%s, on the branch pop makes for the status issue\n", sp.Path))
+			}
 			return ctx.Emit(sp, fmt.Sprintf("%s on branch %s\n", sp.Path, sp.Branch))
 		},
 	})

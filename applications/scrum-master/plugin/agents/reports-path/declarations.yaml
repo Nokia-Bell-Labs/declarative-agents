@@ -12,7 +12,7 @@ tools:
   - path
   - --json
   visibility: internal
-  description: 'Where this week''s report or rollup goes, and its branch (GH-2725).'
+  description: 'Where this week''s report or rollup goes, as its status issue names it; a central reports checkout''s also names the branch, and in place pop makes it (GH-2725, GH-2777).'
   category: boundary
   parameters:
     type: object
@@ -29,6 +29,10 @@ tools:
         type: string
         description: 'A day of the week, YYYY-MM-DD; empty is today.'
         flag: --date
+      dir:
+        type: string
+        description: 'The checkout the report is written in; a central reports repository''s, holding reports.md, names its path and branch. Empty is the current directory.'
+        flag: --dir
   signature:
     emits: [ToolDone, ToolFailed, CommandError]
   output:

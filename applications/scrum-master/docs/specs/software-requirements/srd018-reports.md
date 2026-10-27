@@ -298,7 +298,7 @@ With --control and a level, aggregate reads the level's collection (R13) in plac
 <!-- req: R18.1 -->
 ### R18.1
 
-The status-report skill works a person's status issue in the repository they worked in: its words gather the week (reports week), last week's Next and Blockers (reports previous), and the path (reports path); the model shows them, asks one question at a time only what the tracker cannot know (each open Sprint Goal's status, problems, and completeness, the week's impact, the blockers, whether last week's commitments landed, and what comes next), drafts the report the person approves, writes it at the path, checks it with reports validate, and commits it; the machine pushes and merges it on the status issue. Each word has a model-free profile.
+The status-report skill works a person's status issue in the repository they worked in: its words gather the week (reports week), last week's Next and Blockers (reports previous), and the path (reports path), the one the status issue names, in place with no branch of its own since pop makes it, or in a central reports checkout with the branch its issue names (GH-2777); the model shows them, asks one question at a time only what the tracker cannot know (each open Sprint Goal's status, problems, and completeness, the week's impact, the blockers, whether last week's commitments landed, and what comes next), drafts the report the person approves, writes it at the path, checks it with reports validate, and commits it; the machine pushes and merges it on the status issue. Each word has a model-free profile.
 
 <!-- req: R18.2 -->
 ### R18.2

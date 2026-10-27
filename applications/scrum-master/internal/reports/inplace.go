@@ -263,22 +263,28 @@ func PreviousReport(t tracker.Tracker, cfg Config, project, user string, day tim
 		Work: r.Work, Blockers: r.Blockers, Impact: r.Impact, Next: r.Next}, nil
 }
 
-// StatusPath is where a status file for a week goes, and the branch its
-// issue's work goes on.
+// StatusPath is where a status file for a week goes, and, for a central
+// reports repository, the branch its issue names. In place the issue names
+// no branch: pop makes it, <iid>-<slug> (srd013 R7; GH-2777).
 type StatusPath struct {
 	Path    string `json:"path"`
 	Week    string `json:"week"`
 	Quarter string `json:"quarter"`
-	Branch  string `json:"branch"`
+	Branch  string `json:"branch,omitempty"`
 }
 
-// PathOf is a person's report path for day's week, or, with level set, the
-// rollup's: a team's named for its subsystem, the program's as program.
-func PathOf(user, level string, day time.Time) StatusPath {
+// PathOf is the path a person's status issue names for day's week: in
+// place, or, central, in a central reports repository on the branch its
+// issue names (StatusBody); with level set, the rollup's, a team's named
+// for its subsystem, the program's as program.
+func PathOf(user, level string, day time.Time, central bool) StatusPath {
 	start := WeekStart(day)
 	week := ISOWeek(start)
-	if level != "" {
-		return StatusPath{Path: RollupPath(start, level), Week: week, Quarter: Quarter(start), Branch: week + "-rollup-" + level}
+	switch {
+	case level != "":
+		return StatusPath{Path: RollupPath(start, level), Week: week, Quarter: Quarter(start)}
+	case central:
+		return StatusPath{Path: ReportPath(start, user), Week: week, Quarter: Quarter(start), Branch: week + "-" + user}
 	}
-	return StatusPath{Path: InPlaceReportPath(start, user), Week: week, Quarter: Quarter(start), Branch: week + "-" + user}
+	return StatusPath{Path: InPlaceReportPath(start, user), Week: week, Quarter: Quarter(start)}
 }
