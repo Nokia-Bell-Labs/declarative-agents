@@ -223,3 +223,59 @@ func TestRequirementsUnchangedReadsTheSRDs(t *testing.T) {
 		}
 	}
 }
+
+// TestRecommendationSkipsStatusCommits counts only the commits that change
+// the artifact: weekly status written in place, the reports and rollups
+// under status/ and the roster in control/reports.md, is no release's
+// content, merged straight or through a branch (GH-2774).
+func TestRecommendationSkipsStatusCommits(t *testing.T) {
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	write := func(p, s string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, p)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, p), []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	write(SRDDir+"/srd001-x.md", "R1\n")
+	write("control/reports.md", "# Reports\n")
+	git("add", "-A")
+	git("commit", "-q", "-m", "corpus")
+	git("tag", "corpus/v0.56.0")
+	write("control/reports.md", "# Reports\n\n- pm\n")
+	git("commit", "-q", "-am", "Name the program's reporters")
+	git("switch", "-q", "-c", "1-weekly-status")
+	write("status/reports/2026-Q4/2026-W44-pm.md", "report\n")
+	git("add", "-A")
+	git("commit", "-q", "-m", "Weekly status 2026-W44")
+	git("switch", "-q", "main")
+	git("merge", "-q", "--no-ff", "-m", "Merge 1-weekly-status", "1-weekly-status")
+	tags := []string{"corpus/v0.56.0"}
+	r := program.Defaults().Releases
+	n, err := Recommendation(r, "corpus", dir, tags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.Recommended != "" || n.RecommendedVersion != "" || !strings.Contains(n.Reason, "nothing to release") || !strings.Contains(n.Reason, "3 status") {
+		t.Fatalf("status commits only = %+v; want nothing to release, saying 3 status commits were not counted", n)
+	}
+	write(SRDDir+"/srd001-x.md", "R1 changed\n")
+	git("commit", "-q", "-am", "Reword R1")
+	n, err = Recommendation(r, "corpus", dir, tags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.Recommended != "minor" || !strings.HasPrefix(n.Reason, "1 commits since corpus/v0.56.0") {
+		t.Fatalf("one requirement change after status commits = %+v; want minor counting that one commit", n)
+	}
+}

@@ -15,26 +15,73 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/reports"
 )
 
+// StatusPaths are a repository's weekly status written in place: the
+// reports and rollups under status/ and the roster in control/reports.md
+// (GH-2725). They are no artifact's content, so a commit that changes only
+// them calls for no release (GH-2774).
+var StatusPaths = []string{reports.StatusDir + "/", reports.ControlFile}
+
 // CommitsSince returns the messages of the commits in dir since tag, or of
-// every commit when there is no tag yet.
-func CommitsSince(dir, tag string) ([]string, error) {
-	args := []string{"-C", dir, "log", "--format=%B%x1e"}
+// every commit when there is no tag yet, and how many it left out since
+// tag because they change only StatusPaths. A merge is judged by what it
+// brings to its first parent.
+func CommitsSince(dir, tag string) (messages []string, status int, err error) {
+	args := []string{"-C", dir, "log", "--format=%H%x1f%B%x1e"}
 	if tag != "" {
 		args = append(args, tag+"..HEAD")
 	}
 	out, err := exec.Command("git", args...).Output()
 	if err != nil {
-		return nil, fmt.Errorf("read the commits since %s: %w", tag, err)
+		return nil, 0, fmt.Errorf("read the commits since %s: %w", tag, err)
 	}
-	var messages []string
-	for _, m := range strings.Split(string(out), "\x1e") {
+	for _, c := range strings.Split(string(out), "\x1e") {
+		hash, m, ok := strings.Cut(strings.TrimSpace(c), "\x1f")
+		if !ok {
+			continue
+		}
+		if tag != "" {
+			only, err := statusOnly(dir, hash)
+			if err != nil {
+				return nil, 0, err
+			}
+			if only {
+				status++
+				continue
+			}
+		}
 		if m = strings.TrimSpace(m); m != "" {
 			messages = append(messages, m)
 		}
 	}
-	return messages, nil
+	return messages, status, nil
+}
+
+// statusOnly reports whether the commit changes nothing but StatusPaths
+// against its first parent.
+func statusOnly(dir, hash string) (bool, error) {
+	out, err := exec.Command("git", "-C", dir, "diff", "--name-only", hash+"^", hash).Output()
+	if err != nil {
+		return false, fmt.Errorf("read the paths %s changes: %w", short(hash), err)
+	}
+	files := strings.Fields(string(out))
+	for _, f := range files {
+		if !isStatusPath(f) {
+			return false, nil
+		}
+	}
+	return len(files) > 0, nil
+}
+
+func isStatusPath(p string) bool {
+	for _, s := range StatusPaths {
+		if p == s || (strings.HasSuffix(s, "/") && strings.HasPrefix(p, s)) {
+			return true
+		}
+	}
+	return false
 }
 
 // SRDDir holds a corpus's requirements.
@@ -72,7 +119,7 @@ func RequirementsUnchanged(dir, tag string) (bool, error) {
 // from the commits since the latest tag (srd015 R3.1).
 func Recommendation(r program.Releases, artifact, dir string, tags []string) (NextResult, error) {
 	n := Next(r, artifact, tags)
-	messages, err := CommitsSince(dir, n.LatestTag)
+	messages, status, err := CommitsSince(dir, n.LatestTag)
 	if err != nil {
 		return n, err
 	}
@@ -81,6 +128,9 @@ func Recommendation(r program.Releases, artifact, dir string, tags []string) (Ne
 		return n, err
 	}
 	n.Recommend(messages, unchanged)
+	if len(messages) == 0 && status > 0 {
+		n.Reason = fmt.Sprintf("no commit since %s changes %s, only %d status commits: nothing to release", n.LatestTag, artifact, status)
+	}
 	return n, nil
 }
 
