@@ -15,8 +15,9 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master"
 )
 
-// EmbeddedSkills is the full roster the binary ships: the embedded SKILL.md
-// skills and the profile-rendered ones, one source of truth per name.
+// EmbeddedSkills is the roster the binary installs: the embedded SKILL.md
+// skills and the profile-rendered ones Roster keeps, one source of truth
+// per name; every profile ships and is vendored all the same.
 func EmbeddedSkills() ([]Skill, error) {
 	embedded, err := Skills(scrummaster.Plugin, scrummaster.SkillsDir)
 	if err != nil {
@@ -26,7 +27,11 @@ func EmbeddedSkills() ([]Skill, error) {
 	if err != nil {
 		return nil, err
 	}
-	return MergeSkills(embedded, rendered)
+	roster, err := Roster(scrummaster.Plugin, scrummaster.AgentsDir, rendered)
+	if err != nil {
+		return nil, err
+	}
+	return MergeSkills(embedded, roster)
 }
 
 // A profile-rendered skill (GH-135): a skill whose workflow is a
