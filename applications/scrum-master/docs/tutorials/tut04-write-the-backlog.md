@@ -118,6 +118,9 @@ are what tie the work to the teams:
   components the release item's agreed epics name, one Sprint Goal each,
   unless the item's `delivered_by` names the team. You confirm or change
   each recommendation.
+- On the program's site, each scrum has a page: its Product Owner and
+  area, its open Sprint Goals with the stories they selected, the epics
+  its stories serve, cross-team ones included, and its own stories.
 
 ## When planning stops at the architecture
 

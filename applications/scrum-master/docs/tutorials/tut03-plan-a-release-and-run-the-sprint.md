@@ -29,7 +29,8 @@ only three things — the items, the version, and the end date:
    workflow.
 2. The `plan_candidates` word gathers the ranked initiative items,
    slipped items first, and the held-back items with what they lack —
-   fed, when a reports repository exists, by the week's aggregate
+   fed by the latest program rollup in the system repository, or, where a
+   program still keeps a central reports repository, by its aggregate
    (Tutorial 5).
 3. You choose the items and confirm or change the recommended version,
    end date, and tag.
@@ -53,11 +54,16 @@ one Sprint Goal per team (srd022):
 
 > Run tasks for release <version>.
 
-The `goals_plan` word derives the plan from the road map's release; for
-each outcome with an empty repository the skill asks which candidate
-repository serves it, and nothing else; the `goals_push` word files one
-Sprint Goal per team, each a document in the system repository before it
-is an issue (srd034). A refused outcome is fixed in the initiative or the
+The `goals_plan` word derives the plan from the road map's release and
+recommends the team for each item: the repository the outcome's
+`delivered_by` names; else every team whose components the item's agreed
+epics name in `architecture:`, one entry per team, so an item a
+cross-team epic spans reaches each team's Sprint Goal
+([Tutorial 4](tut04-write-the-backlog.md)); else the only team. The skill
+asks which candidate repository serves an item only when nothing
+recommends one, and you confirm or change every recommendation. The
+`goals_push` word files one Sprint Goal per team, each a document in the
+system repository before it is an issue (srd034). A refused outcome is fixed in the initiative or the
 subsystem SRDs, and the skill run again.
 
 ## Step 3: Sprint Planning in the team's repository
