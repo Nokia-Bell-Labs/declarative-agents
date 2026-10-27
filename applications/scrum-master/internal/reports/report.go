@@ -228,7 +228,7 @@ func (r Report) Check() []string {
 	if !r.hasBlockers {
 		problems = append(problems, "no ## Blockers section: every report has one, holding the single entry - none when nothing blocks")
 	}
-	if strings.HasPrefix(r.Path, StatusDir+"/") {
+	if IsInPlaceReportPath(r.Path) {
 		if !r.hasImpact {
 			problems = append(problems, "no ## Impact section: a report written in place says why the week's work mattered")
 		}

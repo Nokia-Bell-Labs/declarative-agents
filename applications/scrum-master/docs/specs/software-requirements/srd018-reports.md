@@ -55,7 +55,7 @@ Writes into a local checkout of the reports repository (--dir), whose owner comm
 <!-- req: R2.1 -->
 ### R2.1
 
-Checks that each report's body has a Work section and a Blockers section, one entry per item, each with its key-value fields, and that its front matter (author, sprint, components, blocked-on) is derived from the body (config format report). A report written in place, under status/, also has an Impact section and a Next section, as its status issue asks, and validate names each one missing; a central reports repository's report may omit them (GH-2778).
+Checks that each report's body has a Work section and a Blockers section, one entry per item, each with its key-value fields, and that its front matter (author, sprint, components, blocked-on) is derived from the body (config format report). A report written in place, under status/reports/, also has an Impact section and a Next section, as its status issue asks, and validate names each one missing, however the report's path is given, relative, absolute, or under --dir (GH-2790); a central reports repository's report may omit them (GH-2778).
 
 <!-- req: R2.2 -->
 ### R2.2
