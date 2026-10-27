@@ -66,6 +66,11 @@ plugin/ conforms to Agent Plugins 1.0: plugin.json at its root is a JSON object 
 
 The binary also embeds plugin/agents/<name>/: the declarative-agents profile of a skill whose workflow is a profile (design.md D14). scrum-master install renders that skill's SKILL.md from the profile's machine — the purpose's first paragraph is the description, the states between the initial and the terminal ones the numbered steps in the machine's order, the terminal states its ending — and refuses a name that is both an embedded SKILL.md and a profile. The rendered skill installs, stamps, checks, and uninstalls as any other (R2 to R6).
 
+<!-- req: R1.5 -->
+### R1.5
+
+Every profile ships and is vendored, so CI and a coding agent with no model run any of them by its path, but install writes a roster, not a skill per profile (GH-2749): each installed skill's description sits in the agent's context on every turn, and near-alike names route a request to a step rather than its workflow. The roster is the workflows a person starts, init, onboard, upgrade, check, pop, merge, implement, draft, design, specify, plan, tasks, sprint-end, release, peer-read, status-report, status-rollup, and site, each its rendered skill, and four group skills, issue, backlog, reports, and tracker, each naming its single-word profiles with each one's purpose and the command line that runs it. A profile reachable from no installed skill, as a workflow, a group's member, or a step a workflow runs, fails the build; a skill an earlier release installed that the roster drops is removed as any stale skill is (R5).
+
 <!-- req: R2 -->
 ## R2 - Targets
 
@@ -179,7 +184,7 @@ The vendoring reports the release and each file's action, created, updated, unch
 <!-- ac: AC1 -->
 ### AC1
 
-plugin/ is embedded; every SKILL.md conforms to Agent Skills and is at most 50 lines; --list names each skill with its description; mage audit fails a manifest or skill that breaks Agent Plugins 1.0 or Agent Skills; a skill whose workflow is a profile installs a SKILL.md rendered from the profile's machine, its states the numbered steps.
+plugin/ is embedded; every SKILL.md conforms to Agent Skills and is at most 50 lines; --list names each skill with its description; mage audit fails a manifest or skill that breaks Agent Plugins 1.0 or Agent Skills; a skill whose workflow is a profile installs a SKILL.md rendered from the profile's machine, its states the numbered steps; install writes the roster of workflows and group skills, every profile still shipped, refuses a profile no installed skill reaches, and removes the skills a repository installed per profile before.
 
 <!-- field: traces -->
 #### Traces
@@ -188,6 +193,7 @@ plugin/ is embedded; every SKILL.md conforms to Agent Skills and is at most 50 l
 - [R1.2](#r12)
 - [R1.3](#r13)
 - [R1.4](#r14)
+- [R1.5](#r15)
 
 <!-- ac: AC2 -->
 ### AC2
