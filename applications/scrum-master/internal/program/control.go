@@ -3,9 +3,7 @@
 package program
 
 import (
-	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 )
@@ -29,9 +27,11 @@ func ControlFor(control, dir, fallback string) string {
 // SystemControl is the system repository of the program the checkout at
 // dir belongs to: the checkout holding the trackers document that
 // checkout.FindTrackers finds there or beside it, named by its origin's
-// project path, or by its directory when it has no origin, as a project's
-// checkout is the sibling named for the project's last segment. Empty when
-// no checkout holds one.
+// project path whatever its folder is called, as a worktree pop opens is
+// named for its branch (GH-2752); an origin that is a local path names it
+// when its last segment is the main checkout's name, and with neither the
+// main checkout's name does, as a project's checkout is the sibling named
+// for the project's last segment. Empty when no checkout holds one.
 func SystemControl(dir string) string {
 	if dir == "" {
 		dir = "."
@@ -41,13 +41,16 @@ func SystemControl(dir string) string {
 		return ""
 	}
 	root := filepath.Dir(filepath.Dir(file))
+	name := filepath.Base(checkout.MainCheckout(root))
 	// As configured, not as url.insteadOf expands it, so a clone that
 	// rewrites its origin still names the system by its project (GH-105).
-	out, err := exec.Command("git", "-C", root, "config", "--get", "remote.origin.url").Output()
-	if url := strings.TrimSpace(string(out)); err == nil && url != "" {
-		if project := ProjectPath(url); filepath.Base(project) == filepath.Base(root) {
+	switch url := checkout.Origin(root); {
+	case checkout.IsForge(url):
+		return ProjectPath(url)
+	case url != "":
+		if project := ProjectPath(url); filepath.Base(project) == name {
 			return project
 		}
 	}
-	return filepath.Base(root)
+	return name
 }

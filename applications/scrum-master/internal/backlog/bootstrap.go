@@ -37,7 +37,7 @@ func (b *Bootstrap) Refused() bool { return b != nil && b.Checked && !b.Named }
 // against the system repository beside it, read from disk as the tracker's
 // routing finds it.
 func BootstrapOrder(dir string, documents int) *Bootstrap {
-	name, origin := filepath.Base(dir), ""
+	name, origin := filepath.Base(checkout.MainCheckout(dir)), ""
 	if out, err := exec.Command("git", "-C", dir, "config", "--get", "remote.origin.url").Output(); err == nil && strings.TrimSpace(string(out)) != "" {
 		origin = strings.TrimSpace(string(out))
 		name = path.Base(program.ProjectPath(origin))

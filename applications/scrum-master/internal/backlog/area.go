@@ -126,7 +126,7 @@ func repositorySubsystem(dir string, teams program.Subsystems) (program.Subsyste
 			}
 		}
 	}
-	name := filepath.Base(root)
+	name := filepath.Base(checkout.MainCheckout(root))
 	for _, sub := range teams {
 		for _, r := range sub.Repositories() {
 			if path.Base(r) == name {

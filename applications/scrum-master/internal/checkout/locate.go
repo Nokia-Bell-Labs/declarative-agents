@@ -74,6 +74,17 @@ func Of(dir, project string) bool {
 	return name == path.Base(project)
 }
 
+// MainCheckout is the main checkout of dir's repository, dir itself for one
+// or when git cannot say: a worktree, which pop names for its branch, is
+// named by the repository it is of (GH-2752).
+func MainCheckout(dir string) string { return mainOf(dir) }
+
+// IsForge reports whether an origin names a forge project, not a local
+// path.
+func IsForge(origin string) bool {
+	return origin != "" && !strings.HasPrefix(origin, "/") && !strings.HasPrefix(origin, ".")
+}
+
 // mainOf is the main checkout of dir's repository, dir itself for one or
 // when git cannot say: a worktree is named by the repository it is of.
 func mainOf(dir string) string {
