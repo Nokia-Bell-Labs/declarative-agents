@@ -146,28 +146,40 @@ func StatusPages(in StatusInput) (pages, data map[string][]byte, notes []string,
 	if len(in.Projects) > 0 {
 		system = in.Projects[0]
 	}
-	// With the roster in the system repository, the program's reports are
-	// collected where they were written (srd018 R13, R17; GH-2725).
-	if cfg, err := reports.LoadControl(in.Tracker, system, "main"); err == nil {
-		col, err := reports.Collect(in.Tracker, reports.CollectInput{Config: cfg, System: system, Ref: "main", Level: reports.ProgramLevel, From: from, To: to})
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		for _, u := range col.Unread {
-			notes = append(notes, fmt.Sprintf("%s: %s", u.Repository, u.Reason))
-		}
-		if agg, err = reports.Aggregate(in.Tracker, reports.AggregateInput{Config: cfg, Policy: in.Policy, From: from, To: to, Now: in.Sources.Today, Collection: &col}); err != nil {
-			return nil, nil, nil, err
-		}
-		add("signals", signalsPage(agg), agg)
-	} else if cfg, err := reports.LoadConfig(in.Reports); err != nil {
-		// A checkout that is no reports repository has no reports to
-		// aggregate; the page says so rather than the run failing.
-		notes = append(notes, "no reports configuration: "+err.Error())
-		add("signals", generated("status", "the weekly reports' aggregate")+"# Signals\n\nThe reports checkout has no reports.md, so there are no weekly reports to read.\n", agg)
+	// The program's reports come from the source reports.ChooseSource names
+	// (GH-2775): collected where they were written when the roster in the
+	// system repository names a reporter (srd018 R13, R17; GH-2725), else
+	// the central reports checkout.
+	if s, err := reports.ChooseSource(in.Tracker, system, "main", in.Reports); err != nil {
+		// A checkout that is no reports repository, beside a roster that
+		// names nobody, has no reports to aggregate; the page says so
+		// rather than the run failing.
+		notes = append(notes, "no reports to read: "+err.Error())
+		add("signals", generated("status", "the weekly reports' aggregate")+"# Signals\n\nNo roster names a reporter and the reports checkout has no reports.md, so there are no weekly reports to read.\n", agg)
 	} else {
-		if agg, err = reports.Aggregate(in.Tracker, reports.AggregateInput{Dir: in.Reports, Config: cfg, Policy: in.Policy, From: from, To: to, Now: in.Sources.Today}); err != nil {
+		ain := reports.AggregateInput{Config: s.Config, Policy: in.Policy, From: from, To: to, Now: in.Sources.Today}
+		if s.InPlace {
+			col, err := reports.Collect(in.Tracker, reports.CollectInput{Config: s.Config, System: system, Ref: "main", Level: reports.ProgramLevel, From: from, To: to})
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			for _, u := range col.Unread {
+				notes = append(notes, fmt.Sprintf("%s: %s", u.Repository, u.Reason))
+			}
+			ain.Collection = &col
+		} else {
+			ain.Dir = s.Central
+		}
+		if agg, err = reports.Aggregate(in.Tracker, ain); err != nil {
 			return nil, nil, nil, err
+		}
+		ain.Collection = nil
+		s.Explain(in.Tracker, &agg, ain)
+		notes = append(notes, "reports read "+agg.Source)
+		// The page and its data name the source but no local checkout path.
+		agg.Source = "in place, from the repositories the roster in the system repository names"
+		if !s.InPlace {
+			agg.Source = "from the central reports repository"
 		}
 		add("signals", signalsPage(agg), agg)
 	}
@@ -340,7 +352,11 @@ func sprintGoalsPage(goals []sprintend.SprintGoal, from, to string) string {
 
 func signalsPage(agg reports.Aggregation) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s# Signals\n\nWhat the weekly reports from %s to %s say needs attention: %d reports read.\n\n", generated("status", "the weekly reports' aggregate"), agg.From, agg.To, agg.Reports)
+	fmt.Fprintf(&b, "%s# Signals\n\nWhat the weekly reports from %s to %s say needs attention: %d reports read", generated("status", "the weekly reports' aggregate"), agg.From, agg.To, agg.Reports)
+	if agg.Source != "" {
+		b.WriteString(", " + agg.Source)
+	}
+	b.WriteString(".\n\n")
 	if len(agg.Signals) == 0 {
 		b.WriteString("No signal.\n")
 		return b.String()

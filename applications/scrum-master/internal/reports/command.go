@@ -221,27 +221,44 @@ func init() {
 			if err != nil {
 				return err
 			}
-			var cfg Config
-			var col *Collection
-			if aggArgs.control != "" {
-				if cfg, err = roster(t, aggArgs.control, aggArgs.ref); err != nil {
+			// The source is ChooseSource's (GH-2775): without --control, the
+			// system repository the checkout's reports.md names, whose roster
+			// wins when it names a reporter, so aggregate reads what
+			// sprint-end facts and the site read.
+			system := aggArgs.control
+			if system == "" && IsCentral(aggArgs.dir) {
+				central, err := LoadConfig(aggArgs.dir)
+				if err != nil {
 					return err
 				}
-				if col, err = collection(t, cfg, aggArgs.control, aggArgs.ref, aggArgs.level, aggArgs.subsystem, aggArgs.project, aggArgs.collected, from, to); err != nil {
+				system = central.System
+			}
+			s, err := ChooseSource(t, system, aggArgs.ref, aggArgs.dir)
+			if err != nil {
+				return err
+			}
+			cfg := s.Config
+			var col *Collection
+			if s.InPlace {
+				level := aggArgs.level
+				if level == "" && aggArgs.control == "" {
+					level = ProgramLevel
+				}
+				if col, err = collection(t, cfg, system, aggArgs.ref, level, aggArgs.subsystem, aggArgs.project, aggArgs.collected, from, to); err != nil {
 					return err
 				}
 				from, to = col.From, col.To
-			} else if cfg, err = LoadConfig(aggArgs.dir); err != nil {
-				return err
 			}
 			p, err := program.LoadPolicy(t, cfg.System, aggArgs.ref)
 			if err != nil {
 				return err
 			}
-			a, err := Aggregate(t, AggregateInput{Dir: aggArgs.dir, Config: cfg, Policy: p, From: from, To: to, Collection: col})
+			in := AggregateInput{Dir: s.Central, Config: cfg, Policy: p, From: from, To: to, Collection: col}
+			a, err := Aggregate(t, in)
 			if err != nil {
 				return err
 			}
+			s.Explain(t, &a, in)
 			if aggArgs.push {
 				if cfg.System == "" {
 					return fmt.Errorf("%w: --push needs --control, or system in reports.md", cli.ErrUsage)
@@ -251,7 +268,7 @@ func init() {
 				}
 			}
 			var b strings.Builder
-			fmt.Fprintf(&b, "%d report(s), %s to %s\n", a.Reports, a.From, a.To)
+			fmt.Fprintf(&b, "%d report(s), %s to %s, read %s\n", a.Reports, a.From, a.To, a.Source)
 			for _, s := range a.Signals {
 				fmt.Fprintf(&b, "  %-24s %s\n", s.Kind, s.Detail)
 			}

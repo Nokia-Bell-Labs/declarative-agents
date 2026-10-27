@@ -230,6 +230,36 @@ func TestSystemFactsGatherTheTeams(t *testing.T) {
 	})
 }
 
+// TestFactsReadTheSourceTheRosterChooses reads a central reports checkout
+// when the roster init wrote into the system repository names nobody, and
+// the reports in place, ignoring the central checkout and saying so, once
+// it names a reporter: the one rule every word that reads reports follows
+// (GH-2775).
+func TestFactsReadTheSourceTheRosterChooses(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, p trackertest.Program) {
+		central := t.TempDir()
+		doc, _ := reports.RosterDocument(reports.Config{Team: []reports.Member{{Username: "lead", Project: po1}}, System: "g/empty"})
+		os.WriteFile(filepath.Join(central, reports.ConfigFile), doc, 0o644)
+		w42, _ := reports.ParseWeek("2026-W42")
+		path := filepath.Join(central, reports.ReportPath(w42, "lead"))
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		os.WriteFile(path, []byte(reports.Render("lead", "2026-W42", nil, nil)), 0o644)
+		empty, _ := reports.RosterDocument(reports.Config{})
+		p.AddFile("g/empty", "main", reports.ControlFile, empty)
+		named, _ := reports.RosterDocument(reports.Config{Team: []reports.Member{{Username: "lead", Project: "g/named"}}})
+		p.AddFile("g/named", "main", reports.ControlFile, named)
+		f := p.Tracker()
+		a, err := periodAggregate(f, program.Defaults(), "g/empty", "main", central, "g/empty", "2026-W42", "2026-W42")
+		if err != nil || a.Reports != 1 || !strings.HasPrefix(a.Source, "central:") {
+			t.Fatalf("an empty roster beside a central checkout = %+v, %v; want its one report, read centrally", a, err)
+		}
+		a, err = periodAggregate(f, program.Defaults(), "g/named", "main", central, "g/named", "2026-W42", "2026-W42")
+		if err != nil || a.Reports != 0 || !strings.HasPrefix(a.Source, "in place:") || !strings.Contains(a.Source, "hold 1: move them into place") {
+			t.Fatalf("a roster naming a reporter = %+v, %v; want in place, naming the central report it does not read", a, err)
+		}
+	})
+}
+
 // TestEmptyListsAreEmpty holds the JSON results to [] for an empty list, not
 // null: stories with no story done, and facts for a team with no Sprint Goal
 // (srd038 R1.2, R2.4).

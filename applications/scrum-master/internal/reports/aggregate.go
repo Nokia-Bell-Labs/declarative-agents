@@ -74,6 +74,9 @@ type Aggregation struct {
 	Signals     []Signal            `json:"signals"`
 	Progress    []Progress          `json:"progress"`
 	Pushed      []PushResult        `json:"pushed,omitempty"`
+	// Source says which reports were read, in place or central, and why
+	// (ChooseSource, GH-2775).
+	Source string `json:"source,omitempty"`
 }
 
 // AggregateInput is one run over a range of ISO weeks.
