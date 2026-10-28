@@ -1,0 +1,50 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The checkouts machine's word (GH-2812); the directory is a parameter from
+# the run's request, never a ${VAR} arg (GH-135).
+unit: scrum-master-checkouts-declarations
+tools:
+- name: checkouts
+  type: exec
+  binary: scrum-master
+  args:
+  - checkouts
+  - --json
+  visibility: internal
+  description: Clone every registered repository at its group path beside the system checkout, and fast-forward the ones already there; a checkout on another branch or holding changes is kept with its reason (GH-2812).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: The system repository's checkout; empty is the git root.
+        flag: --dir
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The checkouts word's JSON report — the registry root and each registered repository, cloned, updated, kept with its reason, or failed with its reason.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: the folder the system checkout's layout mirrors
+    description: Clones registered repositories at their group paths and fast-forwards clean checkouts on their default branch.
+  - kind: external_api_call
+    target: each registered repository's origin
+    description: Clones and fetches over the origins' transport.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: A cloned checkout is a copy; removing its folder undoes the clone, and a fast-forward is the default branch as origin has it.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'checkouts: <error>'
+    state_after_failure: nothing cloned by a process that did not start
+  - signal: ToolFailed
+    condition: the directory is no system checkout, has no forge origin, or its registry names no repositories
+    message_shape: 'the registry names no repositories: <dir> holds no subsystem SRD under docs/specs/software-requirements'
+    state_after_failure: the checkouts are as they were

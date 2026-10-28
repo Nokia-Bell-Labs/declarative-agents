@@ -1,6 +1,6 @@
 ---
 id: srd043-init-onboard
-title: "Script: init, onboard, and doctor (scrum-master init, scrum-master onboard, scrum-master doctor)"
+title: "Script: init, onboard, doctor, and checkouts (scrum-master init, scrum-master onboard, scrum-master doctor, scrum-master checkouts)"
 ---
 <!-- Copyright (c) 2026 Nokia -->
 <!-- SPDX-License-Identifier: BSD-3-Clause -->
@@ -18,6 +18,7 @@ title: "Script: init, onboard, and doctor (scrum-master init, scrum-master onboa
 - A block is appended to an orientation file that has none, rather than the file being kept as edited. AGENTS.md at the top level is the one place every agent reads, so scrum-master stays agent-agnostic by writing there, and a repository that joins a program usually already has its own AGENTS.md and README.md; keeping them untouched would leave scrum-master's text out, and --force would replace the owner's. An owner who deletes the block gets it back on the next run. Every other skeleton file belongs to its owner once written, so it is never refreshed and R3.2 holds for it.
 - Repair runs the formatter the agent carries: the agent links agent-core's format library with the words, so it formats and checks in its own process with no Go toolchain (GH-33). Outside the agent, repair builds the spec tool from the pinned release's source as mage fmt builds it (srd040 R1.1), with a Go toolchain or a tool already built at the pin.
 - doctor reports the release the repository vendored rather than vendoring it. Repair changes only documents; the vendoring is the init, onboard, and upgrade profiles' step (srd037 R7.4), so doctor names the upgrade profile as the fix.
+- checkouts derives a clone URL from the SRD when it writes one a clone takes, else from the system checkout's origin with the project path swapped, so the clones use the scheme and host the person already uses (GH-2812). It lays repositories down under the folder the system checkout's own path mirrors, the layout Locate searches (GH-2803), so what it clones is found.
 - Taking a new release is its own profile, upgrade, not a rerun of init or onboard (GH-2719). A rerun of init may seed a tracker and a rerun of onboard files a registration when none is open, which are steps of laying a repository down; upgrade composes only the three steps a new release needs, vendor, doctor, and install, each a word that keeps what a person edited, at either level.
 
 <!-- field: problem -->
@@ -54,6 +55,7 @@ since the format tools run only in this repository's mage (srd040).
 - G3: Running either command again changes nothing, and nothing a person wrote is overwritten without --force.
 - G4: A first-time reader, person or agent, learns from the repository itself what each hierarchy level is, who owns it, and which scrum-master commands and skills operate on it.
 - G5: One command brings a repository an older scrum-master laid down up to date: missing files added, scrum-master's orientation text refreshed, documents repaired to the pinned format, and nothing a person wrote lost.
+- G6: One command lays the program's checkouts down from the system checkout: every registered repository cloned at its group path, the ones already there brought up to date, and nothing a person is working in touched.
 
 <!-- req: R1 -->
 ## R1 - scrum-master init
@@ -195,6 +197,24 @@ It serves a system and a subsystem repository alike, seeds no tracker, files no 
 
 Each word that refuses ends the run in a state that names what stands: with no release installed, the vendoring refuses and nothing is written; a directory that is not a program repository is refused by doctor after the vendoring; a repository that uses no agent scrum-master knows is reported with the profiles vendored and the repository repaired. The refusal's reason, as printed, is the run's last output.
 
+<!-- req: R6 -->
+## R6 - scrum-master checkouts
+
+<!-- req: R6.1 -->
+### R6.1
+
+checkouts, run from the system checkout, reads the registry, the subsystem SRDs (srd048 R8), and clones each registered repository that has no checkout — every scrum repository and component row, each once, the system repository left out — at its group path under the folder the system checkout's own layout mirrors, the level the checkout lookup searches (GH-2803). A system checked out side by side, not below its group, clones beside itself, the group segments its own path does not carry trimmed.
+
+<!-- req: R6.2 -->
+### R6.2
+
+A repository already checked out, as the lookup finds it, is fetched and fast-forwarded on its default branch. One on another branch, or holding changes git status shows, is kept as it is, with the reason; nothing a person is working in is touched.
+
+<!-- req: R6.3 -->
+### R6.3
+
+The output is one line per repository — cloned, updated, kept with the reason, or failed with the reason — with the counts, and the JSON mirrors it. A repository that cannot be reached fails alone, and the run goes on. A dry run reports what would be cloned or updated and touches nothing. Where a reader notes a registered repository has no checkout (GH-2726), the note names this word as the remedy.
+
 <!-- field: non_goals -->
 ## Non-goals
 
@@ -314,3 +334,15 @@ On a system and on a subsystem repository an older release laid down, the upgrad
 - [R5.1](#r51)
 - [R5.2](#r52)
 - [R5.3](#r53)
+
+<!-- ac: AC10 -->
+### AC10
+
+From a system checkout below its group path, checkouts clones every registered repository at its group path under the mirrored folder, and from one checked out side by side it clones beside itself; a second run fast-forwards them; a checkout on another branch or holding changes is kept with the reason and the rest still run; a repository that cannot be reached fails alone with the reason; a dry run reports the plan and clones nothing; and a reader's note on a registered repository with no checkout names checkouts as the remedy.
+
+<!-- field: traces -->
+#### Traces
+
+- [R6.1](#r61)
+- [R6.2](#r62)
+- [R6.3](#r63)
