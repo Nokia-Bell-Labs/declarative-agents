@@ -172,3 +172,17 @@ func TestChooseSourceNamesACheckoutItDoesNotRead(t *testing.T) {
 		}
 	})
 }
+
+// A reports checkout given as "." is named by its absolute path (GH-2799).
+func TestChooseSourceNamesACheckoutByItsPath(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, p trackertest.Program) {
+		inPlaceProgram(p)
+		f := p.Tracker()
+		site, _ := filepath.EvalSymlinks(t.TempDir())
+		t.Chdir(site)
+		s, err := ChooseSource(f, "g/system", "main", ".")
+		if err != nil || !strings.Contains(s.Reason, "; "+site+" holds no reports.md") || strings.Contains(s.Reason, "; . holds") {
+			t.Fatalf(`"." beside a roster = %q, %v; want it named %s`, s.Reason, err, site)
+		}
+	})
+}

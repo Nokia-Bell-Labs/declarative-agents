@@ -452,9 +452,10 @@ func closesMentioned(project, description string, mentioned map[string]bool) boo
 // closesOnlyRoutine reports whether every issue the merge closes is
 // routine or planning, not delivery the reports account for: a recurring
 // one (type::recurring), such as a sprint-end or a status report, one
-// on the management plane, such as writing a goal's stories (GH-24), or one
-// that cuts a release (kind::release), which publishes delivered work and
-// is none itself (GH-141).
+// on the management plane, such as writing a goal's stories (GH-24), one on
+// the control plane, a policy or roster change (GH-2799), or one that cuts
+// a release (kind::release), which publishes delivered work and is none
+// itself (GH-141).
 func closesOnlyRoutine(t tracker.Tracker, project, description string) (bool, error) {
 	refs := closesPattern.FindAllStringSubmatch(description, -1)
 	for _, m := range refs {
@@ -463,7 +464,9 @@ func closesOnlyRoutine(t tracker.Tracker, project, description string) (bool, er
 			ref = project + ref
 		}
 		i, ok, err := issueOf(t, ref)
-		if err != nil || !ok || !(i.HasLabel("type::recurring") || i.HasLabel("plane::management") || i.HasLabel("kind::release")) {
+		// Governance, a policy or roster change on the control plane, is no
+		// sprint work the reports account for, as management is not (GH-2799).
+		if err != nil || !ok || !(i.HasLabel("type::recurring") || i.HasLabel("plane::management") || i.HasLabel("plane::control") || i.HasLabel("kind::release")) {
 			return false, err
 		}
 	}

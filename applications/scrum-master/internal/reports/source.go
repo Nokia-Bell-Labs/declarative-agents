@@ -45,8 +45,14 @@ func ChooseSource(t tracker.Forge, system, ref, central string) (Source, error) 
 	// the site's home only, is no central one: it is named as not read,
 	// never dropped in silence (GH-2791).
 	given := central
+	if abs, err := filepath.Abs(given); given != "" && err == nil {
+		// Named by its absolute path, never "." (GH-2799).
+		given = abs
+	}
 	if !IsCentral(central) {
 		central = ""
+	} else {
+		central = given
 	}
 	notRead := ""
 	if given != "" && central == "" {

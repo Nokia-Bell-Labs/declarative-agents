@@ -517,3 +517,31 @@ func TestUnreportedWorkStartsAtTheRepositorysFirstIssue(t *testing.T) {
 		t.Fatalf("no report read: unreported work = %v, want only the merge after the repository's first issue", unreported)
 	}
 }
+
+// A merge closing only a control-plane issue, a policy or roster change,
+// is no unreported work; one closing data-plane work still is (GH-2799).
+func TestAControlPlaneMergeIsNoUnreportedWork(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, p trackertest.Program) {
+		p.AddMerge("g/system", tracker.Merge{IID: 1, Title: "Name the reporters", Author: "tpm", MergedAt: "2026-10-14", Description: "Closes #1"})
+		p.AddMerge("g/system", tracker.Merge{IID: 2, Title: "Unplanned work", Author: "tpm", MergedAt: "2026-10-14", Description: "Closes #2"})
+		f := p.Tracker()
+		defer createdOn(f, "2026-10-12")()
+		f.CreateIssue("g/system", tracker.NewIssue{Title: "Name the reporters", Labels: []string{"plane::control"}})
+		f.CreateIssue("g/system", tracker.NewIssue{Title: "Unplanned", Labels: []string{"plane::data", "kind::build"}})
+		cfg := Config{Team: []Member{{"tpm", "g/system"}}, System: "g/system"}
+		cfg.defaults()
+		a, err := Aggregate(f, AggregateInput{Dir: t.TempDir(), Config: cfg, Policy: program.Defaults(), From: "2026-W42", To: "2026-W42"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var unreported []string
+		for _, s := range a.Signals {
+			if s.Kind == SignalUnreportedWork {
+				unreported = append(unreported, s.Subject)
+			}
+		}
+		if !slices.Equal(unreported, []string{mergeRef(t, f, "g/system", "Unplanned work")}) {
+			t.Fatalf("unreported work = %v, want only the data-plane merge", unreported)
+		}
+	})
+}
