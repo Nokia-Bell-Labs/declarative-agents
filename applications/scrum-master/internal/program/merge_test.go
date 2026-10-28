@@ -415,3 +415,54 @@ func TestMergeReadsTheBranchAgainstOrigin(t *testing.T) {
 		t.Fatalf("merge = %+v, %v; want merged with no audit, the command and the reason named, as the branch changes no docs/", m, err)
 	}
 }
+
+// TestMergeTakesNoEarlierMergeOfTheSameReference: main's history holds an
+// earlier merge citing g/po-1#1, as a previous run's issue with the same
+// number left it. The issue now numbered 1, its branch at main's tip with no
+// commit of its own, is refused as having nothing to merge, not taken for
+// that merge's delivery; once it carries a commit it merges as its own
+// (GH-2801).
+func TestMergeTakesNoEarlierMergeOfTheSameReference(t *testing.T) {
+	tr, checkout := newBeadsTracker(t, "alice")
+	beadstest.Git(t, checkout, "switch", "-q", "-c", "1-an-earlier-run")
+	beadstest.Git(t, checkout, "commit", "-q", "--allow-empty", "-m", "Earlier work")
+	beadstest.Git(t, checkout, "switch", "-q", "main")
+	beadstest.Git(t, checkout, "merge", "-q", "--no-ff", "1-an-earlier-run", "-m", "Merge 1-an-earlier-run (g/po-1#1)")
+	beadstest.Git(t, checkout, "branch", "-q", "-D", "1-an-earlier-run")
+	beadstest.Git(t, checkout, "push", "-q", "origin", "main")
+	earlier := beadstest.Git(t, checkout, "rev-parse", "main")
+
+	work, _ := tr.CreateIssue("g/po-1", tracker.NewIssue{Title: "Name the reporters", Milestone: "m", Description: goodBody,
+		Labels: []string{"plane::data", "kind::build", "component::po-1"}})
+	if work.IID != 1 {
+		t.Fatalf("the issue is #%d, want #1", work.IID)
+	}
+	p, err := Pop(tr, ExecGit{}, "g/po-1", work.IID, checkout, Defaults(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beadstest.Git(t, p.Worktree, "push", "-q", "-u", "origin", "HEAD")
+	gate := MergeGate{Command: "true", Dir: p.Worktree}
+	m, err := Merge(tr, ExecGit{}, "g/po-1", "g/po-1", work.IID, p.Branch, p.Worktree, gate, nil, false)
+	if err == nil || !strings.Contains(err.Error(), "has no commits over main") || m.Commit != "" {
+		t.Fatalf("merging an empty branch beside an earlier merge of g/po-1#1 = %+v, %v; want it refused naming no commit", m, err)
+	}
+	if got, _ := tr.GetIssue("g/po-1", work.IID); got.State == "closed" {
+		t.Fatal("the refused merge closed the issue")
+	}
+
+	if err := os.WriteFile(filepath.Join(p.Worktree, "roster.md"), []byte("po-1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	beadstest.Git(t, p.Worktree, "add", "-A")
+	beadstest.Git(t, p.Worktree, "commit", "-q", "-m", "Name the reporters")
+	beadstest.Git(t, p.Worktree, "push", "-q")
+	m, err = Merge(tr, ExecGit{}, "g/po-1", "g/po-1", work.IID, p.Branch, p.Worktree, gate, nil, false)
+	if err != nil || !m.Merged || m.Commit == earlier {
+		t.Fatalf("the branch with its commit = %+v, %v; want its own merge", m, err)
+	}
+	again, err := Merge(tr, ExecGit{}, "g/po-1", "g/po-1", work.IID, p.Branch, p.Worktree, gate, nil, false)
+	if err != nil || again.Merged || again.Commit != m.Commit {
+		t.Fatalf("a re-run = %+v, %v; want its own merge recognized, %s", again, err, m.Commit)
+	}
+}

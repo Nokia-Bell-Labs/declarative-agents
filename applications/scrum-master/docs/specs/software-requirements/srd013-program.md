@@ -102,7 +102,7 @@ Returns one issue with its labels, its state per srd041 R1–R32, its sub-issues
 <!-- req: R5.1 -->
 ### R5.1
 
-Merges a worktree branch into the default branch of the repository's main checkout with a merge commit whose message cites the issue and every open issue named with --closes (one another merge already closed is reported, not cited, since every cited issue reads as closed by the merge), pushes it, and closes each issue on that merge: the merge it made is the one each records, though an earlier merge cites the same reference. scrum-master issue close, which is not shown the merge, takes the first merge citing the issue made after the issue was created (srd042 R2.3).
+Merges a worktree branch into the default branch of the repository's main checkout with a merge commit whose message cites the issue and every open issue named with --closes (one another merge already closed is reported, not cited, since every cited issue reads as closed by the merge), pushes it, and closes each issue on that merge: the merge it made is the one each records, though an earlier merge cites the same reference. scrum-master issue close, which is not shown the merge, takes the first merge citing the issue made after the issue was created (srd042 R2.3). A branch reads as already merged only through the merge that brought it in, one whose second parent's history holds the branch's tip and whose first parent's does not; a branch with no commits over the base and no such merge is refused, so an earlier merge citing the same reference, as a reused issue number leaves, is never taken for its delivery (GH-2801).
 
 <!-- req: R5.2 -->
 ### R5.2
