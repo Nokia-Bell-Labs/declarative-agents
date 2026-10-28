@@ -99,10 +99,11 @@ func TestChatDialectLoadNamesThePath(t *testing.T) {
 func TestShippedChatDialectsLoad(t *testing.T) {
 	t.Parallel()
 	for library, want := range map[string]struct{ provider, auth string }{
-		"ollama":    {provider: "ollama", auth: "none"},
-		"cohere":    {provider: "cohere", auth: "bearer"},
-		"anthropic": {provider: "anthropic", auth: "bearer"},
-		"vertex":    {provider: "gcp.vertex_ai", auth: "bearer"},
+		"ollama":     {provider: "ollama", auth: "none"},
+		"cohere":     {provider: "cohere", auth: "bearer"},
+		"anthropic":  {provider: "anthropic", auth: "bearer"},
+		"vertex":     {provider: "gcp.vertex_ai", auth: "bearer"},
+		"openrouter": {provider: "openrouter", auth: "bearer"},
 	} {
 		chat, err := Load(filepath.Join("..", "..", "..", "..", "tools", "providers", library, FileName))
 

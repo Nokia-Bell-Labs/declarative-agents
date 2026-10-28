@@ -20,8 +20,9 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest/credentials"
 )
 
-// The Anthropic and Vertex AI libraries (srd058 R1.3, GH-2805) bind the
-// OpenAI-compatible endpoints both platforms serve, so the srd058 R5.3 checks
+// The Anthropic, Vertex AI, and OpenRouter libraries (srd058 R1.3, GH-2805,
+// GH-2807) bind the OpenAI-compatible endpoints the platforms serve, so the
+// srd058 R5.3 checks
 // the synthetic library established run against the shipped files too: the
 // unchanged invoke_llm word, the bearer credential resolved at call time, the
 // library's own fence-stripping parser matched by model prefix, and the R1.4
@@ -40,6 +41,8 @@ var shippedOpenAIShapedLibraries = []shippedOpenAIShaped{
 		model: "claude-opus-5-5", provider: "anthropic"},
 	{library: "vertex", path: "/chat/completions", credential: "VERTEX_ACCESS_TOKEN",
 		model: "google/gemini-2.5-flash", provider: "gcp.vertex_ai"},
+	{library: "openrouter", path: "/api/v1/chat/completions", credential: "OPENROUTER_API_KEY",
+		model: "anthropic/claude-opus-5-5", provider: "openrouter"},
 }
 
 func shippedOpenAIShapedBuilder(t *testing.T, entry shippedOpenAIShaped, url string, resolved *ResolvedModel) *InvokeLLMBuilder {
